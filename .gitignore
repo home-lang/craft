@@ -4,3 +4,4 @@ zig-out/
 *.swp
 *.swo
 *~
+/.zig-cache
