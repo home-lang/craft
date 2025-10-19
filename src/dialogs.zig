@@ -570,3 +570,515 @@ pub const CommonDialogs = struct {
         });
     }
 };
+
+/// Toast Notification System
+pub const ToastType = enum {
+    info,
+    success,
+    warning,
+    error_msg,
+};
+
+pub const ToastPosition = enum {
+    top_left,
+    top_center,
+    top_right,
+    bottom_left,
+    bottom_center,
+    bottom_right,
+};
+
+pub const ToastOptions = struct {
+    message: []const u8,
+    title: ?[]const u8 = null,
+    type: ToastType = .info,
+    position: ToastPosition = .bottom_right,
+    duration_ms: u64 = 3000,
+    closable: bool = true,
+    icon: ?[]const u8 = null,
+    action_text: ?[]const u8 = null,
+    action_callback: ?*const fn () void = null,
+};
+
+pub const Toast = struct {
+    id: usize,
+    options: ToastOptions,
+    shown_at: i64,
+    closed: bool,
+
+    pub fn init(id: usize, options: ToastOptions) Toast {
+        return Toast{
+            .id = id,
+            .options = options,
+            .shown_at = std.time.milliTimestamp(),
+            .closed = false,
+        };
+    }
+
+    pub fn close(self: *Toast) void {
+        self.closed = true;
+    }
+
+    pub fn isExpired(self: Toast) bool {
+        const now = std.time.milliTimestamp();
+        const elapsed = @as(u64, @intCast(now - self.shown_at));
+        return elapsed >= self.options.duration_ms;
+    }
+};
+
+pub const ToastManager = struct {
+    toasts: std.ArrayList(Toast),
+    next_id: usize,
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator) ToastManager {
+        return ToastManager{
+            .toasts = std.ArrayList(Toast).init(allocator),
+            .next_id = 1,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *ToastManager) void {
+        self.toasts.deinit();
+    }
+
+    pub fn show(self: *ToastManager, options: ToastOptions) !usize {
+        const id = self.next_id;
+        self.next_id += 1;
+
+        const toast = Toast.init(id, options);
+        try self.toasts.append(toast);
+
+        return id;
+    }
+
+    pub fn close(self: *ToastManager, id: usize) void {
+        for (self.toasts.items) |*toast| {
+            if (toast.id == id) {
+                toast.close();
+                break;
+            }
+        }
+    }
+
+    pub fn closeAll(self: *ToastManager) void {
+        for (self.toasts.items) |*toast| {
+            toast.close();
+        }
+    }
+
+    pub fn update(self: *ToastManager) void {
+        // Remove expired and closed toasts
+        var i: usize = 0;
+        while (i < self.toasts.items.len) {
+            const toast = self.toasts.items[i];
+            if (toast.closed or toast.isExpired()) {
+                _ = self.toasts.swapRemove(i);
+            } else {
+                i += 1;
+            }
+        }
+    }
+};
+
+/// Context Menu Dialog
+pub const ContextMenuItem = struct {
+    label: []const u8,
+    icon: ?[]const u8 = null,
+    shortcut: ?[]const u8 = null,
+    enabled: bool = true,
+    checked: bool = false,
+    callback: ?*const fn () void = null,
+    submenu: ?[]const ContextMenuItem = null,
+    separator: bool = false,
+};
+
+pub const ContextMenuOptions = struct {
+    items: []const ContextMenuItem,
+    x: i32,
+    y: i32,
+};
+
+pub const ContextMenu = struct {
+    options: ContextMenuOptions,
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator, options: ContextMenuOptions) ContextMenu {
+        return ContextMenu{
+            .options = options,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn show(self: *ContextMenu) !void {
+        _ = self;
+        // Platform-specific implementation to show context menu
+    }
+
+    pub fn close(self: *ContextMenu) void {
+        _ = self;
+        // Close the context menu
+    }
+};
+
+/// Popover Dialog
+pub const PopoverOptions = struct {
+    content: []const u8,
+    title: ?[]const u8 = null,
+    target_x: i32,
+    target_y: i32,
+    width: u32 = 300,
+    height: u32 = 200,
+    arrow_position: ArrowPosition = .top,
+    closable: bool = true,
+    modal: bool = false,
+
+    pub const ArrowPosition = enum {
+        top,
+        bottom,
+        left,
+        right,
+        none,
+    };
+};
+
+pub const Popover = struct {
+    options: PopoverOptions,
+    allocator: std.mem.Allocator,
+    visible: bool,
+
+    pub fn init(allocator: std.mem.Allocator, options: PopoverOptions) Popover {
+        return Popover{
+            .options = options,
+            .allocator = allocator,
+            .visible = false,
+        };
+    }
+
+    pub fn show(self: *Popover) !void {
+        self.visible = true;
+        // Platform-specific implementation
+    }
+
+    pub fn hide(self: *Popover) void {
+        self.visible = false;
+    }
+
+    pub fn toggle(self: *Popover) !void {
+        if (self.visible) {
+            self.hide();
+        } else {
+            try self.show();
+        }
+    }
+};
+
+/// Modal Overlay Dialog
+pub const ModalOptions = struct {
+    title: []const u8,
+    content: []const u8,
+    width: u32 = 600,
+    height: u32 = 400,
+    closable: bool = true,
+    backdrop_dismiss: bool = true,
+    buttons: []const ModalButton = &[_]ModalButton{},
+};
+
+pub const ModalButton = struct {
+    label: []const u8,
+    style: ButtonStyle = .default,
+    callback: *const fn () void,
+
+    pub const ButtonStyle = enum {
+        default,
+        primary,
+        danger,
+        success,
+    };
+};
+
+pub const Modal = struct {
+    options: ModalOptions,
+    allocator: std.mem.Allocator,
+    visible: bool,
+
+    pub fn init(allocator: std.mem.Allocator, options: ModalOptions) Modal {
+        return Modal{
+            .options = options,
+            .allocator = allocator,
+            .visible = false,
+        };
+    }
+
+    pub fn show(self: *Modal) !void {
+        self.visible = true;
+        // Platform-specific implementation
+    }
+
+    pub fn hide(self: *Modal) void {
+        self.visible = false;
+    }
+};
+
+/// Drawer/Sidebar Dialog
+pub const DrawerOptions = struct {
+    title: []const u8,
+    content: []const u8,
+    position: Position = .right,
+    width: u32 = 400,
+    closable: bool = true,
+    overlay: bool = true,
+
+    pub const Position = enum {
+        left,
+        right,
+        top,
+        bottom,
+    };
+};
+
+pub const Drawer = struct {
+    options: DrawerOptions,
+    allocator: std.mem.Allocator,
+    visible: bool,
+
+    pub fn init(allocator: std.mem.Allocator, options: DrawerOptions) Drawer {
+        return Drawer{
+            .options = options,
+            .allocator = allocator,
+            .visible = false,
+        };
+    }
+
+    pub fn show(self: *Drawer) !void {
+        self.visible = true;
+        // Platform-specific implementation
+    }
+
+    pub fn hide(self: *Drawer) void {
+        self.visible = false;
+    }
+
+    pub fn toggle(self: *Drawer) !void {
+        if (self.visible) {
+            self.hide();
+        } else {
+            try self.show();
+        }
+    }
+};
+
+/// Bottom Sheet Dialog
+pub const BottomSheetOptions = struct {
+    title: ?[]const u8 = null,
+    content: []const u8,
+    height: u32 = 300,
+    draggable: bool = true,
+    closable: bool = true,
+    snap_points: []const u32 = &[_]u32{ 300, 600 },
+};
+
+pub const BottomSheet = struct {
+    options: BottomSheetOptions,
+    allocator: std.mem.Allocator,
+    visible: bool,
+    current_height: u32,
+
+    pub fn init(allocator: std.mem.Allocator, options: BottomSheetOptions) BottomSheet {
+        return BottomSheet{
+            .options = options,
+            .allocator = allocator,
+            .visible = false,
+            .current_height = options.height,
+        };
+    }
+
+    pub fn show(self: *BottomSheet) !void {
+        self.visible = true;
+        // Platform-specific implementation
+    }
+
+    pub fn hide(self: *BottomSheet) void {
+        self.visible = false;
+    }
+
+    pub fn setHeight(self: *BottomSheet, height: u32) void {
+        self.current_height = height;
+        // Update UI
+    }
+
+    pub fn snapToPoint(self: *BottomSheet, index: usize) void {
+        if (index < self.options.snap_points.len) {
+            self.current_height = self.options.snap_points[index];
+        }
+    }
+};
+
+/// Alert/Notification Banner
+pub const BannerOptions = struct {
+    message: []const u8,
+    type: BannerType = .info,
+    position: BannerPosition = .top,
+    closable: bool = true,
+    auto_dismiss: bool = true,
+    duration_ms: u64 = 5000,
+    actions: []const BannerAction = &[_]BannerAction{},
+
+    pub const BannerType = enum {
+        info,
+        success,
+        warning,
+        error_msg,
+    };
+
+    pub const BannerPosition = enum {
+        top,
+        bottom,
+    };
+};
+
+pub const BannerAction = struct {
+    label: []const u8,
+    callback: *const fn () void,
+};
+
+pub const Banner = struct {
+    options: BannerOptions,
+    allocator: std.mem.Allocator,
+    visible: bool,
+    shown_at: i64,
+
+    pub fn init(allocator: std.mem.Allocator, options: BannerOptions) Banner {
+        return Banner{
+            .options = options,
+            .allocator = allocator,
+            .visible = false,
+            .shown_at = 0,
+        };
+    }
+
+    pub fn show(self: *Banner) !void {
+        self.visible = true;
+        self.shown_at = std.time.milliTimestamp();
+        // Platform-specific implementation
+    }
+
+    pub fn hide(self: *Banner) void {
+        self.visible = false;
+    }
+
+    pub fn shouldDismiss(self: Banner) bool {
+        if (!self.options.auto_dismiss) return false;
+        const now = std.time.milliTimestamp();
+        const elapsed = @as(u64, @intCast(now - self.shown_at));
+        return elapsed >= self.options.duration_ms;
+    }
+};
+
+/// Tooltip Dialog
+pub const TooltipOptions = struct {
+    text: []const u8,
+    target_x: i32,
+    target_y: i32,
+    delay_ms: u64 = 500,
+    position: TooltipPosition = .top,
+
+    pub const TooltipPosition = enum {
+        top,
+        bottom,
+        left,
+        right,
+        auto,
+    };
+};
+
+pub const Tooltip = struct {
+    options: TooltipOptions,
+    allocator: std.mem.Allocator,
+    visible: bool,
+
+    pub fn init(allocator: std.mem.Allocator, options: TooltipOptions) Tooltip {
+        return Tooltip{
+            .options = options,
+            .allocator = allocator,
+            .visible = false,
+        };
+    }
+
+    pub fn show(self: *Tooltip) !void {
+        self.visible = true;
+        // Platform-specific implementation
+    }
+
+    pub fn hide(self: *Tooltip) void {
+        self.visible = false;
+    }
+};
+
+/// Dropdown/Select Dialog
+pub const DropdownOption = struct {
+    label: []const u8,
+    value: []const u8,
+    icon: ?[]const u8 = null,
+    disabled: bool = false,
+};
+
+pub const DropdownOptions = struct {
+    options: []const DropdownOption,
+    selected_value: ?[]const u8 = null,
+    placeholder: []const u8 = "Select...",
+    searchable: bool = false,
+    multi_select: bool = false,
+    max_height: u32 = 300,
+};
+
+pub const Dropdown = struct {
+    options: DropdownOptions,
+    allocator: std.mem.Allocator,
+    visible: bool,
+    selected_indices: std.ArrayList(usize),
+
+    pub fn init(allocator: std.mem.Allocator, options: DropdownOptions) !Dropdown {
+        return Dropdown{
+            .options = options,
+            .allocator = allocator,
+            .visible = false,
+            .selected_indices = std.ArrayList(usize).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *Dropdown) void {
+        self.selected_indices.deinit();
+    }
+
+    pub fn show(self: *Dropdown) !void {
+        self.visible = true;
+    }
+
+    pub fn hide(self: *Dropdown) void {
+        self.visible = false;
+    }
+
+    pub fn selectOption(self: *Dropdown, index: usize) !void {
+        if (self.options.multi_select) {
+            try self.selected_indices.append(index);
+        } else {
+            self.selected_indices.clearRetainingCapacity();
+            try self.selected_indices.append(index);
+        }
+    }
+
+    pub fn getSelectedValues(self: *Dropdown) ![][]const u8 {
+        var values = std.ArrayList([]const u8).init(self.allocator);
+        defer values.deinit();
+
+        for (self.selected_indices.items) |idx| {
+            if (idx < self.options.options.len) {
+                try values.append(self.options.options[idx].value);
+            }
+        }
+
+        return values.toOwnedSlice();
+    }
+};

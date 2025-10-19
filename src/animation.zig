@@ -554,6 +554,7 @@ pub const AnimationController = struct {
 
 /// Common animation presets
 pub const Presets = struct {
+    // Fade animations
     pub fn fadeIn(duration_ms: u64) Animation {
         return Animation.init(0.0, 1.0, duration_ms, .ease_in_out_quad);
     }
@@ -562,15 +563,156 @@ pub const Presets = struct {
         return Animation.init(1.0, 0.0, duration_ms, .ease_in_out_quad);
     }
 
+    pub fn fadeInSlow(duration_ms: u64) Animation {
+        return Animation.init(0.0, 1.0, duration_ms, .ease_in_sine);
+    }
+
+    pub fn fadeOutSlow(duration_ms: u64) Animation {
+        return Animation.init(1.0, 0.0, duration_ms, .ease_out_sine);
+    }
+
+    // Slide animations
     pub fn slideIn(start: f32, end: f32, duration_ms: u64) Animation {
         return Animation.init(start, end, duration_ms, .ease_out_cubic);
     }
 
+    pub fn slideOut(start: f32, end: f32, duration_ms: u64) Animation {
+        return Animation.init(start, end, duration_ms, .ease_in_cubic);
+    }
+
+    pub fn slideInLeft(duration_ms: u64) Animation {
+        return Animation.init(-100.0, 0.0, duration_ms, .ease_out_cubic);
+    }
+
+    pub fn slideInRight(duration_ms: u64) Animation {
+        return Animation.init(100.0, 0.0, duration_ms, .ease_out_cubic);
+    }
+
+    pub fn slideInTop(duration_ms: u64) Animation {
+        return Animation.init(-100.0, 0.0, duration_ms, .ease_out_cubic);
+    }
+
+    pub fn slideInBottom(duration_ms: u64) Animation {
+        return Animation.init(100.0, 0.0, duration_ms, .ease_out_cubic);
+    }
+
+    // Bounce animations
     pub fn bounce(start: f32, end: f32, duration_ms: u64) Animation {
         return Animation.init(start, end, duration_ms, .ease_out_bounce);
     }
 
+    pub fn bounceIn(duration_ms: u64) Animation {
+        return Animation.init(0.0, 1.0, duration_ms, .ease_out_bounce);
+    }
+
+    pub fn bounceOut(duration_ms: u64) Animation {
+        return Animation.init(1.0, 0.0, duration_ms, .ease_in_bounce);
+    }
+
+    // Elastic animations
     pub fn elastic(start: f32, end: f32, duration_ms: u64) Animation {
         return Animation.init(start, end, duration_ms, .ease_out_elastic);
+    }
+
+    pub fn elasticIn(duration_ms: u64) Animation {
+        return Animation.init(0.0, 1.0, duration_ms, .ease_in_elastic);
+    }
+
+    pub fn elasticOut(duration_ms: u64) Animation {
+        return Animation.init(1.0, 0.0, duration_ms, .ease_out_elastic);
+    }
+
+    // Scale animations
+    pub fn scaleIn(duration_ms: u64) Animation {
+        return Animation.init(0.0, 1.0, duration_ms, .ease_out_back);
+    }
+
+    pub fn scaleOut(duration_ms: u64) Animation {
+        return Animation.init(1.0, 0.0, duration_ms, .ease_in_back);
+    }
+
+    pub fn scaleUp(duration_ms: u64) Animation {
+        return Animation.init(1.0, 1.2, duration_ms, .ease_out_quad);
+    }
+
+    pub fn scaleDown(duration_ms: u64) Animation {
+        return Animation.init(1.0, 0.8, duration_ms, .ease_in_quad);
+    }
+
+    // Rotate animations
+    pub fn rotate(start_deg: f32, end_deg: f32, duration_ms: u64) Animation {
+        return Animation.init(start_deg, end_deg, duration_ms, .ease_in_out_cubic);
+    }
+
+    pub fn rotate360(duration_ms: u64) Animation {
+        return Animation.init(0.0, 360.0, duration_ms, .linear);
+    }
+
+    pub fn rotateBack(duration_ms: u64) Animation {
+        return Animation.init(0.0, 360.0, duration_ms, .ease_in_out_back);
+    }
+
+    // Pulse/heartbeat animations
+    pub fn pulse(duration_ms: u64) Animation {
+        return Animation.init(1.0, 1.1, duration_ms, .ease_in_out_sine);
+    }
+
+    pub fn heartbeat(duration_ms: u64) Animation {
+        return Animation.init(1.0, 1.3, duration_ms, .ease_in_out_bounce);
+    }
+
+    // Shake/wobble animations
+    pub fn shake(intensity: f32, duration_ms: u64) Animation {
+        return Animation.init(-intensity, intensity, duration_ms, .ease_in_out_elastic);
+    }
+
+    pub fn wobble(duration_ms: u64) Animation {
+        return Animation.init(-15.0, 15.0, duration_ms, .ease_in_out_elastic);
+    }
+
+    // Flip animations
+    pub fn flipX(duration_ms: u64) Animation {
+        return Animation.init(0.0, 180.0, duration_ms, .ease_in_out_back);
+    }
+
+    pub fn flipY(duration_ms: u64) Animation {
+        return Animation.init(0.0, 180.0, duration_ms, .ease_in_out_back);
+    }
+
+    // Zoom animations
+    pub fn zoomIn(duration_ms: u64) Animation {
+        return Animation.init(0.3, 1.0, duration_ms, .ease_out_back);
+    }
+
+    pub fn zoomOut(duration_ms: u64) Animation {
+        return Animation.init(1.0, 0.0, duration_ms, .ease_in_back);
+    }
+
+    // Roll animations
+    pub fn rollIn(duration_ms: u64) Animation {
+        return Animation.init(-120.0, 0.0, duration_ms, .ease_out_back);
+    }
+
+    pub fn rollOut(duration_ms: u64) Animation {
+        return Animation.init(0.0, 120.0, duration_ms, .ease_in_back);
+    }
+
+    // Light speed animations
+    pub fn lightSpeedIn(duration_ms: u64) Animation {
+        return Animation.init(-100.0, 0.0, duration_ms, .ease_out_circ);
+    }
+
+    pub fn lightSpeedOut(duration_ms: u64) Animation {
+        return Animation.init(0.0, 100.0, duration_ms, .ease_in_circ);
+    }
+
+    // Hinge animation
+    pub fn hinge(duration_ms: u64) Animation {
+        return Animation.init(0.0, 80.0, duration_ms, .ease_in_out_cubic);
+    }
+
+    // Jack in the box
+    pub fn jackInTheBox(duration_ms: u64) Animation {
+        return Animation.init(0.1, 1.0, duration_ms, .ease_in_out_bounce);
     }
 };
