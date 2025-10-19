@@ -18,17 +18,10 @@ pub const Version = struct {
 };
 
 pub const current_version = Version{
-    .major = 2,
+    .major = 0,
     .minor = 0,
-    .patch = 0,
+    .patch = 1,
 };
-
-/// BREAKING CHANGES in v2.0:
-/// - Window.create() now returns Result(Window, Error) instead of !Window
-/// - WindowOptions now uses builder pattern with required fields
-/// - App.createWindow() merged into Window.create()
-/// - Event callbacks now use typed event handlers
-/// - IPC now uses structured messages instead of strings
 
 /// Stable Window API
 pub const Window = struct {
@@ -267,8 +260,6 @@ pub const Error = error{
     InitializationFailed,
     FeatureNotAvailable,
 };
-
-/// v2.0 Breaking Improvements
 
 /// Result type for better error handling
 pub fn Result(comptime T: type, comptime E: type) type {
@@ -620,49 +611,4 @@ pub const Promise = struct {
         }
         return self;
     }
-};
-
-/// Migration Guide from v1.0 to v2.0
-pub const MigrationGuide = struct {
-    pub const changes =
-        \\# Migration Guide: Zyte v1.0 → v2.0
-        \\
-        \\## Window Creation
-        \\### v1.0 (Old)
-        \\```zig
-        \\const window = try Window.create(WindowOptions{ .title = "App", .width = 800, .height = 600 });
-        \\```
-        \\
-        \\### v2.0 (New)
-        \\```zig
-        \\const window = WindowBuilder.new("App", "http://localhost:3000")
-        \\    .size(800, 600)
-        \\    .resizable(true)
-        \\    .build()
-        \\    .expect("Failed to create window");
-        \\```
-        \\
-        \\## Event Handling
-        \\### v1.0 (Old)
-        \\```zig
-        \\window.on("close", callback);
-        \\```
-        \\
-        \\### v2.0 (New)
-        \\```zig
-        \\window.addEventListener(.window_close, handleClose);
-        \\```
-        \\
-        \\## IPC Messages
-        \\### v1.0 (Old)
-        \\```zig
-        \\ipc.send("message-type", "string data");
-        \\```
-        \\
-        \\### v2.0 (New)
-        \\```zig
-        \\const msg = IPCMessage.request(1, .{ .string = "data" });
-        \\ipc.send(msg);
-        \\```
-    ;
 };

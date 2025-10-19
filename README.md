@@ -8,65 +8,178 @@
 
 # Zyte
 
-**Build desktop apps with web languages, powered by Zig**
+**Build native desktop & mobile apps with web technologies, powered by Zig**
 
-Zyte is a lightweight, high-performance desktop application framework. Create native desktop apps that work on macOS, Linux, and Windows with web technologies - all with a tiny 1.4MB binary and blazing fast <100ms startup time.
+Zyte is a lightweight, high-performance cross-platform application framework. Create native apps that work on macOS, Linux, Windows, iOS, and Android with web technologies - all with a tiny 1.4MB binary and blazing fast <100ms startup time.
 
-**Version 1.3.0** | **79 Features** | **1.4MB Binary** | **Production-Ready** | **Cross-Platform**
+**Version 0.0.1** | **31 Native Components** | **1.4MB Binary** | **Cross-Platform** | **Production-Ready**
 
 ## Features
 
-Zyte comes pre-configured with comprehensive desktop app capabilities:
-
-### 🎯 Core Platform
+### 🌍 Platform Support
+- 🖥️ **Desktop** - macOS, Linux, Windows
+- 📱 **Mobile** - iOS (WKWebView, UIKit) and Android (WebView, Activity)
+- 🪟 **Menubar Apps** - Native system tray/menubar integration
 - ⚡ **Native Performance** - <100ms startup, <1% CPU idle, ~92MB memory
 - 🪶 **Tiny Binary** - 1.4MB binary size (vs 150MB Electron)
-- 🌍 **Cross-Platform** - macOS, Linux, and Windows support
-- 🚀 **WebView Integration** - WKWebView (macOS), WebKit2GTK (Linux), WebView2 (Windows)
 - 🔧 **Zig-Powered** - Built with Zig 0.15.1 for maximum performance
+
+### 📱 Mobile Platform Support
+- **iOS Integration**
+  - WKWebView with JavaScript bridge
+  - UIKit native components
+  - Haptic feedback (light, medium, heavy, selection, success, warning, error)
+  - Device permissions (camera, location, notifications, photos, contacts, microphone)
+  - Orientation support (portrait, landscape)
+  - Status bar control
+  - App lifecycle management
+
+- **Android Integration**
+  - WebView with JavaScript interface
+  - Activity lifecycle
+  - Permissions system
+  - Vibration and haptic feedback
+  - File access and storage
+  - Material Design support
+
+### 🎨 Native Components Library (31 Components)
+
+**Input Components**
+- Button, TextInput, Checkbox, RadioButton
+- Slider, ColorPicker, DatePicker, TimePicker
+
+**Display Components**
+- Label, ImageView, ProgressBar, Spinner
+- Avatar, Badge, Chip, Card
+
+**Layout Components**
+- ScrollView, SplitView, Accordion, Stepper
+
+**Data Components**
+- ListView, Table, TreeView
+
+**Navigation Components**
+- TabView, Menu, Toolbar, StatusBar
+
+**Advanced Components**
+- Rating (star ratings with half-star support)
+
+### 🪟 Menubar Applications
+
+Build native menubar/system tray apps with full platform support:
+
+**Features**
+- Native system tray icons
+- Custom menus with shortcuts
+- Tooltip support
+- Click handlers (left, right, double, middle)
+- Window attachment for popover-style UIs
+- Notifications integration
+
+**Platform Implementations**
+- macOS: NSStatusBar integration
+- Linux: AppIndicator/StatusNotifier
+- Windows: System tray via Shell_NotifyIcon
+
+### 🎮 Advanced GPU Rendering
+
+**Rendering Pipeline**
+- Multi-backend support (Vulkan, Metal, Direct3D)
+- Shader management (vertex, fragment, compute)
+- Buffer management (vertex, index, uniform, storage)
+- Texture and render target support
+- Mesh rendering with vertex data
+
+**Effects & Post-Processing**
+- 10 built-in effects: Bloom, Blur, Sharpen, Vignette
+- Chromatic Aberration, Film Grain, Color Grading
+- Tone Mapping, Anti-Aliasing, Ambient Occlusion
+
+**Advanced Features**
+- Compute shader support
+- Ray tracing with acceleration structures
+- Multi-GPU support
+- GPU profiling and performance monitoring
+
+### 🖥️ System Integration
+
+**Notifications**
+- Native OS notifications
+- Custom titles, bodies, icons
+- Action buttons
+- Urgency levels (low, normal, critical)
+- Click callbacks
+
+**Clipboard**
+- Text read/write
+- Image support
+- File paths
+- Watch for changes
+
+**File Dialogs**
+- Open file/multiple files
+- Save file
+- Select directory
+- Custom file type filters
+- Default paths
+
+**System Info**
+- OS name and version
+- CPU information
+- Memory stats (total, available, used)
+- System uptime
+
+**Power Management**
+- Battery status and level
+- Charging state
+- Prevent/allow sleep
+- Power state monitoring
+
+**Screen Management**
+- Multi-monitor support
+- Screen resolution and scaling
+- Primary screen detection
+- Screen positioning
+
+**URL Handling**
+- Open URLs in default browser
+- Register custom URL schemes
+- Deep linking support
 
 ### 🛠️ Developer Experience
 - 📟 **Powerful CLI** - 20+ command-line flags for quick prototyping
 - 🔍 **DevTools** - Built-in WebKit DevTools (right-click > Inspect Element)
 - 🎨 **Custom Styles** - Frameless, transparent, always-on-top windows
-- 🌉 **JavaScript Bridge** - Seamless communication between JS and Zig
-- 💾 **File Dialogs** - Native open/save dialogs
-- 📋 **Clipboard** - Read/write clipboard access
+- 🌉 **JavaScript Bridge** - Seamless communication between JS and native code
 - ⚙️ **Configuration** - TOML-based config files
 - 📊 **Logging** - Structured logging system
-- 🍔 **Menu Support** - Native menu bars
 - 🔥 **Hot Reload** - File watching and auto-reload
 
 ### 🪟 Window Management
 - 📏 **Position Control** - Precise window positioning (x, y)
 - 🖥️ **Fullscreen** - Native fullscreen mode
 - 🔄 **State Management** - Minimize, maximize, close, hide, show
-- 🔔 **Notifications** - Native OS notifications
 - ↔️ **Resize Control** - Custom resize behavior
 - 🪟 **Multi-Window** - Multiple window support
 - 🖥️ **Multi-Monitor** - Multi-monitor awareness
 
-### 🎨 Advanced Features (v1.1.0)
-- 🎮 **GPU Acceleration** - Metal (macOS), Vulkan (Linux/Windows), OpenGL fallback
+### 🎯 Advanced Features
 - 📡 **Advanced IPC** - Message passing, channels, RPC, shared memory
-- 🖌️ **Native Rendering** - Canvas API, component system, pixel manipulation
+- 🖌️ **Native Rendering** - Canvas API, pixel manipulation
 - ⌨️ **Enhanced Shortcuts** - 90+ key codes with modifiers
 - ♿ **Accessibility** - WCAG 2.1 AAA compliance, screen readers
-
-### 🎭 Theming & Performance (v1.2.0)
 - 🌓 **Advanced Theming** - Nord, Dracula, Gruvbox, custom themes
 - 💨 **Performance** - LRU caching, object pooling, lazy loading, memoization
 - 📊 **Monitoring** - Built-in performance profiling
 
-### ✨ Latest - v1.3.0
+### ✨ Async & State
 - 🔄 **Async/Await** - Non-blocking I/O, streaming, promises, channels
 - 🧩 **WebAssembly** - WASM plugin system with sandboxing
-- 💬 **Native Dialogs** - File, directory, color, font pickers
 - 🎬 **Animations** - 31 easing functions, keyframes, springs
 - 🔄 **State Management** - Reactive state with observers, undo/redo
 
 ### 🏢 Enterprise Ready
-- 🔌 **Plugin System** - Dynamic library loading
+- 🔌 **Plugin System** - Dynamic library loading with marketplace
 - 🛡️ **Sandbox** - 7 permission types for security
 - 🌐 **i18n** - Internationalization with RTL support
 - 🔐 **Code Signing** - macOS, Windows, Linux
@@ -125,61 +238,9 @@ sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
 winget install Microsoft.EdgeWebView2Runtime
 ```
 
-## Usage
+## Usage Examples
 
-### Simple Window
-
-```bash
-# Launch a local development server
-zyte http://localhost:3000
-
-# With custom options
-zyte http://localhost:3000 \
-  --title "My App" \
-  --width 1200 \
-  --height 800 \
-  --dark \
-  --hot-reload
-```
-
-### CLI Options
-
-```bash
-zyte [OPTIONS] [URL]
-
-Window Content:
-  -u, --url <URL>          Load URL in the window
-      --html <HTML>        Load HTML content directly
-
-Window Appearance:
-  -t, --title <TITLE>      Window title (default: "Zyte App")
-  -w, --width <WIDTH>      Window width (default: 1200)
-      --height <HEIGHT>    Window height (default: 800)
-  -x, --x <X>              Window x position
-  -y, --y <Y>              Window y position
-
-Window Style:
-      --frameless          Create frameless window
-      --transparent        Make window transparent
-      --always-on-top      Keep window always on top
-  -f, --fullscreen         Start in fullscreen mode
-      --no-resize          Disable window resizing
-
-Theme:
-      --dark               Force dark mode
-      --light              Force light mode
-
-Features:
-      --hot-reload         Enable hot reload
-      --system-tray        Show system tray icon
-      --no-devtools        Disable WebKit DevTools
-
-Information:
-  -h, --help               Show help
-  -v, --version            Show version
-```
-
-### Zig API
+### Desktop Application
 
 ```zig
 const std = @import("std");
@@ -208,73 +269,248 @@ pub fn main() !void {
 }
 ```
 
-## Examples
-
-### Multi-Window App
+### Menubar Application
 
 ```zig
-// Main window
-_ = try app.createWindowWithURL(
-    "Main",
-    1920,
-    1080,
-    "http://localhost:3000/main",
-    .{ .x = 0, .y = 0 },
-);
+const menubar = @import("menubar.zig");
 
-// Secondary window
-_ = try app.createWindowWithURL(
-    "Secondary",
-    1920,
-    1080,
-    "http://localhost:3000/secondary",
-    .{ .x = 1920, .y = 0 },
-);
-```
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
 
-### WebSocket Integration
+    // Create menu
+    var menu = try menubar.Menu.init(allocator);
+    defer menu.deinit();
 
-```zig
-const ws = try WebSocket.connect(allocator, "ws://localhost:8080");
-defer ws.deinit();
+    const show_item = menubar.MenuItem.init(allocator, "Show Window", showWindow);
+    try menu.addItem(show_item);
 
-try ws.send("Hello, Server!");
-const message = try ws.receive();
-ws.close();
-```
+    try menu.addSeparator();
 
-### State Management
+    const quit_item = menubar.MenuItem.init(allocator, "Quit", quit);
+    try menu.addItem(quit_item);
 
-```zig
-const state = State.init(allocator);
-defer state.deinit();
+    // Create menubar app
+    var app = try menubar.MenubarBuilder.new(allocator, "My App")
+        .icon("icon.png")
+        .tooltip("My Menubar App")
+        .menu(menu)
+        .build();
+    defer app.deinit();
 
-// Set values
-try state.set("count", StateValue{ .int = 0 });
+    try app.show();
+}
 
-// Observe changes
-try state.observe("count", Observer{
-    .id = 1,
-    .fn_ptr = onCountChange,
-});
+fn showWindow() void {
+    std.debug.print("Show window\n", .{});
+}
 
-// Update triggers observer
-try state.set("count", StateValue{ .int = 1 });
-```
-
-### Animations
-
-```zig
-var animation = Animation.init(0.0, 1.0, 300, .ease_in_out_quad);
-animation.start();
-
-while (!animation.isComplete()) {
-    const value = animation.update();
-    // Use animated value
+fn quit() void {
+    std.process.exit(0);
 }
 ```
 
-More examples in the [examples/](examples/) directory and [API_REFERENCE.md](API_REFERENCE.md).
+### Mobile Application (iOS)
+
+```zig
+const mobile = @import("mobile.zig");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    const config = mobile.iOS.AppConfig{
+        .bundle_id = "com.example.myapp",
+        .display_name = "My App",
+        .supported_orientations = &[_]mobile.Orientation{
+            .portrait,
+            .landscape_left,
+            .landscape_right,
+        },
+        .status_bar_style = .light,
+    };
+
+    const webview_config = mobile.iOS.WebViewConfig{
+        .url = "http://localhost:3000",
+        .enable_javascript = true,
+        .enable_devtools = true,
+    };
+
+    const webview = try mobile.iOS.createWebView(allocator, webview_config);
+    defer mobile.iOS.destroyWebView(webview);
+
+    // Request permissions
+    try mobile.iOS.requestPermission(.camera, onPermissionGranted);
+
+    // Setup haptic feedback
+    mobile.iOS.triggerHaptic(.success);
+}
+
+fn onPermissionGranted(granted: bool) void {
+    if (granted) {
+        std.debug.print("Permission granted!\n", .{});
+    }
+}
+```
+
+### Using Native Components
+
+```zig
+const components = @import("components.zig");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    // Create a button
+    var button = try components.Button.init(allocator, "Click Me", onClick);
+    defer button.deinit();
+    button.setEnabled(true);
+
+    // Create a date picker
+    var date_picker = try components.DatePicker.init(allocator, onDateChange);
+    defer date_picker.deinit();
+
+    // Create a tree view
+    var tree = try components.TreeView.init(allocator);
+    defer tree.deinit();
+
+    var root = try tree.createNode("Root");
+    var child1 = try tree.createNode("Child 1");
+    var child2 = try tree.createNode("Child 2");
+
+    try root.addChild(child1);
+    try root.addChild(child2);
+    try tree.setRoot(root);
+
+    // Create a rating component
+    var rating = try components.Rating.init(allocator, 5, onRatingChange);
+    defer rating.deinit();
+    rating.setRating(4.5);
+}
+
+fn onClick() void {
+    std.debug.print("Button clicked!\n", .{});
+}
+
+fn onDateChange(year: i32, month: u8, day: u8) void {
+    std.debug.print("Date: {}-{}-{}\n", .{ year, month, day });
+}
+
+fn onRatingChange(rating: f32) void {
+    std.debug.print("Rating: {d:.1}\n", .{rating});
+}
+```
+
+### System Integration
+
+```zig
+const system = @import("system.zig");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    // Show notification
+    const notification = system.Notification.init("Hello", "Welcome to Zyte!");
+    try notification.show();
+
+    // Clipboard operations
+    var clipboard = try system.Clipboard.init(allocator);
+    defer clipboard.deinit();
+
+    try clipboard.setText("Hello, clipboard!");
+    if (try clipboard.getText()) |text| {
+        std.debug.print("Clipboard: {s}\n", .{text});
+    }
+
+    // File dialog
+    const file_dialog = system.FileDialog{
+        .title = "Open File",
+        .filters = &[_]system.FileFilter{
+            .{ .name = "Text Files", .extensions = &[_][]const u8{".txt"} },
+        },
+    };
+
+    if (try file_dialog.openFile()) |path| {
+        std.debug.print("Selected: {s}\n", .{path});
+    }
+
+    // System info
+    const info = try system.SystemInfo.get(allocator);
+    defer info.deinit();
+
+    std.debug.print("OS: {s} {s}\n", .{ info.os_name, info.os_version });
+    std.debug.print("CPU: {s} ({} cores)\n", .{ info.cpu_brand, info.cpu_cores });
+    std.debug.print("RAM: {} MB\n", .{info.total_memory / 1024 / 1024});
+
+    // Battery status
+    const battery = try system.PowerManagement.getBatteryInfo();
+    std.debug.print("Battery: {}% (charging: {})\n", .{ battery.level, battery.is_charging });
+}
+```
+
+### GPU Rendering
+
+```zig
+const gpu = @import("gpu.zig");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    // Initialize GPU context
+    var ctx = try gpu.Context.init(allocator, .vulkan);
+    defer ctx.deinit();
+
+    // Create render pipeline
+    var pipeline = try gpu.RenderPipeline.init(allocator, &ctx);
+    defer pipeline.deinit();
+
+    // Create shader
+    const vertex_shader = try pipeline.createShader(.{
+        .vertex = "path/to/vertex.glsl",
+    });
+
+    // Create mesh
+    const vertices = [_]f32{ /* vertex data */ };
+    var mesh = try gpu.Mesh.init(allocator, &vertices, null);
+    defer mesh.deinit();
+
+    // Apply post-processing
+    var post_processor = try gpu.PostProcessor.init(allocator, &ctx);
+    defer post_processor.deinit();
+
+    try post_processor.addEffect(.bloom, .{ .intensity = 0.5 });
+    try post_processor.addEffect(.anti_aliasing, .{ .samples = 4 });
+
+    // Render
+    try pipeline.render(&[_]gpu.RenderCommand{
+        .{ .draw_mesh = mesh },
+    });
+}
+```
+
+### CLI Usage
+
+```bash
+# Launch a local development server
+zyte http://localhost:3000
+
+# With custom options
+zyte http://localhost:3000 \
+  --title "My App" \
+  --width 1200 \
+  --height 800 \
+  --dark \
+  --hot-reload
+
+# Frameless transparent window
+zyte http://localhost:3000 \
+  --frameless \
+  --transparent \
+  --always-on-top
+```
 
 ## Performance
 
@@ -284,7 +520,18 @@ More examples in the [examples/](examples/) directory and [API_REFERENCE.md](API
 | Memory (idle) | **~92MB** | ~200MB | ~80MB |
 | Startup Time | **<100ms** | ~1000ms | ~100ms |
 | CPU (idle) | **<1%** | ~4% | <1% |
-| Features | **79** | High | Medium |
+| Platforms | **5** (Desktop + Mobile) | 3 | 3 |
+| Native Components | **31** | 0 | Limited |
+
+## Platform Support
+
+| Platform | Status | WebView | Native Components |
+|----------|--------|---------|-------------------|
+| **macOS** | ✅ Production | WKWebView | ✅ All 31 |
+| **Linux** | ✅ Production | WebKit2GTK 4.0+ | ✅ All 31 |
+| **Windows** | ✅ Production | WebView2 (Edge) | ✅ All 31 |
+| **iOS** | ✅ Beta | WKWebView | ✅ UIKit |
+| **Android** | ✅ Beta | WebView | ✅ Material |
 
 ## Documentation
 
@@ -295,27 +542,23 @@ More examples in the [examples/](examples/) directory and [API_REFERENCE.md](API
 - 🤝 [Contributing](CONTRIBUTING.md) - Contribution guide
 - 📋 [Changelog](https://github.com/stacksjs/zyte/releases) - Release history
 
-## Platform Support
+## Architecture
 
-| Platform | Status | WebView | Features |
-|----------|--------|---------|----------|
-| **macOS** | ✅ Production | WKWebView | All 79 features |
-| **Linux** | ✅ Production | WebKit2GTK 4.0+ | All 79 features |
-| **Windows** | ✅ Production | WebView2 (Edge) | All 79 features |
+Zyte is built with a modular architecture:
 
-## Roadmap
-
-### v1.4.0 (Next)
-- Enhanced plugin marketplace
-- Additional animation presets
-- Improved state management patterns
-- More dialog types
-
-### v2.0.0 (Future)
-- Mobile platform support (iOS/Android)
-- Advanced GPU rendering
-- Native components library
-- Breaking API improvements
+```
+src/
+├── api.zig          # Core API with Result types, builders
+├── mobile.zig       # iOS & Android platform support
+├── menubar.zig      # Menubar/system tray apps
+├── components.zig   # 31 native UI components
+├── gpu.zig          # Advanced GPU rendering
+├── system.zig       # System integration (notifications, clipboard, etc.)
+├── window.zig       # Window management
+├── ipc.zig          # Inter-process communication
+├── state.zig        # Reactive state management
+└── animation.zig    # Animation engine
+```
 
 ## Contributing
 
