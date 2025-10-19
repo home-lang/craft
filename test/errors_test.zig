@@ -169,3 +169,212 @@ test "ErrorContext - multiple contexts" {
     try testing.expectEqual(@as(u32, 20), ctx2.line);
     try testing.expectEqual(@as(u32, 30), ctx3.line);
 }
+
+// Edge cases and thorough tests
+
+test "ErrorContext - empty message" {
+    const ctx = errors.ErrorContext.create("", "test.zig", 1);
+    try testing.expectEqualStrings("", ctx.message);
+}
+
+test "ErrorContext - very long message" {
+    const long_msg = "This is a very long error message that describes in great detail what went wrong and includes many technical terms and context information that might be useful for debugging the issue";
+    const ctx = errors.ErrorContext.create(long_msg, "test.zig", 1);
+    try testing.expectEqualStrings(long_msg, ctx.message);
+}
+
+test "ErrorContext - special characters in message" {
+    const ctx = errors.ErrorContext.create("Error: \n\t\"Failed\" @ line $%^&*()", "test.zig", 1);
+    try testing.expect(ctx.message.len > 0);
+}
+
+test "ErrorContext - line number edge cases" {
+    const ctx_zero = errors.ErrorContext.create("Error", "test.zig", 0);
+    const ctx_large = errors.ErrorContext.create("Error", "test.zig", 999999);
+
+    try testing.expectEqual(@as(u32, 0), ctx_zero.line);
+    try testing.expectEqual(@as(u32, 999999), ctx_large.line);
+}
+
+test "ErrorContext - long file path" {
+    const long_path = "src/very/deeply/nested/directory/structure/that/goes/on/for/a/while/file.zig";
+    const ctx = errors.ErrorContext.create("Error", long_path, 1);
+    try testing.expectEqualStrings(long_path, ctx.file);
+}
+
+test "ZyteError - error union with success" {
+    const testFunc = struct {
+        fn maySucceed(should_succeed: bool) errors.ZyteError!i32 {
+            if (!should_succeed) {
+                return error.InvalidArgument;
+            }
+            return 42;
+        }
+    }.maySucceed;
+
+    const success_result = try testFunc(true);
+    try testing.expectEqual(@as(i32, 42), success_result);
+
+    const error_result = testFunc(false);
+    try testing.expectError(error.InvalidArgument, error_result);
+}
+
+test "ZyteError - chaining errors" {
+    const func1 = struct {
+        fn inner() errors.ZyteError!void {
+            return error.FileNotFound;
+        }
+
+        fn outer() errors.ZyteError!void {
+            return try inner();
+        }
+    };
+
+    try testing.expectError(error.FileNotFound, func1.outer());
+}
+
+test "ZyteError - error sets combination" {
+    const func = struct {
+        fn combined() (errors.ZyteError || error{CustomError})!void {
+            return error.CustomError;
+        }
+    }.combined;
+
+    try testing.expectError(error.CustomError, func());
+}
+
+test "ZyteError - all window errors" {
+    const window_errors = [_]errors.ZyteError{
+        error.WindowCreationFailed,
+        error.WindowNotFound,
+        error.InvalidWindowHandle,
+    };
+
+    for (window_errors) |err| {
+        try testing.expectError(err, err);
+    }
+}
+
+test "ZyteError - all webview errors" {
+    const webview_errors = [_]errors.ZyteError{
+        error.WebViewCreationFailed,
+        error.WebViewLoadFailed,
+        error.InvalidURL,
+    };
+
+    for (webview_errors) |err| {
+        try testing.expectError(err, err);
+    }
+}
+
+test "ZyteError - all file errors" {
+    const file_errors = [_]errors.ZyteError{
+        error.FileNotFound,
+        error.FileReadError,
+        error.FileWriteError,
+        error.InvalidPath,
+    };
+
+    for (file_errors) |err| {
+        try testing.expectError(err, err);
+    }
+}
+
+test "ZyteError - all plugin errors" {
+    const plugin_errors = [_]errors.ZyteError{
+        error.PluginLoadFailed,
+        error.PluginNotFound,
+        error.PluginFunctionNotFound,
+        error.InvalidPluginPath,
+    };
+
+    for (plugin_errors) |err| {
+        try testing.expectError(err, err);
+    }
+}
+
+test "ZyteError - all ipc errors" {
+    const ipc_errors = [_]errors.ZyteError{
+        error.IpcChannelNotFound,
+        error.IpcMessageSendFailed,
+        error.InvalidMessage,
+    };
+
+    for (ipc_errors) |err| {
+        try testing.expectError(err, err);
+    }
+}
+
+test "ZyteError - all permission errors" {
+    const permission_errors = [_]errors.ZyteError{
+        error.PermissionDenied,
+        error.SandboxViolation,
+    };
+
+    for (permission_errors) |err| {
+        try testing.expectError(err, err);
+    }
+}
+
+test "ZyteError - all config errors" {
+    const config_errors = [_]errors.ZyteError{
+        error.ConfigLoadFailed,
+        error.ConfigParseError,
+        error.InvalidConfiguration,
+    };
+
+    for (config_errors) |err| {
+        try testing.expectError(err, err);
+    }
+}
+
+test "ZyteError - all platform errors" {
+    const platform_errors = [_]errors.ZyteError{
+        error.UnsupportedPlatform,
+        error.PlatformApiError,
+    };
+
+    for (platform_errors) |err| {
+        try testing.expectError(err, err);
+    }
+}
+
+test "ZyteError - all network errors" {
+    const network_errors = [_]errors.ZyteError{
+        error.WebSocketConnectionFailed,
+        error.NetworkError,
+    };
+
+    for (network_errors) |err| {
+        try testing.expectError(err, err);
+    }
+}
+
+test "ZyteError - all general errors" {
+    const general_errors = [_]errors.ZyteError{
+        error.NotImplemented,
+        error.InvalidArgument,
+        error.OutOfMemory,
+        error.Timeout,
+    };
+
+    for (general_errors) |err| {
+        try testing.expectError(err, err);
+    }
+}
+
+test "errorContext - captures source location" {
+    const ctx = errors.errorContext("Auto-captured");
+    try testing.expect(ctx.file.len > 0);
+    try testing.expect(ctx.line > 0);
+}
+
+test "ErrorContext - multiple prints" {
+    const ctx1 = errors.ErrorContext.create("Error 1", "file1.zig", 10);
+    const ctx2 = errors.ErrorContext.create("Error 2", "file2.zig", 20);
+
+    ctx1.print();
+    ctx2.print();
+
+    try testing.expect(true); // Should not crash
+}

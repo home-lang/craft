@@ -1169,7 +1169,7 @@ pub const Stepper = struct {
     pub const Step = struct {
         label: []const u8,
         completed: bool,
-        error: bool,
+        is_error: bool,
     };
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*Stepper {

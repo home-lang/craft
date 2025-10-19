@@ -50,6 +50,7 @@ test "MenubarApp - visibility control" {
 test "Menu - initialization and cleanup" {
     const allocator = testing.allocator;
     var menu = try menubar.Menu.init(allocator);
+    defer allocator.destroy(menu);
     defer menu.deinit();
 
     try testing.expectEqual(@as(usize, 0), menu.items.items.len);
@@ -58,6 +59,7 @@ test "Menu - initialization and cleanup" {
 test "Menu - add item" {
     const allocator = testing.allocator;
     var menu = try menubar.Menu.init(allocator);
+    defer allocator.destroy(menu);
     defer menu.deinit();
 
     const item = menubar.MenuItem.init(allocator, "Test Item", null);
@@ -70,6 +72,7 @@ test "Menu - add item" {
 test "Menu - add multiple items" {
     const allocator = testing.allocator;
     var menu = try menubar.Menu.init(allocator);
+    defer allocator.destroy(menu);
     defer menu.deinit();
 
     const item1 = menubar.MenuItem.init(allocator, "Item 1", null);
@@ -89,6 +92,7 @@ test "Menu - add multiple items" {
 test "Menu - add separator" {
     const allocator = testing.allocator;
     var menu = try menubar.Menu.init(allocator);
+    defer allocator.destroy(menu);
     defer menu.deinit();
 
     const item1 = menubar.MenuItem.init(allocator, "Item 1", null);
@@ -106,6 +110,7 @@ test "Menu - add separator" {
 test "Menu - remove item" {
     const allocator = testing.allocator;
     var menu = try menubar.Menu.init(allocator);
+    defer allocator.destroy(menu);
     defer menu.deinit();
 
     const item1 = menubar.MenuItem.init(allocator, "Item 1", null);
@@ -123,6 +128,7 @@ test "Menu - remove item" {
 test "Menu - clear" {
     const allocator = testing.allocator;
     var menu = try menubar.Menu.init(allocator);
+    defer allocator.destroy(menu);
     defer menu.deinit();
 
     const item1 = menubar.MenuItem.init(allocator, "Item 1", null);
@@ -270,8 +276,8 @@ test "MenubarBuilder - basic build" {
     const builder = menubar.MenubarBuilder.new(allocator, "My App");
 
     try testing.expectEqualStrings("My App", builder.title);
-    try testing.expectEqual(@as(?[]const u8, null), builder.icon);
-    try testing.expectEqual(@as(?[]const u8, null), builder.tooltip);
+    try testing.expectEqual(@as(?[]const u8, null), builder.icon_path);
+    try testing.expectEqual(@as(?[]const u8, null), builder.tooltip_text);
 }
 
 test "MenubarBuilder - with icon" {
@@ -279,7 +285,7 @@ test "MenubarBuilder - with icon" {
     const builder = menubar.MenubarBuilder.new(allocator, "My App")
         .icon("app-icon.png");
 
-    try testing.expectEqualStrings("app-icon.png", builder.icon.?);
+    try testing.expectEqualStrings("app-icon.png", builder.icon_path.?);
 }
 
 test "MenubarBuilder - with tooltip" {
@@ -287,7 +293,7 @@ test "MenubarBuilder - with tooltip" {
     const builder = menubar.MenubarBuilder.new(allocator, "My App")
         .tooltip("My Application");
 
-    try testing.expectEqualStrings("My Application", builder.tooltip.?);
+    try testing.expectEqualStrings("My Application", builder.tooltip_text.?);
 }
 
 test "MenubarBuilder - complete build" {

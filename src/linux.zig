@@ -238,7 +238,7 @@ pub fn runApp() void {
 // Notifications using libnotify
 pub extern "c" fn notify_init(app_name: [*:0]const u8) c_int;
 pub extern "c" fn notify_notification_new(summary: [*c]const u8, body: [*c]const u8, icon: [*c]const u8) *anyopaque;
-pub extern "c" fn notify_notification_show(notification: *anyopaque, error: ?*anyopaque) c_int;
+pub extern "c" fn notify_notification_show(notification: *anyopaque, err: ?*anyopaque) c_int;
 
 pub fn showNotification(title: []const u8, message: []const u8) !void {
     const title_z = try std.heap.c_allocator.dupeZ(u8, title);

@@ -561,7 +561,6 @@ pub const Screen = struct {
     is_primary: bool,
 
     pub fn getAllScreens(allocator: std.mem.Allocator) ![]Screen {
-        _ = allocator;
         const builtin = @import("builtin");
         return switch (builtin.target.os.tag) {
             .macos => getMacOSScreens(allocator),
@@ -614,7 +613,6 @@ pub const URLHandler = struct {
     }
 
     pub fn registerURLScheme(scheme: []const u8, handler: *const fn ([]const u8) void) !void {
-        _ = scheme;
         _ = handler;
         const builtin = @import("builtin");
         switch (builtin.target.os.tag) {

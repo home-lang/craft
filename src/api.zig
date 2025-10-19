@@ -309,11 +309,11 @@ pub const WindowBuilder = struct {
     url: []const u8,
     x: ?i32 = null,
     y: ?i32 = null,
-    resizable: bool = true,
-    frameless: bool = false,
-    transparent: bool = false,
+    is_resizable: bool = true,
+    is_frameless: bool = false,
+    is_transparent: bool = false,
     always_on_top: bool = false,
-    fullscreen: bool = false,
+    is_fullscreen: bool = false,
     dark_mode: ?bool = null,
     dev_tools: bool = true,
     min_width: ?u32 = null,
@@ -360,19 +360,19 @@ pub const WindowBuilder = struct {
 
     pub fn resizable(self: WindowBuilder, value: bool) WindowBuilder {
         var builder = self;
-        builder.resizable = value;
+        builder.is_resizable = value;
         return builder;
     }
 
     pub fn frameless(self: WindowBuilder, value: bool) WindowBuilder {
         var builder = self;
-        builder.frameless = value;
+        builder.is_frameless = value;
         return builder;
     }
 
     pub fn transparent(self: WindowBuilder, value: bool) WindowBuilder {
         var builder = self;
-        builder.transparent = value;
+        builder.is_transparent = value;
         return builder;
     }
 
@@ -384,7 +384,7 @@ pub const WindowBuilder = struct {
 
     pub fn fullscreen(self: WindowBuilder, value: bool) WindowBuilder {
         var builder = self;
-        builder.fullscreen = value;
+        builder.is_fullscreen = value;
         return builder;
     }
 

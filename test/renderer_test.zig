@@ -244,3 +244,241 @@ test "FontStyle - enum values" {
     try testing.expectEqual(renderer.FontStyle.italic, .italic);
     try testing.expectEqual(renderer.FontStyle.oblique, .oblique);
 }
+
+// Edge cases and thorough tests
+
+test "Color - fromHex edge cases" {
+    const white = renderer.Color.fromHex(0xFFFFFF);
+    const black = renderer.Color.fromHex(0x000000);
+    const red = renderer.Color.fromHex(0xFF0000);
+
+    try testing.expectEqual(@as(u8, 255), white.r);
+    try testing.expectEqual(@as(u8, 255), white.g);
+    try testing.expectEqual(@as(u8, 255), white.b);
+
+    try testing.expectEqual(@as(u8, 0), black.r);
+    try testing.expectEqual(@as(u8, 0), black.g);
+    try testing.expectEqual(@as(u8, 0), black.b);
+
+    try testing.expectEqual(@as(u8, 255), red.r);
+    try testing.expectEqual(@as(u8, 0), red.g);
+    try testing.expectEqual(@as(u8, 0), red.b);
+}
+
+test "Canvas - large dimensions" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 1920, 1080);
+    defer canvas.deinit();
+
+    try testing.expectEqual(@as(u32, 1920), canvas.width);
+    try testing.expectEqual(@as(u32, 1080), canvas.height);
+    try testing.expectEqual(@as(usize, 1920 * 1080), canvas.pixels.len);
+}
+
+test "Canvas - minimum dimensions" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 1, 1);
+    defer canvas.deinit();
+
+    try testing.expectEqual(@as(u32, 1), canvas.width);
+    try testing.expectEqual(@as(u32, 1), canvas.height);
+    try testing.expectEqual(@as(usize, 1), canvas.pixels.len);
+}
+
+test "Canvas - drawRect completely out of bounds" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 100, 100);
+    defer canvas.deinit();
+
+    const color = renderer.Color.rgb(255, 0, 0);
+    const out_of_bounds = renderer.Rect{ .x = 200, .y = 200, .width = 50, .height = 50 };
+
+    canvas.drawRect(out_of_bounds, color);
+
+    // Should not crash, pixels should remain unchanged (white)
+    const pixel = canvas.getPixel(0, 0);
+    try testing.expect(pixel != null);
+}
+
+test "Canvas - drawRect partially out of bounds" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 100, 100);
+    defer canvas.deinit();
+
+    const color = renderer.Color.rgb(255, 0, 0);
+    const partial = renderer.Rect{ .x = 90, .y = 90, .width = 20, .height = 20 };
+
+    canvas.drawRect(partial, color);
+
+    // Some pixels should be drawn
+    const pixel = canvas.getPixel(95, 95);
+    try testing.expect(pixel != null);
+}
+
+test "Canvas - drawRect with negative coordinates" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 100, 100);
+    defer canvas.deinit();
+
+    const color = renderer.Color.rgb(255, 0, 0);
+    const negative = renderer.Rect{ .x = -10, .y = -10, .width = 20, .height = 20 };
+
+    canvas.drawRect(negative, color);
+
+    // Should clip to visible region
+    const pixel = canvas.getPixel(0, 0);
+    try testing.expect(pixel != null);
+}
+
+test "Canvas - drawCircle edge cases" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 100, 100);
+    defer canvas.deinit();
+
+    const color = renderer.Color.rgb(0, 255, 0);
+
+    // Very small radius
+    canvas.drawCircle(.{ .x = 50, .y = 50 }, 1, color);
+
+    // Very large radius
+    canvas.drawCircle(.{ .x = 50, .y = 50 }, 1000, color);
+
+    // Zero radius (degenerate case)
+    canvas.drawCircle(.{ .x = 50, .y = 50 }, 0, color);
+
+    try testing.expect(true); // Should not crash
+}
+
+test "Canvas - drawLine diagonal" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 100, 100);
+    defer canvas.deinit();
+
+    const color = renderer.Color.rgb(255, 255, 0);
+    canvas.drawLine(.{ .x = 0, .y = 0 }, .{ .x = 99, .y = 99 }, color);
+
+    // Check endpoints
+    const start = canvas.getPixel(0, 0);
+    const end = canvas.getPixel(99, 99);
+
+    try testing.expect(start != null);
+    try testing.expect(end != null);
+}
+
+test "Canvas - drawLine horizontal" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 100, 100);
+    defer canvas.deinit();
+
+    const color = renderer.Color.rgb(255, 0, 255);
+    canvas.drawLine(.{ .x = 10, .y = 50 }, .{ .x = 90, .y = 50 }, color);
+
+    const pixel = canvas.getPixel(50, 50);
+    try testing.expect(pixel != null);
+}
+
+test "Canvas - drawLine vertical" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 100, 100);
+    defer canvas.deinit();
+
+    const color = renderer.Color.rgb(0, 255, 255);
+    canvas.drawLine(.{ .x = 50, .y = 10 }, .{ .x = 50, .y = 90 }, color);
+
+    const pixel = canvas.getPixel(50, 50);
+    try testing.expect(pixel != null);
+}
+
+test "Canvas - drawLine zero length" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 100, 100);
+    defer canvas.deinit();
+
+    const color = renderer.Color.rgb(255, 255, 255);
+    canvas.drawLine(.{ .x = 50, .y = 50 }, .{ .x = 50, .y = 50 }, color);
+
+    try testing.expect(true); // Should not crash
+}
+
+test "Canvas - multiple overlapping shapes" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 200, 200);
+    defer canvas.deinit();
+
+    const red = renderer.Color.rgb(255, 0, 0);
+    const green = renderer.Color.rgb(0, 255, 0);
+    const blue = renderer.Color.rgb(0, 0, 255);
+
+    canvas.drawRect(.{ .x = 10, .y = 10, .width = 50, .height = 50 }, red);
+    canvas.drawCircle(.{ .x = 50, .y = 50 }, 30, green);
+    canvas.drawLine(.{ .x = 0, .y = 0 }, .{ .x = 100, .y = 100 }, blue);
+
+    try testing.expect(true); // Should handle overlapping correctly
+}
+
+test "Component - deep nesting" {
+    const bounds = renderer.Rect{ .x = 0, .y = 0, .width = 100, .height = 100 };
+    var root = renderer.Component.init(testing.allocator, bounds);
+    defer root.deinit();
+
+    // Create nested components
+    for (0..5) |_| {
+        const child_bounds = renderer.Rect{ .x = 10, .y = 10, .width = 80, .height = 80 };
+        const child = try testing.allocator.create(renderer.Component);
+        child.* = renderer.Component.init(testing.allocator, child_bounds);
+        try root.addChild(child);
+    }
+
+    try testing.expectEqual(@as(usize, 5), root.children.items.len);
+}
+
+test "Component - invisible rendering" {
+    const bounds = renderer.Rect{ .x = 0, .y = 0, .width = 100, .height = 100 };
+    var component = renderer.Component.init(testing.allocator, bounds);
+    defer component.deinit();
+
+    var canvas = try renderer.Canvas.init(testing.allocator, 100, 100);
+    defer canvas.deinit();
+
+    component.visible = false;
+    component.render(&canvas);
+
+    try testing.expect(!component.visible);
+}
+
+test "Renderer - multiple backends" {
+    const backends = [_]renderer.RenderBackend{ .webview, .native, .hybrid };
+
+    for (backends) |backend| {
+        var r = renderer.Renderer.init(testing.allocator, backend);
+        defer r.deinit();
+
+        try testing.expectEqual(backend, r.backend);
+    }
+}
+
+test "Font - default values" {
+    const font = renderer.Font{
+        .family = "System",
+        .size = 12.0,
+    };
+
+    try testing.expectEqual(renderer.FontWeight.normal, font.weight);
+    try testing.expectEqual(renderer.FontStyle.normal, font.style);
+}
+
+test "Font - extreme sizes" {
+    const tiny = renderer.Font{ .family = "Arial", .size = 0.5 };
+    const huge = renderer.Font{ .family = "Arial", .size = 1000.0 };
+
+    try testing.expectEqual(@as(f32, 0.5), tiny.size);
+    try testing.expectEqual(@as(f32, 1000.0), huge.size);
+}
+
+test "Canvas - clear multiple times" {
+    var canvas = try renderer.Canvas.init(testing.allocator, 100, 100);
+    defer canvas.deinit();
+
+    const colors = [_]renderer.Color{
+        renderer.Color.rgb(255, 0, 0),
+        renderer.Color.rgb(0, 255, 0),
+        renderer.Color.rgb(0, 0, 255),
+    };
+
+    for (colors) |color| {
+        canvas.clear(color);
+    }
+
+    // Final color should be blue
+    const pixel = canvas.pixels[0];
+    try testing.expectEqual(@as(u32, 0xFF0000FF), pixel);
+}

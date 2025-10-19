@@ -428,17 +428,17 @@ pub const LifecycleManager = struct {
 
     pub fn init(allocator: std.mem.Allocator) LifecycleManager {
         return LifecycleManager{
-            .callbacks = std.ArrayList(LifecycleCallback).init(allocator),
+            .callbacks = .{},
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *LifecycleManager) void {
-        self.callbacks.deinit();
+        self.callbacks.deinit(self.allocator);
     }
 
     pub fn addCallback(self: *LifecycleManager, callback: LifecycleCallback) !void {
-        try self.callbacks.append(callback);
+        try self.callbacks.append(self.allocator, callback);
     }
 
     pub fn triggerEvent(self: *LifecycleManager, event: LifecycleEvent) void {
@@ -495,13 +495,13 @@ pub const NetworkMonitor = struct {
     pub fn init(allocator: std.mem.Allocator) NetworkMonitor {
         return NetworkMonitor{
             .status = .unknown,
-            .callbacks = std.ArrayList(*const fn (NetworkStatus) void).init(allocator),
+            .callbacks = .{},
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *NetworkMonitor) void {
-        self.callbacks.deinit();
+        self.callbacks.deinit(self.allocator);
     }
 
     pub fn startMonitoring(self: *NetworkMonitor) !void {
@@ -515,7 +515,7 @@ pub const NetworkMonitor = struct {
     }
 
     pub fn onStatusChange(self: *NetworkMonitor, callback: *const fn (NetworkStatus) void) !void {
-        try self.callbacks.append(callback);
+        try self.callbacks.append(self.allocator, callback);
     }
 
     pub fn getCurrentStatus(self: NetworkMonitor) NetworkStatus {

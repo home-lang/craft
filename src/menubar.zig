@@ -31,7 +31,6 @@ pub const MenubarApp = struct {
             menu.deinit();
             self.allocator.destroy(menu);
         }
-        _ = self;
     }
 
     pub fn setIcon(self: *MenubarApp, icon_path: []const u8) !void {
@@ -117,7 +116,7 @@ pub const Menu = struct {
     pub fn init(allocator: std.mem.Allocator) !*Menu {
         const menu = try allocator.create(Menu);
         menu.* = Menu{
-            .items = std.ArrayList(MenuItem).init(allocator),
+            .items = .{},
             .allocator = allocator,
         };
         return menu;
@@ -127,15 +126,15 @@ pub const Menu = struct {
         for (self.items.items) |*item| {
             item.deinit();
         }
-        self.items.deinit();
+        self.items.deinit(self.allocator);
     }
 
     pub fn addItem(self: *Menu, item: MenuItem) !void {
-        try self.items.append(item);
+        try self.items.append(self.allocator, item);
     }
 
     pub fn addSeparator(self: *Menu) !void {
-        try self.items.append(MenuItem{
+        try self.items.append(self.allocator, MenuItem{
             .label = "",
             .enabled = true,
             .checked = false,
@@ -277,10 +276,10 @@ pub const Window = struct {
 /// Menubar App Builder
 pub const MenubarBuilder = struct {
     title: []const u8,
-    icon: ?[]const u8 = null,
-    tooltip: ?[]const u8 = null,
-    menu: ?*Menu = null,
-    window: ?*Window = null,
+    icon_path: ?[]const u8 = null,
+    tooltip_text: ?[]const u8 = null,
+    app_menu: ?*Menu = null,
+    app_window: ?*Window = null,
     allocator: std.mem.Allocator,
 
     pub fn new(allocator: std.mem.Allocator, title: []const u8) MenubarBuilder {
@@ -292,44 +291,44 @@ pub const MenubarBuilder = struct {
 
     pub fn icon(self: MenubarBuilder, icon_path: []const u8) MenubarBuilder {
         var builder = self;
-        builder.icon = icon_path;
+        builder.icon_path = icon_path;
         return builder;
     }
 
     pub fn tooltip(self: MenubarBuilder, text: []const u8) MenubarBuilder {
         var builder = self;
-        builder.tooltip = text;
+        builder.tooltip_text = text;
         return builder;
     }
 
     pub fn menu(self: MenubarBuilder, app_menu: *Menu) MenubarBuilder {
         var builder = self;
-        builder.menu = app_menu;
+        builder.app_menu = app_menu;
         return builder;
     }
 
     pub fn window(self: MenubarBuilder, win: *Window) MenubarBuilder {
         var builder = self;
-        builder.window = win;
+        builder.app_window = win;
         return builder;
     }
 
     pub fn build(self: MenubarBuilder) !MenubarApp {
         var app = try MenubarApp.init(self.allocator, self.title);
 
-        if (self.icon) |icon_path| {
+        if (self.icon_path) |icon_path| {
             try app.setIcon(icon_path);
         }
 
-        if (self.tooltip) |text| {
+        if (self.tooltip_text) |text| {
             app.setTooltip(text);
         }
 
-        if (self.menu) |app_menu| {
+        if (self.app_menu) |app_menu| {
             try app.setMenu(app_menu);
         }
 
-        if (self.window) |win| {
+        if (self.app_window) |win| {
             app.setWindow(win);
         }
 
@@ -490,7 +489,7 @@ pub const MenubarManager = struct {
 
     pub fn init(allocator: std.mem.Allocator) MenubarManager {
         return MenubarManager{
-            .apps = std.ArrayList(*MenubarApp).init(allocator),
+            .apps = .{},
             .allocator = allocator,
         };
     }
@@ -500,11 +499,11 @@ pub const MenubarManager = struct {
             app.deinit();
             self.allocator.destroy(app);
         }
-        self.apps.deinit();
+        self.apps.deinit(self.allocator);
     }
 
     pub fn addApp(self: *MenubarManager, app: *MenubarApp) !void {
-        try self.apps.append(app);
+        try self.apps.append(self.allocator, app);
     }
 
     pub fn removeApp(self: *MenubarManager, app: *MenubarApp) void {
