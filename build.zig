@@ -107,8 +107,133 @@ pub fn build(b: *std.Build) void {
     });
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-    const test_step = b.step("test", "Run unit tests");
+
+    // Individual test files with proper imports
+    // Create module for each source file
+    const api_module = b.createModule(.{
+        .root_source_file = b.path("src/api.zig"),
+    });
+
+    const mobile_module = b.createModule(.{
+        .root_source_file = b.path("src/mobile.zig"),
+    });
+
+    const menubar_module = b.createModule(.{
+        .root_source_file = b.path("src/menubar.zig"),
+    });
+
+    const components_module = b.createModule(.{
+        .root_source_file = b.path("src/components.zig"),
+    });
+
+    const gpu_module = b.createModule(.{
+        .root_source_file = b.path("src/gpu.zig"),
+    });
+
+    const system_module = b.createModule(.{
+        .root_source_file = b.path("src/system.zig"),
+    });
+
+    const api_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/api_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/api.zig", .module = api_module },
+            },
+        }),
+    });
+
+    const mobile_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/mobile_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/mobile.zig", .module = mobile_module },
+            },
+        }),
+    });
+
+    const menubar_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/menubar_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/menubar.zig", .module = menubar_module },
+            },
+        }),
+    });
+
+    const components_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/components.zig", .module = components_module },
+            },
+        }),
+    });
+
+    const gpu_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/gpu_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/gpu.zig", .module = gpu_module },
+            },
+        }),
+    });
+
+    const system_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/system_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/system.zig", .module = system_module },
+            },
+        }),
+    });
+
+    const run_api_tests = b.addRunArtifact(api_tests);
+    const run_mobile_tests = b.addRunArtifact(mobile_tests);
+    const run_menubar_tests = b.addRunArtifact(menubar_tests);
+    const run_components_tests = b.addRunArtifact(components_tests);
+    const run_gpu_tests = b.addRunArtifact(gpu_tests);
+    const run_system_tests = b.addRunArtifact(system_tests);
+
+    const test_step = b.step("test", "Run all unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
+    test_step.dependOn(&run_api_tests.step);
+    test_step.dependOn(&run_mobile_tests.step);
+    test_step.dependOn(&run_menubar_tests.step);
+    test_step.dependOn(&run_components_tests.step);
+    test_step.dependOn(&run_gpu_tests.step);
+    test_step.dependOn(&run_system_tests.step);
+
+    // Individual test steps
+    const test_api_step = b.step("test:api", "Run API tests");
+    test_api_step.dependOn(&run_api_tests.step);
+
+    const test_mobile_step = b.step("test:mobile", "Run Mobile tests");
+    test_mobile_step.dependOn(&run_mobile_tests.step);
+
+    const test_menubar_step = b.step("test:menubar", "Run Menubar tests");
+    test_menubar_step.dependOn(&run_menubar_tests.step);
+
+    const test_components_step = b.step("test:components", "Run Components tests");
+    test_components_step.dependOn(&run_components_tests.step);
+
+    const test_gpu_step = b.step("test:gpu", "Run GPU tests");
+    test_gpu_step.dependOn(&run_gpu_tests.step);
+
+    const test_system_step = b.step("test:system", "Run System tests");
+    test_system_step.dependOn(&run_system_tests.step);
 
     // Cross-compilation helpers
     const build_linux = b.step("build-linux", "Build for Linux");

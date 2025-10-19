@@ -42,7 +42,7 @@ Zyte is a lightweight, high-performance cross-platform application framework. Cr
   - File access and storage
   - Material Design support
 
-### 🎨 Native Components Library (31 Components)
+### 🎨 Native Components Library
 
 **Input Components**
 - Button, TextInput, Checkbox, RadioButton
