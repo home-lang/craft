@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
@@ -14,94 +13,103 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build-and-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        zig-version: ['0.15.1']
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: ${{ matrix.zig-version }}
+
+      - name: Verify Zig installation
+        run: zig version
+
+      - name: Cache Zig artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/zig
+            zig-cache
+          key: ${{ runner.os }}-zig-${{ matrix.zig-version }}-${{ hashFiles('build.zig') }}
+          restore-keys: |
+            ${{ runner.os }}-zig-${{ matrix.zig-version }}-
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Build
+        run: zig build
+
+      - name: Run tests
+        run: zig build test
+
+      - name: Build examples
+        run: |
+          zig build
+          zig build run-minimal -- --help
+
+      - name: Check binary size
+        if: runner.os == 'Linux'
+        run: |
+          ls -lh zig-out/bin/
+          size zig-out/bin/zyte-minimal || true
+
   lint:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Use cached node_modules
-        uses: actions/cache@v4
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
         with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            node-modules-
+          version: '0.15.1'
 
-      - name: Install Dependencies
-        run: bun install
+      - name: Check formatting
+        run: zig fmt --check src/ build.zig
 
-      - name: Lint
-        run: bun run lint
-
-  typecheck:
+  cross-compile:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: '0.15.1'
 
-      - name: Use cached node_modules
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Cache Zig artifacts
         uses: actions/cache@v4
         with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('**/bun.lock') }}
+          path: |
+            ~/.cache/zig
+            zig-cache
+          key: cross-compile-zig-0.15.1-${{ hashFiles('build.zig') }}
           restore-keys: |
-            node-modules-
+            cross-compile-zig-0.15.1-
 
-      - name: Install Dependencies
-        run: bun install
+      - name: Build for all platforms
+        run: |
+          zig build build-linux
+          zig build build-macos
+          echo "Windows cross-compilation requires additional setup"
 
-      - name: Typecheck
-        run: bun --bun run typecheck
-
-  test:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Use cached node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            node-modules-
-
-      - name: Install Dependencies
-        run: bun install
-
-      - name: Unit Test
-        run: bun test
-
-  publish-commit:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
-
-      - name: Use cached node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            node-modules-
-
-      - name: Install Dependencies
-        run: bun install
-
-      - name: Build
-        run: bun run build
+      - name: List built artifacts
+        run: ls -lh zig-out/bin/

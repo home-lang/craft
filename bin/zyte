@@ -1,0 +1,52 @@
+#!/usr/bin/env bun
+
+import { spawnSync } from 'bun'
+import { fileURLToPath } from 'url'
+import { dirname, join } from 'path'
+import { existsSync } from 'fs'
+import { platform, arch } from 'os'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
+
+function getBinaryPath() {
+  const platformMap = {
+    darwin: 'darwin',
+    linux: 'linux',
+    win32: 'windows',
+  }
+
+  const archMap = {
+    x64: 'x64',
+    arm64: 'arm64',
+  }
+
+  const currentPlatform = platformMap[platform()]
+  const currentArch = archMap[arch()]
+
+  if (!currentPlatform || !currentArch) {
+    console.error(`Unsupported platform: ${platform()}-${arch()}`)
+    process.exit(1)
+  }
+
+  const binaryName = platform() === 'win32'
+    ? `zyte-${currentPlatform}-${currentArch}.exe`
+    : `zyte-${currentPlatform}-${currentArch}`
+
+  const binaryPath = join(__dirname, binaryName)
+
+  if (!existsSync(binaryPath)) {
+    console.error(`Binary not found: ${binaryPath}`)
+    console.error('Please report this issue at: https://github.com/stacksjs/zyte/issues')
+    process.exit(1)
+  }
+
+  return binaryPath
+}
+
+const binaryPath = getBinaryPath()
+const result = spawnSync(binaryPath, process.argv.slice(2), {
+  stdio: 'inherit',
+})
+
+process.exit(result.status ?? 1)

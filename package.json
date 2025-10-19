@@ -5,14 +5,13 @@
   "description": "Build desktop apps with web languages, powered by Zig",
   "author": "Chris Breuer <chris@stacksjs.org>",
   "license": "MIT",
-  "homepage": "https://github.com/stacksjs/stx/tree/main/packages/zyte#readme",
+  "homepage": "https://github.com/stacksjs/zyte#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/stacksjs/stx.git",
-    "directory": "packages/zyte"
+    "url": "git+https://github.com/stacksjs/zyte.git"
   },
   "bugs": {
-    "url": "https://github.com/stacksjs/stx/issues"
+    "url": "https://github.com/stacksjs/zyte/issues"
   },
   "keywords": [
     "desktop",
@@ -30,12 +29,24 @@
     "LICENSE.md",
     "README.md",
     "build.zig",
-    "src"
+    "src",
+    "bin"
   ],
+  "bin": {
+    "zyte": "./bin/zyte"
+  },
   "scripts": {
-    "build": "zig build",
+    "postinstall": "bun scripts/postinstall.ts",
+    "build": "zig build -Doptimize=ReleaseSafe",
+    "build:debug": "zig build",
     "test": "zig build test",
     "run": "zig build run",
-    "clean": "rm -rf zig-cache zig-out"
+    "run:minimal": "zig build run-minimal",
+    "clean": "rm -rf zig-cache zig-out",
+    "fmt": "zig fmt src/ build.zig",
+    "fmt:check": "zig fmt --check src/ build.zig"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
   }
 }

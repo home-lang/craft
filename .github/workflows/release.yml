@@ -1,4 +1,4 @@
-name: Releaser
+name: Release
 
 on:
   push:
@@ -6,8 +6,83 @@ on:
       - 'v*'
 
 jobs:
-  npm:
-    name: npm
+  build-binaries:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-linux-gnu
+            artifact_name: zyte-linux-x64
+            build_command: zig build -Doptimize=ReleaseSafe
+          - os: ubuntu-latest
+            target: aarch64-linux-gnu
+            artifact_name: zyte-linux-arm64
+            build_command: zig build -Doptimize=ReleaseSafe
+          - os: macos-latest
+            target: x86_64-macos
+            artifact_name: zyte-darwin-x64
+            build_command: zig build -Doptimize=ReleaseSafe
+          - os: macos-latest
+            target: aarch64-macos
+            artifact_name: zyte-darwin-arm64
+            build_command: zig build -Doptimize=ReleaseSafe
+          - os: windows-latest
+            target: x86_64-windows
+            artifact_name: zyte-windows-x64.exe
+            build_command: zig build -Doptimize=ReleaseSafe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: '0.15.1'
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Cache Zig artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/zig
+            zig-cache
+          key: release-${{ runner.os }}-${{ matrix.target }}-zig-0.15.1-${{ hashFiles('build.zig') }}
+          restore-keys: |
+            release-${{ runner.os }}-${{ matrix.target }}-zig-0.15.1-
+
+      - name: Build binary
+        run: ${{ matrix.build_command }}
+
+      - name: Prepare artifact (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p bin
+          cp zig-out/bin/zyte-minimal bin/${{ matrix.artifact_name }}
+          chmod +x bin/${{ matrix.artifact_name }}
+
+      - name: Prepare artifact (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir bin
+          cp zig-out/bin/zyte-minimal.exe bin/${{ matrix.artifact_name }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: bin/${{ matrix.artifact_name }}
+
+  publish-npm:
+    needs: build-binaries
     runs-on: ubuntu-latest
 
     steps:
@@ -15,31 +90,58 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Move binaries to bin directory
+        run: |
+          mkdir -p bin
+          find artifacts -type f -exec cp {} bin/ \;
+          chmod +x bin/zyte-* || true
+          ls -lh bin/
+
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Use cached node_modules
-        uses: actions/cache@v4
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            node-modules-
-
-      - name: Install Dependencies
-        run: bun install
+      - name: Update package version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          bun run -e "
+          import { readFileSync, writeFileSync } from 'fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
+          pkg.version = '$VERSION';
+          writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
 
       - name: Publish to npm
         run: bun publish --access public
         env:
-          BUN_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+          BUN_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Create GitHub release
-        run: bunx changelogithub
-        env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  create-github-release:
+    needs: build-binaries
+    runs-on: ubuntu-latest
 
-      - name: Attach Binaries
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare binaries for release
+        run: |
+          mkdir -p bin
+          find artifacts -type f -exec cp {} bin/ \;
+          chmod +x bin/zyte-* || true
+          ls -lh bin/
+
+      - name: Create GitHub Release
         uses: stacksjs/action-releaser@v1.2.6
         with:
           files: |
