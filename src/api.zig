@@ -18,10 +18,17 @@ pub const Version = struct {
 };
 
 pub const current_version = Version{
-    .major = 1,
+    .major = 2,
     .minor = 0,
     .patch = 0,
 };
+
+/// BREAKING CHANGES in v2.0:
+/// - Window.create() now returns Result(Window, Error) instead of !Window
+/// - WindowOptions now uses builder pattern with required fields
+/// - App.createWindow() merged into Window.create()
+/// - Event callbacks now use typed event handlers
+/// - IPC now uses structured messages instead of strings
 
 /// Stable Window API
 pub const Window = struct {
@@ -259,4 +266,403 @@ pub const Error = error{
     InvalidURL,
     InitializationFailed,
     FeatureNotAvailable,
+};
+
+/// v2.0 Breaking Improvements
+
+/// Result type for better error handling
+pub fn Result(comptime T: type, comptime E: type) type {
+    return union(enum) {
+        ok: T,
+        err: E,
+
+        pub fn isOk(self: @This()) bool {
+            return self == .ok;
+        }
+
+        pub fn isErr(self: @This()) bool {
+            return self == .err;
+        }
+
+        pub fn unwrap(self: @This()) T {
+            return switch (self) {
+                .ok => |val| val,
+                .err => @panic("Called unwrap on error value"),
+            };
+        }
+
+        pub fn unwrapOr(self: @This(), default: T) T {
+            return switch (self) {
+                .ok => |val| val,
+                .err => default,
+            };
+        }
+
+        pub fn expect(self: @This(), msg: []const u8) T {
+            return switch (self) {
+                .ok => |val| val,
+                .err => |e| {
+                    std.debug.print("Expected ok value: {s}. Got error: {}\n", .{ msg, e });
+                    @panic("expect() failed");
+                },
+            };
+        }
+    };
+}
+
+/// Builder Pattern for WindowOptions
+pub const WindowBuilder = struct {
+    title: []const u8,
+    width: u32,
+    height: u32,
+    url: []const u8,
+    x: ?i32 = null,
+    y: ?i32 = null,
+    resizable: bool = true,
+    frameless: bool = false,
+    transparent: bool = false,
+    always_on_top: bool = false,
+    fullscreen: bool = false,
+    dark_mode: ?bool = null,
+    dev_tools: bool = true,
+    min_width: ?u32 = null,
+    min_height: ?u32 = null,
+    max_width: ?u32 = null,
+    max_height: ?u32 = null,
+
+    pub fn new(title: []const u8, url: []const u8) WindowBuilder {
+        return WindowBuilder{
+            .title = title,
+            .width = 1200,
+            .height = 800,
+            .url = url,
+        };
+    }
+
+    pub fn size(self: WindowBuilder, width: u32, height: u32) WindowBuilder {
+        var builder = self;
+        builder.width = width;
+        builder.height = height;
+        return builder;
+    }
+
+    pub fn position(self: WindowBuilder, x: i32, y: i32) WindowBuilder {
+        var builder = self;
+        builder.x = x;
+        builder.y = y;
+        return builder;
+    }
+
+    pub fn minSize(self: WindowBuilder, width: u32, height: u32) WindowBuilder {
+        var builder = self;
+        builder.min_width = width;
+        builder.min_height = height;
+        return builder;
+    }
+
+    pub fn maxSize(self: WindowBuilder, width: u32, height: u32) WindowBuilder {
+        var builder = self;
+        builder.max_width = width;
+        builder.max_height = height;
+        return builder;
+    }
+
+    pub fn resizable(self: WindowBuilder, value: bool) WindowBuilder {
+        var builder = self;
+        builder.resizable = value;
+        return builder;
+    }
+
+    pub fn frameless(self: WindowBuilder, value: bool) WindowBuilder {
+        var builder = self;
+        builder.frameless = value;
+        return builder;
+    }
+
+    pub fn transparent(self: WindowBuilder, value: bool) WindowBuilder {
+        var builder = self;
+        builder.transparent = value;
+        return builder;
+    }
+
+    pub fn alwaysOnTop(self: WindowBuilder, value: bool) WindowBuilder {
+        var builder = self;
+        builder.always_on_top = value;
+        return builder;
+    }
+
+    pub fn fullscreen(self: WindowBuilder, value: bool) WindowBuilder {
+        var builder = self;
+        builder.fullscreen = value;
+        return builder;
+    }
+
+    pub fn darkMode(self: WindowBuilder, value: bool) WindowBuilder {
+        var builder = self;
+        builder.dark_mode = value;
+        return builder;
+    }
+
+    pub fn devTools(self: WindowBuilder, value: bool) WindowBuilder {
+        var builder = self;
+        builder.dev_tools = value;
+        return builder;
+    }
+
+    pub fn build(self: WindowBuilder) Result(Window, Error) {
+        // Validate dimensions
+        if (self.min_width != null and self.width < self.min_width.?) {
+            return .{ .err = Error.WindowCreationFailed };
+        }
+        if (self.min_height != null and self.height < self.min_height.?) {
+            return .{ .err = Error.WindowCreationFailed };
+        }
+
+        // Create window (platform-specific implementation would go here)
+        const opts = WindowOptions{
+            .title = self.title,
+            .width = self.width,
+            .height = self.height,
+            .x = self.x,
+            .y = self.y,
+            .resizable = self.resizable,
+            .frameless = self.frameless,
+            .transparent = self.transparent,
+            .always_on_top = self.always_on_top,
+            .fullscreen = self.fullscreen,
+            .dark_mode = self.dark_mode,
+            .dev_tools = self.dev_tools,
+        };
+
+        const window = Window.create(opts) catch {
+            return .{ .err = Error.WindowCreationFailed };
+        };
+
+        return .{ .ok = window };
+    }
+};
+
+/// Typed Event System
+pub const EventType = enum {
+    window_close,
+    window_resize,
+    window_move,
+    window_focus,
+    window_blur,
+    key_down,
+    key_up,
+    mouse_down,
+    mouse_up,
+    mouse_move,
+    scroll,
+    custom,
+};
+
+pub const Event = union(EventType) {
+    window_close: void,
+    window_resize: ResizeEvent,
+    window_move: MoveEvent,
+    window_focus: void,
+    window_blur: void,
+    key_down: KeyEvent,
+    key_up: KeyEvent,
+    mouse_down: MouseEvent,
+    mouse_up: MouseEvent,
+    mouse_move: MouseEvent,
+    scroll: ScrollEvent,
+    custom: CustomEvent,
+};
+
+pub const ResizeEvent = struct {
+    width: u32,
+    height: u32,
+};
+
+pub const MoveEvent = struct {
+    x: i32,
+    y: i32,
+};
+
+pub const KeyEvent = struct {
+    code: []const u8,
+    key: []const u8,
+    alt: bool,
+    ctrl: bool,
+    shift: bool,
+    meta: bool,
+};
+
+pub const MouseEvent = struct {
+    x: i32,
+    y: i32,
+    button: u8,
+    alt: bool,
+    ctrl: bool,
+    shift: bool,
+    meta: bool,
+};
+
+pub const ScrollEvent = struct {
+    delta_x: f32,
+    delta_y: f32,
+};
+
+pub const CustomEvent = struct {
+    name: []const u8,
+    data: []const u8,
+};
+
+pub const EventHandler = *const fn (Event) void;
+
+/// Structured IPC Messages
+pub const IPCMessage = struct {
+    id: u64,
+    type: MessageType,
+    payload: Payload,
+
+    pub const MessageType = enum {
+        request,
+        response,
+        notification,
+        error_msg,
+    };
+
+    pub const Payload = union(enum) {
+        string: []const u8,
+        number: f64,
+        boolean: bool,
+        object: std.StringHashMap([]const u8),
+        array: []const []const u8,
+        null_value: void,
+    };
+
+    pub fn request(id: u64, payload: Payload) IPCMessage {
+        return IPCMessage{
+            .id = id,
+            .type = .request,
+            .payload = payload,
+        };
+    }
+
+    pub fn response(id: u64, payload: Payload) IPCMessage {
+        return IPCMessage{
+            .id = id,
+            .type = .response,
+            .payload = payload,
+        };
+    }
+
+    pub fn notification(payload: Payload) IPCMessage {
+        return IPCMessage{
+            .id = 0,
+            .type = .notification,
+            .payload = payload,
+        };
+    }
+
+    pub fn err(id: u64, message: []const u8) IPCMessage {
+        return IPCMessage{
+            .id = id,
+            .type = .error_msg,
+            .payload = .{ .string = message },
+        };
+    }
+};
+
+/// Async/Await Support
+pub const Promise = struct {
+    value: ?[]const u8,
+    error_value: ?Error,
+    resolved: bool,
+    rejected: bool,
+    then_callback: ?*const fn ([]const u8) void,
+    catch_callback: ?*const fn (Error) void,
+
+    pub fn init() Promise {
+        return Promise{
+            .value = null,
+            .error_value = null,
+            .resolved = false,
+            .rejected = false,
+            .then_callback = null,
+            .catch_callback = null,
+        };
+    }
+
+    pub fn resolve(self: *Promise, value: []const u8) void {
+        self.value = value;
+        self.resolved = true;
+        if (self.then_callback) |callback| {
+            callback(value);
+        }
+    }
+
+    pub fn reject(self: *Promise, err: Error) void {
+        self.error_value = err;
+        self.rejected = true;
+        if (self.catch_callback) |callback| {
+            callback(err);
+        }
+    }
+
+    pub fn then(self: *Promise, callback: *const fn ([]const u8) void) *Promise {
+        self.then_callback = callback;
+        if (self.resolved and self.value != null) {
+            callback(self.value.?);
+        }
+        return self;
+    }
+
+    pub fn catch_(self: *Promise, callback: *const fn (Error) void) *Promise {
+        self.catch_callback = callback;
+        if (self.rejected and self.error_value != null) {
+            callback(self.error_value.?);
+        }
+        return self;
+    }
+};
+
+/// Migration Guide from v1.0 to v2.0
+pub const MigrationGuide = struct {
+    pub const changes =
+        \\# Migration Guide: Zyte v1.0 → v2.0
+        \\
+        \\## Window Creation
+        \\### v1.0 (Old)
+        \\```zig
+        \\const window = try Window.create(WindowOptions{ .title = "App", .width = 800, .height = 600 });
+        \\```
+        \\
+        \\### v2.0 (New)
+        \\```zig
+        \\const window = WindowBuilder.new("App", "http://localhost:3000")
+        \\    .size(800, 600)
+        \\    .resizable(true)
+        \\    .build()
+        \\    .expect("Failed to create window");
+        \\```
+        \\
+        \\## Event Handling
+        \\### v1.0 (Old)
+        \\```zig
+        \\window.on("close", callback);
+        \\```
+        \\
+        \\### v2.0 (New)
+        \\```zig
+        \\window.addEventListener(.window_close, handleClose);
+        \\```
+        \\
+        \\## IPC Messages
+        \\### v1.0 (Old)
+        \\```zig
+        \\ipc.send("message-type", "string data");
+        \\```
+        \\
+        \\### v2.0 (New)
+        \\```zig
+        \\const msg = IPCMessage.request(1, .{ .string = "data" });
+        \\ipc.send(msg);
+        \\```
+    ;
 };

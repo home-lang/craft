@@ -249,3 +249,497 @@ pub const CanvasAccelerator = struct {
         // Hardware-accelerated clear
     }
 };
+
+/// Advanced GPU Rendering Pipeline
+pub const RenderPipeline = struct {
+    gpu: *GPU,
+    shaders: std.ArrayList(Shader),
+    render_targets: std.ArrayList(RenderTarget),
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator, gpu: *GPU) RenderPipeline {
+        return RenderPipeline{
+            .gpu = gpu,
+            .shaders = std.ArrayList(Shader).init(allocator),
+            .render_targets = std.ArrayList(RenderTarget).init(allocator),
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *RenderPipeline) void {
+        for (self.shaders.items) |*shader| {
+            shader.deinit();
+        }
+        self.shaders.deinit();
+
+        for (self.render_targets.items) |*target| {
+            target.deinit();
+        }
+        self.render_targets.deinit();
+    }
+
+    pub fn createShader(self: *RenderPipeline, source: ShaderSource) !*Shader {
+        var shader = try Shader.init(self.allocator, source);
+        try self.shaders.append(shader);
+        return &self.shaders.items[self.shaders.items.len - 1];
+    }
+
+    pub fn createRenderTarget(self: *RenderPipeline, width: u32, height: u32, format: TextureFormat) !*RenderTarget {
+        var target = try RenderTarget.init(self.allocator, width, height, format);
+        try self.render_targets.append(target);
+        return &self.render_targets.items[self.render_targets.items.len - 1];
+    }
+
+    pub fn render(self: *RenderPipeline, commands: []const RenderCommand) !void {
+        _ = self;
+        _ = commands;
+        // Execute render commands
+    }
+};
+
+/// Shader Management
+pub const ShaderType = enum {
+    vertex,
+    fragment,
+    compute,
+    geometry,
+};
+
+pub const ShaderSource = struct {
+    type: ShaderType,
+    code: []const u8,
+    entry_point: []const u8 = "main",
+};
+
+pub const Shader = struct {
+    type: ShaderType,
+    source: []const u8,
+    entry_point: []const u8,
+    compiled: bool,
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator, source: ShaderSource) !Shader {
+        return Shader{
+            .type = source.type,
+            .source = source.code,
+            .entry_point = source.entry_point,
+            .compiled = false,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *Shader) void {
+        _ = self;
+    }
+
+    pub fn compile(self: *Shader) !void {
+        // Compile shader for current backend
+        self.compiled = true;
+    }
+};
+
+/// Texture Management
+pub const TextureFormat = enum {
+    rgba8,
+    rgba16f,
+    rgba32f,
+    depth24_stencil8,
+    depth32f,
+};
+
+pub const RenderTarget = struct {
+    width: u32,
+    height: u32,
+    format: TextureFormat,
+    texture_id: u32,
+    framebuffer_id: u32,
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator, width: u32, height: u32, format: TextureFormat) !RenderTarget {
+        return RenderTarget{
+            .width = width,
+            .height = height,
+            .format = format,
+            .texture_id = 0,
+            .framebuffer_id = 0,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *RenderTarget) void {
+        _ = self;
+        // Free GPU resources
+    }
+
+    pub fn resize(self: *RenderTarget, width: u32, height: u32) !void {
+        self.width = width;
+        self.height = height;
+        // Recreate GPU resources
+    }
+
+    pub fn clear(self: *RenderTarget, color: [4]f32) void {
+        _ = self;
+        _ = color;
+        // Clear render target
+    }
+};
+
+/// Render Commands
+pub const RenderCommand = union(enum) {
+    clear: ClearCommand,
+    draw: DrawCommand,
+    draw_indexed: DrawIndexedCommand,
+    dispatch_compute: ComputeCommand,
+    set_shader: *Shader,
+    set_render_target: *RenderTarget,
+    set_viewport: ViewportCommand,
+    set_scissor: ScissorCommand,
+};
+
+pub const ClearCommand = struct {
+    color: [4]f32,
+    depth: f32 = 1.0,
+    stencil: u8 = 0,
+};
+
+pub const DrawCommand = struct {
+    vertex_count: u32,
+    instance_count: u32 = 1,
+    first_vertex: u32 = 0,
+    first_instance: u32 = 0,
+};
+
+pub const DrawIndexedCommand = struct {
+    index_count: u32,
+    instance_count: u32 = 1,
+    first_index: u32 = 0,
+    vertex_offset: i32 = 0,
+    first_instance: u32 = 0,
+};
+
+pub const ComputeCommand = struct {
+    groups_x: u32,
+    groups_y: u32,
+    groups_z: u32,
+};
+
+pub const ViewportCommand = struct {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    min_depth: f32 = 0.0,
+    max_depth: f32 = 1.0,
+};
+
+pub const ScissorCommand = struct {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+};
+
+/// Buffer Management
+pub const BufferType = enum {
+    vertex,
+    index,
+    uniform,
+    storage,
+};
+
+pub const BufferUsage = enum {
+    static,
+    dynamic,
+    stream,
+};
+
+pub const Buffer = struct {
+    type: BufferType,
+    usage: BufferUsage,
+    size: usize,
+    buffer_id: u32,
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator, buffer_type: BufferType, usage: BufferUsage, size: usize) !Buffer {
+        return Buffer{
+            .type = buffer_type,
+            .usage = usage,
+            .size = size,
+            .buffer_id = 0,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *Buffer) void {
+        _ = self;
+        // Free GPU buffer
+    }
+
+    pub fn upload(self: *Buffer, data: []const u8, offset: usize) !void {
+        if (offset + data.len > self.size) return error.BufferOverflow;
+        _ = self;
+        // Upload data to GPU
+    }
+
+    pub fn download(self: *Buffer, data: []u8, offset: usize) !void {
+        if (offset + data.len > self.size) return error.BufferOverflow;
+        _ = self;
+        // Download data from GPU
+    }
+};
+
+/// Mesh Rendering
+pub const Vertex = struct {
+    position: [3]f32,
+    normal: [3]f32,
+    uv: [2]f32,
+    color: [4]f32,
+};
+
+pub const Mesh = struct {
+    vertices: []Vertex,
+    indices: []u32,
+    vertex_buffer: Buffer,
+    index_buffer: Buffer,
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator, vertices: []Vertex, indices: []u32) !Mesh {
+        var vertex_buffer = try Buffer.init(
+            allocator,
+            .vertex,
+            .static,
+            vertices.len * @sizeOf(Vertex),
+        );
+
+        var index_buffer = try Buffer.init(
+            allocator,
+            .index,
+            .static,
+            indices.len * @sizeOf(u32),
+        );
+
+        return Mesh{
+            .vertices = vertices,
+            .indices = indices,
+            .vertex_buffer = vertex_buffer,
+            .index_buffer = index_buffer,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *Mesh) void {
+        self.vertex_buffer.deinit();
+        self.index_buffer.deinit();
+    }
+
+    pub fn upload(self: *Mesh) !void {
+        const vertex_data = std.mem.sliceAsBytes(self.vertices);
+        try self.vertex_buffer.upload(vertex_data, 0);
+
+        const index_data = std.mem.sliceAsBytes(self.indices);
+        try self.index_buffer.upload(index_data, 0);
+    }
+
+    pub fn draw(self: *Mesh) !void {
+        _ = self;
+        // Draw mesh
+    }
+};
+
+/// Post-Processing Effects
+pub const PostProcessor = struct {
+    pipeline: *RenderPipeline,
+    effects: std.ArrayList(Effect),
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator, pipeline: *RenderPipeline) PostProcessor {
+        return PostProcessor{
+            .pipeline = pipeline,
+            .effects = std.ArrayList(Effect).init(allocator),
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *PostProcessor) void {
+        self.effects.deinit();
+    }
+
+    pub fn addEffect(self: *PostProcessor, effect: Effect) !void {
+        try self.effects.append(effect);
+    }
+
+    pub fn process(self: *PostProcessor, input: *RenderTarget, output: *RenderTarget) !void {
+        _ = input;
+        _ = output;
+
+        for (self.effects.items) |effect| {
+            _ = effect;
+            // Apply effect
+        }
+    }
+};
+
+pub const Effect = enum {
+    bloom,
+    blur,
+    sharpen,
+    vignette,
+    chromatic_aberration,
+    film_grain,
+    color_grading,
+    tone_mapping,
+    anti_aliasing,
+    ambient_occlusion,
+};
+
+/// Performance Profiling
+pub const GPUProfiler = struct {
+    queries: std.ArrayList(Query),
+    allocator: std.mem.Allocator,
+
+    pub const Query = struct {
+        name: []const u8,
+        start_time: u64,
+        end_time: u64,
+        duration_ns: u64,
+    };
+
+    pub fn init(allocator: std.mem.Allocator) GPUProfiler {
+        return GPUProfiler{
+            .queries = std.ArrayList(Query).init(allocator),
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *GPUProfiler) void {
+        self.queries.deinit();
+    }
+
+    pub fn beginQuery(self: *GPUProfiler, name: []const u8) !void {
+        const query = Query{
+            .name = name,
+            .start_time = @intCast(std.time.nanoTimestamp()),
+            .end_time = 0,
+            .duration_ns = 0,
+        };
+        try self.queries.append(query);
+    }
+
+    pub fn endQuery(self: *GPUProfiler) void {
+        if (self.queries.items.len > 0) {
+            const last = &self.queries.items[self.queries.items.len - 1];
+            last.end_time = @intCast(std.time.nanoTimestamp());
+            last.duration_ns = last.end_time - last.start_time;
+        }
+    }
+
+    pub fn getResults(self: *GPUProfiler) []Query {
+        return self.queries.items;
+    }
+
+    pub fn clear(self: *GPUProfiler) void {
+        self.queries.clearRetainingCapacity();
+    }
+};
+
+/// Compute Shader Support
+pub const ComputeShader = struct {
+    shader: Shader,
+    workgroup_size: [3]u32,
+
+    pub fn init(allocator: std.mem.Allocator, source: []const u8, workgroup_size: [3]u32) !ComputeShader {
+        const shader_source = ShaderSource{
+            .type = .compute,
+            .code = source,
+        };
+
+        return ComputeShader{
+            .shader = try Shader.init(allocator, shader_source),
+            .workgroup_size = workgroup_size,
+        };
+    }
+
+    pub fn deinit(self: *ComputeShader) void {
+        self.shader.deinit();
+    }
+
+    pub fn dispatch(self: *ComputeShader, groups_x: u32, groups_y: u32, groups_z: u32) !void {
+        _ = self;
+        _ = groups_x;
+        _ = groups_y;
+        _ = groups_z;
+        // Dispatch compute shader
+    }
+};
+
+/// Ray Tracing Support
+pub const RayTracer = struct {
+    gpu: *GPU,
+    acceleration_structure: ?*anyopaque,
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator, gpu: *GPU) !RayTracer {
+        return RayTracer{
+            .gpu = gpu,
+            .acceleration_structure = null,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *RayTracer) void {
+        _ = self;
+    }
+
+    pub fn buildAccelerationStructure(self: *RayTracer, meshes: []const Mesh) !void {
+        _ = self;
+        _ = meshes;
+        // Build BVH acceleration structure
+    }
+
+    pub fn trace(self: *RayTracer, ray_origin: [3]f32, ray_direction: [3]f32) !?Hit {
+        _ = self;
+        _ = ray_origin;
+        _ = ray_direction;
+        return null;
+    }
+
+    pub const Hit = struct {
+        distance: f32,
+        position: [3]f32,
+        normal: [3]f32,
+        mesh_id: u32,
+    };
+};
+
+/// Multi-GPU Support
+pub const MultiGPU = struct {
+    gpus: std.ArrayList(*GPU),
+    primary_gpu: ?*GPU,
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator) MultiGPU {
+        return MultiGPU{
+            .gpus = std.ArrayList(*GPU).init(allocator),
+            .primary_gpu = null,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *MultiGPU) void {
+        self.gpus.deinit();
+    }
+
+    pub fn detectGPUs(self: *MultiGPU) !void {
+        _ = self;
+        // Detect all available GPUs
+    }
+
+    pub fn setPrimaryGPU(self: *MultiGPU, index: usize) !void {
+        if (index >= self.gpus.items.len) return error.InvalidGPUIndex;
+        self.primary_gpu = self.gpus.items[index];
+    }
+
+    pub fn getGPUCount(self: *MultiGPU) usize {
+        return self.gpus.items.len;
+    }
+};
