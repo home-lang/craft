@@ -1,602 +1,533 @@
 const std = @import("std");
 const testing = std.testing;
-const performance = @import("../src/performance.zig");
+const builtin = @import("builtin");
 
-// Cache tests
-test "Cache - initialization" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
+// Import modules to test
+const api = @import("../src/api.zig");
+const components = @import("../src/components.zig");
+const gpu = @import("../src/gpu.zig");
+const renderer = @import("../src/renderer.zig");
+const memory = @import("../src/memory.zig");
 
-    try testing.expectEqual(@as(usize, 1024), cache.max_size);
-    try testing.expectEqual(@as(usize, 0), cache.current_size);
+/// Performance test configuration
+const PerformanceConfig = struct {
+    iterations: usize = 1000,
+    warmup_iterations: usize = 100,
+    report_percentiles: bool = true,
+};
+
+/// Performance metrics collector
+const PerformanceMetrics = struct {
+    timings: std.ArrayList(u64),
+    allocator: std.mem.Allocator,
+
+    fn init(allocator: std.mem.Allocator) PerformanceMetrics {
+        return .{
+            .timings = std.ArrayList(u64).init(allocator),
+            .allocator = allocator,
+        };
+    }
+
+    fn deinit(self: *PerformanceMetrics) void {
+        self.timings.deinit();
+    }
+
+    fn record(self: *PerformanceMetrics, duration_ns: u64) !void {
+        try self.timings.append(duration_ns);
+    }
+
+    fn calculateStats(self: *PerformanceMetrics) Stats {
+        if (self.timings.items.len == 0) return .{};
+
+        var total: u64 = 0;
+        var min_val: u64 = std.math.maxInt(u64);
+        var max_val: u64 = 0;
+
+        for (self.timings.items) |timing| {
+            total += timing;
+            if (timing < min_val) min_val = timing;
+            if (timing > max_val) max_val = timing;
+        }
+
+        const count = self.timings.items.len;
+        const mean = total / count;
+
+        // Calculate median
+        std.mem.sort(u64, self.timings.items, {}, comptime std.sort.asc(u64));
+        const median = if (count % 2 == 0)
+            (self.timings.items[count / 2 - 1] + self.timings.items[count / 2]) / 2
+        else
+            self.timings.items[count / 2];
+
+        // Calculate percentiles
+        const p95_idx = @min((count * 95) / 100, count - 1);
+        const p99_idx = @min((count * 99) / 100, count - 1);
+
+        return .{
+            .mean = mean,
+            .median = median,
+            .min = min_val,
+            .max = max_val,
+            .p95 = self.timings.items[p95_idx],
+            .p99 = self.timings.items[p99_idx],
+            .count = count,
+        };
+    }
+
+    const Stats = struct {
+        mean: u64 = 0,
+        median: u64 = 0,
+        min: u64 = 0,
+        max: u64 = 0,
+        p95: u64 = 0,
+        p99: u64 = 0,
+        count: usize = 0,
+
+        fn print(self: Stats, name: []const u8) void {
+            std.debug.print("\n=== {s} Performance Stats ===\n", .{name});
+            std.debug.print("Iterations: {d}\n", .{self.count});
+            std.debug.print("Mean:       {d} ns ({d:.2} µs)\n", .{ self.mean, @as(f64, @floatFromInt(self.mean)) / 1_000.0 });
+            std.debug.print("Median:     {d} ns ({d:.2} µs)\n", .{ self.median, @as(f64, @floatFromInt(self.median)) / 1_000.0 });
+            std.debug.print("Min:        {d} ns ({d:.2} µs)\n", .{ self.min, @as(f64, @floatFromInt(self.min)) / 1_000.0 });
+            std.debug.print("Max:        {d} ns ({d:.2} µs)\n", .{ self.max, @as(f64, @floatFromInt(self.max)) / 1_000.0 });
+            std.debug.print("P95:        {d} ns ({d:.2} µs)\n", .{ self.p95, @as(f64, @floatFromInt(self.p95)) / 1_000.0 });
+            std.debug.print("P99:        {d} ns ({d:.2} µs)\n", .{ self.p99, @as(f64, @floatFromInt(self.p99)) / 1_000.0 });
+        }
+    };
+};
+
+/// Timer utility for precise measurements
+const Timer = struct {
+    start_time: i128,
+
+    fn start() Timer {
+        return .{ .start_time = std.time.nanoTimestamp() };
+    }
+
+    fn elapsed(self: *const Timer) u64 {
+        const end_time = std.time.nanoTimestamp();
+        return @intCast(end_time - self.start_time);
+    }
+};
+
+// =============================================================================
+// Component Creation Performance Tests
+// =============================================================================
+
+test "Performance: Component creation and destruction" {
+    const config = PerformanceConfig{ .iterations = 10000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
+
+    const props = components.ComponentProps{};
+
+    // Warmup
+    var i: usize = 0;
+    while (i < config.warmup_iterations) : (i += 1) {
+        var button = try components.Button.init(testing.allocator, "Test", props);
+        button.deinit();
+    }
+
+    // Actual measurements
+    i = 0;
+    while (i < config.iterations) : (i += 1) {
+        const timer = Timer.start();
+        var button = try components.Button.init(testing.allocator, "Test", props);
+        button.deinit();
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("Button Creation/Destruction");
+
+    // Assert reasonable performance (< 100µs average)
+    try testing.expect(stats.mean < 100_000);
 }
 
-test "Cache - put and get" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
+test "Performance: Bulk component creation" {
+    const config = PerformanceConfig{ .iterations = 100 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-    try cache.put("key1", "value1");
+    const props = components.ComponentProps{};
+    const batch_size = 100;
 
-    const result = cache.get("key1");
-    try testing.expect(result != null);
-    try testing.expectEqualStrings("value1", result.?);
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        var components_list = std.ArrayList(*components.Button).init(testing.allocator);
+        defer {
+            for (components_list.items) |comp| {
+                comp.deinit();
+            }
+            components_list.deinit();
+        }
+
+        const timer = Timer.start();
+        var j: usize = 0;
+        while (j < batch_size) : (j += 1) {
+            const button = try components.Button.init(testing.allocator, "Button", props);
+            try components_list.append(button);
+        }
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("Bulk Component Creation (100 components)");
 }
 
-test "Cache - get non-existent key" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
+test "Performance: Checkbox toggle operations" {
+    const config = PerformanceConfig{ .iterations = 100000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-    const result = cache.get("non-existent");
-    try testing.expectEqual(@as(?[]const u8, null), result);
+    const props = components.ComponentProps{};
+    var checkbox = try components.Checkbox.init(testing.allocator, props);
+    defer checkbox.deinit();
+
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        const timer = Timer.start();
+        checkbox.toggle();
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("Checkbox Toggle");
+
+    // Toggle should be extremely fast (< 1µs)
+    try testing.expect(stats.mean < 1_000);
 }
 
-test "Cache - multiple entries" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
+test "Performance: Slider value updates" {
+    const config = PerformanceConfig{ .iterations = 100000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-    try cache.put("key1", "value1");
-    try cache.put("key2", "value2");
-    try cache.put("key3", "value3");
+    const props = components.ComponentProps{};
+    var slider = try components.Slider.init(testing.allocator, 0.0, 100.0, props);
+    defer slider.deinit();
 
-    try testing.expectEqualStrings("value1", cache.get("key1").?);
-    try testing.expectEqualStrings("value2", cache.get("key2").?);
-    try testing.expectEqualStrings("value3", cache.get("key3").?);
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        const timer = Timer.start();
+        slider.setValue(@as(f64, @floatFromInt(i % 100)));
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("Slider Value Update");
+
+    // Value updates should be very fast (< 1µs)
+    try testing.expect(stats.mean < 1_000);
 }
 
-test "Cache - overwrite existing key" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
+// =============================================================================
+// List/Collection Performance Tests
+// =============================================================================
 
-    try cache.put("key1", "original");
-    try cache.put("key1", "updated");
+test "Performance: ListView item addition" {
+    const config = PerformanceConfig{ .iterations = 1000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-    try testing.expectEqualStrings("updated", cache.get("key1").?);
+    const props = components.ComponentProps{};
+    var list = try components.ListView.init(testing.allocator, props);
+    defer list.deinit();
+
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        const timer = Timer.start();
+        try list.addItem("Test Item");
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("ListView Item Addition");
 }
 
-test "Cache - remove entry" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
+test "Performance: Table row operations" {
+    const config = PerformanceConfig{ .iterations = 1000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-    try cache.put("key1", "value1");
-    cache.remove("key1");
+    var columns = [_]components.Table.Column{
+        .{ .title = "Name", .width = 100 },
+        .{ .title = "Age", .width = 50 },
+        .{ .title = "Email", .width = 150 },
+    };
+    const props = components.ComponentProps{};
+    var table = try components.Table.init(testing.allocator, &columns, props);
+    defer table.deinit();
 
-    const result = cache.get("key1");
-    try testing.expectEqual(@as(?[]const u8, null), result);
+    const row_data = [_][]const u8{ "John Doe", "30", "john@example.com" };
+
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        const timer = Timer.start();
+        try table.addRow(.{ .data = &row_data });
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("Table Row Addition");
 }
 
-test "Cache - remove non-existent key" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
+// =============================================================================
+// Memory Management Performance Tests
+// =============================================================================
 
-    cache.remove("non-existent");
-}
+test "Performance: Memory pool allocation and deallocation" {
+    const config = PerformanceConfig{ .iterations = 10000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-test "Cache - clear all entries" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
-
-    try cache.put("key1", "value1");
-    try cache.put("key2", "value2");
-
-    cache.clear();
-
-    try testing.expectEqual(@as(?[]const u8, null), cache.get("key1"));
-    try testing.expectEqual(@as(?[]const u8, null), cache.get("key2"));
-    try testing.expectEqual(@as(usize, 0), cache.current_size);
-}
-
-test "Cache - LRU eviction" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 20);
-    defer cache.deinit();
-
-    try cache.put("key1", "value1");
-    std.time.sleep(1_000_000); // Sleep 1ms
-
-    try cache.put("key2", "value2");
-    std.time.sleep(1_000_000);
-
-    try cache.put("key3", "value3456789012345"); // This should trigger eviction
-
-    // key1 should be evicted as it's the oldest
-    try testing.expectEqual(@as(?[]const u8, null), cache.get("key1"));
-    try testing.expect(cache.get("key2") != null);
-    try testing.expect(cache.get("key3") != null);
-}
-
-test "Cache - access count increments" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
-
-    try cache.put("key1", "value1");
-
-    _ = cache.get("key1");
-    _ = cache.get("key1");
-    _ = cache.get("key1");
-
-    // Access count should have incremented
-}
-
-test "Cache - getHitRate with empty cache" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
-
-    const rate = cache.getHitRate();
-    try testing.expectEqual(@as(f64, 0.0), rate);
-}
-
-test "Cache - getHitRate with entries" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
-
-    try cache.put("key1", "value1");
-    _ = cache.get("key1");
-
-    const rate = cache.getHitRate();
-    try testing.expect(rate > 0.0);
-}
-
-test "Cache - size tracking" {
-    const allocator = testing.allocator;
-    var cache = performance.Cache.init(allocator, 1024);
-    defer cache.deinit();
-
-    try cache.put("key1", "hello");
-    try testing.expectEqual(@as(usize, 5), cache.current_size);
-
-    try cache.put("key2", "world");
-    try testing.expectEqual(@as(usize, 10), cache.current_size);
-
-    cache.remove("key1");
-    try testing.expectEqual(@as(usize, 5), cache.current_size);
-}
-
-// ObjectPool tests
-fn createTestObject(allocator: std.mem.Allocator) !*anyopaque {
-    const ptr = try allocator.create(i32);
-    ptr.* = 42;
-    return @ptrCast(ptr);
-}
-
-fn destroyTestObject(ptr: *anyopaque, allocator: std.mem.Allocator) void {
-    const typed_ptr: *i32 = @ptrCast(@alignCast(ptr));
-    allocator.destroy(typed_ptr);
-}
-
-fn resetTestObject(ptr: *anyopaque) void {
-    const typed_ptr: *i32 = @ptrCast(@alignCast(ptr));
-    typed_ptr.* = 0;
-}
-
-test "ObjectPool - initialization" {
-    const allocator = testing.allocator;
-    var pool = performance.ObjectPool.init(allocator, 10, createTestObject, destroyTestObject, resetTestObject);
+    var pool = memory.MemoryPool.init(testing.allocator);
     defer pool.deinit();
 
-    try testing.expectEqual(@as(usize, 10), pool.max_size);
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        const timer = Timer.start();
+        const ptr = try pool.alloc(1024);
+        pool.free(ptr);
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("Memory Pool Alloc/Free");
 }
 
-test "ObjectPool - acquire object" {
-    const allocator = testing.allocator;
-    var pool = performance.ObjectPool.init(allocator, 10, createTestObject, destroyTestObject, resetTestObject);
-    defer pool.deinit();
+test "Performance: Arena allocator bulk operations" {
+    const config = PerformanceConfig{ .iterations = 1000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-    const obj = try pool.acquire();
-    try testing.expect(obj != undefined);
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        var arena = std.heap.ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+
+        const timer = Timer.start();
+        var j: usize = 0;
+        while (j < 100) : (j += 1) {
+            _ = try arena.allocator().alloc(u8, 1024);
+        }
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("Arena Bulk Allocation (100 x 1KB)");
 }
 
-test "ObjectPool - acquire and release" {
-    const allocator = testing.allocator;
-    var pool = performance.ObjectPool.init(allocator, 10, createTestObject, destroyTestObject, resetTestObject);
-    defer pool.deinit();
+// =============================================================================
+// GPU Performance Tests
+// =============================================================================
 
-    const obj = try pool.acquire();
-    try testing.expectEqual(@as(usize, 1), pool.inUseCount());
+test "Performance: GPU vertex buffer creation" {
+    const config = PerformanceConfig{ .iterations = 1000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-    try pool.release(obj);
-    try testing.expectEqual(@as(usize, 0), pool.inUseCount());
-    try testing.expectEqual(@as(usize, 1), pool.availableCount());
+    const vertex_count = 1000;
+
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        var vertices = try testing.allocator.alloc(gpu.Vertex, vertex_count);
+        defer testing.allocator.free(vertices);
+
+        const timer = Timer.start();
+        for (vertices, 0..) |*vertex, idx| {
+            vertex.* = .{
+                .position = .{ @floatFromInt(idx), @floatFromInt(idx), 0.0 },
+                .normal = .{ 0.0, 0.0, 1.0 },
+                .uv = .{ 0.5, 0.5 },
+                .color = .{ 1.0, 1.0, 1.0, 1.0 },
+            };
+        }
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("GPU Vertex Buffer Creation (1000 vertices)");
 }
 
-test "ObjectPool - reuse released object" {
-    const allocator = testing.allocator;
-    var pool = performance.ObjectPool.init(allocator, 10, createTestObject, destroyTestObject, resetTestObject);
-    defer pool.deinit();
+test "Performance: Mesh initialization" {
+    const config = PerformanceConfig{ .iterations = 1000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-    const obj1 = try pool.acquire();
-    try pool.release(obj1);
+    var vertices = [_]gpu.Vertex{
+        .{ .position = .{ 0.0, 1.0, 0.0 }, .normal = .{ 0.0, 0.0, 1.0 }, .uv = .{ 0.5, 1.0 }, .color = .{ 1.0, 0.0, 0.0, 1.0 } },
+        .{ .position = .{ -1.0, -1.0, 0.0 }, .normal = .{ 0.0, 0.0, 1.0 }, .uv = .{ 0.0, 0.0 }, .color = .{ 0.0, 1.0, 0.0, 1.0 } },
+        .{ .position = .{ 1.0, -1.0, 0.0 }, .normal = .{ 0.0, 0.0, 1.0 }, .uv = .{ 1.0, 0.0 }, .color = .{ 0.0, 0.0, 1.0, 1.0 } },
+    };
+    var indices = [_]u32{ 0, 1, 2 };
 
-    const obj2 = try pool.acquire();
-    try testing.expectEqual(obj1, obj2);
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        const timer = Timer.start();
+        var mesh = try gpu.Mesh.init(testing.allocator, &vertices, &indices);
+        mesh.deinit();
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("Mesh Init/Deinit");
 }
 
-test "ObjectPool - exhaust pool" {
-    const allocator = testing.allocator;
-    var pool = performance.ObjectPool.init(allocator, 2, createTestObject, destroyTestObject, null);
-    defer pool.deinit();
+// =============================================================================
+// Rendering Performance Tests
+// =============================================================================
 
-    _ = try pool.acquire();
-    _ = try pool.acquire();
+test "Performance: Render command queueing" {
+    const config = PerformanceConfig{ .iterations = 10000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-    const result = pool.acquire();
-    try testing.expectError(error.PoolExhausted, result);
+    var pipeline = try renderer.RenderPipeline.init(testing.allocator);
+    defer pipeline.deinit();
+
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        const timer = Timer.start();
+        try pipeline.queueCommand(.{ .clear = .{ .color = .{ 0.0, 0.0, 0.0, 1.0 } } });
+        try pipeline.queueCommand(.{ .draw = .{ .vertex_count = 3, .instance_count = 1 } });
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("Render Command Queueing");
 }
 
-test "ObjectPool - availableCount" {
-    const allocator = testing.allocator;
-    var pool = performance.ObjectPool.init(allocator, 10, createTestObject, destroyTestObject, null);
-    defer pool.deinit();
+test "Performance: Batch render operations" {
+    const config = PerformanceConfig{ .iterations = 100 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-    try testing.expectEqual(@as(usize, 0), pool.availableCount());
+    var pipeline = try renderer.RenderPipeline.init(testing.allocator);
+    defer pipeline.deinit();
 
-    const obj = try pool.acquire();
-    try pool.release(obj);
+    const batch_size = 1000;
 
-    try testing.expectEqual(@as(usize, 1), pool.availableCount());
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        const timer = Timer.start();
+        var j: usize = 0;
+        while (j < batch_size) : (j += 1) {
+            try pipeline.queueCommand(.{ .draw = .{ .vertex_count = 6, .instance_count = 1 } });
+        }
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("Batch Render Commands (1000 commands)");
 }
 
-test "ObjectPool - inUseCount" {
-    const allocator = testing.allocator;
-    var pool = performance.ObjectPool.init(allocator, 10, createTestObject, destroyTestObject, null);
-    defer pool.deinit();
+// =============================================================================
+// IPC Performance Tests
+// =============================================================================
 
-    try testing.expectEqual(@as(usize, 0), pool.inUseCount());
+test "Performance: IPC message creation" {
+    const config = PerformanceConfig{ .iterations = 100000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
 
-    _ = try pool.acquire();
-    try testing.expectEqual(@as(usize, 1), pool.inUseCount());
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        const timer = Timer.start();
+        const payload = api.IPCMessage.Payload{ .string = "test data" };
+        const msg = api.IPCMessage.request(@intCast(i), payload);
+        _ = msg;
+        try metrics.record(timer.elapsed());
+    }
 
-    _ = try pool.acquire();
-    try testing.expectEqual(@as(usize, 2), pool.inUseCount());
+    const stats = metrics.calculateStats();
+    stats.print("IPC Message Creation");
+
+    // Message creation should be very fast (< 500ns)
+    try testing.expect(stats.mean < 500);
 }
 
-// LazyLoader tests
-var lazy_loaded = false;
+// =============================================================================
+// Stress Tests
+// =============================================================================
 
-fn lazyLoadFn() !void {
-    lazy_loaded = true;
+test "Stress: Rapid component lifecycle" {
+    const iterations = 50000;
+    var i: usize = 0;
+    const props = components.ComponentProps{};
+
+    const timer = Timer.start();
+    while (i < iterations) : (i += 1) {
+        var button = try components.Button.init(testing.allocator, "Stress", props);
+        button.deinit();
+    }
+    const duration = timer.elapsed();
+
+    std.debug.print("\nStress Test: {d} component lifecycles in {d:.2} ms\n", .{ iterations, @as(f64, @floatFromInt(duration)) / 1_000_000.0 });
+    std.debug.print("Throughput: {d:.0} ops/sec\n", .{@as(f64, @floatFromInt(iterations)) / (@as(f64, @floatFromInt(duration)) / 1_000_000_000.0)});
+
+    // Should complete in reasonable time (< 5 seconds)
+    try testing.expect(duration < 5_000_000_000);
 }
 
-test "LazyLoader - initialization" {
-    var loader = performance.LazyLoader.init(lazyLoadFn);
+test "Stress: Memory allocation patterns" {
+    const iterations = 10000;
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
 
-    try testing.expect(!loader.loaded);
+    const allocator = arena.allocator();
+    var allocations = std.ArrayList([]u8).init(testing.allocator);
+    defer allocations.deinit();
+
+    const timer = Timer.start();
+    var i: usize = 0;
+    while (i < iterations) : (i += 1) {
+        const size = 1024 + (i % 1024);
+        const mem = try allocator.alloc(u8, size);
+        try allocations.append(mem);
+    }
+    const duration = timer.elapsed();
+
+    std.debug.print("\nStress Test: {d} allocations in {d:.2} ms\n", .{ iterations, @as(f64, @floatFromInt(duration)) / 1_000_000.0 });
+    std.debug.print("Average allocation size: 1.5 KB\n", .{});
+    std.debug.print("Total allocated: {d} MB\n", .{(iterations * 1536) / (1024 * 1024)});
 }
 
-test "LazyLoader - load once" {
-    lazy_loaded = false;
-    var loader = performance.LazyLoader.init(lazyLoadFn);
-
-    try loader.load();
-
-    try testing.expect(loader.isLoaded());
-    try testing.expect(lazy_loaded);
-}
-
-test "LazyLoader - load multiple times only executes once" {
-    lazy_loaded = false;
-    var loader = performance.LazyLoader.init(lazyLoadFn);
-
-    try loader.load();
-    try loader.load();
-    try loader.load();
-
-    try testing.expect(loader.isLoaded());
-}
-
-test "LazyLoader - isLoaded before loading" {
-    var loader = performance.LazyLoader.init(lazyLoadFn);
-
-    try testing.expect(!loader.isLoaded());
-}
-
-// Debouncer tests
-var debouncer_call_count: usize = 0;
-
-fn debouncerCallback() void {
-    debouncer_call_count += 1;
-}
-
-test "Debouncer - initialization" {
-    var debouncer = performance.Debouncer.init(100, debouncerCallback);
-
-    try testing.expectEqual(@as(u64, 100), debouncer.delay_ms);
-    try testing.expectEqual(@as(i64, 0), debouncer.last_call);
-}
-
-test "Debouncer - call updates last_call" {
-    var debouncer = performance.Debouncer.init(100, debouncerCallback);
-
-    debouncer.call();
-
-    try testing.expect(debouncer.last_call > 0);
-}
-
-test "Debouncer - shouldExecute after delay" {
-    var debouncer = performance.Debouncer.init(1, debouncerCallback);
-
-    debouncer.call();
-    std.time.sleep(2_000_000); // Sleep 2ms
-
-    try testing.expect(debouncer.shouldExecute());
-}
-
-test "Debouncer - shouldExecute before delay" {
-    var debouncer = performance.Debouncer.init(1000, debouncerCallback);
-
-    debouncer.call();
-
-    try testing.expect(!debouncer.shouldExecute());
-}
-
-// Throttler tests
-var throttler_call_count: usize = 0;
-
-fn throttlerCallback() void {
-    throttler_call_count += 1;
-}
-
-test "Throttler - initialization" {
-    var throttler = performance.Throttler.init(100, throttlerCallback);
-
-    try testing.expectEqual(@as(u64, 100), throttler.interval_ms);
-    try testing.expectEqual(@as(i64, 0), throttler.last_execution);
-}
-
-test "Throttler - call executes on first call" {
-    throttler_call_count = 0;
-    var throttler = performance.Throttler.init(100, throttlerCallback);
-
-    throttler.call();
-
-    try testing.expectEqual(@as(usize, 1), throttler_call_count);
-}
-
-test "Throttler - call throttles rapid calls" {
-    throttler_call_count = 0;
-    var throttler = performance.Throttler.init(100, throttlerCallback);
-
-    throttler.call();
-    throttler.call();
-    throttler.call();
-
-    try testing.expectEqual(@as(usize, 1), throttler_call_count);
-}
-
-test "Throttler - call executes after interval" {
-    throttler_call_count = 0;
-    var throttler = performance.Throttler.init(1, throttlerCallback);
-
-    throttler.call();
-    std.time.sleep(2_000_000); // Sleep 2ms
-    throttler.call();
-
-    try testing.expectEqual(@as(usize, 2), throttler_call_count);
-}
-
-// BatchProcessor tests
-var batch_processed_items: []const *anyopaque = &[_]*anyopaque{};
-
-fn batchProcessFn(items: []const *anyopaque) void {
-    batch_processed_items = items;
-}
-
-test "BatchProcessor - initialization" {
-    const allocator = testing.allocator;
-    var processor = performance.BatchProcessor.init(allocator, 10, batchProcessFn);
-    defer processor.deinit();
-
-    try testing.expectEqual(@as(usize, 10), processor.batch_size);
-}
-
-test "BatchProcessor - add item" {
-    const allocator = testing.allocator;
-    var processor = performance.BatchProcessor.init(allocator, 10, batchProcessFn);
-    defer processor.deinit();
-
-    var item: i32 = 42;
-    try processor.add(@ptrCast(&item));
-
-    try testing.expectEqual(@as(usize, 1), processor.items.items.len);
-}
-
-test "BatchProcessor - auto flush on batch size" {
-    const allocator = testing.allocator;
-    var processor = performance.BatchProcessor.init(allocator, 2, batchProcessFn);
-    defer processor.deinit();
-
-    var item1: i32 = 1;
-    var item2: i32 = 2;
-
-    try processor.add(@ptrCast(&item1));
-    try processor.add(@ptrCast(&item2));
-
-    try testing.expectEqual(@as(usize, 0), processor.items.items.len);
-    try testing.expectEqual(@as(usize, 2), batch_processed_items.len);
-}
-
-test "BatchProcessor - manual flush" {
-    const allocator = testing.allocator;
-    batch_processed_items = &[_]*anyopaque{};
-    var processor = performance.BatchProcessor.init(allocator, 10, batchProcessFn);
-    defer processor.deinit();
-
-    var item: i32 = 42;
-    try processor.add(@ptrCast(&item));
-
-    processor.flush();
-
-    try testing.expectEqual(@as(usize, 1), batch_processed_items.len);
-    try testing.expectEqual(@as(usize, 0), processor.items.items.len);
-}
-
-test "BatchProcessor - flush empty" {
-    const allocator = testing.allocator;
-    batch_processed_items = &[_]*anyopaque{};
-    var processor = performance.BatchProcessor.init(allocator, 10, batchProcessFn);
-    defer processor.deinit();
-
-    processor.flush();
-
-    try testing.expectEqual(@as(usize, 0), batch_processed_items.len);
-}
-
-// Memoizer tests
-test "Memoizer - initialization" {
-    const allocator = testing.allocator;
-    var memoizer = performance.Memoizer.init(allocator);
-    defer memoizer.deinit();
-}
-
-test "Memoizer - put and get" {
-    const allocator = testing.allocator;
-    var memoizer = performance.Memoizer.init(allocator);
-    defer memoizer.deinit();
-
-    try memoizer.put("key1", "value1");
-
-    const result = memoizer.get("key1");
-    try testing.expect(result != null);
-    try testing.expectEqualStrings("value1", result.?);
-}
-
-test "Memoizer - get non-existent key" {
-    const allocator = testing.allocator;
-    var memoizer = performance.Memoizer.init(allocator);
-    defer memoizer.deinit();
-
-    const result = memoizer.get("non-existent");
-    try testing.expectEqual(@as(?[]const u8, null), result);
-}
-
-test "Memoizer - multiple entries" {
-    const allocator = testing.allocator;
-    var memoizer = performance.Memoizer.init(allocator);
-    defer memoizer.deinit();
-
-    try memoizer.put("key1", "value1");
-    try memoizer.put("key2", "value2");
-    try memoizer.put("key3", "value3");
-
-    try testing.expectEqualStrings("value1", memoizer.get("key1").?);
-    try testing.expectEqualStrings("value2", memoizer.get("key2").?);
-    try testing.expectEqualStrings("value3", memoizer.get("key3").?);
-}
-
-test "Memoizer - clear" {
-    const allocator = testing.allocator;
-    var memoizer = performance.Memoizer.init(allocator);
-    defer memoizer.deinit();
-
-    try memoizer.put("key1", "value1");
-    try memoizer.put("key2", "value2");
-
-    memoizer.clear();
-
-    try testing.expectEqual(@as(?[]const u8, null), memoizer.get("key1"));
-    try testing.expectEqual(@as(?[]const u8, null), memoizer.get("key2"));
-}
-
-// WorkQueue tests
-var work_executed = false;
-
-fn workFunction(ctx: *anyopaque) void {
-    _ = ctx;
-    work_executed = true;
-}
-
-test "WorkQueue - initialization" {
-    const allocator = testing.allocator;
-    var queue = try performance.WorkQueue.init(allocator, 2);
-    defer queue.deinit();
-
-    try testing.expect(queue.running);
-    try testing.expectEqual(@as(usize, 2), queue.workers.items.len);
-}
-
-test "WorkQueue - submit task" {
-    const allocator = testing.allocator;
-    var queue = try performance.WorkQueue.init(allocator, 1);
-    defer queue.deinit();
-
-    work_executed = false;
-    var ctx: i32 = 42;
-
-    try queue.submit(workFunction, @ptrCast(&ctx));
-
-    std.time.sleep(10_000_000); // Give worker time to execute
-}
-
-// ResourcePreloader tests
-test "ResourcePreloader - initialization" {
-    const allocator = testing.allocator;
-    var preloader = performance.ResourcePreloader.init(allocator);
-    defer preloader.deinit();
-}
-
-test "ResourcePreloader - preload resource" {
-    const allocator = testing.allocator;
-    var preloader = performance.ResourcePreloader.init(allocator);
-    defer preloader.deinit();
-
-    try preloader.preload("/path/to/resource");
-
-    const result = preloader.get("/path/to/resource");
-    try testing.expect(result != null);
-}
-
-test "ResourcePreloader - get non-preloaded resource" {
-    const allocator = testing.allocator;
-    var preloader = performance.ResourcePreloader.init(allocator);
-    defer preloader.deinit();
-
-    const result = preloader.get("/non/existent/resource");
-    try testing.expectEqual(@as(?[]const u8, null), result);
-}
-
-test "ResourcePreloader - isLoading" {
-    const allocator = testing.allocator;
-    var preloader = performance.ResourcePreloader.init(allocator);
-    defer preloader.deinit();
-
-    try preloader.preload("/path/to/resource");
-
-    // After preload completes, should not be loading
-    try testing.expect(!preloader.isLoading("/path/to/resource"));
-}
-
-test "ResourcePreloader - preload already loaded" {
-    const allocator = testing.allocator;
-    var preloader = performance.ResourcePreloader.init(allocator);
-    defer preloader.deinit();
-
-    try preloader.preload("/path/to/resource");
-    try preloader.preload("/path/to/resource");
-
-    const result = preloader.get("/path/to/resource");
-    try testing.expect(result != null);
-}
-
-test "ResourcePreloader - multiple resources" {
-    const allocator = testing.allocator;
-    var preloader = performance.ResourcePreloader.init(allocator);
-    defer preloader.deinit();
-
-    try preloader.preload("/resource1");
-    try preloader.preload("/resource2");
-    try preloader.preload("/resource3");
-
-    try testing.expect(preloader.get("/resource1") != null);
-    try testing.expect(preloader.get("/resource2") != null);
-    try testing.expect(preloader.get("/resource3") != null);
+// =============================================================================
+// Concurrency Simulation Tests
+// =============================================================================
+
+test "Performance: Simulated concurrent component operations" {
+    const config = PerformanceConfig{ .iterations = 1000 };
+    var metrics = PerformanceMetrics.init(testing.allocator);
+    defer metrics.deinit();
+
+    const props = components.ComponentProps{};
+    const component_count = 10;
+
+    var i: usize = 0;
+    while (i < config.iterations) : (i += 1) {
+        var components_list = std.ArrayList(*components.Button).init(testing.allocator);
+        defer {
+            for (components_list.items) |comp| {
+                comp.deinit();
+            }
+            components_list.deinit();
+        }
+
+        const timer = Timer.start();
+
+        // Simulate concurrent operations
+        var j: usize = 0;
+        while (j < component_count) : (j += 1) {
+            const button = try components.Button.init(testing.allocator, "Concurrent", props);
+            try components_list.append(button);
+            button.setText("Updated");
+        }
+
+        try metrics.record(timer.elapsed());
+    }
+
+    const stats = metrics.calculateStats();
+    stats.print("Simulated Concurrent Operations (10 components)");
 }

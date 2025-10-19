@@ -1,0 +1,21 @@
+{
+  "name": "zyte-benchmarks",
+  "version": "1.0.0",
+  "description": "Performance benchmarks comparing Zyte to Electron and Tauri",
+  "type": "module",
+  "scripts": {
+    "bench": "bun run-all.ts",
+    "bench:zyte": "bun zyte/startup.bench.ts",
+    "bench:electron": "bun electron/startup.bench.ts",
+    "bench:tauri": "bun tauri/startup.bench.ts",
+    "bench:memory": "bun run-memory.ts",
+    "bench:startup": "bun run-startup.ts",
+    "bench:render": "bun run-render.ts"
+  },
+  "dependencies": {
+    "mitata": "^1.0.10"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
