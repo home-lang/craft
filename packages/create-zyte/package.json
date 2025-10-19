@@ -1,0 +1,50 @@
+{
+  "name": "create-zyte",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Scaffold a new Zyte desktop app project",
+  "author": "Chris Breuer <chris@stacksjs.org>",
+  "license": "MIT",
+  "homepage": "https://github.com/stacksjs/zyte#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stacksjs/zyte.git",
+    "directory": "packages/create-zyte"
+  },
+  "bugs": {
+    "url": "https://github.com/stacksjs/zyte/issues"
+  },
+  "keywords": [
+    "create-zyte",
+    "scaffold",
+    "desktop",
+    "app",
+    "framework",
+    "zyte",
+    "starter",
+    "template",
+    "boilerplate"
+  ],
+  "bin": {
+    "create-zyte": "./bin/cli.ts"
+  },
+  "files": [
+    "bin",
+    "templates",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "bun --watch bin/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@stacksjs/clapp": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0"
+  }
+}
