@@ -1,0 +1,16 @@
+{
+  "name": "zyte-core",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Zyte core - Native Zig implementation",
+  "scripts": {
+    "build": "zig build -Doptimize=ReleaseSafe",
+    "build:debug": "zig build",
+    "test": "zig build test",
+    "run": "zig build run",
+    "run:minimal": "zig build run-minimal",
+    "clean": "rm -rf zig-cache zig-out",
+    "fmt": "zig fmt src/ build.zig",
+    "fmt:check": "zig fmt --check src/ build.zig"
+  }
+}

@@ -103,7 +103,7 @@ zyte/
 
 ## Package Info
 
-- **Name**: `@stacksjs/zyte`
+- **Name**: `ts-zyte`
 - **Version**: `0.1.0`
 - **Zig Version**: `0.15.1`
 - **License**: MIT

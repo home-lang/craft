@@ -194,14 +194,63 @@ Build native menubar/system tray apps with full platform support:
 
 ## Get Started
 
-### Quick Installation
+### TypeScript/JavaScript (Recommended)
+
+Build desktop apps with TypeScript - zero dependencies, just pure Node.js APIs:
+
+```bash
+# Install the TypeScript SDK
+bun add ts-zyte
+```
+
+```typescript
+// app.ts
+import { show } from 'ts-zyte'
+
+const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-family: system-ui;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚡ My First Zyte App</h1>
+</body>
+</html>
+`
+
+// That's it! One line to show your desktop app
+await show(html, { title: 'My App', width: 800, height: 600 })
+```
+
+```bash
+# Run it
+bun run app.ts
+```
+
+**See [TypeScript SDK Documentation](./packages/ts-zyte/README.md) for the full API.**
+
+### Zig (Advanced)
+
+For advanced use cases where you need maximum performance and control:
 
 ```bash
 # Install via npm
-npm install -g @stacksjs/zyte
+npm install -g ts-zyte
 
-# Or with Bun (recommended)
-bun add -g @stacksjs/zyte
+# Or with Bun
+bun add -g ts-zyte
 ```
 
 ### Build from Source
@@ -591,7 +640,7 @@ The MIT License (MIT). Please see [LICENSE](LICENSE.md) for more information.
 Made with 💙
 
 <!-- Badges -->
-[npm-version-src]: https://img.shields.io/npm/v/@stacksjs/zyte?style=flat-square
-[npm-version-href]: https://npmjs.com/package/@stacksjs/zyte
+[npm-version-src]: https://img.shields.io/npm/v/ts-zyte?style=flat-square
+[npm-version-href]: https://npmjs.com/package/ts-zyte
 [github-actions-src]: https://img.shields.io/github/actions/workflow/status/stacksjs/zyte/ci.yml?style=flat-square&branch=main
 [github-actions-href]: https://github.com/stacksjs/zyte/actions?query=workflow%3Aci

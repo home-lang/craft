@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "isolatedDeclarations": true
+  },
+  "include": [
+    "src",
+    "bin",
+    "test"
+  ],
+  "exclude": [
+    "test/outputs"
+  ]
+}

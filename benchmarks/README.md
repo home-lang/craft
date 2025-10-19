@@ -10,6 +10,177 @@ This benchmark suite compares three desktop application frameworks across multip
 - **Electron**: Chromium + Node.js based framework
 - **Tauri**: Rust + native WebView framework
 
+## Usage: Building a Minimal Cross-Platform Window App
+
+Zyte offers two ways to build desktop apps: **TypeScript/JavaScript** (recommended) or **Zig** (advanced).
+
+### TypeScript/JavaScript (Recommended)
+
+The easiest way to build with Zyte is using our zero-dependency TypeScript SDK:
+
+#### Install
+
+```bash
+bun add ts-zyte
+```
+
+#### Create your app (`app.ts`):
+
+```typescript
+import { show } from 'ts-zyte'
+
+const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-family: system-ui, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <h1>⚡ My Zyte App</h1>
+</body>
+</html>
+`
+
+// That's it! One line to show your app
+await show(html, {
+  title: 'My App',
+  width: 800,
+  height: 600,
+})
+```
+
+#### Run it:
+
+```bash
+bun run app.ts
+```
+
+#### Load from URL (for existing web apps):
+
+```typescript
+import { loadURL } from 'ts-zyte'
+
+await loadURL('http://localhost:3000', {
+  title: 'My Web App',
+  width: 1200,
+  height: 800,
+  devTools: true,
+  hotReload: true,
+})
+```
+
+### Zig (Advanced)
+
+For advanced use cases, you can use Zig directly:
+
+#### 1. Create a new Zig file (`app.zig`):
+
+```zig
+const std = @import("std");
+const zyte = @import("zyte");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // Initialize Zyte app
+    var app = zyte.App.init(allocator);
+    defer app.deinit();
+
+    // Create a window with HTML content
+    const html =
+        \\<!DOCTYPE html>
+        \\<html>
+        \\<head>
+        \\    <meta charset="UTF-8">
+        \\    <style>
+        \\        body {
+        \\            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        \\            display: flex;
+        \\            justify-content: center;
+        \\            align-items: center;
+        \\            height: 100vh;
+        \\            margin: 0;
+        \\            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        \\            color: white;
+        \\        }
+        \\        .container {
+        \\            text-align: center;
+        \\            padding: 3rem;
+        \\            background: rgba(255, 255, 255, 0.1);
+        \\            border-radius: 20px;
+        \\            backdrop-filter: blur(10px);
+        \\        }
+        \\        h1 { font-size: 3rem; margin-bottom: 1rem; }
+        \\    </style>
+        \\</head>
+        \\<body>
+        \\    <div class="container">
+        \\        <h1>⚡ My Zyte App</h1>
+        \\        <p>Lightning-fast desktop app with web languages</p>
+        \\    </div>
+        \\</body>
+        \\</html>
+    ;
+
+    // Create window: title, width, height, HTML content
+    _ = try app.createWindow("My App", 800, 600, html);
+
+    // Run the application event loop
+    try app.run();
+}
+```
+
+### 2. Compile and run:
+
+```bash
+zig build-exe app.zig
+./app
+```
+
+### 3. Advanced: Load from URL
+
+```zig
+// Load external website or local dev server
+_ = try app.createWindowWithURL(
+    "My App",
+    1200,
+    800,
+    "https://example.com",
+    .{
+        .frameless = false,
+        .transparent = false,
+        .resizable = true,
+        .dark_mode = true,
+    },
+);
+```
+
+### Why Choose Zyte?
+
+- **2-3 lines of code** for a full desktop app
+- **~14 KB idle memory** vs Electron's 68 MB (4857x less)
+- **50ms startup** vs Electron's 230ms (4.5x faster)
+- **3 MB binary** vs Electron's 135 MB (45x smaller)
+- **Cross-platform**: macOS, Linux, Windows
+- **GPU-accelerated** rendering by default
+- **Hot reload** support for development
+
+For more examples, see the [TypeScript examples](../packages/examples-ts/) or [Zig examples](../packages/zig/examples/).
+
 ## Installation
 
 ```bash

@@ -1,0 +1,19 @@
+{
+  "name": "ts-zyte-examples",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript examples for Zyte",
+  "scripts": {
+    "minimal": "bun run minimal.ts",
+    "hello-world": "bun run hello-world.ts",
+    "todo-app": "bun run todo-app.ts",
+    "dashboard": "bun run dashboard.ts"
+  },
+  "dependencies": {
+    "ts-zyte": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
