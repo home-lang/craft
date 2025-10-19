@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 
 import { spawnSync } from 'bun'
-import { platform, arch } from 'os'
-import { existsSync } from 'fs'
-import { join } from 'path'
+import { platform, arch } from 'node:os'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 console.log('Building Zyte for your platform...')
 
