@@ -724,3 +724,540 @@ pub const SplitView = struct {
         self.split_position = std.math.clamp(position, 0.0, 1.0);
     }
 };
+
+/// Color Picker Component
+pub const ColorPicker = struct {
+    component: Component,
+    color: [4]u8,
+    on_change: ?*const fn ([4]u8) void,
+
+    pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*ColorPicker {
+        const picker = try allocator.create(ColorPicker);
+        picker.* = ColorPicker{
+            .component = try Component.init(allocator, "color_picker", props),
+            .color = [_]u8{ 255, 255, 255, 255 },
+            .on_change = null,
+        };
+        return picker;
+    }
+
+    pub fn deinit(self: *ColorPicker) void {
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn setColor(self: *ColorPicker, color: [4]u8) void {
+        self.color = color;
+        if (self.on_change) |callback| {
+            callback(color);
+        }
+    }
+
+    pub fn onChange(self: *ColorPicker, callback: *const fn ([4]u8) void) void {
+        self.on_change = callback;
+    }
+};
+
+/// Date Picker Component
+pub const DatePicker = struct {
+    component: Component,
+    year: u32,
+    month: u8,
+    day: u8,
+    on_change: ?*const fn (u32, u8, u8) void,
+
+    pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*DatePicker {
+        const picker = try allocator.create(DatePicker);
+        picker.* = DatePicker{
+            .component = try Component.init(allocator, "date_picker", props),
+            .year = 2025,
+            .month = 1,
+            .day = 1,
+            .on_change = null,
+        };
+        return picker;
+    }
+
+    pub fn deinit(self: *DatePicker) void {
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn setDate(self: *DatePicker, year: u32, month: u8, day: u8) void {
+        self.year = year;
+        self.month = month;
+        self.day = day;
+        if (self.on_change) |callback| {
+            callback(year, month, day);
+        }
+    }
+
+    pub fn onChange(self: *DatePicker, callback: *const fn (u32, u8, u8) void) void {
+        self.on_change = callback;
+    }
+};
+
+/// Time Picker Component
+pub const TimePicker = struct {
+    component: Component,
+    hour: u8,
+    minute: u8,
+    second: u8,
+    format_24h: bool,
+    on_change: ?*const fn (u8, u8, u8) void,
+
+    pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*TimePicker {
+        const picker = try allocator.create(TimePicker);
+        picker.* = TimePicker{
+            .component = try Component.init(allocator, "time_picker", props),
+            .hour = 12,
+            .minute = 0,
+            .second = 0,
+            .format_24h = true,
+            .on_change = null,
+        };
+        return picker;
+    }
+
+    pub fn deinit(self: *TimePicker) void {
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn setTime(self: *TimePicker, hour: u8, minute: u8, second: u8) void {
+        self.hour = hour;
+        self.minute = minute;
+        self.second = second;
+        if (self.on_change) |callback| {
+            callback(hour, minute, second);
+        }
+    }
+
+    pub fn onChange(self: *TimePicker, callback: *const fn (u8, u8, u8) void) void {
+        self.on_change = callback;
+    }
+};
+
+/// Spinner/Loading Component
+pub const Spinner = struct {
+    component: Component,
+    spinning: bool,
+    speed: f32,
+
+    pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*Spinner {
+        const spinner = try allocator.create(Spinner);
+        spinner.* = Spinner{
+            .component = try Component.init(allocator, "spinner", props),
+            .spinning = true,
+            .speed = 1.0,
+        };
+        return spinner;
+    }
+
+    pub fn deinit(self: *Spinner) void {
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn start(self: *Spinner) void {
+        self.spinning = true;
+    }
+
+    pub fn stop(self: *Spinner) void {
+        self.spinning = false;
+    }
+
+    pub fn setSpeed(self: *Spinner, speed: f32) void {
+        self.speed = speed;
+    }
+};
+
+/// Tree View Component
+pub const TreeView = struct {
+    component: Component,
+    root: ?*TreeNode,
+    selected_node: ?*TreeNode,
+    on_select: ?*const fn (*TreeNode) void,
+
+    pub const TreeNode = struct {
+        label: []const u8,
+        children: std.ArrayList(*TreeNode),
+        expanded: bool,
+        data: ?*anyopaque,
+        allocator: std.mem.Allocator,
+
+        pub fn init(allocator: std.mem.Allocator, label: []const u8) !*TreeNode {
+            const node = try allocator.create(TreeNode);
+            node.* = TreeNode{
+                .label = label,
+                .children = std.ArrayList(*TreeNode).init(allocator),
+                .expanded = false,
+                .data = null,
+                .allocator = allocator,
+            };
+            return node;
+        }
+
+        pub fn deinit(self: *TreeNode) void {
+            for (self.children.items) |child| {
+                child.deinit();
+            }
+            self.children.deinit();
+            self.allocator.destroy(self);
+        }
+
+        pub fn addChild(self: *TreeNode, child: *TreeNode) !void {
+            try self.children.append(child);
+        }
+
+        pub fn expand(self: *TreeNode) void {
+            self.expanded = true;
+        }
+
+        pub fn collapse(self: *TreeNode) void {
+            self.expanded = false;
+        }
+
+        pub fn toggle(self: *TreeNode) void {
+            self.expanded = !self.expanded;
+        }
+    };
+
+    pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*TreeView {
+        const tree = try allocator.create(TreeView);
+        tree.* = TreeView{
+            .component = try Component.init(allocator, "tree", props),
+            .root = null,
+            .selected_node = null,
+            .on_select = null,
+        };
+        return tree;
+    }
+
+    pub fn deinit(self: *TreeView) void {
+        if (self.root) |root| {
+            root.deinit();
+        }
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn setRoot(self: *TreeView, root: *TreeNode) void {
+        self.root = root;
+    }
+
+    pub fn selectNode(self: *TreeView, node: *TreeNode) void {
+        self.selected_node = node;
+        if (self.on_select) |callback| {
+            callback(node);
+        }
+    }
+
+    pub fn onSelect(self: *TreeView, callback: *const fn (*TreeNode) void) void {
+        self.on_select = callback;
+    }
+};
+
+/// Accordion Component
+pub const Accordion = struct {
+    component: Component,
+    sections: std.ArrayList(AccordionSection),
+
+    pub const AccordionSection = struct {
+        title: []const u8,
+        content: *Component,
+        expanded: bool,
+    };
+
+    pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*Accordion {
+        const accordion = try allocator.create(Accordion);
+        accordion.* = Accordion{
+            .component = try Component.init(allocator, "accordion", props),
+            .sections = std.ArrayList(AccordionSection).init(allocator),
+        };
+        return accordion;
+    }
+
+    pub fn deinit(self: *Accordion) void {
+        self.sections.deinit();
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn addSection(self: *Accordion, section: AccordionSection) !void {
+        try self.sections.append(section);
+    }
+
+    pub fn expandSection(self: *Accordion, index: usize) void {
+        if (index < self.sections.items.len) {
+            self.sections.items[index].expanded = true;
+        }
+    }
+
+    pub fn collapseSection(self: *Accordion, index: usize) void {
+        if (index < self.sections.items.len) {
+            self.sections.items[index].expanded = false;
+        }
+    }
+
+    pub fn toggleSection(self: *Accordion, index: usize) void {
+        if (index < self.sections.items.len) {
+            self.sections.items[index].expanded = !self.sections.items[index].expanded;
+        }
+    }
+};
+
+/// Card Component
+pub const Card = struct {
+    component: Component,
+    title: ?[]const u8,
+    content: *Component,
+    footer: ?*Component,
+    elevated: bool,
+
+    pub fn init(allocator: std.mem.Allocator, content: *Component, props: ComponentProps) !*Card {
+        const card = try allocator.create(Card);
+        card.* = Card{
+            .component = try Component.init(allocator, "card", props),
+            .title = null,
+            .content = content,
+            .footer = null,
+            .elevated = true,
+        };
+        return card;
+    }
+
+    pub fn deinit(self: *Card) void {
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn setTitle(self: *Card, title: []const u8) void {
+        self.title = title;
+    }
+
+    pub fn setFooter(self: *Card, footer: *Component) void {
+        self.footer = footer;
+    }
+};
+
+/// Badge Component
+pub const Badge = struct {
+    component: Component,
+    text: []const u8,
+    color: BadgeColor,
+
+    pub const BadgeColor = enum {
+        primary,
+        secondary,
+        success,
+        warning,
+        error_color,
+        info,
+    };
+
+    pub fn init(allocator: std.mem.Allocator, text: []const u8, props: ComponentProps) !*Badge {
+        const badge = try allocator.create(Badge);
+        badge.* = Badge{
+            .component = try Component.init(allocator, "badge", props),
+            .text = text,
+            .color = .primary,
+        };
+        return badge;
+    }
+
+    pub fn deinit(self: *Badge) void {
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn setText(self: *Badge, text: []const u8) void {
+        self.text = text;
+    }
+
+    pub fn setColor(self: *Badge, color: BadgeColor) void {
+        self.color = color;
+    }
+};
+
+/// Chip Component
+pub const Chip = struct {
+    component: Component,
+    text: []const u8,
+    icon: ?[]const u8,
+    closable: bool,
+    on_close: ?*const fn () void,
+
+    pub fn init(allocator: std.mem.Allocator, text: []const u8, props: ComponentProps) !*Chip {
+        const chip = try allocator.create(Chip);
+        chip.* = Chip{
+            .component = try Component.init(allocator, "chip", props),
+            .text = text,
+            .icon = null,
+            .closable = false,
+            .on_close = null,
+        };
+        return chip;
+    }
+
+    pub fn deinit(self: *Chip) void {
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn close(self: *Chip) void {
+        if (self.on_close) |callback| {
+            callback();
+        }
+    }
+
+    pub fn onClose(self: *Chip, callback: *const fn () void) void {
+        self.on_close = callback;
+    }
+};
+
+/// Avatar Component
+pub const Avatar = struct {
+    component: Component,
+    image_path: ?[]const u8,
+    initials: ?[]const u8,
+    size: AvatarSize,
+
+    pub const AvatarSize = enum {
+        small,
+        medium,
+        large,
+        xlarge,
+    };
+
+    pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*Avatar {
+        const avatar = try allocator.create(Avatar);
+        avatar.* = Avatar{
+            .component = try Component.init(allocator, "avatar", props),
+            .image_path = null,
+            .initials = null,
+            .size = .medium,
+        };
+        return avatar;
+    }
+
+    pub fn deinit(self: *Avatar) void {
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn setImage(self: *Avatar, image_path: []const u8) void {
+        self.image_path = image_path;
+    }
+
+    pub fn setInitials(self: *Avatar, initials: []const u8) void {
+        self.initials = initials;
+    }
+
+    pub fn setSize(self: *Avatar, size: AvatarSize) void {
+        self.size = size;
+    }
+};
+
+/// Stepper Component
+pub const Stepper = struct {
+    component: Component,
+    steps: std.ArrayList(Step),
+    current_step: usize,
+    on_step_change: ?*const fn (usize) void,
+
+    pub const Step = struct {
+        label: []const u8,
+        completed: bool,
+        error: bool,
+    };
+
+    pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*Stepper {
+        const stepper = try allocator.create(Stepper);
+        stepper.* = Stepper{
+            .component = try Component.init(allocator, "stepper", props),
+            .steps = std.ArrayList(Step).init(allocator),
+            .current_step = 0,
+            .on_step_change = null,
+        };
+        return stepper;
+    }
+
+    pub fn deinit(self: *Stepper) void {
+        self.steps.deinit();
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn addStep(self: *Stepper, step: Step) !void {
+        try self.steps.append(step);
+    }
+
+    pub fn next(self: *Stepper) void {
+        if (self.current_step < self.steps.items.len - 1) {
+            self.current_step += 1;
+            if (self.on_step_change) |callback| {
+                callback(self.current_step);
+            }
+        }
+    }
+
+    pub fn previous(self: *Stepper) void {
+        if (self.current_step > 0) {
+            self.current_step -= 1;
+            if (self.on_step_change) |callback| {
+                callback(self.current_step);
+            }
+        }
+    }
+
+    pub fn goToStep(self: *Stepper, step: usize) void {
+        if (step < self.steps.items.len) {
+            self.current_step = step;
+            if (self.on_step_change) |callback| {
+                callback(self.current_step);
+            }
+        }
+    }
+
+    pub fn onStepChange(self: *Stepper, callback: *const fn (usize) void) void {
+        self.on_step_change = callback;
+    }
+};
+
+/// Rating Component
+pub const Rating = struct {
+    component: Component,
+    value: f32,
+    max: u8,
+    readonly: bool,
+    on_change: ?*const fn (f32) void,
+
+    pub fn init(allocator: std.mem.Allocator, max: u8, props: ComponentProps) !*Rating {
+        const rating = try allocator.create(Rating);
+        rating.* = Rating{
+            .component = try Component.init(allocator, "rating", props),
+            .value = 0,
+            .max = max,
+            .readonly = false,
+            .on_change = null,
+        };
+        return rating;
+    }
+
+    pub fn deinit(self: *Rating) void {
+        self.component.deinit();
+        self.component.allocator.destroy(self);
+    }
+
+    pub fn setValue(self: *Rating, value: f32) void {
+        self.value = std.math.clamp(value, 0, @floatFromInt(self.max));
+        if (self.on_change) |callback| {
+            callback(self.value);
+        }
+    }
+
+    pub fn onChange(self: *Rating, callback: *const fn (f32) void) void {
+        self.on_change = callback;
+    }
+};
