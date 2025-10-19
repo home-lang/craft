@@ -169,13 +169,13 @@ test "Vertex - structure" {
 
 test "Mesh - init and deinit" {
     const allocator = testing.allocator;
-    const vertices = [_]gpu.Vertex{
+    var vertices = [_]gpu.Vertex{
         .{ .position = .{ 0.0, 1.0, 0.0 }, .normal = .{ 0.0, 0.0, 1.0 }, .uv = .{ 0.5, 1.0 }, .color = .{ 1.0, 0.0, 0.0, 1.0 } },
         .{ .position = .{ -1.0, -1.0, 0.0 }, .normal = .{ 0.0, 0.0, 1.0 }, .uv = .{ 0.0, 0.0 }, .color = .{ 0.0, 1.0, 0.0, 1.0 } },
         .{ .position = .{ 1.0, -1.0, 0.0 }, .normal = .{ 0.0, 0.0, 1.0 }, .uv = .{ 1.0, 0.0 }, .color = .{ 0.0, 0.0, 1.0, 1.0 } },
     };
 
-    const indices = [_]u32{ 0, 1, 2 };
+    var indices = [_]u32{ 0, 1, 2 };
 
     var mesh = try gpu.Mesh.init(allocator, &vertices, &indices);
     defer mesh.deinit();

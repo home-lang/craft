@@ -597,13 +597,13 @@ pub const StatusBar = struct {
         status.* = StatusBar{
             .component = try Component.init(allocator, "statusbar", props),
             .text = "",
-            .sections = std.ArrayList(StatusSection).init(allocator),
+            .sections = .{},
         };
         return status;
     }
 
     pub fn deinit(self: *StatusBar) void {
-        self.sections.deinit();
+        self.sections.deinit(self.component.allocator);
         self.component.deinit();
         self.component.allocator.destroy(self);
     }
@@ -613,7 +613,7 @@ pub const StatusBar = struct {
     }
 
     pub fn addSection(self: *StatusBar, section: StatusSection) !void {
-        try self.sections.append(section);
+        try self.sections.append(self.component.allocator, section);
     }
 };
 

@@ -186,18 +186,18 @@ test "ProgressBar - initialization" {
     var progress = try components.ProgressBar.init(allocator, props);
     defer progress.deinit();
 
-    try testing.expectEqual(@as(f64, 0.0), progress.value);
-    try testing.expectEqual(@as(f64, 1.0), progress.max);
+    try testing.expectEqual(@as(f32, 0.0), progress.value);
+    try testing.expectEqual(@as(f32, 100.0), progress.max);
 }
 
-test "ProgressBar - setProgress" {
+test "ProgressBar - setValue" {
     const allocator = testing.allocator;
     const props = components.ComponentProps{};
     var progress = try components.ProgressBar.init(allocator, props);
     defer progress.deinit();
 
-    progress.setProgress(0.75);
-    try testing.expectEqual(@as(f64, 0.75), progress.value);
+    progress.setValue(75.0);
+    try testing.expectEqual(@as(f32, 75.0), progress.value);
 }
 
 test "ListView - initialization" {
@@ -240,7 +240,7 @@ test "TabView - initialization" {
     defer tabview.deinit();
 
     try testing.expectEqual(@as(usize, 0), tabview.tabs.items.len);
-    try testing.expectEqual(@as(usize, 0), tabview.selected_index);
+    try testing.expectEqual(@as(usize, 0), tabview.selected_tab);
 }
 
 test "ScrollView - initialization" {
@@ -264,8 +264,9 @@ test "RadioButton - initialization" {
     var radio = try components.RadioButton.init(allocator, "group1", "option1", props);
     defer radio.deinit();
 
-    try testing.expectEqualStrings("group1", radio.group_name);
-    try testing.expect(!radio.checked);
+    try testing.expectEqualStrings("group1", radio.group);
+    try testing.expectEqualStrings("option1", radio.value);
+    try testing.expect(!radio.selected);
 }
 
 test "ImageView - initialization" {
@@ -283,9 +284,9 @@ test "ColorPicker - initialization" {
     var picker = try components.ColorPicker.init(allocator, props);
     defer picker.deinit();
 
-    try testing.expectEqual(@as(u8, 0), picker.color[0]);
-    try testing.expectEqual(@as(u8, 0), picker.color[1]);
-    try testing.expectEqual(@as(u8, 0), picker.color[2]);
+    try testing.expectEqual(@as(u8, 255), picker.color[0]);
+    try testing.expectEqual(@as(u8, 255), picker.color[1]);
+    try testing.expectEqual(@as(u8, 255), picker.color[2]);
     try testing.expectEqual(@as(u8, 255), picker.color[3]);
 }
 
