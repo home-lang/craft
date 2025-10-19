@@ -9,8 +9,8 @@
     "bench:electron": "bun electron/startup.bench.ts",
     "bench:tauri": "bun tauri/startup.bench.ts",
     "bench:memory": "bun run-memory.ts",
-    "bench:startup": "bun run-startup.ts",
-    "bench:render": "bun run-render.ts"
+    "bench:cpu": "bun run-cpu.ts",
+    "bench:all": "bun run bench && bun run bench:memory && bun run bench:cpu"
   },
   "dependencies": {
     "mitata": "^1.0.10"
