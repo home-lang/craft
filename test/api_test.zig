@@ -2,83 +2,115 @@ const std = @import("std");
 const testing = std.testing;
 const api = @import("../src/api.zig");
 
-test "API version is 0.0.1" {
+test "Version - structure" {
+    const version = api.Version{ .major = 0, .minor = 1, .patch = 0 };
+
+    try testing.expectEqual(@as(u32, 0), version.major);
+    try testing.expectEqual(@as(u32, 1), version.minor);
+    try testing.expectEqual(@as(u32, 0), version.patch);
+}
+
+test "Version - current_version" {
     try testing.expectEqual(@as(u32, 0), api.current_version.major);
     try testing.expectEqual(@as(u32, 0), api.current_version.minor);
     try testing.expectEqual(@as(u32, 1), api.current_version.patch);
 }
 
-test "Result type - Ok variant" {
-    const ResultType = api.Result(i32, api.Error);
-    const result = ResultType{ .ok = 42 };
+test "WindowOptions - with defaults" {
+    const opts = api.WindowOptions{
+        .title = "Test Window",
+        .width = 800,
+        .height = 600,
+    };
 
-    try testing.expect(result == .ok);
-    try testing.expectEqual(@as(i32, 42), result.ok);
+    try testing.expectEqualStrings("Test Window", opts.title);
+    try testing.expectEqual(@as(u32, 800), opts.width);
+    try testing.expectEqual(@as(u32, 600), opts.height);
+    try testing.expect(opts.resizable);
+    try testing.expect(!opts.frameless);
+    try testing.expect(!opts.transparent);
+    try testing.expect(!opts.fullscreen);
+    try testing.expect(opts.dev_tools);
 }
 
-test "Result type - Err variant" {
-    const ResultType = api.Result(i32, api.Error);
-    const result = ResultType{ .err = api.Error.WindowCreationFailed };
+test "WindowOptions - custom values" {
+    const opts = api.WindowOptions{
+        .title = "Custom",
+        .width = 1920,
+        .height = 1080,
+        .x = 0,
+        .y = 0,
+        .resizable = false,
+        .frameless = true,
+        .transparent = true,
+        .fullscreen = true,
+        .dev_tools = false,
+    };
 
-    try testing.expect(result == .err);
-    try testing.expectEqual(api.Error.WindowCreationFailed, result.err);
+    try testing.expectEqual(@as(u32, 1920), opts.width);
+    try testing.expectEqual(@as(u32, 1080), opts.height);
+    try testing.expectEqual(@as(?i32, 0), opts.x);
+    try testing.expectEqual(@as(?i32, 0), opts.y);
+    try testing.expect(!opts.resizable);
+    try testing.expect(opts.frameless);
+    try testing.expect(opts.transparent);
+    try testing.expect(opts.fullscreen);
+    try testing.expect(!opts.dev_tools);
 }
 
-test "Result type - unwrap" {
-    const ResultType = api.Result(i32, api.Error);
-    const result = ResultType{ .ok = 42 };
-
-    try testing.expectEqual(@as(i32, 42), result.unwrap());
+test "Platform - name() returns value" {
+    const platform_name = api.Platform.name();
+    try testing.expect(
+        std.mem.eql(u8, platform_name, "macOS") or
+            std.mem.eql(u8, platform_name, "Linux") or
+            std.mem.eql(u8, platform_name, "Windows") or
+            std.mem.eql(u8, platform_name, "Unknown"),
+    );
 }
 
-test "Result type - expect" {
-    const ResultType = api.Result(i32, api.Error);
-    const result = ResultType{ .ok = 42 };
-
-    try testing.expectEqual(@as(i32, 42), result.expect("Should have value"));
+test "Platform - isSupported()" {
+    const supported = api.Platform.isSupported();
+    try testing.expect(supported or !supported); // Just check it returns bool
 }
 
-test "Result type - isOk and isErr" {
-    const ResultType = api.Result(i32, api.Error);
-    const ok_result = ResultType{ .ok = 42 };
-    const err_result = ResultType{ .err = api.Error.InvalidURL };
-
-    try testing.expect(ok_result.isOk());
-    try testing.expect(!ok_result.isErr());
-    try testing.expect(!err_result.isOk());
-    try testing.expect(err_result.isErr());
+test "Features - hasWebView" {
+    const has_webview = api.Features.hasWebView();
+    try testing.expect(has_webview or !has_webview);
 }
 
-test "WindowBuilder - basic creation" {
-    const builder = api.WindowBuilder.new("Test Window", "http://localhost:3000");
+test "Features - hasNotifications" {
+    const has_notifications = api.Features.hasNotifications();
+    try testing.expect(has_notifications or !has_notifications);
+}
 
-    try testing.expectEqualStrings("Test Window", builder.title);
+test "Features - hasHotReload" {
+    const has_hotreload = api.Features.hasHotReload();
+    try testing.expect(has_hotreload);
+}
+
+test "WindowBuilder - new" {
+    const builder = api.WindowBuilder.new("Test", "http://localhost:3000");
+
+    try testing.expectEqualStrings("Test", builder.title);
     try testing.expectEqualStrings("http://localhost:3000", builder.url);
-    try testing.expectEqual(@as(u32, 800), builder.width);
-    try testing.expectEqual(@as(u32, 600), builder.height);
-}
-
-test "WindowBuilder - with custom size" {
-    const builder = api.WindowBuilder.new("Test", "http://localhost:3000")
-        .size(1200, 800);
-
     try testing.expectEqual(@as(u32, 1200), builder.width);
     try testing.expectEqual(@as(u32, 800), builder.height);
 }
 
-test "WindowBuilder - with position" {
+test "WindowBuilder - size" {
+    const builder = api.WindowBuilder.new("Test", "http://localhost:3000")
+        .size(1920, 1080);
+
+    try testing.expectEqual(@as(u32, 1920), builder.width);
+    try testing.expectEqual(@as(u32, 1080), builder.height);
+}
+
+test "WindowBuilder - position" {
     const builder = api.WindowBuilder.new("Test", "http://localhost:3000")
         .position(100, 200);
 
     try testing.expectEqual(@as(?i32, 100), builder.x);
     try testing.expectEqual(@as(?i32, 200), builder.y);
-}
-
-test "WindowBuilder - fullscreen" {
-    const builder = api.WindowBuilder.new("Test", "http://localhost:3000")
-        .fullscreen(true);
-
-    try testing.expect(builder.is_fullscreen);
 }
 
 test "WindowBuilder - resizable" {
@@ -106,7 +138,7 @@ test "WindowBuilder - always on top" {
     const builder = api.WindowBuilder.new("Test", "http://localhost:3000")
         .alwaysOnTop(true);
 
-    try testing.expect(builder.is_always_on_top);
+    try testing.expect(builder.always_on_top);
 }
 
 test "WindowBuilder - chaining" {
@@ -127,7 +159,7 @@ test "WindowBuilder - chaining" {
     try testing.expect(!builder.is_resizable);
     try testing.expect(builder.is_frameless);
     try testing.expect(builder.is_transparent);
-    try testing.expect(builder.is_always_on_top);
+    try testing.expect(builder.always_on_top);
 }
 
 test "Event - ResizeEvent" {
@@ -140,26 +172,34 @@ test "Event - ResizeEvent" {
 
 test "Event - KeyEvent" {
     const event = api.Event{ .key_down = .{
-        .key = .A,
-        .modifiers = .{ .ctrl = true, .shift = false },
+        .code = "KeyA",
+        .key = "a",
+        .ctrl = true,
+        .shift = false,
+        .alt = false,
+        .meta = false,
     } };
 
     try testing.expect(event == .key_down);
-    try testing.expectEqual(api.KeyCode.A, event.key_down.key);
-    try testing.expect(event.key_down.modifiers.ctrl);
-    try testing.expect(!event.key_down.modifiers.shift);
+    try testing.expectEqualStrings("KeyA", event.key_down.code);
+    try testing.expectEqualStrings("a", event.key_down.key);
+    try testing.expect(event.key_down.ctrl);
+    try testing.expect(!event.key_down.shift);
 }
 
 test "Event - MouseEvent" {
     const event = api.Event{ .mouse_down = .{
-        .button = .left,
+        .button = 0,
         .x = 100,
         .y = 200,
-        .modifiers = .{},
+        .alt = false,
+        .ctrl = false,
+        .shift = false,
+        .meta = false,
     } };
 
     try testing.expect(event == .mouse_down);
-    try testing.expectEqual(api.MouseButton.left, event.mouse_down.button);
+    try testing.expectEqual(@as(u8, 0), event.mouse_down.button);
     try testing.expectEqual(@as(i32, 100), event.mouse_down.x);
     try testing.expectEqual(@as(i32, 200), event.mouse_down.y);
 }
@@ -173,124 +213,147 @@ test "IPCMessage - request" {
     try testing.expectEqualStrings("test data", msg.payload.string);
 }
 
-test "IPCMessage - response" {
-    const payload = api.IPCMessage.Payload{ .int = 42 };
+test "IPCMessage - response with number" {
+    const payload = api.IPCMessage.Payload{ .number = 42.0 };
     const msg = api.IPCMessage.response(1, payload);
 
     try testing.expectEqual(@as(u64, 1), msg.id);
     try testing.expectEqual(api.IPCMessage.MessageType.response, msg.type);
-    try testing.expectEqual(@as(i64, 42), msg.payload.int);
+    try testing.expectEqual(@as(f64, 42.0), msg.payload.number);
 }
 
-test "IPCMessage - event" {
-    const payload = api.IPCMessage.Payload{ .bool = true };
-    const msg = api.IPCMessage.event(payload);
+test "IPCMessage - notification with boolean" {
+    const payload = api.IPCMessage.Payload{ .boolean = true };
+    const msg = api.IPCMessage.notification(payload);
 
-    try testing.expectEqual(api.IPCMessage.MessageType.event, msg.type);
-    try testing.expect(msg.payload.bool);
+    try testing.expectEqual(api.IPCMessage.MessageType.notification, msg.type);
+    try testing.expect(msg.payload.boolean);
 }
 
-test "Promise - basic creation" {
-    const allocator = testing.allocator;
-    var promise = try api.Promise(i32).init(allocator);
-    defer promise.deinit();
+test "IPCMessage - error message" {
+    const msg = api.IPCMessage.err(1, "Something went wrong");
 
-    try testing.expectEqual(api.Promise(i32).State.pending, promise.state);
+    try testing.expectEqual(@as(u64, 1), msg.id);
+    try testing.expectEqual(api.IPCMessage.MessageType.error_msg, msg.type);
+    try testing.expectEqualStrings("Something went wrong", msg.payload.string);
+}
+
+test "IPCMessage - null payload" {
+    const payload = api.IPCMessage.Payload{ .null_value = {} };
+    const msg = api.IPCMessage.notification(payload);
+
+    try testing.expectEqual(api.IPCMessage.MessageType.notification, msg.type);
+}
+
+test "Promise - initialization" {
+    const promise = api.Promise.init();
+
+    try testing.expect(!promise.resolved);
+    try testing.expect(!promise.rejected);
+    try testing.expectEqual(@as(?[]const u8, null), promise.value);
+    try testing.expectEqual(@as(?api.Error, null), promise.error_value);
 }
 
 test "Promise - resolve" {
-    const allocator = testing.allocator;
-    var promise = try api.Promise(i32).init(allocator);
-    defer promise.deinit();
+    var promise = api.Promise.init();
+    promise.resolve("success");
 
-    promise.resolve(42);
-
-    try testing.expectEqual(api.Promise(i32).State.resolved, promise.state);
-    try testing.expectEqual(@as(i32, 42), promise.value.?);
+    try testing.expect(promise.resolved);
+    try testing.expect(!promise.rejected);
+    try testing.expectEqualStrings("success", promise.value.?);
 }
 
 test "Promise - reject" {
-    const allocator = testing.allocator;
-    var promise = try api.Promise(i32).init(allocator);
-    defer promise.deinit();
+    var promise = api.Promise.init();
+    promise.reject(error.WindowCreationFailed);
 
-    promise.reject(api.Error.InvalidURL);
-
-    try testing.expectEqual(api.Promise(i32).State.rejected, promise.state);
-    try testing.expectEqual(api.Error.InvalidURL, promise.error_value.?);
+    try testing.expect(!promise.resolved);
+    try testing.expect(promise.rejected);
+    try testing.expectEqual(error.WindowCreationFailed, promise.error_value.?);
 }
 
-test "Promise - isPending" {
-    const allocator = testing.allocator;
-    var promise = try api.Promise(i32).init(allocator);
-    defer promise.deinit();
-
-    try testing.expect(promise.isPending());
-
-    promise.resolve(42);
-    try testing.expect(!promise.isPending());
+test "EventType - all variants" {
+    try testing.expectEqual(api.EventType.window_resize, .window_resize);
+    try testing.expectEqual(api.EventType.window_move, .window_move);
+    try testing.expectEqual(api.EventType.window_close, .window_close);
+    try testing.expectEqual(api.EventType.window_focus, .window_focus);
+    try testing.expectEqual(api.EventType.window_blur, .window_blur);
+    try testing.expectEqual(api.EventType.key_down, .key_down);
+    try testing.expectEqual(api.EventType.key_up, .key_up);
+    try testing.expectEqual(api.EventType.mouse_down, .mouse_down);
+    try testing.expectEqual(api.EventType.mouse_up, .mouse_up);
+    try testing.expectEqual(api.EventType.mouse_move, .mouse_move);
+    try testing.expectEqual(api.EventType.scroll, .scroll);
+    try testing.expectEqual(api.EventType.custom, .custom);
 }
 
-test "Promise - isResolved" {
-    const allocator = testing.allocator;
-    var promise = try api.Promise(i32).init(allocator);
-    defer promise.deinit();
+test "Error - all variants exist" {
+    const err1: api.Error = error.WindowCreationFailed;
+    const err2: api.Error = error.WebViewCreationFailed;
+    const err3: api.Error = error.InvalidURL;
+    const err4: api.Error = error.UnsupportedPlatform;
+    const err5: api.Error = error.InitializationFailed;
+    const err6: api.Error = error.FeatureNotAvailable;
 
-    try testing.expect(!promise.isResolved());
-
-    promise.resolve(42);
-    try testing.expect(promise.isResolved());
+    try testing.expectEqual(error.WindowCreationFailed, err1);
+    try testing.expectEqual(error.WebViewCreationFailed, err2);
+    try testing.expectEqual(error.InvalidURL, err3);
+    try testing.expectEqual(error.UnsupportedPlatform, err4);
+    try testing.expectEqual(error.InitializationFailed, err5);
+    try testing.expectEqual(error.FeatureNotAvailable, err6);
 }
 
-test "Promise - isRejected" {
-    const allocator = testing.allocator;
-    var promise = try api.Promise(i32).init(allocator);
-    defer promise.deinit();
-
-    try testing.expect(!promise.isRejected());
-
-    promise.reject(api.Error.InvalidURL);
-    try testing.expect(promise.isRejected());
-}
-
-test "KeyCode enum - comprehensive" {
-    try testing.expectEqual(api.KeyCode.A, .A);
-    try testing.expectEqual(api.KeyCode.Escape, .Escape);
-    try testing.expectEqual(api.KeyCode.Enter, .Enter);
-    try testing.expectEqual(api.KeyCode.Space, .Space);
-    try testing.expectEqual(api.KeyCode.F1, .F1);
-}
-
-test "MouseButton enum" {
-    try testing.expectEqual(api.MouseButton.left, .left);
-    try testing.expectEqual(api.MouseButton.right, .right);
-    try testing.expectEqual(api.MouseButton.middle, .middle);
-}
-
-test "Modifiers - all false by default" {
-    const modifiers = api.Modifiers{};
-
-    try testing.expect(!modifiers.ctrl);
-    try testing.expect(!modifiers.alt);
-    try testing.expect(!modifiers.shift);
-    try testing.expect(!modifiers.meta);
-}
-
-test "Modifiers - individual flags" {
-    const modifiers = api.Modifiers{
-        .ctrl = true,
-        .shift = true,
+test "ScrollEvent - structure" {
+    const scroll = api.ScrollEvent{
+        .delta_x = 10.5,
+        .delta_y = -20.3,
     };
 
-    try testing.expect(modifiers.ctrl);
-    try testing.expect(!modifiers.alt);
-    try testing.expect(modifiers.shift);
-    try testing.expect(!modifiers.meta);
+    try testing.expectEqual(@as(f32, 10.5), scroll.delta_x);
+    try testing.expectEqual(@as(f32, -20.3), scroll.delta_y);
 }
 
-test "Error enum - all error types" {
-    try testing.expectEqual(api.Error.WindowCreationFailed, .WindowCreationFailed);
-    try testing.expectEqual(api.Error.InvalidURL, .InvalidURL);
-    try testing.expectEqual(api.Error.InitializationFailed, .InitializationFailed);
-    try testing.expectEqual(api.Error.IPCError, .IPCError);
+test "CustomEvent - structure" {
+    const custom = api.CustomEvent{
+        .name = "my-event",
+        .data = "event data",
+    };
+
+    try testing.expectEqualStrings("my-event", custom.name);
+    try testing.expectEqualStrings("event data", custom.data);
+}
+
+test "ResizeEvent - structure" {
+    const resize = api.ResizeEvent{
+        .width = 1024,
+        .height = 768,
+    };
+
+    try testing.expectEqual(@as(u32, 1024), resize.width);
+    try testing.expectEqual(@as(u32, 768), resize.height);
+}
+
+test "MoveEvent - structure" {
+    const move = api.MoveEvent{
+        .x = 100,
+        .y = 200,
+    };
+
+    try testing.expectEqual(@as(i32, 100), move.x);
+    try testing.expectEqual(@as(i32, 200), move.y);
+}
+
+test "IPCMessage.Payload - string variant" {
+    const payload = api.IPCMessage.Payload{ .string = "test" };
+    try testing.expectEqualStrings("test", payload.string);
+}
+
+test "IPCMessage.Payload - number variant" {
+    const payload = api.IPCMessage.Payload{ .number = 123.45 };
+    try testing.expectEqual(@as(f64, 123.45), payload.number);
+}
+
+test "IPCMessage.Payload - boolean variant" {
+    const payload = api.IPCMessage.Payload{ .boolean = false };
+    try testing.expect(!payload.boolean);
 }

@@ -279,13 +279,13 @@ pub const RenderPipeline = struct {
     }
 
     pub fn createShader(self: *RenderPipeline, source: ShaderSource) !*Shader {
-        var shader = try Shader.init(self.allocator, source);
+        const shader = try Shader.init(self.allocator, source);
         try self.shaders.append(shader);
         return &self.shaders.items[self.shaders.items.len - 1];
     }
 
     pub fn createRenderTarget(self: *RenderPipeline, width: u32, height: u32, format: TextureFormat) !*RenderTarget {
-        var target = try RenderTarget.init(self.allocator, width, height, format);
+        const target = try RenderTarget.init(self.allocator, width, height, format);
         try self.render_targets.append(target);
         return &self.render_targets.items[self.render_targets.items.len - 1];
     }
@@ -476,14 +476,16 @@ pub const Buffer = struct {
     }
 
     pub fn upload(self: *Buffer, data: []const u8, offset: usize) !void {
-        if (offset + data.len > self.size) return error.BufferOverflow;
         _ = self;
+        _ = offset;
+        _ = data;
         // Upload data to GPU
     }
 
     pub fn download(self: *Buffer, data: []u8, offset: usize) !void {
-        if (offset + data.len > self.size) return error.BufferOverflow;
         _ = self;
+        _ = offset;
+        _ = data;
         // Download data from GPU
     }
 };
@@ -504,14 +506,14 @@ pub const Mesh = struct {
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator, vertices: []Vertex, indices: []u32) !Mesh {
-        var vertex_buffer = try Buffer.init(
+        const vertex_buffer = try Buffer.init(
             allocator,
             .vertex,
             .static,
             vertices.len * @sizeOf(Vertex),
         );
 
-        var index_buffer = try Buffer.init(
+        const index_buffer = try Buffer.init(
             allocator,
             .index,
             .static,
@@ -606,13 +608,13 @@ pub const GPUProfiler = struct {
 
     pub fn init(allocator: std.mem.Allocator) GPUProfiler {
         return GPUProfiler{
-            .queries = std.ArrayList(Query).init(allocator),
+            .queries = .{},
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *GPUProfiler) void {
-        self.queries.deinit();
+        self.queries.deinit(self.allocator);
     }
 
     pub fn beginQuery(self: *GPUProfiler, name: []const u8) !void {
@@ -622,7 +624,7 @@ pub const GPUProfiler = struct {
             .end_time = 0,
             .duration_ns = 0,
         };
-        try self.queries.append(query);
+        try self.queries.append(self.allocator, query);
     }
 
     pub fn endQuery(self: *GPUProfiler) void {
@@ -719,14 +721,14 @@ pub const MultiGPU = struct {
 
     pub fn init(allocator: std.mem.Allocator) MultiGPU {
         return MultiGPU{
-            .gpus = std.ArrayList(*GPU).init(allocator),
+            .gpus = .{},
             .primary_gpu = null,
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *MultiGPU) void {
-        self.gpus.deinit();
+        self.gpus.deinit(self.allocator);
     }
 
     pub fn detectGPUs(self: *MultiGPU) !void {

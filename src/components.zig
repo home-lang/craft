@@ -15,7 +15,7 @@ pub const Component = struct {
             .id = id,
             .handle = null,
             .props = props,
-            .children = std.ArrayList(*Component).init(allocator),
+            .children = .{},
             .allocator = allocator,
         };
     }
@@ -25,11 +25,11 @@ pub const Component = struct {
             child.deinit();
             self.allocator.destroy(child);
         }
-        self.children.deinit();
+        self.children.deinit(self.allocator);
     }
 
     pub fn appendChild(self: *Component, child: *Component) !void {
-        try self.children.append(child);
+        try self.children.append(self.allocator, child);
     }
 
     pub fn removeChild(self: *Component, child: *Component) void {
@@ -346,7 +346,7 @@ pub const ListView = struct {
         const list = try allocator.create(ListView);
         list.* = ListView{
             .component = try Component.init(allocator, "list", props),
-            .items = std.ArrayList([]const u8).init(allocator),
+            .items = .{},
             .selected_index = null,
             .on_select = null,
         };
@@ -354,13 +354,13 @@ pub const ListView = struct {
     }
 
     pub fn deinit(self: *ListView) void {
-        self.items.deinit();
+        self.items.deinit(self.component.allocator);
         self.component.deinit();
         self.component.allocator.destroy(self);
     }
 
     pub fn addItem(self: *ListView, item: []const u8) !void {
-        try self.items.append(item);
+        try self.items.append(self.component.allocator, item);
     }
 
     pub fn removeItem(self: *ListView, index: usize) void {
@@ -405,7 +405,7 @@ pub const Table = struct {
         table.* = Table{
             .component = try Component.init(allocator, "table", props),
             .columns = columns,
-            .rows = std.ArrayList(Row).init(allocator),
+            .rows = .{},
             .selected_row = null,
             .on_select = null,
         };
@@ -413,13 +413,13 @@ pub const Table = struct {
     }
 
     pub fn deinit(self: *Table) void {
-        self.rows.deinit();
+        self.rows.deinit(self.component.allocator);
         self.component.deinit();
         self.component.allocator.destroy(self);
     }
 
     pub fn addRow(self: *Table, row: Row) !void {
-        try self.rows.append(row);
+        try self.rows.append(self.component.allocator, row);
     }
 
     pub fn removeRow(self: *Table, index: usize) void {
@@ -458,7 +458,7 @@ pub const TabView = struct {
         const tabs = try allocator.create(TabView);
         tabs.* = TabView{
             .component = try Component.init(allocator, "tabs", props),
-            .tabs = std.ArrayList(Tab).init(allocator),
+            .tabs = .{},
             .selected_tab = 0,
             .on_change = null,
         };
@@ -466,13 +466,13 @@ pub const TabView = struct {
     }
 
     pub fn deinit(self: *TabView) void {
-        self.tabs.deinit();
+        self.tabs.deinit(self.component.allocator);
         self.component.deinit();
         self.component.allocator.destroy(self);
     }
 
     pub fn addTab(self: *TabView, tab: Tab) !void {
-        try self.tabs.append(tab);
+        try self.tabs.append(self.component.allocator, tab);
     }
 
     pub fn selectTab(self: *TabView, index: usize) void {
@@ -557,27 +557,27 @@ pub const Toolbar = struct {
         const toolbar = try allocator.create(Toolbar);
         toolbar.* = Toolbar{
             .component = try Component.init(allocator, "toolbar", props),
-            .items = std.ArrayList(ToolbarItem).init(allocator),
+            .items = .{},
         };
         return toolbar;
     }
 
     pub fn deinit(self: *Toolbar) void {
-        self.items.deinit();
+        self.items.deinit(self.component.allocator);
         self.component.deinit();
         self.component.allocator.destroy(self);
     }
 
     pub fn addButton(self: *Toolbar, button: ToolbarButton) !void {
-        try self.items.append(.{ .button = button });
+        try self.items.append(self.component.allocator, .{ .button = button });
     }
 
     pub fn addSeparator(self: *Toolbar) !void {
-        try self.items.append(.separator);
+        try self.items.append(self.component.allocator, .separator);
     }
 
     pub fn addSpacer(self: *Toolbar) !void {
-        try self.items.append(.spacer);
+        try self.items.append(self.component.allocator, .spacer);
     }
 };
 

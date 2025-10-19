@@ -73,17 +73,17 @@ pub const NotificationManager = struct {
     pub fn init(allocator: std.mem.Allocator) NotificationManager {
         return NotificationManager{
             .allocator = allocator,
-            .notifications = std.ArrayList(Notification).init(allocator),
+            .notifications = .{},
         };
     }
 
     pub fn deinit(self: *NotificationManager) void {
-        self.notifications.deinit();
+        self.notifications.deinit(self.allocator);
     }
 
     pub fn send(self: *NotificationManager, notification: Notification) !void {
         try notification.show();
-        try self.notifications.append(notification);
+        try self.notifications.append(self.allocator, notification);
     }
 
     pub fn cancel(self: *NotificationManager, id: []const u8) void {
@@ -370,7 +370,6 @@ pub const SystemInfo = struct {
             .linux => "Linux",
             .windows => "Windows",
             .ios => "iOS",
-            .android => "Android",
             else => "Unknown",
         };
     }
