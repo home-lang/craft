@@ -1,128 +1,146 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock, spyOn, test } from 'bun:test'
+import { describe, expect, it, beforeEach } from 'bun:test'
+import { ZyteApp, createApp, type WindowOptions, type AppConfig } from '../src/index'
 
-// Example function to test
-function add(a: number, b: number): number {
-  return a + b
-}
-
-// Example async function to test
-async function fetchData(): Promise<string> {
-  return new Promise(resolve => setTimeout(() => resolve('data'), 100))
-}
-
-// Example module to mock
-const apiModule = {
-  fetchUserData: async (id: number) => {
-    // Simulating an API call
-    return { id, name: 'John Doe', email: 'john@example.com' }
-  },
-}
-
-describe('my awesome package', () => {
-  let testValue: number
-
-  beforeAll(() => {
-    // eslint-disable-next-line no-console
-    console.log('Running before all tests')
-  })
-
-  afterAll(() => {
-    // eslint-disable-next-line no-console
-    console.log('Running after all tests')
-  })
-
-  beforeEach(() => {
-    testValue = 10
-  })
-
-  afterEach(() => {
-    testValue = 0
-  })
-
-  it('should demonstrate basic assertion', () => {
-    expect(1).toBe(1)
-  })
-
-  it('should test the add function', () => {
-    expect(add(2, 3)).toBe(5)
-    expect(add(-1, 1)).toBe(0)
-  })
-
-  it('should work with various matchers', () => {
-    expect(true).toBeTruthy()
-    expect(false).toBeFalsy()
-    expect(null).toBeNull()
-    expect(undefined).toBeUndefined()
-    expect([1, 2, 3]).toContain(2)
-    expect({ name: 'John' }).toHaveProperty('name')
-    expect(() => {
-      throw new Error('Test error')
-    }).toThrow('Test error')
-  })
-
-  it('should handle async tests', async () => {
-    const result = await fetchData()
-    expect(result).toBe('data')
-  })
-
-  it('should use beforeEach and afterEach', () => {
-    expect(testValue).toBe(10)
-    testValue += 5
-    expect(testValue).toBe(15)
-  })
-
-  test('should work with test function as well', () => {
-    expect(true).toBe(true)
-  })
-
-  it('should demonstrate spy functionality', () => {
-    const consoleSpy = spyOn(console, 'log')
-    // eslint-disable-next-line no-console
-    console.log('Test message')
-    expect(consoleSpy).toHaveBeenCalledWith('Test message')
-    consoleSpy.mockRestore()
-  })
-
-  it.todo('should implement this test later')
-
-  it.skip('should skip this test', () => {
-    // This test will be skipped
-    expect(true).toBe(false)
-  })
-
-  describe('Mocking example', () => {
-    it('should demonstrate mock functionality', async () => {
-      // Create a mock function
-      const mockFetchUserData = mock((id: number) => {
-        return Promise.resolve({ id, name: 'Mocked User', email: 'mocked@example.com' })
-      })
-
-      // Replace the original function with the mock
-      apiModule.fetchUserData = mockFetchUserData
-
-      // Use the mocked function
-      const result = await apiModule.fetchUserData(1)
-
-      // Assert the mock was called with the correct argument
-      expect(mockFetchUserData).toHaveBeenCalledWith(1)
-
-      // Assert the mock returned the expected result
-      expect(result).toEqual({ id: 1, name: 'Mocked User', email: 'mocked@example.com' })
-
-      // Check how many times the mock was called
-      expect(mockFetchUserData).toHaveBeenCalledTimes(1)
-
-      // Reset the mock
-      mockFetchUserData.mockReset()
-
-      // Provide a new implementation for the mock
-      mockFetchUserData.mockImplementation((id: number) => {
-        return Promise.resolve({ id, name: 'New Mock', email: 'new@example.com' })
-      })
-
-      // Use the mock with the new implementation
-      const newResult = await apiModule.fetchUserData(2)
-      expect(newResult).toEqual({ id: 2, name: 'New Mock', email: 'new@example.com' })
+describe('ZyteApp', () => {
+  describe('constructor', () => {
+    it('should create app with default config', () => {
+      const app = new ZyteApp()
+      expect(app).toBeInstanceOf(ZyteApp)
     })
+
+    it('should accept custom window options', () => {
+      const config: AppConfig = {
+        window: {
+          title: 'Test App',
+          width: 1024,
+          height: 768,
+        },
+      }
+      const app = new ZyteApp(config)
+      expect(app).toBeInstanceOf(ZyteApp)
+    })
+
+    it('should merge custom options with defaults', () => {
+      const config: AppConfig = {
+        window: {
+          title: 'Test App',
+        },
+      }
+      const app = new ZyteApp(config)
+      expect(app).toBeInstanceOf(ZyteApp)
+    })
+
+    it('should accept HTML content', () => {
+      const config: AppConfig = {
+        html: '<h1>Test</h1>',
+      }
+      const app = new ZyteApp(config)
+      expect(app).toBeInstanceOf(ZyteApp)
+    })
+
+    it('should accept URL', () => {
+      const config: AppConfig = {
+        url: 'http://localhost:3000',
+      }
+      const app = new ZyteApp(config)
+      expect(app).toBeInstanceOf(ZyteApp)
+    })
+  })
+
+  describe('Window options', () => {
+    it('should handle all boolean flags', () => {
+      const options: WindowOptions = {
+        frameless: true,
+        transparent: true,
+        alwaysOnTop: true,
+        fullscreen: true,
+        resizable: false,
+        darkMode: true,
+        hotReload: true,
+        devTools: true,
+        systemTray: true,
+      }
+      const app = new ZyteApp({ window: options })
+      expect(app).toBeInstanceOf(ZyteApp)
+    })
+
+    it('should handle position and size options', () => {
+      const options: WindowOptions = {
+        x: 100,
+        y: 200,
+        width: 1920,
+        height: 1080,
+      }
+      const app = new ZyteApp({ window: options })
+      expect(app).toBeInstanceOf(ZyteApp)
+    })
+  })
+
+  describe('close', () => {
+    it('should not throw when closing app with no process', () => {
+      const app = new ZyteApp()
+      expect(() => app.close()).not.toThrow()
+    })
+  })
+})
+
+describe('Helper functions', () => {
+  describe('createApp', () => {
+    it('should create ZyteApp instance', () => {
+      const app = createApp()
+      expect(app).toBeInstanceOf(ZyteApp)
+    })
+
+    it('should accept config', () => {
+      const config: AppConfig = {
+        window: { title: 'Helper Test' },
+      }
+      const app = createApp(config)
+      expect(app).toBeInstanceOf(ZyteApp)
+    })
+  })
+})
+
+describe('Type exports', () => {
+  it('should export WindowOptions type', () => {
+    const options: WindowOptions = {
+      title: 'Test',
+      width: 800,
+      height: 600,
+    }
+    expect(options.title).toBe('Test')
+  })
+
+  it('should export AppConfig type', () => {
+    const config: AppConfig = {
+      html: '<h1>Test</h1>',
+      window: {
+        title: 'Test',
+      },
+    }
+    expect(config.html).toBe('<h1>Test</h1>')
+  })
+})
+
+describe('Configuration validation', () => {
+  it('should handle empty config', () => {
+    const app = new ZyteApp({})
+    expect(app).toBeInstanceOf(ZyteApp)
+  })
+
+  it('should handle partial window config', () => {
+    const app = new ZyteApp({
+      window: {
+        width: 1200,
+      },
+    })
+    expect(app).toBeInstanceOf(ZyteApp)
+  })
+
+  it('should handle custom zytePath', () => {
+    const app = new ZyteApp({
+      zytePath: '/custom/path/to/zyte',
+    })
+    expect(app).toBeInstanceOf(ZyteApp)
   })
 })

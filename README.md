@@ -192,6 +192,33 @@ Build native menubar/system tray apps with full platform support:
 - 🔗 **Custom Protocols** - Register custom URL handlers (zyte://)
 - 🎯 **Drag & Drop** - File drag and drop support
 
+## Quick Start
+
+The fastest way to get started is with `create-zyte`:
+
+```bash
+# Create a new Zyte app
+bun create zyte my-app
+
+# Navigate to your app
+cd my-app
+
+# Start development
+bun run dev
+```
+
+Choose from multiple templates:
+- **minimal** - Simplest possible app
+- **full-featured** - Modern styled app with examples
+- **todo-app** - Interactive todo list
+
+```bash
+# Use a specific template
+bun create zyte my-app --template full-featured
+```
+
+**See [create-zyte documentation](./packages/create-zyte/README.md) for all options.**
+
 ## Get Started
 
 ### TypeScript/JavaScript (Recommended)

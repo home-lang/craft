@@ -13,7 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-test:
+  zig-core:
+    name: Zig Core Tests
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -37,8 +38,8 @@ jobs:
         with:
           path: |
             ~/.cache/zig
-            zig-cache
-          key: ${{ runner.os }}-zig-${{ matrix.zig-version }}-${{ hashFiles('build.zig') }}
+            packages/zig/zig-cache
+          key: ${{ runner.os }}-zig-${{ matrix.zig-version }}-${{ hashFiles('packages/zig/build.zig') }}
           restore-keys: |
             ${{ runner.os }}-zig-${{ matrix.zig-version }}-
 
@@ -48,24 +49,53 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
 
-      - name: Build
+      - name: Build Zig core
+        working-directory: packages/zig
         run: zig build
 
-      - name: Run tests
+      - name: Run Zig tests
+        working-directory: packages/zig
         run: zig build test
-
-      - name: Build examples
-        run: |
-          zig build
-          zig build run-minimal -- --help
 
       - name: Check binary size
         if: runner.os == 'Linux'
         run: |
-          ls -lh zig-out/bin/
-          size zig-out/bin/zyte-minimal || true
+          ls -lh packages/zig/zig-out/bin/
+          size packages/zig/zig-out/bin/zyte || true
+
+  typescript-sdk:
+    name: TypeScript SDK Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Type check TypeScript SDK
+        working-directory: packages/typescript
+        run: bun run typecheck
+
+      - name: Run TypeScript SDK tests
+        working-directory: packages/typescript
+        run: bun test
+
+      - name: Build TypeScript SDK
+        working-directory: packages/typescript
+        run: bun run build
+
+      - name: Type check create-zyte
+        working-directory: packages/create-zyte
+        run: bun run typecheck
 
   lint:
+    name: Code Formatting
     runs-on: ubuntu-latest
 
     steps:
@@ -76,11 +106,14 @@ jobs:
         with:
           version: '0.15.1'
 
-      - name: Check formatting
+      - name: Check Zig formatting
+        working-directory: packages/zig
         run: zig fmt --check src/ build.zig
 
-  cross-compile:
+  integration:
+    name: Integration Tests
     runs-on: ubuntu-latest
+    needs: [zig-core, typescript-sdk]
 
     steps:
       - uses: actions/checkout@v4
@@ -89,27 +122,28 @@ jobs:
         uses: goto-bus-stop/setup-zig@v2
         with:
           version: '0.15.1'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
 
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
 
-      - name: Cache Zig artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/zig
-            zig-cache
-          key: cross-compile-zig-0.15.1-${{ hashFiles('build.zig') }}
-          restore-keys: |
-            cross-compile-zig-0.15.1-
+      - name: Build Zig core
+        run: bun run build:core
 
-      - name: Build for all platforms
+      - name: Install TypeScript dependencies
+        run: bun install
+
+      - name: Test TypeScript SDK with built binary
+        run: bun run test:sdk
+
+      - name: Verify create-zyte works
         run: |
-          zig build build-linux
-          zig build build-macos
-          echo "Windows cross-compilation requires additional setup"
-
-      - name: List built artifacts
-        run: ls -lh zig-out/bin/
+          bun run create test-app --skip-install
+          ls -la test-app/
+          cat test-app/package.json

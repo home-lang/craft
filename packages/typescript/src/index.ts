@@ -116,6 +116,19 @@ export class ZyteApp {
   private config: AppConfig
 
   constructor(config: AppConfig = {}) {
+    // Validate window dimensions
+    if (config.window?.width !== undefined && (config.window.width < 100 || config.window.width > 10000)) {
+      throw new Error(`Invalid window width: ${config.window.width}. Must be between 100 and 10000 pixels.`)
+    }
+    if (config.window?.height !== undefined && (config.window.height < 100 || config.window.height > 10000)) {
+      throw new Error(`Invalid window height: ${config.window.height}. Must be between 100 and 10000 pixels.`)
+    }
+
+    // Validate that either html or url is provided, not both
+    if (config.html && config.url) {
+      console.warn('⚠️  Both html and url provided. URL will take precedence.')
+    }
+
     this.config = {
       window: {
         title: 'Zyte App',
@@ -143,6 +156,14 @@ export class ZyteApp {
       this.config.html = html
     }
 
+    // Validate that we have something to show
+    if (!this.config.html && !this.config.url) {
+      throw new Error(
+        'No content to display. Provide either html or url:\n' +
+        '  show(html, options) or loadURL(url, options)'
+      )
+    }
+
     const args = this.buildArgs()
     const zytePath = await this.findZyteBinary()
 
@@ -151,13 +172,49 @@ export class ZyteApp {
     })
 
     return new Promise((resolve, reject) => {
-      this.process?.on('error', reject)
+      this.process?.on('error', (error: Error & { code?: string }) => {
+        const errorMessage = [
+          `❌ Failed to start Zyte process: ${error.message}`,
+          '',
+        ]
+
+        // Provide platform-specific troubleshooting
+        if (error.code === 'EACCES') {
+          errorMessage.push(
+            'Permission denied. Try making the binary executable:',
+            `  chmod +x ${zytePath}`,
+          )
+        }
+        else if (error.code === 'ENOENT') {
+          errorMessage.push(
+            'Binary not found or not executable.',
+            'Ensure Zyte core is built:',
+            '  bun run build:core',
+          )
+        }
+        else {
+          errorMessage.push(
+            'For troubleshooting, visit:',
+            '  https://github.com/stacksjs/zyte/issues',
+          )
+        }
+
+        reject(new Error(errorMessage.join('\n')))
+      })
+
       this.process?.on('exit', (code) => {
-        if (code === 0) {
+        if (code === 0 || code === null) {
           resolve()
         }
         else {
-          reject(new Error(`Zyte process exited with code ${code}`))
+          reject(new Error(
+            `❌ Zyte process exited with code ${code}\n\n` +
+            'This may indicate:\n' +
+            '  • Invalid window configuration\n' +
+            '  • Malformed HTML content\n' +
+            '  • System resource constraints\n\n' +
+            'Check the console output above for more details.'
+          ))
         }
       })
     })
@@ -229,6 +286,13 @@ export class ZyteApp {
 
   private async findZyteBinary(): Promise<string> {
     if (this.config.zytePath) {
+      if (!existsSync(this.config.zytePath)) {
+        throw new Error(
+          `Custom Zyte binary path not found: ${this.config.zytePath}\n\n` +
+          'Please ensure the path is correct or build the Zyte core:\n' +
+          '  bun run build:core'
+        )
+      }
       return this.config.zytePath
     }
 
@@ -261,7 +325,28 @@ export class ZyteApp {
       }
     }
 
-    throw new Error('Zyte binary not found. Please build the project first with: bun run build:core')
+    // Provide helpful error message with troubleshooting steps
+    const errorMessage = [
+      '❌ Zyte binary not found',
+      '',
+      'Tried the following locations:',
+      ...possiblePaths.map(p => `  • ${p}`),
+      '',
+      'To fix this issue:',
+      '',
+      '1. Build the Zyte core:',
+      '   bun run build:core',
+      '',
+      '2. Or install Zyte globally:',
+      '   bun install -g ts-zyte',
+      '',
+      '3. Or specify a custom binary path:',
+      '   createApp({ zytePath: "/path/to/zyte" })',
+      '',
+      'For more help, visit: https://github.com/stacksjs/zyte',
+    ].join('\n')
+
+    throw new Error(errorMessage)
   }
 
   private checkBinaryExists(path: string): Promise<void> {

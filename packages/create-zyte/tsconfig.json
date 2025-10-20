@@ -5,11 +5,6 @@
     "isolatedDeclarations": true
   },
   "include": [
-    "src",
-    "bin",
-    "test"
-  ],
-  "exclude": [
-    "test/outputs"
+    "bin"
   ]
 }

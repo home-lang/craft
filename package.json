@@ -13,18 +13,20 @@
     "build": "bun run build:core && bun run build:sdk",
     "build:core": "cd packages/zig && zig build -Doptimize=ReleaseSafe",
     "build:debug": "cd packages/zig && zig build",
-    "build:sdk": "cd packages/ts-zyte && bun run build",
+    "build:sdk": "cd packages/typescript && bun run build",
     "test": "cd packages/zig && zig build test",
-    "test:sdk": "cd packages/ts-zyte && bun test",
+    "test:sdk": "cd packages/typescript && bun test",
+    "typecheck": "cd packages/typescript && bun run typecheck && cd ../create-zyte && bun run typecheck",
     "run": "cd packages/zig && zig build run",
     "run:minimal": "cd packages/zig && zig build run-minimal",
+    "create": "cd packages/create-zyte && bun bin/cli.ts",
     "clean": "rm -rf packages/zig/zig-cache packages/zig/zig-out && bun run clean:packages",
     "clean:packages": "rm -rf packages/*/dist packages/*/node_modules",
     "fmt": "cd packages/zig && zig fmt src/ build.zig",
     "fmt:check": "cd packages/zig && zig fmt --check src/ build.zig",
-    "dev": "cd packages/ts-zyte && bun run dev",
-    "release": "bun run build && bun run publish:sdk",
-    "publish:sdk": "cd packages/ts-zyte && bun publish"
+    "dev": "cd packages/typescript && bun run dev",
+    "release": "bun run build && bun run publish:all",
+    "publish:all": "cd packages/typescript && bun publish && cd ../create-zyte && bun publish"
   },
   "devDependencies": {
     "better-dx": "^0.1.7"
