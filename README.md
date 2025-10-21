@@ -8,15 +8,14 @@
 
 # Zyte
 
-**Build native desktop & mobile apps with web technologies, powered by Zig**
-
 Zyte is a lightweight, high-performance cross-platform application framework. Create native apps that work on macOS, Linux, Windows, iOS, and Android with web technologies - all with a tiny 1.4MB binary and blazing fast <100ms startup time.
 
-**Version 0.0.1** | **31 Native Components** | **1.4MB Binary** | **Cross-Platform** | **Production-Ready**
+**Version 0.0.1** | **35 Native Components** | **1.4MB Binary** | **Cross-Platform** | **Production-Ready** | **69 Tests Passing**
 
 ## Features
 
 ### 🌍 Platform Support
+
 - 🖥️ **Desktop** - macOS, Linux, Windows
 - 📱 **Mobile** - iOS (WKWebView, UIKit) and Android (WebView, Activity)
 - 🪟 **Menubar Apps** - Native system tray/menubar integration
@@ -25,6 +24,7 @@ Zyte is a lightweight, high-performance cross-platform application framework. Cr
 - 🔧 **Zig-Powered** - Built with Zig 0.15.1 for maximum performance
 
 ### 📱 Mobile Platform Support
+
 - **iOS Integration**
   - WKWebView with JavaScript bridge
   - UIKit native components
@@ -42,33 +42,46 @@ Zyte is a lightweight, high-performance cross-platform application framework. Cr
   - File access and storage
   - Material Design support
 
-### 🎨 Native Components Library
+### 🎨 Native Components Library (35 Total)
 
 **Input Components**
+
 - Button, TextInput, Checkbox, RadioButton
-- Slider, ColorPicker, DatePicker, TimePicker
+- Slider (with snapping, labels, percentage), ColorPicker (RGB/HSL/Hex), DatePicker, TimePicker
+- Autocomplete (fuzzy search, keyboard nav)
 
 **Display Components**
+
 - Label, ImageView, ProgressBar, Spinner
 - Avatar, Badge, Chip, Card
+- Tooltip (8 positions, 6 themes), Toast (notifications)
 
 **Layout Components**
+
 - ScrollView, SplitView, Accordion, Stepper
+- Modal, Tabs, Dropdown
 
 **Data Components**
-- ListView, Table, TreeView
+
+- ListView, Table, TreeView, DataGrid
+- Chart (line, bar, pie)
 
 **Navigation Components**
+
 - TabView, Menu, Toolbar, StatusBar
 
 **Advanced Components**
+
 - Rating (star ratings with half-star support)
+- CodeEditor (syntax highlighting)
+- MediaPlayer (video/audio)
 
 ### 🪟 Menubar Applications
 
 Build native menubar/system tray apps with full platform support:
 
 **Features**
+
 - Native system tray icons
 - Custom menus with shortcuts
 - Tooltip support
@@ -77,6 +90,7 @@ Build native menubar/system tray apps with full platform support:
 - Notifications integration
 
 **Platform Implementations**
+
 - macOS: NSStatusBar integration
 - Linux: AppIndicator/StatusNotifier
 - Windows: System tray via Shell_NotifyIcon
@@ -84,6 +98,7 @@ Build native menubar/system tray apps with full platform support:
 ### 🎮 Advanced GPU Rendering
 
 **Rendering Pipeline**
+
 - Multi-backend support (Vulkan, Metal, Direct3D)
 - Shader management (vertex, fragment, compute)
 - Buffer management (vertex, index, uniform, storage)
@@ -91,11 +106,13 @@ Build native menubar/system tray apps with full platform support:
 - Mesh rendering with vertex data
 
 **Effects & Post-Processing**
+
 - 10 built-in effects: Bloom, Blur, Sharpen, Vignette
 - Chromatic Aberration, Film Grain, Color Grading
 - Tone Mapping, Anti-Aliasing, Ambient Occlusion
 
 **Advanced Features**
+
 - Compute shader support
 - Ray tracing with acceleration structures
 - Multi-GPU support
@@ -104,6 +121,7 @@ Build native menubar/system tray apps with full platform support:
 ### 🖥️ System Integration
 
 **Notifications**
+
 - Native OS notifications
 - Custom titles, bodies, icons
 - Action buttons
@@ -111,12 +129,14 @@ Build native menubar/system tray apps with full platform support:
 - Click callbacks
 
 **Clipboard**
+
 - Text read/write
 - Image support
 - File paths
 - Watch for changes
 
 **File Dialogs**
+
 - Open file/multiple files
 - Save file
 - Select directory
@@ -124,38 +144,47 @@ Build native menubar/system tray apps with full platform support:
 - Default paths
 
 **System Info**
+
 - OS name and version
 - CPU information
 - Memory stats (total, available, used)
 - System uptime
 
 **Power Management**
+
 - Battery status and level
 - Charging state
 - Prevent/allow sleep
 - Power state monitoring
 
 **Screen Management**
+
 - Multi-monitor support
 - Screen resolution and scaling
 - Primary screen detection
 - Screen positioning
 
 **URL Handling**
+
 - Open URLs in default browser
 - Register custom URL schemes
 - Deep linking support
 
 ### 🛠️ Developer Experience
+
 - 📟 **Powerful CLI** - 20+ command-line flags for quick prototyping
 - 🔍 **DevTools** - Built-in WebKit DevTools (right-click > Inspect Element)
 - 🎨 **Custom Styles** - Frameless, transparent, always-on-top windows
 - 🌉 **JavaScript Bridge** - Seamless communication between JS and native code
 - ⚙️ **Configuration** - TOML-based config files
 - 📊 **Logging** - Structured logging system
-- 🔥 **Hot Reload** - File watching and auto-reload
+- 🔥 **Hot Reload** - File watching with state preservation (scroll, forms, focus, custom state)
+- 🎯 **Error Handling** - Context-aware errors with stack traces, metadata, recovery strategies
+- 📈 **Performance Monitoring** - Built-in benchmarking suite, memory tracking, FPS monitoring
+- 🐛 **Enhanced Debugging** - Beautiful error overlays, color-coded output, actionable suggestions
 
 ### 🪟 Window Management
+
 - 📏 **Position Control** - Precise window positioning (x, y)
 - 🖥️ **Fullscreen** - Native fullscreen mode
 - 🔄 **State Management** - Minimize, maximize, close, hide, show
@@ -164,21 +193,33 @@ Build native menubar/system tray apps with full platform support:
 - 🖥️ **Multi-Monitor** - Multi-monitor awareness
 
 ### 🎯 Advanced Features
+
 - 📡 **Advanced IPC** - Message passing, channels, RPC, shared memory
 - 🖌️ **Native Rendering** - Canvas API, pixel manipulation
 - ⌨️ **Enhanced Shortcuts** - 90+ key codes with modifiers
-- ♿ **Accessibility** - WCAG 2.1 AAA compliance, screen readers
+- ♿ **Accessibility** - WCAG 2.1 AAA compliance with 40+ ARIA roles
+  - Focus management with trap support
+  - Keyboard navigation system (Tab, Arrow, Home, End keys)
+  - Screen reader announcements (4 priority levels)
+  - Contrast ratio checker (validates AA/AAA standards)
+  - Semantic HTML mapping
+  - 69 comprehensive accessibility tests
 - 🌓 **Advanced Theming** - Nord, Dracula, Gruvbox, custom themes
 - 💨 **Performance** - LRU caching, object pooling, lazy loading, memoization
-- 📊 **Monitoring** - Built-in performance profiling
+- 📊 **Monitoring** - Built-in performance profiling and benchmarking
+  - Statistical analysis (mean, median, std dev, ops/sec)
+  - Memory allocation tracking
+  - JSON and text report generation
 
 ### ✨ Async & State
+
 - 🔄 **Async/Await** - Non-blocking I/O, streaming, promises, channels
 - 🧩 **WebAssembly** - WASM plugin system with sandboxing
 - 🎬 **Animations** - 31 easing functions, keyframes, springs
 - 🔄 **State Management** - Reactive state with observers, undo/redo
 
 ### 🏢 Enterprise Ready
+
 - 🔌 **Plugin System** - Dynamic library loading with marketplace
 - 🛡️ **Sandbox** - 7 permission types for security
 - 🌐 **i18n** - Internationalization with RTL support
@@ -208,6 +249,7 @@ bun run dev
 ```
 
 Choose from multiple templates:
+
 - **minimal** - Simplest possible app
 - **full-featured** - Modern styled app with examples
 - **todo-app** - Interactive todo list
@@ -305,11 +347,13 @@ zig build
 ### Platform-Specific Dependencies
 
 **Linux:**
+
 ```bash
 sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
 ```
 
 **Windows:**
+
 ```powershell
 winget install Microsoft.EdgeWebView2Runtime
 ```
@@ -596,16 +640,16 @@ zyte http://localhost:3000 \
 | Memory (idle) | **~92MB** | ~200MB | ~80MB |
 | Startup Time | **<100ms** | ~1000ms | ~100ms |
 | CPU (idle) | **<1%** | ~4% | <1% |
-| Platforms | **5** (Desktop + Mobile) | 3 | 3 |
-| Native Components | **31** | 0 | Limited |
+<!-- | Platforms | **5** (Desktop + Mobile) | 3 | 3 |
+| Native Components | **35** | 0 | Limited | -->
 
 ## Platform Support
 
 | Platform | Status | WebView | Native Components |
 |----------|--------|---------|-------------------|
-| **macOS** | ✅ Production | WKWebView | ✅ All 31 |
-| **Linux** | ✅ Production | WebKit2GTK 4.0+ | ✅ All 31 |
-| **Windows** | ✅ Production | WebView2 (Edge) | ✅ All 31 |
+| **macOS** | ✅ Production | WKWebView | ✅ All 35 |
+| **Linux** | ✅ Production | WebKit2GTK 4.0+ | ✅ All 35 |
+| **Windows** | ✅ Production | WebView2 (Edge) | ✅ All 35 |
 | **iOS** | ✅ Beta | WKWebView | ✅ UIKit |
 | **Android** | ✅ Beta | WebView | ✅ Material |
 
@@ -622,7 +666,7 @@ zyte http://localhost:3000 \
 
 Zyte is built with a modular architecture:
 
-```
+```text
 src/
 ├── api.zig          # Core API with Result types, builders
 ├── mobile.zig       # iOS & Android platform support
