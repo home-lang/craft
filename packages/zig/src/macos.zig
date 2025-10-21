@@ -35,6 +35,7 @@ pub const WindowStyle = struct {
     y: ?i32 = null,  // Window y position (null = center)
     dark_mode: ?bool = null,  // null = system default, true = dark, false = light
     enable_hot_reload: bool = false,  // Enable hot reload support
+    hide_dock_icon: bool = false,  // Hide dock icon (menubar-only mode)
 };
 
 // Helper functions for Objective-C runtime
@@ -82,6 +83,11 @@ fn msgSendVoid2(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: a
     msg(target, sel(selector), arg1, arg2);
 }
 
+fn msgSend3(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anytype, arg3: anytype) objc.id {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(arg1), @TypeOf(arg2), @TypeOf(arg3)) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector), arg1, arg2, arg3);
+}
+
 pub fn createWindow(title: []const u8, width: u32, height: u32, html: []const u8) !objc.id {
     return createWindowWithStyle(title, width, height, html, null, .{});
 }
@@ -100,13 +106,22 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     const WKWebView = getClass("WKWebView");
     const WKPreferences = getClass("WKPreferences");
     const WKWebViewConfiguration = getClass("WKWebViewConfiguration");
+    const WKUserContentController = getClass("WKUserContentController");
+    const WKUserScript = getClass("WKUserScript");
 
     // Get shared application
     const app = msgSend0(NSApplication, "sharedApplication");
 
-    // Set activation policy
-    const NSApplicationActivationPolicyRegular: c_long = 0;
-    _ = msgSend1(app, "setActivationPolicy:", NSApplicationActivationPolicyRegular);
+    // Set activation policy based on hide_dock_icon option
+    if (style.hide_dock_icon) {
+        // NSApplicationActivationPolicyAccessory = 1 (hides dock icon)
+        const NSApplicationActivationPolicyAccessory: c_long = 1;
+        _ = msgSend1(app, "setActivationPolicy:", NSApplicationActivationPolicyAccessory);
+    } else {
+        // NSApplicationActivationPolicyRegular = 0 (shows dock icon)
+        const NSApplicationActivationPolicyRegular: c_long = 0;
+        _ = msgSend1(app, "setActivationPolicy:", NSApplicationActivationPolicyRegular);
+    }
 
     // Create window frame
     const frame = NSRect{
@@ -167,6 +182,26 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     const value_obj = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
     msgSendVoid2(prefs, "setValue:forKey:", value_obj, key_str);
     _ = msgSend1(config, "setPreferences:", prefs);
+
+    // Set up user content controller for JavaScript bridge
+    const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
+
+    // Inject Zyte JavaScript API
+    const bridge_js = getZyteBridgeScript();
+    const js_source = createNSString(bridge_js);
+
+    // WKUserScriptInjectionTimeAtDocumentStart = 0
+    const injection_time: c_int = 0;
+    // forMainFrameOnly = true
+    const for_main_frame: bool = true;
+
+    const user_script_alloc = msgSend0(WKUserScript, "alloc");
+    const user_script = msgSend3(user_script_alloc, "initWithSource:injectionTime:forMainFrameOnly:", js_source, injection_time, for_main_frame);
+    msgSendVoid1(userContentController, "addUserScript:", user_script);
+
+    // Add script message handler (will be set up later)
+    // For now we just set the user content controller
+    _ = msgSend1(config, "setUserContentController:", userContentController);
 
     // Create WKWebView with configuration
     const webview_alloc = msgSend0(WKWebView, "alloc");
@@ -610,6 +645,309 @@ pub fn setGlobalWebView(webview: objc.id) void {
 
 pub fn getGlobalWebView() ?objc.id {
     return global_webview;
+}
+
+// ============================================================================
+// JavaScript Bridge Injection
+// ============================================================================
+
+/// Generate the complete Zyte JavaScript bridge to inject into WebViews
+fn getZyteBridgeScript() []const u8 {
+    return
+        \\ // Zyte JavaScript Bridge - Auto-injected
+        \\ (function() {
+        \\   console.log('[Zyte] Initializing JavaScript bridge...');
+        \\
+        \\   window.zyte = window.zyte || {};
+        \\
+        \\   // ===== TRAY API =====
+        \\   window.zyte.tray = {
+        \\     async setTitle(title) {
+        \\       if (typeof title !== 'string') throw new TypeError('Title must be a string');
+        \\       if (title.length > 20) {
+        \\         console.warn('Tray title truncated to 20 characters');
+        \\         title = title.substring(0, 20);
+        \\       }
+        \\       return new Promise((resolve, reject) => {
+        \\         try {
+        \\           window.webkit.messageHandlers.zyte.postMessage({
+        \\             type: 'tray', action: 'setTitle', data: title
+        \\           });
+        \\           resolve();
+        \\         } catch (error) {
+        \\           reject(new Error(`Failed to set tray title: ${error.message}`));
+        \\         }
+        \\       });
+        \\     },
+        \\     async setTooltip(tooltip) {
+        \\       if (typeof tooltip !== 'string') throw new TypeError('Tooltip must be a string');
+        \\       return new Promise((resolve, reject) => {
+        \\         try {
+        \\           window.webkit.messageHandlers.zyte.postMessage({
+        \\             type: 'tray', action: 'setTooltip', data: tooltip
+        \\           });
+        \\           resolve();
+        \\         } catch (error) {
+        \\           reject(new Error(`Failed to set tray tooltip: ${error.message}`));
+        \\         }
+        \\       });
+        \\     },
+        \\     onClick(callback) {
+        \\       if (typeof callback !== 'function') throw new TypeError('Callback must be a function');
+        \\       const handler = (event) => {
+        \\         callback({
+        \\           button: event.detail?.button || 'left',
+        \\           timestamp: event.detail?.timestamp || Date.now(),
+        \\           modifiers: event.detail?.modifiers || {}
+        \\         });
+        \\       };
+        \\       if (!window.__zyte_tray_handlers) window.__zyte_tray_handlers = [];
+        \\       window.__zyte_tray_handlers.push(handler);
+        \\       window.addEventListener('zyte:tray:click', handler);
+        \\       return () => {
+        \\         const index = window.__zyte_tray_handlers.indexOf(handler);
+        \\         if (index > -1) window.__zyte_tray_handlers.splice(index, 1);
+        \\         window.removeEventListener('zyte:tray:click', handler);
+        \\       };
+        \\     },
+        \\     onClickToggleWindow() {
+        \\       return this.onClick(() => { window.zyte.window.toggle(); });
+        \\     }
+        \\   };
+        \\
+        \\   // ===== WINDOW API =====
+        \\   window.zyte.window = {
+        \\     async show() {
+        \\       return new Promise((resolve, reject) => {
+        \\         try {
+        \\           window.webkit.messageHandlers.zyte.postMessage({
+        \\             type: 'window', action: 'show'
+        \\           });
+        \\           resolve();
+        \\         } catch (error) {
+        \\           reject(new Error(`Failed to show window: ${error.message}`));
+        \\         }
+        \\       });
+        \\     },
+        \\     async hide() {
+        \\       return new Promise((resolve, reject) => {
+        \\         try {
+        \\           window.webkit.messageHandlers.zyte.postMessage({
+        \\             type: 'window', action: 'hide'
+        \\           });
+        \\           resolve();
+        \\         } catch (error) {
+        \\           reject(new Error(`Failed to hide window: ${error.message}`));
+        \\         }
+        \\       });
+        \\     },
+        \\     async toggle() {
+        \\       return new Promise((resolve, reject) => {
+        \\         try {
+        \\           window.webkit.messageHandlers.zyte.postMessage({
+        \\             type: 'window', action: 'toggle'
+        \\           });
+        \\           resolve();
+        \\         } catch (error) {
+        \\           reject(new Error(`Failed to toggle window: ${error.message}`));
+        \\         }
+        \\       });
+        \\     },
+        \\     async minimize() {
+        \\       return new Promise((resolve, reject) => {
+        \\         try {
+        \\           window.webkit.messageHandlers.zyte.postMessage({
+        \\             type: 'window', action: 'minimize'
+        \\           });
+        \\           resolve();
+        \\         } catch (error) {
+        \\           reject(new Error(`Failed to minimize window: ${error.message}`));
+        \\         }
+        \\       });
+        \\     },
+        \\     async close() {
+        \\       return new Promise((resolve, reject) => {
+        \\         try {
+        \\           window.webkit.messageHandlers.zyte.postMessage({
+        \\             type: 'window', action: 'close'
+        \\           });
+        \\           resolve();
+        \\         } catch (error) {
+        \\           reject(new Error(`Failed to close window: ${error.message}`));
+        \\         }
+        \\       });
+        \\     }
+        \\   };
+        \\
+        \\   // ===== APP API =====
+        \\   window.zyte.app = {
+        \\     async hideDockIcon() {
+        \\       return new Promise((resolve, reject) => {
+        \\         try {
+        \\           window.webkit.messageHandlers.zyte.postMessage({
+        \\             type: 'app', action: 'hideDockIcon'
+        \\           });
+        \\           resolve();
+        \\         } catch (error) {
+        \\           reject(new Error(`Failed to hide dock icon: ${error.message}`));
+        \\         }
+        \\       });
+        \\     },
+        \\     async showDockIcon() {
+        \\       return new Promise((resolve, reject) => {
+        \\         try {
+        \\           window.webkit.messageHandlers.zyte.postMessage({
+        \\             type: 'app', action: 'showDockIcon'
+        \\           });
+        \\           resolve();
+        \\         } catch (error) {
+        \\           reject(new Error(`Failed to show dock icon: ${error.message}`));
+        \\         }
+        \\       });
+        \\     },
+        \\     async quit() {
+        \\       return new Promise((resolve, reject) => {
+        \\         try {
+        \\           window.webkit.messageHandlers.zyte.postMessage({
+        \\             type: 'app', action: 'quit'
+        \\           });
+        \\           resolve();
+        \\         } catch (error) {
+        \\           reject(new Error(`Failed to quit: ${error.message}`));
+        \\         }
+        \\       });
+        \\     }
+        \\   };
+        \\
+        \\   console.log('[Zyte] JavaScript bridge ready');
+        \\   window.dispatchEvent(new CustomEvent('zyte:ready'));
+        \\ })();
+    ;
+}
+
+/// Storage for bridge handlers (global state)
+var global_tray_bridge: ?*@import("bridge_tray.zig").TrayBridge = null;
+var global_window_bridge: ?*@import("bridge_window.zig").WindowBridge = null;
+var global_app_bridge: ?*@import("bridge_app.zig").AppBridge = null;
+
+pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaque, window_handle: ?*anyopaque) !void {
+    const TrayBridge = @import("bridge_tray.zig").TrayBridge;
+    const WindowBridge = @import("bridge_window.zig").WindowBridge;
+    const AppBridge = @import("bridge_app.zig").AppBridge;
+
+    // Initialize bridges
+    if (global_tray_bridge == null) {
+        global_tray_bridge = try allocator.create(TrayBridge);
+        global_tray_bridge.?.* = TrayBridge.init(allocator);
+    }
+
+    if (global_window_bridge == null) {
+        global_window_bridge = try allocator.create(WindowBridge);
+        global_window_bridge.?.* = WindowBridge.init(allocator);
+    }
+
+    if (global_app_bridge == null) {
+        global_app_bridge = try allocator.create(AppBridge);
+        global_app_bridge.?.* = AppBridge.init(allocator);
+    }
+
+    // Set handles
+    if (tray_handle) |handle| {
+        global_tray_bridge.?.setTrayHandle(handle);
+    }
+
+    if (window_handle) |handle| {
+        global_window_bridge.?.setWindowHandle(handle);
+    }
+}
+
+/// Handle incoming messages from JavaScript bridge
+pub fn handleBridgeMessage(message_json: []const u8) !void {
+    // Simple JSON parsing (very basic - just enough for our needs)
+    // Expected format: {"type":"tray","action":"setTitle","data":"text"}
+
+    var type_start: usize = 0;
+    var type_end: usize = 0;
+    var action_start: usize = 0;
+    var action_end: usize = 0;
+    var data_start: usize = 0;
+    var data_end: usize = 0;
+
+    // Find "type":"value"
+    if (std.mem.indexOf(u8, message_json, "\"type\":\"")) |pos| {
+        type_start = pos + 8;
+        if (std.mem.indexOfPos(u8, message_json, type_start, "\"")) |end| {
+            type_end = end;
+        }
+    }
+
+    // Find "action":"value"
+    if (std.mem.indexOf(u8, message_json, "\"action\":\"")) |pos| {
+        action_start = pos + 10;
+        if (std.mem.indexOfPos(u8, message_json, action_start, "\"")) |end| {
+            action_end = end;
+        }
+    }
+
+    // Find "data":"value" (optional)
+    if (std.mem.indexOf(u8, message_json, "\"data\":\"")) |pos| {
+        data_start = pos + 8;
+        if (std.mem.indexOfPos(u8, message_json, data_start, "\"")) |end| {
+            data_end = end;
+        }
+    }
+
+    if (type_end == 0 or action_end == 0) {
+        std.debug.print("Invalid message format: {s}\n", .{message_json});
+        return;
+    }
+
+    const msg_type = message_json[type_start..type_end];
+    const action = message_json[action_start..action_end];
+    const data = if (data_end > 0) message_json[data_start..data_end] else "";
+
+    std.debug.print("[Bridge] Received: type={s}, action={s}, data={s}\n", .{ msg_type, action, data });
+
+    // Route to appropriate bridge
+    if (std.mem.eql(u8, msg_type, "tray")) {
+        if (global_tray_bridge) |bridge| {
+            try bridge.handleMessage(action, data);
+        }
+    } else if (std.mem.eql(u8, msg_type, "window")) {
+        if (global_window_bridge) |bridge| {
+            try bridge.handleMessage(action);
+        }
+    } else if (std.mem.eql(u8, msg_type, "app")) {
+        if (global_app_bridge) |bridge| {
+            try bridge.handleMessage(action);
+        }
+    } else {
+        std.debug.print("Unknown message type: {s}\n", .{msg_type});
+    }
+}
+
+/// Create and register the script message handler with WKUserContentController
+pub fn setupScriptMessageHandler(userContentController: objc.id) !void {
+    // Create a simple delegate class for handling script messages
+    // We'll use a static C callback approach for simplicity
+
+    // Get the handler name
+    const handler_name = createNSString("zyte");
+
+    // For now, we'll log that setup was attempted
+    // The actual message handling will be done through evaluateJavaScript callbacks
+    // or we need to create a proper Objective-C class at runtime
+    _ = userContentController;
+    _ = handler_name;
+
+    std.debug.print("[Bridge] Script message handler setup (placeholder)\n", .{});
+
+    // TODO: Implement proper WKScriptMessageHandler using objc_allocateClassPair
+    // This requires:
+    // 1. Create a new class that conforms to WKScriptMessageHandler protocol
+    // 2. Add userContentController:didReceiveScriptMessage: method
+    // 3. Register the class and create an instance
+    // 4. Add the instance as a script message handler
 }
 
 // ============================================================================

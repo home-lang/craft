@@ -37,6 +37,7 @@ pub fn build(b: *std.Build) void {
             exe.linkSystemLibrary("ole32");
             exe.linkSystemLibrary("user32");
             exe.linkSystemLibrary("gdi32");
+            exe.linkSystemLibrary("shell32");
         },
         else => {},
     }
@@ -80,6 +81,7 @@ pub fn build(b: *std.Build) void {
             minimal_exe.linkSystemLibrary("ole32");
             minimal_exe.linkSystemLibrary("user32");
             minimal_exe.linkSystemLibrary("gdi32");
+            minimal_exe.linkSystemLibrary("shell32");
         },
         else => {},
     }
@@ -938,6 +940,7 @@ pub fn build(b: *std.Build) void {
     windows_exe.linkSystemLibrary("ole32");
     windows_exe.linkSystemLibrary("user32");
     windows_exe.linkSystemLibrary("gdi32");
+    windows_exe.linkSystemLibrary("shell32");
     windows_exe.linkLibC();
 
     const windows_install = b.addInstallArtifact(windows_exe, .{});

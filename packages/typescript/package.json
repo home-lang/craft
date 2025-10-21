@@ -57,8 +57,5 @@
   "devDependencies": {
     "@stacksjs/clapp": "^0.2.0",
     "better-dx": "^0.1.7"
-  },
-  "engines": {
-    "bun": ">=1.3.0"
   }
 }

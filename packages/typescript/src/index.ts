@@ -6,110 +6,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-
-export interface WindowOptions {
-  /**
-   * Window title
-   */
-  title?: string
-
-  /**
-   * Window width in pixels
-   * @default 800
-   */
-  width?: number
-
-  /**
-   * Window height in pixels
-   * @default 600
-   */
-  height?: number
-
-  /**
-   * X position of window
-   */
-  x?: number
-
-  /**
-   * Y position of window
-   */
-  y?: number
-
-  /**
-   * Whether window is resizable
-   * @default true
-   */
-  resizable?: boolean
-
-  /**
-   * Whether window is frameless
-   * @default false
-   */
-  frameless?: boolean
-
-  /**
-   * Whether window has transparency
-   * @default false
-   */
-  transparent?: boolean
-
-  /**
-   * Whether window is always on top
-   * @default false
-   */
-  alwaysOnTop?: boolean
-
-  /**
-   * Whether window starts in fullscreen
-   * @default false
-   */
-  fullscreen?: boolean
-
-  /**
-   * Enable dark mode
-   */
-  darkMode?: boolean
-
-  /**
-   * Enable hot reload for development
-   * @default false
-   */
-  hotReload?: boolean
-
-  /**
-   * Enable developer tools
-   * @default false in production, true in development
-   */
-  devTools?: boolean
-
-  /**
-   * Enable system tray icon
-   * @default false
-   */
-  systemTray?: boolean
-}
-
-export interface AppConfig {
-  /**
-   * HTML content to display
-   */
-  html?: string
-
-  /**
-   * URL to load
-   */
-  url?: string
-
-  /**
-   * Window options
-   */
-  window?: WindowOptions
-
-  /**
-   * Path to Zyte binary (auto-detected if not provided)
-   */
-  zytePath?: string
-}
+import type { AppConfig, WindowOptions } from './types'
 
 export class ZyteApp {
   private process?: ChildProcess
@@ -280,6 +177,8 @@ export class ZyteApp {
       args.push('--dev-tools')
     if (window?.systemTray)
       args.push('--system-tray')
+    if (window?.hideDockIcon)
+      args.push('--hide-dock-icon')
 
     return args
   }
@@ -394,5 +293,4 @@ export async function loadURL(url: string, options?: WindowOptions): Promise<voi
   return app.loadURL(url)
 }
 
-// Export types
-export type { AppConfig, WindowOptions }
+export * from './types'

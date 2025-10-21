@@ -7,10 +7,11 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     // Create a step to delegate to the zig package build
+    const optimize_str = b.fmt("-Doptimize={s}", .{@tagName(optimize)});
     const delegate_step = b.addSystemCommand(&.{
         "zig",
         "build",
-        "-Doptimize=" ++ @tagName(optimize),
+        optimize_str,
     });
     delegate_step.cwd = b.path("packages/zig");
 

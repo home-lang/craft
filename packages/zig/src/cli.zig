@@ -17,6 +17,7 @@ pub const WindowOptions = struct {
     dark_mode: ?bool = null,
     hot_reload: bool = false,
     system_tray: bool = false,
+    hide_dock_icon: bool = false,
 };
 
 pub const CliError = error{
@@ -89,6 +90,8 @@ pub fn parseArgs(allocator: std.mem.Allocator) !WindowOptions {
             options.hot_reload = true;
         } else if (std.mem.eql(u8, arg, "--system-tray")) {
             options.system_tray = true;
+        } else if (std.mem.eql(u8, arg, "--hide-dock-icon")) {
+            options.hide_dock_icon = true;
         } else if (!std.mem.startsWith(u8, arg, "--")) {
             // Treat as positional URL argument
             if (options.url == null) {
@@ -132,6 +135,7 @@ fn printHelp() void {
         \\Features:
         \\      --hot-reload         Enable hot reload support
         \\      --system-tray        Show system tray icon
+        \\      --hide-dock-icon     Hide dock icon (menubar-only mode, macOS)
         \\      --no-devtools        Disable WebKit DevTools
         \\
         \\Information:

@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const macos = if (builtin.os.tag == .macos) @import("macos.zig") else struct {};
+const SystemTray = @import("tray.zig").SystemTray;
 
 // Re-export components
 pub const components = @import("components.zig");
@@ -109,6 +110,7 @@ pub const Window = struct {
 pub const App = struct {
     allocator: std.mem.Allocator,
     windows: std.ArrayList(*Window),
+    system_tray: ?*SystemTray = null,
 
     const Self = @This();
 
@@ -117,6 +119,14 @@ pub const App = struct {
             .allocator = allocator,
             .windows = .{},
         };
+    }
+
+    pub fn createSystemTray(self: *Self, title: []const u8) !*SystemTray {
+        const sys_tray = try self.allocator.create(SystemTray);
+        sys_tray.* = SystemTray.init(self.allocator, title);
+        try sys_tray.show();
+        self.system_tray = sys_tray;
+        return sys_tray;
     }
 
     pub fn createWindow(self: *Self, title: []const u8, width: u32, height: u32, html: []const u8) !*Window {
@@ -178,6 +188,12 @@ pub const App = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        // Cleanup system tray
+        if (self.system_tray) |sys_tray| {
+            sys_tray.deinit();
+            self.allocator.destroy(sys_tray);
+        }
+
         for (self.windows.items) |window| {
             window.deinit();
             self.allocator.destroy(window);

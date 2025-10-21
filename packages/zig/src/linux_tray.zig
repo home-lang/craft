@@ -204,7 +204,6 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
         // Set to passive before cleanup
         app_indicator_set_status.?(self.indicator, .passive);
         // AppIndicator is managed by GTK, no manual cleanup needed
-        _ = self;
     }
 
     pub fn setLabel(self: *LinuxTrayImpl, label: []const u8) !void {

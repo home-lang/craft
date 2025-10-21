@@ -21,6 +21,9 @@ pub fn main() !void {
     var app = zyte.App.init(allocator);
     defer app.deinit();
 
+    // Handle hide-dock-icon option (macOS only)
+    // Note: This will be handled by the zyte library during window creation
+
     // Determine what to load
     if (options.url) |url| {
         // Load URL directly (no iframe!)
@@ -33,6 +36,7 @@ pub fn main() !void {
         if (options.dark_mode) |is_dark| std.debug.print("   Theme: {s}\n", .{if (is_dark) "Dark" else "Light"});
         if (options.hot_reload) std.debug.print("   Hot Reload: Enabled\n", .{});
         if (options.system_tray) std.debug.print("   System Tray: Enabled\n", .{});
+        if (options.hide_dock_icon) std.debug.print("   Dock Icon: Hidden (menubar-only mode)\n", .{});
         if (options.dev_tools) std.debug.print("   DevTools: Enabled (Right-click > Inspect Element)\n", .{});
         std.debug.print("\n", .{});
 
@@ -51,6 +55,7 @@ pub fn main() !void {
                 .y = options.y,
                 .dark_mode = options.dark_mode,
                 .enable_hot_reload = options.hot_reload,
+                .hide_dock_icon = options.hide_dock_icon,
             },
         );
     } else if (options.html) |html| {
@@ -134,6 +139,22 @@ pub fn main() !void {
         ;
 
         _ = try app.createWindow("Zyte - Demo", 600, 400, demo_html);
+    }
+
+    // Create system tray if requested
+    if (options.system_tray) {
+        const sys_tray = try app.createSystemTray(options.title);
+
+        // Set tooltip with additional info
+        const tooltip = try std.fmt.allocPrint(
+            allocator,
+            "{s} - Zyte Application",
+            .{options.title},
+        );
+        defer allocator.free(tooltip);
+        try sys_tray.setTooltip(tooltip);
+
+        std.debug.print("   System Tray: Created successfully\n", .{});
     }
 
     try app.run();

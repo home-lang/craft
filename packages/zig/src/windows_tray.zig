@@ -24,6 +24,8 @@ const WindowsTrayImpl = if (builtin.os.tag == .windows) struct {
     const NIF_ICON = 0x00000002;
     const NIF_TIP = 0x00000004;
     const NIF_INFO = 0x00000010;
+    const HWND_MESSAGE: windows.HWND = @ptrFromInt(@as(usize, @bitCast(@as(isize, -3))));
+    const WS_OVERLAPPED: windows.DWORD = 0x00000000;
 
     const NOTIFYICONDATA = extern struct {
         cbSize: windows.DWORD,
@@ -57,23 +59,72 @@ const WindowsTrayImpl = if (builtin.os.tag == .windows) struct {
         hIcon: windows.HICON,
     ) callconv(windows.WINAPI) windows.BOOL;
 
+    extern "user32" fn CreateWindowExW(
+        dwExStyle: windows.DWORD,
+        lpClassName: windows.LPCWSTR,
+        lpWindowName: windows.LPCWSTR,
+        dwStyle: windows.DWORD,
+        X: c_int,
+        Y: c_int,
+        nWidth: c_int,
+        nHeight: c_int,
+        hWndParent: ?windows.HWND,
+        hMenu: ?windows.HMENU,
+        hInstance: ?windows.HINSTANCE,
+        lpParam: ?windows.LPVOID,
+    ) callconv(windows.WINAPI) ?windows.HWND;
+
+    extern "kernel32" fn GetModuleHandleW(
+        lpModuleName: ?windows.LPCWSTR,
+    ) callconv(windows.WINAPI) ?windows.HINSTANCE;
+
     hwnd: windows.HWND,
     icon_id: windows.UINT,
     notify_data: NOTIFYICONDATA,
     allocator: std.mem.Allocator,
+    owns_window: bool,
 
     pub fn init(
         allocator: std.mem.Allocator,
-        hwnd_ptr: *anyopaque,
+        hwnd_ptr: ?*anyopaque,
         title: []const u8,
     ) !WindowsTrayImpl {
-        const hwnd = @as(windows.HWND, @ptrCast(hwnd_ptr));
+        // Create a message-only window if no hwnd provided
+        const hwnd = if (hwnd_ptr) |ptr|
+            @as(windows.HWND, @ptrCast(ptr))
+        else blk: {
+            // Get module handle
+            const hInstance = GetModuleHandleW(null);
+
+            // Class name for message window
+            var class_name_buf = [_]u16{ 'Z', 'y', 't', 'e', 'T', 'r', 'a', 'y', 0 };
+            const class_name: windows.LPCWSTR = &class_name_buf;
+
+            // Create message-only window
+            const hwnd_result = CreateWindowExW(
+                0,
+                class_name,
+                class_name,
+                WS_OVERLAPPED,
+                0,
+                0,
+                0,
+                0,
+                HWND_MESSAGE, // Message-only window
+                null,
+                hInstance,
+                null,
+            );
+
+            break :blk hwnd_result orelse return error.FailedToCreateWindow;
+        };
 
         var tray = WindowsTrayImpl{
             .hwnd = hwnd,
             .icon_id = 1,
             .notify_data = std.mem.zeroes(NOTIFYICONDATA),
             .allocator = allocator,
+            .owns_window = (hwnd_ptr == null),
         };
 
         tray.notify_data.cbSize = @sizeOf(NOTIFYICONDATA);
@@ -99,10 +150,18 @@ const WindowsTrayImpl = if (builtin.os.tag == .windows) struct {
         return tray;
     }
 
+    extern "user32" fn DestroyWindow(
+        hWnd: windows.HWND,
+    ) callconv(windows.WINAPI) windows.BOOL;
+
     pub fn deinit(self: *WindowsTrayImpl) void {
         _ = Shell_NotifyIconW(NIM_DELETE, &self.notify_data);
         if (self.notify_data.hIcon) |icon| {
             _ = DestroyIcon(icon);
+        }
+        // Destroy the window if we created it
+        if (self.owns_window) {
+            _ = DestroyWindow(self.hwnd);
         }
     }
 

@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pomodoro Timer</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: white;
+    }
+
+    .container {
+      text-align: center;
+      padding: 3rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      min-width: 400px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .timer {
+      font-size: 4rem;
+      font-weight: bold;
+      margin: 2rem 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-top: 2rem;
+    }
+
+    button {
+      padding: 1rem 2rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-weight: 600;
+    }
+
+    button:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .status {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+      opacity: 0.9;
+    }
+
+    .bridge-info {
+      margin-top: 2rem;
+      padding: 1rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 10px;
+      font-size: 0.9rem;
+    }
+
+    .bridge-info code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🍅 Pomodoro Timer</h1>
+    <div class="timer" id="timer">25:00</div>
+    <div class="controls">
+      <button id="startBtn">Start</button>
+      <button id="pauseBtn">Pause</button>
+      <button id="resetBtn">Reset</button>
+    </div>
+    <div class="status" id="status">Ready to focus!</div>
+    <div class="bridge-info">
+      <p>Zyte Bridge API Demo</p>
+      <p><code>window.zyte.tray.setTitle()</code> ✓</p>
+      <p><code>window.zyte.window.toggle()</code> ✓</p>
+      <p><code>window.zyte.app.hideDockIcon()</code> ✓</p>
+    </div>
+  </div>
+
+  <script>
+    // Wait for Zyte bridge to be ready
+    window.addEventListener('zyte:ready', () => {
+      console.log('[Pomodoro] Zyte bridge is ready!');
+      initApp();
+    });
+
+    // If already loaded, initialize immediately
+    if (window.zyte) {
+      initApp();
+    }
+
+    function initApp() {
+      // Pomodoro timer state
+      let timeLeft = 25 * 60; // 25 minutes in seconds
+      let isRunning = false;
+      let interval = null;
+
+      const timerDisplay = document.getElementById('timer');
+      const statusDisplay = document.getElementById('status');
+      const startBtn = document.getElementById('startBtn');
+      const pauseBtn = document.getElementById('pauseBtn');
+      const resetBtn = document.getElementById('resetBtn');
+
+      // Update tray title with current time
+      function updateTrayTitle() {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        const display = `🍅 ${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+        // Update tray title
+        window.zyte.tray.setTitle(display).catch(err => {
+          console.warn('Failed to update tray:', err);
+        });
+
+        // Update window title
+        timerDisplay.textContent = display.substring(2); // Remove emoji
+      }
+
+      // Start timer
+      function startTimer() {
+        if (isRunning) return;
+
+        isRunning = true;
+        statusDisplay.textContent = 'Focus time! 🎯';
+
+        interval = setInterval(() => {
+          if (timeLeft > 0) {
+            timeLeft--;
+            updateTrayTitle();
+          } else {
+            pauseTimer();
+            statusDisplay.textContent = 'Break time! ☕';
+            // Show window when timer completes
+            window.zyte.window.show();
+          }
+        }, 1000);
+      }
+
+      // Pause timer
+      function pauseTimer() {
+        isRunning = false;
+        if (interval) {
+          clearInterval(interval);
+          interval = null;
+        }
+        statusDisplay.textContent = 'Paused';
+      }
+
+      // Reset timer
+      function resetTimer() {
+        pauseTimer();
+        timeLeft = 25 * 60;
+        updateTrayTitle();
+        statusDisplay.textContent = 'Ready to focus!';
+      }
+
+      // Event listeners
+      startBtn.addEventListener('click', startTimer);
+      pauseBtn.addEventListener('click', pauseTimer);
+      resetBtn.addEventListener('click', resetTimer);
+
+      // Initialize display
+      updateTrayTitle();
+
+      // Set up tray click to toggle window
+      window.zyte.tray.onClickToggleWindow();
+
+      // Set tooltip
+      window.zyte.tray.setTooltip('Pomodoro Timer - Click to toggle window');
+
+      // Hide dock icon for menubar-only mode
+      // Uncomment to enable:
+      // window.zyte.app.hideDockIcon();
+
+      console.log('[Pomodoro] App initialized with Zyte bridge!');
+    }
+  </script>
+</body>
+</html>
