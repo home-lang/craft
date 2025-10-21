@@ -20,6 +20,10 @@ pub const ToastManager = components.ToastManager;
 pub const TreeView = components.TreeView;
 pub const DatePicker = components.DatePicker;
 pub const DataGrid = components.DataGrid;
+pub const Tooltip = components.Tooltip;
+pub const Slider = components.Slider;
+pub const Autocomplete = components.Autocomplete;
+pub const ColorPicker = components.ColorPicker;
 
 // Re-export platform types
 pub const WindowStyle = if (builtin.os.tag == .macos) macos.WindowStyle else struct {

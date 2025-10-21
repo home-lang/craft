@@ -19,6 +19,10 @@ pub const ToastManager = @import("components/toast.zig").ToastManager;
 pub const TreeView = @import("components/tree_view.zig").TreeView;
 pub const DatePicker = @import("components/date_picker.zig").DatePicker;
 pub const DataGrid = @import("components/data_grid.zig").DataGrid;
+pub const Tooltip = @import("components/tooltip.zig").Tooltip;
+pub const Slider = @import("components/slider.zig").Slider;
+pub const Autocomplete = @import("components/autocomplete.zig").Autocomplete;
+pub const ColorPicker = @import("components/color_picker.zig").ColorPicker;
 
 // Advanced Components
 pub const Chart = @import("components/chart.zig").Chart;

@@ -202,6 +202,10 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/performance.zig"),
     });
 
+    const benchmark_module = b.createModule(.{
+        .root_source_file = b.path("src/benchmark.zig"),
+    });
+
     const api_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("test/api_test.zig"),
@@ -598,6 +602,74 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const tooltip_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/tooltip_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
+    const slider_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/slider_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
+    const autocomplete_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/autocomplete_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
+    const color_picker_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/color_picker_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
+    const error_context_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/error_context_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/error_context.zig", .module = b.createModule(.{
+                    .root_source_file = b.path("src/error_context.zig"),
+                }) },
+            },
+        }),
+    });
+
+    const benchmark_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/benchmark_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "benchmark", .module = benchmark_module },
+            },
+        }),
+    });
+
     const run_api_tests = b.addRunArtifact(api_tests);
     const run_mobile_tests = b.addRunArtifact(mobile_tests);
     const run_menubar_tests = b.addRunArtifact(menubar_tests);
@@ -634,6 +706,12 @@ pub fn build(b: *std.Build) void {
     const run_tree_view_tests = b.addRunArtifact(tree_view_tests);
     const run_date_picker_tests = b.addRunArtifact(date_picker_tests);
     const run_data_grid_tests = b.addRunArtifact(data_grid_tests);
+    const run_tooltip_tests = b.addRunArtifact(tooltip_tests);
+    const run_slider_tests = b.addRunArtifact(slider_tests);
+    const run_autocomplete_tests = b.addRunArtifact(autocomplete_tests);
+    const run_color_picker_tests = b.addRunArtifact(color_picker_tests);
+    const run_error_context_tests = b.addRunArtifact(error_context_tests);
+    const run_benchmark_tests = b.addRunArtifact(benchmark_tests);
 
     const test_step = b.step("test", "Run all unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
@@ -673,6 +751,12 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_tree_view_tests.step);
     test_step.dependOn(&run_date_picker_tests.step);
     test_step.dependOn(&run_data_grid_tests.step);
+    test_step.dependOn(&run_tooltip_tests.step);
+    test_step.dependOn(&run_slider_tests.step);
+    test_step.dependOn(&run_autocomplete_tests.step);
+    test_step.dependOn(&run_color_picker_tests.step);
+    test_step.dependOn(&run_error_context_tests.step);
+    test_step.dependOn(&run_benchmark_tests.step);
 
     // Individual test steps
     const test_api_step = b.step("test:api", "Run API tests");
@@ -782,6 +866,24 @@ pub fn build(b: *std.Build) void {
 
     const test_data_grid_step = b.step("test:data_grid", "Run DataGrid component tests");
     test_data_grid_step.dependOn(&run_data_grid_tests.step);
+
+    const test_tooltip_step = b.step("test:tooltip", "Run Tooltip component tests");
+    test_tooltip_step.dependOn(&run_tooltip_tests.step);
+
+    const test_slider_step = b.step("test:slider", "Run Slider component tests");
+    test_slider_step.dependOn(&run_slider_tests.step);
+
+    const test_autocomplete_step = b.step("test:autocomplete", "Run Autocomplete component tests");
+    test_autocomplete_step.dependOn(&run_autocomplete_tests.step);
+
+    const test_color_picker_step = b.step("test:color_picker", "Run ColorPicker component tests");
+    test_color_picker_step.dependOn(&run_color_picker_tests.step);
+
+    const test_error_context_step = b.step("test:error_context", "Run ErrorContext tests");
+    test_error_context_step.dependOn(&run_error_context_tests.step);
+
+    const test_benchmark_step = b.step("test:benchmark", "Run Benchmark tests");
+    test_benchmark_step.dependOn(&run_benchmark_tests.step);
 
     // Cross-compilation helpers
     const build_linux = b.step("build-linux", "Build for Linux");
