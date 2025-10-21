@@ -202,23 +202,41 @@ pub const FocusManager = struct {
     focused_element: ?*AccessibleElement,
     focus_order: std.ArrayList(*AccessibleElement),
     allocator: std.mem.Allocator,
+    trap_focus: bool,
+    focus_trap_container: ?*AccessibleElement,
 
     pub fn init(allocator: std.mem.Allocator) FocusManager {
         return FocusManager{
             .focused_element = null,
-            .focus_order = std.ArrayList(*AccessibleElement).init(allocator),
+            .focus_order = .{},
             .allocator = allocator,
+            .trap_focus = false,
+            .focus_trap_container = null,
         };
     }
 
     pub fn deinit(self: *FocusManager) void {
-        self.focus_order.deinit();
+        self.focus_order.deinit(self.allocator);
     }
 
     pub fn addToFocusOrder(self: *FocusManager, element: *AccessibleElement) !void {
         if (element.focusable and !element.disabled) {
-            try self.focus_order.append(element);
+            try self.focus_order.append(self.allocator, element);
         }
+    }
+
+    pub fn removeFromFocusOrder(self: *FocusManager, element: *AccessibleElement) void {
+        for (self.focus_order.items, 0..) |elem, i| {
+            if (elem == element) {
+                _ = self.focus_order.swapRemove(i);
+                return;
+            }
+        }
+    }
+
+    pub fn setFocusTrap(self: *FocusManager, enable: bool, container: ?*AccessibleElement) void {
+        self.trap_focus = enable;
+        self.focus_trap_container = container;
     }
 
     pub fn focusNext(self: *FocusManager) ?*AccessibleElement {

@@ -205,3 +205,94 @@ pub fn isEnabled() bool {
     }
     return false;
 }
+
+/// Enhanced error display for developer mode
+pub const ErrorDisplay = struct {
+    show_stack_trace: bool = true,
+    show_source_context: bool = true,
+    show_suggestions: bool = true,
+    color_output: bool = true,
+
+    pub fn formatError(self: ErrorDisplay, allocator: std.mem.Allocator, err: anyerror, context: []const u8, file: []const u8, line: u32) ![]const u8 {
+        var buf = std.ArrayList(u8){};
+        const writer = buf.writer(allocator);
+
+        // Header with emoji for visibility
+        if (self.color_output) {
+            try writer.writeAll("\x1b[31m\x1b[1m"); // Red + Bold
+        }
+        try writer.writeAll("🔥 Error Occurred\n");
+        if (self.color_output) {
+            try writer.writeAll("\x1b[0m"); // Reset
+        }
+
+        // Error details
+        try writer.print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n", .{});
+        try writer.print("Error: {s}\n", .{@errorName(err)});
+        try writer.print("Context: {s}\n", .{context});
+        try writer.print("Location: {s}:{d}\n", .{ file, line });
+        try writer.print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n", .{});
+
+        // Suggestions based on common errors
+        if (self.show_suggestions) {
+            if (std.mem.eql(u8, @errorName(err), "OutOfMemory")) {
+                try writer.writeAll("\n💡 Suggestion: Check for memory leaks or increase memory allocation\n");
+            } else if (std.mem.eql(u8, @errorName(err), "FileNotFound")) {
+                try writer.writeAll("\n💡 Suggestion: Verify the file path exists and is accessible\n");
+            } else if (std.mem.eql(u8, @errorName(err), "AccessDenied")) {
+                try writer.writeAll("\n💡 Suggestion: Check file permissions or run with appropriate privileges\n");
+            }
+        }
+
+        return buf.toOwnedSlice(allocator);
+    }
+
+    pub fn displayErrorOverlay(self: ErrorDisplay, allocator: std.mem.Allocator, err: anyerror, context: []const u8) ![]const u8 {
+        _ = self;
+        return std.fmt.allocPrint(allocator,
+            \\<div style="
+            \\  position: fixed;
+            \\  top: 50%;
+            \\  left: 50%;
+            \\  transform: translate(-50%, -50%);
+            \\  background: #2d2d2d;
+            \\  color: #f8f8f2;
+            \\  padding: 30px;
+            \\  border-radius: 10px;
+            \\  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            \\  z-index: 1000000;
+            \\  font-family: 'Consolas', 'Monaco', monospace;
+            \\  max-width: 600px;
+            \\  border: 2px solid #ff5555;
+            \\">
+            \\  <div style="font-size: 24px; margin-bottom: 15px; color: #ff5555;">
+            \\    🔥 Error Occurred
+            \\  </div>
+            \\  <div style="background: #1e1e1e; padding: 15px; border-radius: 5px; margin: 10px 0;">
+            \\    <div style="color: #ff79c6; font-weight: bold;">Error:</div>
+            \\    <div style="color: #f8f8f2; margin-top: 5px;">{s}</div>
+            \\  </div>
+            \\  <div style="background: #1e1e1e; padding: 15px; border-radius: 5px; margin: 10px 0;">
+            \\    <div style="color: #8be9fd; font-weight: bold;">Context:</div>
+            \\    <div style="color: #f8f8f2; margin-top: 5px;">{s}</div>
+            \\  </div>
+            \\  <div style="margin-top: 20px; padding: 10px; background: #282a36; border-left: 3px solid #50fa7b; border-radius: 3px;">
+            \\    <div style="color: #50fa7b; font-size: 12px;">💡 TIP</div>
+            \\    <div style="color: #f8f8f2; font-size: 12px; margin-top: 5px;">
+            \\      Check the browser console for more details
+            \\    </div>
+            \\  </div>
+            \\  <button onclick="this.parentElement.remove()" style="
+            \\    margin-top: 15px;
+            \\    padding: 8px 20px;
+            \\    background: #ff5555;
+            \\    color: white;
+            \\    border: none;
+            \\    border-radius: 5px;
+            \\    cursor: pointer;
+            \\    font-family: inherit;
+            \\  ">Close</button>
+            \\</div>
+        , .{ @errorName(err), context });
+    }
+};

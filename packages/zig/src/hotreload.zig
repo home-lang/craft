@@ -142,30 +142,116 @@ pub const HotReload = struct {
     }
 };
 
-// Client-side hot reload script
+/// State preservation for hot reload
+pub const StatePreservation = struct {
+    enabled: bool = true,
+    storage_key: []const u8 = "zyte_hotreload_state",
+    preserve_scroll: bool = true,
+    preserve_form_data: bool = true,
+    preserve_focus: bool = true,
+    preserve_custom_state: bool = true,
+};
+
+// Client-side hot reload script with state preservation
 pub const client_script =
     \\<script>
     \\(function() {
     \\  const WS_URL = 'ws://localhost:3456/_zyte_reload';
+    \\  const STATE_KEY = 'zyte_hotreload_state';
     \\  let ws = null;
     \\  let reconnectAttempts = 0;
     \\  const MAX_RECONNECT_ATTEMPTS = 10;
-    \\  
+    \\
+    \\  // State preservation
+    \\  function saveState() {
+    \\    const state = {
+    \\      scroll: { x: window.scrollX, y: window.scrollY },
+    \\      focus: document.activeElement ? {
+    \\        selector: getSelector(document.activeElement),
+    \\        selectionStart: document.activeElement.selectionStart,
+    \\        selectionEnd: document.activeElement.selectionEnd
+    \\      } : null,
+    \\      forms: Array.from(document.forms).map(form => ({
+    \\        id: form.id,
+    \\        data: Array.from(new FormData(form).entries())
+    \\      })),
+    \\      customState: window.__ZYTE_STATE__ || {},
+    \\      timestamp: Date.now()
+    \\    };
+    \\    sessionStorage.setItem(STATE_KEY, JSON.stringify(state));
+    \\    console.log('[Zyte HotReload] State saved');
+    \\  }
+    \\
+    \\  function restoreState() {
+    \\    const stateStr = sessionStorage.getItem(STATE_KEY);
+    \\    if (!stateStr) return;
+    \\
+    \\    try {
+    \\      const state = JSON.parse(stateStr);
+    \\
+    \\      // Restore scroll position
+    \\      if (state.scroll) {
+    \\        window.scrollTo(state.scroll.x, state.scroll.y);
+    \\      }
+    \\
+    \\      // Restore form data
+    \\      if (state.forms) {
+    \\        state.forms.forEach(formState => {
+    \\          const form = document.getElementById(formState.id);
+    \\          if (form) {
+    \\            formState.data.forEach(([name, value]) => {
+    \\              const field = form.elements[name];
+    \\              if (field) field.value = value;
+    \\            });
+    \\          }
+    \\        });
+    \\      }
+    \\
+    \\      // Restore focus
+    \\      if (state.focus && state.focus.selector) {
+    \\        const element = document.querySelector(state.focus.selector);
+    \\        if (element) {
+    \\          element.focus();
+    \\          if (element.setSelectionRange && state.focus.selectionStart !== undefined) {
+    \\            element.setSelectionRange(state.focus.selectionStart, state.focus.selectionEnd);
+    \\          }
+    \\        }
+    \\      }
+    \\
+    \\      // Restore custom state
+    \\      if (state.customState) {
+    \\        window.__ZYTE_STATE__ = state.customState;
+    \\        window.dispatchEvent(new CustomEvent('zyte:state-restored', { detail: state.customState }));
+    \\      }
+    \\
+    \\      console.log('[Zyte HotReload] State restored');
+    \\    } catch (e) {
+    \\      console.error('[Zyte HotReload] Failed to restore state:', e);
+    \\    }
+    \\  }
+    \\
+    \\  function getSelector(element) {
+    \\    if (element.id) return '#' + element.id;
+    \\    if (element.className) return element.tagName.toLowerCase() + '.' + element.className.split(' ').join('.');
+    \\    return element.tagName.toLowerCase();
+    \\  }
+    \\
     \\  function connect() {
     \\    ws = new WebSocket(WS_URL);
-    \\    
+    \\
     \\    ws.onopen = () => {
     \\      console.log('[Zyte HotReload] Connected');
     \\      reconnectAttempts = 0;
     \\    };
-    \\    
+    \\
     \\    ws.onmessage = (event) => {
     \\      if (event.data === 'reload') {
     \\        console.log('[Zyte HotReload] Reloading...');
+    \\        saveState();
     \\        location.reload();
     \\      }
     \\    };
-    \\    
+    \\
     \\    ws.onclose = () => {
     \\      console.log('[Zyte HotReload] Disconnected');
     \\      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
@@ -173,12 +259,19 @@ pub const client_script =
     \\        setTimeout(connect, 1000 * reconnectAttempts);
     \\      }
     \\    };
-    \\    
+    \\
     \\    ws.onerror = (error) => {
     \\      console.error('[Zyte HotReload] Error:', error);
     \\    };
     \\  }
-    \\  
+    \\
+    \\  // Restore state on page load
+    \\  if (document.readyState === 'loading') {
+    \\    document.addEventListener('DOMContentLoaded', restoreState);
+    \\  } else {
+    \\    restoreState();
+    \\  }
+    \\
     \\  connect();
     \\})();
     \\</script>
