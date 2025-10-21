@@ -2,6 +2,9 @@ const std = @import("std");
 const builtin = @import("builtin");
 const macos = if (builtin.os.tag == .macos) @import("macos.zig") else struct {};
 const SystemTray = @import("tray.zig").SystemTray;
+const BridgeAPI = @import("bridge_api.zig").BridgeAPI;
+const Notifications = @import("notifications.zig").Notifications;
+const Menu = @import("menu.zig").Menu;
 
 // Re-export components
 pub const components = @import("components.zig");
@@ -111,6 +114,8 @@ pub const App = struct {
     allocator: std.mem.Allocator,
     windows: std.ArrayList(*Window),
     system_tray: ?*SystemTray = null,
+    bridge: ?*BridgeAPI = null,
+    notifications: ?*Notifications = null,
 
     const Self = @This();
 
@@ -118,6 +123,8 @@ pub const App = struct {
         return .{
             .allocator = allocator,
             .windows = .{},
+            .bridge = null,
+            .notifications = null,
         };
     }
 
@@ -246,7 +253,47 @@ pub const App = struct {
         try windows.App.run();
     }
 
+    /// Initialize bridge API for JavaScript communication
+    pub fn initBridge(self: *Self) !void {
+        if (self.bridge == null) {
+            const bridge = try self.allocator.create(BridgeAPI);
+            bridge.* = BridgeAPI.init(self.allocator);
+            self.bridge = bridge;
+        }
+    }
+
+    /// Initialize notifications system
+    pub fn initNotifications(self: *Self) !void {
+        if (self.notifications == null) {
+            const notif = try self.allocator.create(Notifications);
+            notif.* = Notifications.init(self.allocator);
+            self.notifications = notif;
+        }
+    }
+
+    /// Send a notification
+    pub fn notify(self: *Self, options: Notifications.NotificationOptions) !void {
+        if (self.notifications == null) {
+            try self.initNotifications();
+        }
+        if (self.notifications) |notif| {
+            try notif.send(options);
+        }
+    }
+
     pub fn deinit(self: *Self) void {
+        // Cleanup bridge
+        if (self.bridge) |bridge| {
+            bridge.deinit();
+            self.allocator.destroy(bridge);
+        }
+
+        // Cleanup notifications
+        if (self.notifications) |notif| {
+            notif.deinit();
+            self.allocator.destroy(notif);
+        }
+
         // Cleanup system tray
         if (self.system_tray) |sys_tray| {
             sys_tray.deinit();

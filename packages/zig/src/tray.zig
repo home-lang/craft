@@ -119,6 +119,30 @@ pub const SystemTray = struct {
             }
         }
     }
+
+    /// Set icon image (NEW)
+    pub fn setIcon(self: *Self, icon_path: []const u8) !void {
+        _ = self;
+        if (builtin.target.os.tag == .macos) {
+            try macosSetIcon(self.platform_handle.?, icon_path);
+        }
+    }
+
+    /// Set template image (monochrome, adapts to theme)
+    pub fn setTemplateImage(self: *Self, icon_path: []const u8) !void {
+        _ = self;
+        if (builtin.target.os.tag == .macos) {
+            try macosSetTemplateImage(self.platform_handle.?, icon_path);
+        }
+    }
+
+    /// Animate tray icon
+    pub fn animate(self: *Self, frames: []const []const u8, interval_ms: u64) !void {
+        _ = self;
+        _ = frames;
+        _ = interval_ms;
+        // TODO: Implement animation loop
+    }
 };
 
 // ============================================================================
@@ -243,6 +267,46 @@ fn macosSetMenu(handle: *anyopaque, menu: *anyopaque) !void {
 
     // Set the menu on the status item
     _ = msgSend1(statusItem, "setMenu:", nsMenu);
+}
+
+fn macosSetIcon(handle: *anyopaque, icon_path: []const u8) !void {
+    if (builtin.target.os.tag != .macos) return;
+
+    const statusItem: objc.id = @ptrFromInt(@intFromPtr(handle));
+    const button = msgSend0(statusItem, "button");
+
+    // Create NSImage from file path
+    const NSImage = objc.objc_getClass("NSImage");
+    const NSString = objc.objc_getClass("NSString");
+    const pathStr = msgSend1(NSString, "stringWithUTF8String:", icon_path.ptr);
+    const image = msgSend1(NSImage, "imageWithContentsOfFile:", pathStr);
+
+    if (image == null) {
+        return error.InvalidIconPath;
+    }
+
+    _ = msgSend1(button, "setImage:", image);
+}
+
+fn macosSetTemplateImage(handle: *anyopaque, icon_path: []const u8) !void {
+    if (builtin.target.os.tag != .macos) return;
+
+    const statusItem: objc.id = @ptrFromInt(@intFromPtr(handle));
+    const button = msgSend0(statusItem, "button");
+
+    // Create NSImage from file path
+    const NSImage = objc.objc_getClass("NSImage");
+    const NSString = objc.objc_getClass("NSString");
+    const pathStr = msgSend1(NSString, "stringWithUTF8String:", icon_path.ptr);
+    const image = msgSend1(NSImage, "imageWithContentsOfFile:", pathStr);
+
+    if (image == null) {
+        return error.InvalidIconPath;
+    }
+
+    // Set as template (monochrome, adapts to theme)
+    msgSendVoid1(image, "setTemplate:", @as(c_int, 1));
+    _ = msgSend1(button, "setImage:", image);
 }
 
 // ============================================================================

@@ -126,13 +126,14 @@ export interface AppConfig {
 export interface ZyteTrayAPI {
     /**
      * Update the system tray title/text
-     * @param title - Text to show in menubar (max 20 characters)
+     * Updates in real-time (60fps max)
+     * @param title - Text to show in menubar (max 20 chars recommended)
      */
     setTitle(title: string): Promise<void>
 
     /**
      * Set tooltip text for the tray icon
-     * @param tooltip - Tooltip text to display on hover
+     * @param tooltip - Tooltip text (shows on hover)
      */
     setTooltip(tooltip: string): Promise<void>
 
@@ -151,7 +152,7 @@ export interface ZyteTrayAPI {
 
     /**
      * Set a context menu for the tray icon
-     * @param items - Array of menu items
+     * @param items - Menu item definitions
      */
     setMenu(items: MenuItem[]): Promise<void>
 }
@@ -204,6 +205,12 @@ export interface ZyteAppAPI {
      * Quit the application
      */
     quit(): Promise<void>
+
+    /**
+     * Send a native system notification
+     * @param options - Notification configuration
+     */
+    notify(options: NotificationOptions): Promise<void>
 
     /**
      * Get application information
@@ -319,6 +326,53 @@ export interface AppInfo {
      * Platform (macos, linux, windows)
      */
     platform: string
+}
+
+/**
+ * Notification options
+ */
+export interface NotificationOptions {
+    /**
+     * Notification title (required)
+     */
+    title: string
+
+    /**
+     * Notification body text
+     */
+    body?: string
+
+    /**
+     * Icon path or data URL
+     */
+    icon?: string
+
+    /**
+     * Sound to play
+     * - "default" - System default sound
+     * - "Glass" - Glass sound (macOS)
+     * - "Ping" - Ping sound (macOS)
+     * - Or any system sound name
+     */
+    sound?: string
+
+    /**
+     * Action buttons (platform dependent)
+     */
+    actions?: Array<{
+        action: string
+        title: string
+    }>
+
+    /**
+     * Notification tag (for grouping/replacing)
+     */
+    tag?: string
+
+    /**
+     * Auto-close timeout in milliseconds
+     */
+    timeout?: number
 }
 
 /**
