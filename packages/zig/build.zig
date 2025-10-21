@@ -208,6 +208,10 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/benchmark.zig"),
     });
 
+    const tray_module = b.createModule(.{
+        .root_source_file = b.path("src/tray.zig"),
+    });
+
     const api_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("test/api_test.zig"),
@@ -672,6 +676,28 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const system_tray_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/system_tray_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/tray.zig", .module = tray_module },
+            },
+        }),
+    });
+
+    const system_tray_benchmark = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/system_tray_benchmark.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/tray.zig", .module = tray_module },
+            },
+        }),
+    });
+
     const run_api_tests = b.addRunArtifact(api_tests);
     const run_mobile_tests = b.addRunArtifact(mobile_tests);
     const run_menubar_tests = b.addRunArtifact(menubar_tests);
@@ -714,6 +740,8 @@ pub fn build(b: *std.Build) void {
     const run_color_picker_tests = b.addRunArtifact(color_picker_tests);
     const run_error_context_tests = b.addRunArtifact(error_context_tests);
     const run_benchmark_tests = b.addRunArtifact(benchmark_tests);
+    const run_system_tray_tests = b.addRunArtifact(system_tray_tests);
+    const run_system_tray_benchmark = b.addRunArtifact(system_tray_benchmark);
 
     const test_step = b.step("test", "Run all unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
@@ -759,6 +787,8 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_color_picker_tests.step);
     test_step.dependOn(&run_error_context_tests.step);
     test_step.dependOn(&run_benchmark_tests.step);
+    test_step.dependOn(&run_system_tray_tests.step);
+    test_step.dependOn(&run_system_tray_benchmark.step);
 
     // Individual test steps
     const test_api_step = b.step("test:api", "Run API tests");

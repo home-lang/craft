@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zyte System Tray Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            padding: 2rem;
+            max-width: 600px;
+            margin: 0 auto;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+
+        h1 {
+            margin-bottom: 1rem;
+            font-size: 2rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            opacity: 0.9;
+        }
+
+        button {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 0.5rem 0.5rem 0.5rem 0;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        input:focus {
+            outline: none;
+            border-color: white;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        #status {
+            padding: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .success {
+            background: rgba(72, 187, 120, 0.2) !important;
+        }
+
+        .info {
+            background: rgba(66, 153, 225, 0.2) !important;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 Zyte System Tray Demo</h1>
+
+    <div class="card">
+        <h2>Tray Title</h2>
+        <input type="text" id="titleInput" placeholder="Enter tray title (e.g., '⚡ MyApp')" value="🚀 Zyte">
+        <button onclick="updateTitle()">Update Title</button>
+    </div>
+
+    <div class="card">
+        <h2>Tray Tooltip</h2>
+        <input type="text" id="tooltipInput" placeholder="Enter tooltip text" value="Click to toggle window">
+        <button onclick="updateTooltip()">Update Tooltip</button>
+    </div>
+
+    <div class="card">
+        <h2>Window Control</h2>
+        <button onclick="hideWindow()">Hide Window</button>
+        <button onclick="showWindow()">Show Window</button>
+        <button onclick="toggleWindow()">Toggle Window</button>
+    </div>
+
+    <div class="card">
+        <h2>Tray Menu</h2>
+        <button onclick="setupBasicMenu()">Basic Menu</button>
+        <button onclick="setupAdvancedMenu()">Advanced Menu</button>
+    </div>
+
+    <div class="card">
+        <h2>App Control</h2>
+        <button onclick="hideDock()">Hide Dock Icon (macOS)</button>
+        <button onclick="showDock()">Show Dock Icon</button>
+        <button onclick="getAppInfo()">Get App Info</button>
+    </div>
+
+    <div id="status"></div>
+
+    <script>
+        // Check if Zyte bridge is available
+        if (typeof window.zyte === 'undefined') {
+            document.getElementById('status').innerHTML =
+                '⚠️ Zyte bridge not available. Please run this in a Zyte app with --system-tray flag.';
+            document.getElementById('status').className = 'info';
+        } else {
+            document.getElementById('status').innerHTML = '✅ Zyte bridge initialized';
+            document.getElementById('status').className = 'success';
+
+            // Setup tray click handler
+            const unregister = window.zyte.tray.onClick((event) => {
+                updateStatus(`Tray clicked with ${event.button} button at ${new Date(event.timestamp).toLocaleTimeString()}`);
+
+                // Toggle window on click
+                window.zyte.window.toggle();
+            });
+        }
+
+        function updateStatus(message) {
+            const status = document.getElementById('status');
+            status.innerHTML = message;
+            status.className = 'info';
+        }
+
+        async function updateTitle() {
+            const title = document.getElementById('titleInput').value;
+            try {
+                await window.zyte.tray.setTitle(title);
+                updateStatus(`✅ Tray title updated to: ${title}`);
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function updateTooltip() {
+            const tooltip = document.getElementById('tooltipInput').value;
+            try {
+                await window.zyte.tray.setTooltip(tooltip);
+                updateStatus(`✅ Tray tooltip updated to: ${tooltip}`);
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function hideWindow() {
+            try {
+                await window.zyte.window.hide();
+                updateStatus('✅ Window hidden');
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function showWindow() {
+            try {
+                await window.zyte.window.show();
+                updateStatus('✅ Window shown');
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function toggleWindow() {
+            try {
+                await window.zyte.window.toggle();
+                updateStatus('✅ Window toggled');
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function setupBasicMenu() {
+            try {
+                await window.zyte.tray.setMenu([
+                    { label: 'Show', action: 'show' },
+                    { label: 'Hide', action: 'hide' },
+                    { type: 'separator' },
+                    { label: 'Quit', action: 'quit', shortcut: 'Cmd+Q' }
+                ]);
+                updateStatus('✅ Basic menu configured');
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function setupAdvancedMenu() {
+            try {
+                await window.zyte.tray.setMenu([
+                    { label: 'Window', submenu: [
+                        { label: 'Show', action: 'show' },
+                        { label: 'Hide', action: 'hide' },
+                        { label: 'Toggle', action: 'toggle' }
+                    ]},
+                    { type: 'separator' },
+                    { label: 'Auto Start', type: 'checkbox', checked: false },
+                    { label: 'Notifications', type: 'checkbox', checked: true },
+                    { type: 'separator' },
+                    { label: 'About', action: 'about' },
+                    { label: 'Quit', action: 'quit', shortcut: 'Cmd+Q' }
+                ]);
+                updateStatus('✅ Advanced menu configured with submenus and checkboxes');
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function hideDock() {
+            try {
+                await window.zyte.app.hideDockIcon();
+                updateStatus('✅ Dock icon hidden (menubar-only mode on macOS)');
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function showDock() {
+            try {
+                await window.zyte.app.showDockIcon();
+                updateStatus('✅ Dock icon shown');
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+            }
+        }
+
+        async function getAppInfo() {
+            try {
+                const info = await window.zyte.app.getInfo();
+                updateStatus(`App: ${info.name} v${info.version} (${info.platform})`);
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`);
+            }
+        }
+
+        // Update tray with current status every 5 seconds
+        setInterval(() => {
+            const time = new Date().toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            if (window.zyte) {
+                window.zyte.tray.setTitle(`🕐 ${time}`);
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
