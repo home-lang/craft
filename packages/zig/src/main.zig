@@ -11,6 +11,15 @@ pub const TextInput = components.TextInput;
 pub const Chart = components.Chart;
 pub const MediaPlayer = components.MediaPlayer;
 pub const CodeEditor = components.CodeEditor;
+pub const Tabs = components.Tabs;
+pub const Modal = components.Modal;
+pub const ProgressBar = components.ProgressBar;
+pub const Dropdown = components.Dropdown;
+pub const Toast = components.Toast;
+pub const ToastManager = components.ToastManager;
+pub const TreeView = components.TreeView;
+pub const DatePicker = components.DatePicker;
+pub const DataGrid = components.DataGrid;
 
 // Re-export platform types
 pub const WindowStyle = if (builtin.os.tag == .macos) macos.WindowStyle else struct {

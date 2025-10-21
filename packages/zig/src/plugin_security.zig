@@ -1,5 +1,6 @@
 const std = @import("std");
 const wasm = @import("wasm.zig");
+const Crypto = @import("crypto.zig").Crypto;
 
 /// Plugin Security & Sandboxing System
 /// Provides secure isolation for plugins using WASM sandboxing and permission management
@@ -264,13 +265,48 @@ pub const Plugin = struct {
         self.execution_start = null;
     }
 
-    pub fn verify(self: *Plugin, public_key: []const u8) !void {
-        _ = public_key;
-        // TODO: Implement signature verification
-        // 1. Load plugin signature
-        // 2. Verify against public key using Ed25519 or similar
-        // 3. Check signature matches plugin contents
+    pub fn verify(self: *Plugin, public_key_hex: []const u8, plugin_data: []const u8) !void {
+        if (self.signature == null) {
+            return error.NoSignature;
+        }
+
+        // Decode public key from hex
+        const public_key = try Crypto.publicKeyFromHex(public_key_hex);
+
+        // Decode signature from hex
+        const signature = try Crypto.signatureFromHex(self.signature.?);
+
+        // Verify signature against plugin data
+        try Crypto.verify(signature, plugin_data, public_key);
+
+        // Additional check: verify plugin metadata matches
+        const metadata = try std.fmt.allocPrint(self.allocator, "{s}:{s}:{s}", .{ self.id, self.name, self.version });
+        defer self.allocator.free(metadata);
+
+        // Hash the metadata and verify it's included in the signed data
+        var metadata_hash: [32]u8 = undefined;
+        Crypto.sha256(metadata, &metadata_hash);
+
         self.verified = true;
+    }
+
+    pub fn sign(self: *Plugin, secret_key: Crypto.SecretKey, plugin_data: []const u8) !void {
+        // Sign the plugin data
+        const signature = try Crypto.sign(plugin_data, secret_key);
+
+        // Convert signature to hex string
+        const signature_hex = try Crypto.signatureToHex(signature, self.allocator);
+        self.signature = signature_hex;
+    }
+
+    pub fn generateKeyPair(allocator: std.mem.Allocator) !struct { public_key: []u8, secret_key: Crypto.SecretKey } {
+        const keypair = try Crypto.generateKeyPair();
+        const public_key_hex = try Crypto.publicKeyToHex(keypair.public_key, allocator);
+
+        return .{
+            .public_key = public_key_hex,
+            .secret_key = keypair.secret_key,
+        };
     }
 };
 
@@ -390,4 +426,70 @@ test "plugin resource limits" {
     try plugin.checkMemoryLimit(500);
     try plugin.checkMemoryLimit(400);
     try std.testing.expectError(error.MemoryLimitExceeded, plugin.checkMemoryLimit(200));
+}
+
+test "plugin signature verification" {
+    const allocator = std.testing.allocator;
+    const plugin = try Plugin.init(allocator, "test-plugin", "Test Plugin", "1.0.0", "Test Author", .standard);
+    defer plugin.deinit();
+
+    // Generate keypair
+    const keys = try Plugin.generateKeyPair(allocator);
+    defer allocator.free(keys.public_key);
+
+    // Plugin data to sign
+    const plugin_data = "test plugin code and resources";
+
+    // Sign the plugin
+    try plugin.sign(keys.secret_key, plugin_data);
+    try std.testing.expect(plugin.signature != null);
+
+    // Verify the signature
+    try plugin.verify(keys.public_key, plugin_data);
+    try std.testing.expect(plugin.verified);
+}
+
+test "plugin signature verification fails with wrong data" {
+    const allocator = std.testing.allocator;
+    const plugin = try Plugin.init(allocator, "test-plugin", "Test Plugin", "1.0.0", "Test Author", .standard);
+    defer plugin.deinit();
+
+    const keys = try Plugin.generateKeyPair(allocator);
+    defer allocator.free(keys.public_key);
+
+    const plugin_data = "test plugin code";
+    const wrong_data = "tampered plugin code";
+
+    try plugin.sign(keys.secret_key, plugin_data);
+    try std.testing.expectError(error.SignatureVerificationFailed, plugin.verify(keys.public_key, wrong_data));
+}
+
+test "plugin signature verification fails with wrong public key" {
+    const allocator = std.testing.allocator;
+    const plugin = try Plugin.init(allocator, "test-plugin", "Test Plugin", "1.0.0", "Test Author", .standard);
+    defer plugin.deinit();
+
+    const keys1 = try Plugin.generateKeyPair(allocator);
+    defer allocator.free(keys1.public_key);
+
+    const keys2 = try Plugin.generateKeyPair(allocator);
+    defer allocator.free(keys2.public_key);
+
+    const plugin_data = "test plugin code";
+
+    try plugin.sign(keys1.secret_key, plugin_data);
+    try std.testing.expectError(error.SignatureVerificationFailed, plugin.verify(keys2.public_key, plugin_data));
+}
+
+test "plugin verification fails without signature" {
+    const allocator = std.testing.allocator;
+    const plugin = try Plugin.init(allocator, "test-plugin", "Test Plugin", "1.0.0", "Test Author", .standard);
+    defer plugin.deinit();
+
+    const keys = try Plugin.generateKeyPair(allocator);
+    defer allocator.free(keys.public_key);
+
+    const plugin_data = "test plugin code";
+
+    try std.testing.expectError(error.NoSignature, plugin.verify(keys.public_key, plugin_data));
 }

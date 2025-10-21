@@ -510,6 +510,94 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const tabs_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/tabs_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
+    const modal_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/modal_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
+    const progress_bar_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/progress_bar_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
+    const dropdown_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/dropdown_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
+    const toast_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/toast_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
+    const tree_view_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/tree_view_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
+    const date_picker_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/date_picker_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
+    const data_grid_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/components/data_grid_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "components", .module = zyte_module },
+            },
+        }),
+    });
+
     const run_api_tests = b.addRunArtifact(api_tests);
     const run_mobile_tests = b.addRunArtifact(mobile_tests);
     const run_menubar_tests = b.addRunArtifact(menubar_tests);
@@ -538,6 +626,14 @@ pub fn build(b: *std.Build) void {
     const run_chart_tests = b.addRunArtifact(chart_tests);
     const run_media_player_tests = b.addRunArtifact(media_player_tests);
     const run_code_editor_tests = b.addRunArtifact(code_editor_tests);
+    const run_tabs_tests = b.addRunArtifact(tabs_tests);
+    const run_modal_tests = b.addRunArtifact(modal_tests);
+    const run_progress_bar_tests = b.addRunArtifact(progress_bar_tests);
+    const run_dropdown_tests = b.addRunArtifact(dropdown_tests);
+    const run_toast_tests = b.addRunArtifact(toast_tests);
+    const run_tree_view_tests = b.addRunArtifact(tree_view_tests);
+    const run_date_picker_tests = b.addRunArtifact(date_picker_tests);
+    const run_data_grid_tests = b.addRunArtifact(data_grid_tests);
 
     const test_step = b.step("test", "Run all unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
@@ -569,6 +665,14 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_chart_tests.step);
     test_step.dependOn(&run_media_player_tests.step);
     test_step.dependOn(&run_code_editor_tests.step);
+    test_step.dependOn(&run_tabs_tests.step);
+    test_step.dependOn(&run_modal_tests.step);
+    test_step.dependOn(&run_progress_bar_tests.step);
+    test_step.dependOn(&run_dropdown_tests.step);
+    test_step.dependOn(&run_toast_tests.step);
+    test_step.dependOn(&run_tree_view_tests.step);
+    test_step.dependOn(&run_date_picker_tests.step);
+    test_step.dependOn(&run_data_grid_tests.step);
 
     // Individual test steps
     const test_api_step = b.step("test:api", "Run API tests");
@@ -654,6 +758,30 @@ pub fn build(b: *std.Build) void {
 
     const test_code_editor_step = b.step("test:code_editor", "Run CodeEditor component tests");
     test_code_editor_step.dependOn(&run_code_editor_tests.step);
+
+    const test_tabs_step = b.step("test:tabs", "Run Tabs component tests");
+    test_tabs_step.dependOn(&run_tabs_tests.step);
+
+    const test_modal_step = b.step("test:modal", "Run Modal component tests");
+    test_modal_step.dependOn(&run_modal_tests.step);
+
+    const test_progress_bar_step = b.step("test:progress_bar", "Run ProgressBar component tests");
+    test_progress_bar_step.dependOn(&run_progress_bar_tests.step);
+
+    const test_dropdown_step = b.step("test:dropdown", "Run Dropdown component tests");
+    test_dropdown_step.dependOn(&run_dropdown_tests.step);
+
+    const test_toast_step = b.step("test:toast", "Run Toast component tests");
+    test_toast_step.dependOn(&run_toast_tests.step);
+
+    const test_tree_view_step = b.step("test:tree_view", "Run TreeView component tests");
+    test_tree_view_step.dependOn(&run_tree_view_tests.step);
+
+    const test_date_picker_step = b.step("test:date_picker", "Run DatePicker component tests");
+    test_date_picker_step.dependOn(&run_date_picker_tests.step);
+
+    const test_data_grid_step = b.step("test:data_grid", "Run DataGrid component tests");
+    test_data_grid_step.dependOn(&run_data_grid_tests.step);
 
     // Cross-compilation helpers
     const build_linux = b.step("build-linux", "Build for Linux");
