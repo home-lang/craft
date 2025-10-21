@@ -11,7 +11,7 @@ pub const BridgeAPI = struct {
 
     const Self = @This();
 
-    pub const MessageHandler = *const fn (data: []const u8) anytype;
+    pub const MessageHandler = *const fn (data: []const u8) void;
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{

@@ -98,7 +98,123 @@ pub const WindowPosition = struct {
 };
 
 // ============================================================================
-// 3. System Event Listeners
+// 3. Window Vibrancy Effects (macOS)
+// ============================================================================
+
+pub const VibrancyEffect = enum {
+    light,
+    dark,
+    titlebar,
+    selection,
+    menu,
+    popover,
+    sidebar,
+    header_view,
+    sheet,
+    window_background,
+    hud_window,
+    fullscreen_ui,
+    tooltip,
+    content_background,
+    under_window_background,
+    under_page_background,
+};
+
+pub const WindowVibrancy = struct {
+    /// Set window vibrancy effect (macOS translucent background)
+    pub fn setVibrancy(window: *anyopaque, effect: VibrancyEffect) !void {
+        if (builtin.os.tag != .macos) return error.PlatformNotSupported;
+
+        const nsWindow: objc.id = @ptrFromInt(@intFromPtr(window));
+
+        // Create NSVisualEffectView
+        const NSVisualEffectView = objc.objc_getClass("NSVisualEffectView");
+        const effectView = msgSend0(msgSend0(NSVisualEffectView, "alloc"), "init");
+
+        // Set material based on effect type
+        const material: c_long = switch (effect) {
+            .light => 1, // NSVisualEffectMaterialLight
+            .dark => 2, // NSVisualEffectMaterialDark
+            .titlebar => 3, // NSVisualEffectMaterialTitlebar
+            .selection => 4, // NSVisualEffectMaterialSelection
+            .menu => 5, // NSVisualEffectMaterialMenu
+            .popover => 6, // NSVisualEffectMaterialPopover
+            .sidebar => 7, // NSVisualEffectMaterialSidebar
+            .header_view => 10, // NSVisualEffectMaterialHeaderView
+            .sheet => 11, // NSVisualEffectMaterialSheet
+            .window_background => 12, // NSVisualEffectMaterialWindowBackground
+            .hud_window => 13, // NSVisualEffectMaterialHUDWindow
+            .fullscreen_ui => 14, // NSVisualEffectMaterialFullScreenUI
+            .tooltip => 15, // NSVisualEffectMaterialToolTip
+            .content_background => 16, // NSVisualEffectMaterialContentBackground
+            .under_window_background => 17, // NSVisualEffectMaterialUnderWindowBackground
+            .under_page_background => 18, // NSVisualEffectMaterialUnderPageBackground
+        };
+
+        _ = msgSend1(effectView, "setMaterial:", material);
+
+        // Set blending mode
+        const NSVisualEffectBlendingModeBehindWindow: c_long = 0;
+        _ = msgSend1(effectView, "setBlendingMode:", NSVisualEffectBlendingModeBehindWindow);
+
+        // Set state to active
+        const NSVisualEffectStateActive: c_long = 1;
+        _ = msgSend1(effectView, "setState:", NSVisualEffectStateActive);
+
+        // Get window content view
+        const contentView = msgSend0(nsWindow, "contentView");
+
+        // Get content view bounds
+        const bounds = msgSendFrame(contentView, "bounds");
+
+        // Set effect view frame to match content view
+        msgSendVoid1(effectView, "setFrame:", bounds);
+
+        // Set autoresizing mask to follow window
+        const NSViewWidthSizable: c_ulong = 2;
+        const NSViewHeightSizable: c_ulong = 16;
+        _ = msgSend1(effectView, "setAutoresizingMask:", NSViewWidthSizable | NSViewHeightSizable);
+
+        // Add effect view as subview
+        msgSendVoid1(contentView, "addSubview:positioned:relativeTo:", effectView);
+
+        // Make window background transparent
+        msgSendVoid1(nsWindow, "setOpaque:", @as(c_int, 0));
+        const NSColor = objc.objc_getClass("NSColor");
+        const clearColor = msgSend0(NSColor, "clearColor");
+        _ = msgSend1(nsWindow, "setBackgroundColor:", clearColor);
+    }
+
+    /// Remove vibrancy effect
+    pub fn removeVibrancy(window: *anyopaque) !void {
+        if (builtin.os.tag != .macos) return error.PlatformNotSupported;
+
+        const nsWindow: objc.id = @ptrFromInt(@intFromPtr(window));
+
+        // Reset window to opaque
+        msgSendVoid1(nsWindow, "setOpaque:", @as(c_int, 1));
+
+        // Get content view and remove effect views
+        const contentView = msgSend0(nsWindow, "contentView");
+        const subviews = msgSend0(contentView, "subviews");
+        const count = msgSend0(subviews, "count");
+
+        var i: usize = 0;
+        while (i < @as(usize, @intCast(count))) : (i += 1) {
+            const subview = msgSend1(subviews, "objectAtIndex:", i);
+            const className = msgSend0(msgSend0(subview, "class"), "description");
+            const classNameStr = msgSend0(className, "UTF8String");
+
+            // Check if it's an NSVisualEffectView
+            if (std.mem.indexOf(u8, std.mem.span(@as([*:0]const u8, @ptrCast(classNameStr))), "NSVisualEffectView") != null) {
+                msgSendVoid0(subview, "removeFromSuperview");
+            }
+        }
+    }
+};
+
+// ============================================================================
+// 4. System Event Listeners
 // ============================================================================
 
 pub const SystemEvents = struct {

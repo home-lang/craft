@@ -19,6 +19,17 @@ pub const SystemTray = struct {
     // Menu handle
     menu_handle: ?*anyopaque = null,
 
+    // Animation state
+    animation_frames: []const []const u8 = &.{},
+    animation_interval: u64 = 0,
+    animation_running: bool = false,
+    animation_index: usize = 0,
+    animation_thread: ?std.Thread = null,
+
+    // Drag & drop state
+    drop_callback: ?*const fn (files: []const []const u8) void = null,
+    accepted_types: []const []const u8 = &.{},
+
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, title: []const u8) Self {
@@ -29,6 +40,9 @@ pub const SystemTray = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        // Stop animation if running
+        self.stopAnimation();
+
         if (self.platform_handle) |handle| {
             switch (builtin.target.os.tag) {
                 .macos => macosDestroy(handle),
@@ -114,15 +128,14 @@ pub const SystemTray = struct {
             switch (builtin.target.os.tag) {
                 .macos => try macosSetMenu(handle, menu_handle),
                 .windows => {}, // Windows tray menus handled differently
-                .linux => {},   // Linux tray menus handled differently
+                .linux => {}, // Linux tray menus handled differently
                 else => {},
             }
         }
     }
 
-    /// Set icon image (NEW)
+    /// Set icon image
     pub fn setIcon(self: *Self, icon_path: []const u8) !void {
-        _ = self;
         if (builtin.target.os.tag == .macos) {
             try macosSetIcon(self.platform_handle.?, icon_path);
         }
@@ -130,18 +143,78 @@ pub const SystemTray = struct {
 
     /// Set template image (monochrome, adapts to theme)
     pub fn setTemplateImage(self: *Self, icon_path: []const u8) !void {
-        _ = self;
         if (builtin.target.os.tag == .macos) {
             try macosSetTemplateImage(self.platform_handle.?, icon_path);
         }
     }
 
-    /// Animate tray icon
+    /// Animate tray icon (text-based frames)
     pub fn animate(self: *Self, frames: []const []const u8, interval_ms: u64) !void {
-        _ = self;
-        _ = frames;
-        _ = interval_ms;
-        // TODO: Implement animation loop
+        if (frames.len == 0) return;
+
+        // Stop any existing animation
+        self.stopAnimation();
+
+        // Store animation state
+        self.animation_frames = frames;
+        self.animation_interval = interval_ms;
+        self.animation_running = true;
+        self.animation_index = 0;
+
+        // Start animation in a background thread
+        self.animation_thread = try std.Thread.spawn(.{}, animationLoop, .{self});
+    }
+
+    /// Stop tray icon animation
+    pub fn stopAnimation(self: *Self) void {
+        if (!self.animation_running) return;
+
+        self.animation_running = false;
+
+        // Wait for animation thread to finish
+        if (self.animation_thread) |thread| {
+            thread.join();
+            self.animation_thread = null;
+        }
+
+        self.animation_frames = &.{};
+    }
+
+    /// Animation loop (runs in background thread)
+    fn animationLoop(self: *Self) void {
+        while (self.animation_running) {
+            // Update to next frame
+            const frame = self.animation_frames[self.animation_index];
+            self.setTitle(frame) catch {};
+
+            // Advance to next frame
+            self.animation_index = (self.animation_index + 1) % self.animation_frames.len;
+
+            // Sleep for interval
+            std.time.sleep(self.animation_interval * std.time.ns_per_ms);
+        }
+    }
+
+    /// Register drag & drop support
+    pub fn registerDropTypes(self: *Self, types: []const []const u8, callback: *const fn (files: []const []const u8) void) !void {
+        self.accepted_types = types;
+        self.drop_callback = callback;
+
+        if (self.platform_handle) |handle| {
+            switch (builtin.target.os.tag) {
+                .macos => try macosRegisterDragTypes(handle, types),
+                .windows => {}, // TODO: Windows drag & drop
+                .linux => {}, // TODO: Linux drag & drop
+                else => {},
+            }
+        }
+    }
+
+    /// Trigger drop callback (called from platform code)
+    pub fn triggerDrop(self: *Self, files: []const []const u8) void {
+        if (self.drop_callback) |callback| {
+            callback(files);
+        }
     }
 };
 
@@ -307,6 +380,30 @@ fn macosSetTemplateImage(handle: *anyopaque, icon_path: []const u8) !void {
     // Set as template (monochrome, adapts to theme)
     msgSendVoid1(image, "setTemplate:", @as(c_int, 1));
     _ = msgSend1(button, "setImage:", image);
+}
+
+fn macosRegisterDragTypes(handle: *anyopaque, types: []const []const u8) !void {
+    if (builtin.target.os.tag != .macos) return;
+
+    const statusItem: objc.id = @ptrFromInt(@intFromPtr(handle));
+    const button = msgSend0(statusItem, "button");
+
+    // Create NSArray of drag types
+    const NSMutableArray = objc.objc_getClass("NSMutableArray");
+    const NSString = objc.objc_getClass("NSString");
+    const dragTypes = msgSend0(NSMutableArray, "array");
+
+    // Add each type to array
+    for (types) |drag_type| {
+        const typeStr = msgSend1(NSString, "stringWithUTF8String:", drag_type.ptr);
+        _ = msgSend1(dragTypes, "addObject:", typeStr);
+    }
+
+    // Register for drag types
+    // Note: This requires setting up a delegate with NSDraggingDestination protocol
+    // For full implementation, would need to create a custom delegate class
+    // This is a simplified stub that shows the concept
+    _ = msgSend1(button, "registerForDraggedTypes:", dragTypes);
 }
 
 // ============================================================================

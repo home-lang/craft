@@ -114,6 +114,7 @@ pub const App = struct {
     allocator: std.mem.Allocator,
     windows: std.ArrayList(*Window),
     system_tray: ?*SystemTray = null,
+    system_trays: std.ArrayList(*SystemTray),
     bridge: ?*BridgeAPI = null,
     notifications: ?*Notifications = null,
 
@@ -123,6 +124,7 @@ pub const App = struct {
         return .{
             .allocator = allocator,
             .windows = .{},
+            .system_trays = .{},
             .bridge = null,
             .notifications = null,
         };
@@ -160,6 +162,22 @@ pub const App = struct {
         sys_tray.* = SystemTray.init(self.allocator, title);
         try sys_tray.show();
         self.system_tray = sys_tray;
+
+        // Also add to trays list for multi-tray support
+        try self.system_trays.append(self.allocator, sys_tray);
+
+        return sys_tray;
+    }
+
+    /// Create an additional system tray (for multiple tray icons)
+    pub fn createAdditionalTray(self: *Self, title: []const u8) !*SystemTray {
+        const sys_tray = try self.allocator.create(SystemTray);
+        sys_tray.* = SystemTray.init(self.allocator, title);
+        try sys_tray.show();
+
+        // Add to trays list (not the primary one)
+        try self.system_trays.append(self.allocator, sys_tray);
+
         return sys_tray;
     }
 
@@ -294,12 +312,14 @@ pub const App = struct {
             self.allocator.destroy(notif);
         }
 
-        // Cleanup system tray
-        if (self.system_tray) |sys_tray| {
+        // Cleanup all system trays
+        for (self.system_trays.items) |sys_tray| {
             sys_tray.deinit();
             self.allocator.destroy(sys_tray);
         }
+        self.system_trays.deinit(self.allocator);
 
+        // Cleanup windows
         for (self.windows.items) |window| {
             window.deinit();
             self.allocator.destroy(window);
