@@ -181,7 +181,7 @@ pub const ToastManager = struct {
         for (self.toasts.items, 0..) |t, i| {
             if (t == toast) {
                 _ = self.toasts.swapRemove(i);
-                toast.dismiss();
+                toast.deinit();
                 break;
             }
         }
@@ -190,13 +190,13 @@ pub const ToastManager = struct {
     pub fn removeAt(self: *ToastManager, index: usize) void {
         if (index < self.toasts.items.len) {
             const toast = self.toasts.swapRemove(index);
-            toast.dismiss();
+            toast.deinit();
         }
     }
 
     pub fn clear(self: *ToastManager) void {
         for (self.toasts.items) |toast| {
-            toast.dismiss();
+            toast.deinit();
         }
         self.toasts.clearRetainingCapacity();
     }

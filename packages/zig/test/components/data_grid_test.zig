@@ -264,6 +264,14 @@ test "data grid filter" {
     const grid = try DataGrid.init(allocator, props);
     defer grid.deinit();
 
+    // Add enough rows to have multiple pages
+    var i: usize = 0;
+    while (i < 60) : (i += 1) {
+        var row = Row.init(allocator, "row");
+        try row.addCell("data");
+        try grid.addRow(row);
+    }
+
     grid.setPage(5);
     try std.testing.expect(grid.current_page == 5);
 
