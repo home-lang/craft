@@ -1,6 +1,8 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const zyte = @import("zyte");
 const cli = @import("cli.zig");
+
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -18,11 +20,18 @@ pub fn main() !void {
         std.process.exit(1);
     };
 
+    // Special handling for system tray apps - use direct approach like minimal test
+    if (options.system_tray) {
+        try runWithSystemTray(allocator, options);
+        return;
+    }
+
     var app = zyte.App.init(allocator);
     defer app.deinit();
 
-    // Handle hide-dock-icon option (macOS only)
-    // Note: This will be handled by the zyte library during window creation
+    // Initialize platform FIRST (must be called before creating windows or system tray)
+    // This calls finishLaunching on macOS which is required for menubar items
+    app.initPlatform();
 
     // Determine what to load
     if (options.url) |url| {
@@ -156,6 +165,73 @@ pub fn main() !void {
 
         std.debug.print("   System Tray: Created successfully\n", .{});
     }
+
+    try app.run();
+}
+
+/// Run with system tray using a modified App flow
+/// Key difference: we create the system tray BEFORE calling initPlatform
+fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !void {
+    std.debug.print("\n⚡ Creating system tray application\n", .{});
+    std.debug.print("   Title: {s}\n", .{options.title});
+    if (options.url) |url| {
+        std.debug.print("   URL: {s}\n", .{url});
+        std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
+    }
+    if (options.hide_dock_icon) {
+        std.debug.print("   Style: Menubar-only (no Dock icon)\n", .{});
+    }
+    std.debug.print("\n", .{});
+
+    var app = zyte.App.init(allocator);
+    defer app.deinit();
+
+    // Initialize platform for TRAY apps - uses Accessory policy AND calls finishLaunching
+    // This MUST happen BEFORE creating the status bar item (proven by working test)
+    app.initPlatformForTray();
+
+    // Create system tray AFTER finishLaunching (this is the key!)
+    const sys_tray = try app.createSystemTray(options.title);
+
+    // Create window AFTER system tray
+    if (options.url) |url| {
+        _ = try app.createWindowWithURL(
+            options.title,
+            options.width,
+            options.height,
+            url,
+            .{
+                .frameless = options.frameless,
+                .transparent = options.transparent,
+                .always_on_top = options.always_on_top,
+                .resizable = options.resizable,
+                .fullscreen = options.fullscreen,
+                .x = options.x,
+                .y = options.y,
+                .dark_mode = options.dark_mode,
+                .enable_hot_reload = options.hot_reload,
+                .hide_dock_icon = options.hide_dock_icon,
+            },
+        );
+    } else if (options.html) |html| {
+        _ = try app.createWindow(options.title, options.width, options.height, html);
+    }
+
+    // Set tooltip with additional info
+    const tooltip = try std.fmt.allocPrint(
+        allocator,
+        "{s} - Zyte Application",
+        .{options.title},
+    );
+    defer allocator.free(tooltip);
+    try sys_tray.setTooltip(tooltip);
+
+    std.debug.print("✅ System tray icon created\n", .{});
+    std.debug.print("   Look for \"{s}\" in your menubar\n\n", .{options.title});
+
+    // Show windows AFTER system tray is created but BEFORE running the event loop
+    // Using orderFront (in showWindows) prevents app activation which would hide the tray
+    app.showWindows();
 
     try app.run();
 }

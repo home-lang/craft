@@ -121,6 +121,33 @@ pub const App = struct {
         };
     }
 
+    /// Initialize platform-specific features (must be called before creating system tray on macOS)
+    pub fn initPlatform(self: *Self) void {
+        _ = self;
+        switch (builtin.os.tag) {
+            .macos => {
+                if (builtin.os.tag == .macos) {
+                    // Use regular init for now - will be configured based on system tray
+                    macos.initAppWithoutLaunching();
+                }
+            },
+            else => {},
+        }
+    }
+
+    /// Initialize platform for system tray apps
+    pub fn initPlatformForTray(self: *Self) void {
+        _ = self;
+        switch (builtin.os.tag) {
+            .macos => {
+                if (builtin.os.tag == .macos) {
+                    macos.initAppForTray();
+                }
+            },
+            else => {},
+        }
+    }
+
     pub fn createSystemTray(self: *Self, title: []const u8) !*SystemTray {
         const sys_tray = try self.allocator.create(SystemTray);
         sys_tray.* = SystemTray.init(self.allocator, title);
@@ -149,14 +176,38 @@ pub const App = struct {
         }
     }
 
+    /// Show all windows without activating the app (for menubar apps)
+    pub fn showWindows(self: *Self) void {
+        switch (builtin.os.tag) {
+            .macos => {
+                if (builtin.os.tag == .macos) {
+                    macos.showAllWindows();
+                }
+            },
+            else => {
+                for (self.windows.items) |window| {
+                    window.show() catch {};
+                }
+            },
+        }
+    }
+
     pub fn run(self: *Self) !void {
         if (self.windows.items.len == 0) {
             return error.NoWindows;
         }
 
-        // Show all windows
-        for (self.windows.items) |window| {
-            try window.show();
+        // DON'T show windows yet on macOS - they'll be shown after tray is created
+        // On other platforms, show them now
+        switch (builtin.os.tag) {
+            .macos => {
+                // Windows will be shown in runMacOS() after platform is ready
+            },
+            else => {
+                for (self.windows.items) |window| {
+                    try window.show();
+                }
+            },
         }
 
         // Platform-specific event loop
@@ -169,8 +220,15 @@ pub const App = struct {
     }
 
     fn runMacOS(self: *Self) !void {
-        _ = self;
         if (builtin.os.tag == .macos) {
+            // Show windows if we don't have a system tray
+            // If we have a system tray, windows were already shown in the correct order
+            // (after tray creation) by the caller
+            if (self.system_tray == null) {
+                macos.showAllWindows();
+            }
+
+            // Now run the event loop (which activates the app)
             macos.runApp();
         }
     }

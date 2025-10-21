@@ -151,8 +151,6 @@ fn msgSendVoid1(target: anytype, selector: [*:0]const u8, arg1: anytype) void {
 fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     if (builtin.target.os.tag != .macos) return error.PlatformNotSupported;
 
-    _ = title;
-
     // Get NSStatusBar systemStatusBar
     const NSStatusBar = objc.objc_getClass("NSStatusBar");
     const systemStatusBar = msgSend0(NSStatusBar, "systemStatusBar");
@@ -164,12 +162,17 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     // Get the button
     const button = msgSend0(statusItem, "button");
 
-    // Set initial title if provided
-    if (icon_text) |text| {
-        const NSString = objc.objc_getClass("NSString");
-        const titleStr = msgSend1(NSString, "stringWithUTF8String:", text.ptr);
-        _ = msgSend1(button, "setTitle:", titleStr);
-    }
+    // Set initial title - EXACTLY like working test does it
+    // Just use the raw title pointer directly (title is already null-terminated)
+    const text_to_display = icon_text orelse title;
+
+    const NSString = objc.objc_getClass("NSString");
+    const titleStr = msgSend1(NSString, "stringWithUTF8String:", text_to_display.ptr);
+    _ = msgSend1(button, "setTitle:", titleStr);
+
+    // Make sure the status item is visible
+    const visible: c_int = 1;
+    msgSendVoid1(statusItem, "setVisible:", visible);
 
     // Retain the status item so it doesn't get deallocated
     _ = msgSend0(statusItem, "retain");

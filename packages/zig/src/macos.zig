@@ -39,7 +39,7 @@ pub const WindowStyle = struct {
 };
 
 // Helper functions for Objective-C runtime
-fn getClass(name: [*:0]const u8) objc.Class {
+pub fn getClass(name: [*:0]const u8) objc.Class {
     return objc.objc_getClass(name);
 }
 
@@ -48,12 +48,12 @@ fn sel(name: [*:0]const u8) objc.SEL {
 }
 
 // Simple message send wrappers
-fn msgSend0(target: anytype, selector: [*:0]const u8) objc.id {
+pub fn msgSend0(target: anytype, selector: [*:0]const u8) objc.id {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
     return msg(target, sel(selector));
 }
 
-fn msgSend1(target: anytype, selector: [*:0]const u8, arg1: anytype) objc.id {
+pub fn msgSend1(target: anytype, selector: [*:0]const u8, arg1: anytype) objc.id {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(arg1)) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
     return msg(target, sel(selector), arg1);
 }
@@ -68,7 +68,7 @@ fn msgSend4(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anyty
     return msg(target, sel(selector), arg1, arg2, arg3, arg4);
 }
 
-fn msgSendVoid0(target: anytype, selector: [*:0]const u8) void {
+pub fn msgSendVoid0(target: anytype, selector: [*:0]const u8) void {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
     msg(target, sel(selector));
 }
@@ -109,19 +109,13 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     const WKUserContentController = getClass("WKUserContentController");
     const WKUserScript = getClass("WKUserScript");
 
-    // Get shared application
-    const app = msgSend0(NSApplication, "sharedApplication");
+    // Note: Activation policy is set in initApp(), NOT here!
+    // We must not call setActivationPolicy after finishLaunching has been called
+    // (which happens in initApp before window creation)
 
-    // Set activation policy based on hide_dock_icon option
-    if (style.hide_dock_icon) {
-        // NSApplicationActivationPolicyAccessory = 1 (hides dock icon)
-        const NSApplicationActivationPolicyAccessory: c_long = 1;
-        _ = msgSend1(app, "setActivationPolicy:", NSApplicationActivationPolicyAccessory);
-    } else {
-        // NSApplicationActivationPolicyRegular = 0 (shows dock icon)
-        const NSApplicationActivationPolicyRegular: c_long = 0;
-        _ = msgSend1(app, "setActivationPolicy:", NSApplicationActivationPolicyRegular);
-    }
+    // Get shared application (just to check, not to modify)
+    const app = msgSend0(NSApplication, "sharedApplication");
+    _ = app; // We get it but don't modify activation policy here anymore
 
     // Create window frame
     const frame = NSRect{
@@ -250,8 +244,10 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         msgSendVoid0(window, "toggleFullScreen:");
     }
 
-    // Show window
-    _ = msgSend1(window, "makeKeyAndOrderFront:", @as(?*anyopaque, null));
+    // DON'T show window here - it will be shown in runApp() after system tray is created
+    // This is critical: makeKeyAndOrderFront activates the app, which must happen AFTER
+    // the system tray is created for the menubar item to appear
+    // _ = msgSend1(window, "makeKeyAndOrderFront:", @as(?*anyopaque, null));
 
     return window;
 }
@@ -1708,12 +1704,62 @@ pub const Installer = struct {
     }
 };
 
+/// Initialize the NSApplication for regular apps (with Dock icon)
+pub fn initApp() void {
+    const NSApplication = getClass("NSApplication");
+    const app = msgSend0(NSApplication, "sharedApplication");
+
+    const NSApplicationActivationPolicyRegular: c_long = 0;
+    _ = msgSend1(app, "setActivationPolicy:", NSApplicationActivationPolicyRegular);
+}
+
+/// Initialize without finishing launch - for apps that will set policy later
+pub fn initAppWithoutLaunching() void {
+    const NSApplication = getClass("NSApplication");
+    const app = msgSend0(NSApplication, "sharedApplication");
+    _ = app; // Just ensure app exists
+}
+
+/// Initialize for menubar/system tray apps (NO Dock icon)
+pub fn initAppForTray() void {
+    const NSApplication = getClass("NSApplication");
+    const app = msgSend0(NSApplication, "sharedApplication");
+
+    // Use Accessory policy for menubar-only apps
+    const NSApplicationActivationPolicyAccessory: c_long = 1;
+    _ = msgSend1(app, "setActivationPolicy:", NSApplicationActivationPolicyAccessory);
+
+    // MUST call finishLaunching BEFORE creating status bar items!
+    // This is the key - the working test does it in this order
+    msgSendVoid0(app, "finishLaunching");
+}
+
+/// Show all windows (call this AFTER creating system tray, BEFORE runApp)
+pub fn showAllWindows() void {
+    // Get all windows
+    const NSApplication = getClass("NSApplication");
+    const app = msgSend0(NSApplication, "sharedApplication");
+    const windows = msgSend0(app, "windows");
+
+    // Show each window WITHOUT making it key (don't activate yet)
+    const count_obj = msgSend0(windows, "count");
+    const count: c_ulong = @intCast(@intFromPtr(count_obj));
+    var i: c_ulong = 0;
+    while (i < count) : (i += 1) {
+        const window = msgSend1(windows, "objectAtIndex:", i);
+        // Use orderFront instead of makeKeyAndOrderFront - this shows the window
+        // without activating the app
+        _ = msgSend1(window, "orderFront:", @as(?*anyopaque, null));
+    }
+}
+
 pub fn runApp() void {
     const NSApplication = getClass("NSApplication");
     const app = msgSend0(NSApplication, "sharedApplication");
 
-    // Activate app
-    _ = msgSend1(app, "activateIgnoringOtherApps:", true);
+    // DON'T activate - let the app activate naturally
+    // The working test (test-minimal-tray.zig) doesn't call activate and it works!
+    // Calling activate might interfere with the status bar item visibility
 
     // Run event loop
     msgSendVoid0(app, "run");
