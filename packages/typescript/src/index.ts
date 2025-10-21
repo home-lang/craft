@@ -8,6 +8,9 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AppConfig, WindowOptions } from './types'
 
+// Export packaging API
+export { packageApp, pack, type PackageConfig, type PackageResult } from './package'
+
 export class ZyteApp {
   private process?: ChildProcess
   private config: AppConfig

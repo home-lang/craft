@@ -208,6 +208,134 @@ cli
     }
   })
 
+// Package command - create installers
+cli
+  .command('package', 'Create installers for your Zyte application')
+  .option('--name <name>', 'Application name')
+  .option('--version <version>', 'Application version')
+  .option('--binary <path>', 'Path to application binary')
+  .option('--description <text>', 'Application description')
+  .option('--author <name>', 'Author/Maintainer name')
+  .option('--bundle-id <id>', 'Bundle identifier (macOS/iOS)')
+  .option('--out <dir>', 'Output directory (default: ./dist)')
+  .option('--icon <path>', 'Application icon path')
+  .option('--platforms <list>', 'Comma-separated platforms (macos,windows,linux)')
+  .option('--config <path>', 'Load config from JSON file')
+  .option('--dmg', 'Create DMG installer (macOS)')
+  .option('--pkg', 'Create PKG installer (macOS)')
+  .option('--msi', 'Create MSI installer (Windows)')
+  .option('--zip', 'Create ZIP archive (Windows)')
+  .option('--deb', 'Create DEB package (Linux)')
+  .option('--rpm', 'Create RPM package (Linux)')
+  .option('--appimage', 'Create AppImage (Linux)')
+  .example('zyte package --name "My App" --version "1.0.0" --binary ./build/myapp')
+  .example('zyte package --config package.json')
+  .example('zyte package --name "My App" --version "1.0.0" --binary ./build/myapp --platforms macos,windows,linux')
+  .action(async (options?: any) => {
+    const packageModule = await import('../src/package.js')
+    const { packageApp } = packageModule
+
+    let config: any
+
+    // Load config from file or CLI args
+    if (options?.config) {
+      if (!existsSync(options.config)) {
+        console.error(`❌ Config file not found: ${options.config}`)
+        process.exit(1)
+      }
+
+      const configContent = await Bun.file(options.config).text()
+      config = JSON.parse(configContent)
+    }
+    else {
+      // Build config from CLI options
+      if (!options?.name) {
+        console.error('❌ --name is required')
+        process.exit(1)
+      }
+      if (!options?.version) {
+        console.error('❌ --version is required')
+        process.exit(1)
+      }
+      if (!options?.binary) {
+        console.error('❌ --binary is required')
+        process.exit(1)
+      }
+
+      config = {
+        name: options.name,
+        version: options.version,
+        binaryPath: options.binary,
+        description: options.description,
+        author: options.author,
+        bundleId: options.bundleId,
+        outDir: options.out,
+        iconPath: options.icon,
+        platforms: options.platforms?.split(','),
+      }
+
+      // Platform-specific options
+      if (options.dmg || options.pkg) {
+        config.macos = {
+          dmg: options.dmg,
+          pkg: options.pkg,
+        }
+      }
+
+      if (options.msi || options.zip) {
+        config.windows = {
+          msi: options.msi,
+          zip: options.zip,
+        }
+      }
+
+      if (options.deb || options.rpm || options.appimage) {
+        config.linux = {
+          deb: options.deb,
+          rpm: options.rpm,
+          appImage: options.appimage,
+        }
+      }
+    }
+
+    console.log('📦 Zyte Packaging Tool\n')
+    console.log(`Application: ${config.name} v${config.version}`)
+    console.log(`Platforms: ${(config.platforms || ['current']).join(', ')}\n`)
+
+    try {
+      const results = await packageApp(config)
+
+      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      console.log('📊 Packaging Results\n')
+
+      for (const result of results) {
+        const status = result.success ? '✅' : '❌'
+        const format = result.format.toUpperCase()
+
+        console.log(`${status} ${result.platform}/${format}`)
+
+        if (result.success && result.outputPath) {
+          console.log(`   📁 ${result.outputPath}`)
+        }
+        else if (result.error) {
+          console.log(`   ⚠️  ${result.error}`)
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length
+      const totalCount = results.length
+
+      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+      console.log(`\n✨ Complete: ${successCount}/${totalCount} packages created\n`)
+
+      process.exit(successCount === totalCount ? 0 : 1)
+    }
+    catch (error: any) {
+      console.error(`\n❌ Error: ${error.message}\n`)
+      process.exit(1)
+    }
+  })
+
 cli.version(version)
 cli.help()
 cli.parse()
