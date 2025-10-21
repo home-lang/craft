@@ -174,10 +174,14 @@ pub fn main() !void {
 fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !void {
     std.debug.print("\n⚡ Creating system tray application\n", .{});
     std.debug.print("   Title: {s}\n", .{options.title});
-    if (options.url) |url| {
+
+    if (options.menubar_only) {
+        std.debug.print("   Mode: Menubar-only (no window)\n", .{});
+    } else if (options.url) |url| {
         std.debug.print("   URL: {s}\n", .{url});
         std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
     }
+
     if (options.hide_dock_icon) {
         std.debug.print("   Style: Menubar-only (no Dock icon)\n", .{});
     }
@@ -193,28 +197,30 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
     // Create system tray AFTER finishLaunching (this is the key!)
     const sys_tray = try app.createSystemTray(options.title);
 
-    // Create window AFTER system tray
-    if (options.url) |url| {
-        _ = try app.createWindowWithURL(
-            options.title,
-            options.width,
-            options.height,
-            url,
-            .{
-                .frameless = options.frameless,
-                .transparent = options.transparent,
-                .always_on_top = options.always_on_top,
-                .resizable = options.resizable,
-                .fullscreen = options.fullscreen,
-                .x = options.x,
-                .y = options.y,
-                .dark_mode = options.dark_mode,
-                .enable_hot_reload = options.hot_reload,
-                .hide_dock_icon = options.hide_dock_icon,
-            },
-        );
-    } else if (options.html) |html| {
-        _ = try app.createWindow(options.title, options.width, options.height, html);
+    // Create window AFTER system tray (UNLESS menubar-only mode is enabled)
+    if (!options.menubar_only) {
+        if (options.url) |url| {
+            _ = try app.createWindowWithURL(
+                options.title,
+                options.width,
+                options.height,
+                url,
+                .{
+                    .frameless = options.frameless,
+                    .transparent = options.transparent,
+                    .always_on_top = options.always_on_top,
+                    .resizable = options.resizable,
+                    .fullscreen = options.fullscreen,
+                    .x = options.x,
+                    .y = options.y,
+                    .dark_mode = options.dark_mode,
+                    .enable_hot_reload = options.hot_reload,
+                    .hide_dock_icon = options.hide_dock_icon,
+                },
+            );
+        } else if (options.html) |html| {
+            _ = try app.createWindow(options.title, options.width, options.height, html);
+        }
     }
 
     // Set tooltip with additional info
@@ -231,7 +237,10 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
 
     // Show windows AFTER system tray is created but BEFORE running the event loop
     // Using orderFront (in showWindows) prevents app activation which would hide the tray
-    app.showWindows();
+    // Skip if menubar-only mode
+    if (!options.menubar_only) {
+        app.showWindows();
+    }
 
     try app.run();
 }

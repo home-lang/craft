@@ -56,8 +56,8 @@ export class ZyteApp {
       this.config.html = html
     }
 
-    // Validate that we have something to show
-    if (!this.config.html && !this.config.url) {
+    // Validate that we have something to show (unless it's menubar-only mode)
+    if (!this.config.window?.menubarOnly && !this.config.html && !this.config.url) {
       throw new Error(
         'No content to display. Provide either html or url:\n' +
         '  show(html, options) or loadURL(url, options)'
@@ -141,12 +141,15 @@ export class ZyteApp {
     const args: string[] = []
     const { window, html, url } = this.config
 
-    // URL takes precedence over HTML
-    if (url) {
-      args.push('--url', url)
-    }
-    else if (html) {
-      args.push('--html', html)
+    // Menubar-only mode doesn't need content
+    if (!window?.menubarOnly) {
+      // URL takes precedence over HTML
+      if (url) {
+        args.push('--url', url)
+      }
+      else if (html) {
+        args.push('--html', html)
+      }
     }
 
     // Window options
@@ -182,6 +185,8 @@ export class ZyteApp {
       args.push('--system-tray')
     if (window?.hideDockIcon)
       args.push('--hide-dock-icon')
+    if (window?.menubarOnly)
+      args.push('--menubar-only')
 
     return args
   }

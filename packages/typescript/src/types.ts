@@ -84,6 +84,12 @@ export interface WindowOptions {
    * @default false
    */
   hideDockIcon?: boolean
+
+  /**
+   * Menubar-only mode (no window, only system tray)
+   * @default false
+   */
+  menubarOnly?: boolean
 }
 
 export interface AppConfig {

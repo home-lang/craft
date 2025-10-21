@@ -193,7 +193,8 @@ pub const App = struct {
     }
 
     pub fn run(self: *Self) !void {
-        if (self.windows.items.len == 0) {
+        // Allow no windows if we have a system tray (menubar-only mode)
+        if (self.windows.items.len == 0 and self.system_tray == null) {
             return error.NoWindows;
         }
 
