@@ -10,17 +10,15 @@
 
 Zyte is a lightweight, high-performance cross-platform application framework. Create native apps that work on macOS, Linux, Windows, iOS, and Android with web technologies - all with a tiny 1.4MB binary and blazing fast <100ms startup time.
 
-**Version 0.0.1** | **35 Native Components** | **1.4MB Binary** | **Cross-Platform** | **Production-Ready** | **69 Tests Passing**
-
 ## Features
 
 ### 🌍 Platform Support
 
 - 🖥️ **Desktop** - macOS, Linux, Windows
-- 📱 **Mobile** - iOS (WKWebView, UIKit) and Android (WebView, Activity)
+- 📱 **Mobile** - iOS _(WKWebView, UIKit)_ and Android _(WebView, Activity)_
 - 🪟 **Menubar Apps** - Native system tray/menubar integration
 - ⚡ **Native Performance** - <100ms startup, <1% CPU idle, ~92MB memory
-- 🪶 **Tiny Binary** - 1.4MB binary size (vs 150MB Electron)
+- 🪶 **Tiny Binary** - 1.4MB binary size _(vs 150MB Electron)_
 - 🔧 **Zig-Powered** - Built with Zig 0.15.1 for maximum performance
 
 ### 📱 Mobile Platform Support
@@ -28,9 +26,9 @@ Zyte is a lightweight, high-performance cross-platform application framework. Cr
 - **iOS Integration**
   - WKWebView with JavaScript bridge
   - UIKit native components
-  - Haptic feedback (light, medium, heavy, selection, success, warning, error)
-  - Device permissions (camera, location, notifications, photos, contacts, microphone)
-  - Orientation support (portrait, landscape)
+  - Haptic feedback _(light, medium, heavy, selection, success, warning, error)_
+  - Device permissions _(camera, location, notifications, photos, contacts, microphone)_
+  - Orientation support _(portrait, landscape)_
   - Status bar control
   - App lifecycle management
 
@@ -260,6 +258,26 @@ bun create zyte my-app --template full-featured
 ```
 
 **See [create-zyte documentation](./packages/create-zyte/README.md) for all options.**
+
+### Try the Examples
+
+Explore ready-to-run examples in the `examples/` directory:
+
+```bash
+# Simple system tray app
+bun run examples/simple-tray.ts
+
+# Full-featured system tray app
+bun run examples/system-tray-app.ts
+
+# Pomodoro timer with live menubar updates (recommended!)
+bun run examples/pomodoro.ts
+
+# Alternative Pomodoro timer
+bun run examples/menubar-timer.ts
+```
+
+**See [examples documentation](./examples/README.md) for more details.**
 
 ## Get Started
 

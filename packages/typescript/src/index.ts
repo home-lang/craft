@@ -298,19 +298,25 @@ export class ZyteApp {
 
     // Try common locations
     const possiblePaths = [
-      // From monorepo zig package
+      // From monorepo zig package (current binary names)
+      join(process.cwd(), 'packages/zig/zig-out/bin/zyte-minimal'),
+      join(process.cwd(), 'packages/zig/zig-out/bin/zyte-example'),
       join(process.cwd(), 'packages/zig/zig-out/bin/zyte'),
       // From ts-zyte package (when in monorepo)
+      join(process.cwd(), '../zig/zig-out/bin/zyte-minimal'),
+      join(process.cwd(), '../zig/zig-out/bin/zyte-example'),
       join(process.cwd(), '../zig/zig-out/bin/zyte'),
-      // Legacy location (for backward compatibility)
+      // Legacy locations (for backward compatibility)
+      join(process.cwd(), 'zig-out/bin/zyte-minimal'),
       join(process.cwd(), 'zig-out/bin/zyte'),
       join(process.cwd(), '../../zig-out/bin/zyte'),
       // In PATH
+      'zyte-minimal',
       'zyte',
     ]
 
     for (const path of possiblePaths) {
-      if (path === 'zyte') {
+      if (path === 'zyte' || path === 'zyte-minimal') {
         // Check if it's in PATH by trying to spawn it
         try {
           await this.checkBinaryExists(path)
