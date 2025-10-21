@@ -13,7 +13,7 @@
     "bench:all": "bun run bench && bun run bench:memory && bun run bench:cpu"
   },
   "dependencies": {
-    "mitata": "^1.0.10"
+    "mitata": "^1.0.34"
   },
   "devDependencies": {
     "@types/bun": "latest"
