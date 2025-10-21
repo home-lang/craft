@@ -1,5 +1,6 @@
 const std = @import("std");
 const wasm = @import("wasm.zig");
+const security = @import("plugin_security.zig");
 
 /// Plugin Marketplace System
 /// Allows discovering, installing, and managing plugins from remote registries
@@ -22,6 +23,9 @@ pub const PluginInfo = struct {
     dependencies: []const Dependency,
     size: u64,
     checksum: []const u8,
+    required_permissions: []const security.Permission,
+    security_policy: security.SecurityPolicy,
+    signature: ?[]const u8,
 
     pub const Dependency = struct {
         name: []const u8,

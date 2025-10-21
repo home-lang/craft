@@ -2,6 +2,16 @@ const std = @import("std");
 const builtin = @import("builtin");
 const macos = if (builtin.os.tag == .macos) @import("macos.zig") else struct {};
 
+// Re-export components
+pub const components = @import("components.zig");
+pub const Component = components.Component;
+pub const ComponentProps = components.ComponentProps;
+pub const Button = components.Button;
+pub const TextInput = components.TextInput;
+pub const Chart = components.Chart;
+pub const MediaPlayer = components.MediaPlayer;
+pub const CodeEditor = components.CodeEditor;
+
 // Re-export platform types
 pub const WindowStyle = if (builtin.os.tag == .macos) macos.WindowStyle else struct {
     frameless: bool = false,
@@ -54,15 +64,15 @@ pub const Window = struct {
     }
 
     fn showLinux(self: *Self) !void {
-        // Linux implementation using GTK and WebKit2GTK
-        _ = self;
-        @panic("Linux implementation requires GTK bindings");
+        const linux = @import("linux.zig");
+        const window = try linux.createWindow(self.title, self.width, self.height, self.html);
+        self.native_handle = window;
     }
 
     fn showWindows(self: *Self) !void {
-        // Windows implementation using WebView2
-        _ = self;
-        @panic("Windows implementation requires WebView2 bindings");
+        const windows = @import("windows.zig");
+        const window = try windows.createWindow(self.title, self.width, self.height, self.html);
+        self.native_handle = window;
     }
 
     pub fn setHtml(self: *Self, html: []const u8) void {
@@ -144,12 +154,14 @@ pub const App = struct {
 
     fn runLinux(self: *Self) !void {
         _ = self;
-        std.debug.print("Linux event loop (not yet implemented)\n", .{});
+        const linux = @import("linux.zig");
+        try linux.App.run();
     }
 
     fn runWindows(self: *Self) !void {
         _ = self;
-        std.debug.print("Windows event loop (not yet implemented)\n", .{});
+        const windows = @import("windows.zig");
+        try windows.App.run();
     }
 
     pub fn deinit(self: *Self) void {

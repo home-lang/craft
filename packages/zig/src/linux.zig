@@ -30,6 +30,34 @@ pub extern "c" fn webkit_web_view_get_settings(webview: *anyopaque) *anyopaque;
 pub extern "c" fn webkit_settings_set_enable_developer_extras(settings: *anyopaque, enabled: c_int) void;
 pub extern "c" fn webkit_settings_set_enable_webgl(settings: *anyopaque, enabled: c_int) void;
 pub extern "c" fn webkit_settings_set_javascript_can_access_clipboard(settings: *anyopaque, enabled: c_int) void;
+pub extern "c" fn webkit_settings_set_hardware_acceleration_policy(settings: *anyopaque, policy: c_int) void;
+pub extern "c" fn webkit_settings_set_enable_javascript(settings: *anyopaque, enabled: c_int) void;
+
+// JavaScript execution
+pub extern "c" fn webkit_web_view_run_javascript(
+    webview: *anyopaque,
+    script: [*:0]const u8,
+    cancellable: ?*anyopaque,
+    callback: ?*const fn (*anyopaque, *anyopaque, ?*anyopaque) callconv(.C) void,
+    user_data: ?*anyopaque,
+) void;
+pub extern "c" fn webkit_web_view_run_javascript_finish(
+    webview: *anyopaque,
+    result: *anyopaque,
+    error_ptr: ?*anyopaque,
+) *anyopaque;
+
+// User content manager for injecting scripts
+pub extern "c" fn webkit_web_view_get_user_content_manager(webview: *anyopaque) *anyopaque;
+pub extern "c" fn webkit_user_script_new(
+    source: [*:0]const u8,
+    injected_frames: c_int,
+    injection_time: c_int,
+    allow_list: ?*anyopaque,
+    block_list: ?*anyopaque,
+) *anyopaque;
+pub extern "c" fn webkit_user_content_manager_add_script(manager: *anyopaque, script: *anyopaque) void;
+pub extern "c" fn webkit_user_content_manager_remove_all_scripts(manager: *anyopaque) void;
 
 pub extern "c" fn gtk_window_set_child(window: *anyopaque, child: *anyopaque) void;
 
@@ -183,6 +211,35 @@ pub const Window = struct {
         } else {
             gtk_window_unfullscreen(self.gtk_window);
         }
+    }
+
+    pub fn executeJavaScript(self: *Window, script: []const u8) !void {
+        const script_z = try std.heap.c_allocator.dupeZ(u8, script);
+        defer std.heap.c_allocator.free(script_z);
+        webkit_web_view_run_javascript(self.webview, script_z, null, null, null);
+    }
+
+    pub fn injectScript(self: *Window, script: []const u8) !void {
+        const script_z = try std.heap.c_allocator.dupeZ(u8, script);
+        defer std.heap.c_allocator.free(script_z);
+
+        const content_manager = webkit_web_view_get_user_content_manager(self.webview);
+        // WEBKIT_USER_CONTENT_INJECT_ALL_FRAMES = 0
+        // WEBKIT_USER_SCRIPT_INJECT_AT_DOCUMENT_START = 0
+        const user_script = webkit_user_script_new(script_z, 0, 0, null, null);
+        webkit_user_content_manager_add_script(content_manager, user_script);
+    }
+
+    pub fn clearInjectedScripts(self: *Window) void {
+        const content_manager = webkit_web_view_get_user_content_manager(self.webview);
+        webkit_user_content_manager_remove_all_scripts(content_manager);
+    }
+
+    pub fn enableGPUAcceleration(self: *Window, enable: bool) void {
+        const settings = webkit_web_view_get_settings(self.webview);
+        // WEBKIT_HARDWARE_ACCELERATION_POLICY_ALWAYS = 2
+        // WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER = 1
+        webkit_settings_set_hardware_acceleration_policy(settings, if (enable) 2 else 1);
     }
 };
 

@@ -103,6 +103,8 @@ pub const ICoreWebView2CreateCoreWebView2ControllerCompletedHandler = opaque {};
 pub const ICoreWebView2Environment = opaque {};
 pub const ICoreWebView2Controller = opaque {};
 pub const ICoreWebView2 = opaque {};
+pub const ICoreWebView2Settings = opaque {};
+pub const ICoreWebView2ExecuteScriptCompletedHandler = opaque {};
 
 pub extern "WebView2Loader" fn CreateCoreWebView2EnvironmentWithOptions(
     browserExecutableFolder: ?LPCWSTR,
@@ -274,6 +276,33 @@ pub const Window = struct {
         _ = self;
         _ = fullscreen;
         // Would modify window style and size
+        // GetWindowLong/SetWindowLong to change WS_OVERLAPPEDWINDOW style
+        // SetWindowPos to resize to full screen dimensions
+    }
+
+    pub fn executeJavaScript(self: *Window, script: []const u8) !void {
+        _ = self;
+        _ = script;
+        // Would use webview->ExecuteScript()
+        // Requires proper WebView2 initialization and COM interfaces
+    }
+
+    pub fn injectScript(self: *Window, script: []const u8) !void {
+        _ = self;
+        _ = script;
+        // Would use webview->AddScriptToExecuteOnDocumentCreated()
+    }
+
+    pub fn enableGPUAcceleration(self: *Window, enable: bool) !void {
+        _ = self;
+        _ = enable;
+        // WebView2 has hardware acceleration enabled by default
+        // Can be controlled through environment options
+    }
+
+    pub fn openDevTools(self: *Window) void {
+        _ = self;
+        // Would use webview->OpenDevToolsWindow()
     }
 };
 
