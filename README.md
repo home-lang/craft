@@ -680,6 +680,272 @@ zyte http://localhost:3000 \
 - 🤝 [Contributing](CONTRIBUTING.md) - Contribution guide
 - 📋 [Changelog](https://github.com/stacksjs/zyte/releases) - Release history
 
+## Package System
+
+Zyte uses a flexible package configuration system that supports multiple formats:
+
+### Supported Configuration Files
+
+Zyte automatically searches for configuration files in the following order:
+
+1. `zyte.toml` (TOML format)
+2. `zyte.json` (JSON format)
+3. `package.jsonc` (JSON with comments)
+4. `package.json` (standard JSON, undocumented but supported)
+
+### Configuration Formats
+
+#### TOML Configuration (`zyte.toml`)
+
+```toml
+[package]
+name = "my-zyte-app"
+version = "0.1.0"
+authors = ["Your Name <you@example.com>"]
+description = "A cross-platform desktop application"
+license = "MIT"
+
+[dependencies]
+# Local path dependency
+zyte-ui = { path = "../zyte-ui" }
+
+# Git dependency
+zyte-http = { git = "https://github.com/user/zyte-http.git" }
+
+# Version dependency (from registry)
+zyte-database = { version = "^1.2.0" }
+
+[workspaces]
+packages = ["packages/*", "apps/*"]
+
+[scripts]
+dev = "zig build run"
+test = "zig build test"
+build = "zig build -Doptimize=ReleaseFast"
+format = "find src -name '*.zig' -exec zig fmt {} +"
+```
+
+#### JSON Configuration (`zyte.json` or `package.jsonc`)
+
+```json
+{
+  "name": "my-zyte-app",
+  "version": "0.1.0",
+  "authors": ["Your Name <you@example.com>"],
+  "description": "A cross-platform desktop application",
+  "license": "MIT",
+
+  "dependencies": {
+    "zyte-ui": { "path": "../zyte-ui" },
+    "zyte-http": { "git": "https://github.com/user/zyte-http.git" },
+    "zyte-database": "^1.2.0"
+  },
+
+  "workspaces": {
+    "packages": ["packages/*", "apps/*"]
+  },
+
+  "scripts": {
+    "dev": "zig build run",
+    "test": "zig build test",
+    "build": "zig build -Doptimize=ReleaseFast",
+    "format": "find src -name '*.zig' -exec zig fmt {} +"
+  }
+}
+```
+
+### Dependency Types
+
+**Local Path Dependencies**
+
+```toml
+[dependencies]
+my-lib = { path = "../my-lib" }
+```
+
+```json
+{
+  "dependencies": {
+    "my-lib": { "path": "../my-lib" }
+  }
+}
+```
+
+**Git Dependencies**
+
+```toml
+[dependencies]
+awesome-lib = { git = "https://github.com/user/awesome-lib.git" }
+```
+
+```json
+{
+  "dependencies": {
+    "awesome-lib": { "git": "https://github.com/user/awesome-lib.git" }
+  }
+}
+```
+
+**Version Dependencies (Registry)**
+
+```toml
+[dependencies]
+popular-lib = { version = "^1.0.0" }
+# Or shorthand
+another-lib = "^2.0.0"
+```
+
+```json
+{
+  "dependencies": {
+    "popular-lib": "^1.0.0"
+  }
+}
+```
+
+### Workspace Configuration
+
+Organize multiple packages in a monorepo structure:
+
+**Root Package (`zyte.toml`)**
+
+```toml
+[package]
+name = "my-workspace"
+version = "0.1.0"
+
+[workspaces]
+packages = [
+    "packages/core",
+    "packages/ui",
+    "packages/cli",
+    "apps/*"
+]
+
+[scripts]
+build = "zig build"
+test = "zig build test"
+```
+
+**Package in Workspace (`packages/core/zyte.toml`)**
+
+```toml
+[package]
+name = "core"
+version = "0.1.0"
+description = "Core functionality"
+
+[dependencies]
+some-lib = "^1.0.0"
+```
+
+### Scripts
+
+Define custom commands for common tasks:
+
+```toml
+[scripts]
+dev = "zig build run -Doptimize=Debug"
+build = "zig build -Doptimize=ReleaseFast"
+test = "zig build test"
+bench = "zig build bench"
+format = "zig fmt src/"
+lint = "zig build check"
+```
+
+Run scripts with: `zyte run <script-name>` (planned feature)
+
+### Using in Zig Code
+
+```zig
+const std = @import("std");
+const package = @import("package.zig");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // Load package from current directory
+    const pkg = try package.findAndLoadPackage(allocator, ".");
+    defer pkg.deinit(allocator);
+
+    std.debug.print("Package: {s} v{s}\n", .{ pkg.name, pkg.version });
+
+    if (pkg.dependencies) |deps| {
+        var it = deps.iterator();
+        while (it.next()) |entry| {
+            std.debug.print("  - {s}\n", .{entry.key_ptr.*});
+        }
+    }
+}
+```
+
+### Example Package Configurations
+
+**Desktop Application**
+
+```json
+{
+  "name": "my-desktop-app",
+  "version": "1.0.0",
+  "description": "A beautiful desktop application",
+  "authors": ["Your Name"],
+  "license": "MIT",
+
+  "dependencies": {
+    "zyte-ui": "^1.0.0",
+    "zyte-notifications": "^0.5.0"
+  },
+
+  "scripts": {
+    "dev": "zig build run",
+    "build:mac": "zig build -Dtarget=aarch64-macos",
+    "build:linux": "zig build -Dtarget=x86_64-linux",
+    "build:windows": "zig build -Dtarget=x86_64-windows"
+  }
+}
+```
+
+**Menubar Application**
+
+```toml
+[package]
+name = "menubar-timer"
+version = "0.2.0"
+description = "A simple menubar timer"
+license = "MIT"
+
+[dependencies]
+zyte-menubar = { version = "^1.0.0" }
+zyte-notifications = { version = "^0.5.0" }
+
+[scripts]
+dev = "zig build run"
+build = "zig build -Doptimize=ReleaseFast"
+```
+
+**Library Package**
+
+```json
+{
+  "name": "zyte-database",
+  "version": "1.2.0",
+  "description": "SQL database access with SQLite driver",
+  "authors": ["Zyte Contributors"],
+  "license": "MIT",
+
+  "dependencies": {
+    "zyte-diagnostics": { "path": "../diagnostics" }
+  },
+
+  "scripts": {
+    "test": "zig test src/database.zig",
+    "bench": "zig build bench"
+  }
+}
+```
+
 ## Architecture
 
 Zyte is built with a modular architecture:
@@ -695,7 +961,8 @@ src/
 ├── window.zig       # Window management
 ├── ipc.zig          # Inter-process communication
 ├── state.zig        # Reactive state management
-└── animation.zig    # Animation engine
+├── animation.zig    # Animation engine
+└── package.zig      # Package configuration and management
 ```
 
 ## Contributing

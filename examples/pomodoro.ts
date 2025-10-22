@@ -336,8 +336,7 @@ const html = `
     function updateTitle() {
       const emoji = isWorkSession ? '🍅' : '☕';
       const time = formatTime(timeRemaining);
-      const status = isRunning ? '' : ' (Paused)';
-      const title = \`\${emoji} \${time}\${status}\`;
+      const title = \`\${emoji} \${time}\`;
 
       // Update both window title and menubar (if system tray is enabled)
       document.title = title;
@@ -509,7 +508,11 @@ const html = `
       } else if ((e.metaKey || e.ctrlKey) && e.code === 'KeyH') {
         e.preventDefault();
         console.log('Hide window (minimize to menubar)');
-        showNotification('Window hidden - click menubar to show');
+        if (window.zyte?.window) {
+          window.zyte.window.hide();
+          isWindowVisible = false;
+          updateMenuLabels();
+        }
       }
     });
 
@@ -553,6 +556,20 @@ const html = `
         case 'skip-session':
           console.log('[Pomodoro] Skipping session from menu');
           skipSession();
+          break;
+        case 'hide':
+          console.log('[Pomodoro] Hiding window from menu');
+          isWindowVisible = false;
+          updateMenuLabels();
+          break;
+        case 'show':
+          console.log('[Pomodoro] Showing window from menu');
+          isWindowVisible = true;
+          updateMenuLabels();
+          break;
+        case 'about':
+          console.log('[Pomodoro] Showing about dialog');
+          showAbout();
           break;
       }
     };
@@ -604,10 +621,34 @@ const html = `
     console.log('');
     console.log('The timer is displayed in the menubar (window title)');
 
+    // Track window visibility state
+    let isWindowVisible = true;
+
+    // Show About dialog
+    function showAbout() {
+      const aboutMessage = \`Pomodoro Timer for Menubar
+
+A clean, functional Pomodoro timer built with Zyte.
+
+Version: 1.0.0
+Work Session: 25 minutes
+Break Duration: 5 minutes
+
+Built with ❤️ using Zyte Framework
+https://github.com/stacksjs/zyte\`;
+
+      if (window.zyte?.window) {
+        // Show alert dialog
+        window.zyte.window.alert(aboutMessage);
+      } else {
+        alert(aboutMessage);
+      }
+    }
+
     // Function to update menu labels dynamically
     function updateMenuLabels() {
       if (window.zyte?.tray) {
-        window.zyte.tray.setMenu([
+        const menuItems = [
           {
             label: isRunning ? 'Pause Timer' : 'Start Timer',
             id: 'toggle',
@@ -623,14 +664,27 @@ const html = `
             id: 'skip',
             action: 'skip-session'
           },
-          { type: 'separator' },
-          {
-            label: 'Show Window',
-            action: 'show'
-          },
-          {
+          { type: 'separator' }
+        ];
+
+        // Add either Show or Hide based on current visibility
+        if (isWindowVisible) {
+          menuItems.push({
             label: 'Hide Window',
             action: 'hide'
+          });
+        } else {
+          menuItems.push({
+            label: 'Show Window',
+            action: 'show'
+          });
+        }
+
+        menuItems.push(
+          { type: 'separator' },
+          {
+            label: 'About',
+            action: 'about'
           },
           { type: 'separator' },
           {
@@ -638,7 +692,9 @@ const html = `
             action: 'quit',
             shortcut: 'Cmd+Q'
           }
-        ]);
+        );
+
+        window.zyte.tray.setMenu(menuItems);
       }
     }
 
