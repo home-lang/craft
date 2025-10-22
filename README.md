@@ -650,36 +650,6 @@ zyte http://localhost:3000 \
   --always-on-top
 ```
 
-## Performance
-
-| Metric | Zyte | Electron | Tauri |
-|--------|------|----------|-------|
-| Binary Size | **1.4MB** | ~150MB | ~2MB |
-| Memory (idle) | **~92MB** | ~200MB | ~80MB |
-| Startup Time | **<100ms** | ~1000ms | ~100ms |
-| CPU (idle) | **<1%** | ~4% | <1% |
-<!-- | Platforms | **5** (Desktop + Mobile) | 3 | 3 |
-| Native Components | **35** | 0 | Limited | -->
-
-## Platform Support
-
-| Platform | Status | WebView | Native Components |
-|----------|--------|---------|-------------------|
-| **macOS** | ✅ Production | WKWebView | ✅ All 35 |
-| **Linux** | ✅ Production | WebKit2GTK 4.0+ | ✅ All 35 |
-| **Windows** | ✅ Production | WebView2 (Edge) | ✅ All 35 |
-| **iOS** | ✅ Beta | WKWebView | ✅ UIKit |
-| **Android** | ✅ Beta | WebView | ✅ Material |
-
-## Documentation
-
-- 📖 [API Reference](API_REFERENCE.md) - Complete API documentation
-- 🚀 [Quick Start](QUICK_START.md) - Get started quickly
-- 📘 [Getting Started](GETTING_STARTED.md) - Detailed guide
-- ✨ [Features](FEATURES.md) - Complete feature list
-- 🤝 [Contributing](CONTRIBUTING.md) - Contribution guide
-- 📋 [Changelog](https://github.com/stacksjs/zyte/releases) - Release history
-
 ## Package System
 
 Zyte uses a flexible package configuration system that supports multiple formats:
@@ -964,6 +934,36 @@ src/
 ├── animation.zig    # Animation engine
 └── package.zig      # Package configuration and management
 ```
+
+## Performance
+
+| Metric | Zyte | Electron | Tauri |
+|--------|------|----------|-------|
+| Binary Size | **1.4MB** | ~150MB | ~2MB |
+| Memory (idle) | **~92MB** | ~200MB | ~80MB |
+| Startup Time | **<100ms** | ~1000ms | ~100ms |
+| CPU (idle) | **<1%** | ~4% | <1% |
+<!-- | Platforms | **5** (Desktop + Mobile) | 3 | 3 |
+| Native Components | **35** | 0 | Limited | -->
+
+## Platform Support
+
+| Platform | Status | WebView | Native Components |
+|----------|--------|---------|-------------------|
+| **macOS** | ✅ Production | WKWebView | ✅ All 35 |
+| **Linux** | ✅ Production | WebKit2GTK 4.0+ | ✅ All 35 |
+| **Windows** | ✅ Production | WebView2 (Edge) | ✅ All 35 |
+| **iOS** | ✅ Beta | WKWebView | ✅ UIKit |
+| **Android** | ✅ Beta | WebView | ✅ Material |
+
+## Documentation
+
+- 📖 [API Reference](API_REFERENCE.md) - Complete API documentation
+- 🚀 [Quick Start](QUICK_START.md) - Get started quickly
+- 📘 [Getting Started](GETTING_STARTED.md) - Detailed guide
+- ✨ [Features](FEATURES.md) - Complete feature list
+- 🤝 [Contributing](CONTRIBUTING.md) - Contribution guide
+- 📋 [Changelog](https://github.com/stacksjs/zyte/releases) - Release history
 
 ## Contributing
 
