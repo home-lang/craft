@@ -43,8 +43,7 @@ pub const WindowBridge = struct {
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            const window = @as(macos.objc.id, @ptrFromInt(@intFromPtr(self.window_handle.?)));
-            macos.showWindow(window);
+            macos.showWindow(self.window_handle.?);
         }
     }
 
@@ -56,8 +55,7 @@ pub const WindowBridge = struct {
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            const window = @as(macos.objc.id, @ptrFromInt(@intFromPtr(self.window_handle.?)));
-            macos.hideWindow(window);
+            macos.hideWindow(self.window_handle.?);
         }
     }
 
@@ -69,17 +67,7 @@ pub const WindowBridge = struct {
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            const window = @as(macos.objc.id, @ptrFromInt(@intFromPtr(self.window_handle.?)));
-
-            // Check if window is visible
-            const is_visible = macos.msgSend0(window, "isVisible");
-            const visible = @as(i64, @bitCast(is_visible)) != 0;
-
-            if (visible) {
-                macos.hideWindow(window);
-            } else {
-                macos.showWindow(window);
-            }
+            macos.toggleWindow(self.window_handle.?);
         }
     }
 
@@ -91,8 +79,7 @@ pub const WindowBridge = struct {
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            const window = @as(macos.objc.id, @ptrFromInt(@intFromPtr(self.window_handle.?)));
-            macos.minimizeWindow(window);
+            macos.minimizeWindow(self.window_handle.?);
         }
     }
 
@@ -104,8 +91,7 @@ pub const WindowBridge = struct {
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            const window = @as(macos.objc.id, @ptrFromInt(@intFromPtr(self.window_handle.?)));
-            macos.closeWindow(window);
+            macos.closeWindow(self.window_handle.?);
         }
     }
 

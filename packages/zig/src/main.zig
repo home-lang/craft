@@ -188,6 +188,19 @@ pub const App = struct {
         return window;
     }
 
+    pub fn createWindowWithHTML(self: *Self, title: []const u8, width: u32, height: u32, html: []const u8, style: WindowStyle) !*Window {
+        if (builtin.os.tag == .macos) {
+            const native_window = try macos.createWindowWithHTML(title, width, height, html, style);
+            const window = try self.allocator.create(Window);
+            window.* = Window.init(title, width, height, html);
+            window.native_handle = @ptrCast(native_window);
+            try self.windows.append(self.allocator, window);
+            return window;
+        } else {
+            return error.UnsupportedPlatform;
+        }
+    }
+
     pub fn createWindowWithURL(self: *Self, title: []const u8, width: u32, height: u32, url: []const u8, style: WindowStyle) !*Window {
         if (builtin.os.tag == .macos) {
             const native_window = try macos.createWindowWithURL(title, width, height, url, style);

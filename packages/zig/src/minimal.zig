@@ -73,7 +73,24 @@ pub fn main() !void {
         std.debug.print("   Title: {s}\n", .{options.title});
         std.debug.print("   Size: {d}x{d}\n\n", .{ options.width, options.height });
 
-        _ = try app.createWindow(options.title, options.width, options.height, html);
+        _ = try app.createWindowWithHTML(
+            options.title,
+            options.width,
+            options.height,
+            html,
+            .{
+                .frameless = options.frameless,
+                .transparent = options.transparent,
+                .resizable = options.resizable,
+                .always_on_top = options.always_on_top,
+                .fullscreen = options.fullscreen,
+                .x = options.x,
+                .y = options.y,
+                .dark_mode = options.dark_mode,
+                .enable_hot_reload = options.hot_reload,
+                .hide_dock_icon = options.hide_dock_icon,
+            },
+        );
     } else {
         // Show default demo app
         std.debug.print("\n⚡ Launching Zyte demo app\n", .{});
@@ -197,6 +214,9 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
     // Create system tray AFTER finishLaunching (this is the key!)
     const sys_tray = try app.createSystemTray(options.title);
 
+    // Setup bridge handlers with tray handle
+    // This will be done automatically when the window is created
+
     // Create window AFTER system tray (UNLESS menubar-only mode is enabled)
     if (!options.menubar_only) {
         if (options.url) |url| {
@@ -219,7 +239,24 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
                 },
             );
         } else if (options.html) |html| {
-            _ = try app.createWindow(options.title, options.width, options.height, html);
+            _ = try app.createWindowWithHTML(
+                options.title,
+                options.width,
+                options.height,
+                html,
+                .{
+                    .frameless = options.frameless,
+                    .transparent = options.transparent,
+                    .resizable = options.resizable,
+                    .always_on_top = options.always_on_top,
+                    .fullscreen = options.fullscreen,
+                    .x = options.x,
+                    .y = options.y,
+                    .dark_mode = options.dark_mode,
+                    .enable_hot_reload = options.hot_reload,
+                    .hide_dock_icon = options.hide_dock_icon,
+                },
+            );
         }
     }
 
@@ -237,10 +274,9 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
 
     // Show windows AFTER system tray is created but BEFORE running the event loop
     // Using orderFront (in showWindows) prevents app activation which would hide the tray
-    // Skip if menubar-only mode
-    if (!options.menubar_only) {
-        app.showWindows();
-    }
+    // IMPORTANT: We must show windows even in menubar-only mode to trigger WebView loading
+    // Without this, the WebView won't load its HTML/JavaScript content
+    app.showWindows();
 
     try app.run();
 }

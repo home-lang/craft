@@ -252,32 +252,82 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     const NSStatusBar = objc.objc_getClass("NSStatusBar");
     const systemStatusBar = msgSend0(NSStatusBar, "systemStatusBar");
 
-    // Create status item with variable length
-    const NSVariableStatusItemLength: f64 = -1.0;
-    const statusItem = msgSend1(systemStatusBar, "statusItemWithLength:", NSVariableStatusItemLength);
+    // Create status item with fixed length (80 points for emoji + text)
+    const item_length: f64 = 80.0;
+    const statusItem = msgSend1(systemStatusBar, "statusItemWithLength:", item_length);
+
+    std.debug.print("[Tray] Created status item with length {d}\n", .{item_length});
 
     // Get the button
     const button = msgSend0(statusItem, "button");
+    if (button == null) {
+        std.debug.print("[Tray] ERROR: button is null!\n", .{});
+        return error.ButtonCreationFailed;
+    }
 
-    // Set initial title - EXACTLY like working test does it
-    // Just use the raw title pointer directly (title is already null-terminated)
+    std.debug.print("[Tray] Got button: {*}\n", .{button});
+
+    // Set initial title with null-terminated string
     const text_to_display = icon_text orelse title;
 
+    var allocator = std.heap.c_allocator;
+    const text_z = allocator.dupeZ(u8, text_to_display) catch |err| {
+        std.debug.print("[Tray] Error creating null-terminated title: {}\n", .{err});
+        return error.AllocationFailed;
+    };
+    defer allocator.free(text_z);
+
     const NSString = objc.objc_getClass("NSString");
-    const titleStr = msgSend1(NSString, "stringWithUTF8String:", text_to_display.ptr);
-    _ = msgSend1(button, "setTitle:", titleStr);
+    const titleStr = msgSend1(NSString, "stringWithUTF8String:", text_z.ptr);
+    msgSendVoid1(button, "setTitle:", titleStr);
+
+    std.debug.print("[Tray] Set button title to: {s}\n", .{text_to_display});
 
     // Make sure the status item is visible
     const visible: c_int = 1;
     msgSendVoid1(statusItem, "setVisible:", visible);
 
+    std.debug.print("[Tray] Status item visibility set\n", .{});
+
+    // Create a default menu with basic items
+    const NSMenu = objc.objc_getClass("NSMenu");
+    const defaultMenu = msgSend0(msgSend0(NSMenu, "alloc"), "init");
+
+    const NSMenuItem = objc.objc_getClass("NSMenuItem");
+
+    // Add "Show Window" item
+    const showItem = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
+    const showTitle = msgSend1(NSString, "stringWithUTF8String:", "Show Window");
+    msgSendVoid1(showItem, "setTitle:", showTitle);
+    msgSendVoid1(defaultMenu, "addItem:", showItem);
+
+    // Add separator
+    const separator1 = msgSend0(NSMenuItem, "separatorItem");
+    msgSendVoid1(defaultMenu, "addItem:", separator1);
+
+    // Add "Quit" item
+    const quitItem = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
+    const quitTitle = msgSend1(NSString, "stringWithUTF8String:", "Quit");
+    msgSendVoid1(quitItem, "setTitle:", quitTitle);
+    msgSendVoid1(defaultMenu, "addItem:", quitItem);
+
+    // Attach default menu
+    _ = msgSend1(statusItem, "setMenu:", defaultMenu);
+    std.debug.print("[Tray] Created with default menu\n", .{});
+
     // Retain the status item so it doesn't get deallocated
     _ = msgSend0(statusItem, "retain");
 
-    return @ptrFromInt(@as(usize, @intCast(@intFromPtr(statusItem))));
+    const handle: *anyopaque = @ptrFromInt(@as(usize, @intCast(@intFromPtr(statusItem))));
+
+    // Set global tray handle for bridge
+    const macos = @import("macos.zig");
+    macos.setGlobalTrayHandle(handle);
+
+    return handle;
 }
 
-fn macosSetTitle(handle: *anyopaque, title: []const u8) !void {
+pub fn macosSetTitle(handle: *anyopaque, title: []const u8) !void {
     if (builtin.target.os.tag != .macos) return;
 
     const statusItem: objc.id = @ptrFromInt(@intFromPtr(handle));
@@ -285,15 +335,20 @@ fn macosSetTitle(handle: *anyopaque, title: []const u8) !void {
     // Get the button
     const button = msgSend0(statusItem, "button");
 
-    // Create NSString from title
+    // Create null-terminated string for NSString
+    var allocator = std.heap.c_allocator;
+    const title_z = try allocator.dupeZ(u8, title);
+    defer allocator.free(title_z);
+
+    // Create NSString from null-terminated title
     const NSString = objc.objc_getClass("NSString");
-    const titleStr = msgSend1(NSString, "stringWithUTF8String:", title.ptr);
+    const titleStr = msgSend1(NSString, "stringWithUTF8String:", title_z.ptr);
 
     // Set title on button
     _ = msgSend1(button, "setTitle:", titleStr);
 }
 
-fn macosSetTooltip(handle: *anyopaque, tooltip: []const u8) !void {
+pub fn macosSetTooltip(handle: *anyopaque, tooltip: []const u8) !void {
     if (builtin.target.os.tag != .macos) return;
 
     const statusItem: objc.id = @ptrFromInt(@intFromPtr(handle));
@@ -301,9 +356,14 @@ fn macosSetTooltip(handle: *anyopaque, tooltip: []const u8) !void {
     // Get the button
     const button = msgSend0(statusItem, "button");
 
-    // Create NSString from tooltip
+    // Create null-terminated string for NSString
+    var allocator = std.heap.c_allocator;
+    const tooltip_z = try allocator.dupeZ(u8, tooltip);
+    defer allocator.free(tooltip_z);
+
+    // Create NSString from null-terminated tooltip
     const NSString = objc.objc_getClass("NSString");
-    const tooltipStr = msgSend1(NSString, "stringWithUTF8String:", tooltip.ptr);
+    const tooltipStr = msgSend1(NSString, "stringWithUTF8String:", tooltip_z.ptr);
 
     // Set tooltip on button
     _ = msgSend1(button, "setToolTip:", tooltipStr);
@@ -332,14 +392,20 @@ fn macosDestroy(handle: *anyopaque) void {
     _ = msgSend0(statusItem, "release");
 }
 
-fn macosSetMenu(handle: *anyopaque, menu: *anyopaque) !void {
+pub fn macosSetMenu(handle: *anyopaque, menu: *anyopaque) !void {
     if (builtin.target.os.tag != .macos) return;
 
     const statusItem: objc.id = @ptrFromInt(@intFromPtr(handle));
     const nsMenu: objc.id = @ptrFromInt(@intFromPtr(menu));
 
+    std.debug.print("[Tray] Setting menu on status item\n", .{});
+    std.debug.print("[Tray] Status item: {*}\n", .{statusItem});
+    std.debug.print("[Tray] Menu: {*}\n", .{nsMenu});
+
     // Set the menu on the status item
     _ = msgSend1(statusItem, "setMenu:", nsMenu);
+
+    std.debug.print("[Tray] Menu set successfully\n", .{});
 }
 
 fn macosSetIcon(handle: *anyopaque, icon_path: []const u8) !void {

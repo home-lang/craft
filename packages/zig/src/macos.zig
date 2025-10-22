@@ -59,8 +59,12 @@ pub fn msgSend1(target: anytype, selector: [*:0]const u8, arg1: anytype) objc.id
 }
 
 fn msgSend2(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anytype) objc.id {
-    const msg = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(arg1), @TypeOf(arg2)) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
-    return msg(target, sel(selector), arg1, arg2);
+    const Arg1Type = if (@TypeOf(arg1) == @TypeOf(null)) ?*anyopaque else @TypeOf(arg1);
+    const Arg2Type = if (@TypeOf(arg2) == @TypeOf(null)) ?*anyopaque else @TypeOf(arg2);
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, Arg1Type, Arg2Type) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
+    const typed_arg1: Arg1Type = if (@TypeOf(arg1) == @TypeOf(null)) null else arg1;
+    const typed_arg2: Arg2Type = if (@TypeOf(arg2) == @TypeOf(null)) null else arg2;
+    return msg(target, sel(selector), typed_arg1, typed_arg2);
 }
 
 fn msgSend4(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anytype, arg3: anytype, arg4: anytype) objc.id {
@@ -84,12 +88,22 @@ fn msgSendVoid2(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: a
 }
 
 fn msgSend3(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anytype, arg3: anytype) objc.id {
-    const msg = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(arg1), @TypeOf(arg2), @TypeOf(arg3)) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
-    return msg(target, sel(selector), arg1, arg2, arg3);
+    const Arg1Type = if (@TypeOf(arg1) == @TypeOf(null)) ?*anyopaque else @TypeOf(arg1);
+    const Arg2Type = if (@TypeOf(arg2) == @TypeOf(null)) ?*anyopaque else @TypeOf(arg2);
+    const Arg3Type = if (@TypeOf(arg3) == @TypeOf(null)) ?*anyopaque else @TypeOf(arg3);
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, Arg1Type, Arg2Type, Arg3Type) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
+    const typed_arg1: Arg1Type = if (@TypeOf(arg1) == @TypeOf(null)) null else arg1;
+    const typed_arg2: Arg2Type = if (@TypeOf(arg2) == @TypeOf(null)) null else arg2;
+    const typed_arg3: Arg3Type = if (@TypeOf(arg3) == @TypeOf(null)) null else arg3;
+    return msg(target, sel(selector), typed_arg1, typed_arg2, typed_arg3);
 }
 
 pub fn createWindow(title: []const u8, width: u32, height: u32, html: []const u8) !objc.id {
     return createWindowWithStyle(title, width, height, html, null, .{});
+}
+
+pub fn createWindowWithHTML(title: []const u8, width: u32, height: u32, html: []const u8, style: WindowStyle) !objc.id {
+    return createWindowWithStyle(title, width, height, html, null, style);
 }
 
 pub fn createWindowWithURL(title: []const u8, width: u32, height: u32, url: []const u8, style: WindowStyle) !objc.id {
@@ -107,7 +121,6 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     const WKPreferences = getClass("WKPreferences");
     const WKWebViewConfiguration = getClass("WKWebViewConfiguration");
     const WKUserContentController = getClass("WKUserContentController");
-    const WKUserScript = getClass("WKUserScript");
 
     // Note: Activation policy is set in initApp(), NOT here!
     // We must not call setActivationPolicy after finishLaunching has been called
@@ -171,6 +184,9 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     const prefs_alloc = msgSend0(WKPreferences, "alloc");
     const prefs = msgSend0(prefs_alloc, "init");
 
+    // Enable JavaScript explicitly (should be enabled by default, but let's be explicit)
+    msgSendVoid1(prefs, "setJavaScriptEnabled:", true);
+
     // Enable developer extras (DevTools)
     const key_str = createNSString("developerExtrasEnabled");
     const value_obj = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
@@ -180,21 +196,14 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     // Set up user content controller for JavaScript bridge
     const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
 
-    // Inject Zyte JavaScript API
-    const bridge_js = getZyteBridgeScript();
-    const js_source = createNSString(bridge_js);
+    // NOTE: We inject the bridge script directly into the HTML instead of using WKUserScript
+    // because WKUserScript doesn't reliably inject when using loadHTMLString with null baseURL
 
-    // WKUserScriptInjectionTimeAtDocumentStart = 0
-    const injection_time: c_int = 0;
-    // forMainFrameOnly = true
-    const for_main_frame: bool = true;
+    // Set up the script message handler NOW (not later)
+    setupScriptMessageHandler(userContentController) catch |err| {
+        std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
+    };
 
-    const user_script_alloc = msgSend0(WKUserScript, "alloc");
-    const user_script = msgSend3(user_script_alloc, "initWithSource:injectionTime:forMainFrameOnly:", js_source, injection_time, for_main_frame);
-    msgSendVoid1(userContentController, "addUserScript:", user_script);
-
-    // Add script message handler (will be set up later)
-    // For now we just set the user content controller
     _ = msgSend1(config, "setUserContentController:", userContentController);
 
     // Create WKWebView with configuration
@@ -213,21 +222,66 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         const request = msgSend1(NSURLRequest, "requestWithURL:", nsurl);
         _ = msgSend1(webview, "loadRequest:", request);
     } else if (html) |h| {
-        // Load HTML string
-        const html_cstr = try std.heap.c_allocator.dupeZ(u8, h);
+        // CRITICAL FIX: WKUserScript doesn't reliably inject with loadHTMLString when baseURL is null
+        // So we inject the bridge script directly into the HTML before loading
+        const bridge_js = getZyteBridgeScript();
+
+
+        // Find </head> tag and inject script before it
+        var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, h.len + bridge_js.len + 20);
+        defer modified_html.deinit(std.heap.c_allocator);
+
+        if (std.mem.indexOf(u8, h, "</head>")) |head_pos| {
+            // Inject before </head>
+            try modified_html.appendSlice(std.heap.c_allocator, h[0..head_pos]);
+            try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
+            try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
+            try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+            try modified_html.appendSlice(std.heap.c_allocator, h[head_pos..]);
+        } else {
+            // No </head> found, just prepend to the HTML
+            try modified_html.appendSlice(std.heap.c_allocator, "<script>");
+            try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
+            try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+            try modified_html.appendSlice(std.heap.c_allocator, h);
+        }
+
+        const final_html = try modified_html.toOwnedSlice(std.heap.c_allocator);
+        defer std.heap.c_allocator.free(final_html);
+
+
+        // Load the modified HTML with a proper baseURL
+        // This is important - without a baseURL, body scripts may not execute!
+        const html_cstr = try std.heap.c_allocator.dupeZ(u8, final_html);
         defer std.heap.c_allocator.free(html_cstr);
         const html_str_alloc = msgSend0(NSString, "alloc");
         const html_str = msgSend1(html_str_alloc, "initWithUTF8String:", html_cstr.ptr);
 
-        const base_url: ?*anyopaque = null;
+        // Create a baseURL - use http://localhost to avoid security restrictions
+        // about:blank has restrictions on evaluateJavaScript from native code
+        const base_url_string = createNSString("http://localhost/");
+        const base_url = msgSend1(NSURL, "URLWithString:", base_url_string);
+
         _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, base_url);
     }
 
     // Set webview as content view
     _ = msgSend1(window, "setContentView:", webview);
 
-    // Store webview reference globally
+    // Store webview and window references globally
     setGlobalWebView(webview);
+
+    // Also set references for tray menu actions
+    const tray_menu = @import("tray_menu.zig");
+    tray_menu.setGlobalWebView(webview);
+    tray_menu.setGlobalWindow(window);
+
+    // Setup bridge handlers (need allocator and handles)
+    // We'll use a global allocator for now
+    const allocator = std.heap.c_allocator;
+    setupBridgeHandlers(allocator, null, window) catch |err| {
+        std.debug.print("[Bridge] Failed to setup bridge handlers: {}\n", .{err});
+    };
 
     // Apply dark mode if specified
     if (style.dark_mode) |is_dark| {
@@ -363,7 +417,8 @@ pub fn showSaveDialog(title: []const u8, default_name: ?[]const u8) !?[]const u8
 }
 
 // Window control functions
-pub fn minimizeWindow(window: objc.id) void {
+pub fn minimizeWindow(window_handle: anytype) void {
+    const window: objc.id = if (@TypeOf(window_handle) == objc.id) window_handle else @ptrFromInt(@intFromPtr(window_handle));
     msgSendVoid0(window, "miniaturize:");
 }
 
@@ -375,16 +430,31 @@ pub fn toggleFullscreen(window: objc.id) void {
     msgSendVoid0(window, "toggleFullScreen:");
 }
 
-pub fn closeWindow(window: objc.id) void {
+pub fn closeWindow(window_handle: anytype) void {
+    const window: objc.id = if (@TypeOf(window_handle) == objc.id) window_handle else @ptrFromInt(@intFromPtr(window_handle));
     msgSendVoid0(window, "close");
 }
 
-pub fn hideWindow(window: objc.id) void {
+pub fn hideWindow(window_handle: anytype) void {
+    const window: objc.id = if (@TypeOf(window_handle) == objc.id) window_handle else @ptrFromInt(@intFromPtr(window_handle));
     msgSendVoid0(window, "orderOut:");
 }
 
-pub fn showWindow(window: objc.id) void {
+pub fn showWindow(window_handle: anytype) void {
+    const window: objc.id = if (@TypeOf(window_handle) == objc.id) window_handle else @ptrFromInt(@intFromPtr(window_handle));
     _ = msgSend1(window, "makeKeyAndOrderFront:", @as(?*anyopaque, null));
+}
+
+pub fn toggleWindow(window_handle: anytype) void {
+    const window: objc.id = if (@TypeOf(window_handle) == objc.id) window_handle else @ptrFromInt(@intFromPtr(window_handle));
+    const is_visible = msgSend0(window, "isVisible");
+    const visible_int = @as(c_int, @intCast(@intFromPtr(is_visible)));
+
+    if (visible_int != 0) {
+        hideWindow(window);
+    } else {
+        showWindow(window);
+    }
 }
 
 pub fn setWindowPosition(window: objc.id, x: i32, y: i32) void {
@@ -654,6 +724,7 @@ fn getZyteBridgeScript() []const u8 {
         \\ (function() {
         \\   console.log('[Zyte] Initializing JavaScript bridge...');
         \\
+        \\   // Define the bridge API immediately (so it's available for use)
         \\   window.zyte = window.zyte || {};
         \\
         \\   // ===== TRAY API =====
@@ -685,6 +756,19 @@ fn getZyteBridgeScript() []const u8 {
         \\           resolve();
         \\         } catch (error) {
         \\           reject(new Error(`Failed to set tray tooltip: ${error.message}`));
+        \\         }
+        \\       });
+        \\     },
+        \\     async setMenu(items) {
+        \\       if (!Array.isArray(items)) throw new TypeError('Menu items must be an array');
+        \\       return new Promise((resolve, reject) => {
+        \\         try {
+        \\           window.webkit.messageHandlers.zyte.postMessage({
+        \\             type: 'tray', action: 'setMenu', data: JSON.stringify(items)
+        \\           });
+        \\           resolve();
+        \\         } catch (error) {
+        \\           reject(new Error(`Failed to set tray menu: ${error.message}`));
         \\         }
         \\       });
         \\     },
@@ -815,8 +899,52 @@ fn getZyteBridgeScript() []const u8 {
         \\     }
         \\   };
         \\
-        \\   console.log('[Zyte] JavaScript bridge ready');
-        \\   window.dispatchEvent(new CustomEvent('zyte:ready'));
+        \\   // Fire the ready event and manually trigger any event listeners
+        \\   // Since loadHTMLString doesn't reliably execute body scripts, we need a workaround
+        \\   function fireReady() {
+        \\     console.log('[Zyte] JavaScript bridge ready - firing zyte:ready event');
+        \\     window.dispatchEvent(new CustomEvent('zyte:ready'));
+        \\
+        \\     // WORKAROUND: If body scripts don't load, manually check for initialization functions
+        \\     // Look for a global init function that may have been defined
+        \\     if (typeof window.initializeZyteApp === 'function') {
+        \\       window.initializeZyteApp();
+        \\     }
+        \\   }
+        \\
+        \\   // Try multiple strategies to ensure scripts execute
+        \\   if (document.readyState === 'loading') {
+        \\     document.addEventListener('DOMContentLoaded', fireReady);
+        \\   } else if (document.readyState === 'interactive') {
+        \\     // DOM parsed but resources loading
+        \\     setTimeout(fireReady, 100);
+        \\   } else {
+        \\     // Already complete
+        \\     fireReady();
+        \\   }
+        \\
+        \\   // ===== POLLING FOR MENU ACTIONS =====
+        \\   // evaluateJavaScript doesn't work from menu callbacks, so we poll
+        \\   window.__zyteDeliverAction = function(action) {
+        \\     if (action && action.length > 0) {
+        \\       console.log('[Zyte] Polled menu action:', action);
+        \\       window.dispatchEvent(new CustomEvent('zyte:tray:menuAction', {
+        \\         detail: { action: action }
+        \\       }));
+        \\     }
+        \\   };
+        \\
+        \\   setInterval(function() {
+        \\     try {
+        \\       window.webkit.messageHandlers.zyte.postMessage({
+        \\         type: 'tray',
+        \\         action: 'pollActions',
+        \\         data: ''
+        \\       });
+        \\     } catch (e) {
+        \\       // Ignore polling errors
+        \\     }
+        \\   }, 100);
         \\ })();
     ;
 }
@@ -825,6 +953,16 @@ fn getZyteBridgeScript() []const u8 {
 var global_tray_bridge: ?*@import("bridge_tray.zig").TrayBridge = null;
 var global_window_bridge: ?*@import("bridge_window.zig").WindowBridge = null;
 var global_app_bridge: ?*@import("bridge_app.zig").AppBridge = null;
+var global_tray_handle_for_bridge: ?*anyopaque = null;
+
+pub fn setGlobalTrayHandle(handle: *anyopaque) void {
+    global_tray_handle_for_bridge = handle;
+
+    // Update bridge if it exists
+    if (global_tray_bridge) |bridge| {
+        bridge.setTrayHandle(handle);
+    }
+}
 
 pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaque, window_handle: ?*anyopaque) !void {
     const TrayBridge = @import("bridge_tray.zig").TrayBridge;
@@ -847,8 +985,9 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         global_app_bridge.?.* = AppBridge.init(allocator);
     }
 
-    // Set handles
-    if (tray_handle) |handle| {
+    // Set handles - use parameter or global
+    const tray_h = tray_handle orelse global_tray_handle_for_bridge;
+    if (tray_h) |handle| {
         global_tray_bridge.?.setTrayHandle(handle);
     }
 
@@ -857,10 +996,29 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
     }
 }
 
+/// Try to evaluate JavaScript (may fail silently)
+pub fn tryEvalJS(js_code: []const u8) !void {
+    const tray_menu = @import("tray_menu.zig");
+    if (tray_menu.getGlobalWebView()) |webview| {
+        const webview_id: objc.id = @ptrFromInt(@intFromPtr(webview));
+        const js_str = createNSString(js_code);
+        _ = msgSend2(webview_id, "evaluateJavaScript:completionHandler:", js_str, null);
+        std.debug.print("[Bridge] Executed JS: {s}\n", .{js_code});
+    } else {
+        return error.NoWebView;
+    }
+}
+
 /// Handle incoming messages from JavaScript bridge
 pub fn handleBridgeMessage(message_json: []const u8) !void {
-    // Simple JSON parsing (very basic - just enough for our needs)
-    // Expected format: {"type":"tray","action":"setTitle","data":"text"}
+    // Parse NSDictionary description format
+    // Expected format: { action = "setTitle"; data = "text"; type = "tray"; }
+    // Or JSON format: {"type":"tray","action":"setTitle","data":"text"}
+
+    // Skip logging pollActions to reduce noise
+    if (std.mem.indexOf(u8, message_json, "pollActions") == null) {
+        std.debug.print("[Bridge] Received message: {s}\n", .{message_json});
+    }
 
     var type_start: usize = 0;
     var type_end: usize = 0;
@@ -869,40 +1027,89 @@ pub fn handleBridgeMessage(message_json: []const u8) !void {
     var data_start: usize = 0;
     var data_end: usize = 0;
 
-    // Find "type":"value"
-    if (std.mem.indexOf(u8, message_json, "\"type\":\"")) |pos| {
-        type_start = pos + 8;
-        if (std.mem.indexOfPos(u8, message_json, type_start, "\"")) |end| {
-            type_end = end;
+    // Parse NSDictionary format: key = value; or key = "value";
+    // Find type (unquoted)
+    if (std.mem.indexOf(u8, message_json, "type")) |pos| {
+        // Skip past "type" and find =
+        if (std.mem.indexOfPos(u8, message_json, pos + 4, "=")) |eq_pos| {
+            // Skip whitespace after =
+            var start = eq_pos + 1;
+            while (start < message_json.len and (message_json[start] == ' ' or message_json[start] == '\t')) : (start += 1) {}
+
+            // Check if quoted
+            if (start < message_json.len and message_json[start] == '"') {
+                type_start = start + 1;
+                if (std.mem.indexOfPos(u8, message_json, type_start, "\"")) |end| {
+                    type_end = end;
+                }
+            } else {
+                // Unquoted - find next ; or space or newline
+                type_start = start;
+                if (std.mem.indexOfPos(u8, message_json, start, ";")) |end| {
+                    type_end = end;
+                }
+            }
         }
     }
 
-    // Find "action":"value"
-    if (std.mem.indexOf(u8, message_json, "\"action\":\"")) |pos| {
-        action_start = pos + 10;
-        if (std.mem.indexOfPos(u8, message_json, action_start, "\"")) |end| {
-            action_end = end;
+    // Find action (unquoted)
+    if (std.mem.indexOf(u8, message_json, "action")) |pos| {
+        if (std.mem.indexOfPos(u8, message_json, pos + 6, "=")) |eq_pos| {
+            var start = eq_pos + 1;
+            while (start < message_json.len and (message_json[start] == ' ' or message_json[start] == '\t')) : (start += 1) {}
+
+            if (start < message_json.len and message_json[start] == '"') {
+                action_start = start + 1;
+                if (std.mem.indexOfPos(u8, message_json, action_start, "\"")) |end| {
+                    action_end = end;
+                }
+            } else {
+                action_start = start;
+                if (std.mem.indexOfPos(u8, message_json, start, ";")) |end| {
+                    action_end = end;
+                }
+            }
         }
     }
 
-    // Find "data":"value" (optional)
-    if (std.mem.indexOf(u8, message_json, "\"data\":\"")) |pos| {
-        data_start = pos + 8;
-        if (std.mem.indexOfPos(u8, message_json, data_start, "\"")) |end| {
-            data_end = end;
+    // Find data (usually quoted, may contain escaped quotes)
+    if (std.mem.indexOf(u8, message_json, "data")) |pos| {
+        if (std.mem.indexOfPos(u8, message_json, pos + 4, "=")) |eq_pos| {
+            var start = eq_pos + 1;
+            while (start < message_json.len and (message_json[start] == ' ' or message_json[start] == '\t')) : (start += 1) {}
+
+            if (start < message_json.len and message_json[start] == '"') {
+                data_start = start + 1;
+                // Find closing quote, but skip escaped quotes (\")
+                var i = data_start;
+                while (i < message_json.len) : (i += 1) {
+                    if (message_json[i] == '\\' and i + 1 < message_json.len) {
+                        // Skip escaped character
+                        i += 1;
+                        continue;
+                    }
+                    if (message_json[i] == '"') {
+                        data_end = i;
+                        break;
+                    }
+                }
+            } else {
+                data_start = start;
+                if (std.mem.indexOfPos(u8, message_json, start, ";")) |end| {
+                    data_end = end;
+                }
+            }
         }
     }
 
     if (type_end == 0 or action_end == 0) {
-        std.debug.print("Invalid message format: {s}\n", .{message_json});
+        std.debug.print("[Bridge] Invalid message format (missing type or action)\n", .{});
         return;
     }
 
     const msg_type = message_json[type_start..type_end];
     const action = message_json[action_start..action_end];
     const data = if (data_end > 0) message_json[data_start..data_end] else "";
-
-    std.debug.print("[Bridge] Received: type={s}, action={s}, data={s}\n", .{ msg_type, action, data });
 
     // Route to appropriate bridge
     if (std.mem.eql(u8, msg_type, "tray")) {
@@ -917,33 +1124,111 @@ pub fn handleBridgeMessage(message_json: []const u8) !void {
         if (global_app_bridge) |bridge| {
             try bridge.handleMessage(action);
         }
+    } else if (std.mem.eql(u8, msg_type, "debug")) {
+        // Handle debug messages - look for "message" or "msg" field
+        if (std.mem.indexOf(u8, message_json, "message")) |msg_pos| {
+            if (std.mem.indexOfPos(u8, message_json, msg_pos + 7, "=")) |eq_pos| {
+                var start = eq_pos + 1;
+                while (start < message_json.len and (message_json[start] == ' ' or message_json[start] == '\t')) : (start += 1) {}
+                if (start < message_json.len and message_json[start] == '"') {
+                    const msg_start = start + 1;
+                    if (std.mem.indexOfPos(u8, message_json, msg_start, "\"")) |msg_end| {
+                        const debug_msg = message_json[msg_start..msg_end];
+                        std.debug.print("[JS Debug] {s}\n", .{debug_msg});
+                    }
+                }
+            }
+        } else if (std.mem.indexOf(u8, message_json, "msg")) |msg_pos| {
+            if (std.mem.indexOfPos(u8, message_json, msg_pos + 3, "=")) |eq_pos| {
+                var start = eq_pos + 1;
+                while (start < message_json.len and (message_json[start] == ' ' or message_json[start] == '\t')) : (start += 1) {}
+                if (start < message_json.len and message_json[start] == '"') {
+                    const msg_start = start + 1;
+                    if (std.mem.indexOfPos(u8, message_json, msg_start, "\"")) |msg_end| {
+                        const debug_msg = message_json[msg_start..msg_end];
+                        std.debug.print("[JS Debug] {s}\n", .{debug_msg});
+                    }
+                }
+            }
+        }
     } else {
         std.debug.print("Unknown message type: {s}\n", .{msg_type});
     }
 }
 
+/// Callback for WKScriptMessageHandler
+export fn didReceiveScriptMessage(self: objc.id, _: objc.SEL, userContentController: objc.id, message: objc.id) void {
+    _ = self;
+    _ = userContentController;
+
+    // Get the message body (should be a dictionary/object from JavaScript)
+    const body = msgSend0(message, "body");
+
+    // Get body as description string
+    const description = msgSend0(body, "description");
+    const cstr = @as([*:0]const u8, @ptrCast(msgSend0(description, "UTF8String")));
+    const desc_str = std.mem.span(cstr);
+
+    // Parse the description which should contain our JSON
+    // Description format is like: {action = "setTitle"; data = "text"; type = "tray";}
+    handleBridgeMessage(desc_str) catch |err| {
+        std.debug.print("[Bridge] Error handling message: {}\n", .{err});
+    };
+}
+
 /// Create and register the script message handler with WKUserContentController
 pub fn setupScriptMessageHandler(userContentController: objc.id) !void {
-    // Create a simple delegate class for handling script messages
-    // We'll use a static C callback approach for simplicity
+    std.debug.print("[Bridge] Setting up WKScriptMessageHandler...\n", .{});
 
-    // Get the handler name
+    // Create a custom class at runtime that implements WKScriptMessageHandler
+    const superclass = getClass("NSObject");
+    const className = "ZyteScriptMessageHandler";
+
+    // Try to get existing class first (in case we're called multiple times)
+    var handlerClass = objc.objc_getClass(className);
+
+    if (handlerClass == null) {
+        // Allocate a new class pair
+        handlerClass = objc.objc_allocateClassPair(
+            @ptrCast(superclass),
+            className,
+            0
+        );
+
+        if (handlerClass == null) {
+            std.debug.print("[Bridge] Failed to allocate class pair\n", .{});
+            return error.ClassAllocationFailed;
+        }
+
+        // Add the method: userContentController:didReceiveScriptMessage:
+        const method_sel = objc.sel_registerName("userContentController:didReceiveScriptMessage:");
+        const method_imp: objc.IMP = @ptrCast(&didReceiveScriptMessage);
+        const method_types: [*c]const u8 = "v@:@@";
+        const method_added = objc.class_addMethod(
+            @ptrCast(@alignCast(handlerClass)),
+            method_sel,
+            method_imp,
+            method_types,
+        );
+
+        if (!method_added) {
+            std.debug.print("[Bridge] Failed to add method\n", .{});
+        }
+
+        // Register the class
+        objc.objc_registerClassPair(@ptrCast(handlerClass));
+        std.debug.print("[Bridge] Registered ZyteScriptMessageHandler class\n", .{});
+    }
+
+    // Create an instance of our handler
+    const handler_class_id: objc.id = @ptrCast(@alignCast(handlerClass));
+    const handler = msgSend0(msgSend0(handler_class_id, "alloc"), "init");
+
+    // Add the handler to the user content controller
     const handler_name = createNSString("zyte");
+    msgSendVoid2(userContentController, "addScriptMessageHandler:name:", handler, handler_name);
 
-    // For now, we'll log that setup was attempted
-    // The actual message handling will be done through evaluateJavaScript callbacks
-    // or we need to create a proper Objective-C class at runtime
-    _ = userContentController;
-    _ = handler_name;
-
-    std.debug.print("[Bridge] Script message handler setup (placeholder)\n", .{});
-
-    // TODO: Implement proper WKScriptMessageHandler using objc_allocateClassPair
-    // This requires:
-    // 1. Create a new class that conforms to WKScriptMessageHandler protocol
-    // 2. Add userContentController:didReceiveScriptMessage: method
-    // 3. Register the class and create an instance
-    // 4. Add the instance as a script message handler
+    std.debug.print("[Bridge] Script message handler registered successfully\n", .{});
 }
 
 // ============================================================================
@@ -1720,6 +2005,54 @@ pub fn initAppWithoutLaunching() void {
     _ = app; // Just ensure app exists
 }
 
+/// Create a minimal application menu with standard shortcuts (CMD+H, CMD+Q, etc.)
+pub fn createApplicationMenu() void {
+    const NSApplication = getClass("NSApplication");
+    const NSMenu = getClass("NSMenu");
+    const NSMenuItem = getClass("NSMenuItem");
+    const NSString = getClass("NSString");
+
+    const app = msgSend0(NSApplication, "sharedApplication");
+
+    // Create main menu bar
+    const main_menu = msgSend0(msgSend0(NSMenu, "alloc"), "init");
+
+    // Create app menu (first menu in menu bar)
+    const app_menu_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
+    const app_menu = msgSend0(msgSend0(NSMenu, "alloc"), "init");
+
+    // Add "Hide" item with CMD+H
+    const hide_title = msgSend1(NSString, "stringWithUTF8String:", "Hide");
+    const hide_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
+    msgSendVoid1(hide_item, "setTitle:", hide_title);
+    const h_key = msgSend1(NSString, "stringWithUTF8String:", "h");
+    msgSendVoid1(hide_item, "setKeyEquivalent:", h_key);
+    const hide_sel = sel("hide:");
+    msgSendVoid1(hide_item, "setAction:", hide_sel);
+    msgSendVoid1(app_menu, "addItem:", hide_item);
+
+    // Add separator
+    const sep1 = msgSend0(NSMenuItem, "separatorItem");
+    msgSendVoid1(app_menu, "addItem:", sep1);
+
+    // Add "Quit" item with CMD+Q
+    const quit_title = msgSend1(NSString, "stringWithUTF8String:", "Quit");
+    const quit_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
+    msgSendVoid1(quit_item, "setTitle:", quit_title);
+    const q_key = msgSend1(NSString, "stringWithUTF8String:", "q");
+    msgSendVoid1(quit_item, "setKeyEquivalent:", q_key);
+    const quit_sel = sel("terminate:");
+    msgSendVoid1(quit_item, "setAction:", quit_sel);
+    msgSendVoid1(app_menu, "addItem:", quit_item);
+
+    // Set submenu
+    msgSendVoid1(app_menu_item, "setSubmenu:", app_menu);
+    msgSendVoid1(main_menu, "addItem:", app_menu_item);
+
+    // Set as main menu
+    msgSendVoid1(app, "setMainMenu:", main_menu);
+}
+
 /// Initialize for menubar/system tray apps (NO Dock icon)
 pub fn initAppForTray() void {
     const NSApplication = getClass("NSApplication");
@@ -1732,6 +2065,9 @@ pub fn initAppForTray() void {
     // MUST call finishLaunching BEFORE creating status bar items!
     // This is the key - the working test does it in this order
     msgSendVoid0(app, "finishLaunching");
+
+    // Create application menu for standard shortcuts (CMD+H, CMD+Q, etc.)
+    createApplicationMenu();
 }
 
 /// Show all windows (call this AFTER creating system tray, BEFORE runApp)

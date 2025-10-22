@@ -188,4 +188,30 @@ window.addEventListener('zyte:tray:menuAction', (event) => {
   window.zyte.tray._handleMenuAction(event.detail.action);
 });
 
+// Global function that native code can call to deliver pending actions
+window.__zyteDeliverAction = function(action) {
+  if (action && action.length > 0) {
+    console.log('[Zyte] Received polled action:', action);
+    window.dispatchEvent(new CustomEvent('zyte:tray:menuAction', {
+      detail: { action: action }
+    }));
+  }
+};
+
+// Poll for pending menu actions from native code
+// This is needed because evaluateJavaScript doesn't work from menu callbacks
+setInterval(() => {
+  try {
+    // Send a poll request to native code
+    // Native will call window.__zyteDeliverAction(action) if there's a pending action
+    window.webkit.messageHandlers.zyte.postMessage({
+      type: 'tray',
+      action: 'pollActions',
+      data: ''
+    });
+  } catch (error) {
+    // Ignore polling errors
+  }
+}, 100); // Poll every 100ms
+
 console.log('[Zyte] System tray API loaded');

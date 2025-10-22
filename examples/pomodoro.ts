@@ -8,7 +8,7 @@
  * Run with: bun examples/pomodoro.ts
  *
  * Features:
- * - Timer display in menubar (via window title)
+ * - Timer display in menubar (via window title + system tray API)
  * - 25-minute work sessions
  * - 5-minute breaks
  * - Desktop notifications
@@ -18,6 +18,14 @@
  */
 
 import { createApp } from '../packages/typescript/src/index.ts'
+import type { ZyteBridgeAPI } from '../packages/typescript/src/types.ts'
+
+// Extend window interface for TypeScript
+declare global {
+  interface Window {
+    zyte: ZyteBridgeAPI
+  }
+}
 
 const html = `
 <!DOCTYPE html>
@@ -26,6 +34,24 @@ const html = `
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🍅 25:00</title>
+
+  <script>
+    // Initialize the Pomodoro menu when the Zyte bridge is ready
+    // This is defined in <head> to ensure it runs (WKWebView body scripts can be unreliable)
+    window.initializeZyteApp = function() {
+      if (window.zyte?.tray) {
+        window.zyte.tray.setMenu([
+          { label: 'Start Timer', action: 'toggle-timer' },
+          { label: 'Reset Timer', action: 'reset-timer' },
+          { label: 'Skip Session', action: 'skip-session' },
+          { type: 'separator' },
+          { label: 'Show Window', action: 'show' },
+          { label: 'Quit', action: 'quit' }
+        ]);
+      }
+    };
+  </script>
+
   <style>
     * {
       margin: 0;
@@ -234,6 +260,14 @@ const html = `
   </div>
 
   <script>
+    // Debug: Verify script is loading
+    if (window.webkit?.messageHandlers?.zyteBridge) {
+      window.webkit.messageHandlers.zyteBridge.postMessage({
+        type: 'debug',
+        message: 'Pomodoro script started loading'
+      });
+    }
+
     // Configuration
     const WORK_DURATION = 25 * 60; // 25 minutes
     const BREAK_DURATION = 5 * 60; // 5 minutes
@@ -303,7 +337,20 @@ const html = `
       const emoji = isWorkSession ? '🍅' : '☕';
       const time = formatTime(timeRemaining);
       const status = isRunning ? '' : ' (Paused)';
-      document.title = \`\${emoji} \${time}\${status}\`;
+      const title = \`\${emoji} \${time}\${status}\`;
+
+      // Update both window title and menubar (if system tray is enabled)
+      document.title = title;
+
+      // Update menubar via Zyte API if available
+      if (window.zyte?.tray) {
+        window.zyte.tray.setTitle(title);
+
+        // Also update tooltip with session info
+        const sessionType = isWorkSession ? 'Work Session' : 'Break Time';
+        const statusText = isRunning ? 'Running' : 'Paused';
+        window.zyte.tray.setTooltip(\`Pomodoro Timer - \${sessionType} (\${statusText})\`);
+      }
     }
 
     // Update display
@@ -377,6 +424,7 @@ const html = `
       }
 
       updateDisplay();
+      updateMenuLabels(); // Update menu to show correct label
     }
 
     // Complete session
@@ -410,6 +458,7 @@ const html = `
       }
 
       updateDisplay();
+      updateMenuLabels(); // Update menu after session completes
     }
 
     // Reset timer
@@ -418,6 +467,7 @@ const html = `
       isRunning = false;
       timeRemaining = isWorkSession ? WORK_DURATION : BREAK_DURATION;
       updateDisplay();
+      updateMenuLabels(); // Update menu after reset
       console.log('Timer reset');
     }
 
@@ -438,6 +488,7 @@ const html = `
       isWorkSession = !isWorkSession;
       timeRemaining = isWorkSession ? WORK_DURATION : BREAK_DURATION;
       updateDisplay();
+      updateMenuLabels(); // Update menu after skip
 
       showNotification('⏭️ Session skipped');
     }
@@ -481,6 +532,65 @@ const html = `
       }
     });
 
+    // Set a global flag that the listener is ready
+    window.zyte_menu_listener_ready = true;
+    console.log('[Pomodoro] Menu listener registered');
+
+    // Create a global handler function that can be called directly
+    window.handleMenuAction = function(action) {
+      console.log('[Pomodoro] handleMenuAction called with:', action);
+
+      switch (action) {
+        case 'toggle-timer':
+          console.log('[Pomodoro] Toggling timer from menu');
+          toggleTimer();
+          updateMenuLabels();
+          break;
+        case 'reset-timer':
+          console.log('[Pomodoro] Resetting timer from menu');
+          resetTimer();
+          break;
+        case 'skip-session':
+          console.log('[Pomodoro] Skipping session from menu');
+          skipSession();
+          break;
+      }
+    };
+
+    // Handle custom menu actions via event
+    window.addEventListener('zyte:tray:menuAction', (event) => {
+      const action = event.detail.action;
+      console.log('[Pomodoro] Received menu action event:', action);
+      window.handleMenuAction(action);
+    });
+
+    // Also listen for postMessage from native code
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'menuAction') {
+        console.log('[Pomodoro] Received postMessage menu action:', event.data.action);
+        window.handleMenuAction(event.data.action);
+      }
+    });
+
+    // FINAL WORKAROUND: Poll for tooltip changes to detect menu actions
+    // evaluateJavaScript doesn't work, so we use tooltip as a communication channel
+    let lastTooltipCheck = '';
+    setInterval(() => {
+      if (window.zyte?.tray) {
+        // We can't READ the tooltip, so this won't work either...
+        // Actually, let's try a different approach - just poll document.title
+        const currentTitle = document.title;
+        if (currentTitle.startsWith('__MENU_ACTION__:')) {
+          const action = currentTitle.substring('__MENU_ACTION__:'.length);
+          if (action !== lastTooltipCheck) {
+            console.log('[Pomodoro] Detected menu action via polling:', action);
+            window.handleMenuAction(action);
+            lastTooltipCheck = action;
+          }
+        }
+      }
+    }, 100); // Poll every 100ms
+
     // Initialize
     loadStats();
     updateDisplay();
@@ -493,6 +603,64 @@ const html = `
     console.log('  ⌘H: Hide window');
     console.log('');
     console.log('The timer is displayed in the menubar (window title)');
+
+    // Function to update menu labels dynamically
+    function updateMenuLabels() {
+      if (window.zyte?.tray) {
+        window.zyte.tray.setMenu([
+          {
+            label: isRunning ? 'Pause Timer' : 'Start Timer',
+            id: 'toggle',
+            action: 'toggle-timer'
+          },
+          {
+            label: 'Reset Timer',
+            id: 'reset',
+            action: 'reset-timer'
+          },
+          {
+            label: 'Skip Session',
+            id: 'skip',
+            action: 'skip-session'
+          },
+          { type: 'separator' },
+          {
+            label: 'Show Window',
+            action: 'show'
+          },
+          {
+            label: 'Hide Window',
+            action: 'hide'
+          },
+          { type: 'separator' },
+          {
+            label: 'Quit',
+            action: 'quit',
+            shortcut: 'Cmd+Q'
+          }
+        ]);
+      }
+    }
+
+    // Setup menubar menu - called after bridge is ready
+    function setupPomodoroMenu() {
+      console.log('[Pomodoro] setupPomodoroMenu() called');
+      console.log('[Pomodoro] window.zyte:', !!window.zyte);
+      console.log('[Pomodoro] window.zyte.tray:', !!window.zyte?.tray);
+
+      if (window.zyte?.tray) {
+        console.log('[Pomodoro] Setting up menu via window.zyte.tray');
+        updateMenuLabels();
+      } else {
+        console.error('[Pomodoro] ERROR: window.zyte.tray is not available!');
+      }
+    }
+
+    // Wait for the Zyte bridge to be ready (normal case when body scripts execute)
+    window.addEventListener('zyte:ready', () => {
+      console.log('[Pomodoro] Zyte bridge ready - initializing menu');
+      setupPomodoroMenu();
+    });
   </script>
 </body>
 </html>
@@ -524,6 +692,7 @@ async function main() {
       height: 480,
       resizable: false,
       systemTray: true,
+      hideDockIcon: true,  // Run as menubar-only app
       alwaysOnTop: true,
       darkMode: true,
     },
