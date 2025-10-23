@@ -11,6 +11,9 @@ import type { AppConfig, WindowOptions } from './types'
 // Export packaging API
 export { packageApp, pack, type PackageConfig, type PackageResult } from './package'
 
+// Export utilities
+export * from './utils'
+
 export class ZyteApp {
   private process?: ChildProcess
   private config: AppConfig

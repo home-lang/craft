@@ -23,6 +23,7 @@ pub const Package = struct {
     };
 
     pub fn deinit(self: *Package, allocator: std.mem.Allocator) void {
+        _ = allocator; // allocator may be needed for future cleanup
         if (self.dependencies) |*deps| {
             deps.deinit();
         }
@@ -100,7 +101,7 @@ fn loadPackageFromJson(allocator: std.mem.Allocator, path: []const u8) !Package 
 }
 
 fn stripJsonComments(allocator: std.mem.Allocator, content: []const u8) ![]const u8 {
-    var result = std.ArrayList(u8).init(allocator);
+    var result = try std.ArrayList(u8).initCapacity(allocator, content.len);
     defer result.deinit();
 
     var i: usize = 0;
@@ -111,14 +112,14 @@ fn stripJsonComments(allocator: std.mem.Allocator, content: []const u8) ![]const
         const ch = content[i];
 
         if (escape_next) {
-            try result.append(ch);
+            try result.append(allocator, ch);
             escape_next = false;
             i += 1;
             continue;
         }
 
         if (ch == '\\' and in_string) {
-            try result.append(ch);
+            try result.append(allocator, ch);
             escape_next = true;
             i += 1;
             continue;
@@ -126,7 +127,7 @@ fn stripJsonComments(allocator: std.mem.Allocator, content: []const u8) ![]const
 
         if (ch == '"') {
             in_string = !in_string;
-            try result.append(ch);
+            try result.append(allocator, ch);
             i += 1;
             continue;
         }
@@ -152,11 +153,11 @@ fn stripJsonComments(allocator: std.mem.Allocator, content: []const u8) ![]const
             }
         }
 
-        try result.append(ch);
+        try result.append(allocator, ch);
         i += 1;
     }
 
-    return result.toOwnedSlice();
+    return result.toOwnedSlice(allocator);
 }
 
 fn parsePackageFromJson(allocator: std.mem.Allocator, value: std.json.Value) !Package {
@@ -275,7 +276,11 @@ fn parseDependency(allocator: std.mem.Allocator, value: std.json.Value) !Package
     return dep;
 }
 
-test "strip JSON comments" {
+// ============================================================================
+// Tests
+// ============================================================================
+
+test "strip JSON comments - single line" {
     const allocator = std.testing.allocator;
 
     const input =
@@ -291,4 +296,325 @@ test "strip JSON comments" {
 
     try std.testing.expect(std.mem.indexOf(u8, result, "//") == null);
     try std.testing.expect(std.mem.indexOf(u8, result, "/*") == null);
+    try std.testing.expect(std.mem.indexOf(u8, result, "test") != null);
+}
+
+test "strip JSON comments - multi-line comments" {
+    const allocator = std.testing.allocator;
+
+    const input =
+        \\{
+        \\  /* This is a
+        \\     multi-line
+        \\     comment */
+        \\  "name": "test",
+        \\  "version": "1.0.0"
+        \\}
+    ;
+
+    const result = try stripJsonComments(allocator, input);
+    defer allocator.free(result);
+
+    try std.testing.expect(std.mem.indexOf(u8, result, "/*") == null);
+    try std.testing.expect(std.mem.indexOf(u8, result, "*/") == null);
+    try std.testing.expect(std.mem.indexOf(u8, result, "multi-line") == null);
+}
+
+test "strip JSON comments - preserve strings with //" {
+    const allocator = std.testing.allocator;
+
+    const input =
+        \\{
+        \\  "url": "https://example.com",
+        \\  "version": "1.0.0"
+        \\}
+    ;
+
+    const result = try stripJsonComments(allocator, input);
+    defer allocator.free(result);
+
+    try std.testing.expect(std.mem.indexOf(u8, result, "https://") != null);
+}
+
+test "parse simple JSON package" {
+    const allocator = std.testing.allocator;
+
+    const json_content =
+        \\{
+        \\  "name": "test-package",
+        \\  "version": "1.0.0",
+        \\  "description": "A test package",
+        \\  "license": "MIT"
+        \\}
+    ;
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_content, .{});
+    defer parsed.deinit();
+
+    var pkg = try parsePackageFromJson(allocator, parsed.value);
+    defer pkg.deinit(allocator);
+
+    try std.testing.expectEqualStrings("test-package", pkg.name);
+    try std.testing.expectEqualStrings("1.0.0", pkg.version);
+    try std.testing.expectEqualStrings("A test package", pkg.description.?);
+    try std.testing.expectEqualStrings("MIT", pkg.license.?);
+}
+
+test "parse JSON package with authors" {
+    const allocator = std.testing.allocator;
+
+    const json_content =
+        \\{
+        \\  "name": "test-package",
+        \\  "version": "1.0.0",
+        \\  "authors": ["Alice <alice@example.com>", "Bob <bob@example.com>"]
+        \\}
+    ;
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_content, .{});
+    defer parsed.deinit();
+
+    var pkg = try parsePackageFromJson(allocator, parsed.value);
+    defer pkg.deinit(allocator);
+
+    try std.testing.expect(pkg.authors != null);
+    try std.testing.expectEqual(@as(usize, 2), pkg.authors.?.len);
+    try std.testing.expectEqualStrings("Alice <alice@example.com>", pkg.authors.?[0]);
+    try std.testing.expectEqualStrings("Bob <bob@example.com>", pkg.authors.?[1]);
+}
+
+test "parse JSON package with version dependencies" {
+    const allocator = std.testing.allocator;
+
+    const json_content =
+        \\{
+        \\  "name": "test-package",
+        \\  "version": "1.0.0",
+        \\  "dependencies": {
+        \\    "some-lib": "^1.0.0",
+        \\    "another-lib": "~2.3.4"
+        \\  }
+        \\}
+    ;
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_content, .{});
+    defer parsed.deinit();
+
+    var pkg = try parsePackageFromJson(allocator, parsed.value);
+    defer pkg.deinit(allocator);
+
+    try std.testing.expect(pkg.dependencies != null);
+
+    const some_lib = pkg.dependencies.?.get("some-lib");
+    try std.testing.expect(some_lib != null);
+    try std.testing.expectEqualStrings("^1.0.0", some_lib.?.version.?);
+
+    const another_lib = pkg.dependencies.?.get("another-lib");
+    try std.testing.expect(another_lib != null);
+    try std.testing.expectEqualStrings("~2.3.4", another_lib.?.version.?);
+}
+
+test "parse JSON package with path dependencies" {
+    const allocator = std.testing.allocator;
+
+    const json_content =
+        \\{
+        \\  "name": "test-package",
+        \\  "version": "1.0.0",
+        \\  "dependencies": {
+        \\    "local-lib": { "path": "../local-lib" }
+        \\  }
+        \\}
+    ;
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_content, .{});
+    defer parsed.deinit();
+
+    var pkg = try parsePackageFromJson(allocator, parsed.value);
+    defer pkg.deinit(allocator);
+
+    try std.testing.expect(pkg.dependencies != null);
+
+    const local_lib = pkg.dependencies.?.get("local-lib");
+    try std.testing.expect(local_lib != null);
+    try std.testing.expectEqualStrings("../local-lib", local_lib.?.path.?);
+}
+
+test "parse JSON package with git dependencies" {
+    const allocator = std.testing.allocator;
+
+    const json_content =
+        \\{
+        \\  "name": "test-package",
+        \\  "version": "1.0.0",
+        \\  "dependencies": {
+        \\    "git-lib": { "git": "https://github.com/user/repo.git" }
+        \\  }
+        \\}
+    ;
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_content, .{});
+    defer parsed.deinit();
+
+    var pkg = try parsePackageFromJson(allocator, parsed.value);
+    defer pkg.deinit(allocator);
+
+    try std.testing.expect(pkg.dependencies != null);
+
+    const git_lib = pkg.dependencies.?.get("git-lib");
+    try std.testing.expect(git_lib != null);
+    try std.testing.expectEqualStrings("https://github.com/user/repo.git", git_lib.?.git.?);
+}
+
+test "parse JSON package with mixed dependencies" {
+    const allocator = std.testing.allocator;
+
+    const json_content =
+        \\{
+        \\  "name": "test-package",
+        \\  "version": "1.0.0",
+        \\  "dependencies": {
+        \\    "version-dep": "^1.0.0",
+        \\    "path-dep": { "path": "../path-dep" },
+        \\    "git-dep": { "git": "https://github.com/user/git-dep.git" }
+        \\  }
+        \\}
+    ;
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_content, .{});
+    defer parsed.deinit();
+
+    var pkg = try parsePackageFromJson(allocator, parsed.value);
+    defer pkg.deinit(allocator);
+
+    try std.testing.expect(pkg.dependencies != null);
+    try std.testing.expectEqual(@as(u32, 3), pkg.dependencies.?.count());
+}
+
+test "parse JSON package with scripts" {
+    const allocator = std.testing.allocator;
+
+    const json_content =
+        \\{
+        \\  "name": "test-package",
+        \\  "version": "1.0.0",
+        \\  "scripts": {
+        \\    "dev": "zig build run",
+        \\    "test": "zig build test",
+        \\    "build": "zig build -Doptimize=ReleaseFast"
+        \\  }
+        \\}
+    ;
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_content, .{});
+    defer parsed.deinit();
+
+    var pkg = try parsePackageFromJson(allocator, parsed.value);
+    defer pkg.deinit(allocator);
+
+    try std.testing.expect(pkg.scripts != null);
+    try std.testing.expectEqual(@as(u32, 3), pkg.scripts.?.count());
+
+    const dev_script = pkg.scripts.?.get("dev");
+    try std.testing.expect(dev_script != null);
+    try std.testing.expectEqualStrings("zig build run", dev_script.?);
+}
+
+test "parse JSON package with workspaces" {
+    const allocator = std.testing.allocator;
+
+    const json_content =
+        \\{
+        \\  "name": "test-workspace",
+        \\  "version": "1.0.0",
+        \\  "workspaces": {
+        \\    "packages": ["packages/*", "apps/*"]
+        \\  }
+        \\}
+    ;
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_content, .{});
+    defer parsed.deinit();
+
+    var pkg = try parsePackageFromJson(allocator, parsed.value);
+    defer pkg.deinit(allocator);
+
+    try std.testing.expect(pkg.workspaces != null);
+    try std.testing.expectEqual(@as(usize, 2), pkg.workspaces.?.packages.len);
+    try std.testing.expectEqualStrings("packages/*", pkg.workspaces.?.packages[0]);
+    try std.testing.expectEqualStrings("apps/*", pkg.workspaces.?.packages[1]);
+}
+
+test "parse JSON package - missing name error" {
+    const allocator = std.testing.allocator;
+
+    const json_content =
+        \\{
+        \\  "version": "1.0.0"
+        \\}
+    ;
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_content, .{});
+    defer parsed.deinit();
+
+    const result = parsePackageFromJson(allocator, parsed.value);
+    try std.testing.expectError(error.MissingPackageName, result);
+}
+
+test "parse JSON package - missing version error" {
+    const allocator = std.testing.allocator;
+
+    const json_content =
+        \\{
+        \\  "name": "test-package"
+        \\}
+    ;
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_content, .{});
+    defer parsed.deinit();
+
+    const result = parsePackageFromJson(allocator, parsed.value);
+    try std.testing.expectError(error.MissingPackageVersion, result);
+}
+
+test "parse complete package configuration" {
+    const allocator = std.testing.allocator;
+
+    const json_content =
+        \\{
+        \\  "name": "complete-package",
+        \\  "version": "2.1.0",
+        \\  "description": "A complete package example",
+        \\  "license": "MIT",
+        \\  "authors": ["Developer <dev@example.com>"],
+        \\  "dependencies": {
+        \\    "lib-a": "^1.0.0",
+        \\    "lib-b": { "path": "../lib-b" },
+        \\    "lib-c": { "git": "https://github.com/user/lib-c.git" }
+        \\  },
+        \\  "scripts": {
+        \\    "dev": "zig build run",
+        \\    "test": "zig build test"
+        \\  },
+        \\  "workspaces": {
+        \\    "packages": ["packages/*"]
+        \\  }
+        \\}
+    ;
+
+    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_content, .{});
+    defer parsed.deinit();
+
+    var pkg = try parsePackageFromJson(allocator, parsed.value);
+    defer pkg.deinit(allocator);
+
+    // Verify all fields
+    try std.testing.expectEqualStrings("complete-package", pkg.name);
+    try std.testing.expectEqualStrings("2.1.0", pkg.version);
+    try std.testing.expect(pkg.description != null);
+    try std.testing.expect(pkg.license != null);
+    try std.testing.expect(pkg.authors != null);
+    try std.testing.expect(pkg.dependencies != null);
+    try std.testing.expect(pkg.scripts != null);
+    try std.testing.expect(pkg.workspaces != null);
 }
