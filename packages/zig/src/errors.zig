@@ -1,7 +1,7 @@
 const std = @import("std");
 
-/// Comprehensive error set for Zyte
-pub const ZyteError = error{
+/// Comprehensive error set for Craft
+pub const CraftError = error{
     // Window errors
     WindowCreationFailed,
     WindowNotFound,
@@ -75,7 +75,7 @@ pub const ErrorContext = struct {
     message: []const u8,
     file: []const u8,
     line: u32,
-    
+
     pub fn create(message: []const u8, file: []const u8, line: u32) ErrorContext {
         return .{
             .message = message,
@@ -83,7 +83,7 @@ pub const ErrorContext = struct {
             .line = line,
         };
     }
-    
+
     pub fn print(self: ErrorContext) void {
         std.debug.print("[ERROR] {s}:{d} - {s}\n", .{ self.file, self.line, self.message });
     }
@@ -110,7 +110,7 @@ pub fn formatError(err: anyerror, allocator: std.mem.Allocator) ![]const u8 {
             \\    window: { menubarOnly: true }
             \\  })
             \\
-            \\Docs: https://docs.zyte.dev/errors/no-windows
+            \\Docs: https://docs.craft.dev/errors/no-windows
         ),
         error.PlatformNotSupported, error.UnsupportedPlatform => try allocator.dupe(u8,
             \\❌ Error: Platform not supported
@@ -123,7 +123,7 @@ pub fn formatError(err: anyerror, allocator: std.mem.Allocator) ![]const u8 {
             \\  - Windows (x86_64)
             \\
             \\Check the feature compatibility matrix:
-            \\  https://docs.zyte.dev/platform-support
+            \\  https://docs.craft.dev/platform-support
         ),
         error.InvalidIconPath => try allocator.dupe(u8,
             \\❌ Error: Invalid icon path
@@ -146,7 +146,7 @@ pub fn formatError(err: anyerror, allocator: std.mem.Allocator) ![]const u8 {
         error.BridgeNotInitialized => try allocator.dupe(u8,
             \\❌ Error: Bridge API not initialized
             \\
-            \\You need to initialize the bridge before using window.zyte APIs.
+            \\You need to initialize the bridge before using window.craft APIs.
             \\
             \\Fix:
             \\  await app.initBridge()

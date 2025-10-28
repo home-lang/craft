@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Developer Tools Enhancement System
 /// Provides debugging, profiling, network inspection, and memory leak detection
-
 pub const DevToolsConfig = struct {
     enabled: bool = true,
     port: u16 = 9222, // Chrome DevTools Protocol port
@@ -407,7 +406,7 @@ pub const DevTools = struct {
         var report = std.ArrayList(u8).init(allocator);
         const writer = report.writer();
 
-        try writer.writeAll("=== Zyte DevTools Report ===\n\n");
+        try writer.writeAll("=== Craft DevTools Report ===\n\n");
 
         // Network report
         try writer.print("Network Requests: {}\n", .{self.network_inspector.getTotalRequests()});

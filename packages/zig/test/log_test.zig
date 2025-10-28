@@ -136,7 +136,7 @@ test "Log - convenience functions exist" {
 }
 
 test "Log - output to file" {
-    const test_path = "/tmp/zyte_log_test.log";
+    const test_path = "/tmp/craft_log_test.log";
     defer std.fs.cwd().deleteFile(test_path) catch {};
 
     const config = log_module.LogConfig{

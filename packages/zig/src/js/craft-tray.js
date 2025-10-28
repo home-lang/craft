@@ -1,9 +1,9 @@
-// Zyte System Tray JavaScript API
+// Craft System Tray JavaScript API
 // This file is injected into every webview to provide tray control functionality
 
-window.zyte = window.zyte || {};
+window.craft = window.craft || {};
 
-window.zyte.tray = {
+window.craft.tray = {
   /**
    * Update the system tray title/text
    * @param {string} title - Text to show in menubar (e.g., "🍅 25:00")
@@ -22,7 +22,7 @@ window.zyte.tray = {
 
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'tray',
           action: 'setTitle',
           data: title
@@ -46,7 +46,7 @@ window.zyte.tray = {
 
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'tray',
           action: 'setTooltip',
           data: tooltip
@@ -77,21 +77,21 @@ window.zyte.tray = {
     };
 
     // Store handler for cleanup
-    if (!window.__zyte_tray_handlers) {
-      window.__zyte_tray_handlers = [];
+    if (!window.__craft_tray_handlers) {
+      window.__craft_tray_handlers = [];
     }
-    window.__zyte_tray_handlers.push(handler);
+    window.__craft_tray_handlers.push(handler);
 
     // Listen for native events
-    window.addEventListener('zyte:tray:click', handler);
+    window.addEventListener('craft:tray:click', handler);
 
     // Return unregister function
     return () => {
-      const index = window.__zyte_tray_handlers.indexOf(handler);
+      const index = window.__craft_tray_handlers.indexOf(handler);
       if (index > -1) {
-        window.__zyte_tray_handlers.splice(index, 1);
+        window.__craft_tray_handlers.splice(index, 1);
       }
-      window.removeEventListener('zyte:tray:click', handler);
+      window.removeEventListener('craft:tray:click', handler);
     };
   },
 
@@ -100,7 +100,7 @@ window.zyte.tray = {
    */
   onClickToggleWindow() {
     return this.onClick(() => {
-      window.zyte.window.toggle();
+      window.craft.window.toggle();
     });
   },
 
@@ -108,7 +108,7 @@ window.zyte.tray = {
    * Set the context menu for the tray icon
    * @param {Array<MenuItem>} items - Menu items
    * @example
-   * window.zyte.tray.setMenu([
+   * window.craft.tray.setMenu([
    *   { label: 'Show Window', action: 'show' },
    *   { type: 'separator' },
    *   { label: 'Quit', action: 'quit' }
@@ -143,7 +143,7 @@ window.zyte.tray = {
 
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'tray',
           action: 'setMenu',
           data: JSON.stringify(menuData)
@@ -163,20 +163,20 @@ window.zyte.tray = {
     // Check for built-in actions
     switch (actionId) {
       case 'show':
-        window.zyte.window.show();
+        window.craft.window.show();
         break;
       case 'hide':
-        window.zyte.window.hide();
+        window.craft.window.hide();
         break;
       case 'toggle':
-        window.zyte.window.toggle();
+        window.craft.window.toggle();
         break;
       case 'quit':
-        window.zyte.app.quit();
+        window.craft.app.quit();
         break;
       default:
         // Dispatch custom event for app to handle
-        window.dispatchEvent(new CustomEvent('zyte:tray:menu', {
+        window.dispatchEvent(new CustomEvent('craft:tray:menu', {
           detail: { action: actionId }
         }));
     }
@@ -184,15 +184,15 @@ window.zyte.tray = {
 };
 
 // Listen for menu actions from native
-window.addEventListener('zyte:tray:menuAction', (event) => {
-  window.zyte.tray._handleMenuAction(event.detail.action);
+window.addEventListener('craft:tray:menuAction', (event) => {
+  window.craft.tray._handleMenuAction(event.detail.action);
 });
 
 // Global function that native code can call to deliver pending actions
-window.__zyteDeliverAction = function(action) {
+window.__craftDeliverAction = function(action) {
   if (action && action.length > 0) {
-    console.log('[Zyte] Received polled action:', action);
-    window.dispatchEvent(new CustomEvent('zyte:tray:menuAction', {
+    console.log('[Craft] Received polled action:', action);
+    window.dispatchEvent(new CustomEvent('craft:tray:menuAction', {
       detail: { action: action }
     }));
   }
@@ -203,8 +203,8 @@ window.__zyteDeliverAction = function(action) {
 setInterval(() => {
   try {
     // Send a poll request to native code
-    // Native will call window.__zyteDeliverAction(action) if there's a pending action
-    window.webkit.messageHandlers.zyte.postMessage({
+    // Native will call window.__craftDeliverAction(action) if there's a pending action
+    window.webkit.messageHandlers.craft.postMessage({
       type: 'tray',
       action: 'pollActions',
       data: ''
@@ -214,4 +214,4 @@ setInterval(() => {
   }
 }, 100); // Poll every 100ms
 
-console.log('[Zyte] System tray API loaded');
+console.log('[Craft] System tray API loaded');

@@ -1,16 +1,16 @@
-// Zyte Window Control JavaScript API
+// Craft Window Control JavaScript API
 // This file provides window control functionality from JavaScript
 
-window.zyte = window.zyte || {};
+window.craft = window.craft || {};
 
-window.zyte.window = {
+window.craft.window = {
   /**
    * Show the window
    */
   async show() {
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'window',
           action: 'show'
         });
@@ -27,7 +27,7 @@ window.zyte.window = {
   async hide() {
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'window',
           action: 'hide'
         });
@@ -44,7 +44,7 @@ window.zyte.window = {
   async toggle() {
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'window',
           action: 'toggle'
         });
@@ -61,7 +61,7 @@ window.zyte.window = {
   async minimize() {
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'window',
           action: 'minimize'
         });
@@ -78,7 +78,7 @@ window.zyte.window = {
   async close() {
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'window',
           action: 'close'
         });
@@ -90,4 +90,4 @@ window.zyte.window = {
   }
 };
 
-console.log('[Zyte] Window control API loaded');
+console.log('[Craft] Window control API loaded');

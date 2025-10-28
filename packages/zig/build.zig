@@ -4,20 +4,20 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Create the zyte module
-    const zyte_module = b.createModule(.{
+    // Create the craft module
+    const craft_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
     });
 
     // Example executable
     const exe = b.addExecutable(.{
-        .name = "zyte-example",
+        .name = "craft-example",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/example.zig"),
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "zyte", .module = zyte_module },
+                .{ .name = "craft", .module = craft_module },
             },
         }),
     });
@@ -57,13 +57,13 @@ pub fn build(b: *std.Build) void {
 
     // Minimal app executable
     const minimal_exe = b.addExecutable(.{
-        .name = "zyte-minimal",
+        .name = "craft-minimal",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/minimal.zig"),
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "zyte", .module = zyte_module },
+                .{ .name = "craft", .module = craft_module },
             },
         }),
     });
@@ -471,7 +471,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -482,7 +482,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -493,7 +493,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -504,7 +504,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -515,7 +515,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -526,7 +526,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -537,7 +537,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -548,7 +548,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -559,7 +559,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -570,7 +570,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -581,7 +581,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -592,7 +592,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -603,7 +603,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -614,7 +614,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -625,7 +625,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -636,7 +636,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -647,7 +647,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "components", .module = zyte_module },
+                .{ .name = "components", .module = craft_module },
             },
         }),
     });
@@ -931,13 +931,13 @@ pub fn build(b: *std.Build) void {
     });
 
     const linux_exe = b.addExecutable(.{
-        .name = "zyte-linux",
+        .name = "craft-linux",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/minimal.zig"),
             .target = linux_target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "zyte", .module = zyte_module },
+                .{ .name = "craft", .module = craft_module },
             },
         }),
     });
@@ -957,13 +957,13 @@ pub fn build(b: *std.Build) void {
     });
 
     const windows_exe = b.addExecutable(.{
-        .name = "zyte-windows",
+        .name = "craft-windows",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/minimal.zig"),
             .target = windows_target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "zyte", .module = zyte_module },
+                .{ .name = "craft", .module = craft_module },
             },
         }),
     });
@@ -984,13 +984,13 @@ pub fn build(b: *std.Build) void {
     });
 
     const macos_exe = b.addExecutable(.{
-        .name = "zyte-macos",
+        .name = "craft-macos",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/minimal.zig"),
             .target = macos_target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "zyte", .module = zyte_module },
+                .{ .name = "craft", .module = craft_module },
             },
         }),
     });

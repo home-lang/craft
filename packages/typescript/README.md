@@ -1,4 +1,4 @@
-# ts-zyte
+# ts-craft
 
 Build lightning-fast desktop apps with web languages, powered by Zig.
 
@@ -16,7 +16,7 @@ Build lightning-fast desktop apps with web languages, powered by Zig.
 ## Installation
 
 ```bash
-bun add ts-zyte
+bun add ts-craft
 ```
 
 ## Quick Start
@@ -24,15 +24,15 @@ bun add ts-zyte
 ### Minimal Example (1 line!)
 
 ```ts
-import { show } from 'ts-zyte'
+import { show } from 'ts-craft'
 
-await show('<h1>Hello Zyte!</h1>', { title: 'My App', width: 600, height: 400 })
+await show('<h1>Hello Craft!</h1>', { title: 'My App', width: 600, height: 400 })
 ```
 
 ### Hello World
 
 ```ts
-import { createApp } from 'ts-zyte'
+import { createApp } from 'ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -61,7 +61,7 @@ const html = `
 const app = createApp({
   html,
   window: {
-    title: 'My Zyte App',
+    title: 'My Craft App',
     width: 800,
     height: 600,
   },
@@ -73,7 +73,7 @@ await app.show()
 ### Load a URL
 
 ```ts
-import { loadURL } from 'ts-zyte'
+import { loadURL } from 'ts-craft'
 
 // Load any website or local dev server
 await loadURL('http://localhost:3000', {
@@ -89,10 +89,10 @@ await loadURL('http://localhost:3000', {
 
 ### `createApp(config)`
 
-Create a new Zyte app instance.
+Create a new Craft app instance.
 
 ```ts
-import { createApp } from 'ts-zyte'
+import { createApp } from 'ts-craft'
 
 const app = createApp({
   html: '<h1>Hello</h1>',  // HTML content
@@ -113,7 +113,7 @@ await app.show()
 Quick helper to show a window with HTML.
 
 ```ts
-import { show } from 'ts-zyte'
+import { show } from 'ts-craft'
 
 await show('<h1>Hello World</h1>', {
   title: 'My App',
@@ -127,7 +127,7 @@ await show('<h1>Hello World</h1>', {
 Quick helper to load a URL.
 
 ```ts
-import { loadURL } from 'ts-zyte'
+import { loadURL } from 'ts-craft'
 
 await loadURL('http://localhost:3000', {
   title: 'Dev Server',
@@ -176,7 +176,7 @@ bun run todo-app
 
 ## Performance Comparison
 
-| Metric | Zyte | Electron | Advantage |
+| Metric | Craft | Electron | Advantage |
 |--------|------|----------|-----------|
 | **Startup Time** | 50ms | 230ms | **4.5x faster** |
 | **Idle Memory** | 14 KB | 68 MB | **4857x less** |
@@ -185,7 +185,7 @@ bun run todo-app
 
 See [benchmarks](../../benchmarks) for detailed performance comparisons.
 
-## Why Zyte?
+## Why Craft?
 
 ### vs Electron
 
@@ -206,14 +206,14 @@ See [benchmarks](../../benchmarks) for detailed performance comparisons.
 ## Requirements
 
 - Bun >= 1.0.0 (for development)
-- Zyte binary (automatically built on install)
+- Craft binary (automatically built on install)
 
 ## Building from Source
 
 ```bash
 # Clone the monorepo
-git clone https://github.com/stacksjs/zyte
-cd zyte
+git clone https://github.com/stacksjs/craft
+cd craft
 
 # Install dependencies
 bun install
@@ -239,7 +239,7 @@ MIT © [Chris Breuer](https://github.com/chrisbbreuer)
 
 ## Links
 
-- [Documentation](https://github.com/stacksjs/zyte#readme)
+- [Documentation](https://github.com/stacksjs/craft#readme)
 - [Examples](../examples-ts)
 - [Benchmarks](../../benchmarks)
-- [Issues](https://github.com/stacksjs/zyte/issues)
+- [Issues](https://github.com/stacksjs/craft/issues)

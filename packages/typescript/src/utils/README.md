@@ -1,6 +1,6 @@
-# Zyte Utilities
+# Craft Utilities
 
-Helper utilities to make building Zyte apps easier and cleaner.
+Helper utilities to make building Craft apps easier and cleaner.
 
 ## 📦 What's Included
 
@@ -9,7 +9,7 @@ Helper utilities to make building Zyte apps easier and cleaner.
 Simplified audio management with Web Audio API.
 
 ```typescript
-import { AudioManager } from 'ts-zyte'
+import { AudioManager } from 'ts-craft'
 
 const audio = new AudioManager()
 
@@ -42,7 +42,7 @@ audio.stopBackgroundNoise() // Stop all background audio
 Type-safe localStorage abstraction.
 
 ```typescript
-import { Storage } from 'ts-zyte'
+import { Storage } from 'ts-craft'
 
 interface Settings {
   theme: 'light' | 'dark'
@@ -80,7 +80,7 @@ storage.clear()
 Simple interval-based timer with callbacks.
 
 ```typescript
-import { Timer } from 'ts-zyte'
+import { Timer } from 'ts-craft'
 
 const timer = new Timer(
   60,  // 60 seconds
@@ -147,7 +147,7 @@ let interval = setInterval(() => {
 
 **After utilities (~200 lines):**
 ```typescript
-import { AudioManager, Storage, Timer } from 'ts-zyte'
+import { AudioManager, Storage, Timer } from 'ts-craft'
 
 const audio = new AudioManager()
 const storage = new Storage('settings', defaults)
@@ -165,18 +165,18 @@ See `examples/pomodoro-clean.ts` for a complete example.
 
 - **Less Code**: Reduce boilerplate by 80%+
 - **Type Safe**: Full TypeScript support
-- **Reusable**: Use across all your Zyte apps
+- **Reusable**: Use across all your Craft apps
 - **Tested**: Battle-tested utilities
 - **Simple API**: Intuitive and easy to learn
 
 ## 🚀 Getting Started
 
 ```bash
-# Install Zyte
-bun add ts-zyte
+# Install Craft
+bun add ts-craft
 
 # Use utilities
-import { AudioManager, Storage, Timer } from 'ts-zyte'
+import { AudioManager, Storage, Timer } from 'ts-craft'
 ```
 
 All utilities are automatically exported from the main package!

@@ -1,4 +1,4 @@
-# Zyte Features Overview
+# Craft Features Overview
 
 ## 🎯 Implemented Features (v0.2.0)
 
@@ -6,7 +6,7 @@
 **No more iframes!** URLs are loaded directly into WKWebView using NSURLRequest.
 
 ```bash
-zyte http://localhost:3000
+craft http://localhost:3000
 ```
 
 **Benefits:**
@@ -24,9 +24,9 @@ zyte http://localhost:3000
 Full-featured command-line interface with 10+ flags and helpful output.
 
 ```bash
-zyte --help
-zyte --url http://localhost:3000 --width 1200 --height 800 --title "My App"
-zyte --frameless --transparent --always-on-top
+craft --help
+craft --url http://localhost:3000 --width 1200 --height 800 --title "My App"
+craft --frameless --transparent --always-on-top
 ```
 
 **Available Flags:**
@@ -94,7 +94,7 @@ Built-in WebKit Inspector enabled by default.
 
 **Disable:**
 ```bash
-zyte --url http://localhost:3000 --no-devtools
+craft --url http://localhost:3000 --no-devtools
 ```
 
 **Files:** `macos.zig:157-161`
@@ -102,21 +102,21 @@ zyte --url http://localhost:3000 --no-devtools
 ---
 
 ### 5. ✅ JavaScript Bridge
-Seamless Zig ↔ Web communication via `window.zyte` API.
+Seamless Zig ↔ Web communication via `window.craft` API.
 
 **Web API:**
 ```javascript
-window.addEventListener('zyte:ready', async () => {
+window.addEventListener('craft:ready', async () => {
     // Send messages to Zig
-    await window.zyte.send('myHandler', { data: 'value' });
+    await window.craft.send('myHandler', { data: 'value' });
 
     // Convenience methods
-    await window.zyte.notify('Hello!');
-    const content = await window.zyte.readFile('/path/to/file');
-    await window.zyte.writeFile('/path/to/file', 'content');
-    const text = await window.zyte.getClipboard();
-    await window.zyte.setClipboard('text');
-    const path = await window.zyte.openDialog({ title: 'Select file' });
+    await window.craft.notify('Hello!');
+    const content = await window.craft.readFile('/path/to/file');
+    await window.craft.writeFile('/path/to/file', 'content');
+    const text = await window.craft.getClipboard();
+    await window.craft.setClipboard('text');
+    const path = await window.craft.openDialog({ title: 'Select file' });
 });
 ```
 
@@ -175,7 +175,7 @@ std.debug.print("Clipboard: {s}\n", .{text});
 ### 8. ✅ Configuration Files
 TOML-based configuration system.
 
-**zyte.toml:**
+**craft.toml:**
 ```toml
 [window]
 title = "My App"
@@ -193,15 +193,15 @@ user_agent = "MyApp/1.0"
 
 **Load Config:**
 ```zig
-const config = try Config.loadFromFile(allocator, "zyte.toml");
+const config = try Config.loadFromFile(allocator, "craft.toml");
 ```
 
 **Save Config:**
 ```zig
-try config.saveToFile("zyte.toml");
+try config.saveToFile("craft.toml");
 ```
 
-**Files:** `config.zig` (133 lines), `zyte.toml`
+**Files:** `config.zig` (133 lines), `craft.toml`
 
 ---
 
@@ -302,7 +302,7 @@ zig build -Doptimize=ReleaseSmall
   - `log.zig` (87 lines)
   - `config.zig` (133 lines)
   - `API_REFERENCE.md` (700+ lines)
-  - `zyte.toml` (18 lines)
+  - `craft.toml` (18 lines)
 
 - **Enhanced Files:** 4
   - `macos.zig` (+150 lines)
@@ -355,7 +355,7 @@ zig build -Doptimize=ReleaseSmall
 - ✅ **IMPROVEMENTS.md** - v0.2.0 changelog
 - ✅ **FEATURES.md** - This file
 - ✅ **README.md** - Updated with v0.2.0 features
-- ✅ **zyte.toml** - Example configuration
+- ✅ **craft.toml** - Example configuration
 
 ### Existing
 - ✅ **GETTING_STARTED.md** - Setup guide
@@ -368,7 +368,7 @@ zig build -Doptimize=ReleaseSmall
 
 ### 1. Development Tool
 ```bash
-zyte http://localhost:3000 \
+craft http://localhost:3000 \
      --title "Dev Server" \
      --width 1600 \
      --height 900
@@ -376,7 +376,7 @@ zyte http://localhost:3000 \
 
 ### 2. Transparent Overlay
 ```bash
-zyte http://localhost:3000 \
+craft http://localhost:3000 \
      --transparent \
      --always-on-top \
      --frameless
@@ -384,7 +384,7 @@ zyte http://localhost:3000 \
 
 ### 3. Kiosk Mode
 ```bash
-zyte http://app.example.com \
+craft http://app.example.com \
      --frameless \
      --no-resize \
      --width 1920 \
@@ -393,7 +393,7 @@ zyte http://app.example.com \
 
 ### 4. Dashboard
 ```bash
-zyte http://dashboard.local \
+craft http://dashboard.local \
      --title "System Monitor" \
      --always-on-top
 ```

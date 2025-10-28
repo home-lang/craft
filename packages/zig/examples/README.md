@@ -1,6 +1,6 @@
-# Zyte Examples
+# Craft Examples
 
-This directory contains example applications demonstrating various features of Zyte.
+This directory contains example applications demonstrating various features of Craft.
 
 ## Examples
 

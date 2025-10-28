@@ -1,6 +1,6 @@
 # Platform Support Guide
 
-Zyte v1.0.0 provides complete platform support for macOS, Linux, and Windows with a unified stable API.
+Craft v1.0.0 provides complete platform support for macOS, Linux, and Windows with a unified stable API.
 
 ## Platform Overview
 
@@ -27,11 +27,11 @@ brew install zig
 
 # Clone and build
 git clone https://github.com/stacksjs/stx
-cd stx/packages/zyte
+cd stx/packages/craft
 zig build
 
 # Run
-./zig-out/bin/zyte-minimal http://localhost:3000
+./zig-out/bin/craft-minimal http://localhost:3000
 ```
 
 ### Building for macOS
@@ -112,11 +112,11 @@ export PATH=/usr/local/zig:$PATH
 
 # Clone and build
 git clone https://github.com/stacksjs/stx
-cd stx/packages/zyte
+cd stx/packages/craft
 zig build
 
 # Run
-./zig-out/bin/zyte-minimal http://localhost:3000
+./zig-out/bin/craft-minimal http://localhost:3000
 ```
 
 ### Building for Linux
@@ -204,13 +204,13 @@ See [DEPLOYMENT.md](DEPLOYMENT.md#linux-deployment) for:
 ```powershell
 # Clone repository
 git clone https://github.com/stacksjs/stx
-cd stx\packages\zyte
+cd stx\packages\craft
 
 # Build
 zig build
 
 # Run
-.\zig-out\bin\zyte-minimal.exe http://localhost:3000
+.\zig-out\bin\craft-minimal.exe http://localhost:3000
 ```
 
 ### Building for Windows
@@ -263,16 +263,16 @@ See [DEPLOYMENT.md](DEPLOYMENT.md#windows-deployment) for:
 
 ### Unified API
 
-Zyte provides a stable, unified API across all platforms:
+Craft provides a stable, unified API across all platforms:
 
 ```zig
-const zyte = @import("zyte");
+const craft = @import("craft");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
-    var app = zyte.App.init(gpa.allocator());
+    var app = craft.App.init(gpa.allocator());
     defer app.deinit();
 
     // Works on macOS, Linux, and Windows
@@ -291,18 +291,18 @@ pub fn main() !void {
 ### Platform Detection
 
 ```zig
-const zyte = @import("zyte");
+const craft = @import("craft");
 
 // Check current platform
-const platform = zyte.Platform.name(); // "macOS", "Linux", or "Windows"
+const platform = craft.Platform.name(); // "macOS", "Linux", or "Windows"
 
 // Check if platform is supported
-if (!zyte.Platform.isSupported()) {
+if (!craft.Platform.isSupported()) {
     return error.UnsupportedPlatform;
 }
 
 // Feature detection
-if (zyte.Features.hasSystemTray()) {
+if (craft.Features.hasSystemTray()) {
     // Enable system tray
 }
 ```
@@ -365,10 +365,10 @@ zig build build-macos
 
 ### macOS
 
-**Issue**: "zyte-minimal cannot be opened because the developer cannot be verified"
+**Issue**: "craft-minimal cannot be opened because the developer cannot be verified"
 ```bash
 # Solution: Remove quarantine attribute
-xattr -d com.apple.quarantine ./zig-out/bin/zyte-minimal
+xattr -d com.apple.quarantine ./zig-out/bin/craft-minimal
 ```
 
 **Issue**: WebKit Inspector not showing
@@ -463,9 +463,9 @@ const authenticated = try windows.authenticateWithHello();
 
 ### From Electron
 
-Zyte apps are 100x smaller and start 10x faster than Electron:
+Craft apps are 100x smaller and start 10x faster than Electron:
 
-| Aspect | Electron | Zyte |
+| Aspect | Electron | Craft |
 |--------|----------|------|
 | Binary | ~150MB | 1.4MB |
 | Startup | ~1000ms | <100ms |
@@ -474,9 +474,9 @@ Zyte apps are 100x smaller and start 10x faster than Electron:
 
 ### From Tauri
 
-Zyte provides similar performance with simpler architecture:
+Craft provides similar performance with simpler architecture:
 
-| Aspect | Tauri | Zyte |
+| Aspect | Tauri | Craft |
 |--------|-------|------|
 | Binary | ~2MB | 1.4MB |
 | Language | Rust + Web | Zig + Web |

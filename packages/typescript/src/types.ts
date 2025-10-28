@@ -109,21 +109,21 @@ export interface AppConfig {
   window?: WindowOptions
 
   /**
-   * Path to Zyte binary (auto-detected if not provided)
+   * Path to Craft binary (auto-detected if not provided)
    */
-  zytePath?: string
+  craftPath?: string
 }
 
 
 // ============================================================================
-// Zyte Bridge API Type Definitions
+// Craft Bridge API Type Definitions
 // These types describe the JavaScript API available in the WebView
 // ============================================================================
 
 /**
- * Zyte System Tray API (available as window.zyte.tray in WebView)
+ * Craft System Tray API (available as window.craft.tray in WebView)
  */
-export interface ZyteTrayAPI {
+export interface CraftTrayAPI {
     /**
      * Update the system tray title/text
      * Updates in real-time (60fps max)
@@ -158,9 +158,9 @@ export interface ZyteTrayAPI {
 }
 
 /**
- * Zyte Window Control API (available as window.zyte.window in WebView)
+ * Craft Window Control API (available as window.craft.window in WebView)
  */
-export interface ZyteWindowAPI {
+export interface CraftWindowAPI {
     /**
      * Show the window
      */
@@ -188,9 +188,9 @@ export interface ZyteWindowAPI {
 }
 
 /**
- * Zyte App Control API (available as window.zyte.app in WebView)
+ * Craft App Control API (available as window.craft.app in WebView)
  */
-export interface ZyteAppAPI {
+export interface CraftAppAPI {
     /**
      * Hide the dock icon (menubar-only mode, macOS)
      */
@@ -219,23 +219,23 @@ export interface ZyteAppAPI {
 }
 
 /**
- * Complete Zyte Bridge API (available as window.zyte in WebView)
+ * Complete Craft Bridge API (available as window.craft in WebView)
  */
-export interface ZyteBridgeAPI {
+export interface CraftBridgeAPI {
     /**
      * System tray control
      */
-    tray: ZyteTrayAPI
+    tray: CraftTrayAPI
 
     /**
      * Window control
      */
-    window: ZyteWindowAPI
+    window: CraftWindowAPI
 
     /**
      * Application control
      */
-    app: ZyteAppAPI
+    app: CraftAppAPI
 }
 
 /**
@@ -376,13 +376,13 @@ export interface NotificationOptions {
 }
 
 /**
- * Augment the Window interface to include the Zyte bridge
+ * Augment the Window interface to include the Craft bridge
  */
 declare global {
     interface Window {
         /**
-         * Zyte native bridge API (auto-injected)
+         * Craft native bridge API (auto-injected)
          */
-        zyte: ZyteBridgeAPI
+        craft: CraftBridgeAPI
     }
 }

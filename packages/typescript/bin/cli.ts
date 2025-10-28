@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * Zyte CLI - Build desktop apps with web languages
+ * Craft CLI - Build desktop apps with web languages
  */
 
 import { CLI } from '@stacksjs/clapp'
@@ -11,14 +11,14 @@ import { join } from 'node:path'
 import process from 'node:process'
 import { version } from '../package.json'
 
-const cli = new CLI('zyte')
+const cli = new CLI('craft')
 
-// Helper to find and run the Zyte binary
-async function runZyteBinary(args: string[]): Promise<void> {
-  const zytePath = await findZyteBinary()
+// Helper to find and run the Craft binary
+async function runCraftBinary(args: string[]): Promise<void> {
+  const craftPath = await findCraftBinary()
 
   return new Promise((resolve, reject) => {
-    const proc = spawn(zytePath, args, {
+    const proc = spawn(craftPath, args, {
       stdio: 'inherit',
     })
 
@@ -27,7 +27,7 @@ async function runZyteBinary(args: string[]): Promise<void> {
         resolve()
       }
       else {
-        reject(new Error(`Zyte exited with code ${code}`))
+        reject(new Error(`Craft exited with code ${code}`))
       }
     })
 
@@ -37,23 +37,23 @@ async function runZyteBinary(args: string[]): Promise<void> {
   })
 }
 
-async function findZyteBinary(): Promise<string> {
+async function findCraftBinary(): Promise<string> {
   const possiblePaths = [
     // From monorepo zig package
-    join(process.cwd(), 'packages/zig/zig-out/bin/zyte'),
+    join(process.cwd(), 'packages/zig/zig-out/bin/craft'),
     // From typescript package (when in monorepo)
-    join(process.cwd(), '../zig/zig-out/bin/zyte'),
-    join(import.meta.dir, '../../zig/zig-out/bin/zyte'),
+    join(process.cwd(), '../zig/zig-out/bin/craft'),
+    join(import.meta.dir, '../../zig/zig-out/bin/craft'),
     // Legacy locations
-    join(process.cwd(), 'zig-out/bin/zyte'),
-    join(process.cwd(), '../../zig-out/bin/zyte'),
-    join(import.meta.dir, '../../../zig-out/bin/zyte'),
+    join(process.cwd(), 'zig-out/bin/craft'),
+    join(process.cwd(), '../../zig-out/bin/craft'),
+    join(import.meta.dir, '../../../zig-out/bin/craft'),
     // Global install
-    'zyte',
+    'craft',
   ]
 
   for (const path of possiblePaths) {
-    if (path === 'zyte') {
+    if (path === 'craft') {
       // Check if it's in PATH
       try {
         await checkBinaryExists(path)
@@ -69,7 +69,7 @@ async function findZyteBinary(): Promise<string> {
   }
 
   throw new Error(
-    'Zyte binary not found. Please build the project first with: bun run build:core',
+    'Craft binary not found. Please build the project first with: bun run build:core',
   )
 }
 
@@ -90,7 +90,7 @@ function checkBinaryExists(path: string): Promise<void> {
 
 // Default command - launch app with URL
 cli
-  .command('[url]', 'Launch a Zyte desktop app')
+  .command('[url]', 'Launch a Craft desktop app')
   .option('--title <title>', 'Window title')
   .option('--width <width>', 'Window width', { default: 800 })
   .option('--height <height>', 'Window height', { default: 600 })
@@ -104,9 +104,9 @@ cli
   .option('--hot-reload', 'Enable hot reload')
   .option('--dev-tools', 'Enable developer tools')
   .option('--no-resize', 'Disable window resizing')
-  .example('zyte http://localhost:3000')
-  .example('zyte http://localhost:3000 --title "My App" --width 1200 --height 800')
-  .example('zyte http://localhost:3000 --frameless --transparent --always-on-top')
+  .example('craft http://localhost:3000')
+  .example('craft http://localhost:3000 --title "My App" --width 1200 --height 800')
+  .example('craft http://localhost:3000 --frameless --transparent --always-on-top')
   .action(async (url?: string, options?: any) => {
     const args: string[] = []
 
@@ -142,7 +142,7 @@ cli
       args.push('--no-resize')
 
     try {
-      await runZyteBinary(args)
+      await runCraftBinary(args)
     }
     catch (error: any) {
       console.error('Error:', error.message)
@@ -159,16 +159,16 @@ cli
 
 // Build command
 cli
-  .command('build', 'Build the Zyte core binary')
+  .command('build', 'Build the Craft core binary')
   .option('--release', 'Build in release mode', { default: false })
   .action(async (options?: any) => {
     const buildCmd = options?.release
       ? 'bun run build:core'
       : 'cd packages/zig && zig build'
 
-    console.log('Building Zyte core...')
+    console.log('Building Craft core...')
     try {
-      await runZyteBinary([buildCmd])
+      await runCraftBinary([buildCmd])
       console.log('✓ Build complete')
     }
     catch (error: any) {
@@ -180,16 +180,16 @@ cli
 // Dev command - launch with hot reload and dev tools enabled
 cli
   .command('dev [url]', 'Launch in development mode with hot reload')
-  .option('--title <title>', 'Window title', { default: 'Zyte Dev' })
+  .option('--title <title>', 'Window title', { default: 'Craft Dev' })
   .option('--width <width>', 'Window width', { default: 1200 })
   .option('--height <height>', 'Window height', { default: 800 })
-  .example('zyte dev http://localhost:3000')
+  .example('craft dev http://localhost:3000')
   .action(async (url?: string, options?: any) => {
     const args = [
       '--url',
       url || 'http://localhost:3000',
       '--title',
-      options?.title || 'Zyte Dev',
+      options?.title || 'Craft Dev',
       '--width',
       String(options?.width || 1200),
       '--height',
@@ -200,7 +200,7 @@ cli
     ]
 
     try {
-      await runZyteBinary(args)
+      await runCraftBinary(args)
     }
     catch (error: any) {
       console.error('Error:', error.message)
@@ -210,7 +210,7 @@ cli
 
 // Package command - create installers
 cli
-  .command('package', 'Create installers for your Zyte application')
+  .command('package', 'Create installers for your Craft application')
   .option('--name <name>', 'Application name')
   .option('--version <version>', 'Application version')
   .option('--binary <path>', 'Path to application binary')
@@ -228,9 +228,9 @@ cli
   .option('--deb', 'Create DEB package (Linux)')
   .option('--rpm', 'Create RPM package (Linux)')
   .option('--appimage', 'Create AppImage (Linux)')
-  .example('zyte package --name "My App" --version "1.0.0" --binary ./build/myapp')
-  .example('zyte package --config package.json')
-  .example('zyte package --name "My App" --version "1.0.0" --binary ./build/myapp --platforms macos,windows,linux')
+  .example('craft package --name "My App" --version "1.0.0" --binary ./build/myapp')
+  .example('craft package --config package.json')
+  .example('craft package --name "My App" --version "1.0.0" --binary ./build/myapp --platforms macos,windows,linux')
   .action(async (options?: any) => {
     const packageModule = await import('../src/package.js')
     const { packageApp } = packageModule
@@ -298,7 +298,7 @@ cli
       }
     }
 
-    console.log('📦 Zyte Packaging Tool\n')
+    console.log('📦 Craft Packaging Tool\n')
     console.log(`Application: ${config.name} v${config.version}`)
     console.log(`Platforms: ${(config.platforms || ['current']).join(', ')}\n`)
 

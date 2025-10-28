@@ -1,9 +1,9 @@
 {
-  "name": "ts-zyte-examples",
+  "name": "ts-craft-examples",
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "TypeScript examples for Zyte",
+  "description": "TypeScript examples for Craft",
   "scripts": {
     "minimal": "bun run minimal.ts",
     "hello-world": "bun run hello-world.ts",
@@ -11,7 +11,7 @@
     "dashboard": "bun run dashboard.ts"
   },
   "dependencies": {
-    "ts-zyte": "workspace:*"
+    "ts-craft": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest"

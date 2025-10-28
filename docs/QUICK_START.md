@@ -1,8 +1,8 @@
-# Zyte - Quick Start
+# Craft - Quick Start
 
 ## ✅ Build Status
 
-The Zyte package is **fully functional** and builds successfully with Zig 0.15.1!
+The Craft package is **fully functional** and builds successfully with Zig 0.15.1!
 
 ## Commands
 
@@ -33,7 +33,7 @@ rm -rf zig-cache zig-out
 When you run `zig build run`:
 
 ```
-Starting Zyte desktop app...
+Starting Craft desktop app...
 Note: Full webview implementation requires platform-specific bindings.
 This example demonstrates the API structure.
 ```
@@ -44,7 +44,7 @@ The compiled example is **~1.3MB** - impressively small for a desktop app framew
 
 ```bash
 $ ls -lh zig-out/bin/
--rwxr-xr-x  1.3M  zyte-example
+-rwxr-xr-x  1.3M  craft-example
 ```
 
 ## Next Steps for Full Functionality
@@ -70,13 +70,13 @@ To get actual webview rendering working, we need to implement platform-specific 
 
 ```zig
 const std = @import("std");
-const zyte = @import("zyte");
+const craft = @import("craft");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
-    var app = zyte.App.init(gpa.allocator());
+    var app = craft.App.init(gpa.allocator());
     defer app.deinit();
 
     _ = try app.createWindow(
@@ -93,7 +93,7 @@ pub fn main() !void {
 ## Architecture
 
 ```
-zyte/
+craft/
 ├── src/
 │   ├── main.zig      - Core library (App, Window API)
 │   └── example.zig   - Example desktop app
@@ -103,7 +103,7 @@ zyte/
 
 ## Package Info
 
-- **Name**: `ts-zyte`
+- **Name**: `ts-craft`
 - **Version**: `0.1.0`
 - **Zig Version**: `0.15.1`
 - **License**: MIT

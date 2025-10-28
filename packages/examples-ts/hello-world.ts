@@ -3,7 +3,7 @@
  * A slightly more advanced example with modern styling
  */
 
-import { createApp } from 'ts-zyte'
+import { createApp } from 'ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -86,7 +86,7 @@ const html = `
 <body>
   <div class="container">
     <div class="emoji">⚡</div>
-    <h1>Welcome to Zyte</h1>
+    <h1>Welcome to Craft</h1>
     <p>
       Build lightning-fast desktop apps with web languages.<br>
       No Electron. No Chromium. Just pure performance.
@@ -113,7 +113,7 @@ const html = `
 const app = createApp({
   html,
   window: {
-    title: 'Zyte - Hello World',
+    title: 'Craft - Hello World',
     width: 800,
     height: 600,
     resizable: true,

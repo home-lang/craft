@@ -1,11 +1,11 @@
 import { describe, expect, it, beforeEach } from 'bun:test'
-import { ZyteApp, createApp, type WindowOptions, type AppConfig } from '../src/index'
+import { CraftApp, createApp, type WindowOptions, type AppConfig } from '../src/index'
 
-describe('ZyteApp', () => {
+describe('CraftApp', () => {
   describe('constructor', () => {
     it('should create app with default config', () => {
-      const app = new ZyteApp()
-      expect(app).toBeInstanceOf(ZyteApp)
+      const app = new CraftApp()
+      expect(app).toBeInstanceOf(CraftApp)
     })
 
     it('should accept custom window options', () => {
@@ -16,8 +16,8 @@ describe('ZyteApp', () => {
           height: 768,
         },
       }
-      const app = new ZyteApp(config)
-      expect(app).toBeInstanceOf(ZyteApp)
+      const app = new CraftApp(config)
+      expect(app).toBeInstanceOf(CraftApp)
     })
 
     it('should merge custom options with defaults', () => {
@@ -26,24 +26,24 @@ describe('ZyteApp', () => {
           title: 'Test App',
         },
       }
-      const app = new ZyteApp(config)
-      expect(app).toBeInstanceOf(ZyteApp)
+      const app = new CraftApp(config)
+      expect(app).toBeInstanceOf(CraftApp)
     })
 
     it('should accept HTML content', () => {
       const config: AppConfig = {
         html: '<h1>Test</h1>',
       }
-      const app = new ZyteApp(config)
-      expect(app).toBeInstanceOf(ZyteApp)
+      const app = new CraftApp(config)
+      expect(app).toBeInstanceOf(CraftApp)
     })
 
     it('should accept URL', () => {
       const config: AppConfig = {
         url: 'http://localhost:3000',
       }
-      const app = new ZyteApp(config)
-      expect(app).toBeInstanceOf(ZyteApp)
+      const app = new CraftApp(config)
+      expect(app).toBeInstanceOf(CraftApp)
     })
   })
 
@@ -60,8 +60,8 @@ describe('ZyteApp', () => {
         devTools: true,
         systemTray: true,
       }
-      const app = new ZyteApp({ window: options })
-      expect(app).toBeInstanceOf(ZyteApp)
+      const app = new CraftApp({ window: options })
+      expect(app).toBeInstanceOf(CraftApp)
     })
 
     it('should handle position and size options', () => {
@@ -71,14 +71,14 @@ describe('ZyteApp', () => {
         width: 1920,
         height: 1080,
       }
-      const app = new ZyteApp({ window: options })
-      expect(app).toBeInstanceOf(ZyteApp)
+      const app = new CraftApp({ window: options })
+      expect(app).toBeInstanceOf(CraftApp)
     })
   })
 
   describe('close', () => {
     it('should not throw when closing app with no process', () => {
-      const app = new ZyteApp()
+      const app = new CraftApp()
       expect(() => app.close()).not.toThrow()
     })
   })
@@ -86,9 +86,9 @@ describe('ZyteApp', () => {
 
 describe('Helper functions', () => {
   describe('createApp', () => {
-    it('should create ZyteApp instance', () => {
+    it('should create CraftApp instance', () => {
       const app = createApp()
-      expect(app).toBeInstanceOf(ZyteApp)
+      expect(app).toBeInstanceOf(CraftApp)
     })
 
     it('should accept config', () => {
@@ -96,7 +96,7 @@ describe('Helper functions', () => {
         window: { title: 'Helper Test' },
       }
       const app = createApp(config)
-      expect(app).toBeInstanceOf(ZyteApp)
+      expect(app).toBeInstanceOf(CraftApp)
     })
   })
 })
@@ -124,23 +124,23 @@ describe('Type exports', () => {
 
 describe('Configuration validation', () => {
   it('should handle empty config', () => {
-    const app = new ZyteApp({})
-    expect(app).toBeInstanceOf(ZyteApp)
+    const app = new CraftApp({})
+    expect(app).toBeInstanceOf(CraftApp)
   })
 
   it('should handle partial window config', () => {
-    const app = new ZyteApp({
+    const app = new CraftApp({
       window: {
         width: 1200,
       },
     })
-    expect(app).toBeInstanceOf(ZyteApp)
+    expect(app).toBeInstanceOf(CraftApp)
   })
 
-  it('should handle custom zytePath', () => {
-    const app = new ZyteApp({
-      zytePath: '/custom/path/to/zyte',
+  it('should handle custom craftPath', () => {
+    const app = new CraftApp({
+      craftPath: '/custom/path/to/craft',
     })
-    expect(app).toBeInstanceOf(ZyteApp)
+    expect(app).toBeInstanceOf(CraftApp)
   })
 })

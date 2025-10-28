@@ -6,9 +6,9 @@
 <!-- [![npm downloads][npm-downloads-src]][npm-downloads-href] -->
 <!-- [![Codecov][codecov-src]][codecov-href] -->
 
-# Zyte
+# Craft
 
-Zyte is a lightweight, high-performance cross-platform application framework. Create native apps that work on macOS, Linux, Windows, iOS, and Android with web technologies - all with a tiny 1.4MB binary and blazing fast <100ms startup time.
+Craft is a lightweight, high-performance cross-platform application framework. Create native apps that work on macOS, Linux, Windows, iOS, and Android with web technologies - all with a tiny 1.4MB binary and blazing fast <100ms startup time.
 
 ## Features
 
@@ -228,16 +228,16 @@ Build native menubar/system tray apps with full platform support:
 - 🖨️ **Print Support** - Native printing
 - 📥 **Downloads** - Download management
 - 🔌 **WebSocket** - Real-time communication
-- 🔗 **Custom Protocols** - Register custom URL handlers (zyte://)
+- 🔗 **Custom Protocols** - Register custom URL handlers (craft://)
 - 🎯 **Drag & Drop** - File drag and drop support
 
 ## Quick Start
 
-The fastest way to get started is with `create-zyte`:
+The fastest way to get started is with `create-craft`:
 
 ```bash
-# Create a new Zyte app
-bun create zyte my-app
+# Create a new Craft app
+bun create craft my-app
 
 # Navigate to your app
 cd my-app
@@ -254,10 +254,10 @@ Choose from multiple templates:
 
 ```bash
 # Use a specific template
-bun create zyte my-app --template full-featured
+bun create craft my-app --template full-featured
 ```
 
-**See [create-zyte documentation](./packages/create-zyte/README.md) for all options.**
+**See [create-craft documentation](./packages/create-craft/README.md) for all options.**
 
 ### Try the Examples
 
@@ -287,12 +287,12 @@ Build desktop apps with TypeScript - zero dependencies, just pure Node.js APIs:
 
 ```bash
 # Install the TypeScript SDK
-bun add ts-zyte
+bun add ts-craft
 ```
 
 ```typescript
 // app.ts
-import { show } from 'ts-zyte'
+import { show } from 'ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -312,7 +312,7 @@ const html = `
   </style>
 </head>
 <body>
-  <h1>⚡ My First Zyte App</h1>
+  <h1>⚡ My First Craft App</h1>
 </body>
 </html>
 `
@@ -326,7 +326,7 @@ await show(html, { title: 'My App', width: 800, height: 600 })
 bun run app.ts
 ```
 
-**See [TypeScript SDK Documentation](./packages/ts-zyte/README.md) for the full API.**
+**See [TypeScript SDK Documentation](./packages/ts-craft/README.md) for the full API.**
 
 ### Zig (Advanced)
 
@@ -334,18 +334,18 @@ For advanced use cases where you need maximum performance and control:
 
 ```bash
 # Install via npm
-npm install -g ts-zyte
+npm install -g ts-craft
 
 # Or with Bun
-bun add -g ts-zyte
+bun add -g ts-craft
 ```
 
 ### Build from Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/stacksjs/zyte.git
-cd zyte
+git clone https://github.com/stacksjs/craft.git
+cd craft
 
 # Install Zig 0.15.1
 # macOS
@@ -359,7 +359,7 @@ tar -xf zig-linux-x86_64-0.15.1.tar.xz
 zig build
 
 # Run
-./zig-out/bin/zyte-minimal http://localhost:3000
+./zig-out/bin/craft-minimal http://localhost:3000
 ```
 
 ### Platform-Specific Dependencies
@@ -382,14 +382,14 @@ winget install Microsoft.EdgeWebView2Runtime
 
 ```zig
 const std = @import("std");
-const zyte = @import("zyte");
+const craft = @import("craft");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var app = zyte.App.init(allocator);
+    var app = craft.App.init(allocator);
     defer app.deinit();
 
     _ = try app.createWindowWithURL(
@@ -550,7 +550,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     // Show notification
-    const notification = system.Notification.init("Hello", "Welcome to Zyte!");
+    const notification = system.Notification.init("Hello", "Welcome to Craft!");
     try notification.show();
 
     // Clipboard operations
@@ -633,10 +633,10 @@ pub fn main() !void {
 
 ```bash
 # Launch a local development server
-zyte http://localhost:3000
+craft http://localhost:3000
 
 # With custom options
-zyte http://localhost:3000 \
+craft http://localhost:3000 \
   --title "My App" \
   --width 1200 \
   --height 800 \
@@ -644,7 +644,7 @@ zyte http://localhost:3000 \
   --hot-reload
 
 # Frameless transparent window
-zyte http://localhost:3000 \
+craft http://localhost:3000 \
   --frameless \
   --transparent \
   --always-on-top
@@ -652,24 +652,24 @@ zyte http://localhost:3000 \
 
 ## Package System
 
-Zyte uses a flexible package configuration system that supports multiple formats:
+Craft uses a flexible package configuration system that supports multiple formats:
 
 ### Supported Configuration Files
 
-Zyte automatically searches for configuration files in the following order:
+Craft automatically searches for configuration files in the following order:
 
-1. `zyte.toml` (TOML format)
-2. `zyte.json` (JSON format)
+1. `craft.toml` (TOML format)
+2. `craft.json` (JSON format)
 3. `package.jsonc` (JSON with comments)
 4. `package.json` (standard JSON, undocumented but supported)
 
 ### Configuration Formats
 
-#### TOML Configuration (`zyte.toml`)
+#### TOML Configuration (`craft.toml`)
 
 ```toml
 [package]
-name = "my-zyte-app"
+name = "my-craft-app"
 version = "0.1.0"
 authors = ["Your Name <you@example.com>"]
 description = "A cross-platform desktop application"
@@ -677,13 +677,13 @@ license = "MIT"
 
 [dependencies]
 # Local path dependency
-zyte-ui = { path = "../zyte-ui" }
+craft-ui = { path = "../craft-ui" }
 
 # Git dependency
-zyte-http = { git = "https://github.com/user/zyte-http.git" }
+craft-http = { git = "https://github.com/user/craft-http.git" }
 
 # Version dependency (from registry)
-zyte-database = { version = "^1.2.0" }
+craft-database = { version = "^1.2.0" }
 
 [workspaces]
 packages = ["packages/*", "apps/*"]
@@ -695,20 +695,20 @@ build = "zig build -Doptimize=ReleaseFast"
 format = "find src -name '*.zig' -exec zig fmt {} +"
 ```
 
-#### JSON Configuration (`zyte.json` or `package.jsonc`)
+#### JSON Configuration (`craft.json` or `package.jsonc`)
 
 ```json
 {
-  "name": "my-zyte-app",
+  "name": "my-craft-app",
   "version": "0.1.0",
   "authors": ["Your Name <you@example.com>"],
   "description": "A cross-platform desktop application",
   "license": "MIT",
 
   "dependencies": {
-    "zyte-ui": { "path": "../zyte-ui" },
-    "zyte-http": { "git": "https://github.com/user/zyte-http.git" },
-    "zyte-database": "^1.2.0"
+    "craft-ui": { "path": "../craft-ui" },
+    "craft-http": { "git": "https://github.com/user/craft-http.git" },
+    "craft-database": "^1.2.0"
   },
 
   "workspaces": {
@@ -777,7 +777,7 @@ another-lib = "^2.0.0"
 
 Organize multiple packages in a monorepo structure:
 
-**Root Package (`zyte.toml`)**
+**Root Package (`craft.toml`)**
 
 ```toml
 [package]
@@ -797,7 +797,7 @@ build = "zig build"
 test = "zig build test"
 ```
 
-**Package in Workspace (`packages/core/zyte.toml`)**
+**Package in Workspace (`packages/core/craft.toml`)**
 
 ```toml
 [package]
@@ -823,7 +823,7 @@ format = "zig fmt src/"
 lint = "zig build check"
 ```
 
-Run scripts with: `zyte run <script-name>` (planned feature)
+Run scripts with: `craft run <script-name>` (planned feature)
 
 ### Using in Zig Code
 
@@ -864,8 +864,8 @@ pub fn main() !void {
   "license": "MIT",
 
   "dependencies": {
-    "zyte-ui": "^1.0.0",
-    "zyte-notifications": "^0.5.0"
+    "craft-ui": "^1.0.0",
+    "craft-notifications": "^0.5.0"
   },
 
   "scripts": {
@@ -887,8 +887,8 @@ description = "A simple menubar timer"
 license = "MIT"
 
 [dependencies]
-zyte-menubar = { version = "^1.0.0" }
-zyte-notifications = { version = "^0.5.0" }
+craft-menubar = { version = "^1.0.0" }
+craft-notifications = { version = "^0.5.0" }
 
 [scripts]
 dev = "zig build run"
@@ -899,14 +899,14 @@ build = "zig build -Doptimize=ReleaseFast"
 
 ```json
 {
-  "name": "zyte-database",
+  "name": "craft-database",
   "version": "1.2.0",
   "description": "SQL database access with SQLite driver",
-  "authors": ["Zyte Contributors"],
+  "authors": ["Craft Contributors"],
   "license": "MIT",
 
   "dependencies": {
-    "zyte-diagnostics": { "path": "../diagnostics" }
+    "craft-diagnostics": { "path": "../diagnostics" }
   },
 
   "scripts": {
@@ -918,7 +918,7 @@ build = "zig build -Doptimize=ReleaseFast"
 
 ## Architecture
 
-Zyte is built with a modular architecture:
+Craft is built with a modular architecture:
 
 ```text
 src/
@@ -937,7 +937,7 @@ src/
 
 ## Performance
 
-| Metric | Zyte | Electron | Tauri |
+| Metric | Craft | Electron | Tauri |
 |--------|------|----------|-------|
 | Binary Size | **1.4MB** | ~150MB | ~2MB |
 | Memory (idle) | **~92MB** | ~200MB | ~80MB |
@@ -963,7 +963,7 @@ src/
 - 📘 [Getting Started](GETTING_STARTED.md) - Detailed guide
 - ✨ [Features](FEATURES.md) - Complete feature list
 - 🤝 [Contributing](CONTRIBUTING.md) - Contribution guide
-- 📋 [Changelog](https://github.com/stacksjs/zyte/releases) - Release history
+- 📋 [Changelog](https://github.com/stacksjs/craft/releases) - Release history
 
 ## Contributing
 
@@ -973,12 +973,12 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 
 For help, discussion about best practices, or any other conversation:
 
-- 💬 [Discussions on GitHub](https://github.com/stacksjs/zyte/discussions)
+- 💬 [Discussions on GitHub](https://github.com/stacksjs/craft/discussions)
 - 💭 [Join the Stacks Discord Server](https://discord.gg/stacksjs)
 
 ## Postcardware
 
-Zyte is free software, but we'd love to receive a postcard from where you're using it! We showcase them on our website.
+Craft is free software, but we'd love to receive a postcard from where you're using it! We showcase them on our website.
 
 **Our address:** Stacks.js, 12665 Village Ln #2306, Playa Vista, CA 90094, United States 🌎
 
@@ -996,7 +996,7 @@ The MIT License (MIT). Please see [LICENSE](LICENSE.md) for more information.
 Made with 💙
 
 <!-- Badges -->
-[npm-version-src]: https://img.shields.io/npm/v/ts-zyte?style=flat-square
-[npm-version-href]: https://npmjs.com/package/ts-zyte
-[github-actions-src]: https://img.shields.io/github/actions/workflow/status/stacksjs/zyte/ci.yml?style=flat-square&branch=main
-[github-actions-href]: https://github.com/stacksjs/zyte/actions?query=workflow%3Aci
+[npm-version-src]: https://img.shields.io/npm/v/ts-craft?style=flat-square
+[npm-version-href]: https://npmjs.com/package/ts-craft
+[github-actions-src]: https://img.shields.io/github/actions/workflow/status/stacksjs/craft/ci.yml?style=flat-square&branch=main
+[github-actions-href]: https://github.com/stacksjs/craft/actions?query=workflow%3Aci

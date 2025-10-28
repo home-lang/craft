@@ -19,13 +19,13 @@
  */
 
 import { createApp } from '../packages/typescript/src/index.ts'
-import type { ZyteBridgeAPI } from '../packages/typescript/src/types.ts'
+import type { CraftBridgeAPI } from '../packages/typescript/src/types.ts'
 import { watch } from 'node:fs'
 
 // Extend window interface for TypeScript
 declare global {
   interface Window {
-    zyte: ZyteBridgeAPI
+    craft: CraftBridgeAPI
   }
 }
 
@@ -38,11 +38,11 @@ const html = `
   <title>🍅 25:00</title>
 
   <script>
-    // Initialize the Pomodoro menu when the Zyte bridge is ready
+    // Initialize the Pomodoro menu when the Craft bridge is ready
     // This is defined in <head> to ensure it runs (WKWebView body scripts can be unreliable)
-    window.initializeZyteApp = function() {
-      if (window.zyte?.tray) {
-        window.zyte.tray.setMenu([
+    window.initializeCraftApp = function() {
+      if (window.craft?.tray) {
+        window.craft.tray.setMenu([
           { label: 'Start Timer', action: 'toggle-timer' },
           { label: 'Reset Timer', action: 'reset-timer' },
           { label: 'Skip Session', action: 'skip-session' },
@@ -369,8 +369,8 @@ const html = `
 
   <script>
     // Debug: Verify script is loading
-    if (window.webkit?.messageHandlers?.zyteBridge) {
-      window.webkit.messageHandlers.zyteBridge.postMessage({
+    if (window.webkit?.messageHandlers?.craftBridge) {
+      window.webkit.messageHandlers.craftBridge.postMessage({
         type: 'debug',
         message: 'Pomodoro script started loading'
       });
@@ -379,7 +379,7 @@ const html = `
     // Configuration
     const WORK_DURATION = 25 * 60; // 25 minutes
     const BREAK_DURATION = 5 * 60; // 5 minutes
-    const STORAGE_KEY = 'zyte_pomodoro';
+    const STORAGE_KEY = 'craft_pomodoro';
 
     // State
     let timeRemaining = WORK_DURATION;
@@ -738,14 +738,14 @@ const html = `
       // Update both window title and menubar (if system tray is enabled)
       document.title = title;
 
-      // Update menubar via Zyte API if available
-      if (window.zyte?.tray) {
-        window.zyte.tray.setTitle(title);
+      // Update menubar via Craft API if available
+      if (window.craft?.tray) {
+        window.craft.tray.setTitle(title);
 
         // Also update tooltip with session info
         const sessionType = isWorkSession ? 'Work Session' : 'Break Time';
         const statusText = isRunning ? 'Running' : 'Paused';
-        window.zyte.tray.setTooltip(\`Pomodoro Timer - \${sessionType} (\${statusText})\`);
+        window.craft.tray.setTooltip(\`Pomodoro Timer - \${sessionType} (\${statusText})\`);
       }
     }
 
@@ -913,8 +913,8 @@ const html = `
       } else if ((e.metaKey || e.ctrlKey) && e.code === 'KeyH') {
         e.preventDefault();
         console.log('Hide window (minimize to menubar)');
-        if (window.zyte?.window) {
-          window.zyte.window.hide();
+        if (window.craft?.window) {
+          window.craft.window.hide();
           isWindowVisible = false;
           updateMenuLabels();
         }
@@ -941,7 +941,7 @@ const html = `
     });
 
     // Set a global flag that the listener is ready
-    window.zyte_menu_listener_ready = true;
+    window.craft_menu_listener_ready = true;
     console.log('[Pomodoro] Menu listener registered');
 
     // Create a global handler function that can be called directly
@@ -980,7 +980,7 @@ const html = `
     };
 
     // Handle custom menu actions via event
-    window.addEventListener('zyte:tray:menuAction', (event) => {
+    window.addEventListener('craft:tray:menuAction', (event) => {
       const action = event.detail.action;
       console.log('[Pomodoro] Received menu action event:', action);
       window.handleMenuAction(action);
@@ -998,7 +998,7 @@ const html = `
     // evaluateJavaScript doesn't work, so we use tooltip as a communication channel
     let lastTooltipCheck = '';
     setInterval(() => {
-      if (window.zyte?.tray) {
+      if (window.craft?.tray) {
         // We can't READ the tooltip, so this won't work either...
         // Actually, let's try a different approach - just poll document.title
         const currentTitle = document.title;
@@ -1034,18 +1034,18 @@ const html = `
     function showAbout() {
       const aboutMessage = \`Pomodoro Timer for Menubar
 
-A clean, functional Pomodoro timer built with Zyte.
+A clean, functional Pomodoro timer built with Craft.
 
 Version: 1.0.0
 Work Session: 25 minutes
 Break Duration: 5 minutes
 
-Built with ❤️ using Zyte Framework
-https://github.com/stacksjs/zyte\`;
+Built with ❤️ using Craft Framework
+https://github.com/stacksjs/craft\`;
 
-      if (window.zyte?.window) {
+      if (window.craft?.window) {
         // Show alert dialog
-        window.zyte.window.alert(aboutMessage);
+        window.craft.window.alert(aboutMessage);
       } else {
         alert(aboutMessage);
       }
@@ -1053,7 +1053,7 @@ https://github.com/stacksjs/zyte\`;
 
     // Function to update menu labels dynamically
     function updateMenuLabels() {
-      if (window.zyte?.tray) {
+      if (window.craft?.tray) {
         const menuItems = [
           {
             label: isRunning ? 'Pause Timer' : 'Start Timer',
@@ -1100,27 +1100,27 @@ https://github.com/stacksjs/zyte\`;
           }
         );
 
-        window.zyte.tray.setMenu(menuItems);
+        window.craft.tray.setMenu(menuItems);
       }
     }
 
     // Setup menubar menu - called after bridge is ready
     function setupPomodoroMenu() {
       console.log('[Pomodoro] setupPomodoroMenu() called');
-      console.log('[Pomodoro] window.zyte:', !!window.zyte);
-      console.log('[Pomodoro] window.zyte.tray:', !!window.zyte?.tray);
+      console.log('[Pomodoro] window.craft:', !!window.craft);
+      console.log('[Pomodoro] window.craft.tray:', !!window.craft?.tray);
 
-      if (window.zyte?.tray) {
-        console.log('[Pomodoro] Setting up menu via window.zyte.tray');
+      if (window.craft?.tray) {
+        console.log('[Pomodoro] Setting up menu via window.craft.tray');
         updateMenuLabels();
       } else {
-        console.error('[Pomodoro] ERROR: window.zyte.tray is not available!');
+        console.error('[Pomodoro] ERROR: window.craft.tray is not available!');
       }
     }
 
-    // Wait for the Zyte bridge to be ready (normal case when body scripts execute)
-    window.addEventListener('zyte:ready', () => {
-      console.log('[Pomodoro] Zyte bridge ready - initializing menu');
+    // Wait for the Craft bridge to be ready (normal case when body scripts execute)
+    window.addEventListener('craft:ready', () => {
+      console.log('[Pomodoro] Craft bridge ready - initializing menu');
       setupPomodoroMenu();
     });
   </script>
@@ -1177,7 +1177,7 @@ async function main() {
 
         debounceTimer = setTimeout(() => {
           console.log('🔄 File changed - reloading...')
-          // The hotReload option handles the actual reload via the Zyte binary
+          // The hotReload option handles the actual reload via the Craft binary
         }, 300)
       }
     })

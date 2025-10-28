@@ -1,5 +1,5 @@
 /**
- * Timer utilities for Zyte applications
+ * Timer utilities for Craft applications
  * Simple interval-based timer with callbacks
  */
 

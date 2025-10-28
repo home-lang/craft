@@ -1,4 +1,4 @@
-# Zyte Production Deployment Guide
+# Craft Production Deployment Guide
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@ zig build -Doptimize=ReleaseSmall
 
 ### 2. Configuration
 
-Create a production `zyte.toml`:
+Create a production `craft.toml`:
 
 ```toml
 [app]

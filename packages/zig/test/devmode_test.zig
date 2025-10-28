@@ -106,8 +106,8 @@ test "DevMode - getOverlayHTML when enabled" {
     defer testing.allocator.free(html);
 
     try testing.expect(html.len > 0);
-    try testing.expect(std.mem.indexOf(u8, html, "zyte-debug-overlay") != null);
-    try testing.expect(std.mem.indexOf(u8, html, "Zyte Dev Mode") != null);
+    try testing.expect(std.mem.indexOf(u8, html, "craft-debug-overlay") != null);
+    try testing.expect(std.mem.indexOf(u8, html, "Craft Dev Mode") != null);
     try testing.expect(std.mem.indexOf(u8, html, "FPS:") != null);
     try testing.expect(std.mem.indexOf(u8, html, "Memory:") != null);
     try testing.expect(std.mem.indexOf(u8, html, "Events:") != null);

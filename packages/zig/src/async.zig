@@ -1,8 +1,7 @@
 const std = @import("std");
 
-/// Async/Await System for Zyte
+/// Async/Await System for Craft
 /// Provides non-blocking I/O and task scheduling
-
 pub const Task = struct {
     fn_ptr: *const fn (*anyopaque) anyerror!void,
     context: *anyopaque,

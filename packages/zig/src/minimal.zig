@@ -1,8 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const zyte = @import("zyte");
+const craft = @import("craft");
 const cli = @import("cli.zig");
-
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -26,7 +25,7 @@ pub fn main() !void {
         return;
     }
 
-    var app = zyte.App.init(allocator);
+    var app = craft.App.init(allocator);
     defer app.deinit();
 
     // Initialize platform FIRST (must be called before creating windows or system tray)
@@ -38,7 +37,7 @@ pub fn main() !void {
         // Load URL directly (no iframe!)
         std.debug.print("\n⚡ Loading URL in native window: {s}\n", .{url});
         std.debug.print("   Title: {s}\n", .{options.title});
-        std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height});
+        std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
         if (options.frameless) std.debug.print("   Style: Frameless\n", .{});
         if (options.transparent) std.debug.print("   Style: Transparent\n", .{});
         if (options.always_on_top) std.debug.print("   Style: Always on top\n", .{});
@@ -93,7 +92,7 @@ pub fn main() !void {
         );
     } else {
         // Show default demo app
-        std.debug.print("\n⚡ Launching Zyte demo app\n", .{});
+        std.debug.print("\n⚡ Launching Craft demo app\n", .{});
         std.debug.print("   Run with --help to see available options\n\n", .{});
 
         const demo_html =
@@ -101,7 +100,7 @@ pub fn main() !void {
             \\<html>
             \\<head>
             \\    <meta charset="UTF-8">
-            \\    <title>Zyte Demo</title>
+            \\    <title>Craft Demo</title>
             \\    <style>
             \\        * {
             \\            margin: 0;
@@ -154,17 +153,17 @@ pub fn main() !void {
             \\<body>
             \\    <div class="container">
             \\        <div class="emoji">⚡</div>
-            \\        <h1>Zyte</h1>
+            \\        <h1>Craft</h1>
             \\        <p>Desktop apps with web languages</p>
             \\        <p style="margin-top: 2rem; font-size: 1rem; opacity: 0.7;">
-            \\            Try: <code>zyte --help</code>
+            \\            Try: <code>craft --help</code>
             \\        </p>
             \\    </div>
             \\</body>
             \\</html>
         ;
 
-        _ = try app.createWindow("Zyte - Demo", 600, 400, demo_html);
+        _ = try app.createWindow("Craft - Demo", 600, 400, demo_html);
     }
 
     // Create system tray if requested
@@ -174,7 +173,7 @@ pub fn main() !void {
         // Set tooltip with additional info
         const tooltip = try std.fmt.allocPrint(
             allocator,
-            "{s} - Zyte Application",
+            "{s} - Craft Application",
             .{options.title},
         );
         defer allocator.free(tooltip);
@@ -204,7 +203,7 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
     }
     std.debug.print("\n", .{});
 
-    var app = zyte.App.init(allocator);
+    var app = craft.App.init(allocator);
     defer app.deinit();
 
     // Initialize platform for TRAY apps - uses Accessory policy AND calls finishLaunching
@@ -263,7 +262,7 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
     // Set tooltip with additional info
     const tooltip = try std.fmt.allocPrint(
         allocator,
-        "{s} - Zyte Application",
+        "{s} - Craft Application",
         .{options.title},
     );
     defer allocator.free(tooltip);

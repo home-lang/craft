@@ -102,7 +102,7 @@ pub const Window = struct {
         // Initialize GTK if not already done
         if (app_instance == null) {
             gtk_init();
-            app_instance = gtk_application_new("com.zyte.app", 0);
+            app_instance = gtk_application_new("com.craft.app", 0);
         }
 
         const window = gtk_application_window_new(app_instance.?);
@@ -303,7 +303,7 @@ pub fn showNotification(title: []const u8, message: []const u8) !void {
     const message_z = try std.heap.c_allocator.dupeZ(u8, message);
     defer std.heap.c_allocator.free(message_z);
 
-    _ = notify_init("Zyte");
+    _ = notify_init("Craft");
     const notification = notify_notification_new(title_z, message_z, "");
     _ = notify_notification_show(notification, null);
 }

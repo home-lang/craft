@@ -118,7 +118,7 @@ test "Profiler - getHTMLDashboard" {
 
     try testing.expect(html.len > 0);
     try testing.expect(std.mem.indexOf(u8, html, "<!DOCTYPE html>") != null);
-    try testing.expect(std.mem.indexOf(u8, html, "Zyte Performance Dashboard") != null);
+    try testing.expect(std.mem.indexOf(u8, html, "Craft Performance Dashboard") != null);
     try testing.expect(std.mem.indexOf(u8, html, "html_test") != null);
 }
 

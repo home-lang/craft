@@ -4,7 +4,6 @@ const security = @import("plugin_security.zig");
 
 /// Plugin Marketplace System
 /// Allows discovering, installing, and managing plugins from remote registries
-
 pub const PluginInfo = struct {
     id: []const u8,
     name: []const u8,
@@ -405,9 +404,9 @@ pub const PluginUpdate = struct {
     info: PluginInfo,
 };
 
-/// Official Zyte Plugin Registry
+/// Official Craft Plugin Registry
 pub const OfficialRegistry = struct {
-    pub const URL = "https://plugins.zyte.dev";
+    pub const URL = "https://plugins.craft.dev";
     pub const NAME = "official";
 
     pub fn create(allocator: std.mem.Allocator) Registry {
@@ -417,7 +416,7 @@ pub const OfficialRegistry = struct {
 
 /// Community Plugin Registry
 pub const CommunityRegistry = struct {
-    pub const URL = "https://community.zyte.dev";
+    pub const URL = "https://community.craft.dev";
     pub const NAME = "community";
 
     pub fn create(allocator: std.mem.Allocator) Registry {

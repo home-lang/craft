@@ -21,8 +21,8 @@ function cpuWork(iterations: number) {
 
 summary(() => {
   group('Idle Event Loop CPU Usage', () => {
-    bench('Zyte (native event loop)', () => {
-      // Zyte uses epoll/kqueue - zero CPU when idle
+    bench('Craft (native event loop)', () => {
+      // Craft uses epoll/kqueue - zero CPU when idle
       // Only wakes up on actual events
       const iterations = 10;
       for (let i = 0; i < iterations; i++) {
@@ -48,7 +48,7 @@ summary(() => {
   });
 
   group('Single Frame Render CPU Cost', () => {
-    bench('Zyte (direct GPU commands)', () => {
+    bench('Craft (direct GPU commands)', () => {
       // Native GPU command encoding - minimal CPU overhead
       const commands = [];
 
@@ -98,7 +98,7 @@ summary(() => {
   });
 
   group('Event Processing Throughput (1000 events)', () => {
-    bench('Zyte (direct dispatch)', () => {
+    bench('Craft (direct dispatch)', () => {
       const events = [];
 
       // Generate 1000 mouse move events
@@ -158,7 +158,7 @@ summary(() => {
   });
 
   group('Component Update CPU Cost (1000 updates)', () => {
-    bench('Zyte (direct property updates)', () => {
+    bench('Craft (direct property updates)', () => {
       const components = [];
 
       // Create 1000 components
@@ -214,7 +214,7 @@ summary(() => {
   });
 
   group('Layout Calculation CPU Cost (100 nested components)', () => {
-    bench('Zyte (immediate mode)', () => {
+    bench('Craft (immediate mode)', () => {
       // Immediate mode: calculate once per frame
       const layouts = [];
 
@@ -273,7 +273,7 @@ summary(() => {
   });
 
   group('IPC Message Serialization CPU (1000 messages)', () => {
-    bench('Zyte (zero-copy message passing)', () => {
+    bench('Craft (zero-copy message passing)', () => {
       const messages = [];
 
       for (let i = 0; i < 1000; i++) {
@@ -318,7 +318,7 @@ summary(() => {
   });
 
   group('Scroll Performance CPU (60 FPS sustained)', () => {
-    bench('Zyte (direct render)', () => {
+    bench('Craft (direct render)', () => {
       // Render 60 frames
       for (let frame = 0; frame < 60; frame++) {
         // Update scroll position

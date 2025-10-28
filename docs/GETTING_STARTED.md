@@ -1,4 +1,4 @@
-# Getting Started with Zyte
+# Getting Started with Craft
 
 ## Installation
 
@@ -34,12 +34,12 @@ zig version
 # Should show: 0.13.0 or later
 ```
 
-## Building Zyte
+## Building Craft
 
-Navigate to the zyte package directory:
+Navigate to the craft package directory:
 
 ```bash
-cd packages/zyte
+cd packages/craft
 ```
 
 Build the library:
@@ -68,21 +68,21 @@ Create a new file `my-app.zig`:
 
 ```zig
 const std = @import("std");
-const zyte = @import("zyte");
+const craft = @import("craft");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var app = zyte.App.init(allocator);
+    var app = craft.App.init(allocator);
     defer app.deinit();
 
     const html =
         \\<!DOCTYPE html>
         \\<html>
         \\<head>
-        \\    <title>My First Zyte App</title>
+        \\    <title>My First Craft App</title>
         \\    <style>
         \\        body {
         \\            font-family: system-ui;
@@ -97,7 +97,7 @@ pub fn main() !void {
         \\    </style>
         \\</head>
         \\<body>
-        \\    <h1>Hello, Zyte!</h1>
+        \\    <h1>Hello, Craft!</h1>
         \\</body>
         \\</html>
     ;
@@ -118,10 +118,10 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const zyte_module = b.dependency("zyte", .{
+    const craft_module = b.dependency("craft", .{
         .target = target,
         .optimize = optimize,
-    }).module("zyte");
+    }).module("craft");
 
     const exe = b.addExecutable(.{
         .name = "my-app",
@@ -130,7 +130,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe.root_module.addImport("zyte", zyte_module);
+    exe.root_module.addImport("craft", craft_module);
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
@@ -149,7 +149,7 @@ zig build run
 
 ### macOS
 
-On macOS, Zyte uses WebKit framework which is included by default. No additional dependencies needed.
+On macOS, Craft uses WebKit framework which is included by default. No additional dependencies needed.
 
 ### Linux
 
@@ -182,10 +182,10 @@ On Windows, you need WebView2 Runtime:
 
 ## Project Structure
 
-A typical Zyte project:
+A typical Craft project:
 
 ```
-my-zyte-app/
+my-craft-app/
 ├── build.zig          # Build configuration
 ├── src/
 │   └── main.zig       # Your app code
@@ -228,11 +228,11 @@ Install WebView2 Runtime from Microsoft's website.
 
 ## Development Status
 
-⚠️ **Note**: Zyte is in early development. The core API is ready, but platform-specific webview implementations are still being developed. Currently, the framework:
+⚠️ **Note**: Craft is in early development. The core API is ready, but platform-specific webview implementations are still being developed. Currently, the framework:
 
 - ✅ Has a clean, working API
 - ✅ Compiles successfully
 - ✅ Passes tests
 - 🚧 Needs platform-specific webview bindings (in progress)
 
-You can use Zyte today to design your app structure and UI, and full webview rendering will be available as platform bindings are completed.
+You can use Craft today to design your app structure and UI, and full webview rendering will be available as platform bindings are completed.

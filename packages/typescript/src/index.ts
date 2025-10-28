@@ -1,5 +1,5 @@
 /**
- * Zyte - Build desktop apps with web languages
+ * Craft - Build desktop apps with web languages
  * TypeScript SDK powered by Bun
  */
 
@@ -14,7 +14,7 @@ export { packageApp, pack, type PackageConfig, type PackageResult } from './pack
 // Export utilities
 export * from './utils'
 
-export class ZyteApp {
+export class CraftApp {
   private process?: ChildProcess
   private config: AppConfig
 
@@ -34,7 +34,7 @@ export class ZyteApp {
 
     this.config = {
       window: {
-        title: 'Zyte App',
+        title: 'Craft App',
         width: 800,
         height: 600,
         resizable: true,
@@ -68,16 +68,16 @@ export class ZyteApp {
     }
 
     const args = this.buildArgs()
-    const zytePath = await this.findZyteBinary()
+    const craftPath = await this.findCraftBinary()
 
-    this.process = spawn(zytePath, args, {
+    this.process = spawn(craftPath, args, {
       stdio: 'inherit',
     })
 
     return new Promise((resolve, reject) => {
       this.process?.on('error', (error: Error & { code?: string }) => {
         const errorMessage = [
-          `❌ Failed to start Zyte process: ${error.message}`,
+          `❌ Failed to start Craft process: ${error.message}`,
           '',
         ]
 
@@ -85,20 +85,20 @@ export class ZyteApp {
         if (error.code === 'EACCES') {
           errorMessage.push(
             'Permission denied. Try making the binary executable:',
-            `  chmod +x ${zytePath}`,
+            `  chmod +x ${craftPath}`,
           )
         }
         else if (error.code === 'ENOENT') {
           errorMessage.push(
             'Binary not found or not executable.',
-            'Ensure Zyte core is built:',
+            'Ensure Craft core is built:',
             '  bun run build:core',
           )
         }
         else {
           errorMessage.push(
             'For troubleshooting, visit:',
-            '  https://github.com/stacksjs/zyte/issues',
+            '  https://github.com/stacksjs/craft/issues',
           )
         }
 
@@ -111,7 +111,7 @@ export class ZyteApp {
         }
         else {
           reject(new Error(
-            `❌ Zyte process exited with code ${code}\n\n` +
+            `❌ Craft process exited with code ${code}\n\n` +
             'This may indicate:\n' +
             '  • Invalid window configuration\n' +
             '  • Malformed HTML content\n' +
@@ -194,39 +194,39 @@ export class ZyteApp {
     return args
   }
 
-  private async findZyteBinary(): Promise<string> {
-    if (this.config.zytePath) {
-      if (!existsSync(this.config.zytePath)) {
+  private async findCraftBinary(): Promise<string> {
+    if (this.config.craftPath) {
+      if (!existsSync(this.config.craftPath)) {
         throw new Error(
-          `Custom Zyte binary path not found: ${this.config.zytePath}\n\n` +
-          'Please ensure the path is correct or build the Zyte core:\n' +
+          `Custom Craft binary path not found: ${this.config.craftPath}\n\n` +
+          'Please ensure the path is correct or build the Craft core:\n' +
           '  bun run build:core'
         )
       }
-      return this.config.zytePath
+      return this.config.craftPath
     }
 
     // Try common locations
     const possiblePaths = [
       // From monorepo zig package (current binary names)
-      join(process.cwd(), 'packages/zig/zig-out/bin/zyte-minimal'),
-      join(process.cwd(), 'packages/zig/zig-out/bin/zyte-example'),
-      join(process.cwd(), 'packages/zig/zig-out/bin/zyte'),
-      // From ts-zyte package (when in monorepo)
-      join(process.cwd(), '../zig/zig-out/bin/zyte-minimal'),
-      join(process.cwd(), '../zig/zig-out/bin/zyte-example'),
-      join(process.cwd(), '../zig/zig-out/bin/zyte'),
+      join(process.cwd(), 'packages/zig/zig-out/bin/craft-minimal'),
+      join(process.cwd(), 'packages/zig/zig-out/bin/craft-example'),
+      join(process.cwd(), 'packages/zig/zig-out/bin/craft'),
+      // From ts-craft package (when in monorepo)
+      join(process.cwd(), '../zig/zig-out/bin/craft-minimal'),
+      join(process.cwd(), '../zig/zig-out/bin/craft-example'),
+      join(process.cwd(), '../zig/zig-out/bin/craft'),
       // Legacy locations (for backward compatibility)
-      join(process.cwd(), 'zig-out/bin/zyte-minimal'),
-      join(process.cwd(), 'zig-out/bin/zyte'),
-      join(process.cwd(), '../../zig-out/bin/zyte'),
+      join(process.cwd(), 'zig-out/bin/craft-minimal'),
+      join(process.cwd(), 'zig-out/bin/craft'),
+      join(process.cwd(), '../../zig-out/bin/craft'),
       // In PATH
-      'zyte-minimal',
-      'zyte',
+      'craft-minimal',
+      'craft',
     ]
 
     for (const path of possiblePaths) {
-      if (path === 'zyte' || path === 'zyte-minimal') {
+      if (path === 'craft' || path === 'craft-minimal') {
         // Check if it's in PATH by trying to spawn it
         try {
           await this.checkBinaryExists(path)
@@ -243,23 +243,23 @@ export class ZyteApp {
 
     // Provide helpful error message with troubleshooting steps
     const errorMessage = [
-      '❌ Zyte binary not found',
+      '❌ Craft binary not found',
       '',
       'Tried the following locations:',
       ...possiblePaths.map(p => `  • ${p}`),
       '',
       'To fix this issue:',
       '',
-      '1. Build the Zyte core:',
+      '1. Build the Craft core:',
       '   bun run build:core',
       '',
-      '2. Or install Zyte globally:',
-      '   bun install -g ts-zyte',
+      '2. Or install Craft globally:',
+      '   bun install -g ts-craft',
       '',
       '3. Or specify a custom binary path:',
-      '   createApp({ zytePath: "/path/to/zyte" })',
+      '   createApp({ craftPath: "/path/to/craft" })',
       '',
-      'For more help, visit: https://github.com/stacksjs/zyte',
+      'For more help, visit: https://github.com/stacksjs/craft',
     ].join('\n')
 
     throw new Error(errorMessage)
@@ -282,17 +282,17 @@ export class ZyteApp {
 }
 
 /**
- * Create a new Zyte app instance
+ * Create a new Craft app instance
  */
-export function createApp(config?: AppConfig): ZyteApp {
-  return new ZyteApp(config)
+export function createApp(config?: AppConfig): CraftApp {
+  return new CraftApp(config)
 }
 
 /**
  * Quick helper to show a window with HTML
  */
 export async function show(html: string, options?: WindowOptions): Promise<void> {
-  const app = new ZyteApp({ html, window: options })
+  const app = new CraftApp({ html, window: options })
   return app.show()
 }
 
@@ -300,7 +300,7 @@ export async function show(html: string, options?: WindowOptions): Promise<void>
  * Quick helper to load a URL
  */
 export async function loadURL(url: string, options?: WindowOptions): Promise<void> {
-  const app = new ZyteApp({ url, window: options })
+  const app = new CraftApp({ url, window: options })
   return app.loadURL(url)
 }
 

@@ -1,10 +1,10 @@
-# Zyte JavaScript Bridge - Quick Reference
+# Craft JavaScript Bridge - Quick Reference
 
 ## 🚀 Getting Started
 
 ```javascript
 // Wait for bridge to be ready
-window.addEventListener('zyte:ready', () => {
+window.addEventListener('craft:ready', () => {
   // Your code here
 });
 ```
@@ -13,21 +13,21 @@ window.addEventListener('zyte:ready', () => {
 
 ```javascript
 // Update tray title
-await window.zyte.tray.setTitle('🍅 25:00')
+await window.craft.tray.setTitle('🍅 25:00')
 
 // Set tooltip
-await window.zyte.tray.setTooltip('Click to toggle window')
+await window.craft.tray.setTooltip('Click to toggle window')
 
 // Handle clicks
-const unregister = window.zyte.tray.onClick((event) => {
+const unregister = window.craft.tray.onClick((event) => {
   console.log('Clicked!', event.button)
 })
 
 // Toggle window on click (convenience)
-window.zyte.tray.onClickToggleWindow()
+window.craft.tray.onClickToggleWindow()
 
 // Set context menu
-await window.zyte.tray.setMenu([
+await window.craft.tray.setMenu([
   { label: 'Show Window', action: 'show' },
   { type: 'separator' },
   { label: 'Quit', action: 'quit' }
@@ -38,48 +38,48 @@ await window.zyte.tray.setMenu([
 
 ```javascript
 // Show window
-await window.zyte.window.show()
+await window.craft.window.show()
 
 // Hide window
-await window.zyte.window.hide()
+await window.craft.window.hide()
 
 // Toggle visibility
-await window.zyte.window.toggle()
+await window.craft.window.toggle()
 
 // Minimize
-await window.zyte.window.minimize()
+await window.craft.window.minimize()
 
 // Close
-await window.zyte.window.close()
+await window.craft.window.close()
 ```
 
 ## 🎯 App API
 
 ```javascript
 // Hide dock icon (menubar-only mode)
-await window.zyte.app.hideDockIcon()
+await window.craft.app.hideDockIcon()
 
 // Show dock icon
-await window.zyte.app.showDockIcon()
+await window.craft.app.showDockIcon()
 
 // Quit app
-await window.zyte.app.quit()
+await window.craft.app.quit()
 
 // Get app info
-const info = await window.zyte.app.getInfo()
+const info = await window.craft.app.getInfo()
 ```
 
 ## 🛠️ CLI Usage
 
 ```bash
 # Basic system tray
-zyte http://localhost:3000 --system-tray
+craft http://localhost:3000 --system-tray
 
 # Menubar-only app
-zyte http://localhost:3000 --system-tray --hide-dock-icon
+craft http://localhost:3000 --system-tray --hide-dock-icon
 
 # All options
-zyte http://localhost:3000 \
+craft http://localhost:3000 \
   --title "My App" \
   --width 400 \
   --height 600 \
@@ -91,7 +91,7 @@ zyte http://localhost:3000 \
 ## 📦 TypeScript Usage
 
 ```typescript
-import { createApp, type ZyteBridgeAPI } from 'ts-zyte'
+import { createApp, type CraftBridgeAPI } from 'ts-craft'
 
 const app = createApp({
   url: 'http://localhost:3000',
@@ -116,7 +116,7 @@ let timeLeft = 25 * 60
 function updateTray() {
   const mins = Math.floor(timeLeft / 60)
   const secs = timeLeft % 60
-  window.zyte.tray.setTitle(`🍅 ${mins}:${secs.toString().padStart(2, '0')}`)
+  window.craft.tray.setTitle(`🍅 ${mins}:${secs.toString().padStart(2, '0')}`)
 }
 
 setInterval(() => {
@@ -124,7 +124,7 @@ setInterval(() => {
   updateTray()
 }, 1000)
 
-window.zyte.tray.onClickToggleWindow()
+window.craft.tray.onClickToggleWindow()
 ```
 
 ### Status Monitor
@@ -132,7 +132,7 @@ window.zyte.tray.onClickToggleWindow()
 ```javascript
 async function updateStatus() {
   const status = await getSystemStatus()
-  window.zyte.tray.setTitle(`CPU: ${status.cpu}%`)
+  window.craft.tray.setTitle(`CPU: ${status.cpu}%`)
 }
 
 setInterval(updateStatus, 2000)
@@ -142,10 +142,10 @@ setInterval(updateStatus, 2000)
 
 ```javascript
 function updateProgress(percent) {
-  window.zyte.tray.setTitle(`⬇️ ${percent}%`)
+  window.craft.tray.setTitle(`⬇️ ${percent}%`)
 
   if (percent === 100) {
-    window.zyte.window.show()
+    window.craft.window.show()
   }
 }
 ```
@@ -156,15 +156,15 @@ function updateProgress(percent) {
 2. **Use emoji** - Great for visual status: 🍅 ✓ ⏸️ ▶️
 3. **Always catch errors** - Bridge calls can fail
 4. **Unregister listeners** - Prevent memory leaks
-5. **Wait for ready** - Use `zyte:ready` event
+5. **Wait for ready** - Use `craft:ready` event
 
 ## 🐛 Troubleshooting
 
 ### Bridge not available?
 
 ```javascript
-if (!window.zyte) {
-  console.error('Zyte bridge not available')
+if (!window.craft) {
+  console.error('Craft bridge not available')
   return
 }
 ```
@@ -173,7 +173,7 @@ if (!window.zyte) {
 
 ```javascript
 try {
-  await window.zyte.tray.setTitle('Title')
+  await window.craft.tray.setTitle('Title')
 } catch (err) {
   console.warn('Failed:', err)
 }
@@ -190,4 +190,4 @@ See `packages/typescript/examples/` for working demos:
 
 ## 🤝 Contributing
 
-Found a bug or want a feature? Open an issue on [GitHub](https://github.com/stacksjs/zyte/issues).
+Found a bug or want a feature? Open an issue on [GitHub](https://github.com/stacksjs/craft/issues).

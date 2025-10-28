@@ -100,7 +100,7 @@ test "Bridge - generateInjectionScript" {
     const script = try b.generateInjectionScript();
 
     try testing.expect(script.len > 0);
-    try testing.expect(std.mem.indexOf(u8, script, "window.zyte") != null);
+    try testing.expect(std.mem.indexOf(u8, script, "window.craft") != null);
     try testing.expect(std.mem.indexOf(u8, script, "send:") != null);
     try testing.expect(std.mem.indexOf(u8, script, "notify:") != null);
     try testing.expect(std.mem.indexOf(u8, script, "readFile:") != null);
@@ -108,7 +108,7 @@ test "Bridge - generateInjectionScript" {
     try testing.expect(std.mem.indexOf(u8, script, "openDialog:") != null);
     try testing.expect(std.mem.indexOf(u8, script, "getClipboard:") != null);
     try testing.expect(std.mem.indexOf(u8, script, "setClipboard:") != null);
-    try testing.expect(std.mem.indexOf(u8, script, "zyte:ready") != null);
+    try testing.expect(std.mem.indexOf(u8, script, "craft:ready") != null);
 }
 
 test "Bridge - notifyHandler" {

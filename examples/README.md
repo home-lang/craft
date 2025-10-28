@@ -1,12 +1,12 @@
-# Zyte Examples
+# Craft Examples
 
-This directory contains example applications demonstrating various features of Zyte.
+This directory contains example applications demonstrating various features of Craft.
 
 ## System Tray / Menubar Apps
 
 ### 1. System Tray App (`system-tray-app.ts`)
 
-A comprehensive example showing how to build a system tray application with Zyte.
+A comprehensive example showing how to build a system tray application with Craft.
 
 **Features:**
 - System tray icon
@@ -103,7 +103,7 @@ bun run examples/menubar-timer.ts
 
 ## How These Examples Work
 
-All examples use the Zyte TypeScript SDK (`ts-zyte`) which provides a simple API to create native desktop applications:
+All examples use the Craft TypeScript SDK (`ts-craft`) which provides a simple API to create native desktop applications:
 
 ```typescript
 import { createApp } from '../packages/typescript/src/index.ts'
@@ -147,7 +147,7 @@ When you enable `systemTray: true`, your app will:
 
 ### Prerequisites
 
-1. **Build the Zyte core** (if not already built):
+1. **Build the Craft core** (if not already built):
    ```bash
    cd packages/zig
    zig build
@@ -176,7 +176,7 @@ Here's a minimal example to get started:
 
 ```typescript
 #!/usr/bin/env bun
-import { createApp } from 'ts-zyte'
+import { createApp } from 'ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -256,9 +256,9 @@ bun run my-tray-app.ts
 
 ### Binary not found
 ```bash
-❌ Zyte binary not found
+❌ Craft binary not found
 ```
-**Solution:** Build the Zyte core first:
+**Solution:** Build the Craft core first:
 ```bash
 cd packages/zig
 zig build
@@ -270,7 +270,7 @@ zig build
 ```
 **Solution:** Make the binary executable:
 ```bash
-chmod +x packages/zig/zig-out/bin/zyte
+chmod +x packages/zig/zig-out/bin/craft
 ```
 
 ### Window doesn't appear

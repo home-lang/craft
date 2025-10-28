@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "zyte-benchmarks",
+      "name": "craft-benchmarks",
       "dependencies": {
         "mitata": "^1.0.10",
       },

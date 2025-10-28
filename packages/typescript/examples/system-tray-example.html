@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zyte System Tray Demo</title>
+    <title>Craft System Tray Demo</title>
     <style>
         * {
             margin: 0;
@@ -103,11 +103,11 @@
     </style>
 </head>
 <body>
-    <h1>🎯 Zyte System Tray Demo</h1>
+    <h1>🎯 Craft System Tray Demo</h1>
 
     <div class="card">
         <h2>Tray Title</h2>
-        <input type="text" id="titleInput" placeholder="Enter tray title (e.g., '⚡ MyApp')" value="🚀 Zyte">
+        <input type="text" id="titleInput" placeholder="Enter tray title (e.g., '⚡ MyApp')" value="🚀 Craft">
         <button onclick="updateTitle()">Update Title</button>
     </div>
 
@@ -140,21 +140,21 @@
     <div id="status"></div>
 
     <script>
-        // Check if Zyte bridge is available
-        if (typeof window.zyte === 'undefined') {
+        // Check if Craft bridge is available
+        if (typeof window.craft === 'undefined') {
             document.getElementById('status').innerHTML =
-                '⚠️ Zyte bridge not available. Please run this in a Zyte app with --system-tray flag.';
+                '⚠️ Craft bridge not available. Please run this in a Craft app with --system-tray flag.';
             document.getElementById('status').className = 'info';
         } else {
-            document.getElementById('status').innerHTML = '✅ Zyte bridge initialized';
+            document.getElementById('status').innerHTML = '✅ Craft bridge initialized';
             document.getElementById('status').className = 'success';
 
             // Setup tray click handler
-            const unregister = window.zyte.tray.onClick((event) => {
+            const unregister = window.craft.tray.onClick((event) => {
                 updateStatus(`Tray clicked with ${event.button} button at ${new Date(event.timestamp).toLocaleTimeString()}`);
 
                 // Toggle window on click
-                window.zyte.window.toggle();
+                window.craft.window.toggle();
             });
         }
 
@@ -167,7 +167,7 @@
         async function updateTitle() {
             const title = document.getElementById('titleInput').value;
             try {
-                await window.zyte.tray.setTitle(title);
+                await window.craft.tray.setTitle(title);
                 updateStatus(`✅ Tray title updated to: ${title}`);
             } catch (error) {
                 updateStatus(`❌ Error: ${error.message}`);
@@ -177,7 +177,7 @@
         async function updateTooltip() {
             const tooltip = document.getElementById('tooltipInput').value;
             try {
-                await window.zyte.tray.setTooltip(tooltip);
+                await window.craft.tray.setTooltip(tooltip);
                 updateStatus(`✅ Tray tooltip updated to: ${tooltip}`);
             } catch (error) {
                 updateStatus(`❌ Error: ${error.message}`);
@@ -186,7 +186,7 @@
 
         async function hideWindow() {
             try {
-                await window.zyte.window.hide();
+                await window.craft.window.hide();
                 updateStatus('✅ Window hidden');
             } catch (error) {
                 updateStatus(`❌ Error: ${error.message}`);
@@ -195,7 +195,7 @@
 
         async function showWindow() {
             try {
-                await window.zyte.window.show();
+                await window.craft.window.show();
                 updateStatus('✅ Window shown');
             } catch (error) {
                 updateStatus(`❌ Error: ${error.message}`);
@@ -204,7 +204,7 @@
 
         async function toggleWindow() {
             try {
-                await window.zyte.window.toggle();
+                await window.craft.window.toggle();
                 updateStatus('✅ Window toggled');
             } catch (error) {
                 updateStatus(`❌ Error: ${error.message}`);
@@ -213,7 +213,7 @@
 
         async function setupBasicMenu() {
             try {
-                await window.zyte.tray.setMenu([
+                await window.craft.tray.setMenu([
                     { label: 'Show', action: 'show' },
                     { label: 'Hide', action: 'hide' },
                     { type: 'separator' },
@@ -227,7 +227,7 @@
 
         async function setupAdvancedMenu() {
             try {
-                await window.zyte.tray.setMenu([
+                await window.craft.tray.setMenu([
                     { label: 'Window', submenu: [
                         { label: 'Show', action: 'show' },
                         { label: 'Hide', action: 'hide' },
@@ -248,7 +248,7 @@
 
         async function hideDock() {
             try {
-                await window.zyte.app.hideDockIcon();
+                await window.craft.app.hideDockIcon();
                 updateStatus('✅ Dock icon hidden (menubar-only mode on macOS)');
             } catch (error) {
                 updateStatus(`❌ Error: ${error.message}`);
@@ -257,7 +257,7 @@
 
         async function showDock() {
             try {
-                await window.zyte.app.showDockIcon();
+                await window.craft.app.showDockIcon();
                 updateStatus('✅ Dock icon shown');
             } catch (error) {
                 updateStatus(`❌ Error: ${error.message}`);
@@ -266,7 +266,7 @@
 
         async function getAppInfo() {
             try {
-                const info = await window.zyte.app.getInfo();
+                const info = await window.craft.app.getInfo();
                 updateStatus(`App: ${info.name} v${info.version} (${info.platform})`);
             } catch (error) {
                 updateStatus(`❌ Error: ${error.message}`);
@@ -279,8 +279,8 @@
                 hour: '2-digit',
                 minute: '2-digit'
             });
-            if (window.zyte) {
-                window.zyte.tray.setTitle(`🕐 ${time}`);
+            if (window.craft) {
+                window.craft.tray.setTitle(`🕐 ${time}`);
             }
         }, 5000);
     </script>

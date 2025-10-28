@@ -26,7 +26,8 @@ fn decodeUnicodeEscapes(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
                 // This is a high surrogate, check for low surrogate
                 if (i + 12 <= input.len and
                     input[i + 6] == '\\' and
-                    (input[i + 7] == 'U' or input[i + 7] == 'u')) {
+                    (input[i + 7] == 'U' or input[i + 7] == 'u'))
+                {
                     const low_hex = input[i + 8 .. i + 12];
                     const low_surrogate = std.fmt.parseInt(u16, low_hex, 16) catch {
                         // Failed to parse low surrogate, copy high as-is
@@ -118,7 +119,7 @@ pub const TrayBridge = struct {
             const macos = @import("macos.zig");
             var buf: [256]u8 = undefined;
             const js = try std.fmt.bufPrint(&buf,
-                \\if(window.__zyteDeliverAction)window.__zyteDeliverAction('{s}');
+                \\if(window.__craftDeliverAction)window.__craftDeliverAction('{s}');
             , .{action});
 
             macos.tryEvalJS(js) catch |err| {
@@ -199,7 +200,6 @@ pub const TrayBridge = struct {
             // Attach to tray
             const macos = @import("tray.zig");
             try macos.macosSetMenu(self.tray_handle.?, menu);
-
         }
     }
 

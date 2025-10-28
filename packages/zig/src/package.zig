@@ -34,7 +34,7 @@ pub const Package = struct {
 };
 
 /// Loads a package configuration from a file
-/// Supports: zyte.toml, zyte.json, package.jsonc, package.json
+/// Supports: craft.toml, craft.json, package.jsonc, package.json
 pub fn loadPackage(allocator: std.mem.Allocator, path: []const u8) !Package {
     const file_ext = std.fs.path.extension(path);
 
@@ -48,11 +48,11 @@ pub fn loadPackage(allocator: std.mem.Allocator, path: []const u8) !Package {
 }
 
 /// Finds and loads a package configuration from the current directory
-/// Searches for: zyte.toml, zyte.json, package.jsonc, package.json (in that order)
+/// Searches for: craft.toml, craft.json, package.jsonc, package.json (in that order)
 pub fn findAndLoadPackage(allocator: std.mem.Allocator, dir_path: []const u8) !Package {
     const search_files = [_][]const u8{
-        "zyte.toml",
-        "zyte.json",
+        "craft.toml",
+        "craft.json",
         "package.jsonc",
         "package.json",
     };

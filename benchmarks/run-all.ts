@@ -3,7 +3,7 @@
 import { bench, group, run, summary } from 'mitata';
 
 console.log('\n╔═══════════════════════════════════════════════════════════════╗');
-console.log('║   Zyte vs Electron vs Tauri - Performance Comparison         ║');
+console.log('║   Craft vs Electron vs Tauri - Performance Comparison         ║');
 console.log('╚═══════════════════════════════════════════════════════════════╝\n');
 
 summary(() => {
@@ -11,8 +11,8 @@ summary(() => {
   // Startup Performance Comparison
   // ============================================================================
   group('Application Startup Time', () => {
-    bench('Zyte (native binary)', async () => {
-      // Zyte: Pure Zig binary, minimal overhead
+    bench('Craft (native binary)', async () => {
+      // Craft: Pure Zig binary, minimal overhead
       await new Promise(resolve => setTimeout(resolve, 50));
     });
 
@@ -31,7 +31,7 @@ summary(() => {
   // Memory Footprint Comparison
   // ============================================================================
   group('Memory Footprint (1000 components)', () => {
-    bench('Zyte', () => {
+    bench('Craft', () => {
       const components = [];
       for (let i = 0; i < 1000; i++) {
         // Lightweight structs, ~150 bytes each
@@ -82,7 +82,7 @@ summary(() => {
   // IPC Performance Comparison
   // ============================================================================
   group('IPC Message Throughput (10k messages)', () => {
-    bench('Zyte (native message passing)', () => {
+    bench('Craft (native message passing)', () => {
       for (let i = 0; i < 10000; i++) {
         // Direct struct passing, no serialization
         const msg = {
@@ -120,7 +120,7 @@ summary(() => {
   // Rendering Performance Comparison
   // ============================================================================
   group('Render Command Queueing (1000 commands)', () => {
-    bench('Zyte (native GPU commands)', () => {
+    bench('Craft (native GPU commands)', () => {
       const commands = [];
       for (let i = 0; i < 1000; i++) {
         // Direct GPU command structs
@@ -163,7 +163,7 @@ summary(() => {
   // Component Lifecycle Performance
   // ============================================================================
   group('Component Create/Destroy (1000 cycles)', () => {
-    bench('Zyte (struct allocation)', () => {
+    bench('Craft (struct allocation)', () => {
       for (let i = 0; i < 1000; i++) {
         const btn = {
           id: i,
@@ -201,7 +201,7 @@ summary(() => {
   // Binary Size Comparison (informational)
   // ============================================================================
   group('Binary/Bundle Size', () => {
-    bench('Zyte (release binary)', () => {
+    bench('Craft (release binary)', () => {
       // ~2-5 MB native binary
       const size = 3 * 1024 * 1024;
     });
@@ -223,7 +223,7 @@ await run();
 console.log('\n╔═══════════════════════════════════════════════════════════════╗');
 console.log('║   Benchmark Results Summary                                   ║');
 console.log('╠═══════════════════════════════════════════════════════════════╣');
-console.log('║   Zyte:     Native performance, minimal overhead              ║');
+console.log('║   Craft:     Native performance, minimal overhead              ║');
 console.log('║   Tauri:    Good performance, Rust backend efficiency         ║');
 console.log('║   Electron: Higher overhead, full Chromium runtime            ║');
 console.log('╚═══════════════════════════════════════════════════════════════╝\n');

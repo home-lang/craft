@@ -1,11 +1,11 @@
 {
-  "name": "zyte-benchmarks",
+  "name": "craft-benchmarks",
   "version": "1.0.0",
-  "description": "Performance benchmarks comparing Zyte to Electron and Tauri",
+  "description": "Performance benchmarks comparing Craft to Electron and Tauri",
   "type": "module",
   "scripts": {
     "bench": "bun run-all.ts",
-    "bench:zyte": "bun zyte/startup.bench.ts",
+    "bench:craft": "bun craft/startup.bench.ts",
     "bench:electron": "bun electron/startup.bench.ts",
     "bench:tauri": "bun tauri/startup.bench.ts",
     "bench:memory": "bun run-memory.ts",

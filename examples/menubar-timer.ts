@@ -2,7 +2,7 @@
 /**
  * Menubar Pomodoro Timer
  *
- * A menubar/system tray Pomodoro timer app built with Zyte.
+ * A menubar/system tray Pomodoro timer app built with Craft.
  * Run with: bun run examples/menubar-timer.ts
  *
  * Features:

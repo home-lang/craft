@@ -1,18 +1,18 @@
 {
-  "name": "ts-zyte",
+  "name": "ts-craft",
   "version": "0.0.1",
   "type": "module",
-  "description": "Build desktop apps with web languages - TypeScript SDK for Zyte",
+  "description": "Build desktop apps with web languages - TypeScript SDK for Craft",
   "author": "Chris Breuer <chris@stacksjs.org>",
   "license": "MIT",
-  "homepage": "https://github.com/stacksjs/zyte#readme",
+  "homepage": "https://github.com/stacksjs/craft#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/stacksjs/zyte.git",
+    "url": "git+https://github.com/stacksjs/craft.git",
     "directory": "packages/typescript"
   },
   "bugs": {
-    "url": "https://github.com/stacksjs/zyte/issues"
+    "url": "https://github.com/stacksjs/craft/issues"
   },
   "keywords": [
     "desktop",
@@ -43,7 +43,7 @@
     "LICENSE.md"
   ],
   "bin": {
-    "zyte": "./bin/cli.ts"
+    "craft": "./bin/cli.ts"
   },
   "scripts": {
     "build": "bun run build:lib && bun run build:types",

@@ -3,7 +3,7 @@
  * A functional todo list application showcasing interactivity
  */
 
-import { createApp } from 'ts-zyte'
+import { createApp } from 'ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -11,7 +11,7 @@ const html = `
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zyte Todo App</title>
+  <title>Craft Todo App</title>
   <style>
     * {
       margin: 0;
@@ -164,7 +164,7 @@ const html = `
   <div class="container">
     <div class="header">
       <h1>✓ Todo List</h1>
-      <p class="subtitle">Stay organized with Zyte</p>
+      <p class="subtitle">Stay organized with Craft</p>
     </div>
 
     <div class="todo-card">
@@ -257,7 +257,7 @@ const html = `
 const app = createApp({
   html,
   window: {
-    title: 'Zyte Todo App',
+    title: 'Craft Todo App',
     width: 700,
     height: 800,
     resizable: true,

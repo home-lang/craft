@@ -1,8 +1,8 @@
 {
-  "name": "zyte-core",
+  "name": "craft-core",
   "version": "0.0.1",
   "private": true,
-  "description": "Zyte core - Native Zig implementation",
+  "description": "Craft core - Native Zig implementation",
   "scripts": {
     "build": "zig build -Doptimize=ReleaseSafe",
     "build:debug": "zig build",

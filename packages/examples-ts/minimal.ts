@@ -1,9 +1,9 @@
 /**
- * Minimal Zyte Example
+ * Minimal Craft Example
  * The simplest possible desktop app
  */
 
-import { show } from 'ts-zyte'
+import { show } from 'ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -25,7 +25,7 @@ const html = `
   </style>
 </head>
 <body>
-  <h1>⚡ Hello from Zyte!</h1>
+  <h1>⚡ Hello from Craft!</h1>
 </body>
 </html>
 `

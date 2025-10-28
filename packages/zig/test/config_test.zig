@@ -5,7 +5,7 @@ const config = @import("../src/config.zig");
 test "WindowConfig - default values" {
     const window = config.WindowConfig{};
 
-    try testing.expectEqualStrings("Zyte App", window.title);
+    try testing.expectEqualStrings("Craft App", window.title);
     try testing.expectEqual(@as(u32, 1200), window.width);
     try testing.expectEqual(@as(u32, 800), window.height);
     try testing.expect(window.x == null);
@@ -89,7 +89,7 @@ test "AppConfig - custom values" {
 test "Config - default initialization" {
     const cfg = config.Config{};
 
-    try testing.expectEqualStrings("Zyte App", cfg.window.title);
+    try testing.expectEqualStrings("Craft App", cfg.window.title);
     try testing.expect(cfg.webview.dev_tools);
     try testing.expect(!cfg.app.hot_reload);
 }
@@ -200,7 +200,7 @@ test "Config - parseToml dark_mode false" {
 }
 
 test "Config - saveToFile and loadFromFile" {
-    const test_path = "/tmp/zyte_test_config.toml";
+    const test_path = "/tmp/craft_test_config.toml";
     defer std.fs.cwd().deleteFile(test_path) catch {};
 
     const original = config.Config{

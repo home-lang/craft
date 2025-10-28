@@ -2,13 +2,13 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "zyte",
+      "name": "craft",
       "devDependencies": {
         "better-dx": "^0.1.7",
       },
     },
     "benchmarks": {
-      "name": "zyte-benchmarks",
+      "name": "craft-benchmarks",
       "version": "1.0.0",
       "dependencies": {
         "mitata": "^1.0.10",
@@ -17,11 +17,11 @@
         "@types/bun": "latest",
       },
     },
-    "packages/create-zyte": {
-      "name": "create-zyte",
+    "packages/create-craft": {
+      "name": "create-craft",
       "version": "0.0.1",
       "bin": {
-        "create-zyte": "./bin/cli.ts",
+        "create-craft": "./bin/cli.ts",
       },
       "dependencies": {
         "@stacksjs/clapp": "^0.2.0",
@@ -31,20 +31,20 @@
       },
     },
     "packages/examples-ts": {
-      "name": "ts-zyte-examples",
+      "name": "ts-craft-examples",
       "version": "0.0.1",
       "dependencies": {
-        "ts-zyte": "workspace:*",
+        "ts-craft": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
       },
     },
     "packages/typescript": {
-      "name": "ts-zyte",
+      "name": "ts-craft",
       "version": "0.0.1",
       "bin": {
-        "zyte": "./bin/cli.ts",
+        "craft": "./bin/cli.ts",
       },
       "dependencies": {
         "archiver": "^7.0.1",
@@ -56,7 +56,7 @@
       },
     },
     "packages/zig": {
-      "name": "zyte-core",
+      "name": "craft-core",
       "version": "0.0.1",
     },
   },
@@ -155,7 +155,7 @@
 
     "crc32-stream": ["crc32-stream@6.0.0", "", { "dependencies": { "crc-32": "^1.2.0", "readable-stream": "^4.0.0" } }, "sha512-piICUB6ei4IlTv1+653yq5+KoqfBYmj9bw6LqXoOneTMDXk5nM1qt12mFW1caG3LlJXEKW1Bp0WggEmIfQB34g=="],
 
-    "create-zyte": ["create-zyte@workspace:packages/create-zyte"],
+    "create-craft": ["create-craft@workspace:packages/create-craft"],
 
     "cross-spawn": ["cross-spawn@7.0.6", "", { "dependencies": { "path-key": "^3.1.0", "shebang-command": "^2.0.0", "which": "^2.0.1" } }, "sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA=="],
 
@@ -341,9 +341,9 @@
 
     "ts-web-scraper": ["ts-web-scraper@0.1.1", "", { "bin": { "scraper": "dist/bin/cli.js" } }, "sha512-js+gSRe95yDD9U3+GmjvIKBYLAN9WoZKV84x7HcSI7dqdWEIoZSeSGR/Jbr8f5hCeV9FD70KdTPIS2LQwviQXQ=="],
 
-    "ts-zyte": ["ts-zyte@workspace:packages/typescript"],
+    "ts-craft": ["ts-craft@workspace:packages/typescript"],
 
-    "ts-zyte-examples": ["ts-zyte-examples@workspace:packages/examples-ts"],
+    "ts-craft-examples": ["ts-craft-examples@workspace:packages/examples-ts"],
 
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
@@ -359,9 +359,9 @@
 
     "zip-stream": ["zip-stream@6.0.1", "", { "dependencies": { "archiver-utils": "^5.0.0", "compress-commons": "^6.0.2", "readable-stream": "^4.0.0" } }, "sha512-zK7YHHz4ZXpW89AHXUPbQVGKI7uvkd3hzusTdotCg1UxyaVtg0zFJSTfW/Dq5f7OBBVnq6cZIaC8Ti4hb6dtCA=="],
 
-    "zyte-benchmarks": ["zyte-benchmarks@workspace:benchmarks"],
+    "craft-benchmarks": ["craft-benchmarks@workspace:benchmarks"],
 
-    "zyte-core": ["zyte-core@workspace:packages/zig"],
+    "craft-core": ["craft-core@workspace:packages/zig"],
 
     "@isaacs/cliui/string-width": ["string-width@5.1.2", "", { "dependencies": { "eastasianwidth": "^0.2.0", "emoji-regex": "^9.2.2", "strip-ansi": "^7.0.1" } }, "sha512-HnLOCR3vjcY8beoNLtcjZ5/nxn2afmME6lhrDrebokqMap+XbeW8n9TXpPDOqdGK5qcI3oT0GKTW6wC7EMiVqA=="],
 

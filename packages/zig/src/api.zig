@@ -1,6 +1,6 @@
 const std = @import("std");
 
-/// Zyte API Version - Follows Semantic Versioning
+/// Craft API Version - Follows Semantic Versioning
 pub const Version = struct {
     major: u32 = 1,
     minor: u32 = 0,
@@ -110,7 +110,7 @@ pub const Window = struct {
 
 /// Window creation options
 pub const WindowOptions = struct {
-    title: []const u8 = "Zyte App",
+    title: []const u8 = "Craft App",
     width: u32 = 1200,
     height: u32 = 800,
     x: ?i32 = null,

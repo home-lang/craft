@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 /**
- * create-zyte - Scaffold a new Zyte desktop app project
+ * create-craft - Scaffold a new Craft desktop app project
  */
 
 import { CLI } from '@stacksjs/clapp'
@@ -10,28 +10,28 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 
-const cli = new CLI('create-zyte')
+const cli = new CLI('create-craft')
 
 // Default command - create a new project
 cli
-  .command('[project-name]', 'Create a new Zyte desktop app')
+  .command('[project-name]', 'Create a new Craft desktop app')
   .option('--template <template>', 'Template to use', { default: 'minimal' })
   .option('--skip-install', 'Skip installing dependencies', { default: false })
-  .example('create-zyte my-app')
-  .example('create-zyte my-app --template full-featured')
-  .example('bun create zyte my-app')
+  .example('create-craft my-app')
+  .example('create-craft my-app --template full-featured')
+  .example('bun create craft my-app')
   .action(async (projectName?: string, options?: any) => {
     if (!projectName) {
       console.error('Error: Project name is required')
-      console.log('\nUsage: create-zyte <project-name>')
-      console.log('Example: create-zyte my-app')
+      console.log('\nUsage: create-craft <project-name>')
+      console.log('Example: create-craft my-app')
       process.exit(1)
     }
 
     const template = options?.template || 'minimal'
     const skipInstall = options?.skipInstall || false
 
-    console.log(`\n✨ Creating a new Zyte app: ${projectName}`)
+    console.log(`\n✨ Creating a new Craft app: ${projectName}`)
     console.log(`📦 Template: ${template}\n`)
 
     const projectPath = resolve(process.cwd(), projectName)
@@ -82,7 +82,7 @@ cli
   .command('list', 'List available templates')
   .action(() => {
     console.log('\n📋 Available templates:\n')
-    console.log('  minimal        - Simplest possible Zyte app')
+    console.log('  minimal        - Simplest possible Craft app')
     console.log('  full-featured  - Modern styled app with examples')
     console.log('  todo-app       - Interactive todo list application\n')
   })
@@ -107,7 +107,7 @@ function createMinimalTemplate(projectPath: string, projectName: string): void {
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
     dependencies: {
-      'ts-zyte': 'workspace:*',
+      'ts-craft': 'workspace:*',
     },
     devDependencies: {
       '@types/bun': 'latest',
@@ -123,7 +123,7 @@ function createMinimalTemplate(projectPath: string, projectName: string): void {
   mkdirSync(join(projectPath, 'src'))
 
   // Create src/index.ts
-  const indexTs = `import { show } from 'ts-zyte'
+  const indexTs = `import { show } from 'ts-craft'
 
 const html = \`
 <!DOCTYPE html>
@@ -165,7 +165,7 @@ await show(html, {
   // Create README.md
   const readme = `# ${projectName}
 
-A minimal Zyte desktop application.
+A minimal Craft desktop application.
 
 ## Getting Started
 
@@ -182,8 +182,8 @@ bun run build
 
 ## Learn More
 
-- [Zyte Documentation](https://github.com/stacksjs/zyte)
-- [TypeScript SDK](https://github.com/stacksjs/zyte/tree/main/packages/typescript)
+- [Craft Documentation](https://github.com/stacksjs/craft)
+- [TypeScript SDK](https://github.com/stacksjs/craft/tree/main/packages/typescript)
 `
 
   writeFileSync(join(projectPath, 'README.md'), readme)
@@ -213,7 +213,7 @@ function createFullFeaturedTemplate(projectPath: string, projectName: string): v
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
     dependencies: {
-      'ts-zyte': 'workspace:*',
+      'ts-craft': 'workspace:*',
     },
     devDependencies: {
       '@types/bun': 'latest',
@@ -229,7 +229,7 @@ function createFullFeaturedTemplate(projectPath: string, projectName: string): v
   mkdirSync(join(projectPath, 'src'))
 
   // Create src/index.ts
-  const indexTs = `import { show } from 'ts-zyte'
+  const indexTs = `import { show } from 'ts-craft'
 
 const html = \`
 <!DOCTYPE html>
@@ -300,7 +300,7 @@ const html = \`
 <body>
   <div class="container">
     <h1>⚡ ${projectName}</h1>
-    <p>Welcome to your new Zyte desktop application!</p>
+    <p>Welcome to your new Craft desktop application!</p>
 
     <div class="features">
       <div class="feature">
@@ -333,7 +333,7 @@ await show(html, {
   // Create README.md
   const readme = `# ${projectName}
 
-A full-featured Zyte desktop application.
+A full-featured Craft desktop application.
 
 ## Getting Started
 
@@ -357,8 +357,8 @@ bun run build
 
 ## Learn More
 
-- [Zyte Documentation](https://github.com/stacksjs/zyte)
-- [TypeScript SDK](https://github.com/stacksjs/zyte/tree/main/packages/typescript)
+- [Craft Documentation](https://github.com/stacksjs/craft)
+- [TypeScript SDK](https://github.com/stacksjs/craft/tree/main/packages/typescript)
 `
 
   writeFileSync(join(projectPath, 'README.md'), readme)
@@ -388,7 +388,7 @@ function createTodoAppTemplate(projectPath: string, projectName: string): void {
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
     dependencies: {
-      'ts-zyte': 'workspace:*',
+      'ts-craft': 'workspace:*',
     },
     devDependencies: {
       '@types/bun': 'latest',
@@ -404,7 +404,7 @@ function createTodoAppTemplate(projectPath: string, projectName: string): void {
   mkdirSync(join(projectPath, 'src'))
 
   // Create src/index.ts with full todo app
-  const indexTs = `import { show } from 'ts-zyte'
+  const indexTs = `import { show } from 'ts-craft'
 
 const html = \`
 <!DOCTYPE html>
@@ -603,7 +603,7 @@ await show(html, {
   // Create README.md
   const readme = `# ${projectName}
 
-An interactive todo list application built with Zyte.
+An interactive todo list application built with Craft.
 
 ## Getting Started
 
@@ -626,8 +626,8 @@ bun run build
 
 ## Learn More
 
-- [Zyte Documentation](https://github.com/stacksjs/zyte)
-- [TypeScript SDK](https://github.com/stacksjs/zyte/tree/main/packages/typescript)
+- [Craft Documentation](https://github.com/stacksjs/craft)
+- [TypeScript SDK](https://github.com/stacksjs/craft/tree/main/packages/typescript)
 `
 
   writeFileSync(join(projectPath, 'README.md'), readme)

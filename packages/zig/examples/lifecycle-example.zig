@@ -1,5 +1,5 @@
 const std = @import("std");
-const zyte = @import("zyte");
+const craft = @import("craft");
 const lifecycle = @import("../src/lifecycle.zig");
 const log = @import("../src/log.zig");
 
@@ -48,7 +48,7 @@ pub fn main() !void {
     try lc.start();
 
     // Create window
-    var app = zyte.App.init(allocator);
+    var app = craft.App.init(allocator);
     defer app.deinit();
 
     _ = try app.createWindowWithURL(
@@ -62,7 +62,7 @@ pub fn main() !void {
     );
 
     log.info("Window created, running application...", .{});
-    
+
     // This would normally run the event loop
     // try app.run();
 

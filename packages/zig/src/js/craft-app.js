@@ -1,9 +1,9 @@
-// Zyte App Control JavaScript API
+// Craft App Control JavaScript API
 // This file provides application-level control functionality
 
-window.zyte = window.zyte || {};
+window.craft = window.craft || {};
 
-window.zyte.app = {
+window.craft.app = {
   /**
    * Hide the dock icon (menubar-only mode)
    * macOS only
@@ -11,7 +11,7 @@ window.zyte.app = {
   async hideDockIcon() {
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'app',
           action: 'hideDockIcon'
         });
@@ -29,7 +29,7 @@ window.zyte.app = {
   async showDockIcon() {
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'app',
           action: 'showDockIcon'
         });
@@ -46,7 +46,7 @@ window.zyte.app = {
   async quit() {
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'app',
           action: 'quit'
         });
@@ -63,7 +63,7 @@ window.zyte.app = {
   async getInfo() {
     return new Promise((resolve, reject) => {
       try {
-        window.webkit.messageHandlers.zyte.postMessage({
+        window.webkit.messageHandlers.craft.postMessage({
           type: 'app',
           action: 'getInfo'
         });
@@ -75,4 +75,4 @@ window.zyte.app = {
   }
 };
 
-console.log('[Zyte] App control API loaded');
+console.log('[Craft] App control API loaded');

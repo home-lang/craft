@@ -1,13 +1,13 @@
-# Packaging Your Zyte Application
+# Packaging Your Craft Application
 
-Zyte provides comprehensive packaging tools to create installers for your applications on macOS, Windows, and Linux. Your users can easily install and run your apps without needing to install dependencies.
+Craft provides comprehensive packaging tools to create installers for your applications on macOS, Windows, and Linux. Your users can easily install and run your apps without needing to install dependencies.
 
 ## Quick Start
 
 ### Using the API
 
 ```typescript
-import { packageApp } from 'ts-zyte'
+import { packageApp } from 'ts-craft'
 
 const results = await packageApp({
   name: 'My App',
@@ -21,10 +21,10 @@ const results = await packageApp({
 
 ```bash
 # Install CLI globally
-bun add -g ts-zyte
+bun add -g ts-craft
 
 # Package your app
-zyte-package --name "My App" --version "1.0.0" --binary ./build/myapp
+craft-package --name "My App" --version "1.0.0" --binary ./build/myapp
 ```
 
 ## Supported Formats
@@ -44,7 +44,7 @@ zyte-package --name "My App" --version "1.0.0" --binary ./build/myapp
 ### Complete Example
 
 ```typescript
-import { packageApp } from 'ts-zyte'
+import { packageApp } from 'ts-craft'
 import { join } from 'path'
 
 async function buildInstallers() {
@@ -56,7 +56,7 @@ async function buildInstallers() {
     author: 'Your Name <you@example.com>',
     homepage: 'https://github.com/yourname/pomodoro',
 
-    // Binary path (your built Zyte app)
+    // Binary path (your built Craft app)
     binaryPath: join(__dirname, 'build/pomodoro'),
 
     // Output directory for installers
@@ -118,7 +118,7 @@ buildInstallers()
 For quick packaging of the current platform:
 
 ```typescript
-import { pack } from 'ts-zyte'
+import { pack } from 'ts-craft'
 
 const results = await pack({
   name: 'My App',
@@ -132,13 +132,13 @@ const results = await pack({
 ### Basic Usage
 
 ```bash
-zyte-package --name "My App" --version "1.0.0" --binary ./build/myapp
+craft-package --name "My App" --version "1.0.0" --binary ./build/myapp
 ```
 
 ### Advanced Options
 
 ```bash
-zyte-package \
+craft-package \
   --name "My App" \
   --version "1.0.0" \
   --binary ./build/myapp \
@@ -193,7 +193,7 @@ Create `package.json`:
 Then run:
 
 ```bash
-zyte-package --config package.json
+craft-package --config package.json
 ```
 
 ## Platform-Specific Details
@@ -296,13 +296,13 @@ You can build for all platforms from any OS, but some formats have limitations:
 **Option 1: Platform-Specific Builds**
 ```bash
 # On macOS
-zyte-package --config package.json --platforms macos
+craft-package --config package.json --platforms macos
 
 # On Windows
-zyte-package --config package.json --platforms windows
+craft-package --config package.json --platforms windows
 
 # On Linux
-zyte-package --config package.json --platforms linux
+craft-package --config package.json --platforms linux
 ```
 
 **Option 2: CI/CD Pipeline**
@@ -322,7 +322,7 @@ jobs:
       - uses: actions/checkout@v3
       - run: bun install
       - run: bun run build
-      - run: zyte-package --config package.json --platforms macos
+      - run: craft-package --config package.json --platforms macos
 
   build-windows:
     runs-on: windows-latest
@@ -330,7 +330,7 @@ jobs:
       - uses: actions/checkout@v3
       - run: bun install
       - run: bun run build
-      - run: zyte-package --config package.json --platforms windows
+      - run: craft-package --config package.json --platforms windows
 
   build-linux:
     runs-on: ubuntu-latest
@@ -338,7 +338,7 @@ jobs:
       - uses: actions/checkout@v3
       - run: bun install
       - run: bun run build
-      - run: zyte-package --config package.json --platforms linux
+      - run: craft-package --config package.json --platforms linux
 ```
 
 ## Icon Requirements
@@ -392,12 +392,12 @@ Once you have your installers:
 
 ## Auto-Updates
 
-Zyte includes built-in auto-update support (see [AUTO_UPDATES.md](./AUTO_UPDATES.md)).
+Craft includes built-in auto-update support (see [AUTO_UPDATES.md](./AUTO_UPDATES.md)).
 
 ## Troubleshooting
 
 ### "Binary not found"
-Make sure you build your Zyte app first:
+Make sure you build your Craft app first:
 ```bash
 zig build -Doptimize=ReleaseSafe
 ```
@@ -478,4 +478,4 @@ See full type definitions in `src/package.ts`.
 
 ---
 
-For questions or issues, visit: https://github.com/stacksjs/zyte/issues
+For questions or issues, visit: https://github.com/stacksjs/craft/issues

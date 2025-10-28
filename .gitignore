@@ -4,7 +4,7 @@ zig-out/
 .zig-cache/
 
 # Compiled binaries
-bin/zyte-*
+bin/craft-*
 
 # OS files
 .DS_Store

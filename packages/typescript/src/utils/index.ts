@@ -1,5 +1,5 @@
 /**
- * Zyte Utilities
+ * Craft Utilities
  * Helper functions and classes for common tasks
  */
 

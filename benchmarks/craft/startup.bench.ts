@@ -1,13 +1,13 @@
 import { bench, group, run } from 'mitata';
 import { spawn } from 'child_process';
 
-// Zyte startup benchmarks
-group('Zyte - Application Startup', () => {
+// Craft startup benchmarks
+group('Craft - Application Startup', () => {
   bench('Cold start', async () => {
     const start = performance.now();
     
-    // Simulate Zyte app startup
-    // In a real scenario, this would spawn the actual Zyte process
+    // Simulate Craft app startup
+    // In a real scenario, this would spawn the actual Craft process
     const process = spawn('zig', ['build', 'run'], {
       cwd: '../../',
       stdio: 'ignore'
@@ -29,7 +29,7 @@ group('Zyte - Application Startup', () => {
     const iterations = 1000;
     const start = performance.now();
     
-    // This represents the lightweight nature of Zyte components
+    // This represents the lightweight nature of Craft components
     for (let i = 0; i < iterations; i++) {
       const component = { 
         id: i, 
@@ -72,7 +72,7 @@ group('Zyte - Application Startup', () => {
   });
 });
 
-group('Zyte - Rendering Performance', () => {
+group('Craft - Rendering Performance', () => {
   bench('Render command queueing (1000 commands)', () => {
     const commands = [];
     const start = performance.now();
@@ -105,7 +105,7 @@ group('Zyte - Rendering Performance', () => {
   });
 });
 
-group('Zyte - Memory Management', () => {
+group('Craft - Memory Management', () => {
   bench('Arena allocator pattern', () => {
     const arena = [];
     const start = performance.now();

@@ -1,6 +1,6 @@
-# Contributing to Zyte
+# Contributing to Craft
 
-Thank you for your interest in contributing to Zyte! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Craft! This document provides guidelines and instructions for contributing.
 
 ## Development Setup
 
@@ -33,8 +33,8 @@ sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/stacksjs/zyte.git
-cd zyte
+git clone https://github.com/stacksjs/craft.git
+cd craft
 ```
 
 ### Build from Source
@@ -59,7 +59,7 @@ zig build run-minimal
 ## Project Structure
 
 ```
-zyte/
+craft/
 ├── src/              # Zig source code
 │   ├── main.zig      # Main library entry point
 │   ├── api.zig       # Public API
@@ -228,10 +228,10 @@ Releases are automated through GitHub Actions:
 
 ## Getting Help
 
-- **Questions**: Open a [Discussion](https://github.com/stacksjs/zyte/discussions)
-- **Bugs**: Open an [Issue](https://github.com/stacksjs/zyte/issues)
+- **Questions**: Open a [Discussion](https://github.com/stacksjs/craft/discussions)
+- **Bugs**: Open an [Issue](https://github.com/stacksjs/craft/issues)
 - **Chat**: Join our community channels
 
 ## License
 
-By contributing to Zyte, you agree that your contributions will be licensed under the MIT License.
+By contributing to Craft, you agree that your contributions will be licensed under the MIT License.

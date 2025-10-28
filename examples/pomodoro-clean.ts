@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
- * Clean Pomodoro Timer - Refactored with Zyte Utilities
+ * Clean Pomodoro Timer - Refactored with Craft Utilities
  *
- * This is a cleaner version demonstrating the new Zyte utilities:
+ * This is a cleaner version demonstrating the new Craft utilities:
  * - AudioManager for sound management
  * - Storage for persistent settings
  * - Timer for interval management
@@ -17,14 +17,14 @@ const WORK_DURATION = 25 * 60
 const BREAK_DURATION = 5 * 60
 
 // Storage instances
-const statsStorage = new Storage('zyte_pomodoro_stats', {
+const statsStorage = new Storage('craft_pomodoro_stats', {
   completedToday: 0,
   currentStreak: 0,
   totalCompleted: 0,
   lastSessionDate: null as string | null,
 })
 
-const settingsStorage = new Storage('zyte_pomodoro_settings', {
+const settingsStorage = new Storage('craft_pomodoro_settings', {
   transitionSound: 'bell' as const,
   backgroundNoise: 'none' as const,
   backgroundVolume: 50,
@@ -97,7 +97,7 @@ const html = `
   </div>
 
   <script>
-    // This would normally use the Zyte bridge API
+    // This would normally use the Craft bridge API
     // For now, simplified for demonstration
 
     function toggleTimer() {
@@ -132,7 +132,7 @@ const html = `
 
 async function main() {
   console.log('🍅 Pomodoro Timer (Clean Version)')
-  console.log('Using new Zyte utilities for cleaner code!\n')
+  console.log('Using new Craft utilities for cleaner code!\n')
 
   // Load settings
   const stats = statsStorage.load()

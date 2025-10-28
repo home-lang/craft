@@ -1,7 +1,7 @@
 /**
- * Zyte Packaging API
+ * Craft Packaging API
  *
- * Enables users to create installers for their Zyte applications
+ * Enables users to create installers for their Craft applications
  * across all platforms (macOS, Windows, Linux)
  */
 
@@ -107,7 +107,7 @@ export interface PackageResult {
 }
 
 /**
- * Package a Zyte application for distribution
+ * Package a Craft application for distribution
  */
 export async function packageApp(config: PackageConfig): Promise<PackageResult[]> {
   const results: PackageResult[] = []
@@ -424,7 +424,7 @@ async function createPKG(opts: {
     // Create temp directory structure
     const { mkdtempSync, cpSync, rmSync } = require('fs')
     const { tmpdir } = require('os')
-    const tempDir = mkdtempSync(join(tmpdir(), 'zyte-pkg-'))
+    const tempDir = mkdtempSync(join(tmpdir(), 'craft-pkg-'))
     const appsDir = join(tempDir, 'Applications')
 
     mkdirSync(appsDir, { recursive: true })

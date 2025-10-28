@@ -5,7 +5,7 @@ import { platform, arch } from 'node:os'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-console.log('Building Zyte for your platform...')
+console.log('Building Craft for your platform...')
 
 // Check if zig is installed
 const zigCheck = spawnSync('zig', ['version'], { stdio: 'pipe' })
@@ -15,7 +15,7 @@ if (zigCheck.exitCode !== 0) {
   console.error('Please install Zig 0.15.1 from: https://ziglang.org/download/')
   console.error('')
   console.error('Alternatively, you can download pre-built binaries from:')
-  console.error('https://github.com/stacksjs/zyte/releases')
+  console.error('https://github.com/stacksjs/craft/releases')
   process.exit(1)
 }
 
@@ -52,12 +52,12 @@ if (!currentPlatform || !currentArch) {
 }
 
 const sourceBinary = platform() === 'win32'
-  ? 'zig-out/bin/zyte-minimal.exe'
-  : 'zig-out/bin/zyte-minimal'
+  ? 'zig-out/bin/craft-minimal.exe'
+  : 'zig-out/bin/craft-minimal'
 
 const targetBinary = platform() === 'win32'
-  ? `bin/zyte-${currentPlatform}-${currentArch}.exe`
-  : `bin/zyte-${currentPlatform}-${currentArch}`
+  ? `bin/craft-${currentPlatform}-${currentArch}.exe`
+  : `bin/craft-${currentPlatform}-${currentArch}`
 
 if (existsSync(sourceBinary)) {
   const { copyFileSync, chmodSync } = await import('fs')
@@ -71,4 +71,4 @@ if (existsSync(sourceBinary)) {
   process.exit(1)
 }
 
-console.log('✓ Zyte installed successfully!')
+console.log('✓ Craft installed successfully!')

@@ -1,5 +1,5 @@
 /**
- * Storage utilities for Zyte applications
+ * Storage utilities for Craft applications
  * Simple localStorage abstraction with type safety
  */
 

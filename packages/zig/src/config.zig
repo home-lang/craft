@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub const WindowConfig = struct {
-    title: []const u8 = "Zyte App",
+    title: []const u8 = "Craft App",
     width: u32 = 1200,
     height: u32 = 800,
     x: ?i32 = null,
@@ -148,7 +148,7 @@ pub const Config = struct {
 
         const writer = file.writer();
 
-        try writer.writeAll("# Zyte Configuration File\n\n");
+        try writer.writeAll("# Craft Configuration File\n\n");
 
         try writer.writeAll("[app]\n");
         try writer.print("hot_reload = {}\n", .{self.app.hot_reload});

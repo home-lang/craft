@@ -1,32 +1,32 @@
 {
-  "name": "create-zyte",
+  "name": "create-craft",
   "version": "0.0.1",
   "type": "module",
-  "description": "Scaffold a new Zyte desktop app project",
+  "description": "Scaffold a new Craft desktop app project",
   "author": "Chris Breuer <chris@stacksjs.org>",
   "license": "MIT",
-  "homepage": "https://github.com/stacksjs/zyte#readme",
+  "homepage": "https://github.com/stacksjs/craft#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/stacksjs/zyte.git",
-    "directory": "packages/create-zyte"
+    "url": "git+https://github.com/stacksjs/craft.git",
+    "directory": "packages/create-craft"
   },
   "bugs": {
-    "url": "https://github.com/stacksjs/zyte/issues"
+    "url": "https://github.com/stacksjs/craft/issues"
   },
   "keywords": [
-    "create-zyte",
+    "create-craft",
     "scaffold",
     "desktop",
     "app",
     "framework",
-    "zyte",
+    "craft",
     "starter",
     "template",
     "boilerplate"
   ],
   "bin": {
-    "create-zyte": "./bin/cli.ts"
+    "create-craft": "./bin/cli.ts"
   },
   "files": [
     "bin",

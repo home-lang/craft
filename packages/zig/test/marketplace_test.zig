@@ -553,7 +553,7 @@ test "PluginUpdate - creation" {
 
 // OfficialRegistry tests
 test "OfficialRegistry - constants" {
-    try testing.expectEqualStrings("https://plugins.zyte.dev", marketplace.OfficialRegistry.URL);
+    try testing.expectEqualStrings("https://plugins.craft.dev", marketplace.OfficialRegistry.URL);
     try testing.expectEqualStrings("official", marketplace.OfficialRegistry.NAME);
 }
 
@@ -563,13 +563,13 @@ test "OfficialRegistry - create" {
     defer registry.deinit();
 
     try testing.expectEqualStrings("official", registry.name);
-    try testing.expectEqualStrings("https://plugins.zyte.dev", registry.url);
+    try testing.expectEqualStrings("https://plugins.craft.dev", registry.url);
     try testing.expect(registry.verified);
 }
 
 // CommunityRegistry tests
 test "CommunityRegistry - constants" {
-    try testing.expectEqualStrings("https://community.zyte.dev", marketplace.CommunityRegistry.URL);
+    try testing.expectEqualStrings("https://community.craft.dev", marketplace.CommunityRegistry.URL);
     try testing.expectEqualStrings("community", marketplace.CommunityRegistry.NAME);
 }
 
@@ -579,7 +579,7 @@ test "CommunityRegistry - create" {
     defer registry.deinit();
 
     try testing.expectEqualStrings("community", registry.name);
-    try testing.expectEqualStrings("https://community.zyte.dev", registry.url);
+    try testing.expectEqualStrings("https://community.craft.dev", registry.url);
     try testing.expect(!registry.verified);
 }
 

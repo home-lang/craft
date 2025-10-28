@@ -1,6 +1,6 @@
-# Zyte JavaScript Bridge API
+# Craft JavaScript Bridge API
 
-The Zyte JavaScript Bridge provides a seamless interface for your web application to control native features like the system tray, window management, and application behavior.
+The Craft JavaScript Bridge provides a seamless interface for your web application to control native features like the system tray, window management, and application behavior.
 
 ## Table of Contents
 
@@ -14,17 +14,17 @@ The Zyte JavaScript Bridge provides a seamless interface for your web applicatio
 
 ## Overview
 
-The bridge is automatically injected into your WebView at document start. No additional setup is required - simply use `window.zyte` in your JavaScript code.
+The bridge is automatically injected into your WebView at document start. No additional setup is required - simply use `window.craft` in your JavaScript code.
 
 ```javascript
 // Wait for bridge to be ready
-window.addEventListener('zyte:ready', () => {
-  console.log('Zyte bridge is ready!');
+window.addEventListener('craft:ready', () => {
+  console.log('Craft bridge is ready!');
   // Your code here
 });
 
 // Or check if already available
-if (window.zyte) {
+if (window.craft) {
   // Bridge is ready
 }
 ```
@@ -35,13 +35,13 @@ if (window.zyte) {
 
 ```javascript
 // Update system tray
-await window.zyte.tray.setTitle('🍅 25:00');
+await window.craft.tray.setTitle('🍅 25:00');
 
 // Toggle window visibility
-await window.zyte.window.toggle();
+await window.craft.window.toggle();
 
 // Hide dock icon (menubar-only mode)
-await window.zyte.app.hideDockIcon();
+await window.craft.app.hideDockIcon();
 ```
 
 ### CLI Integration
@@ -49,13 +49,13 @@ await window.zyte.app.hideDockIcon();
 Enable system tray from the command line:
 
 ```bash
-zyte http://localhost:3000 --system-tray --hide-dock-icon
+craft http://localhost:3000 --system-tray --hide-dock-icon
 ```
 
 ### TypeScript Integration
 
 ```typescript
-import { createApp } from 'ts-zyte'
+import { createApp } from 'ts-craft'
 
 const app = createApp({
   url: 'http://localhost:3000',
@@ -74,34 +74,34 @@ await app.show()
 
 Control the system tray icon from your web application.
 
-### `window.zyte.tray.setTitle(title: string): Promise<void>`
+### `window.craft.tray.setTitle(title: string): Promise<void>`
 
 Update the system tray title/text.
 
 ```javascript
 // Show a Pomodoro timer
-await window.zyte.tray.setTitle('🍅 25:00');
+await window.craft.tray.setTitle('🍅 25:00');
 
 // Show app status
-await window.zyte.tray.setTitle('✓ Ready');
+await window.craft.tray.setTitle('✓ Ready');
 ```
 
 **Note:** On macOS, titles are limited to ~20 characters to avoid menubar overflow.
 
-### `window.zyte.tray.setTooltip(tooltip: string): Promise<void>`
+### `window.craft.tray.setTooltip(tooltip: string): Promise<void>`
 
 Set tooltip text that appears on hover.
 
 ```javascript
-await window.zyte.tray.setTooltip('Pomodoro Timer - Click to toggle');
+await window.craft.tray.setTooltip('Pomodoro Timer - Click to toggle');
 ```
 
-### `window.zyte.tray.onClick(callback: Function): Function`
+### `window.craft.tray.onClick(callback: Function): Function`
 
 Register a click handler for the tray icon.
 
 ```javascript
-const unregister = window.zyte.tray.onClick((event) => {
+const unregister = window.craft.tray.onClick((event) => {
   console.log('Tray clicked!', event);
   // event.button: 'left' | 'right' | 'middle'
   // event.timestamp: number
@@ -112,20 +112,20 @@ const unregister = window.zyte.tray.onClick((event) => {
 unregister();
 ```
 
-### `window.zyte.tray.onClickToggleWindow(): Function`
+### `window.craft.tray.onClickToggleWindow(): Function`
 
 Convenience method: toggle window visibility on tray click.
 
 ```javascript
-const unregister = window.zyte.tray.onClickToggleWindow();
+const unregister = window.craft.tray.onClickToggleWindow();
 ```
 
-### `window.zyte.tray.setMenu(items: MenuItem[]): Promise<void>`
+### `window.craft.tray.setMenu(items: MenuItem[]): Promise<void>`
 
 Set a context menu for the tray icon.
 
 ```javascript
-await window.zyte.tray.setMenu([
+await window.craft.tray.setMenu([
   { label: 'Show Window', action: 'show' },
   { type: 'separator' },
   { label: 'Start Timer', action: 'start-timer' },
@@ -135,7 +135,7 @@ await window.zyte.tray.setMenu([
 ]);
 
 // Listen for custom menu actions
-window.addEventListener('zyte:tray:menu', (event) => {
+window.addEventListener('craft:tray:menu', (event) => {
   if (event.detail.action === 'start-timer') {
     startTimer();
   }
@@ -161,82 +161,82 @@ interface MenuItem {
 
 Control the application window from JavaScript.
 
-### `window.zyte.window.show(): Promise<void>`
+### `window.craft.window.show(): Promise<void>`
 
 Show the window.
 
 ```javascript
-await window.zyte.window.show();
+await window.craft.window.show();
 ```
 
-### `window.zyte.window.hide(): Promise<void>`
+### `window.craft.window.hide(): Promise<void>`
 
 Hide the window.
 
 ```javascript
-await window.zyte.window.hide();
+await window.craft.window.hide();
 ```
 
-### `window.zyte.window.toggle(): Promise<void>`
+### `window.craft.window.toggle(): Promise<void>`
 
 Toggle window visibility.
 
 ```javascript
-await window.zyte.window.toggle();
+await window.craft.window.toggle();
 ```
 
-### `window.zyte.window.minimize(): Promise<void>`
+### `window.craft.window.minimize(): Promise<void>`
 
 Minimize the window.
 
 ```javascript
-await window.zyte.window.minimize();
+await window.craft.window.minimize();
 ```
 
-### `window.zyte.window.close(): Promise<void>`
+### `window.craft.window.close(): Promise<void>`
 
 Close the window (and quit the app if it's the last window).
 
 ```javascript
-await window.zyte.window.close();
+await window.craft.window.close();
 ```
 
 ## App API
 
 Application-level controls.
 
-### `window.zyte.app.hideDockIcon(): Promise<void>`
+### `window.craft.app.hideDockIcon(): Promise<void>`
 
 Hide the dock icon (macOS only). Creates a menubar-only application.
 
 ```javascript
-await window.zyte.app.hideDockIcon();
+await window.craft.app.hideDockIcon();
 ```
 
 **Note:** Best used with `--system-tray` to ensure the app remains accessible.
 
-### `window.zyte.app.showDockIcon(): Promise<void>`
+### `window.craft.app.showDockIcon(): Promise<void>`
 
 Show the dock icon (macOS only).
 
 ```javascript
-await window.zyte.app.showDockIcon();
+await window.craft.app.showDockIcon();
 ```
 
-### `window.zyte.app.quit(): Promise<void>`
+### `window.craft.app.quit(): Promise<void>`
 
 Quit the application.
 
 ```javascript
-await window.zyte.app.quit();
+await window.craft.app.quit();
 ```
 
-### `window.zyte.app.getInfo(): Promise<AppInfo>`
+### `window.craft.app.getInfo(): Promise<AppInfo>`
 
 Get application information.
 
 ```javascript
-const info = await window.zyte.app.getInfo();
+const info = await window.craft.app.getInfo();
 console.log(info);
 // { name: 'MyApp', version: '1.0.0', platform: 'macos' }
 ```
@@ -248,7 +248,7 @@ Full TypeScript definitions are included:
 ```typescript
 declare global {
   interface Window {
-    zyte: {
+    craft: {
       tray: {
         setTitle(title: string): Promise<void>
         setTooltip(tooltip: string): Promise<void>
@@ -277,7 +277,7 @@ declare global {
 Import types:
 
 ```typescript
-import type { ZyteBridgeAPI, TrayClickEvent, MenuItem } from 'ts-zyte'
+import type { CraftBridgeAPI, TrayClickEvent, MenuItem } from 'ts-craft'
 ```
 
 ## Examples
@@ -296,10 +296,10 @@ Run it:
 
 ```bash
 # From the repository root
-zyte packages/typescript/examples/pomodoro-timer.html --system-tray
+craft packages/typescript/examples/pomodoro-timer.html --system-tray
 
 # Or with menubar-only mode
-zyte packages/typescript/examples/pomodoro-timer.html --system-tray --hide-dock-icon
+craft packages/typescript/examples/pomodoro-timer.html --system-tray --hide-dock-icon
 ```
 
 ### Music Player
@@ -311,11 +311,11 @@ let isPlaying = false;
 function updateTray() {
   const icon = isPlaying ? '▶️' : '⏸️';
   const title = `${icon} ${currentTrack.title}`;
-  window.zyte.tray.setTitle(title);
+  window.craft.tray.setTitle(title);
 }
 
 // Set up tray menu
-window.zyte.tray.setMenu([
+window.craft.tray.setMenu([
   { label: 'Play/Pause', action: 'toggle-playback' },
   { label: 'Next Track', action: 'next-track' },
   { label: 'Previous Track', action: 'prev-track' },
@@ -325,7 +325,7 @@ window.zyte.tray.setMenu([
 ]);
 
 // Handle menu actions
-window.addEventListener('zyte:tray:menu', (event) => {
+window.addEventListener('craft:tray:menu', (event) => {
   switch (event.detail.action) {
     case 'toggle-playback':
       togglePlayback();
@@ -349,15 +349,15 @@ async function updateStats() {
   const mem = await getMemoryUsage();
 
   const title = `CPU: ${cpu}% | RAM: ${mem}%`;
-  await window.zyte.tray.setTitle(title);
+  await window.craft.tray.setTitle(title);
 }
 
 // Update every 2 seconds
 setInterval(updateStats, 2000);
 
 // Click tray to show detailed view
-window.zyte.tray.onClick(() => {
-  window.zyte.window.show();
+window.craft.tray.onClick(() => {
+  window.craft.window.show();
 });
 ```
 
@@ -368,14 +368,14 @@ window.zyte.tray.onClick(() => {
 function updateProgress(percent) {
   const bars = Math.floor(percent / 10);
   const progress = '▓'.repeat(bars) + '░'.repeat(10 - bars);
-  window.zyte.tray.setTitle(`⬇️ ${percent}%`);
-  window.zyte.tray.setTooltip(`Downloading: ${progress}`);
+  window.craft.tray.setTitle(`⬇️ ${percent}%`);
+  window.craft.tray.setTooltip(`Downloading: ${progress}`);
 }
 
 // Show window when complete
 async function onComplete() {
-  await window.zyte.tray.setTitle('✓ Done');
-  await window.zyte.window.show();
+  await window.craft.tray.setTitle('✓ Done');
+  await window.craft.window.show();
 }
 ```
 
@@ -396,7 +396,7 @@ async function onComplete() {
 
 1. **Always check for bridge availability:**
    ```javascript
-   if (window.zyte) {
+   if (window.craft) {
      // Safe to use
    }
    ```
@@ -404,7 +404,7 @@ async function onComplete() {
 2. **Handle errors gracefully:**
    ```javascript
    try {
-     await window.zyte.tray.setTitle('Title');
+     await window.craft.tray.setTitle('Title');
    } catch (err) {
      console.warn('Failed to update tray:', err);
    }
@@ -416,7 +416,7 @@ async function onComplete() {
 
 4. **Unregister event listeners:**
    ```javascript
-   const unregister = window.zyte.tray.onClick(handler);
+   const unregister = window.craft.tray.onClick(handler);
    // When done:
    unregister();
    ```
@@ -429,10 +429,10 @@ async function onComplete() {
 
 ### Bridge not available
 
-If `window.zyte` is undefined:
+If `window.craft` is undefined:
 
-1. Ensure you're using Zyte 1.3.0 or later
-2. Wait for the `zyte:ready` event
+1. Ensure you're using Craft 1.3.0 or later
+2. Wait for the `craft:ready` event
 3. Check the browser console for injection errors
 
 ### Tray not updating
@@ -448,18 +448,18 @@ Common issues:
 Ensure you have the latest type definitions:
 
 ```bash
-bun add ts-zyte@latest
+bun add ts-craft@latest
 ```
 
 Or manually import types:
 
 ```typescript
-/// <reference types="ts-zyte" />
+/// <reference types="ts-craft" />
 ```
 
 ## Contributing
 
-Found a bug or have a feature request? Please open an issue on [GitHub](https://github.com/stacksjs/zyte/issues).
+Found a bug or have a feature request? Please open an issue on [GitHub](https://github.com/stacksjs/craft/issues).
 
 ## License
 

@@ -1,12 +1,12 @@
 const std = @import("std");
-const zyte = @import("zyte");
+const craft = @import("craft");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var app = zyte.App.init(allocator);
+    var app = craft.App.init(allocator);
     defer app.deinit();
 
     const html =
@@ -15,7 +15,7 @@ pub fn main() !void {
         \\<head>
         \\    <meta charset="UTF-8">
         \\    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        \\    <title>Zyte Example</title>
+        \\    <title>Craft Example</title>
         \\    <style>
         \\        body {
         \\            margin: 0;
@@ -57,7 +57,7 @@ pub fn main() !void {
         \\</head>
         \\<body>
         \\    <div class="container">
-        \\        <h1>Welcome to Zyte!</h1>
+        \\        <h1>Welcome to Craft!</h1>
         \\        <p>Build desktop apps with web languages, powered by Zig</p>
         \\        <div class="features">
         \\            <div class="feature">⚡ Fast</div>
@@ -69,9 +69,9 @@ pub fn main() !void {
         \\</html>
     ;
 
-    _ = try app.createWindow("Zyte Example App", 800, 600, html);
+    _ = try app.createWindow("Craft Example App", 800, 600, html);
 
-    std.debug.print("Starting Zyte desktop app...\n", .{});
+    std.debug.print("Starting Craft desktop app...\n", .{});
 
     try app.run();
 }

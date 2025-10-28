@@ -1,4 +1,4 @@
-# Zyte API Reference
+# Craft API Reference
 
 ## Table of Contents
 
@@ -21,9 +21,9 @@
 The main application struct that manages windows and the event loop.
 
 ```zig
-const zyte = @import("zyte");
+const craft = @import("craft");
 
-var app = zyte.App.init(allocator);
+var app = craft.App.init(allocator);
 defer app.deinit();
 ```
 
@@ -129,7 +129,7 @@ WebKit Developer Tools are enabled by default. Users can access them by:
 
 To disable DevTools:
 ```bash
-zyte --url http://localhost:3000 --no-devtools
+craft --url http://localhost:3000 --no-devtools
 ```
 
 Or in configuration:
@@ -144,11 +144,11 @@ dev_tools = false
 
 ### Web to Zig Communication
 
-The `window.zyte` API is automatically injected into every page.
+The `window.craft` API is automatically injected into every page.
 
 #### Available Methods
 
-##### `zyte.send(name, data)`
+##### `craft.send(name, data)`
 Send a message to Zig.
 
 **Parameters:**
@@ -159,56 +159,56 @@ Send a message to Zig.
 
 **Example:**
 ```javascript
-const result = await window.zyte.send('myHandler', { foo: 'bar' });
+const result = await window.craft.send('myHandler', { foo: 'bar' });
 console.log('Response from Zig:', result);
 ```
 
-##### `zyte.notify(message)`
+##### `craft.notify(message)`
 Show a notification (convenience wrapper).
 
 **Example:**
 ```javascript
-await window.zyte.notify('Hello from JavaScript!');
+await window.craft.notify('Hello from JavaScript!');
 ```
 
-##### `zyte.readFile(path)`
+##### `craft.readFile(path)`
 Read a file from the filesystem.
 
 **Example:**
 ```javascript
-const content = await window.zyte.readFile('/path/to/file.txt');
+const content = await window.craft.readFile('/path/to/file.txt');
 ```
 
-##### `zyte.writeFile(path, content)`
+##### `craft.writeFile(path, content)`
 Write a file to the filesystem.
 
 **Example:**
 ```javascript
-await window.zyte.writeFile('/path/to/file.txt', 'Hello, World!');
+await window.craft.writeFile('/path/to/file.txt', 'Hello, World!');
 ```
 
-##### `zyte.getClipboard()`
+##### `craft.getClipboard()`
 Get clipboard contents.
 
 **Example:**
 ```javascript
-const text = await window.zyte.getClipboard();
+const text = await window.craft.getClipboard();
 ```
 
-##### `zyte.setClipboard(text)`
+##### `craft.setClipboard(text)`
 Set clipboard contents.
 
 **Example:**
 ```javascript
-await window.zyte.setClipboard('Copied text!');
+await window.craft.setClipboard('Copied text!');
 ```
 
-##### `zyte.openDialog(options)`
+##### `craft.openDialog(options)`
 Open a native file dialog.
 
 **Example:**
 ```javascript
-const path = await window.zyte.openDialog({
+const path = await window.craft.openDialog({
     title: 'Select a file',
     multiple: false
 });
@@ -216,15 +216,15 @@ const path = await window.zyte.openDialog({
 
 #### Events
 
-##### `zyte:ready`
-Fired when the Zyte API is ready.
+##### `craft:ready`
+Fired when the Craft API is ready.
 
 **Example:**
 ```javascript
-window.addEventListener('zyte:ready', () => {
-    console.log('Zyte is ready!');
-    console.log('Platform:', window.zyte.platform);
-    console.log('Version:', window.zyte.version);
+window.addEventListener('craft:ready', () => {
+    console.log('Craft is ready!');
+    console.log('Platform:', window.craft.platform);
+    console.log('Version:', window.craft.version);
 });
 ```
 
@@ -301,7 +301,7 @@ std.debug.print("Clipboard: {s}\n", .{text});
 ```zig
 const config_mod = @import("config.zig");
 
-const config = try config_mod.Config.loadFromFile(allocator, "zyte.toml");
+const config = try config_mod.Config.loadFromFile(allocator, "craft.toml");
 ```
 
 ### Configuration Format
@@ -332,7 +332,7 @@ const config = config_mod.Config{
     },
 };
 
-try config.saveToFile("zyte.toml");
+try config.saveToFile("craft.toml");
 ```
 
 ---
@@ -375,7 +375,7 @@ log.setLevel(.Error);  // Show Error only
 ### Usage
 
 ```bash
-zyte [OPTIONS] [URL]
+craft [OPTIONS] [URL]
 ```
 
 ### Options
@@ -384,7 +384,7 @@ zyte [OPTIONS] [URL]
 |------|-------------|---------|
 | `-u, --url <URL>` | Load URL in window | - |
 | `--html <HTML>` | Load HTML content | - |
-| `-t, --title <TITLE>` | Window title | "Zyte App" |
+| `-t, --title <TITLE>` | Window title | "Craft App" |
 | `-w, --width <WIDTH>` | Window width | 1200 |
 | `--height <HEIGHT>` | Window height | 800 |
 | `--frameless` | Frameless window | false |
@@ -399,22 +399,22 @@ zyte [OPTIONS] [URL]
 
 ```bash
 # Load URL
-zyte http://localhost:3000
+craft http://localhost:3000
 
 # Custom size and title
-zyte --url http://example.com --width 800 --height 600 --title "My App"
+craft --url http://example.com --width 800 --height 600 --title "My App"
 
 # Frameless window
-zyte http://localhost:3000 --frameless
+craft http://localhost:3000 --frameless
 
 # Transparent overlay
-zyte http://localhost:3000 --transparent --always-on-top --frameless
+craft http://localhost:3000 --transparent --always-on-top --frameless
 
 # Load HTML
-zyte --html "<h1>Hello, World!</h1>"
+craft --html "<h1>Hello, World!</h1>"
 
 # Multiple options
-zyte --url http://localhost:3000 \
+craft --url http://localhost:3000 \
      --title "Dev Server" \
      --width 1600 \
      --height 900 \
@@ -425,7 +425,7 @@ zyte --url http://localhost:3000 \
 
 ## Build Modes
 
-Zyte supports all standard Zig build modes:
+Craft supports all standard Zig build modes:
 
 ```bash
 # Debug mode (default) - fast compilation, debug info

@@ -165,7 +165,7 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
         try loadLibraries();
 
         // Create null-terminated strings
-        const id = try allocator.dupeZ(u8, "zyte-app");
+        const id = try allocator.dupeZ(u8, "craft-app");
         defer allocator.free(id);
 
         const icon_name = try allocator.dupeZ(u8, "application-default-icon");

@@ -16,9 +16,9 @@ pub const Profiler = struct {
     memory_tracker: ?*memory.TrackingAllocator,
     allocator: std.mem.Allocator,
     enabled: bool = true,
-    
+
     const Self = @This();
-    
+
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .entries = std.ArrayList(ProfileEntry).init(allocator),
@@ -27,40 +27,40 @@ pub const Profiler = struct {
             .allocator = allocator,
         };
     }
-    
+
     pub fn deinit(self: *Self) void {
         self.entries.deinit();
         self.active_profiles.deinit();
     }
-    
+
     pub fn setMemoryTracker(self: *Self, tracker: *memory.TrackingAllocator) void {
         self.memory_tracker = tracker;
     }
-    
+
     pub fn start(self: *Self, name: []const u8) !void {
         if (!self.enabled) return;
-        
+
         const start_time = std.time.milliTimestamp();
         try self.active_profiles.put(name, start_time);
     }
-    
+
     pub fn end(self: *Self, name: []const u8) !void {
         if (!self.enabled) return;
-        
+
         const end_time = std.time.milliTimestamp();
         const start_time = self.active_profiles.get(name) orelse return;
         _ = self.active_profiles.remove(name);
-        
+
         const duration_ms = @as(f64, @floatFromInt(end_time - start_time));
-        
+
         var memory_before: usize = 0;
         var memory_after: usize = 0;
-        
+
         if (self.memory_tracker) |tracker| {
             const stats = tracker.getStats();
             memory_after = stats.current_memory;
         }
-        
+
         try self.entries.append(.{
             .name = name,
             .start_time = start_time,
@@ -70,32 +70,32 @@ pub const Profiler = struct {
             .memory_after = memory_after,
         });
     }
-    
+
     pub fn measure(self: *Self, comptime name: []const u8, comptime func: anytype, args: anytype) !@TypeOf(@call(.auto, func, args)) {
         try self.start(name);
         defer self.end(name) catch {};
         return @call(.auto, func, args);
     }
-    
+
     pub fn getReport(self: Self) ![]const u8 {
         var report = std.ArrayList(u8).init(self.allocator);
         const writer = report.writer();
-        
+
         try writer.writeAll("\n=== Performance Profile Report ===\n\n");
-        
+
         if (self.entries.items.len == 0) {
             try writer.writeAll("No profiling data collected.\n");
             return report.toOwnedSlice();
         }
-        
+
         // Calculate totals and averages
         var total_time: f64 = 0;
         var slowest: ?ProfileEntry = null;
         var fastest: ?ProfileEntry = null;
-        
+
         for (self.entries.items) |entry| {
             total_time += entry.duration_ms;
-            
+
             if (slowest == null or entry.duration_ms > slowest.?.duration_ms) {
                 slowest = entry;
             }
@@ -103,57 +103,57 @@ pub const Profiler = struct {
                 fastest = entry;
             }
         }
-        
+
         const avg_time = total_time / @as(f64, @floatFromInt(self.entries.items.len));
-        
+
         try writer.print("Total entries: {d}\n", .{self.entries.items.len});
         try writer.print("Total time: {d:.2}ms\n", .{total_time});
         try writer.print("Average time: {d:.2}ms\n\n", .{avg_time});
-        
+
         if (slowest) |s| {
             try writer.print("Slowest: {s} ({d:.2}ms)\n", .{ s.name, s.duration_ms });
         }
         if (fastest) |f| {
             try writer.print("Fastest: {s} ({d:.2}ms)\n\n", .{ f.name, f.duration_ms });
         }
-        
+
         try writer.writeAll("Individual Entries:\n");
         try writer.writeAll("------------------\n");
-        
+
         for (self.entries.items) |entry| {
             try writer.print("{s:30} {d:8.2}ms", .{ entry.name, entry.duration_ms });
-            
+
             if (entry.memory_after > 0) {
                 try writer.print("  (mem: {d} bytes)", .{entry.memory_after});
             }
-            
+
             try writer.writeAll("\n");
         }
-        
+
         return report.toOwnedSlice();
     }
-    
+
     pub fn printReport(self: Self) !void {
         const report = try self.getReport();
         defer self.allocator.free(report);
         std.debug.print("{s}\n", .{report});
     }
-    
+
     pub fn clear(self: *Self) void {
         self.entries.clearRetainingCapacity();
         self.active_profiles.clearRetainingCapacity();
     }
-    
+
     pub fn getHTMLDashboard(self: Self) ![]const u8 {
         var html = std.ArrayList(u8).init(self.allocator);
         const writer = html.writer();
-        
+
         try writer.writeAll(
             \\<!DOCTYPE html>
             \\<html>
             \\<head>
             \\  <meta charset="UTF-8">
-            \\  <title>Zyte Performance Dashboard</title>
+            \\  <title>Craft Performance Dashboard</title>
             \\  <style>
             \\    * { margin: 0; padding: 0; box-sizing: border-box; }
             \\    body {
@@ -197,21 +197,21 @@ pub const Profiler = struct {
             \\</head>
             \\<body>
             \\  <div class="container">
-            \\    <h1>⚡ Zyte Performance Dashboard</h1>
+            \\    <h1>⚡ Craft Performance Dashboard</h1>
             \\
         );
-        
+
         // Calculate stats
         var total_time: f64 = 0;
         for (self.entries.items) |entry| {
             total_time += entry.duration_ms;
         }
-        
+
         const avg_time = if (self.entries.items.len > 0)
             total_time / @as(f64, @floatFromInt(self.entries.items.len))
         else
             0;
-        
+
         try writer.print(
             \\    <div class="stats">
             \\      <div class="stat-card">
@@ -229,7 +229,7 @@ pub const Profiler = struct {
             \\    </div>
             \\
         , .{ self.entries.items.len, total_time, avg_time });
-        
+
         try writer.writeAll(
             \\    <table>
             \\      <thead>
@@ -243,11 +243,11 @@ pub const Profiler = struct {
             \\      <tbody>
             \\
         );
-        
+
         for (self.entries.items) |entry| {
             const status_class = if (entry.duration_ms > 16.67) "slow" else "fast";
             const status_text = if (entry.duration_ms > 16.67) "Slow" else "Fast";
-            
+
             try writer.print(
                 \\        <tr>
                 \\          <td>{s}</td>
@@ -258,7 +258,7 @@ pub const Profiler = struct {
                 \\
             , .{ entry.name, entry.duration_ms, entry.memory_after, status_class, status_text });
         }
-        
+
         try writer.writeAll(
             \\      </tbody>
             \\    </table>
@@ -266,7 +266,7 @@ pub const Profiler = struct {
             \\</body>
             \\</html>
         );
-        
+
         return html.toOwnedSlice();
     }
 };

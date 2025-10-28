@@ -12,23 +12,23 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-linux-gnu
-            artifact_name: zyte-linux-x64
+            artifact_name: craft-linux-x64
             build_command: zig build -Doptimize=ReleaseSafe
           - os: ubuntu-latest
             target: aarch64-linux-gnu
-            artifact_name: zyte-linux-arm64
+            artifact_name: craft-linux-arm64
             build_command: zig build -Doptimize=ReleaseSafe
           - os: macos-latest
             target: x86_64-macos
-            artifact_name: zyte-darwin-x64
+            artifact_name: craft-darwin-x64
             build_command: zig build -Doptimize=ReleaseSafe
           - os: macos-latest
             target: aarch64-macos
-            artifact_name: zyte-darwin-arm64
+            artifact_name: craft-darwin-arm64
             build_command: zig build -Doptimize=ReleaseSafe
           - os: windows-latest
             target: x86_64-windows
-            artifact_name: zyte-windows-x64.exe
+            artifact_name: craft-windows-x64.exe
             build_command: zig build -Doptimize=ReleaseSafe
 
     runs-on: ${{ matrix.os }}
@@ -66,14 +66,14 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           mkdir -p bin
-          cp zig-out/bin/zyte-minimal bin/${{ matrix.artifact_name }}
+          cp zig-out/bin/craft-minimal bin/${{ matrix.artifact_name }}
           chmod +x bin/${{ matrix.artifact_name }}
 
       - name: Prepare artifact (Windows)
         if: runner.os == 'Windows'
         run: |
           mkdir bin
-          cp zig-out/bin/zyte-minimal.exe bin/${{ matrix.artifact_name }}
+          cp zig-out/bin/craft-minimal.exe bin/${{ matrix.artifact_name }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -99,7 +99,7 @@ jobs:
         run: |
           mkdir -p bin
           find artifacts -type f -exec cp {} bin/ \;
-          chmod +x bin/zyte-* || true
+          chmod +x bin/craft-* || true
           ls -lh bin/
 
       - name: Install Bun
@@ -138,17 +138,17 @@ jobs:
         run: |
           mkdir -p bin
           find artifacts -type f -exec cp {} bin/ \;
-          chmod +x bin/zyte-* || true
+          chmod +x bin/craft-* || true
           ls -lh bin/
 
       - name: Create GitHub Release
         uses: stacksjs/action-releaser@v1.2.6
         with:
           files: |
-            bin/zyte-linux-x64
-            bin/zyte-linux-arm64
-            bin/zyte-windows-x64.exe
-            bin/zyte-darwin-x64
-            bin/zyte-darwin-arm64
+            bin/craft-linux-x64
+            bin/craft-linux-arm64
+            bin/craft-windows-x64.exe
+            bin/craft-darwin-x64
+            bin/craft-darwin-arm64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

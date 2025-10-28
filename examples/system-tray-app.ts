@@ -2,7 +2,7 @@
 /**
  * System Tray App Example
  *
- * A simple system tray (menubar) application built with Zyte.
+ * A simple system tray (menubar) application built with Craft.
  * Run with: bun run examples/system-tray-app.ts
  *
  * Features:
@@ -21,7 +21,7 @@ const html = `
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Zyte System Tray App</title>
+  <title>Craft System Tray App</title>
   <style>
     * {
       margin: 0;
@@ -200,7 +200,7 @@ const html = `
 </head>
 <body>
   <div class="header">
-    <h1>⚡ Zyte System Tray App</h1>
+    <h1>⚡ Craft System Tray App</h1>
     <p class="subtitle">Running in your menubar/system tray</p>
   </div>
 
@@ -244,7 +244,7 @@ const html = `
   </div>
 
   <div class="footer">
-    <span>Zyte System Tray Example</span>
+    <span>Craft System Tray Example</span>
     <span>Press ESC to hide window</span>
   </div>
 
@@ -262,7 +262,7 @@ const html = `
     // Notification functions
     function sendNotification() {
       log('Sending notification...');
-      // In a real app, this would call the Zyte notification API
+      // In a real app, this would call the Craft notification API
       console.log('Notification sent');
       setTimeout(() => log('Notification delivered'), 100);
     }
@@ -325,7 +325,7 @@ const html = `
 `
 
 async function main() {
-  console.log('🚀 Starting Zyte System Tray App...')
+  console.log('🚀 Starting Craft System Tray App...')
   console.log('')
   console.log('📌 Features:')
   console.log('  • System tray icon')
@@ -343,7 +343,7 @@ async function main() {
   const app = createApp({
     html,
     window: {
-      title: 'Zyte System Tray',
+      title: 'Craft System Tray',
       width: 600,
       height: 700,
       resizable: true,

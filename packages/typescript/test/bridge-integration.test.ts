@@ -1,15 +1,15 @@
 /**
- * Integration tests for Zyte JavaScript Bridge
+ * Integration tests for Craft JavaScript Bridge
  * These tests verify that the bridge API is properly typed and accessible
  */
 
 import { describe, test, expect } from 'bun:test'
-import type { ZyteBridgeAPI, ZyteTrayAPI, ZyteWindowAPI, ZyteAppAPI, MenuItem } from '../src/types'
+import type { CraftBridgeAPI, CraftTrayAPI, CraftWindowAPI, CraftAppAPI, MenuItem } from '../src/types'
 
 describe('Bridge Type Definitions', () => {
-  test('should have correct ZyteBridgeAPI structure', () => {
+  test('should have correct CraftBridgeAPI structure', () => {
     // This is a compile-time test - if it compiles, the types are correct
-    const mockBridge: ZyteBridgeAPI = {
+    const mockBridge: CraftBridgeAPI = {
       tray: {
         setTitle: async (_title: string) => {},
         setTooltip: async (_tooltip: string) => {},
@@ -41,8 +41,8 @@ describe('Bridge Type Definitions', () => {
     expect(mockBridge.app).toBeDefined()
   })
 
-  test('should have correct ZyteTrayAPI methods', () => {
-    const mockTray: ZyteTrayAPI = {
+  test('should have correct CraftTrayAPI methods', () => {
+    const mockTray: CraftTrayAPI = {
       setTitle: async (_title: string) => {},
       setTooltip: async (_tooltip: string) => {},
       onClick: (_callback: (event: any) => void) => () => {},
@@ -57,8 +57,8 @@ describe('Bridge Type Definitions', () => {
     expect(typeof mockTray.setMenu).toBe('function')
   })
 
-  test('should have correct ZyteWindowAPI methods', () => {
-    const mockWindow: ZyteWindowAPI = {
+  test('should have correct CraftWindowAPI methods', () => {
+    const mockWindow: CraftWindowAPI = {
       show: async () => {},
       hide: async () => {},
       toggle: async () => {},
@@ -73,8 +73,8 @@ describe('Bridge Type Definitions', () => {
     expect(typeof mockWindow.close).toBe('function')
   })
 
-  test('should have correct ZyteAppAPI methods', () => {
-    const mockApp: ZyteAppAPI = {
+  test('should have correct CraftAppAPI methods', () => {
+    const mockApp: CraftAppAPI = {
       hideDockIcon: async () => {},
       showDockIcon: async () => {},
       quit: async () => {},
@@ -187,7 +187,7 @@ describe('TrayClickEvent Type Definition', () => {
 
 describe('Bridge API Method Signatures', () => {
   test('tray.setTitle should accept string parameter', async () => {
-    const mockTray: ZyteTrayAPI = {
+    const mockTray: CraftTrayAPI = {
       setTitle: async (title: string) => {
         expect(typeof title).toBe('string')
       },
@@ -201,7 +201,7 @@ describe('Bridge API Method Signatures', () => {
   })
 
   test('tray.setTooltip should accept string parameter', async () => {
-    const mockTray: ZyteTrayAPI = {
+    const mockTray: CraftTrayAPI = {
       setTitle: async (_title: string) => {},
       setTooltip: async (tooltip: string) => {
         expect(typeof tooltip).toBe('string')
@@ -217,7 +217,7 @@ describe('Bridge API Method Signatures', () => {
   test('tray.onClick should accept callback and return unregister function', () => {
     let callbackCalled = false
 
-    const mockTray: ZyteTrayAPI = {
+    const mockTray: CraftTrayAPI = {
       setTitle: async (_title: string) => {},
       setTooltip: async (_tooltip: string) => {},
       onClick: (callback: (event: any) => void) => {
@@ -239,7 +239,7 @@ describe('Bridge API Method Signatures', () => {
   })
 
   test('tray.setMenu should accept MenuItem array', async () => {
-    const mockTray: ZyteTrayAPI = {
+    const mockTray: CraftTrayAPI = {
       setTitle: async (_title: string) => {},
       setTooltip: async (_tooltip: string) => {},
       onClick: (_callback: (event: any) => void) => () => {},
@@ -258,7 +258,7 @@ describe('Bridge API Method Signatures', () => {
   })
 
   test('window methods should return promises', async () => {
-    const mockWindow: ZyteWindowAPI = {
+    const mockWindow: CraftWindowAPI = {
       show: async () => {},
       hide: async () => {},
       toggle: async () => {},
@@ -274,7 +274,7 @@ describe('Bridge API Method Signatures', () => {
   })
 
   test('app.getInfo should return AppInfo', async () => {
-    const mockApp: ZyteAppAPI = {
+    const mockApp: CraftAppAPI = {
       hideDockIcon: async () => {},
       showDockIcon: async () => {},
       quit: async () => {},
@@ -297,9 +297,9 @@ describe('Window Global Type Augmentation', () => {
     // This is a compile-time test
     // If this compiles, the Window interface is properly augmented
 
-    // Mock window.zyte for testing
+    // Mock window.craft for testing
     const mockWindow = {
-      zyte: {
+      craft: {
         tray: {
           setTitle: async (_title: string) => {},
           setTooltip: async (_tooltip: string) => {},
@@ -324,19 +324,19 @@ describe('Window Global Type Augmentation', () => {
             platform: 'macos',
           }),
         },
-      } as ZyteBridgeAPI,
+      } as CraftBridgeAPI,
     }
 
-    expect(mockWindow.zyte).toBeDefined()
-    expect(mockWindow.zyte.tray).toBeDefined()
-    expect(mockWindow.zyte.window).toBeDefined()
-    expect(mockWindow.zyte.app).toBeDefined()
+    expect(mockWindow.craft).toBeDefined()
+    expect(mockWindow.craft.tray).toBeDefined()
+    expect(mockWindow.craft.window).toBeDefined()
+    expect(mockWindow.craft.app).toBeDefined()
   })
 })
 
 describe('Error Handling', () => {
   test('should handle API errors gracefully', async () => {
-    const mockTray: ZyteTrayAPI = {
+    const mockTray: CraftTrayAPI = {
       setTitle: async (_title: string) => {
         throw new Error('Native error')
       },
@@ -350,7 +350,7 @@ describe('Error Handling', () => {
   })
 
   test('should handle callback errors gracefully', () => {
-    const mockTray: ZyteTrayAPI = {
+    const mockTray: CraftTrayAPI = {
       setTitle: async (_title: string) => {},
       setTooltip: async (_tooltip: string) => {},
       onClick: (callback: (event: any) => void) => {

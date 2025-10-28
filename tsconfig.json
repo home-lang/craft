@@ -19,7 +19,7 @@
     "verbatimModuleSyntax": true,
     "skipDefaultLibCheck": true,
     "paths": {
-      "ts-zyte": ["./packages/typescript/src/index.ts"]
+      "ts-craft": ["./packages/typescript/src/index.ts"]
     },
     "skipLibCheck": true
   }

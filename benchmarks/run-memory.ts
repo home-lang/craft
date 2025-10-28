@@ -33,9 +33,9 @@ class MemoryTracker {
 
 summary(() => {
   group('Idle Application Memory', () => {
-    bench('Zyte (minimal runtime)', () => {
+    bench('Craft (minimal runtime)', () => {
       const tracker = new MemoryTracker();
-      // Zyte: Just the window manager, event loop, and GPU context
+      // Craft: Just the window manager, event loop, and GPU context
       tracker.allocate('window', 4096);        // Window struct
       tracker.allocate('event_loop', 2048);    // Event loop state
       tracker.allocate('gpu_context', 8192);   // GPU context
@@ -65,7 +65,7 @@ summary(() => {
   });
 
   group('Memory per 1000 Components', () => {
-    bench('Zyte (struct-based)', () => {
+    bench('Craft (struct-based)', () => {
       const tracker = new MemoryTracker();
       const componentSize = 160; // ComponentProps + metadata
 
@@ -100,7 +100,7 @@ summary(() => {
   });
 
   group('Peak Memory Under Load (10k operations)', () => {
-    bench('Zyte (arena allocation)', () => {
+    bench('Craft (arena allocation)', () => {
       const tracker = new MemoryTracker();
 
       // Arena allocator: allocate chunk upfront, fast bump allocation
@@ -150,7 +150,7 @@ summary(() => {
   });
 
   group('Memory Leak Detection (repeated cycles)', () => {
-    bench('Zyte (deterministic cleanup)', () => {
+    bench('Craft (deterministic cleanup)', () => {
       const tracker = new MemoryTracker();
 
       // Run 100 cycles of create/destroy
@@ -205,7 +205,7 @@ summary(() => {
   });
 
   group('GPU Memory Footprint (1000 vertices)', () => {
-    bench('Zyte (native buffers)', () => {
+    bench('Craft (native buffers)', () => {
       const tracker = new MemoryTracker();
       const vertexSize = 48; // position(12) + normal(12) + uv(8) + color(16)
 

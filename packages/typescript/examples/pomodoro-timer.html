@@ -104,22 +104,22 @@
     </div>
     <div class="status" id="status">Ready to focus!</div>
     <div class="bridge-info">
-      <p>Zyte Bridge API Demo</p>
-      <p><code>window.zyte.tray.setTitle()</code> ✓</p>
-      <p><code>window.zyte.window.toggle()</code> ✓</p>
-      <p><code>window.zyte.app.hideDockIcon()</code> ✓</p>
+      <p>Craft Bridge API Demo</p>
+      <p><code>window.craft.tray.setTitle()</code> ✓</p>
+      <p><code>window.craft.window.toggle()</code> ✓</p>
+      <p><code>window.craft.app.hideDockIcon()</code> ✓</p>
     </div>
   </div>
 
   <script>
-    // Wait for Zyte bridge to be ready
-    window.addEventListener('zyte:ready', () => {
-      console.log('[Pomodoro] Zyte bridge is ready!');
+    // Wait for Craft bridge to be ready
+    window.addEventListener('craft:ready', () => {
+      console.log('[Pomodoro] Craft bridge is ready!');
       initApp();
     });
 
     // If already loaded, initialize immediately
-    if (window.zyte) {
+    if (window.craft) {
       initApp();
     }
 
@@ -142,7 +142,7 @@
         const display = `🍅 ${minutes}:${seconds.toString().padStart(2, '0')}`;
 
         // Update tray title
-        window.zyte.tray.setTitle(display).catch(err => {
+        window.craft.tray.setTitle(display).catch(err => {
           console.warn('Failed to update tray:', err);
         });
 
@@ -165,7 +165,7 @@
             pauseTimer();
             statusDisplay.textContent = 'Break time! ☕';
             // Show window when timer completes
-            window.zyte.window.show();
+            window.craft.window.show();
           }
         }, 1000);
       }
@@ -197,16 +197,16 @@
       updateTrayTitle();
 
       // Set up tray click to toggle window
-      window.zyte.tray.onClickToggleWindow();
+      window.craft.tray.onClickToggleWindow();
 
       // Set tooltip
-      window.zyte.tray.setTooltip('Pomodoro Timer - Click to toggle window');
+      window.craft.tray.setTooltip('Pomodoro Timer - Click to toggle window');
 
       // Hide dock icon for menubar-only mode
       // Uncomment to enable:
-      // window.zyte.app.hideDockIcon();
+      // window.craft.app.hideDockIcon();
 
-      console.log('[Pomodoro] App initialized with Zyte bridge!');
+      console.log('[Pomodoro] App initialized with Craft bridge!');
     }
   </script>
 </body>

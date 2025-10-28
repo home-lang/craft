@@ -1,10 +1,10 @@
-# Zyte Core (Zig)
+# Craft Core (Zig)
 
-The native Zig implementation of Zyte - a high-performance framework for building cross-platform desktop applications.
+The native Zig implementation of Craft - a high-performance framework for building cross-platform desktop applications.
 
 ## Overview
 
-This package contains the Zig source code for Zyte, providing:
+This package contains the Zig source code for Craft, providing:
 - **Native window management** - Cross-platform window creation and management
 - **WebView integration** - WKWebView (macOS), WebKit2GTK (Linux), WebView2 (Windows)
 - **GPU-accelerated rendering** - Hardware-accelerated graphics pipeline
@@ -21,10 +21,10 @@ This package contains the Zig source code for Zyte, providing:
 **You don't need to touch this package!** Use the TypeScript SDK instead:
 
 ```bash
-bun add ts-zyte
+bun add ts-craft
 ```
 
-See [ts-zyte documentation](../ts-zyte/README.md) for the TypeScript API.
+See [ts-craft documentation](../ts-craft/README.md) for the TypeScript API.
 
 ## For Advanced Users (Zig Development)
 
@@ -216,21 +216,21 @@ packages/zig/
 
 ```zig
 const std = @import("std");
-const zyte = @import("zyte");
+const craft = @import("craft");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    var app = zyte.App.init(allocator);
+    var app = craft.App.init(allocator);
     defer app.deinit();
 
     const html =
         \\<!DOCTYPE html>
         \\<html>
         \\<body>
-        \\  <h1>Hello from Zyte!</h1>
+        \\  <h1>Hello from Craft!</h1>
         \\</body>
         \\</html>
     ;
@@ -244,13 +244,13 @@ pub fn main() !void {
 
 ```zig
 const std = @import("std");
-const zyte = @import("zyte");
+const craft = @import("craft");
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
 
     // Create a button component
-    const button = try zyte.Button.init(allocator, .{});
+    const button = try craft.Button.init(allocator, .{});
     defer button.deinit();
 
     button.setLabel("Click Me!");
@@ -258,7 +258,7 @@ pub fn main() !void {
     button.onClick(handleClick);
 
     // Create a slider
-    const slider = try zyte.Slider.init(allocator, .{});
+    const slider = try craft.Slider.init(allocator, .{});
     defer slider.deinit();
 
     try slider.setRange(0, 100);
@@ -358,7 +358,7 @@ pub fn main() !void {
         };
 
         // Listen for state restoration
-        window.addEventListener('zyte:state-restored', (event) => {
+        window.addEventListener('craft:state-restored', (event) => {
             console.log('State restored:', event.detail);
         });
 

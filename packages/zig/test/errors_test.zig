@@ -2,31 +2,31 @@ const std = @import("std");
 const testing = std.testing;
 const errors = @import("../src/errors.zig");
 
-test "ZyteError - window errors exist" {
-    const err1: errors.ZyteError = error.WindowCreationFailed;
-    const err2: errors.ZyteError = error.WindowNotFound;
-    const err3: errors.ZyteError = error.InvalidWindowHandle;
+test "CraftError - window errors exist" {
+    const err1: errors.CraftError = error.WindowCreationFailed;
+    const err2: errors.CraftError = error.WindowNotFound;
+    const err3: errors.CraftError = error.InvalidWindowHandle;
 
     try testing.expectError(error.WindowCreationFailed, err1);
     try testing.expectError(error.WindowNotFound, err2);
     try testing.expectError(error.InvalidWindowHandle, err3);
 }
 
-test "ZyteError - webview errors exist" {
-    const err1: errors.ZyteError = error.WebViewCreationFailed;
-    const err2: errors.ZyteError = error.WebViewLoadFailed;
-    const err3: errors.ZyteError = error.InvalidURL;
+test "CraftError - webview errors exist" {
+    const err1: errors.CraftError = error.WebViewCreationFailed;
+    const err2: errors.CraftError = error.WebViewLoadFailed;
+    const err3: errors.CraftError = error.InvalidURL;
 
     try testing.expectError(error.WebViewCreationFailed, err1);
     try testing.expectError(error.WebViewLoadFailed, err2);
     try testing.expectError(error.InvalidURL, err3);
 }
 
-test "ZyteError - file errors exist" {
-    const err1: errors.ZyteError = error.FileNotFound;
-    const err2: errors.ZyteError = error.FileReadError;
-    const err3: errors.ZyteError = error.FileWriteError;
-    const err4: errors.ZyteError = error.InvalidPath;
+test "CraftError - file errors exist" {
+    const err1: errors.CraftError = error.FileNotFound;
+    const err2: errors.CraftError = error.FileReadError;
+    const err3: errors.CraftError = error.FileWriteError;
+    const err4: errors.CraftError = error.InvalidPath;
 
     try testing.expectError(error.FileNotFound, err1);
     try testing.expectError(error.FileReadError, err2);
@@ -34,11 +34,11 @@ test "ZyteError - file errors exist" {
     try testing.expectError(error.InvalidPath, err4);
 }
 
-test "ZyteError - plugin errors exist" {
-    const err1: errors.ZyteError = error.PluginLoadFailed;
-    const err2: errors.ZyteError = error.PluginNotFound;
-    const err3: errors.ZyteError = error.PluginFunctionNotFound;
-    const err4: errors.ZyteError = error.InvalidPluginPath;
+test "CraftError - plugin errors exist" {
+    const err1: errors.CraftError = error.PluginLoadFailed;
+    const err2: errors.CraftError = error.PluginNotFound;
+    const err3: errors.CraftError = error.PluginFunctionNotFound;
+    const err4: errors.CraftError = error.InvalidPluginPath;
 
     try testing.expectError(error.PluginLoadFailed, err1);
     try testing.expectError(error.PluginNotFound, err2);
@@ -46,55 +46,55 @@ test "ZyteError - plugin errors exist" {
     try testing.expectError(error.InvalidPluginPath, err4);
 }
 
-test "ZyteError - ipc errors exist" {
-    const err1: errors.ZyteError = error.IpcChannelNotFound;
-    const err2: errors.ZyteError = error.IpcMessageSendFailed;
-    const err3: errors.ZyteError = error.InvalidMessage;
+test "CraftError - ipc errors exist" {
+    const err1: errors.CraftError = error.IpcChannelNotFound;
+    const err2: errors.CraftError = error.IpcMessageSendFailed;
+    const err3: errors.CraftError = error.InvalidMessage;
 
     try testing.expectError(error.IpcChannelNotFound, err1);
     try testing.expectError(error.IpcMessageSendFailed, err2);
     try testing.expectError(error.InvalidMessage, err3);
 }
 
-test "ZyteError - permission errors exist" {
-    const err1: errors.ZyteError = error.PermissionDenied;
-    const err2: errors.ZyteError = error.SandboxViolation;
+test "CraftError - permission errors exist" {
+    const err1: errors.CraftError = error.PermissionDenied;
+    const err2: errors.CraftError = error.SandboxViolation;
 
     try testing.expectError(error.PermissionDenied, err1);
     try testing.expectError(error.SandboxViolation, err2);
 }
 
-test "ZyteError - configuration errors exist" {
-    const err1: errors.ZyteError = error.ConfigLoadFailed;
-    const err2: errors.ZyteError = error.ConfigParseError;
-    const err3: errors.ZyteError = error.InvalidConfiguration;
+test "CraftError - configuration errors exist" {
+    const err1: errors.CraftError = error.ConfigLoadFailed;
+    const err2: errors.CraftError = error.ConfigParseError;
+    const err3: errors.CraftError = error.InvalidConfiguration;
 
     try testing.expectError(error.ConfigLoadFailed, err1);
     try testing.expectError(error.ConfigParseError, err2);
     try testing.expectError(error.InvalidConfiguration, err3);
 }
 
-test "ZyteError - platform errors exist" {
-    const err1: errors.ZyteError = error.UnsupportedPlatform;
-    const err2: errors.ZyteError = error.PlatformApiError;
+test "CraftError - platform errors exist" {
+    const err1: errors.CraftError = error.UnsupportedPlatform;
+    const err2: errors.CraftError = error.PlatformApiError;
 
     try testing.expectError(error.UnsupportedPlatform, err1);
     try testing.expectError(error.PlatformApiError, err2);
 }
 
-test "ZyteError - network errors exist" {
-    const err1: errors.ZyteError = error.WebSocketConnectionFailed;
-    const err2: errors.ZyteError = error.NetworkError;
+test "CraftError - network errors exist" {
+    const err1: errors.CraftError = error.WebSocketConnectionFailed;
+    const err2: errors.CraftError = error.NetworkError;
 
     try testing.expectError(error.WebSocketConnectionFailed, err1);
     try testing.expectError(error.NetworkError, err2);
 }
 
-test "ZyteError - general errors exist" {
-    const err1: errors.ZyteError = error.NotImplemented;
-    const err2: errors.ZyteError = error.InvalidArgument;
-    const err3: errors.ZyteError = error.OutOfMemory;
-    const err4: errors.ZyteError = error.Timeout;
+test "CraftError - general errors exist" {
+    const err1: errors.CraftError = error.NotImplemented;
+    const err2: errors.CraftError = error.InvalidArgument;
+    const err3: errors.CraftError = error.OutOfMemory;
+    const err4: errors.CraftError = error.Timeout;
 
     try testing.expectError(error.NotImplemented, err1);
     try testing.expectError(error.InvalidArgument, err2);
@@ -125,9 +125,9 @@ test "errorContext - helper function" {
     try testing.expect(ctx.line > 0);
 }
 
-test "ZyteError - can be used in functions" {
+test "CraftError - can be used in functions" {
     const testFunc = struct {
-        fn fail() errors.ZyteError!void {
+        fn fail() errors.CraftError!void {
             return error.NotImplemented;
         }
     }.fail;
@@ -135,9 +135,9 @@ test "ZyteError - can be used in functions" {
     try testing.expectError(error.NotImplemented, testFunc());
 }
 
-test "ZyteError - can be caught and handled" {
+test "CraftError - can be caught and handled" {
     const testFunc = struct {
-        fn mayFail(should_fail: bool) errors.ZyteError!i32 {
+        fn mayFail(should_fail: bool) errors.CraftError!i32 {
             if (should_fail) {
                 return error.InvalidArgument;
             }
@@ -202,9 +202,9 @@ test "ErrorContext - long file path" {
     try testing.expectEqualStrings(long_path, ctx.file);
 }
 
-test "ZyteError - error union with success" {
+test "CraftError - error union with success" {
     const testFunc = struct {
-        fn maySucceed(should_succeed: bool) errors.ZyteError!i32 {
+        fn maySucceed(should_succeed: bool) errors.CraftError!i32 {
             if (!should_succeed) {
                 return error.InvalidArgument;
             }
@@ -219,13 +219,13 @@ test "ZyteError - error union with success" {
     try testing.expectError(error.InvalidArgument, error_result);
 }
 
-test "ZyteError - chaining errors" {
+test "CraftError - chaining errors" {
     const func1 = struct {
-        fn inner() errors.ZyteError!void {
+        fn inner() errors.CraftError!void {
             return error.FileNotFound;
         }
 
-        fn outer() errors.ZyteError!void {
+        fn outer() errors.CraftError!void {
             return try inner();
         }
     };
@@ -233,9 +233,9 @@ test "ZyteError - chaining errors" {
     try testing.expectError(error.FileNotFound, func1.outer());
 }
 
-test "ZyteError - error sets combination" {
+test "CraftError - error sets combination" {
     const func = struct {
-        fn combined() (errors.ZyteError || error{CustomError})!void {
+        fn combined() (errors.CraftError || error{CustomError})!void {
             return error.CustomError;
         }
     }.combined;
@@ -243,8 +243,8 @@ test "ZyteError - error sets combination" {
     try testing.expectError(error.CustomError, func());
 }
 
-test "ZyteError - all window errors" {
-    const window_errors = [_]errors.ZyteError{
+test "CraftError - all window errors" {
+    const window_errors = [_]errors.CraftError{
         error.WindowCreationFailed,
         error.WindowNotFound,
         error.InvalidWindowHandle,
@@ -255,8 +255,8 @@ test "ZyteError - all window errors" {
     }
 }
 
-test "ZyteError - all webview errors" {
-    const webview_errors = [_]errors.ZyteError{
+test "CraftError - all webview errors" {
+    const webview_errors = [_]errors.CraftError{
         error.WebViewCreationFailed,
         error.WebViewLoadFailed,
         error.InvalidURL,
@@ -267,8 +267,8 @@ test "ZyteError - all webview errors" {
     }
 }
 
-test "ZyteError - all file errors" {
-    const file_errors = [_]errors.ZyteError{
+test "CraftError - all file errors" {
+    const file_errors = [_]errors.CraftError{
         error.FileNotFound,
         error.FileReadError,
         error.FileWriteError,
@@ -280,8 +280,8 @@ test "ZyteError - all file errors" {
     }
 }
 
-test "ZyteError - all plugin errors" {
-    const plugin_errors = [_]errors.ZyteError{
+test "CraftError - all plugin errors" {
+    const plugin_errors = [_]errors.CraftError{
         error.PluginLoadFailed,
         error.PluginNotFound,
         error.PluginFunctionNotFound,
@@ -293,8 +293,8 @@ test "ZyteError - all plugin errors" {
     }
 }
 
-test "ZyteError - all ipc errors" {
-    const ipc_errors = [_]errors.ZyteError{
+test "CraftError - all ipc errors" {
+    const ipc_errors = [_]errors.CraftError{
         error.IpcChannelNotFound,
         error.IpcMessageSendFailed,
         error.InvalidMessage,
@@ -305,8 +305,8 @@ test "ZyteError - all ipc errors" {
     }
 }
 
-test "ZyteError - all permission errors" {
-    const permission_errors = [_]errors.ZyteError{
+test "CraftError - all permission errors" {
+    const permission_errors = [_]errors.CraftError{
         error.PermissionDenied,
         error.SandboxViolation,
     };
@@ -316,8 +316,8 @@ test "ZyteError - all permission errors" {
     }
 }
 
-test "ZyteError - all config errors" {
-    const config_errors = [_]errors.ZyteError{
+test "CraftError - all config errors" {
+    const config_errors = [_]errors.CraftError{
         error.ConfigLoadFailed,
         error.ConfigParseError,
         error.InvalidConfiguration,
@@ -328,8 +328,8 @@ test "ZyteError - all config errors" {
     }
 }
 
-test "ZyteError - all platform errors" {
-    const platform_errors = [_]errors.ZyteError{
+test "CraftError - all platform errors" {
+    const platform_errors = [_]errors.CraftError{
         error.UnsupportedPlatform,
         error.PlatformApiError,
     };
@@ -339,8 +339,8 @@ test "ZyteError - all platform errors" {
     }
 }
 
-test "ZyteError - all network errors" {
-    const network_errors = [_]errors.ZyteError{
+test "CraftError - all network errors" {
+    const network_errors = [_]errors.CraftError{
         error.WebSocketConnectionFailed,
         error.NetworkError,
     };
@@ -350,8 +350,8 @@ test "ZyteError - all network errors" {
     }
 }
 
-test "ZyteError - all general errors" {
-    const general_errors = [_]errors.ZyteError{
+test "CraftError - all general errors" {
+    const general_errors = [_]errors.CraftError{
         error.NotImplemented,
         error.InvalidArgument,
         error.OutOfMemory,

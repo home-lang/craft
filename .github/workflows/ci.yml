@@ -61,7 +61,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           ls -lh packages/zig/zig-out/bin/
-          size packages/zig/zig-out/bin/zyte || true
+          size packages/zig/zig-out/bin/craft || true
 
   typescript-sdk:
     name: TypeScript SDK Tests
@@ -90,8 +90,8 @@ jobs:
         working-directory: packages/typescript
         run: bun run build
 
-      - name: Type check create-zyte
-        working-directory: packages/create-zyte
+      - name: Type check create-craft
+        working-directory: packages/create-craft
         run: bun run typecheck
 
   lint:
@@ -142,7 +142,7 @@ jobs:
       - name: Test TypeScript SDK with built binary
         run: bun run test:sdk
 
-      - name: Verify create-zyte works
+      - name: Verify create-craft works
         run: |
           bun run create test-app --skip-install
           ls -la test-app/

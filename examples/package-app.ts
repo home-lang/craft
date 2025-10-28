@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 
 /**
- * Example: Package a Zyte Application
+ * Example: Package a Craft Application
  *
- * This example shows how to use the Zyte packaging API
+ * This example shows how to use the Craft packaging API
  * to create installers for your application.
  */
 
@@ -11,7 +11,7 @@ import { packageApp } from '../packages/typescript/src/package'
 import { join } from 'path'
 
 async function main() {
-  console.log('📦 Packaging Example Zyte App\n')
+  console.log('📦 Packaging Example Craft App\n')
 
   // Package the Pomodoro timer app
   const results = await packageApp({
@@ -22,7 +22,7 @@ async function main() {
     homepage: 'https://github.com/yourname/pomodoro',
 
     // Path to your built binary
-    binaryPath: join(__dirname, '../packages/zig/zig-out/bin/zyte-minimal'),
+    binaryPath: join(__dirname, '../packages/zig/zig-out/bin/craft-minimal'),
 
     // Bundle identifier (macOS/iOS)
     bundleId: 'com.example.pomodoro',

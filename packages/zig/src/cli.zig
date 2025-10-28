@@ -3,7 +3,7 @@ const std = @import("std");
 pub const WindowOptions = struct {
     url: ?[]const u8 = null,
     html: ?[]const u8 = null,
-    title: []const u8 = "Zyte App",
+    title: []const u8 = "Craft App",
     width: u32 = 1200,
     height: u32 = 800,
     x: ?i32 = null,
@@ -111,16 +111,16 @@ pub fn parseArgs(allocator: std.mem.Allocator) !WindowOptions {
 fn printHelp() void {
     std.debug.print(
         \\
-        \\⚡ Zyte - Build desktop apps with web languages
+        \\⚡ Craft - Build desktop apps with web languages
         \\
-        \\Usage: zyte [OPTIONS] [URL]
+        \\Usage: craft [OPTIONS] [URL]
         \\
         \\Window Content:
         \\  -u, --url <URL>          Load URL in the window
         \\      --html <HTML>        Load HTML content directly
         \\
         \\Window Appearance:
-        \\  -t, --title <TITLE>      Window title (default: "Zyte App")
+        \\  -t, --title <TITLE>      Window title (default: "Craft App")
         \\  -w, --width <WIDTH>      Window width (default: 1200)
         \\      --height <HEIGHT>    Window height (default: 800)
         \\  -x, --x <X>              Window x position (default: centered)
@@ -149,16 +149,16 @@ fn printHelp() void {
         \\  -v, --version            Show version information
         \\
         \\Examples:
-        \\  zyte http://localhost:3000
-        \\  zyte --url http://example.com --width 800 --height 600
-        \\  zyte --url http://localhost:3000 --title "My App" --frameless
-        \\  zyte --html "<h1>Hello, World!</h1>" --width 400 --height 300
-        \\  zyte http://localhost:3000 --x 100 --y 100 --fullscreen
-        \\  zyte http://localhost:3000 --transparent --always-on-top
-        \\  zyte http://localhost:3000 --dark --hot-reload
-        \\  zyte http://localhost:3000 --system-tray --light
+        \\  craft http://localhost:3000
+        \\  craft --url http://example.com --width 800 --height 600
+        \\  craft --url http://localhost:3000 --title "My App" --frameless
+        \\  craft --html "<h1>Hello, World!</h1>" --width 400 --height 300
+        \\  craft http://localhost:3000 --x 100 --y 100 --fullscreen
+        \\  craft http://localhost:3000 --transparent --always-on-top
+        \\  craft http://localhost:3000 --dark --hot-reload
+        \\  craft http://localhost:3000 --system-tray --light
         \\
-        \\For more information, visit: https://github.com/stacksjs/zyte
+        \\For more information, visit: https://github.com/stacksjs/craft
         \\
         \\
     , .{});
@@ -174,7 +174,7 @@ fn printVersion() void {
     };
 
     std.debug.print(
-        \\zyte version 1.3.0
+        \\craft version 1.3.0
         \\Built with Zig 0.15.1
         \\Platform: {s}
         \\Features: 79

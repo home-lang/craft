@@ -7,7 +7,7 @@ test "WindowOptions - default values" {
 
     try testing.expect(options.url == null);
     try testing.expect(options.html == null);
-    try testing.expectEqualStrings("Zyte App", options.title);
+    try testing.expectEqualStrings("Craft App", options.title);
     try testing.expectEqual(@as(u32, 1200), options.width);
     try testing.expectEqual(@as(u32, 800), options.height);
     try testing.expect(options.x == null);

@@ -1,33 +1,33 @@
-# Zyte Performance Benchmarks
+# Craft Performance Benchmarks
 
-Comprehensive performance benchmarks comparing Zyte against Electron and Tauri using [Mitata](https://github.com/evanwashere/mitata).
+Comprehensive performance benchmarks comparing Craft against Electron and Tauri using [Mitata](https://github.com/evanwashere/mitata).
 
 ## Overview
 
 This benchmark suite compares three desktop application frameworks across multiple dimensions:
 
-- **Zyte**: Native Zig-based desktop framework with GPU acceleration
+- **Craft**: Native Zig-based desktop framework with GPU acceleration
 - **Electron**: Chromium + Node.js based framework
 - **Tauri**: Rust + native WebView framework
 
 ## Usage: Building a Minimal Cross-Platform Window App
 
-Zyte offers two ways to build desktop apps: **TypeScript/JavaScript** (recommended) or **Zig** (advanced).
+Craft offers two ways to build desktop apps: **TypeScript/JavaScript** (recommended) or **Zig** (advanced).
 
 ### TypeScript/JavaScript (Recommended)
 
-The easiest way to build with Zyte is using our zero-dependency TypeScript SDK:
+The easiest way to build with Craft is using our zero-dependency TypeScript SDK:
 
 #### Install
 
 ```bash
-bun add ts-zyte
+bun add ts-craft
 ```
 
 #### Create your app (`app.ts`):
 
 ```typescript
-import { show } from 'ts-zyte'
+import { show } from 'ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -48,7 +48,7 @@ const html = `
   </style>
 </head>
 <body>
-  <h1>⚡ My Zyte App</h1>
+  <h1>⚡ My Craft App</h1>
 </body>
 </html>
 `
@@ -70,7 +70,7 @@ bun run app.ts
 #### Load from URL (for existing web apps):
 
 ```typescript
-import { loadURL } from 'ts-zyte'
+import { loadURL } from 'ts-craft'
 
 await loadURL('http://localhost:3000', {
   title: 'My Web App',
@@ -89,15 +89,15 @@ For advanced use cases, you can use Zig directly:
 
 ```zig
 const std = @import("std");
-const zyte = @import("zyte");
+const craft = @import("craft");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    // Initialize Zyte app
-    var app = zyte.App.init(allocator);
+    // Initialize Craft app
+    var app = craft.App.init(allocator);
     defer app.deinit();
 
     // Create a window with HTML content
@@ -129,7 +129,7 @@ pub fn main() !void {
         \\</head>
         \\<body>
         \\    <div class="container">
-        \\        <h1>⚡ My Zyte App</h1>
+        \\        <h1>⚡ My Craft App</h1>
         \\        <p>Lightning-fast desktop app with web languages</p>
         \\    </div>
         \\</body>
@@ -169,7 +169,7 @@ _ = try app.createWindowWithURL(
 );
 ```
 
-### Why Choose Zyte?
+### Why Choose Craft?
 
 - **2-3 lines of code** for a full desktop app
 - **~14 KB idle memory** vs Electron's 68 MB (4857x less)
@@ -197,8 +197,8 @@ bun run bench
 
 ### Run Individual Framework Benchmarks
 ```bash
-# Zyte benchmarks
-bun run bench:zyte
+# Craft benchmarks
+bun run bench:craft
 
 # Electron benchmarks
 bun run bench:electron
@@ -225,7 +225,7 @@ bun run bench:cpu
 Measures cold start time from process launch to ready state.
 
 **Expected Results:**
-- **Zyte**: ~50ms (native binary, minimal runtime)
+- **Craft**: ~50ms (native binary, minimal runtime)
 - **Tauri**: ~140ms (Rust + WebView initialization)
 - **Electron**: ~230ms (Chromium + Node.js startup)
 
@@ -233,7 +233,7 @@ Measures cold start time from process launch to ready state.
 Compares memory usage for 1000 component instances.
 
 **Expected Results:**
-- **Zyte**: ~150 KB (lightweight structs)
+- **Craft**: ~150 KB (lightweight structs)
 - **Tauri**: ~300 KB (JS objects + some overhead)
 - **Electron**: ~500 KB (React fiber + VDOM overhead)
 
@@ -241,7 +241,7 @@ Compares memory usage for 1000 component instances.
 Measures inter-process communication throughput for 10,000 messages.
 
 **Expected Results:**
-- **Zyte**: Fastest (direct struct passing, no serialization)
+- **Craft**: Fastest (direct struct passing, no serialization)
 - **Tauri**: Medium (JSON serialization)
 - **Electron**: Slowest (JSON + Node.js IPC overhead)
 
@@ -249,7 +249,7 @@ Measures inter-process communication throughput for 10,000 messages.
 GPU/Canvas rendering command throughput.
 
 **Expected Results:**
-- **Zyte**: Fastest (direct GPU commands via Metal/Vulkan)
+- **Craft**: Fastest (direct GPU commands via Metal/Vulkan)
 - **Tauri**: Medium (WebView canvas/WebGL)
 - **Electron**: Slower (Chromium WebGL with validation overhead)
 
@@ -257,7 +257,7 @@ GPU/Canvas rendering command throughput.
 Create/destroy performance for 1000 component cycles.
 
 **Expected Results:**
-- **Zyte**: Fastest (simple struct allocation/deallocation)
+- **Craft**: Fastest (simple struct allocation/deallocation)
 - **Tauri**: Medium (JS object lifecycle + GC)
 - **Electron**: Slowest (React component + fiber overhead + GC)
 
@@ -265,7 +265,7 @@ Create/destroy performance for 1000 component cycles.
 Application distribution size comparison.
 
 **Expected Results:**
-- **Zyte**: ~3 MB (compact native binary)
+- **Craft**: ~3 MB (compact native binary)
 - **Tauri**: ~17 MB (Rust binary + frontend assets)
 - **Electron**: ~135 MB (full Chromium + Node runtime)
 
@@ -293,7 +293,7 @@ CPU utilization patterns including:
 
 Based on actual benchmark runs on Apple M3 Pro:
 
-| Category | Zyte | Tauri | Electron | Zyte Advantage |
+| Category | Craft | Tauri | Electron | Craft Advantage |
 |----------|------|-------|----------|----------------|
 | **Startup Time** | 50.82 ms | 140.95 ms | 230.96 ms | **2.77x faster** than Tauri, **4.54x faster** than Electron |
 | **Memory Footprint** | 7.68 µs | 19.60 µs | 29.50 µs | **2.55x faster** than Tauri, **3.84x faster** than Electron |
@@ -304,28 +304,28 @@ Based on actual benchmark runs on Apple M3 Pro:
 
 ### Key Takeaways
 
-- **IPC Performance**: Zyte's native message passing is **~700x faster** than JSON-based serialization used by Tauri/Electron
-- **Startup Speed**: Zyte starts **4.5x faster** than Electron, getting users to a responsive UI in ~50ms
+- **IPC Performance**: Craft's native message passing is **~700x faster** than JSON-based serialization used by Tauri/Electron
+- **Startup Speed**: Craft starts **4.5x faster** than Electron, getting users to a responsive UI in ~50ms
 - **Memory Efficiency**: Lower memory footprint means better performance on resource-constrained devices
 - **Component Performance**: Native struct allocation matches or exceeds JavaScript object creation, while being **36x faster** than React's overhead
 
 ### Memory Consumption Results
 
-| Category | Zyte | Tauri | Electron | Advantage |
+| Category | Craft | Tauri | Electron | Advantage |
 |----------|------|-------|----------|-----------|
 | **Idle Application** | 14 KB | 2.6 MB | 68 MB | **186x less** than Tauri, **4857x less** than Electron |
 | **Arena Allocation (10k ops)** | 3.00 µs | 1.41 ms | 1.30 ms | **468x faster** than Tauri, **433x faster** than Electron |
 | **GPU Memory (1000 vertices)** | 52 KB | 60 KB | 76 KB | **1.15x smaller** than Tauri, **1.46x smaller** than Electron |
 
 Key Memory Insights:
-- **Idle Footprint**: Zyte uses just **14 KB** when idle vs Electron's **68 MB** - nearly **5000x difference**
+- **Idle Footprint**: Craft uses just **14 KB** when idle vs Electron's **68 MB** - nearly **5000x difference**
 - **Arena Allocation**: Deterministic cleanup is **~450x faster** than GC-based approaches
 - **No Memory Leaks**: Zero-leak deterministic cleanup vs potential GC retention issues
 - **GPU Efficiency**: Native buffers have **37% less overhead** than Chrome's WebGL validation layers
 
 ### CPU Consumption Results
 
-| Category | Zyte | Tauri | Electron | Advantage |
+| Category | Craft | Tauri | Electron | Advantage |
 |----------|------|-------|----------|-----------|
 | **Event Loop Idle** | 3.61 ns | 33.05 ns | 169.68 ns | **9.15x less** than Tauri, **47x less** than Electron |
 | **Frame Render** | 430.64 ns | 2.11 µs | 4.58 µs | **4.9x faster** than Tauri, **10.6x faster** than Electron |
@@ -334,12 +334,12 @@ Key Memory Insights:
 | **Scroll (60 FPS)** | 1.49 µs | 2.35 µs | 8.90 µs | **1.6x faster** than Tauri, **6x faster** than Electron |
 
 Key CPU Insights:
-- **Event Loop**: Zyte's native epoll/kqueue has **47x less overhead** than Electron's dual event loops
+- **Event Loop**: Craft's native epoll/kqueue has **47x less overhead** than Electron's dual event loops
 - **Rendering**: Direct GPU commands are **10.6x more CPU efficient** than Chrome's WebGL validation
 - **Zero Serialization**: Native message passing eliminates JSON serialization CPU cost entirely
 - **Immediate Mode UI**: Layout calculations are **20% faster** than CSS flexbox engines
 
-## Performance Advantages of Zyte
+## Performance Advantages of Craft
 
 ### 1. Native Compilation
 - No JavaScript runtime overhead
@@ -386,14 +386,14 @@ All benchmarks use Mitata for accurate performance measurement with:
 
 ```
 Application Startup Time
-  Zyte (native binary)            50.23 ms/iter
+  Craft (native binary)            50.23 ms/iter
   Tauri (Rust + WebView)         142.15 ms/iter
   Electron (Chromium + Node)     228.47 ms/iter
 ```
 
 Lower numbers are better. The results show:
-- Zyte is **2.8x faster** than Tauri at startup
-- Zyte is **4.5x faster** than Electron at startup
+- Craft is **2.8x faster** than Tauri at startup
+- Craft is **4.5x faster** than Electron at startup
 
 ### Statistical Significance
 

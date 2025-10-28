@@ -31,11 +31,11 @@ pub const WindowStyle = struct {
     closable: bool = true,
     miniaturizable: bool = true,
     fullscreen: bool = false,
-    x: ?i32 = null,  // Window x position (null = center)
-    y: ?i32 = null,  // Window y position (null = center)
-    dark_mode: ?bool = null,  // null = system default, true = dark, false = light
-    enable_hot_reload: bool = false,  // Enable hot reload support
-    hide_dock_icon: bool = false,  // Hide dock icon (menubar-only mode)
+    x: ?i32 = null, // Window x position (null = center)
+    y: ?i32 = null, // Window y position (null = center)
+    dark_mode: ?bool = null, // null = system default, true = dark, false = light
+    enable_hot_reload: bool = false, // Enable hot reload support
+    hide_dock_icon: bool = false, // Hide dock icon (menubar-only mode)
 };
 
 // Helper functions for Objective-C runtime
@@ -224,8 +224,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     } else if (html) |h| {
         // CRITICAL FIX: WKUserScript doesn't reliably inject with loadHTMLString when baseURL is null
         // So we inject the bridge script directly into the HTML before loading
-        const bridge_js = getZyteBridgeScript();
-
+        const bridge_js = getCraftBridgeScript();
 
         // Find </head> tag and inject script before it
         var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, h.len + bridge_js.len + 20);
@@ -248,7 +247,6 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
         const final_html = try modified_html.toOwnedSlice(std.heap.c_allocator);
         defer std.heap.c_allocator.free(final_html);
-
 
         // Load the modified HTML with a proper baseURL
         // This is important - without a baseURL, body scripts may not execute!
@@ -717,235 +715,235 @@ pub fn getGlobalWebView() ?objc.id {
 // JavaScript Bridge Injection
 // ============================================================================
 
-/// Generate the complete Zyte JavaScript bridge to inject into WebViews
-fn getZyteBridgeScript() []const u8 {
-    return
-        \\ // Zyte JavaScript Bridge - Auto-injected
-        \\ (function() {
-        \\   console.log('[Zyte] Initializing JavaScript bridge...');
-        \\
-        \\   // Define the bridge API immediately (so it's available for use)
-        \\   window.zyte = window.zyte || {};
-        \\
-        \\   // ===== TRAY API =====
-        \\   window.zyte.tray = {
-        \\     async setTitle(title) {
-        \\       if (typeof title !== 'string') throw new TypeError('Title must be a string');
-        \\       if (title.length > 20) {
-        \\         console.warn('Tray title truncated to 20 characters');
-        \\         title = title.substring(0, 20);
-        \\       }
-        \\       return new Promise((resolve, reject) => {
-        \\         try {
-        \\           window.webkit.messageHandlers.zyte.postMessage({
-        \\             type: 'tray', action: 'setTitle', data: title
-        \\           });
-        \\           resolve();
-        \\         } catch (error) {
-        \\           reject(new Error(`Failed to set tray title: ${error.message}`));
-        \\         }
-        \\       });
-        \\     },
-        \\     async setTooltip(tooltip) {
-        \\       if (typeof tooltip !== 'string') throw new TypeError('Tooltip must be a string');
-        \\       return new Promise((resolve, reject) => {
-        \\         try {
-        \\           window.webkit.messageHandlers.zyte.postMessage({
-        \\             type: 'tray', action: 'setTooltip', data: tooltip
-        \\           });
-        \\           resolve();
-        \\         } catch (error) {
-        \\           reject(new Error(`Failed to set tray tooltip: ${error.message}`));
-        \\         }
-        \\       });
-        \\     },
-        \\     async setMenu(items) {
-        \\       if (!Array.isArray(items)) throw new TypeError('Menu items must be an array');
-        \\       return new Promise((resolve, reject) => {
-        \\         try {
-        \\           window.webkit.messageHandlers.zyte.postMessage({
-        \\             type: 'tray', action: 'setMenu', data: JSON.stringify(items)
-        \\           });
-        \\           resolve();
-        \\         } catch (error) {
-        \\           reject(new Error(`Failed to set tray menu: ${error.message}`));
-        \\         }
-        \\       });
-        \\     },
-        \\     onClick(callback) {
-        \\       if (typeof callback !== 'function') throw new TypeError('Callback must be a function');
-        \\       const handler = (event) => {
-        \\         callback({
-        \\           button: event.detail?.button || 'left',
-        \\           timestamp: event.detail?.timestamp || Date.now(),
-        \\           modifiers: event.detail?.modifiers || {}
-        \\         });
-        \\       };
-        \\       if (!window.__zyte_tray_handlers) window.__zyte_tray_handlers = [];
-        \\       window.__zyte_tray_handlers.push(handler);
-        \\       window.addEventListener('zyte:tray:click', handler);
-        \\       return () => {
-        \\         const index = window.__zyte_tray_handlers.indexOf(handler);
-        \\         if (index > -1) window.__zyte_tray_handlers.splice(index, 1);
-        \\         window.removeEventListener('zyte:tray:click', handler);
-        \\       };
-        \\     },
-        \\     onClickToggleWindow() {
-        \\       return this.onClick(() => { window.zyte.window.toggle(); });
-        \\     }
-        \\   };
-        \\
-        \\   // ===== WINDOW API =====
-        \\   window.zyte.window = {
-        \\     async show() {
-        \\       return new Promise((resolve, reject) => {
-        \\         try {
-        \\           window.webkit.messageHandlers.zyte.postMessage({
-        \\             type: 'window', action: 'show'
-        \\           });
-        \\           resolve();
-        \\         } catch (error) {
-        \\           reject(new Error(`Failed to show window: ${error.message}`));
-        \\         }
-        \\       });
-        \\     },
-        \\     async hide() {
-        \\       return new Promise((resolve, reject) => {
-        \\         try {
-        \\           window.webkit.messageHandlers.zyte.postMessage({
-        \\             type: 'window', action: 'hide'
-        \\           });
-        \\           resolve();
-        \\         } catch (error) {
-        \\           reject(new Error(`Failed to hide window: ${error.message}`));
-        \\         }
-        \\       });
-        \\     },
-        \\     async toggle() {
-        \\       return new Promise((resolve, reject) => {
-        \\         try {
-        \\           window.webkit.messageHandlers.zyte.postMessage({
-        \\             type: 'window', action: 'toggle'
-        \\           });
-        \\           resolve();
-        \\         } catch (error) {
-        \\           reject(new Error(`Failed to toggle window: ${error.message}`));
-        \\         }
-        \\       });
-        \\     },
-        \\     async minimize() {
-        \\       return new Promise((resolve, reject) => {
-        \\         try {
-        \\           window.webkit.messageHandlers.zyte.postMessage({
-        \\             type: 'window', action: 'minimize'
-        \\           });
-        \\           resolve();
-        \\         } catch (error) {
-        \\           reject(new Error(`Failed to minimize window: ${error.message}`));
-        \\         }
-        \\       });
-        \\     },
-        \\     async close() {
-        \\       return new Promise((resolve, reject) => {
-        \\         try {
-        \\           window.webkit.messageHandlers.zyte.postMessage({
-        \\             type: 'window', action: 'close'
-        \\           });
-        \\           resolve();
-        \\         } catch (error) {
-        \\           reject(new Error(`Failed to close window: ${error.message}`));
-        \\         }
-        \\       });
-        \\     }
-        \\   };
-        \\
-        \\   // ===== APP API =====
-        \\   window.zyte.app = {
-        \\     async hideDockIcon() {
-        \\       return new Promise((resolve, reject) => {
-        \\         try {
-        \\           window.webkit.messageHandlers.zyte.postMessage({
-        \\             type: 'app', action: 'hideDockIcon'
-        \\           });
-        \\           resolve();
-        \\         } catch (error) {
-        \\           reject(new Error(`Failed to hide dock icon: ${error.message}`));
-        \\         }
-        \\       });
-        \\     },
-        \\     async showDockIcon() {
-        \\       return new Promise((resolve, reject) => {
-        \\         try {
-        \\           window.webkit.messageHandlers.zyte.postMessage({
-        \\             type: 'app', action: 'showDockIcon'
-        \\           });
-        \\           resolve();
-        \\         } catch (error) {
-        \\           reject(new Error(`Failed to show dock icon: ${error.message}`));
-        \\         }
-        \\       });
-        \\     },
-        \\     async quit() {
-        \\       return new Promise((resolve, reject) => {
-        \\         try {
-        \\           window.webkit.messageHandlers.zyte.postMessage({
-        \\             type: 'app', action: 'quit'
-        \\           });
-        \\           resolve();
-        \\         } catch (error) {
-        \\           reject(new Error(`Failed to quit: ${error.message}`));
-        \\         }
-        \\       });
-        \\     }
-        \\   };
-        \\
-        \\   // Fire the ready event and manually trigger any event listeners
-        \\   // Since loadHTMLString doesn't reliably execute body scripts, we need a workaround
-        \\   function fireReady() {
-        \\     console.log('[Zyte] JavaScript bridge ready - firing zyte:ready event');
-        \\     window.dispatchEvent(new CustomEvent('zyte:ready'));
-        \\
-        \\     // WORKAROUND: If body scripts don't load, manually check for initialization functions
-        \\     // Look for a global init function that may have been defined
-        \\     if (typeof window.initializeZyteApp === 'function') {
-        \\       window.initializeZyteApp();
-        \\     }
-        \\   }
-        \\
-        \\   // Try multiple strategies to ensure scripts execute
-        \\   if (document.readyState === 'loading') {
-        \\     document.addEventListener('DOMContentLoaded', fireReady);
-        \\   } else if (document.readyState === 'interactive') {
-        \\     // DOM parsed but resources loading
-        \\     setTimeout(fireReady, 100);
-        \\   } else {
-        \\     // Already complete
-        \\     fireReady();
-        \\   }
-        \\
-        \\   // ===== POLLING FOR MENU ACTIONS =====
-        \\   // evaluateJavaScript doesn't work from menu callbacks, so we poll
-        \\   window.__zyteDeliverAction = function(action) {
-        \\     if (action && action.length > 0) {
-        \\       console.log('[Zyte] Polled menu action:', action);
-        \\       window.dispatchEvent(new CustomEvent('zyte:tray:menuAction', {
-        \\         detail: { action: action }
-        \\       }));
-        \\     }
-        \\   };
-        \\
-        \\   setInterval(function() {
-        \\     try {
-        \\       window.webkit.messageHandlers.zyte.postMessage({
-        \\         type: 'tray',
-        \\         action: 'pollActions',
-        \\         data: ''
-        \\       });
-        \\     } catch (e) {
-        \\       // Ignore polling errors
-        \\     }
-        \\   }, 100);
-        \\ })();
+/// Generate the complete Craft JavaScript bridge to inject into WebViews
+fn getCraftBridgeScript() []const u8 {
+    return 
+    \\ // Craft JavaScript Bridge - Auto-injected
+    \\ (function() {
+    \\   console.log('[Craft] Initializing JavaScript bridge...');
+    \\
+    \\   // Define the bridge API immediately (so it's available for use)
+    \\   window.craft = window.craft || {};
+    \\
+    \\   // ===== TRAY API =====
+    \\   window.craft.tray = {
+    \\     async setTitle(title) {
+    \\       if (typeof title !== 'string') throw new TypeError('Title must be a string');
+    \\       if (title.length > 20) {
+    \\         console.warn('Tray title truncated to 20 characters');
+    \\         title = title.substring(0, 20);
+    \\       }
+    \\       return new Promise((resolve, reject) => {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'tray', action: 'setTitle', data: title
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error(`Failed to set tray title: ${error.message}`));
+    \\         }
+    \\       });
+    \\     },
+    \\     async setTooltip(tooltip) {
+    \\       if (typeof tooltip !== 'string') throw new TypeError('Tooltip must be a string');
+    \\       return new Promise((resolve, reject) => {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'tray', action: 'setTooltip', data: tooltip
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error(`Failed to set tray tooltip: ${error.message}`));
+    \\         }
+    \\       });
+    \\     },
+    \\     async setMenu(items) {
+    \\       if (!Array.isArray(items)) throw new TypeError('Menu items must be an array');
+    \\       return new Promise((resolve, reject) => {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'tray', action: 'setMenu', data: JSON.stringify(items)
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error(`Failed to set tray menu: ${error.message}`));
+    \\         }
+    \\       });
+    \\     },
+    \\     onClick(callback) {
+    \\       if (typeof callback !== 'function') throw new TypeError('Callback must be a function');
+    \\       const handler = (event) => {
+    \\         callback({
+    \\           button: event.detail?.button || 'left',
+    \\           timestamp: event.detail?.timestamp || Date.now(),
+    \\           modifiers: event.detail?.modifiers || {}
+    \\         });
+    \\       };
+    \\       if (!window.__craft_tray_handlers) window.__craft_tray_handlers = [];
+    \\       window.__craft_tray_handlers.push(handler);
+    \\       window.addEventListener('craft:tray:click', handler);
+    \\       return () => {
+    \\         const index = window.__craft_tray_handlers.indexOf(handler);
+    \\         if (index > -1) window.__craft_tray_handlers.splice(index, 1);
+    \\         window.removeEventListener('craft:tray:click', handler);
+    \\       };
+    \\     },
+    \\     onClickToggleWindow() {
+    \\       return this.onClick(() => { window.craft.window.toggle(); });
+    \\     }
+    \\   };
+    \\
+    \\   // ===== WINDOW API =====
+    \\   window.craft.window = {
+    \\     async show() {
+    \\       return new Promise((resolve, reject) => {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'window', action: 'show'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error(`Failed to show window: ${error.message}`));
+    \\         }
+    \\       });
+    \\     },
+    \\     async hide() {
+    \\       return new Promise((resolve, reject) => {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'window', action: 'hide'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error(`Failed to hide window: ${error.message}`));
+    \\         }
+    \\       });
+    \\     },
+    \\     async toggle() {
+    \\       return new Promise((resolve, reject) => {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'window', action: 'toggle'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error(`Failed to toggle window: ${error.message}`));
+    \\         }
+    \\       });
+    \\     },
+    \\     async minimize() {
+    \\       return new Promise((resolve, reject) => {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'window', action: 'minimize'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error(`Failed to minimize window: ${error.message}`));
+    \\         }
+    \\       });
+    \\     },
+    \\     async close() {
+    \\       return new Promise((resolve, reject) => {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'window', action: 'close'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error(`Failed to close window: ${error.message}`));
+    \\         }
+    \\       });
+    \\     }
+    \\   };
+    \\
+    \\   // ===== APP API =====
+    \\   window.craft.app = {
+    \\     async hideDockIcon() {
+    \\       return new Promise((resolve, reject) => {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'app', action: 'hideDockIcon'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error(`Failed to hide dock icon: ${error.message}`));
+    \\         }
+    \\       });
+    \\     },
+    \\     async showDockIcon() {
+    \\       return new Promise((resolve, reject) => {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'app', action: 'showDockIcon'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error(`Failed to show dock icon: ${error.message}`));
+    \\         }
+    \\       });
+    \\     },
+    \\     async quit() {
+    \\       return new Promise((resolve, reject) => {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'app', action: 'quit'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error(`Failed to quit: ${error.message}`));
+    \\         }
+    \\       });
+    \\     }
+    \\   };
+    \\
+    \\   // Fire the ready event and manually trigger any event listeners
+    \\   // Since loadHTMLString doesn't reliably execute body scripts, we need a workaround
+    \\   function fireReady() {
+    \\     console.log('[Craft] JavaScript bridge ready - firing craft:ready event');
+    \\     window.dispatchEvent(new CustomEvent('craft:ready'));
+    \\
+    \\     // WORKAROUND: If body scripts don't load, manually check for initialization functions
+    \\     // Look for a global init function that may have been defined
+    \\     if (typeof window.initializeCraftApp === 'function') {
+    \\       window.initializeCraftApp();
+    \\     }
+    \\   }
+    \\
+    \\   // Try multiple strategies to ensure scripts execute
+    \\   if (document.readyState === 'loading') {
+    \\     document.addEventListener('DOMContentLoaded', fireReady);
+    \\   } else if (document.readyState === 'interactive') {
+    \\     // DOM parsed but resources loading
+    \\     setTimeout(fireReady, 100);
+    \\   } else {
+    \\     // Already complete
+    \\     fireReady();
+    \\   }
+    \\
+    \\   // ===== POLLING FOR MENU ACTIONS =====
+    \\   // evaluateJavaScript doesn't work from menu callbacks, so we poll
+    \\   window.__craftDeliverAction = function(action) {
+    \\     if (action && action.length > 0) {
+    \\       console.log('[Craft] Polled menu action:', action);
+    \\       window.dispatchEvent(new CustomEvent('craft:tray:menuAction', {
+    \\         detail: { action: action }
+    \\       }));
+    \\     }
+    \\   };
+    \\
+    \\   setInterval(function() {
+    \\     try {
+    \\       window.webkit.messageHandlers.craft.postMessage({
+    \\         type: 'tray',
+    \\         action: 'pollActions',
+    \\         data: ''
+    \\       });
+    \\     } catch (e) {
+    \\       // Ignore polling errors
+    \\     }
+    \\   }, 100);
+    \\ })();
     ;
 }
 
@@ -1182,18 +1180,14 @@ pub fn setupScriptMessageHandler(userContentController: objc.id) !void {
 
     // Create a custom class at runtime that implements WKScriptMessageHandler
     const superclass = getClass("NSObject");
-    const className = "ZyteScriptMessageHandler";
+    const className = "CraftScriptMessageHandler";
 
     // Try to get existing class first (in case we're called multiple times)
     var handlerClass = objc.objc_getClass(className);
 
     if (handlerClass == null) {
         // Allocate a new class pair
-        handlerClass = objc.objc_allocateClassPair(
-            @ptrCast(superclass),
-            className,
-            0
-        );
+        handlerClass = objc.objc_allocateClassPair(@ptrCast(superclass), className, 0);
 
         if (handlerClass == null) {
             std.debug.print("[Bridge] Failed to allocate class pair\n", .{});
@@ -1217,7 +1211,7 @@ pub fn setupScriptMessageHandler(userContentController: objc.id) !void {
 
         // Register the class
         objc.objc_registerClassPair(@ptrCast(handlerClass));
-        std.debug.print("[Bridge] Registered ZyteScriptMessageHandler class\n", .{});
+        std.debug.print("[Bridge] Registered CraftScriptMessageHandler class\n", .{});
     }
 
     // Create an instance of our handler
@@ -1225,7 +1219,7 @@ pub fn setupScriptMessageHandler(userContentController: objc.id) !void {
     const handler = msgSend0(msgSend0(handler_class_id, "alloc"), "init");
 
     // Add the handler to the user content controller
-    const handler_name = createNSString("zyte");
+    const handler_name = createNSString("craft");
     msgSendVoid2(userContentController, "addScriptMessageHandler:name:", handler, handler_name);
 
     std.debug.print("[Bridge] Script message handler registered successfully\n", .{});
@@ -1272,7 +1266,7 @@ pub const WebSocket = struct {
     }
 };
 
-// Custom protocol handler (zyte://)
+// Custom protocol handler (craft://)
 pub const ProtocolHandler = struct {
     scheme: []const u8,
     callback: *const fn ([]const u8) void,

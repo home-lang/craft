@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Cryptography utilities for plugin signing and verification
 /// Uses Ed25519 for digital signatures
-
 pub const Crypto = struct {
     pub const Ed25519 = std.crypto.sign.Ed25519;
     pub const KeyPair = Ed25519.KeyPair;
@@ -79,7 +78,7 @@ test "generate keypair" {
 
 test "sign and verify" {
     const keypair = try Crypto.generateKeyPair();
-    const data = "Hello, Zyte!";
+    const data = "Hello, Craft!";
 
     const signature = try Crypto.sign(data, keypair.secret_key);
     try Crypto.verify(signature, data, keypair.public_key);
@@ -87,7 +86,7 @@ test "sign and verify" {
 
 test "verify fails with wrong data" {
     const keypair = try Crypto.generateKeyPair();
-    const data = "Hello, Zyte!";
+    const data = "Hello, Craft!";
     const wrong_data = "Wrong data";
 
     const signature = try Crypto.sign(data, keypair.secret_key);
@@ -97,7 +96,7 @@ test "verify fails with wrong data" {
 test "verify fails with wrong public key" {
     const keypair1 = try Crypto.generateKeyPair();
     const keypair2 = try Crypto.generateKeyPair();
-    const data = "Hello, Zyte!";
+    const data = "Hello, Craft!";
 
     const signature = try Crypto.sign(data, keypair1.secret_key);
     try std.testing.expectError(error.SignatureVerificationFailed, Crypto.verify(signature, data, keypair2.public_key));

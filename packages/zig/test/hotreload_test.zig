@@ -152,7 +152,7 @@ test "client_script - exists and contains expected content" {
     try testing.expect(hotreload.client_script.len > 0);
     try testing.expect(std.mem.indexOf(u8, hotreload.client_script, "<script>") != null);
     try testing.expect(std.mem.indexOf(u8, hotreload.client_script, "WebSocket") != null);
-    try testing.expect(std.mem.indexOf(u8, hotreload.client_script, "_zyte_reload") != null);
+    try testing.expect(std.mem.indexOf(u8, hotreload.client_script, "_craft_reload") != null);
     try testing.expect(std.mem.indexOf(u8, hotreload.client_script, "location.reload") != null);
     try testing.expect(std.mem.indexOf(u8, hotreload.client_script, "</script>") != null);
 }

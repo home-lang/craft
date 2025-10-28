@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-/// System-level enhancements for Zyte framework
+/// System-level enhancements for Craft framework
 /// Includes: keyboard shortcuts, system events, dock features, etc.
 
 // ============================================================================

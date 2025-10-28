@@ -1,0 +1,5 @@
+# shim the zig-out bin
+export PATH="$PATH:$(pwd)/zig-out/bin"
+
+# run the cli
+./packages/zig/zig-out/bin/craft "$@"

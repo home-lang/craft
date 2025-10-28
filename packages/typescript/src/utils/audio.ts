@@ -1,5 +1,5 @@
 /**
- * Audio utilities for Zyte applications
+ * Audio utilities for Craft applications
  * Provides simple abstractions for common audio tasks
  */
 
