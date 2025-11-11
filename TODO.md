@@ -5,16 +5,16 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ## Phase 1: Foundation (Data Source Protocols)
 
-### Task 1.1: Implement NSOutlineViewDataSource Protocol in Zig
-- [ ] Create dynamic Objective-C class at runtime using `objc_allocateClassPair`
-- [ ] Add required methods:
-  - [ ] `outlineView:numberOfChildrenOfItem:` - returns row count
-  - [ ] `outlineView:child:ofItem:` - returns child at index
-  - [ ] `outlineView:isItemExpandable:` - returns if item has children
-  - [ ] `outlineView:objectValueForTableColumn:byItem:` - returns display value
-- [ ] Store Zig data structure reference in associated object
-- [ ] Implement IMP (method implementations) that call back to Zig
-- [ ] Test with simple 2-level hierarchy (sections → items)
+### Task 1.1: Implement NSOutlineViewDataSource Protocol in Zig ✅
+- [x] Create dynamic Objective-C class at runtime using `objc_allocateClassPair`
+- [x] Add required methods:
+  - [x] `outlineView:numberOfChildrenOfItem:` - returns row count
+  - [x] `outlineView:child:ofItem:` - returns child at index
+  - [x] `outlineView:isItemExpandable:` - returns if item has children
+  - [x] `outlineView:objectValueForTableColumn:byItem:` - returns display value
+- [x] Store Zig data structure reference in associated object
+- [x] Implement IMP (method implementations) that call back to Zig
+- [x] Test with simple 2-level hierarchy (sections → items)
 
 **Files to create/modify:**
 - `packages/zig/src/components/outline_view_datasource.zig` (new)
@@ -24,15 +24,15 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ---
 
-### Task 1.2: Implement NSTableViewDataSource Protocol in Zig
-- [ ] Create dynamic Objective-C class at runtime
-- [ ] Add required methods:
-  - [ ] `numberOfRowsInTableView:` - returns file count
-  - [ ] `tableView:objectValueForTableColumn:row:` - returns cell value
-  - [ ] `tableView:setObjectValue:forTableColumn:row:` - handles edits (optional)
-- [ ] Store file array reference in associated object
-- [ ] Implement IMP that reads from Zig ArrayList
-- [ ] Test with simple file list (10 files, 4 columns)
+### Task 1.2: Implement NSTableViewDataSource Protocol in Zig ✅
+- [x] Create dynamic Objective-C class at runtime
+- [x] Add required methods:
+  - [x] `numberOfRowsInTableView:` - returns file count
+  - [x] `tableView:objectValueForTableColumn:row:` - returns cell value
+  - [x] `tableView:setObjectValue:forTableColumn:row:` - handles edits (optional)
+- [x] Store file array reference in associated object
+- [x] Implement IMP that reads from Zig ArrayList
+- [x] Test with simple file list (10 files, 4 columns)
 
 **Files to create/modify:**
 - `packages/zig/src/components/table_view_datasource.zig` (new)
@@ -44,16 +44,16 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ## Phase 2: Delegate Implementation (User Interactions)
 
-### Task 2.1: Implement NSOutlineViewDelegate Protocol
-- [ ] Create delegate class at runtime
-- [ ] Add methods:
-  - [ ] `outlineView:viewForTableColumn:item:` - returns cell view
-  - [ ] `outlineView:shouldSelectItem:` - controls selection
-  - [ ] `outlineViewSelectionDidChange:` - handles selection
-  - [ ] `outlineView:heightOfRowByItem:` - row height (24px for items, 20px for headers)
-- [ ] Implement cell view creation with SF Symbols icons
-- [ ] Send selection events back to Zig → JavaScript bridge
-- [ ] Test selection, hover states, and callbacks
+### Task 2.1: Implement NSOutlineViewDelegate Protocol ✅
+- [x] Create delegate class at runtime
+- [x] Add methods:
+  - [x] `outlineView:viewForTableColumn:item:` - returns cell view
+  - [x] `outlineView:shouldSelectItem:` - controls selection
+  - [x] `outlineViewSelectionDidChange:` - handles selection
+  - [x] `outlineView:heightOfRowByItem:` - row height (24px for items, 20px for headers)
+- [x] Implement cell view creation with SF Symbols icons
+- [x] Send selection events back to Zig → JavaScript bridge
+- [x] Test selection, hover states, and callbacks
 
 **Files to create/modify:**
 - `packages/zig/src/components/outline_view_delegate.zig` (new)
@@ -63,17 +63,17 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ---
 
-### Task 2.2: Implement NSTableViewDelegate Protocol
-- [ ] Create delegate class at runtime
-- [ ] Add methods:
-  - [ ] `tableView:viewForTableColumn:row:` - returns cell view
-  - [ ] `tableView:shouldSelectRow:` - controls selection
-  - [ ] `tableViewSelectionDidChange:` - handles selection
-  - [ ] `tableView:heightOfRow:` - row height (22px)
-- [ ] Implement cell views for each column type
-- [ ] Handle double-click events
-- [ ] Send events to bridge
-- [ ] Test selection and double-click
+### Task 2.2: Implement NSTableViewDelegate Protocol ✅
+- [x] Create delegate class at runtime
+- [x] Add methods:
+  - [x] `tableView:viewForTableColumn:row:` - returns cell view
+  - [x] `tableView:shouldSelectRow:` - controls selection
+  - [x] `tableViewSelectionDidChange:` - handles selection
+  - [x] `tableView:heightOfRow:` - row height (22px)
+- [x] Implement cell views for each column type
+- [x] Handle double-click events
+- [x] Send events to bridge
+- [x] Test selection and double-click
 
 **Files to create/modify:**
 - `packages/zig/src/components/table_view_delegate.zig` (new)
@@ -85,19 +85,19 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ## Phase 3: Component Wrappers (High-Level API)
 
-### Task 3.1: Create NativeSidebar Component
-- [ ] Wrap NSOutlineView + NSScrollView
-- [ ] Integrate data source and delegate
-- [ ] Add data structures:
-  - [ ] `SidebarSection` struct (id, header, items array)
-  - [ ] `SidebarItem` struct (id, label, icon, badge, active state)
-- [ ] Implement methods:
-  - [ ] `init()` - creates outline view with data source/delegate
-  - [ ] `addSection()` - adds section, triggers reloadData
-  - [ ] `setSelectedItem()` - programmatic selection
-  - [ ] `setOnSelectCallback()` - registers callback function
-- [ ] Handle memory management (retain/release)
-- [ ] Test full lifecycle (create → populate → interact → destroy)
+### Task 3.1: Create NativeSidebar Component ✅
+- [x] Wrap NSOutlineView + NSScrollView
+- [x] Integrate data source and delegate
+- [x] Add data structures:
+  - [x] `SidebarSection` struct (id, header, items array)
+  - [x] `SidebarItem` struct (id, label, icon, badge, active state)
+- [x] Implement methods:
+  - [x] `init()` - creates outline view with data source/delegate
+  - [x] `addSection()` - adds section, triggers reloadData
+  - [x] `setSelectedItem()` - programmatic selection
+  - [x] `setOnSelectCallback()` - registers callback function
+- [x] Handle memory management (retain/release)
+- [x] Test full lifecycle (create → populate → interact → destroy)
 
 **Files to create/modify:**
 - `packages/zig/src/components/native_sidebar.zig` (rewrite)
@@ -107,19 +107,19 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ---
 
-### Task 3.2: Create NativeFileBrowser Component
-- [ ] Wrap NSTableView + NSScrollView
-- [ ] Integrate data source and delegate
-- [ ] Add data structure:
-  - [ ] `FileItem` struct (id, name, icon, date, size, kind)
-- [ ] Implement methods:
-  - [ ] `init()` - creates table with 4 columns
-  - [ ] `addFile()` - adds file, triggers reloadData
-  - [ ] `addFiles()` - bulk add
-  - [ ] `setOnSelectCallback()` - registers selection callback
-  - [ ] `setOnDoubleClickCallback()` - registers double-click callback
-- [ ] Configure column properties (width, sortable, resizable)
-- [ ] Test with 100+ files for performance
+### Task 3.2: Create NativeFileBrowser Component ✅
+- [x] Wrap NSTableView + NSScrollView
+- [x] Integrate data source and delegate
+- [x] Add data structure:
+  - [x] `FileItem` struct (id, name, icon, date, size, kind)
+- [x] Implement methods:
+  - [x] `init()` - creates table with 4 columns
+  - [x] `addFile()` - adds file, triggers reloadData
+  - [x] `addFiles()` - bulk add
+  - [x] `setOnSelectCallback()` - registers selection callback
+  - [x] `setOnDoubleClickCallback()` - registers double-click callback
+- [x] Configure column properties (width, sortable, resizable)
+- [x] Test with 100+ files for performance
 
 **Files to create/modify:**
 - `packages/zig/src/components/native_file_browser.zig` (rewrite)
@@ -129,17 +129,17 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ---
 
-### Task 3.3: Create NativeSplitView Component
-- [ ] Wrap NSSplitView
-- [ ] Add sidebar and content as subviews
-- [ ] Configure:
-  - [ ] Vertical orientation
-  - [ ] Thin divider style
-  - [ ] Auto-save divider position
-  - [ ] Minimum pane sizes (180px sidebar, 400px content)
-- [ ] Implement Auto Layout constraints
-- [ ] Make divider resizable with mouse
-- [ ] Test layout at different window sizes
+### Task 3.3: Create NativeSplitView Component ✅
+- [x] Wrap NSSplitView
+- [x] Add sidebar and content as subviews
+- [x] Configure:
+  - [x] Vertical orientation
+  - [x] Thin divider style
+  - [x] Auto-save divider position
+  - [x] Minimum pane sizes (180px sidebar, 400px content)
+- [x] Implement Auto Layout constraints
+- [x] Make divider resizable with mouse
+- [x] Test layout at different window sizes
 
 **Files to create/modify:**
 - `packages/zig/src/components/native_split_view.zig` (rewrite)
@@ -151,22 +151,22 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ## Phase 4: Bridge Integration (JavaScript ↔ Zig)
 
-### Task 4.1: Create NativeUIBridge Handler
-- [ ] Implement bridge struct matching TrayBridge pattern
-- [ ] Add component registries:
-  - [ ] `StringHashMap(*NativeSidebar)` for sidebars
-  - [ ] `StringHashMap(*NativeFileBrowser)` for browsers
-  - [ ] `StringHashMap(*NativeSplitView)` for split views
-- [ ] Implement message handlers:
-  - [ ] `handleMessage()` - routes actions
-  - [ ] `createSidebar()` - parses JSON, creates sidebar
-  - [ ] `addSidebarSection()` - parses section data
-  - [ ] `createFileBrowser()` - creates browser
-  - [ ] `addFile()` - adds file to browser
-  - [ ] `createSplitView()` - combines sidebar + browser
-  - [ ] `setSelectedItem()` - programmatic selection
-- [ ] Handle component lifecycle (create, update, destroy)
-- [ ] Test each message type individually
+### Task 4.1: Create NativeUIBridge Handler ✅
+- [x] Implement bridge struct matching TrayBridge pattern
+- [x] Add component registries:
+  - [x] `StringHashMap(*NativeSidebar)` for sidebars
+  - [x] `StringHashMap(*NativeFileBrowser)` for browsers
+  - [x] `StringHashMap(*NativeSplitView)` for split views
+- [x] Implement message handlers:
+  - [x] `handleMessage()` - routes actions
+  - [x] `createSidebar()` - parses JSON, creates sidebar
+  - [x] `addSidebarSection()` - parses section data
+  - [x] `createFileBrowser()` - creates browser
+  - [x] `addFile()` - adds file to browser
+  - [x] `createSplitView()` - combines sidebar + browser
+  - [x] `setSelectedItem()` - programmatic selection
+- [x] Handle component lifecycle (create, update, destroy)
+- [x] Test each message type individually
 
 **Files to create/modify:**
 - `packages/zig/src/bridge_native_ui.zig` (rewrite)
@@ -176,14 +176,14 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ---
 
-### Task 4.2: Integrate into Main Bridge Handler
-- [ ] Add `nativeUI` case to `handleBridgeMessage()` in `macos.zig`
-- [ ] Create global NativeUIBridge instance
-- [ ] Pass window reference to bridge on initialization
-- [ ] Route messages: `if msg_type == "nativeUI" → nativeUIBridge.handleMessage()`
-- [ ] Add views to window's content view (not WKWebView)
-- [ ] Handle coordinate system (AppKit uses bottom-left origin)
-- [ ] Test message routing from JavaScript → Zig
+### Task 4.2: Integrate into Main Bridge Handler ✅
+- [x] Add `nativeUI` case to `handleBridgeMessage()` in `macos.zig`
+- [x] Create global NativeUIBridge instance
+- [x] Pass window reference to bridge on initialization
+- [x] Route messages: `if msg_type == "nativeUI" → nativeUIBridge.handleMessage()`
+- [x] Add views to window's content view (not WKWebView)
+- [x] Handle coordinate system (AppKit uses bottom-left origin)
+- [x] Test message routing from JavaScript → Zig
 
 **Files to modify:**
 - `packages/zig/src/macos.zig` (add `nativeUI` routing)
