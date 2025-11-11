@@ -1,7 +1,7 @@
 const std = @import("std");
 
 // Import Objective-C runtime
-const objc = @cImport({
+pub const objc = @cImport({
     @cDefine("OBJC_OLD_DISPATCH_PROTOTYPES", "1");
     @cInclude("objc/message.h");
     @cInclude("objc/runtime.h");
@@ -87,7 +87,7 @@ fn msgSendVoid2(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: a
     msg(target, sel(selector), arg1, arg2);
 }
 
-fn msgSend3(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anytype, arg3: anytype) objc.id {
+pub fn msgSend3(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anytype, arg3: anytype) objc.id {
     const Arg1Type = if (@TypeOf(arg1) == @TypeOf(null)) ?*anyopaque else @TypeOf(arg1);
     const Arg2Type = if (@TypeOf(arg2) == @TypeOf(null)) ?*anyopaque else @TypeOf(arg2);
     const Arg3Type = if (@TypeOf(arg3) == @TypeOf(null)) ?*anyopaque else @TypeOf(arg3);
@@ -305,7 +305,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 }
 
 // Helper to create NSString
-fn createNSString(str: []const u8) objc.id {
+pub fn createNSString(str: []const u8) objc.id {
     const NSString = getClass("NSString");
     const str_alloc = msgSend0(NSString, "alloc");
     const cstr = std.heap.c_allocator.dupeZ(u8, str) catch unreachable;
@@ -951,6 +951,7 @@ fn getCraftBridgeScript() []const u8 {
 var global_tray_bridge: ?*@import("bridge_tray.zig").TrayBridge = null;
 var global_window_bridge: ?*@import("bridge_window.zig").WindowBridge = null;
 var global_app_bridge: ?*@import("bridge_app.zig").AppBridge = null;
+var global_native_ui_bridge: ?*@import("bridge_native_ui.zig").NativeUIBridge = null;
 var global_tray_handle_for_bridge: ?*anyopaque = null;
 
 pub fn setGlobalTrayHandle(handle: *anyopaque) void {
@@ -983,6 +984,11 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         global_app_bridge.?.* = AppBridge.init(allocator);
     }
 
+    if (global_native_ui_bridge == null) {
+        global_native_ui_bridge = try allocator.create(@import("bridge_native_ui.zig").NativeUIBridge);
+        global_native_ui_bridge.?.* = @import("bridge_native_ui.zig").NativeUIBridge.init(allocator);
+    }
+
     // Set handles - use parameter or global
     const tray_h = tray_handle orelse global_tray_handle_for_bridge;
     if (tray_h) |handle| {
@@ -991,6 +997,11 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
 
     if (window_handle) |handle| {
         global_window_bridge.?.setWindowHandle(handle);
+        // Also set window reference for native UI bridge
+        if (global_native_ui_bridge) |bridge| {
+            const window_id: objc.id = @ptrCast(@alignCast(handle));
+            bridge.setWindow(window_id);
+        }
     }
 }
 
@@ -1121,6 +1132,10 @@ pub fn handleBridgeMessage(message_json: []const u8) !void {
     } else if (std.mem.eql(u8, msg_type, "app")) {
         if (global_app_bridge) |bridge| {
             try bridge.handleMessage(action);
+        }
+    } else if (std.mem.eql(u8, msg_type, "nativeUI")) {
+        if (global_native_ui_bridge) |bridge| {
+            try bridge.handleMessage(action, data);
         }
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages - look for "message" or "msg" field
