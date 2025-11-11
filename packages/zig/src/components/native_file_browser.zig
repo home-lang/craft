@@ -129,7 +129,7 @@ pub const NativeFileBrowser = struct {
             .kind = if (file.kind) |kind| try self.allocator.dupe(u8, kind) else null,
         };
 
-        try self.data_source.data.files.append(new_file);
+        try self.data_source.data.files.append(self.allocator, new_file);
 
         // Reload data
         _ = macos.msgSend0(self.table_view, "reloadData");
@@ -147,7 +147,7 @@ pub const NativeFileBrowser = struct {
                 .kind = if (file.kind) |kind| try self.allocator.dupe(u8, kind) else null,
             };
 
-            try self.data_source.data.files.append(new_file);
+            try self.data_source.data.files.append(self.allocator, new_file);
         }
 
         // Reload data once after all files added

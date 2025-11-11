@@ -102,7 +102,7 @@ pub const NativeSidebar = struct {
         var new_section = OutlineViewDataSource.DataStore.Section{
             .id = try self.allocator.dupe(u8, section.id),
             .header = if (section.header) |h| try self.allocator.dupe(u8, h) else null,
-            .items = std.ArrayList(OutlineViewDataSource.DataStore.Section.Item).init(self.allocator),
+            .items = .{},
             .is_expanded = true,
         };
 
@@ -114,10 +114,10 @@ pub const NativeSidebar = struct {
                 .icon = if (item.icon) |icon| try self.allocator.dupe(u8, icon) else null,
                 .badge = if (item.badge) |badge| try self.allocator.dupe(u8, badge) else null,
             };
-            try new_section.items.append(new_item);
+            try new_section.items.append(self.allocator, new_item);
         }
 
-        try self.data_source.data.sections.append(new_section);
+        try self.data_source.data.sections.append(self.allocator, new_section);
 
         // Reload data
         _ = macos.msgSend0(self.outline_view, "reloadData");
@@ -127,7 +127,7 @@ pub const NativeSidebar = struct {
         if (section_count > 0) {
             const last_section = &self.data_source.data.sections.items[section_count - 1];
             const section_ptr = @intFromPtr(@as(*const anyopaque, @ptrCast(last_section)));
-            const item_id = @as(macos.objc.id, @intFromPtr(section_ptr));
+            const item_id = @as(macos.objc.id, @ptrFromInt(section_ptr));
             _ = macos.msgSend1(self.outline_view, "expandItem:", item_id);
         }
     }

@@ -25,13 +25,13 @@ pub const TableViewDataSource = struct {
 
         pub fn init(allocator: std.mem.Allocator) DataStore {
             return .{
-                .files = std.ArrayList(FileItem).init(allocator),
+                .files = .{},
                 .allocator = allocator,
             };
         }
 
         pub fn deinit(self: *DataStore) void {
-            self.files.deinit();
+            self.files.deinit(self.allocator);
         }
     };
 

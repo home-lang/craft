@@ -43,7 +43,7 @@ pub fn getClass(name: [*:0]const u8) objc.Class {
     return objc.objc_getClass(name);
 }
 
-fn sel(name: [*:0]const u8) objc.SEL {
+pub fn sel(name: [*:0]const u8) objc.SEL {
     return objc.sel_registerName(name);
 }
 
@@ -225,9 +225,10 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // CRITICAL FIX: WKUserScript doesn't reliably inject with loadHTMLString when baseURL is null
         // So we inject the bridge script directly into the HTML before loading
         const bridge_js = getCraftBridgeScript();
+        const native_ui_js = getNativeUIScript();
 
         // Find </head> tag and inject script before it
-        var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, h.len + bridge_js.len + 20);
+        var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, h.len + bridge_js.len + native_ui_js.len + 40);
         defer modified_html.deinit(std.heap.c_allocator);
 
         if (std.mem.indexOf(u8, h, "</head>")) |head_pos| {
@@ -236,17 +237,25 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
             try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
             try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
             try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+            try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
+            try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
+            try modified_html.appendSlice(std.heap.c_allocator, "</script>");
             try modified_html.appendSlice(std.heap.c_allocator, h[head_pos..]);
         } else {
             // No </head> found, just prepend to the HTML
             try modified_html.appendSlice(std.heap.c_allocator, "<script>");
             try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
             try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+            try modified_html.appendSlice(std.heap.c_allocator, "<script>");
+            try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
+            try modified_html.appendSlice(std.heap.c_allocator, "</script>");
             try modified_html.appendSlice(std.heap.c_allocator, h);
         }
 
         const final_html = try modified_html.toOwnedSlice(std.heap.c_allocator);
         defer std.heap.c_allocator.free(final_html);
+
+        std.debug.print("[HTML] Injected bridge script ({d} bytes) and native UI script ({d} bytes)\n", .{ bridge_js.len, native_ui_js.len });
 
         // Load the modified HTML with a proper baseURL
         // This is important - without a baseURL, body scripts may not execute!
@@ -280,6 +289,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     setupBridgeHandlers(allocator, null, window) catch |err| {
         std.debug.print("[Bridge] Failed to setup bridge handlers: {}\n", .{err});
     };
+
 
     // Apply dark mode if specified
     if (style.dark_mode) |is_dark| {
@@ -945,6 +955,10 @@ fn getCraftBridgeScript() []const u8 {
     \\   }, 100);
     \\ })();
     ;
+}
+
+fn getNativeUIScript() []const u8 {
+    return @embedFile("js/craft-native-ui.js");
 }
 
 /// Storage for bridge handlers (global state)

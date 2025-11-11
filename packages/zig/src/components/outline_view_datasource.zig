@@ -30,13 +30,13 @@ pub const OutlineViewDataSource = struct {
 
         pub fn init(allocator: std.mem.Allocator) DataStore {
             return .{
-                .sections = std.ArrayList(Section).init(allocator),
+                .sections = .{},
                 .allocator = allocator,
             };
         }
 
         pub fn deinit(self: *DataStore) void {
-            self.sections.deinit();
+            self.sections.deinit(self.allocator);
         }
     };
 
