@@ -58,7 +58,7 @@ pub fn msgSend1(target: anytype, selector: [*:0]const u8, arg1: anytype) objc.id
     return msg(target, sel(selector), arg1);
 }
 
-fn msgSend2(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anytype) objc.id {
+pub fn msgSend2(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anytype) objc.id {
     const Arg1Type = if (@TypeOf(arg1) == @TypeOf(null)) ?*anyopaque else @TypeOf(arg1);
     const Arg2Type = if (@TypeOf(arg2) == @TypeOf(null)) ?*anyopaque else @TypeOf(arg2);
     const msg = @as(*const fn (@TypeOf(target), objc.SEL, Arg1Type, Arg2Type) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
@@ -67,7 +67,7 @@ fn msgSend2(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anyty
     return msg(target, sel(selector), typed_arg1, typed_arg2);
 }
 
-fn msgSend4(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anytype, arg3: anytype, arg4: anytype) objc.id {
+pub fn msgSend4(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anytype, arg3: anytype, arg4: anytype) objc.id {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(arg1), @TypeOf(arg2), @TypeOf(arg3), @TypeOf(arg4)) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
     return msg(target, sel(selector), arg1, arg2, arg3, arg4);
 }
@@ -272,7 +272,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, base_url);
     }
 
-    // Set webview as content view
+    // Set webview as content view initially to establish proper sizing
     _ = msgSend1(window, "setContentView:", webview);
 
     // Store webview and window references globally
@@ -1033,8 +1033,132 @@ pub fn tryEvalJS(js_code: []const u8) !void {
 }
 
 /// Handle incoming messages from JavaScript bridge
+/// Convert a JSON Value to string
+fn jsonValueToString(allocator: std.mem.Allocator, value: std.json.Value) ![]const u8 {
+    var buf = std.ArrayList(u8){};
+    errdefer buf.deinit(allocator);
+    const writer = buf.writer(allocator);
+
+    switch (value) {
+        .null => try writer.writeAll("null"),
+        .bool => |b| try writer.writeAll(if (b) "true" else "false"),
+        .integer => |i| try writer.print("{d}", .{i}),
+        .float => |f| try writer.print("{d}", .{f}),
+        .number_string => |s| try writer.writeAll(s),
+        .string => |s| {
+            try writer.writeByte('"');
+            for (s) |char| {
+                switch (char) {
+                    '"' => try writer.writeAll("\\\""),
+                    '\\' => try writer.writeAll("\\\\"),
+                    '\n' => try writer.writeAll("\\n"),
+                    '\r' => try writer.writeAll("\\r"),
+                    '\t' => try writer.writeAll("\\t"),
+                    else => try writer.writeByte(char),
+                }
+            }
+            try writer.writeByte('"');
+        },
+        .array => |arr| {
+            try writer.writeByte('[');
+            for (arr.items, 0..) |item, i| {
+                if (i > 0) try writer.writeByte(',');
+                const item_str = try jsonValueToString(allocator, item);
+                defer allocator.free(item_str);
+                try writer.writeAll(item_str);
+            }
+            try writer.writeByte(']');
+        },
+        .object => |obj| {
+            try writer.writeByte('{');
+            var it = obj.iterator();
+            var first = true;
+            while (it.next()) |entry| {
+                if (!first) try writer.writeByte(',');
+                first = false;
+                try writer.writeByte('"');
+                try writer.writeAll(entry.key_ptr.*);
+                try writer.writeAll("\":");
+                const val_str = try jsonValueToString(allocator, entry.value_ptr.*);
+                defer allocator.free(val_str);
+                try writer.writeAll(val_str);
+            }
+            try writer.writeByte('}');
+        },
+    }
+
+    return allocator.dupe(u8, buf.items);
+}
+
+/// Handle properly formatted JSON messages
+pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
+    // Skip logging pollActions to reduce noise
+    if (std.mem.indexOf(u8, json_str, "pollActions") == null) {
+        std.debug.print("[Bridge] Received JSON message: {s}\n", .{json_str});
+    }
+
+    // Parse JSON to extract type, action, and data
+    const allocator = std.heap.c_allocator;
+    const parsed = std.json.parseFromSlice(std.json.Value, allocator, json_str, .{}) catch |err| {
+        std.debug.print("[Bridge] JSON parse error: {any}\n", .{err});
+        return err;
+    };
+    defer parsed.deinit();
+
+    const root = parsed.value.object;
+
+    // Extract type and action
+    const msg_type_val = root.get("type") orelse {
+        std.debug.print("[Bridge] Missing 'type' field in JSON\n", .{});
+        return error.MissingType;
+    };
+    const action_val = root.get("action") orelse {
+        std.debug.print("[Bridge] Missing 'action' field in JSON\n", .{});
+        return error.MissingAction;
+    };
+
+    const msg_type = msg_type_val.string;
+    const action = action_val.string;
+
+    // Extract data if present - could be string, object, or missing
+    var data_json_str: []const u8 = "";
+    if (root.get("data")) |data_val| {
+        // Convert data value to JSON string
+        data_json_str = try jsonValueToString(allocator, data_val);
+    }
+    defer if (data_json_str.len > 0) allocator.free(data_json_str);
+
+    // Route to appropriate bridge
+    if (std.mem.eql(u8, msg_type, "tray")) {
+        if (global_tray_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "window")) {
+        if (global_window_bridge) |bridge| {
+            try bridge.handleMessage(action);
+        }
+    } else if (std.mem.eql(u8, msg_type, "app")) {
+        if (global_app_bridge) |bridge| {
+            try bridge.handleMessage(action);
+        }
+    } else if (std.mem.eql(u8, msg_type, "nativeUI")) {
+        if (global_native_ui_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "debug")) {
+        // Handle debug messages
+        if (root.get("message")) |msg_val| {
+            std.debug.print("[JS Debug] {s}\n", .{msg_val.string});
+        } else if (root.get("msg")) |msg_val| {
+            std.debug.print("[JS Debug] {s}\n", .{msg_val.string});
+        }
+    } else {
+        std.debug.print("Unknown message type: {s}\n", .{msg_type});
+    }
+}
+
 pub fn handleBridgeMessage(message_json: []const u8) !void {
-    // Parse NSDictionary description format
+    // Parse NSDictionary description format (fallback for old code paths)
     // Expected format: { action = "setTitle"; data = "text"; type = "tray"; }
     // Or JSON format: {"type":"tray","action":"setTitle","data":"text"}
 
@@ -1191,16 +1315,63 @@ export fn didReceiveScriptMessage(self: objc.id, _: objc.SEL, userContentControl
     // Get the message body (should be a dictionary/object from JavaScript)
     const body = msgSend0(message, "body");
 
-    // Get body as description string
-    const description = msgSend0(body, "description");
-    const cstr = @as([*:0]const u8, @ptrCast(msgSend0(description, "UTF8String")));
-    const desc_str = std.mem.span(cstr);
+    // Try to convert to JSON properly using NSJSONSerialization
+    const NSJSONSerialization = getClass("NSJSONSerialization");
+    const options: c_ulong = 0; // NSJSONWritingPrettyPrinted = 1, 0 for compact
 
-    // Parse the description which should contain our JSON
-    // Description format is like: {action = "setTitle"; data = "text"; type = "tray";}
-    handleBridgeMessage(desc_str) catch |err| {
-        std.debug.print("[Bridge] Error handling message: {}\n", .{err});
+    // Create JSON data from dictionary
+    const json_data = msgSend3(
+        NSJSONSerialization,
+        "dataWithJSONObject:options:error:",
+        body,
+        options,
+        null
+    );
+
+    if (json_data == null) {
+        // Fallback to description format if JSON serialization fails
+        std.debug.print("[Bridge] Failed to serialize to JSON, using description format\n", .{});
+        const description = msgSend0(body, "description");
+        const cstr = @as([*:0]const u8, @ptrCast(msgSend0(description, "UTF8String")));
+        const desc_str = std.mem.span(cstr);
+        handleBridgeMessage(desc_str) catch |err| {
+            std.debug.print("[Bridge] Error handling message: {}\n", .{err});
+        };
+        return;
+    }
+
+    // Convert NSData to NSString
+    const NSString = getClass("NSString");
+    const json_string = msgSend2(
+        NSString,
+        "alloc",
+        null,
+        null
+    );
+    const NSUTF8StringEncoding: c_ulong = 4;
+    const initialized_string = msgSend2(
+        json_string,
+        "initWithData:encoding:",
+        json_data,
+        NSUTF8StringEncoding
+    );
+
+    if (initialized_string == null) {
+        std.debug.print("[Bridge] Failed to convert JSON data to string\n", .{});
+        return;
+    }
+
+    // Get C string from NSString
+    const cstr = @as([*:0]const u8, @ptrCast(msgSend0(initialized_string, "UTF8String")));
+    const json_str = std.mem.span(cstr);
+
+    // Now handle the properly formatted JSON
+    handleBridgeMessageJSON(json_str) catch |err| {
+        std.debug.print("[Bridge] Error handling JSON message: {}\n", .{err});
     };
+
+    // Release the NSString
+    msgSendVoid0(initialized_string, "release");
 }
 
 /// Create and register the script message handler with WKUserContentController

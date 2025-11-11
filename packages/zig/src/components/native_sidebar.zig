@@ -119,17 +119,21 @@ pub const NativeSidebar = struct {
 
         try self.data_source.data.sections.append(self.allocator, new_section);
 
-        // Reload data
-        _ = macos.msgSend0(self.outline_view, "reloadData");
+        std.debug.print("[NativeSidebar-DEBUG] Section added to data. Total sections: {d}\n", .{self.data_source.data.sections.items.len});
+        std.debug.print("[NativeSidebar-DEBUG] Section '{s}' has {d} items\n", .{ section.id, new_section.items.items.len });
 
-        // Expand all sections by default
-        const section_count = self.data_source.data.sections.items.len;
-        if (section_count > 0) {
-            const last_section = &self.data_source.data.sections.items[section_count - 1];
-            const section_ptr = @intFromPtr(@as(*const anyopaque, @ptrCast(last_section)));
-            const item_id = @as(macos.objc.id, @ptrFromInt(section_ptr));
-            _ = macos.msgSend1(self.outline_view, "expandItem:", item_id);
-        }
+        // Reload data to show the new section
+        _ = macos.msgSend0(self.outline_view, "reloadData");
+        std.debug.print("[NativeSidebar-DEBUG] Called reloadData on outline view\n", .{});
+
+        // Get the number of rows to verify data loaded
+        const row_count = macos.msgSend0(self.outline_view, "numberOfRows");
+        std.debug.print("[NativeSidebar-DEBUG] Outline view now has {*} rows\n", .{row_count});
+
+        // TODO: Auto-expand sections - currently disabled due to timing issues
+        // The expandItem: method needs to be called after the outline view has
+        // fully processed reloadData, which happens asynchronously.
+        // For now, sections can be manually expanded by the user.
     }
 
     /// Set the selected item programmatically

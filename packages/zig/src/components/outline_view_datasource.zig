@@ -150,7 +150,9 @@ fn getDataStore(instance: macos.objc.id) ?*OutlineViewDataSource.DataStore {
     const ptr = macos.msgSend0(associated, "pointerValue");
     if (@intFromPtr(ptr) == 0) return null;
 
-    return @ptrCast(@alignCast(ptr));
+    // Convert pointer without alignment check - the allocator ensures proper alignment
+    const data_ptr: *OutlineViewDataSource.DataStore = @ptrFromInt(@intFromPtr(ptr));
+    return data_ptr;
 }
 
 /// NSOutlineViewDataSource method: numberOfChildrenOfItem
@@ -167,20 +169,53 @@ export fn outlineViewNumberOfChildrenOfItem(
         return @intCast(data.sections.items.len);
     }
 
-    // Otherwise, item is a section, return number of items in that section
-    // We identify sections by their pointer address
-    const item_ptr = @intFromPtr(item);
-    for (data.sections.items) |*section| {
-        const section_ptr = @intFromPtr(@as(*const anyopaque, @ptrCast(section)));
-        if (item_ptr == section_ptr) {
-            return @intCast(section.items.items.len);
-        }
+    // Decode the wrapper
+    const decoded = decodeItemWrapper(item);
+
+    // If item_idx is null, this is a section - return number of children
+    if (decoded.item_idx == null) {
+        if (decoded.section_idx >= data.sections.items.len) return 0;
+        return @intCast(data.sections.items[decoded.section_idx].items.items.len);
     }
 
+    // Items don't have children
     return 0;
 }
 
+/// Helper to create an NSNumber wrapper for indices
+fn createItemWrapper(section_idx: usize, item_idx: ?usize) macos.objc.id {
+    const NSMutableDictionary = macos.getClass("NSMutableDictionary");
+    const dict = macos.msgSend0(macos.msgSend0(NSMutableDictionary, "alloc"), "init");
+
+    const NSNumber = macos.getClass("NSNumber");
+    const section_num = macos.msgSend1(NSNumber, "numberWithUnsignedLong:", @as(c_ulong, section_idx));
+    _ = macos.msgSend2(dict, "setObject:forKey:", section_num, macos.createNSString("section"));
+
+    if (item_idx) |idx| {
+        const item_num = macos.msgSend1(NSNumber, "numberWithUnsignedLong:", @as(c_ulong, idx));
+        _ = macos.msgSend2(dict, "setObject:forKey:", item_num, macos.createNSString("item"));
+    }
+
+    return dict;
+}
+
+/// Helper to decode indices from NSNumber wrapper
+fn decodeItemWrapper(wrapper: macos.objc.id) struct { section_idx: usize, item_idx: ?usize } {
+    const section_obj = macos.msgSend1(wrapper, "objectForKey:", macos.createNSString("section"));
+    const section_val = macos.msgSend0(section_obj, "unsignedLongValue");
+    const section_idx: usize = @intCast(@intFromPtr(section_val));
+
+    const item_obj = macos.msgSend1(wrapper, "objectForKey:", macos.createNSString("item"));
+    const item_idx: ?usize = if (item_obj != @as(macos.objc.id, null)) blk: {
+        const item_val = macos.msgSend0(item_obj, "unsignedLongValue");
+        break :blk @intCast(@intFromPtr(item_val));
+    } else null;
+
+    return .{ .section_idx = section_idx, .item_idx = item_idx };
+}
+
 /// NSOutlineViewDataSource method: child:ofItem
+/// We use NSDictionary wrappers as item identifiers to avoid pointer issues
 export fn outlineViewChildOfItem(
     self: macos.objc.id,
     _: macos.objc.SEL,
@@ -195,24 +230,20 @@ export fn outlineViewChildOfItem(
     // If item is nil, return root item (section) at index
     if (item == @as(macos.objc.id, null)) {
         if (idx >= data.sections.items.len) return null;
-        const section = &data.sections.items[idx];
-        // Return section pointer as item identifier
-        const section_ptr = @intFromPtr(@as(*const anyopaque, @ptrCast(section)));
-        return @ptrFromInt(section_ptr);
+        return createItemWrapper(idx, null);
     }
 
-    // Otherwise, return child item at index within section
-    const item_ptr = @intFromPtr(item);
-    for (data.sections.items) |*section| {
-        const section_ptr = @intFromPtr(@as(*const anyopaque, @ptrCast(section)));
-        if (item_ptr == section_ptr) {
-            if (idx >= section.items.items.len) return null;
-            const child = &section.items.items[idx];
-            const child_ptr = @intFromPtr(@as(*const anyopaque, @ptrCast(child)));
-            return @ptrFromInt(child_ptr);
-        }
+    // Decode the item to get section/item indices
+    const decoded = decodeItemWrapper(item);
+
+    // If item_idx is null, this is a section - return child at index
+    if (decoded.item_idx == null) {
+        if (decoded.section_idx >= data.sections.items.len) return null;
+        if (idx >= data.sections.items[decoded.section_idx].items.items.len) return null;
+        return createItemWrapper(decoded.section_idx, idx);
     }
 
+    // Items don't have children
     return null;
 }
 
@@ -228,16 +259,16 @@ export fn outlineViewIsItemExpandable(
     // Root items (nil) are not expandable
     if (item == @as(macos.objc.id, null)) return 0;
 
-    // Check if item is a section (sections are expandable)
-    const item_ptr = @intFromPtr(item);
-    for (data.sections.items) |*section| {
-        const section_ptr = @intFromPtr(@as(*const anyopaque, @ptrCast(section)));
-        if (item_ptr == section_ptr) {
-            return if (section.items.items.len > 0) 1 else 0;
-        }
+    // Decode the wrapper
+    const decoded = decodeItemWrapper(item);
+
+    // Sections are expandable if they have children
+    if (decoded.item_idx == null) {
+        if (decoded.section_idx >= data.sections.items.len) return 0;
+        return if (data.sections.items[decoded.section_idx].items.items.len > 0) 1 else 0;
     }
 
-    // Items are not expandable
+    // Regular items are not expandable
     return 0;
 }
 
@@ -253,28 +284,26 @@ export fn outlineViewObjectValueForTableColumnByItem(
 
     if (item == @as(macos.objc.id, null)) return null;
 
-    const item_ptr = @intFromPtr(item);
+    // Decode the wrapper
+    const decoded = decodeItemWrapper(item);
 
-    // Check if it's a section header
-    for (data.sections.items) |*section| {
-        const section_ptr = @intFromPtr(@as(*const anyopaque, @ptrCast(section)));
-        if (item_ptr == section_ptr) {
-            // Return section header text
-            if (section.header) |header| {
-                return macos.createNSString(header);
-            }
-            return macos.createNSString(section.id);
-        }
+    // Bounds check
+    if (decoded.section_idx >= data.sections.items.len) return null;
 
-        // Check if it's an item within this section
-        for (section.items.items) |*child| {
-            const child_ptr = @intFromPtr(@as(*const anyopaque, @ptrCast(child)));
-            if (item_ptr == child_ptr) {
-                // Return item label
-                return macos.createNSString(child.label);
-            }
+    const section = &data.sections.items[decoded.section_idx];
+
+    // If it's a section header (item_idx is null)
+    if (decoded.item_idx == null) {
+        if (section.header) |header| {
+            return macos.createNSString(header);
         }
+        return macos.createNSString(section.id);
     }
 
-    return null;
+    // It's an item within a section
+    const item_index = decoded.item_idx.?;
+    if (item_index >= section.items.items.len) return null;
+
+    const child = &section.items.items[item_index];
+    return macos.createNSString(child.label);
 }

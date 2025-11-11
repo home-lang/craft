@@ -29,15 +29,15 @@ pub const OutlineViewDelegate = struct {
         if (objc_class == null) {
             objc_class = macos.objc.objc_allocateClassPair(NSObject, class_name, 0);
 
-            // Add outlineView:viewForTableColumn:item:
-            const viewForTableColumnItem = @as(
+            // Add outlineView:viewForTableColumn:item: for view-based rendering
+            const viewForTableColumn = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, macos.objc.id, macos.objc.id) callconv(.c) macos.objc.id,
                 @ptrCast(&outlineViewViewForTableColumnItem),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("outlineView:viewForTableColumn:item:"),
-                @ptrCast(viewForTableColumnItem),
+                @ptrCast(viewForTableColumn),
                 "@@:@@@",
             );
 
@@ -128,25 +128,22 @@ fn getCallbackData(instance: macos.objc.id) ?*OutlineViewDelegate.CallbackData {
     return @ptrCast(@alignCast(ptr));
 }
 
-/// Create a text field cell view
-fn createTextFieldCell(text: []const u8) macos.objc.id {
+/// Create a simple text field view
+/// We use NSTextField directly instead of NSTableCellView to avoid AutoLayout issues
+fn createSimpleTextField(text: []const u8) macos.objc.id {
     const NSTextField = macos.getClass("NSTextField");
-    const textField = macos.msgSend0(macos.msgSend0(NSTextField, "alloc"), "init");
 
-    // Set text
+    // Create label-style text field (non-editable, non-selectable)
     const nsString = macos.createNSString(text);
-    _ = macos.msgSend1(textField, "setStringValue:", nsString);
-
-    // Configure appearance
-    _ = macos.msgSend1(textField, "setBordered:", @as(c_int, 0));
-    _ = macos.msgSend1(textField, "setDrawsBackground:", @as(c_int, 0));
-    _ = macos.msgSend1(textField, "setEditable:", @as(c_int, 0));
-    _ = macos.msgSend1(textField, "setSelectable:", @as(c_int, 0));
+    const textField = macos.msgSend1(NSTextField, "labelWithString:", nsString);
 
     // Set font
     const NSFont = macos.getClass("NSFont");
     const font = macos.msgSend1(NSFont, "systemFontOfSize:", @as(f64, 13.0));
     _ = macos.msgSend1(textField, "setFont:", font);
+
+    // Disable autoresizing to prevent AutoLayout conflicts
+    _ = macos.msgSend1(textField, "setTranslatesAutoresizingMaskIntoConstraints:", @as(c_int, 1));
 
     return textField;
 }
@@ -182,8 +179,8 @@ export fn outlineViewViewForTableColumnItem(
     const text: [*:0]const u8 = @ptrCast(cstr);
     const text_slice = std.mem.span(text);
 
-    // Create text field cell
-    return createTextFieldCell(text_slice);
+    // Create simple text field view
+    return createSimpleTextField(text_slice);
 }
 
 /// NSOutlineViewDelegate method: shouldSelectItem
