@@ -90,6 +90,12 @@ export interface WindowOptions {
    * @default false
    */
   menubarOnly?: boolean
+
+  /**
+   * Hide the titlebar (content extends to window edge)
+   * @default false
+   */
+  titlebarHidden?: boolean
 }
 
 export interface AppConfig {

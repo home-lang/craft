@@ -57,6 +57,11 @@ pub const NativeSidebar = struct {
         // CRITICAL: Enable native source list style
         _ = macos.msgSend1(outline_view, "setSelectionHighlightStyle:", @as(c_long, 1)); // NSTableViewSelectionHighlightStyleSourceList
 
+        // CRITICAL: Make outline view transparent for Liquid Glass effect
+        const NSColor = macos.getClass("NSColor");
+        const clearColor = macos.msgSend0(NSColor, "clearColor");
+        _ = macos.msgSend1(outline_view, "setBackgroundColor:", clearColor);
+
         // Remove header
         _ = macos.msgSend1(outline_view, "setHeaderView:", @as(?*anyopaque, null));
 
@@ -100,6 +105,14 @@ pub const NativeSidebar = struct {
         _ = macos.msgSend1(scroll_view, "setHasVerticalScroller:", @as(c_int, 1));
         _ = macos.msgSend1(scroll_view, "setHasHorizontalScroller:", @as(c_int, 0));
         _ = macos.msgSend1(scroll_view, "setBorderType:", @as(c_long, 0)); // NSNoBorder
+
+        // CRITICAL: Make scroll view transparent so NSVisualEffectView glass shows through
+        _ = macos.msgSend1(scroll_view, "setDrawsBackground:", @as(c_int, 0)); // NO - don't draw background
+
+        // Get NSColor to set transparent backgrounds
+        const NSColorClass = macos.getClass("NSColor");
+        const clearColorObj = macos.msgSend0(NSColorClass, "clearColor");
+        _ = macos.msgSend1(scroll_view, "setBackgroundColor:", clearColorObj);
 
         std.debug.print("[NativeSidebar] ✓ Scroll view created with initial frame (240x100)\\n", .{});
 

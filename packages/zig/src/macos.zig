@@ -36,6 +36,7 @@ pub const WindowStyle = struct {
     dark_mode: ?bool = null, // null = system default, true = dark, false = light
     enable_hot_reload: bool = false, // Enable hot reload support
     hide_dock_icon: bool = false, // Hide dock icon (menubar-only mode)
+    titlebar_hidden: bool = false, // Hide titlebar (content extends into titlebar area)
 };
 
 // Helper functions for Objective-C runtime
@@ -145,6 +146,15 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         if (style.closable) styleMask |= 2; // NSClosableWindowMask
         if (style.miniaturizable) styleMask |= 4; // NSMiniaturizableWindowMask
         if (style.resizable) styleMask |= 8; // NSResizableWindowMask
+
+        // Add full-size content view for hidden titlebar
+        if (style.titlebar_hidden) {
+            std.debug.print("[TitlebarHidden] ✓ titlebar_hidden flag is TRUE - adding NSWindowStyleMaskFullSizeContentView\n", .{});
+            styleMask |= 32768; // NSWindowStyleMaskFullSizeContentView
+            std.debug.print("[TitlebarHidden] ✓ styleMask before window creation: {d}\n", .{styleMask});
+        } else {
+            std.debug.print("[TitlebarHidden] ✗ titlebar_hidden flag is FALSE\n", .{});
+        }
     } else {
         styleMask = 0; // Borderless
     }
@@ -175,6 +185,20 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     if (style.always_on_top) {
         const NSFloatingWindowLevel: c_int = 3;
         _ = msgSend1(window, "setLevel:", NSFloatingWindowLevel);
+    }
+
+    // Configure titlebar transparency for full-size content view
+    if (style.titlebar_hidden) {
+        _ = msgSend1(window, "setTitlebarAppearsTransparent:", @as(c_int, 1)); // YES
+
+        // CRITICAL: Hide the title text (NSWindowTitleHidden = 1)
+        _ = msgSend1(window, "setTitleVisibility:", @as(c_int, 1)); // NSWindowTitleHidden
+
+        // CRITICAL: Remove the titlebar separator line (NSWindowTitlebarSeparatorStyleNone = 2)
+        // This makes the titlebar truly invisible - required for macOS Tahoe/Settings look
+        _ = msgSend1(window, "setTitlebarSeparatorStyle:", @as(c_long, 2)); // NSWindowTitlebarSeparatorStyleNone
+
+        std.debug.print("[TitlebarHidden] ✓ COMPLETE: Titlebar hidden, transparent, separator removed\n", .{});
     }
 
     // Create WebView configuration with DevTools enabled

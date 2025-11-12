@@ -19,6 +19,7 @@ pub const WindowOptions = struct {
     system_tray: bool = false,
     hide_dock_icon: bool = false,
     menubar_only: bool = false,
+    titlebar_hidden: bool = false,
 };
 
 pub const CliError = error{
@@ -30,6 +31,13 @@ pub const CliError = error{
 pub fn parseArgs(allocator: std.mem.Allocator) !WindowOptions {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
+
+    // CRITICAL DEBUG: Print ALL arguments received
+    std.debug.print("\n[CLI DEBUG] Total arguments received: {d}\n", .{args.len});
+    for (args, 0..) |arg, idx| {
+        std.debug.print("[CLI DEBUG] arg[{d}] = '{s}'\n", .{idx, arg});
+    }
+    std.debug.print("\n", .{});
 
     var options = WindowOptions{};
     var i: usize = 1; // Skip program name
@@ -81,6 +89,10 @@ pub fn parseArgs(allocator: std.mem.Allocator) !WindowOptions {
             options.fullscreen = true;
         } else if (std.mem.eql(u8, arg, "--no-resize")) {
             options.resizable = false;
+        } else if (std.mem.eql(u8, arg, "--titlebar-hidden")) {
+            std.debug.print("[CLI DEBUG] ✓✓✓ FOUND --titlebar-hidden flag! Setting to TRUE\n", .{});
+            options.titlebar_hidden = true;
+            std.debug.print("[CLI DEBUG] ✓✓✓ options.titlebar_hidden is now: {}\n", .{options.titlebar_hidden});
         } else if (std.mem.eql(u8, arg, "--no-devtools")) {
             options.dev_tools = false;
         } else if (std.mem.eql(u8, arg, "--dark")) {
@@ -104,6 +116,12 @@ pub fn parseArgs(allocator: std.mem.Allocator) !WindowOptions {
             }
         }
     }
+
+    // CRITICAL DEBUG: Print final options state
+    std.debug.print("[CLI DEBUG] ========================================\n", .{});
+    std.debug.print("[CLI DEBUG] FINAL OPTIONS STATE:\n", .{});
+    std.debug.print("[CLI DEBUG] titlebar_hidden = {}\n", .{options.titlebar_hidden});
+    std.debug.print("[CLI DEBUG] ========================================\n\n", .{});
 
     return options;
 }

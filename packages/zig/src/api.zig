@@ -122,6 +122,7 @@ pub const WindowOptions = struct {
     fullscreen: bool = false,
     dark_mode: ?bool = null,
     dev_tools: bool = true,
+    titlebar_hidden: bool = false,
 };
 
 /// Stable Application API

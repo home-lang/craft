@@ -190,6 +190,8 @@ export class CraftApp {
       args.push('--hide-dock-icon')
     if (window?.menubarOnly)
       args.push('--menubar-only')
+    if (window?.titlebarHidden)
+      args.push('--titlebar-hidden')
 
     return args
   }
