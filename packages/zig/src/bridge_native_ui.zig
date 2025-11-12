@@ -3,6 +3,8 @@ const macos = @import("macos.zig");
 const NativeSidebar = @import("components/native_sidebar.zig").NativeSidebar;
 const NativeFileBrowser = @import("components/native_file_browser.zig").NativeFileBrowser;
 const NativeSplitView = @import("components/native_split_view.zig").NativeSplitView;
+const NativeSplitViewController = @import("components/native_split_view_controller.zig").NativeSplitViewController;
+const TestHelpers = @import("test_helpers.zig").TestHelpers;
 
 /// Bridge handler for native UI components
 /// Routes messages from JavaScript to native AppKit components
@@ -12,6 +14,8 @@ pub const NativeUIBridge = struct {
     sidebars: std.StringHashMap(*NativeSidebar),
     file_browsers: std.StringHashMap(*NativeFileBrowser),
     split_views: std.StringHashMap(*NativeSplitView),
+    split_view_controller: ?*NativeSplitViewController,
+    original_webview: ?macos.objc.id,
 
     const Self = @This();
 
@@ -22,10 +26,17 @@ pub const NativeUIBridge = struct {
             .sidebars = std.StringHashMap(*NativeSidebar).init(allocator),
             .file_browsers = std.StringHashMap(*NativeFileBrowser).init(allocator),
             .split_views = std.StringHashMap(*NativeSplitView).init(allocator),
+            .split_view_controller = null,
+            .original_webview = null,
         };
     }
 
     pub fn deinit(self: *Self) void {
+        // Clean up split view controller
+        if (self.split_view_controller) |svc| {
+            svc.deinit();
+        }
+
         // Clean up all sidebars
         var sidebar_iter = self.sidebars.iterator();
         while (sidebar_iter.next()) |entry| {
@@ -79,7 +90,7 @@ pub const NativeUIBridge = struct {
         }
     }
 
-    /// Create a new sidebar component
+    /// Create a new sidebar component using native NSSplitViewController
     fn createSidebar(self: *Self, data: []const u8) !void {
         std.debug.print("[NativeUI] Parsing JSON: {s}\n", .{data});
 
@@ -92,7 +103,13 @@ pub const NativeUIBridge = struct {
         const root = parsed.value.object;
         const id = root.get("id").?.string;
 
-        std.debug.print("[NativeUI] Creating sidebar: {s}\n", .{id});
+        // Check if a sidebar already exists
+        if (self.sidebars.count() > 0) {
+            std.debug.print("[NativeUI] WARNING: Sidebar already exists. Only one sidebar is supported. Ignoring request for: {s}\n", .{id});
+            return;
+        }
+
+        std.debug.print("[NativeUI] Creating sidebar with Liquid Glass: {s}\n", .{id});
 
         // Create sidebar
         const sidebar = try NativeSidebar.init(self.allocator);
@@ -104,86 +121,59 @@ pub const NativeUIBridge = struct {
 
         // Add to window if we have window reference
         if (self.window) |window| {
-            const NSRect = extern struct {
-                origin: extern struct { x: f64, y: f64 },
-                size: extern struct { width: f64, height: f64 },
-            };
+            std.debug.print("[NativeUI] Creating NSSplitViewController for native sidebar\n", .{});
 
-            // Get current content view (which is the webview)
-            const webview = macos.msgSend0(window, "contentView");
-            std.debug.print("[NativeUI-DEBUG] Webview ptr: {*}\n", .{webview});
+            // Save the original webview (current content view)
+            self.original_webview = macos.msgSend0(window, "contentView");
+            std.debug.print("[NativeUI] Saved original webview: {*}\n", .{self.original_webview.?});
 
-            // Get window frame to get correct dimensions
-            const frame_result = macos.msgSend0(window, "frame");
-            const frame: *const NSRect = @ptrCast(@alignCast(frame_result));
-            const window_width = frame.size.width;
-            const window_height = frame.size.height;
+            // Create split view controller
+            const split_vc = try NativeSplitViewController.init(self.allocator);
+            self.split_view_controller = split_vc;
 
-            std.debug.print("[NativeUI-DEBUG] Window dimensions from frame: {d}x{d}\n", .{ window_width, window_height });
+            // Add sidebar to split view controller FIRST (leftmost pane)
+            try split_vc.setSidebar(sidebar.getView());
+            std.debug.print("[NativeUI] ✓ Sidebar added to split view with Liquid Glass behavior\n", .{});
 
-            const sidebar_width: f64 = 240;
+            // Add webview as content SECOND (rightmost pane)
+            try split_vc.setContent(self.original_webview.?);
+            std.debug.print("[NativeUI] ✓ Webview added as content with background extension\n", .{});
 
-            // Create a container view to hold both sidebar and webview
-            const NSView = macos.getClass("NSView");
-            const container = macos.msgSend0(macos.msgSend0(NSView, "alloc"), "init");
-            std.debug.print("[NativeUI-DEBUG] Container ptr: {*}\n", .{container});
+            // CRITICAL: Set as window's content view controller AFTER adding items
+            _ = macos.msgSend1(window, "setContentViewController:", split_vc.getSplitViewController());
+            std.debug.print("[NativeUI] ✓ Split view controller set as window content view controller\n", .{});
 
-            // Set container frame to match current content view
-            const container_frame = NSRect{
-                .origin = .{ .x = 0, .y = 0 },
-                .size = .{ .width = window_width, .height = window_height },
-            };
-            _ = macos.msgSend1(container, "setFrame:", container_frame);
-            std.debug.print("[NativeUI-DEBUG] Container frame set: ({d},{d}) {d}x{d}\n", .{ container_frame.origin.x, container_frame.origin.y, container_frame.size.width, container_frame.size.height });
+            // CRITICAL: Force the split view to lay out NOW before returning
+            const split_vc_view = macos.msgSend0(split_vc.getSplitViewController(), "view");
+            _ = macos.msgSend1(split_vc_view, "setNeedsLayout:", @as(c_int, 1)); // YES
+            _ = macos.msgSend1(split_vc_view, "layoutSubtreeIfNeeded", .{});
 
-            _ = macos.msgSend1(container, "setAutoresizingMask:", @as(c_ulong, 18)); // Width + Height resizable
+            // Force the split view itself to layout
+            const split_view = split_vc.getSplitView();
+            _ = macos.msgSend1(split_view, "setNeedsLayout:", @as(c_int, 1)); // YES
+            _ = macos.msgSend1(split_view, "layoutSubtreeIfNeeded", .{});
+            std.debug.print("[NativeUI] ✓ Forced split view layout\n", .{});
 
-            // Adjust webview frame to make room for sidebar
-            const webview_frame = NSRect{
-                .origin = .{ .x = sidebar_width, .y = 0 },
-                .size = .{ .width = window_width - sidebar_width, .height = window_height },
-            };
-            _ = macos.msgSend1(webview, "setFrame:", webview_frame);
-            std.debug.print("[NativeUI-DEBUG] Webview frame set: ({d},{d}) {d}x{d}\n", .{ webview_frame.origin.x, webview_frame.origin.y, webview_frame.size.width, webview_frame.size.height });
+            // CRITICAL FIX: Set divider position AFTER layout completes
+            // This ensures the split view respects our sidebar width instead of compressing it
+            split_vc.setDividerPosition(240.0);
 
-            _ = macos.msgSend1(webview, "setAutoresizingMask:", @as(c_ulong, 18)); // Width + Height resizable
+            // Force one more layout pass to apply the divider position
+            _ = macos.msgSend1(split_view, "layoutSubtreeIfNeeded", .{});
+            std.debug.print("[NativeUI] ✓ Applied divider position and re-laid out\n", .{});
 
-            // Position sidebar on the left side
-            const sidebar_view = sidebar.getView();
-            std.debug.print("[NativeUI-DEBUG] Sidebar view ptr: {*}\n", .{sidebar_view});
+            // E2E TEST: Dump comprehensive diagnostics and check visibility
+            TestHelpers.dumpSplitViewDiagnostics(split_view, window);
 
-            sidebar.setFrame(0, 0, sidebar_width, window_height);
-            std.debug.print("[NativeUI-DEBUG] Sidebar frame set: (0,0) {d}x{d}\n", .{ sidebar_width, window_height });
+            // E2E TEST: Verify sidebar pane is visible
+            const sidebar_visible = TestHelpers.isSidebarPaneVisible(split_view);
+            if (!sidebar_visible) {
+                std.debug.print("[E2E Test] ❌ FAILED: Sidebar pane is NOT visible!\n", .{});
+            } else {
+                std.debug.print("[E2E Test] ✅ PASSED: Sidebar pane is visible!\n", .{});
+            }
 
-            sidebar.setAutoresizingMask(18); // Height resizable
-
-            // Set a visible background color on sidebar for debugging
-            const NSColor = macos.getClass("NSColor");
-            const redColor = macos.msgSend4(NSColor, "colorWithRed:green:blue:alpha:", @as(f64, 1.0), @as(f64, 0.0), @as(f64, 0.0), @as(f64, 0.5)); // Semi-transparent red
-            _ = macos.msgSend1(sidebar_view, "setBackgroundColor:", redColor);
-            std.debug.print("[NativeUI-DEBUG] Sidebar background color set to red\n", .{});
-
-            // Add both views to container
-            _ = macos.msgSend1(container, "addSubview:", webview);
-            std.debug.print("[NativeUI-DEBUG] Webview added to container\n", .{});
-
-            _ = macos.msgSend1(container, "addSubview:", sidebar_view);
-            std.debug.print("[NativeUI-DEBUG] Sidebar added to container\n", .{});
-
-            // Verify subviews were added
-            const subviews = macos.msgSend0(container, "subviews");
-            const subview_count = macos.msgSend0(subviews, "count");
-            std.debug.print("[NativeUI-DEBUG] Container has {*} subviews\n", .{subview_count});
-
-            // Replace content view with container
-            _ = macos.msgSend1(window, "setContentView:", container);
-            std.debug.print("[NativeUI-DEBUG] Container set as content view\n", .{});
-
-            // Verify content view was changed
-            const new_content_view = macos.msgSend0(window, "contentView");
-            std.debug.print("[NativeUI-DEBUG] New content view ptr: {*}\n", .{new_content_view});
-
-            std.debug.print("[NativeUI] ✓ Sidebar added (240x{d}), webview adjusted ({d}x{d})\n", .{ window_height, window_width - sidebar_width, window_height });
+            std.debug.print("[NativeUI] ✓ Native Liquid Glass sidebar created successfully\n", .{});
         }
     }
 

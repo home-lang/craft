@@ -40,7 +40,7 @@ pub const NativeSidebar = struct {
         const NSOutlineView = macos.getClass("NSOutlineView");
         const outline_view = macos.msgSend0(macos.msgSend0(NSOutlineView, "alloc"), "init");
 
-        // Configure outline view
+        // Configure outline view for SOURCE LIST style (native sidebar)
         _ = macos.msgSend1(outline_view, "setDataSource:", data_source.getInstance());
         _ = macos.msgSend1(outline_view, "setDelegate:", delegate.getInstance());
 
@@ -54,26 +54,54 @@ pub const NativeSidebar = struct {
         _ = macos.msgSend1(outline_view, "addTableColumn:", column);
         _ = macos.msgSend1(outline_view, "setOutlineTableColumn:", column);
 
-        // Configure appearance
-        _ = macos.msgSend1(outline_view, "setHeaderView:", @as(?*anyopaque, null));
-        _ = macos.msgSend1(outline_view, "setRowSizeStyle:", @as(c_long, 1)); // NSTableViewRowSizeStyleDefault
+        // CRITICAL: Enable native source list style
         _ = macos.msgSend1(outline_view, "setSelectionHighlightStyle:", @as(c_long, 1)); // NSTableViewSelectionHighlightStyleSourceList
-        _ = macos.msgSend1(outline_view, "setFloatsGroupRows:", @as(c_int, 0));
-        _ = macos.msgSend1(outline_view, "setIndentationPerLevel:", @as(f64, 0.0)); // No indentation
+
+        // Remove header
+        _ = macos.msgSend1(outline_view, "setHeaderView:", @as(?*anyopaque, null));
+
+        // Enable group rows for section headers
+        _ = macos.msgSend1(outline_view, "setFloatsGroupRows:", @as(c_int, 1)); // YES - float group rows
+
+        // Use default row sizing
+        _ = macos.msgSend1(outline_view, "setRowSizeStyle:", @as(c_long, 2)); // NSTableViewRowSizeStyleMedium
+
+        // Enable autosave to remember expanded state
+        const autosaveName = macos.createNSString("CraftSidebarOutlineView");
+        _ = macos.msgSend1(outline_view, "setAutosaveName:", autosaveName);
+        _ = macos.msgSend1(outline_view, "setAutosaveExpandedItems:", @as(c_int, 1));
 
         // Create NSScrollView to wrap the outline view
         const NSScrollView = macos.getClass("NSScrollView");
         const scroll_view = macos.msgSend0(macos.msgSend0(NSScrollView, "alloc"), "init");
+
+        // CRITICAL: Set initial frame - NSScrollView needs a frame to have non-zero size
+        // NSSplitViewController will resize this based on min/max thickness settings
+        const NSRect = extern struct {
+            origin: extern struct { x: f64, y: f64 },
+            size: extern struct { width: f64, height: f64 },
+        };
+        const initial_frame = NSRect{
+            .origin = .{ .x = 0, .y = 0 },
+            .size = .{ .width = 240.0, .height = 100.0 }, // Initial size, will be resized by split view
+        };
+        _ = macos.msgSend1(scroll_view, "setFrame:", initial_frame);
+
+        // CRITICAL: Enable layer backing for proper rendering
+        _ = macos.msgSend1(scroll_view, "setWantsLayer:", @as(c_int, 1)); // YES
+
+        // CRITICAL: Keep autoresizing mask enabled (default) - NSSplitViewController needs this
+        // The min/max thickness settings on NSSplitViewItem work with autoresizing masks
+        const NSViewWidthSizable: c_ulong = 2; // 1 << 1
+        const NSViewHeightSizable: c_ulong = 16; // 1 << 4
+        _ = macos.msgSend1(scroll_view, "setAutoresizingMask:", NSViewWidthSizable | NSViewHeightSizable);
 
         _ = macos.msgSend1(scroll_view, "setDocumentView:", outline_view);
         _ = macos.msgSend1(scroll_view, "setHasVerticalScroller:", @as(c_int, 1));
         _ = macos.msgSend1(scroll_view, "setHasHorizontalScroller:", @as(c_int, 0));
         _ = macos.msgSend1(scroll_view, "setBorderType:", @as(c_long, 0)); // NSNoBorder
 
-        // Set background color to match macOS sidebar
-        const NSColor = macos.getClass("NSColor");
-        const bgColor = macos.msgSend0(NSColor, "controlBackgroundColor");
-        _ = macos.msgSend1(outline_view, "setBackgroundColor:", bgColor);
+        std.debug.print("[NativeSidebar] ✓ Scroll view created with initial frame (240x100)\\n", .{});
 
         self.* = .{
             .outline_view = outline_view,
@@ -117,6 +145,7 @@ pub const NativeSidebar = struct {
             try new_section.items.append(self.allocator, new_item);
         }
 
+        const section_index = self.data_source.data.sections.items.len;
         try self.data_source.data.sections.append(self.allocator, new_section);
 
         std.debug.print("[NativeSidebar-DEBUG] Section added to data. Total sections: {d}\n", .{self.data_source.data.sections.items.len});
@@ -130,10 +159,14 @@ pub const NativeSidebar = struct {
         const row_count = macos.msgSend0(self.outline_view, "numberOfRows");
         std.debug.print("[NativeSidebar-DEBUG] Outline view now has {*} rows\n", .{row_count});
 
-        // TODO: Auto-expand sections - currently disabled due to timing issues
-        // The expandItem: method needs to be called after the outline view has
-        // fully processed reloadData, which happens asynchronously.
-        // For now, sections can be manually expanded by the user.
+        // Auto-expand the newly added section
+        // Get the item at row index (which corresponds to the section we just added)
+        const section_row_idx: c_long = @intCast(section_index);
+        const section_item = macos.msgSend1(self.outline_view, "itemAtRow:", section_row_idx);
+        if (section_item != @as(macos.objc.id, null)) {
+            _ = macos.msgSend1(self.outline_view, "expandItem:", section_item);
+            std.debug.print("[NativeSidebar-DEBUG] Expanded section at row {d}\n", .{section_row_idx});
+        }
     }
 
     /// Set the selected item programmatically

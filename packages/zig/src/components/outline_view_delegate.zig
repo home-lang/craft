@@ -77,6 +77,18 @@ pub const OutlineViewDelegate = struct {
                 "d@:@@",
             );
 
+            // Add outlineView:isGroupItem: - CRITICAL for source list headers
+            const isGroupItem = @as(
+                *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, macos.objc.id) callconv(.c) c_int,
+                @ptrCast(&outlineViewIsGroupItem),
+            );
+            _ = macos.objc.class_addMethod(
+                objc_class,
+                macos.sel("outlineView:isGroupItem:"),
+                @ptrCast(isGroupItem),
+                "c@:@@",
+            );
+
             macos.objc.objc_registerClassPair(objc_class);
         }
 
@@ -128,35 +140,24 @@ fn getCallbackData(instance: macos.objc.id) ?*OutlineViewDelegate.CallbackData {
     return @ptrCast(@alignCast(ptr));
 }
 
-/// Create a simple text field view
-/// We use NSTextField directly instead of NSTableCellView to avoid AutoLayout issues
-fn createSimpleTextField(text: []const u8) macos.objc.id {
-    const NSTextField = macos.getClass("NSTextField");
-
-    // Create label-style text field (non-editable, non-selectable)
-    const nsString = macos.createNSString(text);
-    const textField = macos.msgSend1(NSTextField, "labelWithString:", nsString);
-
-    // Set font
-    const NSFont = macos.getClass("NSFont");
-    const font = macos.msgSend1(NSFont, "systemFontOfSize:", @as(f64, 13.0));
-    _ = macos.msgSend1(textField, "setFont:", font);
-
-    // Disable autoresizing to prevent AutoLayout conflicts
-    _ = macos.msgSend1(textField, "setTranslatesAutoresizingMaskIntoConstraints:", @as(c_int, 1));
-
-    return textField;
-}
-
 /// NSOutlineViewDelegate method: viewForTableColumn:item
 export fn outlineViewViewForTableColumnItem(
-    _: macos.objc.id, // self
+    self: macos.objc.id,
     _: macos.objc.SEL,
     outlineView: macos.objc.id,
-    _: macos.objc.id, // tableColumn
+    tableColumn: macos.objc.id, // CRITICAL: This is NULL for group rows!
     item: macos.objc.id,
 ) callconv(.c) macos.objc.id {
     if (item == @as(macos.objc.id, null)) return null;
+
+    // CRITICAL CHECK: Group rows have NO tableColumn (it's null)
+    // We must check this first to determine if this is a header
+    const is_group_item = outlineViewIsGroupItem(self, macos.sel("outlineView:isGroupItem:"), outlineView, item);
+    const is_header = (tableColumn == @as(macos.objc.id, null)) or (is_group_item != 0);
+
+    // Get cell identifier based on whether this is a header or data row
+    const identifier = if (is_header) "HeaderCell" else "DataCell";
+    const identifierStr = macos.createNSString(identifier);
 
     // Get the text value from the data source
     const dataSource = macos.msgSend0(outlineView, "dataSource");
@@ -179,19 +180,63 @@ export fn outlineViewViewForTableColumnItem(
     const text: [*:0]const u8 = @ptrCast(cstr);
     const text_slice = std.mem.span(text);
 
-    // Create simple text field view
-    return createSimpleTextField(text_slice);
+    // Try to reuse an existing cell
+    var cellView = macos.msgSend2(outlineView, "makeViewWithIdentifier:owner:", identifierStr, @as(?*anyopaque, null));
+
+    // If no reusable cell, create new one
+    if (cellView == @as(macos.objc.id, null)) {
+        const NSTableCellView = macos.getClass("NSTableCellView");
+        cellView = macos.msgSend0(macos.msgSend0(NSTableCellView, "alloc"), "init");
+        _ = macos.msgSend1(cellView, "setIdentifier:", identifierStr);
+
+        // Create text field with MINIMAL styling - let macOS handle the rest
+        const NSTextField = macos.getClass("NSTextField");
+        const textField = macos.msgSend0(macos.msgSend0(NSTextField, "alloc"), "init");
+        _ = macos.msgSend1(textField, "setBordered:", @as(c_int, 0));
+        _ = macos.msgSend1(textField, "setDrawsBackground:", @as(c_int, 0));
+        _ = macos.msgSend1(textField, "setEditable:", @as(c_int, 0));
+        _ = macos.msgSend1(textField, "setSelectable:", @as(c_int, 0));
+
+        // Add to cell view
+        _ = macos.msgSend1(cellView, "setTextField:", textField);
+        _ = macos.msgSend1(cellView, "addSubview:", textField);
+
+        // Simple frame-based layout
+        const NSRect = extern struct {
+            origin: extern struct { x: f64, y: f64 },
+            size: extern struct { width: f64, height: f64 },
+        };
+        const frame = NSRect{
+            .origin = .{ .x = 2, .y = 0 },
+            .size = .{ .width = 200, .height = if (is_header) 20.0 else 24.0 },
+        };
+        _ = macos.msgSend1(textField, "setFrame:", frame);
+        _ = macos.msgSend1(textField, "setAutoresizingMask:", @as(c_ulong, 2)); // NSViewWidthSizable
+    }
+
+    // Update the text
+    const textField = macos.msgSend0(cellView, "textField");
+    if (textField != @as(macos.objc.id, null)) {
+        const nsString = macos.createNSString(text_slice);
+        _ = macos.msgSend1(textField, "setStringValue:", nsString);
+    }
+
+    return cellView;
 }
 
 /// NSOutlineViewDelegate method: shouldSelectItem
 export fn outlineViewShouldSelectItem(
     _: macos.objc.id, // self
     _: macos.objc.SEL,
-    _: macos.objc.id, // outlineView
-    _: macos.objc.id, // item
+    outlineView: macos.objc.id,
+    item: macos.objc.id,
 ) callconv(.c) c_int {
-    // Allow all items to be selected
-    return 1;
+    // Don't allow section headers to be selected, only regular items
+    const isExpandable = macos.msgSend1(outlineView, "isExpandable:", item);
+    const expandable: c_int = @intCast(@intFromPtr(isExpandable));
+
+    // Return 0 (false) for headers, 1 (true) for items
+    return if (expandable != 0) 0 else 1;
 }
 
 /// NSOutlineViewDelegate method: selectionDidChange
@@ -241,6 +286,23 @@ export fn outlineViewSelectionDidChange(
     if (callback_data.on_select) |callback| {
         callback(item_id_slice);
     }
+}
+
+/// NSOutlineViewDelegate method: isGroupItem
+/// Returns YES for section headers (expandable items with children)
+export fn outlineViewIsGroupItem(
+    _: macos.objc.id, // self
+    _: macos.objc.SEL,
+    outlineView: macos.objc.id,
+    item: macos.objc.id,
+) callconv(.c) c_int {
+    if (item == @as(macos.objc.id, null)) return 0;
+
+    // Check if this item is expandable (has children) - those are group headers
+    const isExpandable = macos.msgSend1(outlineView, "isExpandable:", item);
+    const expandable: c_int = @intCast(@intFromPtr(isExpandable));
+
+    return expandable; // Return 1 for group headers, 0 for regular items
 }
 
 /// NSOutlineViewDelegate method: heightOfRowByItem
