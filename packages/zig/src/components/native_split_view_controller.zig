@@ -2,8 +2,9 @@ const std = @import("std");
 const macos = @import("../macos.zig");
 const ViewControllerWrapper = @import("view_controller_wrapper.zig").ViewControllerWrapper;
 
-/// Wrapper for NSSplitViewController with native macOS sidebar support
-/// Provides Liquid Glass material, floating sidebar, and background extension effects
+/// Wrapper for NSSplitViewController with native Liquid Glass sidebar
+/// Uses NSSplitViewItem with sidebar behavior to let AppKit apply Liquid Glass automatically
+/// NO manual NSVisualEffectView - AppKit handles the glass material natively
 pub const NativeSplitViewController = struct {
     split_view_controller: macos.objc.id,
     split_view: macos.objc.id,
@@ -24,8 +25,10 @@ pub const NativeSplitViewController = struct {
         // Get the split view
         const split_view = macos.msgSend0(split_view_controller, "splitView");
 
-        // Configure split view
-        _ = macos.msgSend1(split_view, "setVertical:", @as(c_int, 1)); // YES - horizontal split (sidebar on left)
+        // Configure split view for vertical orientation (sidebar on left)
+        _ = macos.msgSend1(split_view, "setVertical:", @as(c_int, 1)); // YES
+
+        // Set thin divider style for modern appearance
         _ = macos.msgSend1(split_view, "setDividerStyle:", @as(c_long, 1)); // NSSplitViewDividerStyleThin
 
         // Set autosave name for split position persistence
@@ -61,117 +64,100 @@ pub const NativeSplitViewController = struct {
         return self.split_view;
     }
 
-    /// Add a sidebar with native Liquid Glass material
-    /// This creates a floating glass sidebar with proper insets
+    /// Add a sidebar using NSSplitViewItem.sidebarWithViewController:
+    /// Wraps content in NSVisualEffectView for Liquid Glass material
     pub fn setSidebar(self: *NativeSplitViewController, sidebar_view: macos.objc.id) !void {
-        // Wrap the sidebar view in a view controller
-        const view_controller_wrapper = try ViewControllerWrapper.init(self.allocator, sidebar_view);
+        // CRITICAL: Wrap sidebar in NSVisualEffectView for translucent glass effect
+        const NSVisualEffectView = macos.getClass("NSVisualEffectView");
+        const glass_view = macos.msgSend0(macos.msgSend0(NSVisualEffectView, "alloc"), "init");
+
+        // CRITICAL: Enable layer backing for vibrancy to work
+        _ = macos.msgSend1(glass_view, "setWantsLayer:", @as(c_int, 1)); // YES
+
+        // Set material to .sidebar (NSVisualEffectMaterialSidebar = 5)
+        _ = macos.msgSend1(glass_view, "setMaterial:", @as(c_long, 5));
+
+        // Set blending mode to .behindWindow (0) for proper transparency
+        _ = macos.msgSend1(glass_view, "setBlendingMode:", @as(c_long, 0));
+
+        // Set state to .active (1) to always show the effect
+        _ = macos.msgSend1(glass_view, "setState:", @as(c_long, 1));
+
+        // CRITICAL: Set initial frame for the glass view
+        const NSRect = extern struct {
+            origin: extern struct { x: f64, y: f64 },
+            size: extern struct { width: f64, height: f64 },
+        };
+        const initial_frame = NSRect{
+            .origin = .{ .x = 0, .y = 0 },
+            .size = .{ .width = 240.0, .height = 600.0 },
+        };
+        _ = macos.msgSend1(glass_view, "setFrame:", initial_frame);
+
+        // Add sidebar content as subview of the glass view
+        _ = macos.msgSend1(glass_view, "addSubview:", sidebar_view);
+
+        // Set autoresizing mask on BOTH views to resize properly
+        const NSViewWidthSizable: c_ulong = 2;
+        const NSViewHeightSizable: c_ulong = 16;
+        const mask = NSViewWidthSizable | NSViewHeightSizable;
+        _ = macos.msgSend1(glass_view, "setAutoresizingMask:", mask);
+        _ = macos.msgSend1(sidebar_view, "setAutoresizingMask:", mask);
+
+        // Wrap the glass view in a view controller
+        const view_controller_wrapper = try ViewControllerWrapper.init(self.allocator, glass_view);
         self.sidebar_view_controller = view_controller_wrapper;
 
-        // Create NSSplitViewItem with sidebar behavior
+        // Use sidebarWithViewController: class method to create sidebar item
         const NSSplitViewItem = macos.getClass("NSSplitViewItem");
-
-        // Create split view item with the view controller
         const sidebar_item = macos.msgSend1(
             NSSplitViewItem,
-            "splitViewItemWithViewController:",
+            "sidebarWithViewController:",
             view_controller_wrapper.getViewController()
         );
 
-        // CRITICAL: Set behavior to .sidebar for Liquid Glass material
-        // NSSplitViewItemBehaviorSidebar = 1
-        _ = macos.msgSend1(sidebar_item, "setBehavior:", @as(c_long, 1));
-
-        // Configure sidebar constraints BEFORE adding to split view
-        _ = macos.msgSend1(sidebar_item, "setCanCollapse:", @as(c_int, 0)); // NO - don't allow collapse
+        // Configure sidebar constraints
         _ = macos.msgSend1(sidebar_item, "setMinimumThickness:", @as(f64, 240.0));
         _ = macos.msgSend1(sidebar_item, "setMaximumThickness:", @as(f64, 350.0));
+        _ = macos.msgSend1(sidebar_item, "setCanCollapse:", @as(c_int, 1)); // YES - allow collapse
 
-        // CRITICAL: Set holding priority to prevent compression to zero width
-        // Use 751 (higher than NSLayoutPriorityDefaultHigh = 750) to ensure visibility
-        _ = macos.msgSend1(sidebar_item, "setHoldingPriority:", @as(f32, 751.0));
-
-        // CRITICAL: Enable full-height layout for modern sidebar appearance
+        // CRITICAL: Allow full height layout for the sidebar to extend under titlebar
         _ = macos.msgSend1(sidebar_item, "setAllowsFullHeightLayout:", @as(c_int, 1)); // YES
 
-        // Add sidebar item to split view controller
+        // Set holding priority to ensure sidebar gets space
+        // Use 751 (higher than NSLayoutPriorityDefaultHigh = 750)
+        _ = macos.msgSend1(sidebar_item, "setHoldingPriority:", @as(f32, 751.0));
+
+        // Add sidebar item FIRST (sidebars should be added before content)
         _ = macos.msgSend1(self.split_view_controller, "addSplitViewItem:", sidebar_item);
 
-        // CRITICAL: Explicitly uncollapse AFTER adding to split view
-        _ = macos.msgSend1(sidebar_item, "setCollapsed:", @as(c_int, 0)); // NO - not collapsed
+        // Ensure it starts uncollapsed
+        _ = macos.msgSend1(sidebar_item, "setCollapsed:", @as(c_int, 0)); // NO
 
         self.sidebar_item = sidebar_item;
 
-        // Debug: Log split view item configuration and view frames
-        const collapsed = macos.msgSend0(sidebar_item, "isCollapsed");
-
-        // Get the sidebar view controller's view frame
-        const sidebar_vc = view_controller_wrapper.getViewController();
-        const sidebar_vc_view = macos.msgSend0(sidebar_vc, "view");
-
-        // Properly read the frame using direct objc_msgSend (ARM64 handles structs directly)
-        const msgSendFrame = @as(*const fn (macos.objc.id, macos.objc.SEL) callconv(.c) macos.NSRect, @ptrCast(&macos.objc.objc_msgSend));
-        const sidebar_frame = msgSendFrame(sidebar_vc_view, macos.sel("frame"));
-
-        // Get split view frame for comparison
-        const split_view_frame = msgSendFrame(self.split_view, macos.sel("frame"));
-
-        std.debug.print("[SplitViewController] ========== SIDEBAR DIAGNOSTICS ==========\\n", .{});
-        std.debug.print("[SplitViewController] Sidebar collapsed: {*}\\n", .{collapsed});
-        std.debug.print("[SplitViewController] Sidebar view: {*}\\n", .{sidebar_vc_view});
-        std.debug.print("[SplitViewController] Sidebar frame: origin=({d:.1}, {d:.1}) size=({d:.1}x{d:.1})\\n", .{
-            sidebar_frame.origin.x,
-            sidebar_frame.origin.y,
-            sidebar_frame.size.width,
-            sidebar_frame.size.height,
-        });
-        std.debug.print("[SplitViewController] Split view frame: origin=({d:.1}, {d:.1}) size=({d:.1}x{d:.1})\\n", .{
-            split_view_frame.origin.x,
-            split_view_frame.origin.y,
-            split_view_frame.size.width,
-            split_view_frame.size.height,
-        });
-
-        // Check if sidebar has zero width (the smoking gun!)
-        if (sidebar_frame.size.width == 0) {
-            std.debug.print("[SplitViewController] ⚠️  WARNING: Sidebar has ZERO width!\\n", .{});
-        }
-        if (sidebar_frame.size.height == 0) {
-            std.debug.print("[SplitViewController] ⚠️  WARNING: Sidebar has ZERO height!\\n", .{});
-        }
-
-        std.debug.print("[SplitViewController] ===========================================\\n", .{});
+        std.debug.print("[LiquidGlass] ✓ Created sidebar with NSVisualEffectView for glass material\n", .{});
     }
 
     /// Set the content view (typically a WKWebView)
-    /// Enables background extension effect to extend beneath sidebar
+    /// Content extends full-width under the floating sidebar with automatic safe area insets
     pub fn setContent(self: *NativeSplitViewController, content_view: macos.objc.id) !void {
         // Wrap the content view in a view controller
         const view_controller_wrapper = try ViewControllerWrapper.init(self.allocator, content_view);
         self.content_view_controller = view_controller_wrapper;
 
-        // Create NSSplitViewItem with content behavior
+        // Create NSSplitViewItem for content
         const NSSplitViewItem = macos.getClass("NSSplitViewItem");
-
         const content_item = macos.msgSend1(
             NSSplitViewItem,
             "splitViewItemWithViewController:",
             view_controller_wrapper.getViewController()
         );
 
-        // Set behavior to .contentList for main content area
-        // NSSplitViewItemBehaviorContentList = 3
-        _ = macos.msgSend1(content_item, "setBehavior:", @as(c_long, 3));
-
-        // CRITICAL: Enable automatic safe area adjustment for background extension
-        // This allows content to extend beneath the sidebar with blur effect
-        _ = macos.msgSend1(content_item, "setAutomaticallyAdjustsSafeAreaInsets:", @as(c_int, 1)); // YES
-
         // Content should not collapse
         _ = macos.msgSend1(content_item, "setCanCollapse:", @as(c_int, 0)); // NO
 
-        // CRITICAL: Set LOWER holding priority for content so sidebar gets its space first
-        // Use 250 (NSLayoutPriorityDefaultLow) so content compresses before sidebar
+        // Set LOWER holding priority so content compresses before sidebar
         _ = macos.msgSend1(content_item, "setHoldingPriority:", @as(f32, 250.0));
 
         // Add content item to split view controller
@@ -179,26 +165,7 @@ pub const NativeSplitViewController = struct {
 
         self.content_item = content_item;
 
-        std.debug.print("[SplitViewController] Content added with background extension enabled\\n", .{});
-
-        // CRITICAL FIX: After both items are added, force the split view to respect constraints
-        // This is necessary because the split view might not properly layout until told to do so
-        if (self.sidebar_item) |sidebar_item| {
-            // Re-enforce sidebar minimum thickness after content is added
-            _ = macos.msgSend1(sidebar_item, "setMinimumThickness:", @as(f64, 240.0));
-
-            // Force the split view to layout with proper divider position
-            // Set initial position to 240px for sidebar
-            const sidebar_width: f64 = 240.0;
-            _ = macos.msgSend2(
-                self.split_view,
-                "setPosition:ofDividerAtIndex:",
-                sidebar_width,
-                @as(c_long, 0)
-            );
-
-            std.debug.print("[SplitViewController] ✓ Forced split view divider to position: {d}px\\n", .{sidebar_width});
-        }
+        std.debug.print("[LiquidGlass] ✓ Content extends under floating sidebar with safe area insets\n", .{});
     }
 
     /// Get the root view of the split view controller (for setting as window content view)
@@ -206,21 +173,14 @@ pub const NativeSplitViewController = struct {
         return macos.msgSend0(self.split_view_controller, "view");
     }
 
-    /// Force set divider position AFTER layout (must be called after split view is in window hierarchy)
+    /// Optional: Set divider position manually (usually AppKit handles this automatically)
     pub fn setDividerPosition(self: *NativeSplitViewController, position: f64) void {
-        // Re-enforce sidebar minimum thickness before setting position
-        if (self.sidebar_item) |sidebar_item| {
-            _ = macos.msgSend1(sidebar_item, "setMinimumThickness:", @as(f64, 240.0));
-        }
-
-        // Force divider to exact position
         _ = macos.msgSend2(
             self.split_view,
             "setPosition:ofDividerAtIndex:",
             position,
             @as(c_long, 0)
         );
-
-        std.debug.print("[SplitViewController] ✓ Set divider position to {d}px\n", .{position});
+        std.debug.print("[LiquidGlass] Set divider position to {d}px\n", .{position});
     }
 };

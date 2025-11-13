@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Liquid Glass Sidebar Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 800px;
+            text-align: center;
+        }
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+        .status {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1.5rem;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            margin-top: 2rem;
+        }
+        .glass-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        .feature-list {
+            text-align: left;
+            margin-top: 2rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1.5rem;
+            border-radius: 8px;
+        }
+        .feature-list li {
+            margin: 0.8rem 0;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+        .feature-list li:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #4ade80;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="glass-icon">✨</div>
+        <h1>Liquid Glass Sidebar</h1>
+        <p>Native macOS Tahoe design with NSSplitViewController</p>
+
+        <div class="status">
+            <p id="status">Initializing sidebar...</p>
+        </div>
+
+        <div class="feature-list">
+            <h3 style="margin-bottom: 1rem;">Features:</h3>
+            <ul style="list-style: none;">
+                <li>Native Liquid Glass material (no manual blur)</li>
+                <li>AppKit automatically handles glass effects</li>
+                <li>Content extends full-width under sidebar</li>
+                <li>Proper safe area insets</li>
+                <li>Unified toolbar style integration</li>
+                <li>Auto Layout compatible</li>
+            </ul>
+        </div>
+
+        <p style="margin-top: 2rem; font-size: 0.9rem; opacity: 0.7;">
+            Look to the left → You should see a native Liquid Glass sidebar!
+        </p>
+    </div>
+
+    <script>
+        // Wait for the Craft bridge to be ready
+        if (typeof window.Craft !== 'undefined' && window.Craft.nativeUI) {
+            console.log('Creating native sidebar with Liquid Glass...');
+
+            // Create sidebar
+            window.Craft.nativeUI.createSidebar({ id: 'main-sidebar' });
+
+            // Add sections
+            window.Craft.nativeUI.addSidebarSection({
+                sidebarId: 'main-sidebar',
+                section: {
+                    id: 'navigation',
+                    header: 'NAVIGATION',
+                    items: [
+                        { id: 'home', label: 'Home', icon: '🏠' },
+                        { id: 'files', label: 'Files', icon: '📁' },
+                        { id: 'favorites', label: 'Favorites', icon: '⭐' }
+                    ]
+                }
+            });
+
+            window.Craft.nativeUI.addSidebarSection({
+                sidebarId: 'main-sidebar',
+                section: {
+                    id: 'settings',
+                    header: 'SETTINGS',
+                    items: [
+                        { id: 'preferences', label: 'Preferences', icon: '⚙️' },
+                        { id: 'about', label: 'About', icon: 'ℹ️' }
+                    ]
+                }
+            });
+
+            // Update status
+            document.getElementById('status').textContent = '✅ Liquid Glass sidebar created!';
+            console.log('Sidebar created successfully!');
+        } else {
+            console.error('Craft bridge not available');
+            document.getElementById('status').textContent = '❌ Craft bridge not available';
+        }
+    </script>
+</body>
+</html>

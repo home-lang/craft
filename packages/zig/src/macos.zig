@@ -220,6 +220,17 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         std.debug.print("[TitlebarHidden] ✓ COMPLETE: Titlebar hidden, traffic lights positioned in sidebar\n", .{});
     }
 
+    // CRITICAL: Configure toolbar style for Liquid Glass
+    // NSWindowToolbarStyleUnified = 1 - Creates unified toolbar that works with glass materials
+    _ = msgSend1(window, "setToolbarStyle:", @as(c_long, 1));
+    std.debug.print("[LiquidGlass] ✓ Set unified toolbar style for Liquid Glass compatibility\n", .{});
+
+    // CRITICAL: Configure window for vibrancy - allow NSVisualEffectView to show through
+    _ = msgSend1(window, "setOpaque:", @as(c_int, 0)); // NO - window is not opaque
+    const clearColor = msgSend0(getClass("NSColor"), "clearColor");
+    _ = msgSend1(window, "setBackgroundColor:", clearColor);
+    std.debug.print("[LiquidGlass] ✓ Window configured for vibrancy (non-opaque, clear background)\n", .{});
+
     // Create WebView configuration with DevTools enabled
     const config_alloc = msgSend0(WKWebViewConfiguration, "alloc");
     const config = msgSend0(config_alloc, "init");
@@ -239,7 +250,39 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     // Set up user content controller for JavaScript bridge
     const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
 
-    // NOTE: We inject the bridge script directly into the HTML instead of using WKUserScript
+    // CRITICAL: For URL loading, we MUST use WKUserScript to inject the bridge
+    // For HTML loading, we inject directly into the HTML string (more reliable for loadHTMLString)
+    if (url != null) {
+        // Inject bridge scripts via WKUserScript for URL loading
+        const WKUserScript = getClass("WKUserScript");
+        const bridge_js = getCraftBridgeScript();
+        const native_ui_js = getNativeUIScript();
+
+        // Create bridge script
+        const bridge_js_str = createNSString(bridge_js);
+        const bridge_script = msgSend3(
+            msgSend0(WKUserScript, "alloc"),
+            "initWithSource:injectionTime:forMainFrameOnly:",
+            bridge_js_str,
+            @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
+            @as(c_int, 1) // YES - main frame only
+        );
+        _ = msgSend1(userContentController, "addUserScript:", bridge_script);
+
+        // Create native UI script
+        const native_ui_js_str = createNSString(native_ui_js);
+        const native_ui_script = msgSend3(
+            msgSend0(WKUserScript, "alloc"),
+            "initWithSource:injectionTime:forMainFrameOnly:",
+            native_ui_js_str,
+            @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
+            @as(c_int, 1) // YES - main frame only
+        );
+        _ = msgSend1(userContentController, "addUserScript:", native_ui_script);
+
+        std.debug.print("[Bridge] Injected bridge scripts via WKUserScript for URL loading\n", .{});
+    }
+    // NOTE: For HTML loading, we inject the bridge script directly into the HTML instead of using WKUserScript
     // because WKUserScript doesn't reliably inject when using loadHTMLString with null baseURL
 
     // Set up the script message handler NOW (not later)

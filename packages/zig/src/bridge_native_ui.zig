@@ -3,7 +3,7 @@ const macos = @import("macos.zig");
 const NativeSidebar = @import("components/native_sidebar.zig").NativeSidebar;
 const NativeFileBrowser = @import("components/native_file_browser.zig").NativeFileBrowser;
 const NativeSplitView = @import("components/native_split_view.zig").NativeSplitView;
-const ManualSplitView = @import("components/native_split_view_manual.zig").ManualSplitView;
+const NativeSplitViewController = @import("components/native_split_view_controller.zig").NativeSplitViewController;
 const TestHelpers = @import("test_helpers.zig").TestHelpers;
 
 /// Bridge handler for native UI components
@@ -14,7 +14,7 @@ pub const NativeUIBridge = struct {
     sidebars: std.StringHashMap(*NativeSidebar),
     file_browsers: std.StringHashMap(*NativeFileBrowser),
     split_views: std.StringHashMap(*NativeSplitView),
-    manual_split_view: ?*ManualSplitView,
+    split_view_controller: ?*NativeSplitViewController,
     original_webview: ?macos.objc.id,
 
     const Self = @This();
@@ -26,15 +26,15 @@ pub const NativeUIBridge = struct {
             .sidebars = std.StringHashMap(*NativeSidebar).init(allocator),
             .file_browsers = std.StringHashMap(*NativeFileBrowser).init(allocator),
             .split_views = std.StringHashMap(*NativeSplitView).init(allocator),
-            .manual_split_view = null,
+            .split_view_controller = null,
             .original_webview = null,
         };
     }
 
     pub fn deinit(self: *Self) void {
-        // Clean up manual split view
-        if (self.manual_split_view) |msv| {
-            msv.deinit();
+        // Clean up split view controller
+        if (self.split_view_controller) |svc| {
+            svc.deinit();
         }
 
         // Clean up all sidebars
@@ -90,7 +90,7 @@ pub const NativeUIBridge = struct {
         }
     }
 
-    /// Create a new sidebar component using manual NSSplitView (no controller)
+    /// Create a new sidebar component using NSSplitViewController with native Liquid Glass
     fn createSidebar(self: *Self, data: []const u8) !void {
         std.debug.print("[NativeUI] Parsing JSON: {s}\n", .{data});
 
@@ -109,7 +109,7 @@ pub const NativeUIBridge = struct {
             return;
         }
 
-        std.debug.print("[NativeUI] Creating sidebar with MANUAL split view (no Auto Layout): {s}\n", .{id});
+        std.debug.print("[LiquidGlass] Creating sidebar with NSSplitViewController: {s}\n", .{id});
 
         // Create sidebar
         const sidebar = try NativeSidebar.init(self.allocator);
@@ -121,59 +121,48 @@ pub const NativeUIBridge = struct {
 
         // Add to window if we have window reference
         if (self.window) |window| {
-            std.debug.print("[NativeUI] Creating Manual NSSplitView (avoiding Auto Layout)\n", .{});
-
             // Save the original webview (current content view)
             self.original_webview = macos.msgSend0(window, "contentView");
-            std.debug.print("[NativeUI] Saved original webview: {*}\n", .{self.original_webview.?});
+            std.debug.print("[LiquidGlass] Saved original webview: {*}\n", .{self.original_webview.?});
 
-            // Get the webview's frame to know the correct window content size
-            const msgSendFrame = @as(*const fn (macos.objc.id, macos.objc.SEL) callconv(.c) macos.NSRect, @ptrCast(&macos.objc.objc_msgSend));
-            const webview_frame = msgSendFrame(self.original_webview.?, macos.sel("frame"));
-            std.debug.print("[NativeUI] Original webview frame: {d:.1}x{d:.1}\n", .{
-                webview_frame.size.width,
-                webview_frame.size.height,
-            });
+            // Create NSSplitViewController
+            const split_vc = try NativeSplitViewController.init(self.allocator);
+            self.split_view_controller = split_vc;
 
-            // Create manual split view (no controller)
-            const manual_split = try ManualSplitView.init(self.allocator);
-            self.manual_split_view = manual_split;
+            // CRITICAL: Add sidebar FIRST (AppKit applies Liquid Glass automatically)
+            try split_vc.setSidebar(sidebar.getView());
+            std.debug.print("[LiquidGlass] ✓ Sidebar added with native Liquid Glass material\n", .{});
 
-            // CRITICAL: Add content FIRST (full-width background layer)
-            manual_split.addContent(self.original_webview.?);
-            std.debug.print("[NativeUI] ✓ Webview added as full-width content (background layer)\n", .{});
+            // CRITICAL: Add content SECOND (extends full-width under sidebar)
+            try split_vc.setContent(self.original_webview.?);
+            std.debug.print("[LiquidGlass] ✓ Content extends under floating sidebar\n", .{});
 
-            // CRITICAL: Add sidebar SECOND (floating glass on top)
-            manual_split.addSidebar(sidebar.getView());
-            std.debug.print("[NativeUI] ✓ Floating Liquid Glass sidebar added on top\n", .{});
+            // Set split view controller as window's content view controller
+            _ = macos.msgSend1(window, "setContentViewController:", split_vc.getSplitViewController());
+            std.debug.print("[LiquidGlass] ✓ Set NSSplitViewController as window content view controller\n", .{});
 
-            // Set the split view's frame to match the window content area
-            manual_split.setFrame(webview_frame);
-            std.debug.print("[NativeUI] ✓ Set manual split view frame to {d:.1}x{d:.1}\n", .{
-                webview_frame.size.width,
-                webview_frame.size.height,
-            });
+            // CRITICAL: Reposition traffic lights to float over the sidebar (macOS Tahoe style)
+            // The traffic lights should be 13px from the top of the window
+            // With full-size content view, position them at 13px from top
+            const traffic_light_y: f64 = 787.0; // 800 (window height) - 13
 
-            // Set split view as window's content view
-            _ = macos.msgSend1(window, "setContentView:", manual_split.getSplitView());
-            std.debug.print("[NativeUI] ✓ Set manual split view as window content view\n", .{});
-
-            // Force layout
-            manual_split.layoutSubviews();
-            std.debug.print("[NativeUI] ✓ Forced split view layout\n", .{});
-
-            // E2E TEST: Dump comprehensive diagnostics and check visibility
-            TestHelpers.dumpSplitViewDiagnostics(manual_split.getSplitView(), window);
-
-            // E2E TEST: Verify sidebar pane is visible
-            const sidebar_visible = TestHelpers.isSidebarPaneVisible(manual_split.getSplitView());
-            if (!sidebar_visible) {
-                std.debug.print("[E2E Test] ❌ FAILED: Sidebar pane is NOT visible!\n", .{});
-            } else {
-                std.debug.print("[E2E Test] ✅ PASSED: Sidebar pane is visible!\n", .{});
+            const closeButton = macos.msgSend1(window, "standardWindowButton:", @as(c_ulong, 0));
+            if (closeButton != 0) {
+                _ = macos.msgSend2(closeButton, "setFrameOrigin:", @as(f64, 13.0), traffic_light_y);
             }
 
-            std.debug.print("[NativeUI] ✓ Manual sidebar created successfully (no Auto Layout)\n", .{});
+            const miniButton = macos.msgSend1(window, "standardWindowButton:", @as(c_ulong, 1));
+            if (miniButton != 0) {
+                _ = macos.msgSend2(miniButton, "setFrameOrigin:", @as(f64, 33.0), traffic_light_y);
+            }
+
+            const zoomButton = macos.msgSend1(window, "standardWindowButton:", @as(c_ulong, 2));
+            if (zoomButton != 0) {
+                _ = macos.msgSend2(zoomButton, "setFrameOrigin:", @as(f64, 53.0), traffic_light_y);
+            }
+
+            std.debug.print("[LiquidGlass] ✓ Repositioned traffic lights over sidebar at y={d}\n", .{traffic_light_y});
+            std.debug.print("[LiquidGlass] ✓ Native Liquid Glass sidebar created successfully\n", .{});
         }
     }
 
