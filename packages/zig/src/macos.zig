@@ -198,7 +198,26 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // This makes the titlebar truly invisible - required for macOS Tahoe/Settings look
         _ = msgSend1(window, "setTitlebarSeparatorStyle:", @as(c_long, 2)); // NSWindowTitlebarSeparatorStyleNone
 
-        std.debug.print("[TitlebarHidden] ✓ COMPLETE: Titlebar hidden, transparent, separator removed\n", .{});
+        // CRITICAL: Position traffic lights in the sidebar (Tahoe/Settings style)
+        // Close button (red) - NSWindowCloseButton = 0
+        const closeButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 0));
+        if (closeButton != 0) {
+            _ = msgSend2(closeButton, "setFrameOrigin:", @as(f64, 20.0), @as(f64, @as(f64, @floatFromInt(height)) - 28.0));
+        }
+
+        // Minimize button (yellow) - NSWindowMiniaturizeButton = 1
+        const miniButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 1));
+        if (miniButton != 0) {
+            _ = msgSend2(miniButton, "setFrameOrigin:", @as(f64, 40.0), @as(f64, @as(f64, @floatFromInt(height)) - 28.0));
+        }
+
+        // Zoom button (green) - NSWindowZoomButton = 2
+        const zoomButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 2));
+        if (zoomButton != 0) {
+            _ = msgSend2(zoomButton, "setFrameOrigin:", @as(f64, 60.0), @as(f64, @as(f64, @floatFromInt(height)) - 28.0));
+        }
+
+        std.debug.print("[TitlebarHidden] ✓ COMPLETE: Titlebar hidden, traffic lights positioned in sidebar\n", .{});
     }
 
     // Create WebView configuration with DevTools enabled

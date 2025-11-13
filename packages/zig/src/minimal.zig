@@ -64,6 +64,7 @@ pub fn main() !void {
                 .dark_mode = options.dark_mode,
                 .enable_hot_reload = options.hot_reload,
                 .hide_dock_icon = options.hide_dock_icon,
+                .titlebar_hidden = options.titlebar_hidden,
             },
         );
     } else if (options.html) |html| {
@@ -88,6 +89,7 @@ pub fn main() !void {
                 .dark_mode = options.dark_mode,
                 .enable_hot_reload = options.hot_reload,
                 .hide_dock_icon = options.hide_dock_icon,
+                .titlebar_hidden = options.titlebar_hidden,
             },
         );
     } else {
