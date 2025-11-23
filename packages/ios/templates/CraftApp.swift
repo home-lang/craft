@@ -1,0 +1,2401 @@
+import SwiftUI
+import WebKit
+import Speech
+import AVFoundation
+import LocalAuthentication
+import Security
+import UserNotifications
+import Photos
+import CoreLocation
+import Contacts
+import EventKit
+import StoreKit
+import Network
+import CoreMotion
+import CoreBluetooth
+import CoreNFC
+import HealthKit
+import VisionKit
+import UniformTypeIdentifiers
+import PDFKit
+import SQLite3
+import AuthenticationServices
+
+// MARK: - App Entry Point
+@main
+struct CraftApp: App {
+    @StateObject private var appState = AppState()
+
+    var body: some Scene {
+        WindowGroup {
+            CraftWebView(config: appState.config)
+                .ignoresSafeArea()
+                .preferredColorScheme(appState.config.darkMode ? .dark : .light)
+                .environmentObject(appState)
+        }
+    }
+}
+
+// MARK: - App State
+class AppState: ObservableObject {
+    @Published var config: CraftConfig
+
+    init() {
+        // Load config from craft.config.json if available
+        if let configURL = Bundle.main.url(forResource: "craft.config", withExtension: "json"),
+           let data = try? Data(contentsOf: configURL),
+           let config = try? JSONDecoder().decode(CraftConfig.self, from: data) {
+            self.config = config
+        } else {
+            self.config = CraftConfig()
+        }
+    }
+}
+
+// MARK: - Configuration
+struct CraftConfig: Codable {
+    var appName: String = "Craft App"
+    var bundleId: String = "com.craft.app"
+    var darkMode: Bool = true
+    var backgroundColor: String = "#1a1a2e"
+    var enableSpeechRecognition: Bool = true
+    var enableHaptics: Bool = true
+    var enableShare: Bool = true
+    var enableCamera: Bool = true
+    var enableBiometric: Bool = true
+    var enablePushNotifications: Bool = false
+    var enableSecureStorage: Bool = true
+    var enableGeolocation: Bool = true
+    var enableClipboard: Bool = true
+    var enableContacts: Bool = true
+    var enableCalendar: Bool = true
+    var enableLocalNotifications: Bool = true
+    var enableInAppPurchase: Bool = true
+    var enableKeepAwake: Bool = true
+    var enableOrientationLock: Bool = true
+    var enableDeepLinks: Bool = true
+    var enableQRScanner: Bool = true
+    var enableFilePicker: Bool = true
+    var enableFileDownload: Bool = true
+    var enableSocialAuth: Bool = true
+    var enableAudioRecording: Bool = true
+    var enableVideoRecording: Bool = true
+    var enableMotionSensors: Bool = true
+    var enableLocalDatabase: Bool = true
+    var enableBluetooth: Bool = true
+    var enableNFC: Bool = true
+    var enableHealthKit: Bool = false
+    var enableBackgroundTasks: Bool = true
+    var enableScreenCapture: Bool = true
+    var enablePDFViewer: Bool = true
+    var devServerURL: String? = nil
+}
+
+// MARK: - WebView
+struct CraftWebView: UIViewRepresentable {
+    let config: CraftConfig
+
+    func makeUIView(context: Context) -> WKWebView {
+        let webConfig = WKWebViewConfiguration()
+        webConfig.defaultWebpagePreferences.allowsContentJavaScript = true
+        webConfig.allowsInlineMediaPlayback = true
+        webConfig.mediaTypesRequiringUserActionForPlayback = []
+
+        // Add native bridge
+        let contentController = WKUserContentController()
+        contentController.add(context.coordinator, name: "craft")
+        webConfig.userContentController = contentController
+
+        let webView = WKWebView(frame: .zero, configuration: webConfig)
+        webView.navigationDelegate = context.coordinator
+        webView.isOpaque = false
+
+        // Parse background color
+        let bgColor = UIColor(hex: config.backgroundColor) ?? .black
+        webView.backgroundColor = bgColor
+        webView.scrollView.backgroundColor = bgColor
+
+        // Load content
+        if let devURL = config.devServerURL, !devURL.isEmpty {
+            // Development mode - connect to server
+            if let url = URL(string: devURL) {
+                webView.load(URLRequest(url: url))
+            }
+        } else if let htmlPath = Bundle.main.path(forResource: "index", ofType: "html") {
+            // Production mode - load bundled HTML
+            let htmlURL = URL(fileURLWithPath: htmlPath)
+            webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
+        }
+
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(config: config)
+    }
+
+    // MARK: - Coordinator (Native Bridge)
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, UIImagePickerControllerDelegate, UINavigationControllerDelegate, CLLocationManagerDelegate {
+        let config: CraftConfig
+        private var speechRecognizer: SFSpeechRecognizer?
+        private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+        private var recognitionTask: SFSpeechRecognitionTask?
+        private var audioEngine = AVAudioEngine()
+        private weak var webView: WKWebView?
+        private var pendingCallbackId: String?
+
+        // Location
+        private var locationManager: CLLocationManager?
+        private var locationCallbackId: String?
+
+        // Network monitoring
+        private var networkMonitor: NWPathMonitor?
+        private var isConnected = true
+        private var connectionType = "unknown"
+
+        // Contacts
+        private var contactStore: CNContactStore?
+
+        // Calendar
+        private var eventStore: EKEventStore?
+
+        // Keep awake
+        private var isKeepingAwake = false
+
+        // Orientation lock
+        private var lockedOrientation: UIInterfaceOrientationMask?
+
+        // Deep links pending
+        private var pendingDeepLink: URL?
+
+        // Motion sensors
+        private var motionManager: CMMotionManager?
+        private var isMotionUpdating = false
+
+        // Bluetooth
+        private var centralManager: CBCentralManager?
+        private var peripheralManager: CBPeripheralManager?
+        private var discoveredPeripherals: [CBPeripheral] = []
+
+        // Audio recording
+        private var audioRecorder: AVAudioRecorder?
+        private var recordingURL: URL?
+
+        // Health
+        private var healthStore: HKHealthStore?
+
+        // SQLite database
+        private var db: OpaquePointer?
+
+        // Pending callback for async operations
+        private var pendingCallbackId: String?
+
+        init(config: CraftConfig) {
+            self.config = config
+            super.init()
+            if config.enableSpeechRecognition {
+                speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+            }
+            if config.enableGeolocation {
+                locationManager = CLLocationManager()
+            }
+            if config.enableContacts {
+                contactStore = CNContactStore()
+            }
+            if config.enableCalendar {
+                eventStore = EKEventStore()
+            }
+            if config.enableMotionSensors {
+                motionManager = CMMotionManager()
+            }
+            if config.enableHealthKit && HKHealthStore.isHealthDataAvailable() {
+                healthStore = HKHealthStore()
+            }
+            if config.enableLocalDatabase {
+                setupDatabase()
+            }
+            setupNetworkMonitoring()
+        }
+
+        private func setupDatabase() {
+            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let dbPath = documentsPath.appendingPathComponent("craft.db").path
+
+            if sqlite3_open(dbPath, &db) == SQLITE_OK {
+                print("Database opened at \(dbPath)")
+            } else {
+                print("Failed to open database")
+            }
+        }
+
+        private func setupNetworkMonitoring() {
+            networkMonitor = NWPathMonitor()
+            networkMonitor?.pathUpdateHandler = { [weak self] path in
+                self?.isConnected = path.status == .satisfied
+                if path.usesInterfaceType(.wifi) {
+                    self?.connectionType = "wifi"
+                } else if path.usesInterfaceType(.cellular) {
+                    self?.connectionType = "cellular"
+                } else if path.usesInterfaceType(.wiredEthernet) {
+                    self?.connectionType = "ethernet"
+                } else {
+                    self?.connectionType = "unknown"
+                }
+                self?.sendToWeb("craftNetworkChange", data: [
+                    "isConnected": self?.isConnected ?? false,
+                    "type": self?.connectionType ?? "unknown"
+                ])
+            }
+            networkMonitor?.start(queue: DispatchQueue.global())
+        }
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard let body = message.body as? [String: Any],
+                  let action = body["action"] as? String else { return }
+
+            let callbackId = body["callbackId"] as? String
+
+            switch action {
+            case "startListening":
+                if config.enableSpeechRecognition { startSpeechRecognition() }
+            case "stopListening":
+                stopSpeechRecognition()
+            case "haptic":
+                if config.enableHaptics {
+                    let style = body["style"] as? String ?? "medium"
+                    triggerHaptic(style: style)
+                }
+            case "share":
+                if config.enableShare, let text = body["text"] as? String {
+                    shareText(text)
+                }
+            case "openCamera":
+                if config.enableCamera {
+                    pendingCallbackId = callbackId
+                    openCamera()
+                }
+            case "pickImage":
+                if config.enableCamera {
+                    pendingCallbackId = callbackId
+                    pickImage()
+                }
+            case "authenticate":
+                if config.enableBiometric {
+                    let reason = body["reason"] as? String ?? "Authenticate to continue"
+                    authenticate(reason: reason, callbackId: callbackId)
+                }
+            case "registerPush":
+                if config.enablePushNotifications {
+                    registerPushNotifications(callbackId: callbackId)
+                }
+            case "secureSet":
+                if config.enableSecureStorage,
+                   let key = body["key"] as? String,
+                   let value = body["value"] as? String {
+                    let success = secureStore(key: key, value: value)
+                    resolveCallback(callbackId, result: success)
+                }
+            case "secureGet":
+                if config.enableSecureStorage,
+                   let key = body["key"] as? String {
+                    let value = secureRetrieve(key: key)
+                    resolveCallback(callbackId, result: value as Any)
+                }
+            case "secureRemove":
+                if config.enableSecureStorage,
+                   let key = body["key"] as? String {
+                    let success = secureRemove(key: key)
+                    resolveCallback(callbackId, result: success)
+                }
+            case "log":
+                if let msg = body["message"] as? String {
+                    print("[Craft Web] \(msg)")
+                }
+            // Geolocation
+            case "getCurrentPosition":
+                if config.enableGeolocation {
+                    getCurrentPosition(callbackId: callbackId)
+                }
+            case "watchPosition":
+                if config.enableGeolocation {
+                    watchPosition(callbackId: callbackId)
+                }
+            case "clearWatch":
+                stopWatchingPosition()
+            // Clipboard
+            case "clipboardWrite":
+                if config.enableClipboard, let text = body["text"] as? String {
+                    UIPasteboard.general.string = text
+                    resolveCallback(callbackId, result: true)
+                }
+            case "clipboardRead":
+                if config.enableClipboard {
+                    let text = UIPasteboard.general.string ?? ""
+                    resolveCallback(callbackId, result: text)
+                }
+            // Device Info
+            case "getDeviceInfo":
+                getDeviceInfo(callbackId: callbackId)
+            // App Badge
+            case "setBadge":
+                if let count = body["count"] as? Int {
+                    setBadgeCount(count, callbackId: callbackId)
+                }
+            case "clearBadge":
+                setBadgeCount(0, callbackId: callbackId)
+            // Network Status
+            case "getNetworkStatus":
+                resolveCallback(callbackId, result: ["isConnected": isConnected, "type": connectionType])
+            // App Review
+            case "requestReview":
+                requestAppReview()
+                resolveCallback(callbackId, result: true)
+            // Flashlight/Torch
+            case "setFlashlight":
+                if let enabled = body["enabled"] as? Bool {
+                    setFlashlight(enabled: enabled, callbackId: callbackId)
+                }
+            // Vibrate pattern
+            case "vibrate":
+                if let pattern = body["pattern"] as? [Int] {
+                    vibratePattern(pattern)
+                } else {
+                    triggerHaptic(style: "medium")
+                }
+                resolveCallback(callbackId, result: true)
+            // Open URL
+            case "openURL":
+                if let urlString = body["url"] as? String, let url = URL(string: urlString) {
+                    UIApplication.shared.open(url)
+                    resolveCallback(callbackId, result: true)
+                }
+            // App state
+            case "getAppState":
+                let state = UIApplication.shared.applicationState
+                let stateStr = state == .active ? "active" : (state == .background ? "background" : "inactive")
+                resolveCallback(callbackId, result: stateStr)
+
+            // MARK: - Contacts
+            case "getContacts":
+                if config.enableContacts {
+                    getContacts(callbackId: callbackId)
+                }
+            case "addContact":
+                if config.enableContacts,
+                   let contactData = body["contact"] as? [String: Any] {
+                    addContact(contactData, callbackId: callbackId)
+                }
+
+            // MARK: - Calendar
+            case "getCalendarEvents":
+                if config.enableCalendar {
+                    let startDate = body["startDate"] as? Double
+                    let endDate = body["endDate"] as? Double
+                    getCalendarEvents(startDate: startDate, endDate: endDate, callbackId: callbackId)
+                }
+            case "createCalendarEvent":
+                if config.enableCalendar,
+                   let eventData = body["event"] as? [String: Any] {
+                    createCalendarEvent(eventData, callbackId: callbackId)
+                }
+            case "deleteCalendarEvent":
+                if config.enableCalendar,
+                   let eventId = body["eventId"] as? String {
+                    deleteCalendarEvent(eventId, callbackId: callbackId)
+                }
+
+            // MARK: - Local Notifications
+            case "scheduleNotification":
+                if config.enableLocalNotifications,
+                   let notifData = body["notification"] as? [String: Any] {
+                    scheduleLocalNotification(notifData, callbackId: callbackId)
+                }
+            case "cancelNotification":
+                if config.enableLocalNotifications,
+                   let notifId = body["id"] as? String {
+                    cancelLocalNotification(notifId, callbackId: callbackId)
+                }
+            case "cancelAllNotifications":
+                if config.enableLocalNotifications {
+                    cancelAllLocalNotifications(callbackId: callbackId)
+                }
+            case "getPendingNotifications":
+                if config.enableLocalNotifications {
+                    getPendingNotifications(callbackId: callbackId)
+                }
+
+            // MARK: - Deep Links
+            case "registerDeepLinkHandler":
+                if config.enableDeepLinks {
+                    // Handler is registered in JS
+                    resolveCallback(callbackId, result: true)
+                }
+
+            // MARK: - In-App Purchase
+            case "getProducts":
+                if config.enableInAppPurchase,
+                   let productIds = body["productIds"] as? [String] {
+                    getProducts(productIds, callbackId: callbackId)
+                }
+            case "purchase":
+                if config.enableInAppPurchase,
+                   let productId = body["productId"] as? String {
+                    purchaseProduct(productId, callbackId: callbackId)
+                }
+            case "restorePurchases":
+                if config.enableInAppPurchase {
+                    restorePurchases(callbackId: callbackId)
+                }
+
+            // MARK: - Keep Awake
+            case "setKeepAwake":
+                if config.enableKeepAwake,
+                   let enabled = body["enabled"] as? Bool {
+                    setKeepAwake(enabled, callbackId: callbackId)
+                }
+
+            // MARK: - Orientation Lock
+            case "lockOrientation":
+                if config.enableOrientationLock,
+                   let orientation = body["orientation"] as? String {
+                    lockOrientation(orientation, callbackId: callbackId)
+                }
+            case "unlockOrientation":
+                if config.enableOrientationLock {
+                    unlockOrientation(callbackId: callbackId)
+                }
+
+            // MARK: - QR/Barcode Scanner
+            case "scanQRCode":
+                if config.enableQRScanner {
+                    scanQRCode(callbackId: callbackId)
+                }
+
+            // MARK: - File Picker
+            case "pickFile":
+                if config.enableFilePicker {
+                    let types = body["types"] as? [String]
+                    pickFile(types: types, callbackId: callbackId)
+                }
+
+            // MARK: - File Download
+            case "downloadFile":
+                if config.enableFileDownload,
+                   let url = body["url"] as? String,
+                   let filename = body["filename"] as? String {
+                    downloadFile(url: url, filename: filename, callbackId: callbackId)
+                }
+            case "saveFile":
+                if config.enableFileDownload,
+                   let data = body["data"] as? String,
+                   let filename = body["filename"] as? String {
+                    saveFile(data: data, filename: filename, callbackId: callbackId)
+                }
+
+            // MARK: - Social Auth
+            case "signInWithApple":
+                if config.enableSocialAuth {
+                    signInWithApple(callbackId: callbackId)
+                }
+
+            // MARK: - Audio Recording
+            case "startAudioRecording":
+                if config.enableAudioRecording {
+                    startAudioRecording(callbackId: callbackId)
+                }
+            case "stopAudioRecording":
+                if config.enableAudioRecording {
+                    stopAudioRecording(callbackId: callbackId)
+                }
+
+            // MARK: - Video Recording
+            case "startVideoRecording":
+                if config.enableVideoRecording {
+                    startVideoRecording(callbackId: callbackId)
+                }
+
+            // MARK: - Motion Sensors
+            case "startMotionUpdates":
+                if config.enableMotionSensors {
+                    let interval = body["interval"] as? Double ?? 100
+                    startMotionUpdates(interval: interval, callbackId: callbackId)
+                }
+            case "stopMotionUpdates":
+                stopMotionUpdates()
+                resolveCallback(callbackId, result: true)
+
+            // MARK: - Local Database
+            case "dbExecute":
+                if config.enableLocalDatabase,
+                   let sql = body["sql"] as? String {
+                    let params = body["params"] as? [Any]
+                    dbExecute(sql: sql, params: params, callbackId: callbackId)
+                }
+            case "dbQuery":
+                if config.enableLocalDatabase,
+                   let sql = body["sql"] as? String {
+                    let params = body["params"] as? [Any]
+                    dbQuery(sql: sql, params: params, callbackId: callbackId)
+                }
+
+            // MARK: - Bluetooth
+            case "startBluetoothScan":
+                if config.enableBluetooth {
+                    startBluetoothScan(callbackId: callbackId)
+                }
+            case "stopBluetoothScan":
+                stopBluetoothScan()
+                resolveCallback(callbackId, result: true)
+
+            // MARK: - NFC
+            case "scanNFC":
+                if config.enableNFC {
+                    scanNFC(callbackId: callbackId)
+                }
+
+            // MARK: - Health
+            case "requestHealthAuthorization":
+                if config.enableHealthKit {
+                    let types = body["types"] as? [String] ?? []
+                    requestHealthAuthorization(types: types, callbackId: callbackId)
+                }
+            case "getHealthData":
+                if config.enableHealthKit,
+                   let dataType = body["type"] as? String {
+                    let startDate = body["startDate"] as? Double
+                    let endDate = body["endDate"] as? Double
+                    getHealthData(type: dataType, startDate: startDate, endDate: endDate, callbackId: callbackId)
+                }
+
+            // MARK: - Screen Capture
+            case "takeScreenshot":
+                if config.enableScreenCapture {
+                    takeScreenshot(callbackId: callbackId)
+                }
+
+            default:
+                break
+            }
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            self.webView = webView
+            injectNativeBridge()
+        }
+
+        private func injectNativeBridge() {
+            let laContext = LAContext()
+            var biometricAvailable = false
+            if laContext.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil) {
+                biometricAvailable = true
+            }
+
+            let script = """
+            window.craft = {
+                platform: 'ios',
+                capabilities: {
+                    haptics: \(config.enableHaptics),
+                    speechRecognition: \(config.enableSpeechRecognition),
+                    share: \(config.enableShare),
+                    camera: \(config.enableCamera),
+                    biometric: \(biometricAvailable && config.enableBiometric),
+                    pushNotifications: \(config.enablePushNotifications),
+                    secureStorage: \(config.enableSecureStorage),
+                    geolocation: \(config.enableGeolocation),
+                    clipboard: \(config.enableClipboard),
+                    contacts: \(config.enableContacts),
+                    calendar: \(config.enableCalendar),
+                    localNotifications: \(config.enableLocalNotifications),
+                    inAppPurchase: \(config.enableInAppPurchase),
+                    keepAwake: \(config.enableKeepAwake),
+                    orientationLock: \(config.enableOrientationLock),
+                    deepLinks: \(config.enableDeepLinks),
+                    flashlight: true,
+                    network: true,
+                    deviceInfo: true,
+                    badge: true,
+                    appReview: true
+                },
+
+                _callbacks: {},
+                _callbackId: 0,
+
+                _createCallback: function() {
+                    var id = 'cb_' + (++this._callbackId);
+                    var self = this;
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                        setTimeout(function() {
+                            if (self._callbacks[id]) {
+                                reject(new Error('Timeout'));
+                                delete self._callbacks[id];
+                            }
+                        }, 30000);
+                    }).finally(function() {
+                        return id;
+                    });
+                },
+
+                _resolveCallback: function(id, result) {
+                    if (this._callbacks[id]) {
+                        this._callbacks[id].resolve(result);
+                        delete this._callbacks[id];
+                    }
+                },
+
+                _rejectCallback: function(id, error) {
+                    if (this._callbacks[id]) {
+                        this._callbacks[id].reject(new Error(error));
+                        delete this._callbacks[id];
+                    }
+                },
+
+                haptic: function(style) {
+                    window.webkit.messageHandlers.craft.postMessage({action: 'haptic', style: style || 'medium'});
+                },
+
+                startListening: function() {
+                    window.webkit.messageHandlers.craft.postMessage({action: 'startListening'});
+                },
+
+                stopListening: function() {
+                    window.webkit.messageHandlers.craft.postMessage({action: 'stopListening'});
+                },
+
+                share: function(text) {
+                    window.webkit.messageHandlers.craft.postMessage({action: 'share', text: text});
+                },
+
+                openCamera: function() {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'openCamera', callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                pickImage: function() {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'pickImage', callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                authenticate: function(reason) {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'authenticate', reason: reason, callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                registerPush: function() {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'registerPush', callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                secureStore: {
+                    set: function(key, value) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'secureSet', key: key, value: value, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    get: function(key) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'secureGet', key: key, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    remove: function(key) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'secureRemove', key: key, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
+                },
+
+                // Geolocation
+                geolocation: {
+                    getCurrentPosition: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'getCurrentPosition', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    watchPosition: function(callback) {
+                        window.addEventListener('craftLocationUpdate', function(e) { callback(e.detail); });
+                        window.webkit.messageHandlers.craft.postMessage({action: 'watchPosition'});
+                    },
+                    clearWatch: function() {
+                        window.webkit.messageHandlers.craft.postMessage({action: 'clearWatch'});
+                    }
+                },
+
+                // Clipboard
+                clipboard: {
+                    write: function(text) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'clipboardWrite', text: text, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    read: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'clipboardRead', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
+                },
+
+                // Device info
+                getDeviceInfo: function() {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'getDeviceInfo', callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                // App badge
+                setBadge: function(count) {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'setBadge', count: count, callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+                clearBadge: function() {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'clearBadge', callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                // Network
+                getNetworkStatus: function() {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'getNetworkStatus', callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+                onNetworkChange: function(callback) {
+                    window.addEventListener('craftNetworkChange', function(e) { callback(e.detail); });
+                },
+
+                // App review
+                requestReview: function() {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'requestReview', callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                // Flashlight
+                setFlashlight: function(enabled) {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'setFlashlight', enabled: enabled, callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                // Vibrate
+                vibrate: function(pattern) {
+                    window.webkit.messageHandlers.craft.postMessage({action: 'vibrate', pattern: pattern});
+                },
+
+                // Open URL
+                openURL: function(url) {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'openURL', url: url, callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                // App state
+                getAppState: function() {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'getAppState', callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                // Contacts
+                contacts: {
+                    getAll: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'getContacts', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    add: function(contact) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'addContact', contact: contact, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
+                },
+
+                // Calendar
+                calendar: {
+                    getEvents: function(startDate, endDate) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'getCalendarEvents', startDate: startDate, endDate: endDate, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    createEvent: function(event) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'createCalendarEvent', event: event, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    deleteEvent: function(eventId) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'deleteCalendarEvent', eventId: eventId, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
+                },
+
+                // Local Notifications
+                notifications: {
+                    schedule: function(notification) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'scheduleNotification', notification: notification, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    cancel: function(notificationId) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'cancelNotification', id: notificationId, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    cancelAll: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'cancelAllNotifications', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    getPending: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'getPendingNotifications', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
+                },
+
+                // In-App Purchase
+                iap: {
+                    getProducts: function(productIds) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'getProducts', productIds: productIds, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    purchase: function(productId) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'purchase', productId: productId, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    restore: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'restorePurchases', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
+                },
+
+                // Keep Awake
+                setKeepAwake: function(enabled) {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'setKeepAwake', enabled: enabled, callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                // Orientation Lock
+                lockOrientation: function(orientation) {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'lockOrientation', orientation: orientation, callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+                unlockOrientation: function() {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'unlockOrientation', callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                // Deep Links
+                onDeepLink: function(callback) {
+                    window.addEventListener('craftDeepLink', function(e) { callback(e.detail); });
+                },
+
+                log: function(msg) {
+                    window.webkit.messageHandlers.craft.postMessage({action: 'log', message: msg});
+                }
+            };
+
+            // Dispatch ready event
+            window.dispatchEvent(new CustomEvent('craftReady', {detail: window.craft}));
+            console.log('Craft iOS bridge initialized');
+            """
+            webView?.evaluateJavaScript(script)
+        }
+
+        // MARK: - Callback Helpers
+        private func resolveCallback(_ callbackId: String?, result: Any) {
+            guard let id = callbackId else { return }
+            var resultStr: String
+            if let str = result as? String {
+                resultStr = "'\(str.replacingOccurrences(of: "'", with: "\\'"))'"
+            } else if let bool = result as? Bool {
+                resultStr = bool ? "true" : "false"
+            } else if result is NSNull {
+                resultStr = "null"
+            } else {
+                resultStr = "null"
+            }
+            let script = "window.craft._resolveCallback('\(id)', \(resultStr));"
+            DispatchQueue.main.async { self.webView?.evaluateJavaScript(script, completionHandler: nil) }
+        }
+
+        private func rejectCallback(_ callbackId: String?, error: String) {
+            guard let id = callbackId else { return }
+            let script = "window.craft._rejectCallback('\(id)', '\(error.replacingOccurrences(of: "'", with: "\\'"))');"
+            DispatchQueue.main.async { self.webView?.evaluateJavaScript(script, completionHandler: nil) }
+        }
+
+        // MARK: - Speech Recognition
+        private func startSpeechRecognition() {
+            SFSpeechRecognizer.requestAuthorization { [weak self] status in
+                guard status == .authorized else {
+                    self?.sendToWeb("craftSpeechError", data: ["error": "Not authorized"])
+                    return
+                }
+                DispatchQueue.main.async { self?.beginRecording() }
+            }
+        }
+
+        private func beginRecording() {
+            if recognitionTask != nil {
+                recognitionTask?.cancel()
+                recognitionTask = nil
+            }
+
+            let audioSession = AVAudioSession.sharedInstance()
+            do {
+                try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+                try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            } catch {
+                sendToWeb("craftSpeechError", data: ["error": "Audio session failed"])
+                return
+            }
+
+            recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+            guard let recognitionRequest = recognitionRequest,
+                  let speechRecognizer = speechRecognizer,
+                  speechRecognizer.isAvailable else {
+                sendToWeb("craftSpeechError", data: ["error": "Speech recognizer unavailable"])
+                return
+            }
+
+            recognitionRequest.shouldReportPartialResults = true
+            let inputNode = audioEngine.inputNode
+
+            recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+                if let result = result {
+                    let transcript = result.bestTranscription.formattedString
+                    self?.sendToWeb("craftSpeechResult", data: [
+                        "transcript": transcript,
+                        "isFinal": result.isFinal
+                    ])
+                }
+                if error != nil || result?.isFinal == true {
+                    self?.stopSpeechRecognition()
+                }
+            }
+
+            let recordingFormat = inputNode.outputFormat(forBus: 0)
+            inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+                self?.recognitionRequest?.append(buffer)
+            }
+
+            audioEngine.prepare()
+            do {
+                try audioEngine.start()
+                sendToWeb("craftSpeechStart", data: [:])
+                triggerHaptic(style: "light")
+            } catch {
+                sendToWeb("craftSpeechError", data: ["error": "Audio engine failed"])
+            }
+        }
+
+        private func stopSpeechRecognition() {
+            audioEngine.stop()
+            audioEngine.inputNode.removeTap(onBus: 0)
+            recognitionRequest?.endAudio()
+            recognitionRequest = nil
+            recognitionTask?.cancel()
+            recognitionTask = nil
+            sendToWeb("craftSpeechEnd", data: [:])
+            triggerHaptic(style: "light")
+        }
+
+        // MARK: - Haptics
+        private func triggerHaptic(style: String) {
+            switch style {
+            case "light":
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            case "heavy":
+                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+            case "success":
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            case "warning":
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            case "error":
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+            case "selection":
+                UISelectionFeedbackGenerator().selectionChanged()
+            default:
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            }
+        }
+
+        // MARK: - Share
+        private func shareText(_ text: String) {
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let rootVC = windowScene.windows.first?.rootViewController else { return }
+            let activityVC = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+            rootVC.present(activityVC, animated: true)
+        }
+
+        // MARK: - Camera & Photo Library
+        private func openCamera() {
+            DispatchQueue.main.async {
+                guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                    self.rejectCallback(self.pendingCallbackId, error: "Camera not available")
+                    return
+                }
+                guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let rootVC = windowScene.windows.first?.rootViewController else { return }
+
+                let picker = UIImagePickerController()
+                picker.sourceType = .camera
+                picker.delegate = self
+                rootVC.present(picker, animated: true)
+            }
+        }
+
+        private func pickImage() {
+            DispatchQueue.main.async {
+                guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let rootVC = windowScene.windows.first?.rootViewController else { return }
+
+                let picker = UIImagePickerController()
+                picker.sourceType = .photoLibrary
+                picker.delegate = self
+                rootVC.present(picker, animated: true)
+            }
+        }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            picker.dismiss(animated: true)
+
+            if let image = info[.originalImage] as? UIImage,
+               let imageData = image.jpegData(compressionQuality: 0.8) {
+                let base64 = "data:image/jpeg;base64," + imageData.base64EncodedString()
+                resolveCallback(pendingCallbackId, result: base64)
+            } else {
+                rejectCallback(pendingCallbackId, error: "Failed to process image")
+            }
+            pendingCallbackId = nil
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+            rejectCallback(pendingCallbackId, error: "Cancelled")
+            pendingCallbackId = nil
+        }
+
+        // MARK: - Biometric Authentication
+        private func authenticate(reason: String, callbackId: String?) {
+            let context = LAContext()
+            var error: NSError?
+
+            if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
+                context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { [weak self] success, authError in
+                    DispatchQueue.main.async {
+                        if success {
+                            self?.resolveCallback(callbackId, result: true)
+                        } else {
+                            self?.rejectCallback(callbackId, error: authError?.localizedDescription ?? "Authentication failed")
+                        }
+                    }
+                }
+            } else {
+                rejectCallback(callbackId, error: error?.localizedDescription ?? "Biometric not available")
+            }
+        }
+
+        // MARK: - Push Notifications
+        private func registerPushNotifications(callbackId: String?) {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { [weak self] granted, error in
+                if granted {
+                    DispatchQueue.main.async {
+                        UIApplication.shared.registerForRemoteNotifications()
+                        // In a real app, you'd get the device token from application delegate
+                        self?.resolveCallback(callbackId, result: "push-registered")
+                    }
+                } else {
+                    self?.rejectCallback(callbackId, error: error?.localizedDescription ?? "Permission denied")
+                }
+            }
+        }
+
+        // MARK: - Secure Storage (Keychain)
+        private func secureStore(key: String, value: String) -> Bool {
+            let data = value.data(using: .utf8)!
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key,
+                kSecValueData as String: data,
+                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            ]
+
+            SecItemDelete(query as CFDictionary)
+            let status = SecItemAdd(query as CFDictionary, nil)
+            return status == errSecSuccess
+        }
+
+        private func secureRetrieve(key: String) -> String? {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key,
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne
+            ]
+
+            var result: AnyObject?
+            let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+            if status == errSecSuccess, let data = result as? Data {
+                return String(data: data, encoding: .utf8)
+            }
+            return nil
+        }
+
+        private func secureRemove(key: String) -> Bool {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key
+            ]
+            let status = SecItemDelete(query as CFDictionary)
+            return status == errSecSuccess || status == errSecItemNotFound
+        }
+
+        // MARK: - Geolocation
+        private func getCurrentPosition(callbackId: String?) {
+            locationManager?.delegate = self
+            locationCallbackId = callbackId
+            locationManager?.requestWhenInUseAuthorization()
+            locationManager?.requestLocation()
+        }
+
+        private func watchPosition(callbackId: String?) {
+            locationManager?.delegate = self
+            locationCallbackId = callbackId
+            locationManager?.requestWhenInUseAuthorization()
+            locationManager?.startUpdatingLocation()
+        }
+
+        private func stopWatchingPosition() {
+            locationManager?.stopUpdatingLocation()
+        }
+
+        func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+            guard let location = locations.last else { return }
+            let data: [String: Any] = [
+                "latitude": location.coordinate.latitude,
+                "longitude": location.coordinate.longitude,
+                "altitude": location.altitude,
+                "accuracy": location.horizontalAccuracy,
+                "altitudeAccuracy": location.verticalAccuracy,
+                "heading": location.course,
+                "speed": location.speed,
+                "timestamp": location.timestamp.timeIntervalSince1970 * 1000
+            ]
+
+            if let callbackId = locationCallbackId {
+                resolveCallback(callbackId, result: data)
+                // For single request, clear callback
+                if !manager.allowsBackgroundLocationUpdates {
+                    locationCallbackId = nil
+                }
+            }
+
+            sendToWeb("craftLocationUpdate", data: data)
+        }
+
+        func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+            rejectCallback(locationCallbackId, error: error.localizedDescription)
+            locationCallbackId = nil
+        }
+
+        // MARK: - Device Info
+        private func getDeviceInfo(callbackId: String?) {
+            let device = UIDevice.current
+            let screen = UIScreen.main
+            let info: [String: Any] = [
+                "platform": "ios",
+                "model": device.model,
+                "name": device.name,
+                "systemName": device.systemName,
+                "systemVersion": device.systemVersion,
+                "identifierForVendor": device.identifierForVendor?.uuidString ?? "",
+                "isSimulator": TARGET_OS_SIMULATOR != 0,
+                "screenWidth": screen.bounds.width,
+                "screenHeight": screen.bounds.height,
+                "screenScale": screen.scale,
+                "batteryLevel": device.batteryLevel,
+                "batteryState": getBatteryState(device.batteryState),
+                "locale": Locale.current.identifier,
+                "timezone": TimeZone.current.identifier
+            ]
+            resolveCallback(callbackId, result: info)
+        }
+
+        private func getBatteryState(_ state: UIDevice.BatteryState) -> String {
+            switch state {
+            case .charging: return "charging"
+            case .full: return "full"
+            case .unplugged: return "unplugged"
+            default: return "unknown"
+            }
+        }
+
+        // MARK: - App Badge
+        private func setBadgeCount(_ count: Int, callbackId: String?) {
+            UNUserNotificationCenter.current().requestAuthorization(options: .badge) { granted, _ in
+                if granted {
+                    DispatchQueue.main.async {
+                        UIApplication.shared.applicationIconBadgeNumber = count
+                        self.resolveCallback(callbackId, result: true)
+                    }
+                } else {
+                    self.rejectCallback(callbackId, error: "Badge permission denied")
+                }
+            }
+        }
+
+        // MARK: - App Review
+        private func requestAppReview() {
+            DispatchQueue.main.async {
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                    SKStoreReviewController.requestReview(in: windowScene)
+                }
+            }
+        }
+
+        // MARK: - Flashlight
+        private func setFlashlight(enabled: Bool, callbackId: String?) {
+            guard let device = AVCaptureDevice.default(for: .video), device.hasTorch else {
+                rejectCallback(callbackId, error: "Flashlight not available")
+                return
+            }
+
+            do {
+                try device.lockForConfiguration()
+                device.torchMode = enabled ? .on : .off
+                device.unlockForConfiguration()
+                resolveCallback(callbackId, result: true)
+            } catch {
+                rejectCallback(callbackId, error: error.localizedDescription)
+            }
+        }
+
+        // MARK: - Vibration Pattern
+        private func vibratePattern(_ pattern: [Int]) {
+            // iOS doesn't support custom vibration patterns like Android
+            // We'll use haptic feedback instead
+            for (index, duration) in pattern.enumerated() {
+                if index % 2 == 0 && duration > 0 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + Double(duration) / 1000.0) {
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    }
+                }
+            }
+        }
+
+        // MARK: - Contacts
+        private func getContacts(callbackId: String?) {
+            contactStore?.requestAccess(for: .contacts) { [weak self] granted, error in
+                guard granted else {
+                    self?.rejectCallback(callbackId, error: error?.localizedDescription ?? "Permission denied")
+                    return
+                }
+
+                let keys = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactPhoneNumbersKey, CNContactEmailAddressesKey, CNContactIdentifierKey] as [CNKeyDescriptor]
+                let request = CNContactFetchRequest(keysToFetch: keys)
+
+                var contacts: [[String: Any]] = []
+                do {
+                    try self?.contactStore?.enumerateContacts(with: request) { contact, _ in
+                        var phones: [String] = []
+                        for phone in contact.phoneNumbers {
+                            phones.append(phone.value.stringValue)
+                        }
+                        var emails: [String] = []
+                        for email in contact.emailAddresses {
+                            emails.append(email.value as String)
+                        }
+                        contacts.append([
+                            "id": contact.identifier,
+                            "givenName": contact.givenName,
+                            "familyName": contact.familyName,
+                            "displayName": "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces),
+                            "phoneNumbers": phones,
+                            "emailAddresses": emails
+                        ])
+                    }
+                    self?.resolveCallback(callbackId, result: contacts)
+                } catch {
+                    self?.rejectCallback(callbackId, error: error.localizedDescription)
+                }
+            }
+        }
+
+        private func addContact(_ data: [String: Any], callbackId: String?) {
+            contactStore?.requestAccess(for: .contacts) { [weak self] granted, error in
+                guard granted else {
+                    self?.rejectCallback(callbackId, error: "Permission denied")
+                    return
+                }
+
+                let contact = CNMutableContact()
+                if let givenName = data["givenName"] as? String { contact.givenName = givenName }
+                if let familyName = data["familyName"] as? String { contact.familyName = familyName }
+                if let phone = data["phone"] as? String {
+                    contact.phoneNumbers = [CNLabeledValue(label: CNLabelPhoneNumberMain, value: CNPhoneNumber(stringValue: phone))]
+                }
+                if let email = data["email"] as? String {
+                    contact.emailAddresses = [CNLabeledValue(label: CNLabelHome, value: email as NSString)]
+                }
+
+                let saveRequest = CNSaveRequest()
+                saveRequest.add(contact, toContainerWithIdentifier: nil)
+
+                do {
+                    try self?.contactStore?.execute(saveRequest)
+                    self?.resolveCallback(callbackId, result: contact.identifier)
+                } catch {
+                    self?.rejectCallback(callbackId, error: error.localizedDescription)
+                }
+            }
+        }
+
+        // MARK: - Calendar
+        private func getCalendarEvents(startDate: Double?, endDate: Double?, callbackId: String?) {
+            eventStore?.requestAccess(to: .event) { [weak self] granted, error in
+                guard granted else {
+                    self?.rejectCallback(callbackId, error: error?.localizedDescription ?? "Permission denied")
+                    return
+                }
+
+                let start = startDate != nil ? Date(timeIntervalSince1970: startDate! / 1000) : Date()
+                let end = endDate != nil ? Date(timeIntervalSince1970: endDate! / 1000) : Calendar.current.date(byAdding: .month, value: 1, to: Date())!
+
+                let predicate = self?.eventStore?.predicateForEvents(withStart: start, end: end, calendars: nil)
+                let events = self?.eventStore?.events(matching: predicate!) ?? []
+
+                let eventData: [[String: Any]] = events.map { event in
+                    return [
+                        "id": event.eventIdentifier ?? "",
+                        "title": event.title ?? "",
+                        "location": event.location ?? "",
+                        "notes": event.notes ?? "",
+                        "startDate": event.startDate.timeIntervalSince1970 * 1000,
+                        "endDate": event.endDate.timeIntervalSince1970 * 1000,
+                        "isAllDay": event.isAllDay
+                    ]
+                }
+
+                self?.resolveCallback(callbackId, result: eventData)
+            }
+        }
+
+        private func createCalendarEvent(_ data: [String: Any], callbackId: String?) {
+            eventStore?.requestAccess(to: .event) { [weak self] granted, error in
+                guard granted else {
+                    self?.rejectCallback(callbackId, error: "Permission denied")
+                    return
+                }
+
+                let event = EKEvent(eventStore: self!.eventStore!)
+                event.title = data["title"] as? String ?? ""
+                event.location = data["location"] as? String
+                event.notes = data["notes"] as? String
+
+                if let start = data["startDate"] as? Double {
+                    event.startDate = Date(timeIntervalSince1970: start / 1000)
+                }
+                if let end = data["endDate"] as? Double {
+                    event.endDate = Date(timeIntervalSince1970: end / 1000)
+                }
+                event.isAllDay = data["isAllDay"] as? Bool ?? false
+                event.calendar = self?.eventStore?.defaultCalendarForNewEvents
+
+                do {
+                    try self?.eventStore?.save(event, span: .thisEvent)
+                    self?.resolveCallback(callbackId, result: event.eventIdentifier)
+                } catch {
+                    self?.rejectCallback(callbackId, error: error.localizedDescription)
+                }
+            }
+        }
+
+        private func deleteCalendarEvent(_ eventId: String, callbackId: String?) {
+            guard let event = eventStore?.event(withIdentifier: eventId) else {
+                rejectCallback(callbackId, error: "Event not found")
+                return
+            }
+
+            do {
+                try eventStore?.remove(event, span: .thisEvent)
+                resolveCallback(callbackId, result: true)
+            } catch {
+                rejectCallback(callbackId, error: error.localizedDescription)
+            }
+        }
+
+        // MARK: - Local Notifications
+        private func scheduleLocalNotification(_ data: [String: Any], callbackId: String?) {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
+                guard granted else {
+                    self?.rejectCallback(callbackId, error: "Permission denied")
+                    return
+                }
+
+                let content = UNMutableNotificationContent()
+                content.title = data["title"] as? String ?? ""
+                content.body = data["body"] as? String ?? ""
+                if let subtitle = data["subtitle"] as? String { content.subtitle = subtitle }
+                if let badge = data["badge"] as? Int { content.badge = NSNumber(value: badge) }
+                content.sound = .default
+
+                let id = data["id"] as? String ?? UUID().uuidString
+                var trigger: UNNotificationTrigger?
+
+                if let timestamp = data["timestamp"] as? Double {
+                    let date = Date(timeIntervalSince1970: timestamp / 1000)
+                    let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+                    trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+                } else if let delay = data["delay"] as? Double {
+                    trigger = UNTimeIntervalNotificationTrigger(timeInterval: delay / 1000, repeats: false)
+                }
+
+                let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+                UNUserNotificationCenter.current().add(request) { error in
+                    if let error = error {
+                        self?.rejectCallback(callbackId, error: error.localizedDescription)
+                    } else {
+                        self?.resolveCallback(callbackId, result: id)
+                    }
+                }
+            }
+        }
+
+        private func cancelLocalNotification(_ id: String, callbackId: String?) {
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+            resolveCallback(callbackId, result: true)
+        }
+
+        private func cancelAllLocalNotifications(callbackId: String?) {
+            UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+            resolveCallback(callbackId, result: true)
+        }
+
+        private func getPendingNotifications(callbackId: String?) {
+            UNUserNotificationCenter.current().getPendingNotificationRequests { [weak self] requests in
+                let notifications: [[String: Any]] = requests.map { request in
+                    return [
+                        "id": request.identifier,
+                        "title": request.content.title,
+                        "body": request.content.body,
+                        "subtitle": request.content.subtitle
+                    ]
+                }
+                self?.resolveCallback(callbackId, result: notifications)
+            }
+        }
+
+        // MARK: - In-App Purchase
+        private func getProducts(_ productIds: [String], callbackId: String?) {
+            Task {
+                do {
+                    let products = try await Product.products(for: Set(productIds))
+                    let productData: [[String: Any]] = products.map { product in
+                        return [
+                            "id": product.id,
+                            "displayName": product.displayName,
+                            "description": product.description,
+                            "price": product.price.description,
+                            "displayPrice": product.displayPrice
+                        ]
+                    }
+                    resolveCallback(callbackId, result: productData)
+                } catch {
+                    rejectCallback(callbackId, error: error.localizedDescription)
+                }
+            }
+        }
+
+        private func purchaseProduct(_ productId: String, callbackId: String?) {
+            Task {
+                do {
+                    let products = try await Product.products(for: [productId])
+                    guard let product = products.first else {
+                        rejectCallback(callbackId, error: "Product not found")
+                        return
+                    }
+
+                    let result = try await product.purchase()
+                    switch result {
+                    case .success(let verification):
+                        switch verification {
+                        case .verified(let transaction):
+                            await transaction.finish()
+                            resolveCallback(callbackId, result: ["transactionId": String(transaction.id), "productId": transaction.productID])
+                        case .unverified(_, let error):
+                            rejectCallback(callbackId, error: error.localizedDescription)
+                        }
+                    case .userCancelled:
+                        rejectCallback(callbackId, error: "User cancelled")
+                    case .pending:
+                        rejectCallback(callbackId, error: "Purchase pending")
+                    @unknown default:
+                        rejectCallback(callbackId, error: "Unknown result")
+                    }
+                } catch {
+                    rejectCallback(callbackId, error: error.localizedDescription)
+                }
+            }
+        }
+
+        private func restorePurchases(callbackId: String?) {
+            Task {
+                do {
+                    try await AppStore.sync()
+                    var restored: [[String: Any]] = []
+                    for await result in Transaction.currentEntitlements {
+                        if case .verified(let transaction) = result {
+                            restored.append([
+                                "transactionId": String(transaction.id),
+                                "productId": transaction.productID
+                            ])
+                        }
+                    }
+                    resolveCallback(callbackId, result: restored)
+                } catch {
+                    rejectCallback(callbackId, error: error.localizedDescription)
+                }
+            }
+        }
+
+        // MARK: - Keep Awake
+        private func setKeepAwake(_ enabled: Bool, callbackId: String?) {
+            DispatchQueue.main.async {
+                UIApplication.shared.isIdleTimerDisabled = enabled
+                self.isKeepingAwake = enabled
+                self.resolveCallback(callbackId, result: enabled)
+            }
+        }
+
+        // MARK: - Orientation Lock
+        private func lockOrientation(_ orientation: String, callbackId: String?) {
+            var mask: UIInterfaceOrientationMask = .all
+            var uiOrientation: UIInterfaceOrientation = .unknown
+
+            switch orientation {
+            case "portrait":
+                mask = .portrait
+                uiOrientation = .portrait
+            case "portraitUpsideDown":
+                mask = .portraitUpsideDown
+                uiOrientation = .portraitUpsideDown
+            case "landscapeLeft":
+                mask = .landscapeLeft
+                uiOrientation = .landscapeLeft
+            case "landscapeRight":
+                mask = .landscapeRight
+                uiOrientation = .landscapeRight
+            case "landscape":
+                mask = .landscape
+                uiOrientation = .landscapeLeft
+            default:
+                mask = .all
+            }
+
+            lockedOrientation = mask
+
+            DispatchQueue.main.async {
+                if #available(iOS 16.0, *) {
+                    guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
+                    windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: mask))
+                } else {
+                    UIDevice.current.setValue(uiOrientation.rawValue, forKey: "orientation")
+                }
+                self.resolveCallback(callbackId, result: true)
+            }
+        }
+
+        private func unlockOrientation(callbackId: String?) {
+            lockedOrientation = nil
+            DispatchQueue.main.async {
+                if #available(iOS 16.0, *) {
+                    guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else { return }
+                    windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .all))
+                }
+                self.resolveCallback(callbackId, result: true)
+            }
+        }
+
+        // MARK: - Deep Links
+        func handleDeepLink(_ url: URL) {
+            pendingDeepLink = url
+            sendToWeb("craftDeepLink", data: [
+                "url": url.absoluteString,
+                "scheme": url.scheme ?? "",
+                "host": url.host ?? "",
+                "path": url.path,
+                "query": url.query ?? ""
+            ])
+        }
+
+        // MARK: - QR/Barcode Scanner
+        private func scanQRCode(callbackId: String?) {
+            DispatchQueue.main.async {
+                guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let rootVC = windowScene.windows.first?.rootViewController else { return }
+
+                if #available(iOS 16.0, *) {
+                    let scannerVC = DataScannerViewController(
+                        recognizedDataTypes: [.barcode()],
+                        qualityLevel: .balanced,
+                        isHighlightingEnabled: true
+                    )
+                    scannerVC.delegate = self
+                    self.pendingCallbackId = callbackId
+                    rootVC.present(scannerVC, animated: true) {
+                        try? scannerVC.startScanning()
+                    }
+                } else {
+                    self.rejectCallback(callbackId, error: "QR scanning requires iOS 16+")
+                }
+            }
+        }
+
+        // MARK: - File Picker
+        private func pickFile(types: [String]?, callbackId: String?) {
+            DispatchQueue.main.async {
+                guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let rootVC = windowScene.windows.first?.rootViewController else { return }
+
+                var allowedTypes: [UTType] = [.item]
+                if let types = types {
+                    allowedTypes = types.compactMap { UTType(mimeType: $0) ?? UTType(filenameExtension: $0) }
+                }
+
+                let picker = UIDocumentPickerViewController(forOpeningContentTypes: allowedTypes)
+                picker.delegate = self
+                picker.allowsMultipleSelection = false
+                self.pendingCallbackId = callbackId
+                rootVC.present(picker, animated: true)
+            }
+        }
+
+        // MARK: - File Download
+        private func downloadFile(url: String, filename: String, callbackId: String?) {
+            guard let downloadURL = URL(string: url) else {
+                rejectCallback(callbackId, error: "Invalid URL")
+                return
+            }
+
+            let task = URLSession.shared.downloadTask(with: downloadURL) { [weak self] localURL, response, error in
+                if let error = error {
+                    self?.rejectCallback(callbackId, error: error.localizedDescription)
+                    return
+                }
+
+                guard let localURL = localURL else {
+                    self?.rejectCallback(callbackId, error: "Download failed")
+                    return
+                }
+
+                let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let destinationURL = documentsPath.appendingPathComponent(filename)
+
+                do {
+                    if FileManager.default.fileExists(atPath: destinationURL.path) {
+                        try FileManager.default.removeItem(at: destinationURL)
+                    }
+                    try FileManager.default.moveItem(at: localURL, to: destinationURL)
+                    self?.resolveCallback(callbackId, result: destinationURL.path)
+                } catch {
+                    self?.rejectCallback(callbackId, error: error.localizedDescription)
+                }
+            }
+            task.resume()
+        }
+
+        private func saveFile(data: String, filename: String, callbackId: String?) {
+            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let fileURL = documentsPath.appendingPathComponent(filename)
+
+            do {
+                if data.hasPrefix("data:") {
+                    // Base64 data URL
+                    let parts = data.components(separatedBy: ",")
+                    if parts.count == 2, let fileData = Data(base64Encoded: parts[1]) {
+                        try fileData.write(to: fileURL)
+                    }
+                } else {
+                    // Plain text
+                    try data.write(to: fileURL, atomically: true, encoding: .utf8)
+                }
+                resolveCallback(callbackId, result: fileURL.path)
+            } catch {
+                rejectCallback(callbackId, error: error.localizedDescription)
+            }
+        }
+
+        // MARK: - Social Auth (Apple Sign In)
+        private func signInWithApple(callbackId: String?) {
+            DispatchQueue.main.async {
+                self.pendingCallbackId = callbackId
+                let provider = ASAuthorizationAppleIDProvider()
+                let request = provider.createRequest()
+                request.requestedScopes = [.fullName, .email]
+
+                let controller = ASAuthorizationController(authorizationRequests: [request])
+                controller.delegate = self
+                controller.presentationContextProvider = self
+                controller.performRequests()
+            }
+        }
+
+        // MARK: - Audio Recording
+        private func startAudioRecording(callbackId: String?) {
+            AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+                guard granted else {
+                    self?.rejectCallback(callbackId, error: "Microphone permission denied")
+                    return
+                }
+
+                DispatchQueue.main.async {
+                    let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    let audioFilename = documentsPath.appendingPathComponent("recording_\(Date().timeIntervalSince1970).m4a")
+                    self?.recordingURL = audioFilename
+
+                    let settings: [String: Any] = [
+                        AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+                        AVSampleRateKey: 44100.0,
+                        AVNumberOfChannelsKey: 2,
+                        AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
+                    ]
+
+                    do {
+                        try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default)
+                        try AVAudioSession.sharedInstance().setActive(true)
+
+                        self?.audioRecorder = try AVAudioRecorder(url: audioFilename, settings: settings)
+                        self?.audioRecorder?.record()
+                        self?.resolveCallback(callbackId, result: true)
+                    } catch {
+                        self?.rejectCallback(callbackId, error: error.localizedDescription)
+                    }
+                }
+            }
+        }
+
+        private func stopAudioRecording(callbackId: String?) {
+            audioRecorder?.stop()
+            audioRecorder = nil
+
+            if let url = recordingURL, FileManager.default.fileExists(atPath: url.path) {
+                if let data = try? Data(contentsOf: url) {
+                    let base64 = "data:audio/m4a;base64," + data.base64EncodedString()
+                    resolveCallback(callbackId, result: base64)
+                } else {
+                    resolveCallback(callbackId, result: url.path)
+                }
+            } else {
+                rejectCallback(callbackId, error: "No recording found")
+            }
+            recordingURL = nil
+        }
+
+        // MARK: - Video Recording
+        private func startVideoRecording(callbackId: String?) {
+            DispatchQueue.main.async {
+                guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                    self.rejectCallback(callbackId, error: "Camera not available")
+                    return
+                }
+
+                guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let rootVC = windowScene.windows.first?.rootViewController else { return }
+
+                let picker = UIImagePickerController()
+                picker.sourceType = .camera
+                picker.mediaTypes = ["public.movie"]
+                picker.videoQuality = .typeMedium
+                picker.delegate = self
+                self.pendingCallbackId = callbackId
+                rootVC.present(picker, animated: true)
+            }
+        }
+
+        // MARK: - Motion Sensors
+        private func startMotionUpdates(interval: Double, callbackId: String?) {
+            guard let motionManager = motionManager, motionManager.isDeviceMotionAvailable else {
+                rejectCallback(callbackId, error: "Motion sensors not available")
+                return
+            }
+
+            let updateInterval = interval / 1000.0 // Convert ms to seconds
+            motionManager.deviceMotionUpdateInterval = updateInterval
+
+            motionManager.startDeviceMotionUpdates(to: .main) { [weak self] motion, error in
+                guard let motion = motion else { return }
+
+                self?.sendToWeb("craftMotionUpdate", data: [
+                    "acceleration": [
+                        "x": motion.userAcceleration.x,
+                        "y": motion.userAcceleration.y,
+                        "z": motion.userAcceleration.z
+                    ],
+                    "rotation": [
+                        "alpha": motion.attitude.yaw,
+                        "beta": motion.attitude.pitch,
+                        "gamma": motion.attitude.roll
+                    ],
+                    "gravity": [
+                        "x": motion.gravity.x,
+                        "y": motion.gravity.y,
+                        "z": motion.gravity.z
+                    ]
+                ])
+            }
+
+            isMotionUpdating = true
+            resolveCallback(callbackId, result: true)
+        }
+
+        private func stopMotionUpdates() {
+            motionManager?.stopDeviceMotionUpdates()
+            isMotionUpdating = false
+        }
+
+        // MARK: - Local Database (SQLite)
+        private func dbExecute(sql: String, params: [Any]?, callbackId: String?) {
+            guard let db = db else {
+                rejectCallback(callbackId, error: "Database not initialized")
+                return
+            }
+
+            var statement: OpaquePointer?
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                // Bind parameters
+                if let params = params {
+                    for (index, param) in params.enumerated() {
+                        let idx = Int32(index + 1)
+                        if let str = param as? String {
+                            sqlite3_bind_text(statement, idx, str, -1, nil)
+                        } else if let int = param as? Int {
+                            sqlite3_bind_int(statement, idx, Int32(int))
+                        } else if let double = param as? Double {
+                            sqlite3_bind_double(statement, idx, double)
+                        } else {
+                            sqlite3_bind_null(statement, idx)
+                        }
+                    }
+                }
+
+                if sqlite3_step(statement) == SQLITE_DONE {
+                    let rowsAffected = sqlite3_changes(db)
+                    let lastInsertId = sqlite3_last_insert_rowid(db)
+                    resolveCallback(callbackId, result: ["rowsAffected": rowsAffected, "lastInsertId": lastInsertId])
+                } else {
+                    let error = String(cString: sqlite3_errmsg(db))
+                    rejectCallback(callbackId, error: error)
+                }
+            } else {
+                let error = String(cString: sqlite3_errmsg(db))
+                rejectCallback(callbackId, error: error)
+            }
+            sqlite3_finalize(statement)
+        }
+
+        private func dbQuery(sql: String, params: [Any]?, callbackId: String?) {
+            guard let db = db else {
+                rejectCallback(callbackId, error: "Database not initialized")
+                return
+            }
+
+            var statement: OpaquePointer?
+            var results: [[String: Any]] = []
+
+            if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK {
+                // Bind parameters
+                if let params = params {
+                    for (index, param) in params.enumerated() {
+                        let idx = Int32(index + 1)
+                        if let str = param as? String {
+                            sqlite3_bind_text(statement, idx, str, -1, nil)
+                        } else if let int = param as? Int {
+                            sqlite3_bind_int(statement, idx, Int32(int))
+                        } else if let double = param as? Double {
+                            sqlite3_bind_double(statement, idx, double)
+                        } else {
+                            sqlite3_bind_null(statement, idx)
+                        }
+                    }
+                }
+
+                let columnCount = sqlite3_column_count(statement)
+
+                while sqlite3_step(statement) == SQLITE_ROW {
+                    var row: [String: Any] = [:]
+                    for i in 0..<columnCount {
+                        let columnName = String(cString: sqlite3_column_name(statement, i))
+                        let type = sqlite3_column_type(statement, i)
+
+                        switch type {
+                        case SQLITE_INTEGER:
+                            row[columnName] = sqlite3_column_int(statement, i)
+                        case SQLITE_FLOAT:
+                            row[columnName] = sqlite3_column_double(statement, i)
+                        case SQLITE_TEXT:
+                            if let text = sqlite3_column_text(statement, i) {
+                                row[columnName] = String(cString: text)
+                            }
+                        case SQLITE_NULL:
+                            row[columnName] = NSNull()
+                        default:
+                            break
+                        }
+                    }
+                    results.append(row)
+                }
+
+                resolveCallback(callbackId, result: results)
+            } else {
+                let error = String(cString: sqlite3_errmsg(db))
+                rejectCallback(callbackId, error: error)
+            }
+            sqlite3_finalize(statement)
+        }
+
+        // MARK: - Bluetooth
+        private func startBluetoothScan(callbackId: String?) {
+            centralManager = CBCentralManager(delegate: self, queue: nil)
+            pendingCallbackId = callbackId
+            // Scanning starts in centralManagerDidUpdateState
+        }
+
+        private func stopBluetoothScan() {
+            centralManager?.stopScan()
+            centralManager = nil
+            discoveredPeripherals.removeAll()
+        }
+
+        // MARK: - NFC
+        private func scanNFC(callbackId: String?) {
+            guard NFCNDEFReaderSession.readingAvailable else {
+                rejectCallback(callbackId, error: "NFC not available")
+                return
+            }
+
+            pendingCallbackId = callbackId
+            let session = NFCNDEFReaderSession(delegate: self, queue: nil, invalidateAfterFirstRead: true)
+            session.alertMessage = "Hold your iPhone near the NFC tag"
+            session.begin()
+        }
+
+        // MARK: - Health
+        private func requestHealthAuthorization(types: [String], callbackId: String?) {
+            guard let healthStore = healthStore else {
+                rejectCallback(callbackId, error: "HealthKit not available")
+                return
+            }
+
+            var readTypes: Set<HKObjectType> = []
+
+            for type in types {
+                switch type {
+                case "steps":
+                    if let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) {
+                        readTypes.insert(stepType)
+                    }
+                case "heartRate":
+                    if let heartType = HKQuantityType.quantityType(forIdentifier: .heartRate) {
+                        readTypes.insert(heartType)
+                    }
+                case "activeEnergy":
+                    if let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
+                        readTypes.insert(energyType)
+                    }
+                case "distance":
+                    if let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) {
+                        readTypes.insert(distanceType)
+                    }
+                default:
+                    break
+                }
+            }
+
+            healthStore.requestAuthorization(toShare: nil, read: readTypes) { [weak self] success, error in
+                if success {
+                    self?.resolveCallback(callbackId, result: true)
+                } else {
+                    self?.rejectCallback(callbackId, error: error?.localizedDescription ?? "Authorization failed")
+                }
+            }
+        }
+
+        private func getHealthData(type: String, startDate: Double?, endDate: Double?, callbackId: String?) {
+            guard let healthStore = healthStore else {
+                rejectCallback(callbackId, error: "HealthKit not available")
+                return
+            }
+
+            var quantityType: HKQuantityType?
+            var unit: HKUnit?
+
+            switch type {
+            case "steps":
+                quantityType = HKQuantityType.quantityType(forIdentifier: .stepCount)
+                unit = .count()
+            case "heartRate":
+                quantityType = HKQuantityType.quantityType(forIdentifier: .heartRate)
+                unit = HKUnit(from: "count/min")
+            case "activeEnergy":
+                quantityType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)
+                unit = .kilocalorie()
+            case "distance":
+                quantityType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning)
+                unit = .meter()
+            default:
+                rejectCallback(callbackId, error: "Unknown health data type")
+                return
+            }
+
+            guard let qType = quantityType, let qUnit = unit else {
+                rejectCallback(callbackId, error: "Invalid health data type")
+                return
+            }
+
+            let start = startDate != nil ? Date(timeIntervalSince1970: startDate! / 1000) : Calendar.current.date(byAdding: .day, value: -7, to: Date())!
+            let end = endDate != nil ? Date(timeIntervalSince1970: endDate! / 1000) : Date()
+
+            let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+
+            let query = HKStatisticsQuery(quantityType: qType, quantitySamplePredicate: predicate, options: .cumulativeSum) { [weak self] _, result, error in
+                if let error = error {
+                    self?.rejectCallback(callbackId, error: error.localizedDescription)
+                    return
+                }
+
+                let value = result?.sumQuantity()?.doubleValue(for: qUnit) ?? 0
+                self?.resolveCallback(callbackId, result: ["value": value, "unit": qUnit.unitString])
+            }
+
+            healthStore.execute(query)
+        }
+
+        // MARK: - Screen Capture
+        private func takeScreenshot(callbackId: String?) {
+            DispatchQueue.main.async {
+                guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let window = windowScene.windows.first else {
+                    self.rejectCallback(callbackId, error: "No window available")
+                    return
+                }
+
+                let renderer = UIGraphicsImageRenderer(bounds: window.bounds)
+                let image = renderer.image { context in
+                    window.layer.render(in: context.cgContext)
+                }
+
+                if let imageData = image.pngData() {
+                    let base64 = "data:image/png;base64," + imageData.base64EncodedString()
+                    self.resolveCallback(callbackId, result: base64)
+                } else {
+                    self.rejectCallback(callbackId, error: "Failed to capture screenshot")
+                }
+            }
+        }
+
+        // MARK: - Web Communication
+        private func sendToWeb(_ event: String, data: [String: Any]) {
+            guard let webView = webView else { return }
+            do {
+                let jsonData = try JSONSerialization.data(withJSONObject: data)
+                if let jsonString = String(data: jsonData, encoding: .utf8) {
+                    let script = "window.dispatchEvent(new CustomEvent('\(event)', {detail: \(jsonString)}));"
+                    DispatchQueue.main.async { webView.evaluateJavaScript(script, completionHandler: nil) }
+                }
+            } catch {
+                print("Failed to serialize: \(error)")
+            }
+        }
+    }
+}
+
+// MARK: - UIColor Extension
+extension UIColor {
+    convenience init?(hex: String) {
+        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
+
+        var rgb: UInt64 = 0
+        guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else { return nil }
+
+        let r = CGFloat((rgb & 0xFF0000) >> 16) / 255.0
+        let g = CGFloat((rgb & 0x00FF00) >> 8) / 255.0
+        let b = CGFloat(rgb & 0x0000FF) / 255.0
+
+        self.init(red: r, green: g, blue: b, alpha: 1.0)
+    }
+}
+
+// MARK: - DataScanner Delegate (QR/Barcode)
+@available(iOS 16.0, *)
+extension CraftWebView.Coordinator: DataScannerViewControllerDelegate {
+    func dataScanner(_ dataScanner: DataScannerViewController, didTapOn item: RecognizedItem) {
+        switch item {
+        case .barcode(let barcode):
+            dataScanner.dismiss(animated: true)
+            resolveCallback(pendingCallbackId, result: [
+                "type": barcode.observation.symbology.rawValue,
+                "data": barcode.payloadStringValue ?? ""
+            ])
+            pendingCallbackId = nil
+        default:
+            break
+        }
+    }
+}
+
+// MARK: - Document Picker Delegate
+extension CraftWebView.Coordinator: UIDocumentPickerDelegate {
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let url = urls.first else {
+            rejectCallback(pendingCallbackId, error: "No file selected")
+            return
+        }
+
+        // Get file data as base64
+        if let data = try? Data(contentsOf: url) {
+            let mimeType = url.mimeType
+            let base64 = "data:\(mimeType);base64," + data.base64EncodedString()
+            resolveCallback(pendingCallbackId, result: [
+                "name": url.lastPathComponent,
+                "path": url.path,
+                "data": base64,
+                "mimeType": mimeType
+            ])
+        } else {
+            resolveCallback(pendingCallbackId, result: [
+                "name": url.lastPathComponent,
+                "path": url.path
+            ])
+        }
+        pendingCallbackId = nil
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        rejectCallback(pendingCallbackId, error: "Cancelled")
+        pendingCallbackId = nil
+    }
+}
+
+// MARK: - Apple Sign In Delegate
+extension CraftWebView.Coordinator: ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
+            let userId = appleIDCredential.user
+            let email = appleIDCredential.email
+            let fullName = appleIDCredential.fullName
+
+            var name = ""
+            if let givenName = fullName?.givenName {
+                name = givenName
+            }
+            if let familyName = fullName?.familyName {
+                name += (name.isEmpty ? "" : " ") + familyName
+            }
+
+            var result: [String: Any] = ["userId": userId]
+            if let email = email { result["email"] = email }
+            if !name.isEmpty { result["name"] = name }
+
+            if let identityToken = appleIDCredential.identityToken,
+               let tokenString = String(data: identityToken, encoding: .utf8) {
+                result["identityToken"] = tokenString
+            }
+
+            resolveCallback(pendingCallbackId, result: result)
+        }
+        pendingCallbackId = nil
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        rejectCallback(pendingCallbackId, error: error.localizedDescription)
+        pendingCallbackId = nil
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else {
+            return UIWindow()
+        }
+        return window
+    }
+}
+
+// MARK: - Bluetooth Delegate
+extension CraftWebView.Coordinator: CBCentralManagerDelegate {
+    func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        if central.state == .poweredOn {
+            central.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+            resolveCallback(pendingCallbackId, result: true)
+        } else {
+            rejectCallback(pendingCallbackId, error: "Bluetooth not available")
+        }
+        pendingCallbackId = nil
+    }
+
+    func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
+        if !discoveredPeripherals.contains(peripheral) {
+            discoveredPeripherals.append(peripheral)
+            sendToWeb("craftBluetoothDevice", data: [
+                "id": peripheral.identifier.uuidString,
+                "name": peripheral.name ?? "Unknown",
+                "rssi": RSSI.intValue
+            ])
+        }
+    }
+}
+
+// MARK: - NFC Delegate
+extension CraftWebView.Coordinator: NFCNDEFReaderSessionDelegate {
+    func readerSession(_ session: NFCNDEFReaderSession, didDetectNDEFs messages: [NFCNDEFMessage]) {
+        var records: [[String: Any]] = []
+        for message in messages {
+            for record in message.records {
+                var recordData: [String: Any] = [
+                    "typeNameFormat": record.typeNameFormat.rawValue,
+                    "type": String(data: record.type, encoding: .utf8) ?? "",
+                    "identifier": String(data: record.identifier, encoding: .utf8) ?? ""
+                ]
+                if let payload = String(data: record.payload, encoding: .utf8) {
+                    recordData["payload"] = payload
+                } else {
+                    recordData["payload"] = record.payload.base64EncodedString()
+                }
+                records.append(recordData)
+            }
+        }
+        resolveCallback(pendingCallbackId, result: records)
+        pendingCallbackId = nil
+    }
+
+    func readerSession(_ session: NFCNDEFReaderSession, didInvalidateWithError error: Error) {
+        if (error as NSError).code != 200 { // 200 is user cancelled
+            rejectCallback(pendingCallbackId, error: error.localizedDescription)
+        }
+        pendingCallbackId = nil
+    }
+}
+
+// MARK: - URL Extension for MIME types
+extension URL {
+    var mimeType: String {
+        if let utType = UTType(filenameExtension: pathExtension) {
+            return utType.preferredMIMEType ?? "application/octet-stream"
+        }
+        return "application/octet-stream"
+    }
+}

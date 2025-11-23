@@ -336,6 +336,426 @@ cli
     }
   })
 
+// iOS commands
+cli
+  .command('ios init <name>', 'Initialize a new iOS project')
+  .option('--bundle-id <id>', 'Bundle identifier (e.g., com.example.app)')
+  .option('--team-id <id>', 'Apple Developer Team ID')
+  .option('-o, --output <dir>', 'Output directory', { default: './ios' })
+  .example('craft ios init MyApp')
+  .example('craft ios init MyApp --bundle-id com.example.myapp')
+  .action(async (name: string, options?: any) => {
+    const iosModule = await import('../../ios/dist/index.js')
+    await iosModule.init({
+      name,
+      bundleId: options?.bundleId,
+      teamId: options?.teamId,
+      output: options?.output || './ios',
+    })
+  })
+
+cli
+  .command('ios build', 'Build iOS project')
+  .option('--html-path <path>', 'Path to HTML file')
+  .option('-d, --dev-server <url>', 'Development server URL')
+  .option('-o, --output <dir>', 'iOS project directory', { default: './ios' })
+  .option('-w, --watch', 'Watch for file changes and rebuild')
+  .example('craft ios build')
+  .example('craft ios build --html-path ./dist/index.html')
+  .example('craft ios build --dev-server http://localhost:3456')
+  .example('craft ios build --watch')
+  .action(async (options?: any) => {
+    const iosModule = await import('../../ios/dist/index.js')
+
+    const doBuild = async () => {
+      await iosModule.build({
+        htmlPath: options?.htmlPath,
+        devServer: options?.devServer,
+        output: options?.output || './ios',
+      })
+    }
+
+    await doBuild()
+
+    if (options?.watch) {
+      console.log('\n👀 Watching for changes...\n')
+      const { watch } = await import('node:fs')
+      const { dirname } = await import('node:path')
+
+      const watchPath = options?.htmlPath ? dirname(options.htmlPath) : '.'
+      watch(watchPath, { recursive: true }, async (event, filename) => {
+        if (filename && (filename.endsWith('.html') || filename.endsWith('.js') || filename.endsWith('.css'))) {
+          console.log(`\n📝 ${filename} changed, rebuilding...`)
+          await doBuild()
+        }
+      })
+
+      // Keep process running
+      await new Promise(() => {})
+    }
+  })
+
+cli
+  .command('ios open', 'Open iOS project in Xcode')
+  .option('-o, --output <dir>', 'iOS project directory', { default: './ios' })
+  .action(async (options?: any) => {
+    const iosModule = await import('../../ios/dist/index.js')
+    await iosModule.open({
+      output: options?.output || './ios',
+    })
+  })
+
+cli
+  .command('ios run', 'Build and run on iOS device or simulator')
+  .option('-s, --simulator', 'Run on simulator instead of device')
+  .option('-o, --output <dir>', 'iOS project directory', { default: './ios' })
+  .example('craft ios run')
+  .example('craft ios run --simulator')
+  .action(async (options?: any) => {
+    const iosModule = await import('../../ios/dist/index.js')
+    await iosModule.run({
+      simulator: options?.simulator || false,
+      output: options?.output || './ios',
+    })
+  })
+
+// Android commands
+cli
+  .command('android init <name>', 'Initialize a new Android project')
+  .option('--package <name>', 'Package name (e.g., com.example.app)')
+  .option('-o, --output <dir>', 'Output directory', { default: './android' })
+  .example('craft android init MyApp')
+  .example('craft android init MyApp --package com.example.myapp')
+  .action(async (name: string, options?: any) => {
+    const androidModule = await import('../../android/dist/index.js')
+    await androidModule.init({
+      name,
+      packageName: options?.package,
+      output: options?.output || './android',
+    })
+  })
+
+cli
+  .command('android build', 'Build Android project')
+  .option('--html-path <path>', 'Path to HTML file')
+  .option('-d, --dev-server <url>', 'Development server URL')
+  .option('-o, --output <dir>', 'Android project directory', { default: './android' })
+  .option('--release', 'Build release APK')
+  .option('-w, --watch', 'Watch for file changes and rebuild')
+  .example('craft android build')
+  .example('craft android build --release')
+  .example('craft android build --watch')
+  .action(async (options?: any) => {
+    const androidModule = await import('../../android/dist/index.js')
+
+    const doBuild = async () => {
+      await androidModule.build({
+        htmlPath: options?.htmlPath,
+        devServer: options?.devServer,
+        output: options?.output || './android',
+        release: options?.release || false,
+      })
+    }
+
+    await doBuild()
+
+    if (options?.watch) {
+      console.log('\n👀 Watching for changes...\n')
+      const { watch } = await import('node:fs')
+      const { dirname } = await import('node:path')
+
+      const watchPath = options?.htmlPath ? dirname(options.htmlPath) : '.'
+      watch(watchPath, { recursive: true }, async (event, filename) => {
+        if (filename && (filename.endsWith('.html') || filename.endsWith('.js') || filename.endsWith('.css'))) {
+          console.log(`\n📝 ${filename} changed, rebuilding...`)
+          await doBuild()
+        }
+      })
+
+      // Keep process running
+      await new Promise(() => {})
+    }
+  })
+
+cli
+  .command('android open', 'Open Android project in Android Studio')
+  .option('-o, --output <dir>', 'Android project directory', { default: './android' })
+  .action(async (options?: any) => {
+    const androidModule = await import('../../android/dist/index.js')
+    await androidModule.open({
+      output: options?.output || './android',
+    })
+  })
+
+cli
+  .command('android run', 'Build and run on Android device or emulator')
+  .option('-d, --device <id>', 'Target device ID')
+  .option('-o, --output <dir>', 'Android project directory', { default: './android' })
+  .example('craft android run')
+  .example('craft android run --device emulator-5554')
+  .action(async (options?: any) => {
+    const androidModule = await import('../../android/dist/index.js')
+    await androidModule.run({
+      device: options?.device,
+      output: options?.output || './android',
+    })
+  })
+
+// Preview command - preview app in browser
+cli
+  .command('preview [path]', 'Preview app in browser before building native')
+  .option('-p, --port <port>', 'Port to serve on', { default: 3456 })
+  .option('--host <host>', 'Host to bind to', { default: 'localhost' })
+  .example('craft preview ./dist')
+  .example('craft preview ./index.html --port 8080')
+  .action(async (path?: string, options?: any) => {
+    const servePath = path || '.'
+    const port = options?.port || 3456
+    const host = options?.host || 'localhost'
+
+    console.log(`\n🌐 Starting preview server...`)
+    console.log(`   Path: ${servePath}`)
+    console.log(`   URL: http://${host}:${port}\n`)
+
+    const { spawn } = await import('node:child_process')
+
+    // Use bunx serve for simple static file serving
+    const proc = spawn('bunx', ['--bun', 'serve', '-p', String(port), servePath], {
+      stdio: 'inherit',
+    })
+
+    proc.on('error', () => {
+      console.log('Falling back to python http.server...')
+      spawn('python3', ['-m', 'http.server', String(port), '--directory', servePath], {
+        stdio: 'inherit',
+      })
+    })
+  })
+
+// Publish command - publish to App Store / Play Store
+cli
+  .command('publish', 'Publish app to App Store or Play Store')
+  .option('--ios', 'Publish to App Store (TestFlight)')
+  .option('--android', 'Publish to Play Store')
+  .option('--api-key <path>', 'App Store Connect API key path')
+  .option('--service-account <path>', 'Google Play service account JSON')
+  .option('-o, --output <dir>', 'Project directory', { default: '.' })
+  .example('craft publish --ios')
+  .example('craft publish --android')
+  .action(async (options?: any) => {
+    const { existsSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const { $ } = await import('bun')
+
+    if (options?.ios) {
+      console.log('\n📱 Publishing to App Store (TestFlight)...\n')
+
+      const iosDir = join(options?.output || '.', 'ios')
+      if (!existsSync(iosDir)) {
+        console.error('❌ No iOS project found. Run: craft ios init')
+        process.exit(1)
+      }
+
+      // Find xcarchive or build it
+      console.log('1. Building archive...')
+      try {
+        await $`cd ${iosDir} && xcodebuild -scheme App -configuration Release -archivePath ./build/App.xcarchive archive`
+        console.log('✅ Archive created')
+
+        console.log('2. Exporting IPA...')
+        await $`cd ${iosDir} && xcodebuild -exportArchive -archivePath ./build/App.xcarchive -exportPath ./build -exportOptionsPlist ExportOptions.plist`
+        console.log('✅ IPA exported')
+
+        console.log('3. Uploading to TestFlight...')
+        if (options?.apiKey) {
+          await $`xcrun altool --upload-app -f ${iosDir}/build/*.ipa --apiKey ${options.apiKey} --type ios`
+        } else {
+          await $`xcrun altool --upload-app -f ${iosDir}/build/*.ipa --type ios`
+        }
+        console.log('✅ Uploaded to TestFlight!')
+      } catch (error) {
+        console.error('❌ Publish failed. Make sure you have:')
+        console.error('   - Valid signing certificates')
+        console.error('   - App Store Connect API key (--api-key)')
+        console.error('   - ExportOptions.plist in your ios directory')
+      }
+    }
+
+    if (options?.android) {
+      console.log('\n🤖 Publishing to Play Store...\n')
+
+      const androidDir = join(options?.output || '.', 'android')
+      if (!existsSync(androidDir)) {
+        console.error('❌ No Android project found. Run: craft android init')
+        process.exit(1)
+      }
+
+      console.log('1. Building release AAB...')
+      try {
+        await $`cd ${androidDir} && ./gradlew bundleRelease`
+        console.log('✅ AAB created')
+
+        const aabPath = join(androidDir, 'app/build/outputs/bundle/release/app-release.aab')
+
+        if (options?.serviceAccount) {
+          console.log('2. Uploading to Play Store...')
+          // Would use Google Play Developer API here
+          console.log('⚠️  Automatic Play Store upload requires fastlane or Google Play API integration.')
+          console.log(`   AAB file: ${aabPath}`)
+          console.log('   Upload manually via Play Console or use:')
+          console.log('   fastlane supply --aab ' + aabPath)
+        } else {
+          console.log('✅ Release AAB ready:')
+          console.log(`   ${aabPath}`)
+          console.log('')
+          console.log('Upload manually via Play Console, or use fastlane:')
+          console.log('  fastlane supply --aab ' + aabPath)
+        }
+      } catch (error) {
+        console.error('❌ Build failed. Make sure you have:')
+        console.error('   - Valid signing key (keystore)')
+        console.error('   - Release signing config in build.gradle.kts')
+      }
+    }
+
+    if (!options?.ios && !options?.android) {
+      console.log('Please specify a platform:')
+      console.log('  craft publish --ios     # Publish to App Store')
+      console.log('  craft publish --android # Publish to Play Store')
+    }
+  })
+
+// Init command - initialize a new Craft project
+cli
+  .command('init <name>', 'Initialize a new Craft project')
+  .option('--template <type>', 'Project template (desktop, ios, android, all)', { default: 'desktop' })
+  .option('--bundle-id <id>', 'Bundle identifier for mobile')
+  .example('craft init MyApp')
+  .example('craft init MyApp --template ios')
+  .example('craft init MyApp --template all')
+  .action(async (name: string, options?: any) => {
+    console.log(`\n⚡ Creating new Craft project: ${name}\n`)
+
+    const template = options?.template || 'desktop'
+
+    if (template === 'desktop' || template === 'all') {
+      console.log('📁 Creating desktop project structure...')
+      // Create basic project structure
+      const { mkdirSync, writeFileSync, existsSync } = await import('node:fs')
+
+      if (!existsSync(name)) {
+        mkdirSync(name, { recursive: true })
+      }
+
+      // Create craft.config.ts
+      const configContent = `import type { CraftConfig } from 'ts-craft'
+
+export default {
+  name: '${name}',
+  window: {
+    title: '${name}',
+    width: 1200,
+    height: 800,
+    darkMode: true,
+  },
+} satisfies CraftConfig
+`
+      writeFileSync(`${name}/craft.config.ts`, configContent)
+
+      // Create index.html
+      const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${name}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, system-ui, sans-serif;
+      background: #1a1a2e;
+      color: white;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .container { text-align: center; }
+    h1 { font-size: 3rem; margin-bottom: 1rem; }
+    p { opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚡ ${name}</h1>
+    <p>Built with Craft</p>
+  </div>
+</body>
+</html>
+`
+      writeFileSync(`${name}/index.html`, htmlContent)
+
+      // Create package.json
+      const packageJson = {
+        name: name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+        version: '0.1.0',
+        private: true,
+        scripts: {
+          dev: 'craft dev http://localhost:3000',
+          build: 'craft build',
+          'ios:init': 'craft ios init ' + name,
+          'ios:build': 'craft ios build',
+          'ios:open': 'craft ios open',
+        },
+        devDependencies: {
+          'ts-craft': '*',
+        },
+      }
+      writeFileSync(`${name}/package.json`, JSON.stringify(packageJson, null, 2))
+
+      console.log('✅ Desktop project created')
+    }
+
+    if (template === 'ios' || template === 'all') {
+      console.log('📱 Creating iOS project...')
+      const iosModule = await import('../../ios/dist/index.js')
+      await iosModule.init({
+        name,
+        bundleId: options?.bundleId,
+        output: template === 'all' ? `${name}/ios` : './ios',
+      })
+      console.log('✅ iOS project created')
+    }
+
+    if (template === 'android' || template === 'all') {
+      console.log('🤖 Creating Android project...')
+      const androidModule = await import('../../android/dist/index.js')
+      await androidModule.init({
+        name,
+        packageName: options?.bundleId,
+        output: template === 'all' ? `${name}/android` : './android',
+      })
+      console.log('✅ Android project created')
+    }
+
+    console.log('')
+    console.log('Next steps:')
+    console.log(`  cd ${name}`)
+    console.log('  bun install')
+    if (template === 'desktop' || template === 'all') {
+      console.log('  craft dev http://localhost:3000')
+    }
+    if (template === 'ios' || template === 'all') {
+      console.log('  craft ios build')
+      console.log('  craft ios open')
+    }
+    if (template === 'android' || template === 'all') {
+      console.log('  craft android build')
+      console.log('  craft android open')
+    }
+    console.log('')
+  })
+
 cli.version(version)
 cli.help()
 cli.parse()

@@ -1,0 +1,25 @@
+name: {{APP_NAME}}
+options:
+  bundleIdPrefix: {{BUNDLE_ID_PREFIX}}
+  deploymentTarget:
+    iOS: "{{IOS_VERSION}}"
+settings:
+  MARKETING_VERSION: "{{VERSION}}"
+  CURRENT_PROJECT_VERSION: "{{BUILD_NUMBER}}"
+  CODE_SIGN_STYLE: Automatic
+  DEVELOPMENT_TEAM: "{{TEAM_ID}}"
+targets:
+  {{APP_NAME}}:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    resources:
+      - path: dist
+        type: folder
+      - path: craft.config.json
+        optional: true
+    settings:
+      INFOPLIST_FILE: Info.plist
+      PRODUCT_BUNDLE_IDENTIFIER: {{BUNDLE_ID}}
+      SWIFT_VERSION: "5.0"

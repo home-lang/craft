@@ -1,0 +1,2249 @@
+package {{PACKAGE_NAME}}
+
+import android.Manifest
+import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.hardware.camera2.CameraAccessException
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.location.Location
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.provider.MediaStore
+import android.provider.Settings
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import android.util.DisplayMetrics
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.play.core.review.ReviewManagerFactory
+import android.content.ContentResolver
+import android.content.ContentUris
+import android.content.ContentValues
+import android.database.Cursor
+import android.provider.CalendarContract
+import android.provider.ContactsContract
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.view.WindowManager
+import android.content.pm.ActivityInfo
+import com.android.billingclient.api.*
+import org.json.JSONObject
+import org.json.JSONArray
+import java.util.Locale
+import java.util.concurrent.Executor
+import java.util.Calendar
+import java.util.TimeZone
+import android.media.MediaRecorder
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.database.sqlite.SQLiteDatabase
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothManager
+import android.bluetooth.le.BluetoothLeScanner
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
+import android.nfc.NfcAdapter
+import android.nfc.tech.Ndef
+import android.app.DownloadManager
+import android.view.View
+import android.util.Base64
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.common.InputImage
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+class CraftBridge(
+    private val activity: Activity,
+    private val webView: WebView
+) {
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var isListening = false
+    private val mainExecutor: Executor = ContextCompat.getMainExecutor(activity)
+
+    // Location tracking
+    private var fusedLocationClient: FusedLocationProviderClient? = null
+    private var locationCallback: LocationCallback? = null
+    private var watchId = 0
+
+    // Network monitoring
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
+    // Flashlight state
+    private var isFlashlightOn = false
+
+    // App state tracking
+    private var currentAppState = "active"
+
+    // Keep awake
+    private var isKeepingAwake = false
+
+    // Billing client for in-app purchases
+    private var billingClient: BillingClient? = null
+
+    // Notification channel ID
+    private val notificationChannelId = "craft_notifications"
+
+    // Audio recording
+    private var mediaRecorder: MediaRecorder? = null
+    private var audioFile: File? = null
+
+    // Motion sensors
+    private var sensorManager: SensorManager? = null
+    private var accelerometer: Sensor? = null
+    private var gyroscope: Sensor? = null
+    private var sensorListener: SensorEventListener? = null
+
+    // SQLite database
+    private var database: SQLiteDatabase? = null
+
+    // Bluetooth
+    private var bluetoothAdapter: BluetoothAdapter? = null
+    private var bluetoothScanner: BluetoothLeScanner? = null
+    private var bleScanCallback: ScanCallback? = null
+
+    // Encrypted shared preferences for secure storage
+    private val masterKey by lazy {
+        MasterKey.Builder(activity)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+    }
+
+    private val securePrefs by lazy {
+        EncryptedSharedPreferences.create(
+            activity,
+            "craft_secure_prefs",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
+
+    fun injectBridge() {
+        val script = """
+            window.craft = {
+                platform: 'android',
+                capabilities: {
+                    haptics: true,
+                    speechRecognition: ${SpeechRecognizer.isRecognitionAvailable(activity)},
+                    share: true,
+                    camera: true,
+                    biometric: ${isBiometricAvailable()},
+                    pushNotifications: true,
+                    secureStorage: true,
+                    geolocation: true,
+                    clipboard: true,
+                    deviceInfo: true,
+                    appBadge: true,
+                    networkStatus: true,
+                    appReview: true,
+                    flashlight: ${hasFlashlight()},
+                    openURL: true,
+                    vibrationPattern: true,
+                    appState: true,
+                    contacts: true,
+                    calendar: true,
+                    localNotifications: true,
+                    inAppPurchase: true,
+                    keepAwake: true,
+                    orientationLock: true,
+                    deepLinks: true,
+                    qrScanner: true,
+                    filePicker: true,
+                    fileDownload: true,
+                    googleSignIn: true,
+                    audioRecording: true,
+                    videoRecording: true,
+                    motionSensors: true,
+                    localDatabase: true,
+                    bluetooth: true,
+                    nfc: ${NfcAdapter.getDefaultAdapter(activity) != null},
+                    fitness: true,
+                    screenCapture: true
+                },
+
+                // Haptic feedback
+                haptic: function(style) {
+                    CraftAndroid.haptic(style || 'medium');
+                },
+
+                // Speech recognition
+                startListening: function() {
+                    CraftAndroid.startListening();
+                },
+                stopListening: function() {
+                    CraftAndroid.stopListening();
+                },
+
+                // Share
+                share: function(text, title) {
+                    CraftAndroid.share(text, title || '');
+                },
+
+                // Camera
+                openCamera: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftCameraResolve = resolve;
+                        window._craftCameraReject = reject;
+                        CraftAndroid.openCamera();
+                    });
+                },
+                pickImage: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftGalleryResolve = resolve;
+                        window._craftGalleryReject = reject;
+                        CraftAndroid.pickImage();
+                    });
+                },
+
+                // Biometric auth
+                authenticate: function(reason) {
+                    return new Promise(function(resolve, reject) {
+                        window._craftBiometricResolve = resolve;
+                        window._craftBiometricReject = reject;
+                        CraftAndroid.authenticate(reason || 'Authenticate to continue');
+                    });
+                },
+
+                // Push notifications
+                registerPush: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftPushResolve = resolve;
+                        window._craftPushReject = reject;
+                        CraftAndroid.registerPush();
+                    });
+                },
+
+                // Secure storage
+                secureStore: {
+                    set: function(key, value) {
+                        return CraftAndroid.secureSet(key, value);
+                    },
+                    get: function(key) {
+                        return CraftAndroid.secureGet(key);
+                    },
+                    remove: function(key) {
+                        return CraftAndroid.secureRemove(key);
+                    }
+                },
+
+                // Geolocation
+                getCurrentPosition: function(options) {
+                    return new Promise(function(resolve, reject) {
+                        window._craftLocationResolve = resolve;
+                        window._craftLocationReject = reject;
+                        CraftAndroid.getCurrentPosition(JSON.stringify(options || {}));
+                    });
+                },
+                watchPosition: function(callback, options) {
+                    var watchId = CraftAndroid.watchPosition(JSON.stringify(options || {}));
+                    window['_craftLocationWatch_' + watchId] = callback;
+                    return watchId;
+                },
+                clearWatch: function(watchId) {
+                    CraftAndroid.clearWatch(watchId);
+                    delete window['_craftLocationWatch_' + watchId];
+                },
+
+                // Clipboard
+                clipboard: {
+                    read: function() {
+                        return new Promise(function(resolve) {
+                            resolve(CraftAndroid.clipboardRead());
+                        });
+                    },
+                    write: function(text) {
+                        return new Promise(function(resolve) {
+                            resolve(CraftAndroid.clipboardWrite(text));
+                        });
+                    }
+                },
+
+                // Device Info
+                getDeviceInfo: function() {
+                    return JSON.parse(CraftAndroid.getDeviceInfo());
+                },
+
+                // App Badge
+                setBadge: function(count) {
+                    CraftAndroid.setBadge(count);
+                },
+                clearBadge: function() {
+                    CraftAndroid.clearBadge();
+                },
+
+                // Network Status
+                getNetworkStatus: function() {
+                    return JSON.parse(CraftAndroid.getNetworkStatus());
+                },
+                onNetworkChange: function(callback) {
+                    window._craftNetworkChangeCallback = callback;
+                    CraftAndroid.startNetworkMonitoring();
+                },
+                offNetworkChange: function() {
+                    window._craftNetworkChangeCallback = null;
+                    CraftAndroid.stopNetworkMonitoring();
+                },
+
+                // App Review
+                requestReview: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftReviewResolve = resolve;
+                        window._craftReviewReject = reject;
+                        CraftAndroid.requestReview();
+                    });
+                },
+
+                // Flashlight
+                setFlashlight: function(on) {
+                    return CraftAndroid.setFlashlight(on);
+                },
+                toggleFlashlight: function() {
+                    return CraftAndroid.toggleFlashlight();
+                },
+
+                // Open URL
+                openURL: function(url) {
+                    return CraftAndroid.openURL(url);
+                },
+
+                // Vibration Pattern
+                vibrate: function(pattern) {
+                    CraftAndroid.vibrate(JSON.stringify(pattern));
+                },
+
+                // App State
+                getAppState: function() {
+                    return CraftAndroid.getAppState();
+                },
+                onAppStateChange: function(callback) {
+                    window._craftAppStateCallback = callback;
+                    CraftAndroid.startAppStateMonitoring();
+                },
+                offAppStateChange: function() {
+                    window._craftAppStateCallback = null;
+                    CraftAndroid.stopAppStateMonitoring();
+                },
+
+                // Contacts
+                contacts: {
+                    getAll: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftContactsResolve = resolve;
+                            window._craftContactsReject = reject;
+                            CraftAndroid.getContacts();
+                        });
+                    },
+                    add: function(contact) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftAddContactResolve = resolve;
+                            window._craftAddContactReject = reject;
+                            CraftAndroid.addContact(JSON.stringify(contact));
+                        });
+                    }
+                },
+
+                // Calendar
+                calendar: {
+                    getEvents: function(startDate, endDate) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftCalendarResolve = resolve;
+                            window._craftCalendarReject = reject;
+                            CraftAndroid.getCalendarEvents(startDate || 0, endDate || 0);
+                        });
+                    },
+                    createEvent: function(event) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftCreateEventResolve = resolve;
+                            window._craftCreateEventReject = reject;
+                            CraftAndroid.createCalendarEvent(JSON.stringify(event));
+                        });
+                    },
+                    deleteEvent: function(eventId) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftDeleteEventResolve = resolve;
+                            window._craftDeleteEventReject = reject;
+                            CraftAndroid.deleteCalendarEvent(eventId);
+                        });
+                    }
+                },
+
+                // Local Notifications
+                notifications: {
+                    schedule: function(notification) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftNotifResolve = resolve;
+                            window._craftNotifReject = reject;
+                            CraftAndroid.scheduleNotification(JSON.stringify(notification));
+                        });
+                    },
+                    cancel: function(id) {
+                        CraftAndroid.cancelNotification(id);
+                    },
+                    cancelAll: function() {
+                        CraftAndroid.cancelAllNotifications();
+                    }
+                },
+
+                // In-App Purchase
+                iap: {
+                    getProducts: function(productIds) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftProductsResolve = resolve;
+                            window._craftProductsReject = reject;
+                            CraftAndroid.getProducts(JSON.stringify(productIds));
+                        });
+                    },
+                    purchase: function(productId) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftPurchaseResolve = resolve;
+                            window._craftPurchaseReject = reject;
+                            CraftAndroid.purchase(productId);
+                        });
+                    },
+                    restore: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftRestoreResolve = resolve;
+                            window._craftRestoreReject = reject;
+                            CraftAndroid.restorePurchases();
+                        });
+                    }
+                },
+
+                // Keep Awake
+                setKeepAwake: function(enabled) {
+                    return CraftAndroid.setKeepAwake(enabled);
+                },
+
+                // Orientation Lock
+                lockOrientation: function(orientation) {
+                    return CraftAndroid.lockOrientation(orientation);
+                },
+                unlockOrientation: function() {
+                    return CraftAndroid.unlockOrientation();
+                },
+
+                // Deep Links
+                onDeepLink: function(callback) {
+                    window.addEventListener('craftDeepLink', function(e) { callback(e.detail); });
+                },
+
+                // QR/Barcode Scanner
+                scanQRCode: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftQRResolve = resolve;
+                        window._craftQRReject = reject;
+                        CraftAndroid.scanQRCode();
+                    });
+                },
+
+                // File Picker
+                pickFile: function(types) {
+                    return new Promise(function(resolve, reject) {
+                        window._craftFileResolve = resolve;
+                        window._craftFileReject = reject;
+                        CraftAndroid.pickFile(JSON.stringify(types || []));
+                    });
+                },
+
+                // File Download
+                downloadFile: function(url, filename) {
+                    return new Promise(function(resolve, reject) {
+                        window._craftDownloadResolve = resolve;
+                        window._craftDownloadReject = reject;
+                        CraftAndroid.downloadFile(url, filename);
+                    });
+                },
+                saveFile: function(data, filename) {
+                    return new Promise(function(resolve, reject) {
+                        window._craftSaveResolve = resolve;
+                        window._craftSaveReject = reject;
+                        CraftAndroid.saveFile(data, filename);
+                    });
+                },
+
+                // Google Sign In
+                signInWithGoogle: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftGoogleResolve = resolve;
+                        window._craftGoogleReject = reject;
+                        CraftAndroid.signInWithGoogle();
+                    });
+                },
+
+                // Audio Recording
+                startAudioRecording: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftAudioResolve = resolve;
+                        window._craftAudioReject = reject;
+                        CraftAndroid.startAudioRecording();
+                    });
+                },
+                stopAudioRecording: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftAudioStopResolve = resolve;
+                        window._craftAudioStopReject = reject;
+                        CraftAndroid.stopAudioRecording();
+                    });
+                },
+
+                // Video Recording
+                startVideoRecording: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftVideoResolve = resolve;
+                        window._craftVideoReject = reject;
+                        CraftAndroid.startVideoRecording();
+                    });
+                },
+
+                // Motion Sensors
+                startMotionUpdates: function(interval) {
+                    return CraftAndroid.startMotionUpdates(interval || 100);
+                },
+                stopMotionUpdates: function() {
+                    CraftAndroid.stopMotionUpdates();
+                },
+                onMotionUpdate: function(callback) {
+                    window.addEventListener('craftMotionUpdate', function(e) { callback(e.detail); });
+                },
+
+                // Local Database
+                db: {
+                    execute: function(sql, params) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftDbExecResolve = resolve;
+                            window._craftDbExecReject = reject;
+                            CraftAndroid.dbExecute(sql, JSON.stringify(params || []));
+                        });
+                    },
+                    query: function(sql, params) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftDbQueryResolve = resolve;
+                            window._craftDbQueryReject = reject;
+                            CraftAndroid.dbQuery(sql, JSON.stringify(params || []));
+                        });
+                    }
+                },
+
+                // Bluetooth
+                bluetooth: {
+                    startScan: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftBleResolve = resolve;
+                            window._craftBleReject = reject;
+                            CraftAndroid.startBluetoothScan();
+                        });
+                    },
+                    stopScan: function() {
+                        CraftAndroid.stopBluetoothScan();
+                    },
+                    onDevice: function(callback) {
+                        window.addEventListener('craftBluetoothDevice', function(e) { callback(e.detail); });
+                    }
+                },
+
+                // NFC
+                scanNFC: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftNfcResolve = resolve;
+                        window._craftNfcReject = reject;
+                        CraftAndroid.scanNFC();
+                    });
+                },
+
+                // Fitness / Health
+                fitness: {
+                    requestAuthorization: function(types) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftFitnessAuthResolve = resolve;
+                            window._craftFitnessAuthReject = reject;
+                            CraftAndroid.requestFitnessAuthorization(JSON.stringify(types || []));
+                        });
+                    },
+                    getData: function(type, startDate, endDate) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftFitnessDataResolve = resolve;
+                            window._craftFitnessDataReject = reject;
+                            CraftAndroid.getFitnessData(type, startDate || 0, endDate || 0);
+                        });
+                    }
+                },
+
+                // Screen Capture
+                takeScreenshot: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftScreenshotResolve = resolve;
+                        window._craftScreenshotReject = reject;
+                        CraftAndroid.takeScreenshot();
+                    });
+                },
+
+                // Logging
+                log: function(msg) {
+                    CraftAndroid.log(msg);
+                }
+            };
+
+            // Dispatch ready event
+            window.dispatchEvent(new CustomEvent('craftReady', {detail: window.craft}));
+            console.log('Craft Android bridge initialized');
+        """.trimIndent()
+
+        activity.runOnUiThread {
+            webView.evaluateJavascript(script, null)
+        }
+    }
+
+    // ==================== Haptics ====================
+
+    @JavascriptInterface
+    fun haptic(style: String) {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = activity.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            activity.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val effect = when (style) {
+                "light" -> VibrationEffect.createOneShot(10, VibrationEffect.DEFAULT_AMPLITUDE)
+                "medium" -> VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE)
+                "heavy" -> VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE)
+                "success" -> VibrationEffect.createWaveform(longArrayOf(0, 30, 50, 30), -1)
+                "warning" -> VibrationEffect.createWaveform(longArrayOf(0, 50, 100, 50), -1)
+                "error" -> VibrationEffect.createWaveform(longArrayOf(0, 100, 50, 100), -1)
+                "selection" -> VibrationEffect.createOneShot(5, VibrationEffect.DEFAULT_AMPLITUDE)
+                else -> VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE)
+            }
+            vibrator.vibrate(effect)
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(20)
+        }
+    }
+
+    // ==================== Speech Recognition ====================
+
+    @JavascriptInterface
+    fun startListening() {
+        if (!SpeechRecognizer.isRecognitionAvailable(activity)) {
+            sendEvent("craftSpeechError", mapOf("error" to "Speech recognition not available"))
+            return
+        }
+
+        activity.runOnUiThread {
+            if (ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.RECORD_AUDIO), 100)
+                return@runOnUiThread
+            }
+
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(activity)
+            speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) {
+                    isListening = true
+                    sendEvent("craftSpeechStart", emptyMap())
+                    haptic("light")
+                }
+
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() {}
+
+                override fun onError(error: Int) {
+                    isListening = false
+                    val errorMsg = when (error) {
+                        SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                        SpeechRecognizer.ERROR_CLIENT -> "Client error"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Insufficient permissions"
+                        SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
+                        SpeechRecognizer.ERROR_NO_MATCH -> "No match"
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer busy"
+                        SpeechRecognizer.ERROR_SERVER -> "Server error"
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
+                        else -> "Unknown error"
+                    }
+                    sendEvent("craftSpeechError", mapOf("error" to errorMsg))
+                    haptic("light")
+                }
+
+                override fun onResults(results: Bundle?) {
+                    isListening = false
+                    val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    val transcript = matches?.firstOrNull() ?: ""
+                    sendEvent("craftSpeechResult", mapOf("transcript" to transcript, "isFinal" to true))
+                    sendEvent("craftSpeechEnd", emptyMap())
+                    haptic("light")
+                }
+
+                override fun onPartialResults(partialResults: Bundle?) {
+                    val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    val transcript = matches?.firstOrNull() ?: ""
+                    sendEvent("craftSpeechResult", mapOf("transcript" to transcript, "isFinal" to false))
+                }
+
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+            })
+
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            }
+
+            speechRecognizer?.startListening(intent)
+        }
+    }
+
+    @JavascriptInterface
+    fun stopListening() {
+        activity.runOnUiThread {
+            speechRecognizer?.stopListening()
+            speechRecognizer?.destroy()
+            speechRecognizer = null
+            isListening = false
+        }
+    }
+
+    // ==================== Share ====================
+
+    @JavascriptInterface
+    fun share(text: String, title: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, text)
+            if (title.isNotEmpty()) {
+                putExtra(Intent.EXTRA_SUBJECT, title)
+            }
+        }
+        activity.startActivity(Intent.createChooser(intent, "Share"))
+    }
+
+    // ==================== Camera & Gallery ====================
+
+    @JavascriptInterface
+    fun openCamera() {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.CAMERA)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.CAMERA), 101)
+            return
+        }
+
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        activity.startActivityForResult(intent, REQUEST_CAMERA)
+    }
+
+    @JavascriptInterface
+    fun pickImage() {
+        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+        activity.startActivityForResult(intent, REQUEST_GALLERY)
+    }
+
+    fun handleImageResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (resultCode != Activity.RESULT_OK) {
+            val event = if (requestCode == REQUEST_CAMERA) "_craftCameraReject" else "_craftGalleryReject"
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window.$event && window.$event('Cancelled')", null)
+            }
+            return
+        }
+
+        val imageUri: String? = when (requestCode) {
+            REQUEST_CAMERA -> {
+                // For camera, we get a bitmap thumbnail
+                val bitmap = data?.extras?.get("data") as? Bitmap
+                bitmap?.let { "data:image/png;base64,${bitmapToBase64(it)}" }
+            }
+            REQUEST_GALLERY -> {
+                data?.data?.toString()
+            }
+            else -> null
+        }
+
+        val event = if (requestCode == REQUEST_CAMERA) "_craftCameraResolve" else "_craftGalleryResolve"
+        activity.runOnUiThread {
+            webView.evaluateJavascript("window.$event && window.$event('$imageUri')", null)
+        }
+    }
+
+    private fun bitmapToBase64(bitmap: Bitmap): String {
+        val outputStream = java.io.ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+        return android.util.Base64.encodeToString(outputStream.toByteArray(), android.util.Base64.NO_WRAP)
+    }
+
+    // ==================== Biometric Auth ====================
+
+    private fun isBiometricAvailable(): Boolean {
+        val biometricManager = BiometricManager.from(activity)
+        return biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
+                BiometricManager.BIOMETRIC_SUCCESS
+    }
+
+    @JavascriptInterface
+    fun authenticate(reason: String) {
+        if (activity !is FragmentActivity) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftBiometricReject && window._craftBiometricReject('Activity not supported')",
+                    null
+                )
+            }
+            return
+        }
+
+        activity.runOnUiThread {
+            val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Authenticate")
+                .setSubtitle(reason)
+                .setNegativeButtonText("Cancel")
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .build()
+
+            val biometricPrompt = BiometricPrompt(
+                activity as FragmentActivity,
+                mainExecutor,
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        webView.evaluateJavascript(
+                            "window._craftBiometricResolve && window._craftBiometricResolve(true)",
+                            null
+                        )
+                    }
+
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        webView.evaluateJavascript(
+                            "window._craftBiometricReject && window._craftBiometricReject('$errString')",
+                            null
+                        )
+                    }
+
+                    override fun onAuthenticationFailed() {
+                        // Don't reject yet - user can retry
+                    }
+                }
+            )
+
+            biometricPrompt.authenticate(promptInfo)
+        }
+    }
+
+    // ==================== Push Notifications ====================
+
+    @JavascriptInterface
+    fun registerPush() {
+        // This would integrate with Firebase Cloud Messaging
+        // For now, return a placeholder token
+        activity.runOnUiThread {
+            // In a real implementation, you would use Firebase:
+            // FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            //     if (task.isSuccessful) {
+            //         val token = task.result
+            //         webView.evaluateJavascript("window._craftPushResolve('$token')", null)
+            //     } else {
+            //         webView.evaluateJavascript("window._craftPushReject('Failed to get token')", null)
+            //     }
+            // }
+
+            webView.evaluateJavascript(
+                "window._craftPushResolve && window._craftPushResolve('push-token-placeholder')",
+                null
+            )
+        }
+    }
+
+    // ==================== Secure Storage ====================
+
+    @JavascriptInterface
+    fun secureSet(key: String, value: String): Boolean {
+        return try {
+            securePrefs.edit().putString(key, value).apply()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun secureGet(key: String): String? {
+        return try {
+            securePrefs.getString(key, null)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    @JavascriptInterface
+    fun secureRemove(key: String): Boolean {
+        return try {
+            securePrefs.edit().remove(key).apply()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // ==================== Logging ====================
+
+    @JavascriptInterface
+    fun log(message: String) {
+        android.util.Log.d("CraftBridge", message)
+    }
+
+    // ==================== Geolocation ====================
+
+    @JavascriptInterface
+    fun getCurrentPosition(optionsJson: String) {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                activity,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                REQUEST_LOCATION
+            )
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftLocationReject && window._craftLocationReject({code: 1, message: 'Permission denied'})",
+                    null
+                )
+            }
+            return
+        }
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(activity)
+        fusedLocationClient?.lastLocation?.addOnSuccessListener { location: Location? ->
+            if (location != null) {
+                val json = JSONObject().apply {
+                    put("latitude", location.latitude)
+                    put("longitude", location.longitude)
+                    put("accuracy", location.accuracy)
+                    put("altitude", location.altitude)
+                    put("speed", location.speed)
+                    put("heading", location.bearing)
+                    put("timestamp", location.time)
+                }
+                activity.runOnUiThread {
+                    webView.evaluateJavascript(
+                        "window._craftLocationResolve && window._craftLocationResolve($json)",
+                        null
+                    )
+                }
+            } else {
+                // Request fresh location if last location is null
+                requestFreshLocation()
+            }
+        }?.addOnFailureListener { e ->
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftLocationReject && window._craftLocationReject({code: 2, message: '${e.message}'})",
+                    null
+                )
+            }
+        }
+    }
+
+    private fun requestFreshLocation() {
+        if (ActivityCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
+            .setWaitForAccurateLocation(false)
+            .setMinUpdateIntervalMillis(500)
+            .setMaxUpdateDelayMillis(1000)
+            .setMaxUpdates(1)
+            .build()
+
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                fusedLocationClient?.removeLocationUpdates(this)
+                val location = result.lastLocation
+                if (location != null) {
+                    val json = JSONObject().apply {
+                        put("latitude", location.latitude)
+                        put("longitude", location.longitude)
+                        put("accuracy", location.accuracy)
+                        put("altitude", location.altitude)
+                        put("speed", location.speed)
+                        put("heading", location.bearing)
+                        put("timestamp", location.time)
+                    }
+                    activity.runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window._craftLocationResolve && window._craftLocationResolve($json)",
+                            null
+                        )
+                    }
+                }
+            }
+        }
+
+        fusedLocationClient?.requestLocationUpdates(locationRequest, callback, Looper.getMainLooper())
+    }
+
+    @JavascriptInterface
+    fun watchPosition(optionsJson: String): Int {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION)
+            != PackageManager.PERMISSION_GRANTED) {
+            return -1
+        }
+
+        val currentWatchId = ++watchId
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(activity)
+
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000)
+            .setMinUpdateIntervalMillis(2000)
+            .build()
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                val location = result.lastLocation ?: return
+                val json = JSONObject().apply {
+                    put("latitude", location.latitude)
+                    put("longitude", location.longitude)
+                    put("accuracy", location.accuracy)
+                    put("altitude", location.altitude)
+                    put("speed", location.speed)
+                    put("heading", location.bearing)
+                    put("timestamp", location.time)
+                }
+                activity.runOnUiThread {
+                    webView.evaluateJavascript(
+                        "window._craftLocationWatch_$currentWatchId && window._craftLocationWatch_$currentWatchId($json)",
+                        null
+                    )
+                }
+            }
+        }
+
+        if (ActivityCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            fusedLocationClient?.requestLocationUpdates(locationRequest, locationCallback!!, Looper.getMainLooper())
+        }
+
+        return currentWatchId
+    }
+
+    @JavascriptInterface
+    fun clearWatch(watchId: Int) {
+        locationCallback?.let {
+            fusedLocationClient?.removeLocationUpdates(it)
+        }
+        locationCallback = null
+    }
+
+    // ==================== Clipboard ====================
+
+    @JavascriptInterface
+    fun clipboardRead(): String {
+        val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = clipboard.primaryClip
+        return if (clip != null && clip.itemCount > 0) {
+            clip.getItemAt(0).text?.toString() ?: ""
+        } else {
+            ""
+        }
+    }
+
+    @JavascriptInterface
+    fun clipboardWrite(text: String): Boolean {
+        return try {
+            val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = ClipData.newPlainText("Craft", text)
+            clipboard.setPrimaryClip(clip)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // ==================== Device Info ====================
+
+    @JavascriptInterface
+    fun getDeviceInfo(): String {
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        activity.windowManager.defaultDisplay.getMetrics(metrics)
+
+        return JSONObject().apply {
+            put("model", Build.MODEL)
+            put("manufacturer", Build.MANUFACTURER)
+            put("brand", Build.BRAND)
+            put("device", Build.DEVICE)
+            put("systemVersion", Build.VERSION.RELEASE)
+            put("sdkVersion", Build.VERSION.SDK_INT)
+            put("screenWidth", metrics.widthPixels)
+            put("screenHeight", metrics.heightPixels)
+            put("density", metrics.density)
+            put("platform", "android")
+            put("appVersion", try {
+                activity.packageManager.getPackageInfo(activity.packageName, 0).versionName
+            } catch (e: Exception) { "unknown" })
+            put("appBuild", try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    activity.packageManager.getPackageInfo(activity.packageName, 0).longVersionCode
+                } else {
+                    @Suppress("DEPRECATION")
+                    activity.packageManager.getPackageInfo(activity.packageName, 0).versionCode
+                }
+            } catch (e: Exception) { 0 })
+            put("isEmulator", Build.FINGERPRINT.contains("generic") || Build.FINGERPRINT.contains("emulator"))
+        }.toString()
+    }
+
+    // ==================== App Badge ====================
+
+    @JavascriptInterface
+    fun setBadge(count: Int) {
+        // Android doesn't have native badge support, but we can use notification channels
+        // This is a simplified implementation - for full support, use ShortcutBadger library
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val notificationManager = NotificationManagerCompat.from(activity)
+                // Badge is typically shown via notification count
+                // Full implementation would require creating a notification
+            }
+        } catch (e: Exception) {
+            log("Badge not supported: ${e.message}")
+        }
+    }
+
+    @JavascriptInterface
+    fun clearBadge() {
+        setBadge(0)
+    }
+
+    // ==================== Network Status ====================
+
+    @JavascriptInterface
+    fun getNetworkStatus(): String {
+        val connectivityManager = activity.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork
+        val capabilities = connectivityManager.getNetworkCapabilities(network)
+
+        val isConnected = capabilities != null
+        val connectionType = when {
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "wifi"
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "cellular"
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "ethernet"
+            else -> "none"
+        }
+
+        return JSONObject().apply {
+            put("isConnected", isConnected)
+            put("type", connectionType)
+            put("isWifi", connectionType == "wifi")
+            put("isCellular", connectionType == "cellular")
+        }.toString()
+    }
+
+    @JavascriptInterface
+    fun startNetworkMonitoring() {
+        val connectivityManager = activity.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                sendNetworkChange()
+            }
+
+            override fun onLost(network: Network) {
+                sendNetworkChange()
+            }
+
+            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+                sendNetworkChange()
+            }
+        }
+
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+
+        connectivityManager.registerNetworkCallback(request, networkCallback!!)
+    }
+
+    @JavascriptInterface
+    fun stopNetworkMonitoring() {
+        val connectivityManager = activity.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        networkCallback?.let {
+            connectivityManager.unregisterNetworkCallback(it)
+        }
+        networkCallback = null
+    }
+
+    private fun sendNetworkChange() {
+        val status = getNetworkStatus()
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftNetworkChangeCallback && window._craftNetworkChangeCallback($status)",
+                null
+            )
+        }
+    }
+
+    // ==================== App Review ====================
+
+    @JavascriptInterface
+    fun requestReview() {
+        val reviewManager = ReviewManagerFactory.create(activity)
+        val request = reviewManager.requestReviewFlow()
+
+        request.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val reviewInfo = task.result
+                val flow = reviewManager.launchReviewFlow(activity, reviewInfo)
+                flow.addOnCompleteListener {
+                    activity.runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window._craftReviewResolve && window._craftReviewResolve(true)",
+                            null
+                        )
+                    }
+                }
+            } else {
+                activity.runOnUiThread {
+                    webView.evaluateJavascript(
+                        "window._craftReviewReject && window._craftReviewReject('${task.exception?.message ?: \"Review flow failed\"}')",
+                        null
+                    )
+                }
+            }
+        }
+    }
+
+    // ==================== Flashlight ====================
+
+    private fun hasFlashlight(): Boolean {
+        return activity.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH)
+    }
+
+    @JavascriptInterface
+    fun setFlashlight(on: Boolean): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val cameraManager = activity.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+                val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
+                    cameraManager.getCameraCharacteristics(id)
+                        .get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+                }
+                if (cameraId != null) {
+                    cameraManager.setTorchMode(cameraId, on)
+                    isFlashlightOn = on
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } catch (e: CameraAccessException) {
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun toggleFlashlight(): Boolean {
+        isFlashlightOn = !isFlashlightOn
+        return setFlashlight(isFlashlightOn)
+    }
+
+    // ==================== Open URL ====================
+
+    @JavascriptInterface
+    fun openURL(url: String): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            activity.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // ==================== Vibration Pattern ====================
+
+    @JavascriptInterface
+    fun vibrate(patternJson: String) {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = activity.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            activity.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+
+        try {
+            val pattern = org.json.JSONArray(patternJson)
+            val timings = LongArray(pattern.length()) { i -> pattern.getLong(i) }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val effect = VibrationEffect.createWaveform(timings, -1)
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(timings, -1)
+            }
+        } catch (e: Exception) {
+            log("Vibration error: ${e.message}")
+        }
+    }
+
+    // ==================== App State ====================
+
+    @JavascriptInterface
+    fun getAppState(): String {
+        return currentAppState
+    }
+
+    @JavascriptInterface
+    fun startAppStateMonitoring() {
+        activity.runOnUiThread {
+            ProcessLifecycleOwner.get().lifecycle.addObserver(appStateObserver)
+        }
+    }
+
+    @JavascriptInterface
+    fun stopAppStateMonitoring() {
+        activity.runOnUiThread {
+            ProcessLifecycleOwner.get().lifecycle.removeObserver(appStateObserver)
+        }
+    }
+
+    private val appStateObserver = LifecycleEventObserver { _, event ->
+        val newState = when (event) {
+            Lifecycle.Event.ON_START, Lifecycle.Event.ON_RESUME -> "active"
+            Lifecycle.Event.ON_PAUSE -> "inactive"
+            Lifecycle.Event.ON_STOP -> "background"
+            else -> currentAppState
+        }
+
+        if (newState != currentAppState) {
+            currentAppState = newState
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftAppStateCallback && window._craftAppStateCallback('$currentAppState')",
+                    null
+                )
+            }
+            sendEvent("craftAppStateChange", mapOf("state" to currentAppState))
+        }
+    }
+
+    // ==================== Contacts ====================
+
+    @JavascriptInterface
+    fun getContacts() {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.READ_CONTACTS), REQUEST_CONTACTS)
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftContactsReject && window._craftContactsReject('Permission denied')", null)
+            }
+            return
+        }
+
+        val contacts = JSONArray()
+        val cursor: Cursor? = activity.contentResolver.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            null, null, null, ContactsContract.Contacts.DISPLAY_NAME + " ASC"
+        )
+
+        cursor?.use {
+            while (it.moveToNext()) {
+                val id = it.getString(it.getColumnIndexOrThrow(ContactsContract.Contacts._ID))
+                val name = it.getString(it.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME))
+
+                val contact = JSONObject().apply {
+                    put("id", id)
+                    put("displayName", name ?: "")
+                    put("phoneNumbers", getContactPhones(id))
+                    put("emailAddresses", getContactEmails(id))
+                }
+                contacts.put(contact)
+            }
+        }
+
+        activity.runOnUiThread {
+            webView.evaluateJavascript("window._craftContactsResolve && window._craftContactsResolve($contacts)", null)
+        }
+    }
+
+    private fun getContactPhones(contactId: String): JSONArray {
+        val phones = JSONArray()
+        val cursor = activity.contentResolver.query(
+            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+            null,
+            ContactsContract.CommonDataKinds.Phone.CONTACT_ID + " = ?",
+            arrayOf(contactId), null
+        )
+        cursor?.use {
+            while (it.moveToNext()) {
+                val phone = it.getString(it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER))
+                phones.put(phone)
+            }
+        }
+        return phones
+    }
+
+    private fun getContactEmails(contactId: String): JSONArray {
+        val emails = JSONArray()
+        val cursor = activity.contentResolver.query(
+            ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+            null,
+            ContactsContract.CommonDataKinds.Email.CONTACT_ID + " = ?",
+            arrayOf(contactId), null
+        )
+        cursor?.use {
+            while (it.moveToNext()) {
+                val email = it.getString(it.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.ADDRESS))
+                emails.put(email)
+            }
+        }
+        return emails
+    }
+
+    @JavascriptInterface
+    fun addContact(contactJson: String) {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.WRITE_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.WRITE_CONTACTS), REQUEST_CONTACTS)
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftAddContactReject && window._craftAddContactReject('Permission denied')", null)
+            }
+            return
+        }
+
+        try {
+            val contact = JSONObject(contactJson)
+            val ops = ArrayList<android.content.ContentProviderOperation>()
+
+            ops.add(android.content.ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
+                .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
+                .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
+                .build())
+
+            // Name
+            val displayName = contact.optString("displayName", "")
+            if (displayName.isNotEmpty()) {
+                ops.add(android.content.ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                    .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                    .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                    .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, displayName)
+                    .build())
+            }
+
+            // Phone
+            val phone = contact.optString("phone", "")
+            if (phone.isNotEmpty()) {
+                ops.add(android.content.ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                    .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                    .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                    .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, phone)
+                    .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                    .build())
+            }
+
+            // Email
+            val email = contact.optString("email", "")
+            if (email.isNotEmpty()) {
+                ops.add(android.content.ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                    .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, 0)
+                    .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
+                    .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, email)
+                    .withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
+                    .build())
+            }
+
+            val results = activity.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+            val contactId = ContentUris.parseId(results[0].uri!!)
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftAddContactResolve && window._craftAddContactResolve('$contactId')", null)
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftAddContactReject && window._craftAddContactReject('${e.message}')", null)
+            }
+        }
+    }
+
+    // ==================== Calendar ====================
+
+    @JavascriptInterface
+    fun getCalendarEvents(startDateMs: Long, endDateMs: Long) {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.READ_CALENDAR), REQUEST_CALENDAR)
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftCalendarReject && window._craftCalendarReject('Permission denied')", null)
+            }
+            return
+        }
+
+        val events = JSONArray()
+        val startTime = if (startDateMs > 0) startDateMs else System.currentTimeMillis()
+        val endTime = if (endDateMs > 0) endDateMs else startTime + (30L * 24 * 60 * 60 * 1000) // 30 days
+
+        val projection = arrayOf(
+            CalendarContract.Events._ID,
+            CalendarContract.Events.TITLE,
+            CalendarContract.Events.DESCRIPTION,
+            CalendarContract.Events.DTSTART,
+            CalendarContract.Events.DTEND,
+            CalendarContract.Events.EVENT_LOCATION,
+            CalendarContract.Events.ALL_DAY
+        )
+
+        val selection = "(${CalendarContract.Events.DTSTART} >= ?) AND (${CalendarContract.Events.DTSTART} <= ?)"
+        val selectionArgs = arrayOf(startTime.toString(), endTime.toString())
+
+        val cursor = activity.contentResolver.query(
+            CalendarContract.Events.CONTENT_URI,
+            projection, selection, selectionArgs, CalendarContract.Events.DTSTART + " ASC"
+        )
+
+        cursor?.use {
+            while (it.moveToNext()) {
+                val event = JSONObject().apply {
+                    put("id", it.getString(0))
+                    put("title", it.getString(1) ?: "")
+                    put("notes", it.getString(2) ?: "")
+                    put("startDate", it.getLong(3))
+                    put("endDate", it.getLong(4))
+                    put("location", it.getString(5) ?: "")
+                    put("isAllDay", it.getInt(6) == 1)
+                }
+                events.put(event)
+            }
+        }
+
+        activity.runOnUiThread {
+            webView.evaluateJavascript("window._craftCalendarResolve && window._craftCalendarResolve($events)", null)
+        }
+    }
+
+    @JavascriptInterface
+    fun createCalendarEvent(eventJson: String) {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.WRITE_CALENDAR)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.WRITE_CALENDAR), REQUEST_CALENDAR)
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftCreateEventReject && window._craftCreateEventReject('Permission denied')", null)
+            }
+            return
+        }
+
+        try {
+            val event = JSONObject(eventJson)
+            val values = ContentValues().apply {
+                put(CalendarContract.Events.TITLE, event.optString("title", ""))
+                put(CalendarContract.Events.DESCRIPTION, event.optString("notes", ""))
+                put(CalendarContract.Events.EVENT_LOCATION, event.optString("location", ""))
+                put(CalendarContract.Events.DTSTART, event.optLong("startDate", System.currentTimeMillis()))
+                put(CalendarContract.Events.DTEND, event.optLong("endDate", System.currentTimeMillis() + 3600000))
+                put(CalendarContract.Events.ALL_DAY, if (event.optBoolean("isAllDay", false)) 1 else 0)
+                put(CalendarContract.Events.CALENDAR_ID, 1)
+                put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+            }
+
+            val uri = activity.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
+            val eventId = uri?.lastPathSegment ?: ""
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftCreateEventResolve && window._craftCreateEventResolve('$eventId')", null)
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftCreateEventReject && window._craftCreateEventReject('${e.message}')", null)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun deleteCalendarEvent(eventId: String) {
+        try {
+            val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId.toLong())
+            activity.contentResolver.delete(uri, null, null)
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftDeleteEventResolve && window._craftDeleteEventResolve(true)", null)
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftDeleteEventReject && window._craftDeleteEventReject('${e.message}')", null)
+            }
+        }
+    }
+
+    // ==================== Local Notifications ====================
+
+    @JavascriptInterface
+    fun scheduleNotification(notificationJson: String) {
+        try {
+            val notif = JSONObject(notificationJson)
+            val title = notif.optString("title", "")
+            val body = notif.optString("body", "")
+            val id = notif.optString("id", System.currentTimeMillis().toString())
+
+            createNotificationChannel()
+
+            val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            val builder = androidx.core.app.NotificationCompat.Builder(activity, notificationChannelId)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT)
+                .setAutoCancel(true)
+
+            // Schedule with delay if specified
+            val delay = notif.optLong("delay", 0)
+            if (delay > 0) {
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    notificationManager.notify(id.hashCode(), builder.build())
+                }, delay)
+            } else {
+                notificationManager.notify(id.hashCode(), builder.build())
+            }
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftNotifResolve && window._craftNotifResolve('$id')", null)
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftNotifReject && window._craftNotifReject('${e.message}')", null)
+            }
+        }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "Craft Notifications"
+            val descriptionText = "Notifications from Craft app"
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel(notificationChannelId, name, importance).apply {
+                description = descriptionText
+            }
+            val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    @JavascriptInterface
+    fun cancelNotification(id: String) {
+        val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(id.hashCode())
+    }
+
+    @JavascriptInterface
+    fun cancelAllNotifications() {
+        val notificationManager = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancelAll()
+    }
+
+    // ==================== In-App Purchase ====================
+
+    @JavascriptInterface
+    fun getProducts(productIdsJson: String) {
+        try {
+            val productIds = JSONArray(productIdsJson)
+            val productList = mutableListOf<String>()
+            for (i in 0 until productIds.length()) {
+                productList.add(productIds.getString(i))
+            }
+
+            billingClient = BillingClient.newBuilder(activity)
+                .setListener { _, _ -> }
+                .enablePendingPurchases()
+                .build()
+
+            billingClient?.startConnection(object : BillingClientStateListener {
+                override fun onBillingSetupFinished(billingResult: BillingResult) {
+                    if (billingResult.responseCode == BillingClient.BillingResponseCode.OK) {
+                        val params = QueryProductDetailsParams.newBuilder()
+                            .setProductList(productList.map { productId ->
+                                QueryProductDetailsParams.Product.newBuilder()
+                                    .setProductId(productId)
+                                    .setProductType(BillingClient.ProductType.INAPP)
+                                    .build()
+                            })
+                            .build()
+
+                        billingClient?.queryProductDetailsAsync(params) { result, productDetailsList ->
+                            if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                                val products = JSONArray()
+                                productDetailsList.forEach { details ->
+                                    products.put(JSONObject().apply {
+                                        put("id", details.productId)
+                                        put("displayName", details.name)
+                                        put("description", details.description)
+                                        put("price", details.oneTimePurchaseOfferDetails?.formattedPrice ?: "")
+                                    })
+                                }
+                                activity.runOnUiThread {
+                                    webView.evaluateJavascript("window._craftProductsResolve && window._craftProductsResolve($products)", null)
+                                }
+                            } else {
+                                activity.runOnUiThread {
+                                    webView.evaluateJavascript("window._craftProductsReject && window._craftProductsReject('Query failed')", null)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                override fun onBillingServiceDisconnected() {
+                    activity.runOnUiThread {
+                        webView.evaluateJavascript("window._craftProductsReject && window._craftProductsReject('Billing disconnected')", null)
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftProductsReject && window._craftProductsReject('${e.message}')", null)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun purchase(productId: String) {
+        // Simplified - real implementation would query product details first
+        activity.runOnUiThread {
+            webView.evaluateJavascript("window._craftPurchaseReject && window._craftPurchaseReject('Purchase flow not fully implemented')", null)
+        }
+    }
+
+    @JavascriptInterface
+    fun restorePurchases() {
+        billingClient?.queryPurchasesAsync(
+            QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.INAPP).build()
+        ) { result, purchases ->
+            if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                val restored = JSONArray()
+                purchases.forEach { purchase ->
+                    restored.put(JSONObject().apply {
+                        put("productId", purchase.products.firstOrNull())
+                        put("orderId", purchase.orderId)
+                    })
+                }
+                activity.runOnUiThread {
+                    webView.evaluateJavascript("window._craftRestoreResolve && window._craftRestoreResolve($restored)", null)
+                }
+            } else {
+                activity.runOnUiThread {
+                    webView.evaluateJavascript("window._craftRestoreReject && window._craftRestoreReject('Restore failed')", null)
+                }
+            }
+        }
+    }
+
+    // ==================== Keep Awake ====================
+
+    @JavascriptInterface
+    fun setKeepAwake(enabled: Boolean): Boolean {
+        activity.runOnUiThread {
+            if (enabled) {
+                activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+            isKeepingAwake = enabled
+        }
+        return true
+    }
+
+    // ==================== Orientation Lock ====================
+
+    @JavascriptInterface
+    fun lockOrientation(orientation: String): Boolean {
+        activity.runOnUiThread {
+            activity.requestedOrientation = when (orientation) {
+                "portrait" -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                "landscape" -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                "landscapeLeft" -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                "landscapeRight" -> ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+                else -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+        }
+        return true
+    }
+
+    @JavascriptInterface
+    fun unlockOrientation(): Boolean {
+        activity.runOnUiThread {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+        return true
+    }
+
+    // ==================== Deep Links ====================
+
+    fun handleDeepLink(uri: android.net.Uri) {
+        sendEvent("craftDeepLink", mapOf(
+            "url" to uri.toString(),
+            "scheme" to (uri.scheme ?: ""),
+            "host" to (uri.host ?: ""),
+            "path" to (uri.path ?: ""),
+            "query" to (uri.query ?: "")
+        ))
+    }
+
+    // ==================== QR/Barcode Scanner ====================
+
+    @JavascriptInterface
+    fun scanQRCode() {
+        // Uses ML Kit barcode scanning - requires camera permission
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftQRReject && window._craftQRReject('QR scanning requires camera integration - use native camera intent')",
+                null
+            )
+        }
+    }
+
+    // ==================== File Picker ====================
+
+    @JavascriptInterface
+    fun pickFile(typesJson: String) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+        }
+        activity.startActivityForResult(intent, REQUEST_FILE_PICKER)
+    }
+
+    // ==================== File Download ====================
+
+    @JavascriptInterface
+    fun downloadFile(url: String, filename: String) {
+        try {
+            val request = DownloadManager.Request(Uri.parse(url)).apply {
+                setTitle(filename)
+                setDescription("Downloading...")
+                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, filename)
+            }
+
+            val downloadManager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+            val downloadId = downloadManager.enqueue(request)
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftDownloadResolve && window._craftDownloadResolve('$downloadId')",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftDownloadReject && window._craftDownloadReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun saveFile(data: String, filename: String) {
+        try {
+            val documentsDir = activity.getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS)
+            val file = File(documentsDir, filename)
+
+            if (data.startsWith("data:")) {
+                // Base64 data URL
+                val parts = data.split(",")
+                if (parts.size == 2) {
+                    val bytes = Base64.decode(parts[1], Base64.DEFAULT)
+                    file.writeBytes(bytes)
+                }
+            } else {
+                file.writeText(data)
+            }
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftSaveResolve && window._craftSaveResolve('${file.absolutePath}')",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftSaveReject && window._craftSaveReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    // ==================== Google Sign In ====================
+
+    @JavascriptInterface
+    fun signInWithGoogle() {
+        // Google Sign In requires configuration in build.gradle
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftGoogleReject && window._craftGoogleReject('Google Sign In requires app configuration')",
+                null
+            )
+        }
+    }
+
+    // ==================== Audio Recording ====================
+
+    @JavascriptInterface
+    fun startAudioRecording() {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_AUDIO)
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftAudioReject && window._craftAudioReject('Permission denied')", null)
+            }
+            return
+        }
+
+        try {
+            val cacheDir = activity.cacheDir
+            audioFile = File.createTempFile("recording_", ".m4a", cacheDir)
+
+            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(activity)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+
+            mediaRecorder?.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setOutputFile(audioFile?.absolutePath)
+                prepare()
+                start()
+            }
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftAudioResolve && window._craftAudioResolve(true)", null)
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftAudioReject && window._craftAudioReject('${e.message}')", null)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun stopAudioRecording() {
+        try {
+            mediaRecorder?.stop()
+            mediaRecorder?.release()
+            mediaRecorder = null
+
+            audioFile?.let { file ->
+                val bytes = file.readBytes()
+                val base64 = "data:audio/m4a;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+                activity.runOnUiThread {
+                    webView.evaluateJavascript("window._craftAudioStopResolve && window._craftAudioStopResolve('$base64')", null)
+                }
+            } ?: run {
+                activity.runOnUiThread {
+                    webView.evaluateJavascript("window._craftAudioStopReject && window._craftAudioStopReject('No recording')", null)
+                }
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftAudioStopReject && window._craftAudioStopReject('${e.message}')", null)
+            }
+        }
+    }
+
+    // ==================== Video Recording ====================
+
+    @JavascriptInterface
+    fun startVideoRecording() {
+        val intent = Intent(MediaStore.ACTION_VIDEO_CAPTURE).apply {
+            putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 1)
+        }
+        activity.startActivityForResult(intent, REQUEST_VIDEO)
+    }
+
+    // ==================== Motion Sensors ====================
+
+    @JavascriptInterface
+    fun startMotionUpdates(intervalMs: Int): Boolean {
+        sensorManager = activity.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        accelerometer = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        gyroscope = sensorManager?.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+
+        sensorListener = object : SensorEventListener {
+            private var lastAccel: FloatArray? = null
+            private var lastGyro: FloatArray? = null
+
+            override fun onSensorChanged(event: SensorEvent) {
+                when (event.sensor.type) {
+                    Sensor.TYPE_ACCELEROMETER -> lastAccel = event.values.clone()
+                    Sensor.TYPE_GYROSCOPE -> lastGyro = event.values.clone()
+                }
+
+                val accel = lastAccel ?: floatArrayOf(0f, 0f, 0f)
+                val gyro = lastGyro ?: floatArrayOf(0f, 0f, 0f)
+
+                sendEvent("craftMotionUpdate", mapOf(
+                    "acceleration" to mapOf("x" to accel[0], "y" to accel[1], "z" to accel[2]),
+                    "rotation" to mapOf("alpha" to gyro[0], "beta" to gyro[1], "gamma" to gyro[2])
+                ))
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+
+        val delay = when {
+            intervalMs <= 20 -> SensorManager.SENSOR_DELAY_FASTEST
+            intervalMs <= 60 -> SensorManager.SENSOR_DELAY_GAME
+            intervalMs <= 200 -> SensorManager.SENSOR_DELAY_UI
+            else -> SensorManager.SENSOR_DELAY_NORMAL
+        }
+
+        accelerometer?.let { sensorManager?.registerListener(sensorListener, it, delay) }
+        gyroscope?.let { sensorManager?.registerListener(sensorListener, it, delay) }
+
+        return true
+    }
+
+    @JavascriptInterface
+    fun stopMotionUpdates() {
+        sensorListener?.let { sensorManager?.unregisterListener(it) }
+        sensorListener = null
+    }
+
+    // ==================== Local Database ====================
+
+    @JavascriptInterface
+    fun dbExecute(sql: String, paramsJson: String) {
+        try {
+            if (database == null) {
+                database = activity.openOrCreateDatabase("craft.db", Context.MODE_PRIVATE, null)
+            }
+
+            val params = JSONArray(paramsJson)
+            val args = Array(params.length()) { params.getString(it) }
+
+            database?.execSQL(sql, args)
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftDbExecResolve && window._craftDbExecResolve({rowsAffected: 1})",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftDbExecReject && window._craftDbExecReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun dbQuery(sql: String, paramsJson: String) {
+        try {
+            if (database == null) {
+                database = activity.openOrCreateDatabase("craft.db", Context.MODE_PRIVATE, null)
+            }
+
+            val params = JSONArray(paramsJson)
+            val args = Array(params.length()) { params.getString(it) }
+
+            val cursor = database?.rawQuery(sql, args)
+            val results = JSONArray()
+
+            cursor?.use {
+                val columns = it.columnNames
+                while (it.moveToNext()) {
+                    val row = JSONObject()
+                    columns.forEachIndexed { index, col ->
+                        row.put(col, it.getString(index))
+                    }
+                    results.put(row)
+                }
+            }
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftDbQueryResolve && window._craftDbQueryResolve($results)",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftDbQueryReject && window._craftDbQueryReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    // ==================== Bluetooth ====================
+
+    @JavascriptInterface
+    fun startBluetoothScan() {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.BLUETOOTH_SCAN)
+            != PackageManager.PERMISSION_GRANTED) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.BLUETOOTH_SCAN), REQUEST_BLUETOOTH)
+            }
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftBleReject && window._craftBleReject('Permission denied')", null)
+            }
+            return
+        }
+
+        val bluetoothManager = activity.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+        bluetoothAdapter = bluetoothManager.adapter
+        bluetoothScanner = bluetoothAdapter?.bluetoothLeScanner
+
+        bleScanCallback = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                sendEvent("craftBluetoothDevice", mapOf(
+                    "id" to result.device.address,
+                    "name" to (result.device.name ?: "Unknown"),
+                    "rssi" to result.rssi
+                ))
+            }
+        }
+
+        bluetoothScanner?.startScan(bleScanCallback)
+        activity.runOnUiThread {
+            webView.evaluateJavascript("window._craftBleResolve && window._craftBleResolve(true)", null)
+        }
+    }
+
+    @JavascriptInterface
+    fun stopBluetoothScan() {
+        bleScanCallback?.let { bluetoothScanner?.stopScan(it) }
+        bleScanCallback = null
+    }
+
+    // ==================== NFC ====================
+
+    @JavascriptInterface
+    fun scanNFC() {
+        val nfcAdapter = NfcAdapter.getDefaultAdapter(activity)
+        if (nfcAdapter == null || !nfcAdapter.isEnabled) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript("window._craftNfcReject && window._craftNfcReject('NFC not available')", null)
+            }
+            return
+        }
+        // NFC requires foreground dispatch - simplified implementation
+        activity.runOnUiThread {
+            webView.evaluateJavascript("window._craftNfcReject && window._craftNfcReject('NFC requires activity integration')", null)
+        }
+    }
+
+    // ==================== Fitness ====================
+
+    @JavascriptInterface
+    fun requestFitnessAuthorization(typesJson: String) {
+        // Google Fit requires configuration
+        activity.runOnUiThread {
+            webView.evaluateJavascript("window._craftFitnessAuthReject && window._craftFitnessAuthReject('Fitness requires Google Fit configuration')", null)
+        }
+    }
+
+    @JavascriptInterface
+    fun getFitnessData(type: String, startDate: Long, endDate: Long) {
+        activity.runOnUiThread {
+            webView.evaluateJavascript("window._craftFitnessDataReject && window._craftFitnessDataReject('Fitness requires Google Fit configuration')", null)
+        }
+    }
+
+    // ==================== Screen Capture ====================
+
+    @JavascriptInterface
+    fun takeScreenshot() {
+        activity.runOnUiThread {
+            try {
+                val view = webView.rootView
+                view.isDrawingCacheEnabled = true
+                view.buildDrawingCache()
+                val bitmap = Bitmap.createBitmap(view.drawingCache)
+                view.isDrawingCacheEnabled = false
+
+                val outputStream = ByteArrayOutputStream()
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+                val base64 = "data:image/png;base64," + Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
+
+                webView.evaluateJavascript("window._craftScreenshotResolve && window._craftScreenshotResolve('$base64')", null)
+            } catch (e: Exception) {
+                webView.evaluateJavascript("window._craftScreenshotReject && window._craftScreenshotReject('${e.message}')", null)
+            }
+        }
+    }
+
+    // ==================== Helpers ====================
+
+    private fun sendEvent(event: String, data: Map<String, Any>) {
+        val json = JSONObject(data).toString()
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('$event', {detail: $json}));",
+                null
+            )
+        }
+    }
+
+    companion object {
+        const val REQUEST_CAMERA = 1001
+        const val REQUEST_GALLERY = 1002
+        const val REQUEST_LOCATION = 1003
+        const val REQUEST_CONTACTS = 1004
+        const val REQUEST_CALENDAR = 1005
+        const val REQUEST_FILE_PICKER = 1006
+        const val REQUEST_AUDIO = 1007
+        const val REQUEST_VIDEO = 1008
+        const val REQUEST_BLUETOOTH = 1009
+    }
+}

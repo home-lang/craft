@@ -1,0 +1,33 @@
+{
+  "name": "@aspect/craft-ios",
+  "version": "0.1.0",
+  "description": "iOS native app builder for Craft",
+  "type": "module",
+  "bin": {
+    "craft-ios": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "bun build.ts",
+    "dev": "bun --watch src/cli.ts"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "keywords": [
+    "craft",
+    "ios",
+    "mobile",
+    "native",
+    "swift",
+    "wkwebview"
+  ],
+  "author": "Chris Breuer <chris@stacksjs.org>",
+  "license": "MIT"
+}

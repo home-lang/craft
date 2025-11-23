@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Craft Bridge Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      padding: 20px;
+      padding-top: max(20px, env(safe-area-inset-top));
+      padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+    h1 { font-size: 24px; margin-bottom: 20px; text-align: center; }
+    h2 { font-size: 18px; margin: 20px 0 10px; color: #888; }
+    .section { margin-bottom: 30px; }
+    .btn {
+      display: inline-block;
+      background: #4a4a8a;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      margin: 5px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn:active { background: #5a5a9a; }
+    .btn.success { background: #2a7a3a; }
+    .btn.error { background: #7a2a2a; }
+    .result {
+      background: #2a2a4e;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 10px 0;
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-left: 10px;
+    }
+    .status.ready { background: #2a7a3a; }
+    .status.waiting { background: #7a5a2a; }
+    .status.error { background: #7a2a2a; }
+    #log {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #000;
+      padding: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 11px;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <h1>Craft Bridge Test <span id="status" class="status waiting">Waiting...</span></h1>
+  <div id="platform"></div>
+
+  <!-- Core -->
+  <div class="section">
+    <h2>Core</h2>
+    <button class="btn" onclick="testHaptic()">Test Haptics</button>
+    <button class="btn" onclick="testShare()">Test Share</button>
+    <button class="btn" onclick="testLog()">Test Log</button>
+    <button class="btn" onclick="testDeviceInfo()">Device Info</button>
+    <div id="core-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Camera & Media -->
+  <div class="section">
+    <h2>Camera & Media</h2>
+    <button class="btn" onclick="testCamera()">Open Camera</button>
+    <button class="btn" onclick="testGallery()">Pick Image</button>
+    <button class="btn" onclick="testQRScanner()">Scan QR Code</button>
+    <button class="btn" onclick="testScreenshot()">Screenshot</button>
+    <div id="camera-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Audio/Video Recording -->
+  <div class="section">
+    <h2>Audio/Video Recording</h2>
+    <button class="btn" onclick="testStartAudio()">Start Audio</button>
+    <button class="btn" onclick="testStopAudio()">Stop Audio</button>
+    <button class="btn" onclick="testVideoRecording()">Record Video</button>
+    <div id="recording-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Files -->
+  <div class="section">
+    <h2>Files</h2>
+    <button class="btn" onclick="testFilePicker()">Pick File</button>
+    <button class="btn" onclick="testDownloadFile()">Download File</button>
+    <div id="files-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Location & Sensors -->
+  <div class="section">
+    <h2>Location & Sensors</h2>
+    <button class="btn" onclick="testLocation()">Get Location</button>
+    <button class="btn" onclick="testStartMotion()">Start Motion</button>
+    <button class="btn" onclick="testStopMotion()">Stop Motion</button>
+    <div id="sensors-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Connectivity -->
+  <div class="section">
+    <h2>Connectivity</h2>
+    <button class="btn" onclick="testNetwork()">Network Status</button>
+    <button class="btn" onclick="testStartBluetooth()">Start BLE Scan</button>
+    <button class="btn" onclick="testStopBluetooth()">Stop BLE Scan</button>
+    <button class="btn" onclick="testNFC()">Scan NFC</button>
+    <div id="connectivity-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Database -->
+  <div class="section">
+    <h2>Local Database (SQLite)</h2>
+    <button class="btn" onclick="testDBCreate()">Create Table</button>
+    <button class="btn" onclick="testDBInsert()">Insert Data</button>
+    <button class="btn" onclick="testDBQuery()">Query Data</button>
+    <div id="db-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Auth & Security -->
+  <div class="section">
+    <h2>Auth & Security</h2>
+    <button class="btn" onclick="testBiometric()">Biometric Auth</button>
+    <button class="btn" onclick="testAppleSignIn()">Apple Sign In</button>
+    <button class="btn" onclick="testSecureStore()">Secure Storage</button>
+    <div id="auth-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Clipboard -->
+  <div class="section">
+    <h2>Clipboard</h2>
+    <button class="btn" onclick="testClipboardWrite()">Write Clipboard</button>
+    <button class="btn" onclick="testClipboardRead()">Read Clipboard</button>
+    <div id="clipboard-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- System -->
+  <div class="section">
+    <h2>System</h2>
+    <button class="btn" onclick="testFlashlight()">Toggle Flashlight</button>
+    <button class="btn" onclick="testVibrate()">Vibrate Pattern</button>
+    <button class="btn" onclick="testOpenURL()">Open URL</button>
+    <button class="btn" onclick="testAppState()">App State</button>
+    <button class="btn" onclick="testBadge()">Set Badge</button>
+    <button class="btn" onclick="testReview()">Request Review</button>
+    <div id="system-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Speech -->
+  <div class="section">
+    <h2>Speech Recognition</h2>
+    <button class="btn" onclick="testStartListening()">Start Listening</button>
+    <button class="btn" onclick="testStopListening()">Stop Listening</button>
+    <div id="speech-result" class="result">Results will appear here...</div>
+  </div>
+
+  <div id="log"></div>
+
+  <script>
+    // Logging utility
+    function log(msg) {
+      const logEl = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      logEl.innerHTML = `[${time}] ${msg}\n` + logEl.innerHTML;
+      console.log(msg);
+    }
+
+    function showResult(id, data) {
+      document.getElementById(id).textContent = typeof data === 'object'
+        ? JSON.stringify(data, null, 2)
+        : String(data);
+    }
+
+    // Wait for Craft
+    window.addEventListener('craftReady', (e) => {
+      document.getElementById('status').textContent = 'Ready';
+      document.getElementById('status').className = 'status ready';
+      document.getElementById('platform').textContent = `Platform: ${e.detail.platform}`;
+      log('Craft ready! Platform: ' + e.detail.platform);
+      log('Capabilities: ' + JSON.stringify(e.detail.capabilities));
+    });
+
+    // Speech events
+    window.addEventListener('craftSpeechStart', () => {
+      log('Speech started');
+      showResult('speech-result', 'Listening...');
+    });
+    window.addEventListener('craftSpeechResult', (e) => {
+      log('Speech result: ' + e.detail.transcript);
+      showResult('speech-result', `Transcript: ${e.detail.transcript}\nFinal: ${e.detail.isFinal}`);
+    });
+    window.addEventListener('craftSpeechEnd', () => {
+      log('Speech ended');
+    });
+    window.addEventListener('craftSpeechError', (e) => {
+      log('Speech error: ' + e.detail.error);
+      showResult('speech-result', 'Error: ' + e.detail.error);
+    });
+
+    // Motion events
+    window.addEventListener('craftMotionUpdate', (e) => {
+      showResult('sensors-result', {
+        accelerometer: e.detail.accelerometer,
+        gyroscope: e.detail.gyroscope
+      });
+    });
+
+    // Bluetooth events
+    window.addEventListener('craftBluetoothDevice', (e) => {
+      log('BLE device: ' + e.detail.name);
+      const current = document.getElementById('connectivity-result').textContent;
+      showResult('connectivity-result', current + '\nDevice: ' + JSON.stringify(e.detail));
+    });
+
+    // Core tests
+    function testHaptic() {
+      if (!window.craft) return showResult('core-result', 'Craft not ready');
+      window.craft.haptic('success');
+      window.craft.haptic('light');
+      window.craft.haptic('selection');
+      showResult('core-result', 'Haptic feedback triggered (success, light, selection)');
+    }
+
+    function testShare() {
+      if (!window.craft) return showResult('core-result', 'Craft not ready');
+      window.craft.share('Testing Craft bridges!', 'Craft Test');
+      showResult('core-result', 'Share sheet opened');
+    }
+
+    function testLog() {
+      if (!window.craft) return showResult('core-result', 'Craft not ready');
+      window.craft.log('Test log message from JavaScript');
+      showResult('core-result', 'Log message sent to native console');
+    }
+
+    function testDeviceInfo() {
+      if (!window.craft) return showResult('core-result', 'Craft not ready');
+      const info = window.craft.getDeviceInfo();
+      showResult('core-result', info);
+    }
+
+    // Camera tests
+    async function testCamera() {
+      if (!window.craft) return showResult('camera-result', 'Craft not ready');
+      try {
+        const image = await window.craft.openCamera();
+        showResult('camera-result', 'Image captured! Base64 length: ' + (image?.length || 0));
+      } catch (e) {
+        showResult('camera-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testGallery() {
+      if (!window.craft) return showResult('camera-result', 'Craft not ready');
+      try {
+        const image = await window.craft.pickImage();
+        showResult('camera-result', 'Image selected! Base64 length: ' + (image?.length || 0));
+      } catch (e) {
+        showResult('camera-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testQRScanner() {
+      if (!window.craft) return showResult('camera-result', 'Craft not ready');
+      try {
+        const code = await window.craft.scanQRCode();
+        showResult('camera-result', 'Scanned: ' + code);
+      } catch (e) {
+        showResult('camera-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testScreenshot() {
+      if (!window.craft) return showResult('camera-result', 'Craft not ready');
+      try {
+        const screenshot = await window.craft.takeScreenshot();
+        showResult('camera-result', 'Screenshot captured! Base64 length: ' + (screenshot?.length || 0));
+      } catch (e) {
+        showResult('camera-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Audio/Video tests
+    async function testStartAudio() {
+      if (!window.craft) return showResult('recording-result', 'Craft not ready');
+      try {
+        await window.craft.startAudioRecording();
+        showResult('recording-result', 'Audio recording started...');
+      } catch (e) {
+        showResult('recording-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testStopAudio() {
+      if (!window.craft) return showResult('recording-result', 'Craft not ready');
+      try {
+        const audio = await window.craft.stopAudioRecording();
+        showResult('recording-result', 'Audio recorded! Base64 length: ' + (audio?.length || 0));
+      } catch (e) {
+        showResult('recording-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testVideoRecording() {
+      if (!window.craft) return showResult('recording-result', 'Craft not ready');
+      try {
+        const video = await window.craft.startVideoRecording();
+        showResult('recording-result', 'Video recorded! Base64 length: ' + (video?.length || 0));
+      } catch (e) {
+        showResult('recording-result', 'Error: ' + e.message);
+      }
+    }
+
+    // File tests
+    async function testFilePicker() {
+      if (!window.craft) return showResult('files-result', 'Craft not ready');
+      try {
+        const file = await window.craft.pickFile();
+        showResult('files-result', {
+          name: file?.name,
+          dataLength: file?.data?.length || 0
+        });
+      } catch (e) {
+        showResult('files-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testDownloadFile() {
+      if (!window.craft) return showResult('files-result', 'Craft not ready');
+      try {
+        await window.craft.downloadFile('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', 'test.pdf');
+        showResult('files-result', 'File download started');
+      } catch (e) {
+        showResult('files-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Location & Sensors tests
+    async function testLocation() {
+      if (!window.craft) return showResult('sensors-result', 'Craft not ready');
+      try {
+        const pos = await window.craft.getCurrentPosition();
+        showResult('sensors-result', pos);
+      } catch (e) {
+        showResult('sensors-result', 'Error: ' + e.message);
+      }
+    }
+
+    function testStartMotion() {
+      if (!window.craft) return showResult('sensors-result', 'Craft not ready');
+      window.craft.startMotionUpdates();
+      showResult('sensors-result', 'Motion updates started (watch for updates)...');
+    }
+
+    function testStopMotion() {
+      if (!window.craft) return showResult('sensors-result', 'Craft not ready');
+      window.craft.stopMotionUpdates();
+      showResult('sensors-result', 'Motion updates stopped');
+    }
+
+    // Connectivity tests
+    function testNetwork() {
+      if (!window.craft) return showResult('connectivity-result', 'Craft not ready');
+      const status = window.craft.getNetworkStatus();
+      showResult('connectivity-result', status);
+    }
+
+    function testStartBluetooth() {
+      if (!window.craft) return showResult('connectivity-result', 'Craft not ready');
+      window.craft.startBluetoothScan();
+      showResult('connectivity-result', 'Bluetooth scan started...');
+    }
+
+    function testStopBluetooth() {
+      if (!window.craft) return showResult('connectivity-result', 'Craft not ready');
+      window.craft.stopBluetoothScan();
+      showResult('connectivity-result', 'Bluetooth scan stopped');
+    }
+
+    async function testNFC() {
+      if (!window.craft) return showResult('connectivity-result', 'Craft not ready');
+      try {
+        const data = await window.craft.scanNFC();
+        showResult('connectivity-result', 'NFC data: ' + data);
+      } catch (e) {
+        showResult('connectivity-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Database tests
+    async function testDBCreate() {
+      if (!window.craft?.db) return showResult('db-result', 'Craft DB not ready');
+      try {
+        await window.craft.db.execute('CREATE TABLE IF NOT EXISTS test_users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, created_at TEXT)');
+        showResult('db-result', 'Table created successfully');
+      } catch (e) {
+        showResult('db-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testDBInsert() {
+      if (!window.craft?.db) return showResult('db-result', 'Craft DB not ready');
+      try {
+        const now = new Date().toISOString();
+        await window.craft.db.execute('INSERT INTO test_users (name, created_at) VALUES (?, ?)', ['Test User ' + Date.now(), now]);
+        showResult('db-result', 'Data inserted successfully');
+      } catch (e) {
+        showResult('db-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testDBQuery() {
+      if (!window.craft?.db) return showResult('db-result', 'Craft DB not ready');
+      try {
+        const results = await window.craft.db.query('SELECT * FROM test_users ORDER BY id DESC LIMIT 5');
+        showResult('db-result', results);
+      } catch (e) {
+        showResult('db-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Auth tests
+    async function testBiometric() {
+      if (!window.craft) return showResult('auth-result', 'Craft not ready');
+      try {
+        const result = await window.craft.authenticate('Confirm your identity');
+        showResult('auth-result', 'Authenticated: ' + result);
+      } catch (e) {
+        showResult('auth-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testAppleSignIn() {
+      if (!window.craft) return showResult('auth-result', 'Craft not ready');
+      try {
+        const user = await window.craft.signInWithApple();
+        showResult('auth-result', user);
+      } catch (e) {
+        showResult('auth-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testSecureStore() {
+      if (!window.craft?.secureStore) return showResult('auth-result', 'Craft secureStore not ready');
+      try {
+        await window.craft.secureStore.set('test_key', 'test_value_' + Date.now());
+        const value = await window.craft.secureStore.get('test_key');
+        showResult('auth-result', 'Stored and retrieved: ' + value);
+      } catch (e) {
+        showResult('auth-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Clipboard tests
+    async function testClipboardWrite() {
+      if (!window.craft?.clipboard) return showResult('clipboard-result', 'Craft clipboard not ready');
+      try {
+        await window.craft.clipboard.write('Hello from Craft! ' + Date.now());
+        showResult('clipboard-result', 'Text written to clipboard');
+      } catch (e) {
+        showResult('clipboard-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testClipboardRead() {
+      if (!window.craft?.clipboard) return showResult('clipboard-result', 'Craft clipboard not ready');
+      try {
+        const text = await window.craft.clipboard.read();
+        showResult('clipboard-result', 'Clipboard: ' + text);
+      } catch (e) {
+        showResult('clipboard-result', 'Error: ' + e.message);
+      }
+    }
+
+    // System tests
+    function testFlashlight() {
+      if (!window.craft) return showResult('system-result', 'Craft not ready');
+      window.craft.toggleFlashlight();
+      showResult('system-result', 'Flashlight toggled');
+    }
+
+    function testVibrate() {
+      if (!window.craft) return showResult('system-result', 'Craft not ready');
+      window.craft.vibrate([100, 50, 100, 50, 200]);
+      showResult('system-result', 'Vibration pattern triggered');
+    }
+
+    function testOpenURL() {
+      if (!window.craft) return showResult('system-result', 'Craft not ready');
+      window.craft.openURL('https://github.com');
+      showResult('system-result', 'Opening URL in browser...');
+    }
+
+    function testAppState() {
+      if (!window.craft) return showResult('system-result', 'Craft not ready');
+      const state = window.craft.getAppState();
+      showResult('system-result', 'App state: ' + state);
+    }
+
+    function testBadge() {
+      if (!window.craft) return showResult('system-result', 'Craft not ready');
+      window.craft.setBadge(5);
+      setTimeout(() => window.craft.clearBadge(), 3000);
+      showResult('system-result', 'Badge set to 5 (will clear in 3s)');
+    }
+
+    async function testReview() {
+      if (!window.craft) return showResult('system-result', 'Craft not ready');
+      try {
+        await window.craft.requestReview();
+        showResult('system-result', 'Review requested');
+      } catch (e) {
+        showResult('system-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Speech tests
+    function testStartListening() {
+      if (!window.craft) return showResult('speech-result', 'Craft not ready');
+      window.craft.startListening();
+      showResult('speech-result', 'Started listening...');
+    }
+
+    function testStopListening() {
+      if (!window.craft) return showResult('speech-result', 'Craft not ready');
+      window.craft.stopListening();
+      showResult('speech-result', 'Stopped listening');
+    }
+
+    log('Test page loaded, waiting for Craft...');
+  </script>
+</body>
+</html>
