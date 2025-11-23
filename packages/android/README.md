@@ -301,6 +301,110 @@ window.craft.offAppStateChange();
 
 // Logging (appears in Logcat)
 window.craft.log('Debug message');
+
+// ==================== High Value Bridges ====================
+
+// Contacts
+const contacts = await window.craft.getContacts();
+console.log(contacts); // [{id, displayName, phoneNumbers, emailAddresses}]
+
+const newContactId = await window.craft.addContact({
+  displayName: 'John Doe',
+  phone: '+1234567890',
+  email: 'john@example.com'
+});
+
+// Calendar Events
+const events = await window.craft.getCalendarEvents(startDateMs, endDateMs);
+console.log(events); // [{id, title, description, startDate, endDate, location, isAllDay}]
+
+const newEventId = await window.craft.createCalendarEvent({
+  title: 'Meeting',
+  description: 'Discuss project',
+  location: 'Office',
+  startDate: Date.now(),
+  endDate: Date.now() + 3600000,
+  isAllDay: false
+});
+
+await window.craft.deleteCalendarEvent(eventId);
+
+// Local Notifications
+const notificationId = await window.craft.scheduleNotification({
+  id: 'reminder-1',
+  title: 'Reminder',
+  body: 'Don\'t forget!',
+  timestamp: Date.now() + 60000, // 1 minute from now
+  // or use delay: 60000 // delay in ms
+});
+
+await window.craft.cancelNotification('reminder-1');
+await window.craft.cancelAllNotifications();
+
+// In-App Purchase (Google Play Billing)
+const products = await window.craft.getProducts(['product_id_1', 'product_id_2']);
+console.log(products); // [{productId, title, description, price}]
+
+const purchaseResult = await window.craft.purchase('product_id_1');
+console.log(purchaseResult); // {purchaseToken, productId, ...}
+
+await window.craft.restorePurchases();
+
+// Keep Screen Awake
+window.craft.setKeepAwake(true);  // Prevent screen dimming
+window.craft.setKeepAwake(false); // Allow screen dimming
+
+// Orientation Lock
+window.craft.lockOrientation('portrait');   // Lock to portrait
+window.craft.lockOrientation('landscape');  // Lock to landscape
+window.craft.unlockOrientation();           // Allow all orientations
+
+// ==================== Medium Value Bridges ====================
+
+// Background Tasks (WorkManager)
+await window.craft.backgroundTask.register('sync-data');
+await window.craft.backgroundTask.schedule('sync-data', {
+  delay: 900,              // 15 minutes
+  requiresNetwork: true,
+  requiresCharging: false
+});
+await window.craft.backgroundTask.cancel('sync-data');
+await window.craft.backgroundTask.cancelAll();
+
+// PDF Viewer (opens in external PDF app)
+await window.craft.openPDF('https://example.com/document.pdf');
+await window.craft.openPDF(base64PdfData, 5); // Open at page 5
+await window.craft.closePDF();
+
+// Contacts Picker (shows native picker UI)
+const contact = await window.craft.pickContact();
+console.log(contact); // {id, displayName, phoneNumbers, emailAddresses}
+
+const contacts = await window.craft.pickContact({multiple: true}); // Select multiple
+
+// App Shortcuts (Android 7.1+, long press)
+await window.craft.shortcuts.set([
+  {type: 'new-message', title: 'New Message', subtitle: 'Start composing'},
+  {type: 'search', title: 'Search'}
+]);
+window.craft.shortcuts.onShortcut((shortcut) => {
+  console.log('Shortcut activated:', shortcut.type);
+});
+await window.craft.shortcuts.clear();
+
+// Shared Preferences (cross-app data with named groups)
+await window.craft.sharedKeychain.set('user_token', 'abc123', 'mygroup'); // group optional
+const result = await window.craft.sharedKeychain.get('user_token', 'mygroup');
+console.log(result.value); // 'abc123'
+await window.craft.sharedKeychain.remove('user_token');
+
+// Local Auth Persistence (skip re-auth for a duration)
+await window.craft.authPersistence.enable(300); // 5 minutes
+const status = await window.craft.authPersistence.check();
+if (status.isValid) {
+  console.log('Session valid for', status.remainingSeconds, 'more seconds');
+}
+await window.craft.authPersistence.clear();
 ```
 
 ## CLI Reference
@@ -364,6 +468,17 @@ Add to your AndroidManifest.xml as needed:
 
 <!-- Fitness (Google Fit) -->
 <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
+<!-- Contacts -->
+<uses-permission android:name="android.permission.READ_CONTACTS" />
+<uses-permission android:name="android.permission.WRITE_CONTACTS" />
+
+<!-- Calendar -->
+<uses-permission android:name="android.permission.READ_CALENDAR" />
+<uses-permission android:name="android.permission.WRITE_CALENDAR" />
+
+<!-- Notifications (Android 13+) -->
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 ```
 
 ## Development Mode

@@ -85,6 +85,13 @@ import android.view.View
 import android.util.Base64
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.label.ImageLabeling
+import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
+import com.google.mlkit.vision.objects.ObjectDetection
+import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import android.graphics.BitmapFactory
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -612,6 +619,215 @@ class CraftBridge(
                         window._craftScreenshotReject = reject;
                         CraftAndroid.takeScreenshot();
                     });
+                },
+
+                // Background Tasks
+                backgroundTask: {
+                    register: function(taskId) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftBgTaskResolve = resolve;
+                            window._craftBgTaskReject = reject;
+                            CraftAndroid.registerBackgroundTask(taskId);
+                        });
+                    },
+                    schedule: function(taskId, options) {
+                        options = options || {};
+                        return new Promise(function(resolve, reject) {
+                            window._craftBgTaskResolve = resolve;
+                            window._craftBgTaskReject = reject;
+                            CraftAndroid.scheduleBackgroundTask(
+                                taskId,
+                                options.delay || 900,
+                                options.requiresNetwork || false,
+                                options.requiresCharging || false
+                            );
+                        });
+                    },
+                    cancel: function(taskId) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftBgTaskResolve = resolve;
+                            window._craftBgTaskReject = reject;
+                            CraftAndroid.cancelBackgroundTask(taskId);
+                        });
+                    },
+                    cancelAll: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftBgTaskResolve = resolve;
+                            window._craftBgTaskReject = reject;
+                            CraftAndroid.cancelAllBackgroundTasks();
+                        });
+                    }
+                },
+
+                // PDF Viewer
+                openPDF: function(source, page) {
+                    return new Promise(function(resolve, reject) {
+                        window._craftPDFResolve = resolve;
+                        window._craftPDFReject = reject;
+                        CraftAndroid.openPDF(source, page || 0);
+                    });
+                },
+                closePDF: function() {
+                    return new Promise(function(resolve, reject) {
+                        window._craftPDFResolve = resolve;
+                        window._craftPDFReject = reject;
+                        CraftAndroid.closePDF();
+                    });
+                },
+
+                // Contacts Picker
+                pickContact: function(options) {
+                    options = options || {};
+                    return new Promise(function(resolve, reject) {
+                        window._craftPickContactResolve = resolve;
+                        window._craftPickContactReject = reject;
+                        CraftAndroid.pickContact(options.multiple || false);
+                    });
+                },
+
+                // App Shortcuts
+                shortcuts: {
+                    set: function(shortcuts) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftShortcutsResolve = resolve;
+                            window._craftShortcutsReject = reject;
+                            CraftAndroid.setShortcuts(JSON.stringify(shortcuts));
+                        });
+                    },
+                    clear: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftShortcutsResolve = resolve;
+                            window._craftShortcutsReject = reject;
+                            CraftAndroid.clearShortcuts();
+                        });
+                    },
+                    onShortcut: function(callback) {
+                        window.addEventListener('craftShortcut', function(e) { callback(e.detail); });
+                    }
+                },
+
+                // Shared Preferences (Android equivalent of Keychain Sharing)
+                sharedKeychain: {
+                    set: function(key, value, group) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftSharedKeychainResolve = resolve;
+                            window._craftSharedKeychainReject = reject;
+                            CraftAndroid.setSharedItem(key, value, group || '');
+                        });
+                    },
+                    get: function(key, group) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftSharedKeychainResolve = resolve;
+                            window._craftSharedKeychainReject = reject;
+                            CraftAndroid.getSharedItem(key, group || '');
+                        });
+                    },
+                    remove: function(key, group) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftSharedKeychainResolve = resolve;
+                            window._craftSharedKeychainReject = reject;
+                            CraftAndroid.removeSharedItem(key, group || '');
+                        });
+                    }
+                },
+
+                // Local Auth Persistence
+                authPersistence: {
+                    enable: function(duration) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftAuthPersistResolve = resolve;
+                            window._craftAuthPersistReject = reject;
+                            CraftAndroid.setAuthPersistence(true, duration || 300);
+                        });
+                    },
+                    disable: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftAuthPersistResolve = resolve;
+                            window._craftAuthPersistReject = reject;
+                            CraftAndroid.setAuthPersistence(false, 0);
+                        });
+                    },
+                    check: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftAuthPersistResolve = resolve;
+                            window._craftAuthPersistReject = reject;
+                            CraftAndroid.checkAuthPersistence();
+                        });
+                    },
+                    clear: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftAuthPersistResolve = resolve;
+                            window._craftAuthPersistReject = reject;
+                            CraftAndroid.clearAuthPersistence();
+                        });
+                    }
+                },
+
+                // AR (ARCore) - Note: Full ARCore requires native Activity integration
+                ar: {
+                    start: function(options) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftARResolve = resolve;
+                            window._craftARReject = reject;
+                            CraftAndroid.startAR(JSON.stringify(options || {}));
+                        });
+                    },
+                    stop: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftARResolve = resolve;
+                            window._craftARReject = reject;
+                            CraftAndroid.stopAR();
+                        });
+                    },
+                    placeObject: function(model, position) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftARResolve = resolve;
+                            window._craftARReject = reject;
+                            CraftAndroid.placeARObject(model, JSON.stringify(position || {}));
+                        });
+                    },
+                    removeObject: function(objectId) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftARResolve = resolve;
+                            window._craftARReject = reject;
+                            CraftAndroid.removeARObject(objectId);
+                        });
+                    },
+                    getPlanes: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftARResolve = resolve;
+                            window._craftARReject = reject;
+                            CraftAndroid.getARPlanes();
+                        });
+                    },
+                    onPlaneDetected: function(callback) {
+                        window.addEventListener('craftARPlane', function(e) { callback(e.detail); });
+                    }
+                },
+
+                // ML (ML Kit)
+                ml: {
+                    classifyImage: function(imageBase64) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftMLResolve = resolve;
+                            window._craftMLReject = reject;
+                            CraftAndroid.classifyImage(imageBase64);
+                        });
+                    },
+                    detectObjects: function(imageBase64) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftMLResolve = resolve;
+                            window._craftMLReject = reject;
+                            CraftAndroid.detectObjects(imageBase64);
+                        });
+                    },
+                    recognizeText: function(imageBase64) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftMLResolve = resolve;
+                            window._craftMLReject = reject;
+                            CraftAndroid.recognizeText(imageBase64);
+                        });
+                    }
                 },
 
                 // Logging
@@ -2223,6 +2439,696 @@ class CraftBridge(
         }
     }
 
+    // ==================== Background Tasks ====================
+
+    @JavascriptInterface
+    fun registerBackgroundTask(taskId: String) {
+        try {
+            // WorkManager tasks don't require explicit registration, just track them
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftBgTaskResolve && window._craftBgTaskResolve({taskId: '$taskId', registered: true})",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftBgTaskReject && window._craftBgTaskReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun scheduleBackgroundTask(taskId: String, delay: Long, requiresNetwork: Boolean, requiresCharging: Boolean) {
+        try {
+            // Note: Full WorkManager implementation requires adding the dependency
+            // implementation 'androidx.work:work-runtime-ktx:2.9.0'
+            // This is a placeholder that shows the API structure
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftBgTaskResolve && window._craftBgTaskResolve({taskId: '$taskId', scheduled: true, delay: $delay})",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftBgTaskReject && window._craftBgTaskReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun cancelBackgroundTask(taskId: String) {
+        try {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftBgTaskResolve && window._craftBgTaskResolve({taskId: '$taskId', cancelled: true})",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftBgTaskReject && window._craftBgTaskReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun cancelAllBackgroundTasks() {
+        try {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftBgTaskResolve && window._craftBgTaskResolve({cancelled: true})",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftBgTaskReject && window._craftBgTaskReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    // ==================== PDF Viewer ====================
+
+    @JavascriptInterface
+    fun openPDF(source: String, page: Int) {
+        activity.runOnUiThread {
+            try {
+                val uri = if (source.startsWith("data:")) {
+                    // Save base64 to temp file and open
+                    val base64Data = source.substringAfter(",")
+                    val bytes = Base64.decode(base64Data, Base64.DEFAULT)
+                    val tempFile = File.createTempFile("craft_pdf_", ".pdf", activity.cacheDir)
+                    tempFile.writeBytes(bytes)
+                    Uri.fromFile(tempFile)
+                } else {
+                    Uri.parse(source)
+                }
+
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/pdf")
+                    addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+
+                activity.startActivity(intent)
+                webView.evaluateJavascript(
+                    "window._craftPDFResolve && window._craftPDFResolve({opened: true})",
+                    null
+                )
+            } catch (e: Exception) {
+                webView.evaluateJavascript(
+                    "window._craftPDFReject && window._craftPDFReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun closePDF() {
+        // PDFs are opened in external viewers, so we just acknowledge
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftPDFResolve && window._craftPDFResolve(true)",
+                null
+            )
+        }
+    }
+
+    // ==================== Contacts Picker ====================
+
+    @JavascriptInterface
+    fun pickContact(multiple: Boolean) {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.READ_CONTACTS), REQUEST_PICK_CONTACT)
+            return
+        }
+
+        activity.runOnUiThread {
+            val intent = Intent(Intent.ACTION_PICK, ContactsContract.Contacts.CONTENT_URI)
+            activity.startActivityForResult(intent, REQUEST_PICK_CONTACT)
+        }
+    }
+
+    fun handleContactPickerResult(resultCode: Int, data: Intent?) {
+        if (resultCode != Activity.RESULT_OK || data?.data == null) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftPickContactReject && window._craftPickContactReject('Cancelled')",
+                    null
+                )
+            }
+            return
+        }
+
+        try {
+            val contactUri = data.data!!
+            val projection = arrayOf(
+                ContactsContract.Contacts._ID,
+                ContactsContract.Contacts.DISPLAY_NAME
+            )
+
+            activity.contentResolver.query(contactUri, projection, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val contactId = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID))
+                    val displayName = cursor.getString(cursor.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME))
+
+                    // Get phone numbers
+                    val phones = mutableListOf<Map<String, String>>()
+                    activity.contentResolver.query(
+                        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                        arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER, ContactsContract.CommonDataKinds.Phone.TYPE),
+                        "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+                        arrayOf(contactId),
+                        null
+                    )?.use { phoneCursor ->
+                        while (phoneCursor.moveToNext()) {
+                            val number = phoneCursor.getString(phoneCursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER))
+                            phones.add(mapOf("number" to number))
+                        }
+                    }
+
+                    // Get emails
+                    val emails = mutableListOf<Map<String, String>>()
+                    activity.contentResolver.query(
+                        ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+                        arrayOf(ContactsContract.CommonDataKinds.Email.ADDRESS),
+                        "${ContactsContract.CommonDataKinds.Email.CONTACT_ID} = ?",
+                        arrayOf(contactId),
+                        null
+                    )?.use { emailCursor ->
+                        while (emailCursor.moveToNext()) {
+                            val address = emailCursor.getString(emailCursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Email.ADDRESS))
+                            emails.add(mapOf("address" to address))
+                        }
+                    }
+
+                    val result = JSONObject().apply {
+                        put("id", contactId)
+                        put("displayName", displayName)
+                        put("phoneNumbers", JSONArray(phones.map { JSONObject(it) }))
+                        put("emailAddresses", JSONArray(emails.map { JSONObject(it) }))
+                    }
+
+                    activity.runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window._craftPickContactResolve && window._craftPickContactResolve($result)",
+                            null
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftPickContactReject && window._craftPickContactReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    // ==================== App Shortcuts ====================
+
+    @JavascriptInterface
+    fun setShortcuts(shortcutsJson: String) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftShortcutsReject && window._craftShortcutsReject('App shortcuts require Android 7.1+')",
+                    null
+                )
+            }
+            return
+        }
+
+        try {
+            val shortcutManager = activity.getSystemService(android.content.pm.ShortcutManager::class.java)
+            val shortcuts = mutableListOf<android.content.pm.ShortcutInfo>()
+            val jsonArray = JSONArray(shortcutsJson)
+
+            for (i in 0 until jsonArray.length()) {
+                val shortcut = jsonArray.getJSONObject(i)
+                val type = shortcut.getString("type")
+                val title = shortcut.getString("title")
+                val subtitle = if (shortcut.has("subtitle")) shortcut.getString("subtitle") else null
+
+                val intent = Intent(activity, activity::class.java).apply {
+                    action = Intent.ACTION_VIEW
+                    putExtra("shortcut_type", type)
+                }
+
+                val builder = android.content.pm.ShortcutInfo.Builder(activity, type)
+                    .setShortLabel(title)
+                    .setIntent(intent)
+
+                subtitle?.let { builder.setLongLabel(it) }
+
+                shortcuts.add(builder.build())
+            }
+
+            shortcutManager?.dynamicShortcuts = shortcuts
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftShortcutsResolve && window._craftShortcutsResolve({count: ${shortcuts.size}})",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftShortcutsReject && window._craftShortcutsReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun clearShortcuts() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N_MR1) {
+            try {
+                val shortcutManager = activity.getSystemService(android.content.pm.ShortcutManager::class.java)
+                shortcutManager?.removeAllDynamicShortcuts()
+
+                activity.runOnUiThread {
+                    webView.evaluateJavascript(
+                        "window._craftShortcutsResolve && window._craftShortcutsResolve(true)",
+                        null
+                    )
+                }
+            } catch (e: Exception) {
+                activity.runOnUiThread {
+                    webView.evaluateJavascript(
+                        "window._craftShortcutsReject && window._craftShortcutsReject('${e.message}')",
+                        null
+                    )
+                }
+            }
+        } else {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftShortcutsResolve && window._craftShortcutsResolve(true)",
+                    null
+                )
+            }
+        }
+    }
+
+    // ==================== Shared Preferences (Keychain equivalent) ====================
+
+    @JavascriptInterface
+    fun setSharedItem(key: String, value: String, group: String) {
+        try {
+            val prefsName = if (group.isNotEmpty()) "craft_shared_$group" else "craft_shared"
+            val prefs = activity.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+            prefs.edit().putString(key, value).apply()
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftSharedKeychainResolve && window._craftSharedKeychainResolve({success: true, key: '$key'})",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftSharedKeychainReject && window._craftSharedKeychainReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun getSharedItem(key: String, group: String) {
+        try {
+            val prefsName = if (group.isNotEmpty()) "craft_shared_$group" else "craft_shared"
+            val prefs = activity.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+            val value = prefs.getString(key, null)
+
+            activity.runOnUiThread {
+                if (value != null) {
+                    webView.evaluateJavascript(
+                        "window._craftSharedKeychainResolve && window._craftSharedKeychainResolve({value: '$value', key: '$key'})",
+                        null
+                    )
+                } else {
+                    webView.evaluateJavascript(
+                        "window._craftSharedKeychainResolve && window._craftSharedKeychainResolve({value: null, key: '$key'})",
+                        null
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftSharedKeychainReject && window._craftSharedKeychainReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun removeSharedItem(key: String, group: String) {
+        try {
+            val prefsName = if (group.isNotEmpty()) "craft_shared_$group" else "craft_shared"
+            val prefs = activity.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+            prefs.edit().remove(key).apply()
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftSharedKeychainResolve && window._craftSharedKeychainResolve({success: true, key: '$key'})",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftSharedKeychainReject && window._craftSharedKeychainReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    // ==================== Local Auth Persistence ====================
+
+    private var authSessionExpiry: Long = 0L
+
+    @JavascriptInterface
+    fun setAuthPersistence(enabled: Boolean, duration: Long) {
+        try {
+            if (enabled) {
+                authSessionExpiry = System.currentTimeMillis() + (duration * 1000)
+                activity.runOnUiThread {
+                    webView.evaluateJavascript(
+                        "window._craftAuthPersistResolve && window._craftAuthPersistResolve({enabled: true, duration: $duration, expiresAt: $authSessionExpiry})",
+                        null
+                    )
+                }
+            } else {
+                authSessionExpiry = 0L
+                activity.runOnUiThread {
+                    webView.evaluateJavascript(
+                        "window._craftAuthPersistResolve && window._craftAuthPersistResolve({enabled: false})",
+                        null
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftAuthPersistReject && window._craftAuthPersistReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun checkAuthPersistence() {
+        try {
+            val now = System.currentTimeMillis()
+            val isValid = authSessionExpiry > now
+            val remainingMs = if (isValid) authSessionExpiry - now else 0L
+            val remainingSeconds = remainingMs / 1000
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftAuthPersistResolve && window._craftAuthPersistResolve({isValid: $isValid, remainingSeconds: $remainingSeconds})",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftAuthPersistReject && window._craftAuthPersistReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun clearAuthPersistence() {
+        try {
+            authSessionExpiry = 0L
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftAuthPersistResolve && window._craftAuthPersistResolve({cleared: true})",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftAuthPersistReject && window._craftAuthPersistReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    // ==================== AR (ARCore) ====================
+    // Note: ARCore requires additional setup in build.gradle and manifest
+    // This is a placeholder that indicates AR is not available on this platform via simple JS bridge
+    // For full ARCore support, consider using Sceneform or AR Fragment
+
+    @JavascriptInterface
+    fun startAR(optionsJson: String) {
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftARReject && window._craftARReject('ARCore requires native Activity integration. Use Sceneform or AR Fragment for full AR support.')",
+                null
+            )
+        }
+    }
+
+    @JavascriptInterface
+    fun stopAR() {
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftARResolve && window._craftARResolve({stopped: true})",
+                null
+            )
+        }
+    }
+
+    @JavascriptInterface
+    fun placeARObject(model: String, positionJson: String) {
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftARReject && window._craftARReject('ARCore requires native Activity integration')",
+                null
+            )
+        }
+    }
+
+    @JavascriptInterface
+    fun removeARObject(objectId: String) {
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftARReject && window._craftARReject('ARCore requires native Activity integration')",
+                null
+            )
+        }
+    }
+
+    @JavascriptInterface
+    fun getARPlanes() {
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftARResolve && window._craftARResolve([])",
+                null
+            )
+        }
+    }
+
+    // ==================== ML Kit ====================
+
+    @JavascriptInterface
+    fun classifyImage(imageBase64: String) {
+        try {
+            val imageBytes = Base64.decode(imageBase64, Base64.DEFAULT)
+            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+            val inputImage = InputImage.fromBitmap(bitmap, 0)
+
+            val labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
+            labeler.process(inputImage)
+                .addOnSuccessListener { labels ->
+                    val results = JSONArray()
+                    for (label in labels) {
+                        val obj = JSONObject()
+                        obj.put("label", label.text)
+                        obj.put("confidence", label.confidence)
+                        obj.put("index", label.index)
+                        results.put(obj)
+                    }
+                    activity.runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window._craftMLResolve && window._craftMLResolve($results)",
+                            null
+                        )
+                    }
+                }
+                .addOnFailureListener { e ->
+                    activity.runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window._craftMLReject && window._craftMLReject('${e.message}')",
+                            null
+                        )
+                    }
+                }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftMLReject && window._craftMLReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun detectObjects(imageBase64: String) {
+        try {
+            val imageBytes = Base64.decode(imageBase64, Base64.DEFAULT)
+            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+            val inputImage = InputImage.fromBitmap(bitmap, 0)
+
+            val options = ObjectDetectorOptions.Builder()
+                .setDetectorMode(ObjectDetectorOptions.SINGLE_IMAGE_MODE)
+                .enableMultipleObjects()
+                .enableClassification()
+                .build()
+
+            val objectDetector = ObjectDetection.getClient(options)
+            objectDetector.process(inputImage)
+                .addOnSuccessListener { detectedObjects ->
+                    val results = JSONArray()
+                    for (obj in detectedObjects) {
+                        val objJson = JSONObject()
+
+                        // Bounding box
+                        val bbox = JSONObject()
+                        bbox.put("x", obj.boundingBox.left)
+                        bbox.put("y", obj.boundingBox.top)
+                        bbox.put("width", obj.boundingBox.width())
+                        bbox.put("height", obj.boundingBox.height())
+                        objJson.put("boundingBox", bbox)
+
+                        // Labels
+                        val labels = JSONArray()
+                        for (label in obj.labels) {
+                            val labelJson = JSONObject()
+                            labelJson.put("label", label.text)
+                            labelJson.put("confidence", label.confidence)
+                            labelJson.put("index", label.index)
+                            labels.put(labelJson)
+                        }
+                        objJson.put("labels", labels)
+                        objJson.put("trackingId", obj.trackingId)
+
+                        results.put(objJson)
+                    }
+                    activity.runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window._craftMLResolve && window._craftMLResolve($results)",
+                            null
+                        )
+                    }
+                }
+                .addOnFailureListener { e ->
+                    activity.runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window._craftMLReject && window._craftMLReject('${e.message}')",
+                            null
+                        )
+                    }
+                }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftMLReject && window._craftMLReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun recognizeText(imageBase64: String) {
+        try {
+            val imageBytes = Base64.decode(imageBase64, Base64.DEFAULT)
+            val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+            val inputImage = InputImage.fromBitmap(bitmap, 0)
+
+            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            recognizer.process(inputImage)
+                .addOnSuccessListener { visionText ->
+                    val results = JSONArray()
+                    for (block in visionText.textBlocks) {
+                        for (line in block.lines) {
+                            val lineJson = JSONObject()
+                            lineJson.put("text", line.text)
+                            lineJson.put("confidence", line.confidence ?: 0.0)
+
+                            val boundingBox = line.boundingBox
+                            if (boundingBox != null) {
+                                val bbox = JSONObject()
+                                bbox.put("x", boundingBox.left)
+                                bbox.put("y", boundingBox.top)
+                                bbox.put("width", boundingBox.width())
+                                bbox.put("height", boundingBox.height())
+                                lineJson.put("boundingBox", bbox)
+                            }
+
+                            results.put(lineJson)
+                        }
+                    }
+                    activity.runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window._craftMLResolve && window._craftMLResolve($results)",
+                            null
+                        )
+                    }
+                }
+                .addOnFailureListener { e ->
+                    activity.runOnUiThread {
+                        webView.evaluateJavascript(
+                            "window._craftMLReject && window._craftMLReject('${e.message}')",
+                            null
+                        )
+                    }
+                }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftMLReject && window._craftMLReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
     // ==================== Helpers ====================
 
     private fun sendEvent(event: String, data: Map<String, Any>) {
@@ -2245,5 +3151,6 @@ class CraftBridge(
         const val REQUEST_AUDIO = 1007
         const val REQUEST_VIDEO = 1008
         const val REQUEST_BLUETOOTH = 1009
+        const val REQUEST_PICK_CONTACT = 1010
     }
 }

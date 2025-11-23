@@ -302,6 +302,113 @@ window.craft.offAppStateChange();
 
 // Logging (appears in Xcode console)
 window.craft.log('Debug message');
+
+// ==================== High Value Bridges ====================
+
+// Contacts
+const contacts = await window.craft.getContacts();
+console.log(contacts); // [{id, givenName, familyName, displayName, phoneNumbers, emailAddresses}]
+
+const newContactId = await window.craft.addContact({
+  givenName: 'John',
+  familyName: 'Doe',
+  phone: '+1234567890',
+  email: 'john@example.com'
+});
+
+// Calendar Events
+const events = await window.craft.getCalendarEvents(startDateMs, endDateMs);
+console.log(events); // [{id, title, location, notes, startDate, endDate, isAllDay}]
+
+const newEventId = await window.craft.createCalendarEvent({
+  title: 'Meeting',
+  location: 'Office',
+  notes: 'Discuss project',
+  startDate: Date.now(),
+  endDate: Date.now() + 3600000,
+  isAllDay: false
+});
+
+await window.craft.deleteCalendarEvent(eventId);
+
+// Local Notifications
+const notificationId = await window.craft.scheduleNotification({
+  id: 'reminder-1',
+  title: 'Reminder',
+  body: 'Don\'t forget!',
+  badge: 1,
+  timestamp: Date.now() + 60000, // 1 minute from now
+  // or use delay: 60000 // delay in ms
+});
+
+await window.craft.cancelNotification('reminder-1');
+await window.craft.cancelAllNotifications();
+const pending = await window.craft.getPendingNotifications();
+
+// In-App Purchase
+const products = await window.craft.getProducts(['product_id_1', 'product_id_2']);
+console.log(products); // [{id, title, description, price, priceLocale}]
+
+const purchaseResult = await window.craft.purchase('product_id_1');
+console.log(purchaseResult); // {transactionId, productId, ...}
+
+await window.craft.restorePurchases();
+
+// Keep Screen Awake
+window.craft.setKeepAwake(true);  // Prevent screen dimming
+window.craft.setKeepAwake(false); // Allow screen dimming
+
+// Orientation Lock
+window.craft.lockOrientation('portrait');   // Lock to portrait
+window.craft.lockOrientation('landscape');  // Lock to landscape
+window.craft.unlockOrientation();           // Allow all orientations
+
+// ==================== Medium Value Bridges ====================
+
+// Background Tasks (iOS 13+)
+await window.craft.backgroundTask.register('sync-data');
+await window.craft.backgroundTask.schedule('sync-data', {
+  delay: 900,              // 15 minutes minimum
+  requiresNetwork: true,
+  requiresCharging: false
+});
+await window.craft.backgroundTask.cancel('sync-data');
+await window.craft.backgroundTask.cancelAll();
+
+// PDF Viewer
+await window.craft.openPDF('https://example.com/document.pdf');
+await window.craft.openPDF(base64PdfData, 5); // Open at page 5
+await window.craft.closePDF();
+
+// Contacts Picker (shows native picker UI)
+const contact = await window.craft.pickContact();
+console.log(contact); // {id, givenName, familyName, displayName, phoneNumbers, emailAddresses}
+
+const contacts = await window.craft.pickContact({multiple: true}); // Select multiple
+
+// App Shortcuts (3D Touch / long press)
+await window.craft.shortcuts.set([
+  {type: 'new-message', title: 'New Message', subtitle: 'Start composing', iconName: 'square.and.pencil'},
+  {type: 'search', title: 'Search', iconName: 'magnifyingglass'}
+]);
+window.craft.shortcuts.onShortcut((shortcut) => {
+  console.log('Shortcut activated:', shortcut.type);
+});
+await window.craft.shortcuts.clear();
+
+// Keychain Sharing (cross-app data with access groups)
+await window.craft.sharedKeychain.set('user_token', 'abc123', 'com.example.shared'); // group optional
+const result = await window.craft.sharedKeychain.get('user_token', 'com.example.shared');
+console.log(result.value); // 'abc123'
+await window.craft.sharedKeychain.remove('user_token');
+
+// Local Auth Persistence (skip re-auth for a duration)
+await window.craft.authPersistence.enable(300); // 5 minutes
+const status = await window.craft.authPersistence.check();
+if (status.isValid) {
+  console.log('Session valid for', status.remainingSeconds, 'more seconds');
+}
+await window.craft.authPersistence.clear();
 ```
 
 ## CLI Reference
@@ -366,6 +473,14 @@ Add to your Info.plist as needed:
 <string>This app reads health data.</string>
 <key>NSHealthUpdateUsageDescription</key>
 <string>This app writes health data.</string>
+
+<!-- Contacts -->
+<key>NSContactsUsageDescription</key>
+<string>This app accesses your contacts.</string>
+
+<!-- Calendar -->
+<key>NSCalendarsUsageDescription</key>
+<string>This app accesses your calendar.</string>
 ```
 
 ## Development Mode

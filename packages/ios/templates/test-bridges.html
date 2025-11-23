@@ -118,6 +118,50 @@
     <div id="sensors-result" class="result">Results will appear here...</div>
   </div>
 
+  <!-- Contacts -->
+  <div class="section">
+    <h2>Contacts</h2>
+    <button class="btn" onclick="testGetContacts()">Get Contacts</button>
+    <button class="btn" onclick="testAddContact()">Add Contact</button>
+    <div id="contacts-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Calendar -->
+  <div class="section">
+    <h2>Calendar</h2>
+    <button class="btn" onclick="testGetCalendarEvents()">Get Events</button>
+    <button class="btn" onclick="testCreateCalendarEvent()">Create Event</button>
+    <div id="calendar-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Local Notifications -->
+  <div class="section">
+    <h2>Local Notifications</h2>
+    <button class="btn" onclick="testScheduleNotification()">Schedule (5s)</button>
+    <button class="btn" onclick="testCancelNotification()">Cancel</button>
+    <button class="btn" onclick="testGetPendingNotifications()">Get Pending</button>
+    <div id="notifications-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- In-App Purchase -->
+  <div class="section">
+    <h2>In-App Purchase</h2>
+    <button class="btn" onclick="testGetProducts()">Get Products</button>
+    <button class="btn" onclick="testRestorePurchases()">Restore Purchases</button>
+    <div id="iap-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Screen Control -->
+  <div class="section">
+    <h2>Screen Control</h2>
+    <button class="btn" onclick="testKeepAwakeOn()">Keep Awake ON</button>
+    <button class="btn" onclick="testKeepAwakeOff()">Keep Awake OFF</button>
+    <button class="btn" onclick="testLockPortrait()">Lock Portrait</button>
+    <button class="btn" onclick="testLockLandscape()">Lock Landscape</button>
+    <button class="btn" onclick="testUnlockOrientation()">Unlock</button>
+    <div id="screen-result" class="result">Results will appear here...</div>
+  </div>
+
   <!-- Connectivity -->
   <div class="section">
     <h2>Connectivity</h2>
@@ -172,6 +216,71 @@
     <button class="btn" onclick="testStartListening()">Start Listening</button>
     <button class="btn" onclick="testStopListening()">Stop Listening</button>
     <div id="speech-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Medium Value Bridges -->
+  <div class="section">
+    <h2>Background Tasks</h2>
+    <button class="btn" onclick="testRegisterBgTask()">Register Task</button>
+    <button class="btn" onclick="testScheduleBgTask()">Schedule Task</button>
+    <button class="btn" onclick="testCancelBgTask()">Cancel Task</button>
+    <button class="btn" onclick="testCancelAllBgTasks()">Cancel All</button>
+    <div id="bgtask-result" class="result">Results will appear here...</div>
+  </div>
+
+  <div class="section">
+    <h2>PDF Viewer</h2>
+    <button class="btn" onclick="testOpenPDFUrl()">Open PDF (URL)</button>
+    <button class="btn" onclick="testClosePDF()">Close PDF</button>
+    <div id="pdf-result" class="result">Results will appear here...</div>
+  </div>
+
+  <div class="section">
+    <h2>Contacts Picker</h2>
+    <button class="btn" onclick="testPickContact()">Pick Contact</button>
+    <button class="btn" onclick="testPickMultipleContacts()">Pick Multiple</button>
+    <div id="pickcontact-result" class="result">Results will appear here...</div>
+  </div>
+
+  <div class="section">
+    <h2>App Shortcuts</h2>
+    <button class="btn" onclick="testSetShortcuts()">Set Shortcuts</button>
+    <button class="btn" onclick="testClearShortcuts()">Clear Shortcuts</button>
+    <div id="shortcuts-result" class="result">Results will appear here...</div>
+  </div>
+
+  <div class="section">
+    <h2>Shared Keychain</h2>
+    <button class="btn" onclick="testSetSharedItem()">Set Item</button>
+    <button class="btn" onclick="testGetSharedItem()">Get Item</button>
+    <button class="btn" onclick="testRemoveSharedItem()">Remove Item</button>
+    <div id="keychain-result" class="result">Results will appear here...</div>
+  </div>
+
+  <div class="section">
+    <h2>Auth Persistence</h2>
+    <button class="btn" onclick="testEnableAuthPersistence()">Enable (5 min)</button>
+    <button class="btn" onclick="testCheckAuthPersistence()">Check Status</button>
+    <button class="btn" onclick="testClearAuthPersistence()">Clear</button>
+    <div id="authpersist-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Nice to Have Bridges -->
+  <div class="section">
+    <h2>AR (ARKit/ARCore)</h2>
+    <button class="btn" onclick="testStartAR()">Start AR</button>
+    <button class="btn" onclick="testPlaceARObject()">Place Box</button>
+    <button class="btn" onclick="testGetARPlanes()">Get Planes</button>
+    <button class="btn" onclick="testStopAR()">Stop AR</button>
+    <div id="ar-result" class="result">Results will appear here...</div>
+  </div>
+
+  <div class="section">
+    <h2>ML (Vision/ML Kit)</h2>
+    <button class="btn" onclick="testCaptureAndClassify()">Capture & Classify</button>
+    <button class="btn" onclick="testCaptureAndDetect()">Capture & Detect</button>
+    <button class="btn" onclick="testCaptureAndOCR()">Capture & OCR</button>
+    <div id="ml-result" class="result">Results will appear here...</div>
   </div>
 
   <div id="log"></div>
@@ -545,6 +654,439 @@
       if (!window.craft) return showResult('speech-result', 'Craft not ready');
       window.craft.stopListening();
       showResult('speech-result', 'Stopped listening');
+    }
+
+    // ==================== High Value Bridges Tests ====================
+
+    // Contacts tests
+    async function testGetContacts() {
+      if (!window.craft) return showResult('contacts-result', 'Craft not ready');
+      try {
+        const contacts = await window.craft.getContacts();
+        showResult('contacts-result', 'Found ' + (contacts?.length || 0) + ' contacts:\n' + JSON.stringify(contacts?.slice(0, 5), null, 2));
+      } catch (e) {
+        showResult('contacts-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testAddContact() {
+      if (!window.craft) return showResult('contacts-result', 'Craft not ready');
+      try {
+        const id = await window.craft.addContact({
+          givenName: 'Test',
+          familyName: 'User',
+          displayName: 'Test User',
+          phone: '+1234567890',
+          email: 'test@example.com'
+        });
+        showResult('contacts-result', 'Contact created with ID: ' + id);
+      } catch (e) {
+        showResult('contacts-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Calendar tests
+    async function testGetCalendarEvents() {
+      if (!window.craft) return showResult('calendar-result', 'Craft not ready');
+      try {
+        const now = Date.now();
+        const events = await window.craft.getCalendarEvents(now, now + 30 * 24 * 60 * 60 * 1000);
+        showResult('calendar-result', 'Found ' + (events?.length || 0) + ' events:\n' + JSON.stringify(events?.slice(0, 5), null, 2));
+      } catch (e) {
+        showResult('calendar-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testCreateCalendarEvent() {
+      if (!window.craft) return showResult('calendar-result', 'Craft not ready');
+      try {
+        const now = Date.now();
+        const id = await window.craft.createCalendarEvent({
+          title: 'Test Event from Craft',
+          location: 'Test Location',
+          notes: 'Created by Craft bridge test',
+          startDate: now + 3600000,
+          endDate: now + 7200000,
+          isAllDay: false
+        });
+        showResult('calendar-result', 'Event created with ID: ' + id);
+      } catch (e) {
+        showResult('calendar-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Local Notifications tests
+    let lastNotificationId = null;
+    async function testScheduleNotification() {
+      if (!window.craft) return showResult('notifications-result', 'Craft not ready');
+      try {
+        lastNotificationId = await window.craft.scheduleNotification({
+          id: 'test-' + Date.now(),
+          title: 'Test Notification',
+          body: 'This is a test notification from Craft!',
+          badge: 1,
+          delay: 5000 // 5 seconds
+        });
+        showResult('notifications-result', 'Notification scheduled with ID: ' + lastNotificationId + '\n(Will appear in 5 seconds)');
+      } catch (e) {
+        showResult('notifications-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testCancelNotification() {
+      if (!window.craft) return showResult('notifications-result', 'Craft not ready');
+      if (!lastNotificationId) return showResult('notifications-result', 'No notification to cancel');
+      try {
+        await window.craft.cancelNotification(lastNotificationId);
+        showResult('notifications-result', 'Notification cancelled: ' + lastNotificationId);
+      } catch (e) {
+        showResult('notifications-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testGetPendingNotifications() {
+      if (!window.craft) return showResult('notifications-result', 'Craft not ready');
+      try {
+        const pending = await window.craft.getPendingNotifications();
+        showResult('notifications-result', 'Pending notifications: ' + JSON.stringify(pending, null, 2));
+      } catch (e) {
+        showResult('notifications-result', 'Error: ' + e.message);
+      }
+    }
+
+    // IAP tests
+    async function testGetProducts() {
+      if (!window.craft) return showResult('iap-result', 'Craft not ready');
+      try {
+        const products = await window.craft.getProducts(['premium', 'coins_100']);
+        showResult('iap-result', 'Products: ' + JSON.stringify(products, null, 2));
+      } catch (e) {
+        showResult('iap-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testRestorePurchases() {
+      if (!window.craft) return showResult('iap-result', 'Craft not ready');
+      try {
+        await window.craft.restorePurchases();
+        showResult('iap-result', 'Restore purchases initiated');
+      } catch (e) {
+        showResult('iap-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Screen control tests
+    function testKeepAwakeOn() {
+      if (!window.craft) return showResult('screen-result', 'Craft not ready');
+      window.craft.setKeepAwake(true);
+      showResult('screen-result', 'Keep awake: ON (screen will not dim)');
+    }
+
+    function testKeepAwakeOff() {
+      if (!window.craft) return showResult('screen-result', 'Craft not ready');
+      window.craft.setKeepAwake(false);
+      showResult('screen-result', 'Keep awake: OFF (screen will dim normally)');
+    }
+
+    function testLockPortrait() {
+      if (!window.craft) return showResult('screen-result', 'Craft not ready');
+      window.craft.lockOrientation('portrait');
+      showResult('screen-result', 'Orientation locked: PORTRAIT');
+    }
+
+    function testLockLandscape() {
+      if (!window.craft) return showResult('screen-result', 'Craft not ready');
+      window.craft.lockOrientation('landscape');
+      showResult('screen-result', 'Orientation locked: LANDSCAPE');
+    }
+
+    function testUnlockOrientation() {
+      if (!window.craft) return showResult('screen-result', 'Craft not ready');
+      window.craft.unlockOrientation();
+      showResult('screen-result', 'Orientation unlocked: ALL');
+    }
+
+    // ==================== Medium Value Bridges Tests ====================
+
+    // Background Tasks tests
+    async function testRegisterBgTask() {
+      if (!window.craft?.backgroundTask) return showResult('bgtask-result', 'backgroundTask not available');
+      try {
+        const result = await window.craft.backgroundTask.register('craft-sync');
+        showResult('bgtask-result', 'Registered: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('bgtask-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testScheduleBgTask() {
+      if (!window.craft?.backgroundTask) return showResult('bgtask-result', 'backgroundTask not available');
+      try {
+        const result = await window.craft.backgroundTask.schedule('craft-sync', {
+          delay: 900,
+          requiresNetwork: true,
+          requiresCharging: false
+        });
+        showResult('bgtask-result', 'Scheduled: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('bgtask-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testCancelBgTask() {
+      if (!window.craft?.backgroundTask) return showResult('bgtask-result', 'backgroundTask not available');
+      try {
+        const result = await window.craft.backgroundTask.cancel('craft-sync');
+        showResult('bgtask-result', 'Cancelled: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('bgtask-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testCancelAllBgTasks() {
+      if (!window.craft?.backgroundTask) return showResult('bgtask-result', 'backgroundTask not available');
+      try {
+        const result = await window.craft.backgroundTask.cancelAll();
+        showResult('bgtask-result', 'Cancelled all: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('bgtask-result', 'Error: ' + e.message);
+      }
+    }
+
+    // PDF Viewer tests
+    async function testOpenPDFUrl() {
+      if (!window.craft) return showResult('pdf-result', 'Craft not ready');
+      try {
+        const result = await window.craft.openPDF('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf');
+        showResult('pdf-result', 'PDF opened: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('pdf-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testClosePDF() {
+      if (!window.craft) return showResult('pdf-result', 'Craft not ready');
+      try {
+        const result = await window.craft.closePDF();
+        showResult('pdf-result', 'PDF closed: ' + result);
+      } catch (e) {
+        showResult('pdf-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Contacts Picker tests
+    async function testPickContact() {
+      if (!window.craft) return showResult('pickcontact-result', 'Craft not ready');
+      try {
+        const contact = await window.craft.pickContact();
+        showResult('pickcontact-result', 'Selected: ' + JSON.stringify(contact, null, 2));
+      } catch (e) {
+        showResult('pickcontact-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testPickMultipleContacts() {
+      if (!window.craft) return showResult('pickcontact-result', 'Craft not ready');
+      try {
+        const contacts = await window.craft.pickContact({multiple: true});
+        showResult('pickcontact-result', 'Selected ' + (contacts?.length || 0) + ' contacts:\n' + JSON.stringify(contacts, null, 2));
+      } catch (e) {
+        showResult('pickcontact-result', 'Error: ' + e.message);
+      }
+    }
+
+    // App Shortcuts tests
+    async function testSetShortcuts() {
+      if (!window.craft?.shortcuts) return showResult('shortcuts-result', 'shortcuts not available');
+      try {
+        const result = await window.craft.shortcuts.set([
+          {type: 'new-message', title: 'New Message', subtitle: 'Start composing', iconName: 'square.and.pencil'},
+          {type: 'search', title: 'Search', iconName: 'magnifyingglass'},
+          {type: 'settings', title: 'Settings', iconName: 'gear'}
+        ]);
+        showResult('shortcuts-result', 'Shortcuts set: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('shortcuts-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testClearShortcuts() {
+      if (!window.craft?.shortcuts) return showResult('shortcuts-result', 'shortcuts not available');
+      try {
+        const result = await window.craft.shortcuts.clear();
+        showResult('shortcuts-result', 'Shortcuts cleared: ' + result);
+      } catch (e) {
+        showResult('shortcuts-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Listen for shortcut events
+    window.addEventListener('craftShortcut', (e) => {
+      log('Shortcut activated: ' + e.detail.type);
+      showResult('shortcuts-result', 'Shortcut activated: ' + JSON.stringify(e.detail));
+    });
+
+    // Shared Keychain tests
+    async function testSetSharedItem() {
+      if (!window.craft?.sharedKeychain) return showResult('keychain-result', 'sharedKeychain not available');
+      try {
+        const result = await window.craft.sharedKeychain.set('test_key', 'test_value_' + Date.now());
+        showResult('keychain-result', 'Set: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('keychain-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testGetSharedItem() {
+      if (!window.craft?.sharedKeychain) return showResult('keychain-result', 'sharedKeychain not available');
+      try {
+        const result = await window.craft.sharedKeychain.get('test_key');
+        showResult('keychain-result', 'Get: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('keychain-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testRemoveSharedItem() {
+      if (!window.craft?.sharedKeychain) return showResult('keychain-result', 'sharedKeychain not available');
+      try {
+        const result = await window.craft.sharedKeychain.remove('test_key');
+        showResult('keychain-result', 'Removed: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('keychain-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Auth Persistence tests
+    async function testEnableAuthPersistence() {
+      if (!window.craft?.authPersistence) return showResult('authpersist-result', 'authPersistence not available');
+      try {
+        const result = await window.craft.authPersistence.enable(300); // 5 minutes
+        showResult('authpersist-result', 'Enabled: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('authpersist-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testCheckAuthPersistence() {
+      if (!window.craft?.authPersistence) return showResult('authpersist-result', 'authPersistence not available');
+      try {
+        const result = await window.craft.authPersistence.check();
+        showResult('authpersist-result', 'Status: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('authpersist-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testClearAuthPersistence() {
+      if (!window.craft?.authPersistence) return showResult('authpersist-result', 'authPersistence not available');
+      try {
+        const result = await window.craft.authPersistence.clear();
+        showResult('authpersist-result', 'Cleared: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('authpersist-result', 'Error: ' + e.message);
+      }
+    }
+
+    // ==================== Nice to Have Bridges Tests ====================
+
+    // AR tests
+    async function testStartAR() {
+      if (!window.craft?.ar) return showResult('ar-result', 'AR not available');
+      try {
+        const result = await window.craft.ar.start({planeDetection: true});
+        showResult('ar-result', 'AR Started: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('ar-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testPlaceARObject() {
+      if (!window.craft?.ar) return showResult('ar-result', 'AR not available');
+      try {
+        const result = await window.craft.ar.placeObject('box', {x: 0, y: 0, z: -0.5});
+        showResult('ar-result', 'Object placed: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('ar-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testGetARPlanes() {
+      if (!window.craft?.ar) return showResult('ar-result', 'AR not available');
+      try {
+        const planes = await window.craft.ar.getPlanes();
+        showResult('ar-result', 'Detected planes: ' + JSON.stringify(planes, null, 2));
+      } catch (e) {
+        showResult('ar-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testStopAR() {
+      if (!window.craft?.ar) return showResult('ar-result', 'AR not available');
+      try {
+        const result = await window.craft.ar.stop();
+        showResult('ar-result', 'AR Stopped: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('ar-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Listen for AR plane events
+    window.addEventListener('craftARPlane', (e) => {
+      log('AR Plane: ' + e.detail.type + ' - ' + e.detail.id);
+      showResult('ar-result', 'Plane event: ' + JSON.stringify(e.detail));
+    });
+
+    // ML tests
+    async function testCaptureAndClassify() {
+      if (!window.craft) return showResult('ml-result', 'Craft not ready');
+      try {
+        showResult('ml-result', 'Capturing image...');
+        const image = await window.craft.openCamera();
+        if (!image) {
+          showResult('ml-result', 'No image captured');
+          return;
+        }
+        showResult('ml-result', 'Classifying...');
+        const results = await window.craft.ml.classifyImage(image);
+        showResult('ml-result', 'Classification results:\n' + JSON.stringify(results, null, 2));
+      } catch (e) {
+        showResult('ml-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testCaptureAndDetect() {
+      if (!window.craft) return showResult('ml-result', 'Craft not ready');
+      try {
+        showResult('ml-result', 'Capturing image...');
+        const image = await window.craft.openCamera();
+        if (!image) {
+          showResult('ml-result', 'No image captured');
+          return;
+        }
+        showResult('ml-result', 'Detecting objects...');
+        const results = await window.craft.ml.detectObjects(image);
+        showResult('ml-result', 'Detection results:\n' + JSON.stringify(results, null, 2));
+      } catch (e) {
+        showResult('ml-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testCaptureAndOCR() {
+      if (!window.craft) return showResult('ml-result', 'Craft not ready');
+      try {
+        showResult('ml-result', 'Capturing image...');
+        const image = await window.craft.openCamera();
+        if (!image) {
+          showResult('ml-result', 'No image captured');
+          return;
+        }
+        showResult('ml-result', 'Recognizing text...');
+        const results = await window.craft.ml.recognizeText(image);
+        showResult('ml-result', 'OCR results:\n' + JSON.stringify(results, null, 2));
+      } catch (e) {
+        showResult('ml-result', 'Error: ' + e.message);
+      }
     }
 
     log('Test page loaded, waiting for Craft...');

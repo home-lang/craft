@@ -8,6 +8,7 @@ import UserNotifications
 import Photos
 import CoreLocation
 import Contacts
+import ContactsUI
 import EventKit
 import StoreKit
 import Network
@@ -20,6 +21,11 @@ import UniformTypeIdentifiers
 import PDFKit
 import SQLite3
 import AuthenticationServices
+import BackgroundTasks
+import ARKit
+import RealityKit
+import SceneKit
+import Vision
 
 // MARK: - App Entry Point
 @main
@@ -88,6 +94,8 @@ struct CraftConfig: Codable {
     var enableBackgroundTasks: Bool = true
     var enableScreenCapture: Bool = true
     var enablePDFViewer: Bool = true
+    var enableAR: Bool = true
+    var enableMLKit: Bool = true
     var devServerURL: String? = nil
 }
 
@@ -137,7 +145,7 @@ struct CraftWebView: UIViewRepresentable {
     }
 
     // MARK: - Coordinator (Native Bridge)
-    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, UIImagePickerControllerDelegate, UINavigationControllerDelegate, CLLocationManagerDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, UIImagePickerControllerDelegate, UINavigationControllerDelegate, CLLocationManagerDelegate, ARSCNViewDelegate {
         let config: CraftConfig
         private var speechRecognizer: SFSpeechRecognizer?
         private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -575,6 +583,127 @@ struct CraftWebView: UIViewRepresentable {
                     takeScreenshot(callbackId: callbackId)
                 }
 
+            // MARK: - Background Tasks
+            case "registerBackgroundTask":
+                if config.enableBackgroundTasks,
+                   let taskId = body["taskId"] as? String {
+                    registerBackgroundTask(taskId: taskId, callbackId: callbackId)
+                }
+            case "scheduleBackgroundTask":
+                if config.enableBackgroundTasks,
+                   let taskId = body["taskId"] as? String {
+                    let delay = body["delay"] as? Double ?? 900 // 15 minutes default
+                    let requiresNetwork = body["requiresNetwork"] as? Bool ?? false
+                    let requiresCharging = body["requiresCharging"] as? Bool ?? false
+                    scheduleBackgroundTask(taskId: taskId, delay: delay, requiresNetwork: requiresNetwork, requiresCharging: requiresCharging, callbackId: callbackId)
+                }
+            case "cancelBackgroundTask":
+                if config.enableBackgroundTasks,
+                   let taskId = body["taskId"] as? String {
+                    cancelBackgroundTask(taskId: taskId, callbackId: callbackId)
+                }
+            case "cancelAllBackgroundTasks":
+                if config.enableBackgroundTasks {
+                    cancelAllBackgroundTasks(callbackId: callbackId)
+                }
+
+            // MARK: - PDF Viewer
+            case "openPDF":
+                if config.enablePDFViewer,
+                   let source = body["source"] as? String {
+                    let page = body["page"] as? Int ?? 0
+                    openPDF(source: source, page: page, callbackId: callbackId)
+                }
+            case "closePDF":
+                closePDF(callbackId: callbackId)
+
+            // MARK: - Contacts Picker
+            case "pickContact":
+                if config.enableContacts {
+                    let multiple = body["multiple"] as? Bool ?? false
+                    pickContact(multiple: multiple, callbackId: callbackId)
+                }
+
+            // MARK: - App Shortcuts
+            case "setShortcuts":
+                if let shortcuts = body["shortcuts"] as? [[String: Any]] {
+                    setAppShortcuts(shortcuts: shortcuts, callbackId: callbackId)
+                }
+            case "clearShortcuts":
+                clearAppShortcuts(callbackId: callbackId)
+
+            // MARK: - Keychain Sharing
+            case "setSharedItem":
+                if let key = body["key"] as? String,
+                   let value = body["value"] as? String {
+                    let group = body["group"] as? String
+                    setSharedKeychainItem(key: key, value: value, group: group, callbackId: callbackId)
+                }
+            case "getSharedItem":
+                if let key = body["key"] as? String {
+                    let group = body["group"] as? String
+                    getSharedKeychainItem(key: key, group: group, callbackId: callbackId)
+                }
+            case "removeSharedItem":
+                if let key = body["key"] as? String {
+                    let group = body["group"] as? String
+                    removeSharedKeychainItem(key: key, group: group, callbackId: callbackId)
+                }
+
+            // MARK: - Local Auth Persistence
+            case "setBiometricPersistence":
+                if let enabled = body["enabled"] as? Bool {
+                    let duration = body["duration"] as? Double ?? 300 // 5 min default
+                    setBiometricPersistence(enabled: enabled, duration: duration, callbackId: callbackId)
+                }
+            case "checkBiometricPersistence":
+                checkBiometricPersistence(callbackId: callbackId)
+            case "clearBiometricPersistence":
+                clearBiometricPersistence(callbackId: callbackId)
+
+            // MARK: - AR (ARKit)
+            case "startAR":
+                if config.enableAR {
+                    let options = body["options"] as? [String: Any] ?? [:]
+                    startAR(options: options, callbackId: callbackId)
+                }
+            case "stopAR":
+                if config.enableAR {
+                    stopAR(callbackId: callbackId)
+                }
+            case "placeARObject":
+                if config.enableAR,
+                   let model = body["model"] as? String {
+                    let position = body["position"] as? [String: Double]
+                    placeARObject(model: model, position: position, callbackId: callbackId)
+                }
+            case "removeARObject":
+                if config.enableAR,
+                   let objectId = body["objectId"] as? String {
+                    removeARObject(objectId: objectId, callbackId: callbackId)
+                }
+            case "getARPlanes":
+                if config.enableAR {
+                    getARPlanes(callbackId: callbackId)
+                }
+
+            // MARK: - ML (Core ML / Vision)
+            case "classifyImage":
+                if config.enableMLKit,
+                   let imageBase64 = body["image"] as? String {
+                    classifyImage(imageBase64: imageBase64, callbackId: callbackId)
+                }
+            case "detectObjects":
+                if config.enableMLKit,
+                   let imageBase64 = body["image"] as? String {
+                    detectObjects(imageBase64: imageBase64, callbackId: callbackId)
+                }
+            case "recognizeText":
+                if config.enableMLKit,
+                   let imageBase64 = body["image"] as? String {
+                    recognizeText(imageBase64: imageBase64, callbackId: callbackId)
+                }
+
             default:
                 break
             }
@@ -999,6 +1128,241 @@ struct CraftWebView: UIViewRepresentable {
                 // Deep Links
                 onDeepLink: function(callback) {
                     window.addEventListener('craftDeepLink', function(e) { callback(e.detail); });
+                },
+
+                // Background Tasks
+                backgroundTask: {
+                    register: function(taskId) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'registerBackgroundTask', taskId: taskId, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    schedule: function(taskId, options) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        options = options || {};
+                        window.webkit.messageHandlers.craft.postMessage({
+                            action: 'scheduleBackgroundTask',
+                            taskId: taskId,
+                            delay: options.delay || 900,
+                            requiresNetwork: options.requiresNetwork || false,
+                            requiresCharging: options.requiresCharging || false,
+                            callbackId: id
+                        });
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    cancel: function(taskId) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'cancelBackgroundTask', taskId: taskId, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    cancelAll: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'cancelAllBackgroundTasks', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
+                },
+
+                // PDF Viewer
+                openPDF: function(source, page) {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'openPDF', source: source, page: page || 0, callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+                closePDF: function() {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'closePDF', callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                // Contacts Picker
+                pickContact: function(options) {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    options = options || {};
+                    window.webkit.messageHandlers.craft.postMessage({action: 'pickContact', multiple: options.multiple || false, callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                // App Shortcuts
+                shortcuts: {
+                    set: function(shortcuts) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'setShortcuts', shortcuts: shortcuts, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    clear: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'clearShortcuts', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    onShortcut: function(callback) {
+                        window.addEventListener('craftShortcut', function(e) { callback(e.detail); });
+                    }
+                },
+
+                // Keychain Sharing
+                sharedKeychain: {
+                    set: function(key, value, group) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'setSharedItem', key: key, value: value, group: group || null, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    get: function(key, group) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'getSharedItem', key: key, group: group || null, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    remove: function(key, group) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'removeSharedItem', key: key, group: group || null, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
+                },
+
+                // Local Auth Persistence
+                authPersistence: {
+                    enable: function(duration) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'setBiometricPersistence', enabled: true, duration: duration || 300, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    disable: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'setBiometricPersistence', enabled: false, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    check: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'checkBiometricPersistence', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    clear: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'clearBiometricPersistence', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
+                },
+
+                // AR (ARKit)
+                ar: {
+                    start: function(options) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'startAR', options: options || {}, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    stop: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'stopAR', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    placeObject: function(model, position) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'placeARObject', model: model, position: position, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    removeObject: function(objectId) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'removeARObject', objectId: objectId, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    getPlanes: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'getARPlanes', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    onPlaneDetected: function(callback) {
+                        window.addEventListener('craftARPlane', function(e) { callback(e.detail); });
+                    }
+                },
+
+                // ML (Core ML / Vision)
+                ml: {
+                    classifyImage: function(imageBase64) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'classifyImage', image: imageBase64, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    detectObjects: function(imageBase64) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'detectObjects', image: imageBase64, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    recognizeText: function(imageBase64) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'recognizeText', image: imageBase64, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
                 },
 
                 log: function(msg) {
@@ -2207,6 +2571,562 @@ struct CraftWebView: UIViewRepresentable {
             }
         }
 
+        // MARK: - Background Tasks
+        private var registeredBackgroundTasks: Set<String> = []
+
+        private func registerBackgroundTask(taskId: String, callbackId: String?) {
+            let fullTaskId = "\(Bundle.main.bundleIdentifier ?? "com.craft.app").\(taskId)"
+            registeredBackgroundTasks.insert(fullTaskId)
+            resolveCallback(callbackId, result: ["taskId": fullTaskId, "registered": true])
+        }
+
+        private func scheduleBackgroundTask(taskId: String, delay: Double, requiresNetwork: Bool, requiresCharging: Bool, callbackId: String?) {
+            let fullTaskId = "\(Bundle.main.bundleIdentifier ?? "com.craft.app").\(taskId)"
+
+            // Use BGAppRefreshTaskRequest for short tasks (default)
+            let request = BGAppRefreshTaskRequest(identifier: fullTaskId)
+            request.earliestBeginDate = Date(timeIntervalSinceNow: delay)
+
+            do {
+                try BGTaskScheduler.shared.submit(request)
+                resolveCallback(callbackId, result: ["taskId": fullTaskId, "scheduled": true])
+            } catch {
+                rejectCallback(callbackId, error: error.localizedDescription)
+            }
+        }
+
+        private func cancelBackgroundTask(taskId: String, callbackId: String?) {
+            let fullTaskId = "\(Bundle.main.bundleIdentifier ?? "com.craft.app").\(taskId)"
+            BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: fullTaskId)
+            resolveCallback(callbackId, result: ["taskId": fullTaskId, "cancelled": true])
+        }
+
+        private func cancelAllBackgroundTasks(callbackId: String?) {
+            BGTaskScheduler.shared.cancelAllTaskRequests()
+            resolveCallback(callbackId, result: ["cancelled": true])
+        }
+
+        // MARK: - PDF Viewer
+        private var pdfViewController: UIViewController?
+
+        private func openPDF(source: String, page: Int, callbackId: String?) {
+            DispatchQueue.main.async {
+                guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let rootVC = windowScene.windows.first?.rootViewController else {
+                    self.rejectCallback(callbackId, error: "No root view controller")
+                    return
+                }
+
+                var pdfDocument: PDFDocument?
+
+                // Check if source is a URL or base64 data
+                if source.hasPrefix("data:") {
+                    // Base64 encoded PDF
+                    let base64String = source.replacingOccurrences(of: "data:application/pdf;base64,", with: "")
+                    if let data = Data(base64Encoded: base64String) {
+                        pdfDocument = PDFDocument(data: data)
+                    }
+                } else if let url = URL(string: source) {
+                    // URL - could be remote or local
+                    pdfDocument = PDFDocument(url: url)
+                }
+
+                guard let document = pdfDocument else {
+                    self.rejectCallback(callbackId, error: "Failed to load PDF")
+                    return
+                }
+
+                let pdfView = PDFView(frame: .zero)
+                pdfView.document = document
+                pdfView.autoScales = true
+                pdfView.displayMode = .singlePageContinuous
+                pdfView.displayDirection = .vertical
+
+                // Go to specific page if requested
+                if page > 0, let targetPage = document.page(at: page) {
+                    pdfView.go(to: targetPage)
+                }
+
+                let vc = UIViewController()
+                vc.view = pdfView
+                vc.view.backgroundColor = .systemBackground
+                vc.modalPresentationStyle = .fullScreen
+
+                // Add close button
+                let closeButton = UIButton(type: .system)
+                closeButton.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
+                closeButton.tintColor = .systemGray
+                closeButton.addTarget(self, action: #selector(self.dismissPDF), for: .touchUpInside)
+                closeButton.translatesAutoresizingMaskIntoConstraints = false
+                vc.view.addSubview(closeButton)
+
+                NSLayoutConstraint.activate([
+                    closeButton.topAnchor.constraint(equalTo: vc.view.safeAreaLayoutGuide.topAnchor, constant: 16),
+                    closeButton.trailingAnchor.constraint(equalTo: vc.view.trailingAnchor, constant: -16),
+                    closeButton.widthAnchor.constraint(equalToConstant: 32),
+                    closeButton.heightAnchor.constraint(equalToConstant: 32)
+                ])
+
+                self.pdfViewController = vc
+                rootVC.present(vc, animated: true)
+                self.resolveCallback(callbackId, result: ["opened": true, "pageCount": document.pageCount])
+            }
+        }
+
+        @objc private func dismissPDF() {
+            pdfViewController?.dismiss(animated: true)
+            pdfViewController = nil
+        }
+
+        private func closePDF(callbackId: String?) {
+            DispatchQueue.main.async {
+                self.pdfViewController?.dismiss(animated: true)
+                self.pdfViewController = nil
+                self.resolveCallback(callbackId, result: true)
+            }
+        }
+
+        // MARK: - Contacts Picker
+        private func pickContact(multiple: Bool, callbackId: String?) {
+            DispatchQueue.main.async {
+                guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                      let rootVC = windowScene.windows.first?.rootViewController else {
+                    self.rejectCallback(callbackId, error: "No root view controller")
+                    return
+                }
+
+                self.pendingCallbackId = callbackId
+
+                let picker = CNContactPickerViewController()
+                picker.delegate = self
+                picker.predicateForEnablingContact = NSPredicate(value: true)
+
+                if multiple {
+                    picker.predicateForSelectionOfContact = nil
+                } else {
+                    picker.predicateForSelectionOfContact = NSPredicate(value: true)
+                }
+
+                rootVC.present(picker, animated: true)
+            }
+        }
+
+        // MARK: - App Shortcuts
+        private func setAppShortcuts(shortcuts: [[String: Any]], callbackId: String?) {
+            var shortcutItems: [UIApplicationShortcutItem] = []
+
+            for shortcut in shortcuts {
+                guard let type = shortcut["type"] as? String,
+                      let title = shortcut["title"] as? String else { continue }
+
+                let subtitle = shortcut["subtitle"] as? String
+                let iconName = shortcut["iconName"] as? String
+
+                var icon: UIApplicationShortcutIcon?
+                if let name = iconName {
+                    icon = UIApplicationShortcutIcon(systemImageName: name)
+                }
+
+                let item = UIApplicationShortcutItem(
+                    type: type,
+                    localizedTitle: title,
+                    localizedSubtitle: subtitle,
+                    icon: icon,
+                    userInfo: shortcut["userInfo"] as? [String: NSSecureCoding]
+                )
+                shortcutItems.append(item)
+            }
+
+            DispatchQueue.main.async {
+                UIApplication.shared.shortcutItems = shortcutItems
+                self.resolveCallback(callbackId, result: ["count": shortcutItems.count])
+            }
+        }
+
+        private func clearAppShortcuts(callbackId: String?) {
+            DispatchQueue.main.async {
+                UIApplication.shared.shortcutItems = nil
+                self.resolveCallback(callbackId, result: true)
+            }
+        }
+
+        // MARK: - Keychain Sharing
+        private func setSharedKeychainItem(key: String, value: String, group: String?, callbackId: String?) {
+            let data = value.data(using: .utf8)!
+
+            var query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key,
+                kSecValueData as String: data,
+                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            ]
+
+            // Add access group if specified (requires Keychain Sharing entitlement)
+            if let accessGroup = group {
+                query[kSecAttrAccessGroup as String] = accessGroup
+            }
+
+            // Delete existing item first
+            SecItemDelete(query as CFDictionary)
+
+            let status = SecItemAdd(query as CFDictionary, nil)
+            if status == errSecSuccess {
+                resolveCallback(callbackId, result: ["success": true, "key": key])
+            } else {
+                rejectCallback(callbackId, error: "Keychain error: \(status)")
+            }
+        }
+
+        private func getSharedKeychainItem(key: String, group: String?, callbackId: String?) {
+            var query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key,
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne
+            ]
+
+            if let accessGroup = group {
+                query[kSecAttrAccessGroup as String] = accessGroup
+            }
+
+            var result: AnyObject?
+            let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+            if status == errSecSuccess, let data = result as? Data, let value = String(data: data, encoding: .utf8) {
+                resolveCallback(callbackId, result: ["value": value, "key": key])
+            } else if status == errSecItemNotFound {
+                resolveCallback(callbackId, result: ["value": NSNull(), "key": key])
+            } else {
+                rejectCallback(callbackId, error: "Keychain error: \(status)")
+            }
+        }
+
+        private func removeSharedKeychainItem(key: String, group: String?, callbackId: String?) {
+            var query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key
+            ]
+
+            if let accessGroup = group {
+                query[kSecAttrAccessGroup as String] = accessGroup
+            }
+
+            let status = SecItemDelete(query as CFDictionary)
+            if status == errSecSuccess || status == errSecItemNotFound {
+                resolveCallback(callbackId, result: ["success": true, "key": key])
+            } else {
+                rejectCallback(callbackId, error: "Keychain error: \(status)")
+            }
+        }
+
+        // MARK: - Local Auth Persistence
+        private var biometricSessionExpiry: Date?
+        private var biometricSessionDuration: TimeInterval = 300 // 5 minutes default
+
+        private func setBiometricPersistence(enabled: Bool, duration: Double, callbackId: String?) {
+            if enabled {
+                biometricSessionDuration = duration
+                biometricSessionExpiry = Date(timeIntervalSinceNow: duration)
+                resolveCallback(callbackId, result: ["enabled": true, "duration": duration, "expiresAt": biometricSessionExpiry!.timeIntervalSince1970 * 1000])
+            } else {
+                biometricSessionExpiry = nil
+                resolveCallback(callbackId, result: ["enabled": false])
+            }
+        }
+
+        private func checkBiometricPersistence(callbackId: String?) {
+            if let expiry = biometricSessionExpiry {
+                let isValid = Date() < expiry
+                let remaining = isValid ? expiry.timeIntervalSince(Date()) : 0
+                resolveCallback(callbackId, result: ["isValid": isValid, "remainingSeconds": remaining])
+            } else {
+                resolveCallback(callbackId, result: ["isValid": false, "remainingSeconds": 0])
+            }
+        }
+
+        private func clearBiometricPersistence(callbackId: String?) {
+            biometricSessionExpiry = nil
+            resolveCallback(callbackId, result: ["cleared": true])
+        }
+
+        // MARK: - AR (ARKit)
+        private var arSession: ARSession?
+        private var arView: ARSCNView?
+        private var arObjects: [String: SCNNode] = [:]
+        private var detectedPlanes: [UUID: ARPlaneAnchor] = [:]
+
+        private func startAR(options: [String: Any], callbackId: String?) {
+            guard ARWorldTrackingConfiguration.isSupported else {
+                rejectCallback(callbackId, error: "AR not supported on this device")
+                return
+            }
+
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+
+                // Create AR view
+                let arView = ARSCNView(frame: UIScreen.main.bounds)
+                arView.delegate = self
+                arView.autoenablesDefaultLighting = true
+                arView.tag = 9999 // For removal later
+
+                // Configure AR session
+                let configuration = ARWorldTrackingConfiguration()
+                configuration.planeDetection = [.horizontal, .vertical]
+                configuration.environmentTexturing = .automatic
+
+                self.arView = arView
+                self.arSession = arView.session
+
+                // Add AR view to window
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let window = windowScene.windows.first {
+                    window.addSubview(arView)
+                }
+
+                arView.session.run(configuration)
+                self.resolveCallback(callbackId, result: ["started": true])
+            }
+        }
+
+        private func stopAR(callbackId: String?) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+
+                self.arSession?.pause()
+                self.arView?.removeFromSuperview()
+                self.arView = nil
+                self.arSession = nil
+                self.arObjects.removeAll()
+                self.detectedPlanes.removeAll()
+
+                self.resolveCallback(callbackId, result: ["stopped": true])
+            }
+        }
+
+        private func placeARObject(model: String, position: [String: Double]?, callbackId: String?) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self, let arView = self.arView else {
+                    self?.rejectCallback(callbackId, error: "AR not started")
+                    return
+                }
+
+                let objectId = UUID().uuidString
+
+                // Create a simple box if no model URL
+                let node: SCNNode
+                if model.hasSuffix(".usdz") || model.hasSuffix(".scn") {
+                    // Load from URL/bundle
+                    if let url = URL(string: model) {
+                        do {
+                            let scene = try SCNScene(url: url, options: nil)
+                            node = SCNNode()
+                            for child in scene.rootNode.childNodes {
+                                node.addChildNode(child)
+                            }
+                        } catch {
+                            self.rejectCallback(callbackId, error: "Failed to load model: \\(error.localizedDescription)")
+                            return
+                        }
+                    } else {
+                        self.rejectCallback(callbackId, error: "Invalid model URL")
+                        return
+                    }
+                } else {
+                    // Create a simple geometry based on model name
+                    let geometry: SCNGeometry
+                    switch model {
+                    case "box":
+                        geometry = SCNBox(width: 0.1, height: 0.1, length: 0.1, chamferRadius: 0.01)
+                    case "sphere":
+                        geometry = SCNSphere(radius: 0.05)
+                    case "cylinder":
+                        geometry = SCNCylinder(radius: 0.05, height: 0.1)
+                    case "cone":
+                        geometry = SCNCone(topRadius: 0, bottomRadius: 0.05, height: 0.1)
+                    default:
+                        geometry = SCNBox(width: 0.1, height: 0.1, length: 0.1, chamferRadius: 0.01)
+                    }
+                    geometry.firstMaterial?.diffuse.contents = UIColor.systemBlue
+                    node = SCNNode(geometry: geometry)
+                }
+
+                // Set position
+                if let pos = position {
+                    node.position = SCNVector3(
+                        Float(pos["x"] ?? 0),
+                        Float(pos["y"] ?? 0),
+                        Float(pos["z"] ?? -0.5)
+                    )
+                } else {
+                    node.position = SCNVector3(0, 0, -0.5)
+                }
+
+                node.name = objectId
+                arView.scene.rootNode.addChildNode(node)
+                self.arObjects[objectId] = node
+
+                self.resolveCallback(callbackId, result: ["objectId": objectId, "placed": true])
+            }
+        }
+
+        private func removeARObject(objectId: String, callbackId: String?) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+
+                if let node = self.arObjects[objectId] {
+                    node.removeFromParentNode()
+                    self.arObjects.removeValue(forKey: objectId)
+                    self.resolveCallback(callbackId, result: ["removed": true])
+                } else {
+                    self.rejectCallback(callbackId, error: "Object not found")
+                }
+            }
+        }
+
+        private func getARPlanes(callbackId: String?) {
+            var planes: [[String: Any]] = []
+            for (_, anchor) in detectedPlanes {
+                planes.append([
+                    "id": anchor.identifier.uuidString,
+                    "alignment": anchor.alignment == .horizontal ? "horizontal" : "vertical",
+                    "center": ["x": anchor.center.x, "y": anchor.center.y, "z": anchor.center.z],
+                    "extent": ["width": anchor.extent.x, "height": anchor.extent.z]
+                ])
+            }
+            resolveCallback(callbackId, result: planes)
+        }
+
+        // MARK: - ML (Core ML / Vision)
+        private func classifyImage(imageBase64: String, callbackId: String?) {
+            guard let imageData = Data(base64Encoded: imageBase64),
+                  let image = UIImage(data: imageData),
+                  let cgImage = image.cgImage else {
+                rejectCallback(callbackId, error: "Invalid image data")
+                return
+            }
+
+            // Use Vision for image classification
+            let request = VNClassifyImageRequest { [weak self] request, error in
+                if let error = error {
+                    self?.rejectCallback(callbackId, error: error.localizedDescription)
+                    return
+                }
+
+                guard let observations = request.results as? [VNClassificationObservation] else {
+                    self?.rejectCallback(callbackId, error: "No classification results")
+                    return
+                }
+
+                let classifications = observations.prefix(10).map { obs in
+                    ["label": obs.identifier, "confidence": obs.confidence]
+                }
+                self?.resolveCallback(callbackId, result: classifications)
+            }
+
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    try handler.perform([request])
+                } catch {
+                    self.rejectCallback(callbackId, error: error.localizedDescription)
+                }
+            }
+        }
+
+        private func detectObjects(imageBase64: String, callbackId: String?) {
+            guard let imageData = Data(base64Encoded: imageBase64),
+                  let image = UIImage(data: imageData),
+                  let cgImage = image.cgImage else {
+                rejectCallback(callbackId, error: "Invalid image data")
+                return
+            }
+
+            // Use Vision for object detection
+            let request = VNRecognizeAnimalsRequest { [weak self] request, error in
+                if let error = error {
+                    self?.rejectCallback(callbackId, error: error.localizedDescription)
+                    return
+                }
+
+                guard let observations = request.results as? [VNRecognizedObjectObservation] else {
+                    self?.rejectCallback(callbackId, error: "No detection results")
+                    return
+                }
+
+                let detections = observations.map { obs in
+                    [
+                        "labels": obs.labels.map { ["label": $0.identifier, "confidence": $0.confidence] },
+                        "boundingBox": [
+                            "x": obs.boundingBox.origin.x,
+                            "y": obs.boundingBox.origin.y,
+                            "width": obs.boundingBox.width,
+                            "height": obs.boundingBox.height
+                        ],
+                        "confidence": obs.confidence
+                    ] as [String : Any]
+                }
+                self?.resolveCallback(callbackId, result: detections)
+            }
+
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    try handler.perform([request])
+                } catch {
+                    self.rejectCallback(callbackId, error: error.localizedDescription)
+                }
+            }
+        }
+
+        private func recognizeText(imageBase64: String, callbackId: String?) {
+            guard let imageData = Data(base64Encoded: imageBase64),
+                  let image = UIImage(data: imageData),
+                  let cgImage = image.cgImage else {
+                rejectCallback(callbackId, error: "Invalid image data")
+                return
+            }
+
+            let request = VNRecognizeTextRequest { [weak self] request, error in
+                if let error = error {
+                    self?.rejectCallback(callbackId, error: error.localizedDescription)
+                    return
+                }
+
+                guard let observations = request.results as? [VNRecognizedTextObservation] else {
+                    self?.rejectCallback(callbackId, error: "No text results")
+                    return
+                }
+
+                var textResults: [[String: Any]] = []
+                for observation in observations {
+                    if let candidate = observation.topCandidates(1).first {
+                        textResults.append([
+                            "text": candidate.string,
+                            "confidence": candidate.confidence,
+                            "boundingBox": [
+                                "x": observation.boundingBox.origin.x,
+                                "y": observation.boundingBox.origin.y,
+                                "width": observation.boundingBox.width,
+                                "height": observation.boundingBox.height
+                            ]
+                        ])
+                    }
+                }
+                self?.resolveCallback(callbackId, result: textResults)
+            }
+            request.recognitionLevel = .accurate
+
+            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    try handler.perform([request])
+                } catch {
+                    self.rejectCallback(callbackId, error: error.localizedDescription)
+                }
+            }
+        }
+
         // MARK: - Web Communication
         private func sendToWeb(_ event: String, data: [String: Any]) {
             guard let webView = webView else { return }
@@ -2390,6 +3310,66 @@ extension CraftWebView.Coordinator: NFCNDEFReaderSessionDelegate {
     }
 }
 
+// MARK: - ARSCNViewDelegate Extension
+extension CraftWebView.Coordinator {
+    func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
+        guard let planeAnchor = anchor as? ARPlaneAnchor else { return }
+
+        // Store plane
+        detectedPlanes[anchor.identifier] = planeAnchor
+
+        // Create plane visualization
+        let plane = SCNPlane(width: CGFloat(planeAnchor.extent.x), height: CGFloat(planeAnchor.extent.z))
+        plane.firstMaterial?.diffuse.contents = UIColor.systemBlue.withAlphaComponent(0.3)
+
+        let planeNode = SCNNode(geometry: plane)
+        planeNode.position = SCNVector3(planeAnchor.center.x, 0, planeAnchor.center.z)
+        planeNode.eulerAngles.x = -.pi / 2
+
+        node.addChildNode(planeNode)
+
+        // Dispatch plane detected event
+        DispatchQueue.main.async { [weak self] in
+            self?.sendToWeb("craftARPlane", data: [
+                "type": "added",
+                "id": anchor.identifier.uuidString,
+                "alignment": planeAnchor.alignment == .horizontal ? "horizontal" : "vertical",
+                "center": ["x": planeAnchor.center.x, "y": planeAnchor.center.y, "z": planeAnchor.center.z],
+                "extent": ["width": planeAnchor.extent.x, "height": planeAnchor.extent.z]
+            ])
+        }
+    }
+
+    func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
+        guard let planeAnchor = anchor as? ARPlaneAnchor else { return }
+
+        // Update stored plane
+        detectedPlanes[anchor.identifier] = planeAnchor
+
+        // Update plane visualization
+        if let planeNode = node.childNodes.first,
+           let plane = planeNode.geometry as? SCNPlane {
+            plane.width = CGFloat(planeAnchor.extent.x)
+            plane.height = CGFloat(planeAnchor.extent.z)
+            planeNode.position = SCNVector3(planeAnchor.center.x, 0, planeAnchor.center.z)
+        }
+    }
+
+    func renderer(_ renderer: SCNSceneRenderer, didRemove node: SCNNode, for anchor: ARAnchor) {
+        guard anchor is ARPlaneAnchor else { return }
+
+        // Remove from stored planes
+        detectedPlanes.removeValue(forKey: anchor.identifier)
+
+        DispatchQueue.main.async { [weak self] in
+            self?.sendToWeb("craftARPlane", data: [
+                "type": "removed",
+                "id": anchor.identifier.uuidString
+            ])
+        }
+    }
+}
+
 // MARK: - URL Extension for MIME types
 extension URL {
     var mimeType: String {
@@ -2397,5 +3377,56 @@ extension URL {
             return utType.preferredMIMEType ?? "application/octet-stream"
         }
         return "application/octet-stream"
+    }
+}
+
+// MARK: - Contact Picker Delegate
+extension CraftWebView.Coordinator: CNContactPickerDelegate {
+    func contactPicker(_ picker: CNContactPickerViewController, didSelect contact: CNContact) {
+        let contactData = formatContact(contact)
+        resolveCallback(pendingCallbackId, result: contactData)
+        pendingCallbackId = nil
+    }
+
+    func contactPicker(_ picker: CNContactPickerViewController, didSelect contacts: [CNContact]) {
+        let contactsData = contacts.map { formatContact($0) }
+        resolveCallback(pendingCallbackId, result: contactsData)
+        pendingCallbackId = nil
+    }
+
+    func contactPickerDidCancel(_ picker: CNContactPickerViewController) {
+        rejectCallback(pendingCallbackId, error: "Cancelled")
+        pendingCallbackId = nil
+    }
+
+    private func formatContact(_ contact: CNContact) -> [String: Any] {
+        var data: [String: Any] = [
+            "id": contact.identifier,
+            "givenName": contact.givenName,
+            "familyName": contact.familyName,
+            "displayName": CNContactFormatter.string(from: contact, style: .fullName) ?? ""
+        ]
+
+        // Phone numbers
+        var phones: [[String: String]] = []
+        for phone in contact.phoneNumbers {
+            phones.append([
+                "label": CNLabeledValue<CNPhoneNumber>.localizedString(forLabel: phone.label ?? ""),
+                "number": phone.value.stringValue
+            ])
+        }
+        data["phoneNumbers"] = phones
+
+        // Email addresses
+        var emails: [[String: String]] = []
+        for email in contact.emailAddresses {
+            emails.append([
+                "label": CNLabeledValue<NSString>.localizedString(forLabel: email.label ?? ""),
+                "address": email.value as String
+            ])
+        }
+        data["emailAddresses"] = emails
+
+        return data
     }
 }
