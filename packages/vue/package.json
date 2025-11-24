@@ -1,0 +1,56 @@
+{
+  "name": "@craft-native/vue",
+  "version": "0.1.0",
+  "description": "Vue composables for Craft Native - Build native mobile and desktop apps with JavaScript",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node --format esm && bun run build:types",
+    "build:types": "tsc --declaration --emitDeclarationOnly --outDir dist",
+    "dev": "bun build src/index.ts --outdir dist --target node --format esm --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "craft",
+    "craft-native",
+    "vue",
+    "vue3",
+    "composables",
+    "native",
+    "mobile",
+    "desktop",
+    "ios",
+    "android",
+    "electron",
+    "tauri"
+  ],
+  "author": "Craft Native",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stacksjs/craft"
+  },
+  "peerDependencies": {
+    "vue": ">=3.0.0"
+  },
+  "devDependencies": {
+    "@vue/runtime-core": "^3.4.0",
+    "typescript": "^5.3.0",
+    "vue": "^3.4.0"
+  },
+  "dependencies": {
+    "@craft-native/types": "workspace:*"
+  }
+}

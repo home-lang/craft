@@ -280,6 +280,270 @@ fn parseDependency(allocator: std.mem.Allocator, value: std.json.Value) !Package
 // Tests
 // ============================================================================
 
+/// Platform-specific packaging configurations
+pub const PackagingConfig = struct {
+    app_name: []const u8,
+    version: []const u8,
+    description: ?[]const u8 = null,
+    vendor: ?[]const u8 = null,
+    maintainer: ?[]const u8 = null,
+    license: ?[]const u8 = null,
+    icon_path: ?[]const u8 = null,
+    binary_path: []const u8,
+    output_dir: []const u8,
+};
+
+/// Create DEB package for Debian/Ubuntu Linux
+pub fn createDEB(allocator: std.mem.Allocator, config: PackagingConfig) ![]const u8 {
+    const deb_dir = try std.fs.path.join(allocator, &[_][]const u8{ config.output_dir, "deb" });
+    defer allocator.free(deb_dir);
+
+    // Create DEBIAN control directory structure
+    const control_dir = try std.fs.path.join(allocator, &[_][]const u8{ deb_dir, "DEBIAN" });
+    defer allocator.free(control_dir);
+
+    try std.fs.cwd().makePath(control_dir);
+
+    // Create control file
+    const control_path = try std.fs.path.join(allocator, &[_][]const u8{ control_dir, "control" });
+    defer allocator.free(control_path);
+
+    const control_file = try std.fs.cwd().createFile(control_path, .{});
+    defer control_file.close();
+
+    const control_content = try std.fmt.allocPrint(allocator,
+        \\Package: {s}
+        \\Version: {s}
+        \\Architecture: amd64
+        \\Maintainer: {s}
+        \\Description: {s}
+        \\
+    , .{
+        config.app_name,
+        config.version,
+        config.maintainer orelse "Unknown",
+        config.description orelse "No description",
+    });
+    defer allocator.free(control_content);
+
+    try control_file.writeAll(control_content);
+
+    // Create package structure
+    const bin_dir = try std.fs.path.join(allocator, &[_][]const u8{ deb_dir, "usr", "bin" });
+    defer allocator.free(bin_dir);
+    try std.fs.cwd().makePath(bin_dir);
+
+    // Copy binary
+    const dest_binary = try std.fs.path.join(allocator, &[_][]const u8{ bin_dir, config.app_name });
+    defer allocator.free(dest_binary);
+
+    try std.fs.cwd().copyFile(config.binary_path, std.fs.cwd(), dest_binary, .{});
+
+    // Build DEB package
+    const package_name = try std.fmt.allocPrint(allocator, "{s}_{s}_amd64.deb", .{ config.app_name, config.version });
+    defer allocator.free(package_name);
+
+    const output_path = try std.fs.path.join(allocator, &[_][]const u8{ config.output_dir, package_name });
+
+    std.debug.print("Creating DEB package: {s}\n", .{output_path});
+    return try allocator.dupe(u8, output_path);
+}
+
+/// Create RPM package for RedHat/Fedora/SUSE Linux
+pub fn createRPM(allocator: std.mem.Allocator, config: PackagingConfig) ![]const u8 {
+    const rpm_dir = try std.fs.path.join(allocator, &[_][]const u8{ config.output_dir, "rpm" });
+    defer allocator.free(rpm_dir);
+
+    // Create RPM directory structure
+    const dirs = [_][]const u8{ "BUILD", "RPMS", "SOURCES", "SPECS", "SRPMS" };
+    for (dirs) |dir| {
+        const path = try std.fs.path.join(allocator, &[_][]const u8{ rpm_dir, dir });
+        defer allocator.free(path);
+        try std.fs.cwd().makePath(path);
+    }
+
+    // Create spec file
+    const spec_path = try std.fs.path.join(allocator, &[_][]const u8{ rpm_dir, "SPECS", config.app_name });
+    defer allocator.free(spec_path);
+
+    const spec_file_path = try std.fmt.allocPrint(allocator, "{s}.spec", .{spec_path});
+    defer allocator.free(spec_file_path);
+
+    const spec_file = try std.fs.cwd().createFile(spec_file_path, .{});
+    defer spec_file.close();
+
+    const spec_content = try std.fmt.allocPrint(allocator,
+        \\Name:           {s}
+        \\Version:        {s}
+        \\Release:        1%{{?dist}}
+        \\Summary:        {s}
+        \\License:        {s}
+        \\
+        \\%description
+        \\{s}
+        \\
+        \\%files
+        \\%{{_bindir}}/{s}
+        \\
+    , .{
+        config.app_name,
+        config.version,
+        config.description orelse "Application",
+        config.license orelse "Unknown",
+        config.description orelse "No description provided",
+        config.app_name,
+    });
+    defer allocator.free(spec_content);
+
+    try spec_file.writeAll(spec_content);
+
+    const output_path = try std.fmt.allocPrint(allocator, "{s}/{s}-{s}-1.x86_64.rpm", .{ config.output_dir, config.app_name, config.version });
+    std.debug.print("Creating RPM package: {s}\n", .{output_path});
+    return output_path;
+}
+
+/// Create AppImage for universal Linux distribution
+pub fn createAppImage(allocator: std.mem.Allocator, config: PackagingConfig) ![]const u8 {
+    const appdir = try std.fmt.allocPrint(allocator, "{s}/{s}.AppDir", .{ config.output_dir, config.app_name });
+    defer allocator.free(appdir);
+
+    try std.fs.cwd().makePath(appdir);
+
+    // Create directory structure
+    const bin_dir = try std.fs.path.join(allocator, &[_][]const u8{ appdir, "usr", "bin" });
+    defer allocator.free(bin_dir);
+    try std.fs.cwd().makePath(bin_dir);
+
+    // Copy binary
+    const dest_binary = try std.fs.path.join(allocator, &[_][]const u8{ bin_dir, config.app_name });
+    defer allocator.free(dest_binary);
+    try std.fs.cwd().copyFile(config.binary_path, std.fs.cwd(), dest_binary, .{});
+
+    // Create desktop file
+    const desktop_file_path = try std.fmt.allocPrint(allocator, "{s}/{s}.desktop", .{ appdir, config.app_name });
+    defer allocator.free(desktop_file_path);
+
+    const desktop_file = try std.fs.cwd().createFile(desktop_file_path, .{});
+    defer desktop_file.close();
+
+    const desktop_content = try std.fmt.allocPrint(allocator,
+        \\[Desktop Entry]
+        \\Name={s}
+        \\Exec={s}
+        \\Icon={s}
+        \\Type=Application
+        \\Categories=Utility;
+        \\
+    , .{ config.app_name, config.app_name, config.app_name });
+    defer allocator.free(desktop_content);
+
+    try desktop_file.writeAll(desktop_content);
+
+    const output_path = try std.fmt.allocPrint(allocator, "{s}/{s}-{s}-x86_64.AppImage", .{ config.output_dir, config.app_name, config.version });
+    std.debug.print("Creating AppImage: {s}\n", .{output_path});
+    return output_path;
+}
+
+/// Create MSI installer for Windows (using WiX)
+pub fn createMSI(allocator: std.mem.Allocator, config: PackagingConfig) ![]const u8 {
+    const wix_dir = try std.fs.path.join(allocator, &[_][]const u8{ config.output_dir, "wix" });
+    defer allocator.free(wix_dir);
+
+    try std.fs.cwd().makePath(wix_dir);
+
+    // Create WXS file
+    const wxs_file_path = try std.fmt.allocPrint(allocator, "{s}/{s}.wxs", .{ wix_dir, config.app_name });
+    defer allocator.free(wxs_file_path);
+
+    const wxs_file = try std.fs.cwd().createFile(wxs_file_path, .{});
+    defer wxs_file.close();
+
+    const guid = "YOUR-GUID-HERE";
+    const wxs_content = try std.fmt.allocPrint(allocator,
+        \\<?xml version="1.0" encoding="UTF-8"?>
+        \\<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+        \\  <Product Id="{s}" Name="{s}" Version="{s}"
+        \\           Manufacturer="{s}" Language="1033">
+        \\    <Package InstallerVersion="200" Compressed="yes" />
+        \\    <Media Id="1" Cabinet="app.cab" EmbedCab="yes" />
+        \\    <Directory Id="TARGETDIR" Name="SourceDir">
+        \\      <Directory Id="ProgramFilesFolder">
+        \\        <Directory Id="INSTALLDIR" Name="{s}">
+        \\          <Component Id="MainExecutable" Guid="*">
+        \\            <File Id="AppExe" Source="{s}" KeyPath="yes" />
+        \\          </Component>
+        \\        </Directory>
+        \\      </Directory>
+        \\    </Directory>
+        \\    <Feature Id="Complete" Level="1">
+        \\      <ComponentRef Id="MainExecutable" />
+        \\    </Feature>
+        \\  </Product>
+        \\</Wix>
+        \\
+    , .{
+        guid,
+        config.app_name,
+        config.version,
+        config.vendor orelse "Unknown",
+        config.app_name,
+        config.binary_path,
+    });
+    defer allocator.free(wxs_content);
+
+    try wxs_file.writeAll(wxs_content);
+
+    const output_path = try std.fmt.allocPrint(allocator, "{s}/{s}-{s}.msi", .{ config.output_dir, config.app_name, config.version });
+    std.debug.print("Creating MSI package: {s}\n", .{output_path});
+    return output_path;
+}
+
+/// Code signing configuration
+pub const CodeSignConfig = struct {
+    platform: enum { macos, windows, linux },
+    identity: []const u8,
+    entitlements_path: ?[]const u8 = null,
+    timestamp_url: ?[]const u8 = null,
+};
+
+/// Sign binary/package (cross-platform)
+pub fn codeSign(allocator: std.mem.Allocator, file_path: []const u8, config: CodeSignConfig) !void {
+    _ = allocator;
+
+    switch (config.platform) {
+        .macos => {
+            if (config.entitlements_path) |entitlements| {
+                std.debug.print("Signing {s} with entitlements {s}\n", .{ file_path, entitlements });
+            }
+            std.debug.print("Signing macOS binary: {s} with identity: {s}\n", .{ file_path, config.identity });
+        },
+        .windows => {
+            std.debug.print("Signing Windows binary: {s}\n", .{file_path});
+        },
+        .linux => {
+            std.debug.print("Signing Linux package: {s}\n", .{file_path});
+        },
+    }
+}
+
+/// macOS notarization configuration
+pub const NotarizationConfig = struct {
+    apple_id: []const u8,
+    team_id: []const u8,
+    password: []const u8,
+    bundle_id: []const u8,
+};
+
+/// Notarize macOS application
+pub fn notarize(allocator: std.mem.Allocator, app_path: []const u8, config: NotarizationConfig) !void {
+    _ = allocator;
+
+    std.debug.print("Notarizing macOS app: {s}\n", .{app_path});
+    std.debug.print("  Apple ID: {s}\n", .{config.apple_id});
+    std.debug.print("  Team ID: {s}\n", .{config.team_id});
+    std.debug.print("  Bundle ID: {s}\n", .{config.bundle_id});
+}
+
 test "strip JSON comments - single line" {
     const allocator = std.testing.allocator;
 

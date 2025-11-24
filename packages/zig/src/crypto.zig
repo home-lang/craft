@@ -1,7 +1,8 @@
 const std = @import("std");
+const crypto = std.crypto;
 
-/// Cryptography utilities for plugin signing and verification
-/// Uses Ed25519 for digital signatures
+/// Cryptography utilities for plugin signing, verification, and general crypto operations
+/// Uses Ed25519 for digital signatures plus AES, ChaCha20, hashing, etc.
 pub const Crypto = struct {
     pub const Ed25519 = std.crypto.sign.Ed25519;
     pub const KeyPair = Ed25519.KeyPair;
@@ -67,6 +68,144 @@ pub const Crypto = struct {
     /// Compute SHA256 hash
     pub fn sha256(data: []const u8, out: *[32]u8) void {
         std.crypto.hash.sha2.Sha256.hash(data, out, .{});
+    }
+
+    /// Generate random bytes
+    pub fn randomBytes(allocator: std.mem.Allocator, length: usize) ![]u8 {
+        const bytes = try allocator.alloc(u8, length);
+        crypto.random.bytes(bytes);
+        return bytes;
+    }
+
+    /// Encrypt data using AES-256-GCM
+    pub fn encryptAES256GCM(allocator: std.mem.Allocator, plaintext: []const u8, key: [32]u8) ![]u8 {
+        // Generate random nonce
+        var nonce: [12]u8 = undefined;
+        crypto.random.bytes(&nonce);
+
+        // Allocate buffer for nonce + ciphertext + tag
+        const result = try allocator.alloc(u8, 12 + plaintext.len + 16);
+        @memcpy(result[0..12], &nonce);
+
+        // Encrypt
+        var tag: [16]u8 = undefined;
+        crypto.aead.aes_gcm.Aes256Gcm.encrypt(
+            result[12 .. 12 + plaintext.len],
+            &tag,
+            plaintext,
+            &[_]u8{},
+            nonce,
+            key,
+        );
+
+        @memcpy(result[12 + plaintext.len ..], &tag);
+        return result;
+    }
+
+    /// Decrypt data using AES-256-GCM
+    pub fn decryptAES256GCM(allocator: std.mem.Allocator, ciphertext: []const u8, key: [32]u8) ![]u8 {
+        if (ciphertext.len < 28) return error.InvalidInput; // 12 + 16 minimum
+
+        const nonce = ciphertext[0..12];
+        const tag_offset = ciphertext.len - 16;
+        var tag: [16]u8 = undefined;
+        @memcpy(&tag, ciphertext[tag_offset..]);
+
+        const plaintext = try allocator.alloc(u8, ciphertext.len - 28);
+        crypto.aead.aes_gcm.Aes256Gcm.decrypt(
+            plaintext,
+            ciphertext[12..tag_offset],
+            tag,
+            &[_]u8{},
+            nonce.*,
+            key,
+        ) catch {
+            allocator.free(plaintext);
+            return error.DecryptionFailed;
+        };
+
+        return plaintext;
+    }
+
+    /// Encrypt data using ChaCha20-Poly1305
+    pub fn encryptChaCha20(allocator: std.mem.Allocator, plaintext: []const u8, key: [32]u8) ![]u8 {
+        var nonce: [12]u8 = undefined;
+        crypto.random.bytes(&nonce);
+
+        const result = try allocator.alloc(u8, 12 + plaintext.len + 16);
+        @memcpy(result[0..12], &nonce);
+
+        var tag: [16]u8 = undefined;
+        crypto.aead.chacha_poly.ChaCha20Poly1305.encrypt(
+            result[12 .. 12 + plaintext.len],
+            &tag,
+            plaintext,
+            &[_]u8{},
+            nonce,
+            key,
+        );
+
+        @memcpy(result[12 + plaintext.len ..], &tag);
+        return result;
+    }
+
+    /// Decrypt data using ChaCha20-Poly1305
+    pub fn decryptChaCha20(allocator: std.mem.Allocator, ciphertext: []const u8, key: [32]u8) ![]u8 {
+        if (ciphertext.len < 28) return error.InvalidInput;
+
+        const nonce = ciphertext[0..12];
+        const tag_offset = ciphertext.len - 16;
+        var tag: [16]u8 = undefined;
+        @memcpy(&tag, ciphertext[tag_offset..]);
+
+        const plaintext = try allocator.alloc(u8, ciphertext.len - 28);
+        crypto.aead.chacha_poly.ChaCha20Poly1305.decrypt(
+            plaintext,
+            ciphertext[12..tag_offset],
+            tag,
+            &[_]u8{},
+            nonce.*,
+            key,
+        ) catch {
+            allocator.free(plaintext);
+            return error.DecryptionFailed;
+        };
+
+        return plaintext;
+    }
+
+    /// Derive key from password using Argon2
+    pub fn deriveKey(allocator: std.mem.Allocator, password: []const u8, salt: []const u8) ![32]u8 {
+        var key: [32]u8 = undefined;
+        try crypto.pwhash.argon2.kdf(
+            allocator,
+            &key,
+            password,
+            salt,
+            .{ .t = 3, .m = 65536, .p = 1 },
+            .argon2id,
+        );
+        return key;
+    }
+
+    /// Generate HMAC-SHA256
+    pub fn hmacSHA256(key: []const u8, message: []const u8, out: *[32]u8) void {
+        var hmac_impl = crypto.auth.hmac.sha2.HmacSha256.init(key);
+        hmac_impl.update(message);
+        hmac_impl.final(out);
+    }
+
+    /// Convert bytes to hex string
+    pub fn toHex(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
+        return try std.fmt.allocPrint(allocator, "{}", .{std.fmt.fmtSliceHexLower(bytes)});
+    }
+
+    /// Convert hex string to bytes
+    pub fn fromHex(allocator: std.mem.Allocator, hex: []const u8) ![]u8 {
+        if (hex.len % 2 != 0) return error.InvalidInput;
+        const bytes = try allocator.alloc(u8, hex.len / 2);
+        _ = try std.fmt.hexToBytes(bytes, hex);
+        return bytes;
     }
 };
 

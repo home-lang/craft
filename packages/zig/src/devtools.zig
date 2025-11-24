@@ -46,6 +46,24 @@ pub const CDP = struct {
         _ = params;
         // Would serialize and send CDP event
     }
+
+    pub fn handleMessage(self: *CDP, message: []const u8) ![]const u8 {
+        _ = self;
+        _ = message;
+        // Parse CDP message and dispatch to appropriate handler
+        // Return CDP response
+        return "{\"id\":1,\"result\":{}}";
+    }
+
+    pub fn enableDomain(self: *CDP, domain: []const u8) !void {
+        _ = self;
+        std.debug.print("CDP: Enabling domain: {s}\n", .{domain});
+    }
+
+    pub fn disableDomain(self: *CDP, domain: []const u8) !void {
+        _ = self;
+        std.debug.print("CDP: Disabling domain: {s}\n", .{domain});
+    }
 };
 
 /// Network request/response inspector
@@ -466,6 +484,122 @@ test "memory inspector" {
     try std.testing.expect(snapshots.len == 1);
     try std.testing.expect(snapshots[0].live_allocations == 1);
 }
+
+/// Unified DevTools Manager
+pub const DevTools = struct {
+    config: DevToolsConfig,
+    cdp: ?CDP = null,
+    network_inspector: NetworkInspector,
+    memory_inspector: MemoryInspector,
+    profiler: Profiler,
+    allocator: std.mem.Allocator,
+    running: bool = false,
+
+    const Self = @This();
+
+    pub fn init(allocator: std.mem.Allocator, config: DevToolsConfig) !Self {
+        var devtools = Self{
+            .config = config,
+            .network_inspector = NetworkInspector.init(allocator),
+            .memory_inspector = MemoryInspector.init(allocator),
+            .profiler = Profiler.init(allocator),
+            .allocator = allocator,
+        };
+
+        if (config.enabled) {
+            devtools.cdp = CDP.init(allocator, config.port);
+        }
+
+        return devtools;
+    }
+
+    pub fn deinit(self: *Self) void {
+        if (self.cdp) |*cdp| {
+            cdp.stop();
+        }
+        self.network_inspector.deinit();
+        self.memory_inspector.deinit();
+        self.profiler.deinit();
+    }
+
+    pub fn start(self: *Self) !void {
+        if (!self.config.enabled) return;
+
+        if (self.cdp) |*cdp| {
+            try cdp.start();
+        }
+
+        self.running = true;
+        std.debug.print("DevTools started on port {}\n", .{self.config.port});
+    }
+
+    pub fn stop(self: *Self) void {
+        if (self.cdp) |*cdp| {
+            cdp.stop();
+        }
+        self.running = false;
+        std.debug.print("DevTools stopped\n", .{});
+    }
+
+    pub fn recordNetworkRequest(self: *Self, url: []const u8, method: []const u8) !u64 {
+        if (!self.config.enable_network_inspector) return 0;
+        return try self.network_inspector.recordRequest(url, method);
+    }
+
+    pub fn recordNetworkResponse(self: *Self, id: u64, status: u16, size: usize) !void {
+        if (!self.config.enable_network_inspector) return;
+        try self.network_inspector.recordResponse(id, status, size);
+    }
+
+    pub fn recordMemoryAllocation(self: *Self, address: usize, size: usize) !void {
+        if (!self.config.enable_memory_inspector) return;
+        try self.memory_inspector.recordAllocation(address, size);
+    }
+
+    pub fn recordMemoryFree(self: *Self, address: usize) !void {
+        if (!self.config.enable_memory_inspector) return;
+        try self.memory_inspector.recordFree(address);
+    }
+
+    pub fn startProfiling(self: *Self, name: []const u8) !void {
+        if (!self.config.enable_profiling) return;
+        try self.profiler.startSession(name);
+    }
+
+    pub fn stopProfiling(self: *Self) !void {
+        if (!self.config.enable_profiling) return;
+        try self.profiler.endSession();
+    }
+
+    pub fn takeMemorySnapshot(self: *Self) !void {
+        if (!self.config.enable_memory_inspector) return;
+        try self.memory_inspector.takeSnapshot();
+    }
+
+    pub fn getNetworkStats(self: *const Self) struct {
+        total_requests: usize,
+        total_size: usize,
+    } {
+        return .{
+            .total_requests = self.network_inspector.getTotalRequests(),
+            .total_size = self.network_inspector.getTotalSize(),
+        };
+    }
+
+    pub fn getMemoryLeaks(self: *const Self) []const MemoryInspector.Allocation {
+        return self.memory_inspector.detectLeaks();
+    }
+
+    pub fn getPerformanceReport(self: *const Self) []const Profiler.ProfileSession {
+        return self.profiler.getSessions();
+    }
+
+    pub fn clearAll(self: *Self) void {
+        self.network_inspector.clear();
+        self.memory_inspector.clear();
+        self.profiler.clear();
+    }
+};
 
 test "profiler" {
     const allocator = std.testing.allocator;

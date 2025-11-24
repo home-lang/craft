@@ -382,6 +382,111 @@ pub const PluginManager = struct {
     }
 };
 
+/// Resource monitor for runtime enforcement
+pub const ResourceMonitor = struct {
+    plugin: *Plugin,
+    cpu_time_start: ?i64 = null,
+    memory_snapshots: std.ArrayList(MemorySnapshot),
+    allocator: std.mem.Allocator,
+
+    pub const MemorySnapshot = struct {
+        timestamp: i64,
+        bytes_used: usize,
+    };
+
+    pub fn init(allocator: std.mem.Allocator, plugin: *Plugin) ResourceMonitor {
+        return .{
+            .plugin = plugin,
+            .memory_snapshots = std.ArrayList(MemorySnapshot).init(allocator),
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *ResourceMonitor) void {
+        self.memory_snapshots.deinit();
+    }
+
+    pub fn startMonitoring(self: *ResourceMonitor) void {
+        self.cpu_time_start = std.time.milliTimestamp();
+    }
+
+    pub fn stopMonitoring(self: *ResourceMonitor) void {
+        self.cpu_time_start = null;
+    }
+
+    pub fn takeMemorySnapshot(self: *ResourceMonitor) !void {
+        try self.memory_snapshots.append(.{
+            .timestamp = std.time.milliTimestamp(),
+            .bytes_used = self.plugin.memory_used,
+        });
+    }
+
+    pub fn checkLimits(self: *ResourceMonitor) !void {
+        if (self.cpu_time_start) |start| {
+            const elapsed = @as(u64, @intCast(std.time.milliTimestamp() - start));
+            if (elapsed > self.plugin.sandbox_config.max_execution_time) {
+                return error.CPUTimeLimitExceeded;
+            }
+        }
+
+        if (self.plugin.memory_used > self.plugin.sandbox_config.max_memory) {
+            return error.MemoryLimitExceeded;
+        }
+    }
+};
+
+/// Sandbox execution environment
+pub const Sandbox = struct {
+    plugin: *Plugin,
+    monitor: ResourceMonitor,
+    allocator: std.mem.Allocator,
+    call_stack_depth: usize = 0,
+
+    pub fn init(allocator: std.mem.Allocator, plugin: *Plugin) Sandbox {
+        return .{
+            .plugin = plugin,
+            .monitor = ResourceMonitor.init(allocator, plugin),
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *Sandbox) void {
+        self.monitor.deinit();
+    }
+
+    pub fn fileOperation(self: *Sandbox, permission: Permission, operation: anytype) !void {
+        try self.plugin.checkPermission(permission);
+        try self.plugin.checkFileHandleLimit();
+        defer self.plugin.releaseFileHandle();
+        try operation();
+    }
+
+    pub fn networkOperation(self: *Sandbox, permission: Permission, operation: anytype) !void {
+        try self.plugin.checkPermission(permission);
+        try self.plugin.checkNetworkConnectionLimit();
+        defer self.plugin.releaseNetworkConnection();
+        try operation();
+    }
+
+    pub fn allocate(self: *Sandbox, size: usize) ![]u8 {
+        try self.plugin.checkMemoryLimit(size);
+        const mem = try self.allocator.alloc(u8, size);
+        errdefer {
+            self.allocator.free(mem);
+            self.plugin.releaseMemory(size);
+        }
+        try self.monitor.takeMemorySnapshot();
+        return mem;
+    }
+
+    pub fn free(self: *Sandbox, mem: []u8) void {
+        const size = mem.len;
+        self.allocator.free(mem);
+        self.plugin.releaseMemory(size);
+        self.monitor.takeMemorySnapshot() catch {};
+    }
+};
+
 test "permission set" {
     var perms = PermissionSet.init();
     try std.testing.expect(!perms.has(.read_files));
