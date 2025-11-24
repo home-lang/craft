@@ -33,6 +33,8 @@ pub const LogConfig = struct {
     enable_colors: bool = true,
     enable_timestamps: bool = true,
     output_file: ?[]const u8 = null,
+    json_output: bool = false,
+    filter_pattern: ?[]const u8 = null,
 };
 
 var current_config: LogConfig = .{};
@@ -75,27 +77,47 @@ pub fn log(
 ) void {
     if (!shouldLog(level)) return;
 
-    const reset = "\x1B[0m";
-    const dim = "\x1B[2m";
-
     var buf: [4096]u8 = undefined;
     var stream = std.io.fixedBufferStream(&buf);
     const writer = stream.writer();
 
-    // Build the log message
-    if (current_config.enable_timestamps) {
-        const timestamp = getTimestamp();
-        writer.print("{s}[{s}]{s} ", .{ dim, timestamp, reset }) catch return;
+    // Format message
+    var msg_buf: [2048]u8 = undefined;
+    const message = std.fmt.bufPrint(&msg_buf, format, args) catch return;
+
+    // Apply filter if configured
+    if (current_config.filter_pattern) |pattern| {
+        if (std.mem.indexOf(u8, message, pattern) == null) {
+            return; // Skip messages that don't match filter
+        }
     }
 
-    if (current_config.enable_colors) {
-        writer.print("{s}{s}{s} ", .{ level.color(), level.toString(), reset }) catch return;
+    if (current_config.json_output) {
+        // JSON output
+        writer.writeAll("{") catch return;
+        writer.print("\"timestamp\":\"{s}\",", .{getTimestamp()}) catch return;
+        writer.print("\"level\":\"{s}\",", .{level.toString()}) catch return;
+        writer.print("\"message\":\"{s}\"", .{message}) catch return;
+        writer.writeAll("}\n") catch return;
     } else {
-        writer.print("{s} ", .{level.toString()}) catch return;
-    }
+        // Standard output
+        const reset = "\x1B[0m";
+        const dim = "\x1B[2m";
 
-    writer.print(format, args) catch return;
-    writer.writeByte('\n') catch return;
+        if (current_config.enable_timestamps) {
+            const timestamp = getTimestamp();
+            writer.print("{s}[{s}]{s} ", .{ dim, timestamp, reset }) catch return;
+        }
+
+        if (current_config.enable_colors) {
+            writer.print("{s}{s}{s} ", .{ level.color(), level.toString(), reset }) catch return;
+        } else {
+            writer.print("{s} ", .{level.toString()}) catch return;
+        }
+
+        writer.writeAll(message) catch return;
+        writer.writeByte('\n') catch return;
+    }
 
     // Write to stderr
     const stderr = std.io.getStdErr().writer();
