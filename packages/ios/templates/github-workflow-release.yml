@@ -1,0 +1,175 @@
+# Mobile Release Workflow
+# Copy this file to your project's .github/workflows/release.yml
+# Builds both iOS and Android apps on tag push
+
+name: Mobile Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.2.3)'
+        required: true
+
+env:
+  XCODE_VERSION: '15.0'
+  JAVA_VERSION: '17'
+
+jobs:
+  # ==================== iOS Release ====================
+  ios-release:
+    name: Build iOS Release
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Install dependencies
+        run: |
+          if [ -f "ios/Podfile" ]; then
+            cd ios && pod install
+          fi
+
+      - name: Set version
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+          # Update Info.plist version
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" ios/CraftApp/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" ios/CraftApp/Info.plist
+
+      - name: Build Archive (unsigned)
+        run: |
+          xcodebuild archive \
+            -project ios/CraftApp.xcodeproj \
+            -scheme CraftApp \
+            -configuration Release \
+            -archivePath build/CraftApp.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty
+
+      - name: Upload iOS Archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-release-${{ env.VERSION }}
+          path: build/CraftApp.xcarchive
+          retention-days: 30
+
+  # ==================== Android Release ====================
+  android-release:
+    name: Build Android Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Set version
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"  # Remove 'v' prefix if present
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+          # Update build.gradle version
+          sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle
+          sed -i "s/versionCode [0-9]*/versionCode ${{ github.run_number }}/" android/app/build.gradle
+
+      - name: Grant execute permission
+        run: chmod +x android/gradlew
+
+      - name: Build Release APK
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: Build Release Bundle
+        working-directory: android
+        run: ./gradlew bundleRelease
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-${{ env.VERSION }}
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: Upload Android Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-bundle-${{ env.VERSION }}
+          path: android/app/build/outputs/bundle/release/*.aab
+          retention-days: 30
+
+  # ==================== Create GitHub Release ====================
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [ios-release, android-release]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set version
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Download iOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-release-${{ env.VERSION }}
+          path: release/ios
+
+      - name: Download Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk-${{ env.VERSION }}
+          path: release/android
+
+      - name: Download Android Bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: android-bundle-${{ env.VERSION }}
+          path: release/android
+
+      - name: Create Zip Archives
+        run: |
+          cd release
+          zip -r ios-archive-${{ env.VERSION }}.zip ios/
+          mv android/*.apk . 2>/dev/null || true
+          mv android/*.aab . 2>/dev/null || true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v${{ env.VERSION }}
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            release/ios-archive-*.zip
+            release/*.apk
+            release/*.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

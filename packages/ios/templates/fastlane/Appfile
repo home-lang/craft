@@ -1,0 +1,45 @@
+# Fastlane Appfile
+# Stores App Store Connect and Apple Developer account information
+
+# App Store Connect API Key (recommended for CI)
+# app_store_connect_api_key(
+#   key_id: "YOUR_KEY_ID",
+#   issuer_id: "YOUR_ISSUER_ID",
+#   key_filepath: "./AuthKey_YOUR_KEY_ID.p8",
+#   in_house: false # Set to true for Enterprise accounts
+# )
+
+# Or use username/password authentication
+# apple_id("your@email.com")
+
+# Your app's bundle identifier
+# app_identifier("com.yourcompany.craftapp")
+
+# Your Apple Developer Team ID
+# team_id("XXXXXXXXXX")
+
+# App Store Connect Team ID (if different from Developer Portal)
+# itc_team_id("XXXXXXXXXX")
+
+# ==================== Example Configuration ====================
+# Uncomment and modify:
+
+# app_identifier("com.yourcompany.craftapp")
+# apple_id("developer@yourcompany.com")
+# team_id("ABCD1234XY")
+# itc_team_id("ABCD1234XY")
+
+# ==================== For CI/CD ====================
+# Use App Store Connect API Key instead of username/password
+# 1. Go to App Store Connect > Users and Access > Keys
+# 2. Create a new API Key
+# 3. Download the .p8 file
+# 4. Store key_id, issuer_id, and key content as secrets
+#
+# In your Fastfile:
+# api_key = app_store_connect_api_key(
+#   key_id: ENV["ASC_KEY_ID"],
+#   issuer_id: ENV["ASC_ISSUER_ID"],
+#   key_content: ENV["ASC_KEY_CONTENT"],
+#   is_key_content_base64: true
+# )

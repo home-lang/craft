@@ -409,6 +409,100 @@ if (status.isValid) {
   console.log('Session valid for', status.remainingSeconds, 'more seconds');
 }
 await window.craft.authPersistence.clear();
+
+// ==================== Nice to Have Bridges ====================
+
+// AR (ARKit) - Requires iOS device with A9+ chip
+await window.craft.ar.start({planeDetection: true});
+window.craft.ar.onPlaneDetected((plane) => {
+  console.log('Plane detected:', plane.id, plane.alignment);
+});
+
+// Place 3D objects (built-in shapes or .usdz/.scn files)
+const obj = await window.craft.ar.placeObject('box', {x: 0, y: 0, z: -0.5});
+console.log('Object placed:', obj.objectId);
+// Built-in shapes: 'box', 'sphere', 'cylinder', 'cone'
+// Or provide URL to .usdz or .scn file
+
+// Get detected planes
+const planes = await window.craft.ar.getPlanes();
+console.log(planes); // [{id, alignment, center, extent}]
+
+// Remove object
+await window.craft.ar.removeObject(obj.objectId);
+
+// Stop AR session
+await window.craft.ar.stop();
+
+// ML (Vision Framework)
+// First capture an image
+const image = await window.craft.openCamera();
+
+// Image Classification - Identify what's in the image
+const labels = await window.craft.ml.classifyImage(image);
+console.log(labels); // [{label: 'cat', confidence: 0.95}, ...]
+
+// Object Detection - Detect and locate objects
+const objects = await window.craft.ml.detectObjects(image);
+console.log(objects); // [{labels: [...], boundingBox: {x, y, width, height}}]
+
+// Text Recognition (OCR) - Extract text from image
+const textResults = await window.craft.ml.recognizeText(image);
+console.log(textResults); // [{text: 'Hello World', confidence: 0.98, boundingBox: {...}}]
+
+// ==================== Widgets (WidgetKit) ====================
+
+// Update widget data - displayed on home screen widget
+await window.craft.widget.update({
+  title: 'My App',
+  subtitle: 'Latest update',
+  value: '42',
+  icon: 'star.fill' // SF Symbol name
+});
+
+// Reload all widgets
+await window.craft.widget.reload();
+
+// ==================== Siri Shortcuts ====================
+
+// Register a Siri shortcut
+await window.craft.siri.register('Open my app', 'open_app');
+
+// Remove a Siri shortcut
+await window.craft.siri.remove('open_app');
+
+// Listen for Siri shortcut invocations
+window.craft.siri.onInvoke((detail) => {
+  console.log('Siri invoked:', detail.action);
+});
+
+// ==================== Watch Connectivity ====================
+
+// Check if watch is reachable
+const status = await window.craft.watch.isReachable();
+console.log(status.reachable); // true/false
+
+// Send message to watch
+const reply = await window.craft.watch.send({
+  action: 'ping',
+  data: { timestamp: Date.now() }
+});
+
+// Update application context (synced to watch)
+await window.craft.watch.updateContext({
+  lastUpdate: Date.now(),
+  status: 'active'
+});
+
+// Listen for messages from watch
+window.craft.watch.onMessage((message) => {
+  console.log('Watch message:', message);
+});
+
+// Listen for watch reachability changes
+window.craft.watch.onReachabilityChange((status) => {
+  console.log('Watch reachable:', status.reachable);
+});
 ```
 
 ## CLI Reference

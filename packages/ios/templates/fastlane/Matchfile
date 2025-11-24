@@ -1,0 +1,58 @@
+# Fastlane Match Configuration
+# Match manages iOS code signing certificates and provisioning profiles
+# Certificates are stored in a private Git repository
+
+# Git repository for storing certificates
+# git_url("git@github.com:your-org/certificates.git")
+
+# App identifier (bundle ID)
+# app_identifier(["com.yourcompany.craftapp"])
+
+# Your Apple Developer account
+# username("your@email.com")
+
+# Team ID (find in Developer Portal)
+# team_id("XXXXXXXXXX")
+
+# Storage mode: git, google_cloud, or s3
+# storage_mode("git")
+
+# Keychain for CI
+# keychain_name(ENV["MATCH_KEYCHAIN_NAME"] || "login.keychain-db")
+
+# ==================== Example Configuration ====================
+# Uncomment and modify the following for your project:
+
+# git_url("git@github.com:your-org/ios-certificates.git")
+#
+# app_identifier(["com.yourcompany.craftapp"])
+# username("developer@yourcompany.com")
+# team_id("ABCD1234XY")
+#
+# storage_mode("git")
+#
+# # For CI environments
+# readonly(is_ci)
+#
+# # Types of profiles to manage
+# type("development") # or "appstore", "adhoc", "enterprise"
+
+# ==================== Usage ====================
+# Initialize match (first time):
+#   fastlane match init
+#
+# Generate development certificates:
+#   fastlane match development
+#
+# Generate App Store certificates:
+#   fastlane match appstore
+#
+# Generate Ad-Hoc certificates:
+#   fastlane match adhoc
+#
+# Sync certificates (readonly):
+#   fastlane match development --readonly
+#
+# Force regenerate all certificates:
+#   fastlane match nuke development
+#   fastlane match nuke distribution

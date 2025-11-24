@@ -72,6 +72,20 @@
   <h1>Craft Bridge Test <span id="status" class="status waiting">Waiting...</span></h1>
   <div id="platform"></div>
 
+  <!-- Debug Mode -->
+  <div class="section">
+    <h2>Debug Mode</h2>
+    <button class="btn" onclick="toggleDebugMode()">Toggle Debug</button>
+    <button class="btn" onclick="showLastError()">Last Error</button>
+    <button class="btn" onclick="showCallLog()">Call Log</button>
+    <button class="btn" onclick="clearCallLog()">Clear Log</button>
+    <button class="btn" onclick="showErrorHistory()">Error History</button>
+    <button class="btn" onclick="showConsoleLog()">Console Log</button>
+    <button class="btn" onclick="showNetworkLog()">Network Log</button>
+    <button class="btn" onclick="showDebugReport()">Full Report</button>
+    <div id="debug-result" class="result">Debug mode: OFF</div>
+  </div>
+
   <!-- Core -->
   <div class="section">
     <h2>Core</h2>
@@ -283,6 +297,59 @@
     <div id="ml-result" class="result">Results will appear here...</div>
   </div>
 
+  <!-- Widgets -->
+  <div class="section">
+    <h2>Widgets (WidgetKit/AppWidgetProvider)</h2>
+    <button class="btn" onclick="testUpdateWidget()">Update Widget</button>
+    <button class="btn" onclick="testReloadWidgets()">Reload Widgets</button>
+    <div id="widget-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Voice Assistant -->
+  <div class="section">
+    <h2>Siri / Google Assistant</h2>
+    <button class="btn" onclick="testRegisterSiri()">Register Shortcut</button>
+    <button class="btn" onclick="testRemoveSiri()">Remove Shortcut</button>
+    <div id="siri-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Watch Connectivity -->
+  <div class="section">
+    <h2>Watch Connectivity</h2>
+    <button class="btn" onclick="testWatchReachable()">Check Reachable</button>
+    <button class="btn" onclick="testSendToWatch()">Send Message</button>
+    <button class="btn" onclick="testUpdateWatchContext()">Update Context</button>
+    <div id="watch-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Deep Links -->
+  <div class="section">
+    <h2>Deep Links</h2>
+    <button class="btn" onclick="testGetInitialURL()">Get Initial URL</button>
+    <button class="btn" onclick="setupDeepLinkListener()">Setup Listener</button>
+    <div id="deeplink-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- Performance Profiling -->
+  <div class="section">
+    <h2>Performance Profiling</h2>
+    <button class="btn" onclick="testStartProfiling()">Start Profiling</button>
+    <button class="btn" onclick="testStopProfiling()">Stop Profiling</button>
+    <button class="btn" onclick="testGetProfilingData()">Get Data</button>
+    <button class="btn" onclick="testGetMemoryUsage()">Memory Usage</button>
+    <div id="profiling-result" class="result">Results will appear here...</div>
+  </div>
+
+  <!-- OTA Updates -->
+  <div class="section">
+    <h2>OTA Updates</h2>
+    <button class="btn" onclick="testOTAConfigure()">Configure</button>
+    <button class="btn" onclick="testCheckForUpdate()">Check Update</button>
+    <button class="btn" onclick="testDownloadUpdate()">Download</button>
+    <button class="btn" onclick="testGetCurrentBundle()">Current Bundle</button>
+    <div id="ota-result" class="result">Results will appear here...</div>
+  </div>
+
   <div id="log"></div>
 
   <script>
@@ -340,6 +407,77 @@
       const current = document.getElementById('connectivity-result').textContent;
       showResult('connectivity-result', current + '\nDevice: ' + JSON.stringify(e.detail));
     });
+
+    // Debug mode error events
+    window.addEventListener('craftError', (e) => {
+      log('Craft error: ' + e.detail.code + ' - ' + e.detail.message);
+      showResult('debug-result', 'Error: ' + JSON.stringify(e.detail, null, 2));
+    });
+
+    // Debug mode functions
+    var debugModeOn = false;
+    function toggleDebugMode() {
+      if (!window.craft) return showResult('debug-result', 'Craft not ready');
+      debugModeOn = !debugModeOn;
+      window.craft.setDebugMode(debugModeOn);
+      showResult('debug-result', 'Debug mode: ' + (debugModeOn ? 'ON' : 'OFF'));
+      log('Debug mode ' + (debugModeOn ? 'enabled' : 'disabled'));
+    }
+
+    function showLastError() {
+      if (!window.craft) return showResult('debug-result', 'Craft not ready');
+      const error = window.craft.getLastError();
+      showResult('debug-result', error ? JSON.stringify(error, null, 2) : 'No errors recorded');
+    }
+
+    function showCallLog() {
+      if (!window.craft) return showResult('debug-result', 'Craft not ready');
+      const callLog = window.craft.getCallLog();
+      showResult('debug-result', callLog.length > 0
+        ? 'Call log (' + callLog.length + ' entries):\n' + JSON.stringify(callLog.slice(-10), null, 2)
+        : 'No calls logged (enable debug mode first)');
+    }
+
+    function clearCallLog() {
+      if (!window.craft) return showResult('debug-result', 'Craft not ready');
+      window.craft.clearCallLog();
+      showResult('debug-result', 'Call log cleared');
+      log('Call log cleared');
+    }
+
+    function showErrorHistory() {
+      if (!window.craft) return showResult('debug-result', 'Craft not ready');
+      const history = window.craft.getErrorHistory ? window.craft.getErrorHistory() : [];
+      showResult('debug-result', history.length > 0
+        ? 'Error history (' + history.length + ' errors):\n' + JSON.stringify(history.slice(-5), null, 2)
+        : 'No errors recorded');
+    }
+
+    function showConsoleLog() {
+      if (!window.craft) return showResult('debug-result', 'Craft not ready');
+      const consoleLogs = window.craft.getConsoleLog ? window.craft.getConsoleLog() : [];
+      showResult('debug-result', consoleLogs.length > 0
+        ? 'Console log (' + consoleLogs.length + ' entries):\n' + JSON.stringify(consoleLogs.slice(-10), null, 2)
+        : 'No console logs captured (enable debug mode first)');
+    }
+
+    function showNetworkLog() {
+      if (!window.craft) return showResult('debug-result', 'Craft not ready');
+      const networkLogs = window.craft.getNetworkLog ? window.craft.getNetworkLog() : [];
+      showResult('debug-result', networkLogs.length > 0
+        ? 'Network log (' + networkLogs.length + ' requests):\n' + JSON.stringify(networkLogs.slice(-10), null, 2)
+        : 'No network requests captured (enable debug mode first)');
+    }
+
+    function showDebugReport() {
+      if (!window.craft) return showResult('debug-result', 'Craft not ready');
+      const report = window.craft.getDebugReport ? window.craft.getDebugReport() : null;
+      if (report) {
+        showResult('debug-result', 'Debug Report:\n' + JSON.stringify(report, null, 2));
+      } else {
+        showResult('debug-result', 'Debug report not available');
+      }
+    }
 
     // Core tests
     function testHaptic() {
@@ -1087,6 +1225,236 @@
       } catch (e) {
         showResult('ml-result', 'Error: ' + e.message);
       }
+    }
+
+    // Widget tests
+    async function testUpdateWidget() {
+      if (!window.craft?.widget) return showResult('widget-result', 'Widget API not available');
+      try {
+        const result = await window.craft.widget.update({
+          title: 'Craft Widget',
+          subtitle: 'Updated at ' + new Date().toLocaleTimeString(),
+          value: Math.floor(Math.random() * 100).toString(),
+          icon: 'star.fill'
+        });
+        showResult('widget-result', 'Widget updated: ' + JSON.stringify(result));
+        log('Widget updated');
+      } catch (e) {
+        showResult('widget-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testReloadWidgets() {
+      if (!window.craft?.widget) return showResult('widget-result', 'Widget API not available');
+      try {
+        const result = await window.craft.widget.reload();
+        showResult('widget-result', 'Widgets reloaded: ' + JSON.stringify(result));
+        log('Widgets reloaded');
+      } catch (e) {
+        showResult('widget-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Siri / Voice Assistant tests
+    async function testRegisterSiri() {
+      if (!window.craft?.siri) return showResult('siri-result', 'Siri API not available');
+      try {
+        const result = await window.craft.siri.register('Open my app', 'open_app');
+        showResult('siri-result', 'Siri shortcut registered: ' + JSON.stringify(result));
+        log('Siri shortcut registered');
+      } catch (e) {
+        showResult('siri-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testRemoveSiri() {
+      if (!window.craft?.siri) return showResult('siri-result', 'Siri API not available');
+      try {
+        const result = await window.craft.siri.remove('open_app');
+        showResult('siri-result', 'Siri shortcut removed: ' + JSON.stringify(result));
+        log('Siri shortcut removed');
+      } catch (e) {
+        showResult('siri-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Listen for Siri invocations
+    if (window.craft?.siri) {
+      window.craft.siri.onInvoke((detail) => {
+        log('Siri shortcut invoked: ' + JSON.stringify(detail));
+        showResult('siri-result', 'Siri invoked: ' + JSON.stringify(detail));
+      });
+    }
+
+    // Watch Connectivity tests
+    async function testWatchReachable() {
+      if (!window.craft?.watch) return showResult('watch-result', 'Watch API not available');
+      try {
+        const result = await window.craft.watch.isReachable();
+        showResult('watch-result', 'Watch reachable: ' + JSON.stringify(result));
+        log('Watch reachable: ' + JSON.stringify(result));
+      } catch (e) {
+        showResult('watch-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testSendToWatch() {
+      if (!window.craft?.watch) return showResult('watch-result', 'Watch API not available');
+      try {
+        const result = await window.craft.watch.send({
+          action: 'ping',
+          timestamp: Date.now()
+        });
+        showResult('watch-result', 'Sent to watch: ' + JSON.stringify(result));
+        log('Sent message to watch');
+      } catch (e) {
+        showResult('watch-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testUpdateWatchContext() {
+      if (!window.craft?.watch) return showResult('watch-result', 'Watch API not available');
+      try {
+        const result = await window.craft.watch.updateContext({
+          lastUpdate: Date.now(),
+          status: 'active'
+        });
+        showResult('watch-result', 'Watch context updated: ' + JSON.stringify(result));
+        log('Watch context updated');
+      } catch (e) {
+        showResult('watch-result', 'Error: ' + e.message);
+      }
+    }
+
+    // Listen for Watch events
+    if (window.craft?.watch) {
+      window.craft.watch.onMessage((detail) => {
+        log('Watch message received: ' + JSON.stringify(detail));
+        showResult('watch-result', 'Watch message: ' + JSON.stringify(detail));
+      });
+      window.craft.watch.onReachabilityChange((detail) => {
+        log('Watch reachability changed: ' + JSON.stringify(detail));
+        showResult('watch-result', 'Reachability: ' + JSON.stringify(detail));
+      });
+    }
+
+    // ==================== Deep Links ====================
+    async function testGetInitialURL() {
+      if (!window.craft?.deepLinks) return showResult('deeplink-result', 'Deep Links API not available');
+      try {
+        const result = await window.craft.deepLinks.getInitialURL();
+        if (result) {
+          showResult('deeplink-result', 'Initial URL: ' + JSON.stringify(result, null, 2));
+          log('Initial URL: ' + result.url);
+        } else {
+          showResult('deeplink-result', 'App was not launched via deep link');
+          log('No initial URL');
+        }
+      } catch (e) {
+        showResult('deeplink-result', 'Error: ' + e.message);
+      }
+    }
+
+    function setupDeepLinkListener() {
+      if (!window.craft?.deepLinks) return showResult('deeplink-result', 'Deep Links API not available');
+      window.craft.deepLinks.onLink((detail) => {
+        log('Deep link received: ' + detail.url);
+        showResult('deeplink-result', 'Deep Link: ' + JSON.stringify(detail, null, 2));
+      });
+      showResult('deeplink-result', 'Listener setup! Open a deep link to test.');
+      log('Deep link listener setup');
+    }
+
+    // ==================== Performance Profiling ====================
+    function testStartProfiling() {
+      if (!window.craft) return showResult('profiling-result', 'Craft not ready');
+      window.craft.startProfiling();
+      showResult('profiling-result', 'Profiling started. Make some API calls, then stop profiling.');
+      log('Profiling started');
+    }
+
+    function testStopProfiling() {
+      if (!window.craft) return showResult('profiling-result', 'Craft not ready');
+      const report = window.craft.stopProfiling();
+      showResult('profiling-result', JSON.stringify(report, null, 2));
+      log('Profiling stopped. Total calls: ' + report.totalCalls);
+    }
+
+    function testGetProfilingData() {
+      if (!window.craft) return showResult('profiling-result', 'Craft not ready');
+      const data = window.craft.getProfilingData();
+      showResult('profiling-result', JSON.stringify(data, null, 2));
+      log('Profiling data retrieved');
+    }
+
+    async function testGetMemoryUsage() {
+      if (!window.craft) return showResult('profiling-result', 'Craft not ready');
+      try {
+        const memory = await window.craft.getMemoryUsage();
+        showResult('profiling-result', 'Memory Usage:\n' + JSON.stringify(memory, null, 2));
+        log('Memory: ' + memory.usedMB + ' MB used');
+      } catch (e) {
+        showResult('profiling-result', 'Error: ' + e.message);
+      }
+    }
+
+    // ==================== OTA Updates ====================
+    function testOTAConfigure() {
+      if (!window.craft?.ota) return showResult('ota-result', 'OTA API not available');
+      try {
+        window.craft.ota.configure({
+          updateUrl: 'https://updates.example.com/api/check',
+          checkOnLaunch: true,
+          checkInterval: 3600000 // 1 hour
+        });
+        showResult('ota-result', 'OTA configured successfully.\nURL: https://updates.example.com/api/check');
+        log('OTA configured');
+      } catch (e) {
+        showResult('ota-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testCheckForUpdate() {
+      if (!window.craft?.ota) return showResult('ota-result', 'OTA API not available');
+      try {
+        showResult('ota-result', 'Checking for updates...');
+        const update = await window.craft.ota.checkForUpdate();
+        showResult('ota-result', 'Update check result:\n' + JSON.stringify(update, null, 2));
+        log('Update available: ' + update.available);
+      } catch (e) {
+        showResult('ota-result', 'Error: ' + e.message);
+      }
+    }
+
+    async function testDownloadUpdate() {
+      if (!window.craft?.ota) return showResult('ota-result', 'OTA API not available');
+      try {
+        showResult('ota-result', 'Downloading update...');
+        const result = await window.craft.ota.downloadUpdate();
+        showResult('ota-result', 'Download result:\n' + JSON.stringify(result, null, 2));
+        log('Download complete: ' + result.success);
+      } catch (e) {
+        showResult('ota-result', 'Error: ' + e.message);
+      }
+    }
+
+    function testGetCurrentBundle() {
+      if (!window.craft?.ota) return showResult('ota-result', 'OTA API not available');
+      const bundle = window.craft.ota.getCurrentBundle();
+      showResult('ota-result', 'Current bundle:\n' + JSON.stringify(bundle, null, 2));
+      log('Current bundle version: ' + bundle.version);
+    }
+
+    // OTA event listeners
+    if (window.craft?.ota) {
+      window.craft.ota.onProgress((progress) => {
+        log('OTA Download: ' + progress.percent + '%');
+        showResult('ota-result', 'Downloading: ' + progress.percent + '% (' + progress.bytesDownloaded + '/' + progress.totalBytes + ')');
+      });
+      window.craft.ota.onStatusChange((status) => {
+        log('OTA Status: ' + status);
+        showResult('ota-result', 'Status: ' + status);
+      });
     }
 
     log('Test page loaded, waiting for Craft...');

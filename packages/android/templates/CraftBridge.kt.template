@@ -830,9 +830,375 @@ class CraftBridge(
                     }
                 },
 
+                // Deep Links
+                deepLinks: {
+                    getInitialURL: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftDeepLinkResolve = resolve;
+                            window._craftDeepLinkReject = reject;
+                            CraftAndroid.getInitialURL();
+                        });
+                    },
+                    onLink: function(callback) {
+                        window.addEventListener('craftDeepLink', function(e) { callback(e.detail); });
+                    }
+                },
+
                 // Logging
                 log: function(msg) {
                     CraftAndroid.log(msg);
+                },
+
+                // Performance Profiling
+                _profiling: false,
+                _profilingData: null,
+                _profilingCallTimings: [],
+
+                startProfiling: function() {
+                    var self = this;
+                    this._profiling = true;
+                    this._profilingData = {
+                        startTime: Date.now(),
+                        startMemory: null,
+                        callTimings: [],
+                        bridgeCalls: 0
+                    };
+                    this._profilingCallTimings = [];
+                    // Get memory info
+                    var memInfo = CraftAndroid.getMemoryUsage();
+                    try { this._profilingData.startMemory = JSON.parse(memInfo); } catch(e) {}
+                    console.log('[Craft] Profiling started');
+                    return { started: true, timestamp: this._profilingData.startTime };
+                },
+
+                stopProfiling: function() {
+                    if (!this._profiling || !this._profilingData) {
+                        return null;
+                    }
+                    this._profiling = false;
+                    var memInfo = null;
+                    try { memInfo = JSON.parse(CraftAndroid.getMemoryUsage()); } catch(e) {}
+                    var report = {
+                        duration: Date.now() - this._profilingData.startTime,
+                        bridgeCalls: this._profilingCallTimings.length,
+                        callTimings: this._profilingCallTimings,
+                        memory: {
+                            start: this._profilingData.startMemory,
+                            end: memInfo
+                        },
+                        avgCallTime: this._profilingCallTimings.length > 0
+                            ? this._profilingCallTimings.reduce(function(a, b) { return a + b.duration; }, 0) / this._profilingCallTimings.length
+                            : 0
+                    };
+                    this._profilingData = null;
+                    console.log('[Craft] Profiling stopped', report);
+                    return report;
+                },
+
+                _recordCallTiming: function(action, startTime, endTime) {
+                    if (this._profiling) {
+                        this._profilingCallTimings.push({
+                            action: action,
+                            startTime: startTime,
+                            endTime: endTime,
+                            duration: endTime - startTime
+                        });
+                    }
+                },
+
+                getProfilingData: function() {
+                    if (!this._profilingData) return null;
+                    return {
+                        running: this._profiling,
+                        duration: Date.now() - this._profilingData.startTime,
+                        bridgeCalls: this._profilingCallTimings.length,
+                        callTimings: this._profilingCallTimings
+                    };
+                },
+
+                // OTA Updates
+                ota: {
+                    _config: null,
+                    _status: 'idle',
+                    _progressCallbacks: [],
+                    _statusCallbacks: [],
+
+                    configure: function(options) {
+                        this._config = options;
+                        CraftAndroid.otaConfigure(JSON.stringify(options));
+                    },
+                    checkForUpdate: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftOTACheckResolve = resolve;
+                            window._craftOTACheckReject = reject;
+                            CraftAndroid.otaCheckForUpdate();
+                        });
+                    },
+                    downloadUpdate: function(options) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftOTADownloadResolve = resolve;
+                            window._craftOTADownloadReject = reject;
+                            CraftAndroid.otaDownloadUpdate(JSON.stringify(options || {}));
+                        });
+                    },
+                    applyUpdate: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftOTAApplyResolve = resolve;
+                            window._craftOTAApplyReject = reject;
+                            CraftAndroid.otaApplyUpdate();
+                        });
+                    },
+                    rollback: function() {
+                        return new Promise(function(resolve, reject) {
+                            window._craftOTARollbackResolve = resolve;
+                            window._craftOTARollbackReject = reject;
+                            CraftAndroid.otaRollback();
+                        });
+                    },
+                    getCurrentBundle: function() {
+                        var bundleJson = CraftAndroid.otaGetCurrentBundle();
+                        try { return JSON.parse(bundleJson); }
+                        catch(e) { return { version: '1.0.0', buildNumber: 1, hash: '', isOriginal: true, installedAt: '' }; }
+                    },
+                    onProgress: function(callback) {
+                        this._progressCallbacks.push(callback);
+                        window.addEventListener('craftOTAProgress', function(e) { callback(e.detail); });
+                    },
+                    onStatusChange: function(callback) {
+                        this._statusCallbacks.push(callback);
+                        window.addEventListener('craftOTAStatus', function(e) { callback(e.detail.status); });
+                    }
+                },
+
+                // Debug Mode
+                _debug: false,
+                _lastError: null,
+                _errorHistory: [],
+                _callLog: [],
+                _networkLog: [],
+                _consoleLog: [],
+                _originalConsole: null,
+
+                // Error code mappings for user-friendly messages
+                _errorMessages: {
+                    'PERMISSION_DENIED': 'Permission was denied. Please grant access in Settings.',
+                    'NOT_AVAILABLE': 'This feature is not available on this device.',
+                    'CANCELLED': 'The operation was cancelled by the user.',
+                    'NETWORK_ERROR': 'A network error occurred. Please check your connection.',
+                    'TIMEOUT': 'The operation timed out. Please try again.',
+                    'INVALID_PARAMS': 'Invalid parameters provided.',
+                    'NOT_FOUND': 'The requested resource was not found.',
+                    'AUTH_FAILED': 'Authentication failed.',
+                    'STORAGE_FULL': 'Storage is full. Please free up space.',
+                    'CRAFT_ERROR': 'An unexpected error occurred.'
+                },
+
+                // Get user-friendly error message
+                getErrorMessage: function(code) {
+                    return this._errorMessages[code] || this._errorMessages['CRAFT_ERROR'];
+                },
+
+                // Store error for debugging
+                _storeError: function(error, code, nativeStack) {
+                    this._lastError = {
+                        message: error,
+                        code: code || 'CRAFT_ERROR',
+                        timestamp: Date.now(),
+                        nativeStack: nativeStack || null,
+                        jsStack: new Error().stack
+                    };
+                    if (this._debug) {
+                        window.dispatchEvent(new CustomEvent('craftError', {detail: this._lastError}));
+                        console.error('[Craft Error]', code, error);
+                    }
+                    this._errorHistory.push(this._lastError);
+                    if (this._errorHistory.length > 50) this._errorHistory.shift();
+                },
+
+                // Get error history
+                getErrorHistory: function() {
+                    return this._errorHistory.slice();
+                },
+
+                // Clear error history
+                clearErrorHistory: function() {
+                    this._errorHistory = [];
+                    this._lastError = null;
+                },
+
+                // Get last error details
+                getLastError: function() {
+                    return this._lastError;
+                },
+
+                // Enable/disable debug mode
+                setDebugMode: function(enabled) {
+                    this._debug = enabled;
+                    if (enabled) {
+                        this._callLog = [];
+                        this._networkLog = [];
+                        this._setupConsoleCapture();
+                        this._setupNetworkInspector();
+                        console.log('[Craft] Debug mode enabled');
+                    } else {
+                        this._restoreConsole();
+                    }
+                },
+
+                // Setup console capture
+                _setupConsoleCapture: function() {
+                    if (this._originalConsole) return;
+                    var self = this;
+                    this._originalConsole = {
+                        log: console.log,
+                        warn: console.warn,
+                        error: console.error,
+                        info: console.info,
+                        debug: console.debug
+                    };
+                    ['log', 'warn', 'error', 'info', 'debug'].forEach(function(level) {
+                        console[level] = function() {
+                            var args = Array.prototype.slice.call(arguments);
+                            self._consoleLog.push({
+                                level: level,
+                                args: args.map(function(a) {
+                                    try { return typeof a === 'object' ? JSON.stringify(a) : String(a); }
+                                    catch(e) { return String(a); }
+                                }),
+                                timestamp: Date.now()
+                            });
+                            if (self._consoleLog.length > 200) self._consoleLog.shift();
+                            self._originalConsole[level].apply(console, arguments);
+                        };
+                    });
+                },
+
+                // Restore original console
+                _restoreConsole: function() {
+                    if (!this._originalConsole) return;
+                    console.log = this._originalConsole.log;
+                    console.warn = this._originalConsole.warn;
+                    console.error = this._originalConsole.error;
+                    console.info = this._originalConsole.info;
+                    console.debug = this._originalConsole.debug;
+                    this._originalConsole = null;
+                },
+
+                // Setup network inspector
+                _setupNetworkInspector: function() {
+                    var self = this;
+                    if (window._craftNetworkSetup) return;
+                    window._craftNetworkSetup = true;
+
+                    var originalFetch = window.fetch;
+                    window.fetch = function(url, options) {
+                        var startTime = Date.now();
+                        var entry = {
+                            type: 'fetch',
+                            url: typeof url === 'string' ? url : url.url,
+                            method: (options && options.method) || 'GET',
+                            startTime: startTime,
+                            status: null,
+                            duration: null
+                        };
+                        self._networkLog.push(entry);
+                        if (self._networkLog.length > 100) self._networkLog.shift();
+
+                        return originalFetch.apply(window, arguments).then(function(response) {
+                            entry.status = response.status;
+                            entry.duration = Date.now() - startTime;
+                            return response;
+                        }).catch(function(err) {
+                            entry.status = 'error';
+                            entry.error = err.message;
+                            entry.duration = Date.now() - startTime;
+                            throw err;
+                        });
+                    };
+
+                    var OriginalXHR = window.XMLHttpRequest;
+                    window.XMLHttpRequest = function() {
+                        var xhr = new OriginalXHR();
+                        var entry = { type: 'xhr', url: '', method: '', startTime: null, status: null, duration: null };
+
+                        var originalOpen = xhr.open;
+                        xhr.open = function(method, url) {
+                            entry.method = method;
+                            entry.url = url;
+                            return originalOpen.apply(xhr, arguments);
+                        };
+
+                        var originalSend = xhr.send;
+                        xhr.send = function() {
+                            entry.startTime = Date.now();
+                            self._networkLog.push(entry);
+                            if (self._networkLog.length > 100) self._networkLog.shift();
+
+                            xhr.addEventListener('loadend', function() {
+                                entry.status = xhr.status;
+                                entry.duration = Date.now() - entry.startTime;
+                            });
+                            return originalSend.apply(xhr, arguments);
+                        };
+                        return xhr;
+                    };
+                },
+
+                // Get console log
+                getConsoleLog: function() {
+                    return this._consoleLog.slice();
+                },
+
+                // Clear console log
+                clearConsoleLog: function() {
+                    this._consoleLog = [];
+                },
+
+                // Get network log
+                getNetworkLog: function() {
+                    return this._networkLog.slice();
+                },
+
+                // Clear network log
+                clearNetworkLog: function() {
+                    this._networkLog = [];
+                },
+
+                // Get call log
+                getCallLog: function() {
+                    return this._callLog;
+                },
+
+                // Clear call log
+                clearCallLog: function() {
+                    this._callLog = [];
+                },
+
+                // Internal: log bridge call
+                _logCall: function(action, params) {
+                    if (this._debug) {
+                        var entry = {
+                            action: action,
+                            params: params,
+                            timestamp: Date.now()
+                        };
+                        this._callLog.push(entry);
+                        if (this._callLog.length > 100) this._callLog.shift();
+                        console.log('[Craft] ' + action, params);
+                    }
+                },
+
+                // Get full debug report
+                getDebugReport: function() {
+                    return {
+                        enabled: this._debug,
+                        lastError: this._lastError,
+                        errorHistory: this._errorHistory.slice(-10),
+                        callLog: this._callLog.slice(-20),
+                        networkLog: this._networkLog.slice(-20),
+                        consoleLog: this._consoleLog.slice(-50),
+                        timestamp: Date.now()
+                    };
                 }
             };
 
@@ -3127,6 +3493,232 @@ class CraftBridge(
                 )
             }
         }
+    }
+
+    // ==================== Widget Support ====================
+
+    private val widgetPrefs by lazy {
+        activity.getSharedPreferences("craft_widget_prefs", Context.MODE_PRIVATE)
+    }
+
+    @JavascriptInterface
+    fun updateWidget(dataJson: String) {
+        try {
+            val data = JSONObject(dataJson)
+            val editor = widgetPrefs.edit()
+
+            if (data.has("title")) {
+                editor.putString("widget_title", data.getString("title"))
+            }
+            if (data.has("subtitle")) {
+                editor.putString("widget_subtitle", data.getString("subtitle"))
+            }
+            if (data.has("value")) {
+                editor.putString("widget_value", data.getString("value"))
+            }
+            if (data.has("icon")) {
+                editor.putString("widget_icon", data.getString("icon"))
+            }
+
+            editor.apply()
+
+            // Notify widgets to update
+            val intent = Intent("{{PACKAGE_NAME}}.WIDGET_UPDATE")
+            intent.setPackage(activity.packageName)
+            activity.sendBroadcast(intent)
+
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftWidgetResolve && window._craftWidgetResolve({updated: true})",
+                    null
+                )
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                webView.evaluateJavascript(
+                    "window._craftWidgetReject && window._craftWidgetReject('${e.message}')",
+                    null
+                )
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun reloadWidgets() {
+        val intent = Intent("{{PACKAGE_NAME}}.WIDGET_UPDATE")
+        intent.setPackage(activity.packageName)
+        activity.sendBroadcast(intent)
+
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftWidgetResolve && window._craftWidgetResolve({reloaded: true})",
+                null
+            )
+        }
+    }
+
+    // ==================== Google Assistant / App Actions ====================
+
+    @JavascriptInterface
+    fun registerVoiceAction(phrase: String, action: String) {
+        // App Actions are defined in shortcuts.xml, not dynamically
+        // This stores the action for handling incoming intents
+        val prefs = activity.getSharedPreferences("craft_voice_actions", Context.MODE_PRIVATE)
+        prefs.edit().putString(action, phrase).apply()
+
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftVoiceResolve && window._craftVoiceResolve({registered: true, action: '$action', phrase: '$phrase'})",
+                null
+            )
+        }
+    }
+
+    @JavascriptInterface
+    fun removeVoiceAction(action: String) {
+        val prefs = activity.getSharedPreferences("craft_voice_actions", Context.MODE_PRIVATE)
+        prefs.edit().remove(action).apply()
+
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftVoiceResolve && window._craftVoiceResolve({removed: true, action: '$action'})",
+                null
+            )
+        }
+    }
+
+    // Handle incoming voice action from Google Assistant
+    fun handleVoiceAction(intent: Intent?) {
+        intent?.let {
+            val action = it.action
+            val data = it.dataString
+
+            if (action != null) {
+                activity.runOnUiThread {
+                    webView.evaluateJavascript(
+                        "window.dispatchEvent(new CustomEvent('craftVoiceAction', {detail: {action: '$action', data: '$data'}}));",
+                        null
+                    )
+                }
+            }
+        }
+    }
+
+    // ==================== Wear OS Connectivity ====================
+
+    @JavascriptInterface
+    fun sendToWatch(messageJson: String) {
+        // Note: Full Wearable API requires separate Wear OS app
+        // This provides placeholder API for future integration
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftWatchReject && window._craftWatchReject('Wear OS integration requires companion app setup')",
+                null
+            )
+        }
+    }
+
+    @JavascriptInterface
+    fun updateWatchContext(contextJson: String) {
+        // Note: Full Wearable API requires Data Layer API setup
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftWatchReject && window._craftWatchReject('Wear OS integration requires companion app setup')",
+                null
+            )
+        }
+    }
+
+    @JavascriptInterface
+    fun isWatchReachable(): Boolean {
+        // Note: Would use CapabilityClient to check for paired watch
+        return false
+    }
+
+    // ==================== Deep Links ====================
+
+    private var initialURL: String? = null
+
+    fun setInitialURL(url: String?) {
+        initialURL = url
+    }
+
+    @JavascriptInterface
+    fun getInitialURL() {
+        activity.runOnUiThread {
+            if (initialURL != null) {
+                val uri = Uri.parse(initialURL)
+                val json = JSONObject().apply {
+                    put("url", initialURL)
+                    put("scheme", uri.scheme ?: "")
+                    put("host", uri.host ?: "")
+                    put("path", uri.path ?: "")
+                    put("query", uri.query ?: "")
+                    // Parse query parameters
+                    val queryParams = JSONObject()
+                    uri.queryParameterNames.forEach { name ->
+                        queryParams.put(name, uri.getQueryParameter(name) ?: "")
+                    }
+                    put("queryParams", queryParams)
+                }
+                webView.evaluateJavascript(
+                    "window._craftDeepLinkResolve && window._craftDeepLinkResolve($json)",
+                    null
+                )
+            } else {
+                webView.evaluateJavascript(
+                    "window._craftDeepLinkResolve && window._craftDeepLinkResolve(null)",
+                    null
+                )
+            }
+        }
+    }
+
+    fun dispatchDeepLink(url: String) {
+        // Store as initial URL if this is the first one
+        if (initialURL == null) {
+            initialURL = url
+        }
+
+        val uri = Uri.parse(url)
+        val json = JSONObject().apply {
+            put("url", url)
+            put("scheme", uri.scheme ?: "")
+            put("host", uri.host ?: "")
+            put("path", uri.path ?: "")
+            put("query", uri.query ?: "")
+            // Parse query parameters
+            val queryParams = JSONObject()
+            uri.queryParameterNames.forEach { name ->
+                queryParams.put(name, uri.getQueryParameter(name) ?: "")
+            }
+            put("queryParams", queryParams)
+        }
+
+        activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window.dispatchEvent(new CustomEvent('craftDeepLink', {detail: $json}));",
+                null
+            )
+        }
+    }
+
+    // ==================== Performance Profiling ====================
+
+    @JavascriptInterface
+    fun getMemoryUsage(): String {
+        val runtime = Runtime.getRuntime()
+        val usedMemory = runtime.totalMemory() - runtime.freeMemory()
+        val maxMemory = runtime.maxMemory()
+        val totalMemory = runtime.totalMemory()
+
+        return JSONObject().apply {
+            put("usedMB", Math.round(usedMemory / 1024.0 / 1024.0 * 100) / 100.0)
+            put("maxMB", Math.round(maxMemory / 1024.0 / 1024.0 * 100) / 100.0)
+            put("totalMB", Math.round(totalMemory / 1024.0 / 1024.0 * 100) / 100.0)
+            put("usedBytes", usedMemory)
+            put("maxBytes", maxMemory)
+        }.toString()
     }
 
     // ==================== Helpers ====================

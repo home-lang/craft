@@ -1,0 +1,192 @@
+# iOS Build and Test Workflow
+# Copy this file to your project's .github/workflows/ios.yml
+
+name: iOS Build
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'ios/**'
+      - '*.swift'
+      - '*.xcodeproj/**'
+      - '*.xcworkspace/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ios/**'
+      - '*.swift'
+      - '*.xcodeproj/**'
+      - '*.xcworkspace/**'
+  workflow_dispatch:
+
+env:
+  XCODE_VERSION: '15.0'
+  SCHEME: 'CraftApp'
+  PROJECT_PATH: 'ios/CraftApp.xcodeproj'
+
+jobs:
+  build:
+    name: Build iOS App
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install dependencies
+        run: |
+          if [ -f "ios/Podfile" ]; then
+            cd ios && pod install
+          fi
+
+      - name: Build Debug
+        run: |
+          xcodebuild build \
+            -project "${{ env.PROJECT_PATH }}" \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.0' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty
+
+      - name: Run Tests
+        run: |
+          xcodebuild test \
+            -project "${{ env.PROJECT_PATH }}" \
+            -scheme "${{ env.SCHEME }}" \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=17.0' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcpretty
+
+  build-release:
+    name: Build Release
+    runs-on: macos-14
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Install dependencies
+        run: |
+          if [ -f "ios/Podfile" ]; then
+            cd ios && pod install
+          fi
+
+      - name: Build Release (unsigned)
+        run: |
+          xcodebuild build \
+            -project "${{ env.PROJECT_PATH }}" \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            | xcpretty
+
+      - name: Archive (unsigned)
+        run: |
+          xcodebuild archive \
+            -project "${{ env.PROJECT_PATH }}" \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration Release \
+            -archivePath build/CraftApp.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty
+
+      - name: Upload Archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-archive
+          path: build/CraftApp.xcarchive
+          retention-days: 7
+
+  # Optional: Signed build for App Store
+  # Requires: APPLE_CERTIFICATE_P12, APPLE_CERTIFICATE_PASSWORD,
+  #           APPLE_PROVISIONING_PROFILE, KEYCHAIN_PASSWORD secrets
+  build-signed:
+    name: Build Signed Release
+    runs-on: macos-14
+    needs: build
+    if: false  # Set to true when you have signing configured
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Install Apple Certificate
+        env:
+          CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+          # Import certificate
+          echo "$CERTIFICATE_P12" | base64 --decode > certificate.p12
+          security import certificate.p12 -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+          # Allow codesign to access keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+
+      - name: Install Provisioning Profile
+        env:
+          PROVISIONING_PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: |
+          echo "$PROVISIONING_PROFILE" | base64 --decode > profile.mobileprovision
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Build and Archive
+        run: |
+          xcodebuild archive \
+            -project "${{ env.PROJECT_PATH }}" \
+            -scheme "${{ env.SCHEME }}" \
+            -configuration Release \
+            -archivePath build/CraftApp.xcarchive \
+            | xcpretty
+
+      - name: Export IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/CraftApp.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist ios/ExportOptions.plist \
+            | xcpretty
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: build/export/*.ipa
+          retention-days: 7
+
+      - name: Cleanup Keychain
+        if: always()
+        run: security delete-keychain $RUNNER_TEMP/app-signing.keychain-db

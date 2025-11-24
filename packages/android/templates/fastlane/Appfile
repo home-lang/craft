@@ -1,0 +1,25 @@
+# Android Fastlane Appfile
+# Stores Google Play Store configuration
+
+# Your app's package name
+# package_name("com.yourcompany.craftapp")
+
+# Path to your Google Play JSON key file
+# json_key_file("./play-store-key.json")
+
+# ==================== Example Configuration ====================
+# Uncomment and modify:
+
+# package_name("com.yourcompany.craftapp")
+# json_key_file("./play-store-key.json")
+
+# ==================== Setting up Google Play API ====================
+# 1. Go to Google Play Console > Setup > API access
+# 2. Create a service account (or link existing)
+# 3. Grant "Release Manager" permissions to the service account
+# 4. Download the JSON key file
+# 5. Store the JSON key securely (add to .gitignore)
+#
+# For CI/CD:
+# - Store JSON key content as a secret (PLAY_STORE_JSON_KEY)
+# - In CI, decode and save: echo "$PLAY_STORE_JSON_KEY" > play-store-key.json

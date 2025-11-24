@@ -1,0 +1,192 @@
+# Craft Android Fastlane Configuration
+# Copy this directory to your android/ folder
+# Run: cd android && bundle install && bundle exec fastlane <lane>
+
+default_platform(:android)
+
+platform :android do
+  # ==================== Build ====================
+
+  desc "Build Debug APK"
+  lane :build_debug do
+    gradle(task: "assembleDebug")
+  end
+
+  desc "Build Release APK"
+  lane :build_release do
+    gradle(
+      task: "assembleRelease",
+      properties: {
+        "android.injected.signing.store.file" => ENV["KEYSTORE_PATH"] || "release.keystore",
+        "android.injected.signing.store.password" => ENV["KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["KEY_PASSWORD"]
+      }
+    )
+  end
+
+  desc "Build Release Bundle (AAB)"
+  lane :build_bundle do
+    gradle(
+      task: "bundleRelease",
+      properties: {
+        "android.injected.signing.store.file" => ENV["KEYSTORE_PATH"] || "release.keystore",
+        "android.injected.signing.store.password" => ENV["KEYSTORE_PASSWORD"],
+        "android.injected.signing.key.alias" => ENV["KEY_ALIAS"],
+        "android.injected.signing.key.password" => ENV["KEY_PASSWORD"]
+      }
+    )
+  end
+
+  # ==================== Deploy ====================
+
+  desc "Deploy to Play Store Internal Track"
+  lane :internal do
+    build_bundle
+
+    upload_to_play_store(
+      track: "internal",
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Deploy to Play Store Alpha Track"
+  lane :alpha do
+    build_bundle
+
+    upload_to_play_store(
+      track: "alpha",
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Deploy to Play Store Beta Track"
+  lane :beta do
+    build_bundle
+
+    upload_to_play_store(
+      track: "beta",
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Deploy to Play Store Production"
+  lane :release do
+    build_bundle
+
+    upload_to_play_store(
+      track: "production",
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+      skip_upload_metadata: false,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      rollout: "0.1" # 10% rollout, increase manually
+    )
+  end
+
+  # ==================== Testing ====================
+
+  desc "Run Unit Tests"
+  lane :test do
+    gradle(task: "testDebugUnitTest")
+  end
+
+  desc "Run Instrumented Tests"
+  lane :instrumented_tests do
+    gradle(task: "connectedDebugAndroidTest")
+  end
+
+  desc "Run Lint"
+  lane :lint do
+    gradle(task: "lint")
+  end
+
+  # ==================== Version Management ====================
+
+  desc "Increment version code"
+  lane :bump_version_code do
+    # Read current version code
+    version_code = android_get_version_code(gradle_file: "app/build.gradle")
+    new_version_code = version_code.to_i + 1
+
+    # Update version code
+    android_set_version_code(
+      version_code: new_version_code,
+      gradle_file: "app/build.gradle"
+    )
+
+    UI.success("Version code bumped to #{new_version_code}")
+  end
+
+  desc "Set version name"
+  lane :set_version do |options|
+    version = options[:version] || prompt(text: "Version name: ")
+
+    android_set_version_name(
+      version_name: version,
+      gradle_file: "app/build.gradle"
+    )
+
+    UI.success("Version name set to #{version}")
+  end
+
+  # ==================== Keystore Management ====================
+
+  desc "Generate release keystore"
+  lane :generate_keystore do
+    store_password = prompt(text: "Keystore password: ", secure_text: true)
+    key_alias = prompt(text: "Key alias: ")
+    key_password = prompt(text: "Key password: ", secure_text: true)
+    full_name = prompt(text: "Full name (CN): ")
+    org = prompt(text: "Organization (O): ")
+    country = prompt(text: "Country code (C): ")
+
+    sh(
+      "keytool -genkey -v -keystore release.keystore " \
+      "-alias #{key_alias} -keyalg RSA -keysize 2048 -validity 10000 " \
+      "-storepass #{store_password} -keypass #{key_password} " \
+      "-dname \"CN=#{full_name}, O=#{org}, C=#{country}\""
+    )
+
+    UI.success("Keystore generated at release.keystore")
+    UI.important("Store this file and passwords securely!")
+    UI.important("Add to .gitignore: *.keystore")
+  end
+
+  # ==================== Utilities ====================
+
+  desc "Clean build"
+  lane :clean do
+    gradle(task: "clean")
+    UI.success("Build cleaned!")
+  end
+
+  # ==================== CI/CD ====================
+
+  desc "CI build and test"
+  lane :ci do
+    lint
+    test
+    build_release
+  end
+
+  desc "CI deploy to internal track"
+  lane :ci_internal do
+    # Decode keystore from base64 environment variable
+    if ENV["KEYSTORE_BASE64"]
+      sh("echo $KEYSTORE_BASE64 | base64 -d > release.keystore")
+    end
+
+    bump_version_code
+    internal
+  end
+end

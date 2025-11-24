@@ -26,6 +26,9 @@ import ARKit
 import RealityKit
 import SceneKit
 import Vision
+import WidgetKit
+import Intents
+import WatchConnectivity
 
 // MARK: - App Entry Point
 @main
@@ -38,6 +41,87 @@ struct CraftApp: App {
                 .ignoresSafeArea()
                 .preferredColorScheme(appState.config.darkMode ? .dark : .light)
                 .environmentObject(appState)
+                .onOpenURL { url in
+                    // Handle deep links and universal links
+                    DeepLinkManager.shared.handleURL(url)
+                }
+        }
+    }
+}
+
+// MARK: - Deep Link Manager
+class DeepLinkManager {
+    static let shared = DeepLinkManager()
+
+    private var initialURL: URL?
+    private var pendingURL: URL?
+    private weak var webView: WKWebView?
+    private var isReady = false
+
+    private init() {}
+
+    func setWebView(_ webView: WKWebView) {
+        self.webView = webView
+    }
+
+    func setReady() {
+        isReady = true
+        // If there's a pending URL, dispatch it now
+        if let url = pendingURL {
+            dispatchDeepLink(url)
+            pendingURL = nil
+        }
+    }
+
+    func handleURL(_ url: URL) {
+        // Store as initial URL if this is the first one
+        if initialURL == nil {
+            initialURL = url
+        }
+
+        if isReady, let webView = webView {
+            dispatchDeepLink(url)
+        } else {
+            // Store for later when web view is ready
+            pendingURL = url
+        }
+    }
+
+    func getInitialURL() -> URL? {
+        return initialURL
+    }
+
+    private func dispatchDeepLink(_ url: URL) {
+        guard let webView = webView else { return }
+
+        // Parse URL components
+        var params: [String: Any] = [
+            "url": url.absoluteString,
+            "scheme": url.scheme ?? "",
+            "host": url.host ?? "",
+            "path": url.path,
+            "query": url.query ?? ""
+        ]
+
+        // Parse query parameters
+        if let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let queryItems = components.queryItems {
+            var queryParams: [String: String] = [:]
+            for item in queryItems {
+                queryParams[item.name] = item.value ?? ""
+            }
+            params["queryParams"] = queryParams
+        }
+
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: params)
+            let jsonStr = String(data: jsonData, encoding: .utf8) ?? "{}"
+            let script = "window.dispatchEvent(new CustomEvent('craftDeepLink', {detail: \(jsonStr)}));"
+            DispatchQueue.main.async {
+                webView.evaluateJavaScript(script, completionHandler: nil)
+            }
+        } catch {
+            print("Deep link JSON error: \(error)")
         }
     }
 }
@@ -118,6 +202,9 @@ struct CraftWebView: UIViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.isOpaque = false
 
+        // Register with DeepLinkManager
+        DeepLinkManager.shared.setWebView(webView)
+
         // Parse background color
         let bgColor = UIColor(hex: config.backgroundColor) ?? .black
         webView.backgroundColor = bgColor
@@ -145,7 +232,7 @@ struct CraftWebView: UIViewRepresentable {
     }
 
     // MARK: - Coordinator (Native Bridge)
-    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, UIImagePickerControllerDelegate, UINavigationControllerDelegate, CLLocationManagerDelegate, ARSCNViewDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, UIImagePickerControllerDelegate, UINavigationControllerDelegate, CLLocationManagerDelegate, ARSCNViewDelegate, WCSessionDelegate {
         let config: CraftConfig
         private var speechRecognizer: SFSpeechRecognizer?
         private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -321,6 +408,11 @@ struct CraftWebView: UIViewRepresentable {
                 if let msg = body["message"] as? String {
                     print("[Craft Web] \(msg)")
                 }
+
+            // Memory Usage (for profiling)
+            case "getMemoryUsage":
+                getMemoryUsage(callbackId: callbackId)
+
             // Geolocation
             case "getCurrentPosition":
                 if config.enableGeolocation {
@@ -439,6 +531,20 @@ struct CraftWebView: UIViewRepresentable {
                 if config.enableDeepLinks {
                     // Handler is registered in JS
                     resolveCallback(callbackId, result: true)
+                }
+            case "getInitialURL":
+                if config.enableDeepLinks {
+                    if let url = DeepLinkManager.shared.getInitialURL() {
+                        resolveCallbackJSON(callbackId, json: [
+                            "url": url.absoluteString,
+                            "scheme": url.scheme ?? "",
+                            "host": url.host ?? "",
+                            "path": url.path,
+                            "query": url.query ?? ""
+                        ])
+                    } else {
+                        resolveCallback(callbackId, result: NSNull())
+                    }
                 }
 
             // MARK: - In-App Purchase
@@ -704,6 +810,37 @@ struct CraftWebView: UIViewRepresentable {
                     recognizeText(imageBase64: imageBase64, callbackId: callbackId)
                 }
 
+            // MARK: - Widget
+            case "updateWidget":
+                if let data = body["data"] as? [String: Any] {
+                    updateWidget(data: data, callbackId: callbackId)
+                }
+            case "reloadWidgets":
+                reloadAllWidgets(callbackId: callbackId)
+
+            // MARK: - Siri Shortcuts
+            case "registerSiriShortcut":
+                if let phrase = body["phrase"] as? String,
+                   let action = body["action"] as? String {
+                    registerSiriShortcut(phrase: phrase, action: action, callbackId: callbackId)
+                }
+            case "removeSiriShortcut":
+                if let action = body["action"] as? String {
+                    removeSiriShortcut(action: action, callbackId: callbackId)
+                }
+
+            // MARK: - Watch Connectivity
+            case "sendToWatch":
+                if let message = body["message"] as? [String: Any] {
+                    sendMessageToWatch(message: message, callbackId: callbackId)
+                }
+            case "updateWatchContext":
+                if let context = body["context"] as? [String: Any] {
+                    updateWatchContext(context: context, callbackId: callbackId)
+                }
+            case "isWatchReachable":
+                isWatchReachable(callbackId: callbackId)
+
             default:
                 break
             }
@@ -774,11 +911,343 @@ struct CraftWebView: UIViewRepresentable {
                     }
                 },
 
-                _rejectCallback: function(id, error) {
+                _rejectCallback: function(id, error, code) {
                     if (this._callbacks[id]) {
-                        this._callbacks[id].reject(new Error(error));
+                        var err = new Error(error);
+                        err.code = code || 'CRAFT_ERROR';
+                        err.bridge = true;
+                        this._callbacks[id].reject(err);
                         delete this._callbacks[id];
+                        // Store last error for debugging
+                        this._lastError = {
+                            message: error,
+                            code: code || 'CRAFT_ERROR',
+                            timestamp: Date.now(),
+                            stack: null
+                        };
+                        // Dispatch global error event if debug mode
+                        if (this._debug) {
+                            window.dispatchEvent(new CustomEvent('craftError', {detail: this._lastError}));
+                        }
+                        // Store in error history
+                        this._errorHistory.push(this._lastError);
+                        if (this._errorHistory.length > 50) this._errorHistory.shift();
                     }
+                },
+
+                // Enhanced reject with native stack trace
+                _rejectCallbackWithStack: function(id, error, code, nativeStack) {
+                    if (this._callbacks[id]) {
+                        var err = new Error(error);
+                        err.code = code || 'CRAFT_ERROR';
+                        err.bridge = true;
+                        err.nativeStack = nativeStack;
+                        this._callbacks[id].reject(err);
+                        delete this._callbacks[id];
+                        // Store last error with native stack
+                        this._lastError = {
+                            message: error,
+                            code: code || 'CRAFT_ERROR',
+                            timestamp: Date.now(),
+                            nativeStack: nativeStack,
+                            jsStack: new Error().stack
+                        };
+                        if (this._debug) {
+                            window.dispatchEvent(new CustomEvent('craftError', {detail: this._lastError}));
+                            console.error('[Craft Error]', code, error, '\\nNative:', nativeStack);
+                        }
+                        this._errorHistory.push(this._lastError);
+                        if (this._errorHistory.length > 50) this._errorHistory.shift();
+                    }
+                },
+
+                // Debug mode
+                _debug: false,
+                _lastError: null,
+                _errorHistory: [],
+                _callLog: [],
+                _networkLog: [],
+                _consoleLog: [],
+                _originalConsole: null,
+
+                // Error code mappings for user-friendly messages
+                _errorMessages: {
+                    'PERMISSION_DENIED': 'Permission was denied. Please grant access in Settings.',
+                    'NOT_AVAILABLE': 'This feature is not available on this device.',
+                    'CANCELLED': 'The operation was cancelled by the user.',
+                    'NETWORK_ERROR': 'A network error occurred. Please check your connection.',
+                    'TIMEOUT': 'The operation timed out. Please try again.',
+                    'INVALID_PARAMS': 'Invalid parameters provided.',
+                    'NOT_FOUND': 'The requested resource was not found.',
+                    'AUTH_FAILED': 'Authentication failed.',
+                    'STORAGE_FULL': 'Storage is full. Please free up space.',
+                    'CRAFT_ERROR': 'An unexpected error occurred.'
+                },
+
+                // Get user-friendly error message
+                getErrorMessage: function(code) {
+                    return this._errorMessages[code] || this._errorMessages['CRAFT_ERROR'];
+                },
+
+                // Get error history
+                getErrorHistory: function() {
+                    return this._errorHistory.slice();
+                },
+
+                // Clear error history
+                clearErrorHistory: function() {
+                    this._errorHistory = [];
+                    this._lastError = null;
+                },
+
+                // Enable/disable debug mode
+                setDebugMode: function(enabled) {
+                    this._debug = enabled;
+                    if (enabled) {
+                        this._callLog = [];
+                        this._networkLog = [];
+                        this._setupConsoleCapture();
+                        this._setupNetworkInspector();
+                        console.log('[Craft] Debug mode enabled');
+                    } else {
+                        this._restoreConsole();
+                    }
+                },
+
+                // Setup console capture
+                _setupConsoleCapture: function() {
+                    if (this._originalConsole) return; // Already setup
+                    var self = this;
+                    this._originalConsole = {
+                        log: console.log,
+                        warn: console.warn,
+                        error: console.error,
+                        info: console.info,
+                        debug: console.debug
+                    };
+                    ['log', 'warn', 'error', 'info', 'debug'].forEach(function(level) {
+                        console[level] = function() {
+                            var args = Array.prototype.slice.call(arguments);
+                            self._consoleLog.push({
+                                level: level,
+                                args: args.map(function(a) {
+                                    try { return typeof a === 'object' ? JSON.stringify(a) : String(a); }
+                                    catch(e) { return String(a); }
+                                }),
+                                timestamp: Date.now()
+                            });
+                            if (self._consoleLog.length > 200) self._consoleLog.shift();
+                            self._originalConsole[level].apply(console, arguments);
+                        };
+                    });
+                },
+
+                // Restore original console
+                _restoreConsole: function() {
+                    if (!this._originalConsole) return;
+                    console.log = this._originalConsole.log;
+                    console.warn = this._originalConsole.warn;
+                    console.error = this._originalConsole.error;
+                    console.info = this._originalConsole.info;
+                    console.debug = this._originalConsole.debug;
+                    this._originalConsole = null;
+                },
+
+                // Setup network inspector
+                _setupNetworkInspector: function() {
+                    var self = this;
+                    if (window._craftNetworkSetup) return;
+                    window._craftNetworkSetup = true;
+
+                    // Intercept fetch
+                    var originalFetch = window.fetch;
+                    window.fetch = function(url, options) {
+                        var startTime = Date.now();
+                        var entry = {
+                            type: 'fetch',
+                            url: typeof url === 'string' ? url : url.url,
+                            method: (options && options.method) || 'GET',
+                            startTime: startTime,
+                            status: null,
+                            duration: null
+                        };
+                        self._networkLog.push(entry);
+                        if (self._networkLog.length > 100) self._networkLog.shift();
+
+                        return originalFetch.apply(window, arguments).then(function(response) {
+                            entry.status = response.status;
+                            entry.duration = Date.now() - startTime;
+                            return response;
+                        }).catch(function(err) {
+                            entry.status = 'error';
+                            entry.error = err.message;
+                            entry.duration = Date.now() - startTime;
+                            throw err;
+                        });
+                    };
+
+                    // Intercept XMLHttpRequest
+                    var OriginalXHR = window.XMLHttpRequest;
+                    window.XMLHttpRequest = function() {
+                        var xhr = new OriginalXHR();
+                        var entry = { type: 'xhr', url: '', method: '', startTime: null, status: null, duration: null };
+
+                        var originalOpen = xhr.open;
+                        xhr.open = function(method, url) {
+                            entry.method = method;
+                            entry.url = url;
+                            return originalOpen.apply(xhr, arguments);
+                        };
+
+                        var originalSend = xhr.send;
+                        xhr.send = function() {
+                            entry.startTime = Date.now();
+                            self._networkLog.push(entry);
+                            if (self._networkLog.length > 100) self._networkLog.shift();
+
+                            xhr.addEventListener('loadend', function() {
+                                entry.status = xhr.status;
+                                entry.duration = Date.now() - entry.startTime;
+                            });
+                            return originalSend.apply(xhr, arguments);
+                        };
+                        return xhr;
+                    };
+                },
+
+                // Get console log
+                getConsoleLog: function() {
+                    return this._consoleLog.slice();
+                },
+
+                // Clear console log
+                clearConsoleLog: function() {
+                    this._consoleLog = [];
+                },
+
+                // Get network log
+                getNetworkLog: function() {
+                    return this._networkLog.slice();
+                },
+
+                // Clear network log
+                clearNetworkLog: function() {
+                    this._networkLog = [];
+                },
+
+                // Get last error details
+                getLastError: function() {
+                    return this._lastError;
+                },
+
+                // Get call log (when debug mode is on)
+                getCallLog: function() {
+                    return this._callLog;
+                },
+
+                // Clear call log
+                clearCallLog: function() {
+                    this._callLog = [];
+                },
+
+                // Get full debug report
+                getDebugReport: function() {
+                    return {
+                        enabled: this._debug,
+                        lastError: this._lastError,
+                        errorHistory: this._errorHistory.slice(-10),
+                        callLog: this._callLog.slice(-20),
+                        networkLog: this._networkLog.slice(-20),
+                        consoleLog: this._consoleLog.slice(-50),
+                        timestamp: Date.now()
+                    };
+                },
+
+                // Internal: log bridge call
+                _logCall: function(action, params) {
+                    if (this._debug) {
+                        var entry = {
+                            action: action,
+                            params: params,
+                            timestamp: Date.now()
+                        };
+                        this._callLog.push(entry);
+                        if (this._callLog.length > 100) this._callLog.shift();
+                        console.log('[Craft] ' + action, params);
+                    }
+                },
+
+                // Performance Profiling
+                _profiling: false,
+                _profilingData: null,
+                _profilingCallTimings: [],
+
+                startProfiling: function() {
+                    this._profiling = true;
+                    this._profilingData = {
+                        startTime: Date.now(),
+                        startMemory: null,
+                        callTimings: [],
+                        bridgeCalls: 0
+                    };
+                    this._profilingCallTimings = [];
+                    // Request memory info from native
+                    window.webkit.messageHandlers.craft.postMessage({action: 'getMemoryUsage', callbackId: '_profiling_start'});
+                    console.log('[Craft] Profiling started');
+                    return { started: true, timestamp: this._profilingData.startTime };
+                },
+
+                stopProfiling: function() {
+                    var self = this;
+                    if (!this._profiling || !this._profilingData) {
+                        return Promise.resolve(null);
+                    }
+                    this._profiling = false;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'getMemoryUsage', callbackId: id});
+                    return new Promise(function(resolve) {
+                        self._callbacks[id] = {
+                            resolve: function(memory) {
+                                var report = {
+                                    duration: Date.now() - self._profilingData.startTime,
+                                    bridgeCalls: self._profilingCallTimings.length,
+                                    callTimings: self._profilingCallTimings,
+                                    memory: {
+                                        start: self._profilingData.startMemory,
+                                        end: memory
+                                    },
+                                    avgCallTime: self._profilingCallTimings.length > 0
+                                        ? self._profilingCallTimings.reduce(function(a, b) { return a + b.duration; }, 0) / self._profilingCallTimings.length
+                                        : 0
+                                };
+                                self._profilingData = null;
+                                console.log('[Craft] Profiling stopped', report);
+                                resolve(report);
+                            },
+                            reject: function() { resolve(null); }
+                        };
+                    });
+                },
+
+                _recordCallTiming: function(action, startTime, endTime) {
+                    if (this._profiling) {
+                        this._profilingCallTimings.push({
+                            action: action,
+                            startTime: startTime,
+                            endTime: endTime,
+                            duration: endTime - startTime
+                        });
+                    }
+                },
+
+                getProfilingData: function() {
+                    if (!this._profilingData) return null;
+                    return {
+                        running: this._profiling,
+                        duration: Date.now() - this._profilingData.startTime,
+                        bridgeCalls: this._profilingCallTimings.length,
+                        callTimings: this._profilingCallTimings
+                    };
                 },
 
                 haptic: function(style) {
@@ -1365,6 +1834,161 @@ struct CraftWebView: UIViewRepresentable {
                     }
                 },
 
+                // Widgets (WidgetKit)
+                widget: {
+                    update: function(data) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'updateWidget', data: data, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    reload: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'reloadWidgets', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
+                },
+
+                // Siri Shortcuts
+                siri: {
+                    register: function(phrase, action) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'registerSiriShortcut', phrase: phrase, action: action, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    remove: function(action) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'removeSiriShortcut', action: action, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    onInvoke: function(callback) {
+                        window.addEventListener('craftSiriShortcut', function(e) { callback(e.detail); });
+                    }
+                },
+
+                // Watch Connectivity
+                watch: {
+                    send: function(message) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'sendToWatch', message: message, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    updateContext: function(context) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'updateWatchContext', context: context, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    onMessage: function(callback) {
+                        window.addEventListener('craftWatchMessage', function(e) { callback(e.detail); });
+                    },
+                    onReachabilityChange: function(callback) {
+                        window.addEventListener('craftWatchReachability', function(e) { callback(e.detail); });
+                    },
+                    isReachable: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'isWatchReachable', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    }
+                },
+
+                // Deep Links
+                deepLinks: {
+                    getInitialURL: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'getInitialURL', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    onLink: function(callback) {
+                        window.addEventListener('craftDeepLink', function(e) { callback(e.detail); });
+                    }
+                },
+
+                // OTA Updates
+                ota: {
+                    _config: null,
+                    _status: 'idle',
+                    _progressCallbacks: [],
+                    _statusCallbacks: [],
+
+                    configure: function(options) {
+                        this._config = options;
+                        window.webkit.messageHandlers.craft.postMessage({action: 'otaConfigure', config: options});
+                    },
+                    checkForUpdate: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'otaCheckForUpdate', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    downloadUpdate: function(options) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'otaDownloadUpdate', options: options || {}, callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    applyUpdate: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'otaApplyUpdate', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    rollback: function() {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        window.webkit.messageHandlers.craft.postMessage({action: 'otaRollback', callbackId: id});
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    getCurrentBundle: function() {
+                        // This returns synchronously from stored data
+                        return window.craft.ota._currentBundle || {
+                            version: '1.0.0',
+                            buildNumber: 1,
+                            hash: '',
+                            isOriginal: true,
+                            installedAt: ''
+                        };
+                    },
+                    onProgress: function(callback) {
+                        this._progressCallbacks.push(callback);
+                        window.addEventListener('craftOTAProgress', function(e) { callback(e.detail); });
+                    },
+                    onStatusChange: function(callback) {
+                        this._statusCallbacks.push(callback);
+                        window.addEventListener('craftOTAStatus', function(e) { callback(e.detail.status); });
+                    }
+                },
+
                 log: function(msg) {
                     window.webkit.messageHandlers.craft.postMessage({action: 'log', message: msg});
                 }
@@ -1375,6 +1999,9 @@ struct CraftWebView: UIViewRepresentable {
             console.log('Craft iOS bridge initialized');
             """
             webView?.evaluateJavaScript(script)
+
+            // Mark DeepLinkManager as ready
+            DeepLinkManager.shared.setReady()
         }
 
         // MARK: - Callback Helpers
@@ -1394,9 +2021,21 @@ struct CraftWebView: UIViewRepresentable {
             DispatchQueue.main.async { self.webView?.evaluateJavaScript(script, completionHandler: nil) }
         }
 
-        private func rejectCallback(_ callbackId: String?, error: String) {
+        private func rejectCallback(_ callbackId: String?, error: String, code: String = "CRAFT_ERROR") {
             guard let id = callbackId else { return }
-            let script = "window.craft._rejectCallback('\(id)', '\(error.replacingOccurrences(of: "'", with: "\\'"))');"
+            let escapedError = error.replacingOccurrences(of: "'", with: "\\'").replacingOccurrences(of: "\n", with: "\\n")
+            let script = "window.craft._rejectCallback('\(id)', '\(escapedError)', '\(code)');"
+            DispatchQueue.main.async { self.webView?.evaluateJavaScript(script, completionHandler: nil) }
+        }
+
+        /// Enhanced reject with native stack trace (for debug mode)
+        private func rejectCallbackWithStack(_ callbackId: String?, error: String, code: String = "CRAFT_ERROR", file: String = #file, function: String = #function, line: Int = #line) {
+            guard let id = callbackId else { return }
+            let escapedError = error.replacingOccurrences(of: "'", with: "\\'").replacingOccurrences(of: "\n", with: "\\n")
+            let fileName = (file as NSString).lastPathComponent
+            let stackTrace = "\(fileName):\(line) in \(function)"
+            let escapedStack = stackTrace.replacingOccurrences(of: "'", with: "\\'")
+            let script = "window.craft._rejectCallbackWithStack('\(id)', '\(escapedError)', '\(code)', '\(escapedStack)');"
             DispatchQueue.main.async { self.webView?.evaluateJavaScript(script, completionHandler: nil) }
         }
 
@@ -1674,6 +2313,29 @@ struct CraftWebView: UIViewRepresentable {
         func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
             rejectCallback(locationCallbackId, error: error.localizedDescription)
             locationCallbackId = nil
+        }
+
+        // MARK: - Memory Usage (for Profiling)
+        private func getMemoryUsage(callbackId: String?) {
+            var taskInfo = mach_task_basic_info()
+            var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
+            let kerr: kern_return_t = withUnsafeMutablePointer(to: &taskInfo) {
+                $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                    task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+                }
+            }
+
+            if kerr == KERN_SUCCESS {
+                let usedMB = Double(taskInfo.resident_size) / 1024.0 / 1024.0
+                let info: [String: Any] = [
+                    "usedMB": round(usedMB * 100) / 100,
+                    "residentSize": taskInfo.resident_size,
+                    "virtualSize": taskInfo.virtual_size
+                ]
+                resolveCallbackJSON(callbackId, json: info)
+            } else {
+                resolveCallbackJSON(callbackId, json: ["usedMB": 0, "error": "Failed to get memory info"])
+            }
         }
 
         // MARK: - Device Info
@@ -3127,6 +3789,99 @@ struct CraftWebView: UIViewRepresentable {
             }
         }
 
+        // MARK: - Widget
+        private let widgetDefaults = UserDefaults(suiteName: "group.{{BUNDLE_ID}}.widget")
+
+        private func updateWidget(data: [String: Any], callbackId: String?) {
+            if let title = data["title"] as? String {
+                widgetDefaults?.set(title, forKey: "widget_title")
+            }
+            if let subtitle = data["subtitle"] as? String {
+                widgetDefaults?.set(subtitle, forKey: "widget_subtitle")
+            }
+            if let value = data["value"] as? String {
+                widgetDefaults?.set(value, forKey: "widget_value")
+            }
+            if let icon = data["icon"] as? String {
+                widgetDefaults?.set(icon, forKey: "widget_icon")
+            }
+
+            // Reload widgets
+            WidgetCenter.shared.reloadAllTimelines()
+            resolveCallback(callbackId, result: ["updated": true])
+        }
+
+        private func reloadAllWidgets(callbackId: String?) {
+            WidgetCenter.shared.reloadAllTimelines()
+            resolveCallback(callbackId, result: ["reloaded": true])
+        }
+
+        // MARK: - Siri Shortcuts
+        private func registerSiriShortcut(phrase: String, action: String, callbackId: String?) {
+            let activity = NSUserActivity(activityType: "{{BUNDLE_ID}}.\(action)")
+            activity.title = phrase
+            activity.isEligibleForSearch = true
+            activity.isEligibleForPrediction = true
+            activity.persistentIdentifier = NSUserActivityPersistentIdentifier(action)
+            activity.suggestedInvocationPhrase = phrase
+
+            activity.userInfo = ["action": action]
+
+            // Donate the shortcut
+            activity.becomeCurrent()
+
+            resolveCallback(callbackId, result: ["registered": true, "action": action, "phrase": phrase])
+        }
+
+        private func removeSiriShortcut(action: String, callbackId: String?) {
+            NSUserActivity.deleteSavedUserActivities(withPersistentIdentifiers: [action]) {
+                self.resolveCallback(callbackId, result: ["removed": true, "action": action])
+            }
+        }
+
+        // MARK: - Watch Connectivity
+        private var wcSession: WCSession?
+
+        private func setupWatchConnectivity() {
+            if WCSession.isSupported() {
+                wcSession = WCSession.default
+                wcSession?.delegate = self
+                wcSession?.activate()
+            }
+        }
+
+        private func sendMessageToWatch(message: [String: Any], callbackId: String?) {
+            guard let session = wcSession, session.isReachable else {
+                rejectCallback(callbackId, error: "Watch not reachable")
+                return
+            }
+
+            session.sendMessage(message, replyHandler: { reply in
+                self.resolveCallback(callbackId, result: reply)
+            }, errorHandler: { error in
+                self.rejectCallback(callbackId, error: error.localizedDescription)
+            })
+        }
+
+        private func updateWatchContext(context: [String: Any], callbackId: String?) {
+            guard let session = wcSession else {
+                rejectCallback(callbackId, error: "Watch session not available")
+                return
+            }
+
+            do {
+                try session.updateApplicationContext(context)
+                resolveCallback(callbackId, result: ["updated": true])
+            } catch {
+                rejectCallback(callbackId, error: error.localizedDescription)
+            }
+        }
+
+        private func isWatchReachable(callbackId: String?) {
+            let reachable = wcSession?.isReachable ?? false
+            resolveCallback(callbackId, result: ["reachable": reachable])
+        }
+
         // MARK: - Web Communication
         private func sendToWeb(_ event: String, data: [String: Any]) {
             guard let webView = webView else { return }
@@ -3428,5 +4183,59 @@ extension CraftWebView.Coordinator: CNContactPickerDelegate {
         data["emailAddresses"] = emails
 
         return data
+    }
+}
+
+// MARK: - Watch Connectivity Delegate
+extension CraftWebView.Coordinator: WCSessionDelegate {
+    func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        if let error = error {
+            print("WCSession activation failed: \(error.localizedDescription)")
+        } else {
+            print("WCSession activated with state: \(activationState.rawValue)")
+        }
+    }
+
+    func sessionDidBecomeInactive(_ session: WCSession) {
+        print("WCSession became inactive")
+    }
+
+    func sessionDidDeactivate(_ session: WCSession) {
+        // Reactivate session on new paired device
+        session.activate()
+    }
+
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        DispatchQueue.main.async { [weak self] in
+            self?.sendToWeb("craftWatchReachability", data: [
+                "reachable": session.isReachable
+            ])
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
+        DispatchQueue.main.async { [weak self] in
+            self?.sendToWeb("craftWatchMessage", data: message)
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveMessage message: [String : Any], replyHandler: @escaping ([String : Any]) -> Void) {
+        DispatchQueue.main.async { [weak self] in
+            self?.sendToWeb("craftWatchMessage", data: message)
+        }
+        // Default reply - apps can customize this behavior
+        replyHandler(["received": true])
+    }
+
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
+        DispatchQueue.main.async { [weak self] in
+            self?.sendToWeb("craftWatchContext", data: applicationContext)
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any]) {
+        DispatchQueue.main.async { [weak self] in
+            self?.sendToWeb("craftWatchUserInfo", data: userInfo)
+        }
     }
 }

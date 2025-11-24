@@ -1,0 +1,189 @@
+# Craft iOS Fastlane Configuration
+# Copy this directory to your ios/ folder
+# Run: cd ios && bundle install && bundle exec fastlane <lane>
+
+default_platform(:ios)
+
+platform :ios do
+  # ==================== Setup ====================
+
+  desc "Setup code signing with match"
+  lane :setup_signing do
+    match(type: "development")
+    match(type: "appstore")
+  end
+
+  desc "Register new device for development"
+  lane :add_device do |options|
+    device_name = options[:name] || prompt(text: "Device name: ")
+    device_udid = options[:udid] || prompt(text: "Device UDID: ")
+
+    register_devices(
+      devices: { device_name => device_udid }
+    )
+
+    match(type: "development", force_for_new_devices: true)
+  end
+
+  # ==================== Build ====================
+
+  desc "Build for development"
+  lane :build_debug do
+    gym(
+      scheme: "CraftApp",
+      configuration: "Debug",
+      export_method: "development",
+      output_directory: "./build",
+      output_name: "CraftApp-Debug.ipa"
+    )
+  end
+
+  desc "Build for App Store"
+  lane :build_release do
+    # Ensure certificates are installed
+    match(type: "appstore", readonly: true)
+
+    # Increment build number
+    increment_build_number(xcodeproj: "CraftApp.xcodeproj")
+
+    # Build
+    gym(
+      scheme: "CraftApp",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "./build",
+      output_name: "CraftApp-Release.ipa",
+      include_bitcode: false
+    )
+  end
+
+  desc "Build for Ad-Hoc distribution"
+  lane :build_adhoc do
+    match(type: "adhoc", readonly: true)
+
+    increment_build_number(xcodeproj: "CraftApp.xcodeproj")
+
+    gym(
+      scheme: "CraftApp",
+      configuration: "Release",
+      export_method: "ad-hoc",
+      output_directory: "./build",
+      output_name: "CraftApp-AdHoc.ipa"
+    )
+  end
+
+  # ==================== Deploy ====================
+
+  desc "Upload to TestFlight"
+  lane :beta do
+    build_release
+
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+
+    # Notify Slack (optional)
+    # slack(
+    #   message: "New TestFlight build uploaded! 🚀",
+    #   channel: "#mobile-releases"
+    # )
+  end
+
+  desc "Upload to App Store"
+  lane :release do
+    build_release
+
+    upload_to_app_store(
+      skip_metadata: false,
+      skip_screenshots: true,
+      submit_for_review: false,
+      automatic_release: false,
+      precheck_include_in_app_purchases: false
+    )
+  end
+
+  # ==================== Testing ====================
+
+  desc "Run tests"
+  lane :test do
+    run_tests(
+      scheme: "CraftApp",
+      device: "iPhone 15",
+      code_coverage: true
+    )
+  end
+
+  desc "Run tests and report coverage"
+  lane :test_coverage do
+    run_tests(
+      scheme: "CraftApp",
+      device: "iPhone 15",
+      code_coverage: true,
+      output_directory: "./build/test-results"
+    )
+
+    # Generate coverage report (requires xcov)
+    # xcov(
+    #   scheme: "CraftApp",
+    #   output_directory: "./build/coverage"
+    # )
+  end
+
+  # ==================== Version Management ====================
+
+  desc "Bump version number"
+  lane :bump_version do |options|
+    bump_type = options[:type] || "patch" # major, minor, patch
+    increment_version_number(bump_type: bump_type)
+    version = get_version_number
+    UI.message("Version bumped to #{version}")
+  end
+
+  desc "Set version number"
+  lane :set_version do |options|
+    version = options[:version] || prompt(text: "Version number: ")
+    increment_version_number(version_number: version)
+    UI.message("Version set to #{version}")
+  end
+
+  # ==================== Utilities ====================
+
+  desc "Clean build artifacts"
+  lane :clean do
+    clear_derived_data
+    sh("rm -rf ../build")
+    UI.success("Build artifacts cleaned!")
+  end
+
+  desc "Sync certificates"
+  lane :sync_certs do
+    match(type: "development", readonly: true)
+    match(type: "appstore", readonly: true)
+    match(type: "adhoc", readonly: true)
+  end
+
+  # ==================== CI/CD ====================
+
+  desc "CI build and test"
+  lane :ci do
+    test
+    build_release
+  end
+
+  desc "CI deploy to TestFlight"
+  lane :ci_beta do
+    setup_ci
+
+    # Install certificates from match
+    match(
+      type: "appstore",
+      readonly: true,
+      keychain_name: "fastlane_tmp_keychain",
+      keychain_password: ""
+    )
+
+    build_release
+    upload_to_testflight(skip_waiting_for_build_processing: true)
+  end
+end

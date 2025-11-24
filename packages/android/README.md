@@ -405,6 +405,83 @@ if (status.isValid) {
   console.log('Session valid for', status.remainingSeconds, 'more seconds');
 }
 await window.craft.authPersistence.clear();
+
+// ==================== Nice to Have Bridges ====================
+
+// AR (ARCore) - Note: Full ARCore requires native Activity integration
+// Use Sceneform or AR Fragment for complete AR functionality
+// The bridge API is consistent with iOS for cross-platform code:
+await window.craft.ar.start({planeDetection: true});
+// Returns error on Android: "ARCore requires native Activity integration"
+
+// ML (ML Kit) - Full support for ML operations
+// First capture an image
+const image = await window.craft.openCamera();
+
+// Image Classification (Labeling) - Identify what's in the image
+const labels = await window.craft.ml.classifyImage(image);
+console.log(labels); // [{label: 'Food', confidence: 0.95, index: 1}, ...]
+
+// Object Detection - Detect and locate objects
+const objects = await window.craft.ml.detectObjects(image);
+console.log(objects); // [{labels: [...], boundingBox: {x, y, width, height}, trackingId: 1}]
+
+// Text Recognition (OCR) - Extract text from image
+const textResults = await window.craft.ml.recognizeText(image);
+console.log(textResults); // [{text: 'Hello World', confidence: 0.98, boundingBox: {...}}]
+
+// ==================== Widgets (AppWidgetProvider) ====================
+
+// Update widget data - displayed on home screen widget
+await window.craft.widget.update({
+  title: 'My App',
+  subtitle: 'Latest update',
+  value: '42',
+  icon: 'ic_star' // Android drawable name
+});
+
+// Reload all widgets
+await window.craft.widget.reload();
+
+// ==================== Google Assistant (App Actions) ====================
+
+// Note: App Actions are defined in shortcuts.xml, not dynamically
+// This stores action handlers for incoming intents
+await window.craft.siri.register('Open my app', 'open_app');
+
+// Remove a voice action
+await window.craft.siri.remove('open_app');
+
+// Listen for voice assistant invocations
+window.craft.siri.onInvoke((detail) => {
+  console.log('Voice action:', detail.action);
+});
+
+// ==================== Wear OS Connectivity ====================
+
+// Note: Full Wear OS support requires a companion watch app
+// This provides the JavaScript API for future integration
+
+// Check if watch is reachable
+const status = await window.craft.watch.isReachable();
+console.log(status.reachable); // true/false
+
+// Send message to watch (requires companion app)
+const reply = await window.craft.watch.send({
+  action: 'ping',
+  data: { timestamp: Date.now() }
+});
+
+// Update application context
+await window.craft.watch.updateContext({
+  lastUpdate: Date.now(),
+  status: 'active'
+});
+
+// Listen for messages from watch
+window.craft.watch.onMessage((message) => {
+  console.log('Watch message:', message);
+});
 ```
 
 ## CLI Reference
