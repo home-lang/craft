@@ -1,303 +1,230 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import type {
-  CraftBridgeAPI,
-  DeviceInfo,
-  Permission,
-  PermissionStatus,
-  HapticType,
-  NotificationOptions,
-} from '@craft/types'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue';
+
+// Type definitions
+interface CraftAPI {
+  getPlatform(): Promise<{ platform: string; version: string }>;
+  getDeviceInfo(): Promise<{ platform: string; model: string; os_version: string }>;
+  showToast(message: string, duration: 'short' | 'long'): Promise<void>;
+  haptic(type: string): Promise<void>;
+  requestPermission(permission: string): Promise<{ granted: boolean; message: string }>;
+  on(event: string, callback: (...args: any[]) => void): void;
+  off(event: string, callback: (...args: any[]) => void): void;
+  emit(event: string, data?: any): void;
+  invoke(method: string, params?: any): Promise<any>;
+}
 
 declare global {
   interface Window {
-    craft: CraftBridgeAPI
+    craft?: CraftAPI;
   }
 }
 
 /**
- * Composable to access the Craft bridge
+ * Composable to access the Craft API
  */
 export function useCraft() {
-  return window.craft
-}
-
-/**
- * Composable for window management (desktop)
- */
-export function useWindow() {
-  const craft = useCraft()
-
-  const show = () => craft.window?.show()
-  const hide = () => craft.window?.hide()
-  const toggle = () => craft.window?.toggle()
-  const minimize = () => craft.window?.minimize()
-  const close = () => craft.window?.close()
-
-  return { show, hide, toggle, minimize, close }
-}
-
-/**
- * Composable for system tray management (desktop)
- */
-export function useTray() {
-  const craft = useCraft()
-
-  const setTitle = (title: string) => craft.tray?.setTitle(title)
-  const setTooltip = (tooltip: string) => craft.tray?.setTooltip(tooltip)
-
-  const onClick = (callback: () => void) => {
-    return craft.tray?.onClick(() => callback())
-  }
-
-  const onClickToggleWindow = () => {
-    return craft.tray?.onClickToggleWindow()
-  }
-
-  return { setTitle, setTooltip, onClick, onClickToggleWindow }
-}
-
-/**
- * Composable for notifications
- */
-export function useNotification() {
-  const craft = useCraft()
-
-  const notify = (options: NotificationOptions) => {
-    return craft.app.notify(options)
-  }
-
-  return { notify }
-}
-
-/**
- * Composable for mobile device information
- */
-export function useDeviceInfo() {
-  const deviceInfo = ref<DeviceInfo | null>(null)
-  const craft = useCraft()
-
-  onMounted(async () => {
-    if (craft.mobile) {
-      deviceInfo.value = await craft.mobile.getDeviceInfo()
-    }
-  })
-
-  return { deviceInfo: computed(() => deviceInfo.value) }
-}
-
-/**
- * Composable for mobile permissions
- */
-export function usePermission(permission: Permission) {
-  const status = ref<PermissionStatus>('notDetermined')
-  const craft = useCraft()
-
-  const request = async () => {
-    if (!craft.mobile) return
-    const newStatus = await craft.mobile.requestPermission(permission)
-    status.value = newStatus
-    return newStatus
-  }
-
-  const check = async () => {
-    if (!craft.mobile) return
-    const currentStatus = await craft.mobile.checkPermission(permission)
-    status.value = currentStatus
-    return currentStatus
-  }
+  const craft = ref<CraftAPI | null>(null);
+  const isReady = ref(false);
 
   onMounted(() => {
-    check()
-  })
+    if (window.craft) {
+      craft.value = window.craft;
+      isReady.value = true;
+    } else {
+      // Wait for craft to be ready
+      const checkCraft = setInterval(() => {
+        if (window.craft) {
+          craft.value = window.craft;
+          isReady.value = true;
+          clearInterval(checkCraft);
+        }
+      }, 100);
 
-  return { status: computed(() => status.value), request, check }
+      onUnmounted(() => clearInterval(checkCraft));
+    }
+  });
+
+  return { craft, isReady };
 }
 
 /**
- * Composable for mobile haptics
+ * Composable to get platform information
  */
-export function useHaptic() {
-  const craft = useCraft()
+export function usePlatform() {
+  const { craft, isReady } = useCraft();
+  const platform = ref<{ platform: string; version: string } | null>(null);
+  const loading = ref(true);
+  const error = ref<Error | null>(null);
 
-  const trigger = (type: HapticType) => {
-    return craft.mobile?.haptic(type)
-  }
+  watch(isReady, async (ready) => {
+    if (ready && craft.value) {
+      try {
+        platform.value = await craft.value.getPlatform();
+      } catch (err) {
+        error.value = err as Error;
+      } finally {
+        loading.value = false;
+      }
+    }
+  }, { immediate: true });
 
-  return { trigger }
+  return { platform, loading, error };
 }
 
 /**
- * Composable for mobile vibration
+ * Composable to get device information
  */
-export function useVibrate() {
-  const craft = useCraft()
+export function useDeviceInfo() {
+  const { craft, isReady } = useCraft();
+  const deviceInfo = ref<{ platform: string; model: string; os_version: string } | null>(null);
+  const loading = ref(true);
+  const error = ref<Error | null>(null);
 
-  const vibrate = (duration: number) => {
-    return craft.mobile?.vibrate(duration)
-  }
+  watch(isReady, async (ready) => {
+    if (ready && craft.value) {
+      try {
+        deviceInfo.value = await craft.value.getDeviceInfo();
+      } catch (err) {
+        error.value = err as Error;
+      } finally {
+        loading.value = false;
+      }
+    }
+  }, { immediate: true });
 
-  return { vibrate }
+  return { deviceInfo, loading, error };
 }
 
 /**
- * Composable for mobile toast messages
+ * Composable to show toast notifications
  */
 export function useToast() {
-  const craft = useCraft()
+  const { craft, isReady } = useCraft();
 
-  const show = (message: string, duration?: number) => {
-    return craft.mobile?.toast(message, duration)
-  }
-
-  return { show }
-}
-
-/**
- * Composable for camera access
- */
-export function useCamera() {
-  const craft = useCraft()
-
-  const open = (options?: { type?: 'front' | 'back', mediaType?: 'photo' | 'video' }) => {
-    return craft.mobile?.openCamera(options)
-  }
-
-  return { open }
-}
-
-/**
- * Composable for photo picker
- */
-export function usePhotoPicker() {
-  const craft = useCraft()
-
-  const pick = (options?: { maxSelections?: number, mediaType?: 'photo' | 'video' | 'all' }) => {
-    return craft.mobile?.pickPhoto(options)
-  }
-
-  return { pick }
-}
-
-/**
- * Composable for sharing
- */
-export function useShare() {
-  const craft = useCraft()
-
-  const share = (options: { text?: string, url?: string, title?: string }) => {
-    return craft.mobile?.share(options)
-  }
-
-  return { share }
-}
-
-/**
- * Composable for biometric authentication
- */
-export function useBiometric() {
-  const available = ref(false)
-  const craft = useCraft()
-
-  onMounted(async () => {
-    if (craft.mobile) {
-      available.value = await craft.mobile.isBiometricAvailable()
+  const showToast = async (message: string, duration: 'short' | 'long' = 'short') => {
+    if (!isReady.value || !craft.value) {
+      console.warn('Craft not ready');
+      return;
     }
-  })
+    await craft.value.showToast(message, duration);
+  };
 
-  const authenticate = (reason: string) => {
-    return craft.mobile?.authenticateBiometric(reason)
-  }
-
-  return { available: computed(() => available.value), authenticate }
+  return { showToast };
 }
 
 /**
- * Composable for secure storage
+ * Composable to trigger haptic feedback
  */
-export function useSecureStorage() {
-  const craft = useCraft()
+export function useHaptic() {
+  const { craft, isReady } = useCraft();
 
-  const store = (key: string, value: string) => {
-    return craft.mobile?.secureStore(key, value)
-  }
+  const haptic = async (type: string = 'selection') => {
+    if (!isReady.value || !craft.value) {
+      console.warn('Craft not ready');
+      return;
+    }
+    await craft.value.haptic(type);
+  };
 
-  const retrieve = (key: string) => {
-    return craft.mobile?.secureRetrieve(key)
-  }
-
-  const remove = (key: string) => {
-    return craft.mobile?.secureDelete(key)
-  }
-
-  return { store, retrieve, remove }
+  return { haptic };
 }
 
 /**
- * Composable for file system operations
+ * Composable to request permissions
  */
-export function useFileSystem() {
-  const craft = useCraft()
+export function usePermission(permission: string) {
+  const { craft, isReady } = useCraft();
+  const granted = ref<boolean | null>(null);
+  const loading = ref(false);
+  const error = ref<Error | null>(null);
 
-  const readFile = (path: string) => {
-    return craft.fs?.readFile(path)
-  }
+  const request = async () => {
+    if (!isReady.value || !craft.value) {
+      console.warn('Craft not ready');
+      return;
+    }
 
-  const writeFile = (path: string, content: string) => {
-    return craft.fs?.writeFile(path, content)
-  }
-
-  const readDir = (path: string) => {
-    return craft.fs?.readDir(path)
-  }
-
-  const mkdir = (path: string) => {
-    return craft.fs?.mkdir(path)
-  }
-
-  const remove = (path: string) => {
-    return craft.fs?.remove(path)
-  }
-
-  const exists = (path: string) => {
-    return craft.fs?.exists(path)
-  }
-
-  return { readFile, writeFile, readDir, mkdir, remove, exists }
-}
-
-/**
- * Composable for database operations
- */
-export function useDatabase() {
-  const craft = useCraft()
-
-  const execute = (sql: string, params?: unknown[]) => {
-    return craft.db?.execute(sql, params)
-  }
-
-  const query = (sql: string, params?: unknown[]) => {
-    return craft.db?.query(sql, params)
-  }
-
-  const transaction = async (callback: () => Promise<void>) => {
-    await craft.db?.beginTransaction()
+    loading.value = true;
     try {
-      await callback()
-      await craft.db?.commit()
+      const result = await craft.value.requestPermission(permission);
+      granted.value = result.granted;
     } catch (err) {
-      await craft.db?.rollback()
-      throw err
+      error.value = err as Error;
+    } finally {
+      loading.value = false;
     }
-  }
+  };
 
-  return { execute, query, transaction }
+  return { granted, request, loading, error };
 }
 
 /**
- * Vue plugin for Craft
+ * Composable to listen to Craft events
  */
-export default {
-  install: (app: any) => {
-    app.config.globalProperties.$craft = window.craft
-  },
+export function useCraftEvent(event: string, callback: (...args: any[]) => void) {
+  const { craft, isReady } = useCraft();
+
+  watch(isReady, (ready) => {
+    if (ready && craft.value) {
+      craft.value.on(event, callback);
+    }
+  }, { immediate: true });
+
+  onUnmounted(() => {
+    if (craft.value) {
+      craft.value.off(event, callback);
+    }
+  });
 }
+
+/**
+ * Composable to invoke Craft methods
+ */
+export function useCraftInvoke() {
+  const { craft, isReady } = useCraft();
+
+  const invoke = async (method: string, params?: any) => {
+    if (!isReady.value || !craft.value) {
+      throw new Error('Craft not ready');
+    }
+    return await craft.value.invoke(method, params);
+  };
+
+  return { invoke, isReady };
+}
+
+/**
+ * Composable to check if running on mobile
+ */
+export function useIsMobile() {
+  const { platform } = usePlatform();
+
+  const isMobile = computed(() => {
+    if (!platform.value) return false;
+    return platform.value.platform === 'ios' || platform.value.platform === 'android';
+  });
+
+  return isMobile;
+}
+
+/**
+ * Composable to check if running on desktop
+ */
+export function useIsDesktop() {
+  const { platform } = usePlatform();
+
+  const isDesktop = computed(() => {
+    if (!platform.value) return false;
+    return ['macos', 'windows', 'linux'].includes(platform.value.platform);
+  });
+
+  return isDesktop;
+}
+
+// Re-export composables
+export * from './composables/useWindow';
+export * from './composables/useTray';
+export * from './composables/useNotification';
+export * from './composables/useFileSystem';
+export * from './composables/useDatabase';
+export * from './composables/useHttp';

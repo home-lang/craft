@@ -1,220 +1,122 @@
-# @craft-native/svelte
+# @craft/svelte
 
-Svelte stores for [Craft Native](https://github.com/stacksjs/craft) - Build native mobile and desktop apps with JavaScript.
+Svelte bindings for the Craft framework using stores and actions.
 
 ## Installation
 
 ```bash
-npm install @craft-native/svelte
-# or
-pnpm add @craft-native/svelte
-# or
-bun add @craft-native/svelte
+npm install @craft/svelte
 ```
 
 ## Usage
 
-### Basic Example
+### Stores
 
 ```svelte
-<script lang="ts">
-  import { craft, createWindowStore, createNotificationStore } from '@craft-native/svelte'
-
-  const windowStore = createWindowStore()
-  const notificationStore = createNotificationStore()
-
-  function handleNotify() {
-    $notificationStore.notify({
-      title: 'Hello from Craft!',
-      body: 'This is a native notification'
-    })
-  }
-
-  function minimizeWindow() {
-    $windowStore.minimize()
-  }
+<script>
+  import { craft, isReady, platform } from '@craft/svelte';
 </script>
 
-<main>
-  <h1>Craft Native + Svelte</h1>
-  <button on:click={handleNotify}>Send Notification</button>
-  <button on:click={minimizeWindow}>Minimize Window</button>
-</main>
-```
-
-### Available Stores
-
-#### Core Store
-
-- **`craft`** - The main Craft bridge writable store
-
-#### Desktop Stores
-
-- **`createWindowStore()`** - Window management (show, hide, toggle, minimize, close)
-- **`createTrayStore()`** - System tray management
-- **`createNotificationStore()`** - System notifications
-
-#### Mobile Stores
-
-- **`createDeviceInfoStore()`** - Get device information (readable store)
-- **`createPermissionStore(permission)`** - Request and check permissions (store with `request()` and `check()` methods)
-- **`createHapticStore()`** - Haptic feedback
-- **`createVibrateStore()`** - Device vibration
-- **`createToastStore()`** - Toast messages
-- **`createCameraStore()`** - Camera access
-- **`createPhotoPickerStore()`** - Photo picker
-- **`createShareStore()`** - Share functionality
-- **`createBiometricStore()`** - Biometric authentication (store with `authenticate()` method)
-- **`createSecureStorageStore()`** - Secure key-value storage
-
-#### File System & Database Stores
-
-- **`createFileSystemStore()`** - File system operations
-- **`createDatabaseStore()`** - SQLite database operations
-
-### Examples
-
-#### Camera Access
-
-```svelte
-<script lang="ts">
-  import { createCameraStore } from '@craft-native/svelte'
-
-  const camera = createCameraStore()
-
-  async function takePicture() {
-    const result = await $camera.open({ type: 'back', mediaType: 'photo' })
-    console.log('Photo:', result)
-  }
-</script>
-
-<button on:click={takePicture}>Take Picture</button>
-```
-
-#### Biometric Authentication
-
-```svelte
-<script lang="ts">
-  import { createBiometricStore } from '@craft-native/svelte'
-
-  const biometric = createBiometricStore()
-
-  async function handleAuth() {
-    if (!$biometric) {
-      alert('Biometric not available')
-      return
-    }
-
-    try {
-      const result = await biometric.authenticate('Please authenticate to continue')
-      console.log('Authenticated:', result)
-    } catch (error) {
-      console.error('Auth failed:', error)
-    }
-  }
-</script>
-
-<button on:click={handleAuth} disabled={!$biometric}>
-  Authenticate with Biometric
-</button>
-```
-
-#### Device Info
-
-```svelte
-<script lang="ts">
-  import { createDeviceInfoStore } from '@craft-native/svelte'
-
-  const deviceInfo = createDeviceInfoStore()
-</script>
-
-{#if $deviceInfo}
-  <div>
-    <p>Model: {$deviceInfo.model}</p>
-    <p>OS: {$deviceInfo.osVersion}</p>
-    <p>Platform: {$deviceInfo.platform}</p>
-  </div>
+{#if $isReady}
+  <p>Platform: {$platform?.platform}</p>
 {/if}
 ```
 
-#### Database Operations
+### Window Management
 
 ```svelte
-<script lang="ts">
-  import { writable } from 'svelte/store'
-  import { createDatabaseStore } from '@craft-native/svelte'
+<script>
+  import { windowActions, isFullscreen } from '@craft/svelte';
+</script>
 
-  const db = createDatabaseStore()
-  const users = writable([])
+<button on:click={windowActions.maximize}>Maximize</button>
+<button on:click={windowActions.toggleFullscreen}>
+  {$isFullscreen ? 'Exit' : 'Enter'} Fullscreen
+</button>
+```
 
-  async function createTable() {
-    await db.execute(
-      'CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)',
-      []
-    )
+### Haptic Action
+
+```svelte
+<script>
+  import { haptic } from '@craft/svelte';
+</script>
+
+<button use:haptic={'impact_medium'}>Tap Me</button>
+```
+
+### Toast
+
+```svelte
+<script>
+  import { showToast } from '@craft/svelte';
+</script>
+
+<button on:click={() => showToast('Hello!')}>Show Toast</button>
+```
+
+### File System
+
+```svelte
+<script>
+  import { filesystem } from '@craft/svelte';
+
+  let content = '';
+
+  async function load() {
+    content = await filesystem.readFile('/path/to/file.txt');
   }
 
-  async function insertUser(name: string) {
-    await db.execute('INSERT INTO users (name) VALUES (?)', [name])
-    await loadUsers()
-  }
-
-  async function loadUsers() {
-    const rows = await db.query('SELECT * FROM users', [])
-    users.set(rows)
+  async function save() {
+    await filesystem.writeFile('/path/to/file.txt', content);
   }
 </script>
 
-<button on:click={createTable}>Create Table</button>
-<button on:click={() => insertUser('John')}>Add User</button>
-<button on:click={loadUsers}>Refresh Users</button>
+<textarea bind:value={content} />
+<button on:click={load}>Load</button>
+<button on:click={save}>Save</button>
+```
+
+### Database
+
+```svelte
+<script>
+  import { onMount } from 'svelte';
+  import { createDatabase } from '@craft/svelte';
+
+  const db = createDatabase('/path/to/db.sqlite');
+  let todos = [];
+
+  onMount(async () => {
+    todos = await db.query('SELECT * FROM todos');
+  });
+</script>
 
 <ul>
-  {#each $users as user (user.id)}
-    <li>{user.name}</li>
+  {#each todos as todo}
+    <li>{todo.title}</li>
   {/each}
 </ul>
 ```
 
-#### Permissions
+### HTTP
 
 ```svelte
-<script lang="ts">
-  import { createPermissionStore } from '@craft-native/svelte'
+<script>
+  import { http } from '@craft/svelte';
 
-  const cameraPermission = createPermissionStore('camera')
+  let data = null;
 
-  async function requestCamera() {
-    const newStatus = await cameraPermission.request()
-    console.log('Permission status:', newStatus)
+  async function loadData() {
+    data = await http.fetch('https://api.example.com/data');
   }
 </script>
 
-<p>Camera permission: {$cameraPermission}</p>
-<button on:click={requestCamera}>Request Camera Permission</button>
+<button on:click={loadData}>Load Data</button>
+{#if data}
+  <pre>{JSON.stringify(data, null, 2)}</pre>
+{/if}
 ```
-
-### Using the Craft Action
-
-```svelte
-<script lang="ts">
-  import { craft_action } from '@craft-native/svelte'
-</script>
-
-<div use:craft_action>
-  <!-- Your content -->
-</div>
-```
-
-## Store Architecture
-
-All stores in `@craft-native/svelte` use Svelte's native store contracts:
-
-- **Readable stores**: Subscribe-only stores for read-only data (e.g., device info)
-- **Writable stores**: Full read/write access (e.g., the main craft store)
-- **Derived stores**: Computed stores that react to changes in the craft bridge
-
-Stores automatically handle the Craft bridge initialization and update reactively when the bridge becomes available.
 
 ## License
 
