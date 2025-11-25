@@ -1,0 +1,16 @@
+.{
+    .name = "craft",
+    .version = "1.3.0",
+    .minimum_zig_version = "0.15.0",
+    .dependencies = .{
+        .@"zig-test-framework" = .{
+            .path = "../../../zig-test-framework",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "test",
+    },
+}

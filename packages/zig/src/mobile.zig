@@ -1,51 +1,112 @@
 const std = @import("std");
+const objc_runtime = @import("objc_runtime.zig");
 
 /// Mobile Platform Support
 /// Provides iOS and Android native integration
 
-// Import Objective-C runtime for iOS
-const objc = if (@import("builtin").target.isDarwin()) struct {
-    pub extern "c" fn objc_getClass(name: [*:0]const u8) ?*anyopaque;
-    pub extern "c" fn sel_registerName(name: [*:0]const u8) ?*anyopaque;
-    pub extern "c" fn objc_msgSend() void;
-    pub extern "c" fn objc_msgSend_stret() void;
-    pub extern "c" fn class_getName(cls: ?*anyopaque) [*:0]const u8;
-    pub extern "c" fn objc_allocateClassPair(superclass: ?*anyopaque, name: [*:0]const u8, extraBytes: usize) ?*anyopaque;
-    pub extern "c" fn objc_registerClassPair(cls: ?*anyopaque) void;
-    pub extern "c" fn class_addMethod(cls: ?*anyopaque, name: ?*anyopaque, imp: *const anyopaque, types: [*:0]const u8) bool;
-    pub extern "c" fn object_getClass(obj: ?*anyopaque) ?*anyopaque;
-    pub extern "c" fn class_createInstance(cls: ?*anyopaque, extraBytes: usize) ?*anyopaque;
-    pub extern "c" fn objc_setAssociatedObject(obj: ?*anyopaque, key: ?*const anyopaque, value: ?*anyopaque, policy: c_uint) void;
-    pub extern "c" fn objc_getAssociatedObject(obj: ?*anyopaque, key: ?*const anyopaque) ?*anyopaque;
-    pub extern "c" fn objc_removeAssociatedObjects(obj: ?*anyopaque) void;
-    pub extern "c" fn object_setClass(obj: ?*anyopaque, cls: ?*anyopaque) ?*anyopaque;
-
-    // Associated object policies
-    pub const OBJC_ASSOCIATION_ASSIGN: c_uint = 0;
-    pub const OBJC_ASSOCIATION_RETAIN_NONATOMIC: c_uint = 1;
-    pub const OBJC_ASSOCIATION_COPY_NONATOMIC: c_uint = 3;
-    pub const OBJC_ASSOCIATION_RETAIN: c_uint = 769;
-    pub const OBJC_ASSOCIATION_COPY: c_uint = 771;
-} else struct {};
+// Use the proper Objective-C runtime wrapper
+const objc = objc_runtime.objc;
 
 // JNI for Android
 const jni = if (@import("builtin").target.os.tag == .linux) struct {
+    // JNI types
     pub const JNIEnv = opaque {};
     pub const jobject = ?*anyopaque;
     pub const jclass = ?*anyopaque;
     pub const jmethodID = ?*anyopaque;
+    pub const jfieldID = ?*anyopaque;
     pub const jstring = ?*anyopaque;
     pub const jboolean = u8;
     pub const jint = i32;
     pub const jlong = i64;
 
-    pub extern "c" fn (*JNIEnv).GetObjectClass(env: *JNIEnv, obj: jobject) jclass;
-    pub extern "c" fn (*JNIEnv).GetMethodID(env: *JNIEnv, cls: jclass, name: [*:0]const u8, sig: [*:0]const u8) jmethodID;
-    pub extern "c" fn (*JNIEnv).CallVoidMethod(env: *JNIEnv, obj: jobject, methodID: jmethodID, ...) void;
-    pub extern "c" fn (*JNIEnv).CallObjectMethod(env: *JNIEnv, obj: jobject, methodID: jmethodID, ...) jobject;
-    pub extern "c" fn (*JNIEnv).NewStringUTF(env: *JNIEnv, bytes: [*:0]const u8) jstring;
-    pub extern "c" fn (*JNIEnv).GetStringUTFChars(env: *JNIEnv, string: jstring, isCopy: ?*jboolean) [*:0]const u8;
-    pub extern "c" fn (*JNIEnv).ReleaseStringUTFChars(env: *JNIEnv, string: jstring, utf: [*:0]const u8) void;
+    // JNI function pointers (these will be looked up from JNIEnv vtable)
+    // The JNIEnv is actually a pointer to a vtable of function pointers
+    const JNINativeInterface = extern struct {
+        reserved0: ?*anyopaque,
+        reserved1: ?*anyopaque,
+        reserved2: ?*anyopaque,
+        reserved3: ?*anyopaque,
+        GetVersion: ?*const fn (*JNIEnv) callconv(.C) jint,
+        // ... many more function pointers ...
+        FindClass: ?*const fn (*JNIEnv, [*:0]const u8) callconv(.C) jclass,
+        GetMethodID: ?*const fn (*JNIEnv, jclass, [*:0]const u8, [*:0]const u8) callconv(.C) jmethodID,
+        GetObjectClass: ?*const fn (*JNIEnv, jobject) callconv(.C) jclass,
+        CallObjectMethodV: ?*const fn (*JNIEnv, jobject, jmethodID, ...) callconv(.C) jobject,
+        CallVoidMethodV: ?*const fn (*JNIEnv, jobject, jmethodID, ...) callconv(.C) void,
+        NewStringUTF: ?*const fn (*JNIEnv, [*:0]const u8) callconv(.C) jstring,
+        GetStringUTFChars: ?*const fn (*JNIEnv, jstring, ?*jboolean) callconv(.C) [*:0]const u8,
+        ReleaseStringUTFChars: ?*const fn (*JNIEnv, jstring, [*:0]const u8) callconv(.C) void,
+    };
+
+    // Helper to get the function table from JNIEnv
+    fn getTable(env: *JNIEnv) *JNINativeInterface {
+        const env_ptr: **JNINativeInterface = @ptrCast(@alignCast(env));
+        return env_ptr.*;
+    }
+
+    // Wrapper functions
+    pub fn FindClass(env: *JNIEnv, name: [*:0]const u8) jclass {
+        const table = getTable(env);
+        if (table.FindClass) |func| {
+            return func(env, name);
+        }
+        return null;
+    }
+
+    pub fn GetObjectClass(env: *JNIEnv, obj: jobject) jclass {
+        const table = getTable(env);
+        if (table.GetObjectClass) |func| {
+            return func(env, obj);
+        }
+        return null;
+    }
+
+    pub fn GetMethodID(env: *JNIEnv, cls: jclass, name: [*:0]const u8, sig: [*:0]const u8) jmethodID {
+        const table = getTable(env);
+        if (table.GetMethodID) |func| {
+            return func(env, cls, name, sig);
+        }
+        return null;
+    }
+
+    pub fn CallVoidMethod(env: *JNIEnv, obj: jobject, methodID: jmethodID, args: anytype) void {
+        const table = getTable(env);
+        if (table.CallVoidMethodV) |func| {
+            _ = @call(.auto, func, .{ env, obj, methodID } ++ args);
+        }
+    }
+
+    pub fn CallObjectMethod(env: *JNIEnv, obj: jobject, methodID: jmethodID, args: anytype) jobject {
+        const table = getTable(env);
+        if (table.CallObjectMethodV) |func| {
+            return @call(.auto, func, .{ env, obj, methodID } ++ args);
+        }
+        return null;
+    }
+
+    pub fn NewStringUTF(env: *JNIEnv, bytes: [*:0]const u8) jstring {
+        const table = getTable(env);
+        if (table.NewStringUTF) |func| {
+            return func(env, bytes);
+        }
+        return null;
+    }
+
+    pub fn GetStringUTFChars(env: *JNIEnv, string: jstring, isCopy: ?*jboolean) [*:0]const u8 {
+        const table = getTable(env);
+        if (table.GetStringUTFChars) |func| {
+            return func(env, string, isCopy);
+        }
+        return @ptrCast(&[_]u8{0});
+    }
+
+    pub fn ReleaseStringUTFChars(env: *JNIEnv, string: jstring, utf: [*:0]const u8) void {
+        const table = getTable(env);
+        if (table.ReleaseStringUTFChars) |func| {
+            func(env, string, utf);
+        }
+    }
 } else struct {};
 
 pub const Platform = enum {
@@ -285,23 +346,32 @@ pub const iOS = struct {
         // Get WKWebView class
         const WKWebViewClass = objc.objc_getClass("WKWebView") orelse return error.ClassNotFound;
 
-        // Create configuration
+        // Create configuration: [[WKWebViewConfiguration alloc] init]
         const WKWebViewConfigurationClass = objc.objc_getClass("WKWebViewConfiguration") orelse return error.ClassNotFound;
-        const sel_alloc = objc.sel_registerName("alloc") orelse return error.SelectorNotFound;
-        const sel_init = objc.sel_registerName("init") orelse return error.SelectorNotFound;
-
-        // Create configuration instance
-        const configObj = objc.class_createInstance(WKWebViewConfigurationClass, 0) orelse return error.AllocationFailed;
+        const configObj = try objc.allocInit(WKWebViewConfigurationClass);
 
         // Configure webview settings based on config
         if (config.allows_inline_media_playback) {
             const sel_setAllowsInlineMediaPlayback = objc.sel_registerName("setAllowsInlineMediaPlayback:") orelse return error.SelectorNotFound;
-            // Call method (simplified - would need proper msgSend wrapper)
-            _ = sel_setAllowsInlineMediaPlayback;
+            const Fn = *const fn (objc.id, objc.SEL, bool) callconv(.C) void;
+            const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+            func(configObj, sel_setAllowsInlineMediaPlayback, true);
         }
 
-        // Create WKWebView instance with frame
-        const webview = objc.class_createInstance(WKWebViewClass, 0) orelse return error.AllocationFailed;
+        // Create CGRect for webview frame (full screen)
+        const frame = objc.CGRect{
+            .origin = .{ .x = 0, .y = 0 },
+            .size = .{ .width = 0, .height = 0 }, // Will be set by layout
+        };
+
+        // Create WKWebView: [[WKWebView alloc] initWithFrame:configuration:]
+        const sel_alloc = objc.sel_registerName("alloc") orelse return error.SelectorNotFound;
+        const sel_initWithFrame = objc.sel_registerName("initWithFrame:configuration:") orelse return error.SelectorNotFound;
+
+        const allocated = objc.msgSendId(WKWebViewClass, sel_alloc);
+        const Fn = *const fn (objc.id, objc.SEL, objc.CGRect, objc.id) callconv(.C) objc.id;
+        const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        const webview = func(allocated, sel_initWithFrame, frame, configObj);
 
         // Track the webview in memory manager
         if (getGlobalObjectManager()) |manager| {
@@ -354,29 +424,31 @@ pub const iOS = struct {
             return error.UnsupportedPlatform;
         }
 
-        // Get NSURL class
+        // Get associated allocator for temporary allocations
+        const webview_ptr: *anyopaque = @ptrCast(@alignCast(webview));
+        const allocator_ptr = objc.objc_getAssociatedObject(webview_ptr, @ptrCast(&allocator_key)) orelse return error.AllocatorNotFound;
+        const allocator: *std.mem.Allocator = @ptrCast(@alignCast(allocator_ptr));
+
+        // Create NSString from URL using helper
+        const ns_string = try objc.createNSString(url, allocator.*);
+
+        // Get NSURL class and create NSURL
         const NSURLClass = objc.objc_getClass("NSURL") orelse return error.ClassNotFound;
-        const NSStringClass = objc.objc_getClass("NSString") orelse return error.ClassNotFound;
-        const NSURLRequestClass = objc.objc_getClass("NSURLRequest") orelse return error.ClassNotFound;
-
-        // Create NSString from URL
-        const sel_stringWithUTF8String = objc.sel_registerName("stringWithUTF8String:") orelse return error.SelectorNotFound;
         const sel_URLWithString = objc.sel_registerName("URLWithString:") orelse return error.SelectorNotFound;
+        const ns_url = objc.msgSendId1(NSURLClass, sel_URLWithString, ns_string);
+
+        if (ns_url == null) {
+            return error.InvalidURL;
+        }
+
+        // Create NSURLRequest
+        const NSURLRequestClass = objc.objc_getClass("NSURLRequest") orelse return error.ClassNotFound;
         const sel_requestWithURL = objc.sel_registerName("requestWithURL:") orelse return error.SelectorNotFound;
+        const request = objc.msgSendId1(NSURLRequestClass, sel_requestWithURL, ns_url);
+
+        // Load request in webview
         const sel_loadRequest = objc.sel_registerName("loadRequest:") orelse return error.SelectorNotFound;
-
-        // Note: This is a simplified version. Full implementation would use proper msgSend wrappers
-        // to handle different architectures and return types correctly.
-
-        _ = webview;
-        _ = url;
-        _ = NSURLClass;
-        _ = NSStringClass;
-        _ = NSURLRequestClass;
-        _ = sel_stringWithUTF8String;
-        _ = sel_URLWithString;
-        _ = sel_requestWithURL;
-        _ = sel_loadRequest;
+        _ = objc.msgSendId1(webview_ptr, sel_loadRequest, request);
     }
 
     /// Execute JavaScript
@@ -385,17 +457,25 @@ pub const iOS = struct {
             return error.UnsupportedPlatform;
         }
 
-        const sel_evaluateJavaScript = objc.sel_registerName("evaluateJavaScript:completionHandler:") orelse return error.SelectorNotFound;
-        const NSStringClass = objc.objc_getClass("NSString") orelse return error.ClassNotFound;
-        const sel_stringWithUTF8String = objc.sel_registerName("stringWithUTF8String:") orelse return error.SelectorNotFound;
+        // Get associated allocator
+        const webview_ptr: *anyopaque = @ptrCast(@alignCast(webview));
+        const allocator_ptr = objc.objc_getAssociatedObject(webview_ptr, @ptrCast(&allocator_key)) orelse return error.AllocatorNotFound;
+        const allocator: *std.mem.Allocator = @ptrCast(@alignCast(allocator_ptr));
 
-        // Note: Full implementation would properly wrap the callback and handle the completion handler
-        _ = webview;
-        _ = script;
-        _ = callback;
-        _ = sel_evaluateJavaScript;
-        _ = NSStringClass;
-        _ = sel_stringWithUTF8String;
+        // Create NSString from script
+        const ns_script = try objc.createNSString(script, allocator.*);
+
+        // For now, we'll call evaluateJavaScript without completion handler
+        // Full implementation would require creating an Objective-C block for the completion handler
+        const sel_evaluateJavaScript = objc.sel_registerName("evaluateJavaScript:completionHandler:") orelse return error.SelectorNotFound;
+
+        // Pass nil for completion handler for now (fire-and-forget)
+        // TODO: Implement proper completion handler with blocks
+        const Fn = *const fn (*anyopaque, objc.SEL, objc.id, ?*anyopaque) callconv(.C) void;
+        const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        func(webview_ptr, sel_evaluateJavaScript, ns_script, null);
+
+        _ = callback; // TODO: Wire up callback to completion handler block
     }
 
     /// Handle Deep Links
@@ -488,19 +568,19 @@ pub const iOS = struct {
         switch (haptic_type) {
             .selection => {
                 const UISelectionFeedbackGeneratorClass = objc.objc_getClass("UISelectionFeedbackGenerator") orelse return;
-                const sel_alloc = objc.sel_registerName("alloc") orelse return;
-                const sel_init = objc.sel_registerName("init") orelse return;
                 const sel_selectionChanged = objc.sel_registerName("selectionChanged") orelse return;
 
-                // Create generator and trigger
-                _ = UISelectionFeedbackGeneratorClass;
-                _ = sel_alloc;
-                _ = sel_init;
-                _ = sel_selectionChanged;
+                // Create generator: [[UISelectionFeedbackGenerator alloc] init]
+                const generator = objc.allocInit(UISelectionFeedbackGeneratorClass) catch return;
+
+                // Trigger haptic: [generator selectionChanged]
+                objc.msgSend(generator, sel_selectionChanged);
+
+                // Release
+                objc.release(generator);
             },
             .impact_light, .impact_medium, .impact_heavy => {
                 const UIImpactFeedbackGeneratorClass = objc.objc_getClass("UIImpactFeedbackGenerator") orelse return;
-                const sel_alloc = objc.sel_registerName("alloc") orelse return;
                 const sel_initWithStyle = objc.sel_registerName("initWithStyle:") orelse return;
                 const sel_impactOccurred = objc.sel_registerName("impactOccurred") orelse return;
 
@@ -512,17 +592,27 @@ pub const iOS = struct {
                     else => 1,
                 };
 
-                _ = UIImpactFeedbackGeneratorClass;
-                _ = sel_alloc;
-                _ = sel_initWithStyle;
-                _ = sel_impactOccurred;
-                _ = style;
+                // Allocate generator
+                const sel_alloc = objc.sel_registerName("alloc") orelse return;
+                const allocated = objc.msgSendId(UIImpactFeedbackGeneratorClass, sel_alloc);
+
+                // Initialize with style: [[UIImpactFeedbackGenerator alloc] initWithStyle:style]
+                const Fn = *const fn (objc.id, objc.SEL, i64) callconv(.C) objc.id;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                const generator = func(allocated, sel_initWithStyle, style);
+
+                // Trigger haptic: [generator impactOccurred]
+                objc.msgSend(generator, sel_impactOccurred);
+
+                // Release
+                objc.release(generator);
             },
             .notification_success, .notification_warning, .notification_error => {
                 const UINotificationFeedbackGeneratorClass = objc.objc_getClass("UINotificationFeedbackGenerator") orelse return;
-                const sel_alloc = objc.sel_registerName("alloc") orelse return;
-                const sel_init = objc.sel_registerName("init") orelse return;
                 const sel_notificationOccurred = objc.sel_registerName("notificationOccurred:") orelse return;
+
+                // Create generator: [[UINotificationFeedbackGenerator alloc] init]
+                const generator = objc.allocInit(UINotificationFeedbackGeneratorClass) catch return;
 
                 // Determine notification type
                 const feedbackType: i64 = switch (haptic_type) {
@@ -532,11 +622,13 @@ pub const iOS = struct {
                     else => 0,
                 };
 
-                _ = UINotificationFeedbackGeneratorClass;
-                _ = sel_alloc;
-                _ = sel_init;
-                _ = sel_notificationOccurred;
-                _ = feedbackType;
+                // Trigger notification: [generator notificationOccurred:feedbackType]
+                const Fn = *const fn (objc.id, objc.SEL, i64) callconv(.C) void;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                func(generator, sel_notificationOccurred, feedbackType);
+
+                // Release
+                objc.release(generator);
             },
         }
     }
@@ -621,14 +713,14 @@ pub const Android = struct {
         const constructor_id = try getJNIMethod(env, webview_class, "<init>", "(Landroid/content/Context;)V");
 
         // Create WebView instance
-        const webview_obj = jni.CallObjectMethod(env, context, constructor_id);
+        const webview_obj = jni.CallObjectMethod(env, context, constructor_id, .{});
         if (webview_obj == null) {
             return error.WebViewCreationFailed;
         }
 
         // Configure WebView settings
         const settings_method = try getJNIMethod(env, webview_class, "getSettings", "()Landroid/webkit/WebSettings;");
-        const settings = jni.CallObjectMethod(env, webview_obj, settings_method);
+        const settings = jni.CallObjectMethod(env, webview_obj, settings_method, .{});
 
         if (settings != null) {
             const settings_class_name = "android/webkit/WebSettings";
@@ -637,19 +729,19 @@ pub const Android = struct {
             // Enable JavaScript
             if (config.javascript_enabled) {
                 const set_js_enabled = try getJNIMethod(env, settings_class, "setJavaScriptEnabled", "(Z)V");
-                jni.CallVoidMethod(env, settings, set_js_enabled, @as(jni.jboolean, 1));
+                jni.CallVoidMethod(env, settings, set_js_enabled, .{@as(jni.jboolean, 1)});
             }
 
             // Enable DOM storage
             if (config.dom_storage_enabled) {
                 const set_dom_storage = try getJNIMethod(env, settings_class, "setDomStorageEnabled", "(Z)V");
-                jni.CallVoidMethod(env, settings, set_dom_storage, @as(jni.jboolean, 1));
+                jni.CallVoidMethod(env, settings, set_dom_storage, .{@as(jni.jboolean, 1)});
             }
 
             // Enable database
             if (config.database_enabled) {
                 const set_database = try getJNIMethod(env, settings_class, "setDatabaseEnabled", "(Z)V");
-                jni.CallVoidMethod(env, settings, set_database, @as(jni.jboolean, 1));
+                jni.CallVoidMethod(env, settings, set_database, .{@as(jni.jboolean, 1)});
             }
         }
 
@@ -673,11 +765,14 @@ pub const Android = struct {
         // Get loadUrl method
         const load_url_method = try getJNIMethod(env, webview_class, "loadUrl", "(Ljava/lang/String;)V");
 
-        // Convert URL to Java string
-        const url_jstring = jni.NewStringUTF(env, @ptrCast(url.ptr));
+        // Convert URL to Java string (need null-terminated string)
+        const allocator = std.heap.page_allocator;
+        const url_z = try allocator.dupeZ(u8, url);
+        defer allocator.free(url_z);
+        const url_jstring = jni.NewStringUTF(env, url_z.ptr);
 
         // Call loadUrl
-        jni.CallVoidMethod(env, webview_obj, load_url_method, url_jstring);
+        jni.CallVoidMethod(env, webview_obj, load_url_method, .{url_jstring});
     }
 
     /// Execute JavaScript
@@ -696,18 +791,20 @@ pub const Android = struct {
         // Get evaluateJavascript method
         const eval_js_method = try getJNIMethod(env, webview_class, "evaluateJavascript", "(Ljava/lang/String;Landroid/webkit/ValueCallback;)V");
 
-        // Convert script to Java string
-        const script_jstring = jni.NewStringUTF(env, @ptrCast(script.ptr));
+        // Convert script to Java string (need null-terminated string)
+        const allocator = std.heap.page_allocator;
+        const script_z = try allocator.dupeZ(u8, script);
+        defer allocator.free(script_z);
+        const script_jstring = jni.NewStringUTF(env, script_z.ptr);
 
         // Call evaluateJavascript (callback would need to be wrapped in Java ValueCallback)
         _ = callback; // TODO: Wrap callback in ValueCallback interface
-        jni.CallVoidMethod(env, webview_obj, eval_js_method, script_jstring, null);
+        jni.CallVoidMethod(env, webview_obj, eval_js_method, .{ script_jstring, @as(jni.jobject, null) });
     }
 
     /// Helper function to get JNI class
     fn getJNIClass(env: *jni.JNIEnv, class_name: [:0]const u8) !jni.jclass {
-        const find_class_method = @field(env, "FindClass");
-        const cls = find_class_method(env, class_name.ptr);
+        const cls = jni.FindClass(env, class_name.ptr);
         if (cls == null) {
             return error.ClassNotFound;
         }
@@ -716,8 +813,7 @@ pub const Android = struct {
 
     /// Helper function to get JNI method
     fn getJNIMethod(env: *jni.JNIEnv, cls: jni.jclass, method_name: [:0]const u8, signature: [:0]const u8) !jni.jmethodID {
-        const get_method_id = @field(env, "GetMethodID");
-        const method_id = get_method_id(env, cls, method_name.ptr, signature.ptr);
+        const method_id = jni.GetMethodID(env, cls, method_name.ptr, signature.ptr);
         if (method_id == null) {
             return error.MethodNotFound;
         }
@@ -776,12 +872,15 @@ pub const Android = struct {
         );
 
         // Create string array with single permission
-        const permission_jstring = jni.NewStringUTF(env, @ptrCast(permission_str));
+        const allocator = std.heap.page_allocator;
+        const permission_z = try allocator.dupeZ(u8, permission_str);
+        defer allocator.free(permission_z);
+        const permission_jstring = jni.NewStringUTF(env, permission_z.ptr);
 
         // Call requestPermissions
         _ = callback; // TODO: Store callback to be invoked in onRequestPermissionsResult
         const activity_obj: jni.jobject = @ptrCast(@alignCast(activity));
-        jni.CallVoidMethod(env, activity_obj, request_permissions_method, permission_jstring, @as(jni.jint, 1001));
+        jni.CallVoidMethod(env, activity_obj, request_permissions_method, .{ permission_jstring, @as(jni.jint, 1001) });
     }
 
     /// Vibration
@@ -801,14 +900,14 @@ pub const Android = struct {
 
         // Get VIBRATOR_SERVICE constant
         const vibrator_service_str = jni.NewStringUTF(env, "vibrator");
-        const vibrator_obj = jni.CallObjectMethod(env, context_obj, get_system_service_method, vibrator_service_str);
+        const vibrator_obj = jni.CallObjectMethod(env, context_obj, get_system_service_method, .{vibrator_service_str});
 
         if (vibrator_obj != null) {
             const vibrator_class = jni.GetObjectClass(env, vibrator_obj);
 
             // For Android 26+, use VibrationEffect
             const vibrate_method = getJNIMethod(env, vibrator_class, "vibrate", "(J)V") catch return;
-            jni.CallVoidMethod(env, vibrator_obj, vibrate_method, @as(jni.jlong, @intCast(duration_ms)));
+            jni.CallVoidMethod(env, vibrator_obj, vibrate_method, .{@as(jni.jlong, @intCast(duration_ms))});
         }
     }
 
@@ -832,8 +931,11 @@ pub const Android = struct {
             "(Landroid/content/Context;Ljava/lang/CharSequence;I)Landroid/widget/Toast;",
         ) catch return;
 
-        // Convert message to Java string
-        const message_jstring = jni.NewStringUTF(env, @ptrCast(message.ptr));
+        // Convert message to Java string (need null-terminated string)
+        const allocator = std.heap.page_allocator;
+        const message_z = allocator.dupeZ(u8, message) catch return;
+        defer allocator.free(message_z);
+        const message_jstring = jni.NewStringUTF(env, message_z.ptr);
 
         // Convert duration
         const duration_int: jni.jint = switch (duration) {
@@ -843,13 +945,13 @@ pub const Android = struct {
 
         // Create toast
         const context_obj: jni.jobject = @ptrCast(@alignCast(context));
-        const toast_obj = jni.CallObjectMethod(env, context_obj, make_text_method, context_obj, message_jstring, duration_int);
+        const toast_obj = jni.CallObjectMethod(env, toast_class, make_text_method, .{ context_obj, message_jstring, duration_int });
 
         if (toast_obj != null) {
             // Show toast
             const toast_obj_class = jni.GetObjectClass(env, toast_obj);
             const show_method = getJNIMethod(env, toast_obj_class, "show", "()V") catch return;
-            jni.CallVoidMethod(env, toast_obj, show_method);
+            jni.CallVoidMethod(env, toast_obj, show_method, .{});
         }
     }
 
