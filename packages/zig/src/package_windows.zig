@@ -193,7 +193,6 @@ pub const WindowsPackager = struct {
 
     fn generateGUID(self: *WindowsPackager) ![]u8 {
         // Simple GUID generation (for production, use a proper UUID library)
-        var buf: [36]u8 = undefined;
         var rng = std.rand.DefaultPrng.init(@as(u64, @intCast(std.time.timestamp())));
 
         const guid = try std.fmt.allocPrint(
@@ -208,7 +207,6 @@ pub const WindowsPackager = struct {
             },
         );
 
-        _ = buf;
         return guid;
     }
 

@@ -533,7 +533,7 @@ pub const AndroidTemplate = struct {
 // Test
 test "Android template generation" {
     const allocator = std.testing.allocator;
-    var template = AndroidTemplate.init(allocator, "TestApp", "com.test.app", "test_android_output");
+    const template = AndroidTemplate.init(allocator, "TestApp", "com.test.app", "test_android_output");
 
     // Would generate files - skipping in test
     _ = template;

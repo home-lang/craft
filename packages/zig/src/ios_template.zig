@@ -612,7 +612,7 @@ pub const IOSTemplate = struct {
 // Test
 test "iOS template generation" {
     const allocator = std.testing.allocator;
-    var template = IOSTemplate.init(allocator, "TestApp", "com.test.app", "test_ios_output");
+    const template = IOSTemplate.init(allocator, "TestApp", "com.test.app", "test_ios_output");
 
     // Would generate files - skipping in test
     _ = template;

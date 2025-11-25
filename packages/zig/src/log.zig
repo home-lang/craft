@@ -151,12 +151,16 @@ pub fn fatal(comptime format: []const u8, args: anytype) void {
 
 fn getTimestamp() []const u8 {
     // Simple timestamp - hours:minutes:seconds
+    // Note: Using static buffer - not thread-safe but acceptable for logging
+    const Static = struct {
+        var buf: [8]u8 = undefined;
+    };
+
     const timestamp = std.time.timestamp();
     const seconds = @mod(timestamp, 60);
     const minutes = @mod(@divFloor(timestamp, 60), 60);
     const hours = @mod(@divFloor(timestamp, 3600), 24);
 
-    var buf: [8]u8 = undefined;
-    _ = std.fmt.bufPrint(&buf, "{d:0>2}:{d:0>2}:{d:0>2}", .{ hours, minutes, seconds }) catch unreachable;
-    return &buf;
+    _ = std.fmt.bufPrint(&Static.buf, "{d:0>2}:{d:0>2}:{d:0>2}", .{ hours, minutes, seconds }) catch unreachable;
+    return &Static.buf;
 }
