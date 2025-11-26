@@ -14,6 +14,9 @@ export { packageApp, pack, type PackageConfig, type PackageResult } from './pack
 // Export utilities
 export * from './utils'
 
+// Export API modules
+export * from './api'
+
 export class CraftApp {
   private process?: ChildProcess
   private config: AppConfig

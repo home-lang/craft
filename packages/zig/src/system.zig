@@ -51,18 +51,77 @@ pub const Notification = struct {
     }
 
     fn showMacOSNotification(notification: Notification) !void {
-        _ = notification;
-        // UNUserNotificationCenter or NSUserNotificationCenter
+        const objc = @import("objc_runtime.zig").objc;
+
+        // Get UNUserNotificationCenter
+        const UNUserNotificationCenterClass = objc.objc_getClass("UNUserNotificationCenter") orelse return error.ClassNotFound;
+        const sel_currentNotificationCenter = objc.sel_registerName("currentNotificationCenter") orelse return error.SelectorNotFound;
+        const center = objc.msgSendId(UNUserNotificationCenterClass, sel_currentNotificationCenter);
+
+        // Create UNMutableNotificationContent
+        const UNMutableNotificationContentClass = objc.objc_getClass("UNMutableNotificationContent") orelse return error.ClassNotFound;
+        const content = try objc.allocInit(UNMutableNotificationContentClass);
+
+        // Set title
+        const allocator = std.heap.page_allocator;
+        const ns_title = try objc.createNSString(notification.title, allocator);
+        const sel_setTitle = objc.sel_registerName("setTitle:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(content, sel_setTitle, ns_title);
+
+        // Set body
+        const ns_body = try objc.createNSString(notification.body, allocator);
+        const sel_setBody = objc.sel_registerName("setBody:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(content, sel_setBody, ns_body);
+
+        // Set subtitle if present
+        if (notification.subtitle) |subtitle| {
+            const ns_subtitle = try objc.createNSString(subtitle, allocator);
+            const sel_setSubtitle = objc.sel_registerName("setSubtitle:") orelse return error.SelectorNotFound;
+            objc.msgSendVoid1(content, sel_setSubtitle, ns_subtitle);
+        }
+
+        // Set sound
+        if (notification.sound) |sound| {
+            switch (sound) {
+                .default => {
+                    const UNNotificationSoundClass = objc.objc_getClass("UNNotificationSound") orelse return error.ClassNotFound;
+                    const sel_defaultSound = objc.sel_registerName("defaultSound") orelse return error.SelectorNotFound;
+                    const default_sound = objc.msgSendId(UNNotificationSoundClass, sel_defaultSound);
+                    const sel_setSound = objc.sel_registerName("setSound:") orelse return error.SelectorNotFound;
+                    objc.msgSendVoid1(content, sel_setSound, default_sound);
+                },
+                .none, .custom => {},
+            }
+        }
+
+        // Create UNNotificationRequest
+        const UNNotificationRequestClass = objc.objc_getClass("UNNotificationRequest") orelse return error.ClassNotFound;
+        const sel_requestWithIdentifier = objc.sel_registerName("requestWithIdentifier:content:trigger:") orelse return error.SelectorNotFound;
+
+        // Generate identifier
+        const identifier = if (notification.id) |id| try objc.createNSString(id, allocator) else try objc.createNSString("craft-notification", allocator);
+
+        const Fn = *const fn (objc.Class, objc.SEL, objc.id, objc.id, ?*anyopaque) callconv(.C) objc.id;
+        const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        const request = func(UNNotificationRequestClass, sel_requestWithIdentifier, identifier, content, null);
+
+        // Add notification request to center
+        const sel_addNotificationRequest = objc.sel_registerName("addNotificationRequest:withCompletionHandler:") orelse return error.SelectorNotFound;
+        const Fn2 = *const fn (objc.id, objc.SEL, objc.id, ?*anyopaque) callconv(.C) void;
+        const func2: Fn2 = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        func2(center, sel_addNotificationRequest, request, null);
     }
 
     fn showLinuxNotification(notification: Notification) !void {
-        _ = notification;
-        // libnotify (notify_notification_new)
+        // Use libnotify via extern C bindings
+        const linux = @import("linux.zig");
+        try linux.showNotification(notification.title, notification.body);
     }
 
     fn showWindowsNotification(notification: Notification) !void {
-        _ = notification;
-        // Windows 10+ Toast Notifications
+        // Windows toast notifications would be implemented via WinRT
+        const windows = @import("windows.zig");
+        try windows.showNotification(notification.title, notification.body);
     }
 };
 
@@ -187,18 +246,84 @@ pub const Clipboard = struct {
     }
 
     fn getMacOSClipboardText(allocator: std.mem.Allocator) !?[]const u8 {
-        _ = allocator;
-        // NSPasteboard.generalPasteboard().stringForType(NSStringPboardType)
-        return null;
+        const objc = @import("objc_runtime.zig").objc;
+
+        // Get NSPasteboard generalPasteboard
+        const NSPasteboardClass = objc.objc_getClass("NSPasteboard") orelse return error.ClassNotFound;
+        const sel_generalPasteboard = objc.sel_registerName("generalPasteboard") orelse return error.SelectorNotFound;
+        const pasteboard = objc.msgSendId(NSPasteboardClass, sel_generalPasteboard);
+
+        // Get string for type NSPasteboardTypeString
+        const NSPasteboardTypeString = objc.objc_getClass("NSPasteboardTypeString") orelse {
+            // Fallback - create NSString for type
+            const ns_type = try objc.createNSString("public.utf8-plain-text", allocator);
+            const sel_stringForType = objc.sel_registerName("stringForType:") orelse return error.SelectorNotFound;
+            const ns_string = objc.msgSendId1(pasteboard, sel_stringForType, ns_type);
+
+            if (ns_string == null) return null;
+
+            // Convert NSString to Zig string
+            const utf8_ptr = objc.getNSStringUTF8(ns_string);
+            if (utf8_ptr == null) return null;
+
+            const len = std.mem.len(utf8_ptr.?);
+            const result = try allocator.alloc(u8, len);
+            @memcpy(result, utf8_ptr.?[0..len]);
+            return result;
+        };
+
+        const sel_stringForType = objc.sel_registerName("stringForType:") orelse return error.SelectorNotFound;
+        const ns_string = objc.msgSendId1(pasteboard, sel_stringForType, NSPasteboardTypeString);
+
+        if (ns_string == null) return null;
+
+        // Convert NSString to Zig string
+        const utf8_ptr = objc.getNSStringUTF8(ns_string);
+        if (utf8_ptr == null) return null;
+
+        const len = std.mem.len(utf8_ptr.?);
+        const result = try allocator.alloc(u8, len);
+        @memcpy(result, utf8_ptr.?[0..len]);
+        return result;
     }
 
     fn setMacOSClipboardText(text: []const u8) !void {
-        _ = text;
-        // NSPasteboard.generalPasteboard().setString:forType:
+        const objc = @import("objc_runtime.zig").objc;
+
+        // Get NSPasteboard generalPasteboard
+        const NSPasteboardClass = objc.objc_getClass("NSPasteboard") orelse return error.ClassNotFound;
+        const sel_generalPasteboard = objc.sel_registerName("generalPasteboard") orelse return error.SelectorNotFound;
+        const pasteboard = objc.msgSendId(NSPasteboardClass, sel_generalPasteboard);
+
+        // Clear contents
+        const sel_clearContents = objc.sel_registerName("clearContents") orelse return error.SelectorNotFound;
+        objc.msgSend(pasteboard, sel_clearContents);
+
+        // Create NSString from text
+        const allocator = std.heap.page_allocator;
+        const ns_string = try objc.createNSString(text, allocator);
+
+        // Create NSPasteboardTypeString type
+        const ns_type = try objc.createNSString("public.utf8-plain-text", allocator);
+
+        // Set string for type
+        const sel_setString = objc.sel_registerName("setString:forType:") orelse return error.SelectorNotFound;
+        const Fn = *const fn (objc.id, objc.SEL, objc.id, objc.id) callconv(.C) bool;
+        const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        _ = func(pasteboard, sel_setString, ns_string, ns_type);
     }
 
     fn clearMacOSClipboard() void {
-        // NSPasteboard.generalPasteboard().clearContents()
+        const objc = @import("objc_runtime.zig").objc;
+
+        // Get NSPasteboard generalPasteboard
+        const NSPasteboardClass = objc.objc_getClass("NSPasteboard") orelse return;
+        const sel_generalPasteboard = objc.sel_registerName("generalPasteboard") orelse return;
+        const pasteboard = objc.msgSendId(NSPasteboardClass, sel_generalPasteboard);
+
+        // Clear contents
+        const sel_clearContents = objc.sel_registerName("clearContents") orelse return;
+        objc.msgSend(pasteboard, sel_clearContents);
     }
 
     fn getLinuxClipboardText(allocator: std.mem.Allocator) !?[]const u8 {
@@ -289,27 +414,224 @@ pub const FileDialog = struct {
     }
 
     fn openMacOSFileDialog(options: FileDialog) !?[]const u8 {
-        _ = options;
-        // NSOpenPanel
-        return null;
+        const objc = @import("objc_runtime.zig").objc;
+
+        // Create NSOpenPanel
+        const NSOpenPanelClass = objc.objc_getClass("NSOpenPanel") orelse return error.ClassNotFound;
+        const sel_openPanel = objc.sel_registerName("openPanel") orelse return error.SelectorNotFound;
+        const panel = objc.msgSendId(NSOpenPanelClass, sel_openPanel);
+
+        // Configure panel
+        const sel_setCanChooseFiles = objc.sel_registerName("setCanChooseFiles:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(panel, sel_setCanChooseFiles, @as(bool, true));
+
+        const sel_setCanChooseDirectories = objc.sel_registerName("setCanChooseDirectories:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(panel, sel_setCanChooseDirectories, @as(bool, false));
+
+        const sel_setAllowsMultipleSelection = objc.sel_registerName("setAllowsMultipleSelection:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(panel, sel_setAllowsMultipleSelection, @as(bool, false));
+
+        // Set title
+        const allocator = std.heap.page_allocator;
+        const ns_title = try objc.createNSString(options.title, allocator);
+        const sel_setTitle = objc.sel_registerName("setTitle:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(panel, sel_setTitle, ns_title);
+
+        // Show hidden files if requested
+        if (options.show_hidden) {
+            const sel_setShowsHiddenFiles = objc.sel_registerName("setShowsHiddenFiles:") orelse return error.SelectorNotFound;
+            objc.msgSendVoid1(panel, sel_setShowsHiddenFiles, @as(bool, true));
+        }
+
+        // Run modal
+        const sel_runModal = objc.sel_registerName("runModal") orelse return error.SelectorNotFound;
+        const Fn = *const fn (objc.id, objc.SEL) callconv(.C) i64;
+        const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        const result = func(panel, sel_runModal);
+
+        // NSModalResponseOK = 1
+        if (result != 1) return null;
+
+        // Get URL
+        const sel_URL = objc.sel_registerName("URL") orelse return error.SelectorNotFound;
+        const url = objc.msgSendId(panel, sel_URL);
+        if (url == null) return null;
+
+        // Get path from URL
+        const sel_path = objc.sel_registerName("path") orelse return error.SelectorNotFound;
+        const ns_path = objc.msgSendId(url, sel_path);
+        if (ns_path == null) return null;
+
+        // Convert to Zig string
+        const utf8_ptr = objc.getNSStringUTF8(ns_path);
+        if (utf8_ptr == null) return null;
+
+        const len = std.mem.len(utf8_ptr.?);
+        const path = try allocator.alloc(u8, len);
+        @memcpy(path, utf8_ptr.?[0..len]);
+        return path;
     }
 
     fn openMacOSFilesDialog(options: FileDialog) !?[]const []const u8 {
-        _ = options;
-        // NSOpenPanel with allowsMultipleSelection
-        return null;
+        const objc = @import("objc_runtime.zig").objc;
+
+        // Create NSOpenPanel
+        const NSOpenPanelClass = objc.objc_getClass("NSOpenPanel") orelse return error.ClassNotFound;
+        const sel_openPanel = objc.sel_registerName("openPanel") orelse return error.SelectorNotFound;
+        const panel = objc.msgSendId(NSOpenPanelClass, sel_openPanel);
+
+        // Configure panel for multiple selection
+        const sel_setCanChooseFiles = objc.sel_registerName("setCanChooseFiles:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(panel, sel_setCanChooseFiles, @as(bool, true));
+
+        const sel_setAllowsMultipleSelection = objc.sel_registerName("setAllowsMultipleSelection:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(panel, sel_setAllowsMultipleSelection, @as(bool, true));
+
+        // Set title
+        const allocator = std.heap.page_allocator;
+        const ns_title = try objc.createNSString(options.title, allocator);
+        const sel_setTitle = objc.sel_registerName("setTitle:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(panel, sel_setTitle, ns_title);
+
+        // Run modal
+        const sel_runModal = objc.sel_registerName("runModal") orelse return error.SelectorNotFound;
+        const Fn = *const fn (objc.id, objc.SEL) callconv(.C) i64;
+        const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        const result = func(panel, sel_runModal);
+
+        if (result != 1) return null;
+
+        // Get URLs
+        const sel_URLs = objc.sel_registerName("URLs") orelse return error.SelectorNotFound;
+        const urls = objc.msgSendId(panel, sel_URLs);
+        if (urls == null) return null;
+
+        // Get count
+        const sel_count = objc.sel_registerName("count") orelse return error.SelectorNotFound;
+        const FnCount = *const fn (objc.id, objc.SEL) callconv(.C) u64;
+        const count_func: FnCount = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        const count = count_func(urls, sel_count);
+
+        if (count == 0) return null;
+
+        // Allocate result array
+        var paths = try allocator.alloc([]const u8, count);
+        const sel_objectAtIndex = objc.sel_registerName("objectAtIndex:") orelse return error.SelectorNotFound;
+        const sel_path = objc.sel_registerName("path") orelse return error.SelectorNotFound;
+
+        var i: u64 = 0;
+        while (i < count) : (i += 1) {
+            const FnObj = *const fn (objc.id, objc.SEL, u64) callconv(.C) objc.id;
+            const obj_func: FnObj = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+            const url = obj_func(urls, sel_objectAtIndex, i);
+
+            const ns_path = objc.msgSendId(url, sel_path);
+            const utf8_ptr = objc.getNSStringUTF8(ns_path) orelse continue;
+
+            const len = std.mem.len(utf8_ptr);
+            const path = try allocator.alloc(u8, len);
+            @memcpy(path, utf8_ptr[0..len]);
+            paths[i] = path;
+        }
+
+        return paths;
     }
 
     fn saveMacOSFileDialog(options: FileDialog) !?[]const u8 {
-        _ = options;
-        // NSSavePanel
-        return null;
+        const objc = @import("objc_runtime.zig").objc;
+
+        // Create NSSavePanel
+        const NSSavePanelClass = objc.objc_getClass("NSSavePanel") orelse return error.ClassNotFound;
+        const sel_savePanel = objc.sel_registerName("savePanel") orelse return error.SelectorNotFound;
+        const panel = objc.msgSendId(NSSavePanelClass, sel_savePanel);
+
+        // Set title
+        const allocator = std.heap.page_allocator;
+        const ns_title = try objc.createNSString(options.title, allocator);
+        const sel_setTitle = objc.sel_registerName("setTitle:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(panel, sel_setTitle, ns_title);
+
+        // Allow creating directories
+        if (options.create_directories) {
+            const sel_setCanCreateDirectories = objc.sel_registerName("setCanCreateDirectories:") orelse return error.SelectorNotFound;
+            objc.msgSendVoid1(panel, sel_setCanCreateDirectories, @as(bool, true));
+        }
+
+        // Run modal
+        const sel_runModal = objc.sel_registerName("runModal") orelse return error.SelectorNotFound;
+        const Fn = *const fn (objc.id, objc.SEL) callconv(.C) i64;
+        const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        const result = func(panel, sel_runModal);
+
+        if (result != 1) return null;
+
+        // Get URL
+        const sel_URL = objc.sel_registerName("URL") orelse return error.SelectorNotFound;
+        const url = objc.msgSendId(panel, sel_URL);
+        if (url == null) return null;
+
+        // Get path
+        const sel_path = objc.sel_registerName("path") orelse return error.SelectorNotFound;
+        const ns_path = objc.msgSendId(url, sel_path);
+        if (ns_path == null) return null;
+
+        const utf8_ptr = objc.getNSStringUTF8(ns_path) orelse return null;
+        const len = std.mem.len(utf8_ptr);
+        const path = try allocator.alloc(u8, len);
+        @memcpy(path, utf8_ptr[0..len]);
+        return path;
     }
 
     fn selectMacOSDirectoryDialog(options: FileDialog) !?[]const u8 {
-        _ = options;
-        // NSOpenPanel with canChooseDirectories
-        return null;
+        const objc = @import("objc_runtime.zig").objc;
+
+        // Create NSOpenPanel
+        const NSOpenPanelClass = objc.objc_getClass("NSOpenPanel") orelse return error.ClassNotFound;
+        const sel_openPanel = objc.sel_registerName("openPanel") orelse return error.SelectorNotFound;
+        const panel = objc.msgSendId(NSOpenPanelClass, sel_openPanel);
+
+        // Configure for directory selection
+        const sel_setCanChooseFiles = objc.sel_registerName("setCanChooseFiles:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(panel, sel_setCanChooseFiles, @as(bool, false));
+
+        const sel_setCanChooseDirectories = objc.sel_registerName("setCanChooseDirectories:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(panel, sel_setCanChooseDirectories, @as(bool, true));
+
+        // Set title
+        const allocator = std.heap.page_allocator;
+        const ns_title = try objc.createNSString(options.title, allocator);
+        const sel_setTitle = objc.sel_registerName("setTitle:") orelse return error.SelectorNotFound;
+        objc.msgSendVoid1(panel, sel_setTitle, ns_title);
+
+        // Allow creating directories
+        if (options.create_directories) {
+            const sel_setCanCreateDirectories = objc.sel_registerName("setCanCreateDirectories:") orelse return error.SelectorNotFound;
+            objc.msgSendVoid1(panel, sel_setCanCreateDirectories, @as(bool, true));
+        }
+
+        // Run modal
+        const sel_runModal = objc.sel_registerName("runModal") orelse return error.SelectorNotFound;
+        const Fn = *const fn (objc.id, objc.SEL) callconv(.C) i64;
+        const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        const result = func(panel, sel_runModal);
+
+        if (result != 1) return null;
+
+        // Get URL
+        const sel_URL = objc.sel_registerName("URL") orelse return error.SelectorNotFound;
+        const url = objc.msgSendId(panel, sel_URL);
+        if (url == null) return null;
+
+        // Get path
+        const sel_path = objc.sel_registerName("path") orelse return error.SelectorNotFound;
+        const ns_path = objc.msgSendId(url, sel_path);
+        if (ns_path == null) return null;
+
+        const utf8_ptr = objc.getNSStringUTF8(ns_path) orelse return null;
+        const len = std.mem.len(utf8_ptr);
+        const path = try allocator.alloc(u8, len);
+        @memcpy(path, utf8_ptr[0..len]);
+        return path;
     }
 
     fn openLinuxFileDialog(options: FileDialog) !?[]const u8 {

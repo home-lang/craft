@@ -485,119 +485,131 @@ test "memory inspector" {
     try std.testing.expect(snapshots[0].live_allocations == 1);
 }
 
-/// Unified DevTools Manager
-pub const DevTools = struct {
-    config: DevToolsConfig,
-    cdp: ?CDP = null,
-    network_inspector: NetworkInspector,
-    memory_inspector: MemoryInspector,
-    profiler: Profiler,
+// DevTools unified interface is provided by the DevTools struct above
+// Additional helper functions for DevTools integration
+
+/// Console message types for browser console inspection
+pub const ConsoleMessageType = enum {
+    log,
+    warn,
+    err,
+    info,
+    debug,
+    trace,
+};
+
+/// Console message for inspection
+pub const ConsoleMessage = struct {
+    message_type: ConsoleMessageType,
+    text: []const u8,
+    timestamp: i64,
+    stack_trace: ?[]const u8 = null,
+    source_url: ?[]const u8 = null,
+    line_number: ?u32 = null,
+    column_number: ?u32 = null,
+};
+
+/// Console inspector for capturing browser console output
+pub const ConsoleInspector = struct {
+    messages: std.ArrayList(ConsoleMessage),
     allocator: std.mem.Allocator,
-    running: bool = false,
+    enabled: bool = true,
+    max_messages: usize = 1000,
 
-    const Self = @This();
-
-    pub fn init(allocator: std.mem.Allocator, config: DevToolsConfig) !Self {
-        var devtools = Self{
-            .config = config,
-            .network_inspector = NetworkInspector.init(allocator),
-            .memory_inspector = MemoryInspector.init(allocator),
-            .profiler = Profiler.init(allocator),
+    pub fn init(allocator: std.mem.Allocator) ConsoleInspector {
+        return ConsoleInspector{
+            .messages = std.ArrayList(ConsoleMessage).init(allocator),
             .allocator = allocator,
         };
+    }
 
-        if (config.enabled) {
-            devtools.cdp = CDP.init(allocator, config.port);
+    pub fn deinit(self: *ConsoleInspector) void {
+        self.messages.deinit();
+    }
+
+    pub fn recordMessage(self: *ConsoleInspector, message: ConsoleMessage) !void {
+        if (!self.enabled) return;
+
+        // Enforce max messages limit
+        if (self.messages.items.len >= self.max_messages) {
+            _ = self.messages.orderedRemove(0);
         }
 
-        return devtools;
+        try self.messages.append(message);
     }
 
-    pub fn deinit(self: *Self) void {
-        if (self.cdp) |*cdp| {
-            cdp.stop();
-        }
-        self.network_inspector.deinit();
-        self.memory_inspector.deinit();
-        self.profiler.deinit();
+    pub fn getMessages(self: *const ConsoleInspector) []const ConsoleMessage {
+        return self.messages.items;
     }
 
-    pub fn start(self: *Self) !void {
-        if (!self.config.enabled) return;
-
-        if (self.cdp) |*cdp| {
-            try cdp.start();
-        }
-
-        self.running = true;
-        std.debug.print("DevTools started on port {}\n", .{self.config.port});
+    pub fn clear(self: *ConsoleInspector) void {
+        self.messages.clearRetainingCapacity();
     }
+};
 
-    pub fn stop(self: *Self) void {
-        if (self.cdp) |*cdp| {
-            cdp.stop();
-        }
-        self.running = false;
-        std.debug.print("DevTools stopped\n", .{});
-    }
+/// Performance timeline entry
+pub const TimelineEntry = struct {
+    name: []const u8,
+    category: TimelineCategory,
+    start_time: i64,
+    duration: i64,
+    details: ?[]const u8 = null,
 
-    pub fn recordNetworkRequest(self: *Self, url: []const u8, method: []const u8) !u64 {
-        if (!self.config.enable_network_inspector) return 0;
-        return try self.network_inspector.recordRequest(url, method);
-    }
+    pub const TimelineCategory = enum {
+        loading,
+        scripting,
+        rendering,
+        painting,
+        system,
+        idle,
+    };
+};
 
-    pub fn recordNetworkResponse(self: *Self, id: u64, status: u16, size: usize) !void {
-        if (!self.config.enable_network_inspector) return;
-        try self.network_inspector.recordResponse(id, status, size);
-    }
+/// Performance timeline for detailed performance analysis
+pub const Timeline = struct {
+    entries: std.ArrayList(TimelineEntry),
+    allocator: std.mem.Allocator,
+    recording: bool = false,
+    start_time: i64 = 0,
 
-    pub fn recordMemoryAllocation(self: *Self, address: usize, size: usize) !void {
-        if (!self.config.enable_memory_inspector) return;
-        try self.memory_inspector.recordAllocation(address, size);
-    }
-
-    pub fn recordMemoryFree(self: *Self, address: usize) !void {
-        if (!self.config.enable_memory_inspector) return;
-        try self.memory_inspector.recordFree(address);
-    }
-
-    pub fn startProfiling(self: *Self, name: []const u8) !void {
-        if (!self.config.enable_profiling) return;
-        try self.profiler.startSession(name);
-    }
-
-    pub fn stopProfiling(self: *Self) !void {
-        if (!self.config.enable_profiling) return;
-        try self.profiler.endSession();
-    }
-
-    pub fn takeMemorySnapshot(self: *Self) !void {
-        if (!self.config.enable_memory_inspector) return;
-        try self.memory_inspector.takeSnapshot();
-    }
-
-    pub fn getNetworkStats(self: *const Self) struct {
-        total_requests: usize,
-        total_size: usize,
-    } {
-        return .{
-            .total_requests = self.network_inspector.getTotalRequests(),
-            .total_size = self.network_inspector.getTotalSize(),
+    pub fn init(allocator: std.mem.Allocator) Timeline {
+        return Timeline{
+            .entries = std.ArrayList(TimelineEntry).init(allocator),
+            .allocator = allocator,
         };
     }
 
-    pub fn getMemoryLeaks(self: *const Self) []const MemoryInspector.Allocation {
-        return self.memory_inspector.detectLeaks();
+    pub fn deinit(self: *Timeline) void {
+        self.entries.deinit();
     }
 
-    pub fn getPerformanceReport(self: *const Self) []const Profiler.ProfileSession {
-        return self.profiler.getSessions();
+    pub fn startRecording(self: *Timeline) void {
+        self.recording = true;
+        self.start_time = std.time.milliTimestamp();
+        self.entries.clearRetainingCapacity();
     }
 
-    pub fn clearAll(self: *Self) void {
-        self.network_inspector.clear();
-        self.memory_inspector.clear();
-        self.profiler.clear();
+    pub fn stopRecording(self: *Timeline) void {
+        self.recording = false;
+    }
+
+    pub fn recordEntry(self: *Timeline, entry: TimelineEntry) !void {
+        if (!self.recording) return;
+        try self.entries.append(entry);
+    }
+
+    pub fn getEntries(self: *const Timeline) []const TimelineEntry {
+        return self.entries.items;
+    }
+
+    pub fn getTotalDuration(self: *const Timeline) i64 {
+        if (self.start_time == 0) return 0;
+        return std.time.milliTimestamp() - self.start_time;
+    }
+
+    pub fn clear(self: *Timeline) void {
+        self.entries.clearRetainingCapacity();
+        self.start_time = 0;
     }
 };
 

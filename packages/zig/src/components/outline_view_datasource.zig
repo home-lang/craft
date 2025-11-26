@@ -59,45 +59,45 @@ pub const OutlineViewDataSource = struct {
             // Add required NSOutlineViewDataSource methods
             const outlineView_numberOfChildrenOfItem = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, macos.objc.id) callconv(.c) c_long,
-                @ptrCast(&outlineViewNumberOfChildrenOfItem),
+                @ptrCast(@constCast(&outlineViewNumberOfChildrenOfItem)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("outlineView:numberOfChildrenOfItem:"),
-                @ptrCast(outlineView_numberOfChildrenOfItem),
+                @ptrCast(@constCast(outlineView_numberOfChildrenOfItem)),
                 "l@:@@", // returns long, takes self, _cmd, outlineView, item
             );
 
             const outlineView_child_ofItem = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, c_long, macos.objc.id) callconv(.c) macos.objc.id,
-                @ptrCast(&outlineViewChildOfItem),
+                @ptrCast(@constCast(&outlineViewChildOfItem)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("outlineView:child:ofItem:"),
-                @ptrCast(outlineView_child_ofItem),
+                @ptrCast(@constCast(outlineView_child_ofItem)),
                 "@@:@l@", // returns id, takes self, _cmd, outlineView, index, item
             );
 
             const outlineView_isItemExpandable = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, macos.objc.id) callconv(.c) c_int,
-                @ptrCast(&outlineViewIsItemExpandable),
+                @ptrCast(@constCast(&outlineViewIsItemExpandable)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("outlineView:isItemExpandable:"),
-                @ptrCast(outlineView_isItemExpandable),
+                @ptrCast(@constCast(outlineView_isItemExpandable)),
                 "c@:@@", // returns BOOL (char), takes self, _cmd, outlineView, item
             );
 
             const outlineView_objectValueForTableColumn_byItem = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, macos.objc.id, macos.objc.id) callconv(.c) macos.objc.id,
-                @ptrCast(&outlineViewObjectValueForTableColumnByItem),
+                @ptrCast(@constCast(&outlineViewObjectValueForTableColumnByItem)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("outlineView:objectValueForTableColumn:byItem:"),
-                @ptrCast(outlineView_objectValueForTableColumn_byItem),
+                @ptrCast(@constCast(outlineView_objectValueForTableColumn_byItem)),
                 "@@:@@@", // returns id, takes self, _cmd, outlineView, column, item
             );
 

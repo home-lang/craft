@@ -33,48 +33,48 @@ pub const TableViewDelegate = struct {
             // Add tableView:viewForTableColumn:row:
             const viewForTableColumnRow = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, macos.objc.id, c_long) callconv(.c) macos.objc.id,
-                @ptrCast(&tableViewViewForTableColumnRow),
+                @ptrCast(@constCast(&tableViewViewForTableColumnRow)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("tableView:viewForTableColumn:row:"),
-                @ptrCast(viewForTableColumnRow),
+                @ptrCast(@constCast(viewForTableColumnRow)),
                 "@@:@@l",
             );
 
             // Add tableView:shouldSelectRow:
             const shouldSelectRow = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, c_long) callconv(.c) c_int,
-                @ptrCast(&tableViewShouldSelectRow),
+                @ptrCast(@constCast(&tableViewShouldSelectRow)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("tableView:shouldSelectRow:"),
-                @ptrCast(shouldSelectRow),
+                @ptrCast(@constCast(shouldSelectRow)),
                 "c@:@l",
             );
 
             // Add tableViewSelectionDidChange:
             const selectionDidChange = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id) callconv(.c) void,
-                @ptrCast(&tableViewSelectionDidChange),
+                @ptrCast(@constCast(&tableViewSelectionDidChange)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("tableViewSelectionDidChange:"),
-                @ptrCast(selectionDidChange),
+                @ptrCast(@constCast(selectionDidChange)),
                 "v@:@",
             );
 
             // Add tableView:heightOfRow:
             const heightOfRow = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, c_long) callconv(.c) f64,
-                @ptrCast(&tableViewHeightOfRow),
+                @ptrCast(@constCast(&tableViewHeightOfRow)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("tableView:heightOfRow:"),
-                @ptrCast(heightOfRow),
+                @ptrCast(@constCast(heightOfRow)),
                 "d@:@l",
             );
 

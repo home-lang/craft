@@ -32,60 +32,60 @@ pub const OutlineViewDelegate = struct {
             // Add outlineView:viewForTableColumn:item: for view-based rendering
             const viewForTableColumn = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, macos.objc.id, macos.objc.id) callconv(.c) macos.objc.id,
-                @ptrCast(&outlineViewViewForTableColumnItem),
+                @ptrCast(@constCast(&outlineViewViewForTableColumnItem)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("outlineView:viewForTableColumn:item:"),
-                @ptrCast(viewForTableColumn),
+                @ptrCast(@constCast(viewForTableColumn)),
                 "@@:@@@",
             );
 
             // Add outlineView:shouldSelectItem:
             const shouldSelectItem = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, macos.objc.id) callconv(.c) c_int,
-                @ptrCast(&outlineViewShouldSelectItem),
+                @ptrCast(@constCast(&outlineViewShouldSelectItem)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("outlineView:shouldSelectItem:"),
-                @ptrCast(shouldSelectItem),
+                @ptrCast(@constCast(shouldSelectItem)),
                 "c@:@@",
             );
 
             // Add outlineViewSelectionDidChange:
             const selectionDidChange = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id) callconv(.c) void,
-                @ptrCast(&outlineViewSelectionDidChange),
+                @ptrCast(@constCast(&outlineViewSelectionDidChange)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("outlineViewSelectionDidChange:"),
-                @ptrCast(selectionDidChange),
+                @ptrCast(@constCast(selectionDidChange)),
                 "v@:@",
             );
 
             // Add outlineView:heightOfRowByItem:
             const heightOfRowByItem = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, macos.objc.id) callconv(.c) f64,
-                @ptrCast(&outlineViewHeightOfRowByItem),
+                @ptrCast(@constCast(&outlineViewHeightOfRowByItem)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("outlineView:heightOfRowByItem:"),
-                @ptrCast(heightOfRowByItem),
+                @ptrCast(@constCast(heightOfRowByItem)),
                 "d@:@@",
             );
 
             // Add outlineView:isGroupItem: - CRITICAL for source list headers
             const isGroupItem = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, macos.objc.id) callconv(.c) c_int,
-                @ptrCast(&outlineViewIsGroupItem),
+                @ptrCast(@constCast(&outlineViewIsGroupItem)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("outlineView:isGroupItem:"),
-                @ptrCast(isGroupItem),
+                @ptrCast(@constCast(isGroupItem)),
                 "c@:@@",
             );
 

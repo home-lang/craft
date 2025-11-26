@@ -496,10 +496,144 @@ pub const iOS = struct {
         reminders,
     };
 
+    /// Check current permission status
+    pub fn checkPermissionStatus(permission: Permission) !PermissionStatus {
+        if (!@import("builtin").target.isDarwin()) {
+            return error.UnsupportedPlatform;
+        }
+
+        switch (permission) {
+            .camera, .microphone => {
+                const AVCaptureDeviceClass = objc.objc_getClass("AVCaptureDevice") orelse return error.ClassNotFound;
+                const sel_authorizationStatus = objc.sel_registerName("authorizationStatusForMediaType:") orelse return error.SelectorNotFound;
+
+                // AVMediaTypeVideo or AVMediaTypeAudio
+                const mediaType = if (permission == .camera) "vide" else "soun";
+                const mediaTypeStr = objc.objc_getClass("AVMediaTypeVideo") orelse {
+                    // Fallback - create NSString for media type
+                    const allocator = std.heap.page_allocator;
+                    const ns_media = try objc.createNSString(mediaType, allocator);
+                    const Fn = *const fn (objc.Class, objc.SEL, objc.id) callconv(.C) i64;
+                    const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                    const status = func(AVCaptureDeviceClass, sel_authorizationStatus, ns_media);
+                    return statusFromAVAuthorizationStatus(status);
+                };
+
+                const Fn = *const fn (objc.Class, objc.SEL, objc.id) callconv(.C) i64;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                const status = func(AVCaptureDeviceClass, sel_authorizationStatus, mediaTypeStr);
+                return statusFromAVAuthorizationStatus(status);
+            },
+            .location => {
+                const CLLocationManagerClass = objc.objc_getClass("CLLocationManager") orelse return error.ClassNotFound;
+                const sel_authorizationStatus = objc.sel_registerName("authorizationStatus") orelse return error.SelectorNotFound;
+
+                const Fn = *const fn (objc.Class, objc.SEL) callconv(.C) i32;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                const status = func(CLLocationManagerClass, sel_authorizationStatus);
+                return statusFromCLAuthorizationStatus(status);
+            },
+            .photos => {
+                const PHPhotoLibraryClass = objc.objc_getClass("PHPhotoLibrary") orelse return error.ClassNotFound;
+                const sel_authorizationStatus = objc.sel_registerName("authorizationStatus") orelse return error.SelectorNotFound;
+
+                const Fn = *const fn (objc.Class, objc.SEL) callconv(.C) i64;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                const status = func(PHPhotoLibraryClass, sel_authorizationStatus);
+                return statusFromPHAuthorizationStatus(status);
+            },
+            .notifications => {
+                // Notifications require async check - return unknown for sync check
+                return .not_determined;
+            },
+            .contacts => {
+                const CNContactStoreClass = objc.objc_getClass("CNContactStore") orelse return error.ClassNotFound;
+                const sel_authorizationStatus = objc.sel_registerName("authorizationStatusForEntityType:") orelse return error.SelectorNotFound;
+
+                const Fn = *const fn (objc.Class, objc.SEL, i64) callconv(.C) i64;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                const status = func(CNContactStoreClass, sel_authorizationStatus, 0); // CNEntityTypeContacts = 0
+                return statusFromCNAuthorizationStatus(status);
+            },
+            .calendar, .reminders => {
+                const EKEventStoreClass = objc.objc_getClass("EKEventStore") orelse return error.ClassNotFound;
+                const sel_authorizationStatus = objc.sel_registerName("authorizationStatusForEntityType:") orelse return error.SelectorNotFound;
+
+                const entity_type: i64 = if (permission == .calendar) 0 else 1; // EKEntityTypeEvent = 0, EKEntityTypeReminder = 1
+                const Fn = *const fn (objc.Class, objc.SEL, i64) callconv(.C) i64;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                const status = func(EKEventStoreClass, sel_authorizationStatus, entity_type);
+                return statusFromEKAuthorizationStatus(status);
+            },
+        }
+    }
+
+    pub const PermissionStatus = enum {
+        not_determined,
+        restricted,
+        denied,
+        authorized,
+        limited, // For photos
+    };
+
+    fn statusFromAVAuthorizationStatus(status: i64) PermissionStatus {
+        return switch (status) {
+            0 => .not_determined, // AVAuthorizationStatusNotDetermined
+            1 => .restricted, // AVAuthorizationStatusRestricted
+            2 => .denied, // AVAuthorizationStatusDenied
+            3 => .authorized, // AVAuthorizationStatusAuthorized
+            else => .not_determined,
+        };
+    }
+
+    fn statusFromCLAuthorizationStatus(status: i32) PermissionStatus {
+        return switch (status) {
+            0 => .not_determined, // kCLAuthorizationStatusNotDetermined
+            1 => .restricted, // kCLAuthorizationStatusRestricted
+            2 => .denied, // kCLAuthorizationStatusDenied
+            3, 4 => .authorized, // kCLAuthorizationStatusAuthorizedAlways/WhenInUse
+            else => .not_determined,
+        };
+    }
+
+    fn statusFromPHAuthorizationStatus(status: i64) PermissionStatus {
+        return switch (status) {
+            0 => .not_determined,
+            1 => .restricted,
+            2 => .denied,
+            3 => .authorized,
+            4 => .limited, // PHAuthorizationStatusLimited (iOS 14+)
+            else => .not_determined,
+        };
+    }
+
+    fn statusFromCNAuthorizationStatus(status: i64) PermissionStatus {
+        return switch (status) {
+            0 => .not_determined,
+            1 => .restricted,
+            2 => .denied,
+            3 => .authorized,
+            else => .not_determined,
+        };
+    }
+
+    fn statusFromEKAuthorizationStatus(status: i64) PermissionStatus {
+        return switch (status) {
+            0 => .not_determined,
+            1 => .restricted,
+            2 => .denied,
+            3 => .authorized,
+            else => .not_determined,
+        };
+    }
+
     pub fn requestPermission(permission: Permission, callback: *const fn (bool) void) !void {
         if (!@import("builtin").target.isDarwin()) {
             return error.UnsupportedPlatform;
         }
+
+        // Store callback for later invocation (would need proper callback management)
+        _ = callback;
 
         // Different permission types require different iOS APIs
         switch (permission) {
@@ -507,44 +641,77 @@ pub const iOS = struct {
                 const AVCaptureDeviceClass = objc.objc_getClass("AVCaptureDevice") orelse return error.ClassNotFound;
                 const sel_requestAccessForMediaType = objc.sel_registerName("requestAccessForMediaType:completionHandler:") orelse return error.SelectorNotFound;
 
-                // Note: Full implementation would properly wrap the completion handler
-                _ = AVCaptureDeviceClass;
-                _ = sel_requestAccessForMediaType;
-                _ = callback;
+                // Create media type string
+                const allocator = std.heap.page_allocator;
+                const mediaType = if (permission == .camera) "vide" else "soun";
+                const ns_media = try objc.createNSString(mediaType, allocator);
+
+                // Request access (completion handler would need block creation)
+                const Fn = *const fn (objc.Class, objc.SEL, objc.id, ?*anyopaque) callconv(.C) void;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                func(AVCaptureDeviceClass, sel_requestAccessForMediaType, ns_media, null);
             },
             .location => {
                 const CLLocationManagerClass = objc.objc_getClass("CLLocationManager") orelse return error.ClassNotFound;
+                const sel_alloc = objc.sel_registerName("alloc") orelse return error.SelectorNotFound;
+                const sel_init = objc.sel_registerName("init") orelse return error.SelectorNotFound;
                 const sel_requestWhenInUseAuthorization = objc.sel_registerName("requestWhenInUseAuthorization") orelse return error.SelectorNotFound;
 
-                _ = CLLocationManagerClass;
-                _ = sel_requestWhenInUseAuthorization;
-                _ = callback;
+                // Create location manager and request authorization
+                const allocated = objc.msgSendId(CLLocationManagerClass, sel_alloc);
+                const manager = objc.msgSendId(allocated, sel_init);
+                objc.msgSend(manager, sel_requestWhenInUseAuthorization);
             },
             .photos => {
                 const PHPhotoLibraryClass = objc.objc_getClass("PHPhotoLibrary") orelse return error.ClassNotFound;
                 const sel_requestAuthorization = objc.sel_registerName("requestAuthorization:") orelse return error.SelectorNotFound;
 
-                _ = PHPhotoLibraryClass;
-                _ = sel_requestAuthorization;
-                _ = callback;
+                // Request photo library access (completion handler would need block creation)
+                const Fn = *const fn (objc.Class, objc.SEL, ?*anyopaque) callconv(.C) void;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                func(PHPhotoLibraryClass, sel_requestAuthorization, null);
             },
             .notifications => {
                 const UNUserNotificationCenterClass = objc.objc_getClass("UNUserNotificationCenter") orelse return error.ClassNotFound;
                 const sel_currentNotificationCenter = objc.sel_registerName("currentNotificationCenter") orelse return error.SelectorNotFound;
                 const sel_requestAuthorizationWithOptions = objc.sel_registerName("requestAuthorizationWithOptions:completionHandler:") orelse return error.SelectorNotFound;
 
-                _ = UNUserNotificationCenterClass;
-                _ = sel_currentNotificationCenter;
-                _ = sel_requestAuthorizationWithOptions;
-                _ = callback;
+                // Get notification center
+                const center = objc.msgSendId(UNUserNotificationCenterClass, sel_currentNotificationCenter);
+
+                // Request authorization with alert, badge, sound (7 = alert | badge | sound)
+                const Fn = *const fn (objc.id, objc.SEL, u64, ?*anyopaque) callconv(.C) void;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                func(center, sel_requestAuthorizationWithOptions, 7, null);
             },
-            .contacts, .calendar, .reminders => {
+            .contacts => {
                 const CNContactStoreClass = objc.objc_getClass("CNContactStore") orelse return error.ClassNotFound;
+                const sel_alloc = objc.sel_registerName("alloc") orelse return error.SelectorNotFound;
+                const sel_init = objc.sel_registerName("init") orelse return error.SelectorNotFound;
                 const sel_requestAccessForEntityType = objc.sel_registerName("requestAccessForEntityType:completionHandler:") orelse return error.SelectorNotFound;
 
-                _ = CNContactStoreClass;
-                _ = sel_requestAccessForEntityType;
-                _ = callback;
+                // Create contact store and request access
+                const allocated = objc.msgSendId(CNContactStoreClass, sel_alloc);
+                const store = objc.msgSendId(allocated, sel_init);
+
+                const Fn = *const fn (objc.id, objc.SEL, i64, ?*anyopaque) callconv(.C) void;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                func(store, sel_requestAccessForEntityType, 0, null); // CNEntityTypeContacts = 0
+            },
+            .calendar, .reminders => {
+                const EKEventStoreClass = objc.objc_getClass("EKEventStore") orelse return error.ClassNotFound;
+                const sel_alloc = objc.sel_registerName("alloc") orelse return error.SelectorNotFound;
+                const sel_init = objc.sel_registerName("init") orelse return error.SelectorNotFound;
+                const sel_requestAccessToEntityType = objc.sel_registerName("requestAccessToEntityType:completion:") orelse return error.SelectorNotFound;
+
+                // Create event store and request access
+                const allocated = objc.msgSendId(EKEventStoreClass, sel_alloc);
+                const store = objc.msgSendId(allocated, sel_init);
+
+                const entity_type: i64 = if (permission == .calendar) 0 else 1;
+                const Fn = *const fn (objc.id, objc.SEL, i64, ?*anyopaque) callconv(.C) void;
+                const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+                func(store, sel_requestAccessToEntityType, entity_type, null);
             },
         }
     }

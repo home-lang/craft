@@ -161,11 +161,54 @@ pub const MobileReloadConfig = struct {
     platform: enum { ios, android, both } = .both,
 };
 
+/// WebSocket client connection
+pub const WebSocketClient = struct {
+    stream: std.net.Stream,
+    platform: []const u8,
+    connected_at: i64,
+    id: u64,
+
+    pub fn send(self: *WebSocketClient, message: []const u8) !void {
+        // WebSocket frame format (text frame, no mask)
+        var frame: [10]u8 = undefined;
+        var frame_len: usize = 2;
+
+        frame[0] = 0x81; // FIN + text opcode
+
+        if (message.len < 126) {
+            frame[1] = @intCast(message.len);
+        } else if (message.len < 65536) {
+            frame[1] = 126;
+            frame[2] = @intCast((message.len >> 8) & 0xFF);
+            frame[3] = @intCast(message.len & 0xFF);
+            frame_len = 4;
+        } else {
+            frame[1] = 127;
+            var i: usize = 0;
+            while (i < 8) : (i += 1) {
+                frame[2 + i] = @intCast((message.len >> @intCast((7 - i) * 8)) & 0xFF);
+            }
+            frame_len = 10;
+        }
+
+        _ = try self.stream.write(frame[0..frame_len]);
+        _ = try self.stream.write(message);
+    }
+
+    pub fn close(self: *WebSocketClient) void {
+        self.stream.close();
+    }
+};
+
 /// WebSocket server for hot reload
 pub const ReloadServer = struct {
     allocator: std.mem.Allocator,
     config: MobileReloadConfig,
     running: bool = false,
+    server: ?std.net.Server = null,
+    clients: std.ArrayList(*WebSocketClient),
+    next_client_id: u64 = 1,
+    accept_thread: ?std.Thread = null,
 
     const Self = @This();
 
@@ -173,29 +216,161 @@ pub const ReloadServer = struct {
         return .{
             .allocator = allocator,
             .config = config,
+            .clients = std.ArrayList(*WebSocketClient).init(allocator),
         };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.stop();
+        // Close all client connections
+        for (self.clients.items) |client| {
+            client.close();
+            self.allocator.destroy(client);
+        }
+        self.clients.deinit();
     }
 
     pub fn start(self: *Self) !void {
         self.running = true;
-        log.info("Hot reload server starting on {s}:{d}", .{ self.config.host, self.config.port });
-        // TODO: Implement WebSocket server using std.net
+
+        // Parse address
+        const address = try std.net.Address.parseIp(self.config.host, self.config.port);
+
+        // Create server
+        self.server = try address.listen(.{
+            .reuse_address = true,
+        });
+
+        log.info("Hot reload server started on {s}:{d}", .{ self.config.host, self.config.port });
+
+        // Start accept thread
+        self.accept_thread = try std.Thread.spawn(.{}, acceptLoop, .{self});
+    }
+
+    fn acceptLoop(self: *Self) void {
+        while (self.running) {
+            if (self.server) |*server| {
+                const connection = server.accept() catch |err| {
+                    if (self.running) {
+                        log.warn("Accept error: {}", .{err});
+                    }
+                    continue;
+                };
+
+                // Handle WebSocket handshake
+                self.handleConnection(connection.stream) catch |err| {
+                    log.warn("Connection handling error: {}", .{err});
+                    connection.stream.close();
+                };
+            }
+        }
+    }
+
+    fn handleConnection(self: *Self, stream: std.net.Stream) !void {
+        // Read HTTP upgrade request
+        var buf: [4096]u8 = undefined;
+        const bytes_read = try stream.read(&buf);
+        if (bytes_read == 0) return error.ConnectionClosed;
+
+        const request = buf[0..bytes_read];
+
+        // Extract Sec-WebSocket-Key
+        const key_header = "Sec-WebSocket-Key: ";
+        const key_start = std.mem.indexOf(u8, request, key_header) orelse return error.InvalidWebSocketRequest;
+        const key_end = std.mem.indexOfPos(u8, request, key_start + key_header.len, "\r\n") orelse return error.InvalidWebSocketRequest;
+        const ws_key = request[key_start + key_header.len .. key_end];
+
+        // Generate accept key
+        const magic = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+        var hasher = std.crypto.hash.Sha1.init(.{});
+        hasher.update(ws_key);
+        hasher.update(magic);
+        const hash = hasher.finalResult();
+
+        const accept_key = std.base64.standard.Encoder.encode(&[_]u8{0} ** 28, &hash);
+
+        // Send WebSocket handshake response
+        const response = std.fmt.allocPrint(self.allocator,
+            \\HTTP/1.1 101 Switching Protocols\r
+            \\Upgrade: websocket\r
+            \\Connection: Upgrade\r
+            \\Sec-WebSocket-Accept: {s}\r
+            \\\r
+            \\
+        , .{accept_key}) catch return error.OutOfMemory;
+        defer self.allocator.free(response);
+
+        _ = try stream.write(response);
+
+        // Create client
+        const client = try self.allocator.create(WebSocketClient);
+        client.* = .{
+            .stream = stream,
+            .platform = "unknown",
+            .connected_at = std.time.timestamp(),
+            .id = self.next_client_id,
+        };
+        self.next_client_id += 1;
+
+        try self.clients.append(client);
+        log.info("WebSocket client connected (id: {d})", .{client.id});
     }
 
     pub fn stop(self: *Self) void {
         self.running = false;
+
+        // Close server
+        if (self.server) |*server| {
+            server.deinit();
+            self.server = null;
+        }
+
+        // Wait for accept thread
+        if (self.accept_thread) |thread| {
+            thread.join();
+            self.accept_thread = null;
+        }
+
         log.info("Hot reload server stopped", .{});
     }
 
     pub fn broadcast(self: *Self, message: []const u8) !void {
-        _ = self;
-        _ = message;
-        // TODO: Broadcast to all connected WebSocket clients
+        if (!self.running) return;
+
+        var disconnected = std.ArrayList(usize).init(self.allocator);
+        defer disconnected.deinit();
+
+        // Send to all clients
+        for (self.clients.items, 0..) |client, i| {
+            client.send(message) catch |err| {
+                log.warn("Failed to send to client {d}: {}", .{ client.id, err });
+                try disconnected.append(i);
+            };
+        }
+
+        // Remove disconnected clients (in reverse order)
+        var i = disconnected.items.len;
+        while (i > 0) {
+            i -= 1;
+            const idx = disconnected.items[i];
+            const client = self.clients.orderedRemove(idx);
+            client.close();
+            self.allocator.destroy(client);
+        }
     }
 
     pub fn triggerReload(self: *Self) !void {
         try self.broadcast("reload");
-        log.info("Reload triggered for all connected clients", .{});
+        log.info("Reload triggered for {d} connected clients", .{self.clients.items.len});
+    }
+
+    pub fn triggerCSSReload(self: *Self) !void {
+        try self.broadcast("css-reload");
+        log.info("CSS reload triggered for {d} connected clients", .{self.clients.items.len});
+    }
+
+    pub fn getClientCount(self: *const Self) usize {
+        return self.clients.items.len;
     }
 };
 

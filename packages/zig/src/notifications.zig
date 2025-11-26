@@ -69,10 +69,22 @@ pub const Notifications = struct {
 // macOS Implementation
 // ============================================================================
 
-const objc = if (builtin.os.tag == .macos) @cImport({
-    @cInclude("objc/message.h");
-    @cInclude("objc/runtime.h");
-}) else struct {};
+// Objective-C runtime types (manual declarations for Zig 0.16+ compatibility)
+const objc = if (builtin.os.tag == .macos) struct {
+    pub const id = ?*anyopaque;
+    pub const Class = ?*anyopaque;
+    pub const SEL = ?*anyopaque;
+    pub const IMP = ?*anyopaque;
+    pub const BOOL = bool;
+
+    pub extern "objc" fn objc_getClass(name: [*:0]const u8) Class;
+    pub extern "objc" fn sel_registerName(name: [*:0]const u8) SEL;
+    pub extern "objc" fn objc_msgSend() void;
+} else struct {
+    pub const id = *anyopaque;
+    pub const Class = *anyopaque;
+    pub const SEL = *anyopaque;
+};
 
 fn macOSSend(self: *Notifications, options: Notifications.NotificationOptions) !void {
     if (builtin.os.tag != .macos) return error.PlatformNotSupported;

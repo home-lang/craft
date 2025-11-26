@@ -5,10 +5,25 @@ const builtin = @import("builtin");
 /// Handles creation and management of context menus for system tray icons
 /// Supports macOS, Windows, and Linux platforms
 
-const objc = if (builtin.target.os.tag == .macos) @cImport({
-    @cInclude("objc/message.h");
-    @cInclude("objc/runtime.h");
-}) else struct {};
+// Objective-C runtime types (manual declarations for Zig 0.16+ compatibility)
+const objc = if (builtin.target.os.tag == .macos) struct {
+    pub const id = ?*anyopaque;
+    pub const Class = ?*anyopaque;
+    pub const SEL = ?*anyopaque;
+    pub const IMP = ?*anyopaque;
+    pub const BOOL = bool;
+
+    pub extern "objc" fn objc_getClass(name: [*:0]const u8) Class;
+    pub extern "objc" fn sel_registerName(name: [*:0]const u8) SEL;
+    pub extern "objc" fn objc_msgSend() void;
+    pub extern "objc" fn objc_allocateClassPair(superclass: Class, name: [*:0]const u8, extraBytes: usize) Class;
+    pub extern "objc" fn objc_registerClassPair(cls: Class) void;
+    pub extern "objc" fn class_addMethod(cls: Class, name: SEL, imp: IMP, types: [*:0]const u8) BOOL;
+} else struct {
+    pub const id = *anyopaque;
+    pub const Class = *anyopaque;
+    pub const SEL = *anyopaque;
+};
 
 // Helper functions for Objective-C message sending
 fn getClass(name: [*:0]const u8) if (builtin.target.os.tag == .macos) objc.id else *anyopaque {
@@ -331,7 +346,7 @@ fn addMenuItem(menu: objc.id, item: MenuItemConfig) !void {
         // This is a bit of a hack - we're adding a method at runtime
         const NSObject = getClass("NSObject");
         const method_sel = objc.sel_registerName("menuAction:");
-        const method_imp: objc.IMP = @ptrCast(&menuActionCallback);
+        const method_imp: objc.IMP = @ptrCast(@constCast(&menuActionCallback));
         const method_types: [*c]const u8 = "v@:@";
         const method_added = objc.class_addMethod(
             @ptrCast(@alignCast(NSObject)),

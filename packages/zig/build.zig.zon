@@ -1,5 +1,6 @@
 .{
-    .name = "craft",
+    .fingerprint = 0xf45c4a848bf58c1c,
+    .name = .craft,
     .version = "1.3.0",
     .minimum_zig_version = "0.15.0",
     .dependencies = .{

@@ -527,8 +527,68 @@ async function createDEB(opts: {
   maintainer: string
   dependencies: string[]
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
-  // DEB creation logic (similar to package-linux.sh but in TypeScript)
-  return { success: false, error: 'DEB creation not yet implemented in TS API' }
+  return new Promise((resolve) => {
+    const { mkdtempSync, rmSync, copyFileSync, chmodSync } = require('fs')
+    const { tmpdir } = require('os')
+
+    try {
+      // Create DEB package structure
+      const tempDir = mkdtempSync(join(tmpdir(), 'craft-deb-'))
+      const debianDir = join(tempDir, 'DEBIAN')
+      const binDir = join(tempDir, 'usr', 'bin')
+      const applicationsDir = join(tempDir, 'usr', 'share', 'applications')
+
+      mkdirSync(debianDir, { recursive: true })
+      mkdirSync(binDir, { recursive: true })
+      mkdirSync(applicationsDir, { recursive: true })
+
+      // Copy binary
+      const binaryName = opts.name.toLowerCase()
+      copyFileSync(opts.binaryPath, join(binDir, binaryName))
+      chmodSync(join(binDir, binaryName), 0o755)
+
+      // Create control file
+      const controlContent = `Package: ${opts.name.toLowerCase()}
+Version: ${opts.version}
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: ${opts.dependencies.join(', ')}
+Maintainer: ${opts.maintainer}
+Description: ${opts.description || opts.name}
+`
+      writeFileSync(join(debianDir, 'control'), controlContent)
+
+      // Create .desktop file
+      const desktopContent = `[Desktop Entry]
+Type=Application
+Name=${opts.name}
+Exec=/usr/bin/${binaryName}
+Terminal=false
+Categories=Utility;
+`
+      writeFileSync(join(applicationsDir, `${binaryName}.desktop`), desktopContent)
+
+      // Build DEB using dpkg-deb
+      const proc = spawn('dpkg-deb', ['--build', tempDir, opts.outputPath])
+
+      proc.on('close', (code) => {
+        rmSync(tempDir, { recursive: true, force: true })
+        if (code === 0) {
+          resolve({ success: true, outputPath: opts.outputPath })
+        } else {
+          resolve({ success: false, error: `dpkg-deb exited with code ${code}` })
+        }
+      })
+
+      proc.on('error', (err) => {
+        rmSync(tempDir, { recursive: true, force: true })
+        resolve({ success: false, error: err.message })
+      })
+    } catch (error) {
+      resolve({ success: false, error: (error as Error).message })
+    }
+  })
 }
 
 /**
@@ -542,7 +602,74 @@ async function createRPM(opts: {
   description: string
   requires: string[]
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
-  return { success: false, error: 'RPM creation not yet implemented in TS API' }
+  return new Promise((resolve) => {
+    const { mkdtempSync, rmSync, copyFileSync, chmodSync } = require('fs')
+    const { tmpdir, homedir } = require('os')
+
+    try {
+      // Create RPM build structure
+      const buildRoot = join(homedir(), 'rpmbuild')
+      const specDir = join(buildRoot, 'SPECS')
+      const sourcesDir = join(buildRoot, 'SOURCES')
+      const buildDir = join(buildRoot, 'BUILD')
+      const rpmsDir = join(buildRoot, 'RPMS')
+
+      mkdirSync(specDir, { recursive: true })
+      mkdirSync(sourcesDir, { recursive: true })
+      mkdirSync(buildDir, { recursive: true })
+      mkdirSync(rpmsDir, { recursive: true })
+
+      // Copy binary to sources
+      copyFileSync(opts.binaryPath, join(sourcesDir, opts.name.toLowerCase()))
+
+      // Create spec file
+      const specContent = `Name: ${opts.name.toLowerCase()}
+Version: ${opts.version}
+Release: 1%{?dist}
+Summary: ${opts.description || opts.name}
+License: MIT
+Requires: ${opts.requires.join(', ')}
+
+%description
+${opts.description || opts.name}
+
+%install
+mkdir -p %{buildroot}/usr/bin
+install -m 755 %{SOURCE0} %{buildroot}/usr/bin/${opts.name.toLowerCase()}
+
+%files
+/usr/bin/${opts.name.toLowerCase()}
+`
+      const specPath = join(specDir, `${opts.name.toLowerCase()}.spec`)
+      writeFileSync(specPath, specContent)
+
+      // Build RPM
+      const proc = spawn('rpmbuild', ['-bb', specPath])
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          // Find the built RPM and move it
+          const rpmName = `${opts.name.toLowerCase()}-${opts.version}-1.x86_64.rpm`
+          const builtRpmPath = join(rpmsDir, 'x86_64', rpmName)
+          const { copyFileSync: copy } = require('fs')
+          try {
+            copy(builtRpmPath, opts.outputPath)
+            resolve({ success: true, outputPath: opts.outputPath })
+          } catch {
+            resolve({ success: false, error: 'Failed to copy built RPM' })
+          }
+        } else {
+          resolve({ success: false, error: `rpmbuild exited with code ${code}` })
+        }
+      })
+
+      proc.on('error', (err) => {
+        resolve({ success: false, error: err.message })
+      })
+    } catch (error) {
+      resolve({ success: false, error: (error as Error).message })
+    }
+  })
 }
 
 /**
@@ -555,7 +682,85 @@ async function createAppImage(opts: {
   outputPath: string
   iconPath?: string
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
-  return { success: false, error: 'AppImage creation not yet implemented in TS API' }
+  return new Promise((resolve) => {
+    const { mkdtempSync, rmSync, copyFileSync, chmodSync } = require('fs')
+    const { tmpdir } = require('os')
+
+    try {
+      // Create AppDir structure
+      const appDir = mkdtempSync(join(tmpdir(), 'craft-appimage-'))
+      const appDirPath = join(appDir, `${opts.name}.AppDir`)
+      const binDir = join(appDirPath, 'usr', 'bin')
+      const shareDir = join(appDirPath, 'usr', 'share')
+
+      mkdirSync(binDir, { recursive: true })
+      mkdirSync(shareDir, { recursive: true })
+
+      // Copy binary
+      const binaryName = opts.name.toLowerCase()
+      copyFileSync(opts.binaryPath, join(binDir, binaryName))
+      chmodSync(join(binDir, binaryName), 0o755)
+
+      // Create AppRun script
+      const appRunContent = `#!/bin/bash
+SELF=$(readlink -f "$0")
+HERE=\${SELF%/*}
+export PATH="\${HERE}/usr/bin/:\${PATH}"
+exec "\${HERE}/usr/bin/${binaryName}" "$@"
+`
+      writeFileSync(join(appDirPath, 'AppRun'), appRunContent)
+      chmodSync(join(appDirPath, 'AppRun'), 0o755)
+
+      // Create .desktop file
+      const desktopContent = `[Desktop Entry]
+Type=Application
+Name=${opts.name}
+Exec=${binaryName}
+Terminal=false
+Categories=Utility;
+Icon=${binaryName}
+`
+      writeFileSync(join(appDirPath, `${binaryName}.desktop`), desktopContent)
+
+      // Copy or create icon
+      if (opts.iconPath && existsSync(opts.iconPath)) {
+        copyFileSync(opts.iconPath, join(appDirPath, `${binaryName}.png`))
+      } else {
+        // Create placeholder icon (1x1 PNG)
+        const placeholderPng = Buffer.from([
+          0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
+          0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+          0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00,
+          0x0c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0xf8, 0xff, 0xff, 0x3f,
+          0x00, 0x05, 0xfe, 0x02, 0xfe, 0xdc, 0xcc, 0x59, 0xe7, 0x00, 0x00, 0x00,
+          0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+        ])
+        writeFileSync(join(appDirPath, `${binaryName}.png`), placeholderPng)
+      }
+
+      // Use appimagetool if available
+      const proc = spawn('appimagetool', [appDirPath, opts.outputPath], {
+        env: { ...process.env, ARCH: 'x86_64' }
+      })
+
+      proc.on('close', (code) => {
+        rmSync(appDir, { recursive: true, force: true })
+        if (code === 0) {
+          chmodSync(opts.outputPath, 0o755)
+          resolve({ success: true, outputPath: opts.outputPath })
+        } else {
+          resolve({ success: false, error: `appimagetool exited with code ${code}. Install from https://appimage.github.io/appimagetool/` })
+        }
+      })
+
+      proc.on('error', (err) => {
+        rmSync(appDir, { recursive: true, force: true })
+        resolve({ success: false, error: `appimagetool not found: ${err.message}` })
+      })
+    } catch (error) {
+      resolve({ success: false, error: (error as Error).message })
+    }
+  })
 }
 
 /**

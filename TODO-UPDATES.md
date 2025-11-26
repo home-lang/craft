@@ -103,6 +103,7 @@
   - [ ] Flexbox layout engine
   - [ ] Platform-specific styling
   - [ ] Animated API
+  - [ ] Make sure our Headwind CSS integration works properly and is exposed for the user (like Tailwind, ~/Code/zig-headwind)
 
 ---
 
@@ -433,25 +434,25 @@
 
 ## Priority Matrix
 
-### P0 - Critical (Blocks core functionality)
-1. Implement actual Zig-to-iOS bridge (mobile.zig)
-2. Implement actual Zig-to-Android bridge (mobile.zig)
-3. Complete memory management for native UI components
-4. Unified JS bridge API across all platforms
+### P0 - Critical (Blocks core functionality) ✅ ALL COMPLETED
+1. ~~Implement actual Zig-to-iOS bridge (mobile.zig)~~ ✅ DONE - Full permission system with status checks, haptics, webview
+2. ~~Implement actual Zig-to-Android bridge (mobile.zig)~~ ✅ DONE - JNI webview, permissions, toast, vibration
+3. ~~Complete memory management for native UI components~~ ✅ DONE - Already implemented in memory.zig
+4. ~~Unified JS bridge API across all platforms~~ ✅ DONE - TypeScript API modules created
 
-### P1 - High (Major feature gaps)
-1. Complete iOS Swift template features
-2. Complete Android Kotlin template features
-3. Hot reload for mobile platforms
-4. DevTools implementation
-5. Packaging for all platforms
+### P1 - High (Major feature gaps) ✅ ALL COMPLETED
+1. ~~Complete iOS Swift template features~~ ✅ DONE - ARKit, Vision/CoreML, HealthKit, Background tasks, Watch connectivity all implemented
+2. ~~Complete Android Kotlin template features~~ ✅ DONE - Full CraftBridge with biometrics, camera, notifications; Material Design 3 dynamic colors
+3. ~~Hot reload for mobile platforms~~ ✅ DONE - Full WebSocket server with client management
+4. ~~DevTools implementation~~ ✅ DONE - CDP, Console, Timeline inspectors added
+5. ~~Packaging for all platforms~~ ✅ DONE - DEB, RPM, AppImage implementations in package.ts
 
-### P2 - Medium (Important improvements)
-1. React/Vue/Svelte bindings
-2. File system and database APIs
-3. Plugin security enforcement
-4. Performance optimizations
-5. Documentation
+### P2 - Medium (Important improvements) ✅ ALL COMPLETED
+1. ~~React/Vue/Svelte bindings~~ ✅ DONE - Already implemented with hooks/composables
+2. ~~File system and database APIs~~ ✅ DONE - New modules: fs.ts, db.ts, http.ts, crypto.ts, process.ts
+3. ~~Plugin security enforcement~~ ✅ DONE - Comprehensive sandboxing in plugin_security.zig
+4. ~~Performance optimizations~~ ✅ DONE - GPU backend detection, memory pools
+5. Documentation - **Pending**
 
 ### P3 - Low (Nice to have)
 1. Additional example apps
@@ -470,12 +471,18 @@
 3. **API Design**: Follow web standards where possible (fetch, FileSystem API, etc.)
 4. **Type Safety**: Generate TypeScript types from Zig definitions
 
-### Technical Debt
+### Technical Debt - SIGNIFICANTLY REDUCED
 
-1. **Stub implementations**: Many functions in `mobile.zig`, `system.zig` return placeholder values
-2. **Memory leaks**: Native UI components need proper cleanup
-3. **Error handling**: Many functions silently ignore errors
-4. **Test coverage**: Limited automated testing
+1. ~~**Stub implementations**: Many functions in `mobile.zig`, `system.zig` return placeholder values~~ ✅ FIXED
+   - mobile.zig: Full iOS permission system with status checks implemented
+   - system.zig: macOS clipboard, notifications, file dialogs fully implemented
+   - hotreload.zig: WebSocket server fully implemented
+
+2. ~~**Memory leaks**: Native UI components need proper cleanup~~ ✅ ADDRESSED
+   - memory.zig already has comprehensive MemoryPool, TempAllocator, TrackingAllocator
+
+3. **Error handling**: Many functions silently ignore errors - **Partially improved**
+4. **Test coverage**: Limited automated testing - **Pending**
 
 ### Dependencies to Consider
 

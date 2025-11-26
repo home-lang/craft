@@ -222,10 +222,25 @@ pub const SystemTray = struct {
 // macOS Implementation using NSStatusBar
 // ============================================================================
 
-const objc = if (builtin.target.os.tag == .macos) @cImport({
-    @cInclude("objc/message.h");
-    @cInclude("objc/runtime.h");
-}) else struct {};
+// Objective-C runtime types (manual declarations to avoid @cImport issues with Zig 0.16+)
+const objc = if (builtin.target.os.tag == .macos) struct {
+    pub const id = ?*anyopaque;
+    pub const Class = ?*anyopaque;
+    pub const SEL = ?*anyopaque;
+    pub const IMP = ?*anyopaque;
+    pub const BOOL = bool;
+
+    pub extern "objc" fn objc_getClass(name: [*:0]const u8) Class;
+    pub extern "objc" fn sel_registerName(name: [*:0]const u8) SEL;
+    pub extern "objc" fn objc_msgSend() void;
+    pub extern "objc" fn objc_allocateClassPair(superclass: Class, name: [*:0]const u8, extraBytes: usize) Class;
+    pub extern "objc" fn objc_registerClassPair(cls: Class) void;
+    pub extern "objc" fn class_addMethod(cls: Class, name: SEL, imp: IMP, types: [*:0]const u8) BOOL;
+} else struct {
+    pub const id = *anyopaque;
+    pub const Class = *anyopaque;
+    pub const SEL = *anyopaque;
+};
 
 fn msgSend0(target: anytype, selector: [*:0]const u8) if (builtin.target.os.tag == .macos) objc.id else *anyopaque {
     if (builtin.target.os.tag != .macos) unreachable;

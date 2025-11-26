@@ -8,10 +8,22 @@ const builtin = @import("builtin");
 // 1. Dock Features (macOS)
 // ============================================================================
 
-const objc = if (builtin.os.tag == .macos) @cImport({
-    @cInclude("objc/message.h");
-    @cInclude("objc/runtime.h");
-}) else struct {};
+// Objective-C runtime types (manual declarations for Zig 0.16+ compatibility)
+const objc = if (builtin.os.tag == .macos) struct {
+    pub const id = ?*anyopaque;
+    pub const Class = ?*anyopaque;
+    pub const SEL = ?*anyopaque;
+    pub const IMP = ?*anyopaque;
+    pub const BOOL = bool;
+
+    pub extern "objc" fn objc_getClass(name: [*:0]const u8) Class;
+    pub extern "objc" fn sel_registerName(name: [*:0]const u8) SEL;
+    pub extern "objc" fn objc_msgSend() void;
+} else struct {
+    pub const id = *anyopaque;
+    pub const Class = *anyopaque;
+    pub const SEL = *anyopaque;
+};
 
 pub const DockFeatures = struct {
     /// Set dock badge (notification count)

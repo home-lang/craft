@@ -50,24 +50,24 @@ pub const TableViewDataSource = struct {
             // Add numberOfRowsInTableView:
             const numberOfRowsInTableView = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id) callconv(.c) c_long,
-                @ptrCast(&tableViewNumberOfRows),
+                @ptrCast(@constCast(&tableViewNumberOfRows)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("numberOfRowsInTableView:"),
-                @ptrCast(numberOfRowsInTableView),
+                @ptrCast(@constCast(numberOfRowsInTableView)),
                 "l@:@", // returns long, takes self, _cmd, tableView
             );
 
             // Add tableView:objectValueForTableColumn:row:
             const objectValueForTableColumnRow = @as(
                 *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, macos.objc.id, c_long) callconv(.c) macos.objc.id,
-                @ptrCast(&tableViewObjectValueForTableColumnRow),
+                @ptrCast(@constCast(&tableViewObjectValueForTableColumnRow)),
             );
             _ = macos.objc.class_addMethod(
                 objc_class,
                 macos.sel("tableView:objectValueForTableColumn:row:"),
-                @ptrCast(objectValueForTableColumnRow),
+                @ptrCast(@constCast(objectValueForTableColumnRow)),
                 "@@:@@l", // returns id, takes self, _cmd, tableView, column, row
             );
 

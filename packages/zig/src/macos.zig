@@ -1,11 +1,44 @@
 const std = @import("std");
 
-// Import Objective-C runtime
-pub const objc = @cImport({
-    @cDefine("OBJC_OLD_DISPATCH_PROTOTYPES", "1");
-    @cInclude("objc/message.h");
-    @cInclude("objc/runtime.h");
-});
+// Objective-C runtime types and functions (manual declarations to avoid @cImport issues)
+pub const objc = struct {
+    pub const id = ?*anyopaque;
+    pub const Class = ?*anyopaque;
+    pub const SEL = ?*anyopaque;
+    pub const IMP = ?*anyopaque;
+    pub const BOOL = bool;
+    pub const Method = ?*anyopaque;
+    pub const Ivar = ?*anyopaque;
+    pub const Protocol = ?*anyopaque;
+
+    // Objective-C runtime functions
+    pub extern "objc" fn objc_getClass(name: [*:0]const u8) Class;
+    pub extern "objc" fn objc_allocateClassPair(superclass: Class, name: [*:0]const u8, extraBytes: usize) Class;
+    pub extern "objc" fn objc_registerClassPair(cls: Class) void;
+    pub extern "objc" fn sel_registerName(name: [*:0]const u8) SEL;
+    pub extern "objc" fn class_addMethod(cls: Class, name: SEL, imp: IMP, types: [*:0]const u8) BOOL;
+    pub extern "objc" fn class_addIvar(cls: Class, name: [*:0]const u8, size: usize, alignment: u8, types: [*:0]const u8) BOOL;
+    pub extern "objc" fn object_getIvar(obj: id, ivar: Ivar) id;
+    pub extern "objc" fn object_setIvar(obj: id, ivar: Ivar, value: id) void;
+    pub extern "objc" fn class_getInstanceVariable(cls: Class, name: [*:0]const u8) Ivar;
+    pub extern "objc" fn objc_msgSend() void; // Actual signature varies, cast as needed
+    pub extern "objc" fn objc_msgSend_stret() void;
+    pub extern "objc" fn object_getClass(obj: id) Class;
+    pub extern "objc" fn class_getSuperclass(cls: Class) Class;
+    pub extern "objc" fn class_getName(cls: Class) [*:0]const u8;
+    pub extern "objc" fn method_getImplementation(m: Method) IMP;
+    pub extern "objc" fn class_getInstanceMethod(cls: Class, sel: SEL) Method;
+    pub extern "objc" fn class_getClassMethod(cls: Class, sel: SEL) Method;
+    pub extern "objc" fn objc_setAssociatedObject(object: id, key: *const anyopaque, value: id, policy: usize) void;
+    pub extern "objc" fn objc_getAssociatedObject(object: id, key: *const anyopaque) id;
+
+    // Association policy constants
+    pub const OBJC_ASSOCIATION_ASSIGN: usize = 0;
+    pub const OBJC_ASSOCIATION_RETAIN_NONATOMIC: usize = 1;
+    pub const OBJC_ASSOCIATION_COPY_NONATOMIC: usize = 3;
+    pub const OBJC_ASSOCIATION_RETAIN: usize = 0x301;
+    pub const OBJC_ASSOCIATION_COPY: usize = 0x303;
+};
 
 pub const NSRect = extern struct {
     origin: NSPoint,
@@ -201,19 +234,19 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // CRITICAL: Position traffic lights in the sidebar (Tahoe/Settings style)
         // Close button (red) - NSWindowCloseButton = 0
         const closeButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 0));
-        if (closeButton != 0) {
+        if (closeButton != null) {
             _ = msgSend2(closeButton, "setFrameOrigin:", @as(f64, 20.0), @as(f64, @as(f64, @floatFromInt(height)) - 28.0));
         }
 
         // Minimize button (yellow) - NSWindowMiniaturizeButton = 1
         const miniButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 1));
-        if (miniButton != 0) {
+        if (miniButton != null) {
             _ = msgSend2(miniButton, "setFrameOrigin:", @as(f64, 40.0), @as(f64, @as(f64, @floatFromInt(height)) - 28.0));
         }
 
         // Zoom button (green) - NSWindowZoomButton = 2
         const zoomButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 2));
-        if (zoomButton != 0) {
+        if (zoomButton != null) {
             _ = msgSend2(zoomButton, "setFrameOrigin:", @as(f64, 60.0), @as(f64, @as(f64, @floatFromInt(height)) - 28.0));
         }
 
@@ -362,12 +395,15 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     _ = msgSend1(window, "setContentView:", webview);
 
     // Store webview and window references globally
-    setGlobalWebView(webview);
-
-    // Also set references for tray menu actions
-    const tray_menu = @import("tray_menu.zig");
-    tray_menu.setGlobalWebView(webview);
-    tray_menu.setGlobalWindow(window);
+    if (webview) |wv| {
+        setGlobalWebView(wv);
+        // Also set references for tray menu actions
+        const tray_menu = @import("tray_menu.zig");
+        tray_menu.setGlobalWebView(wv);
+        if (window) |win| {
+            tray_menu.setGlobalWindow(win);
+        }
+    }
 
     // Setup bridge handlers (need allocator and handles)
     // We'll use a global allocator for now
@@ -1121,55 +1157,62 @@ pub fn tryEvalJS(js_code: []const u8) !void {
 /// Handle incoming messages from JavaScript bridge
 /// Convert a JSON Value to string
 fn jsonValueToString(allocator: std.mem.Allocator, value: std.json.Value) ![]const u8 {
-    var buf = std.ArrayList(u8){};
+    var buf: std.ArrayListUnmanaged(u8) = .{};
     errdefer buf.deinit(allocator);
-    const writer = buf.writer(allocator);
 
     switch (value) {
-        .null => try writer.writeAll("null"),
-        .bool => |b| try writer.writeAll(if (b) "true" else "false"),
-        .integer => |i| try writer.print("{d}", .{i}),
-        .float => |f| try writer.print("{d}", .{f}),
-        .number_string => |s| try writer.writeAll(s),
+        .null => try buf.appendSlice(allocator, "null"),
+        .bool => |b| try buf.appendSlice(allocator, if (b) "true" else "false"),
+        .integer => |i| {
+            var num_buf: [32]u8 = undefined;
+            const num_str = std.fmt.bufPrint(&num_buf, "{d}", .{i}) catch return error.OutOfMemory;
+            try buf.appendSlice(allocator, num_str);
+        },
+        .float => |f| {
+            var num_buf: [64]u8 = undefined;
+            const num_str = std.fmt.bufPrint(&num_buf, "{d}", .{f}) catch return error.OutOfMemory;
+            try buf.appendSlice(allocator, num_str);
+        },
+        .number_string => |s| try buf.appendSlice(allocator, s),
         .string => |s| {
-            try writer.writeByte('"');
+            try buf.append(allocator, '"');
             for (s) |char| {
                 switch (char) {
-                    '"' => try writer.writeAll("\\\""),
-                    '\\' => try writer.writeAll("\\\\"),
-                    '\n' => try writer.writeAll("\\n"),
-                    '\r' => try writer.writeAll("\\r"),
-                    '\t' => try writer.writeAll("\\t"),
-                    else => try writer.writeByte(char),
+                    '"' => try buf.appendSlice(allocator, "\\\""),
+                    '\\' => try buf.appendSlice(allocator, "\\\\"),
+                    '\n' => try buf.appendSlice(allocator, "\\n"),
+                    '\r' => try buf.appendSlice(allocator, "\\r"),
+                    '\t' => try buf.appendSlice(allocator, "\\t"),
+                    else => try buf.append(allocator, char),
                 }
             }
-            try writer.writeByte('"');
+            try buf.append(allocator, '"');
         },
         .array => |arr| {
-            try writer.writeByte('[');
+            try buf.append(allocator, '[');
             for (arr.items, 0..) |item, i| {
-                if (i > 0) try writer.writeByte(',');
+                if (i > 0) try buf.append(allocator, ',');
                 const item_str = try jsonValueToString(allocator, item);
                 defer allocator.free(item_str);
-                try writer.writeAll(item_str);
+                try buf.appendSlice(allocator, item_str);
             }
-            try writer.writeByte(']');
+            try buf.append(allocator, ']');
         },
         .object => |obj| {
-            try writer.writeByte('{');
+            try buf.append(allocator, '{');
             var it = obj.iterator();
             var first = true;
             while (it.next()) |entry| {
-                if (!first) try writer.writeByte(',');
+                if (!first) try buf.append(allocator, ',');
                 first = false;
-                try writer.writeByte('"');
-                try writer.writeAll(entry.key_ptr.*);
-                try writer.writeAll("\":");
+                try buf.append(allocator, '"');
+                try buf.appendSlice(allocator, entry.key_ptr.*);
+                try buf.appendSlice(allocator, "\":");
                 const val_str = try jsonValueToString(allocator, entry.value_ptr.*);
                 defer allocator.free(val_str);
-                try writer.writeAll(val_str);
+                try buf.appendSlice(allocator, val_str);
             }
-            try writer.writeByte('}');
+            try buf.append(allocator, '}');
         },
     }
 
@@ -1482,7 +1525,7 @@ pub fn setupScriptMessageHandler(userContentController: objc.id) !void {
 
         // Add the method: userContentController:didReceiveScriptMessage:
         const method_sel = objc.sel_registerName("userContentController:didReceiveScriptMessage:");
-        const method_imp: objc.IMP = @ptrCast(&didReceiveScriptMessage);
+        const method_imp: objc.IMP = @ptrCast(@constCast(&didReceiveScriptMessage));
         const method_types: [*c]const u8 = "v@:@@";
         const method_added = objc.class_addMethod(
             @ptrCast(@alignCast(handlerClass)),

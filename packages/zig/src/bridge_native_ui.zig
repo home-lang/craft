@@ -147,17 +147,17 @@ pub const NativeUIBridge = struct {
             const traffic_light_y: f64 = 787.0; // 800 (window height) - 13
 
             const closeButton = macos.msgSend1(window, "standardWindowButton:", @as(c_ulong, 0));
-            if (closeButton != 0) {
+            if (closeButton != null) {
                 _ = macos.msgSend2(closeButton, "setFrameOrigin:", @as(f64, 13.0), traffic_light_y);
             }
 
             const miniButton = macos.msgSend1(window, "standardWindowButton:", @as(c_ulong, 1));
-            if (miniButton != 0) {
+            if (miniButton != null) {
                 _ = macos.msgSend2(miniButton, "setFrameOrigin:", @as(f64, 33.0), traffic_light_y);
             }
 
             const zoomButton = macos.msgSend1(window, "standardWindowButton:", @as(c_ulong, 2));
-            if (zoomButton != 0) {
+            if (zoomButton != null) {
                 _ = macos.msgSend2(zoomButton, "setFrameOrigin:", @as(f64, 53.0), traffic_light_y);
             }
 
