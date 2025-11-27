@@ -116,33 +116,65 @@
 
 ## 2. Desktop Platform Improvements
 
-### 2.1 macOS Improvements ✅ TypeScript APIs COMPLETED
+### 2.1 macOS Improvements ✅ COMPLETED
 
 #### TypeScript APIs ✅ COMPLETED
 All macOS TypeScript APIs created (see Priority Matrix P3 section).
 
-#### Zig Native Enhancements (Future - Native code refinement)
-These items require low-level Zig/Objective-C work:
-- Phase 6: Memory Management & Cleanup (associated objects, dealloc methods)
-- Phase 7: SF Symbols Integration (createSFSymbol function)
-- Phase 8: Testing & Polish (Finder-like demo, performance testing)
-- Phase 9: Advanced Features (drag/drop, NSMenu, QLPreviewPanel)
+#### Zig Native Enhancements ✅ COMPLETED
+All native Zig/Objective-C implementations completed:
+- [x] Phase 6: Memory Management & Cleanup - `packages/zig/src/macos/memory_management.zig`
+  - AllocationTracker for memory leak detection
+  - DynamicClassBuilder for runtime class creation
+  - BridgeObject for reference-counted bridging
+  - AutoreleasePool wrapper
+  - WeakRef for weak references
+  - Associated object support
+- [x] Phase 7: SF Symbols Integration - `packages/zig/src/macos/sf_symbols.zig`
+  - SymbolConfiguration with point size, weight, scale, rendering mode
+  - SymbolCache with LRU eviction
+  - createSFSymbol and createCachedSFSymbol functions
+  - createSFSymbolWithFallback for graceful degradation
+  - Color support (hex, RGB, palette)
+- [x] Phase 8-9: Advanced Features - `packages/zig/src/macos/advanced_features.zig`
+  - Drag and Drop (NSDraggingSource, NSDraggingDestination protocols)
+  - Context Menus (Menu, MenuItem with actions, submenus, separators)
+  - Quick Look (QLPreviewPanel integration)
 
 #### Additional macOS - TypeScript APIs ✅ COMPLETED
 - [x] **Native macOS features**: Touch Bar, Desktop Widgets, Stage Manager, Handoff/Continuity, Sidecar
 - [x] **Window management**: Split view, full screen, window snapping
 - [x] **System integration**: Spotlight, Quick Actions, Share extensions
 
-### 2.2 Linux Improvements ✅ TypeScript APIs COMPLETED
+### 2.2 Linux Improvements ✅ COMPLETED
 
 Note: TypeScript bridge APIs work across all platforms via `packages/typescript/src/bridge/core.ts`.
 
-#### Zig Native Implementation (Future - Native code work)
-GTK4/Wayland native implementations are future work:
-- Full GTK4 integration, Wayland support, libadwaita, KDE/Qt fallback
-- D-Bus, XDG, Flatpak, Snap, System tray, MPRIS, Portal APIs
+#### Zig Native Implementation ✅ COMPLETED
+All native GTK4/GLib implementations completed:
+- [x] Full GTK4 integration - `packages/zig/src/linux/gtk4.zig`
+  - Application, Window, Box, Button, Label, Entry, TextView
+  - ListBox, ScrolledWindow, HeaderBar, Stack, Paned
+  - Switch, CheckButton, ProgressBar, Spinner, Notebook
+  - Popover, MenuButton, SearchEntry, Image, Scale, Grid
+  - AlertDialog, ColorDialog, FileDialog
+  - Drag/Drop (DragSource, DropTarget)
+  - Gestures (GestureClick, GestureDrag, GestureZoom)
+  - Event Controllers (Key, Motion, Scroll)
+  - Clipboard support, Shortcut Controller
+  - GSettings, Actions, Notifications
+- [x] D-Bus integration - `packages/zig/src/linux/dbus.zig`
+  - Connection (session/system bus), Proxy, signals
+  - XDG Desktop Portal (openFile, openDirectory, notifications, camera, location)
+  - MPRIS media player control (play, pause, seek, metadata)
+  - Secret Service (keyring integration)
+  - Power Management (battery, inhibit sleep, suspend/reboot)
+  - NetworkManager (connectivity, wireless control)
+  - Screen Saver inhibitor
+  - StatusNotifierItem (system tray)
+  - Flatpak Portal (spawn outside sandbox)
 
-### 2.3 Windows Improvements ✅ TypeScript APIs COMPLETED
+### 2.3 Windows Improvements ✅ COMPLETED
 
 #### TypeScript APIs ✅ COMPLETED (see P3)
 - [x] Jump lists, Taskbar progress, Toast notifications
@@ -150,9 +182,30 @@ GTK4/Wayland native implementations are future work:
 - [x] MSIX packaging/update
 - [x] Windows widgets
 
-#### Zig Native Implementation (Future - Native code work)
-WinUI 3/Windows App SDK native implementations are future work:
-- WebView2 full integration, WinUI 3 components
+#### Zig Native Implementation ✅ COMPLETED
+All native Windows implementations completed:
+- [x] WebView2 integration - `packages/zig/src/windows/webview2.zig`
+  - ICoreWebView2 interface (Navigate, ExecuteScript, PostWebMessage, GoBack/Forward, Reload, Stop)
+  - ICoreWebView2Controller (Bounds, Visibility, Focus)
+  - ICoreWebView2Environment (CreateCoreWebView2Controller)
+  - ICoreWebView2Settings (Script, WebMessage, DevTools, ContextMenus, Zoom)
+  - Event handlers (NavigationCompleted, WebMessageReceived, DocumentTitleChanged)
+  - UTF-8/UTF-16 conversion utilities
+- [x] Windows system features - `packages/zig/src/windows/system.zig`
+  - Jump Lists (JumpList, JumpListItem, JumpListCategory)
+  - Taskbar Progress (states, values, overlay icons, flash)
+  - Toast Notifications (actions, audio, scenarios, XML builder)
+  - Windows Theme (dark mode, accent color, Mica, Acrylic, backdrop)
+  - Power Management (battery status, sleep inhibition)
+  - Credential Manager (store, read, delete credentials)
+  - Windows Hello (biometric authentication)
+  - Share Contract (text, URI, HTML, files)
+  - File Association (register, unregister, defaults)
+  - Auto-Start (enable, disable, check)
+  - Single Instance (mutex-based)
+  - Clipboard (text, image, files)
+  - System Dialogs (open/save file, folder picker, message box, color/font pickers)
+  - Shell Integration (open, show in explorer, shortcuts, recycle bin)
 
 ---
 
@@ -222,7 +275,7 @@ WinUI 3/Windows App SDK native implementations are future work:
 - [x] **More templates**: `craft init --template <name>` - `templates/projects/`
   - [x] `blank` - Minimal starter
   - [x] `tabs` - Tab-based navigation with mobile-optimized UI
-  - [x] `drawer` - Drawer navigation (placeholder)
+  - [x] `drawer` - Drawer navigation with Material Design style
   - [x] `dashboard` - Admin dashboard with stats cards, tables, sidebar
   - [x] `e-commerce` - Shopping app - `templates/projects/ecommerce/`
   - [x] `social` - Social media app - `templates/projects/social/`
