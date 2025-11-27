@@ -1,0 +1,19 @@
+{
+  "name": "craft-music-player",
+  "version": "1.0.0",
+  "description": "A cross-platform music player built with Craft",
+  "main": "src/main.ts",
+  "scripts": {
+    "dev": "craft dev",
+    "build": "craft build",
+    "build:ios": "craft build --platform ios",
+    "build:android": "craft build --platform android",
+    "build:macos": "craft build --platform macos"
+  },
+  "dependencies": {
+    "ts-craft": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,216 @@
+/* Social Template Styles */
+:root {
+  --bg: #ffffff;
+  --text: #0f1419;
+  --secondary: #536471;
+  --accent: #1d9bf0;
+  --border: #eff3f4;
+  --like: #f91880;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --text: #e7e9ea;
+    --secondary: #71767b;
+    --border: #2f3336;
+  }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 100;
+}
+
+.header h1 { font-size: 20px; }
+
+main {
+  flex: 1;
+  padding-bottom: 60px;
+}
+
+/* Feed */
+.feed { display: flex; flex-direction: column; }
+
+.post {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.post-header {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+}
+
+.avatar.large {
+  width: 80px;
+  height: 80px;
+  font-size: 32px;
+}
+
+.post-meta { display: flex; flex-direction: column; }
+.post-meta strong { font-size: 15px; }
+.time { font-size: 13px; color: var(--secondary); }
+
+.post-content {
+  font-size: 15px;
+  line-height: 1.4;
+  margin-bottom: 12px;
+}
+
+.post-actions {
+  display: flex;
+  gap: 32px;
+}
+
+.post-actions button {
+  background: none;
+  border: none;
+  color: var(--secondary);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.post-actions button.liked { color: var(--like); }
+
+/* Create */
+.create-post { padding: 16px; }
+
+.create-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.create-post textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 16px;
+  resize: none;
+  background: var(--bg);
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.create-post button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 24px;
+  font-weight: 600;
+  cursor: pointer;
+  float: right;
+}
+
+/* Profile */
+.profile { padding: 16px; }
+
+.profile-header {
+  text-align: center;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.profile-header h2 { margin: 12px 0 4px; }
+.profile-header p { color: var(--secondary); margin-bottom: 16px; }
+
+.stats {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat strong { font-size: 18px; }
+.stat span { font-size: 13px; color: var(--secondary); }
+
+.user-posts h3 { margin: 16px 0; }
+.user-posts .post { padding: 12px 0; }
+
+.empty {
+  text-align: center;
+  color: var(--secondary);
+  padding: 24px;
+}
+
+/* Notifications */
+.notifications { padding: 16px; }
+
+.notification {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.notif-icon { font-size: 20px; }
+.notification p { flex: 1; font-size: 14px; }
+
+/* Bottom Nav */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  padding: 8px;
+}
+
+.bottom-nav button {
+  flex: 1;
+  background: none;
+  border: none;
+  font-size: 24px;
+  padding: 8px;
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+.bottom-nav button.active { opacity: 1; }

@@ -1,0 +1,19 @@
+{
+  "name": "{{projectName}}",
+  "version": "0.1.0",
+  "description": "Social media app built with Craft",
+  "main": "src/main.ts",
+  "scripts": {
+    "dev": "craft dev",
+    "build": "craft build",
+    "build:ios": "craft build --platform ios",
+    "build:android": "craft build --platform android",
+    "build:all": "craft build --platform ios,android,macos,windows"
+  },
+  "dependencies": {
+    "ts-craft": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
