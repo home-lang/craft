@@ -1,0 +1,321 @@
+# Craft Framework - Android Fastlane Configuration
+# Copy this file to your android/fastlane directory
+
+default_platform(:android)
+
+platform :android do
+  # ============================================================================
+  # Before All
+  # ============================================================================
+
+  before_all do
+    # Ensure clean state
+    ensure_git_status_clean unless ENV['CI']
+  end
+
+  # ============================================================================
+  # Build Lanes
+  # ============================================================================
+
+  desc "Build debug APK"
+  lane :build_debug do
+    gradle(
+      task: "assembleDebug",
+      print_command: true
+    )
+  end
+
+  desc "Build release APK"
+  lane :build_release do
+    gradle(
+      task: "assembleRelease",
+      print_command: true
+    )
+  end
+
+  desc "Build release App Bundle (AAB)"
+  lane :build_bundle do
+    gradle(
+      task: "bundleRelease",
+      print_command: true
+    )
+  end
+
+  # ============================================================================
+  # Test Lanes
+  # ============================================================================
+
+  desc "Run unit tests"
+  lane :test do
+    gradle(
+      task: "test",
+      print_command: true
+    )
+  end
+
+  desc "Run instrumented tests"
+  lane :instrumented_test do
+    gradle(
+      task: "connectedAndroidTest",
+      print_command: true
+    )
+  end
+
+  desc "Run lint checks"
+  lane :lint do
+    gradle(
+      task: "lint",
+      print_command: true
+    )
+  end
+
+  # ============================================================================
+  # Beta Lanes
+  # ============================================================================
+
+  desc "Deploy to Google Play Internal Testing"
+  lane :internal do
+    increment_version_code
+
+    gradle(
+      task: "bundleRelease",
+      print_command: true
+    )
+
+    upload_to_play_store(
+      track: "internal",
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Deploy to Google Play Alpha"
+  lane :alpha do
+    increment_version_code
+
+    gradle(
+      task: "bundleRelease",
+      print_command: true
+    )
+
+    upload_to_play_store(
+      track: "alpha",
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Deploy to Google Play Beta"
+  lane :beta do
+    increment_version_code
+
+    gradle(
+      task: "bundleRelease",
+      print_command: true
+    )
+
+    upload_to_play_store(
+      track: "beta",
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Promote from internal to beta"
+  lane :promote_to_beta do
+    upload_to_play_store(
+      track: "internal",
+      track_promote_to: "beta",
+      skip_upload_aab: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  # ============================================================================
+  # Release Lanes
+  # ============================================================================
+
+  desc "Deploy to Google Play Production"
+  lane :release do |options|
+    ensure_git_status_clean unless ENV['CI']
+
+    version_name = options[:version]
+
+    if version_name
+      increment_version_name(version_name: version_name)
+    end
+
+    increment_version_code
+
+    gradle(
+      task: "bundleRelease",
+      print_command: true
+    )
+
+    upload_to_play_store(
+      track: "production",
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      rollout: options[:rollout] || "1.0"
+    )
+  end
+
+  desc "Deploy with staged rollout"
+  lane :staged_rollout do |options|
+    rollout_percentage = options[:percentage] || "0.1"
+
+    upload_to_play_store(
+      track: "production",
+      aab: lane_context[SharedValues::GRADLE_AAB_OUTPUT_PATH],
+      rollout: rollout_percentage
+    )
+  end
+
+  desc "Complete staged rollout to 100%"
+  lane :complete_rollout do
+    upload_to_play_store(
+      track: "production",
+      rollout: "1.0",
+      skip_upload_aab: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  desc "Halt rollout"
+  lane :halt_rollout do
+    upload_to_play_store(
+      track: "production",
+      version_code: options[:version_code],
+      rollout: "0",
+      skip_upload_aab: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+
+  # ============================================================================
+  # Utility Lanes
+  # ============================================================================
+
+  desc "Take screenshots"
+  lane :screenshots do
+    capture_android_screenshots(
+      locales: ["en-US"],
+      output_directory: "./fastlane/screenshots",
+      app_apk_path: "./app/build/outputs/apk/debug/app-debug.apk",
+      tests_apk_path: "./app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk",
+      use_tests_in_packages: ["com.example.craftapp.screenshots"]
+    )
+  end
+
+  desc "Frame screenshots"
+  lane :frame_screenshots do
+    frameit(
+      path: "./fastlane/screenshots"
+    )
+  end
+
+  desc "Update Play Store metadata"
+  lane :update_metadata do
+    upload_to_play_store(
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_images: false,
+      skip_upload_screenshots: false
+    )
+  end
+
+  desc "Download metadata from Play Store"
+  lane :download_metadata do
+    download_from_play_store(
+      output: "./fastlane/metadata/android"
+    )
+  end
+
+  desc "Validate Play Store metadata"
+  lane :validate do
+    validate_play_store_json_key(
+      json_key: ENV['SUPPLY_JSON_KEY'] || "./fastlane/play-store-key.json"
+    )
+  end
+
+  # ============================================================================
+  # Version Management
+  # ============================================================================
+
+  desc "Increment version code"
+  lane :increment_version_code do |options|
+    path = options[:path] || "../app/build.gradle"
+
+    version_code = google_play_track_version_codes(
+      track: "internal"
+    ).max || 0
+
+    new_version_code = version_code + 1
+
+    # Update build.gradle
+    gradle_file = File.read(path)
+    new_gradle = gradle_file.gsub(/versionCode\s+\d+/, "versionCode #{new_version_code}")
+    File.write(path, new_gradle)
+
+    UI.success("Version code updated to #{new_version_code}")
+    new_version_code
+  end
+
+  desc "Increment version name"
+  lane :increment_version_name do |options|
+    path = options[:path] || "../app/build.gradle"
+    version_name = options[:version_name]
+
+    gradle_file = File.read(path)
+    new_gradle = gradle_file.gsub(/versionName\s+"[\d.]+"/, "versionName \"#{version_name}\"")
+    File.write(path, new_gradle)
+
+    UI.success("Version name updated to #{version_name}")
+  end
+
+  # ============================================================================
+  # CI/CD Lanes
+  # ============================================================================
+
+  desc "CI: Run full test suite"
+  lane :ci_test do
+    lint
+    test
+  end
+
+  desc "CI: Build and deploy to internal track"
+  lane :ci_internal do
+    internal
+  end
+
+  desc "CI: Build and deploy to beta track"
+  lane :ci_beta do
+    beta
+  end
+
+  # ============================================================================
+  # Error Handling
+  # ============================================================================
+
+  error do |lane, exception|
+    # Notify on failure if configured
+    if ENV['SLACK_URL']
+      slack(
+        message: "Build failed: #{exception.message}",
+        success: false,
+        slack_url: ENV['SLACK_URL']
+      )
+    end
+  end
+end

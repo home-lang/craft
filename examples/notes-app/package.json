@@ -1,0 +1,19 @@
+{
+  "name": "craft-notes-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "craft dev",
+    "build": "craft build",
+    "build:release": "craft build --release",
+    "build:ios": "craft build --platform ios",
+    "build:android": "craft build --platform android"
+  },
+  "dependencies": {
+    "ts-craft": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

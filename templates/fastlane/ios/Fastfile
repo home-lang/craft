@@ -1,0 +1,280 @@
+# Craft Framework - iOS Fastlane Configuration
+# Copy this file to your ios/fastlane directory
+
+default_platform(:ios)
+
+platform :ios do
+  # ============================================================================
+  # Before All
+  # ============================================================================
+
+  before_all do
+    setup_ci if ENV['CI']
+  end
+
+  # ============================================================================
+  # Build Lanes
+  # ============================================================================
+
+  desc "Build debug version"
+  lane :build_debug do
+    build_app(
+      scheme: "CraftApp",
+      configuration: "Debug",
+      export_method: "development",
+      skip_archive: true,
+      skip_codesigning: true
+    )
+  end
+
+  desc "Build release version"
+  lane :build_release do
+    build_app(
+      scheme: "CraftApp",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "./build",
+      output_name: "CraftApp.ipa"
+    )
+  end
+
+  # ============================================================================
+  # Test Lanes
+  # ============================================================================
+
+  desc "Run all tests"
+  lane :test do
+    run_tests(
+      scheme: "CraftApp",
+      devices: ["iPhone 15"],
+      code_coverage: true,
+      result_bundle: true
+    )
+  end
+
+  desc "Run UI tests"
+  lane :ui_test do
+    run_tests(
+      scheme: "CraftAppUITests",
+      devices: ["iPhone 15"],
+      result_bundle: true
+    )
+  end
+
+  # ============================================================================
+  # Code Signing Lanes
+  # ============================================================================
+
+  desc "Sync development certificates"
+  lane :sync_dev_certs do
+    match(
+      type: "development",
+      readonly: is_ci
+    )
+  end
+
+  desc "Sync App Store certificates"
+  lane :sync_appstore_certs do
+    match(
+      type: "appstore",
+      readonly: is_ci
+    )
+  end
+
+  desc "Sync all certificates"
+  lane :sync_all_certs do
+    match(type: "development", readonly: is_ci)
+    match(type: "appstore", readonly: is_ci)
+  end
+
+  # ============================================================================
+  # Beta Lanes
+  # ============================================================================
+
+  desc "Push a new beta build to TestFlight"
+  lane :beta do
+    ensure_git_status_clean unless is_ci
+
+    increment_build_number(
+      build_number: ENV['BUILD_NUMBER'] || (latest_testflight_build_number + 1)
+    )
+
+    sync_appstore_certs
+
+    build_app(
+      scheme: "CraftApp",
+      configuration: "Release",
+      export_method: "app-store"
+    )
+
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+
+    clean_build_artifacts
+  end
+
+  desc "Promote beta to external testers"
+  lane :promote_beta do
+    upload_to_testflight(
+      distribute_external: true,
+      groups: ["External Testers"],
+      changelog: "Bug fixes and improvements"
+    )
+  end
+
+  # ============================================================================
+  # Release Lanes
+  # ============================================================================
+
+  desc "Push a new release to the App Store"
+  lane :release do |options|
+    ensure_git_status_clean unless is_ci
+
+    version = options[:version]
+
+    if version
+      increment_version_number(version_number: version)
+    end
+
+    increment_build_number(
+      build_number: ENV['BUILD_NUMBER'] || Time.now.strftime("%Y%m%d%H%M")
+    )
+
+    sync_appstore_certs
+
+    build_app(
+      scheme: "CraftApp",
+      configuration: "Release",
+      export_method: "app-store"
+    )
+
+    upload_to_app_store(
+      submit_for_review: false,
+      automatic_release: false,
+      skip_screenshots: true,
+      skip_metadata: false,
+      precheck_include_in_app_purchases: false
+    )
+
+    clean_build_artifacts
+  end
+
+  desc "Submit for App Store review"
+  lane :submit_review do
+    deliver(
+      submit_for_review: true,
+      automatic_release: true,
+      force: true,
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      submission_information: {
+        add_id_info_uses_idfa: false,
+        export_compliance_uses_encryption: false
+      }
+    )
+  end
+
+  # ============================================================================
+  # Utility Lanes
+  # ============================================================================
+
+  desc "Take screenshots"
+  lane :screenshots do
+    capture_screenshots(
+      scheme: "CraftAppUITests",
+      devices: [
+        "iPhone 15 Pro Max",
+        "iPhone 15",
+        "iPhone SE (3rd generation)",
+        "iPad Pro (12.9-inch) (6th generation)"
+      ],
+      languages: ["en-US"],
+      output_directory: "./fastlane/screenshots"
+    )
+
+    frame_screenshots(
+      path: "./fastlane/screenshots"
+    )
+  end
+
+  desc "Update App Store metadata"
+  lane :update_metadata do
+    deliver(
+      skip_binary_upload: true,
+      skip_screenshots: true,
+      force: true
+    )
+  end
+
+  desc "Download dSYMs from App Store Connect"
+  lane :download_dsyms do
+    download_dsyms(
+      version: "latest",
+      output_directory: "./dsyms"
+    )
+  end
+
+  desc "Register new devices"
+  lane :register_device do |options|
+    register_devices(
+      devices: {
+        options[:name] => options[:udid]
+      }
+    )
+    match(type: "development", force_for_new_devices: true)
+  end
+
+  # ============================================================================
+  # CI/CD Lanes
+  # ============================================================================
+
+  desc "CI: Run full test suite"
+  lane :ci_test do
+    setup_ci
+
+    cocoapods(
+      try_repo_update_on_error: true
+    )
+
+    test
+
+    # Upload coverage if configured
+    if ENV['CODECOV_TOKEN']
+      sh("bash -c 'bash <(curl -s https://codecov.io/bash)'")
+    end
+  end
+
+  desc "CI: Build and deploy to TestFlight"
+  lane :ci_beta do
+    setup_ci
+
+    app_store_connect_api_key(
+      key_id: ENV['APP_STORE_CONNECT_KEY_ID'],
+      issuer_id: ENV['APP_STORE_CONNECT_ISSUER_ID'],
+      key_content: ENV['APP_STORE_CONNECT_KEY_CONTENT']
+    )
+
+    cocoapods(
+      try_repo_update_on_error: true
+    )
+
+    beta
+  end
+
+  # ============================================================================
+  # Error Handling
+  # ============================================================================
+
+  error do |lane, exception|
+    # Notify on failure if configured
+    if ENV['SLACK_URL']
+      slack(
+        message: "Build failed: #{exception.message}",
+        success: false,
+        slack_url: ENV['SLACK_URL']
+      )
+    end
+  end
+end

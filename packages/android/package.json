@@ -1,5 +1,5 @@
 {
-  "name": "@aspect/craft-android",
+  "name": "@craft-native/android",
   "version": "0.1.0",
   "description": "Android native app builder for Craft",
   "type": "module",

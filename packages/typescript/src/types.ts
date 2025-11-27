@@ -826,6 +826,542 @@ export interface CraftCryptoAPI {
   decrypt(encryptedData: string, key: string): Promise<string>
 }
 
+// ============================================================================
+// Event Emitter Pattern
+// ============================================================================
+
+/**
+ * Event types for craft.on() and craft.off()
+ */
+export type CraftEventType =
+  | 'window:focus'
+  | 'window:blur'
+  | 'window:resize'
+  | 'window:move'
+  | 'window:close'
+  | 'window:minimize'
+  | 'window:maximize'
+  | 'window:fullscreen'
+  | 'app:activate'
+  | 'app:deactivate'
+  | 'app:beforeQuit'
+  | 'app:willQuit'
+  | 'tray:click'
+  | 'tray:rightClick'
+  | 'tray:doubleClick'
+  | 'menu:click'
+  | 'shortcut:triggered'
+  | 'deeplink:open'
+  | 'file:drop'
+  | 'theme:change'
+  | 'network:online'
+  | 'network:offline'
+  | 'battery:low'
+  | 'battery:charging'
+  | 'idle:active'
+  | 'idle:idle'
+  | 'display:added'
+  | 'display:removed'
+  | 'display:changed'
+
+/**
+ * Event data map for typed event handlers
+ */
+export interface CraftEventMap {
+  'window:focus': void
+  'window:blur': void
+  'window:resize': { width: number; height: number }
+  'window:move': { x: number; y: number }
+  'window:close': void
+  'window:minimize': void
+  'window:maximize': void
+  'window:fullscreen': { isFullscreen: boolean }
+  'app:activate': void
+  'app:deactivate': void
+  'app:beforeQuit': { preventDefault: () => void }
+  'app:willQuit': void
+  'tray:click': TrayClickEvent
+  'tray:rightClick': TrayClickEvent
+  'tray:doubleClick': TrayClickEvent
+  'menu:click': { menuId: string; itemId: string }
+  'shortcut:triggered': { shortcut: string }
+  'deeplink:open': { url: string }
+  'file:drop': { files: string[] }
+  'theme:change': { theme: 'light' | 'dark' | 'system' }
+  'network:online': void
+  'network:offline': void
+  'battery:low': { level: number }
+  'battery:charging': { isCharging: boolean }
+  'idle:active': void
+  'idle:idle': { idleTime: number }
+  'display:added': DisplayInfo
+  'display:removed': { id: string }
+  'display:changed': DisplayInfo
+}
+
+/**
+ * Event handler type
+ */
+export type CraftEventHandler<T extends CraftEventType> = (data: CraftEventMap[T]) => void
+
+/**
+ * Display information
+ */
+export interface DisplayInfo {
+  /** Display ID */
+  id: string
+  /** Display name */
+  name: string
+  /** Width in pixels */
+  width: number
+  /** Height in pixels */
+  height: number
+  /** Scale factor */
+  scaleFactor: number
+  /** Whether this is the primary display */
+  isPrimary: boolean
+  /** Display bounds */
+  bounds: { x: number; y: number; width: number; height: number }
+  /** Work area bounds (excluding taskbar/dock) */
+  workArea: { x: number; y: number; width: number; height: number }
+}
+
+/**
+ * Event emitter API
+ */
+export interface CraftEventEmitter {
+  /**
+   * Register an event handler
+   * @param event - Event type
+   * @param handler - Event handler function
+   * @returns Unsubscribe function
+   */
+  on<T extends CraftEventType>(event: T, handler: CraftEventHandler<T>): () => void
+
+  /**
+   * Register a one-time event handler
+   * @param event - Event type
+   * @param handler - Event handler function
+   * @returns Unsubscribe function
+   */
+  once<T extends CraftEventType>(event: T, handler: CraftEventHandler<T>): () => void
+
+  /**
+   * Remove an event handler
+   * @param event - Event type
+   * @param handler - Event handler function
+   */
+  off<T extends CraftEventType>(event: T, handler: CraftEventHandler<T>): void
+
+  /**
+   * Remove all handlers for an event
+   * @param event - Event type
+   */
+  removeAllListeners(event?: CraftEventType): void
+
+  /**
+   * Emit an event (internal use)
+   * @param event - Event type
+   * @param data - Event data
+   */
+  emit<T extends CraftEventType>(event: T, data: CraftEventMap[T]): void
+}
+
+// ============================================================================
+// Mobile Platform Configurations
+// ============================================================================
+
+/**
+ * iOS-specific configuration
+ */
+export interface IOSConfig {
+  /** Bundle identifier */
+  bundleId: string
+  /** App name */
+  appName: string
+  /** Version string */
+  version: string
+  /** Build number */
+  buildNumber: string
+  /** Minimum iOS version */
+  minimumOSVersion?: string
+  /** Device families (1=iPhone, 2=iPad) */
+  deviceFamily?: (1 | 2)[]
+  /** Supported orientations */
+  orientations?: ('portrait' | 'portraitUpsideDown' | 'landscapeLeft' | 'landscapeRight')[]
+  /** Status bar style */
+  statusBarStyle?: 'default' | 'lightContent' | 'darkContent'
+  /** Hide status bar */
+  statusBarHidden?: boolean
+  /** Requires full screen */
+  requiresFullScreen?: boolean
+  /** Background modes */
+  backgroundModes?: ('audio' | 'location' | 'fetch' | 'remote-notification' | 'processing')[]
+  /** URL schemes */
+  urlSchemes?: string[]
+  /** Associated domains (for universal links) */
+  associatedDomains?: string[]
+  /** App Transport Security settings */
+  ats?: {
+    allowsArbitraryLoads?: boolean
+    allowsArbitraryLoadsForMedia?: boolean
+    allowsArbitraryLoadsInWebContent?: boolean
+    exceptionDomains?: Record<string, {
+      includesSubdomains?: boolean
+      allowsInsecureHTTPLoads?: boolean
+    }>
+  }
+  /** Privacy usage descriptions */
+  privacyDescriptions?: {
+    camera?: string
+    microphone?: string
+    photoLibrary?: string
+    location?: string
+    locationAlways?: string
+    contacts?: string
+    calendars?: string
+    reminders?: string
+    healthShare?: string
+    healthUpdate?: string
+    motion?: string
+    bluetooth?: string
+    faceId?: string
+    speechRecognition?: string
+    tracking?: string
+  }
+  /** Capabilities */
+  capabilities?: {
+    pushNotifications?: boolean
+    appGroups?: string[]
+    iCloud?: { containers?: string[] }
+    healthKit?: boolean
+    homeKit?: boolean
+    siriKit?: boolean
+    carPlay?: boolean
+    accessWifi?: boolean
+    nfc?: boolean
+  }
+  /** Entitlements */
+  entitlements?: Record<string, any>
+}
+
+/**
+ * Android-specific configuration
+ */
+export interface AndroidConfig {
+  /** Package name */
+  packageName: string
+  /** App name */
+  appName: string
+  /** Version name */
+  versionName: string
+  /** Version code */
+  versionCode: number
+  /** Minimum SDK version */
+  minSdkVersion?: number
+  /** Target SDK version */
+  targetSdkVersion?: number
+  /** Compile SDK version */
+  compileSdkVersion?: number
+  /** Supported screen sizes */
+  screenSizes?: ('small' | 'normal' | 'large' | 'xlarge')[]
+  /** Screen orientations */
+  orientations?: ('portrait' | 'landscape' | 'sensor')[]
+  /** Permissions */
+  permissions?: string[]
+  /** Features */
+  features?: Array<{ name: string; required?: boolean }>
+  /** Intent filters */
+  intentFilters?: Array<{
+    action: string
+    category?: string[]
+    data?: { scheme?: string; host?: string; pathPrefix?: string }
+  }>
+  /** Deep links */
+  deepLinks?: Array<{
+    scheme: string
+    host: string
+    pathPrefix?: string
+  }>
+  /** Gradle config */
+  gradle?: {
+    buildToolsVersion?: string
+    ndkVersion?: string
+    kotlinVersion?: string
+    dependencies?: string[]
+    plugins?: string[]
+  }
+  /** ProGuard rules */
+  proguardRules?: string[]
+  /** Signing config */
+  signing?: {
+    keyAlias: string
+    keyPassword?: string
+    storeFile: string
+    storePassword?: string
+  }
+  /** Adaptive icon */
+  adaptiveIcon?: {
+    foreground: string
+    background: string
+    monochromeIcon?: string
+  }
+  /** Splash screen */
+  splashScreen?: {
+    backgroundColor: string
+    icon: string
+    iconWidth?: number
+  }
+}
+
+/**
+ * macOS-specific configuration
+ */
+export interface MacOSConfig {
+  /** Bundle identifier */
+  bundleId: string
+  /** App name */
+  appName: string
+  /** Version */
+  version: string
+  /** Build number */
+  buildNumber: string
+  /** Minimum macOS version */
+  minimumOSVersion?: string
+  /** App category */
+  category?: string
+  /** Copyright */
+  copyright?: string
+  /** Sandbox enabled */
+  sandbox?: boolean
+  /** Hardened runtime */
+  hardenedRuntime?: boolean
+  /** Code signing identity */
+  signingIdentity?: string
+  /** Provisioning profile */
+  provisioningProfile?: string
+  /** Entitlements */
+  entitlements?: {
+    'com.apple.security.app-sandbox'?: boolean
+    'com.apple.security.network.client'?: boolean
+    'com.apple.security.network.server'?: boolean
+    'com.apple.security.files.user-selected.read-only'?: boolean
+    'com.apple.security.files.user-selected.read-write'?: boolean
+    'com.apple.security.files.downloads.read-only'?: boolean
+    'com.apple.security.files.downloads.read-write'?: boolean
+    'com.apple.security.device.camera'?: boolean
+    'com.apple.security.device.microphone'?: boolean
+    'com.apple.security.device.usb'?: boolean
+    'com.apple.security.device.bluetooth'?: boolean
+    'com.apple.security.personal-information.location'?: boolean
+    'com.apple.security.personal-information.addressbook'?: boolean
+    'com.apple.security.personal-information.calendars'?: boolean
+    'com.apple.security.automation.apple-events'?: boolean
+    [key: string]: boolean | string | string[] | undefined
+  }
+  /** URL schemes */
+  urlSchemes?: string[]
+  /** File type associations */
+  fileAssociations?: Array<{
+    extension: string
+    name: string
+    role: 'Editor' | 'Viewer' | 'Shell' | 'None'
+    icon?: string
+  }>
+  /** DMG options */
+  dmg?: {
+    title?: string
+    icon?: string
+    background?: string
+    windowWidth?: number
+    windowHeight?: number
+    iconSize?: number
+    contents?: Array<{ x: number; y: number; type: 'file' | 'link'; path: string }>
+  }
+  /** Notarization */
+  notarization?: {
+    appleId: string
+    teamId: string
+    password?: string
+  }
+}
+
+/**
+ * Windows-specific configuration
+ */
+export interface WindowsConfig {
+  /** Application ID */
+  appId: string
+  /** App name */
+  appName: string
+  /** Version */
+  version: string
+  /** Publisher name */
+  publisher: string
+  /** Publisher display name */
+  publisherDisplayName: string
+  /** Description */
+  description?: string
+  /** App icon */
+  icon?: string
+  /** Request elevation */
+  requestedExecutionLevel?: 'asInvoker' | 'highestAvailable' | 'requireAdministrator'
+  /** File associations */
+  fileAssociations?: Array<{
+    extension: string
+    name: string
+    description?: string
+    icon?: string
+  }>
+  /** Protocol handlers */
+  protocols?: Array<{
+    name: string
+    schemes: string[]
+  }>
+  /** NSIS installer options */
+  nsis?: {
+    oneClick?: boolean
+    perMachine?: boolean
+    allowElevation?: boolean
+    allowToChangeInstallationDirectory?: boolean
+    installerIcon?: string
+    uninstallerIcon?: string
+    installerHeaderIcon?: string
+    createDesktopShortcut?: boolean | 'always'
+    createStartMenuShortcut?: boolean
+    shortcutName?: string
+    include?: string
+    license?: string
+  }
+  /** MSI installer options */
+  msi?: {
+    oneClick?: boolean
+    perMachine?: boolean
+    upgradeCode?: string
+  }
+  /** MSIX package options */
+  msix?: {
+    identityName?: string
+    applicationId?: string
+    publisher?: string
+    publisherDisplayName?: string
+    certificateFile?: string
+    certificatePassword?: string
+  }
+  /** Code signing */
+  signing?: {
+    certificateFile?: string
+    certificatePassword?: string
+    certificateSubjectName?: string
+    certificateSha1?: string
+    signingHashAlgorithms?: ('sha1' | 'sha256')[]
+    timestampServer?: string
+  }
+}
+
+/**
+ * Linux-specific configuration
+ */
+export interface LinuxConfig {
+  /** App name */
+  appName: string
+  /** Executable name */
+  executableName: string
+  /** Version */
+  version: string
+  /** Description */
+  description?: string
+  /** Maintainer */
+  maintainer?: string
+  /** Vendor */
+  vendor?: string
+  /** Homepage */
+  homepage?: string
+  /** Category */
+  category?: string
+  /** Icon */
+  icon?: string | Record<string, string>
+  /** Desktop file */
+  desktop?: {
+    Name?: string
+    GenericName?: string
+    Comment?: string
+    Exec?: string
+    Icon?: string
+    Terminal?: boolean
+    Type?: string
+    Categories?: string[]
+    MimeType?: string[]
+    StartupWMClass?: string
+    Keywords?: string[]
+  }
+  /** Deb package options */
+  deb?: {
+    depends?: string[]
+    recommends?: string[]
+    section?: string
+    priority?: string
+    scripts?: {
+      preinst?: string
+      postinst?: string
+      prerm?: string
+      postrm?: string
+    }
+  }
+  /** RPM package options */
+  rpm?: {
+    requires?: string[]
+    license?: string
+    group?: string
+    scripts?: {
+      pre?: string
+      post?: string
+      preun?: string
+      postun?: string
+    }
+  }
+  /** AppImage options */
+  appImage?: {
+    license?: string
+    category?: string
+  }
+  /** Flatpak options */
+  flatpak?: {
+    appId: string
+    branch?: string
+    runtime?: string
+    runtimeVersion?: string
+    sdk?: string
+    permissions?: string[]
+    modules?: any[]
+  }
+  /** Snap options */
+  snap?: {
+    name: string
+    grade?: 'stable' | 'devel'
+    confinement?: 'strict' | 'classic' | 'devmode'
+    base?: string
+    plugs?: string[]
+    slots?: string[]
+  }
+}
+
+/**
+ * Complete app configuration with platform-specific options
+ */
+export interface CraftAppConfig extends AppConfig {
+  /** iOS configuration */
+  ios?: IOSConfig
+  /** Android configuration */
+  android?: AndroidConfig
+  /** macOS configuration */
+  macos?: MacOSConfig
+  /** Windows configuration */
+  windows?: WindowsConfig
+  /** Linux configuration */
+  linux?: LinuxConfig
+}
+
 /**
  * Augment the Window interface to include the Craft bridge
  */
@@ -834,6 +1370,6 @@ declare global {
     /**
      * Craft native bridge API (auto-injected)
      */
-    craft: CraftBridgeAPI
+    craft: CraftBridgeAPI & CraftEventEmitter
   }
 }

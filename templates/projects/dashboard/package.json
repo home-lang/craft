@@ -1,0 +1,20 @@
+{
+  "name": "{{APP_NAME_SLUG}}",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "craft dev",
+    "build": "craft build",
+    "build:release": "craft build --release",
+    "build:macos": "craft build --platform macos --release",
+    "build:windows": "craft build --platform windows --release",
+    "build:linux": "craft build --platform linux --release"
+  },
+  "dependencies": {
+    "@craft-native/craft": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

@@ -159,22 +159,95 @@ cli
 
 // Build command
 cli
-  .command('build', 'Build the Craft core binary')
+  .command('build', 'Build the Craft application')
   .option('--release', 'Build in release mode', { default: false })
+  .option('--platform <platforms>', 'Target platforms (ios,android,macos,windows,linux)', { default: 'current' })
+  .option('--config <path>', 'Path to craft.config.ts')
+  .example('craft build')
+  .example('craft build --release')
+  .example('craft build --platform ios,android')
+  .example('craft build --platform macos,windows,linux')
   .action(async (options?: any) => {
-    const buildCmd = options?.release
-      ? 'bun run build:core'
-      : 'cd packages/zig && zig build'
+    const platforms = options?.platform === 'current'
+      ? [process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux']
+      : options?.platform.split(',').map((p: string) => p.trim())
 
-    console.log('Building Craft core...')
-    try {
-      await runCraftBinary([buildCmd])
-      console.log('✓ Build complete')
+    console.log('\n⚡ Craft Build\n')
+    console.log(`Platforms: ${platforms.join(', ')}`)
+    console.log(`Mode: ${options?.release ? 'Release' : 'Debug'}\n`)
+
+    const { existsSync } = await import('node:fs')
+    const { spawn } = await import('node:child_process')
+
+    for (const platform of platforms) {
+      console.log(`📦 Building for ${platform}...`)
+
+      try {
+        if (platform === 'ios') {
+          if (process.platform !== 'darwin') {
+            console.log(`   ⚠️  iOS builds require macOS`)
+            continue
+          }
+          const iosDir = './ios'
+          if (existsSync(iosDir)) {
+            const buildType = options?.release ? 'Release' : 'Debug'
+            await new Promise<void>((resolve, reject) => {
+              const proc = spawn('xcodebuild', [
+                '-project', `${iosDir}/App.xcodeproj`,
+                '-scheme', 'App',
+                '-configuration', buildType,
+                '-sdk', 'iphoneos',
+                'build'
+              ], { stdio: 'inherit' })
+              proc.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`Exit ${code}`)))
+              proc.on('error', reject)
+            })
+            console.log(`   ✅ iOS ${buildType} build complete`)
+          } else {
+            console.log(`   ⚠️  No iOS project found. Run: craft ios init`)
+          }
+        }
+
+        else if (platform === 'android') {
+          const androidDir = './android'
+          if (existsSync(androidDir)) {
+            const task = options?.release ? 'assembleRelease' : 'assembleDebug'
+            await new Promise<void>((resolve, reject) => {
+              const proc = spawn('./gradlew', [task], {
+                cwd: androidDir,
+                stdio: 'inherit'
+              })
+              proc.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`Exit ${code}`)))
+              proc.on('error', reject)
+            })
+            console.log(`   ✅ Android ${options?.release ? 'Release' : 'Debug'} build complete`)
+          } else {
+            console.log(`   ⚠️  No Android project found. Run: craft android init`)
+          }
+        }
+
+        else if (platform === 'macos' || platform === 'windows' || platform === 'linux') {
+          const zigDir = existsSync('./packages/zig') ? './packages/zig' : '.'
+          const optimizeFlag = options?.release ? '-Doptimize=ReleaseSafe' : ''
+          await new Promise<void>((resolve, reject) => {
+            const args = ['build']
+            if (optimizeFlag) args.push(optimizeFlag)
+            const proc = spawn('zig', args, {
+              cwd: zigDir,
+              stdio: 'inherit'
+            })
+            proc.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`Exit ${code}`)))
+            proc.on('error', reject)
+          })
+          console.log(`   ✅ ${platform} build complete`)
+        }
+
+      } catch (error: any) {
+        console.error(`   ❌ ${platform} build failed: ${error.message}`)
+      }
     }
-    catch (error: any) {
-      console.error('Build failed:', error.message)
-      process.exit(1)
-    }
+
+    console.log('\n✨ Build complete\n')
   })
 
 // Dev command - launch with hot reload and dev tools enabled
@@ -628,20 +701,114 @@ cli
 // Init command - initialize a new Craft project
 cli
   .command('init <name>', 'Initialize a new Craft project')
-  .option('--template <type>', 'Project template (desktop, ios, android, all)', { default: 'desktop' })
+  .option('--template <type>', 'Project template (blank, tabs, drawer, dashboard, desktop, ios, android, all)', { default: 'blank' })
   .option('--bundle-id <id>', 'Bundle identifier for mobile')
   .example('craft init MyApp')
-  .example('craft init MyApp --template ios')
+  .example('craft init MyApp --template tabs')
+  .example('craft init MyApp --template dashboard')
   .example('craft init MyApp --template all')
   .action(async (name: string, options?: any) => {
     console.log(`\n⚡ Creating new Craft project: ${name}\n`)
 
-    const template = options?.template || 'desktop'
+    const template = options?.template || 'blank'
+    const bundleId = options?.bundleId || `com.example.${name.toLowerCase().replace(/[^a-z0-9]/g, '')}`
+    const appNameSlug = name.toLowerCase().replace(/[^a-z0-9]/g, '-')
+
+    const { mkdirSync, writeFileSync, existsSync, readdirSync, readFileSync, cpSync } = await import('node:fs')
+    const { join, dirname } = await import('node:path')
+
+    // Helper to replace template variables
+    const replaceVars = (content: string): string => {
+      return content
+        .replace(/\{\{APP_NAME\}\}/g, name)
+        .replace(/\{\{APP_NAME_SLUG\}\}/g, appNameSlug)
+        .replace(/\{\{BUNDLE_ID\}\}/g, bundleId)
+        .replace(/\{\{AUTHOR\}\}/g, 'Developer')
+    }
+
+    // Helper to copy template directory
+    const copyTemplate = async (templateName: string, destDir: string) => {
+      const templateDir = join(import.meta.dir, '../../../templates/projects', templateName)
+
+      if (!existsSync(templateDir)) {
+        console.log(`   ⚠️  Template '${templateName}' not found, using blank template`)
+        return false
+      }
+
+      const copyRecursive = (src: string, dest: string) => {
+        if (!existsSync(dest)) {
+          mkdirSync(dest, { recursive: true })
+        }
+
+        const entries = readdirSync(src, { withFileTypes: true })
+
+        for (const entry of entries) {
+          const srcPath = join(src, entry.name)
+          const destPath = join(dest, entry.name)
+
+          if (entry.isDirectory()) {
+            copyRecursive(srcPath, destPath)
+          } else {
+            const content = readFileSync(srcPath, 'utf-8')
+            const processedContent = replaceVars(content)
+            writeFileSync(destPath, processedContent)
+          }
+        }
+      }
+
+      copyRecursive(templateDir, destDir)
+      return true
+    }
+
+    // Create project from template
+    if (['blank', 'tabs', 'drawer', 'dashboard'].includes(template)) {
+      console.log(`📁 Creating ${template} project from template...`)
+
+      if (!existsSync(name)) {
+        mkdirSync(name, { recursive: true })
+      }
+
+      const copied = await copyTemplate(template, name)
+
+      if (!copied) {
+        // Fallback: create basic project inline
+        mkdirSync(join(name, 'src'), { recursive: true })
+
+        writeFileSync(join(name, 'index.html'), replaceVars(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_NAME}}</title>
+</head>
+<body>
+  <div id="app">
+    <h1>{{APP_NAME}}</h1>
+    <p>Built with Craft</p>
+  </div>
+</body>
+</html>`))
+
+        writeFileSync(join(name, 'package.json'), replaceVars(JSON.stringify({
+          name: '{{APP_NAME_SLUG}}',
+          version: '1.0.0',
+          private: true,
+          type: 'module',
+          scripts: {
+            dev: 'craft dev',
+            build: 'craft build'
+          },
+          dependencies: {
+            'ts-craft': 'workspace:*'
+          }
+        }, null, 2)))
+      }
+
+      console.log(`✅ ${template} project created`)
+    }
 
     if (template === 'desktop' || template === 'all') {
       console.log('📁 Creating desktop project structure...')
-      // Create basic project structure
-      const { mkdirSync, writeFileSync, existsSync } = await import('node:fs')
 
       if (!existsSync(name)) {
         mkdirSync(name, { recursive: true })
@@ -697,7 +864,7 @@ export default {
 
       // Create package.json
       const packageJson = {
-        name: name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+        name: appNameSlug,
         version: '0.1.0',
         private: true,
         scripts: {

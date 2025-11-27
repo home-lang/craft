@@ -1,5 +1,5 @@
 /**
- * Build script for @aspect/craft-android
+ * Build script for @craft-native/android
  */
 
 await Bun.build({

@@ -1,5 +1,5 @@
 {
-  "name": "@aspect/craft-ios",
+  "name": "@craft-native/ios",
   "version": "0.1.0",
   "description": "iOS native app builder for Craft",
   "type": "module",

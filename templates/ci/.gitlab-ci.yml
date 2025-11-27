@@ -1,0 +1,276 @@
+# Craft Framework - GitLab CI/CD Template
+# Copy this file to your project root as .gitlab-ci.yml
+
+stages:
+  - build
+  - test
+  - package
+  - deploy
+
+variables:
+  ZIG_VERSION: "0.15.1"
+  BUN_VERSION: "latest"
+  NODE_VERSION: "20"
+
+# Cache configuration
+.cache_zig: &cache_zig
+  cache:
+    key: zig-${CI_COMMIT_REF_SLUG}
+    paths:
+      - .zig-cache/
+      - zig-cache/
+
+.cache_node: &cache_node
+  cache:
+    key: node-${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+      - .bun/
+
+# =============================================================================
+# Build Jobs
+# =============================================================================
+
+build:zig:linux:
+  stage: build
+  image: ubuntu:22.04
+  <<: *cache_zig
+  before_script:
+    - apt-get update && apt-get install -y curl xz-utils libgtk-3-dev libwebkit2gtk-4.0-dev
+    - curl -LO "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz"
+    - tar xf "zig-linux-x86_64-${ZIG_VERSION}.tar.xz"
+    - export PATH="$PWD/zig-linux-x86_64-${ZIG_VERSION}:$PATH"
+  script:
+    - cd packages/zig
+    - zig build -Doptimize=ReleaseSafe
+    - ls -lh zig-out/bin/
+  artifacts:
+    paths:
+      - packages/zig/zig-out/bin/
+    expire_in: 1 week
+
+build:zig:macos:
+  stage: build
+  tags:
+    - macos
+  <<: *cache_zig
+  before_script:
+    - brew install zig || true
+  script:
+    - cd packages/zig
+    - zig build -Doptimize=ReleaseSafe
+  artifacts:
+    paths:
+      - packages/zig/zig-out/bin/
+    expire_in: 1 week
+
+build:zig:windows:
+  stage: build
+  tags:
+    - windows
+  <<: *cache_zig
+  script:
+    - cd packages/zig
+    - zig build -Doptimize=ReleaseSafe
+  artifacts:
+    paths:
+      - packages/zig/zig-out/bin/
+    expire_in: 1 week
+
+build:typescript:
+  stage: build
+  image: oven/bun:latest
+  <<: *cache_node
+  script:
+    - bun install
+    - cd packages/typescript
+    - bun run build
+  artifacts:
+    paths:
+      - packages/typescript/dist/
+    expire_in: 1 week
+
+# =============================================================================
+# Test Jobs
+# =============================================================================
+
+test:zig:
+  stage: test
+  image: ubuntu:22.04
+  <<: *cache_zig
+  needs:
+    - build:zig:linux
+  before_script:
+    - apt-get update && apt-get install -y curl xz-utils libgtk-3-dev libwebkit2gtk-4.0-dev
+    - curl -LO "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz"
+    - tar xf "zig-linux-x86_64-${ZIG_VERSION}.tar.xz"
+    - export PATH="$PWD/zig-linux-x86_64-${ZIG_VERSION}:$PATH"
+  script:
+    - cd packages/zig
+    - zig build test
+
+test:typescript:
+  stage: test
+  image: oven/bun:latest
+  <<: *cache_node
+  needs:
+    - build:typescript
+  script:
+    - bun install
+    - cd packages/typescript
+    - bun test
+
+test:typecheck:
+  stage: test
+  image: oven/bun:latest
+  <<: *cache_node
+  script:
+    - bun install
+    - cd packages/typescript
+    - bun run typecheck
+
+lint:zig:
+  stage: test
+  image: ubuntu:22.04
+  before_script:
+    - apt-get update && apt-get install -y curl xz-utils
+    - curl -LO "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz"
+    - tar xf "zig-linux-x86_64-${ZIG_VERSION}.tar.xz"
+    - export PATH="$PWD/zig-linux-x86_64-${ZIG_VERSION}:$PATH"
+  script:
+    - cd packages/zig
+    - zig fmt --check src/ build.zig
+
+# =============================================================================
+# Mobile Build Jobs
+# =============================================================================
+
+build:ios:
+  stage: build
+  tags:
+    - macos
+    - xcode
+  only:
+    - main
+    - tags
+    - merge_requests
+  script:
+    - cd ios
+    - pod install || true
+    - xcodebuild -scheme CraftApp -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO || echo "iOS build not configured"
+  allow_failure: true
+
+build:android:
+  stage: build
+  image: cimg/android:2024.01
+  only:
+    - main
+    - tags
+    - merge_requests
+  script:
+    - cd android
+    - chmod +x gradlew || true
+    - ./gradlew assembleDebug || echo "Android build not configured"
+  allow_failure: true
+
+# =============================================================================
+# Package Jobs
+# =============================================================================
+
+package:deb:
+  stage: package
+  image: ubuntu:22.04
+  needs:
+    - build:zig:linux
+  only:
+    - tags
+  before_script:
+    - apt-get update && apt-get install -y dpkg-dev
+  script:
+    - mkdir -p craft-app/DEBIAN craft-app/usr/local/bin
+    - cp packages/zig/zig-out/bin/craft craft-app/usr/local/bin/
+    - |
+      cat > craft-app/DEBIAN/control << EOF
+      Package: craft
+      Version: ${CI_COMMIT_TAG#v}
+      Section: utils
+      Priority: optional
+      Architecture: amd64
+      Maintainer: Craft Team <team@craft.dev>
+      Description: Build desktop apps with web languages
+      EOF
+    - dpkg-deb --build craft-app
+    - mv craft-app.deb craft-${CI_COMMIT_TAG#v}-linux-amd64.deb
+  artifacts:
+    paths:
+      - "*.deb"
+    expire_in: 1 month
+
+package:dmg:
+  stage: package
+  tags:
+    - macos
+  needs:
+    - build:zig:macos
+  only:
+    - tags
+  script:
+    - mkdir -p CraftApp.app/Contents/MacOS
+    - cp packages/zig/zig-out/bin/craft CraftApp.app/Contents/MacOS/
+    - hdiutil create -volname "Craft" -srcfolder CraftApp.app -ov -format UDZO craft-${CI_COMMIT_TAG#v}-darwin.dmg
+  artifacts:
+    paths:
+      - "*.dmg"
+    expire_in: 1 month
+
+package:npm:
+  stage: package
+  image: oven/bun:latest
+  needs:
+    - build:typescript
+    - test:typescript
+  only:
+    - tags
+  script:
+    - cd packages/typescript
+    - npm version ${CI_COMMIT_TAG#v} --no-git-tag-version
+    - npm publish --access public
+  when: manual
+
+# =============================================================================
+# Deploy Jobs
+# =============================================================================
+
+deploy:docs:
+  stage: deploy
+  image: node:${NODE_VERSION}
+  script:
+    - cd docs
+    - npm install
+    - npm run build
+    - mv dist public
+  artifacts:
+    paths:
+      - docs/public
+  only:
+    - main
+
+release:github:
+  stage: deploy
+  image: alpine:latest
+  needs:
+    - package:deb
+    - package:dmg
+  only:
+    - tags
+  before_script:
+    - apk add --no-cache curl jq
+  script:
+    - |
+      # Create GitHub release via API
+      curl -X POST \
+        -H "Authorization: token ${GITHUB_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{\"tag_name\": \"${CI_COMMIT_TAG}\", \"name\": \"Release ${CI_COMMIT_TAG}\", \"draft\": false}" \
+        "https://api.github.com/repos/${GITHUB_REPO}/releases"
+  when: manual

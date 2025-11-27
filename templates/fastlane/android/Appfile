@@ -1,0 +1,12 @@
+# Craft Framework - Android Appfile
+# Configure your app identifiers and Google Play account
+
+# App package name (Application ID)
+package_name ENV['PACKAGE_NAME'] || "com.example.craftapp"
+
+# Path to Google Play JSON key file
+# Generate from Google Cloud Console -> Service Accounts
+json_key_file ENV['SUPPLY_JSON_KEY'] || "./fastlane/play-store-key.json"
+
+# Or use JSON key data directly (for CI)
+# json_key_data ENV['SUPPLY_JSON_KEY_DATA']

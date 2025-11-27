@@ -1,4 +1,4 @@
-# @aspect/craft-android
+# @craft-native/android
 
 Build native Android apps with web technologies using Craft.
 

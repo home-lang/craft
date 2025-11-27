@@ -17,6 +17,15 @@ export * from './utils'
 // Export API modules
 export * from './api'
 
+// Export component abstractions (React Native-style primitives)
+export * from './components'
+
+// Export styling utilities (Headwind CSS integration)
+export * from './styles/headwind'
+
+// Export framework-specific optimizations
+export * from './optimizations'
+
 export class CraftApp {
   private process?: ChildProcess
   private config: AppConfig

@@ -1,0 +1,21 @@
+{
+  "name": "craft-todo-example",
+  "version": "1.0.0",
+  "description": "A cross-platform Todo app built with Craft",
+  "type": "module",
+  "scripts": {
+    "dev": "craft dev",
+    "build": "craft build",
+    "build:ios": "craft build --platform ios",
+    "build:android": "craft build --platform android",
+    "build:macos": "craft build --platform macos",
+    "build:windows": "craft build --platform windows",
+    "build:linux": "craft build --platform linux"
+  },
+  "dependencies": {
+    "ts-craft": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

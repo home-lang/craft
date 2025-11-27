@@ -1,0 +1,19 @@
+{
+  "name": "{{APP_NAME_SLUG}}",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "craft dev",
+    "build": "craft build",
+    "build:release": "craft build --release",
+    "ios": "craft ios build && craft ios open",
+    "android": "craft android build && craft android open"
+  },
+  "dependencies": {
+    "@craft-native/craft": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

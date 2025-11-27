@@ -1,4 +1,4 @@
-# @aspect/craft-ios
+# @craft-native/ios
 
 Build native iOS apps with web technologies using Craft.
 

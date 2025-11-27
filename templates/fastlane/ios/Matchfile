@@ -1,0 +1,33 @@
+# Craft Framework - Matchfile
+# Configure code signing certificate sync
+
+# Git repository for storing certificates
+git_url ENV['MATCH_GIT_URL'] || "git@github.com:your-org/certificates.git"
+
+# Storage mode: git, google_cloud, s3
+storage_mode "git"
+
+# App identifier(s) to manage
+app_identifier [
+  ENV['APP_IDENTIFIER'] || "com.example.craftapp"
+]
+
+# Apple Developer account
+username ENV['APPLE_ID'] || "developer@example.com"
+
+# Team ID
+team_id ENV['TEAM_ID'] || "XXXXXXXXXX"
+
+# Certificate types to manage
+type "development" # or "appstore", "adhoc", "enterprise"
+
+# Platform
+platform "ios"
+
+# Clone using SSH by default
+git_basic_authorization ENV['MATCH_GIT_BASIC_AUTH']
+shallow_clone true
+clone_branch_directly true
+
+# For CI, read only mode
+readonly is_ci

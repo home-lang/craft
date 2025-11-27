@@ -1,0 +1,20 @@
+# Craft Framework - iOS Appfile
+# Configure your app identifiers and Apple Developer account
+
+# App identifier (Bundle ID)
+app_identifier ENV['APP_IDENTIFIER'] || "com.example.craftapp"
+
+# Apple ID email
+apple_id ENV['APPLE_ID'] || "developer@example.com"
+
+# Team ID from Apple Developer Portal
+team_id ENV['TEAM_ID'] || "XXXXXXXXXX"
+
+# App Store Connect Team ID (if different from Developer Portal)
+itc_team_id ENV['ITC_TEAM_ID'] || ENV['TEAM_ID'] || "XXXXXXXXXX"
+
+# For App Store Connect API Key authentication (recommended for CI)
+# Set these environment variables:
+# - APP_STORE_CONNECT_KEY_ID
+# - APP_STORE_CONNECT_ISSUER_ID
+# - APP_STORE_CONNECT_KEY_CONTENT (base64 encoded .p8 file)
