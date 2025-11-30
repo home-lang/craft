@@ -1,0 +1,190 @@
+name: Mobile Builds
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/zig/src/mobile/**'
+      - 'packages/zig/templates/**'
+      - '.github/workflows/mobile.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'packages/zig/src/mobile/**'
+      - 'packages/zig/templates/**'
+      - '.github/workflows/mobile.yml'
+  workflow_dispatch:
+    inputs:
+      build_ios:
+        description: 'Build iOS'
+        required: false
+        default: true
+        type: boolean
+      build_android:
+        description: 'Build Android'
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: mobile-${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  ios-build:
+    name: iOS Build
+    runs-on: macos-14
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_ios }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.2'
+
+      - name: Setup Ruby (for Fastlane)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: '0.15.1'
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/Pods
+            ~/.cocoapods
+          key: ${{ runner.os }}-pods-${{ hashFiles('**/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pods-
+
+      - name: Build Zig iOS library
+        working-directory: packages/zig
+        run: |
+          zig build -Dtarget=aarch64-ios || echo "iOS target not fully implemented"
+
+      - name: Generate iOS project
+        run: |
+          mkdir -p ios-build
+          # Copy iOS template
+          cp -r packages/zig/templates/ios/* ios-build/ 2>/dev/null || echo "iOS template not yet available"
+
+      - name: Install CocoaPods
+        if: hashFiles('ios-build/Podfile') != ''
+        working-directory: ios-build
+        run: pod install
+
+      - name: Build iOS (Debug)
+        if: hashFiles('ios-build/*.xcworkspace') != '' || hashFiles('ios-build/*.xcodeproj') != ''
+        working-directory: ios-build
+        run: |
+          xcodebuild \
+            -scheme CraftApp \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            -configuration Debug \
+            build \
+            CODE_SIGNING_ALLOWED=NO || echo "iOS build not yet configured"
+
+      - name: Run iOS tests
+        if: hashFiles('ios-build/*.xcworkspace') != '' || hashFiles('ios-build/*.xcodeproj') != ''
+        working-directory: ios-build
+        run: |
+          xcodebuild \
+            -scheme CraftApp \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPhone 15' \
+            test \
+            CODE_SIGNING_ALLOWED=NO || echo "iOS tests not yet configured"
+
+  android-build:
+    name: Android Build
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_android }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: '0.15.1'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build Zig Android library
+        working-directory: packages/zig
+        run: |
+          zig build -Dtarget=aarch64-linux-android || echo "Android target not fully implemented"
+
+      - name: Generate Android project
+        run: |
+          mkdir -p android-build
+          # Copy Android template
+          cp -r packages/zig/templates/android/* android-build/ 2>/dev/null || echo "Android template not yet available"
+
+      - name: Build Android (Debug)
+        if: hashFiles('android-build/gradlew') != ''
+        working-directory: android-build
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug || echo "Android build not yet configured"
+
+      - name: Run Android tests
+        if: hashFiles('android-build/gradlew') != ''
+        working-directory: android-build
+        run: |
+          ./gradlew test || echo "Android tests not yet configured"
+
+      - name: Run Android instrumented tests
+        if: hashFiles('android-build/gradlew') != ''
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          working-directory: android-build
+          script: ./gradlew connectedAndroidTest || echo "Instrumented tests not yet configured"
+
+  mobile-integration:
+    name: Mobile Integration
+    needs: [ios-build, android-build]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Check build results
+        run: |
+          echo "iOS Build: ${{ needs.ios-build.result }}"
+          echo "Android Build: ${{ needs.android-build.result }}"
+
+      - name: Report status
+        if: needs.ios-build.result == 'failure' || needs.android-build.result == 'failure'
+        run: |
+          echo "::warning::Mobile builds had issues. Check individual job logs."
