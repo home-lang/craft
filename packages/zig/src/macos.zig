@@ -29,6 +29,7 @@ pub const objc = struct {
     pub extern "objc" fn method_getImplementation(m: Method) IMP;
     pub extern "objc" fn class_getInstanceMethod(cls: Class, sel: SEL) Method;
     pub extern "objc" fn class_getClassMethod(cls: Class, sel: SEL) Method;
+    pub extern "objc" fn class_getMethodImplementation(cls: Class, sel: SEL) IMP;
     pub extern "objc" fn objc_setAssociatedObject(object: id, key: *const anyopaque, value: id, policy: usize) void;
     pub extern "objc" fn objc_getAssociatedObject(object: id, key: *const anyopaque) id;
 

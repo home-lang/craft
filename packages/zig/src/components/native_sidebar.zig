@@ -2,6 +2,7 @@ const std = @import("std");
 const macos = @import("../macos.zig");
 const OutlineViewDataSource = @import("outline_view_datasource.zig").OutlineViewDataSource;
 const OutlineViewDelegate = @import("outline_view_delegate.zig").OutlineViewDelegate;
+const keyboard_handler = @import("keyboard_handler.zig");
 
 /// High-level wrapper for NSOutlineView-based sidebar
 /// Integrates data source and delegate into a complete component
@@ -36,9 +37,16 @@ pub const NativeSidebar = struct {
         var delegate = try OutlineViewDelegate.init(allocator);
         errdefer delegate.deinit();
 
-        // Create NSOutlineView
-        const NSOutlineView = macos.getClass("NSOutlineView");
-        const outline_view = macos.msgSend0(macos.msgSend0(NSOutlineView, "alloc"), "init");
+        // Create CraftOutlineView (custom subclass with keyboard handling)
+        // Falls back to NSOutlineView if subclass creation fails
+        const outline_view = blk: {
+            if (keyboard_handler.createCraftOutlineViewClass()) |CraftOutlineViewClass| {
+                break :blk macos.msgSend0(macos.msgSend0(CraftOutlineViewClass, "alloc"), "init");
+            } else |_| {
+                const NSOutlineView = macos.getClass("NSOutlineView");
+                break :blk macos.msgSend0(macos.msgSend0(NSOutlineView, "alloc"), "init");
+            }
+        };
 
         // Configure outline view for SOURCE LIST style (native sidebar)
         _ = macos.msgSend1(outline_view, "setDataSource:", data_source.getInstance());
@@ -212,6 +220,16 @@ pub const NativeSidebar = struct {
     /// Register callback for selection events
     pub fn setOnSelectCallback(self: *NativeSidebar, callback: *const fn (item_id: []const u8) void) void {
         self.delegate.setOnSelectCallback(callback);
+    }
+
+    /// Register callback for spacebar key (Quick Look)
+    pub fn setOnSpacebarCallback(_: *NativeSidebar, callback: *const fn () void) void {
+        keyboard_handler.setOutlineViewSpacebarCallback(callback);
+    }
+
+    /// Register callback for return key
+    pub fn setOnReturnCallback(_: *NativeSidebar, callback: *const fn () void) void {
+        keyboard_handler.setOutlineViewReturnCallback(callback);
     }
 
     /// Set frame for the sidebar view

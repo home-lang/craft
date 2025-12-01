@@ -2,6 +2,7 @@ const std = @import("std");
 const macos = @import("../macos.zig");
 const TableViewDataSource = @import("table_view_datasource.zig").TableViewDataSource;
 const TableViewDelegate = @import("table_view_delegate.zig").TableViewDelegate;
+const keyboard_handler = @import("keyboard_handler.zig");
 
 /// High-level wrapper for NSTableView-based file browser
 /// Integrates data source and delegate into a complete multi-column table
@@ -32,9 +33,16 @@ pub const NativeFileBrowser = struct {
         var delegate = try TableViewDelegate.init(allocator);
         errdefer delegate.deinit();
 
-        // Create NSTableView
-        const NSTableView = macos.getClass("NSTableView");
-        const table_view = macos.msgSend0(macos.msgSend0(NSTableView, "alloc"), "init");
+        // Create CraftTableView (custom subclass with keyboard handling)
+        // Falls back to NSTableView if subclass creation fails
+        const table_view = blk: {
+            if (keyboard_handler.createCraftTableViewClass()) |CraftTableViewClass| {
+                break :blk macos.msgSend0(macos.msgSend0(CraftTableViewClass, "alloc"), "init");
+            } else |_| {
+                const NSTableView = macos.getClass("NSTableView");
+                break :blk macos.msgSend0(macos.msgSend0(NSTableView, "alloc"), "init");
+            }
+        };
 
         // Configure table view
         _ = macos.msgSend1(table_view, "setDataSource:", data_source.getInstance());
@@ -184,6 +192,16 @@ pub const NativeFileBrowser = struct {
         // Set double action on table view
         // Note: This requires additional method implementation in delegate
         // For now, we'll use the selection callback
+    }
+
+    /// Register callback for spacebar key (Quick Look)
+    pub fn setOnSpacebarCallback(_: *NativeFileBrowser, callback: *const fn () void) void {
+        keyboard_handler.setTableViewSpacebarCallback(callback);
+    }
+
+    /// Register callback for return key (open file)
+    pub fn setOnReturnCallback(_: *NativeFileBrowser, callback: *const fn () void) void {
+        keyboard_handler.setTableViewReturnCallback(callback);
     }
 
     /// Set frame for the file browser view

@@ -321,8 +321,8 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
   - [x] Double-click callbacks (file browser)
   - [x] Icon display (SF Symbols for all items)
   - [x] Resizable split view
-- [ ] Add keyboard shortcuts (arrow keys for navigation)
-- [ ] Add context menus (right-click)
+- [x] Add keyboard shortcuts (arrow keys for navigation, spacebar for Quick Look)
+- [x] Add context menus (right-click)
 - [x] Match Finder behavior closely
 
 **Files created:**
@@ -522,9 +522,10 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 - [x] Double-click callbacks fire correctly
 - [x] Split view divider is resizable
 - [x] No memory leaks under heavy usage
-- [ ] Performance with 1000+ files is acceptable
+- [x] Performance with 1000+ files is acceptable
 - [x] JavaScript API is easy to use
-- [ ] Documentation is complete
+- [x] Documentation is complete
+- [x] Keyboard shortcuts work (arrow keys, spacebar for Quick Look)
 
 ---
 
@@ -568,6 +569,7 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 | Drag & Drop | `drag_drop.zig` | NSDraggingSource/Destination |
 | Context Menus | `context_menu.zig` | NSMenu/NSMenuItem |
 | Quick Look | `quick_look.zig` | QLPreviewPanel |
+| Keyboard Handler | `keyboard_handler.zig` | Arrow keys, spacebar (Quick Look) |
 
 **JAVASCRIPT API:**
 ```javascript
