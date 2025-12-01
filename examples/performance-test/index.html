@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Native UI Performance Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            color: #e2e8f0;
+            padding: 2rem;
+            padding-left: 280px;
+        }
+
+        .header {
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #f8fafc;
+        }
+
+        .header p {
+            color: #94a3b8;
+        }
+
+        .test-controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-secondary {
+            background: #475569;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #64748b;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1.25rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .metric-card .label {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-card .value {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #3b82f6;
+        }
+
+        .metric-card .unit {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-left: 0.25rem;
+        }
+
+        .test-results {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .test-results h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: #f8fafc;
+        }
+
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .results-table th,
+        .results-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .results-table th {
+            color: #94a3b8;
+            font-weight: 500;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        .results-table td {
+            color: #e2e8f0;
+        }
+
+        .results-table .pass {
+            color: #4ade80;
+        }
+
+        .results-table .warn {
+            color: #fbbf24;
+        }
+
+        .results-table .fail {
+            color: #f87171;
+        }
+
+        .log-container {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 12px;
+            padding: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'SF Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        .log-entry {
+            padding: 0.3rem 0;
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .log-time {
+            color: #64748b;
+            flex-shrink: 0;
+        }
+
+        .log-message {
+            color: #94a3b8;
+        }
+
+        .log-message.success { color: #4ade80; }
+        .log-message.info { color: #60a5fa; }
+        .log-message.warning { color: #fbbf24; }
+        .log-message.error { color: #f87171; }
+        .log-message.metric { color: #a78bfa; }
+
+        .progress-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            margin-top: 0.5rem;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: #3b82f6;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Native UI Performance Test Suite</h1>
+        <p>Comprehensive performance testing for native macOS UI components</p>
+    </div>
+
+    <div class="test-controls">
+        <button class="btn btn-primary" id="btn-100" onclick="runTest(100)">Test 100 Files</button>
+        <button class="btn btn-primary" id="btn-1000" onclick="runTest(1000)">Test 1,000 Files</button>
+        <button class="btn btn-primary" id="btn-5000" onclick="runTest(5000)">Test 5,000 Files</button>
+        <button class="btn btn-primary" id="btn-10000" onclick="runTest(10000)">Test 10,000 Files</button>
+        <button class="btn btn-secondary" onclick="clearFiles()">Clear Files</button>
+        <button class="btn btn-danger" onclick="clearResults()">Reset All</button>
+    </div>
+
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="label">Files Loaded</div>
+            <div class="value" id="file-count">0</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Load Time</div>
+            <div class="value" id="load-time">--<span class="unit">ms</span></div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Files/Second</div>
+            <div class="value" id="files-per-sec">--</div>
+        </div>
+        <div class="metric-card">
+            <div class="label">Avg Batch Time</div>
+            <div class="value" id="batch-time">--<span class="unit">ms</span></div>
+        </div>
+    </div>
+
+    <div class="test-results">
+        <h2>Test Results</h2>
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Test</th>
+                    <th>Files</th>
+                    <th>Load Time</th>
+                    <th>Files/sec</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="results-body">
+                <tr>
+                    <td colspan="5" style="color: #64748b; text-align: center;">No tests run yet</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="log-container" id="log-container">
+        <div class="log-entry">
+            <span class="log-time">--:--:--</span>
+            <span class="log-message info">Performance test suite ready. Click a test button to begin.</span>
+        </div>
+    </div>
+
+    <script>
+        // Performance metrics
+        let testResults = [];
+        let fileBrowser = null;
+        let currentFileCount = 0;
+
+        function log(message, type = 'info') {
+            const container = document.getElementById('log-container');
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span class="log-message ${type}">${message}</span>
+            `;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function updateMetric(id, value) {
+            const el = document.getElementById(id);
+            if (typeof value === 'number') {
+                el.innerHTML = value.toLocaleString() + (el.querySelector('.unit')?.outerHTML || '');
+            } else {
+                el.innerHTML = value;
+            }
+        }
+
+        function generateFiles(count) {
+            const files = [];
+            const types = [
+                { ext: '.txt', kind: 'Plain Text', icon: 'doc.text' },
+                { ext: '.js', kind: 'JavaScript', icon: 'chevron.left.forwardslash.chevron.right' },
+                { ext: '.json', kind: 'JSON', icon: 'curlybraces' },
+                { ext: '.png', kind: 'PNG Image', icon: 'photo' },
+                { ext: '.pdf', kind: 'PDF', icon: 'doc.richtext' },
+            ];
+            const folders = ['src', 'lib', 'docs', 'assets', 'test', 'build', 'config', 'scripts'];
+
+            for (let i = 0; i < count; i++) {
+                const type = types[i % types.length];
+                const folder = folders[i % folders.length];
+                const size = Math.floor(Math.random() * 100000) + 100;
+
+                files.push({
+                    id: `file-${i}`,
+                    name: `${folder}/file-${String(i).padStart(5, '0')}${type.ext}`,
+                    icon: type.icon,
+                    dateModified: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+                    size: size > 1024 ? `${(size / 1024).toFixed(1)} KB` : `${size} B`,
+                    kind: type.kind
+                });
+            }
+            return files;
+        }
+
+        function setButtonsDisabled(disabled) {
+            document.querySelectorAll('.btn').forEach(btn => btn.disabled = disabled);
+        }
+
+        async function runTest(fileCount) {
+            if (!window.craft?.nativeUI) {
+                log('Native UI bridge not available!', 'error');
+                return;
+            }
+
+            setButtonsDisabled(true);
+            log(`Starting test with ${fileCount.toLocaleString()} files...`, 'info');
+
+            // Clear existing files
+            if (fileBrowser) {
+                fileBrowser.clearFiles();
+                await new Promise(r => setTimeout(r, 100));
+            } else {
+                // Create file browser on first run
+                log('Creating file browser...', 'info');
+                fileBrowser = window.craft.nativeUI.createFileBrowser({ id: 'perf-test-browser' });
+
+                // Create sidebar too
+                const sidebar = window.craft.nativeUI.createSidebar({ id: 'perf-test-sidebar' });
+                sidebar.addSection({
+                    id: 'perf',
+                    header: 'PERFORMANCE TEST',
+                    items: [
+                        { id: 'all', label: 'All Files', icon: 'folder' },
+                        { id: 'recent', label: 'Recent', icon: 'clock' }
+                    ]
+                });
+            }
+
+            // Generate files
+            log(`Generating ${fileCount.toLocaleString()} test files...`, 'info');
+            const files = generateFiles(fileCount);
+
+            // Performance measurement
+            const startTime = performance.now();
+            const batchTimes = [];
+
+            // Add files in batches
+            const batchSize = Math.min(500, Math.ceil(fileCount / 10));
+            let loaded = 0;
+
+            for (let i = 0; i < files.length; i += batchSize) {
+                const batch = files.slice(i, i + batchSize);
+                const batchStart = performance.now();
+
+                fileBrowser.addFiles(batch);
+
+                const batchEnd = performance.now();
+                batchTimes.push(batchEnd - batchStart);
+
+                loaded += batch.length;
+                updateMetric('file-count', loaded);
+
+                // Small delay to let UI breathe
+                if (i + batchSize < files.length) {
+                    await new Promise(r => setTimeout(r, 10));
+                }
+
+                // Progress log every 25%
+                const progress = Math.floor((loaded / fileCount) * 100);
+                if (progress % 25 === 0 && progress > 0) {
+                    log(`Progress: ${progress}% (${loaded.toLocaleString()} files)`, 'info');
+                }
+            }
+
+            const endTime = performance.now();
+            const totalTime = endTime - startTime;
+            const filesPerSecond = Math.round(fileCount / (totalTime / 1000));
+            const avgBatchTime = batchTimes.reduce((a, b) => a + b, 0) / batchTimes.length;
+
+            // Update metrics
+            updateMetric('load-time', `${Math.round(totalTime)}<span class="unit">ms</span>`);
+            updateMetric('files-per-sec', filesPerSecond.toLocaleString());
+            updateMetric('batch-time', `${avgBatchTime.toFixed(1)}<span class="unit">ms</span>`);
+
+            currentFileCount = fileCount;
+
+            // Determine status
+            let status = 'pass';
+            let statusText = 'Excellent';
+            if (filesPerSecond < 1000) {
+                status = 'warn';
+                statusText = 'Acceptable';
+            }
+            if (filesPerSecond < 500) {
+                status = 'fail';
+                statusText = 'Slow';
+            }
+
+            // Log results
+            log(`Test complete: ${fileCount.toLocaleString()} files in ${Math.round(totalTime)}ms`, 'success');
+            log(`Performance: ${filesPerSecond.toLocaleString()} files/sec (${statusText})`, 'metric');
+
+            // Add to results table
+            const result = {
+                fileCount,
+                totalTime: Math.round(totalTime),
+                filesPerSecond,
+                status,
+                statusText
+            };
+            testResults.push(result);
+            updateResultsTable();
+
+            setButtonsDisabled(false);
+        }
+
+        function clearFiles() {
+            if (fileBrowser) {
+                fileBrowser.clearFiles();
+                currentFileCount = 0;
+                updateMetric('file-count', 0);
+                log('Files cleared', 'info');
+            }
+        }
+
+        function clearResults() {
+            testResults = [];
+            updateResultsTable();
+            updateMetric('file-count', 0);
+            updateMetric('load-time', '--<span class="unit">ms</span>');
+            updateMetric('files-per-sec', '--');
+            updateMetric('batch-time', '--<span class="unit">ms</span>');
+            document.getElementById('log-container').innerHTML = `
+                <div class="log-entry">
+                    <span class="log-time">--:--:--</span>
+                    <span class="log-message info">Results cleared. Ready for new tests.</span>
+                </div>
+            `;
+        }
+
+        function updateResultsTable() {
+            const tbody = document.getElementById('results-body');
+
+            if (testResults.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="color: #64748b; text-align: center;">No tests run yet</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = testResults.map((r, i) => `
+                <tr>
+                    <td>Test ${i + 1}</td>
+                    <td>${r.fileCount.toLocaleString()}</td>
+                    <td>${r.totalTime.toLocaleString()} ms</td>
+                    <td>${r.filesPerSecond.toLocaleString()}</td>
+                    <td class="${r.status}">${r.statusText}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            log('Performance test suite initialized', 'success');
+
+            // Check for native UI
+            setTimeout(() => {
+                if (window.craft?.nativeUI) {
+                    log('Native UI bridge detected', 'success');
+                } else {
+                    log('Waiting for native UI bridge...', 'warning');
+                }
+            }, 500);
+        });
+    </script>
+</body>
+</html>

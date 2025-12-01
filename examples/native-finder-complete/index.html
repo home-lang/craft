@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Native Finder - Complete Example</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+            background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #e4e4e7;
+        }
+
+        .main-content {
+            padding: 2rem;
+            padding-left: 280px; /* Space for sidebar */
+            min-height: 100vh;
+        }
+
+        .header {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: #9ca3af;
+            font-size: 0.95rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.25rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.2s ease;
+        }
+
+        .stat-card:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .stat-card .label {
+            font-size: 0.85rem;
+            color: #9ca3af;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-card .value {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #60a5fa;
+        }
+
+        .activity-log {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .activity-log h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: #f3f4f6;
+        }
+
+        .log-entries {
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 0.85rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: #6b7280;
+            flex-shrink: 0;
+        }
+
+        .log-message {
+            color: #d1d5db;
+        }
+
+        .log-message.success { color: #4ade80; }
+        .log-message.info { color: #60a5fa; }
+        .log-message.warning { color: #fbbf24; }
+        .log-message.error { color: #f87171; }
+
+        .feature-showcase {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .feature-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #f3f4f6;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .feature-card ul {
+            list-style: none;
+        }
+
+        .feature-card li {
+            padding: 0.4rem 0;
+            color: #9ca3af;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .feature-card li::before {
+            content: "✓";
+            color: #4ade80;
+            font-weight: bold;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-badge.ready {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
+        .status-badge.loading {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+
+        .status-badge.error {
+            background: rgba(248, 113, 113, 0.2);
+            color: #f87171;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <div class="header">
+            <h1>Native Finder - Complete Example</h1>
+            <p>Comprehensive demonstration of native macOS Tahoe UI components with SF Symbols</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="label">Sidebar Items</div>
+                <div class="value" id="sidebar-count">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Files Loaded</div>
+                <div class="value" id="file-count">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Selection Events</div>
+                <div class="value" id="selection-count">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Status</div>
+                <div class="value"><span class="status-badge loading" id="status-badge">Loading...</span></div>
+            </div>
+        </div>
+
+        <div class="activity-log">
+            <h2>Activity Log</h2>
+            <div class="log-entries" id="log-entries">
+                <div class="log-entry">
+                    <span class="log-time">--:--:--</span>
+                    <span class="log-message info">Waiting for native UI bridge...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-showcase">
+            <div class="feature-card">
+                <h3>Sidebar Features</h3>
+                <ul>
+                    <li>Multiple expandable sections</li>
+                    <li>SF Symbol icons for each item</li>
+                    <li>Selection highlighting</li>
+                    <li>Section headers with uppercase styling</li>
+                    <li>Native Liquid Glass material</li>
+                </ul>
+            </div>
+            <div class="feature-card">
+                <h3>File Browser Features</h3>
+                <ul>
+                    <li>4 sortable columns</li>
+                    <li>100+ file items</li>
+                    <li>SF Symbol file type icons</li>
+                    <li>Single and double-click handling</li>
+                    <li>Row selection highlighting</li>
+                </ul>
+            </div>
+            <div class="feature-card">
+                <h3>Split View Features</h3>
+                <ul>
+                    <li>Resizable divider</li>
+                    <li>Minimum pane sizes enforced</li>
+                    <li>Smooth divider dragging</li>
+                    <li>Auto-save position</li>
+                    <li>Proper Auto Layout</li>
+                </ul>
+            </div>
+            <div class="feature-card">
+                <h3>Memory & Performance</h3>
+                <ul>
+                    <li>Proper ObjC memory management</li>
+                    <li>Component cleanup on destroy</li>
+                    <li>Debounced data reloads</li>
+                    <li>Edge case handling</li>
+                    <li>Error boundaries</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Helper functions
+        function log(message, type = 'info') {
+            const logEntries = document.getElementById('log-entries');
+            const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span class="log-message ${type}">${message}</span>
+            `;
+            logEntries.appendChild(entry);
+            logEntries.scrollTop = logEntries.scrollHeight;
+        }
+
+        function updateStat(id, value) {
+            document.getElementById(id).textContent = value;
+        }
+
+        function setStatus(status, text) {
+            const badge = document.getElementById('status-badge');
+            badge.className = `status-badge ${status}`;
+            badge.textContent = text;
+        }
+
+        // Track statistics
+        let sidebarItemCount = 0;
+        let fileCount = 0;
+        let selectionCount = 0;
+
+        // File type configurations with SF Symbol icons
+        const fileTypes = [
+            { ext: '.txt', kind: 'Plain Text', icon: 'doc.text' },
+            { ext: '.md', kind: 'Markdown', icon: 'doc.text' },
+            { ext: '.json', kind: 'JSON', icon: 'curlybraces' },
+            { ext: '.js', kind: 'JavaScript', icon: 'chevron.left.forwardslash.chevron.right' },
+            { ext: '.ts', kind: 'TypeScript', icon: 'chevron.left.forwardslash.chevron.right' },
+            { ext: '.html', kind: 'HTML', icon: 'globe' },
+            { ext: '.css', kind: 'CSS', icon: 'paintbrush' },
+            { ext: '.swift', kind: 'Swift', icon: 'swift' },
+            { ext: '.zig', kind: 'Zig', icon: 'hammer' },
+            { ext: '.png', kind: 'PNG Image', icon: 'photo' },
+            { ext: '.jpg', kind: 'JPEG Image', icon: 'photo' },
+            { ext: '.pdf', kind: 'PDF Document', icon: 'doc.richtext' },
+            { ext: '.zip', kind: 'Archive', icon: 'doc.zipper' },
+            { ext: '.mp3', kind: 'Audio', icon: 'music.note' },
+            { ext: '.mp4', kind: 'Video', icon: 'film' },
+        ];
+
+        // Generate 100+ files
+        function generateFiles() {
+            const files = [];
+            const names = [
+                'README', 'index', 'main', 'app', 'config', 'utils', 'helpers',
+                'styles', 'components', 'services', 'models', 'controllers',
+                'views', 'routes', 'middleware', 'database', 'api', 'tests',
+                'build', 'deploy', 'setup', 'install', 'package', 'manifest',
+                'license', 'changelog', 'contributing', 'security', 'authors'
+            ];
+
+            const folders = ['src', 'lib', 'docs', 'assets', 'public', 'dist'];
+
+            let id = 1;
+
+            // Generate files for each folder prefix
+            folders.forEach(folder => {
+                names.forEach(name => {
+                    const fileType = fileTypes[Math.floor(Math.random() * fileTypes.length)];
+                    const size = Math.floor(Math.random() * 10000) + 100;
+                    const days = Math.floor(Math.random() * 365);
+                    const date = new Date();
+                    date.setDate(date.getDate() - days);
+
+                    files.push({
+                        id: `file-${id++}`,
+                        name: `${folder}/${name}${fileType.ext}`,
+                        icon: fileType.icon,
+                        dateModified: date.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                        }),
+                        size: size > 1000 ? `${(size / 1024).toFixed(1)} KB` : `${size} bytes`,
+                        kind: fileType.kind
+                    });
+                });
+            });
+
+            // Add some root level files
+            for (let i = 0; i < 20; i++) {
+                const fileType = fileTypes[Math.floor(Math.random() * fileTypes.length)];
+                const size = Math.floor(Math.random() * 50000) + 500;
+                const days = Math.floor(Math.random() * 30);
+                const date = new Date();
+                date.setDate(date.getDate() - days);
+
+                files.push({
+                    id: `file-${id++}`,
+                    name: `${names[i % names.length]}${fileType.ext}`,
+                    icon: fileType.icon,
+                    dateModified: date.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                    }),
+                    size: size > 1000 ? `${(size / 1024).toFixed(1)} KB` : `${size} bytes`,
+                    kind: fileType.kind
+                });
+            }
+
+            return files;
+        }
+
+        // Initialize native UI
+        function initializeNativeUI() {
+            log('Checking for native UI bridge...', 'info');
+
+            // Check for the bridge
+            if (typeof window.craft === 'undefined' || !window.craft.nativeUI) {
+                log('Native UI bridge not available yet, retrying...', 'warning');
+                setTimeout(initializeNativeUI, 500);
+                return;
+            }
+
+            log('Native UI bridge found!', 'success');
+            setStatus('ready', 'Ready');
+
+            const nativeUI = window.craft.nativeUI;
+
+            // Create sidebar
+            log('Creating sidebar...', 'info');
+            const sidebar = nativeUI.createSidebar({ id: 'finder-sidebar' });
+
+            // Add Favorites section
+            log('Adding Favorites section...', 'info');
+            sidebar.addSection({
+                id: 'favorites',
+                header: 'FAVORITES',
+                items: [
+                    { id: 'airdrop', label: 'AirDrop', icon: 'antenna.radiowaves.left.and.right' },
+                    { id: 'recents', label: 'Recents', icon: 'clock' },
+                    { id: 'applications', label: 'Applications', icon: 'square.grid.2x2' },
+                    { id: 'desktop', label: 'Desktop', icon: 'menubar.dock.rectangle' },
+                    { id: 'documents', label: 'Documents', icon: 'doc.on.doc' },
+                    { id: 'downloads', label: 'Downloads', icon: 'arrow.down.circle' }
+                ]
+            });
+            sidebarItemCount += 6;
+
+            // Add iCloud section
+            log('Adding iCloud section...', 'info');
+            sidebar.addSection({
+                id: 'icloud',
+                header: 'ICLOUD',
+                items: [
+                    { id: 'icloud-drive', label: 'iCloud Drive', icon: 'icloud' },
+                    { id: 'shared', label: 'Shared', icon: 'person.2' }
+                ]
+            });
+            sidebarItemCount += 2;
+
+            // Add Locations section
+            log('Adding Locations section...', 'info');
+            sidebar.addSection({
+                id: 'locations',
+                header: 'LOCATIONS',
+                items: [
+                    { id: 'macbook', label: 'MacBook Pro', icon: 'laptopcomputer' },
+                    { id: 'network', label: 'Network', icon: 'network' },
+                    { id: 'external', label: 'External Drive', icon: 'externaldrive' }
+                ]
+            });
+            sidebarItemCount += 3;
+
+            // Add Tags section
+            log('Adding Tags section...', 'info');
+            sidebar.addSection({
+                id: 'tags',
+                header: 'TAGS',
+                items: [
+                    { id: 'red', label: 'Red', icon: 'circle.fill' },
+                    { id: 'orange', label: 'Orange', icon: 'circle.fill' },
+                    { id: 'yellow', label: 'Yellow', icon: 'circle.fill' },
+                    { id: 'green', label: 'Green', icon: 'circle.fill' },
+                    { id: 'blue', label: 'Blue', icon: 'circle.fill' },
+                    { id: 'purple', label: 'Purple', icon: 'circle.fill' },
+                    { id: 'gray', label: 'Gray', icon: 'circle.fill' }
+                ]
+            });
+            sidebarItemCount += 7;
+
+            updateStat('sidebar-count', sidebarItemCount);
+            log(`Sidebar created with ${sidebarItemCount} items`, 'success');
+
+            // Create file browser
+            log('Creating file browser...', 'info');
+            const fileBrowser = nativeUI.createFileBrowser({ id: 'finder-browser' });
+
+            // Generate and add files
+            log('Generating 100+ files...', 'info');
+            const files = generateFiles();
+
+            // Add files in batches to show progress
+            const batchSize = 25;
+            let currentIndex = 0;
+
+            function addFileBatch() {
+                const batch = files.slice(currentIndex, currentIndex + batchSize);
+                if (batch.length === 0) {
+                    log(`All ${files.length} files added to browser`, 'success');
+                    updateStat('file-count', files.length);
+                    return;
+                }
+
+                fileBrowser.addFiles(batch);
+
+                currentIndex += batchSize;
+                fileCount = currentIndex;
+                updateStat('file-count', Math.min(currentIndex, files.length));
+                log(`Added files ${currentIndex - batchSize + 1}-${Math.min(currentIndex, files.length)}...`, 'info');
+
+                // Continue with next batch
+                setTimeout(addFileBatch, 50);
+            }
+
+            addFileBatch();
+
+            // Set up sidebar selection callback
+            log('Setting up sidebar selection callback...', 'info');
+            if (sidebar && sidebar.onSelect) {
+                sidebar.onSelect((itemId) => {
+                    selectionCount++;
+                    updateStat('selection-count', selectionCount);
+                    log(`Sidebar item selected: ${itemId}`, 'success');
+                });
+            }
+
+            // Set up file browser callbacks
+            log('Setting up file browser callbacks...', 'info');
+            if (fileBrowser) {
+                if (fileBrowser.onSelect) {
+                    fileBrowser.onSelect((fileId) => {
+                        selectionCount++;
+                        updateStat('selection-count', selectionCount);
+                        log(`File selected: ${fileId}`, 'info');
+                    });
+                }
+
+                if (fileBrowser.onDoubleClick) {
+                    fileBrowser.onDoubleClick((fileId) => {
+                        log(`File double-clicked: ${fileId} (would open file)`, 'success');
+                    });
+                }
+            }
+
+            log('Native Finder UI initialization complete!', 'success');
+        }
+
+        // Start initialization when DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            log('DOM loaded, starting initialization...', 'info');
+
+            // Wait a bit for the bridge to be injected
+            setTimeout(initializeNativeUI, 100);
+        });
+
+        // Also listen for the native UI ready event
+        document.addEventListener('craft:nativeui:ready', () => {
+            log('Received craft:nativeui:ready event', 'success');
+        });
+    </script>
+</body>
+</html>
