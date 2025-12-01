@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Context Menu Test - Craft Native UI</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+
+    .test-section {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .test-section h2 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .test-section h2 .status {
+      font-size: 12px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .status.pending {
+      background: rgba(255, 193, 7, 0.2);
+      color: #ffc107;
+    }
+
+    .status.pass {
+      background: rgba(76, 175, 80, 0.2);
+      color: #4caf50;
+    }
+
+    .status.fail {
+      background: rgba(244, 67, 54, 0.2);
+      color: #f44336;
+    }
+
+    .test-description {
+      color: #aaa;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .test-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button.secondary {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    button.secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: none;
+    }
+
+    .log-container {
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 20px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+    }
+
+    .log-entry {
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      gap: 10px;
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-time {
+      color: #666;
+      flex-shrink: 0;
+    }
+
+    .log-type {
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .log-type.menu {
+      background: rgba(156, 39, 176, 0.3);
+      color: #ce93d8;
+    }
+
+    .log-type.action {
+      background: rgba(76, 175, 80, 0.3);
+      color: #81c784;
+    }
+
+    .log-type.error {
+      background: rgba(244, 67, 54, 0.3);
+      color: #e57373;
+    }
+
+    .log-type.info {
+      background: rgba(33, 150, 243, 0.3);
+      color: #64b5f6;
+    }
+
+    .log-message {
+      color: #e0e0e0;
+    }
+
+    .results-summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 20px;
+    }
+
+    .result-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .result-card .number {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .result-card .label {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .result-card.pass .number { color: #4caf50; }
+    .result-card.fail .number { color: #f44336; }
+    .result-card.total .number { color: #2196f3; }
+
+    .instructions {
+      background: rgba(33, 150, 243, 0.1);
+      border: 1px solid rgba(33, 150, 243, 0.3);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .instructions h3 {
+      font-size: 14px;
+      color: #64b5f6;
+      margin-bottom: 8px;
+    }
+
+    .instructions ol {
+      margin-left: 20px;
+      color: #aaa;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Context Menu Test Suite</h1>
+    <p class="subtitle">Test native NSMenu and NSMenuItem functionality</p>
+
+    <div class="instructions">
+      <h3>How to Test</h3>
+      <ol>
+        <li>Click each "Show Menu" button to display a context menu</li>
+        <li>Click menu items and verify the action is logged below</li>
+        <li>Test keyboard shortcuts (shown in menu items)</li>
+        <li>Verify icons appear correctly (SF Symbols)</li>
+        <li>Mark each test as Pass or Fail</li>
+      </ol>
+    </div>
+
+    <!-- Test 1: Basic Menu -->
+    <div class="test-section" id="test1">
+      <h2>
+        Test 1: Basic Context Menu
+        <span class="status pending" id="test1-status">Pending</span>
+      </h2>
+      <p class="test-description">
+        Shows a simple menu with 3 items. Verify menu appears at click position
+        and items are clickable.
+      </p>
+      <div class="test-actions">
+        <button onclick="showBasicMenu(event)">Show Menu</button>
+        <button class="secondary" onclick="markTest('test1', 'pass')">Pass</button>
+        <button class="secondary" onclick="markTest('test1', 'fail')">Fail</button>
+      </div>
+    </div>
+
+    <!-- Test 2: Menu with Icons -->
+    <div class="test-section" id="test2">
+      <h2>
+        Test 2: Menu with SF Symbol Icons
+        <span class="status pending" id="test2-status">Pending</span>
+      </h2>
+      <p class="test-description">
+        Each menu item should display an SF Symbol icon on the left side.
+        Icons should match the system style (template rendering).
+      </p>
+      <div class="test-actions">
+        <button onclick="showIconMenu(event)">Show Menu</button>
+        <button class="secondary" onclick="markTest('test2', 'pass')">Pass</button>
+        <button class="secondary" onclick="markTest('test2', 'fail')">Fail</button>
+      </div>
+    </div>
+
+    <!-- Test 3: Menu with Keyboard Shortcuts -->
+    <div class="test-section" id="test3">
+      <h2>
+        Test 3: Menu with Keyboard Shortcuts
+        <span class="status pending" id="test3-status">Pending</span>
+      </h2>
+      <p class="test-description">
+        Menu items should show keyboard shortcuts on the right side (e.g., Cmd+C, Cmd+V).
+        Shortcuts should be properly formatted.
+      </p>
+      <div class="test-actions">
+        <button onclick="showShortcutMenu(event)">Show Menu</button>
+        <button class="secondary" onclick="markTest('test3', 'pass')">Pass</button>
+        <button class="secondary" onclick="markTest('test3', 'fail')">Fail</button>
+      </div>
+    </div>
+
+    <!-- Test 4: Menu with Separators -->
+    <div class="test-section" id="test4">
+      <h2>
+        Test 4: Menu with Separators
+        <span class="status pending" id="test4-status">Pending</span>
+      </h2>
+      <p class="test-description">
+        Menu should have visual dividers between groups of items.
+        Separators should be thin horizontal lines.
+      </p>
+      <div class="test-actions">
+        <button onclick="showSeparatorMenu(event)">Show Menu</button>
+        <button class="secondary" onclick="markTest('test4', 'pass')">Pass</button>
+        <button class="secondary" onclick="markTest('test4', 'fail')">Fail</button>
+      </div>
+    </div>
+
+    <!-- Test 5: Disabled Items -->
+    <div class="test-section" id="test5">
+      <h2>
+        Test 5: Disabled Menu Items
+        <span class="status pending" id="test5-status">Pending</span>
+      </h2>
+      <p class="test-description">
+        Some menu items should be grayed out and not clickable.
+        Clicking disabled items should not trigger any action.
+      </p>
+      <div class="test-actions">
+        <button onclick="showDisabledMenu(event)">Show Menu</button>
+        <button class="secondary" onclick="markTest('test5', 'pass')">Pass</button>
+        <button class="secondary" onclick="markTest('test5', 'fail')">Fail</button>
+      </div>
+    </div>
+
+    <!-- Test 6: Sidebar Context Menu -->
+    <div class="test-section" id="test6">
+      <h2>
+        Test 6: Sidebar Item Context Menu
+        <span class="status pending" id="test6-status">Pending</span>
+      </h2>
+      <p class="test-description">
+        Shows the default sidebar context menu with Rename, New Folder, and Remove options.
+        Simulates right-clicking on a sidebar item.
+      </p>
+      <div class="test-actions">
+        <button onclick="showSidebarMenu(event)">Show Sidebar Menu</button>
+        <button class="secondary" onclick="markTest('test6', 'pass')">Pass</button>
+        <button class="secondary" onclick="markTest('test6', 'fail')">Fail</button>
+      </div>
+    </div>
+
+    <!-- Test 7: File Browser Context Menu -->
+    <div class="test-section" id="test7">
+      <h2>
+        Test 7: File Browser Context Menu
+        <span class="status pending" id="test7-status">Pending</span>
+      </h2>
+      <p class="test-description">
+        Shows the default file browser context menu with Open, Get Info, Copy, etc.
+        This is the full Finder-like context menu.
+      </p>
+      <div class="test-actions">
+        <button onclick="showFileBrowserMenu(event)">Show File Menu</button>
+        <button class="secondary" onclick="markTest('test7', 'pass')">Pass</button>
+        <button class="secondary" onclick="markTest('test7', 'fail')">Fail</button>
+      </div>
+    </div>
+
+    <!-- Results Summary -->
+    <div class="results-summary">
+      <div class="result-card pass">
+        <div class="number" id="pass-count">0</div>
+        <div class="label">Passed</div>
+      </div>
+      <div class="result-card fail">
+        <div class="number" id="fail-count">0</div>
+        <div class="label">Failed</div>
+      </div>
+      <div class="result-card total">
+        <div class="number" id="total-count">7</div>
+        <div class="label">Total Tests</div>
+      </div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="log-container" id="log">
+      <div class="log-entry">
+        <span class="log-time">--:--:--</span>
+        <span class="log-type info">INFO</span>
+        <span class="log-message">Context Menu Test Suite initialized. Click buttons to test menus.</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Test results tracking
+    const testResults = {};
+    let passCount = 0;
+    let failCount = 0;
+
+    // Logging function
+    function log(type, message) {
+      const logContainer = document.getElementById('log');
+      const now = new Date();
+      const time = now.toTimeString().split(' ')[0];
+
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `
+        <span class="log-time">${time}</span>
+        <span class="log-type ${type}">${type.toUpperCase()}</span>
+        <span class="log-message">${message}</span>
+      `;
+
+      logContainer.appendChild(entry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    // Mark test as pass/fail
+    function markTest(testId, result) {
+      const statusEl = document.getElementById(`${testId}-status`);
+
+      // Remove from previous count if already marked
+      if (testResults[testId] === 'pass') passCount--;
+      if (testResults[testId] === 'fail') failCount--;
+
+      // Update result
+      testResults[testId] = result;
+      statusEl.className = `status ${result}`;
+      statusEl.textContent = result === 'pass' ? 'Pass' : 'Fail';
+
+      // Update counts
+      if (result === 'pass') passCount++;
+      if (result === 'fail') failCount++;
+
+      document.getElementById('pass-count').textContent = passCount;
+      document.getElementById('fail-count').textContent = failCount;
+
+      log('info', `Test "${testId}" marked as ${result.toUpperCase()}`);
+    }
+
+    // Wait for native UI to be ready
+    document.addEventListener('craft:nativeui:ready', () => {
+      log('info', 'Native UI API is ready');
+    });
+
+    // Test 1: Basic Menu
+    function showBasicMenu(event) {
+      log('menu', 'Showing basic context menu');
+
+      if (!window.craft?.nativeUI) {
+        log('error', 'Native UI not available');
+        return;
+      }
+
+      craft.nativeUI.showContextMenu({
+        targetId: 'test1',
+        targetType: 'test',
+        x: event.clientX,
+        y: event.clientY,
+        items: [
+          { id: 'item1', title: 'First Item' },
+          { id: 'item2', title: 'Second Item' },
+          { id: 'item3', title: 'Third Item' }
+        ]
+      });
+    }
+
+    // Test 2: Menu with Icons
+    function showIconMenu(event) {
+      log('menu', 'Showing menu with SF Symbol icons');
+
+      if (!window.craft?.nativeUI) {
+        log('error', 'Native UI not available');
+        return;
+      }
+
+      craft.nativeUI.showContextMenu({
+        targetId: 'test2',
+        targetType: 'test',
+        x: event.clientX,
+        y: event.clientY,
+        items: [
+          { id: 'folder', title: 'New Folder', icon: 'folder.badge.plus' },
+          { id: 'file', title: 'New File', icon: 'doc.badge.plus' },
+          { id: 'download', title: 'Download', icon: 'arrow.down.circle' },
+          { id: 'share', title: 'Share', icon: 'square.and.arrow.up' },
+          { id: 'trash', title: 'Move to Trash', icon: 'trash' }
+        ]
+      });
+    }
+
+    // Test 3: Menu with Keyboard Shortcuts
+    function showShortcutMenu(event) {
+      log('menu', 'Showing menu with keyboard shortcuts');
+
+      if (!window.craft?.nativeUI) {
+        log('error', 'Native UI not available');
+        return;
+      }
+
+      craft.nativeUI.showContextMenu({
+        targetId: 'test3',
+        targetType: 'test',
+        x: event.clientX,
+        y: event.clientY,
+        items: [
+          { id: 'cut', title: 'Cut', icon: 'scissors', shortcut: 'cmd+x' },
+          { id: 'copy', title: 'Copy', icon: 'doc.on.doc', shortcut: 'cmd+c' },
+          { id: 'paste', title: 'Paste', icon: 'doc.on.clipboard', shortcut: 'cmd+v' },
+          { id: 'selectall', title: 'Select All', shortcut: 'cmd+a' },
+          { id: 'find', title: 'Find...', icon: 'magnifyingglass', shortcut: 'cmd+f' },
+          { id: 'replace', title: 'Find and Replace...', shortcut: 'cmd+shift+h' }
+        ]
+      });
+    }
+
+    // Test 4: Menu with Separators
+    function showSeparatorMenu(event) {
+      log('menu', 'Showing menu with separators');
+
+      if (!window.craft?.nativeUI) {
+        log('error', 'Native UI not available');
+        return;
+      }
+
+      craft.nativeUI.showContextMenu({
+        targetId: 'test4',
+        targetType: 'test',
+        x: event.clientX,
+        y: event.clientY,
+        items: [
+          { id: 'new', title: 'New', icon: 'plus' },
+          { id: 'open', title: 'Open', icon: 'folder' },
+          { type: 'separator' },
+          { id: 'save', title: 'Save', icon: 'square.and.arrow.down' },
+          { id: 'saveas', title: 'Save As...' },
+          { type: 'separator' },
+          { id: 'print', title: 'Print...', icon: 'printer' },
+          { type: 'separator' },
+          { id: 'close', title: 'Close', icon: 'xmark' }
+        ]
+      });
+    }
+
+    // Test 5: Disabled Items
+    function showDisabledMenu(event) {
+      log('menu', 'Showing menu with disabled items');
+
+      if (!window.craft?.nativeUI) {
+        log('error', 'Native UI not available');
+        return;
+      }
+
+      craft.nativeUI.showContextMenu({
+        targetId: 'test5',
+        targetType: 'test',
+        x: event.clientX,
+        y: event.clientY,
+        items: [
+          { id: 'undo', title: 'Undo', icon: 'arrow.uturn.backward', enabled: false },
+          { id: 'redo', title: 'Redo', icon: 'arrow.uturn.forward', enabled: false },
+          { type: 'separator' },
+          { id: 'cut', title: 'Cut', enabled: false },
+          { id: 'copy', title: 'Copy', enabled: true },
+          { id: 'paste', title: 'Paste', enabled: true },
+          { type: 'separator' },
+          { id: 'delete', title: 'Delete', icon: 'trash', enabled: false }
+        ]
+      });
+    }
+
+    // Test 6: Sidebar Context Menu
+    function showSidebarMenu(event) {
+      log('menu', 'Showing sidebar context menu');
+
+      if (!window.craft?.nativeUI) {
+        log('error', 'Native UI not available');
+        return;
+      }
+
+      craft.nativeUI.showContextMenu({
+        targetId: 'documents-folder',
+        targetType: 'sidebar',
+        x: event.clientX,
+        y: event.clientY,
+        items: [
+          { id: 'rename', title: 'Rename...', icon: 'pencil' },
+          { type: 'separator' },
+          { id: 'new_folder', title: 'New Folder', icon: 'folder.badge.plus', shortcut: 'cmd+shift+n' },
+          { type: 'separator' },
+          { id: 'remove', title: 'Remove from Sidebar', icon: 'minus.circle' }
+        ]
+      });
+    }
+
+    // Test 7: File Browser Context Menu
+    function showFileBrowserMenu(event) {
+      log('menu', 'Showing file browser context menu');
+
+      if (!window.craft?.nativeUI) {
+        log('error', 'Native UI not available');
+        return;
+      }
+
+      craft.nativeUI.showContextMenu({
+        targetId: 'readme.md',
+        targetType: 'file',
+        x: event.clientX,
+        y: event.clientY,
+        items: [
+          { id: 'open', title: 'Open', icon: 'arrow.up.forward.square', shortcut: 'cmd+o' },
+          { id: 'open_with', title: 'Open With...', icon: 'arrow.up.forward.app' },
+          { type: 'separator' },
+          { id: 'get_info', title: 'Get Info', icon: 'info.circle', shortcut: 'cmd+i' },
+          { id: 'rename', title: 'Rename', icon: 'pencil' },
+          { type: 'separator' },
+          { id: 'copy', title: 'Copy', icon: 'doc.on.doc', shortcut: 'cmd+c' },
+          { id: 'duplicate', title: 'Duplicate', icon: 'plus.square.on.square', shortcut: 'cmd+d' },
+          { id: 'make_alias', title: 'Make Alias', icon: 'link' },
+          { type: 'separator' },
+          { id: 'quick_look', title: 'Quick Look', icon: 'eye', shortcut: 'space' },
+          { type: 'separator' },
+          { id: 'share', title: 'Share...', icon: 'square.and.arrow.up' },
+          { type: 'separator' },
+          { id: 'move_to_trash', title: 'Move to Trash', icon: 'trash', shortcut: 'cmd+delete' }
+        ]
+      });
+    }
+
+    // Listen for context menu actions (would be implemented via bridge callbacks)
+    window.handleContextMenuAction = function(menuItemId, targetId) {
+      log('action', `Menu action "${menuItemId}" triggered on target "${targetId}"`);
+    };
+
+    log('info', 'Test suite loaded. Waiting for Native UI...');
+  </script>
+</body>
+</html>

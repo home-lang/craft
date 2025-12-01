@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Quick Look Test - Craft Native UI</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .subtitle {
+      color: #888;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+
+    .instructions {
+      background: rgba(33, 150, 243, 0.1);
+      border: 1px solid rgba(33, 150, 243, 0.3);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .instructions h3 {
+      font-size: 14px;
+      color: #64b5f6;
+      margin-bottom: 8px;
+    }
+
+    .instructions ol {
+      margin-left: 20px;
+      color: #aaa;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .instructions code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, monospace;
+    }
+
+    .file-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .file-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+    }
+
+    .file-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .file-card.selected {
+      border-color: #667eea;
+      background: rgba(102, 126, 234, 0.1);
+    }
+
+    .file-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+
+    .file-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+
+    .file-type {
+      font-size: 11px;
+      color: #888;
+      text-transform: uppercase;
+    }
+
+    .file-card .status {
+      margin-top: 8px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    .status.pending {
+      background: rgba(255, 193, 7, 0.2);
+      color: #ffc107;
+    }
+
+    .status.pass {
+      background: rgba(76, 175, 80, 0.2);
+      color: #4caf50;
+    }
+
+    .status.fail {
+      background: rgba(244, 67, 54, 0.2);
+      color: #f44336;
+    }
+
+    .status.na {
+      background: rgba(158, 158, 158, 0.2);
+      color: #9e9e9e;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button.secondary {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    button.secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: none;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .spacebar-hint {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #aaa;
+    }
+
+    .spacebar-hint kbd {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 24px 0 12px 0;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-title .badge {
+      font-size: 11px;
+      background: rgba(102, 126, 234, 0.3);
+      color: #667eea;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .results-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin: 24px 0;
+    }
+
+    .result-card {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .result-card .number {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .result-card .label {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .result-card.pass .number { color: #4caf50; }
+    .result-card.fail .number { color: #f44336; }
+    .result-card.na .number { color: #9e9e9e; }
+    .result-card.total .number { color: #2196f3; }
+
+    .log-container {
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 16px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+    }
+
+    .log-entry {
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-time {
+      color: #666;
+      margin-right: 10px;
+    }
+
+    .log-type {
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      margin-right: 10px;
+    }
+
+    .log-type.preview { background: rgba(156, 39, 176, 0.3); color: #ce93d8; }
+    .log-type.action { background: rgba(76, 175, 80, 0.3); color: #81c784; }
+    .log-type.error { background: rgba(244, 67, 54, 0.3); color: #e57373; }
+    .log-type.info { background: rgba(33, 150, 243, 0.3); color: #64b5f6; }
+
+    .path-input {
+      flex: 1;
+      min-width: 300px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+      font-size: 13px;
+      font-family: 'SF Mono', Monaco, monospace;
+    }
+
+    .path-input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .custom-path-section {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 24px;
+    }
+
+    .custom-path-section h3 {
+      font-size: 14px;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+
+    .custom-path-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Quick Look Test Suite</h1>
+    <p class="subtitle">Test QLPreviewPanel with various file formats</p>
+
+    <div class="instructions">
+      <h3>How to Test</h3>
+      <ol>
+        <li>Click a file card to select it</li>
+        <li>Press <code>Spacebar</code> or click "Preview Selected" to open Quick Look</li>
+        <li>Verify the preview displays correctly for each file type</li>
+        <li>Press <code>Spacebar</code> again to close the preview</li>
+        <li>Mark each file type as Pass, Fail, or N/A (if file doesn't exist)</li>
+      </ol>
+    </div>
+
+    <div class="controls">
+      <button onclick="previewSelected()" id="preview-btn" disabled>Preview Selected</button>
+      <button onclick="toggleQuickLook()" class="secondary">Toggle Quick Look</button>
+      <button onclick="closeQuickLook()" class="secondary">Close Quick Look</button>
+      <div class="spacebar-hint">
+        Press <kbd>Space</kbd> to toggle preview
+      </div>
+    </div>
+
+    <!-- Common File Types -->
+    <h2 class="section-title">
+      Documents
+      <span class="badge">Text & Office</span>
+    </h2>
+    <div class="file-grid" id="documents-grid"></div>
+
+    <h2 class="section-title">
+      Images
+      <span class="badge">Raster & Vector</span>
+    </h2>
+    <div class="file-grid" id="images-grid"></div>
+
+    <h2 class="section-title">
+      Media
+      <span class="badge">Audio & Video</span>
+    </h2>
+    <div class="file-grid" id="media-grid"></div>
+
+    <h2 class="section-title">
+      Code
+      <span class="badge">Source Files</span>
+    </h2>
+    <div class="file-grid" id="code-grid"></div>
+
+    <h2 class="section-title">
+      Archives & Other
+      <span class="badge">Misc</span>
+    </h2>
+    <div class="file-grid" id="other-grid"></div>
+
+    <!-- Results Summary -->
+    <div class="results-summary">
+      <div class="result-card pass">
+        <div class="number" id="pass-count">0</div>
+        <div class="label">Passed</div>
+      </div>
+      <div class="result-card fail">
+        <div class="number" id="fail-count">0</div>
+        <div class="label">Failed</div>
+      </div>
+      <div class="result-card na">
+        <div class="number" id="na-count">0</div>
+        <div class="label">N/A</div>
+      </div>
+      <div class="result-card total">
+        <div class="number" id="total-count">0</div>
+        <div class="label">Total</div>
+      </div>
+    </div>
+
+    <!-- Custom Path Testing -->
+    <div class="custom-path-section">
+      <h3>Test Custom File Path</h3>
+      <div class="custom-path-row">
+        <input type="text" class="path-input" id="custom-path" placeholder="/Users/username/Documents/myfile.pdf">
+        <button onclick="previewCustomPath()">Preview</button>
+      </div>
+    </div>
+
+    <!-- Activity Log -->
+    <h2 class="section-title" style="margin-top: 24px;">Activity Log</h2>
+    <div class="log-container" id="log">
+      <div class="log-entry">
+        <span class="log-time">--:--:--</span>
+        <span class="log-type info">INFO</span>
+        <span class="log-message">Quick Look Test Suite initialized</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // File type definitions with common system paths
+    const fileTypes = {
+      documents: [
+        { name: 'README.txt', icon: '📄', type: 'Plain Text', path: '/System/Library/CoreServices/SystemVersion.plist', ext: 'txt' },
+        { name: 'Document.pdf', icon: '📕', type: 'PDF', path: '/Library/Documentation/License.lpdf', ext: 'pdf' },
+        { name: 'Document.rtf', icon: '📝', type: 'Rich Text', path: '/System/Library/PrivateFrameworks/MediaKit.framework/Versions/A/Resources/English.lproj/Localizable.strings', ext: 'rtf' },
+        { name: 'Spreadsheet.csv', icon: '📊', type: 'CSV', path: '/usr/share/misc/mail.rc', ext: 'csv' },
+        { name: 'Document.html', icon: '🌐', type: 'HTML', path: '/Library/WebServer/Documents/index.html.en', ext: 'html' }
+      ],
+      images: [
+        { name: 'Photo.jpg', icon: '🖼️', type: 'JPEG', path: '/System/Library/Desktop Pictures/Solid Colors/Black.png', ext: 'jpg' },
+        { name: 'Image.png', icon: '🖼️', type: 'PNG', path: '/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns', ext: 'png' },
+        { name: 'Graphic.gif', icon: '🎞️', type: 'GIF', path: '', ext: 'gif' },
+        { name: 'Icon.icns', icon: '🎨', type: 'Apple Icon', path: '/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericFolderIcon.icns', ext: 'icns' },
+        { name: 'Vector.svg', icon: '📐', type: 'SVG', path: '', ext: 'svg' }
+      ],
+      media: [
+        { name: 'Audio.mp3', icon: '🎵', type: 'MP3 Audio', path: '/System/Library/Sounds/Blow.aiff', ext: 'mp3' },
+        { name: 'Sound.aiff', icon: '🔊', type: 'AIFF Audio', path: '/System/Library/Sounds/Glass.aiff', ext: 'aiff' },
+        { name: 'Video.mp4', icon: '🎬', type: 'MP4 Video', path: '', ext: 'mp4' },
+        { name: 'Movie.mov', icon: '🎥', type: 'QuickTime', path: '', ext: 'mov' }
+      ],
+      code: [
+        { name: 'Script.js', icon: '📜', type: 'JavaScript', path: '', ext: 'js' },
+        { name: 'Source.swift', icon: '🦅', type: 'Swift', path: '', ext: 'swift' },
+        { name: 'Program.py', icon: '🐍', type: 'Python', path: '', ext: 'py' },
+        { name: 'Code.json', icon: '📋', type: 'JSON', path: '/System/Library/CoreServices/SystemVersion.plist', ext: 'json' },
+        { name: 'Config.xml', icon: '📰', type: 'XML', path: '', ext: 'xml' }
+      ],
+      other: [
+        { name: 'Archive.zip', icon: '📦', type: 'ZIP Archive', path: '', ext: 'zip' },
+        { name: 'Font.ttf', icon: '🔤', type: 'TrueType Font', path: '/System/Library/Fonts/Helvetica.ttc', ext: 'ttf' },
+        { name: 'Disk.dmg', icon: '💿', type: 'Disk Image', path: '', ext: 'dmg' },
+        { name: 'App.app', icon: '📱', type: 'Application', path: '/System/Applications/Calculator.app', ext: 'app' }
+      ]
+    };
+
+    // State
+    let selectedFile = null;
+    let testResults = {};
+    let passCount = 0, failCount = 0, naCount = 0;
+
+    // Logging
+    function log(type, message) {
+      const logContainer = document.getElementById('log');
+      const now = new Date();
+      const time = now.toTimeString().split(' ')[0];
+
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `
+        <span class="log-time">${time}</span>
+        <span class="log-type ${type}">${type.toUpperCase()}</span>
+        <span class="log-message">${message}</span>
+      `;
+
+      logContainer.appendChild(entry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    // Create file card
+    function createFileCard(file, category) {
+      const id = `${category}-${file.ext}`;
+      const card = document.createElement('div');
+      card.className = 'file-card';
+      card.dataset.id = id;
+      card.dataset.path = file.path;
+      card.dataset.name = file.name;
+
+      card.innerHTML = `
+        <div class="file-icon">${file.icon}</div>
+        <div class="file-name">${file.name}</div>
+        <div class="file-type">${file.type}</div>
+        <div class="status pending" id="status-${id}">Pending</div>
+      `;
+
+      card.onclick = (e) => {
+        if (e.target.classList.contains('status')) return;
+        selectFile(card, id, file);
+      };
+
+      // Add right-click for marking
+      card.oncontextmenu = (e) => {
+        e.preventDefault();
+        showMarkMenu(e, id);
+      };
+
+      return card;
+    }
+
+    // Select file
+    function selectFile(card, id, file) {
+      // Deselect previous
+      document.querySelectorAll('.file-card.selected').forEach(c => c.classList.remove('selected'));
+
+      // Select new
+      card.classList.add('selected');
+      selectedFile = { id, path: file.path, name: file.name };
+
+      document.getElementById('preview-btn').disabled = !file.path;
+
+      log('info', `Selected: ${file.name}${file.path ? '' : ' (no test file available)'}`);
+    }
+
+    // Preview selected file
+    function previewSelected() {
+      if (!selectedFile || !selectedFile.path) {
+        log('error', 'No file selected or no test file available');
+        return;
+      }
+
+      log('preview', `Opening Quick Look for: ${selectedFile.name}`);
+
+      if (window.craft?.nativeUI) {
+        craft.nativeUI.showQuickLook({
+          files: [{
+            id: selectedFile.id,
+            path: selectedFile.path,
+            title: selectedFile.name
+          }]
+        });
+      } else {
+        log('error', 'Native UI not available');
+      }
+    }
+
+    // Toggle Quick Look
+    function toggleQuickLook() {
+      if (!selectedFile || !selectedFile.path) {
+        log('error', 'No file selected');
+        return;
+      }
+
+      log('preview', `Toggling Quick Look for: ${selectedFile.name}`);
+
+      if (window.craft?.nativeUI) {
+        craft.nativeUI.toggleQuickLook({
+          files: [{
+            id: selectedFile.id,
+            path: selectedFile.path,
+            title: selectedFile.name
+          }]
+        });
+      }
+    }
+
+    // Close Quick Look
+    function closeQuickLook() {
+      log('preview', 'Closing Quick Look panel');
+
+      if (window.craft?.nativeUI) {
+        craft.nativeUI.closeQuickLook();
+      }
+    }
+
+    // Preview custom path
+    function previewCustomPath() {
+      const path = document.getElementById('custom-path').value.trim();
+      if (!path) {
+        log('error', 'Please enter a file path');
+        return;
+      }
+
+      log('preview', `Opening Quick Look for custom path: ${path}`);
+
+      if (window.craft?.nativeUI) {
+        const filename = path.split('/').pop();
+        craft.nativeUI.showQuickLook({
+          files: [{
+            id: 'custom',
+            path: path,
+            title: filename
+          }]
+        });
+      }
+    }
+
+    // Mark test result
+    function markTest(id, result) {
+      const statusEl = document.getElementById(`status-${id}`);
+      if (!statusEl) return;
+
+      // Update counts
+      if (testResults[id] === 'pass') passCount--;
+      if (testResults[id] === 'fail') failCount--;
+      if (testResults[id] === 'na') naCount--;
+
+      testResults[id] = result;
+
+      if (result === 'pass') {
+        passCount++;
+        statusEl.className = 'status pass';
+        statusEl.textContent = 'Pass';
+      } else if (result === 'fail') {
+        failCount++;
+        statusEl.className = 'status fail';
+        statusEl.textContent = 'Fail';
+      } else {
+        naCount++;
+        statusEl.className = 'status na';
+        statusEl.textContent = 'N/A';
+      }
+
+      updateCounts();
+      log('action', `Marked ${id} as ${result.toUpperCase()}`);
+    }
+
+    // Show mark menu
+    function showMarkMenu(e, id) {
+      // Simple approach: cycle through states
+      const current = testResults[id];
+      if (!current || current === 'pending') {
+        markTest(id, 'pass');
+      } else if (current === 'pass') {
+        markTest(id, 'fail');
+      } else if (current === 'fail') {
+        markTest(id, 'na');
+      } else {
+        markTest(id, 'pass');
+      }
+    }
+
+    // Update counts
+    function updateCounts() {
+      document.getElementById('pass-count').textContent = passCount;
+      document.getElementById('fail-count').textContent = failCount;
+      document.getElementById('na-count').textContent = naCount;
+    }
+
+    // Initialize grid
+    function initGrid(containerId, files, category) {
+      const container = document.getElementById(containerId);
+      files.forEach(file => {
+        container.appendChild(createFileCard(file, category));
+      });
+    }
+
+    // Keyboard handling
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !e.target.matches('input')) {
+        e.preventDefault();
+        toggleQuickLook();
+      }
+    });
+
+    // Initialize
+    function init() {
+      initGrid('documents-grid', fileTypes.documents, 'doc');
+      initGrid('images-grid', fileTypes.images, 'img');
+      initGrid('media-grid', fileTypes.media, 'media');
+      initGrid('code-grid', fileTypes.code, 'code');
+      initGrid('other-grid', fileTypes.other, 'other');
+
+      // Count total
+      const total = Object.values(fileTypes).reduce((sum, arr) => sum + arr.length, 0);
+      document.getElementById('total-count').textContent = total;
+
+      log('info', `Loaded ${total} file types for testing`);
+    }
+
+    // Wait for native UI
+    document.addEventListener('craft:nativeui:ready', () => {
+      log('info', 'Native UI API is ready');
+    });
+
+    init();
+  </script>
+</body>
+</html>

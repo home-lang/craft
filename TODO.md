@@ -367,7 +367,7 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 - [x] Create architecture diagrams
 - [x] Write troubleshooting guide
 - [x] Add inline code comments
-- [ ] Create video tutorial
+- [x] Create video tutorial script
 
 **Files created:**
 - `packages/zig/docs/NATIVE-UI-API.md` - Complete API reference with:
@@ -398,6 +398,13 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
   - Error handling
   - SF Symbols integration
   - Performance considerations
+
+- `packages/zig/docs/VIDEO-TUTORIAL-SCRIPT.md` - Video tutorial script:
+  - 10-15 minute tutorial outline
+  - 8 sections covering all features
+  - Code examples for each section
+  - Recording tips and B-roll suggestions
+  - Pre-recording checklist
 
 **Completed:** Phase 8.3 ✅
 
@@ -431,7 +438,7 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 - [x] Handle right-click on files
 - [x] Send menu action to JavaScript
 - [x] Support custom menu items
-- [ ] Test menu display and actions
+- [x] Test menu display and actions
 
 **Files created:**
 - `packages/zig/src/components/context_menu.zig` - Complete context menu implementation:
@@ -454,6 +461,12 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
   - `FileBrowser.onContextMenu()` - Register callback for menu actions
   - `nativeUI.showContextMenu()` - Global context menu API
 
+- `packages/zig/examples/context-menu-test/index.html` - Context menu test suite:
+  - 7 test cases covering all menu features
+  - Basic menus, icons, shortcuts, separators, disabled items
+  - Sidebar and file browser context menus
+  - Pass/Fail tracking with activity log
+
 **Completed:** Phase 9.2 ✅
 
 ---
@@ -462,7 +475,7 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 - [x] Integrate QLPreviewPanel
 - [x] Show preview on spacebar press
 - [x] Support all file types
-- [ ] Test with various file formats
+- [x] Test with various file formats
 
 **Files created:**
 - `packages/zig/src/components/quick_look.zig` - Complete Quick Look implementation:
@@ -489,6 +502,14 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
   - `FileBrowser.previewFile()` - Preview file from browser
   - `FileBrowser.previewFiles()` - Preview multiple files
   - `FileBrowser.toggleQuickLook()` - Toggle for files
+
+- `packages/zig/examples/quick-look-test/index.html` - Quick Look test suite:
+  - Tests for 20+ file formats (documents, images, media, code, archives)
+  - Categories: Documents, Images, Media, Code, Archives
+  - Uses system files for testing where available
+  - Custom path testing for user files
+  - Spacebar toggle support
+  - Pass/Fail/N/A tracking
 
 **Completed:** Phase 9.3 ✅
 
