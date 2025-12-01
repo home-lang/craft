@@ -16,8 +16,11 @@ pub const NativeUIBridge = struct {
     split_views: std.StringHashMap(*NativeSplitView),
     split_view_controller: ?*NativeSplitViewController,
     original_webview: ?macos.objc.id,
+    last_reload_time: i64,
+    is_destroyed: bool,
 
     const Self = @This();
+    const RELOAD_DEBOUNCE_MS: i64 = 16; // ~60fps
 
     pub fn init(allocator: std.mem.Allocator) NativeUIBridge {
         return .{
@@ -28,18 +31,24 @@ pub const NativeUIBridge = struct {
             .split_views = std.StringHashMap(*NativeSplitView).init(allocator),
             .split_view_controller = null,
             .original_webview = null,
+            .last_reload_time = 0,
+            .is_destroyed = false,
         };
     }
 
     pub fn deinit(self: *Self) void {
+        self.is_destroyed = true;
+
         // Clean up split view controller
         if (self.split_view_controller) |svc| {
             svc.deinit();
+            self.split_view_controller = null;
         }
 
         // Clean up all sidebars
         var sidebar_iter = self.sidebars.iterator();
         while (sidebar_iter.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
             entry.value_ptr.*.deinit();
         }
         self.sidebars.deinit();
@@ -47,6 +56,7 @@ pub const NativeUIBridge = struct {
         // Clean up all file browsers
         var browser_iter = self.file_browsers.iterator();
         while (browser_iter.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
             entry.value_ptr.*.deinit();
         }
         self.file_browsers.deinit();
@@ -54,9 +64,21 @@ pub const NativeUIBridge = struct {
         // Clean up all split views
         var split_iter = self.split_views.iterator();
         while (split_iter.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
             entry.value_ptr.*.deinit();
         }
         self.split_views.deinit();
+
+        self.window = null;
+        self.original_webview = null;
+
+        std.debug.print("[NativeUI] Bridge destroyed and all components cleaned up\n", .{});
+    }
+
+    /// Called when window is about to close - cleanup all resources
+    pub fn handleWindowClose(self: *Self) void {
+        std.debug.print("[NativeUI] Window closing - cleaning up resources\n", .{});
+        self.deinit();
     }
 
     pub fn setWindow(self: *Self, window: macos.objc.id) void {
@@ -65,58 +87,113 @@ pub const NativeUIBridge = struct {
 
     /// Handle incoming messages from JavaScript
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-        std.debug.print("[NativeUI] Action: {s}, Data: {s}\n", .{ action, data });
+        // Edge case: Bridge is destroyed
+        if (self.is_destroyed) {
+            std.debug.print("[NativeUI] WARNING: Message received after bridge destroyed. Ignoring.\n", .{});
+            return;
+        }
+
+        // Edge case: Empty action
+        if (action.len == 0) {
+            std.debug.print("[NativeUI] WARNING: Empty action received. Ignoring.\n", .{});
+            return;
+        }
+
+        std.debug.print("[NativeUI] Action: {s}, Data length: {d}\n", .{ action, data.len });
 
         if (std.mem.eql(u8, action, "createSidebar")) {
-            try self.createSidebar(data);
+            self.createSidebar(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR creating sidebar: {any}\n", .{err});
+            };
         } else if (std.mem.eql(u8, action, "addSidebarSection")) {
-            try self.addSidebarSection(data);
+            self.addSidebarSection(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR adding sidebar section: {any}\n", .{err});
+            };
         } else if (std.mem.eql(u8, action, "setSelectedItem")) {
-            try self.setSelectedItem(data);
+            self.setSelectedItem(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR setting selected item: {any}\n", .{err});
+            };
         } else if (std.mem.eql(u8, action, "createFileBrowser")) {
-            try self.createFileBrowser(data);
+            self.createFileBrowser(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR creating file browser: {any}\n", .{err});
+            };
         } else if (std.mem.eql(u8, action, "addFile")) {
-            try self.addFile(data);
+            self.addFile(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR adding file: {any}\n", .{err});
+            };
         } else if (std.mem.eql(u8, action, "addFiles")) {
-            try self.addFiles(data);
+            self.addFiles(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR adding files: {any}\n", .{err});
+            };
         } else if (std.mem.eql(u8, action, "clearFiles")) {
-            try self.clearFiles(data);
+            self.clearFiles(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR clearing files: {any}\n", .{err});
+            };
         } else if (std.mem.eql(u8, action, "createSplitView")) {
-            try self.createSplitView(data);
+            self.createSplitView(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR creating split view: {any}\n", .{err});
+            };
         } else if (std.mem.eql(u8, action, "destroyComponent")) {
-            try self.destroyComponent(data);
+            self.destroyComponent(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR destroying component: {any}\n", .{err});
+            };
         } else {
             std.debug.print("[NativeUI] Unknown action: {s}\n", .{action});
         }
     }
 
+    /// Check if enough time has passed for a reload (debounce)
+    fn shouldDebounceReload(self: *Self) bool {
+        const now = std.time.milliTimestamp();
+        if (now - self.last_reload_time < RELOAD_DEBOUNCE_MS) {
+            return true;
+        }
+        self.last_reload_time = now;
+        return false;
+    }
+
     /// Create a new sidebar component using NSSplitViewController with native Liquid Glass
     fn createSidebar(self: *Self, data: []const u8) !void {
+        // Edge case: Empty data
+        if (data.len == 0) {
+            std.debug.print("[NativeUI] ERROR: Empty data for createSidebar\n", .{});
+            return error.EmptyData;
+        }
+
+        // Edge case: Missing window reference
+        if (self.window == null) {
+            std.debug.print("[NativeUI] WARNING: No window reference set. Sidebar will be created but not displayed.\n", .{});
+        }
+
         std.debug.print("[NativeUI] Parsing JSON: {s}\n", .{data});
 
         const parsed = std.json.parseFromSlice(std.json.Value, self.allocator, data, .{}) catch |err| {
             std.debug.print("[NativeUI] JSON parse error: {any}\n", .{err});
-            return err;
+            return error.MalformedJSON;
         };
         defer parsed.deinit();
 
         const root = parsed.value.object;
-        const id = root.get("id").?.string;
+        const id = root.get("id") orelse {
+            std.debug.print("[NativeUI] ERROR: Missing 'id' field in createSidebar data\n", .{});
+            return error.MissingRequiredField;
+        };
+        const id_str = id.string;
 
         // Check if a sidebar already exists
         if (self.sidebars.count() > 0) {
-            std.debug.print("[NativeUI] WARNING: Sidebar already exists. Only one sidebar is supported. Ignoring request for: {s}\n", .{id});
+            std.debug.print("[NativeUI] WARNING: Sidebar already exists. Only one sidebar is supported. Ignoring request for: {s}\n", .{id_str});
             return;
         }
 
-        std.debug.print("[LiquidGlass] Creating sidebar with NSSplitViewController: {s}\n", .{id});
+        std.debug.print("[LiquidGlass] Creating sidebar with NSSplitViewController: {s}\n", .{id_str});
 
         // Create sidebar
         const sidebar = try NativeSidebar.init(self.allocator);
         errdefer sidebar.deinit();
 
         // Store in registry
-        const id_copy = try self.allocator.dupe(u8, id);
+        const id_copy = try self.allocator.dupe(u8, id_str);
         try self.sidebars.put(id_copy, sidebar);
 
         // Add to window if we have window reference

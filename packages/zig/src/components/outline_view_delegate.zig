@@ -1,5 +1,6 @@
 const std = @import("std");
 const macos = @import("../macos.zig");
+const sf_symbols = @import("../macos/sf_symbols.zig");
 
 /// NSOutlineViewDelegate implementation in Zig
 /// Handles cell views, selection, and user interactions
@@ -118,6 +119,10 @@ pub const OutlineViewDelegate = struct {
     }
 
     pub fn deinit(self: *OutlineViewDelegate) void {
+        // Release the Objective-C instance
+        if (self.instance != @as(macos.objc.id, null)) {
+            _ = macos.msgSend0(self.instance, "release");
+        }
         self.allocator.destroy(self.callback_data);
     }
 
@@ -138,6 +143,40 @@ fn getCallbackData(instance: macos.objc.id) ?*OutlineViewDelegate.CallbackData {
     if (@intFromPtr(ptr) == 0) return null;
 
     return @ptrCast(@alignCast(ptr));
+}
+
+/// Helper to get icon name for sidebar item from data source
+fn getIconForItem(outlineView: macos.objc.id, item: macos.objc.id) ?[]const u8 {
+    // Get the data source and retrieve icon info
+    const dataSource = macos.msgSend0(outlineView, "dataSource");
+    if (dataSource == @as(macos.objc.id, null)) return null;
+
+    // Get associated data to find the icon
+    const associated = macos.objc.objc_getAssociatedObject(dataSource, @ptrFromInt(0x1234));
+    if (associated == @as(macos.objc.id, null)) return null;
+
+    const ptr = macos.msgSend0(associated, "pointerValue");
+    if (@intFromPtr(ptr) == 0) return null;
+
+    const DataStore = @import("outline_view_datasource.zig").OutlineViewDataSource.DataStore;
+    const data: *DataStore = @ptrFromInt(@intFromPtr(ptr));
+
+    // Decode item wrapper to get indices
+    const section_obj = macos.msgSend1(item, "objectForKey:", macos.createNSString("section"));
+    const section_val = macos.msgSend0(section_obj, "unsignedLongValue");
+    const section_idx: usize = @intCast(@intFromPtr(section_val));
+
+    const item_obj = macos.msgSend1(item, "objectForKey:", macos.createNSString("item"));
+    if (item_obj == @as(macos.objc.id, null)) return null; // Sections don't have icons
+
+    const item_val = macos.msgSend0(item_obj, "unsignedLongValue");
+    const item_idx: usize = @intCast(@intFromPtr(item_val));
+
+    if (section_idx >= data.sections.items.len) return null;
+    const section = &data.sections.items[section_idx];
+    if (item_idx >= section.items.items.len) return null;
+
+    return section.items.items[item_idx].icon;
 }
 
 /// NSOutlineViewDelegate method: viewForTableColumn:item
@@ -180,14 +219,43 @@ export fn outlineViewViewForTableColumnItem(
     const text: [*:0]const u8 = @ptrCast(cstr);
     const text_slice = std.mem.span(text);
 
+    // Get icon for this item (if not a header)
+    const icon_name = if (!is_header) getIconForItem(outlineView, item) else null;
+
     // Try to reuse an existing cell
     var cellView = macos.msgSend2(outlineView, "makeViewWithIdentifier:owner:", identifierStr, @as(?*anyopaque, null));
+
+    const NSRect = extern struct {
+        origin: extern struct { x: f64, y: f64 },
+        size: extern struct { width: f64, height: f64 },
+    };
 
     // If no reusable cell, create new one
     if (cellView == @as(macos.objc.id, null)) {
         const NSTableCellView = macos.getClass("NSTableCellView");
         cellView = macos.msgSend0(macos.msgSend0(NSTableCellView, "alloc"), "init");
         _ = macos.msgSend1(cellView, "setIdentifier:", identifierStr);
+
+        const row_height: f64 = if (is_header) 20.0 else 24.0;
+        const icon_size: f64 = 16.0;
+        const icon_padding: f64 = 4.0;
+        const text_x: f64 = if (!is_header and icon_name != null) icon_size + icon_padding + 4.0 else 2.0;
+
+        // Create image view for icon (non-header items only)
+        if (!is_header) {
+            const NSImageView = macos.getClass("NSImageView");
+            const imageView = macos.msgSend0(macos.msgSend0(NSImageView, "alloc"), "init");
+
+            const icon_frame = NSRect{
+                .origin = .{ .x = 4, .y = (row_height - icon_size) / 2.0 },
+                .size = .{ .width = icon_size, .height = icon_size },
+            };
+            _ = macos.msgSend1(imageView, "setFrame:", icon_frame);
+            _ = macos.msgSend1(imageView, "setImageScaling:", @as(c_long, 2)); // NSImageScaleProportionallyUpOrDown
+
+            _ = macos.msgSend1(cellView, "setImageView:", imageView);
+            _ = macos.msgSend1(cellView, "addSubview:", imageView);
+        }
 
         // Create text field with MINIMAL styling - let macOS handle the rest
         const NSTextField = macos.getClass("NSTextField");
@@ -201,17 +269,24 @@ export fn outlineViewViewForTableColumnItem(
         _ = macos.msgSend1(cellView, "setTextField:", textField);
         _ = macos.msgSend1(cellView, "addSubview:", textField);
 
-        // Simple frame-based layout
-        const NSRect = extern struct {
-            origin: extern struct { x: f64, y: f64 },
-            size: extern struct { width: f64, height: f64 },
-        };
+        // Frame-based layout with space for icon
         const frame = NSRect{
-            .origin = .{ .x = 2, .y = 0 },
-            .size = .{ .width = 200, .height = if (is_header) 20.0 else 24.0 },
+            .origin = .{ .x = text_x, .y = 0 },
+            .size = .{ .width = 180, .height = row_height },
         };
         _ = macos.msgSend1(textField, "setFrame:", frame);
         _ = macos.msgSend1(textField, "setAutoresizingMask:", @as(c_ulong, 2)); // NSViewWidthSizable
+
+        // Set header font style
+        if (is_header) {
+            const NSFont = macos.getClass("NSFont");
+            const font = macos.msgSend2(NSFont, "systemFontOfSize:weight:", @as(f64, 11.0), @as(f64, 0.4)); // semibold
+            _ = macos.msgSend1(textField, "setFont:", font);
+
+            const NSColor = macos.getClass("NSColor");
+            const headerColor = macos.msgSend0(NSColor, "secondaryLabelColor");
+            _ = macos.msgSend1(textField, "setTextColor:", headerColor);
+        }
     }
 
     // Update the text
@@ -219,6 +294,39 @@ export fn outlineViewViewForTableColumnItem(
     if (textField != @as(macos.objc.id, null)) {
         const nsString = macos.createNSString(text_slice);
         _ = macos.msgSend1(textField, "setStringValue:", nsString);
+    }
+
+    // Update the icon (for non-header items)
+    if (!is_header) {
+        const imageView = macos.msgSend0(cellView, "imageView");
+        if (imageView != @as(macos.objc.id, null)) {
+            if (icon_name) |icon| {
+                // Create SF Symbol image
+                var icon_buf: [64]u8 = undefined;
+                const icon_z = std.fmt.bufPrintZ(&icon_buf, "{s}", .{icon}) catch "folder";
+                const symbol_config = sf_symbols.SymbolConfiguration{
+                    .point_size = 14.0,
+                    .weight = .regular,
+                    .scale = .medium,
+                };
+                if (sf_symbols.createSFSymbol(icon_z, symbol_config)) |image| {
+                    _ = macos.msgSend1(imageView, "setImage:", image);
+
+                    // Set template rendering for proper theme support
+                    _ = macos.msgSend1(image, "setTemplate:", @as(c_int, 1));
+                }
+            } else {
+                // Default folder icon
+                const symbol_config = sf_symbols.SymbolConfiguration{
+                    .point_size = 14.0,
+                    .weight = .regular,
+                };
+                if (sf_symbols.createSFSymbol("folder", symbol_config)) |image| {
+                    _ = macos.msgSend1(imageView, "setImage:", image);
+                    _ = macos.msgSend1(image, "setTemplate:", @as(c_int, 1));
+                }
+            }
+        }
     }
 
     return cellView;

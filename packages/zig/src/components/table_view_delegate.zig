@@ -1,5 +1,6 @@
 const std = @import("std");
 const macos = @import("../macos.zig");
+const sf_symbols = @import("../macos/sf_symbols.zig");
 
 /// NSTableViewDelegate implementation in Zig
 /// Handles cell views, selection, and double-click events
@@ -107,6 +108,10 @@ pub const TableViewDelegate = struct {
     }
 
     pub fn deinit(self: *TableViewDelegate) void {
+        // Release the Objective-C instance
+        if (self.instance != @as(macos.objc.id, null)) {
+            _ = macos.msgSend0(self.instance, "release");
+        }
         self.allocator.destroy(self.callback_data);
     }
 
@@ -131,6 +136,101 @@ fn getCallbackData(instance: macos.objc.id) ?*TableViewDelegate.CallbackData {
     if (@intFromPtr(ptr) == 0) return null;
 
     return @ptrCast(@alignCast(ptr));
+}
+
+/// Helper to get icon name for file from data source
+fn getFileIcon(tableView: macos.objc.id, row: c_long) ?[]const u8 {
+    const dataSource = macos.msgSend0(tableView, "dataSource");
+    if (dataSource == @as(macos.objc.id, null)) return null;
+
+    // Get associated data
+    const associated = macos.objc.objc_getAssociatedObject(dataSource, @ptrFromInt(0x5678));
+    if (associated == @as(macos.objc.id, null)) return null;
+
+    const ptr = macos.msgSend0(associated, "pointerValue");
+    if (@intFromPtr(ptr) == 0) return null;
+
+    const DataStore = @import("table_view_datasource.zig").TableViewDataSource.DataStore;
+    const data: *DataStore = @ptrFromInt(@intFromPtr(ptr));
+
+    const idx: usize = @intCast(row);
+    if (idx >= data.files.items.len) return null;
+
+    return data.files.items[idx].icon;
+}
+
+/// Create a cell view with icon and text for name column
+fn createNameCellView(text: []const u8, icon_name: ?[]const u8) macos.objc.id {
+    const NSTableCellView = macos.getClass("NSTableCellView");
+    const cellView = macos.msgSend0(macos.msgSend0(NSTableCellView, "alloc"), "init");
+
+    const NSRect = extern struct {
+        origin: extern struct { x: f64, y: f64 },
+        size: extern struct { width: f64, height: f64 },
+    };
+
+    const row_height: f64 = 22.0;
+    const icon_size: f64 = 16.0;
+    const icon_padding: f64 = 4.0;
+
+    // Create image view for icon
+    const NSImageView = macos.getClass("NSImageView");
+    const imageView = macos.msgSend0(macos.msgSend0(NSImageView, "alloc"), "init");
+
+    const icon_frame = NSRect{
+        .origin = .{ .x = 4, .y = (row_height - icon_size) / 2.0 },
+        .size = .{ .width = icon_size, .height = icon_size },
+    };
+    _ = macos.msgSend1(imageView, "setFrame:", icon_frame);
+    _ = macos.msgSend1(imageView, "setImageScaling:", @as(c_long, 2)); // NSImageScaleProportionallyUpOrDown
+
+    // Set icon image
+    var symbol_name: [*:0]const u8 = "doc";
+    if (icon_name) |icon| {
+        var icon_buf: [64]u8 = undefined;
+        symbol_name = std.fmt.bufPrintZ(&icon_buf, "{s}", .{icon}) catch "doc";
+    }
+
+    const symbol_config = sf_symbols.SymbolConfiguration{
+        .point_size = 14.0,
+        .weight = .regular,
+        .scale = .medium,
+    };
+    if (sf_symbols.createSFSymbol(symbol_name, symbol_config)) |image| {
+        _ = macos.msgSend1(imageView, "setImage:", image);
+        _ = macos.msgSend1(image, "setTemplate:", @as(c_int, 1));
+    }
+
+    _ = macos.msgSend1(cellView, "setImageView:", imageView);
+    _ = macos.msgSend1(cellView, "addSubview:", imageView);
+
+    // Create text field
+    const NSTextField = macos.getClass("NSTextField");
+    const textField = macos.msgSend0(macos.msgSend0(NSTextField, "alloc"), "init");
+
+    const nsString = macos.createNSString(text);
+    _ = macos.msgSend1(textField, "setStringValue:", nsString);
+
+    _ = macos.msgSend1(textField, "setBordered:", @as(c_int, 0));
+    _ = macos.msgSend1(textField, "setDrawsBackground:", @as(c_int, 0));
+    _ = macos.msgSend1(textField, "setEditable:", @as(c_int, 0));
+    _ = macos.msgSend1(textField, "setSelectable:", @as(c_int, 0));
+
+    const NSFont = macos.getClass("NSFont");
+    const font = macos.msgSend1(NSFont, "systemFontOfSize:", @as(f64, 13.0));
+    _ = macos.msgSend1(textField, "setFont:", font);
+
+    const text_frame = NSRect{
+        .origin = .{ .x = icon_size + icon_padding + 4.0, .y = 0 },
+        .size = .{ .width = 260, .height = row_height },
+    };
+    _ = macos.msgSend1(textField, "setFrame:", text_frame);
+    _ = macos.msgSend1(textField, "setAutoresizingMask:", @as(c_ulong, 2)); // NSViewWidthSizable
+
+    _ = macos.msgSend1(cellView, "setTextField:", textField);
+    _ = macos.msgSend1(cellView, "addSubview:", textField);
+
+    return cellView;
 }
 
 /// Create a text field cell view for table columns
@@ -208,7 +308,13 @@ export fn tableViewViewForTableColumnRow(
     const text: [*:0]const u8 = @ptrCast(value_cstr);
     const text_slice = std.mem.span(text);
 
-    // Create and return cell view
+    // For name column, create cell with icon
+    if (std.mem.eql(u8, column_id_slice, "name")) {
+        const icon_name = getFileIcon(tableView, row);
+        return createNameCellView(text_slice, icon_name);
+    }
+
+    // Create and return cell view for other columns
     return createTableCellView(text_slice, column_id_slice);
 }
 

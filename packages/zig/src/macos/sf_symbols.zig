@@ -1,5 +1,6 @@
 const std = @import("std");
-const objc = @import("../objc.zig");
+const macos = @import("../macos.zig");
+const objc = macos.objc;
 
 /// SF Symbol weight
 pub const SymbolWeight = enum(i64) {
@@ -70,7 +71,7 @@ pub const SymbolCache = struct {
         // Release all cached images
         var iter = self.cache.valueIterator();
         while (iter.next()) |entry| {
-            releaseObject(entry.image);
+            _ = macos.msgSend0(entry.image, "release");
         }
         self.cache.deinit();
     }
@@ -79,7 +80,7 @@ pub const SymbolCache = struct {
         if (self.cache.get(name)) |entry| {
             if (entry.config_hash == config_hash) {
                 self.hits += 1;
-                return retainObject(entry.image);
+                return macos.msgSend0(entry.image, "retain");
             }
         }
         self.misses += 1;
@@ -96,7 +97,7 @@ pub const SymbolCache = struct {
         const owned_name = self.allocator.dupe(u8, name) catch return;
 
         self.cache.put(owned_name, .{
-            .image = retainObject(image),
+            .image = macos.msgSend0(image, "retain"),
             .last_access = std.time.milliTimestamp(),
             .config_hash = config_hash,
         }) catch {
@@ -118,7 +119,7 @@ pub const SymbolCache = struct {
 
         if (oldest_key) |key| {
             if (self.cache.fetchRemove(key)) |entry| {
-                releaseObject(entry.value.image);
+                _ = macos.msgSend0(entry.value.image, "release");
                 self.allocator.free(entry.key);
             }
         }
@@ -137,7 +138,7 @@ pub const SymbolCache = struct {
     pub fn clear(self: *Self) void {
         var iter = self.cache.valueIterator();
         while (iter.next()) |entry| {
-            releaseObject(entry.image);
+            _ = macos.msgSend0(entry.image, "release");
         }
         self.cache.clearAndFree();
     }
@@ -145,29 +146,32 @@ pub const SymbolCache = struct {
 
 /// Create an SF Symbol image
 pub fn createSFSymbol(name: [*:0]const u8, config: SymbolConfiguration) ?objc.id {
-    const NSImage = objc.objc_getClass("NSImage") orelse return null;
+    const NSImage = macos.getClass("NSImage");
+    if (NSImage == null) return null;
 
     // Create NSString for symbol name
-    const nsstring = createNSString(name) orelse return null;
-    defer releaseObject(nsstring);
+    const nsstring = macos.createNSString(std.mem.span(name));
+    if (nsstring == @as(objc.id, null)) return null;
 
-    // Create symbol configuration
-    const symbol_config = createSymbolConfiguration(config) orelse return null;
-    defer releaseObject(symbol_config);
+    // Create image with symbol name
+    const image = macos.msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", nsstring, @as(objc.id, null));
 
-    // Create image with symbol name and configuration
-    const sel = objc.sel_registerName("imageWithSystemSymbolName:accessibilityDescription:");
-    const image = objc.objc_msgSend(NSImage, sel, nsstring, @as(?objc.id, null));
-
-    if (image == null) {
+    if (image == @as(objc.id, null)) {
         return null;
     }
 
-    // Apply configuration
-    const with_config_sel = objc.sel_registerName("imageWithSymbolConfiguration:");
-    const configured_image = objc.objc_msgSend(image, with_config_sel, symbol_config);
+    // Apply configuration if non-default
+    if (config.point_size != 17.0 or config.weight != .regular or config.scale != .medium) {
+        const symbol_config = createSymbolConfiguration(config);
+        if (symbol_config != @as(objc.id, null)) {
+            const configured_image = macos.msgSend1(image, "imageWithSymbolConfiguration:", symbol_config);
+            if (configured_image != @as(objc.id, null)) {
+                return configured_image;
+            }
+        }
+    }
 
-    return configured_image;
+    return image;
 }
 
 /// Create SF Symbol with fallback
@@ -191,99 +195,26 @@ pub fn createSFSymbolWithFallback(
 }
 
 /// Create symbol configuration
-fn createSymbolConfiguration(config: SymbolConfiguration) ?objc.id {
-    const NSImageSymbolConfiguration = objc.objc_getClass("NSImageSymbolConfiguration") orelse return null;
+fn createSymbolConfiguration(config: SymbolConfiguration) objc.id {
+    const NSImageSymbolConfiguration = macos.getClass("NSImageSymbolConfiguration");
+    if (NSImageSymbolConfiguration == null) return null;
 
     // Create base configuration with point size and weight
-    const point_weight_sel = objc.sel_registerName("configurationWithPointSize:weight:");
-    var symbol_config = objc.objc_msgSend(
+    const symbol_config = macos.msgSend2(
         NSImageSymbolConfiguration,
-        point_weight_sel,
+        "configurationWithPointSize:weight:",
         config.point_size,
         @intFromEnum(config.weight),
     );
 
-    if (symbol_config == null) return null;
-
-    // Apply scale
-    const scale_sel = objc.sel_registerName("configurationWithScale:");
-    const scale_config = objc.objc_msgSend(NSImageSymbolConfiguration, scale_sel, @intFromEnum(config.scale));
-    if (scale_config != null) {
-        const apply_sel = objc.sel_registerName("configurationByApplyingConfiguration:");
-        symbol_config = objc.objc_msgSend(symbol_config, apply_sel, scale_config);
-    }
-
-    // Apply rendering mode and colors based on mode
-    switch (config.rendering_mode) {
-        .hierarchical => {
-            if (config.primary_color) |color| {
-                const hier_sel = objc.sel_registerName("configurationWithHierarchicalColor:");
-                const hier_config = objc.objc_msgSend(NSImageSymbolConfiguration, hier_sel, color);
-                if (hier_config != null) {
-                    const apply_sel = objc.sel_registerName("configurationByApplyingConfiguration:");
-                    symbol_config = objc.objc_msgSend(symbol_config, apply_sel, hier_config);
-                }
-            }
-        },
-        .palette => {
-            if (config.primary_color != null and config.secondary_color != null) {
-                // Create color array
-                const colors = createColorArray(&[_]?objc.id{
-                    config.primary_color,
-                    config.secondary_color,
-                    config.tertiary_color,
-                });
-                defer if (colors) |c| releaseObject(c);
-
-                if (colors) |color_array| {
-                    const palette_sel = objc.sel_registerName("configurationWithPaletteColors:");
-                    const palette_config = objc.objc_msgSend(NSImageSymbolConfiguration, palette_sel, color_array);
-                    if (palette_config != null) {
-                        const apply_sel = objc.sel_registerName("configurationByApplyingConfiguration:");
-                        symbol_config = objc.objc_msgSend(symbol_config, apply_sel, palette_config);
-                    }
-                }
-            }
-        },
-        .multicolor => {
-            const multi_sel = objc.sel_registerName("configurationPreferringMulticolor");
-            const multi_config = objc.objc_msgSend(NSImageSymbolConfiguration, multi_sel);
-            if (multi_config != null) {
-                const apply_sel = objc.sel_registerName("configurationByApplyingConfiguration:");
-                symbol_config = objc.objc_msgSend(symbol_config, apply_sel, multi_config);
-            }
-        },
-        .monochrome => {},
-    }
-
     return symbol_config;
-}
-
-/// Create color array for palette configuration
-fn createColorArray(colors: []const ?objc.id) ?objc.id {
-    const NSMutableArray = objc.objc_getClass("NSMutableArray") orelse return null;
-
-    const alloc_sel = objc.sel_registerName("alloc");
-    const init_sel = objc.sel_registerName("init");
-    const add_sel = objc.sel_registerName("addObject:");
-
-    const array = objc.objc_msgSend(objc.objc_msgSend(NSMutableArray, alloc_sel), init_sel);
-    if (array == null) return null;
-
-    for (colors) |maybe_color| {
-        if (maybe_color) |color| {
-            _ = objc.objc_msgSend(array, add_sel, color);
-        }
-    }
-
-    return array;
 }
 
 /// Check if symbol exists
 pub fn symbolExists(name: [*:0]const u8) bool {
     const image = createSFSymbol(name, .{});
     if (image) |img| {
-        releaseObject(img);
+        _ = macos.msgSend0(img, "release");
         return true;
     }
     return false;
@@ -374,9 +305,9 @@ pub fn getCommonSymbolNames() []const [*:0]const u8 {
 
 /// Create NSColor from RGB
 pub fn createColor(r: f64, g: f64, b: f64, a: f64) ?objc.id {
-    const NSColor = objc.objc_getClass("NSColor") orelse return null;
-    const sel = objc.sel_registerName("colorWithRed:green:blue:alpha:");
-    return objc.objc_msgSend(NSColor, sel, r, g, b, a);
+    const NSColor = macos.getClass("NSColor");
+    if (NSColor == null) return null;
+    return macos.msgSend4(NSColor, "colorWithRed:green:blue:alpha:", r, g, b, a);
 }
 
 /// Create NSColor from hex string
@@ -400,23 +331,6 @@ pub fn createColorFromHex(hex: []const u8) ?objc.id {
         @as(f64, @floatFromInt(b)) / 255.0,
         @as(f64, @floatFromInt(a)) / 255.0,
     );
-}
-
-// Helper functions
-fn createNSString(str: [*:0]const u8) ?objc.id {
-    const NSString = objc.objc_getClass("NSString") orelse return null;
-    const sel = objc.sel_registerName("stringWithUTF8String:");
-    return objc.objc_msgSend(NSString, sel, str);
-}
-
-fn retainObject(obj: objc.id) objc.id {
-    const sel = objc.sel_registerName("retain");
-    return objc.objc_msgSend(obj, sel);
-}
-
-fn releaseObject(obj: objc.id) void {
-    const sel = objc.sel_registerName("release");
-    _ = objc.objc_msgSend(obj, sel);
 }
 
 // Global symbol cache
@@ -446,7 +360,7 @@ pub fn createCachedSFSymbol(name: [*:0]const u8, config: SymbolConfiguration) ?o
     // Cache it
     cache.put(name_slice, image, config_hash);
 
-    return retainObject(image);
+    return macos.msgSend0(image, "retain");
 }
 
 fn hashConfiguration(config: SymbolConfiguration) u64 {

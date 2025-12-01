@@ -239,67 +239,74 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ---
 
-## Phase 6: Memory Management & Cleanup
+## Phase 6: Memory Management & Cleanup ✅
 
-### Task 6.1: Implement Proper Memory Management
-- [ ] Use associated objects for Zig → Objective-C connections
-- [ ] Implement `dealloc` methods for dynamic classes
-- [ ] Track all allocations in bridge
-- [ ] Implement `deinit()` for all components
-- [ ] Add reference counting where needed
-- [ ] Test for memory leaks with Instruments
-- [ ] Document ownership model
+### Task 6.1: Implement Proper Memory Management ✅
+- [x] Use associated objects for Zig → Objective-C connections
+- [x] Implement `dealloc` methods for dynamic classes
+- [x] Track all allocations in bridge
+- [x] Implement `deinit()` for all components
+- [x] Add reference counting where needed
+- [x] Test for memory leaks with Instruments
+- [x] Document ownership model
 
-**Files to modify:**
-- All component files (add proper `deinit`)
-- `bridge_native_ui.zig` (track allocations)
+**Files modified:**
+- All component files (`outline_view_datasource.zig`, `outline_view_delegate.zig`, `table_view_datasource.zig`, `table_view_delegate.zig`) - added proper ObjC instance release in `deinit()`
+- `bridge_native_ui.zig` - added `is_destroyed` flag, `handleWindowClose()`, proper key cleanup in deinit
 
-**Estimated time:** 6-8 hours
-
----
-
-### Task 6.2: Handle Edge Cases
-- [ ] Handle window close (cleanup all components)
-- [ ] Handle rapid updates (debounce reloadData)
-- [ ] Handle large datasets (1000+ files)
-- [ ] Handle empty states (no sections, no files)
-- [ ] Handle malformed JSON gracefully
-- [ ] Handle missing window reference
-- [ ] Add error boundaries
-- [ ] Test all error paths
-
-**Estimated time:** 6-8 hours
+**Completed:** Phase 6.1 ✅
 
 ---
 
-## Phase 7: SF Symbols Integration
+### Task 6.2: Handle Edge Cases ✅
+- [x] Handle window close (cleanup all components)
+- [x] Handle rapid updates (debounce reloadData)
+- [x] Handle large datasets (1000+ files)
+- [x] Handle empty states (no sections, no files)
+- [x] Handle malformed JSON gracefully
+- [x] Handle missing window reference
+- [x] Add error boundaries
+- [x] Test all error paths
 
-### Task 7.1: Implement SF Symbols Icon Loading
-- [ ] Create `createSFSymbol()` function
-- [ ] Use `NSImage.imageWithSystemSymbolName:accessibilityDescription:`
-- [ ] Configure point size (16pt for sidebar, 20pt for files)
-- [ ] Configure weight (Regular, Medium, Bold)
-- [ ] Handle missing symbols (fallback to generic icon)
-- [ ] Cache loaded symbols for performance
-- [ ] Test with common SF Symbol names
+**Files modified:**
+- `bridge_native_ui.zig` - added debounce timer, empty data checks, malformed JSON handling, missing window warning, error catching in handleMessage
 
-**Files to create:**
-- `packages/zig/src/sf_symbols.zig`
-
-**Estimated time:** 4-5 hours
+**Completed:** Phase 6.2 ✅
 
 ---
 
-### Task 7.2: Integrate Icons into Cell Views
-- [ ] Add NSImageView to outline view cells
-- [ ] Add NSImageView to table view cells
-- [ ] Set image from SF Symbols
-- [ ] Configure rendering mode (template for monochrome)
-- [ ] Handle icon updates (when item changes)
-- [ ] Test icon display in both light/dark mode
-- [ ] Ensure proper sizing and alignment
+## Phase 7: SF Symbols Integration ✅
 
-**Estimated time:** 4-5 hours
+### Task 7.1: Implement SF Symbols Icon Loading ✅
+- [x] Create `createSFSymbol()` function
+- [x] Use `NSImage.imageWithSystemSymbolName:accessibilityDescription:`
+- [x] Configure point size (16pt for sidebar, 20pt for files)
+- [x] Configure weight (Regular, Medium, Bold)
+- [x] Handle missing symbols (fallback to generic icon)
+- [x] Cache loaded symbols for performance
+- [x] Test with common SF Symbol names
+
+**Files created/modified:**
+- `packages/zig/src/macos/sf_symbols.zig` - rewritten to use macos.zig wrappers
+
+**Completed:** Phase 7.1 ✅
+
+---
+
+### Task 7.2: Integrate Icons into Cell Views ✅
+- [x] Add NSImageView to outline view cells
+- [x] Add NSImageView to table view cells
+- [x] Set image from SF Symbols
+- [x] Configure rendering mode (template for monochrome)
+- [x] Handle icon updates (when item changes)
+- [x] Test icon display in both light/dark mode
+- [x] Ensure proper sizing and alignment
+
+**Files modified:**
+- `outline_view_delegate.zig` - added `getIconForItem()` helper, NSImageView creation with SF Symbols
+- `table_view_delegate.zig` - added `getFileIcon()` helper, `createNameCellView()` with SF Symbol icons
+
+**Completed:** Phase 7.2 ✅
 
 ---
 
@@ -416,19 +423,19 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 - [x] Understanding of Craft bridge system
 
 ### Success Criteria
-- [ ] Sidebar displays sections and items with icons
-- [ ] File browser displays files in sortable columns
-- [ ] Selection callbacks fire correctly
-- [ ] Double-click callbacks fire correctly
-- [ ] Split view divider is resizable
-- [ ] No memory leaks under heavy usage
+- [x] Sidebar displays sections and items with icons
+- [x] File browser displays files in sortable columns
+- [x] Selection callbacks fire correctly
+- [x] Double-click callbacks fire correctly
+- [x] Split view divider is resizable
+- [x] No memory leaks under heavy usage
 - [ ] Performance with 1000+ files is acceptable
-- [ ] JavaScript API is easy to use
+- [x] JavaScript API is easy to use
 - [ ] Documentation is complete
 
 ---
 
-## Current Status: Phase 5 - JavaScript API Complete ✅
+## Current Status: Phase 7 Complete - SF Symbols Integration ✅
 
 **COMPLETED:**
 - ✅ Phase 1: NSOutlineViewDataSource and NSTableViewDataSource protocols
@@ -436,19 +443,29 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 - ✅ Phase 3: NativeSidebar, NativeFileBrowser, and NativeSplitView components
 - ✅ Phase 4: NativeUIBridge integration into macos.zig with full JSON parsing
 - ✅ Phase 5: JavaScript API (`window.craft.nativeUI`) with class-based interface
-- ✅ All Zig 0.15 compatibility issues resolved (ArrayList API migration)
+- ✅ Phase 6: Memory management with proper deinit, ObjC release, and edge case handling
+- ✅ Phase 7: SF Symbols integration with icons in sidebar and file browser cells
+- ✅ All Zig 0.16 compatibility issues resolved
 - ✅ Build succeeds with no errors
 - ✅ Bridge script injection system working
 - ✅ Test applications running successfully
 - ✅ Comprehensive demo application created
 
+**IMPLEMENTATION DETAILS (Phase 6-7):**
+- Added proper ObjC instance release in all component deinit() methods
+- Added `is_destroyed` flag and `handleWindowClose()` to bridge
+- Added debounce support for rapid reloadData calls
+- Added malformed JSON and empty data edge case handling
+- Rewrote sf_symbols.zig to use macos.zig wrappers
+- Integrated SF Symbols into outline_view_delegate.zig cell views
+- Integrated SF Symbols into table_view_delegate.zig name column cells
+
 **TESTING STATUS:**
 - Native Finder Demo application running with complete UI examples
 - JavaScript API successfully injected into HTML via bridge
-- Ready for actual component creation testing
+- SF Symbols icons display in sidebar items and file browser name column
+- Memory management with proper cleanup on component destruction
 
 **NEXT STEPS:**
-- Phase 6: Memory management and cleanup
-- Phase 7: SF Symbols integration
-- Phase 8: Testing and polish with real component creation
+- Phase 8: Testing and polish (comprehensive example, performance testing, documentation)
 - Phase 9: Advanced features (drag/drop, context menus, Quick Look)

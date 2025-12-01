@@ -1,5 +1,6 @@
 const std = @import("std");
-const objc = @import("../objc.zig");
+const macos = @import("../macos.zig");
+const objc = macos.objc;
 
 /// Associated object keys for Zig-to-ObjC connections
 pub const AssociatedObjectKeys = struct {

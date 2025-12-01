@@ -132,6 +132,10 @@ pub const OutlineViewDataSource = struct {
     }
 
     pub fn deinit(self: *OutlineViewDataSource) void {
+        // Release the Objective-C instance
+        if (self.instance != @as(macos.objc.id, null)) {
+            _ = macos.msgSend0(self.instance, "release");
+        }
         self.data.deinit();
         self.allocator.destroy(self.data);
     }
