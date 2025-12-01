@@ -425,15 +425,36 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ---
 
-### Task 9.2: Add Context Menus
-- [ ] Create NSMenu dynamically
-- [ ] Handle right-click on sidebar items
-- [ ] Handle right-click on files
-- [ ] Send menu action to JavaScript
-- [ ] Support custom menu items
+### Task 9.2: Add Context Menus ✅
+- [x] Create NSMenu dynamically
+- [x] Handle right-click on sidebar items
+- [x] Handle right-click on files
+- [x] Send menu action to JavaScript
+- [x] Support custom menu items
 - [ ] Test menu display and actions
 
-**Estimated time:** 6-8 hours
+**Files created:**
+- `packages/zig/src/components/context_menu.zig` - Complete context menu implementation:
+  - `ContextMenuDelegate` - Dynamic ObjC class for menu actions
+  - `MenuCallbackData` - Stores menu item IDs and callbacks
+  - `createMenu()` - Creates NSMenu with items
+  - `createMenuItem()` - Creates NSMenuItem with icons, shortcuts
+  - `showContextMenu()` - Displays menu at position
+  - `parseShortcut()` - Parses keyboard shortcuts (cmd+c, etc.)
+  - Default menu items for sidebar and file browser
+
+**Bridge updates:**
+- `packages/zig/src/bridge_native_ui.zig` - Added `showContextMenu` handler
+
+**JavaScript API updates:**
+- `packages/zig/src/js/craft-native-ui.js`:
+  - `Sidebar.showContextMenu()` - Show context menu for sidebar items
+  - `Sidebar.onContextMenu()` - Register callback for menu actions
+  - `FileBrowser.showContextMenu()` - Show context menu for files
+  - `FileBrowser.onContextMenu()` - Register callback for menu actions
+  - `nativeUI.showContextMenu()` - Global context menu API
+
+**Completed:** Phase 9.2 ✅
 
 ---
 
@@ -481,7 +502,7 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 
 ---
 
-## Current Status: Phase 9.1 Complete - Drag and Drop Support ✅
+## Current Status: Phase 9.2 Complete - Context Menus ✅
 
 **COMPLETED:**
 - ✅ Phase 1: NSOutlineViewDataSource and NSTableViewDataSource protocols
@@ -495,21 +516,25 @@ Build truly native NSOutlineView (sidebar) and NSTableView (file browser) compon
 - ✅ Phase 8.2: Performance testing suite for 100-10,000 files
 - ✅ Phase 8.3: Complete documentation (API, examples, architecture)
 - ✅ Phase 9.1: Drag and Drop support with NSDraggingSource/NSDraggingDestination
+- ✅ Phase 9.2: Context Menus with NSMenu and NSMenuItem
 - ✅ All Zig 0.16 compatibility issues resolved
 - ✅ Build succeeds with no errors
 
-**IMPLEMENTATION DETAILS (Phase 8.2-9.1):**
-- `examples/performance-test/index.html` - Performance testing with metrics dashboard
-- `packages/zig/docs/NATIVE-UI-API.md` - Complete API reference
-- `packages/zig/docs/NATIVE-UI-EXAMPLES.md` - 10+ usage examples
-- `packages/zig/docs/NATIVE-UI-ARCHITECTURE.md` - Architecture and lifecycle docs
-- `packages/zig/src/components/drag_drop.zig` - Drag and drop protocol implementations
+**IMPLEMENTATION DETAILS (Phase 9.2):**
+- `packages/zig/src/components/context_menu.zig` - Context menu implementation:
+  - Dynamic ObjC class creation for menu delegate
+  - NSMenu and NSMenuItem creation with SF Symbol icons
+  - Keyboard shortcut support (cmd+c, cmd+shift+n, etc.)
+  - Menu action callbacks to JavaScript
+  - Default menu items for sidebar and file browser
+- `packages/zig/src/bridge_native_ui.zig` - Added showContextMenu handler
+- `packages/zig/src/js/craft-native-ui.js` - JavaScript API for context menus
 
 **TESTING STATUS:**
 - Performance test suite ready for 100-10,000 file testing
 - Comprehensive documentation covering all APIs and use cases
 - Drag and drop protocols implemented and ready for integration
+- Context menu system implemented and ready for integration
 
 **NEXT STEPS:**
-- Phase 9.2: Context menus (NSMenu for right-click)
 - Phase 9.3: Quick Look support (QLPreviewPanel)

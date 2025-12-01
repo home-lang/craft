@@ -4,6 +4,7 @@ const NativeSidebar = @import("components/native_sidebar.zig").NativeSidebar;
 const NativeFileBrowser = @import("components/native_file_browser.zig").NativeFileBrowser;
 const NativeSplitView = @import("components/native_split_view.zig").NativeSplitView;
 const NativeSplitViewController = @import("components/native_split_view_controller.zig").NativeSplitViewController;
+const context_menu = @import("components/context_menu.zig");
 const TestHelpers = @import("test_helpers.zig").TestHelpers;
 
 /// Bridge handler for native UI components
@@ -18,6 +19,7 @@ pub const NativeUIBridge = struct {
     original_webview: ?macos.objc.id,
     last_reload_time: i64,
     is_destroyed: bool,
+    active_context_menu_delegate: ?*context_menu.ContextMenuDelegate,
 
     const Self = @This();
     const RELOAD_DEBOUNCE_MS: i64 = 16; // ~60fps
@@ -33,11 +35,18 @@ pub const NativeUIBridge = struct {
             .original_webview = null,
             .last_reload_time = 0,
             .is_destroyed = false,
+            .active_context_menu_delegate = null,
         };
     }
 
     pub fn deinit(self: *Self) void {
         self.is_destroyed = true;
+
+        // Clean up active context menu delegate
+        if (self.active_context_menu_delegate) |delegate| {
+            delegate.deinit();
+            self.active_context_menu_delegate = null;
+        }
 
         // Clean up split view controller
         if (self.split_view_controller) |svc| {
@@ -136,6 +145,10 @@ pub const NativeUIBridge = struct {
         } else if (std.mem.eql(u8, action, "destroyComponent")) {
             self.destroyComponent(data) catch |err| {
                 std.debug.print("[NativeUI] ERROR destroying component: {any}\n", .{err});
+            };
+        } else if (std.mem.eql(u8, action, "showContextMenu")) {
+            self.showContextMenu(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR showing context menu: {any}\n", .{err});
             };
         } else {
             std.debug.print("[NativeUI] Unknown action: {s}\n", .{action});
@@ -478,5 +491,111 @@ pub const NativeUIBridge = struct {
                 std.debug.print("[NativeUI] ✓ Destroyed split view '{s}'\n", .{id});
             }
         }
+    }
+
+    /// Show a context menu at a specific position
+    /// Expected JSON format:
+    /// {
+    ///   "targetId": "item-id",
+    ///   "targetType": "sidebar" | "file",
+    ///   "x": 100,
+    ///   "y": 200,
+    ///   "items": [
+    ///     { "id": "open", "title": "Open", "icon": "arrow.up.forward.square", "shortcut": "cmd+o" },
+    ///     { "id": "separator", "title": "", "type": "separator" },
+    ///     { "id": "delete", "title": "Move to Trash", "icon": "trash" }
+    ///   ]
+    /// }
+    fn showContextMenu(self: *Self, data: []const u8) !void {
+        const parsed = try std.json.parseFromSlice(std.json.Value, self.allocator, data, .{});
+        defer parsed.deinit();
+
+        const root = parsed.value.object;
+        const target_id = root.get("targetId").?.string;
+        const target_type = root.get("targetType").?.string;
+
+        // Get position
+        const x = switch (root.get("x").?) {
+            .integer => |i| @as(f64, @floatFromInt(i)),
+            .float => |f| f,
+            else => 0.0,
+        };
+        const y = switch (root.get("y").?) {
+            .integer => |i| @as(f64, @floatFromInt(i)),
+            .float => |f| f,
+            else => 0.0,
+        };
+
+        // Clean up previous delegate if it exists
+        if (self.active_context_menu_delegate) |prev_delegate| {
+            prev_delegate.deinit();
+            self.active_context_menu_delegate = null;
+        }
+
+        // Create new delegate
+        const delegate = try context_menu.ContextMenuDelegate.init(self.allocator, target_id, target_type);
+        self.active_context_menu_delegate = delegate;
+
+        // Parse menu items
+        const items_json = root.get("items").?.array;
+        var items: std.ArrayList(context_menu.MenuItem) = .{};
+        defer items.deinit(self.allocator);
+
+        for (items_json.items) |item_json| {
+            const item_obj = item_json.object;
+            const item_type_str = if (item_obj.get("type")) |t| t.string else "standard";
+
+            const item_type: context_menu.MenuItemType = if (std.mem.eql(u8, item_type_str, "separator"))
+                .separator
+            else if (std.mem.eql(u8, item_type_str, "submenu"))
+                .submenu
+            else
+                .standard;
+
+            try items.append(self.allocator, .{
+                .id = item_obj.get("id").?.string,
+                .title = item_obj.get("title").?.string,
+                .icon = if (item_obj.get("icon")) |icon| icon.string else null,
+                .shortcut = if (item_obj.get("shortcut")) |shortcut| shortcut.string else null,
+                .enabled = if (item_obj.get("enabled")) |enabled| enabled.bool else true,
+                .item_type = item_type,
+                .submenu_items = null, // TODO: Support nested submenus
+            });
+        }
+
+        // Create the menu
+        const menu = try context_menu.createMenu(self.allocator, "", items.items, delegate);
+
+        // Get the view to show the menu in
+        var view: macos.objc.id = null;
+        if (std.mem.eql(u8, target_type, "sidebar")) {
+            // Use the sidebar's view
+            var sidebar_iter = self.sidebars.valueIterator();
+            if (sidebar_iter.next()) |sidebar| {
+                view = sidebar.*.getView();
+            }
+        } else if (std.mem.eql(u8, target_type, "file")) {
+            // Use the file browser's view
+            var browser_iter = self.file_browsers.valueIterator();
+            if (browser_iter.next()) |browser| {
+                view = browser.*.getView();
+            }
+        }
+
+        // Fallback to window's content view
+        if (view == null) {
+            if (self.window) |window| {
+                view = macos.msgSend0(window, "contentView");
+            }
+        }
+
+        if (view == null) {
+            std.debug.print("[NativeUI] ERROR: No view available for context menu\n", .{});
+            return error.NoViewAvailable;
+        }
+
+        // Show the menu
+        context_menu.showContextMenu(menu, view, .{ .x = x, .y = y });
+        std.debug.print("[NativeUI] ✓ Showed context menu for {s} '{s}' at ({d}, {d})\n", .{ target_type, target_id, x, y });
     }
 };

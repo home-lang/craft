@@ -135,7 +135,7 @@ pub const DraggingSourceDelegate = struct {
         );
         macos.objc.objc_setAssociatedObject(
             instance,
-            @ptrFromInt(0xDRAG),
+            @ptrFromInt(0xD1A6),
             data_value,
             macos.objc.OBJC_ASSOCIATION_RETAIN,
         );
@@ -175,7 +175,7 @@ pub const DraggingSourceDelegate = struct {
 };
 
 fn getDraggingCallbackData(instance: macos.objc.id) ?*DraggingSourceDelegate.CallbackData {
-    const associated = macos.objc.objc_getAssociatedObject(instance, @ptrFromInt(0xDRAG));
+    const associated = macos.objc.objc_getAssociatedObject(instance, @ptrFromInt(0xD1A6));
     if (associated == @as(macos.objc.id, null)) return null;
 
     const ptr = macos.msgSend0(associated, "pointerValue");
@@ -335,7 +335,7 @@ pub const DraggingDestinationDelegate = struct {
         );
         macos.objc.objc_setAssociatedObject(
             instance,
-            @ptrFromInt(0xDROP),
+            @ptrFromInt(0xD10B),
             data_value,
             macos.objc.OBJC_ASSOCIATION_RETAIN,
         );
@@ -368,7 +368,7 @@ pub const DraggingDestinationDelegate = struct {
 };
 
 fn getDestinationCallbackData(instance: macos.objc.id) ?*DraggingDestinationDelegate.DestinationCallbackData {
-    const associated = macos.objc.objc_getAssociatedObject(instance, @ptrFromInt(0xDROP));
+    const associated = macos.objc.objc_getAssociatedObject(instance, @ptrFromInt(0xD10B));
     if (associated == @as(macos.objc.id, null)) return null;
 
     const ptr = macos.msgSend0(associated, "pointerValue");

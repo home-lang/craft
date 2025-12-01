@@ -38,6 +38,7 @@
     constructor(id) {
       this.id = id;
       this._selectCallbacks = [];
+      this._contextMenuCallbacks = [];
     }
 
     /**
@@ -77,6 +78,43 @@
     }
 
     /**
+     * Register a callback for context menu events
+     * @param {Function} callback - Function called when context menu action is triggered
+     *                              Receives (menuItemId, targetItemId)
+     */
+    onContextMenu(callback) {
+      this._contextMenuCallbacks.push(callback);
+      return this;
+    }
+
+    /**
+     * Show a context menu for a sidebar item
+     * @param {Object} options - Context menu options
+     * @param {string} options.itemId - The sidebar item ID being right-clicked
+     * @param {number} options.x - X position for the menu
+     * @param {number} options.y - Y position for the menu
+     * @param {Array} [options.items] - Custom menu items (optional, uses defaults if not provided)
+     */
+    showContextMenu(options) {
+      const defaultItems = [
+        { id: 'rename', title: 'Rename...', icon: 'pencil' },
+        { id: 'separator1', title: '', type: 'separator' },
+        { id: 'new_folder', title: 'New Folder', icon: 'folder.badge.plus', shortcut: 'cmd+shift+n' },
+        { id: 'separator2', title: '', type: 'separator' },
+        { id: 'remove', title: 'Remove from Sidebar', icon: 'minus.circle' }
+      ];
+
+      sendMessage('showContextMenu', {
+        targetId: options.itemId,
+        targetType: 'sidebar',
+        x: options.x,
+        y: options.y,
+        items: options.items || defaultItems
+      });
+      return this;
+    }
+
+    /**
      * Destroy this sidebar component
      */
     destroy() {
@@ -95,6 +133,7 @@
       this.id = id;
       this._selectCallbacks = [];
       this._doubleClickCallbacks = [];
+      this._contextMenuCallbacks = [];
     }
 
     /**
@@ -152,6 +191,48 @@
      */
     onDoubleClick(callback) {
       this._doubleClickCallbacks.push(callback);
+      return this;
+    }
+
+    /**
+     * Register a callback for context menu events
+     * @param {Function} callback - Function called when context menu action is triggered
+     *                              Receives (menuItemId, targetFileId)
+     */
+    onContextMenu(callback) {
+      this._contextMenuCallbacks.push(callback);
+      return this;
+    }
+
+    /**
+     * Show a context menu for a file item
+     * @param {Object} options - Context menu options
+     * @param {string} options.fileId - The file ID being right-clicked
+     * @param {number} options.x - X position for the menu
+     * @param {number} options.y - Y position for the menu
+     * @param {Array} [options.items] - Custom menu items (optional, uses defaults if not provided)
+     */
+    showContextMenu(options) {
+      const defaultItems = [
+        { id: 'open', title: 'Open', icon: 'arrow.up.forward.square', shortcut: 'cmd+o' },
+        { id: 'open_with', title: 'Open With...', icon: 'arrow.up.forward.app' },
+        { id: 'separator1', title: '', type: 'separator' },
+        { id: 'get_info', title: 'Get Info', icon: 'info.circle', shortcut: 'cmd+i' },
+        { id: 'rename', title: 'Rename', icon: 'pencil' },
+        { id: 'separator2', title: '', type: 'separator' },
+        { id: 'copy', title: 'Copy', icon: 'doc.on.doc', shortcut: 'cmd+c' },
+        { id: 'duplicate', title: 'Duplicate', icon: 'plus.square.on.square', shortcut: 'cmd+d' },
+        { id: 'separator3', title: '', type: 'separator' },
+        { id: 'move_to_trash', title: 'Move to Trash', icon: 'trash', shortcut: 'cmd+delete' }
+      ];
+
+      sendMessage('showContextMenu', {
+        targetId: options.fileId,
+        targetType: 'file',
+        x: options.x,
+        y: options.y,
+        items: options.items || defaultItems
+      });
       return this;
     }
 
@@ -253,6 +334,35 @@
       });
 
       return new SplitView(id, options.sidebar, options.browser);
+    },
+
+    /**
+     * Show a context menu at a specific position
+     * @param {Object} options - Context menu configuration
+     * @param {string} options.targetId - ID of the target item
+     * @param {string} options.targetType - Type of target ('sidebar' or 'file')
+     * @param {number} options.x - X position for the menu
+     * @param {number} options.y - Y position for the menu
+     * @param {Array} options.items - Array of menu items
+     * @param {string} options.items[].id - Menu item identifier
+     * @param {string} options.items[].title - Menu item display text
+     * @param {string} [options.items[].icon] - SF Symbol icon name
+     * @param {string} [options.items[].shortcut] - Keyboard shortcut (e.g., 'cmd+c')
+     * @param {string} [options.items[].type] - Item type ('separator' for dividers)
+     * @param {boolean} [options.items[].enabled=true] - Whether item is enabled
+     */
+    showContextMenu(options) {
+      if (!options.items || !options.items.length) {
+        throw new Error('showContextMenu requires items array');
+      }
+
+      sendMessage('showContextMenu', {
+        targetId: options.targetId || '',
+        targetType: options.targetType || 'general',
+        x: options.x || 0,
+        y: options.y || 0,
+        items: options.items
+      });
     }
   };
 
