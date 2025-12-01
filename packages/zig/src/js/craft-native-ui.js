@@ -237,6 +237,52 @@
     }
 
     /**
+     * Preview the currently selected file with Quick Look
+     * @param {string} fileId - The file ID to preview
+     * @param {string} filePath - The absolute file path
+     * @param {string} [title] - Optional display title
+     */
+    previewFile(fileId, filePath, title) {
+      sendMessage('showQuickLook', {
+        files: [{
+          id: fileId,
+          path: filePath,
+          title: title
+        }]
+      });
+      return this;
+    }
+
+    /**
+     * Preview multiple files with Quick Look
+     * @param {Array} files - Array of files to preview
+     * @param {string} files[].id - File identifier
+     * @param {string} files[].path - Absolute file path
+     * @param {string} [files[].title] - Optional display title
+     * @param {number} [currentIndex=0] - Index of file to show first
+     */
+    previewFiles(files, currentIndex = 0) {
+      sendMessage('showQuickLook', {
+        files: files,
+        currentIndex: currentIndex
+      });
+      return this;
+    }
+
+    /**
+     * Toggle Quick Look for the given files
+     * @param {Array} files - Array of files to preview
+     * @param {number} [currentIndex=0] - Index of file to show first
+     */
+    toggleQuickLook(files, currentIndex = 0) {
+      sendMessage('toggleQuickLook', {
+        files: files,
+        currentIndex: currentIndex
+      });
+      return this;
+    }
+
+    /**
      * Destroy this file browser component
      */
     destroy() {
@@ -362,6 +408,64 @@
         x: options.x || 0,
         y: options.y || 0,
         items: options.items
+      });
+    },
+
+    /**
+     * Show Quick Look panel for file preview
+     * @param {Object} options - Quick Look configuration
+     * @param {Array} options.files - Array of files to preview
+     * @param {string} options.files[].id - File identifier
+     * @param {string} options.files[].path - Absolute file path
+     * @param {string} [options.files[].title] - Optional display title
+     * @param {number} [options.currentIndex=0] - Index of file to show first
+     */
+    showQuickLook(options) {
+      if (!options.files || !options.files.length) {
+        throw new Error('showQuickLook requires files array');
+      }
+
+      sendMessage('showQuickLook', {
+        files: options.files,
+        currentIndex: options.currentIndex || 0
+      });
+    },
+
+    /**
+     * Close the Quick Look panel
+     */
+    closeQuickLook() {
+      sendMessage('closeQuickLook', {});
+    },
+
+    /**
+     * Toggle Quick Look panel (show if hidden, hide if shown)
+     * @param {Object} options - Quick Look configuration (same as showQuickLook)
+     */
+    toggleQuickLook(options) {
+      if (!options.files || !options.files.length) {
+        throw new Error('toggleQuickLook requires files array');
+      }
+
+      sendMessage('toggleQuickLook', {
+        files: options.files,
+        currentIndex: options.currentIndex || 0
+      });
+    },
+
+    /**
+     * Preview a single file with Quick Look
+     * Convenience method for previewing a single file
+     * @param {string} filePath - Absolute path to the file
+     * @param {string} [title] - Optional display title
+     */
+    previewFile(filePath, title) {
+      this.showQuickLook({
+        files: [{
+          id: filePath,
+          path: filePath,
+          title: title
+        }]
       });
     }
   };

@@ -5,6 +5,7 @@ const NativeFileBrowser = @import("components/native_file_browser.zig").NativeFi
 const NativeSplitView = @import("components/native_split_view.zig").NativeSplitView;
 const NativeSplitViewController = @import("components/native_split_view_controller.zig").NativeSplitViewController;
 const context_menu = @import("components/context_menu.zig");
+const quick_look = @import("components/quick_look.zig");
 const TestHelpers = @import("test_helpers.zig").TestHelpers;
 
 /// Bridge handler for native UI components
@@ -20,6 +21,7 @@ pub const NativeUIBridge = struct {
     last_reload_time: i64,
     is_destroyed: bool,
     active_context_menu_delegate: ?*context_menu.ContextMenuDelegate,
+    quick_look_controller: ?*quick_look.QuickLookController,
 
     const Self = @This();
     const RELOAD_DEBOUNCE_MS: i64 = 16; // ~60fps
@@ -36,11 +38,18 @@ pub const NativeUIBridge = struct {
             .last_reload_time = 0,
             .is_destroyed = false,
             .active_context_menu_delegate = null,
+            .quick_look_controller = null,
         };
     }
 
     pub fn deinit(self: *Self) void {
         self.is_destroyed = true;
+
+        // Clean up Quick Look controller
+        if (self.quick_look_controller) |controller| {
+            controller.deinit();
+            self.quick_look_controller = null;
+        }
 
         // Clean up active context menu delegate
         if (self.active_context_menu_delegate) |delegate| {
@@ -149,6 +158,16 @@ pub const NativeUIBridge = struct {
         } else if (std.mem.eql(u8, action, "showContextMenu")) {
             self.showContextMenu(data) catch |err| {
                 std.debug.print("[NativeUI] ERROR showing context menu: {any}\n", .{err});
+            };
+        } else if (std.mem.eql(u8, action, "showQuickLook")) {
+            self.showQuickLook(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR showing Quick Look: {any}\n", .{err});
+            };
+        } else if (std.mem.eql(u8, action, "closeQuickLook")) {
+            self.closeQuickLook();
+        } else if (std.mem.eql(u8, action, "toggleQuickLook")) {
+            self.toggleQuickLook(data) catch |err| {
+                std.debug.print("[NativeUI] ERROR toggling Quick Look: {any}\n", .{err});
             };
         } else {
             std.debug.print("[NativeUI] Unknown action: {s}\n", .{action});
@@ -597,5 +616,104 @@ pub const NativeUIBridge = struct {
         // Show the menu
         context_menu.showContextMenu(menu, view, .{ .x = x, .y = y });
         std.debug.print("[NativeUI] ✓ Showed context menu for {s} '{s}' at ({d}, {d})\n", .{ target_type, target_id, x, y });
+    }
+
+    /// Show Quick Look panel for files
+    /// Expected JSON format:
+    /// {
+    ///   "files": [
+    ///     { "id": "file-1", "path": "/path/to/file.pdf", "title": "Document.pdf" },
+    ///     { "id": "file-2", "path": "/path/to/image.png" }
+    ///   ],
+    ///   "currentIndex": 0  // Optional, defaults to 0
+    /// }
+    fn showQuickLook(self: *Self, data: []const u8) !void {
+        // Check if Quick Look is available
+        if (!quick_look.isQuickLookAvailable()) {
+            std.debug.print("[NativeUI] ERROR: Quick Look is not available on this system\n", .{});
+            return error.QuickLookNotAvailable;
+        }
+
+        const parsed = try std.json.parseFromSlice(std.json.Value, self.allocator, data, .{});
+        defer parsed.deinit();
+
+        const root = parsed.value.object;
+        const files_json = root.get("files").?.array;
+
+        // Create or reuse Quick Look controller
+        if (self.quick_look_controller == null) {
+            self.quick_look_controller = try quick_look.QuickLookController.init(self.allocator);
+        }
+
+        const controller = self.quick_look_controller.?;
+
+        // Clear existing items and add new ones
+        controller.callback_data.clearItems();
+
+        for (files_json.items) |file_json| {
+            const file_obj = file_json.object;
+            const file_id = file_obj.get("id").?.string;
+            const file_path = file_obj.get("path").?.string;
+            const file_title = if (file_obj.get("title")) |t| t.string else null;
+
+            try controller.addPreviewItem(.{
+                .id = file_id,
+                .path = file_path,
+                .title = file_title,
+            });
+        }
+
+        // Set current index if provided
+        if (root.get("currentIndex")) |idx| {
+            const index: usize = switch (idx) {
+                .integer => |i| @intCast(i),
+                else => 0,
+            };
+            controller.setCurrentPreviewIndex(index);
+        }
+
+        // Show the panel
+        controller.showPanel();
+        std.debug.print("[NativeUI] ✓ Showed Quick Look with {d} files\n", .{files_json.items.len});
+    }
+
+    /// Close Quick Look panel
+    fn closeQuickLook(self: *Self) void {
+        if (self.quick_look_controller) |controller| {
+            controller.closePanel();
+            std.debug.print("[NativeUI] ✓ Closed Quick Look panel\n", .{});
+        }
+    }
+
+    /// Toggle Quick Look panel (show/hide)
+    /// Expected JSON format: same as showQuickLook
+    fn toggleQuickLook(self: *Self, data: []const u8) !void {
+        // Check if Quick Look is available
+        if (!quick_look.isQuickLookAvailable()) {
+            std.debug.print("[NativeUI] ERROR: Quick Look is not available on this system\n", .{});
+            return error.QuickLookNotAvailable;
+        }
+
+        // If controller exists and panel is visible, close it
+        if (self.quick_look_controller) |controller| {
+            const QLPreviewPanel = macos.getClass("QLPreviewPanel");
+            if (QLPreviewPanel != null) {
+                const panel = macos.msgSend0(QLPreviewPanel, "sharedPreviewPanel");
+                const isVisible = @as(
+                    *const fn (macos.objc.id, macos.objc.SEL) callconv(.c) bool,
+                    @ptrCast(&macos.objc.objc_msgSend),
+                );
+
+                if (isVisible(panel, macos.sel("isVisible"))) {
+                    controller.closePanel();
+                    std.debug.print("[NativeUI] ✓ Toggled Quick Look OFF\n", .{});
+                    return;
+                }
+            }
+        }
+
+        // Otherwise, show the panel with provided data
+        try self.showQuickLook(data);
+        std.debug.print("[NativeUI] ✓ Toggled Quick Look ON\n", .{});
     }
 };
