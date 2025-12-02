@@ -3,6 +3,79 @@
  * Native APIs available in Craft applications
  */
 
+// Window API - Comprehensive window management
+export {
+  windowManager,
+  win,
+  Window
+} from './window'
+export type {
+  WindowPosition,
+  WindowSize,
+  WindowBounds,
+  WindowState,
+  WindowCreateOptions,
+  WindowEventType,
+  WindowEventMap,
+  WindowEventHandler
+} from './window'
+
+// Tray/Menubar API - System tray and menubar apps
+export {
+  trayManager,
+  tray,
+  SystemTray,
+  MenubarApp,
+  createMenubarApp,
+  buildMenu,
+  separator,
+  menuItem,
+  checkbox,
+  submenu
+} from './tray'
+export type {
+  MenuItem,
+  TrayClickEvent,
+  TrayOptions,
+  MenubarAppConfig,
+  TrayEventType,
+  TrayEventMap,
+  TrayEventHandler
+} from './tray'
+
+// App API - Application lifecycle and system integration
+export {
+  appManager,
+  app,
+  quit,
+  hide,
+  show,
+  focus,
+  hideDockIcon,
+  showDockIcon,
+  setBadge,
+  getInfo,
+  getVersion,
+  getName,
+  getPath,
+  isDarkMode,
+  getLocale,
+  notify,
+  registerShortcut,
+  unregisterShortcut
+} from './app'
+export type {
+  AppInfo,
+  SystemPreferences,
+  DisplayInfo,
+  BadgeOptions,
+  NotificationOptions,
+  AppEventType,
+  AppEventMap,
+  AppEventHandler,
+  ShortcutHandler
+} from './app'
+
 // File System API
 export { fs, readBinaryFile, writeBinaryFile, stat, copy, move, watch } from './fs'
 export type { FileStats } from './fs'

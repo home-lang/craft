@@ -20,6 +20,106 @@
  */
 
 // ============================================================================
+// Native Sidebar Components
+// ============================================================================
+
+export {
+  Sidebar,
+  createSidebar,
+  createTahoeSidebar,
+  createArcSidebar,
+  createOrbStackSidebar,
+  sidebarItem,
+  sidebarSection,
+  sidebarSeparator,
+  tahoeStyle,
+  arcStyle,
+  orbstackStyle
+} from './sidebar'
+export type {
+  SidebarItem,
+  SidebarSection,
+  ContextMenuItem,
+  SidebarStyle,
+  SidebarPosition,
+  SidebarConfig,
+  SidebarHeaderConfig,
+  SidebarFooterConfig,
+  SidebarEventType,
+  SidebarEventMap,
+  SidebarEventHandler
+} from './sidebar'
+
+// ============================================================================
+// Native UI Components
+// ============================================================================
+
+export {
+  // Split View
+  createSplitView,
+  SplitViewInstance,
+
+  // File Browser
+  createFileBrowser,
+  FileBrowserInstance,
+
+  // Outline View (Tree)
+  createOutlineView,
+  OutlineViewInstance,
+
+  // Table View
+  createTableView,
+  TableViewInstance,
+
+  // Quick Look
+  showQuickLook,
+  hideQuickLook,
+  canQuickLook,
+
+  // Pickers
+  showColorPicker,
+  showFontPicker,
+  showDatePicker,
+
+  // Progress
+  createProgress,
+  ProgressInstance,
+
+  // Toolbar
+  setToolbar,
+  updateToolbarItem,
+  setToolbarVisible,
+
+  // Touch Bar
+  setTouchBar,
+  updateTouchBarItem
+} from './native'
+export type {
+  ComponentProps,
+  ComponentInstance,
+  SplitViewOrientation,
+  SplitViewDividerStyle,
+  SplitViewConfig,
+  FileBrowserConfig,
+  FileBrowserSelection,
+  OutlineItem,
+  OutlineViewConfig,
+  TableColumn,
+  TableRow,
+  TableViewConfig,
+  QuickLookConfig,
+  ColorPickerConfig,
+  FontPickerConfig,
+  FontResult,
+  DatePickerConfig,
+  ProgressConfig,
+  ToolbarItem,
+  ToolbarConfig,
+  TouchBarItem,
+  TouchBarConfig
+} from './native'
+
+// ============================================================================
 // Style Types
 // ============================================================================
 
