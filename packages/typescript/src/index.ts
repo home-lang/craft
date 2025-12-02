@@ -20,8 +20,9 @@ export * from './api'
 // Export component abstractions (React Native-style primitives)
 export * from './components'
 
-// Export styling utilities (Headwind CSS integration)
+// Export styling utilities (Headwind CSS integration + Sidebar styles)
 export * from './styles/headwind'
+export * from './styles'
 
 // Export framework-specific optimizations
 export * from './optimizations'
