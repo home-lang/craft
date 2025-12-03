@@ -1,5 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const bridge_error = @import("bridge_error.zig");
+
+const BridgeError = bridge_error.BridgeError;
 
 /// Bridge handler for native dialog operations (file pickers, alerts, etc.)
 pub const DialogBridge = struct {
@@ -21,7 +24,9 @@ pub const DialogBridge = struct {
 
     /// Handle dialog-related messages from JavaScript
     pub fn handleMessage(self: *Self, action: []const u8) !void {
-        try self.handleMessageWithData(action, null);
+        self.handleMessageWithData(action, null) catch |err| {
+            self.reportError(action, err);
+        };
     }
 
     pub fn handleMessageWithData(self: *Self, action: []const u8, data: ?[]const u8) !void {
@@ -38,8 +43,19 @@ pub const DialogBridge = struct {
         } else if (std.mem.eql(u8, action, "showConfirm")) {
             try self.showConfirm(data);
         } else {
-            std.debug.print("[DialogBridge] Unknown action: {s}\n", .{action});
+            return BridgeError.UnknownAction;
         }
+    }
+
+    /// Report error to JavaScript and log
+    fn reportError(self: *Self, action: []const u8, err: anyerror) void {
+        const bridge_err: BridgeError = switch (err) {
+            BridgeError.MissingData => BridgeError.MissingData,
+            BridgeError.InvalidJSON => BridgeError.InvalidJSON,
+            BridgeError.Cancelled => BridgeError.Cancelled,
+            else => BridgeError.NativeCallFailed,
+        };
+        bridge_error.sendErrorToJS(self.allocator, action, bridge_err);
     }
 
     /// Open a single file picker

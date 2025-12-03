@@ -567,7 +567,37 @@ All native Windows implementations completed:
    - memory.zig already has comprehensive MemoryPool, TempAllocator, TrackingAllocator
 
 3. **Error handling**: Many functions silently ignore errors - **Partially improved**
-4. ~~**Test coverage**: Limited automated testing~~ ✅ IMPROVED - 121 TypeScript tests added covering types, crypto, headwind, components, and mobile APIs
+4. ~~**Test coverage**: Limited automated testing~~ ✅ IMPROVED - 121 TypeScript tests + 15 Zig bridge unit tests
+
+### Recent Updates (December 2025)
+
+#### Window Bridge Enhancements ✅
+- [x] Fixed `setWindowSize` bug in `macos.zig` - Added `msgSendRect`, `msgSendFloat`, `msgSendBool` for proper Objective-C struct returns
+- [x] Added `setVibrancy` handler - NSVisualEffectView with 9 material options (sidebar, header, sheet, menu, popover, fullscreen-ui, hud, titlebar, none)
+- [x] Added `setAlwaysOnTop` handler - NSFloatingWindowLevel/NSNormalWindowLevel
+- [x] Added `setOpacity` handler - Window alpha value (0.0-1.0)
+- [x] Added `setResizable` handler - NSWindowStyleMaskResizable toggle
+- [x] Added `setBackgroundColor` handler - Supports hex `#RRGGBB` or RGBA components
+- [x] Added `setMinSize`/`setMaxSize` handlers - Window size constraints
+- [x] Added `setMovable` handler - Lock/unlock window dragging
+- [x] Added `setHasShadow` handler - Enable/disable window shadow
+
+#### Dialog & Clipboard APIs ✅
+- [x] Created `bridge_dialog.zig` - File dialogs: `openFile`, `openFiles`, `openFolder`, `saveFile`, `showAlert`, `showConfirm`
+- [x] Created `bridge_clipboard.zig` - Clipboard: `writeText`, `readText`, `writeHTML`, `readHTML`, `clear`, `hasText`, `hasHTML`, `hasImage`
+- [x] Created `api/dialog.ts` - TypeScript dialog API with full type definitions
+- [x] Created `api/clipboard.ts` - TypeScript clipboard API with full type definitions
+
+#### Tray Bridge Enhancements ✅
+- [x] Added `hide`/`show` handlers to tray bridge
+- [x] Added `setIcon` handler with SF Symbol support
+- [x] Made `macosHide`/`macosShow` public in `tray.zig`
+
+#### Unit Testing ✅
+- [x] Created `bridge_test.zig` with 15 passing tests:
+  - JSON parsing tests (size, color, opacity, boolean, title, position, vibrancy, RGBA, notification, badge, clipboard, file dialog)
+  - Action dispatch tests
+  - Memory allocation tests
 
 ### Dependencies to Consider
 
@@ -578,5 +608,5 @@ All native Windows implementations completed:
 
 ---
 
-*Last updated: November 2025*
+*Last updated: December 2025*
 *Based on codebase analysis of Craft framework*

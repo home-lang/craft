@@ -1,5 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const bridge_error = @import("bridge_error.zig");
+
+const BridgeError = bridge_error.BridgeError;
 
 /// Bridge handler for clipboard operations
 pub const ClipboardBridge = struct {
@@ -15,7 +18,9 @@ pub const ClipboardBridge = struct {
 
     /// Handle clipboard-related messages from JavaScript
     pub fn handleMessage(self: *Self, action: []const u8) !void {
-        try self.handleMessageWithData(action, null);
+        self.handleMessageWithData(action, null) catch |err| {
+            self.reportError(action, err);
+        };
     }
 
     pub fn handleMessageWithData(self: *Self, action: []const u8, data: ?[]const u8) !void {
@@ -36,8 +41,18 @@ pub const ClipboardBridge = struct {
         } else if (std.mem.eql(u8, action, "hasImage")) {
             try self.hasImage();
         } else {
-            std.debug.print("[ClipboardBridge] Unknown action: {s}\n", .{action});
+            return BridgeError.UnknownAction;
         }
+    }
+
+    /// Report error to JavaScript and log
+    fn reportError(self: *Self, action: []const u8, err: anyerror) void {
+        const bridge_err: BridgeError = switch (err) {
+            BridgeError.MissingData => BridgeError.MissingData,
+            BridgeError.InvalidJSON => BridgeError.InvalidJSON,
+            else => BridgeError.NativeCallFailed,
+        };
+        bridge_error.sendErrorToJS(self.allocator, action, bridge_err);
     }
 
     /// Write text to clipboard

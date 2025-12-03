@@ -1,6 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const tray_menu = @import("tray_menu.zig");
+const bridge_error = @import("bridge_error.zig");
+
+const BridgeError = bridge_error.BridgeError;
 
 /// Decode Unicode escape sequences like \Ud83c\Udf45 to actual UTF-8
 /// Unicode emoji are represented as surrogate pairs in UTF-16:
@@ -95,6 +98,12 @@ pub const TrayBridge = struct {
 
     /// Handle tray-related messages from JavaScript
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
+        self.handleMessageInternal(action, data) catch |err| {
+            self.reportError(action, err);
+        };
+    }
+
+    fn handleMessageInternal(self: *Self, action: []const u8, data: []const u8) !void {
         if (std.mem.eql(u8, action, "setTitle")) {
             try self.setTitle(data);
         } else if (std.mem.eql(u8, action, "setTooltip")) {
@@ -103,9 +112,31 @@ pub const TrayBridge = struct {
             try self.setMenu(data);
         } else if (std.mem.eql(u8, action, "pollActions")) {
             try self.pollActions();
+        } else if (std.mem.eql(u8, action, "hide")) {
+            try self.hide();
+        } else if (std.mem.eql(u8, action, "show")) {
+            try self.showTray();
+        } else if (std.mem.eql(u8, action, "setIcon")) {
+            try self.setIcon(data);
         } else {
-            std.debug.print("Unknown tray action: {s}\n", .{action});
+            return BridgeError.UnknownAction;
         }
+    }
+
+    /// Report error to JavaScript and log
+    fn reportError(self: *Self, action: []const u8, err: anyerror) void {
+        const bridge_err: BridgeError = switch (err) {
+            BridgeError.TrayHandleNotSet => BridgeError.TrayHandleNotSet,
+            BridgeError.MissingData => BridgeError.MissingData,
+            BridgeError.InvalidJSON => BridgeError.InvalidJSON,
+            else => BridgeError.NativeCallFailed,
+        };
+        bridge_error.sendErrorToJS(self.allocator, action, bridge_err);
+    }
+
+    /// Get tray handle or return error
+    fn requireTrayHandle(self: *Self) BridgeError!*anyopaque {
+        return self.tray_handle orelse BridgeError.TrayHandleNotSet;
     }
 
     fn pollActions(self: *Self) !void {
@@ -129,10 +160,7 @@ pub const TrayBridge = struct {
     }
 
     fn setTitle(self: *Self, title: []const u8) !void {
-        if (self.tray_handle == null) {
-            std.debug.print("Warning: Tray handle not set\n", .{});
-            return;
-        }
+        const handle = try self.requireTrayHandle();
 
         if (builtin.os.tag == .macos) {
             // Decode Unicode escapes like \Ud83c\Udf45 to actual UTF-8
@@ -140,27 +168,21 @@ pub const TrayBridge = struct {
             defer self.allocator.free(decoded_title);
 
             const macos = @import("tray.zig");
-            try macos.macosSetTitle(self.tray_handle.?, decoded_title);
+            try macos.macosSetTitle(handle, decoded_title);
         }
     }
 
     fn setTooltip(self: *Self, tooltip: []const u8) !void {
-        if (self.tray_handle == null) {
-            std.debug.print("Warning: Tray handle not set\n", .{});
-            return;
-        }
+        const handle = try self.requireTrayHandle();
 
         if (builtin.os.tag == .macos) {
             const macos = @import("tray.zig");
-            try macos.macosSetTooltip(self.tray_handle.?, tooltip);
+            try macos.macosSetTooltip(handle, tooltip);
         }
     }
 
     fn setMenu(self: *Self, menu_json: []const u8) !void {
-        if (self.tray_handle == null) {
-            std.debug.print("Warning: Tray handle not set\n", .{});
-            return;
-        }
+        const handle = try self.requireTrayHandle();
 
         // Unescape the JSON (replace \" with ")
         var unescaped = try self.allocator.alloc(u8, menu_json.len);
@@ -199,7 +221,66 @@ pub const TrayBridge = struct {
 
             // Attach to tray
             const macos = @import("tray.zig");
-            try macos.macosSetMenu(self.tray_handle.?, menu);
+            try macos.macosSetMenu(handle, menu);
+        }
+    }
+
+    fn hide(self: *Self) !void {
+        const handle = try self.requireTrayHandle();
+
+        std.debug.print("[TrayBridge] hide\n", .{});
+
+        if (builtin.os.tag == .macos) {
+            const tray = @import("tray.zig");
+            tray.macosHide(handle);
+        }
+    }
+
+    fn showTray(self: *Self) !void {
+        const handle = try self.requireTrayHandle();
+
+        std.debug.print("[TrayBridge] show\n", .{});
+
+        if (builtin.os.tag == .macos) {
+            const tray = @import("tray.zig");
+            tray.macosShow(handle);
+        }
+    }
+
+    fn setIcon(self: *Self, icon_name: []const u8) !void {
+        const handle = try self.requireTrayHandle();
+
+        std.debug.print("[TrayBridge] setIcon: {s}\n", .{icon_name});
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+
+            // Get NSStatusItem button
+            const button = macos.msgSend0(handle, "button");
+            if (button == null) return;
+
+            // Try to load SF Symbol first
+            const NSImage = macos.getClass("NSImage");
+
+            // Try SF Symbol name (e.g., "star.fill", "gear")
+            const icon_cstr = try std.heap.c_allocator.dupeZ(u8, icon_name);
+            defer std.heap.c_allocator.free(icon_cstr);
+
+            const NSString = macos.getClass("NSString");
+            const str_alloc = macos.msgSend0(NSString, "alloc");
+            const ns_name = macos.msgSend1(str_alloc, "initWithUTF8String:", icon_cstr.ptr);
+
+            // Try systemSymbolNamed:accessibilityDescription:
+            const image = macos.msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", ns_name, @as(?*anyopaque, null));
+
+            if (image != null) {
+                // Configure for template rendering (adapts to light/dark mode)
+                _ = macos.msgSend1(image, "setTemplate:", @as(c_int, 1));
+                _ = macos.msgSend1(button, "setImage:", image);
+                std.debug.print("[TrayBridge] Set SF Symbol icon: {s}\n", .{icon_name});
+            } else {
+                std.debug.print("[TrayBridge] SF Symbol not found: {s}\n", .{icon_name});
+            }
         }
     }
 

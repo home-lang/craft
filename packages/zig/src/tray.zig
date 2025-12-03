@@ -384,13 +384,24 @@ pub fn macosSetTooltip(handle: *anyopaque, tooltip: []const u8) !void {
     _ = msgSend1(button, "setToolTip:", tooltipStr);
 }
 
-fn macosHide(handle: *anyopaque) void {
+pub fn macosHide(handle: *anyopaque) void {
     if (builtin.target.os.tag != .macos) return;
 
     const statusItem: objc.id = @ptrFromInt(@intFromPtr(handle));
 
     // Set visible to NO
     msgSendVoid1(statusItem, "setVisible:", @as(c_int, 0));
+    std.debug.print("[Tray] Status item hidden\n", .{});
+}
+
+pub fn macosShow(handle: *anyopaque) void {
+    if (builtin.target.os.tag != .macos) return;
+
+    const statusItem: objc.id = @ptrFromInt(@intFromPtr(handle));
+
+    // Set visible to YES
+    msgSendVoid1(statusItem, "setVisible:", @as(c_int, 1));
+    std.debug.print("[Tray] Status item shown\n", .{});
 }
 
 fn macosDestroy(handle: *anyopaque) void {

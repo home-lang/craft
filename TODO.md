@@ -615,3 +615,72 @@ nativeUI.previewFile(filePath, title);
 ```
 
 **PROJECT COMPLETE!** All 9 phases of the Native macOS Tahoe UI implementation have been completed.
+
+---
+
+## Additional Bridge Enhancements (December 2025)
+
+### Window Bridge Enhancements ✅
+| Handler | File | Description |
+|---------|------|-------------|
+| `setVibrancy` | `bridge_window.zig:308-361` | NSVisualEffectView materials |
+| `setAlwaysOnTop` | `bridge_window.zig:362-381` | Window level control |
+| `setOpacity` | `bridge_window.zig:383-409` | Window alpha value |
+| `setResizable` | `bridge_window.zig:411-441` | Style mask toggle |
+| `setBackgroundColor` | `bridge_window.zig:443-519` | Hex/RGBA color support |
+| `setMinSize` | `bridge_window.zig:529-566` | Minimum window constraints |
+| `setMaxSize` | `bridge_window.zig:568-603` | Maximum window constraints |
+| `setMovable` | `bridge_window.zig:605-621` | Window dragging control |
+| `setHasShadow` | `bridge_window.zig:623-639` | Window shadow toggle |
+
+### Dialog Bridge ✅
+| Handler | Description |
+|---------|-------------|
+| `openFile` | NSOpenPanel single file selection |
+| `openFiles` | NSOpenPanel multiple file selection |
+| `openFolder` | NSOpenPanel directory selection |
+| `saveFile` | NSSavePanel with default name |
+| `showAlert` | NSAlert with style (info/warning/critical) |
+| `showConfirm` | NSAlert with OK/Cancel buttons |
+
+**File:** `packages/zig/src/bridge_dialog.zig`
+
+### Clipboard Bridge ✅
+| Handler | Description |
+|---------|-------------|
+| `writeText` | NSPasteboard text write |
+| `readText` | NSPasteboard text read |
+| `writeHTML` | NSPasteboard HTML write |
+| `readHTML` | NSPasteboard HTML read |
+| `clear` | NSPasteboard clear |
+| `hasText` | Check for text content |
+| `hasHTML` | Check for HTML content |
+| `hasImage` | Check for image content |
+
+**File:** `packages/zig/src/bridge_clipboard.zig`
+
+### Tray Bridge Enhancements ✅
+| Handler | Description |
+|---------|-------------|
+| `hide` | Hide status item |
+| `show` | Show status item |
+| `setIcon` | SF Symbol icon support |
+
+**File:** `packages/zig/src/bridge_tray.zig`
+
+### Unit Tests ✅
+15 passing tests in `packages/zig/src/bridge_test.zig`:
+- JSON parsing (size, color, opacity, boolean, title, position, vibrancy, RGBA, notification, badge, clipboard, file dialog)
+- Action string matching
+- Memory allocation
+
+### TypeScript APIs ✅
+| File | New Methods |
+|------|-------------|
+| `api/window.ts` | `setMinSize()`, `setMaxSize()` |
+| `api/dialog.ts` | `openFile()`, `openFolder()`, `saveFile()`, `showAlert()`, `showConfirm()`, `showPrompt()` |
+| `api/clipboard.ts` | `writeText()`, `readText()`, `writeHTML()`, `readHTML()`, `clear()`, `hasText()`, `hasHTML()`, `hasImage()` |
+
+---
+
+*Last updated: December 2025*

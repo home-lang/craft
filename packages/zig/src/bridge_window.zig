@@ -1,5 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const bridge_error = @import("bridge_error.zig");
+
+const BridgeError = bridge_error.BridgeError;
 
 /// Bridge handler for window control messages from JavaScript
 pub const WindowBridge = struct {
@@ -27,8 +30,21 @@ pub const WindowBridge = struct {
     /// action: the action name, data: optional JSON data string
     pub fn handleMessage(self: *Self, action: []const u8) !void {
         self.handleMessageWithData(action, null) catch |err| {
-            std.debug.print("[WindowBridge] Error handling {s}: {}\n", .{ action, err });
+            self.reportError(action, err);
         };
+    }
+
+    /// Report error to JavaScript and log
+    fn reportError(self: *Self, action: []const u8, err: anyerror) void {
+        const bridge_err: BridgeError = switch (err) {
+            BridgeError.WindowHandleNotSet => BridgeError.WindowHandleNotSet,
+            BridgeError.WebViewHandleNotSet => BridgeError.WebViewHandleNotSet,
+            BridgeError.MissingData => BridgeError.MissingData,
+            BridgeError.InvalidJSON => BridgeError.InvalidJSON,
+            BridgeError.InvalidParameter => BridgeError.InvalidParameter,
+            else => BridgeError.NativeCallFailed,
+        };
+        bridge_error.sendErrorToJS(self.allocator, action, bridge_err);
     }
 
     pub fn handleMessageWithData(self: *Self, action: []const u8, data: ?[]const u8) !void {
@@ -70,229 +86,228 @@ pub const WindowBridge = struct {
             try self.setResizable(data);
         } else if (std.mem.eql(u8, action, "setBackgroundColor")) {
             try self.setBackgroundColor(data);
+        } else if (std.mem.eql(u8, action, "setMinSize")) {
+            try self.setMinSize(data);
+        } else if (std.mem.eql(u8, action, "setMaxSize")) {
+            try self.setMaxSize(data);
+        } else if (std.mem.eql(u8, action, "setMovable")) {
+            try self.setMovable(data);
+        } else if (std.mem.eql(u8, action, "setHasShadow")) {
+            try self.setHasShadow(data);
         } else {
-            std.debug.print("[WindowBridge] Unknown action: {s}\n", .{action});
+            return BridgeError.UnknownAction;
         }
     }
 
+    /// Get window handle or return error
+    fn requireWindowHandle(self: *Self) BridgeError!*anyopaque {
+        return self.window_handle orelse BridgeError.WindowHandleNotSet;
+    }
+
+    /// Get webview handle or return error
+    fn requireWebViewHandle(self: *Self) BridgeError!*anyopaque {
+        return self.webview_handle orelse BridgeError.WebViewHandleNotSet;
+    }
+
     fn show(self: *Self) !void {
-        if (self.window_handle == null) {
-            std.debug.print("Warning: Window handle not set\n", .{});
-            return;
-        }
+        const handle = try self.requireWindowHandle();
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            macos.showWindow(self.window_handle.?);
+            macos.showWindow(handle);
         }
     }
 
     fn hide(self: *Self) !void {
-        if (self.window_handle == null) {
-            std.debug.print("Warning: Window handle not set\n", .{});
-            return;
-        }
+        const handle = try self.requireWindowHandle();
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            macos.hideWindow(self.window_handle.?);
+            macos.hideWindow(handle);
         }
     }
 
     fn toggle(self: *Self) !void {
-        if (self.window_handle == null) {
-            std.debug.print("Warning: Window handle not set\n", .{});
-            return;
-        }
+        const handle = try self.requireWindowHandle();
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            macos.toggleWindow(self.window_handle.?);
+            macos.toggleWindow(handle);
         }
     }
 
     fn minimize(self: *Self) !void {
-        if (self.window_handle == null) {
-            std.debug.print("Warning: Window handle not set\n", .{});
-            return;
-        }
+        const handle = try self.requireWindowHandle();
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            macos.minimizeWindow(self.window_handle.?);
+            macos.minimizeWindow(handle);
         }
     }
 
     fn close(self: *Self) !void {
-        if (self.window_handle == null) {
-            std.debug.print("Warning: Window handle not set\n", .{});
-            return;
-        }
+        const handle = try self.requireWindowHandle();
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            macos.closeWindow(self.window_handle.?);
+            macos.closeWindow(handle);
         }
     }
 
     fn focus(self: *Self) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
             // makeKeyAndOrderFront focuses the window
-            macos.showWindow(self.window_handle.?);
+            macos.showWindow(handle);
         }
     }
 
     fn maximize(self: *Self) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
             // On macOS, "zoom" is the maximize equivalent
-            macos.msgSendVoid0(self.window_handle.?, "zoom:");
+            macos.msgSendVoid0(handle, "zoom:");
         }
     }
 
     fn center(self: *Self) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            macos.msgSendVoid0(self.window_handle.?, "center");
+            macos.msgSendVoid0(handle, "center");
         }
     }
 
     fn toggleFullscreen(self: *Self) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            macos.toggleFullscreen(self.window_handle.?);
+            macos.toggleFullscreen(handle);
         }
     }
 
     fn setFullscreen(self: *Self, data: ?[]const u8) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
         _ = data; // TODO: Parse fullscreen boolean from data
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            macos.toggleFullscreen(self.window_handle.?);
+            macos.toggleFullscreen(handle);
         }
     }
 
     fn setSize(self: *Self, data: ?[]const u8) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
+        const json_data = data orelse return BridgeError.MissingData;
 
-        if (data) |json_data| {
-            // Simple JSON parsing for {"width": N, "height": M}
-            var width: u32 = 800;
-            var height: u32 = 600;
+        // Simple JSON parsing for {"width": N, "height": M}
+        var width: u32 = 800;
+        var height: u32 = 600;
 
-            // Skip whitespace and find digits after "width":
-            if (std.mem.indexOf(u8, json_data, "\"width\":")) |idx| {
-                var start = idx + 8;
-                // Skip whitespace
-                while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
-                var end = start;
-                while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
-                if (end > start) {
-                    width = std.fmt.parseInt(u32, json_data[start..end], 10) catch 800;
-                }
+        // Skip whitespace and find digits after "width":
+        if (std.mem.indexOf(u8, json_data, "\"width\":")) |idx| {
+            var start = idx + 8;
+            // Skip whitespace
+            while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+            var end = start;
+            while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
+            if (end > start) {
+                width = std.fmt.parseInt(u32, json_data[start..end], 10) catch 800;
             }
+        }
 
-            if (std.mem.indexOf(u8, json_data, "\"height\":")) |idx| {
-                var start = idx + 9;
-                while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
-                var end = start;
-                while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
-                if (end > start) {
-                    height = std.fmt.parseInt(u32, json_data[start..end], 10) catch 600;
-                }
+        if (std.mem.indexOf(u8, json_data, "\"height\":")) |idx| {
+            var start = idx + 9;
+            while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+            var end = start;
+            while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
+            if (end > start) {
+                height = std.fmt.parseInt(u32, json_data[start..end], 10) catch 600;
             }
+        }
 
-            std.debug.print("[WindowBridge] setSize: {}x{}\n", .{ width, height });
+        std.debug.print("[WindowBridge] setSize: {}x{}\n", .{ width, height });
 
-            if (builtin.os.tag == .macos) {
-                const macos = @import("macos.zig");
-                macos.setWindowSize(self.window_handle.?, width, height);
-            }
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            macos.setWindowSize(handle, width, height);
         }
     }
 
     fn setPosition(self: *Self, data: ?[]const u8) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
+        const json_data = data orelse return BridgeError.MissingData;
 
-        if (data) |json_data| {
-            var x: i32 = 100;
-            var y: i32 = 100;
+        var x: i32 = 100;
+        var y: i32 = 100;
 
-            if (std.mem.indexOf(u8, json_data, "\"x\":")) |idx| {
-                const start = idx + 4;
-                var end = start;
-                while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '-')) : (end += 1) {}
-                if (end > start) {
-                    x = std.fmt.parseInt(i32, json_data[start..end], 10) catch 100;
-                }
-            }
-
-            if (std.mem.indexOf(u8, json_data, "\"y\":")) |idx| {
-                const start = idx + 4;
-                var end = start;
-                while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '-')) : (end += 1) {}
-                if (end > start) {
-                    y = std.fmt.parseInt(i32, json_data[start..end], 10) catch 100;
-                }
-            }
-
-            if (builtin.os.tag == .macos) {
-                const macos = @import("macos.zig");
-                macos.setWindowPosition(self.window_handle.?, x, y);
+        if (std.mem.indexOf(u8, json_data, "\"x\":")) |idx| {
+            const start = idx + 4;
+            var end = start;
+            while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '-')) : (end += 1) {}
+            if (end > start) {
+                x = std.fmt.parseInt(i32, json_data[start..end], 10) catch 100;
             }
         }
-    }
 
-    fn setTitle(self: *Self, data: ?[]const u8) !void {
-        if (self.window_handle == null) return;
-
-        if (data) |json_data| {
-            // Extract title from {"title": "..."}
-            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
-                const start = idx + 9;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const title = json_data[start..end];
-
-                    if (builtin.os.tag == .macos) {
-                        const macos = @import("macos.zig");
-                        const title_cstr = try self.allocator.dupeZ(u8, title);
-                        defer self.allocator.free(title_cstr);
-
-                        const NSString = macos.getClass("NSString");
-                        const str_alloc = macos.msgSend0(NSString, "alloc");
-                        const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr.ptr);
-                        _ = macos.msgSend1(self.window_handle.?, "setTitle:", ns_title);
-                    }
-                }
+        if (std.mem.indexOf(u8, json_data, "\"y\":")) |idx| {
+            const start = idx + 4;
+            var end = start;
+            while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '-')) : (end += 1) {}
+            if (end > start) {
+                y = std.fmt.parseInt(i32, json_data[start..end], 10) catch 100;
             }
-        }
-    }
-
-    fn reload(self: *Self) !void {
-        if (self.webview_handle == null) {
-            std.debug.print("[WindowBridge] No webview handle for reload\n", .{});
-            return;
         }
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            macos.reloadWindow(self.webview_handle.?);
+            macos.setWindowPosition(handle, x, y);
+        }
+    }
+
+    fn setTitle(self: *Self, data: ?[]const u8) !void {
+        const handle = try self.requireWindowHandle();
+        const json_data = data orelse return BridgeError.MissingData;
+
+        // Extract title from {"title": "..."}
+        if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
+            const start = idx + 9;
+            if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                const title = json_data[start..end];
+
+                if (builtin.os.tag == .macos) {
+                    const macos = @import("macos.zig");
+                    const title_cstr = try self.allocator.dupeZ(u8, title);
+                    defer self.allocator.free(title_cstr);
+
+                    const NSString = macos.getClass("NSString");
+                    const str_alloc = macos.msgSend0(NSString, "alloc");
+                    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr.ptr);
+                    _ = macos.msgSend1(handle, "setTitle:", ns_title);
+                }
+            }
+        } else {
+            return BridgeError.InvalidJSON;
+        }
+    }
+
+    fn reload(self: *Self) !void {
+        const handle = try self.requireWebViewHandle();
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            macos.reloadWindow(handle);
         }
     }
 
     fn setVibrancy(self: *Self, data: ?[]const u8) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -332,15 +347,15 @@ pub const WindowBridge = struct {
                 material = 3;
             } else if (std.mem.eql(u8, vibrancy_type, "none") or std.mem.eql(u8, vibrancy_type, "null")) {
                 // Remove vibrancy - set window to opaque
-                _ = macos.msgSend1(self.window_handle.?, "setOpaque:", true);
+                _ = macos.msgSend1(handle, "setOpaque:", true);
                 return;
             }
 
             // Make window non-opaque for vibrancy
-            _ = macos.msgSend1(self.window_handle.?, "setOpaque:", false);
+            _ = macos.msgSend1(handle, "setOpaque:", false);
 
             // Get content view and set up visual effect
-            const content_view = macos.msgSend0(self.window_handle.?, "contentView");
+            const content_view = macos.msgSend0(handle, "contentView");
             if (content_view != null) {
                 // Create NSVisualEffectView
                 const NSVisualEffectView = macos.getClass("NSVisualEffectView");
@@ -362,7 +377,7 @@ pub const WindowBridge = struct {
     }
 
     fn setAlwaysOnTop(self: *Self, data: ?[]const u8) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
 
         var always_on_top = true;
         if (data) |json_data| {
@@ -378,12 +393,12 @@ pub const WindowBridge = struct {
             const macos = @import("macos.zig");
             // NSFloatingWindowLevel = 3, NSNormalWindowLevel = 0
             const level: c_long = if (always_on_top) 3 else 0;
-            _ = macos.msgSend1(self.window_handle.?, "setLevel:", level);
+            _ = macos.msgSend1(handle, "setLevel:", level);
         }
     }
 
     fn setOpacity(self: *Self, data: ?[]const u8) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
 
         var opacity: f64 = 1.0;
         if (data) |json_data| {
@@ -405,13 +420,13 @@ pub const WindowBridge = struct {
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            const msg = @as(*const fn (@TypeOf(self.window_handle.?), macos.objc.SEL, f64) callconv(.c) void, @ptrCast(&macos.objc.objc_msgSend));
-            msg(self.window_handle.?, macos.sel("setAlphaValue:"), opacity);
+            const msg = @as(*const fn (@TypeOf(handle), macos.objc.SEL, f64) callconv(.c) void, @ptrCast(&macos.objc.objc_msgSend));
+            msg(handle, macos.sel("setAlphaValue:"), opacity);
         }
     }
 
     fn setResizable(self: *Self, data: ?[]const u8) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
 
         var resizable = true;
         if (data) |json_data| {
@@ -425,7 +440,7 @@ pub const WindowBridge = struct {
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
             // Get current style mask
-            const current_mask_ptr = macos.msgSend0(self.window_handle.?, "styleMask");
+            const current_mask_ptr = macos.msgSend0(handle, "styleMask");
             var style_mask = @as(c_ulong, @intFromPtr(current_mask_ptr));
 
             // NSWindowStyleMaskResizable = 1 << 3 = 8
@@ -436,12 +451,12 @@ pub const WindowBridge = struct {
                 style_mask &= ~resizable_mask;
             }
 
-            _ = macos.msgSend1(self.window_handle.?, "setStyleMask:", style_mask);
+            _ = macos.msgSend1(handle, "setStyleMask:", style_mask);
         }
     }
 
     fn setBackgroundColor(self: *Self, data: ?[]const u8) !void {
-        if (self.window_handle == null) return;
+        const handle = try self.requireWindowHandle();
 
         // Default to white
         var r: f64 = 1.0;
@@ -514,7 +529,119 @@ pub const WindowBridge = struct {
             const color = msg(NSColor, color_sel, r, g, b, a);
 
             // Set window background color
-            _ = macos.msgSend1(self.window_handle.?, "setBackgroundColor:", color);
+            _ = macos.msgSend1(handle, "setBackgroundColor:", color);
+        }
+    }
+
+    fn setMinSize(self: *Self, data: ?[]const u8) !void {
+        const handle = try self.requireWindowHandle();
+
+        var width: u32 = 100;
+        var height: u32 = 100;
+
+        if (data) |json_data| {
+            // Parse {"width": 400, "height": 300}
+            if (std.mem.indexOf(u8, json_data, "\"width\":")) |idx| {
+                var start = idx + 8;
+                while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                var end = start;
+                while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
+                if (end > start) {
+                    width = std.fmt.parseInt(u32, json_data[start..end], 10) catch 100;
+                }
+            }
+            if (std.mem.indexOf(u8, json_data, "\"height\":")) |idx| {
+                var start = idx + 9;
+                while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                var end = start;
+                while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
+                if (end > start) {
+                    height = std.fmt.parseInt(u32, json_data[start..end], 10) catch 100;
+                }
+            }
+        }
+
+        std.debug.print("[WindowBridge] setMinSize: {}x{}\n", .{ width, height });
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            // Create NSSize and set minimum size
+            const size = macos.NSSize{ .width = @floatFromInt(width), .height = @floatFromInt(height) };
+            const msg = @as(*const fn (@TypeOf(handle), macos.objc.SEL, macos.NSSize) callconv(.c) void, @ptrCast(&macos.objc.objc_msgSend));
+            msg(handle, macos.sel("setMinSize:"), size);
+        }
+    }
+
+    fn setMaxSize(self: *Self, data: ?[]const u8) !void {
+        const handle = try self.requireWindowHandle();
+
+        var width: u32 = 10000;
+        var height: u32 = 10000;
+
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "\"width\":")) |idx| {
+                var start = idx + 8;
+                while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                var end = start;
+                while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
+                if (end > start) {
+                    width = std.fmt.parseInt(u32, json_data[start..end], 10) catch 10000;
+                }
+            }
+            if (std.mem.indexOf(u8, json_data, "\"height\":")) |idx| {
+                var start = idx + 9;
+                while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                var end = start;
+                while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
+                if (end > start) {
+                    height = std.fmt.parseInt(u32, json_data[start..end], 10) catch 10000;
+                }
+            }
+        }
+
+        std.debug.print("[WindowBridge] setMaxSize: {}x{}\n", .{ width, height });
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            const size = macos.NSSize{ .width = @floatFromInt(width), .height = @floatFromInt(height) };
+            const msg = @as(*const fn (@TypeOf(handle), macos.objc.SEL, macos.NSSize) callconv(.c) void, @ptrCast(&macos.objc.objc_msgSend));
+            msg(handle, macos.sel("setMaxSize:"), size);
+        }
+    }
+
+    fn setMovable(self: *Self, data: ?[]const u8) !void {
+        const handle = try self.requireWindowHandle();
+
+        var movable = true;
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "false")) |_| {
+                movable = false;
+            }
+        }
+
+        std.debug.print("[WindowBridge] setMovable: {}\n", .{movable});
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            _ = macos.msgSend1(handle, "setMovable:", @as(c_int, if (movable) 1 else 0));
+        }
+    }
+
+    fn setHasShadow(self: *Self, data: ?[]const u8) !void {
+        const handle = try self.requireWindowHandle();
+
+        var has_shadow = true;
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "false")) |_| {
+                has_shadow = false;
+            }
+        }
+
+        std.debug.print("[WindowBridge] setHasShadow: {}\n", .{has_shadow});
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            _ = macos.msgSend1(handle, "setHasShadow:", @as(c_int, if (has_shadow) 1 else 0));
         }
     }
 
@@ -522,3 +649,22 @@ pub const WindowBridge = struct {
         _ = self;
     }
 };
+
+// Unit tests for WindowBridge
+test "WindowBridge.requireWindowHandle returns error when null" {
+    const testing = std.testing;
+    var bridge = WindowBridge.init(testing.allocator);
+    defer bridge.deinit();
+
+    const result = bridge.requireWindowHandle();
+    try testing.expectError(BridgeError.WindowHandleNotSet, result);
+}
+
+test "WindowBridge.requireWebViewHandle returns error when null" {
+    const testing = std.testing;
+    var bridge = WindowBridge.init(testing.allocator);
+    defer bridge.deinit();
+
+    const result = bridge.requireWebViewHandle();
+    try testing.expectError(BridgeError.WebViewHandleNotSet, result);
+}

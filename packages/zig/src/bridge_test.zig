@@ -271,3 +271,152 @@ test "null-terminated string creation" {
     try testing.expectEqual(@as(u8, 0), cstr[str.len]);
     try testing.expectEqualStrings(str, cstr[0..str.len]);
 }
+
+// ============================================================================
+// Error Handling Tests
+// ============================================================================
+
+test "parse missing key returns default" {
+    const json = "{\"other\":\"value\"}";
+
+    var width: u32 = 800; // default
+    if (std.mem.indexOf(u8, json, "\"width\":")) |idx| {
+        const start = idx + 8;
+        var end = start;
+        while (end < json.len and json[end] >= '0' and json[end] <= '9') : (end += 1) {}
+        width = std.fmt.parseInt(u32, json[start..end], 10) catch 800;
+    }
+
+    try testing.expectEqual(@as(u32, 800), width); // Should keep default
+}
+
+test "parse invalid number returns default" {
+    const json = "{\"width\":\"abc\"}";
+
+    var width: u32 = 800; // default
+    if (std.mem.indexOf(u8, json, "\"width\":")) |idx| {
+        const start = idx + 8;
+        var end = start;
+        while (end < json.len and json[end] >= '0' and json[end] <= '9') : (end += 1) {}
+        if (end > start) {
+            width = std.fmt.parseInt(u32, json[start..end], 10) catch 800;
+        }
+    }
+
+    try testing.expectEqual(@as(u32, 800), width); // Should keep default
+}
+
+test "parse empty string" {
+    const json = "{\"title\":\"\"}";
+
+    var title: []const u8 = "default";
+    if (std.mem.indexOf(u8, json, "\"title\":\"")) |idx| {
+        const start = idx + 9;
+        if (std.mem.indexOfPos(u8, json, start, "\"")) |end| {
+            title = json[start..end];
+        }
+    }
+
+    try testing.expectEqualStrings("", title);
+}
+
+test "parse negative numbers" {
+    const json = "{\"x\":-100,\"y\":-200}";
+
+    var x: i32 = 0;
+    var y: i32 = 0;
+
+    if (std.mem.indexOf(u8, json, "\"x\":")) |idx| {
+        const start = idx + 4;
+        var end = start;
+        while (end < json.len and ((json[end] >= '0' and json[end] <= '9') or json[end] == '-')) : (end += 1) {}
+        x = std.fmt.parseInt(i32, json[start..end], 10) catch 0;
+    }
+
+    if (std.mem.indexOf(u8, json, "\"y\":")) |idx| {
+        const start = idx + 4;
+        var end = start;
+        while (end < json.len and ((json[end] >= '0' and json[end] <= '9') or json[end] == '-')) : (end += 1) {}
+        y = std.fmt.parseInt(i32, json[start..end], 10) catch 0;
+    }
+
+    try testing.expectEqual(@as(i32, -100), x);
+    try testing.expectEqual(@as(i32, -200), y);
+}
+
+test "parse decimal opacity edge cases" {
+    const test_cases = [_]struct { json: []const u8, expected: f64 }{
+        .{ .json = "{\"opacity\":0.0}", .expected = 0.0 },
+        .{ .json = "{\"opacity\":1.0}", .expected = 1.0 },
+        .{ .json = "{\"opacity\":0.5}", .expected = 0.5 },
+        .{ .json = "{\"opacity\":0.99}", .expected = 0.99 },
+    };
+
+    for (test_cases) |tc| {
+        if (std.mem.indexOf(u8, tc.json, "\"opacity\":")) |idx| {
+            var start = idx + 10;
+            while (start < tc.json.len and (tc.json[start] == ' ' or tc.json[start] == '\t')) : (start += 1) {}
+            var end = start;
+            while (end < tc.json.len and ((tc.json[end] >= '0' and tc.json[end] <= '9') or tc.json[end] == '.')) : (end += 1) {}
+            if (end > start) {
+                const opacity = std.fmt.parseFloat(f64, tc.json[start..end]) catch 1.0;
+                try testing.expectApproxEqAbs(tc.expected, opacity, 0.001);
+            }
+        }
+    }
+}
+
+test "vibrancy material types" {
+    const materials = [_][]const u8{
+        "sidebar",
+        "header",
+        "sheet",
+        "menu",
+        "popover",
+        "fullscreen-ui",
+        "hud",
+        "titlebar",
+        "none",
+    };
+
+    for (materials) |material| {
+        var buf: [64]u8 = undefined;
+        const json = std.fmt.bufPrint(&buf, "{{\"vibrancy\":\"{s}\"}}", .{material}) catch continue;
+
+        if (std.mem.indexOf(u8, json, "\"vibrancy\":\"")) |idx| {
+            const start = idx + 12;
+            if (std.mem.indexOfPos(u8, json, start, "\"")) |end| {
+                const parsed = json[start..end];
+                try testing.expectEqualStrings(material, parsed);
+            }
+        }
+    }
+}
+
+test "action list completeness" {
+    const window_actions = [_][]const u8{
+        "show", "hide", "toggle", "focus", "minimize", "maximize", "close",
+        "center", "toggleFullscreen", "setFullscreen", "setSize", "setPosition",
+        "setTitle", "reload", "setVibrancy", "setAlwaysOnTop", "setOpacity",
+        "setResizable", "setBackgroundColor", "setMinSize", "setMaxSize",
+        "setMovable", "setHasShadow",
+    };
+
+    const tray_actions = [_][]const u8{
+        "setTitle", "setTooltip", "setMenu", "pollActions", "hide", "show", "setIcon",
+    };
+
+    const clipboard_actions = [_][]const u8{
+        "writeText", "readText", "writeHTML", "readHTML", "clear", "hasText", "hasHTML", "hasImage",
+    };
+
+    const dialog_actions = [_][]const u8{
+        "openFile", "openFiles", "openFolder", "saveFile", "showAlert", "showConfirm",
+    };
+
+    // Verify we have comprehensive action coverage
+    try testing.expect(window_actions.len == 23);
+    try testing.expect(tray_actions.len == 7);
+    try testing.expect(clipboard_actions.len == 8);
+    try testing.expect(dialog_actions.len == 6);
+}

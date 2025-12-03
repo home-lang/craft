@@ -477,6 +477,20 @@ export class Window {
   }
 
   /**
+   * Set minimum window size
+   */
+  async setMinSize(width: number, height: number): Promise<void> {
+    await this._call('setMinSize', { width, height })
+  }
+
+  /**
+   * Set maximum window size
+   */
+  async setMaxSize(width: number, height: number): Promise<void> {
+    await this._call('setMaxSize', { width, height })
+  }
+
+  /**
    * Set window opacity
    */
   async setOpacity(opacity: number): Promise<void> {
