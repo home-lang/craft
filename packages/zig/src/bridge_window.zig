@@ -60,6 +60,16 @@ pub const WindowBridge = struct {
             try self.setTitle(data);
         } else if (std.mem.eql(u8, action, "reload")) {
             try self.reload();
+        } else if (std.mem.eql(u8, action, "setVibrancy")) {
+            try self.setVibrancy(data);
+        } else if (std.mem.eql(u8, action, "setAlwaysOnTop")) {
+            try self.setAlwaysOnTop(data);
+        } else if (std.mem.eql(u8, action, "setOpacity")) {
+            try self.setOpacity(data);
+        } else if (std.mem.eql(u8, action, "setResizable")) {
+            try self.setResizable(data);
+        } else if (std.mem.eql(u8, action, "setBackgroundColor")) {
+            try self.setBackgroundColor(data);
         } else {
             std.debug.print("[WindowBridge] Unknown action: {s}\n", .{action});
         }
@@ -175,11 +185,41 @@ pub const WindowBridge = struct {
 
     fn setSize(self: *Self, data: ?[]const u8) !void {
         if (self.window_handle == null) return;
-        _ = data;
 
-        // TODO: setWindowSize has a bug in macos.zig with @bitCast
-        // For now, just log the request
-        std.debug.print("[WindowBridge] setSize requested (not yet implemented)\n", .{});
+        if (data) |json_data| {
+            // Simple JSON parsing for {"width": N, "height": M}
+            var width: u32 = 800;
+            var height: u32 = 600;
+
+            // Skip whitespace and find digits after "width":
+            if (std.mem.indexOf(u8, json_data, "\"width\":")) |idx| {
+                var start = idx + 8;
+                // Skip whitespace
+                while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                var end = start;
+                while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
+                if (end > start) {
+                    width = std.fmt.parseInt(u32, json_data[start..end], 10) catch 800;
+                }
+            }
+
+            if (std.mem.indexOf(u8, json_data, "\"height\":")) |idx| {
+                var start = idx + 9;
+                while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                var end = start;
+                while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
+                if (end > start) {
+                    height = std.fmt.parseInt(u32, json_data[start..end], 10) catch 600;
+                }
+            }
+
+            std.debug.print("[WindowBridge] setSize: {}x{}\n", .{ width, height });
+
+            if (builtin.os.tag == .macos) {
+                const macos = @import("macos.zig");
+                macos.setWindowSize(self.window_handle.?, width, height);
+            }
+        }
     }
 
     fn setPosition(self: *Self, data: ?[]const u8) !void {
@@ -248,6 +288,233 @@ pub const WindowBridge = struct {
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
             macos.reloadWindow(self.webview_handle.?);
+        }
+    }
+
+    fn setVibrancy(self: *Self, data: ?[]const u8) !void {
+        if (self.window_handle == null) return;
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+
+            // Parse vibrancy type from {"vibrancy": "..."}
+            var vibrancy_type: []const u8 = "none";
+            if (data) |json_data| {
+                if (std.mem.indexOf(u8, json_data, "\"vibrancy\":\"")) |idx| {
+                    const start = idx + 12;
+                    if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                        vibrancy_type = json_data[start..end];
+                    }
+                }
+            }
+
+            std.debug.print("[WindowBridge] setVibrancy: {s}\n", .{vibrancy_type});
+
+            // Get NSVisualEffectView material enum value
+            // Common values: 0=appearance-based, 1=light, 2=dark, 3=titlebar, 4=selection
+            // 10=menu, 11=popover, 12=sidebar, 13=header, 14=sheet, 17=HUD, etc.
+            var material: c_long = 0;
+            if (std.mem.eql(u8, vibrancy_type, "sidebar")) {
+                material = 12;
+            } else if (std.mem.eql(u8, vibrancy_type, "header")) {
+                material = 13;
+            } else if (std.mem.eql(u8, vibrancy_type, "sheet")) {
+                material = 14;
+            } else if (std.mem.eql(u8, vibrancy_type, "menu")) {
+                material = 10;
+            } else if (std.mem.eql(u8, vibrancy_type, "popover")) {
+                material = 11;
+            } else if (std.mem.eql(u8, vibrancy_type, "fullscreen-ui")) {
+                material = 15;
+            } else if (std.mem.eql(u8, vibrancy_type, "hud")) {
+                material = 17;
+            } else if (std.mem.eql(u8, vibrancy_type, "titlebar")) {
+                material = 3;
+            } else if (std.mem.eql(u8, vibrancy_type, "none") or std.mem.eql(u8, vibrancy_type, "null")) {
+                // Remove vibrancy - set window to opaque
+                _ = macos.msgSend1(self.window_handle.?, "setOpaque:", true);
+                return;
+            }
+
+            // Make window non-opaque for vibrancy
+            _ = macos.msgSend1(self.window_handle.?, "setOpaque:", false);
+
+            // Get content view and set up visual effect
+            const content_view = macos.msgSend0(self.window_handle.?, "contentView");
+            if (content_view != null) {
+                // Create NSVisualEffectView
+                const NSVisualEffectView = macos.getClass("NSVisualEffectView");
+                const effect_view = macos.msgSend0(macos.msgSend0(NSVisualEffectView, "alloc"), "init");
+
+                // Set material
+                _ = macos.msgSend1(effect_view, "setMaterial:", material);
+
+                // Set blending mode (behindWindow = 0)
+                _ = macos.msgSend1(effect_view, "setBlendingMode:", @as(c_long, 0));
+
+                // Set state (followsWindowActiveState = 1)
+                _ = macos.msgSend1(effect_view, "setState:", @as(c_long, 1));
+
+                // Set as background of content view
+                _ = macos.msgSend3(content_view, "addSubview:positioned:relativeTo:", effect_view, @as(c_long, -1), @as(?*anyopaque, null));
+            }
+        }
+    }
+
+    fn setAlwaysOnTop(self: *Self, data: ?[]const u8) !void {
+        if (self.window_handle == null) return;
+
+        var always_on_top = true;
+        if (data) |json_data| {
+            // Parse {"alwaysOnTop": true/false}
+            if (std.mem.indexOf(u8, json_data, "false")) |_| {
+                always_on_top = false;
+            }
+        }
+
+        std.debug.print("[WindowBridge] setAlwaysOnTop: {}\n", .{always_on_top});
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            // NSFloatingWindowLevel = 3, NSNormalWindowLevel = 0
+            const level: c_long = if (always_on_top) 3 else 0;
+            _ = macos.msgSend1(self.window_handle.?, "setLevel:", level);
+        }
+    }
+
+    fn setOpacity(self: *Self, data: ?[]const u8) !void {
+        if (self.window_handle == null) return;
+
+        var opacity: f64 = 1.0;
+        if (data) |json_data| {
+            // Parse {"opacity": 0.8}
+            if (std.mem.indexOf(u8, json_data, "\"opacity\":")) |idx| {
+                var start = idx + 10;
+                while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                var end = start;
+                while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
+                if (end > start) {
+                    opacity = std.fmt.parseFloat(f64, json_data[start..end]) catch 1.0;
+                }
+            }
+        }
+
+        // Clamp to valid range
+        opacity = @max(0.0, @min(1.0, opacity));
+        std.debug.print("[WindowBridge] setOpacity: {d:.2}\n", .{opacity});
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            const msg = @as(*const fn (@TypeOf(self.window_handle.?), macos.objc.SEL, f64) callconv(.c) void, @ptrCast(&macos.objc.objc_msgSend));
+            msg(self.window_handle.?, macos.sel("setAlphaValue:"), opacity);
+        }
+    }
+
+    fn setResizable(self: *Self, data: ?[]const u8) !void {
+        if (self.window_handle == null) return;
+
+        var resizable = true;
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "false")) |_| {
+                resizable = false;
+            }
+        }
+
+        std.debug.print("[WindowBridge] setResizable: {}\n", .{resizable});
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            // Get current style mask
+            const current_mask_ptr = macos.msgSend0(self.window_handle.?, "styleMask");
+            var style_mask = @as(c_ulong, @intFromPtr(current_mask_ptr));
+
+            // NSWindowStyleMaskResizable = 1 << 3 = 8
+            const resizable_mask: c_ulong = 8;
+            if (resizable) {
+                style_mask |= resizable_mask;
+            } else {
+                style_mask &= ~resizable_mask;
+            }
+
+            _ = macos.msgSend1(self.window_handle.?, "setStyleMask:", style_mask);
+        }
+    }
+
+    fn setBackgroundColor(self: *Self, data: ?[]const u8) !void {
+        if (self.window_handle == null) return;
+
+        // Default to white
+        var r: f64 = 1.0;
+        var g: f64 = 1.0;
+        var b: f64 = 1.0;
+        var a: f64 = 1.0;
+
+        if (data) |json_data| {
+            // Parse {"r": 0.5, "g": 0.5, "b": 0.5, "a": 1.0} or {"color": "#RRGGBB"}
+            // Try hex color first
+            if (std.mem.indexOf(u8, json_data, "\"color\":\"#")) |idx| {
+                const start = idx + 10;
+                if (start + 6 <= json_data.len) {
+                    const hex = json_data[start .. start + 6];
+                    // Parse hex RRGGBB
+                    r = @as(f64, @floatFromInt(std.fmt.parseInt(u8, hex[0..2], 16) catch 255)) / 255.0;
+                    g = @as(f64, @floatFromInt(std.fmt.parseInt(u8, hex[2..4], 16) catch 255)) / 255.0;
+                    b = @as(f64, @floatFromInt(std.fmt.parseInt(u8, hex[4..6], 16) catch 255)) / 255.0;
+                }
+            } else {
+                // Try RGBA components
+                if (std.mem.indexOf(u8, json_data, "\"r\":")) |idx| {
+                    var start = idx + 4;
+                    while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                    var end = start;
+                    while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
+                    if (end > start) {
+                        r = std.fmt.parseFloat(f64, json_data[start..end]) catch 1.0;
+                    }
+                }
+                if (std.mem.indexOf(u8, json_data, "\"g\":")) |idx| {
+                    var start = idx + 4;
+                    while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                    var end = start;
+                    while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
+                    if (end > start) {
+                        g = std.fmt.parseFloat(f64, json_data[start..end]) catch 1.0;
+                    }
+                }
+                if (std.mem.indexOf(u8, json_data, "\"b\":")) |idx| {
+                    var start = idx + 4;
+                    while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                    var end = start;
+                    while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
+                    if (end > start) {
+                        b = std.fmt.parseFloat(f64, json_data[start..end]) catch 1.0;
+                    }
+                }
+                if (std.mem.indexOf(u8, json_data, "\"a\":")) |idx| {
+                    var start = idx + 4;
+                    while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                    var end = start;
+                    while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
+                    if (end > start) {
+                        a = std.fmt.parseFloat(f64, json_data[start..end]) catch 1.0;
+                    }
+                }
+            }
+        }
+
+        std.debug.print("[WindowBridge] setBackgroundColor: r={d:.2}, g={d:.2}, b={d:.2}, a={d:.2}\n", .{ r, g, b, a });
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+
+            // Create NSColor
+            const NSColor = macos.getClass("NSColor");
+            const color_sel = macos.sel("colorWithRed:green:blue:alpha:");
+            const msg = @as(*const fn (macos.objc.Class, macos.objc.SEL, f64, f64, f64, f64) callconv(.c) macos.objc.id, @ptrCast(&macos.objc.objc_msgSend));
+            const color = msg(NSColor, color_sel, r, g, b, a);
+
+            // Set window background color
+            _ = macos.msgSend1(self.window_handle.?, "setBackgroundColor:", color);
         }
     }
 

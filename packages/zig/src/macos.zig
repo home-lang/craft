@@ -133,6 +133,24 @@ pub fn msgSend3(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: a
     return msg(target, sel(selector), typed_arg1, typed_arg2, typed_arg3);
 }
 
+/// Message send that returns NSRect (for methods like -frame)
+pub fn msgSendRect(target: anytype, selector: [*:0]const u8) NSRect {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) NSRect, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector));
+}
+
+/// Message send that returns CGFloat (f64)
+pub fn msgSendFloat(target: anytype, selector: [*:0]const u8) f64 {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) f64, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector));
+}
+
+/// Message send that returns bool
+pub fn msgSendBool(target: anytype, selector: [*:0]const u8) bool {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) bool, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector));
+}
+
 pub fn createWindow(title: []const u8, width: u32, height: u32, html: []const u8) !objc.id {
     return createWindowWithStyle(title, width, height, html, null, .{});
 }
@@ -594,11 +612,10 @@ pub fn setWindowPosition(window: objc.id, x: i32, y: i32) void {
 }
 
 pub fn setWindowSize(window: objc.id, width: u32, height: u32) void {
-    const frame = msgSend0(window, "frame");
-    var new_frame = @as(NSRect, @bitCast(frame));
-    new_frame.size.width = @as(f64, @floatFromInt(width));
-    new_frame.size.height = @as(f64, @floatFromInt(height));
-    msgSendVoid2(window, "setFrame:display:", new_frame, true);
+    var frame = msgSendRect(window, "frame");
+    frame.size.width = @as(f64, @floatFromInt(width));
+    frame.size.height = @as(f64, @floatFromInt(height));
+    msgSendVoid2(window, "setFrame:display:", frame, true);
 }
 
 // Notification support

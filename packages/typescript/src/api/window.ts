@@ -742,6 +742,15 @@ class WindowManager {
   /** Set current window opacity */
   setOpacity = (opacity: number) => this.current.setOpacity(opacity)
 
+  /** Set current window background color */
+  setBackgroundColor = (color: string) => this.current.setBackgroundColor(color)
+
+  /** Set current window vibrancy (macOS) */
+  setVibrancy = (vibrancy: WindowCreateOptions['vibrancy'] | null) => this.current.setVibrancy(vibrancy)
+
+  /** Set current window resizable */
+  setResizable = (resizable: boolean) => this.current.setResizable(resizable)
+
   /** Get current window state */
   getState = () => this.current.getState()
 
