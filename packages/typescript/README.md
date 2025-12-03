@@ -155,23 +155,199 @@ interface WindowOptions {
   hotReload?: boolean         // Enable hot reload (default: dev mode)
   devTools?: boolean          // Enable dev tools (default: dev mode)
   systemTray?: boolean        // Enable system tray (default: false)
+  hideDockIcon?: boolean      // Hide dock icon (macOS menubar-only mode)
+  menubarOnly?: boolean       // No window, tray icon only
+  titlebarHidden?: boolean    // Hide titlebar (content extends into titlebar)
+  vibrancy?: string           // macOS vibrancy effect
 }
+```
+
+## Menubar Apps
+
+Craft supports menubar/system tray apps with or without a popup window.
+
+### Menubar with Popup Window
+
+```ts
+import { createApp } from 'ts-craft'
+
+const app = createApp({
+  html: `<h1>Pomodoro Timer</h1>`,
+  window: {
+    title: 'Timer',
+    width: 320,
+    height: 380,
+    systemTray: true,      // Enable system tray icon
+    hideDockIcon: true,    // Hide dock icon (menubar-only)
+    frameless: true,
+    transparent: true,
+  },
+})
+
+await app.show()
+```
+
+### Menubar-Only (No Window)
+
+```ts
+const app = createApp({
+  window: {
+    title: 'System Monitor',
+    menubarOnly: true,     // No window, tray icon only
+    systemTray: true,
+    hideDockIcon: true,
+  },
+})
+
+await app.show()
+```
+
+### Tray API (from JavaScript in your HTML)
+
+```js
+// Update menubar title (e.g., "🍅 25:00")
+window.craft.tray.setTitle('🍅 25:00')
+
+// Set context menu
+window.craft.tray.setMenu([
+  { label: 'Start', action: 'start' },
+  { label: 'Pause', action: 'pause' },
+  { type: 'separator' },
+  { label: 'Quit', action: 'quit' }
+])
+
+// Listen for menu actions
+window.addEventListener('craft:tray:menu', (e) => {
+  switch (e.detail.action) {
+    case 'start': startTimer(); break
+    case 'pause': pauseTimer(); break
+    case 'quit': window.craft.app.quit(); break
+  }
+})
+```
+
+## Window API (JavaScript)
+
+Control the window from your HTML/JavaScript:
+
+```js
+// Visibility
+window.craft.window.show()
+window.craft.window.hide()
+window.craft.window.toggle()
+window.craft.window.focus()
+
+// State
+window.craft.window.minimize()
+window.craft.window.maximize()
+window.craft.window.close()
+window.craft.window.toggleFullscreen()
+window.craft.window.center()
+
+// Properties
+window.craft.window.setTitle('New Title')
+window.craft.window.setPosition(100, 100)
+
+// Events
+window.craft.window.on('focus', () => console.log('Focused'))
+window.craft.window.on('blur', () => console.log('Blurred'))
+```
+
+## App API (JavaScript)
+
+Application lifecycle and system integration:
+
+```js
+// Lifecycle
+window.craft.app.quit()
+window.craft.app.hide()
+window.craft.app.show()
+
+// Dock (macOS)
+window.craft.app.hideDockIcon()
+window.craft.app.showDockIcon()
+window.craft.app.setBadge('3')
+window.craft.app.bounce()
+
+// Notifications
+window.craft.app.notify({
+  title: 'Timer Complete',
+  body: 'Your focus session is done!'
+})
+
+// System info
+window.craft.app.isDarkMode()  // Returns true/false
+window.craft.app.getLocale()   // Returns 'en-US', etc.
+```
+
+## Sidebar Styles
+
+Craft includes pre-built CSS styles for three popular sidebar designs:
+
+### Tahoe Style (macOS Finder)
+
+```ts
+import { tahoeStyles, renderTahoeSidebar, tahoeDemoData } from 'ts-craft'
+
+// Use Tailwind classes
+const sidebar = `<div class="${tahoeStyles.sidebar}">...</div>`
+
+// Or render full HTML
+const html = renderTahoeSidebar(tahoeDemoData)
+```
+
+### Arc Style (Arc Browser)
+
+```ts
+import { arcStyles, renderArcSidebar, arcDemoData } from 'ts-craft'
+
+// Gradient pills, collapsible sections
+const html = renderArcSidebar(arcDemoData, false) // collapsed = false
+```
+
+### OrbStack Style (Minimal Dark)
+
+```ts
+import { orbstackStyles, renderOrbStackSidebar, orbstackDemoData } from 'ts-craft'
+
+// Dark #1a1a1a theme with status indicators
+const html = renderOrbStackSidebar(orbstackDemoData)
 ```
 
 ## Examples
 
 See the [examples directory](../examples-ts) for more:
 
+### Basic Apps
 - **minimal.ts** - Simplest possible app
 - **hello-world.ts** - Modern styled app
 - **todo-app.ts** - Interactive todo list
 
+### Menubar Apps
+- **menubar-timer.ts** - Pomodoro timer with popup window
+- **menubar-only.ts** - System monitor (no window, tray icon only)
+
+### Sidebar Apps
+- **file-browser.ts** - Finder-like app with Tahoe sidebar
+- **arc-browser.ts** - Browser with Arc-style vertical tabs
+- **orbstack-containers.ts** - Container manager with OrbStack style
+- **sidebar-showcase.ts** - All three sidebar styles side-by-side
+
 Run examples:
 
 ```bash
-bun run minimal
-bun run hello-world
-bun run todo-app
+# Basic apps
+bun run packages/examples-ts/hello-world.ts
+bun run packages/examples-ts/todo-app.ts
+
+# Menubar apps
+bun run packages/examples-ts/menubar-timer.ts
+bun run packages/examples-ts/menubar-only.ts
+
+# Sidebar apps
+bun run packages/examples-ts/file-browser.ts
+bun run packages/examples-ts/arc-browser.ts
+bun run packages/examples-ts/sidebar-showcase.ts
 ```
 
 ## Performance Comparison
