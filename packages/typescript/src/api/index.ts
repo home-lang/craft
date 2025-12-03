@@ -273,3 +273,37 @@ export type {
   SharedDataItem,
   SecondaryTile
 } from './windows-advanced'
+
+// Dialog API - Native file pickers and alerts
+export {
+  dialog,
+  openFile,
+  openFolder,
+  saveFile,
+  showAlert,
+  showConfirm,
+  showPrompt
+} from './dialog'
+export type {
+  FileFilter,
+  OpenDialogOptions,
+  SaveDialogOptions,
+  AlertStyle,
+  AlertOptions,
+  ConfirmOptions,
+  OpenDialogResult,
+  SaveDialogResult
+} from './dialog'
+
+// Clipboard API - System clipboard access
+export {
+  clipboard,
+  writeText,
+  readText,
+  writeHTML,
+  readHTML
+} from './clipboard'
+export type {
+  ClipboardFormat,
+  ClipboardData
+} from './clipboard'
