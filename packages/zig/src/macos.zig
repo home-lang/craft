@@ -1106,6 +1106,8 @@ var global_tray_bridge: ?*@import("bridge_tray.zig").TrayBridge = null;
 var global_window_bridge: ?*@import("bridge_window.zig").WindowBridge = null;
 var global_app_bridge: ?*@import("bridge_app.zig").AppBridge = null;
 var global_native_ui_bridge: ?*@import("bridge_native_ui.zig").NativeUIBridge = null;
+var global_notification_bridge: ?*@import("bridge_notification.zig").NotificationBridge = null;
+var global_shortcuts_bridge: ?*@import("bridge_shortcuts.zig").ShortcutsBridge = null;
 var global_tray_handle_for_bridge: ?*anyopaque = null;
 
 pub fn setGlobalTrayHandle(handle: *anyopaque) void {
@@ -1141,6 +1143,18 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
     if (global_native_ui_bridge == null) {
         global_native_ui_bridge = try allocator.create(@import("bridge_native_ui.zig").NativeUIBridge);
         global_native_ui_bridge.?.* = @import("bridge_native_ui.zig").NativeUIBridge.init(allocator);
+    }
+
+    if (global_notification_bridge == null) {
+        const NotificationBridge = @import("bridge_notification.zig").NotificationBridge;
+        global_notification_bridge = try allocator.create(NotificationBridge);
+        global_notification_bridge.?.* = NotificationBridge.init(allocator);
+    }
+
+    if (global_shortcuts_bridge == null) {
+        const ShortcutsBridge = @import("bridge_shortcuts.zig").ShortcutsBridge;
+        global_shortcuts_bridge = try allocator.create(ShortcutsBridge);
+        global_shortcuts_bridge.?.* = ShortcutsBridge.init(allocator);
     }
 
     // Set handles - use parameter or global
@@ -1292,6 +1306,14 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         if (global_native_ui_bridge) |bridge| {
             try bridge.handleMessage(action, data_json_str);
         }
+    } else if (std.mem.eql(u8, msg_type, "notification")) {
+        if (global_notification_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "shortcuts")) {
+        if (global_shortcuts_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages
         if (root.get("message")) |msg_val| {
@@ -1420,6 +1442,14 @@ pub fn handleBridgeMessage(message_json: []const u8) !void {
         }
     } else if (std.mem.eql(u8, msg_type, "nativeUI")) {
         if (global_native_ui_bridge) |bridge| {
+            try bridge.handleMessage(action, data);
+        }
+    } else if (std.mem.eql(u8, msg_type, "notification")) {
+        if (global_notification_bridge) |bridge| {
+            try bridge.handleMessage(action, data);
+        }
+    } else if (std.mem.eql(u8, msg_type, "shortcuts")) {
+        if (global_shortcuts_bridge) |bridge| {
             try bridge.handleMessage(action, data);
         }
     } else if (std.mem.eql(u8, msg_type, "debug")) {

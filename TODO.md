@@ -623,15 +623,18 @@ nativeUI.previewFile(filePath, title);
 ### Window Bridge Enhancements ✅
 | Handler | File | Description |
 |---------|------|-------------|
-| `setVibrancy` | `bridge_window.zig:308-361` | NSVisualEffectView materials |
-| `setAlwaysOnTop` | `bridge_window.zig:362-381` | Window level control |
-| `setOpacity` | `bridge_window.zig:383-409` | Window alpha value |
-| `setResizable` | `bridge_window.zig:411-441` | Style mask toggle |
-| `setBackgroundColor` | `bridge_window.zig:443-519` | Hex/RGBA color support |
-| `setMinSize` | `bridge_window.zig:529-566` | Minimum window constraints |
-| `setMaxSize` | `bridge_window.zig:568-603` | Maximum window constraints |
-| `setMovable` | `bridge_window.zig:605-621` | Window dragging control |
-| `setHasShadow` | `bridge_window.zig:623-639` | Window shadow toggle |
+| `setVibrancy` | `bridge_window.zig` | NSVisualEffectView materials |
+| `setAlwaysOnTop` | `bridge_window.zig` | Window level control |
+| `setOpacity` | `bridge_window.zig` | Window alpha value |
+| `setResizable` | `bridge_window.zig` | Style mask toggle |
+| `setBackgroundColor` | `bridge_window.zig` | Hex/RGBA color support |
+| `setMinSize` | `bridge_window.zig` | Minimum window constraints |
+| `setMaxSize` | `bridge_window.zig` | Maximum window constraints |
+| `setMovable` | `bridge_window.zig` | Window dragging control |
+| `setHasShadow` | `bridge_window.zig` | Window shadow toggle |
+| `setAspectRatio` | `bridge_window.zig` | Lock aspect ratio (16:9, etc.) |
+| `flashFrame` | `bridge_window.zig` | Bounce dock icon for attention |
+| `setProgressBar` | `bridge_window.zig` | Dock icon progress indicator |
 
 ### Dialog Bridge ✅
 | Handler | Description |
@@ -665,14 +668,61 @@ nativeUI.previewFile(filePath, title);
 | `hide` | Hide status item |
 | `show` | Show status item |
 | `setIcon` | SF Symbol icon support |
+| `setBadge` | Dock badge label (e.g., "42") |
 
 **File:** `packages/zig/src/bridge_tray.zig`
 
+### Error Handling ✅
+Centralized error handling system in `packages/zig/src/bridge_error.zig`:
+- `BridgeError` enum with 14 error types
+- `ErrorContext` struct for rich error info
+- `sendErrorToJS()` - sends error to JavaScript via eval
+- All bridge files updated with proper error returns
+
+### Notification Bridge ✅
+| Handler | Description |
+|---------|-------------|
+| `show` | Show immediate notification |
+| `schedule` | Schedule notification with delay |
+| `cancel` | Cancel pending notification by ID |
+| `cancelAll` | Cancel all pending notifications |
+| `setBadge` | Set dock badge count |
+| `clearBadge` | Clear dock badge |
+| `requestPermission` | Request notification permission |
+
+**File:** `packages/zig/src/bridge_notification.zig`
+
+### Global Shortcuts Bridge ✅
+| Handler | Description |
+|---------|-------------|
+| `register` | Register global keyboard shortcut |
+| `unregister` | Unregister shortcut by ID |
+| `unregisterAll` | Unregister all shortcuts |
+| `enable` | Enable a disabled shortcut |
+| `disable` | Disable a shortcut |
+| `isRegistered` | Check if shortcut is registered |
+| `list` | List all registered shortcuts |
+
+**File:** `packages/zig/src/bridge_shortcuts.zig`
+
 ### Unit Tests ✅
-15 passing tests in `packages/zig/src/bridge_test.zig`:
+**Zig Tests:** 22 passing tests in `packages/zig/src/bridge_test.zig`:
 - JSON parsing (size, color, opacity, boolean, title, position, vibrancy, RGBA, notification, badge, clipboard, file dialog)
 - Action string matching
 - Memory allocation
+- Error handling edge cases
+- Action list completeness (26 window, 8 tray, 8 clipboard, 6 dialog)
+
+**TypeScript Integration Tests:** 58 passing tests in `packages/typescript/src/__tests__/integration/bridge.test.ts`:
+- Window bridge messages (show, setSize, setPosition, setTitle, setVibrancy, setOpacity, setBackgroundColor, setMinSize, setMaxSize, boolean actions, setAspectRatio, flashFrame, setProgressBar)
+- Tray bridge messages (setTitle, setTooltip, setIcon, hide/show, setMenu, setBadge)
+- Dialog bridge messages (openFile, saveFile, showAlert, showConfirm)
+- Clipboard bridge messages (writeText, readText, writeHTML, clear, hasText/hasHTML/hasImage)
+- Notification bridge messages (show, schedule, cancel, cancelAll, setBadge, clearBadge, requestPermission)
+- Shortcuts bridge messages (register, unregister, unregisterAll, enable, disable, list, isRegistered)
+- Error response handling
+- JSON serialization
+- Message queue
 
 ### TypeScript APIs ✅
 | File | New Methods |

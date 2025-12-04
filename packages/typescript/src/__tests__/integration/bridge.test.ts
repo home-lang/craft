@@ -550,6 +550,153 @@ describe('JSON Serialization', () => {
 })
 
 // ============================================================================
+// Notification Bridge Message Tests
+// ============================================================================
+
+describe('Notification Bridge Messages', () => {
+  let bridge: MockNativeBridge
+
+  beforeEach(() => {
+    bridge = new MockNativeBridge()
+  })
+
+  it('should format show notification message', () => {
+    bridge.postMessage({
+      type: 'notification',
+      action: 'show',
+      data: { id: 'notif1', title: 'Hello', body: 'World', sound: true },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.type).toBe('notification')
+    expect(msg?.action).toBe('show')
+    expect(msg?.data?.title).toBe('Hello')
+    expect(msg?.data?.body).toBe('World')
+  })
+
+  it('should format schedule notification message', () => {
+    bridge.postMessage({
+      type: 'notification',
+      action: 'schedule',
+      data: { id: 'reminder', title: 'Reminder', body: 'Time to take a break', delay: 60 },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('schedule')
+    expect(msg?.data?.delay).toBe(60)
+  })
+
+  it('should format cancel notification message', () => {
+    bridge.postMessage({
+      type: 'notification',
+      action: 'cancel',
+      data: { id: 'reminder' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('cancel')
+    expect(bridge.getLastMessage()?.data?.id).toBe('reminder')
+  })
+
+  it('should format cancelAll notification message', () => {
+    bridge.postMessage({ type: 'notification', action: 'cancelAll' })
+    expect(bridge.getLastMessage()?.action).toBe('cancelAll')
+  })
+
+  it('should format setBadge notification message', () => {
+    bridge.postMessage({
+      type: 'notification',
+      action: 'setBadge',
+      data: { count: 5 },
+    })
+    expect(bridge.getLastMessage()?.data?.count).toBe(5)
+  })
+
+  it('should format clearBadge notification message', () => {
+    bridge.postMessage({ type: 'notification', action: 'clearBadge' })
+    expect(bridge.getLastMessage()?.action).toBe('clearBadge')
+  })
+
+  it('should format requestPermission notification message', () => {
+    bridge.postMessage({ type: 'notification', action: 'requestPermission' })
+    expect(bridge.getLastMessage()?.action).toBe('requestPermission')
+  })
+})
+
+// ============================================================================
+// Shortcuts Bridge Message Tests
+// ============================================================================
+
+describe('Shortcuts Bridge Messages', () => {
+  let bridge: MockNativeBridge
+
+  beforeEach(() => {
+    bridge = new MockNativeBridge()
+  })
+
+  it('should format register shortcut message', () => {
+    bridge.postMessage({
+      type: 'shortcuts',
+      action: 'register',
+      data: {
+        id: 'toggle',
+        key: 'Space',
+        modifiers: { cmd: true, shift: true },
+        callback: 'onToggle',
+      },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.type).toBe('shortcuts')
+    expect(msg?.action).toBe('register')
+    expect(msg?.data?.key).toBe('Space')
+    expect(msg?.data?.modifiers?.cmd).toBe(true)
+  })
+
+  it('should format unregister shortcut message', () => {
+    bridge.postMessage({
+      type: 'shortcuts',
+      action: 'unregister',
+      data: { id: 'toggle' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('unregister')
+    expect(bridge.getLastMessage()?.data?.id).toBe('toggle')
+  })
+
+  it('should format unregisterAll shortcut message', () => {
+    bridge.postMessage({ type: 'shortcuts', action: 'unregisterAll' })
+    expect(bridge.getLastMessage()?.action).toBe('unregisterAll')
+  })
+
+  it('should format enable shortcut message', () => {
+    bridge.postMessage({
+      type: 'shortcuts',
+      action: 'enable',
+      data: { id: 'toggle' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('enable')
+  })
+
+  it('should format disable shortcut message', () => {
+    bridge.postMessage({
+      type: 'shortcuts',
+      action: 'disable',
+      data: { id: 'toggle' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('disable')
+  })
+
+  it('should format list shortcuts message', () => {
+    bridge.postMessage({ type: 'shortcuts', action: 'list' })
+    expect(bridge.getLastMessage()?.action).toBe('list')
+  })
+
+  it('should format isRegistered shortcut message', () => {
+    bridge.postMessage({
+      type: 'shortcuts',
+      action: 'isRegistered',
+      data: { id: 'toggle' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('isRegistered')
+  })
+})
+
+// ============================================================================
 // Message Queue Tests
 // ============================================================================
 
