@@ -94,6 +94,12 @@ pub const WindowBridge = struct {
             try self.setMovable(data);
         } else if (std.mem.eql(u8, action, "setHasShadow")) {
             try self.setHasShadow(data);
+        } else if (std.mem.eql(u8, action, "setAspectRatio")) {
+            try self.setAspectRatio(data);
+        } else if (std.mem.eql(u8, action, "flashFrame")) {
+            try self.flashFrame(data);
+        } else if (std.mem.eql(u8, action, "setProgressBar")) {
+            try self.setProgressBar(data);
         } else {
             return BridgeError.UnknownAction;
         }
@@ -642,6 +648,166 @@ pub const WindowBridge = struct {
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
             _ = macos.msgSend1(handle, "setHasShadow:", @as(c_int, if (has_shadow) 1 else 0));
+        }
+    }
+
+    /// Set aspect ratio for window resizing
+    /// JSON: {"width": 16, "height": 9} or {"ratio": 1.777}
+    fn setAspectRatio(self: *Self, data: ?[]const u8) !void {
+        const handle = try self.requireWindowHandle();
+
+        var width: f64 = 0;
+        var height: f64 = 0;
+
+        if (data) |json_data| {
+            // Try ratio first
+            if (std.mem.indexOf(u8, json_data, "\"ratio\":")) |idx| {
+                var start = idx + 8;
+                while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                var end = start;
+                while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
+                if (end > start) {
+                    const ratio = std.fmt.parseFloat(f64, json_data[start..end]) catch 0;
+                    if (ratio > 0) {
+                        width = ratio;
+                        height = 1.0;
+                    }
+                }
+            } else {
+                // Parse width/height
+                if (std.mem.indexOf(u8, json_data, "\"width\":")) |idx| {
+                    var start = idx + 8;
+                    while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                    var end = start;
+                    while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
+                    if (end > start) {
+                        width = std.fmt.parseFloat(f64, json_data[start..end]) catch 0;
+                    }
+                }
+                if (std.mem.indexOf(u8, json_data, "\"height\":")) |idx| {
+                    var start = idx + 9;
+                    while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                    var end = start;
+                    while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
+                    if (end > start) {
+                        height = std.fmt.parseFloat(f64, json_data[start..end]) catch 0;
+                    }
+                }
+            }
+        }
+
+        std.debug.print("[WindowBridge] setAspectRatio: {d:.2}:{d:.2}\n", .{ width, height });
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+
+            if (width > 0 and height > 0) {
+                // Set aspect ratio using setContentAspectRatio:
+                const size = macos.NSSize{ .width = width, .height = height };
+                const msg = @as(*const fn (@TypeOf(handle), macos.objc.SEL, macos.NSSize) callconv(.c) void, @ptrCast(&macos.objc.objc_msgSend));
+                msg(handle, macos.sel("setContentAspectRatio:"), size);
+            } else {
+                // Clear aspect ratio by setting to 0,0
+                const size = macos.NSSize{ .width = 0, .height = 0 };
+                const msg = @as(*const fn (@TypeOf(handle), macos.objc.SEL, macos.NSSize) callconv(.c) void, @ptrCast(&macos.objc.objc_msgSend));
+                msg(handle, macos.sel("setContentAspectRatio:"), size);
+            }
+        }
+    }
+
+    /// Flash the window frame to get user attention (bounce dock icon on macOS)
+    /// JSON: {"flash": true} or {"count": 3}
+    fn flashFrame(self: *Self, data: ?[]const u8) !void {
+        _ = try self.requireWindowHandle();
+
+        var should_flash = true;
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "false")) |_| {
+                should_flash = false;
+            }
+        }
+
+        std.debug.print("[WindowBridge] flashFrame: {}\n", .{should_flash});
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+
+            if (should_flash) {
+                // Get NSApplication and request user attention
+                const NSApplication = macos.getClass("NSApplication");
+                const app = macos.msgSend0(NSApplication, "sharedApplication");
+
+                // NSCriticalRequest = 0, NSInformationalRequest = 10
+                // Use informational (bounce once) by default
+                const request_type: c_long = 10;
+                _ = macos.msgSend1(app, "requestUserAttention:", request_type);
+            } else {
+                // Cancel any pending attention request
+                const NSApplication = macos.getClass("NSApplication");
+                const app = macos.msgSend0(NSApplication, "sharedApplication");
+                _ = macos.msgSend1(app, "cancelUserAttentionRequest:", @as(c_long, 0));
+            }
+        }
+    }
+
+    /// Set dock progress bar (macOS only)
+    /// JSON: {"progress": 0.5} (0.0-1.0) or {"progress": -1} to hide
+    fn setProgressBar(self: *Self, data: ?[]const u8) !void {
+        _ = try self.requireWindowHandle();
+
+        var progress: f64 = -1;
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "\"progress\":")) |idx| {
+                var start = idx + 11;
+                while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
+                var end = start;
+                // Allow negative numbers
+                if (start < json_data.len and json_data[start] == '-') {
+                    end += 1;
+                }
+                while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
+                if (end > start) {
+                    progress = std.fmt.parseFloat(f64, json_data[start..end]) catch -1;
+                }
+            }
+        }
+
+        std.debug.print("[WindowBridge] setProgressBar: {d:.2}\n", .{progress});
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+
+            // Get dock tile from NSApplication
+            const NSApplication = macos.getClass("NSApplication");
+            const app = macos.msgSend0(NSApplication, "sharedApplication");
+            const dock_tile = macos.msgSend0(app, "dockTile");
+
+            if (progress < 0) {
+                // Hide progress indicator
+                _ = macos.msgSend1(dock_tile, "setShowsApplicationBadge:", @as(c_int, 0));
+                // Remove any existing progress view
+                _ = macos.msgSend1(dock_tile, "setContentView:", @as(?*anyopaque, null));
+            } else {
+                // Clamp progress to 0-1
+                const clamped = @max(0.0, @min(1.0, progress));
+
+                // Create NSProgressIndicator for dock
+                const NSProgressIndicator = macos.getClass("NSProgressIndicator");
+                const indicator = macos.msgSend0(macos.msgSend0(NSProgressIndicator, "alloc"), "init");
+
+                // Set determinate mode
+                _ = macos.msgSend1(indicator, "setIndeterminate:", @as(c_int, 0));
+
+                // Set min/max values
+                const msg_double = @as(*const fn (@TypeOf(indicator), macos.objc.SEL, f64) callconv(.c) void, @ptrCast(&macos.objc.objc_msgSend));
+                msg_double(indicator, macos.sel("setMinValue:"), 0.0);
+                msg_double(indicator, macos.sel("setMaxValue:"), 1.0);
+                msg_double(indicator, macos.sel("setDoubleValue:"), clamped);
+
+                // Set content view on dock tile
+                _ = macos.msgSend1(dock_tile, "setContentView:", indicator);
+                _ = macos.msgSend0(dock_tile, "display");
+            }
         }
     }
 

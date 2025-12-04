@@ -399,11 +399,11 @@ test "action list completeness" {
         "center", "toggleFullscreen", "setFullscreen", "setSize", "setPosition",
         "setTitle", "reload", "setVibrancy", "setAlwaysOnTop", "setOpacity",
         "setResizable", "setBackgroundColor", "setMinSize", "setMaxSize",
-        "setMovable", "setHasShadow",
+        "setMovable", "setHasShadow", "setAspectRatio", "flashFrame", "setProgressBar",
     };
 
     const tray_actions = [_][]const u8{
-        "setTitle", "setTooltip", "setMenu", "pollActions", "hide", "show", "setIcon",
+        "setTitle", "setTooltip", "setMenu", "pollActions", "hide", "show", "setIcon", "setBadge",
     };
 
     const clipboard_actions = [_][]const u8{
@@ -415,8 +415,8 @@ test "action list completeness" {
     };
 
     // Verify we have comprehensive action coverage
-    try testing.expect(window_actions.len == 23);
-    try testing.expect(tray_actions.len == 7);
+    try testing.expect(window_actions.len == 26);
+    try testing.expect(tray_actions.len == 8);
     try testing.expect(clipboard_actions.len == 8);
     try testing.expect(dialog_actions.len == 6);
 }

@@ -118,6 +118,8 @@ pub const TrayBridge = struct {
             try self.showTray();
         } else if (std.mem.eql(u8, action, "setIcon")) {
             try self.setIcon(data);
+        } else if (std.mem.eql(u8, action, "setBadge")) {
+            try self.setBadge(data);
         } else {
             return BridgeError.UnknownAction;
         }
@@ -281,6 +283,42 @@ pub const TrayBridge = struct {
             } else {
                 std.debug.print("[TrayBridge] SF Symbol not found: {s}\n", .{icon_name});
             }
+        }
+    }
+
+    /// Set dock badge (macOS only)
+    /// JSON: {"badge": "42"} or {"badge": ""} to clear
+    fn setBadge(self: *Self, badge_text: []const u8) !void {
+        _ = try self.requireTrayHandle();
+
+        std.debug.print("[TrayBridge] setBadge: {s}\n", .{badge_text});
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+
+            // Get NSApplication dock tile
+            const NSApplication = macos.getClass("NSApplication");
+            const app = macos.msgSend0(NSApplication, "sharedApplication");
+            const dock_tile = macos.msgSend0(app, "dockTile");
+
+            // Create NSString for badge
+            const NSString = macos.getClass("NSString");
+            const str_alloc = macos.msgSend0(NSString, "alloc");
+
+            if (badge_text.len == 0) {
+                // Clear badge with empty string
+                const empty_cstr = @as([*:0]const u8, @ptrCast("".ptr));
+                const ns_badge = macos.msgSend1(str_alloc, "initWithUTF8String:", empty_cstr);
+                _ = macos.msgSend1(dock_tile, "setBadgeLabel:", ns_badge);
+            } else {
+                const badge_cstr = try std.heap.c_allocator.dupeZ(u8, badge_text);
+                defer std.heap.c_allocator.free(badge_cstr);
+
+                const ns_badge = macos.msgSend1(str_alloc, "initWithUTF8String:", badge_cstr.ptr);
+                _ = macos.msgSend1(dock_tile, "setBadgeLabel:", ns_badge);
+            }
+
+            std.debug.print("[TrayBridge] Badge set to: {s}\n", .{badge_text});
         }
     }
 
