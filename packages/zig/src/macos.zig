@@ -1129,6 +1129,8 @@ var global_shortcuts_bridge: ?*@import("bridge_shortcuts.zig").ShortcutsBridge =
 var global_menu_bridge: ?*@import("bridge_menu.zig").MenuBridge = null;
 var global_updater_bridge: ?*@import("bridge_updater.zig").UpdaterBridge = null;
 var global_touchbar_bridge: ?*@import("bridge_touchbar.zig").TouchBarBridge = null;
+var global_fs_bridge: ?*@import("bridge_fs.zig").FSBridge = null;
+var global_shell_bridge: ?*@import("bridge_shell.zig").ShellBridge = null;
 var global_tray_handle_for_bridge: ?*anyopaque = null;
 
 pub fn setGlobalTrayHandle(handle: *anyopaque) void {
@@ -1194,6 +1196,18 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         const TouchBarBridge = @import("bridge_touchbar.zig").TouchBarBridge;
         global_touchbar_bridge = try allocator.create(TouchBarBridge);
         global_touchbar_bridge.?.* = TouchBarBridge.init(allocator);
+    }
+
+    if (global_fs_bridge == null) {
+        const FSBridge = @import("bridge_fs.zig").FSBridge;
+        global_fs_bridge = try allocator.create(FSBridge);
+        global_fs_bridge.?.* = FSBridge.init(allocator);
+    }
+
+    if (global_shell_bridge == null) {
+        const ShellBridge = @import("bridge_shell.zig").ShellBridge;
+        global_shell_bridge = try allocator.create(ShellBridge);
+        global_shell_bridge.?.* = ShellBridge.init(allocator);
     }
 
     // Set handles - use parameter or global
@@ -1365,6 +1379,14 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         if (global_touchbar_bridge) |bridge| {
             try bridge.handleMessage(action, data_json_str);
         }
+    } else if (std.mem.eql(u8, msg_type, "fs")) {
+        if (global_fs_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "shell")) {
+        if (global_shell_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages
         if (root.get("message")) |msg_val| {
@@ -1513,6 +1535,14 @@ pub fn handleBridgeMessage(message_json: []const u8) !void {
         }
     } else if (std.mem.eql(u8, msg_type, "touchbar")) {
         if (global_touchbar_bridge) |bridge| {
+            try bridge.handleMessage(action, data);
+        }
+    } else if (std.mem.eql(u8, msg_type, "fs")) {
+        if (global_fs_bridge) |bridge| {
+            try bridge.handleMessage(action, data);
+        }
+    } else if (std.mem.eql(u8, msg_type, "shell")) {
+        if (global_shell_bridge) |bridge| {
             try bridge.handleMessage(action, data);
         }
     } else if (std.mem.eql(u8, msg_type, "debug")) {
