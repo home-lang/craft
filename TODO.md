@@ -705,6 +705,67 @@ Centralized error handling system in `packages/zig/src/bridge_error.zig`:
 
 **File:** `packages/zig/src/bridge_shortcuts.zig`
 
+### Application Menu Bridge ✅
+| Handler | Description |
+|---------|-------------|
+| `setAppMenu` | Set the application menu bar |
+| `setDockMenu` | Set the dock right-click menu |
+| `clearDockMenu` | Clear the dock menu |
+| `enableMenuItem` | Enable a menu item by ID |
+| `disableMenuItem` | Disable a menu item by ID |
+| `checkMenuItem` | Add checkmark to menu item |
+| `uncheckMenuItem` | Remove checkmark from menu item |
+| `setMenuItemLabel` | Update menu item label text |
+
+**Features:**
+- NSMenu/NSMenuItem creation with keyboard shortcuts
+- Nested submenus support
+- Separator items
+- SF Symbol icons for menu items
+- Callback to JavaScript on menu action
+
+**File:** `packages/zig/src/bridge_menu.zig`
+
+### Auto-Updater Bridge (Sparkle) ✅
+| Handler | Description |
+|---------|-------------|
+| `configure` | Configure updater with feed URL, auto-check settings |
+| `checkForUpdates` | Check for updates and show UI if available |
+| `checkForUpdatesInBackground` | Silent background check |
+| `setAutomaticChecks` | Enable/disable automatic update checks |
+| `setCheckInterval` | Set check interval in seconds |
+| `setFeedURL` | Set appcast feed URL |
+| `getLastUpdateCheckDate` | Get timestamp of last check |
+| `getUpdateInfo` | Get current update configuration |
+
+**Note:** Requires Sparkle framework to be linked with the application.
+
+**File:** `packages/zig/src/bridge_updater.zig`
+
+### Touch Bar Bridge ✅
+| Handler | Description |
+|---------|-------------|
+| `setItems` | Set all touch bar items at once |
+| `addItem` | Add a single item to touch bar |
+| `removeItem` | Remove item by ID |
+| `updateItem` | Update item properties (label, icon) |
+| `setItemLabel` | Update item label text |
+| `setItemIcon` | Update item SF Symbol icon |
+| `setItemEnabled` | Enable/disable an item |
+| `setSliderValue` | Set slider value |
+| `clear` | Clear all touch bar items |
+| `show` | Show the touch bar |
+| `hide` | Hide the touch bar |
+
+**Supported Item Types:**
+- `button` - Button with label and/or SF Symbol icon
+- `label` - Text label
+- `slider` - Slider with min/max/value
+- `colorPicker` - Color picker
+- `spacer` - Flexible space
+
+**File:** `packages/zig/src/bridge_touchbar.zig`
+
 ### Unit Tests ✅
 **Zig Tests:** 22 passing tests in `packages/zig/src/bridge_test.zig`:
 - JSON parsing (size, color, opacity, boolean, title, position, vibrancy, RGBA, notification, badge, clipboard, file dialog)
@@ -713,13 +774,16 @@ Centralized error handling system in `packages/zig/src/bridge_error.zig`:
 - Error handling edge cases
 - Action list completeness (26 window, 8 tray, 8 clipboard, 6 dialog)
 
-**TypeScript Integration Tests:** 58 passing tests in `packages/typescript/src/__tests__/integration/bridge.test.ts`:
+**TypeScript Integration Tests:** 88 passing tests in `packages/typescript/src/__tests__/integration/bridge.test.ts`:
 - Window bridge messages (show, setSize, setPosition, setTitle, setVibrancy, setOpacity, setBackgroundColor, setMinSize, setMaxSize, boolean actions, setAspectRatio, flashFrame, setProgressBar)
 - Tray bridge messages (setTitle, setTooltip, setIcon, hide/show, setMenu, setBadge)
 - Dialog bridge messages (openFile, saveFile, showAlert, showConfirm)
 - Clipboard bridge messages (writeText, readText, writeHTML, clear, hasText/hasHTML/hasImage)
 - Notification bridge messages (show, schedule, cancel, cancelAll, setBadge, clearBadge, requestPermission)
 - Shortcuts bridge messages (register, unregister, unregisterAll, enable, disable, list, isRegistered)
+- Menu bridge messages (setAppMenu, setDockMenu, clearDockMenu, enableMenuItem, disableMenuItem, checkMenuItem, uncheckMenuItem, setMenuItemLabel, nested submenus, keyboard shortcuts)
+- Updater bridge messages (configure, checkForUpdates, checkForUpdatesInBackground, setAutomaticChecks, setCheckInterval, setFeedURL, getLastUpdateCheckDate, getUpdateInfo)
+- Touch Bar bridge messages (setItems, addItem, removeItem, updateItem, setSliderValue, setItemEnabled, clear, show/hide, colorPicker, label)
 - Error response handling
 - JSON serialization
 - Message queue

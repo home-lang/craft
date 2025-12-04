@@ -697,6 +697,357 @@ describe('Shortcuts Bridge Messages', () => {
 })
 
 // ============================================================================
+// Menu Bridge Message Tests
+// ============================================================================
+
+describe('Menu Bridge Messages', () => {
+  let bridge: MockNativeBridge
+
+  beforeEach(() => {
+    bridge = new MockNativeBridge()
+  })
+
+  it('should format setAppMenu message with items', () => {
+    const menuItems = [
+      {
+        id: 'file',
+        label: 'File',
+        submenu: [
+          { id: 'new', label: 'New', shortcut: 'cmd+n' },
+          { id: 'open', label: 'Open', shortcut: 'cmd+o' },
+          { id: 'sep1', type: 'separator' },
+          { id: 'quit', label: 'Quit', shortcut: 'cmd+q' },
+        ],
+      },
+    ]
+    bridge.postMessage({
+      type: 'menu',
+      action: 'setAppMenu',
+      data: { items: menuItems },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.type).toBe('menu')
+    expect(msg?.action).toBe('setAppMenu')
+    expect(msg?.data?.items).toHaveLength(1)
+  })
+
+  it('should format setDockMenu message', () => {
+    const dockItems = [
+      { id: 'show', label: 'Show Window' },
+      { id: 'hide', label: 'Hide Window' },
+    ]
+    bridge.postMessage({
+      type: 'menu',
+      action: 'setDockMenu',
+      data: { items: dockItems },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('setDockMenu')
+    expect(msg?.data?.items).toHaveLength(2)
+  })
+
+  it('should format clearDockMenu message', () => {
+    bridge.postMessage({ type: 'menu', action: 'clearDockMenu' })
+    expect(bridge.getLastMessage()?.action).toBe('clearDockMenu')
+  })
+
+  it('should format enableMenuItem message', () => {
+    bridge.postMessage({
+      type: 'menu',
+      action: 'enableMenuItem',
+      data: { id: 'save' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('enableMenuItem')
+    expect(bridge.getLastMessage()?.data?.id).toBe('save')
+  })
+
+  it('should format disableMenuItem message', () => {
+    bridge.postMessage({
+      type: 'menu',
+      action: 'disableMenuItem',
+      data: { id: 'save' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('disableMenuItem')
+  })
+
+  it('should format checkMenuItem message', () => {
+    bridge.postMessage({
+      type: 'menu',
+      action: 'checkMenuItem',
+      data: { id: 'autoSave' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('checkMenuItem')
+    expect(bridge.getLastMessage()?.data?.id).toBe('autoSave')
+  })
+
+  it('should format uncheckMenuItem message', () => {
+    bridge.postMessage({
+      type: 'menu',
+      action: 'uncheckMenuItem',
+      data: { id: 'autoSave' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('uncheckMenuItem')
+  })
+
+  it('should format setMenuItemLabel message', () => {
+    bridge.postMessage({
+      type: 'menu',
+      action: 'setMenuItemLabel',
+      data: { id: 'status', label: 'Running...' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('setMenuItemLabel')
+    expect(msg?.data?.label).toBe('Running...')
+  })
+
+  it('should format menu items with keyboard shortcuts', () => {
+    bridge.postMessage({
+      type: 'menu',
+      action: 'setAppMenu',
+      data: {
+        items: [
+          { id: 'copy', label: 'Copy', shortcut: 'cmd+c' },
+          { id: 'paste', label: 'Paste', shortcut: 'cmd+v' },
+          { id: 'selectAll', label: 'Select All', shortcut: 'cmd+a' },
+          { id: 'find', label: 'Find', shortcut: 'cmd+shift+f' },
+        ],
+      },
+    })
+    const items = bridge.getLastMessage()?.data?.items as { shortcut: string }[]
+    expect(items[0].shortcut).toBe('cmd+c')
+    expect(items[3].shortcut).toBe('cmd+shift+f')
+  })
+
+  it('should format menu items with nested submenus', () => {
+    const menuItems = [
+      {
+        id: 'edit',
+        label: 'Edit',
+        submenu: [
+          {
+            id: 'transform',
+            label: 'Transform',
+            submenu: [
+              { id: 'uppercase', label: 'Make Uppercase' },
+              { id: 'lowercase', label: 'Make Lowercase' },
+            ],
+          },
+        ],
+      },
+    ]
+    bridge.postMessage({
+      type: 'menu',
+      action: 'setAppMenu',
+      data: { items: menuItems },
+    })
+    const items = bridge.getLastMessage()?.data?.items as { submenu: { submenu: unknown[] }[] }[]
+    expect(items[0].submenu[0].submenu).toHaveLength(2)
+  })
+})
+
+// ============================================================================
+// Updater Bridge Message Tests
+// ============================================================================
+
+describe('Updater Bridge Messages', () => {
+  let bridge: MockNativeBridge
+
+  beforeEach(() => {
+    bridge = new MockNativeBridge()
+  })
+
+  it('should format configure message', () => {
+    bridge.postMessage({
+      type: 'updater',
+      action: 'configure',
+      data: {
+        feedURL: 'https://example.com/appcast.xml',
+        automaticChecks: true,
+        checkInterval: 86400,
+      },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.type).toBe('updater')
+    expect(msg?.action).toBe('configure')
+    expect(msg?.data?.feedURL).toBe('https://example.com/appcast.xml')
+    expect(msg?.data?.automaticChecks).toBe(true)
+  })
+
+  it('should format checkForUpdates message', () => {
+    bridge.postMessage({ type: 'updater', action: 'checkForUpdates' })
+    expect(bridge.getLastMessage()?.action).toBe('checkForUpdates')
+  })
+
+  it('should format checkForUpdatesInBackground message', () => {
+    bridge.postMessage({ type: 'updater', action: 'checkForUpdatesInBackground' })
+    expect(bridge.getLastMessage()?.action).toBe('checkForUpdatesInBackground')
+  })
+
+  it('should format setAutomaticChecks message', () => {
+    bridge.postMessage({
+      type: 'updater',
+      action: 'setAutomaticChecks',
+      data: { enabled: true },
+    })
+    expect(bridge.getLastMessage()?.data?.enabled).toBe(true)
+  })
+
+  it('should format setCheckInterval message', () => {
+    bridge.postMessage({
+      type: 'updater',
+      action: 'setCheckInterval',
+      data: { interval: 43200 },
+    })
+    expect(bridge.getLastMessage()?.data?.interval).toBe(43200)
+  })
+
+  it('should format setFeedURL message', () => {
+    bridge.postMessage({
+      type: 'updater',
+      action: 'setFeedURL',
+      data: { url: 'https://myapp.com/updates.xml' },
+    })
+    expect(bridge.getLastMessage()?.data?.url).toBe('https://myapp.com/updates.xml')
+  })
+
+  it('should format getLastUpdateCheckDate message', () => {
+    bridge.postMessage({ type: 'updater', action: 'getLastUpdateCheckDate' })
+    expect(bridge.getLastMessage()?.action).toBe('getLastUpdateCheckDate')
+  })
+
+  it('should format getUpdateInfo message', () => {
+    bridge.postMessage({ type: 'updater', action: 'getUpdateInfo' })
+    expect(bridge.getLastMessage()?.action).toBe('getUpdateInfo')
+  })
+})
+
+// ============================================================================
+// Touch Bar Bridge Message Tests
+// ============================================================================
+
+describe('Touch Bar Bridge Messages', () => {
+  let bridge: MockNativeBridge
+
+  beforeEach(() => {
+    bridge = new MockNativeBridge()
+  })
+
+  it('should format setItems message with button items', () => {
+    bridge.postMessage({
+      type: 'touchbar',
+      action: 'setItems',
+      data: {
+        items: [
+          { id: 'play', type: 'button', label: 'Play', icon: 'play.fill' },
+          { id: 'pause', type: 'button', label: 'Pause', icon: 'pause.fill' },
+        ],
+      },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.type).toBe('touchbar')
+    expect(msg?.action).toBe('setItems')
+    expect(msg?.data?.items).toHaveLength(2)
+  })
+
+  it('should format addItem message', () => {
+    bridge.postMessage({
+      type: 'touchbar',
+      action: 'addItem',
+      data: { id: 'stop', type: 'button', label: 'Stop', icon: 'stop.fill' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('addItem')
+    expect(msg?.data?.id).toBe('stop')
+  })
+
+  it('should format removeItem message', () => {
+    bridge.postMessage({
+      type: 'touchbar',
+      action: 'removeItem',
+      data: { id: 'stop' },
+    })
+    expect(bridge.getLastMessage()?.data?.id).toBe('stop')
+  })
+
+  it('should format updateItem message', () => {
+    bridge.postMessage({
+      type: 'touchbar',
+      action: 'updateItem',
+      data: { id: 'play', label: 'Playing...', icon: 'pause.fill' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('updateItem')
+    expect(msg?.data?.label).toBe('Playing...')
+  })
+
+  it('should format slider item with min/max/value', () => {
+    bridge.postMessage({
+      type: 'touchbar',
+      action: 'addItem',
+      data: { id: 'volume', type: 'slider', label: 'Volume', min: 0, max: 100, value: 50 },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.data?.type).toBe('slider')
+    expect(msg?.data?.min).toBe(0)
+    expect(msg?.data?.max).toBe(100)
+    expect(msg?.data?.value).toBe(50)
+  })
+
+  it('should format setSliderValue message', () => {
+    bridge.postMessage({
+      type: 'touchbar',
+      action: 'setSliderValue',
+      data: { id: 'volume', value: 75 },
+    })
+    expect(bridge.getLastMessage()?.data?.value).toBe(75)
+  })
+
+  it('should format setItemEnabled message', () => {
+    bridge.postMessage({
+      type: 'touchbar',
+      action: 'setItemEnabled',
+      data: { id: 'save', enabled: false },
+    })
+    expect(bridge.getLastMessage()?.data?.enabled).toBe(false)
+  })
+
+  it('should format clear message', () => {
+    bridge.postMessage({ type: 'touchbar', action: 'clear' })
+    expect(bridge.getLastMessage()?.action).toBe('clear')
+  })
+
+  it('should format show/hide messages', () => {
+    bridge.postMessage({ type: 'touchbar', action: 'show' })
+    expect(bridge.getLastMessage()?.action).toBe('show')
+
+    bridge.postMessage({ type: 'touchbar', action: 'hide' })
+    expect(bridge.getLastMessage()?.action).toBe('hide')
+  })
+
+  it('should format color picker item', () => {
+    bridge.postMessage({
+      type: 'touchbar',
+      action: 'addItem',
+      data: { id: 'color', type: 'colorPicker', callback: 'onColorChange' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.data?.type).toBe('colorPicker')
+    expect(msg?.data?.callback).toBe('onColorChange')
+  })
+
+  it('should format label item', () => {
+    bridge.postMessage({
+      type: 'touchbar',
+      action: 'addItem',
+      data: { id: 'status', type: 'label', label: 'Ready' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.data?.type).toBe('label')
+    expect(msg?.data?.label).toBe('Ready')
+  })
+})
+
+// ============================================================================
 // Message Queue Tests
 // ============================================================================
 

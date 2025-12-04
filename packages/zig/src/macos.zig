@@ -151,6 +151,24 @@ pub fn msgSendBool(target: anytype, selector: [*:0]const u8) bool {
     return msg(target, sel(selector));
 }
 
+/// Message send with one bool argument
+pub fn msgSend1Bool(target: anytype, selector: [*:0]const u8, arg1: bool) objc.id {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, bool) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector), arg1);
+}
+
+/// Message send with one f64 argument
+pub fn msgSend1Double(target: anytype, selector: [*:0]const u8, arg1: f64) objc.id {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, f64) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector), arg1);
+}
+
+/// Message send that returns f64 with no arguments
+pub fn msgSend0Double(target: anytype, selector: [*:0]const u8) f64 {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) f64, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector));
+}
+
 pub fn createWindow(title: []const u8, width: u32, height: u32, html: []const u8) !objc.id {
     return createWindowWithStyle(title, width, height, html, null, .{});
 }
@@ -1108,6 +1126,9 @@ var global_app_bridge: ?*@import("bridge_app.zig").AppBridge = null;
 var global_native_ui_bridge: ?*@import("bridge_native_ui.zig").NativeUIBridge = null;
 var global_notification_bridge: ?*@import("bridge_notification.zig").NotificationBridge = null;
 var global_shortcuts_bridge: ?*@import("bridge_shortcuts.zig").ShortcutsBridge = null;
+var global_menu_bridge: ?*@import("bridge_menu.zig").MenuBridge = null;
+var global_updater_bridge: ?*@import("bridge_updater.zig").UpdaterBridge = null;
+var global_touchbar_bridge: ?*@import("bridge_touchbar.zig").TouchBarBridge = null;
 var global_tray_handle_for_bridge: ?*anyopaque = null;
 
 pub fn setGlobalTrayHandle(handle: *anyopaque) void {
@@ -1155,6 +1176,24 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         const ShortcutsBridge = @import("bridge_shortcuts.zig").ShortcutsBridge;
         global_shortcuts_bridge = try allocator.create(ShortcutsBridge);
         global_shortcuts_bridge.?.* = ShortcutsBridge.init(allocator);
+    }
+
+    if (global_menu_bridge == null) {
+        const MenuBridge = @import("bridge_menu.zig").MenuBridge;
+        global_menu_bridge = try allocator.create(MenuBridge);
+        global_menu_bridge.?.* = MenuBridge.init(allocator);
+    }
+
+    if (global_updater_bridge == null) {
+        const UpdaterBridge = @import("bridge_updater.zig").UpdaterBridge;
+        global_updater_bridge = try allocator.create(UpdaterBridge);
+        global_updater_bridge.?.* = UpdaterBridge.init(allocator);
+    }
+
+    if (global_touchbar_bridge == null) {
+        const TouchBarBridge = @import("bridge_touchbar.zig").TouchBarBridge;
+        global_touchbar_bridge = try allocator.create(TouchBarBridge);
+        global_touchbar_bridge.?.* = TouchBarBridge.init(allocator);
     }
 
     // Set handles - use parameter or global
@@ -1314,6 +1353,18 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         if (global_shortcuts_bridge) |bridge| {
             try bridge.handleMessage(action, data_json_str);
         }
+    } else if (std.mem.eql(u8, msg_type, "menu")) {
+        if (global_menu_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "updater")) {
+        if (global_updater_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "touchbar")) {
+        if (global_touchbar_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages
         if (root.get("message")) |msg_val| {
@@ -1450,6 +1501,18 @@ pub fn handleBridgeMessage(message_json: []const u8) !void {
         }
     } else if (std.mem.eql(u8, msg_type, "shortcuts")) {
         if (global_shortcuts_bridge) |bridge| {
+            try bridge.handleMessage(action, data);
+        }
+    } else if (std.mem.eql(u8, msg_type, "menu")) {
+        if (global_menu_bridge) |bridge| {
+            try bridge.handleMessage(action, data);
+        }
+    } else if (std.mem.eql(u8, msg_type, "updater")) {
+        if (global_updater_bridge) |bridge| {
+            try bridge.handleMessage(action, data);
+        }
+    } else if (std.mem.eql(u8, msg_type, "touchbar")) {
+        if (global_touchbar_bridge) |bridge| {
             try bridge.handleMessage(action, data);
         }
     } else if (std.mem.eql(u8, msg_type, "debug")) {
