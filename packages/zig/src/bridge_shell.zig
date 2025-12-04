@@ -101,43 +101,42 @@ pub const ShellBridge = struct {
         const argv = [_][]const u8{ "/bin/sh", "-c", command };
 
         // Create child process using Zig 0.16 API
-        var child = std.process.Child{
-            .argv = &argv,
-            .allocator = self.allocator,
-            .cwd = if (cwd.len > 0) cwd else null,
-            .stdout_behavior = .pipe,
-            .stderr_behavior = .pipe,
-            .stdin_behavior = .ignore,
-            .env = null,
-            .expand_arg0 = .no_expand,
-        };
+        var child = std.process.Child.init(&argv, self.allocator);
+        child.cwd = if (cwd.len > 0) cwd else null;
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Pipe;
+        child.stdin_behavior = .Ignore;
 
         child.spawn() catch |err| {
             self.sendShellError(callback_id, "exec", command, err);
             return;
         };
 
-        // Read stdout
-        const stdout = if (child.stdout) |*stdout_pipe| blk: {
-            break :blk stdout_pipe.reader().readAllAlloc(self.allocator, 10 * 1024 * 1024) catch "";
-        } else "";
-        defer if (stdout.len > 0) self.allocator.free(stdout);
-
-        // Read stderr
-        const stderr = if (child.stderr) |*stderr_pipe| blk: {
-            break :blk stderr_pipe.reader().readAllAlloc(self.allocator, 10 * 1024 * 1024) catch "";
-        } else "";
-        defer if (stderr.len > 0) self.allocator.free(stderr);
-
-        // Wait for completion
+        // Wait for completion first
         const term = child.wait() catch |err| {
             self.sendShellError(callback_id, "exec", command, err);
             return;
         };
 
+        // Read stdout (simplified - just read what we can with a fixed buffer)
+        var stdout_buf: [65536]u8 = undefined;
+        var stdout_len: usize = 0;
+        if (child.stdout) |stdout_file| {
+            stdout_len = stdout_file.read(&stdout_buf) catch 0;
+        }
+        const stdout = stdout_buf[0..stdout_len];
+
+        // Read stderr
+        var stderr_buf: [8192]u8 = undefined;
+        var stderr_len: usize = 0;
+        if (child.stderr) |stderr_file| {
+            stderr_len = stderr_file.read(&stderr_buf) catch 0;
+        }
+        const stderr = stderr_buf[0..stderr_len];
+
         const exit_code: i32 = switch (term) {
-            .exited => |code| @intCast(code),
-            .signal => |sig| -@as(i32, @intCast(sig)),
+            .Exited => |code| @intCast(code),
+            .Signal => |sig| -@as(i32, @intCast(sig)),
             else => -1,
         };
 
@@ -180,16 +179,11 @@ pub const ShellBridge = struct {
         const argv = [_][]const u8{ "/bin/sh", "-c", command };
 
         // Create child process using Zig 0.16 API
-        var child = std.process.Child{
-            .argv = &argv,
-            .allocator = self.allocator,
-            .cwd = if (cwd.len > 0) cwd else null,
-            .stdout_behavior = .ignore,
-            .stderr_behavior = .ignore,
-            .stdin_behavior = .ignore,
-            .env = null,
-            .expand_arg0 = .no_expand,
-        };
+        var child = std.process.Child.init(&argv, self.allocator);
+        child.cwd = if (cwd.len > 0) cwd else null;
+        child.stdout_behavior = .Ignore;
+        child.stderr_behavior = .Ignore;
+        child.stdin_behavior = .Ignore;
 
         child.spawn() catch |err| {
             self.sendShellError("", "spawn", command, err);

@@ -766,6 +766,42 @@ Centralized error handling system in `packages/zig/src/bridge_error.zig`:
 
 **File:** `packages/zig/src/bridge_touchbar.zig`
 
+### File System Bridge ✅
+| Handler | Description |
+|---------|-------------|
+| `readFile` | Read file contents with callback |
+| `writeFile` | Write content to file |
+| `appendFile` | Append content to file |
+| `deleteFile` | Delete a file |
+| `exists` | Check if path exists |
+| `stat` | Get file statistics (size, mtime, isDir) |
+| `readDir` | List directory contents |
+| `mkdir` | Create directory |
+| `rmdir` | Remove directory |
+| `copy` | Copy file to destination |
+| `move` | Move/rename file |
+| `watch` | Watch path for changes |
+| `unwatch` | Stop watching path |
+| `getHomeDir` | Get user home directory |
+| `getTempDir` | Get system temp directory |
+| `getAppDataDir` | Get application data directory |
+
+**File:** `packages/zig/src/bridge_fs.zig`
+
+### Shell Commands Bridge ✅
+| Handler | Description |
+|---------|-------------|
+| `exec` | Execute command and wait for result |
+| `spawn` | Spawn background process |
+| `kill` | Kill a spawned process |
+| `openUrl` | Open URL in default browser |
+| `openPath` | Open file with default application |
+| `showInFinder` | Reveal file in Finder |
+| `getEnv` | Get environment variable |
+| `setEnv` | Set environment variable |
+
+**File:** `packages/zig/src/bridge_shell.zig`
+
 ### Unit Tests ✅
 **Zig Tests:** 22 passing tests in `packages/zig/src/bridge_test.zig`:
 - JSON parsing (size, color, opacity, boolean, title, position, vibrancy, RGBA, notification, badge, clipboard, file dialog)
@@ -774,7 +810,7 @@ Centralized error handling system in `packages/zig/src/bridge_error.zig`:
 - Error handling edge cases
 - Action list completeness (26 window, 8 tray, 8 clipboard, 6 dialog)
 
-**TypeScript Integration Tests:** 88 passing tests in `packages/typescript/src/__tests__/integration/bridge.test.ts`:
+**TypeScript Integration Tests:** 232 passing tests in `packages/typescript/src/__tests__/integration/bridge.test.ts`:
 - Window bridge messages (show, setSize, setPosition, setTitle, setVibrancy, setOpacity, setBackgroundColor, setMinSize, setMaxSize, boolean actions, setAspectRatio, flashFrame, setProgressBar)
 - Tray bridge messages (setTitle, setTooltip, setIcon, hide/show, setMenu, setBadge)
 - Dialog bridge messages (openFile, saveFile, showAlert, showConfirm)
@@ -784,6 +820,8 @@ Centralized error handling system in `packages/zig/src/bridge_error.zig`:
 - Menu bridge messages (setAppMenu, setDockMenu, clearDockMenu, enableMenuItem, disableMenuItem, checkMenuItem, uncheckMenuItem, setMenuItemLabel, nested submenus, keyboard shortcuts)
 - Updater bridge messages (configure, checkForUpdates, checkForUpdatesInBackground, setAutomaticChecks, setCheckInterval, setFeedURL, getLastUpdateCheckDate, getUpdateInfo)
 - Touch Bar bridge messages (setItems, addItem, removeItem, updateItem, setSliderValue, setItemEnabled, clear, show/hide, colorPicker, label)
+- File System bridge messages (readFile, writeFile, appendFile, deleteFile, exists, stat, readDir, mkdir, rmdir, copy, move, watch, unwatch, getHomeDir, getTempDir, getAppDataDir)
+- Shell Commands bridge messages (exec, spawn, kill, openUrl, openPath, showInFinder, getEnv, setEnv)
 - Error response handling
 - JSON serialization
 - Message queue

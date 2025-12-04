@@ -1048,6 +1048,273 @@ describe('Touch Bar Bridge Messages', () => {
 })
 
 // ============================================================================
+// File System Bridge Message Tests
+// ============================================================================
+
+describe('File System Bridge Messages', () => {
+  let bridge: MockNativeBridge
+
+  beforeEach(() => {
+    bridge = new MockNativeBridge()
+  })
+
+  it('should format readFile message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'readFile',
+      data: { path: '/path/to/file.txt', callbackId: 'cb1' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.type).toBe('fs')
+    expect(msg?.action).toBe('readFile')
+    expect(msg?.data?.path).toBe('/path/to/file.txt')
+  })
+
+  it('should format writeFile message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'writeFile',
+      data: { path: '/path/to/file.txt', content: 'Hello World' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('writeFile')
+    expect(msg?.data?.content).toBe('Hello World')
+  })
+
+  it('should format appendFile message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'appendFile',
+      data: { path: '/path/to/log.txt', content: 'New log entry\n' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('appendFile')
+  })
+
+  it('should format deleteFile message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'deleteFile',
+      data: { path: '/path/to/file.txt' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('deleteFile')
+    expect(bridge.getLastMessage()?.data?.path).toBe('/path/to/file.txt')
+  })
+
+  it('should format exists message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'exists',
+      data: { path: '/path/to/check', callbackId: 'cb2' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('exists')
+  })
+
+  it('should format stat message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'stat',
+      data: { path: '/path/to/file', callbackId: 'cb3' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('stat')
+  })
+
+  it('should format readDir message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'readDir',
+      data: { path: '/path/to/dir', callbackId: 'cb4' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('readDir')
+  })
+
+  it('should format mkdir message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'mkdir',
+      data: { path: '/path/to/new/dir' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('mkdir')
+  })
+
+  it('should format rmdir message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'rmdir',
+      data: { path: '/path/to/dir' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('rmdir')
+  })
+
+  it('should format copy message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'copy',
+      data: { src: '/path/from/file.txt', dest: '/path/to/file.txt' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('copy')
+    expect(msg?.data?.src).toBe('/path/from/file.txt')
+    expect(msg?.data?.dest).toBe('/path/to/file.txt')
+  })
+
+  it('should format move message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'move',
+      data: { src: '/old/path.txt', dest: '/new/path.txt' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('move')
+  })
+
+  it('should format watch message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'watch',
+      data: { id: 'watcher1', path: '/path/to/watch' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('watch')
+    expect(msg?.data?.id).toBe('watcher1')
+  })
+
+  it('should format unwatch message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'unwatch',
+      data: { id: 'watcher1' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('unwatch')
+  })
+
+  it('should format getHomeDir message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'getHomeDir',
+      data: { callbackId: 'cb5' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('getHomeDir')
+  })
+
+  it('should format getTempDir message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'getTempDir',
+      data: { callbackId: 'cb6' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('getTempDir')
+  })
+
+  it('should format getAppDataDir message', () => {
+    bridge.postMessage({
+      type: 'fs',
+      action: 'getAppDataDir',
+      data: { callbackId: 'cb7' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('getAppDataDir')
+  })
+})
+
+// ============================================================================
+// Shell Commands Bridge Message Tests
+// ============================================================================
+
+describe('Shell Commands Bridge Messages', () => {
+  let bridge: MockNativeBridge
+
+  beforeEach(() => {
+    bridge = new MockNativeBridge()
+  })
+
+  it('should format exec message', () => {
+    bridge.postMessage({
+      type: 'shell',
+      action: 'exec',
+      data: { command: 'ls -la', cwd: '/home', callbackId: 'cb1' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.type).toBe('shell')
+    expect(msg?.action).toBe('exec')
+    expect(msg?.data?.command).toBe('ls -la')
+    expect(msg?.data?.cwd).toBe('/home')
+  })
+
+  it('should format spawn message', () => {
+    bridge.postMessage({
+      type: 'shell',
+      action: 'spawn',
+      data: { id: 'proc1', command: 'node server.js', cwd: '/app' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('spawn')
+    expect(msg?.data?.id).toBe('proc1')
+    expect(msg?.data?.command).toBe('node server.js')
+  })
+
+  it('should format kill message', () => {
+    bridge.postMessage({
+      type: 'shell',
+      action: 'kill',
+      data: { id: 'proc1' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('kill')
+    expect(bridge.getLastMessage()?.data?.id).toBe('proc1')
+  })
+
+  it('should format openUrl message', () => {
+    bridge.postMessage({
+      type: 'shell',
+      action: 'openUrl',
+      data: { url: 'https://example.com' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('openUrl')
+    expect(msg?.data?.url).toBe('https://example.com')
+  })
+
+  it('should format openPath message', () => {
+    bridge.postMessage({
+      type: 'shell',
+      action: 'openPath',
+      data: { path: '/path/to/file.pdf' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('openPath')
+    expect(bridge.getLastMessage()?.data?.path).toBe('/path/to/file.pdf')
+  })
+
+  it('should format showInFinder message', () => {
+    bridge.postMessage({
+      type: 'shell',
+      action: 'showInFinder',
+      data: { path: '/path/to/reveal' },
+    })
+    expect(bridge.getLastMessage()?.action).toBe('showInFinder')
+  })
+
+  it('should format getEnv message', () => {
+    bridge.postMessage({
+      type: 'shell',
+      action: 'getEnv',
+      data: { name: 'PATH', callbackId: 'cb2' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('getEnv')
+    expect(msg?.data?.name).toBe('PATH')
+  })
+
+  it('should format setEnv message', () => {
+    bridge.postMessage({
+      type: 'shell',
+      action: 'setEnv',
+      data: { name: 'MY_VAR', value: 'my_value' },
+    })
+    const msg = bridge.getLastMessage()
+    expect(msg?.action).toBe('setEnv')
+    expect(msg?.data?.name).toBe('MY_VAR')
+    expect(msg?.data?.value).toBe('my_value')
+  })
+})
+
+// ============================================================================
 // Message Queue Tests
 // ============================================================================
 
