@@ -1131,6 +1131,10 @@ var global_updater_bridge: ?*@import("bridge_updater.zig").UpdaterBridge = null;
 var global_touchbar_bridge: ?*@import("bridge_touchbar.zig").TouchBarBridge = null;
 var global_fs_bridge: ?*@import("bridge_fs.zig").FSBridge = null;
 var global_shell_bridge: ?*@import("bridge_shell.zig").ShellBridge = null;
+var global_system_bridge: ?*@import("bridge_system.zig").SystemBridge = null;
+var global_power_bridge: ?*@import("bridge_power.zig").PowerBridge = null;
+var global_network_bridge: ?*@import("bridge_network.zig").NetworkBridge = null;
+var global_bluetooth_bridge: ?*@import("bridge_bluetooth.zig").BluetoothBridge = null;
 var global_tray_handle_for_bridge: ?*anyopaque = null;
 
 pub fn setGlobalTrayHandle(handle: *anyopaque) void {
