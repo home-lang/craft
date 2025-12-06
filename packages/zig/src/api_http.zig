@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// HTTP Client API
 /// Provides HTTP/HTTPS request functionality
-
 pub const HttpClient = struct {
     allocator: std.mem.Allocator,
     timeout_ms: u64 = 30000, // 30 seconds default
@@ -50,9 +49,23 @@ pub const HttpClient = struct {
         const body_reader = req.reader();
         const body = try body_reader.readAllAlloc(self.allocator, 10 * 1024 * 1024); // 10MB max
 
+        // Extract response headers into a StringHashMap
+        var response_headers = std.StringHashMap([]const u8).init(self.allocator);
+        var header_it = req.response.headers.iterator();
+        var have_headers = false;
+        while (header_it.next()) |header| {
+            const key = try self.allocator.dupe(u8, header.name);
+            const value = try self.allocator.dupe(u8, header.value);
+            try response_headers.put(key, value);
+            have_headers = true;
+        }
+
         return Response{
             .status = @intFromEnum(req.response.status),
-            .headers = null, // TODO: Extract headers
+            .headers = if (have_headers) response_headers else blk: {
+                response_headers.deinit();
+                break :blk null;
+            },
             .body = body,
         };
     }

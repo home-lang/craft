@@ -1,838 +1,511 @@
-# Native macOS Tahoe UI Implementation TODO
+# Craft Roadmap – Zig-Native App Shell (Tauri/React Native–Style)
 
-## Goal
-Build truly native NSOutlineView (sidebar) and NSTableView (file browser) components that integrate with Craft's existing bridge system.
+This document is a **working technical roadmap** for evolving Craft into a minimal, dependency-light, extremely performant Zig-native application shell in the spirit of **Tauri** and **React Native**:
 
-## Phase 1: Foundation (Data Source Protocols)
+- **Tauri-like**: small binary, WebView-based UI, JS ↔ native bridge, strong tooling & packaging.
+- **React Native–like**: declarative UI and state model, native components exposed to JS, mobile and desktop with a shared bridge.
+- **Zig-native**: predictable performance and control, no third-party native deps beyond OS/webview/toolkit stacks.
 
-### Task 1.1: Implement NSOutlineViewDataSource Protocol in Zig ✅
-- [x] Create dynamic Objective-C class at runtime using `objc_allocateClassPair`
-- [x] Add required methods:
-  - [x] `outlineView:numberOfChildrenOfItem:` - returns row count
-  - [x] `outlineView:child:ofItem:` - returns child at index
-  - [x] `outlineView:isItemExpandable:` - returns if item has children
-  - [x] `outlineView:objectValueForTableColumn:byItem:` - returns display value
-- [x] Store Zig data structure reference in associated object
-- [x] Implement IMP (method implementations) that call back to Zig
-- [x] Test with simple 2-level hierarchy (sections → items)
+Everything below is grounded in the current codebase (especially `packages/zig/src`) and existing docs, with explicit follow-ups for every major subsystem.
 
-**Files to create/modify:**
-- `packages/zig/src/components/outline_view_datasource.zig` (new)
-- Test: Verify outline view displays sidebar sections
+## How to Read This Document
 
-**Estimated time:** 4-6 hours
+- **IDs like `[C1.2]`, `[B3.1]`** are convenient labels; you can reuse them as issue titles or references.
+- **Section order ≈ dependency order**: earlier sections usually need to be tackled before later ones.
+- **Phases in §14** summarize a suggested execution sequence across all sections.
 
 ---
 
-### Task 1.2: Implement NSTableViewDataSource Protocol in Zig ✅
-- [x] Create dynamic Objective-C class at runtime
-- [x] Add required methods:
-  - [x] `numberOfRowsInTableView:` - returns file count
-  - [x] `tableView:objectValueForTableColumn:row:` - returns cell value
-  - [x] `tableView:setObjectValue:forTableColumn:row:` - handles edits (optional)
-- [x] Store file array reference in associated object
-- [x] Implement IMP that reads from Zig ArrayList
-- [x] Test with simple file list (10 files, 4 columns)
+## 1. Vision, Principles, and Non-Goals
 
-**Files to create/modify:**
-- `packages/zig/src/components/table_view_datasource.zig` (new)
-- Test: Verify table view displays files in columns
+- **[P1] Single minimal core**  
+  - **Goal**: a small `craft-core` Zig API providing:
+    - **Window + WebView** abstraction.
+    - **Unified JS bridge** (desktop + mobile).
+    - **System tray/menubar core**, basic notifications, dialogs, clipboard.
+  - **Non-goal**: building an entire GUI toolkit from scratch beyond native components already present.
 
-**Estimated time:** 3-4 hours
+- **[P2] Minimal dependencies**  
+  - **Goal**: depend only on:
+    - OS SDKs/frameworks: Cocoa/WebKit, GTK/WebKit2GTK, Win32/WebView2, iOS UIKit/WKWebView, Android SDK.
+    - Zig `std` and the project’s own modules (`macos.zig`, `linux.zig`, `windows.zig`, `mobile.zig`, etc.).
+  - **Remove / avoid**:
+    - Shelling out to tools like `notify-send` where a more direct C/OS API can be reasonably bound.
+    - New third-party native libraries if the OS already exposes sufficient primitives.
 
----
+- **[P3] Extremely performant, predictable**  
+  - Low memory overhead, minimal allocations in hot paths (bridge, event loop, window lifecycle).
+  - Tight control over **allocators** and **object lifetimes** (extend patterns from `mobile.NativeObjectManager`).
+  - Measurable performance baselines: startup time, frame times, IPC latency, allocations.
 
-## Phase 2: Delegate Implementation (User Interactions)
+- **[P4] Stable, versioned APIs**  
+  - `api.zig` already exposes `Version` + `current_version`.  
+  - Formalize **breaking-change policy** and **capabilities discovery** via feature flags, including for the JS bridge.
 
-### Task 2.1: Implement NSOutlineViewDelegate Protocol ✅
-- [x] Create delegate class at runtime
-- [x] Add methods:
-  - [x] `outlineView:viewForTableColumn:item:` - returns cell view
-  - [x] `outlineView:shouldSelectItem:` - controls selection
-  - [x] `outlineViewSelectionDidChange:` - handles selection
-  - [x] `outlineView:heightOfRowByItem:` - row height (24px for items, 20px for headers)
-- [x] Implement cell view creation with SF Symbols icons
-- [x] Send selection events back to Zig → JavaScript bridge
-- [x] Test selection, hover states, and callbacks
-
-**Files to create/modify:**
-- `packages/zig/src/components/outline_view_delegate.zig` (new)
-- Test: Click sidebar item, verify callback fires
-
-**Estimated time:** 4-5 hours
+- **[P5] First-class DX**  
+  - CLI, TS SDK (`ts-craft`), templates, and examples all map cleanly onto the underlying Zig runtime.
+  - Developers can start with **zero Zig** and grow into the Zig API when needed.
 
 ---
 
-### Task 2.2: Implement NSTableViewDelegate Protocol ✅
-- [x] Create delegate class at runtime
-- [x] Add methods:
-  - [x] `tableView:viewForTableColumn:row:` - returns cell view
-  - [x] `tableView:shouldSelectRow:` - controls selection
-  - [x] `tableViewSelectionDidChange:` - handles selection
-  - [x] `tableView:heightOfRow:` - row height (22px)
-- [x] Implement cell views for each column type
-- [x] Handle double-click events
-- [x] Send events to bridge
-- [x] Test selection and double-click
+## 2. High-Level Architecture & Layering
 
-**Files to create/modify:**
-- `packages/zig/src/components/table_view_delegate.zig` (new)
-- Test: Double-click file, verify callback fires
+- **[A1] Define explicit layers** (reconciling `api.zig`, `main.zig`, `minimal.zig`, `macos.zig`, `linux.zig`, `windows.zig`, `mobile.zig`):
+  - **Layer 0 – OS bindings**: `macos.zig`, `linux.zig`, `windows.zig`, Objective‑C/JNI helper modules.
+  - **Layer 1 – Core primitives**:
+    - `api.zig` (`App`, `Window`, `WindowOptions`, `Platform`, `Features`).
+    - `system.zig` (notifications, clipboard, dialogs, system info, power management).
+    - `ipc.zig`, `events.zig`, `async.zig` (core IPC/events).
+  - **Layer 2 – Bridge + integration**:
+    - `bridge.zig`, `bridge_api.zig`, `js_bridge.zig`, `bridge_*` domain modules.
+  - **Layer 3 – Higher-level UX**:
+    - `components.zig`, `menubar.zig`, `tray.zig`, `system_enhancements.zig`, `hotreload.zig`, `devmode.zig`.
 
-**Estimated time:** 4-5 hours
+- **[A2] Document the architecture** (new docs under `docs/architecture/`):
+  - **`core.md`** – how `App` and `Window` delegate to platform modules.
+  - **`bridge.md`** – unified bridge design across desktop + mobile.
+  - **`components.md`** – how native components are wired.
+  - **`performance.md`** – lifecycle of allocations, profiling hooks, hot paths.
 
----
-
-## Phase 3: Component Wrappers (High-Level API)
-
-### Task 3.1: Create NativeSidebar Component ✅
-- [x] Wrap NSOutlineView + NSScrollView
-- [x] Integrate data source and delegate
-- [x] Add data structures:
-  - [x] `SidebarSection` struct (id, header, items array)
-  - [x] `SidebarItem` struct (id, label, icon, badge, active state)
-- [x] Implement methods:
-  - [x] `init()` - creates outline view with data source/delegate
-  - [x] `addSection()` - adds section, triggers reloadData
-  - [x] `setSelectedItem()` - programmatic selection
-  - [x] `setOnSelectCallback()` - registers callback function
-- [x] Handle memory management (retain/release)
-- [x] Test full lifecycle (create → populate → interact → destroy)
-
-**Files to create/modify:**
-- `packages/zig/src/components/native_sidebar.zig` (rewrite)
-- Test: Full sidebar with 3 sections, 10 items
-
-**Estimated time:** 6-8 hours
+- **[A3] Enforce layering in code**:
+  - Avoid cross-layer imports that break abstraction (e.g. bridge modules pulling in high-level components except via stable interfaces).
+  - Ensure `minimal.zig` only depends on the minimal layers.
 
 ---
 
-### Task 3.2: Create NativeFileBrowser Component ✅
-- [x] Wrap NSTableView + NSScrollView
-- [x] Integrate data source and delegate
-- [x] Add data structure:
-  - [x] `FileItem` struct (id, name, icon, date, size, kind)
-- [x] Implement methods:
-  - [x] `init()` - creates table with 4 columns
-  - [x] `addFile()` - adds file, triggers reloadData
-  - [x] `addFiles()` - bulk add
-  - [x] `setOnSelectCallback()` - registers selection callback
-  - [x] `setOnDoubleClickCallback()` - registers double-click callback
-- [x] Configure column properties (width, sortable, resizable)
-- [x] Test with 100+ files for performance
+## 3. Minimal Core API (Zig-Side)
 
-**Files to create/modify:**
-- `packages/zig/src/components/native_file_browser.zig` (rewrite)
-- Test: File browser with 100 files, sort columns
+Focus modules: `api.zig`, `main.zig`, `minimal.zig`, `system.zig`, `tray.zig`, `linux.zig`, `windows.zig`, `macos.zig`.
 
-**Estimated time:** 6-8 hours
+- **[C1] Stabilize `App` and `Window` API in `api.zig`**
+  - **Tasks**:
+    - **[C1.1]** Remove duplication between `api.zig` `Window` and any alternative window abstractions in `main.zig` / other modules.
+    - **[C1.2]** Ensure all window lifecycle paths (`create`, `show`, `hide`, `close`, `setSize`, `setPosition`, `setTitle`) are **implemented and tested** for macOS, Linux, and Windows.
+    - **[C1.3]** Add **multi-window** management helpers on `App` (`forEachWindow`, `findWindowByTitle`, etc.) built on the existing `windows: ArrayList(Window)`.
 
----
+- **[C2] Tighten `WindowBuilder` semantics**
+  - **Tasks**:
+    - **[C2.1]** Fix the `WindowBuilder.build` implementation in `api.zig` where it references `self.resizable` instead of `self.is_resizable` (and similar field naming mismatches).
+    - **[C2.2]** Add validation errors with **fine-grained error types** instead of returning `Error.WindowCreationFailed` for all invalid cases.
+    - **[C2.3]** Ensure builders are **allocation-light**: reuse buffers and avoid unnecessary heap allocations in `build`.
 
-### Task 3.3: Create NativeSplitView Component ✅
-- [x] Wrap NSSplitView
-- [x] Add sidebar and content as subviews
-- [x] Configure:
-  - [x] Vertical orientation
-  - [x] Thin divider style
-  - [x] Auto-save divider position
-  - [x] Minimum pane sizes (180px sidebar, 400px content)
-- [x] Implement Auto Layout constraints
-- [x] Make divider resizable with mouse
-- [x] Test layout at different window sizes
+- **[C3] Minimal CLI host executable** (`minimal.zig`, `cli.zig`, top-level `build.zig`)
+  - **Tasks**:
+    - **[C3.1]** Treat `craft-minimal` as **the canonical minimal shell**:
+      - Parses CLI (URL or inline HTML, window options, tray options).
+      - Initializes platform (`app.initPlatform*`) and opens at least one window or system tray.
+      - Has NO dependency on higher-level devmode/hotreload when disabled.
+    - **[C3.2]** Extract a `core_cli.zig` layer used by both `minimal.zig` and any more advanced CLI entrypoints.
+    - **[C3.3]** Ensure the top-level `build.zig` and `packages/zig/build.zig` clearly separate
+      - **minimal** target,
+      - **full** target (with dev tools, menubar, diagnostics, GPU, etc.).
 
-**Files to create/modify:**
-- `packages/zig/src/components/native_split_view.zig` (rewrite)
-- Test: Resize window, drag divider
-
-**Estimated time:** 3-4 hours
+- **[C4] Stronger platform feature detection (`Features` in `api.zig`)**
+  - **Tasks**:
+    - **[C4.1]** Extend `Features` with flags for:
+      - `hasNotificationsActions`, `hasTrayDragDrop`, `hasAdvancedDialogs`, `hasTouchBar`, etc., wired to actual platform code capabilities.
+    - **[C4.2]** Export these to the JS bridge so web code can **feature-detect** instead of relying on platform sniffing.
 
 ---
 
-## Phase 4: Bridge Integration (JavaScript ↔ Zig)
+## 4. JS Bridge & IPC – Unification and Completion
 
-### Task 4.1: Create NativeUIBridge Handler ✅
-- [x] Implement bridge struct matching TrayBridge pattern
-- [x] Add component registries:
-  - [x] `StringHashMap(*NativeSidebar)` for sidebars
-  - [x] `StringHashMap(*NativeFileBrowser)` for browsers
-  - [x] `StringHashMap(*NativeSplitView)` for split views
-- [x] Implement message handlers:
-  - [x] `handleMessage()` - routes actions
-  - [x] `createSidebar()` - parses JSON, creates sidebar
-  - [x] `addSidebarSection()` - parses section data
-  - [x] `createFileBrowser()` - creates browser
-  - [x] `addFile()` - adds file to browser
-  - [x] `createSplitView()` - combines sidebar + browser
-  - [x] `setSelectedItem()` - programmatic selection
-- [x] Handle component lifecycle (create, update, destroy)
-- [x] Test each message type individually
+Key modules: `bridge.zig`, `bridge_api.zig`, `js_bridge.zig`, `bridge_*`, `mobile.zig` bridge-related parts, docs `BRIDGE_API.md`, `QUICK_REFERENCE.md`.
 
-**Files to create/modify:**
-- `packages/zig/src/bridge_native_ui.zig` (rewrite)
-- Test: Send JSON messages, verify components created
+### 4.1 Single Conceptual Bridge
 
-**Estimated time:** 8-10 hours
+Right now there are several overlapping bridge pieces:
 
----
+- `bridge.zig` – basic `MessageHandler` map + simple `window.craft` script.
+- `bridge_api.zig` – system tray/window/app bridge with injected JS.
+- `js_bridge.zig` – generic JSON-RPC-like `invoke`/`getPlatform`/`showToast`/`haptic`/`requestPermission`.
+- `bridge_*` – domain-specific bridges (tray, clipboard, dialogs, window, native_ui, etc.).
 
-### Task 4.2: Integrate into Main Bridge Handler ✅
-- [x] Add `nativeUI` case to `handleBridgeMessage()` in `macos.zig`
-- [x] Create global NativeUIBridge instance
-- [x] Pass window reference to bridge on initialization
-- [x] Route messages: `if msg_type == "nativeUI" → nativeUIBridge.handleMessage()`
-- [x] Add views to window's content view (not WKWebView)
-- [x] Handle coordinate system (AppKit uses bottom-left origin)
-- [x] Test message routing from JavaScript → Zig
+**Goals:** one conceptual bridge with:
 
-**Files to modify:**
-- `packages/zig/src/macos.zig` (add `nativeUI` routing)
-- Line ~1113: Add `else if (std.mem.eql(u8, msg_type, "nativeUI"))`
+- A **single message format** (`{ id, method, params }` → `{ id, success, result|error }`).
+- **Bidirectional events** (`craftHandleResponse` + event emission).
+- Domain-specific handlers registered against this framework.
 
-**Estimated time:** 4-6 hours
+**Tasks:**
 
----
+- **[B1.1]** Pick `js_bridge.zig`’s JSON structure as the **canonical message format**; document in `docs/BRIDGE_API.md`.
+- **[B1.2]** Make `bridge_api.zig` and `bridge.zig` **thin wrappers** that register handlers into `JSBridge` instead of duplicating injection logic.
+- **[B1.3]** Ensure a **single `generateBridgeScript`** function generates the `window.craft` API for:
+  - Desktop (macOS, Linux, Windows).
+  - Mobile (iOS, Android) via `mobile.zig`.
 
-## Phase 5: JavaScript API (User-Facing Interface)
+### 4.2 Desktop bridge gaps and improvements
 
-### Task 5.1: Create JavaScript Bridge API ✅
-- [x] Create `craft-native-ui.js` with clean API
-- [x] Implement classes:
-  - [x] `Sidebar` class with methods:
-    - [x] `addSection(config)`
-    - [x] `setSelectedItem(itemId)`
-    - [x] `onSelect(callback)`
-  - [x] `FileBrowser` class with methods:
-    - [x] `addFile(config)`
-    - [x] `addFiles(array)`
-    - [x] `onSelect(callback)`
-    - [x] `onDoubleClick(callback)`
-  - [x] `SplitView` class
-- [x] Implement `window.craft.nativeUI` namespace:
-  - [x] `createSidebar(options) → Sidebar`
-  - [x] `createFileBrowser(options) → FileBrowser`
-  - [x] `createSplitView(options) → SplitView`
-- [x] Use `window.webkit.messageHandlers.craft.postMessage()` for communication
-- [x] Fire `craft:nativeui:ready` event
+- **Clipboard (`bridge_clipboard.zig`)**
+  - Currently logs retrieved text but **TODO**: `// TODO: Send result back to JavaScript`.
+  - **[B2.1]** Design a consistent async response path: for `window.craft.clipboard.getText()`, send back a `JSResponse` via `craftHandleResponse`.
+  - **[B2.2]** Implement `setText` / `getImage` / `setImage` / file list bridging where supported by `system.zig`.
 
-**Files created:**
-- `packages/zig/src/js/craft-native-ui.js` (258 lines)
+- **Dialogs (`bridge_dialog.zig`)**
+  - Multiple **TODOs** – results not returned to JS for open/save/multi-select dialogs.
+  - **[B2.3]** Map `FileDialog` results to JSON arrays/strings and return them via JS bridge callbacks.
+  - **[B2.4]** Define error codes for cancellation, permission failure, and IO errors.
 
-**Completed:** Phase 5.1 ✅
+- **Window control (`bridge_window.zig`)**
+  - **TODO**: `setFullscreen` currently ignores incoming `data` (should parse boolean).
+  - **[B2.5]** Implement full `window` API as documented in `BRIDGE_API.md` and `QUICK_REFERENCE.md` for all supported platforms.
+  - **[B2.6]** Add per-platform tests for window state transitions via JS bridge.
 
----
+- **Native UI bridge (`bridge_native_ui.zig`)**
+  - **TODO** comments for nested submenus (`submenu_items = null, // TODO: Support nested submenus`).
+  - **[B2.7]** Implement nested menu/submenu handling, matching TypeScript types used in docs.
 
-### Task 5.2: Inject Bridge Script into HTML ✅
-- [x] Add `craft-native-ui.js` to bridge script injection
-- [x] Use `@embedFile()` to load JavaScript at compile time
-- [x] Add `getNativeUIScript()` function in `macos.zig`
-- [x] Include native UI script alongside main bridge script
-- [x] Ensure `window.craft.nativeUI` is available before user code
-- [x] Fire `craft:nativeui:ready` event
-- [x] Test that API is accessible from user HTML
+- **Tray drag-and-drop (`tray.zig`, `components/drag_drop.zig`)**
+  - `tray.zig` TODOs for Windows/Linux drag & drop; drag_drop TODO for extracting item IDs.
+  - **[B2.8]** Implement cross-platform drag/drop registration on trays and pass results to JS callbacks in a consistent JSON format.
 
-**Files modified:**
-- `packages/zig/src/macos.zig:227-252` (bridge injection with native UI script)
-- `packages/zig/src/macos.zig:950-952` (getNativeUIScript function)
+### 4.3 Mobile bridge completion (`mobile.zig`, `js_bridge.zig`)
 
-**Completed:** Phase 5.2 ✅
+- **JS evaluation callbacks:**
+  - iOS: `evaluateJavaScript` has **TODO** for completion handler / callback wiring.
+  - Android: `evaluateJavascript` has **TODO** for wrapping callback into `ValueCallback`.
+  - **[B3.1]** Implement **per-platform callback wiring** so JS `invoke`/`evaluate` promises resolve/reject based on native result.
+
+- **Permissions:**
+  - Several **TODOs** around `requestPermission` (Android `onRequestPermissionsResult` callback, etc.).
+  - **[B3.2]** Implement a minimal, unified permission API across mobile platforms:
+    - `requestPermission(permission: string) → { granted: bool, status: string }`.
+  - **[B3.3]** Add `PermissionStatus` mapping from platform enums to portable strings.
+
+- **Device info (`js_bridge.zig`)**
+  - **TODO**: actual device info currently stubbed as `"Unknown"`.
+  - **[B3.4]** Use APIs in `mobile.zig` (and platform SDKs) to populate model, OS version, and other basic fields.
+
+- **Toasts & haptics (`js_bridge.zig`, `mobile.zig`)**
+  - TODO comments for actual Android toast / iOS alert implementations.
+  - **[B3.5]** Connect bridge handlers to the real native APIs for toasts and haptics (many of which are already partially wired in `mobile.zig`).
+
+### 4.4 Error handling and diagnostics in the bridge
+
+- **[B4.1]** Enforce **strict error sets** for bridge handlers and standardize mapping to JS error objects (code + message).
+- **[B4.2]** Integrate with `error_context.zig` and `error_overlay.zig` for developer-friendly error surfaces.
+- **[B4.3]** Add structured logs for every bridge call (method name, duration, errors, allocation counts for debugging).
 
 ---
 
-## Phase 6: Memory Management & Cleanup ✅
+## 5. Desktop Platform Layers – macOS, Linux, Windows
 
-### Task 6.1: Implement Proper Memory Management ✅
-- [x] Use associated objects for Zig → Objective-C connections
-- [x] Implement `dealloc` methods for dynamic classes
-- [x] Track all allocations in bridge
-- [x] Implement `deinit()` for all components
-- [x] Add reference counting where needed
-- [x] Test for memory leaks with Instruments
-- [x] Document ownership model
+Focus modules: `macos.zig`, `linux.zig`, `windows.zig`, `system.zig`, `system_enhancements.zig`, `notifications.zig`, `tray.zig`.
 
-**Files modified:**
-- All component files (`outline_view_datasource.zig`, `outline_view_delegate.zig`, `table_view_datasource.zig`, `table_view_delegate.zig`) - added proper ObjC instance release in `deinit()`
-- `bridge_native_ui.zig` - added `is_destroyed` flag, `handleWindowClose()`, proper key cleanup in deinit
+### 5.1 Notifications
 
-**Completed:** Phase 6.1 ✅
+- `system.zig` + `notifications.zig` already define a rich `Notification` API, but:
+  - Linux implementation uses `notify-send` and has a TODO for libnotify.
+  - Windows implementation logs to stdout and has TODO for proper Toast notifications.
 
----
+- **Tasks:**
+  - **[D1.1] Linux** – replace `notify-send` shell call with **native libnotify bindings**.
+  - **[D1.2] Windows** – implement **WinRT-based toast notifications** with action buttons.
+  - **[D1.3] macOS** – add full handling of **action buttons and callbacks**, feeding them back into JS via bridge events.
+  - **[D1.4]** Add tests & examples for interactive notifications from JS and Zig (`system.zig` and bridge).
 
-### Task 6.2: Handle Edge Cases ✅
-- [x] Handle window close (cleanup all components)
-- [x] Handle rapid updates (debounce reloadData)
-- [x] Handle large datasets (1000+ files)
-- [x] Handle empty states (no sections, no files)
-- [x] Handle malformed JSON gracefully
-- [x] Handle missing window reference
-- [x] Add error boundaries
-- [x] Test all error paths
+### 5.2 Clipboard
 
-**Files modified:**
-- `bridge_native_ui.zig` - added debounce timer, empty data checks, malformed JSON handling, missing window warning, error catching in handleMessage
+- `system.zig` implements macOS clipboard; Linux/Windows have stubs.
+- `linux.zig` has a TODO for async clipboard read.
 
-**Completed:** Phase 6.2 ✅
+- **Tasks:**
+  - **[D2.1] Linux** – implement clipboard via X11/Wayland abstraction.
+  - **[D2.2] Windows** – implement clipboard via Win32 APIs.
+  - **[D2.3]** Wire clipboard operations into bridge (`bridge_clipboard.zig`) and JS API with proper async responses.
 
----
+### 5.3 File dialogs
 
-## Phase 7: SF Symbols Integration ✅
+- macOS dialogs are implemented in `system.zig`; Linux/Windows have TODO placeholders.
+- `bridge_dialog.zig` wiring back to JS is currently incomplete.
 
-### Task 7.1: Implement SF Symbols Icon Loading ✅
-- [x] Create `createSFSymbol()` function
-- [x] Use `NSImage.imageWithSystemSymbolName:accessibilityDescription:`
-- [x] Configure point size (16pt for sidebar, 20pt for files)
-- [x] Configure weight (Regular, Medium, Bold)
-- [x] Handle missing symbols (fallback to generic icon)
-- [x] Cache loaded symbols for performance
-- [x] Test with common SF Symbol names
+- **Tasks:**
+  - **[D3.1] Linux** – implement dialogs via `GtkFileChooserDialog` for single/multi-file and directory selection.
+  - **[D3.2] Windows** – implement dialogs via `IFileOpenDialog` / `IFileSaveDialog`, etc.
+  - **[D3.3]** Bridge results to JS with well-documented JSON structures and error codes.
 
-**Files created/modified:**
-- `packages/zig/src/macos/sf_symbols.zig` - rewritten to use macos.zig wrappers
+### 5.4 Tray and menubar
 
-**Completed:** Phase 7.1 ✅
+- `tray.zig`, `menubar.zig`, `system_tray` tests and docs already present.
+- Drag and drop and some platform-specific pieces are TODO.
 
----
+- **Tasks:**
+  - **[D4.1]** Finish Windows/Linux tray drag & drop support (TODO in `tray.zig`).
+  - **[D4.2]** Ensure tray menus and click handlers are consistent with `BRIDGE_API.md` (especially event names dispatched to JS).
 
-### Task 7.2: Integrate Icons into Cell Views ✅
-- [x] Add NSImageView to outline view cells
-- [x] Add NSImageView to table view cells
-- [x] Set image from SF Symbols
-- [x] Configure rendering mode (template for monochrome)
-- [x] Handle icon updates (when item changes)
-- [x] Test icon display in both light/dark mode
-- [x] Ensure proper sizing and alignment
+### 5.5 System enhancements and monitoring (`system_enhancements.zig`)
 
-**Files modified:**
-- `outline_view_delegate.zig` - added `getIconForItem()` helper, NSImageView creation with SF Symbols
-- `table_view_delegate.zig` - added `getFileIcon()` helper, `createNameCellView()` with SF Symbol icons
+- Contains multiple TODOs for:
+  - Dock progress, sleep/wake registration.
+  - Global hotkeys.
+  - Local storage JSON parsing.
+  - Memory/CPU utilization metrics.
 
-**Completed:** Phase 7.2 ✅
+- **Tasks:**
+  - **[D5.1] Dock progress** – implement per-platform progress indicators (macOS dock, Windows taskbar, Linux: DE-specific support when feasible).
+  - **[D5.2] Sleep/wake** – hook NSWorkspace notifications on macOS and platform-appropriate signals/events on Linux/Windows.
+  - **[D5.3] Global hotkeys** – implement proper registration/unregistration using Carbon (macOS) / XGrabKey (X11) / RegisterHotKey (Windows).
+  - **[D5.4] Local storage** – implement JSON read/modify/write for local configuration store, with minimal allocations and error-safe update semantics.
+  - **[D5.5] Metrics** – replace placeholder memory/CPU metrics with real system calls (task_info, /proc, GetSystemTimes, etc.) and expose them both in Zig and via JS bridge.
 
 ---
 
-## Phase 8: Testing & Polish
+## 6. Mobile Platform Layers – iOS and Android
 
-### Task 8.1: Create Comprehensive Example ✅
-- [x] Build full Finder-like app
-- [x] Demonstrate all features:
-  - [x] Multiple sidebar sections (Favorites, iCloud, Locations, Tags)
-  - [x] 100+ files in browser (194 files with various types)
-  - [x] Selection callbacks (sidebar and file browser)
-  - [x] Double-click callbacks (file browser)
-  - [x] Icon display (SF Symbols for all items)
-  - [x] Resizable split view
-- [x] Add keyboard shortcuts (arrow keys for navigation, spacebar for Quick Look)
-- [x] Add context menus (right-click)
-- [x] Match Finder behavior closely
+Focus modules: `mobile.zig`, `ios/`, `android/`, mobile parts of bridge/docs.
 
-**Files created:**
-- `examples/native-finder-complete/index.html` - Full Finder-like demo with:
-  - 4 sidebar sections with 18 items using SF Symbol icons
-  - 194 files across 6 folder prefixes with various file types
-  - Real-time activity log showing all interactions
-  - Stats dashboard showing sidebar items, file count, selection events
-  - Feature showcase cards documenting capabilities
+- **[M1] iOS WebView lifecycle**
+  - Finish **allocator association** and deallocation correctness (`createWebView`, `destroyWebView`).
+  - Implement proper WebView embedding lifecycle (view controllers, rotation, safe area) with clear Zig APIs.
 
-**Completed:** Phase 8.1 ✅
+- **[M2] Android WebView lifecycle**
+  - Ensure JNI helpers are robust and handle failure paths clearly.
+  - Implement WebView creation, teardown, and navigation in a way that mirrors the iOS API surface.
 
----
+- **[M3] Permissions, haptics, and device APIs**
+  - Fill TODOs for:
+    - Permissions request flows.
+    - Haptics and vibration mapping.
+    - Device info and capabilities.
+  - Expose them via **unified bridge methods** and **typed Zig APIs** for non-JS consumers.
 
-### Task 8.2: Performance Testing ✅
-- [x] Test with 1,000 files
-- [x] Test with 10,000 files
-- [x] Measure memory usage
-- [x] Measure CPU usage during scroll
-- [x] Optimize reloadData calls (batch updates)
-- [x] Add virtualization if needed
-- [x] Profile with Instruments
-- [x] Document performance characteristics
-
-**Files created:**
-- `examples/performance-test/index.html` - Interactive performance test suite with:
-  - Tests for 100, 1,000, 5,000, and 10,000 files
-  - Load time measurement
-  - Files/second throughput metrics
-  - Batch timing analysis
-  - Results table with pass/warn/fail status
-
-**Completed:** Phase 8.2 ✅
+- **[M4] Project templates and build tooling**
+  - Solidify `android_template.zig` and `ios_template.zig` as the basis for `create-craft` templates.
+  - Ensure a developer can:
+    - `bun create craft my-app-mobile`.
+    - Run `craft mobile build ios|android` to generate appropriate Xcode/Gradle projects.
 
 ---
 
-### Task 8.3: Documentation ✅
-- [x] Write API documentation
-- [x] Create usage examples (10+ examples)
-- [x] Document component lifecycle
-- [x] Document memory management
-- [x] Create architecture diagrams
-- [x] Write troubleshooting guide
-- [x] Add inline code comments
-- [x] Create video tutorial script
+## 7. Native Components and Layout
 
-**Files created:**
-- `packages/zig/docs/NATIVE-UI-API.md` - Complete API reference with:
-  - Sidebar, FileBrowser, SplitView APIs
-  - SF Symbol icon reference
-  - Best practices
-  - Error handling
-  - Performance characteristics
+Focus modules: `components.zig`, `components/*`, `bridge_native_ui.zig`, `ui_automation.zig`, `accessibility.zig`.
 
-- `packages/zig/docs/NATIVE-UI-EXAMPLES.md` - 10+ usage examples:
-  - Simple sidebar
-  - File browser with selection
-  - Finder-like layout
-  - Dynamic file loading
-  - Notes app sidebar
-  - Project browser
-  - Search results
-  - Multi-select handling
-  - Refresh on focus
-  - Drag and drop ready
+- **[NC1] Cross-platform component taxonomy**
+  - Document each component (Button, TextInput, Tabs, DataGrid, Rating, CodeEditor, etc.) with:
+    - Supported platforms.
+    - Backing native widget (AppKit, GTK, Win32, UIKit, Material, etc.).
+    - Known limitations and performance characteristics.
 
-- `packages/zig/docs/NATIVE-UI-ARCHITECTURE.md` - Architecture documentation:
-  - Component hierarchy diagrams
-  - Dynamic ObjC class creation
-  - Memory management model
-  - Component lifecycle
-  - Thread safety
-  - Error handling
-  - SF Symbols integration
-  - Performance considerations
+- **[NC2] Declarative API surface**
+  - Align component APIs with a React-style model used from JS:
+    - Props mapped to native properties.
+    - Events mapped to bridge events (`onClick`, `onChange`, etc.).
+  - Ensure Zig-only consumers can also compose these components efficiently.
 
-- `packages/zig/docs/VIDEO-TUTORIAL-SCRIPT.md` - Video tutorial script:
-  - 10-15 minute tutorial outline
-  - 8 sections covering all features
-  - Code examples for each section
-  - Recording tips and B-roll suggestions
-  - Pre-recording checklist
+- **[NC3] Context menu and drag/drop**
+  - Finish TODOs in `components/context_menu.zig` and `components/drag_drop.zig`:
+    - Nested submenus.
+    - Extracting item IDs from pasteboard for drag/drop callbacks.
 
-**Completed:** Phase 8.3 ✅
+- **[NC4] Accessibility guarantees**
+  - Integrate `accessibility.zig` consistently across components:
+    - ARIA roles, states, and live-region announcements bridging into native APIs.
+    - Provide test utilities validating accessibility per component.
 
 ---
 
-## Phase 9: Advanced Features
+## 8. Performance, Memory, and Benchmarking
 
-### Task 9.1: Add Drag and Drop Support ✅
-- [x] Implement `NSDraggingSource` protocol
-- [x] Implement `NSDraggingDestination` protocol
-- [x] Handle file drops from Finder
-- [x] Handle drag reordering in sidebar
-- [x] Send drag events to JavaScript
-- [x] Test drag between views
+Focus modules: `performance.zig`, `benchmark.zig`, `profiler.zig`, `memory.zig`, `mobile.NativeObjectManager`, `system_enhancements.zig` metrics.
 
-**Files created:**
-- `packages/zig/src/components/drag_drop.zig` - Complete drag/drop implementation:
-  - `DraggingSourceDelegate` - NSDraggingSource protocol
-  - `DraggingDestinationDelegate` - NSDraggingDestination protocol
-  - `DragSession` - Drag session state management
-  - `DragOperation` - Operation masks (Copy, Move, Link, etc.)
-  - Helper functions: `registerForDraggedTypes`, `createDraggingItem`, `beginDraggingSession`
+- **[PFX1] Memory tracking & leak detection**
+  - Generalize `NativeObjectManager` beyond mobile; allow registering any long-lived native object (windows, webviews, trays, components).
+  - Provide a **debug mode** where leaks are printed on shutdown and tests assert no leaked objects.
 
-**Completed:** Phase 9.1 ✅
+- **[PFX2] Allocation strategy**
+  - In hot paths (bridge handlers, event loops, IPC), adopt:
+    - Fixed-size arenas or bump allocators where feasible.
+    - Reuse buffers for JSON parsing/stringification where size bounds are known.
 
----
+- **[PFX3] Benchmark suite**
+  - Use `benchmark.zig`, `system_tray_benchmark.zig`, and the existing tests to produce:
+    - Startup time benchmarks.
+    - IPC round-trip benchmarks.
+    - Component render cost benchmarks (e.g., many buttons, data grid updates).
+  - Expose CLI commands (`zig build bench`, `craft bench ...`) to run and compare metrics.
 
-### Task 9.2: Add Context Menus ✅
-- [x] Create NSMenu dynamically
-- [x] Handle right-click on sidebar items
-- [x] Handle right-click on files
-- [x] Send menu action to JavaScript
-- [x] Support custom menu items
-- [x] Test menu display and actions
-
-**Files created:**
-- `packages/zig/src/components/context_menu.zig` - Complete context menu implementation:
-  - `ContextMenuDelegate` - Dynamic ObjC class for menu actions
-  - `MenuCallbackData` - Stores menu item IDs and callbacks
-  - `createMenu()` - Creates NSMenu with items
-  - `createMenuItem()` - Creates NSMenuItem with icons, shortcuts
-  - `showContextMenu()` - Displays menu at position
-  - `parseShortcut()` - Parses keyboard shortcuts (cmd+c, etc.)
-  - Default menu items for sidebar and file browser
-
-**Bridge updates:**
-- `packages/zig/src/bridge_native_ui.zig` - Added `showContextMenu` handler
-
-**JavaScript API updates:**
-- `packages/zig/src/js/craft-native-ui.js`:
-  - `Sidebar.showContextMenu()` - Show context menu for sidebar items
-  - `Sidebar.onContextMenu()` - Register callback for menu actions
-  - `FileBrowser.showContextMenu()` - Show context menu for files
-  - `FileBrowser.onContextMenu()` - Register callback for menu actions
-  - `nativeUI.showContextMenu()` - Global context menu API
-
-- `packages/zig/examples/context-menu-test/index.html` - Context menu test suite:
-  - 7 test cases covering all menu features
-  - Basic menus, icons, shortcuts, separators, disabled items
-  - Sidebar and file browser context menus
-  - Pass/Fail tracking with activity log
-
-**Completed:** Phase 9.2 ✅
+- **[PFX4] Profiling hooks**
+  - Integrate `profiler.zig` into window lifecycle and bridge so developers can profile:
+    - JS → native → JS call chains.
+    - Per-window memory and CPU usage.
 
 ---
 
-### Task 9.3: Add Quick Look Support ✅
-- [x] Integrate QLPreviewPanel
-- [x] Show preview on spacebar press
-- [x] Support all file types
-- [x] Test with various file formats
+## 9. Plugins, WASM, and Security
 
-**Files created:**
-- `packages/zig/src/components/quick_look.zig` - Complete Quick Look implementation:
-  - `QuickLookController` - Manages QLPreviewPanel lifecycle
-  - `QuickLookCallbackData` - Stores preview items and callbacks
-  - `QLPreviewPanelDataSource` - Dynamic ObjC class for providing items
-  - `QLPreviewPanelDelegate` - Dynamic ObjC class for handling events
-  - `CraftQLPreviewItem` - Dynamic ObjC class implementing QLPreviewItem protocol
-  - Support for multiple files with navigation
-  - Keyboard event handling (spacebar toggle)
+Focus modules: `wasm.zig`, `plugin_security.zig`, `marketplace.zig`, `api_http.zig`, bridge modules used for plugin-host IPC.
 
-**Bridge updates:**
-- `packages/zig/src/bridge_native_ui.zig`:
-  - `showQuickLook` - Show panel with files
-  - `closeQuickLook` - Close panel
-  - `toggleQuickLook` - Toggle panel visibility
+- **[PL1] Plugin execution model**
+  - Define how WASM plugins are hosted inside Craft:
+    - Clarify boundary between `wasm.WasmRuntime`/`PluginManager` and `plugin_security.Sandbox`/`PluginManager`.
+    - Document startup/shutdown lifecycle: load, `init`, calls, `deinit`, unload.
+    - Ensure plugin calls into host APIs (`PluginAPI`) are safe, bounded by sandbox limits (memory, CPU, syscalls).
 
-**JavaScript API updates:**
-- `packages/zig/src/js/craft-native-ui.js`:
-  - `nativeUI.showQuickLook()` - Show Quick Look panel
-  - `nativeUI.closeQuickLook()` - Close panel
-  - `nativeUI.toggleQuickLook()` - Toggle visibility
-  - `nativeUI.previewFile()` - Convenience method for single file
-  - `FileBrowser.previewFile()` - Preview file from browser
-  - `FileBrowser.previewFiles()` - Preview multiple files
-  - `FileBrowser.toggleQuickLook()` - Toggle for files
+- **[PL2] Permissions and policy integration**
+  - Wire `security.PermissionSet` and `SecurityPolicy` into the WASM plugin path:
+    - Enforce permissions at host-API entry points (filesystem, network, clipboard, window creation, notifications, IPC).
+    - Provide a minimal JSON representation of requested permissions for UI prompts and CLI approval flows.
+    - Connect plugin permission checks to bridge so JS/TS code can see which permissions a plugin has.
 
-- `packages/zig/examples/quick-look-test/index.html` - Quick Look test suite:
-  - Tests for 20+ file formats (documents, images, media, code, archives)
-  - Categories: Documents, Images, Media, Code, Archives
-  - Uses system files for testing where available
-  - Custom path testing for user files
-  - Spacebar toggle support
-  - Pass/Fail/N/A tracking
+- **[PL3] Marketplace + registry behavior**
+  - Extend `marketplace.zig` to:
+    - Actually fetch plugin metadata over HTTP (using `api_http.zig`).
+    - Validate checksums and sizes against downloaded artifacts.
+    - Respect `required_permissions` and `security_policy` when installing, with user confirmation flows.
+  - Define an on-disk layout for installed plugins that works across macOS/Linux/Windows.
 
-**Completed:** Phase 9.3 ✅
+- **[PL4] Signing, verification, and trust**
+  - Use `plugin_security.Plugin.verify`/`sign` to:
+    - Enforce signature checks for plugins from “verified” registries before enabling them.
+    - Store verification state and provenance (registry, signing key) alongside `InstalledPlugin`.
+  - Provide tooling/CLI support to:
+    - Generate keypairs for plugin authors.
+    - Sign plugin artifacts as part of their build pipeline.
 
----
+- **[PL5] JS bridge exposure for plugins**
+  - Design a small, typed bridge surface allowing JS apps to:
+    - Discover available plugins and their capabilities.
+    - Call exported plugin functions via a safe async RPC layer (`craft.plugins.call(id, fn, args)`).
+    - Subscribe to plugin-emitted events streamed back over the existing JS bridge.
+  - Avoid exposing raw WASM internals; keep the JS-facing surface minimal and future-proof.
 
-## Summary
-
-### Total Estimated Time
-- **Phase 1-2 (Protocols):** 15-20 hours
-- **Phase 3 (Components):** 15-20 hours
-- **Phase 4 (Bridge):** 12-16 hours
-- **Phase 5 (JavaScript):** 6-9 hours
-- **Phase 6 (Memory):** 12-16 hours
-- **Phase 7 (Icons):** 8-10 hours
-- **Phase 8 (Testing):** 22-28 hours
-- **Phase 9 (Advanced):** 24-30 hours
-
-**Total: 114-149 hours (3-4 weeks full-time)**
-
-### Prerequisites
-- [x] Zig 0.11.0+
-- [x] macOS 11.0+ SDK
-- [x] Xcode Command Line Tools
-- [x] Understanding of Objective-C runtime
-- [x] Understanding of Craft bridge system
-
-### Success Criteria
-- [x] Sidebar displays sections and items with icons
-- [x] File browser displays files in sortable columns
-- [x] Selection callbacks fire correctly
-- [x] Double-click callbacks fire correctly
-- [x] Split view divider is resizable
-- [x] No memory leaks under heavy usage
-- [x] Performance with 1000+ files is acceptable
-- [x] JavaScript API is easy to use
-- [x] Documentation is complete
-- [x] Keyboard shortcuts work (arrow keys, spacebar for Quick Look)
+- **[PL6] Sandbox hardening**
+  - Clarify how `PluginSandbox` and `plugin_security.Sandbox` interact:
+    - Single source of truth for memory/CPU/time limits.
+    - Consistent audit logging for security-relevant operations (filesystem, network, exec).
+  - Add tests that intentionally violate limits (memory, CPU time, forbidden API) and assert that plugins are terminated or disabled safely.
 
 ---
 
-## Current Status: ALL PHASES COMPLETE ✅ 🎉
+## 10. Tooling, CLI, and TS SDK Integration
 
-**COMPLETED:**
-- ✅ Phase 1: NSOutlineViewDataSource and NSTableViewDataSource protocols
-- ✅ Phase 2: NSOutlineViewDelegate and NSTableViewDelegate protocols
-- ✅ Phase 3: NativeSidebar, NativeFileBrowser, and NativeSplitView components
-- ✅ Phase 4: NativeUIBridge integration into macos.zig with full JSON parsing
-- ✅ Phase 5: JavaScript API (`window.craft.nativeUI`) with class-based interface
-- ✅ Phase 6: Memory management with proper deinit, ObjC release, and edge case handling
-- ✅ Phase 7: SF Symbols integration with icons in sidebar and file browser cells
-- ✅ Phase 8.1: Comprehensive Finder-like example with 194 files and 18 sidebar items
-- ✅ Phase 8.2: Performance testing suite for 100-10,000 files
-- ✅ Phase 8.3: Complete documentation (API, examples, architecture)
-- ✅ Phase 9.1: Drag and Drop support with NSDraggingSource/NSDraggingDestination
-- ✅ Phase 9.2: Context Menus with NSMenu and NSMenuItem
-- ✅ Phase 9.3: Quick Look support with QLPreviewPanel
-- ✅ All Zig 0.16 compatibility issues resolved
-- ✅ Build succeeds with no errors
+Focus modules: `cli.zig`, `cli_enhanced.zig`, `config.zig`, `package.zig`, `devtools.zig`, TypeScript packages.
 
-**IMPLEMENTATION DETAILS (Phase 9.3 - Final):**
-- `packages/zig/src/components/quick_look.zig` - Quick Look implementation:
-  - QuickLookController for panel lifecycle management
-  - QLPreviewPanelDataSource dynamic ObjC class
-  - QLPreviewPanelDelegate dynamic ObjC class
-  - CraftQLPreviewItem implementing QLPreviewItem protocol
-  - Multi-file preview support with navigation
-  - Spacebar toggle support
-- `packages/zig/src/bridge_native_ui.zig` - Quick Look handlers
-- `packages/zig/src/js/craft-native-ui.js` - Quick Look JavaScript API
+- **[T1] CLI coherence**
+  - Unify the various CLI entrypoints and ensure flags are **documented and stable**.
+  - Map CLI options directly into `WindowOptions`, `App` behavior, and bridge configuration.
 
-**COMPONENT SUMMARY:**
-| Component | File | Description |
-|-----------|------|-------------|
-| Native Sidebar | `native_sidebar.zig` | NSOutlineView with sections/items |
-| Native File Browser | `native_file_browser.zig` | NSTableView with columns |
-| Native Split View | `native_split_view.zig` | NSSplitView container |
-| SF Symbols | `sf_symbols.zig` | NSImage system symbols |
-| Drag & Drop | `drag_drop.zig` | NSDraggingSource/Destination |
-| Context Menus | `context_menu.zig` | NSMenu/NSMenuItem |
-| Quick Look | `quick_look.zig` | QLPreviewPanel |
-| Keyboard Handler | `keyboard_handler.zig` | Arrow keys, spacebar (Quick Look) |
+- **[T2] Config & package system**
+  - Strengthen `package.zig`, `package_*` to support:
+    - Resolution of config files (`craft.toml`, `craft.json`, etc.).
+    - Workspace-aware builds and multi-target builds from a single config.
 
-**JAVASCRIPT API:**
-```javascript
-// Sidebar
-const sidebar = nativeUI.createSidebar({ id: 'main' });
-sidebar.addSection({ id: 'nav', items: [...] });
-sidebar.onSelect(callback);
-sidebar.showContextMenu({ itemId, x, y, items });
+- **[T3] TypeScript SDK sync**
+  - Ensure `ts-craft`’s TypeScript types for `window.craft` and CLI options are **generated or derived** from Zig definitions where possible to avoid drift.
+  - Add a small codegen step that reads Zig bridge metadata and emits TS declaration files.
 
-// File Browser
-const browser = nativeUI.createFileBrowser({ id: 'files' });
-browser.addFiles([...]);
-browser.onSelect(callback);
-browser.onDoubleClick(callback);
-browser.showContextMenu({ fileId, x, y, items });
-browser.previewFile(fileId, filePath, title);
-
-// Quick Look
-nativeUI.showQuickLook({ files: [...] });
-nativeUI.toggleQuickLook({ files: [...] });
-nativeUI.previewFile(filePath, title);
-```
-
-**PROJECT COMPLETE!** All 9 phases of the Native macOS Tahoe UI implementation have been completed.
+- **[T4] Devtools and hot reload**
+  - Make `hotreload.zig` / `devmode.zig` **opt-in** (feature flags and CLI flags), keeping `craft-minimal` as clean as possible.
+  - Document the state-preservation semantics of hot reload for desktop and mobile.
 
 ---
 
-## Additional Bridge Enhancements (December 2025)
+## 11. Testing and Quality
 
-### Window Bridge Enhancements ✅
-| Handler | File | Description |
-|---------|------|-------------|
-| `setVibrancy` | `bridge_window.zig` | NSVisualEffectView materials |
-| `setAlwaysOnTop` | `bridge_window.zig` | Window level control |
-| `setOpacity` | `bridge_window.zig` | Window alpha value |
-| `setResizable` | `bridge_window.zig` | Style mask toggle |
-| `setBackgroundColor` | `bridge_window.zig` | Hex/RGBA color support |
-| `setMinSize` | `bridge_window.zig` | Minimum window constraints |
-| `setMaxSize` | `bridge_window.zig` | Maximum window constraints |
-| `setMovable` | `bridge_window.zig` | Window dragging control |
-| `setHasShadow` | `bridge_window.zig` | Window shadow toggle |
-| `setAspectRatio` | `bridge_window.zig` | Lock aspect ratio (16:9, etc.) |
-| `flashFrame` | `bridge_window.zig` | Bounce dock icon for attention |
-| `setProgressBar` | `bridge_window.zig` | Dock icon progress indicator |
+- Extensive tests already exist (see `packages/zig/build.zig` test wiring). The roadmap should extend coverage in key areas:
 
-### Dialog Bridge ✅
-| Handler | Description |
-|---------|-------------|
-| `openFile` | NSOpenPanel single file selection |
-| `openFiles` | NSOpenPanel multiple file selection |
-| `openFolder` | NSOpenPanel directory selection |
-| `saveFile` | NSSavePanel with default name |
-| `showAlert` | NSAlert with style (info/warning/critical) |
-| `showConfirm` | NSAlert with OK/Cancel buttons |
+- **[Q1] Bridge integration tests**
+  - Add tests that:
+    - Simulate JS messages hitting `JSBridge` and verify structured responses.
+    - Cover error cases (unknown method, invalid params, internal error).
 
-**File:** `packages/zig/src/bridge_dialog.zig`
+- **[Q2] Platform-specific tests**
+  - Mark tests that require a live GUI environment and separate them from headless tests.
+  - Introduce conditional compilation or tags for platform-only tests.
 
-### Clipboard Bridge ✅
-| Handler | Description |
-|---------|-------------|
-| `writeText` | NSPasteboard text write |
-| `readText` | NSPasteboard text read |
-| `writeHTML` | NSPasteboard HTML write |
-| `readHTML` | NSPasteboard HTML read |
-| `clear` | NSPasteboard clear |
-| `hasText` | Check for text content |
-| `hasHTML` | Check for HTML content |
-| `hasImage` | Check for image content |
-
-**File:** `packages/zig/src/bridge_clipboard.zig`
-
-### Tray Bridge Enhancements ✅
-| Handler | Description |
-|---------|-------------|
-| `hide` | Hide status item |
-| `show` | Show status item |
-| `setIcon` | SF Symbol icon support |
-| `setBadge` | Dock badge label (e.g., "42") |
-
-**File:** `packages/zig/src/bridge_tray.zig`
-
-### Error Handling ✅
-Centralized error handling system in `packages/zig/src/bridge_error.zig`:
-- `BridgeError` enum with 14 error types
-- `ErrorContext` struct for rich error info
-- `sendErrorToJS()` - sends error to JavaScript via eval
-- All bridge files updated with proper error returns
-
-### Notification Bridge ✅
-| Handler | Description |
-|---------|-------------|
-| `show` | Show immediate notification |
-| `schedule` | Schedule notification with delay |
-| `cancel` | Cancel pending notification by ID |
-| `cancelAll` | Cancel all pending notifications |
-| `setBadge` | Set dock badge count |
-| `clearBadge` | Clear dock badge |
-| `requestPermission` | Request notification permission |
-
-**File:** `packages/zig/src/bridge_notification.zig`
-
-### Global Shortcuts Bridge ✅
-| Handler | Description |
-|---------|-------------|
-| `register` | Register global keyboard shortcut |
-| `unregister` | Unregister shortcut by ID |
-| `unregisterAll` | Unregister all shortcuts |
-| `enable` | Enable a disabled shortcut |
-| `disable` | Disable a shortcut |
-| `isRegistered` | Check if shortcut is registered |
-| `list` | List all registered shortcuts |
-
-**File:** `packages/zig/src/bridge_shortcuts.zig`
-
-### Application Menu Bridge ✅
-| Handler | Description |
-|---------|-------------|
-| `setAppMenu` | Set the application menu bar |
-| `setDockMenu` | Set the dock right-click menu |
-| `clearDockMenu` | Clear the dock menu |
-| `enableMenuItem` | Enable a menu item by ID |
-| `disableMenuItem` | Disable a menu item by ID |
-| `checkMenuItem` | Add checkmark to menu item |
-| `uncheckMenuItem` | Remove checkmark from menu item |
-| `setMenuItemLabel` | Update menu item label text |
-
-**Features:**
-- NSMenu/NSMenuItem creation with keyboard shortcuts
-- Nested submenus support
-- Separator items
-- SF Symbol icons for menu items
-- Callback to JavaScript on menu action
-
-**File:** `packages/zig/src/bridge_menu.zig`
-
-### Auto-Updater Bridge (Sparkle) ✅
-| Handler | Description |
-|---------|-------------|
-| `configure` | Configure updater with feed URL, auto-check settings |
-| `checkForUpdates` | Check for updates and show UI if available |
-| `checkForUpdatesInBackground` | Silent background check |
-| `setAutomaticChecks` | Enable/disable automatic update checks |
-| `setCheckInterval` | Set check interval in seconds |
-| `setFeedURL` | Set appcast feed URL |
-| `getLastUpdateCheckDate` | Get timestamp of last check |
-| `getUpdateInfo` | Get current update configuration |
-
-**Note:** Requires Sparkle framework to be linked with the application.
-
-**File:** `packages/zig/src/bridge_updater.zig`
-
-### Touch Bar Bridge ✅
-| Handler | Description |
-|---------|-------------|
-| `setItems` | Set all touch bar items at once |
-| `addItem` | Add a single item to touch bar |
-| `removeItem` | Remove item by ID |
-| `updateItem` | Update item properties (label, icon) |
-| `setItemLabel` | Update item label text |
-| `setItemIcon` | Update item SF Symbol icon |
-| `setItemEnabled` | Enable/disable an item |
-| `setSliderValue` | Set slider value |
-| `clear` | Clear all touch bar items |
-| `show` | Show the touch bar |
-| `hide` | Hide the touch bar |
-
-**Supported Item Types:**
-- `button` - Button with label and/or SF Symbol icon
-- `label` - Text label
-- `slider` - Slider with min/max/value
-- `colorPicker` - Color picker
-- `spacer` - Flexible space
-
-**File:** `packages/zig/src/bridge_touchbar.zig`
-
-### File System Bridge ✅
-| Handler | Description |
-|---------|-------------|
-| `readFile` | Read file contents with callback |
-| `writeFile` | Write content to file |
-| `appendFile` | Append content to file |
-| `deleteFile` | Delete a file |
-| `exists` | Check if path exists |
-| `stat` | Get file statistics (size, mtime, isDir) |
-| `readDir` | List directory contents |
-| `mkdir` | Create directory |
-| `rmdir` | Remove directory |
-| `copy` | Copy file to destination |
-| `move` | Move/rename file |
-| `watch` | Watch path for changes |
-| `unwatch` | Stop watching path |
-| `getHomeDir` | Get user home directory |
-| `getTempDir` | Get system temp directory |
-| `getAppDataDir` | Get application data directory |
-
-**File:** `packages/zig/src/bridge_fs.zig`
-
-### Shell Commands Bridge ✅
-| Handler | Description |
-|---------|-------------|
-| `exec` | Execute command and wait for result |
-| `spawn` | Spawn background process |
-| `kill` | Kill a spawned process |
-| `openUrl` | Open URL in default browser |
-| `openPath` | Open file with default application |
-| `showInFinder` | Reveal file in Finder |
-| `getEnv` | Get environment variable |
-| `setEnv` | Set environment variable |
-
-**File:** `packages/zig/src/bridge_shell.zig`
-
-### Unit Tests ✅
-**Zig Tests:** 22 passing tests in `packages/zig/src/bridge_test.zig`:
-- JSON parsing (size, color, opacity, boolean, title, position, vibrancy, RGBA, notification, badge, clipboard, file dialog)
-- Action string matching
-- Memory allocation
-- Error handling edge cases
-- Action list completeness (26 window, 8 tray, 8 clipboard, 6 dialog)
-
-**TypeScript Integration Tests:** 232 passing tests in `packages/typescript/src/__tests__/integration/bridge.test.ts`:
-- Window bridge messages (show, setSize, setPosition, setTitle, setVibrancy, setOpacity, setBackgroundColor, setMinSize, setMaxSize, boolean actions, setAspectRatio, flashFrame, setProgressBar)
-- Tray bridge messages (setTitle, setTooltip, setIcon, hide/show, setMenu, setBadge)
-- Dialog bridge messages (openFile, saveFile, showAlert, showConfirm)
-- Clipboard bridge messages (writeText, readText, writeHTML, clear, hasText/hasHTML/hasImage)
-- Notification bridge messages (show, schedule, cancel, cancelAll, setBadge, clearBadge, requestPermission)
-- Shortcuts bridge messages (register, unregister, unregisterAll, enable, disable, list, isRegistered)
-- Menu bridge messages (setAppMenu, setDockMenu, clearDockMenu, enableMenuItem, disableMenuItem, checkMenuItem, uncheckMenuItem, setMenuItemLabel, nested submenus, keyboard shortcuts)
-- Updater bridge messages (configure, checkForUpdates, checkForUpdatesInBackground, setAutomaticChecks, setCheckInterval, setFeedURL, getLastUpdateCheckDate, getUpdateInfo)
-- Touch Bar bridge messages (setItems, addItem, removeItem, updateItem, setSliderValue, setItemEnabled, clear, show/hide, colorPicker, label)
-- File System bridge messages (readFile, writeFile, appendFile, deleteFile, exists, stat, readDir, mkdir, rmdir, copy, move, watch, unwatch, getHomeDir, getTempDir, getAppDataDir)
-- Shell Commands bridge messages (exec, spawn, kill, openUrl, openPath, showInFinder, getEnv, setEnv)
-- Error response handling
-- JSON serialization
-- Message queue
-
-### TypeScript APIs ✅
-| File | New Methods |
-|------|-------------|
-| `api/window.ts` | `setMinSize()`, `setMaxSize()` |
-| `api/dialog.ts` | `openFile()`, `openFolder()`, `saveFile()`, `showAlert()`, `showConfirm()`, `showPrompt()` |
-| `api/clipboard.ts` | `writeText()`, `readText()`, `writeHTML()`, `readHTML()`, `clear()`, `hasText()`, `hasHTML()`, `hasImage()` |
+- **[Q3] E2E examples**
+  - For key use cases (Pomodoro tray app, menubar-only app, notification-driven app), add E2E tests/scripts validating:
+    - CLI invocation.
+    - Bridge events.
+    - Resource cleanup on exit.
 
 ---
 
-*Last updated: December 2025*
+## 12. Documentation and Guides
+
+- **[Dox1] Architecture docs** (see section 2) – new docs under `docs/architecture/`.
+- **[Dox2] Zig API reference**
+  - Extend `API_REFERENCE.md` with **Zig-first** examples for all major APIs, mirroring TS docs.
+- **[Dox3] Bridge reference**
+  - Consolidate `BRIDGE_API.md` + `QUICK_REFERENCE.md` into a single canonical source, with:
+    - Exact JSON message formats.
+    - Error codes and feature-detection patterns.
+    - Desktop vs mobile behavior notes.
+- **[Dox4] Migration guides**
+  - Extend `PLATFORMS.md` and migration sections with:
+    - Tauri → Craft mapping by feature (window, tray, invoke, updater, etc.).
+    - React Native → Craft mapping for mobile.
+
+---
+
+## 13. Concrete TODO Hotspots from Zig Sources
+
+This section cross-references **current in-code TODOs** to ensure none are lost. Each item should be tracked and eventually linked to an issue.
+
+- **Clipboard and dialogs**
+  - `linux.zig`: `getClipboard` – TODO async clipboard read.
+  - `bridge_clipboard.zig`: TODO send clipboard read result back to JS.
+  - `bridge_dialog.zig`: TODO send file selection results back to JS for single and multi-file dialogs.
+
+- **Window and menus**
+  - `bridge_window.zig`: TODO parse fullscreen boolean from incoming data.
+  - `bridge_native_ui.zig`: TODO support nested submenus.
+  - `components/context_menu.zig`: TODO nested submenu support.
+
+- **Notifications**
+  - `notifications.zig`: TODO implement Linux notifications via libnotify with action support.
+  - `notifications.zig`: TODO implement Windows Toast Notification API with action buttons.
+
+- **Mobile bridge**
+  - `mobile.zig` (iOS): TODO implement proper completion handler for `evaluateJavaScript` and wire callback.
+  - `mobile.zig` (Android): TODO wrap callback into `ValueCallback` for `evaluateJavascript`.
+  - `mobile.zig` (Android): TODO store permission callback and invoke in `onRequestPermissionsResult`.
+
+- **JS bridge**
+  - `js_bridge.zig`: TODO fetch actual device info from native APIs instead of stub values.
+  - `js_bridge.zig`: TODO call real Android toast APIs.
+  - `js_bridge.zig`: TODO show real iOS alerts or custom toasts.
+
+- **System enhancements**
+  - `system_enhancements.zig`: TODO implement dock progress indicator.
+  - `system_enhancements.zig`: TODO register for sleep/wake notifications on macOS.
+  - `system_enhancements.zig`: TODO unregister global hotkeys (`UnregisterEventHotKey` etc.).
+  - `system_enhancements.zig`: TODO register global hotkeys on macOS using Carbon.
+  - `system_enhancements.zig`: TODO implement JSON parsing and persistence for LocalStorage `set` / `get`.
+  - `system_enhancements.zig`: TODO use `task_info()` (or equivalents) for actual memory usage and compute real CPU usage.
+
+- **Drag & drop**
+  - `tray.zig`: TODO implement drag & drop for Windows and Linux trays.
+  - `components/drag_drop.zig`: TODO extract item IDs from pasteboard in drop callbacks.
+
+- **HTTP and headers**
+  - `api_http.zig`: TODO extract response headers instead of returning `null`.
+
+---
+
+## 14. Phased Delivery Plan
+
+A pragmatic phased plan for evolving Craft along this roadmap:
+
+- **Phase 1 – Core & Bridge Hardening**
+  - Stabilize `App`/`Window` API and `WindowBuilder`.
+  - Unify JS bridge and wire up clipboard/dialogs/window operations.
+  - Implement missing desktop notification & dialog features.
+
+- **Phase 2 – Mobile Parity**
+  - Finish mobile WebView/bridge lifecycle and permission APIs.
+  - Provide solid iOS/Android templates and build flows.
+
+- **Phase 3 – Components & DX**
+  - Harden native components, context menus, drag/drop, accessibility.
+  - Align CLI, config, and TS SDK with the core.
+
+- **Phase 4 – Performance & Observability**
+  - Roll out memory tracking, benchmarking, profiling.
+  - Add metrics and monitoring hooks across bridge and platform layers.
+
+- **Phase 5 – Ecosystem & Migration**
+  - Provide thorough docs and guides for migrating from Electron/Tauri/React Native.
+  - Solidify plugin & WASM story built on the minimal core.

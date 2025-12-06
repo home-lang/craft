@@ -307,3 +307,12 @@ export type {
   ClipboardFormat,
   ClipboardData
 } from './clipboard'
+
+// Media API - Camera and microphone access
+export { media } from './media'
+export type {
+  MediaDeviceInfo,
+  CameraOptions,
+  MicrophoneOptions,
+  MediaStreamOptions
+} from './media'

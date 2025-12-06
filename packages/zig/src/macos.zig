@@ -315,7 +315,24 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     const key_str = createNSString("developerExtrasEnabled");
     const value_obj = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
     msgSendVoid2(prefs, "setValue:forKey:", value_obj, key_str);
+
+    // Enable camera and microphone access for getUserMedia()
+    // javaScriptCanAccessClipboard is needed for some media-related APIs
+    const clipboard_key = createNSString("javaScriptCanAccessClipboard");
+    const clipboard_value = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
+    msgSendVoid2(prefs, "setValue:forKey:", clipboard_value, clipboard_key);
+
     _ = msgSend1(config, "setPreferences:", prefs);
+
+    // Configure media capture settings on WKWebViewConfiguration
+    // allowsInlineMediaPlayback - allows media to play inline (not fullscreen)
+    msgSendVoid1(config, "setAllowsInlineMediaPlayback:", true);
+
+    // mediaTypesRequiringUserActionForPlayback - set to none (0) to allow autoplay
+    // WKAudiovisualMediaTypeNone = 0
+    msgSendVoid1(config, "setMediaTypesRequiringUserActionForPlayback:", @as(c_ulong, 0));
+
+    std.debug.print("[Media] Configured WebView for camera/microphone access\n", .{});
 
     // Set up user content controller for JavaScript bridge
     const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
@@ -330,22 +347,14 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
         // Create bridge script
         const bridge_js_str = createNSString(bridge_js);
-        const bridge_script = msgSend3(
-            msgSend0(WKUserScript, "alloc"),
-            "initWithSource:injectionTime:forMainFrameOnly:",
-            bridge_js_str,
-            @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
+        const bridge_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", bridge_js_str, @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
             @as(c_int, 1) // YES - main frame only
         );
         _ = msgSend1(userContentController, "addUserScript:", bridge_script);
 
         // Create native UI script
         const native_ui_js_str = createNSString(native_ui_js);
-        const native_ui_script = msgSend3(
-            msgSend0(WKUserScript, "alloc"),
-            "initWithSource:injectionTime:forMainFrameOnly:",
-            native_ui_js_str,
-            @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
+        const native_ui_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", native_ui_js_str, @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
             @as(c_int, 1) // YES - main frame only
         );
         _ = msgSend1(userContentController, "addUserScript:", native_ui_script);
@@ -365,6 +374,11 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     // Create WKWebView with configuration
     const webview_alloc = msgSend0(WKWebView, "alloc");
     const webview = msgSend2(webview_alloc, "initWithFrame:configuration:", frame, config);
+
+    // Set up UI delegate for camera/microphone permission handling
+    setupUIDelegate(webview) catch |err| {
+        std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
+    };
 
     // Load content - either URL or HTML
     if (url) |u| {
@@ -448,7 +462,6 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     setupBridgeHandlers(allocator, null, window) catch |err| {
         std.debug.print("[Bridge] Failed to setup bridge handlers: {}\n", .{err});
     };
-
 
     // Apply dark mode if specified
     if (style.dark_mode) |is_dark| {
@@ -1136,6 +1149,7 @@ var global_power_bridge: ?*@import("bridge_power.zig").PowerBridge = null;
 var global_network_bridge: ?*@import("bridge_network.zig").NetworkBridge = null;
 var global_bluetooth_bridge: ?*@import("bridge_bluetooth.zig").BluetoothBridge = null;
 var global_tray_handle_for_bridge: ?*anyopaque = null;
+var global_clipboard_bridge: ?*@import("bridge_clipboard.zig").ClipboardBridge = null;
 
 pub fn setGlobalTrayHandle(handle: *anyopaque) void {
     global_tray_handle_for_bridge = handle;
@@ -1212,6 +1226,12 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         const ShellBridge = @import("bridge_shell.zig").ShellBridge;
         global_shell_bridge = try allocator.create(ShellBridge);
         global_shell_bridge.?.* = ShellBridge.init(allocator);
+    }
+
+    if (global_clipboard_bridge == null) {
+        const ClipboardBridge = @import("bridge_clipboard.zig").ClipboardBridge;
+        global_clipboard_bridge = try allocator.create(ClipboardBridge);
+        global_clipboard_bridge.?.* = ClipboardBridge.init(allocator);
     }
 
     // Set handles - use parameter or global
@@ -1390,6 +1410,12 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
     } else if (std.mem.eql(u8, msg_type, "shell")) {
         if (global_shell_bridge) |bridge| {
             try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "clipboard")) {
+        if (global_clipboard_bridge) |bridge| {
+            // ClipboardBridge expects optional raw JSON slice for data
+            const data_opt: ?[]const u8 = if (data_json_str.len > 0) data_json_str else null;
+            try bridge.handleMessageWithData(action, data_opt);
         }
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages
@@ -1594,13 +1620,7 @@ export fn didReceiveScriptMessage(self: objc.id, _: objc.SEL, userContentControl
     const options: c_ulong = 0; // NSJSONWritingPrettyPrinted = 1, 0 for compact
 
     // Create JSON data from dictionary
-    const json_data = msgSend3(
-        NSJSONSerialization,
-        "dataWithJSONObject:options:error:",
-        body,
-        options,
-        null
-    );
+    const json_data = msgSend3(NSJSONSerialization, "dataWithJSONObject:options:error:", body, options, null);
 
     if (json_data == null) {
         // Fallback to description format if JSON serialization fails
@@ -1616,19 +1636,9 @@ export fn didReceiveScriptMessage(self: objc.id, _: objc.SEL, userContentControl
 
     // Convert NSData to NSString
     const NSString = getClass("NSString");
-    const json_string = msgSend2(
-        NSString,
-        "alloc",
-        null,
-        null
-    );
+    const json_string = msgSend2(NSString, "alloc", null, null);
     const NSUTF8StringEncoding: c_ulong = 4;
-    const initialized_string = msgSend2(
-        json_string,
-        "initWithData:encoding:",
-        json_data,
-        NSUTF8StringEncoding
-    );
+    const initialized_string = msgSend2(json_string, "initWithData:encoding:", json_data, NSUTF8StringEncoding);
 
     if (initialized_string == null) {
         std.debug.print("[Bridge] Failed to convert JSON data to string\n", .{});
@@ -1697,6 +1707,134 @@ pub fn setupScriptMessageHandler(userContentController: objc.id) !void {
     msgSendVoid2(userContentController, "addScriptMessageHandler:name:", handler, handler_name);
 
     std.debug.print("[Bridge] Script message handler registered successfully\n", .{});
+}
+
+// ============================================================================
+// WKUIDelegate for Camera/Microphone Permissions
+// ============================================================================
+
+/// Media capture permission callback - automatically grants camera/microphone access
+/// This is called by WebKit when a webpage requests getUserMedia()
+fn handleMediaCapturePermission(
+    self: objc.id,
+    _sel: objc.SEL,
+    webView: objc.id,
+    origin: objc.id,
+    frame: objc.id,
+    mediaType: c_long,
+    decisionHandler: objc.id,
+) callconv(.c) void {
+    _ = self;
+    _ = _sel;
+    _ = webView;
+    _ = origin;
+    _ = frame;
+
+    // WKMediaCaptureType:
+    // 0 = WKMediaCaptureTypeCamera
+    // 1 = WKMediaCaptureTypeMicrophone
+    // 2 = WKMediaCaptureTypeCameraAndMicrophone
+    const media_type_str = switch (mediaType) {
+        0 => "camera",
+        1 => "microphone",
+        2 => "camera+microphone",
+        else => "unknown",
+    };
+    std.debug.print("[Media] Permission requested for: {s}\n", .{media_type_str});
+
+    // Grant permission by calling decisionHandler with WKPermissionDecisionGrant (1)
+    // WKPermissionDecision:
+    // 0 = WKPermissionDecisionDeny
+    // 1 = WKPermissionDecisionGrant
+    // 2 = WKPermissionDecisionPrompt
+    const invoke_sel = sel("invokeWithTarget:");
+
+    // The decisionHandler is a block that takes WKPermissionDecision
+    // We need to call it with 1 (grant) to allow media access
+    // Create an NSInvocation to call the block properly
+    const NSNumber = getClass("NSNumber");
+    const grant_decision = msgSend1(NSNumber, "numberWithInt:", @as(c_int, 1)); // WKPermissionDecisionGrant
+
+    // Blocks in Objective-C can be invoked directly with objc_msgSend
+    // The block signature is void(^)(WKPermissionDecision)
+    const block_invoke = @as(
+        *const fn (objc.id, c_long) callconv(.c) void,
+        @ptrCast(@alignCast(decisionHandler)),
+    );
+    _ = block_invoke;
+    _ = invoke_sel;
+    _ = grant_decision;
+
+    // Alternative: Use the block directly
+    // Blocks have a specific layout: isa, flags, reserved, invoke, descriptor
+    // The invoke function is at offset 16 (after isa, flags, reserved)
+    if (decisionHandler) |handler| {
+        const BlockLayout = extern struct {
+            isa: ?*anyopaque,
+            flags: c_int,
+            reserved: c_int,
+            invoke: *const fn (*anyopaque, c_long) callconv(.c) void,
+        };
+        const block: *BlockLayout = @ptrCast(@alignCast(handler));
+        // Call the block with WKPermissionDecisionGrant (1)
+        block.invoke(handler, 1);
+        std.debug.print("[Media] Permission granted for {s}\n", .{media_type_str});
+    }
+}
+
+/// Set up WKUIDelegate to handle media capture permission requests
+pub fn setupUIDelegate(webview: objc.id) !void {
+    std.debug.print("[Media] Setting up WKUIDelegate for media permissions...\n", .{});
+
+    // Create a custom class at runtime that implements WKUIDelegate
+    const superclass = getClass("NSObject");
+    const className = "CraftUIDelegate";
+
+    // Try to get existing class first (in case we're called multiple times)
+    var delegateClass = objc.objc_getClass(className);
+
+    if (delegateClass == null) {
+        // Allocate a new class pair
+        delegateClass = objc.objc_allocateClassPair(@ptrCast(superclass), className, 0);
+
+        if (delegateClass == null) {
+            std.debug.print("[Media] Failed to allocate UI delegate class pair\n", .{});
+            return error.ClassAllocationFailed;
+        }
+
+        // Add the method: webView:requestMediaCapturePermissionForOrigin:initiatedByFrame:type:decisionHandler:
+        // This is the macOS 12+ API for handling getUserMedia() permission requests
+        const method_sel = objc.sel_registerName("webView:requestMediaCapturePermissionForOrigin:initiatedByFrame:type:decisionHandler:");
+        const method_imp: objc.IMP = @ptrCast(@constCast(&handleMediaCapturePermission));
+        // Method signature: void return, self, _cmd, webView, origin, frame, type (long), decisionHandler (block)
+        // v = void, @ = object, : = selector, @ = object, @ = object, @ = object, q = long long, @? = block
+        const method_types: [*c]const u8 = "v@:@@@q@?";
+        const method_added = objc.class_addMethod(
+            @ptrCast(@alignCast(delegateClass)),
+            method_sel,
+            method_imp,
+            method_types,
+        );
+
+        if (!method_added) {
+            std.debug.print("[Media] Failed to add media permission method\n", .{});
+        } else {
+            std.debug.print("[Media] Added webView:requestMediaCapturePermissionForOrigin:... method\n", .{});
+        }
+
+        // Register the class
+        objc.objc_registerClassPair(@ptrCast(delegateClass));
+        std.debug.print("[Media] Registered CraftUIDelegate class\n", .{});
+    }
+
+    // Create an instance of our delegate
+    const delegate_class_id: objc.id = @ptrCast(@alignCast(delegateClass));
+    const delegate = msgSend0(msgSend0(delegate_class_id, "alloc"), "init");
+
+    // Set the UI delegate on the webview
+    msgSendVoid1(webview, "setUIDelegate:", delegate);
+
+    std.debug.print("[Media] UI delegate set successfully - camera/microphone permissions enabled\n", .{});
 }
 
 // ============================================================================

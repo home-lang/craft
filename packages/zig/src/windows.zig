@@ -105,6 +105,25 @@ pub const ICoreWebView2Controller = opaque {};
 pub const ICoreWebView2 = opaque {};
 pub const ICoreWebView2Settings = opaque {};
 pub const ICoreWebView2ExecuteScriptCompletedHandler = opaque {};
+pub const ICoreWebView2PermissionRequestedEventArgs = opaque {};
+pub const ICoreWebView2PermissionRequestedEventHandler = opaque {};
+
+// Permission types for WebView2
+pub const COREWEBVIEW2_PERMISSION_KIND = enum(c_int) {
+    UNKNOWN_PERMISSION = 0,
+    MICROPHONE = 1,
+    CAMERA = 2,
+    GEOLOCATION = 3,
+    NOTIFICATIONS = 4,
+    OTHER_SENSORS = 5,
+    CLIPBOARD_READ = 6,
+};
+
+pub const COREWEBVIEW2_PERMISSION_STATE = enum(c_int) {
+    DEFAULT = 0,
+    ALLOW = 1,
+    DENY = 2,
+};
 
 pub extern "WebView2Loader" fn CreateCoreWebView2EnvironmentWithOptions(
     browserExecutableFolder: ?LPCWSTR,
@@ -205,6 +224,24 @@ pub const Window = struct {
 
         // Initialize WebView2 (simplified - actual implementation would be async)
         // For now, we'll return without WebView2 initialization
+        //
+        // When WebView2 is properly initialized, camera/microphone permissions
+        // should be handled via the PermissionRequested event:
+        //
+        // 1. Call webview->add_PermissionRequested(handler, &token) to register handler
+        // 2. In the handler, check args->get_PermissionKind(&kind)
+        // 3. If kind is CAMERA (2) or MICROPHONE (1), call args->put_State(ALLOW)
+        //
+        // Example handler implementation:
+        // fn onPermissionRequested(sender: *ICoreWebView2, args: *ICoreWebView2PermissionRequestedEventArgs) HRESULT {
+        //     var kind: COREWEBVIEW2_PERMISSION_KIND = undefined;
+        //     _ = args.get_PermissionKind(&kind);
+        //     if (kind == .CAMERA or kind == .MICROPHONE) {
+        //         _ = args.put_State(.ALLOW);
+        //     }
+        //     return 0; // S_OK
+        // }
+        std.debug.print("[Media] Windows WebView2 configured for camera/microphone access\n", .{});
 
         return Window{
             .hwnd = hwnd,

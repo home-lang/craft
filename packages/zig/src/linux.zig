@@ -32,6 +32,13 @@ pub extern "c" fn webkit_settings_set_enable_webgl(settings: *anyopaque, enabled
 pub extern "c" fn webkit_settings_set_javascript_can_access_clipboard(settings: *anyopaque, enabled: c_int) void;
 pub extern "c" fn webkit_settings_set_hardware_acceleration_policy(settings: *anyopaque, policy: c_int) void;
 pub extern "c" fn webkit_settings_set_enable_javascript(settings: *anyopaque, enabled: c_int) void;
+// Media stream (camera/microphone) support
+pub extern "c" fn webkit_settings_set_enable_media_stream(settings: *anyopaque, enabled: c_int) void;
+pub extern "c" fn webkit_settings_set_enable_mediasource(settings: *anyopaque, enabled: c_int) void;
+pub extern "c" fn webkit_settings_set_enable_media_capabilities(settings: *anyopaque, enabled: c_int) void;
+// Permission request handling
+pub extern "c" fn webkit_permission_request_allow(request: *anyopaque) void;
+pub extern "c" fn webkit_permission_request_deny(request: *anyopaque) void;
 
 // JavaScript execution
 pub extern "c" fn webkit_web_view_run_javascript(
@@ -64,11 +71,23 @@ pub extern "c" fn gtk_window_set_child(window: *anyopaque, child: *anyopaque) vo
 pub extern "c" fn g_signal_connect_data(
     instance: *anyopaque,
     detailed_signal: [*:0]const u8,
-    c_handler: *const fn (*anyopaque, *anyopaque) callconv(.C) void,
+    c_handler: *const anyopaque,
     data: ?*anyopaque,
     destroy_data: ?*anyopaque,
     connect_flags: c_int,
 ) c_ulong;
+
+/// Permission request signal handler - auto-grants camera/microphone permissions
+fn onPermissionRequest(webview: *anyopaque, request: *anyopaque, user_data: ?*anyopaque) callconv(.C) c_int {
+    _ = webview;
+    _ = user_data;
+    // Auto-grant all permission requests (camera, microphone, geolocation, etc.)
+    // In a production app, you might want to check the type and prompt the user
+    webkit_permission_request_allow(request);
+    std.debug.print("[Media] Permission request granted\n", .{});
+    // Return TRUE (1) to indicate we handled the signal
+    return 1;
+}
 
 // Application state
 var app_instance: ?*anyopaque = null;
@@ -116,6 +135,22 @@ pub const Window = struct {
         webkit_settings_set_enable_developer_extras(settings, if (options.dev_tools) 1 else 0);
         webkit_settings_set_enable_webgl(settings, 1);
         webkit_settings_set_javascript_can_access_clipboard(settings, 1);
+
+        // Enable camera and microphone access (getUserMedia)
+        webkit_settings_set_enable_media_stream(settings, 1);
+        webkit_settings_set_enable_mediasource(settings, 1);
+        webkit_settings_set_enable_media_capabilities(settings, 1);
+
+        // Connect permission-request signal to auto-grant camera/microphone permissions
+        _ = g_signal_connect_data(
+            webview,
+            "permission-request",
+            @ptrCast(&onPermissionRequest),
+            null,
+            null,
+            0,
+        );
+        std.debug.print("[Media] Linux WebView configured for camera/microphone access\n", .{});
 
         // Set window properties
         const title_z = try std.heap.c_allocator.dupeZ(u8, options.title);
