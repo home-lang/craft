@@ -124,19 +124,25 @@ fn logInternal(
     var buf: [4096]u8 = undefined;
     var pos: usize = 0;
 
-    // Timestamp
+    // Timestamp - use posix clock for wall time where available
     if (config.show_timestamp) {
-        const ts = std.time.timestamp();
-        const hours = @mod(@divFloor(ts, 3600), 24);
-        const mins = @mod(@divFloor(ts, 60), 60);
-        const secs = @mod(ts, 60);
+        if (comptime @hasDecl(std.posix, "clock_gettime")) {
+            const ts = std.posix.clock_gettime(.REALTIME) catch {
+                // Skip timestamp if clock not available
+                return;
+            };
+            const secs_total: i64 = ts.sec;
+            const hours = @mod(@divFloor(secs_total, 3600), 24);
+            const mins = @mod(@divFloor(secs_total, 60), 60);
+            const secs = @mod(secs_total, 60);
 
-        const ts_str = std.fmt.bufPrint(buf[pos..], "{d:0>2}:{d:0>2}:{d:0>2} ", .{
-            @as(u64, @intCast(hours)),
-            @as(u64, @intCast(mins)),
-            @as(u64, @intCast(secs)),
-        }) catch return;
-        pos += ts_str.len;
+            const ts_str = std.fmt.bufPrint(buf[pos..], "{d:0>2}:{d:0>2}:{d:0>2} ", .{
+                @as(u64, @intCast(hours)),
+                @as(u64, @intCast(mins)),
+                @as(u64, @intCast(secs)),
+            }) catch return;
+            pos += ts_str.len;
+        }
     }
 
     // Color start
@@ -177,13 +183,13 @@ fn logInternal(
     buf[pos] = '\n';
     pos += 1;
 
-    // Output
+    // Output - use posix write for cross-platform stderr/stdout
     switch (config.target) {
         .stderr => {
-            std.io.getStdErr().writeAll(buf[0..pos]) catch {};
+            _ = std.posix.write(std.posix.STDERR_FILENO, buf[0..pos]) catch {};
         },
         .stdout => {
-            std.io.getStdOut().writeAll(buf[0..pos]) catch {};
+            _ = std.posix.write(std.posix.STDOUT_FILENO, buf[0..pos]) catch {};
         },
         .file => {
             if (global_file) |f| {

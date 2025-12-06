@@ -1,8 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
+const logging = @import("logging.zig");
 
 const BridgeError = bridge_error.BridgeError;
+const log = logging.notification;
 
 /// Bridge handler for native macOS notifications
 /// Uses UNUserNotificationCenter for modern notification support
@@ -33,7 +35,7 @@ pub const NotificationBridge = struct {
         // Get UNUserNotificationCenter
         const UNUserNotificationCenter = macos.getClass("UNUserNotificationCenter");
         if (UNUserNotificationCenter == null) {
-            std.debug.print("[NotificationBridge] UNUserNotificationCenter not available\n", .{});
+            log.warn("UNUserNotificationCenter not available", .{});
             return;
         }
 
@@ -48,7 +50,7 @@ pub const NotificationBridge = struct {
             const msg = @as(*const fn (@TypeOf(center), @import("macos.zig").objc.SEL, c_ulong, ?*anyopaque) callconv(.c) void, @ptrCast(&@import("macos.zig").objc.objc_msgSend));
             msg(center, macos.sel("requestAuthorizationWithOptions:completionHandler:"), options, null);
 
-            std.debug.print("[NotificationBridge] Notification center initialized\n", .{});
+            log.debug("Notification center initialized", .{});
         }
     }
 
@@ -147,7 +149,7 @@ pub const NotificationBridge = struct {
             sound = false;
         }
 
-        std.debug.print("[NotificationBridge] show: id={s}, title={s}, body={s}\n", .{ id, title, body });
+        log.debug("show: id={s}, title={s}, body={s}", .{ id, title, body });
 
         // Create UNMutableNotificationContent
         const UNMutableNotificationContent = macos.getClass("UNMutableNotificationContent");
@@ -206,7 +208,7 @@ pub const NotificationBridge = struct {
         // Add to notification center
         _ = macos.msgSend2(center, "addNotificationRequest:withCompletionHandler:", request, @as(?*anyopaque, null));
 
-        std.debug.print("[NotificationBridge] Notification scheduled: {s}\n", .{id});
+        log.debug("Notification scheduled: {s}", .{id});
     }
 
     /// Schedule a notification for later
@@ -263,7 +265,7 @@ pub const NotificationBridge = struct {
             }
         }
 
-        std.debug.print("[NotificationBridge] schedule: id={s}, delay={d}s\n", .{ id, delay });
+        log.debug("schedule: id={s}, delay={d}s", .{ id, delay });
 
         // Create content
         const UNMutableNotificationContent = macos.getClass("UNMutableNotificationContent");
@@ -314,7 +316,7 @@ pub const NotificationBridge = struct {
         if (builtin.os.tag == .linux or builtin.os.tag == .windows) {
             // Linux/Windows: notify-send doesn't support cancellation
             _ = &data;
-            std.debug.print("[NotificationBridge] cancel: not supported on this platform\n", .{});
+            log.debug("cancel: not supported on this platform", .{});
             return;
         }
         if (builtin.os.tag != .macos) return;
@@ -332,7 +334,7 @@ pub const NotificationBridge = struct {
 
         if (id.len == 0) return BridgeError.MissingData;
 
-        std.debug.print("[NotificationBridge] cancel: {s}\n", .{id});
+        log.debug("cancel: {s}", .{id});
 
         const id_cstr = try self.allocator.dupeZ(u8, id);
         defer self.allocator.free(id_cstr);
@@ -350,7 +352,7 @@ pub const NotificationBridge = struct {
     /// Cancel all pending notifications
     fn cancelAllNotifications(self: *Self) !void {
         if (builtin.os.tag == .linux or builtin.os.tag == .windows) {
-            std.debug.print("[NotificationBridge] cancelAll: not supported on this platform\n", .{});
+            log.debug("cancelAll: not supported on this platform", .{});
             return;
         }
         if (builtin.os.tag != .macos) return;
@@ -358,7 +360,7 @@ pub const NotificationBridge = struct {
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
         const macos = @import("macos.zig");
 
-        std.debug.print("[NotificationBridge] cancelAll\n", .{});
+        log.debug("cancelAll", .{});
 
         _ = macos.msgSend0(center, "removeAllPendingNotificationRequests");
         _ = macos.msgSend0(center, "removeAllDeliveredNotifications");
@@ -369,7 +371,7 @@ pub const NotificationBridge = struct {
     fn setBadgeCount(self: *Self, data: []const u8) !void {
         if (builtin.os.tag == .linux or builtin.os.tag == .windows) {
             _ = &data;
-            std.debug.print("[NotificationBridge] setBadge: not supported on this platform\n", .{});
+            log.debug("setBadge: not supported on this platform", .{});
             return;
         }
         if (builtin.os.tag != .macos) return;
@@ -388,7 +390,7 @@ pub const NotificationBridge = struct {
             }
         }
 
-        std.debug.print("[NotificationBridge] setBadge: {}\n", .{count});
+        log.debug("setBadge: {}", .{count});
 
         // Set dock badge
         const NSApplication = macos.getClass("NSApplication");
@@ -411,7 +413,7 @@ pub const NotificationBridge = struct {
     /// Clear app badge
     fn clearBadge(self: *Self) !void {
         if (builtin.os.tag == .linux or builtin.os.tag == .windows) {
-            std.debug.print("[NotificationBridge] clearBadge: not supported on this platform\n", .{});
+            log.debug("clearBadge: not supported on this platform", .{});
             return;
         }
         if (builtin.os.tag != .macos) return;
@@ -419,7 +421,7 @@ pub const NotificationBridge = struct {
 
         const macos = @import("macos.zig");
 
-        std.debug.print("[NotificationBridge] clearBadge\n", .{});
+        log.debug("clearBadge", .{});
 
         const NSApplication = macos.getClass("NSApplication");
         const app = macos.msgSend0(NSApplication, "sharedApplication");
@@ -431,7 +433,7 @@ pub const NotificationBridge = struct {
     fn requestPermission(self: *Self) !void {
         if (builtin.os.tag == .linux or builtin.os.tag == .windows) {
             // Linux/Windows: permissions are typically not required
-            std.debug.print("[NotificationBridge] requestPermission: granted by default on this platform\n", .{});
+            log.debug("requestPermission: granted by default on this platform", .{});
             bridge_error.sendResultToJS(self.allocator, "requestPermission", "{\"granted\":true}");
             return;
         }
@@ -440,7 +442,7 @@ pub const NotificationBridge = struct {
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
         const macos = @import("macos.zig");
 
-        std.debug.print("[NotificationBridge] requestPermission\n", .{});
+        log.debug("requestPermission", .{});
 
         // UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge
         const options: c_ulong = (1 << 0) | (1 << 1) | (1 << 2);
@@ -481,7 +483,7 @@ pub const NotificationBridge = struct {
             urgency = "low";
         }
 
-        std.debug.print("[NotificationBridge] Linux show: title={s}, body={s}\n", .{ title, body });
+        log.debug("Linux show: title={s}, body={s}", .{ title, body });
 
         // Build args for notify-send
         var args = std.ArrayList([]const u8).init(self.allocator);
@@ -502,7 +504,7 @@ pub const NotificationBridge = struct {
         try child.spawn();
         _ = try child.wait();
 
-        std.debug.print("[NotificationBridge] Linux: notification sent\n", .{});
+        log.debug("Linux: notification sent", .{});
     }
 
     // ============================================
@@ -535,7 +537,7 @@ pub const NotificationBridge = struct {
             }
         }
 
-        std.debug.print("[NotificationBridge] Windows show: title={s}, body={s}\n", .{ title, body });
+        log.debug("Windows show: title={s}, body={s}", .{ title, body });
 
         // Use PowerShell to show toast notification
         // This is a simple approach that works without additional dependencies
@@ -557,7 +559,7 @@ pub const NotificationBridge = struct {
         try child.spawn();
         _ = try child.wait();
 
-        std.debug.print("[NotificationBridge] Windows: notification sent\n", .{});
+        log.debug("Windows: notification sent", .{});
     }
 
     pub fn deinit(self: *Self) void {

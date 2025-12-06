@@ -1,8 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
+const logging = @import("logging.zig");
 
 const BridgeError = bridge_error.BridgeError;
+const log = logging.power;
 
 /// Power management bridge for sleep/wake events, battery status
 pub const PowerBridge = struct {
@@ -73,7 +75,7 @@ pub const PowerBridge = struct {
             }
         }
 
-        std.debug.print("[PowerBridge] getBatteryLevel\n", .{});
+        log.debug("getBatteryLevel", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -110,7 +112,7 @@ pub const PowerBridge = struct {
             }
         }
 
-        std.debug.print("[PowerBridge] isCharging\n", .{});
+        log.debug("isCharging", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -139,7 +141,7 @@ pub const PowerBridge = struct {
             }
         }
 
-        std.debug.print("[PowerBridge] isPluggedIn\n", .{});
+        log.debug("isPluggedIn", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -168,7 +170,7 @@ pub const PowerBridge = struct {
             }
         }
 
-        std.debug.print("[PowerBridge] getBatteryState\n", .{});
+        log.debug("getBatteryState", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -197,7 +199,7 @@ pub const PowerBridge = struct {
             }
         }
 
-        std.debug.print("[PowerBridge] getTimeRemaining\n", .{});
+        log.debug("getTimeRemaining", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -224,7 +226,7 @@ pub const PowerBridge = struct {
             }
         }
 
-        std.debug.print("[PowerBridge] preventSleep: {s}\n", .{reason});
+        log.debug("preventSleep: {s}", .{reason});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -251,7 +253,7 @@ pub const PowerBridge = struct {
     fn allowSleep(self: *Self, data: []const u8) !void {
         _ = data;
 
-        std.debug.print("[PowerBridge] allowSleep\n", .{});
+        log.debug("allowSleep", .{});
 
         if (builtin.os.tag == .macos) {
             // Note: In a full implementation, we'd need to track the activity token
@@ -273,7 +275,7 @@ pub const PowerBridge = struct {
             }
         }
 
-        std.debug.print("[PowerBridge] isLowPowerMode\n", .{});
+        log.debug("isLowPowerMode", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -302,7 +304,7 @@ pub const PowerBridge = struct {
             }
         }
 
-        std.debug.print("[PowerBridge] getThermalState\n", .{});
+        log.debug("getThermalState", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -341,7 +343,7 @@ pub const PowerBridge = struct {
             }
         }
 
-        std.debug.print("[PowerBridge] getUptimeSeconds\n", .{});
+        log.debug("getUptimeSeconds", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");

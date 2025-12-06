@@ -1,8 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
+const logging = @import("logging.zig");
 
 const BridgeError = bridge_error.BridgeError;
+const log = logging.scoped("Bluetooth");
 
 /// Bluetooth bridge for device discovery and connection
 pub const BluetoothBridge = struct {
@@ -74,7 +76,7 @@ pub const BluetoothBridge = struct {
             }
         }
 
-        std.debug.print("[BluetoothBridge] isAvailable\n", .{});
+        log.debug("isAvailable", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -103,7 +105,7 @@ pub const BluetoothBridge = struct {
             }
         }
 
-        std.debug.print("[BluetoothBridge] isEnabled\n", .{});
+        log.debug("isEnabled", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -140,7 +142,7 @@ pub const BluetoothBridge = struct {
             }
         }
 
-        std.debug.print("[BluetoothBridge] getPowerState\n", .{});
+        log.debug("getPowerState", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -181,7 +183,7 @@ pub const BluetoothBridge = struct {
             }
         }
 
-        std.debug.print("[BluetoothBridge] getConnectedDevices\n", .{});
+        log.debug("getConnectedDevices", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -266,7 +268,7 @@ pub const BluetoothBridge = struct {
             }
         }
 
-        std.debug.print("[BluetoothBridge] getPairedDevices\n", .{});
+        log.debug("getPairedDevices", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -338,7 +340,7 @@ pub const BluetoothBridge = struct {
     fn startDiscovery(self: *Self, data: []const u8) !void {
         _ = data;
 
-        std.debug.print("[BluetoothBridge] startDiscovery\n", .{});
+        log.debug("startDiscovery", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -360,7 +362,7 @@ pub const BluetoothBridge = struct {
     fn stopDiscovery(self: *Self, data: []const u8) !void {
         _ = data;
 
-        std.debug.print("[BluetoothBridge] stopDiscovery\n", .{});
+        log.debug("stopDiscovery", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -386,7 +388,7 @@ pub const BluetoothBridge = struct {
             }
         }
 
-        std.debug.print("[BluetoothBridge] isDiscovering\n", .{});
+        log.debug("isDiscovering", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -413,7 +415,7 @@ pub const BluetoothBridge = struct {
 
         if (address.len == 0) return BridgeError.MissingData;
 
-        std.debug.print("[BluetoothBridge] connectDevice: {s}\n", .{address});
+        log.debug("connectDevice: {s}", .{address});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -444,7 +446,7 @@ pub const BluetoothBridge = struct {
 
         if (address.len == 0) return BridgeError.MissingData;
 
-        std.debug.print("[BluetoothBridge] disconnectDevice: {s}\n", .{address});
+        log.debug("disconnectDevice: {s}", .{address});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -462,7 +464,7 @@ pub const BluetoothBridge = struct {
         _ = self;
         _ = data;
 
-        std.debug.print("[BluetoothBridge] openBluetoothPreferences\n", .{});
+        log.debug("openBluetoothPreferences", .{});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");

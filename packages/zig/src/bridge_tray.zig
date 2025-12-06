@@ -2,6 +2,10 @@ const std = @import("std");
 const builtin = @import("builtin");
 const tray_menu = @import("tray_menu.zig");
 const bridge_error = @import("bridge_error.zig");
+const logging = @import("logging.zig");
+const icons = @import("icons.zig");
+
+const log = logging.tray;
 
 const BridgeError = bridge_error.BridgeError;
 
@@ -146,7 +150,7 @@ pub const TrayBridge = struct {
 
         // Pop the next action from the queue
         if (tray_menu.getPendingAction()) |action| {
-            std.debug.print("[Bridge] Polling found action: {s}\n", .{action});
+            log.debug("Polling found action: {s}", .{action});
 
             // Call the JavaScript global function to deliver the action
             const macos = @import("macos.zig");
@@ -156,7 +160,7 @@ pub const TrayBridge = struct {
             , .{action});
 
             macos.tryEvalJS(js) catch |err| {
-                std.debug.print("[Bridge] Failed to deliver action: {}\n", .{err});
+                log.debug("Failed to deliver action: {}", .{err});
             };
         }
     }
@@ -230,7 +234,7 @@ pub const TrayBridge = struct {
     fn hide(self: *Self) !void {
         const handle = try self.requireTrayHandle();
 
-        std.debug.print("[TrayBridge] hide\n", .{});
+        log.debug("hide", .{});
 
         if (builtin.os.tag == .macos) {
             const tray = @import("tray.zig");
@@ -241,7 +245,7 @@ pub const TrayBridge = struct {
     fn showTray(self: *Self) !void {
         const handle = try self.requireTrayHandle();
 
-        std.debug.print("[TrayBridge] show\n", .{});
+        log.debug("show", .{});
 
         if (builtin.os.tag == .macos) {
             const tray = @import("tray.zig");
@@ -252,7 +256,16 @@ pub const TrayBridge = struct {
     fn setIcon(self: *Self, icon_name: []const u8) !void {
         const handle = try self.requireTrayHandle();
 
-        std.debug.print("[TrayBridge] setIcon: {s}\n", .{icon_name});
+        log.debug("setIcon: {s}", .{icon_name});
+
+        // First try to resolve icon through cross-platform icons module
+        const resolved_name = if (icons.getIconByName(icon_name)) |icon| blk: {
+            const platform_icon = icons.getPlatformIcon(icon);
+            if (platform_icon.kind == .sf_symbol and platform_icon.value.len > 0) {
+                break :blk platform_icon.value;
+            }
+            break :blk icon_name;
+        } else icon_name;
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -261,11 +274,11 @@ pub const TrayBridge = struct {
             const button = macos.msgSend0(handle, "button");
             if (button == null) return;
 
-            // Try to load SF Symbol first
+            // Try to load SF Symbol
             const NSImage = macos.getClass("NSImage");
 
-            // Try SF Symbol name (e.g., "star.fill", "gear")
-            const icon_cstr = try std.heap.c_allocator.dupeZ(u8, icon_name);
+            // Use resolved SF Symbol name
+            const icon_cstr = try std.heap.c_allocator.dupeZ(u8, resolved_name);
             defer std.heap.c_allocator.free(icon_cstr);
 
             const NSString = macos.getClass("NSString");
@@ -279,9 +292,9 @@ pub const TrayBridge = struct {
                 // Configure for template rendering (adapts to light/dark mode)
                 _ = macos.msgSend1(image, "setTemplate:", @as(c_int, 1));
                 _ = macos.msgSend1(button, "setImage:", image);
-                std.debug.print("[TrayBridge] Set SF Symbol icon: {s}\n", .{icon_name});
+                log.debug("Set SF Symbol icon: {s}", .{resolved_name});
             } else {
-                std.debug.print("[TrayBridge] SF Symbol not found: {s}\n", .{icon_name});
+                log.debug("SF Symbol not found: {s}", .{resolved_name});
             }
         }
     }
@@ -291,7 +304,7 @@ pub const TrayBridge = struct {
     fn setBadge(self: *Self, badge_text: []const u8) !void {
         _ = try self.requireTrayHandle();
 
-        std.debug.print("[TrayBridge] setBadge: {s}\n", .{badge_text});
+        log.debug("setBadge: {s}", .{badge_text});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -318,7 +331,7 @@ pub const TrayBridge = struct {
                 _ = macos.msgSend1(dock_tile, "setBadgeLabel:", ns_badge);
             }
 
-            std.debug.print("[TrayBridge] Badge set to: {s}\n", .{badge_text});
+            log.debug("Badge set to: {s}", .{badge_text});
         }
     }
 

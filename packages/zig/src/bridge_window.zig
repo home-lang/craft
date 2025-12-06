@@ -1,8 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
+const logging = @import("logging.zig");
 
 const BridgeError = bridge_error.BridgeError;
+const log = logging.window;
 
 /// Bridge handler for window control messages from JavaScript
 pub const WindowBridge = struct {
@@ -218,7 +220,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] setFullscreen: {}\n", .{should_be_fullscreen});
+        log.debug("setFullscreen: {}", .{should_be_fullscreen});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -266,7 +268,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] setSize: {}x{}\n", .{ width, height });
+        log.debug("setSize: {}x{}", .{ width, height });
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -357,7 +359,7 @@ pub const WindowBridge = struct {
                 }
             }
 
-            std.debug.print("[WindowBridge] setVibrancy: {s}\n", .{vibrancy_type});
+            log.debug("setVibrancy: {s}", .{vibrancy_type});
 
             // Get NSVisualEffectView material enum value
             // Common values: 0=appearance-based, 1=light, 2=dark, 3=titlebar, 4=selection
@@ -421,7 +423,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] setAlwaysOnTop: {}\n", .{always_on_top});
+        log.debug("setAlwaysOnTop: {}", .{always_on_top});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -450,7 +452,7 @@ pub const WindowBridge = struct {
 
         // Clamp to valid range
         opacity = @max(0.0, @min(1.0, opacity));
-        std.debug.print("[WindowBridge] setOpacity: {d:.2}\n", .{opacity});
+        log.debug("setOpacity: {d:.2}", .{opacity});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -469,7 +471,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] setResizable: {}\n", .{resizable});
+        log.debug("setResizable: {}", .{resizable});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -551,7 +553,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] setBackgroundColor: r={d:.2}, g={d:.2}, b={d:.2}, a={d:.2}\n", .{ r, g, b, a });
+        log.debug("setBackgroundColor: r={d:.2}, g={d:.2}, b={d:.2}, a={d:.2}", .{ r, g, b, a });
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -595,7 +597,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] setMinSize: {}x{}\n", .{ width, height });
+        log.debug("setMinSize: {}x{}", .{ width, height });
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -633,7 +635,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] setMaxSize: {}x{}\n", .{ width, height });
+        log.debug("setMaxSize: {}x{}", .{ width, height });
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -653,7 +655,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] setMovable: {}\n", .{movable});
+        log.debug("setMovable: {}", .{movable});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -671,7 +673,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] setHasShadow: {}\n", .{has_shadow});
+        log.debug("setHasShadow: {}", .{has_shadow});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -724,7 +726,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] setAspectRatio: {d:.2}:{d:.2}\n", .{ width, height });
+        log.debug("setAspectRatio: {d:.2}:{d:.2}", .{ width, height });
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -755,7 +757,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] flashFrame: {}\n", .{should_flash});
+        log.debug("flashFrame: {}", .{should_flash});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -800,7 +802,7 @@ pub const WindowBridge = struct {
             }
         }
 
-        std.debug.print("[WindowBridge] setProgressBar: {d:.2}\n", .{progress});
+        log.debug("setProgressBar: {d:.2}", .{progress});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");

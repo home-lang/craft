@@ -1,8 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
+const logging = @import("logging.zig");
 
 const BridgeError = bridge_error.BridgeError;
+const log = logging.clipboard;
 
 /// Bridge handler for clipboard operations
 pub const ClipboardBridge = struct {
@@ -60,7 +62,7 @@ pub const ClipboardBridge = struct {
     fn writeText(self: *Self, data: ?[]const u8) !void {
         if (data == null) return;
 
-        std.debug.print("[ClipboardBridge] writeText called\n", .{});
+        log.debug("writeText called", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxWriteText(data);
@@ -100,7 +102,7 @@ pub const ClipboardBridge = struct {
                     // Write to pasteboard
                     _ = macos.msgSend1(pasteboard, "writeObjects:", array);
 
-                    std.debug.print("[ClipboardBridge] Wrote text to clipboard: {s}\n", .{text});
+                    log.debug("Wrote text to clipboard: {s}", .{text});
                 }
             }
         }
@@ -108,7 +110,7 @@ pub const ClipboardBridge = struct {
 
     /// Read text from clipboard and send result back to JavaScript
     fn readText(self: *Self) !void {
-        std.debug.print("[ClipboardBridge] readText called\n", .{});
+        log.debug("readText called", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxReadText();
@@ -139,7 +141,7 @@ pub const ClipboardBridge = struct {
                 const text_cstr = macos.msgSend0(text, "UTF8String");
                 if (text_cstr != null) {
                     const text_str = std.mem.span(@as([*:0]const u8, @ptrCast(text_cstr)));
-                    std.debug.print("[ClipboardBridge] Read text from clipboard: {s}\n", .{text_str});
+                    log.debug("Read text from clipboard: {s}", .{text_str});
 
                     // Escape backslashes and quotes for safe JSON embedding
                     var buf: std.ArrayList(u8) = .{};
@@ -160,7 +162,7 @@ pub const ClipboardBridge = struct {
                     result_json = try buf.toOwnedSlice(self.allocator);
                 }
             } else {
-                std.debug.print("[ClipboardBridge] No text in clipboard\n", .{});
+                log.debug("No text in clipboard", .{});
             }
 
             // Send result back to JS (action name matches clipboard action)
@@ -178,7 +180,7 @@ pub const ClipboardBridge = struct {
     fn writeHTML(self: *Self, data: ?[]const u8) !void {
         if (data == null) return;
 
-        std.debug.print("[ClipboardBridge] writeHTML called\n", .{});
+        log.debug("writeHTML called", .{});
 
         if (builtin.os.tag == .linux) {
             // Linux: Use xclip with HTML target
@@ -217,7 +219,7 @@ pub const ClipboardBridge = struct {
 
                     _ = macos.msgSend2(pasteboard, "setString:forType:", ns_html, ns_type);
 
-                    std.debug.print("[ClipboardBridge] Wrote HTML to clipboard\n", .{});
+                    log.debug("Wrote HTML to clipboard", .{});
                 }
             }
         }
@@ -225,7 +227,7 @@ pub const ClipboardBridge = struct {
 
     /// Read HTML from clipboard
     fn readHTML(self: *Self) !void {
-        std.debug.print("[ClipboardBridge] readHTML called\n", .{});
+        log.debug("readHTML called", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxReadHTML();
@@ -253,7 +255,7 @@ pub const ClipboardBridge = struct {
                 const html_cstr = macos.msgSend0(html, "UTF8String");
                 if (html_cstr != null) {
                     const html_str = std.mem.span(@as([*:0]const u8, @ptrCast(html_cstr)));
-                    std.debug.print("[ClipboardBridge] Read HTML from clipboard: {s}\n", .{html_str});
+                    log.debug("Read HTML from clipboard: {s}", .{html_str});
 
                     var buf: std.ArrayList(u8) = .{};
                     defer buf.deinit(self.allocator);
@@ -273,7 +275,7 @@ pub const ClipboardBridge = struct {
                     result_json = try buf.toOwnedSlice(self.allocator);
                 }
             } else {
-                std.debug.print("[ClipboardBridge] No HTML in clipboard\n", .{});
+                log.debug("No HTML in clipboard", .{});
             }
 
             bridge_error.sendResultToJS(self.allocator, "readHTML", result_json);
@@ -286,7 +288,7 @@ pub const ClipboardBridge = struct {
 
     /// Clear clipboard
     fn clear(self: *Self) !void {
-        std.debug.print("[ClipboardBridge] clear called\n", .{});
+        log.debug("clear called", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxClear();
@@ -301,13 +303,13 @@ pub const ClipboardBridge = struct {
             const pasteboard = macos.msgSend0(NSPasteboard, "generalPasteboard");
             _ = macos.msgSend0(pasteboard, "clearContents");
 
-            std.debug.print("[ClipboardBridge] Clipboard cleared\n", .{});
+            log.debug("Clipboard cleared", .{});
         }
     }
 
     /// Check if clipboard has text
     fn hasText(self: *Self) !void {
-        std.debug.print("[ClipboardBridge] hasText called\n", .{});
+        log.debug("hasText called", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxHasText();
@@ -333,7 +335,7 @@ pub const ClipboardBridge = struct {
             const available = macos.msgSend1(pasteboard, "availableTypeFromArray:", types);
             const has_text = available != null;
 
-            std.debug.print("[ClipboardBridge] hasText: {}\n", .{has_text});
+            log.debug("hasText: {}", .{has_text});
 
             const json = if (has_text) "{\"value\":true}" else "{\"value\":false}";
             bridge_error.sendResultToJS(self.allocator, "hasText", json);
@@ -342,7 +344,7 @@ pub const ClipboardBridge = struct {
 
     /// Check if clipboard has HTML
     fn hasHTML(self: *Self) !void {
-        std.debug.print("[ClipboardBridge] hasHTML called\n", .{});
+        log.debug("hasHTML called", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxHasHTML();
@@ -368,7 +370,7 @@ pub const ClipboardBridge = struct {
             const available = macos.msgSend1(pasteboard, "availableTypeFromArray:", types);
             const has_html = available != null;
 
-            std.debug.print("[ClipboardBridge] hasHTML: {}\n", .{has_html});
+            log.debug("hasHTML: {}", .{has_html});
 
             const json = if (has_html) "{\"value\":true}" else "{\"value\":false}";
             bridge_error.sendResultToJS(self.allocator, "hasHTML", json);
@@ -377,7 +379,7 @@ pub const ClipboardBridge = struct {
 
     /// Check if clipboard has image
     fn hasImage(self: *Self) !void {
-        std.debug.print("[ClipboardBridge] hasImage called\n", .{});
+        log.debug("hasImage called", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxHasImage();
@@ -403,7 +405,7 @@ pub const ClipboardBridge = struct {
             const available = macos.msgSend1(pasteboard, "availableTypeFromArray:", types);
             const has_image = available != null;
 
-            std.debug.print("[ClipboardBridge] hasImage: {}\n", .{has_image});
+            log.debug("hasImage: {}", .{has_image});
 
             const json = if (has_image) "{\"value\":true}" else "{\"value\":false}";
             bridge_error.sendResultToJS(self.allocator, "hasImage", json);
@@ -437,7 +439,7 @@ pub const ClipboardBridge = struct {
                 }
                 _ = try child.wait();
 
-                std.debug.print("[ClipboardBridge] Linux: Wrote text to clipboard\n", .{});
+                log.debug("Linux: Wrote text to clipboard", .{});
             }
         }
     }
@@ -499,7 +501,7 @@ pub const ClipboardBridge = struct {
                 }
                 _ = try child.wait();
 
-                std.debug.print("[ClipboardBridge] Linux: Wrote HTML to clipboard\n", .{});
+                log.debug("Linux: Wrote HTML to clipboard", .{});
             }
         }
     }
@@ -551,7 +553,7 @@ pub const ClipboardBridge = struct {
         }
         _ = try child.wait();
 
-        std.debug.print("[ClipboardBridge] Linux: Clipboard cleared\n", .{});
+        log.debug("Linux: Clipboard cleared", .{});
     }
 
     fn linuxHasText(self: *Self) !void {
@@ -658,7 +660,7 @@ pub const ClipboardBridge = struct {
                         }
                     }
 
-                    std.debug.print("[ClipboardBridge] Windows: Wrote text to clipboard\n", .{});
+                    log.debug("Windows: Wrote text to clipboard", .{});
                 }
             }
         }
@@ -749,7 +751,7 @@ pub const ClipboardBridge = struct {
                         }
                     }
 
-                    std.debug.print("[ClipboardBridge] Windows: Wrote HTML to clipboard\n", .{});
+                    log.debug("Windows: Wrote HTML to clipboard", .{});
                 }
             }
         }
@@ -808,7 +810,7 @@ pub const ClipboardBridge = struct {
         if (user32.OpenClipboard(null) != 0) {
             _ = user32.EmptyClipboard();
             _ = user32.CloseClipboard();
-            std.debug.print("[ClipboardBridge] Windows: Clipboard cleared\n", .{});
+            log.debug("Windows: Clipboard cleared", .{});
         }
     }
 

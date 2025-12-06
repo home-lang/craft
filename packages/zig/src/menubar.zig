@@ -1,4 +1,7 @@
 const std = @import("std");
+const logging = @import("logging.zig");
+
+const log = logging.scoped("Menubar");
 
 /// Native Menubar Application Support
 /// Provides system tray/menubar integration for macOS, Linux, and Windows
@@ -550,10 +553,10 @@ pub const Example = struct {
     }
 
     fn showWindow() void {
-        std.debug.print("Show window\n", .{});
+        log.debug("Show window", .{});
     }
 
     fn quit() void {
-        std.debug.print("Quit\n", .{});
+        log.debug("Quit", .{});
     }
 };

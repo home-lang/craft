@@ -1,6 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
+const logging = @import("logging.zig");
+
+const log = logging.shortcuts;
 
 const BridgeError = bridge_error.BridgeError;
 
@@ -125,7 +128,7 @@ pub const ShortcutsBridge = struct {
             return BridgeError.MissingData;
         }
 
-        std.debug.print("[ShortcutsBridge] register: id={s}, key={s}, cmd={}, ctrl={}, alt={}, shift={}\n", .{ id, key, modifiers.cmd, modifiers.ctrl, modifiers.alt, modifiers.shift });
+        log.debug("register: id={s}, key={s}, cmd={}, ctrl={}, alt={}, shift={}", .{ id, key, modifiers.cmd, modifiers.ctrl, modifiers.alt, modifiers.shift });
 
         // Store shortcut
         const id_owned = try self.allocator.dupe(u8, id);
@@ -168,7 +171,7 @@ pub const ShortcutsBridge = struct {
         // Store reference to self for callback
         global_shortcuts_bridge = self;
 
-        std.debug.print("[ShortcutsBridge] Global monitor setup (polling mode)\n", .{});
+        log.debug("Global monitor setup (polling mode)", .{});
     }
 
     /// Check if a key event matches any registered shortcut
@@ -188,7 +191,7 @@ pub const ShortcutsBridge = struct {
             const masked_flags = flags & ((1 << 17) | (1 << 18) | (1 << 19) | (1 << 20));
 
             if (masked_flags == required_flags) {
-                std.debug.print("[ShortcutsBridge] Shortcut triggered: {s}\n", .{shortcut.id});
+                log.debug("Shortcut triggered: {s}", .{shortcut.id});
                 self.triggerCallback(shortcut.id, shortcut.callback_id);
             }
         }
@@ -208,7 +211,7 @@ pub const ShortcutsBridge = struct {
         , .{ shortcut_id, callback_id }) catch return;
 
         macos.tryEvalJS(js) catch |err| {
-            std.debug.print("[ShortcutsBridge] Failed to trigger callback: {}\n", .{err});
+            log.debug("Failed to trigger callback: {}", .{err});
         };
     }
 
@@ -225,7 +228,7 @@ pub const ShortcutsBridge = struct {
 
         if (id.len == 0) return BridgeError.MissingData;
 
-        std.debug.print("[ShortcutsBridge] unregister: {s}\n", .{id});
+        log.debug("unregister: {s}", .{id});
 
         if (self.shortcuts.fetchRemove(id)) |kv| {
             self.allocator.free(kv.value.id);
@@ -236,7 +239,7 @@ pub const ShortcutsBridge = struct {
 
     /// Unregister all shortcuts
     fn unregisterAllShortcuts(self: *Self) !void {
-        std.debug.print("[ShortcutsBridge] unregisterAll\n", .{});
+        log.debug("unregisterAll", .{});
 
         var it = self.shortcuts.iterator();
         while (it.next()) |entry| {
@@ -260,7 +263,7 @@ pub const ShortcutsBridge = struct {
 
         if (self.shortcuts.getPtr(id)) |shortcut| {
             shortcut.enabled = true;
-            std.debug.print("[ShortcutsBridge] enabled: {s}\n", .{id});
+            log.debug("enabled: {s}", .{id});
         }
     }
 
@@ -277,7 +280,7 @@ pub const ShortcutsBridge = struct {
 
         if (self.shortcuts.getPtr(id)) |shortcut| {
             shortcut.enabled = false;
-            std.debug.print("[ShortcutsBridge] disabled: {s}\n", .{id});
+            log.debug("disabled: {s}", .{id});
         }
     }
 

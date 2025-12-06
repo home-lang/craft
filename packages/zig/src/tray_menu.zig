@@ -1,5 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const logging = @import("logging.zig");
+
+const log = logging.menu;
 
 /// System Tray Menu Implementation
 /// Handles creation and management of context menus for system tray icons
@@ -189,7 +192,7 @@ export fn menuActionCallback(self: objc.id, _: objc.SEL, sender: objc.id) void {
     const action_cstr = @as([*:0]const u8, @ptrCast(msgSend0(represented_object, "UTF8String")));
     const action_str = std.mem.span(action_cstr);
 
-    std.debug.print("[MenuAction] Triggered: {s}\n", .{action_str});
+    log.debug("Triggered: {s}", .{action_str});
 
     // Handle built-in actions
     if (std.mem.eql(u8, action_str, "show")) {
@@ -213,15 +216,15 @@ export fn menuActionCallback(self: objc.id, _: objc.SEL, sender: objc.id) void {
         msgSendVoid1(app, "terminate:", null);
     } else {
         // Dispatch custom action to JavaScript
-        std.debug.print("[MenuAction] Custom action - dispatching to JS\n", .{});
+        log.debug("Custom action - dispatching to JS", .{});
         if (global_webview) |webview| {
-            std.debug.print("[MenuAction] Webview found, sending to JS\n", .{});
+            log.debug("Webview found, sending to JS", .{});
             const webview_id: objc.id = @ptrFromInt(@intFromPtr(webview));
             dispatchMenuActionToJS(webview_id, action_str) catch |err| {
-                std.debug.print("[MenuAction] Failed to dispatch to JS: {}\n", .{err});
+                log.debug("Failed to dispatch to JS: {}", .{err});
             };
         } else {
-            std.debug.print("[MenuAction] ERROR: No global webview set!\n", .{});
+            log.debug("ERROR: No global webview set!", .{});
         }
     }
 }
@@ -257,7 +260,7 @@ pub fn hasPendingAction() bool {
 
 pub fn pollPendingActions(allocator: std.mem.Allocator) ![]const u8 {
     if (action_queue.pop()) |action| {
-        std.debug.print("[MenuAction] Polled action: {s}\n", .{action});
+        log.debug("Polled action: {s}", .{action});
         return try allocator.dupe(u8, action);
     }
     return "";
@@ -269,7 +272,7 @@ pub fn getPendingAction() ?[]const u8 {
 
 fn dispatchMenuActionToJS(webview: objc.id, action: []const u8) !void {
     _ = webview;
-    std.debug.print("[MenuAction] Queuing action: {s}\n", .{action});
+    log.debug("Queuing action: {s}", .{action});
 
     // Add to queue for JavaScript to poll
     action_queue.push(action);

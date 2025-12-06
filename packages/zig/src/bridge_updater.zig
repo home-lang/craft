@@ -1,6 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
+const logging = @import("logging.zig");
+
+const log = logging.scoped("UpdaterBridge");
 
 const BridgeError = bridge_error.BridgeError;
 
@@ -69,14 +72,14 @@ pub const UpdaterBridge = struct {
         // Initialize SUUpdater shared instance
         const SUUpdater = macos.getClass("SUUpdater");
         if (SUUpdater == null) {
-            std.debug.print("[UpdaterBridge] Sparkle framework not available\n", .{});
+            log.debug("Sparkle framework not available", .{});
             self.sendStatus("unavailable", "Sparkle framework not linked");
             return;
         }
 
         self.updater = macos.msgSend0(SUUpdater, "sharedUpdater");
         if (self.updater == null) {
-            std.debug.print("[UpdaterBridge] Failed to get shared updater\n", .{});
+            log.debug("Failed to get shared updater", .{});
             return;
         }
 
@@ -99,7 +102,7 @@ pub const UpdaterBridge = struct {
 
                 // Set feed URL on updater
                 _ = macos.msgSend1(self.updater.?, "setFeedURL:", nsurl);
-                std.debug.print("[UpdaterBridge] Feed URL set: {s}\n", .{url});
+                log.debug("Feed URL set: {s}", .{url});
             }
         }
 
@@ -121,7 +124,7 @@ pub const UpdaterBridge = struct {
                 const interval = std.fmt.parseInt(u32, data[start..end], 10) catch 86400;
                 self.check_interval = interval;
                 _ = macos.msgSend1Double(self.updater.?, "setUpdateCheckInterval:", @floatFromInt(interval));
-                std.debug.print("[UpdaterBridge] Check interval set: {d}s\n", .{interval});
+                log.debug("Check interval set: {d}s", .{interval});
             }
         }
 
@@ -143,7 +146,7 @@ pub const UpdaterBridge = struct {
         }
 
         if (self.updater) |updater| {
-            std.debug.print("[UpdaterBridge] Checking for updates...\n", .{});
+            log.debug("Checking for updates...", .{});
             _ = macos.msgSend1(updater, "checkForUpdates:", @as(?*anyopaque, null));
             self.sendStatus("checking", "Checking for updates");
         } else {
@@ -165,7 +168,7 @@ pub const UpdaterBridge = struct {
         }
 
         if (self.updater) |updater| {
-            std.debug.print("[UpdaterBridge] Checking for updates in background...\n", .{});
+            log.debug("Checking for updates in background...", .{});
             _ = macos.msgSend0(updater, "checkForUpdatesInBackground");
             self.sendStatus("checking_background", "Checking for updates in background");
         }
@@ -183,7 +186,7 @@ pub const UpdaterBridge = struct {
 
         if (self.updater) |updater| {
             _ = macos.msgSend1Bool(updater, "setAutomaticallyChecksForUpdates:", enabled);
-            std.debug.print("[UpdaterBridge] Automatic checks: {}\n", .{enabled});
+            log.debug("Automatic checks: {}", .{enabled});
         }
     }
 
@@ -204,7 +207,7 @@ pub const UpdaterBridge = struct {
 
                 if (self.updater) |updater| {
                     _ = macos.msgSend1Double(updater, "setUpdateCheckInterval:", @floatFromInt(interval));
-                    std.debug.print("[UpdaterBridge] Check interval: {d}s\n", .{interval});
+                    log.debug("Check interval: {d}s", .{interval});
                 }
             }
         }
@@ -237,7 +240,7 @@ pub const UpdaterBridge = struct {
                     const NSURL = macos.getClass("NSURL");
                     const nsurl = macos.msgSend1(NSURL, "URLWithString:", url_str);
                     _ = macos.msgSend1(updater, "setFeedURL:", nsurl);
-                    std.debug.print("[UpdaterBridge] Feed URL: {s}\n", .{url});
+                    log.debug("Feed URL: {s}", .{url});
                 }
             }
         }

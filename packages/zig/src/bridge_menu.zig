@@ -1,8 +1,11 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
+const icons = @import("icons.zig");
+const logging = @import("logging.zig");
 
 const BridgeError = bridge_error.BridgeError;
+const log = logging.menu;
 
 /// Menu item type
 pub const MenuItemType = enum {
@@ -21,6 +24,7 @@ pub const MenuItem = struct {
     enabled: bool = true,
     action: ?[]const u8 = null,
     shortcut: ?[]const u8 = null,
+    icon: ?[]const u8 = null, // Icon name from icons.zig
     submenu: ?[]MenuItem = null,
 };
 
@@ -87,7 +91,7 @@ pub const MenuBridge = struct {
 
         const macos = @import("macos.zig");
 
-        std.debug.print("[MenuBridge] setAppMenu\n", .{});
+        log.debug("setAppMenu", .{});
 
         // Get NSApplication
         const NSApplication = macos.getClass("NSApplication");
@@ -162,7 +166,7 @@ pub const MenuBridge = struct {
         _ = macos.msgSend1(app, "setMainMenu:", main_menu);
         self.app_menu = main_menu;
 
-        std.debug.print("[MenuBridge] Created app menu with {} menus\n", .{menu_count});
+        log.debug("Created app menu with {} menus", .{menu_count});
     }
 
     /// Create a menu with items from JSON
@@ -222,8 +226,19 @@ pub const MenuBridge = struct {
                         }
                     }
 
+                    // Look for icon
+                    var icon_name: ?[]const u8 = null;
+                    if (std.mem.indexOfPos(u8, items_data, id_end, "\"icon\":\"")) |icon_idx| {
+                        if (icon_idx < id_end + 200) {
+                            const icon_start = icon_idx + 8;
+                            if (std.mem.indexOfPos(u8, items_data, icon_start, "\"")) |icon_end| {
+                                icon_name = items_data[icon_start..icon_end];
+                            }
+                        }
+                    }
+
                     // Create menu item
-                    const item = try self.createMenuItem(item_id, item_label, shortcut);
+                    const item = try self.createMenuItem(item_id, item_label, shortcut, icon_name);
                     if (item) |i| {
                         _ = macos.msgSend1(menu, "addItem:", i);
                     }
@@ -238,8 +253,8 @@ pub const MenuBridge = struct {
         return menu;
     }
 
-    /// Create a single menu item
-    fn createMenuItem(self: *Self, id: []const u8, label: []const u8, shortcut: []const u8) !?*anyopaque {
+    /// Create a single menu item with optional icon
+    fn createMenuItem(self: *Self, id: []const u8, label: []const u8, shortcut: []const u8, icon_name: ?[]const u8) !?*anyopaque {
         if (builtin.os.tag != .macos) return null;
 
         const macos = @import("macos.zig");
@@ -296,6 +311,28 @@ pub const MenuBridge = struct {
         const ns_id = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", id_cstr.ptr);
         _ = macos.msgSend1(item, "setRepresentedObject:", ns_id);
 
+        // Apply icon if specified
+        if (icon_name) |name| {
+            // Resolve through cross-platform icons module
+            const resolved_name = if (icons.getIconByName(name)) |icon| blk: {
+                const platform_icon = icons.getPlatformIcon(icon);
+                if (platform_icon.kind == .sf_symbol and platform_icon.value.len > 0) {
+                    break :blk platform_icon.value;
+                }
+                break :blk name;
+            } else name;
+
+            const NSImage = macos.getClass("NSImage");
+            const icon_cstr = try self.allocator.dupeZ(u8, resolved_name);
+            defer self.allocator.free(icon_cstr);
+            const ns_icon_name = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", icon_cstr.ptr);
+            const image = macos.msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", ns_icon_name, @as(?*anyopaque, null));
+
+            if (image != null) {
+                _ = macos.msgSend1(item, "setImage:", image);
+            }
+        }
+
         return item;
     }
 
@@ -304,14 +341,14 @@ pub const MenuBridge = struct {
     fn setDockMenu(self: *Self, data: []const u8) !void {
         if (builtin.os.tag != .macos) return;
 
-        std.debug.print("[MenuBridge] setDockMenu\n", .{});
+        log.debug("setDockMenu", .{});
 
         // Create dock menu
         const menu = try self.createMenuWithItems("Dock", data) orelse return;
         self.dock_menu = menu;
         global_dock_menu = menu;
 
-        std.debug.print("[MenuBridge] Dock menu created\n", .{});
+        log.debug("Dock menu created", .{});
     }
 
     /// Add a single menu item to existing menu
@@ -340,7 +377,7 @@ pub const MenuBridge = struct {
             }
         }
 
-        std.debug.print("[MenuBridge] enableMenuItem: {s}\n", .{item_id});
+        log.debug("enableMenuItem: {s}", .{item_id});
 
         if (findMenuItemById(item_id)) |item| {
             const macos = @import("macos.zig");
@@ -361,7 +398,7 @@ pub const MenuBridge = struct {
             }
         }
 
-        std.debug.print("[MenuBridge] disableMenuItem: {s}\n", .{item_id});
+        log.debug("disableMenuItem: {s}", .{item_id});
 
         if (findMenuItemById(item_id)) |item| {
             const macos = @import("macos.zig");
@@ -382,7 +419,7 @@ pub const MenuBridge = struct {
             }
         }
 
-        std.debug.print("[MenuBridge] checkMenuItem: {s}\n", .{item_id});
+        log.debug("checkMenuItem: {s}", .{item_id});
 
         if (findMenuItemById(item_id)) |item| {
             const macos = @import("macos.zig");
@@ -403,7 +440,7 @@ pub const MenuBridge = struct {
             }
         }
 
-        std.debug.print("[MenuBridge] uncheckMenuItem: {s}\n", .{item_id});
+        log.debug("uncheckMenuItem: {s}", .{item_id});
 
         if (findMenuItemById(item_id)) |item| {
             const macos = @import("macos.zig");
@@ -432,7 +469,7 @@ pub const MenuBridge = struct {
             }
         }
 
-        std.debug.print("[MenuBridge] setMenuItemLabel: {s} = {s}\n", .{ item_id, new_label });
+        log.debug("setMenuItemLabel: {s} = {s}", .{ item_id, new_label });
 
         if (findMenuItemById(item_id)) |item| {
             const macos = @import("macos.zig");
@@ -448,7 +485,7 @@ pub const MenuBridge = struct {
     fn clearDockMenu(self: *Self) !void {
         if (builtin.os.tag != .macos) return;
 
-        std.debug.print("[MenuBridge] clearDockMenu\n", .{});
+        log.debug("clearDockMenu", .{});
 
         if (self.dock_menu) |menu| {
             const macos = @import("macos.zig");
@@ -527,10 +564,19 @@ fn addMenuItemImpl(self: *MenuBridge, data: []const u8) !void {
             }
         }
 
+        // Parse icon
+        var icon_name: ?[]const u8 = null;
+        if (std.mem.indexOf(u8, data, "\"icon\":\"")) |idx| {
+            const start = idx + 8;
+            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
+                icon_name = data[start..end];
+            }
+        }
+
         // Check for separator
         const is_separator = std.mem.indexOf(u8, data, "\"separator\":true") != null;
 
-        std.debug.print("[MenuBridge] addMenuItem: menu={s}, id={s}, label={s}\n", .{ menu_id, item_id, item_label });
+        log.debug("addMenuItem: menu={s}, id={s}, label={s}", .{ menu_id, item_id, item_label });
 
         // Find target menu
         var target_menu: ?*anyopaque = null;
@@ -546,7 +592,7 @@ fn addMenuItemImpl(self: *MenuBridge, data: []const u8) !void {
         }
 
         if (target_menu == null) {
-            std.debug.print("[MenuBridge] Target menu not found: {s}\n", .{menu_id});
+            log.warn("Target menu not found: {s}", .{menu_id});
             return;
         }
 
@@ -555,7 +601,7 @@ fn addMenuItemImpl(self: *MenuBridge, data: []const u8) !void {
         if (is_separator) {
             new_item = macos.msgSend0(macos.getClass("NSMenuItem"), "separatorItem");
         } else {
-            new_item = try self.createMenuItem(item_id, item_label, shortcut);
+            new_item = try self.createMenuItem(item_id, item_label, shortcut, icon_name);
         }
 
         if (new_item) |item| {
@@ -564,7 +610,7 @@ fn addMenuItemImpl(self: *MenuBridge, data: []const u8) !void {
             } else {
                 _ = macos.msgSend2(target_menu.?, "insertItem:atIndex:", item, @as(c_long, index));
             }
-            std.debug.print("[MenuBridge] Added menu item: {s}\n", .{item_id});
+            log.debug("Added menu item: {s}", .{item_id});
         }
     } else {
         // Linux/Windows: Menu APIs not yet implemented
@@ -589,21 +635,21 @@ fn removeMenuItemImpl(self: *MenuBridge, data: []const u8) void {
         }
 
         if (item_id.len == 0) {
-            std.debug.print("[MenuBridge] removeMenuItem: no itemId provided\n", .{});
+            log.warn("removeMenuItem: no itemId provided", .{});
             return;
         }
 
-        std.debug.print("[MenuBridge] removeMenuItem: {s}\n", .{item_id});
+        log.debug("removeMenuItem: {s}", .{item_id});
 
         // Find and remove the item
         if (findMenuItemById(item_id)) |item| {
             const parent_menu = macos.msgSend0(item, "menu");
             if (parent_menu) |menu| {
                 _ = macos.msgSend1(menu, "removeItem:", item);
-                std.debug.print("[MenuBridge] Removed menu item: {s}\n", .{item_id});
+                log.debug("Removed menu item: {s}", .{item_id});
             }
         } else {
-            std.debug.print("[MenuBridge] Menu item not found: {s}\n", .{item_id});
+            log.warn("Menu item not found: {s}", .{item_id});
         }
     } else {
         // Linux/Windows: Menu APIs not yet implemented
@@ -732,7 +778,7 @@ pub fn handleMenuItemClick(item_id: []const u8) void {
 
     const macos = @import("macos.zig");
 
-    std.debug.print("[MenuBridge] Menu item clicked: {s}\n", .{item_id});
+    log.debug("Menu item clicked: {s}", .{item_id});
 
     var buf: [512]u8 = undefined;
     const js = std.fmt.bufPrint(&buf,
@@ -740,6 +786,6 @@ pub fn handleMenuItemClick(item_id: []const u8) void {
     , .{item_id}) catch return;
 
     macos.tryEvalJS(js) catch |err| {
-        std.debug.print("[MenuBridge] Failed to trigger callback: {}\n", .{err});
+        log.err("Failed to trigger callback: {}", .{err});
     };
 }
