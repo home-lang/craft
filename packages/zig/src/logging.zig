@@ -1,0 +1,297 @@
+const std = @import("std");
+const builtin = @import("builtin");
+
+/// Log levels for Craft logging system
+pub const LogLevel = enum(u8) {
+    trace = 0,
+    debug = 1,
+    info = 2,
+    warn = 3,
+    err = 4,
+    fatal = 5,
+    off = 255,
+
+    pub fn asText(self: LogLevel) []const u8 {
+        return switch (self) {
+            .trace => "TRACE",
+            .debug => "DEBUG",
+            .info => "INFO",
+            .warn => "WARN",
+            .err => "ERROR",
+            .fatal => "FATAL",
+            .off => "OFF",
+        };
+    }
+
+    pub fn asColor(self: LogLevel) []const u8 {
+        return switch (self) {
+            .trace => "\x1b[90m", // Gray
+            .debug => "\x1b[36m", // Cyan
+            .info => "\x1b[32m", // Green
+            .warn => "\x1b[33m", // Yellow
+            .err => "\x1b[31m", // Red
+            .fatal => "\x1b[35m", // Magenta
+            .off => "",
+        };
+    }
+};
+
+/// Log output target
+pub const LogTarget = enum {
+    stderr,
+    stdout,
+    file,
+    callback,
+    none,
+};
+
+/// Configuration for the logger
+pub const LogConfig = struct {
+    level: LogLevel = if (builtin.mode == .Debug) .debug else .info,
+    target: LogTarget = .stderr,
+    colored: bool = true,
+    show_timestamp: bool = true,
+    show_module: bool = true,
+    show_source: bool = builtin.mode == .Debug,
+    file_path: ?[]const u8 = null,
+    callback: ?*const fn (LogLevel, []const u8, []const u8) void = null,
+};
+
+/// Global logger state
+var global_config: LogConfig = .{};
+var global_file: ?std.fs.File = null;
+var global_mutex: std.Thread.Mutex = .{};
+
+/// Initialize the logging system
+pub fn init(config: LogConfig) void {
+    global_mutex.lock();
+    defer global_mutex.unlock();
+
+    global_config = config;
+
+    if (config.target == .file) {
+        if (config.file_path) |path| {
+            global_file = std.fs.cwd().createFile(path, .{ .truncate = false }) catch null;
+            if (global_file) |f| {
+                f.seekFromEnd(0) catch {};
+            }
+        }
+    }
+}
+
+/// Deinitialize the logging system
+pub fn deinit() void {
+    global_mutex.lock();
+    defer global_mutex.unlock();
+
+    if (global_file) |f| {
+        f.close();
+        global_file = null;
+    }
+}
+
+/// Set the minimum log level
+pub fn setLevel(level: LogLevel) void {
+    global_mutex.lock();
+    defer global_mutex.unlock();
+    global_config.level = level;
+}
+
+/// Get the current log level
+pub fn getLevel() LogLevel {
+    return global_config.level;
+}
+
+/// Core logging function
+fn logInternal(
+    level: LogLevel,
+    module: []const u8,
+    comptime format: []const u8,
+    args: anytype,
+    src: std.builtin.SourceLocation,
+) void {
+    // Check if we should log at this level
+    if (@intFromEnum(level) < @intFromEnum(global_config.level)) {
+        return;
+    }
+
+    global_mutex.lock();
+    defer global_mutex.unlock();
+
+    const config = global_config;
+
+    // Format the message
+    var buf: [4096]u8 = undefined;
+    var pos: usize = 0;
+
+    // Timestamp
+    if (config.show_timestamp) {
+        const ts = std.time.timestamp();
+        const hours = @mod(@divFloor(ts, 3600), 24);
+        const mins = @mod(@divFloor(ts, 60), 60);
+        const secs = @mod(ts, 60);
+
+        const ts_str = std.fmt.bufPrint(buf[pos..], "{d:0>2}:{d:0>2}:{d:0>2} ", .{
+            @as(u64, @intCast(hours)),
+            @as(u64, @intCast(mins)),
+            @as(u64, @intCast(secs)),
+        }) catch return;
+        pos += ts_str.len;
+    }
+
+    // Color start
+    if (config.colored and config.target != .file) {
+        const color = level.asColor();
+        @memcpy(buf[pos .. pos + color.len], color);
+        pos += color.len;
+    }
+
+    // Level
+    const level_str = std.fmt.bufPrint(buf[pos..], "[{s}] ", .{level.asText()}) catch return;
+    pos += level_str.len;
+
+    // Color reset
+    if (config.colored and config.target != .file) {
+        const reset = "\x1b[0m";
+        @memcpy(buf[pos .. pos + reset.len], reset);
+        pos += reset.len;
+    }
+
+    // Module
+    if (config.show_module and module.len > 0) {
+        const mod_str = std.fmt.bufPrint(buf[pos..], "[{s}] ", .{module}) catch return;
+        pos += mod_str.len;
+    }
+
+    // Message
+    const msg = std.fmt.bufPrint(buf[pos..], format, args) catch return;
+    pos += msg.len;
+
+    // Source location (debug only)
+    if (config.show_source) {
+        const src_str = std.fmt.bufPrint(buf[pos..], " ({s}:{d})", .{ src.file, src.line }) catch return;
+        pos += src_str.len;
+    }
+
+    // Newline
+    buf[pos] = '\n';
+    pos += 1;
+
+    // Output
+    switch (config.target) {
+        .stderr => {
+            std.io.getStdErr().writeAll(buf[0..pos]) catch {};
+        },
+        .stdout => {
+            std.io.getStdOut().writeAll(buf[0..pos]) catch {};
+        },
+        .file => {
+            if (global_file) |f| {
+                f.writeAll(buf[0..pos]) catch {};
+            }
+        },
+        .callback => {
+            if (config.callback) |cb| {
+                cb(level, module, buf[0..pos]);
+            }
+        },
+        .none => {},
+    }
+}
+
+/// Module-scoped logger for cleaner API
+pub fn scoped(comptime module: []const u8) type {
+    return struct {
+        pub fn trace(comptime format: []const u8, args: anytype) void {
+            logInternal(.trace, module, format, args, @src());
+        }
+
+        pub fn debug(comptime format: []const u8, args: anytype) void {
+            logInternal(.debug, module, format, args, @src());
+        }
+
+        pub fn info(comptime format: []const u8, args: anytype) void {
+            logInternal(.info, module, format, args, @src());
+        }
+
+        pub fn warn(comptime format: []const u8, args: anytype) void {
+            logInternal(.warn, module, format, args, @src());
+        }
+
+        pub fn err(comptime format: []const u8, args: anytype) void {
+            logInternal(.err, module, format, args, @src());
+        }
+
+        pub fn fatal(comptime format: []const u8, args: anytype) void {
+            logInternal(.fatal, module, format, args, @src());
+        }
+    };
+}
+
+// Convenience functions for unscoped logging
+
+pub fn trace(comptime format: []const u8, args: anytype) void {
+    logInternal(.trace, "", format, args, @src());
+}
+
+pub fn debug(comptime format: []const u8, args: anytype) void {
+    logInternal(.debug, "", format, args, @src());
+}
+
+pub fn info(comptime format: []const u8, args: anytype) void {
+    logInternal(.info, "", format, args, @src());
+}
+
+pub fn warn(comptime format: []const u8, args: anytype) void {
+    logInternal(.warn, "", format, args, @src());
+}
+
+pub fn err(comptime format: []const u8, args: anytype) void {
+    logInternal(.err, "", format, args, @src());
+}
+
+pub fn fatal(comptime format: []const u8, args: anytype) void {
+    logInternal(.fatal, "", format, args, @src());
+}
+
+// ============================================
+// Pre-defined module loggers for Craft bridges
+// ============================================
+
+pub const bridge = scoped("Bridge");
+pub const dialog = scoped("Dialog");
+pub const clipboard = scoped("Clipboard");
+pub const notification = scoped("Notification");
+pub const menu = scoped("Menu");
+pub const tray = scoped("Tray");
+pub const fs = scoped("FS");
+pub const network = scoped("Network");
+pub const power = scoped("Power");
+pub const window = scoped("Window");
+pub const system = scoped("System");
+pub const webview = scoped("WebView");
+pub const marketplace = scoped("Marketplace");
+pub const shortcuts = scoped("Shortcuts");
+
+// ============================================
+// Tests
+// ============================================
+
+test "log level ordering" {
+    try std.testing.expect(@intFromEnum(LogLevel.trace) < @intFromEnum(LogLevel.debug));
+    try std.testing.expect(@intFromEnum(LogLevel.debug) < @intFromEnum(LogLevel.info));
+    try std.testing.expect(@intFromEnum(LogLevel.info) < @intFromEnum(LogLevel.warn));
+    try std.testing.expect(@intFromEnum(LogLevel.warn) < @intFromEnum(LogLevel.err));
+    try std.testing.expect(@intFromEnum(LogLevel.err) < @intFromEnum(LogLevel.fatal));
+}
+
+test "scoped logger" {
+    const myLog = scoped("TestModule");
+    // Just verify it compiles - actual output would go to stderr
+    _ = myLog;
+}
+
+test "log level text" {
+    try std.testing.expectEqualStrings("DEBUG", LogLevel.debug.asText());
+    try std.testing.expectEqualStrings("ERROR", LogLevel.err.asText());
+}

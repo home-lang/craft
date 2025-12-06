@@ -721,6 +721,263 @@ pub fn utf16ToUtf8(allocator: std.mem.Allocator, utf16: []const u16) ![]u8 {
 }
 
 // ============================================
+// Async Initialization Support
+// ============================================
+
+/// WebView2 async initialization state
+pub const WebView2InitState = enum {
+    uninitialized,
+    creating_environment,
+    creating_controller,
+    ready,
+    failed,
+};
+
+/// Callback types for async initialization
+pub const OnInitComplete = *const fn (*WebView2, bool, ?[]const u8) void;
+pub const OnEnvironmentCreated = *const fn (?*ICoreWebView2Environment, HRESULT, ?*anyopaque) void;
+pub const OnControllerCreated = *const fn (?*ICoreWebView2Controller, HRESULT, ?*anyopaque) void;
+
+/// Async initialization context
+pub const WebView2AsyncContext = struct {
+    webview: *WebView2,
+    hwnd: HWND,
+    config: WebView2Config,
+    on_complete: ?OnInitComplete,
+    state: WebView2InitState,
+    error_message: ?[]const u8,
+    allocator: std.mem.Allocator,
+
+    // COM callback implementations stored here
+    env_handler: EnvironmentCompletedHandler,
+    ctrl_handler: ControllerCompletedHandler,
+
+    pub fn init(allocator: std.mem.Allocator, webview: *WebView2, hwnd: HWND, config: WebView2Config, on_complete: ?OnInitComplete) WebView2AsyncContext {
+        var ctx = WebView2AsyncContext{
+            .webview = webview,
+            .hwnd = hwnd,
+            .config = config,
+            .on_complete = on_complete,
+            .state = .uninitialized,
+            .error_message = null,
+            .allocator = allocator,
+            .env_handler = undefined,
+            .ctrl_handler = undefined,
+        };
+
+        // Initialize callback handlers
+        ctx.env_handler = EnvironmentCompletedHandler.init(&ctx);
+        ctx.ctrl_handler = ControllerCompletedHandler.init(&ctx);
+
+        return ctx;
+    }
+};
+
+/// COM handler for environment creation completion
+pub const EnvironmentCompletedHandler = struct {
+    interface: ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler,
+    ref_count: u32,
+    context: *WebView2AsyncContext,
+
+    const vtbl = ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandlerVtbl{
+        .QueryInterface = queryInterface,
+        .AddRef = addRef,
+        .Release = release,
+        .Invoke = invoke,
+    };
+
+    pub fn init(context: *WebView2AsyncContext) EnvironmentCompletedHandler {
+        return .{
+            .interface = .{ .lpVtbl = &vtbl },
+            .ref_count = 1,
+            .context = context,
+        };
+    }
+
+    fn queryInterface(self: *ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler, riid: *const std.os.windows.GUID, ppv: **anyopaque) callconv(.C) HRESULT {
+        _ = self;
+        _ = riid;
+        _ = ppv;
+        return @as(HRESULT, @bitCast(@as(i32, -2147467262))); // E_NOINTERFACE
+    }
+
+    fn addRef(self: *ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler) callconv(.C) u32 {
+        const handler: *EnvironmentCompletedHandler = @fieldParentPtr("interface", self);
+        handler.ref_count += 1;
+        return handler.ref_count;
+    }
+
+    fn release(self: *ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler) callconv(.C) u32 {
+        const handler: *EnvironmentCompletedHandler = @fieldParentPtr("interface", self);
+        handler.ref_count -= 1;
+        return handler.ref_count;
+    }
+
+    fn invoke(self: *ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler, result: HRESULT, environment: ?*ICoreWebView2Environment) callconv(.C) HRESULT {
+        const handler: *EnvironmentCompletedHandler = @fieldParentPtr("interface", self);
+        const ctx = handler.context;
+
+        if (result < 0 or environment == null) {
+            ctx.state = .failed;
+            ctx.error_message = "Failed to create WebView2 environment";
+            if (ctx.on_complete) |callback| {
+                callback(ctx.webview, false, ctx.error_message);
+            }
+            return result;
+        }
+
+        // Store environment and create controller
+        ctx.webview.environment = environment;
+        ctx.state = .creating_controller;
+
+        // Create controller asynchronously
+        _ = environment.?.CreateCoreWebView2Controller(ctx.hwnd, &ctx.ctrl_handler.interface);
+
+        return 0;
+    }
+};
+
+/// COM handler for controller creation completion
+pub const ControllerCompletedHandler = struct {
+    interface: ICoreWebView2CreateCoreWebView2ControllerCompletedHandler,
+    ref_count: u32,
+    context: *WebView2AsyncContext,
+
+    const vtbl = ICoreWebView2CreateCoreWebView2ControllerCompletedHandlerVtbl{
+        .QueryInterface = queryInterface,
+        .AddRef = addRef,
+        .Release = release,
+        .Invoke = invoke,
+    };
+
+    pub fn init(context: *WebView2AsyncContext) ControllerCompletedHandler {
+        return .{
+            .interface = .{ .lpVtbl = &vtbl },
+            .ref_count = 1,
+            .context = context,
+        };
+    }
+
+    fn queryInterface(self: *ICoreWebView2CreateCoreWebView2ControllerCompletedHandler, riid: *const std.os.windows.GUID, ppv: **anyopaque) callconv(.C) HRESULT {
+        _ = self;
+        _ = riid;
+        _ = ppv;
+        return @as(HRESULT, @bitCast(@as(i32, -2147467262))); // E_NOINTERFACE
+    }
+
+    fn addRef(self: *ICoreWebView2CreateCoreWebView2ControllerCompletedHandler) callconv(.C) u32 {
+        const handler: *ControllerCompletedHandler = @fieldParentPtr("interface", self);
+        handler.ref_count += 1;
+        return handler.ref_count;
+    }
+
+    fn release(self: *ICoreWebView2CreateCoreWebView2ControllerCompletedHandler) callconv(.C) u32 {
+        const handler: *ControllerCompletedHandler = @fieldParentPtr("interface", self);
+        handler.ref_count -= 1;
+        return handler.ref_count;
+    }
+
+    fn invoke(self: *ICoreWebView2CreateCoreWebView2ControllerCompletedHandler, result: HRESULT, controller: ?*ICoreWebView2Controller) callconv(.C) HRESULT {
+        const handler: *ControllerCompletedHandler = @fieldParentPtr("interface", self);
+        const ctx = handler.context;
+
+        if (result < 0 or controller == null) {
+            ctx.state = .failed;
+            ctx.error_message = "Failed to create WebView2 controller";
+            if (ctx.on_complete) |callback| {
+                callback(ctx.webview, false, ctx.error_message);
+            }
+            return result;
+        }
+
+        // Store controller and get webview
+        ctx.webview.controller = controller;
+        ctx.webview.hwnd = ctx.hwnd;
+
+        var webview: ?*ICoreWebView2 = null;
+        _ = controller.?.get_CoreWebView2(&webview);
+        ctx.webview.webview = webview;
+
+        // Apply configuration if settings are available
+        if (webview != null) {
+            applyWebView2Config(ctx.webview, ctx.config);
+        }
+
+        ctx.state = .ready;
+
+        if (ctx.on_complete) |callback| {
+            callback(ctx.webview, true, null);
+        }
+
+        return 0;
+    }
+};
+
+/// Apply configuration to WebView2 settings
+fn applyWebView2Config(wv: *WebView2, config: WebView2Config) void {
+    _ = wv;
+    _ = config;
+    // In a full implementation, would get settings interface and apply config
+    // Example:
+    // var settings: ?*ICoreWebView2Settings = null;
+    // if (wv.webview) |webview| {
+    //     _ = webview.lpVtbl.get_Settings(webview, &settings);
+    //     if (settings) |s| {
+    //         _ = s.put_IsScriptEnabled(if (config.is_script_enabled) 1 else 0);
+    //         _ = s.put_IsWebMessageEnabled(if (config.is_web_message_enabled) 1 else 0);
+    //         _ = s.put_AreDevToolsEnabled(if (config.are_dev_tools_enabled) 1 else 0);
+    //         // ... etc
+    //     }
+    // }
+}
+
+/// Start async WebView2 initialization
+/// Returns context that must be kept alive until initialization completes
+pub fn initializeWebView2Async(
+    allocator: std.mem.Allocator,
+    webview: *WebView2,
+    hwnd: HWND,
+    config: WebView2Config,
+    on_complete: ?OnInitComplete,
+) !*WebView2AsyncContext {
+    const ctx = try allocator.create(WebView2AsyncContext);
+    ctx.* = WebView2AsyncContext.init(allocator, webview, hwnd, config, on_complete);
+
+    ctx.state = .creating_environment;
+
+    // In a real implementation, would call CreateCoreWebView2EnvironmentWithOptions
+    // from WebView2Loader.dll:
+    //
+    // extern fn CreateCoreWebView2EnvironmentWithOptions(
+    //     browserExecutableFolder: ?LPCWSTR,
+    //     userDataFolder: ?LPCWSTR,
+    //     environmentOptions: ?*anyopaque,
+    //     environmentCreatedHandler: *ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler,
+    // ) callconv(.C) HRESULT;
+
+    std.debug.print("[WebView2] Async initialization started\n", .{});
+
+    return ctx;
+}
+
+/// Check if WebView2 runtime is installed
+pub fn isWebView2RuntimeInstalled() bool {
+    // Check registry for WebView2 installation
+    // HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}
+    // or check for presence of msedgewebview2.exe
+
+    // For now, return true and let initialization fail if not installed
+    return true;
+}
+
+/// Get WebView2 runtime version if installed
+pub fn getWebView2Version(allocator: std.mem.Allocator) !?[]const u8 {
+    // Would query registry or use GetAvailableCoreWebView2BrowserVersionString
+    _ = allocator;
+    return null;
+}
+
+// ============================================
 // COM Helper Functions
 // ============================================
 

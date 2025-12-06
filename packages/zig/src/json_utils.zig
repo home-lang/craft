@@ -84,21 +84,21 @@ pub fn hasKey(data: []const u8, key: []const u8) bool {
 
 /// Escape a string for safe JSON embedding
 pub fn escapeJson(allocator: std.mem.Allocator, str: []const u8) ![]u8 {
-    var result = std.ArrayList(u8).init(allocator);
-    errdefer result.deinit();
+    var result: std.ArrayListUnmanaged(u8) = .{};
+    errdefer result.deinit(allocator);
 
     for (str) |ch| {
         switch (ch) {
-            '"' => try result.appendSlice("\\\""),
-            '\\' => try result.appendSlice("\\\\"),
-            '\n' => try result.appendSlice("\\n"),
-            '\r' => try result.appendSlice("\\r"),
-            '\t' => try result.appendSlice("\\t"),
-            else => try result.append(ch),
+            '"' => try result.appendSlice(allocator, "\\\""),
+            '\\' => try result.appendSlice(allocator, "\\\\"),
+            '\n' => try result.appendSlice(allocator, "\\n"),
+            '\r' => try result.appendSlice(allocator, "\\r"),
+            '\t' => try result.appendSlice(allocator, "\\t"),
+            else => try result.append(allocator, ch),
         }
     }
 
-    return result.toOwnedSlice();
+    return result.toOwnedSlice(allocator);
 }
 
 /// Build a JSON string with escaped values
@@ -113,14 +113,14 @@ pub fn buildJsonString(allocator: std.mem.Allocator, key: []const u8, value: []c
 pub fn JsonBuilder(comptime max_fields: usize) type {
     return struct {
         allocator: std.mem.Allocator,
-        buffer: std.ArrayList(u8),
+        buffer: std.ArrayListUnmanaged(u8),
         field_count: usize,
 
         const Self = @This();
 
         pub fn init(allocator: std.mem.Allocator) Self {
-            var buffer = std.ArrayList(u8).init(allocator);
-            buffer.append('{') catch {};
+            var buffer: std.ArrayListUnmanaged(u8) = .{};
+            buffer.append(allocator, '{') catch {};
             return .{
                 .allocator = allocator,
                 .buffer = buffer,
@@ -130,61 +130,61 @@ pub fn JsonBuilder(comptime max_fields: usize) type {
 
         pub fn addString(self: *Self, key: []const u8, value: []const u8) !void {
             if (self.field_count > 0) {
-                try self.buffer.append(',');
+                try self.buffer.append(self.allocator, ',');
             }
-            try self.buffer.append('"');
-            try self.buffer.appendSlice(key);
-            try self.buffer.appendSlice("\":\"");
+            try self.buffer.append(self.allocator, '"');
+            try self.buffer.appendSlice(self.allocator, key);
+            try self.buffer.appendSlice(self.allocator, "\":\"");
 
             // Escape the value
             for (value) |ch| {
                 switch (ch) {
-                    '"' => try self.buffer.appendSlice("\\\""),
-                    '\\' => try self.buffer.appendSlice("\\\\"),
-                    '\n' => try self.buffer.appendSlice("\\n"),
-                    '\r' => try self.buffer.appendSlice("\\r"),
-                    '\t' => try self.buffer.appendSlice("\\t"),
-                    else => try self.buffer.append(ch),
+                    '"' => try self.buffer.appendSlice(self.allocator, "\\\""),
+                    '\\' => try self.buffer.appendSlice(self.allocator, "\\\\"),
+                    '\n' => try self.buffer.appendSlice(self.allocator, "\\n"),
+                    '\r' => try self.buffer.appendSlice(self.allocator, "\\r"),
+                    '\t' => try self.buffer.appendSlice(self.allocator, "\\t"),
+                    else => try self.buffer.append(self.allocator, ch),
                 }
             }
 
-            try self.buffer.append('"');
+            try self.buffer.append(self.allocator, '"');
             self.field_count += 1;
             _ = max_fields;
         }
 
         pub fn addBool(self: *Self, key: []const u8, value: bool) !void {
             if (self.field_count > 0) {
-                try self.buffer.append(',');
+                try self.buffer.append(self.allocator, ',');
             }
-            try self.buffer.append('"');
-            try self.buffer.appendSlice(key);
-            try self.buffer.appendSlice("\":");
-            try self.buffer.appendSlice(if (value) "true" else "false");
+            try self.buffer.append(self.allocator, '"');
+            try self.buffer.appendSlice(self.allocator, key);
+            try self.buffer.appendSlice(self.allocator, "\":");
+            try self.buffer.appendSlice(self.allocator, if (value) "true" else "false");
             self.field_count += 1;
         }
 
         pub fn addInt(self: *Self, key: []const u8, value: anytype) !void {
             if (self.field_count > 0) {
-                try self.buffer.append(',');
+                try self.buffer.append(self.allocator, ',');
             }
-            try self.buffer.append('"');
-            try self.buffer.appendSlice(key);
-            try self.buffer.appendSlice("\":");
+            try self.buffer.append(self.allocator, '"');
+            try self.buffer.appendSlice(self.allocator, key);
+            try self.buffer.appendSlice(self.allocator, "\":");
 
             var num_buf: [32]u8 = undefined;
             const num_str = std.fmt.bufPrint(&num_buf, "{}", .{value}) catch return;
-            try self.buffer.appendSlice(num_str);
+            try self.buffer.appendSlice(self.allocator, num_str);
             self.field_count += 1;
         }
 
         pub fn finish(self: *Self) ![]u8 {
-            try self.buffer.append('}');
-            return self.buffer.toOwnedSlice();
+            try self.buffer.append(self.allocator, '}');
+            return self.buffer.toOwnedSlice(self.allocator);
         }
 
         pub fn deinit(self: *Self) void {
-            self.buffer.deinit();
+            self.buffer.deinit(self.allocator);
         }
     };
 }
