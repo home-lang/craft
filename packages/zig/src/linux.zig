@@ -363,8 +363,70 @@ pub fn setClipboard(text: []const u8) !void {
     gdk_clipboard_set_text(clipboard, text_z);
 }
 
+// GDK async read completion extern
+pub extern "c" fn gdk_clipboard_read_text_finish(
+    clipboard: *anyopaque,
+    result: *anyopaque,
+    error_ptr: ?*?*anyopaque,
+) ?[*:0]const u8;
+
+pub extern "c" fn g_free(mem: ?*anyopaque) void;
+
+// Synchronous clipboard read using xclip/xsel fallback for reliability
 pub fn getClipboard(allocator: std.mem.Allocator) ![]u8 {
-    _ = allocator;
-    // TODO: Implement async clipboard read
-    return "";
+    // Try using xclip first (most common on Linux)
+    {
+        const argv = [_][]const u8{
+            "xclip",
+            "-selection",
+            "clipboard",
+            "-o",
+        };
+        var child = std.process.Child.init(&argv, allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Ignore;
+
+        child.spawn() catch |err| {
+            std.debug.print("[Clipboard] xclip spawn failed: {}\n", .{err});
+            // Continue to xsel fallback
+        };
+
+        if (child.stdout) |stdout| {
+            const result = stdout.reader().readAllAlloc(allocator, 1024 * 1024) catch {
+                _ = child.wait() catch {};
+                return try allocator.dupe(u8, "");
+            };
+            _ = child.wait() catch {};
+            return result;
+        }
+    }
+
+    // Fallback to xsel
+    {
+        const argv = [_][]const u8{
+            "xsel",
+            "--clipboard",
+            "--output",
+        };
+        var child = std.process.Child.init(&argv, allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Ignore;
+
+        child.spawn() catch |err| {
+            std.debug.print("[Clipboard] xsel spawn failed: {}\n", .{err});
+            return try allocator.dupe(u8, "");
+        };
+
+        if (child.stdout) |stdout| {
+            const result = stdout.reader().readAllAlloc(allocator, 1024 * 1024) catch {
+                _ = child.wait() catch {};
+                return try allocator.dupe(u8, "");
+            };
+            _ = child.wait() catch {};
+            return result;
+        }
+    }
+
+    // If neither worked, return empty
+    return try allocator.dupe(u8, "");
 }

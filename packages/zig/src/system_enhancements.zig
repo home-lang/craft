@@ -25,6 +25,37 @@ const objc = if (builtin.os.tag == .macos) struct {
     pub const SEL = *anyopaque;
 };
 
+// Carbon framework types for global hotkeys (macOS)
+const carbon = if (builtin.os.tag == .macos) struct {
+    pub const EventHotKeyRef = ?*anyopaque;
+    pub const EventTargetRef = ?*anyopaque;
+
+    pub const EventHotKeyID = extern struct {
+        signature: u32,
+        id: u32,
+    };
+
+    // Carbon HIToolbox functions
+    pub extern "Carbon" fn RegisterEventHotKey(
+        inHotKeyCode: u32,
+        inHotKeyModifiers: u32,
+        inHotKeyID: EventHotKeyID,
+        inTarget: EventTargetRef,
+        inOptions: u32,
+        outRef: *EventHotKeyRef,
+    ) callconv(.C) i32;
+
+    pub extern "Carbon" fn UnregisterEventHotKey(
+        inHotKey: EventHotKeyRef,
+    ) callconv(.C) i32;
+
+    pub extern "Carbon" fn GetApplicationEventTarget() callconv(.C) EventTargetRef;
+} else struct {
+    pub const EventHotKeyRef = *anyopaque;
+    pub const EventTargetRef = *anyopaque;
+    pub const EventHotKeyID = struct { signature: u32, id: u32 };
+};
+
 pub const DockFeatures = struct {
     /// Set dock badge (notification count)
     pub fn setBadge(text: []const u8) !void {
@@ -53,9 +84,76 @@ pub const DockFeatures = struct {
     }
 
     /// Set dock progress (0.0 to 1.0)
+    /// Uses NSDockTile with a custom progress view
     pub fn setProgress(progress: f64) !void {
         if (builtin.os.tag != .macos) return;
-        _ = progress; // TODO: Implement progress indicator
+
+        const NSApp = objc.objc_getClass("NSApplication");
+        const app = msgSend0(NSApp, "sharedApplication");
+        const dockTile = msgSend0(app, "dockTile");
+
+        // Get or create progress indicator view
+        var contentView = msgSend0(dockTile, "contentView");
+
+        if (@intFromPtr(contentView) == 0) {
+            // Create a new view for the dock tile
+            const NSView = objc.objc_getClass("NSView");
+            const NSMakeRect_fn = @as(
+                *const fn (f64, f64, f64, f64) callconv(.c) NSRect,
+                @ptrCast(&objc.objc_msgSend),
+            );
+            _ = NSMakeRect_fn;
+
+            contentView = msgSend0(msgSend0(NSView, "alloc"), "init");
+
+            // Set the content view
+            msgSendVoid1(dockTile, "setContentView:", contentView);
+        }
+
+        // Create/update progress indicator
+        const NSProgressIndicator = objc.objc_getClass("NSProgressIndicator");
+        const progressIndicator = msgSend0(msgSend0(NSProgressIndicator, "alloc"), "init");
+
+        // Configure progress indicator
+        const setDoubleValue = @as(
+            *const fn (@TypeOf(progressIndicator), objc.SEL, f64) callconv(.c) void,
+            @ptrCast(&objc.objc_msgSend),
+        );
+        setDoubleValue(progressIndicator, objc.sel_registerName("setMinValue:"), 0.0);
+        setDoubleValue(progressIndicator, objc.sel_registerName("setMaxValue:"), 1.0);
+        setDoubleValue(progressIndicator, objc.sel_registerName("setDoubleValue:"), progress);
+
+        // Set as indeterminate if progress is negative, determinate otherwise
+        const setIndeterminate = @as(
+            *const fn (@TypeOf(progressIndicator), objc.SEL, c_int) callconv(.c) void,
+            @ptrCast(&objc.objc_msgSend),
+        );
+        setIndeterminate(progressIndicator, objc.sel_registerName("setIndeterminate:"), if (progress < 0) 1 else 0);
+
+        // Set frame
+        msgSendVoid1(progressIndicator, "setFrame:", NSRect{
+            .origin = .{ .x = 0, .y = 0 },
+            .size = .{ .width = 128, .height = 10 },
+        });
+
+        // Add to content view and display
+        msgSendVoid1(contentView, "addSubview:", progressIndicator);
+
+        // Force dock tile update
+        msgSendVoid0(dockTile, "display");
+    }
+
+    /// Clear dock progress indicator
+    pub fn clearProgress() !void {
+        if (builtin.os.tag != .macos) return;
+
+        const NSApp = objc.objc_getClass("NSApplication");
+        const app = msgSend0(NSApp, "sharedApplication");
+        const dockTile = msgSend0(app, "dockTile");
+
+        // Remove content view to restore default dock icon
+        msgSendVoid1(dockTile, "setContentView:", @as(objc.id, null));
+        msgSendVoid0(dockTile, "display");
     }
 
     /// Bounce dock icon to get attention
@@ -253,12 +351,151 @@ pub const SystemEvents = struct {
         self.screen_lock_callback = callback;
     }
 
+    // Static reference for callback access
+    var global_events: ?*SystemEvents = null;
+
     fn macOSRegisterSleepWake(self: *SystemEvents) void {
-        _ = self;
-        // TODO: Register for NSWorkspaceWillSleepNotification
-        // and NSWorkspaceDidWakeNotification
+        if (builtin.os.tag != .macos) return;
+
+        global_events = self;
+
+        // Get NSWorkspace shared workspace
+        const NSWorkspace = objc.objc_getClass("NSWorkspace");
+        const workspace = msgSend0(NSWorkspace, "sharedWorkspace");
+        const notificationCenter = msgSend0(workspace, "notificationCenter");
+
+        // Create notification names
+        const NSString = objc.objc_getClass("NSString");
+        const sleepNotification = msgSend1(
+            NSString,
+            "stringWithUTF8String:",
+            @as([*:0]const u8, "NSWorkspaceWillSleepNotification"),
+        );
+        const wakeNotification = msgSend1(
+            NSString,
+            "stringWithUTF8String:",
+            @as([*:0]const u8, "NSWorkspaceDidWakeNotification"),
+        );
+        const screenLockNotification = msgSend1(
+            NSString,
+            "stringWithUTF8String:",
+            @as([*:0]const u8, "NSWorkspaceScreensDidSleepNotification"),
+        );
+
+        // Create observer block-like handler class
+        const NSObject = objc.objc_getClass("NSObject");
+        const class_name = "CraftSystemEventObserver";
+
+        var observer_class = objc.objc_getClass(class_name);
+        if (observer_class == null) {
+            observer_class = objc.objc_allocateClassPair(NSObject, class_name, 0);
+
+            // Add handleSleep: method
+            const handleSleep = @as(
+                *const fn (objc.id, objc.SEL, objc.id) callconv(.c) void,
+                @ptrCast(@constCast(&onSleepNotification)),
+            );
+            _ = objc.class_addMethod(
+                observer_class,
+                objc.sel_registerName("handleSleep:"),
+                @ptrCast(@constCast(handleSleep)),
+                "v@:@",
+            );
+
+            // Add handleWake: method
+            const handleWake = @as(
+                *const fn (objc.id, objc.SEL, objc.id) callconv(.c) void,
+                @ptrCast(@constCast(&onWakeNotification)),
+            );
+            _ = objc.class_addMethod(
+                observer_class,
+                objc.sel_registerName("handleWake:"),
+                @ptrCast(@constCast(handleWake)),
+                "v@:@",
+            );
+
+            // Add handleScreenLock: method
+            const handleScreenLock = @as(
+                *const fn (objc.id, objc.SEL, objc.id) callconv(.c) void,
+                @ptrCast(@constCast(&onScreenLockNotification)),
+            );
+            _ = objc.class_addMethod(
+                observer_class,
+                objc.sel_registerName("handleScreenLock:"),
+                @ptrCast(@constCast(handleScreenLock)),
+                "v@:@",
+            );
+
+            objc.objc_registerClassPair(observer_class);
+        }
+
+        // Create observer instance
+        const observer = msgSend0(msgSend0(observer_class.?, "alloc"), "init");
+
+        // Add observers for notifications
+        const addObserver = @as(
+            *const fn (objc.id, objc.SEL, objc.id, objc.SEL, objc.id, objc.id) callconv(.c) void,
+            @ptrCast(&objc.objc_msgSend),
+        );
+
+        addObserver(
+            notificationCenter,
+            objc.sel_registerName("addObserver:selector:name:object:"),
+            observer,
+            objc.sel_registerName("handleSleep:"),
+            sleepNotification,
+            @as(objc.id, null),
+        );
+
+        addObserver(
+            notificationCenter,
+            objc.sel_registerName("addObserver:selector:name:object:"),
+            observer,
+            objc.sel_registerName("handleWake:"),
+            wakeNotification,
+            @as(objc.id, null),
+        );
+
+        addObserver(
+            notificationCenter,
+            objc.sel_registerName("addObserver:selector:name:object:"),
+            observer,
+            objc.sel_registerName("handleScreenLock:"),
+            screenLockNotification,
+            @as(objc.id, null),
+        );
+
+        std.debug.print("[SystemEvents] Registered for sleep/wake/screen lock notifications\n", .{});
     }
 };
+
+// Notification handler functions (must be at file scope for export)
+fn onSleepNotification(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
+    std.debug.print("[SystemEvents] System will sleep\n", .{});
+    if (SystemEvents.global_events) |events| {
+        if (events.sleep_callback) |callback| {
+            callback();
+        }
+    }
+}
+
+fn onWakeNotification(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
+    std.debug.print("[SystemEvents] System did wake\n", .{});
+    if (SystemEvents.global_events) |events| {
+        if (events.wake_callback) |callback| {
+            callback();
+        }
+    }
+}
+
+fn onScreenLockNotification(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
+    std.debug.print("[SystemEvents] Screen locked\n", .{});
+    if (SystemEvents.global_events) |events| {
+        if (events.screen_lock_callback) |callback| {
+            callback();
+        }
+    }
+}
 
 // ============================================================================
 // 4. Global Keyboard Shortcuts (macOS Carbon)
@@ -283,10 +520,14 @@ pub const HotkeyManager = struct {
     }
 
     pub fn deinit(self: *HotkeyManager) void {
-        // Unregister all hotkeys
-        for (self.hotkeys.items) |hotkey| {
-            _ = hotkey;
-            // TODO: UnregisterEventHotKey on macOS
+        // Unregister all hotkeys on macOS using Carbon
+        if (builtin.os.tag == .macos) {
+            for (self.hotkeys.items) |hotkey| {
+                // Use Carbon UnregisterEventHotKey
+                // The hotkey ref is stored as the id in our Hotkey struct
+                const hotkey_ref: carbon.EventHotKeyRef = @ptrFromInt(hotkey.id);
+                _ = carbon.UnregisterEventHotKey(hotkey_ref);
+            }
         }
         self.hotkeys.deinit();
     }
@@ -297,16 +538,45 @@ pub const HotkeyManager = struct {
     pub fn register(self: *HotkeyManager, key_code: u32, modifiers: u32, callback: *const fn () void) !void {
         const id = @as(u32, @intCast(self.hotkeys.items.len + 1));
 
-        try self.hotkeys.append(.{
-            .id = id,
-            .key_code = key_code,
-            .modifiers = modifiers,
-            .callback = callback,
-        });
-
         if (builtin.os.tag == .macos) {
-            // TODO: RegisterEventHotKey using Carbon
-            // For now, just store the hotkey
+            // Register hotkey using Carbon API
+            const signature: u32 = 0x63726674; // 'crft' (craft signature)
+            const hotkey_id = carbon.EventHotKeyID{
+                .signature = signature,
+                .id = id,
+            };
+
+            var hotkey_ref: carbon.EventHotKeyRef = null;
+            const target = carbon.GetApplicationEventTarget();
+
+            const result = carbon.RegisterEventHotKey(
+                key_code,
+                modifiers,
+                hotkey_id,
+                target,
+                0, // options
+                &hotkey_ref,
+            );
+
+            if (result != 0) {
+                return error.HotkeyRegistrationFailed;
+            }
+
+            // Store the hotkey reference as the id
+            try self.hotkeys.append(.{
+                .id = @intFromPtr(hotkey_ref),
+                .key_code = key_code,
+                .modifiers = modifiers,
+                .callback = callback,
+            });
+        } else {
+            // Non-macOS: just store the hotkey
+            try self.hotkeys.append(.{
+                .id = id,
+                .key_code = key_code,
+                .modifiers = modifiers,
+                .callback = callback,
+            });
         }
     }
 
@@ -365,18 +635,140 @@ pub const LocalStorage = struct {
 
     pub fn set(self: *LocalStorage, key: []const u8, value: []const u8) !void {
         // Load existing data
-        var data = try self.loadAll();
+        const data = try self.loadAll();
         defer self.allocator.free(data);
 
-        // TODO: Parse JSON, update key, write back
-        _ = key;
-        _ = value;
+        // Parse existing JSON
+        const parsed = std.json.parseFromSlice(std.json.Value, self.allocator, data, .{}) catch {
+            // If parsing fails, start fresh
+            return try self.writeJson(&.{.{ key, value }});
+        };
+        defer parsed.deinit();
+
+        // Build new JSON with updated key
+        var output = std.ArrayList(u8).init(self.allocator);
+        defer output.deinit();
+
+        try output.appendSlice("{");
+
+        var first = true;
+        var key_found = false;
+
+        // Copy existing keys, updating the target key
+        if (parsed.value == .object) {
+            var iter = parsed.value.object.iterator();
+            while (iter.next()) |entry| {
+                if (!first) try output.appendSlice(",");
+                first = false;
+
+                try output.appendSlice("\"");
+                try output.appendSlice(entry.key_ptr.*);
+                try output.appendSlice("\":");
+
+                if (std.mem.eql(u8, entry.key_ptr.*, key)) {
+                    key_found = true;
+                    try output.appendSlice("\"");
+                    try output.appendSlice(value);
+                    try output.appendSlice("\"");
+                } else if (entry.value_ptr.* == .string) {
+                    try output.appendSlice("\"");
+                    try output.appendSlice(entry.value_ptr.*.string);
+                    try output.appendSlice("\"");
+                } else {
+                    // For non-string values, stringify
+                    try std.json.stringify(entry.value_ptr.*, .{}, output.writer());
+                }
+            }
+        }
+
+        // Add new key if not found
+        if (!key_found) {
+            if (!first) try output.appendSlice(",");
+            try output.appendSlice("\"");
+            try output.appendSlice(key);
+            try output.appendSlice("\":\"");
+            try output.appendSlice(value);
+            try output.appendSlice("\"");
+        }
+
+        try output.appendSlice("}");
+
+        // Write to file
+        const file = try std.fs.cwd().createFile(self.file_path, .{});
+        defer file.close();
+        try file.writeAll(output.items);
     }
 
     pub fn get(self: *LocalStorage, key: []const u8) !?[]const u8 {
-        _ = key;
-        // TODO: Load and parse JSON, return value for key
+        // Load and parse JSON
+        const data = try self.loadAll();
+        defer self.allocator.free(data);
+
+        const parsed = std.json.parseFromSlice(std.json.Value, self.allocator, data, .{}) catch {
+            return null;
+        };
+        defer parsed.deinit();
+
+        if (parsed.value != .object) return null;
+
+        if (parsed.value.object.get(key)) |val| {
+            if (val == .string) {
+                return try self.allocator.dupe(u8, val.string);
+            }
+        }
+
         return null;
+    }
+
+    pub fn remove(self: *LocalStorage, key: []const u8) !void {
+        const data = try self.loadAll();
+        defer self.allocator.free(data);
+
+        const parsed = std.json.parseFromSlice(std.json.Value, self.allocator, data, .{}) catch {
+            return; // Nothing to remove
+        };
+        defer parsed.deinit();
+
+        if (parsed.value != .object) return;
+
+        // Build new JSON without the key
+        var output = std.ArrayList(u8).init(self.allocator);
+        defer output.deinit();
+
+        try output.appendSlice("{");
+
+        var first = true;
+        var iter = parsed.value.object.iterator();
+        while (iter.next()) |entry| {
+            if (std.mem.eql(u8, entry.key_ptr.*, key)) continue;
+
+            if (!first) try output.appendSlice(",");
+            first = false;
+
+            try output.appendSlice("\"");
+            try output.appendSlice(entry.key_ptr.*);
+            try output.appendSlice("\":");
+
+            if (entry.value_ptr.* == .string) {
+                try output.appendSlice("\"");
+                try output.appendSlice(entry.value_ptr.*.string);
+                try output.appendSlice("\"");
+            } else {
+                try std.json.stringify(entry.value_ptr.*, .{}, output.writer());
+            }
+        }
+
+        try output.appendSlice("}");
+
+        const file = try std.fs.cwd().createFile(self.file_path, .{});
+        defer file.close();
+        try file.writeAll(output.items);
+    }
+
+    pub fn clear(self: *LocalStorage) !void {
+        const file = try std.fs.cwd().createFile(self.file_path, .{});
+        defer file.close();
+        try file.writeAll("{}");
     }
 
     fn loadAll(self: *LocalStorage) ![]const u8 {
@@ -389,6 +781,26 @@ pub const LocalStorage = struct {
         defer file.close();
 
         return try file.readToEndAlloc(self.allocator, 1024 * 1024); // Max 1MB
+    }
+
+    fn writeJson(self: *LocalStorage, pairs: []const struct { []const u8, []const u8 }) !void {
+        var output = std.ArrayList(u8).init(self.allocator);
+        defer output.deinit();
+
+        try output.appendSlice("{");
+        for (pairs, 0..) |pair, i| {
+            if (i > 0) try output.appendSlice(",");
+            try output.appendSlice("\"");
+            try output.appendSlice(pair[0]);
+            try output.appendSlice("\":\"");
+            try output.appendSlice(pair[1]);
+            try output.appendSlice("\"");
+        }
+        try output.appendSlice("}");
+
+        const file = try std.fs.cwd().createFile(self.file_path, .{});
+        defer file.close();
+        try file.writeAll(output.items);
     }
 };
 
@@ -414,27 +826,180 @@ pub const PerformanceMonitor = struct {
         };
     }
 
+    // For CPU tracking
+    last_cpu_time: i64 = 0,
+    last_cpu_usage: f64 = 0.0,
+
     pub fn getStats(self: *PerformanceMonitor) !Stats {
         const uptime = std.time.timestamp() - self.start_time;
 
         // Get memory info
         var memory_used: u64 = 0;
         var memory_total: u64 = 0;
+        var cpu_percent: f64 = 0.0;
 
         if (builtin.os.tag == .macos) {
-            // TODO: Use task_info() to get memory usage
-            memory_used = 45_000_000; // Placeholder
-            memory_total = 64_000_000;
+            // Get process memory using mach task_info
+            const task_info_result = getMachTaskInfo();
+            memory_used = task_info_result.resident_size;
+            memory_total = task_info_result.virtual_size;
+
+            // Get system memory
+            const sys_mem = getSystemMemory();
+            if (sys_mem.total > 0) {
+                memory_total = sys_mem.total;
+            }
+
+            // Calculate CPU usage using rusage
+            cpu_percent = self.calculateCpuUsage();
+        } else if (builtin.os.tag == .linux) {
+            // Read from /proc/self/statm for memory
+            const mem = getLinuxProcessMemory();
+            memory_used = mem.resident;
+            memory_total = mem.virtual;
+
+            // Read from /proc/stat for CPU
+            cpu_percent = self.calculateCpuUsage();
         }
 
         return .{
             .memory_used = memory_used,
             .memory_total = memory_total,
-            .cpu_percent = 0.0, // TODO: Calculate CPU usage
+            .cpu_percent = cpu_percent,
             .uptime_seconds = uptime,
         };
     }
+
+    fn calculateCpuUsage(self: *PerformanceMonitor) f64 {
+        // Use rusage for cross-platform CPU time
+        var usage: std.posix.rusage = undefined;
+        const result = std.posix.getrusage(.self, &usage);
+        if (result != 0) return self.last_cpu_usage;
+
+        // Total CPU time in microseconds
+        const user_time = @as(i64, usage.utime.sec) * 1_000_000 + usage.utime.usec;
+        const sys_time = @as(i64, usage.stime.sec) * 1_000_000 + usage.stime.usec;
+        const total_cpu_time = user_time + sys_time;
+
+        const now = std.time.microTimestamp();
+
+        if (self.last_cpu_time > 0) {
+            const time_diff = now - self.last_cpu_time;
+            const cpu_diff = total_cpu_time - @as(i64, @intCast(@as(u64, @bitCast(self.last_cpu_usage)) * 1_000_000));
+
+            if (time_diff > 0) {
+                // Calculate CPU percentage (normalized by elapsed time)
+                const cpu_pct = @as(f64, @floatFromInt(cpu_diff)) / @as(f64, @floatFromInt(time_diff)) * 100.0;
+                self.last_cpu_usage = @max(0.0, @min(100.0, cpu_pct));
+            }
+        }
+
+        self.last_cpu_time = now;
+        return self.last_cpu_usage;
+    }
 };
+
+// macOS mach task info
+const MachTaskInfo = struct {
+    virtual_size: u64,
+    resident_size: u64,
+};
+
+fn getMachTaskInfo() MachTaskInfo {
+    if (builtin.os.tag != .macos) {
+        return .{ .virtual_size = 0, .resident_size = 0 };
+    }
+
+    // mach_task_basic_info structure
+    const MACH_TASK_BASIC_INFO = 20;
+    const MACH_TASK_BASIC_INFO_COUNT = 10;
+
+    var info: extern struct {
+        virtual_size: u64,
+        resident_size: u64,
+        resident_size_max: u64,
+        user_time: extern struct { seconds: u32, microseconds: u32 },
+        system_time: extern struct { seconds: u32, microseconds: u32 },
+        policy: i32,
+        suspend_count: i32,
+    } = undefined;
+
+    var count: u32 = MACH_TASK_BASIC_INFO_COUNT;
+
+    // Use mach_task_self to get current task port
+    const mach_task_self = @extern(*fn () callconv(.C) u32, .{ .name = "mach_task_self" });
+    const task_info_fn = @extern(*fn (u32, u32, *anyopaque, *u32) callconv(.C) i32, .{ .name = "task_info" });
+
+    const kern_result = task_info_fn(mach_task_self(), MACH_TASK_BASIC_INFO, @ptrCast(&info), &count);
+
+    if (kern_result == 0) {
+        return .{
+            .virtual_size = info.virtual_size,
+            .resident_size = info.resident_size,
+        };
+    }
+
+    return .{ .virtual_size = 0, .resident_size = 0 };
+}
+
+const SystemMemory = struct {
+    total: u64,
+    available: u64,
+};
+
+fn getSystemMemory() SystemMemory {
+    if (builtin.os.tag == .macos) {
+        // Use sysctl for total physical memory
+        const CTL_HW = 6;
+        const HW_MEMSIZE = 24;
+
+        var mib = [_]c_int{ CTL_HW, HW_MEMSIZE };
+        var mem_size: u64 = 0;
+        var size: usize = @sizeOf(u64);
+
+        const sysctl_fn = @extern(*fn ([*]c_int, c_uint, *anyopaque, *usize, ?*anyopaque, usize) callconv(.C) c_int, .{ .name = "sysctl" });
+        const result = sysctl_fn(&mib, 2, @ptrCast(&mem_size), &size, null, 0);
+
+        if (result == 0) {
+            return .{ .total = mem_size, .available = 0 };
+        }
+    }
+
+    return .{ .total = 0, .available = 0 };
+}
+
+const LinuxMemory = struct {
+    virtual: u64,
+    resident: u64,
+};
+
+fn getLinuxProcessMemory() LinuxMemory {
+    if (builtin.os.tag != .linux) {
+        return .{ .virtual = 0, .resident = 0 };
+    }
+
+    // Read /proc/self/statm
+    const file = std.fs.cwd().openFile("/proc/self/statm", .{}) catch {
+        return .{ .virtual = 0, .resident = 0 };
+    };
+    defer file.close();
+
+    var buf: [256]u8 = undefined;
+    const bytes_read = file.read(&buf) catch return .{ .virtual = 0, .resident = 0 };
+    const content = buf[0..bytes_read];
+
+    // Parse: size resident shared text lib data dt
+    var iter = std.mem.splitScalar(u8, content, ' ');
+    const virtual_pages = std.fmt.parseInt(u64, iter.next() orelse "0", 10) catch 0;
+    const resident_pages = std.fmt.parseInt(u64, iter.next() orelse "0", 10) catch 0;
+
+    // Convert pages to bytes (typically 4KB pages)
+    const page_size: u64 = 4096;
+    return .{
+        .virtual = virtual_pages * page_size,
+        .resident = resident_pages * page_size,
+    };
+}
 
 // ============================================================================
 // Helper functions for Objective-C messaging

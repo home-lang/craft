@@ -29,12 +29,12 @@ pub const FieldInfo = struct {
 
 /// Generate TypeScript type definition from Zig type
 pub fn generateTypeScript(comptime T: type, allocator: std.mem.Allocator) ![]u8 {
-    var buffer = std.ArrayList(u8).init(allocator);
-    const writer = buffer.writer();
+    var buffer: std.ArrayList(u8) = .{};
+    const writer = buffer.writer(allocator);
 
     try writeTypeScriptType(T, writer);
 
-    return try buffer.toOwnedSlice();
+    return try buffer.toOwnedSlice(allocator);
 }
 
 fn writeTypeScriptType(comptime T: type, writer: anytype) !void {
@@ -87,8 +87,8 @@ pub const ParamInfo = struct {
 
 /// Auto-generate bridge bindings
 pub fn generateBridgeBindings(methods: []const BridgeMethod, allocator: std.mem.Allocator) ![]u8 {
-    var buffer = std.ArrayList(u8).init(allocator);
-    const writer = buffer.writer();
+    var buffer: std.ArrayList(u8) = .{};
+    const writer = buffer.writer(allocator);
 
     try writer.writeAll("// Auto-generated TypeScript bridge bindings\n");
     try writer.writeAll("// DO NOT EDIT - Generated from Zig types\n\n");
@@ -110,7 +110,7 @@ pub fn generateBridgeBindings(methods: []const BridgeMethod, allocator: std.mem.
 
     try writer.writeAll("}\n");
 
-    return try buffer.toOwnedSlice();
+    return try buffer.toOwnedSlice(allocator);
 }
 
 fn writeTypeInfoAsTS(type_info: TypeInfo, writer: anytype) !void {

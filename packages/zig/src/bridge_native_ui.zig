@@ -571,6 +571,39 @@ pub const NativeUIBridge = struct {
             else
                 .standard;
 
+            // Parse nested submenu items if present
+            var submenu_items: ?[]const context_menu.MenuItem = null;
+            if (item_type == .submenu) {
+                if (item_obj.get("submenu")) |submenu_json| {
+                    if (submenu_json == .array) {
+                        var submenu_list: std.ArrayList(context_menu.MenuItem) = .{};
+                        for (submenu_json.array.items) |sub_item_json| {
+                            if (sub_item_json == .object) {
+                                const sub_obj = sub_item_json.object;
+                                const sub_type_str = if (sub_obj.get("type")) |t| t.string else "standard";
+                                const sub_type: context_menu.MenuItemType = if (std.mem.eql(u8, sub_type_str, "separator"))
+                                    .separator
+                                else
+                                    .standard;
+
+                                try submenu_list.append(self.allocator, .{
+                                    .id = if (sub_obj.get("id")) |id| id.string else "",
+                                    .title = if (sub_obj.get("title")) |title| title.string else "",
+                                    .icon = if (sub_obj.get("icon")) |icon| icon.string else null,
+                                    .shortcut = if (sub_obj.get("shortcut")) |shortcut| shortcut.string else null,
+                                    .enabled = if (sub_obj.get("enabled")) |enabled| enabled.bool else true,
+                                    .item_type = sub_type,
+                                    .submenu_items = null, // Only one level deep
+                                });
+                            }
+                        }
+                        if (submenu_list.items.len > 0) {
+                            submenu_items = try submenu_list.toOwnedSlice(self.allocator);
+                        }
+                    }
+                }
+            }
+
             try items.append(self.allocator, .{
                 .id = item_obj.get("id").?.string,
                 .title = item_obj.get("title").?.string,
@@ -578,7 +611,7 @@ pub const NativeUIBridge = struct {
                 .shortcut = if (item_obj.get("shortcut")) |shortcut| shortcut.string else null,
                 .enabled = if (item_obj.get("enabled")) |enabled| enabled.bool else true,
                 .item_type = item_type,
-                .submenu_items = null, // TODO: Support nested submenus
+                .submenu_items = submenu_items,
             });
         }
 

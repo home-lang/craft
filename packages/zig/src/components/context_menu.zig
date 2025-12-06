@@ -328,12 +328,100 @@ fn createMenuItem(_: std.mem.Allocator, item: MenuItem, delegate: *ContextMenuDe
         }
     }
 
-    // Handle submenu (not yet fully implemented - marked as placeholder)
-    // NOTE: Recursive submenus would require explicit error set annotation
-    // For now, submenu items are ignored
+    // Handle submenu - create nested NSMenu and attach it
     if (item.item_type == .submenu) {
-        // TODO: Implement nested submenu support
-        std.debug.print("[ContextMenu] Submenu support not yet implemented for: {s}\n", .{item.title});
+        if (item.submenu_items) |submenu_items| {
+            const NSMenu = macos.getClass("NSMenu");
+            const submenu = macos.msgSend1(
+                macos.msgSend0(NSMenu, "alloc"),
+                "initWithTitle:",
+                nsTitle,
+            );
+
+            // Add submenu items (non-recursive for simplicity - one level deep)
+            for (submenu_items, 0..) |sub_item, sub_index| {
+                const sub_menu_item = createSubmenuItem(sub_item, delegate, index * 100 + sub_index) catch |err| {
+                    std.debug.print("[ContextMenu] Error creating submenu item: {any}\n", .{err});
+                    continue;
+                };
+                _ = macos.msgSend1(submenu, "addItem:", sub_menu_item);
+            }
+
+            // Attach submenu to menu item
+            _ = macos.msgSend1(menu_item, "setSubmenu:", submenu);
+            std.debug.print("[ContextMenu] Created submenu with {d} items for: {s}\n", .{ submenu_items.len, item.title });
+        } else {
+            std.debug.print("[ContextMenu] Submenu item has no submenu_items: {s}\n", .{item.title});
+        }
+    }
+
+    return menu_item;
+}
+
+/// Create a submenu item (simplified version for nested menus)
+fn createSubmenuItem(item: MenuItem, delegate: *ContextMenuDelegate, index: usize) !objc.id {
+    const NSMenuItem = macos.getClass("NSMenuItem");
+
+    if (item.item_type == .separator) {
+        return macos.msgSend0(NSMenuItem, "separatorItem");
+    }
+
+    const nsTitle = macos.createNSString(item.title);
+
+    // Parse keyboard shortcut
+    var key_equivalent: objc.id = macos.createNSString("");
+    var modifier_mask: c_ulong = 0;
+
+    if (item.shortcut) |shortcut| {
+        const parsed = parseShortcut(shortcut);
+        key_equivalent = macos.createNSString(parsed.key);
+        modifier_mask = parsed.modifiers;
+    }
+
+    // Create menu item
+    const menu_item = macos.msgSend3(
+        macos.msgSend0(NSMenuItem, "alloc"),
+        "initWithTitle:action:keyEquivalent:",
+        nsTitle,
+        macos.sel("menuItemClicked:"),
+        key_equivalent,
+    );
+
+    // Set target to delegate
+    _ = macos.msgSend1(menu_item, "setTarget:", delegate.getInstance());
+
+    // Set tag for identification
+    const setTag = @as(
+        *const fn (objc.id, objc.SEL, c_long) callconv(.c) void,
+        @ptrCast(&objc.objc_msgSend),
+    );
+    setTag(menu_item, macos.sel("setTag:"), @intCast(index));
+
+    // Store item ID in callback data
+    try delegate.callback_data.addItemId(item.id);
+
+    // Set modifier mask if shortcut was provided
+    if (modifier_mask != 0) {
+        const setKeyEquivalentModifierMask = @as(
+            *const fn (objc.id, objc.SEL, c_ulong) callconv(.c) void,
+            @ptrCast(&objc.objc_msgSend),
+        );
+        setKeyEquivalentModifierMask(menu_item, macos.sel("setKeyEquivalentModifierMask:"), modifier_mask);
+    }
+
+    // Set enabled state
+    const setEnabled = @as(
+        *const fn (objc.id, objc.SEL, bool) callconv(.c) void,
+        @ptrCast(&objc.objc_msgSend),
+    );
+    setEnabled(menu_item, macos.sel("setEnabled:"), item.enabled);
+
+    // Set icon if provided
+    if (item.icon) |icon_name| {
+        const sf_symbols = @import("../macos/sf_symbols.zig");
+        if (sf_symbols.createSFSymbol(@ptrCast(icon_name.ptr), .{ .point_size = 14.0 })) |image| {
+            _ = macos.msgSend1(menu_item, "setImage:", image);
+        }
     }
 
     return menu_item;

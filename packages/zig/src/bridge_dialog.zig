@@ -110,22 +110,22 @@ pub const DialogBridge = struct {
                     const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
                     std.debug.print("[DialogBridge] Selected file: {s}\n", .{path_str});
 
-                    var buf = std.ArrayList(u8).init(self.allocator);
-                    defer buf.deinit();
+                    var buf: std.ArrayList(u8) = .{};
+                    defer buf.deinit(self.allocator);
 
-                    try buf.appendSlice("{\"canceled\":false,\"filePaths\":[\"");
+                    try buf.appendSlice(self.allocator, "{\"canceled\":false,\"filePaths\":[\"");
                     for (path_str) |ch| {
                         switch (ch) {
-                            '"' => try buf.appendSlice("\\\""),
-                            '\\' => try buf.appendSlice("\\\\"),
-                            '\n' => try buf.appendSlice("\\n"),
-                            '\r' => try buf.appendSlice("\\r"),
-                            '\t' => try buf.appendSlice("\\t"),
-                            else => try buf.append(ch),
+                            '"' => try buf.appendSlice(self.allocator, "\\\""),
+                            '\\' => try buf.appendSlice(self.allocator, "\\\\"),
+                            '\n' => try buf.appendSlice(self.allocator, "\\n"),
+                            '\r' => try buf.appendSlice(self.allocator, "\\r"),
+                            '\t' => try buf.appendSlice(self.allocator, "\\t"),
+                            else => try buf.append(self.allocator, ch),
                         }
                     }
-                    try buf.appendSlice("\"]}");
-                    json = try buf.toOwnedSlice();
+                    try buf.appendSlice(self.allocator, "\"]}");
+                    json = try buf.toOwnedSlice(self.allocator);
                 }
             } else {
                 std.debug.print("[DialogBridge] File dialog cancelled\n", .{});
@@ -180,10 +180,10 @@ pub const DialogBridge = struct {
 
                 std.debug.print("[DialogBridge] Selected {d} files\n", .{count});
 
-                var buf = std.ArrayList(u8).init(self.allocator);
-                defer buf.deinit();
+                var buf: std.ArrayList(u8) = .{};
+                defer buf.deinit(self.allocator);
 
-                try buf.appendSlice("{\"canceled\":false,\"filePaths\":[");
+                try buf.appendSlice(self.allocator, "{\"canceled\":false,\"filePaths\":[");
                 var first: bool = true;
                 var i: usize = 0;
                 while (i < count) : (i += 1) {
@@ -197,18 +197,18 @@ pub const DialogBridge = struct {
                     try buf.append(self.allocator, '"');
                     for (path_str) |ch| {
                         switch (ch) {
-                            '"' => try buf.appendSlice("\\\""),
-                            '\\' => try buf.appendSlice("\\\\"),
-                            '\n' => try buf.appendSlice("\\n"),
-                            '\r' => try buf.appendSlice("\\r"),
-                            '\t' => try buf.appendSlice("\\t"),
-                            else => try buf.append(ch),
+                            '"' => try buf.appendSlice(self.allocator, "\\\""),
+                            '\\' => try buf.appendSlice(self.allocator, "\\\\"),
+                            '\n' => try buf.appendSlice(self.allocator, "\\n"),
+                            '\r' => try buf.appendSlice(self.allocator, "\\r"),
+                            '\t' => try buf.appendSlice(self.allocator, "\\t"),
+                            else => try buf.append(self.allocator, ch),
                         }
                     }
                     try buf.append(self.allocator, '"');
                 }
-                try buf.appendSlice("]}");
-                json = try buf.toOwnedSlice();
+                try buf.appendSlice(self.allocator, "]}");
+                json = try buf.toOwnedSlice(self.allocator);
             }
 
             bridge_error.sendResultToJS(self.allocator, "openFiles", json);
@@ -261,22 +261,22 @@ pub const DialogBridge = struct {
                 const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
                 std.debug.print("[DialogBridge] Selected folder: {s}\n", .{path_str});
 
-                var buf = std.ArrayList(u8).init(self.allocator);
-                defer buf.deinit();
+                var buf: std.ArrayList(u8) = .{};
+                defer buf.deinit(self.allocator);
 
-                try buf.appendSlice("{\"canceled\":false,\"filePaths\":[\"");
+                try buf.appendSlice(self.allocator, "{\"canceled\":false,\"filePaths\":[\"");
                 for (path_str) |ch| {
                     switch (ch) {
-                        '"' => try buf.appendSlice("\\\""),
-                        '\\' => try buf.appendSlice("\\\\"),
-                        '\n' => try buf.appendSlice("\\n"),
-                        '\r' => try buf.appendSlice("\\r"),
-                        '\t' => try buf.appendSlice("\\t"),
-                        else => try buf.append(ch),
+                        '"' => try buf.appendSlice(self.allocator, "\\\""),
+                        '\\' => try buf.appendSlice(self.allocator, "\\\\"),
+                        '\n' => try buf.appendSlice(self.allocator, "\\n"),
+                        '\r' => try buf.appendSlice(self.allocator, "\\r"),
+                        '\t' => try buf.appendSlice(self.allocator, "\\t"),
+                        else => try buf.append(self.allocator, ch),
                     }
                 }
-                try buf.appendSlice("\"]}");
-                json = try buf.toOwnedSlice();
+                try buf.appendSlice(self.allocator, "\"]}");
+                json = try buf.toOwnedSlice(self.allocator);
             }
 
             bridge_error.sendResultToJS(self.allocator, "openFolder", json);
@@ -340,22 +340,22 @@ pub const DialogBridge = struct {
                 const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
                 std.debug.print("[DialogBridge] Save path: {s}\n", .{path_str});
 
-                var buf = std.ArrayList(u8).init(self.allocator);
-                defer buf.deinit();
+                var buf: std.ArrayList(u8) = .{};
+                defer buf.deinit(self.allocator);
 
-                try buf.appendSlice("{\"canceled\":false,\"filePath\":\"");
+                try buf.appendSlice(self.allocator, "{\"canceled\":false,\"filePath\":\"");
                 for (path_str) |ch| {
                     switch (ch) {
-                        '"' => try buf.appendSlice("\\\""),
-                        '\\' => try buf.appendSlice("\\\\"),
-                        '\n' => try buf.appendSlice("\\n"),
-                        '\r' => try buf.appendSlice("\\r"),
-                        '\t' => try buf.appendSlice("\\t"),
-                        else => try buf.append(ch),
+                        '"' => try buf.appendSlice(self.allocator, "\\\""),
+                        '\\' => try buf.appendSlice(self.allocator, "\\\\"),
+                        '\n' => try buf.appendSlice(self.allocator, "\\n"),
+                        '\r' => try buf.appendSlice(self.allocator, "\\r"),
+                        '\t' => try buf.appendSlice(self.allocator, "\\t"),
+                        else => try buf.append(self.allocator, ch),
                     }
                 }
-                try buf.appendSlice("\"}");
-                json = try buf.toOwnedSlice();
+                try buf.appendSlice(self.allocator, "\"}");
+                json = try buf.toOwnedSlice(self.allocator);
             }
 
             bridge_error.sendResultToJS(self.allocator, "saveFile", json);
@@ -432,8 +432,11 @@ pub const DialogBridge = struct {
             const ns_ok = macos.msgSend1(str_alloc, "initWithUTF8String:", ok_cstr);
             _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_ok);
 
-            // Run modal
+            // Run modal (single OK button, index 0)
             _ = macos.msgSend0(alert, "runModal");
+
+            const json = "{\"buttonIndex\":0}";
+            bridge_error.sendResultToJS(self.allocator, "showAlert", json);
         }
     }
 

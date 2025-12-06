@@ -131,22 +131,22 @@ pub const ClipboardBridge = struct {
                     std.debug.print("[ClipboardBridge] Read text from clipboard: {s}\n", .{text_str});
 
                     // Escape backslashes and quotes for safe JSON embedding
-                    var buf = std.ArrayList(u8).init(self.allocator);
-                    defer buf.deinit();
+                    var buf: std.ArrayList(u8) = .{};
+                    defer buf.deinit(self.allocator);
 
-                    try buf.appendSlice("{\"text\":\"");
+                    try buf.appendSlice(self.allocator, "{\"text\":\"");
                     for (text_str) |ch| {
                         switch (ch) {
-                            '"' => try buf.appendSlice("\\\""),
-                            '\\' => try buf.appendSlice("\\\\"),
-                            '\n' => try buf.appendSlice("\\n"),
-                            '\r' => try buf.appendSlice("\\r"),
-                            '\t' => try buf.appendSlice("\\t"),
-                            else => try buf.append(ch),
+                            '"' => try buf.appendSlice(self.allocator, "\\\""),
+                            '\\' => try buf.appendSlice(self.allocator, "\\\\"),
+                            '\n' => try buf.appendSlice(self.allocator, "\\n"),
+                            '\r' => try buf.appendSlice(self.allocator, "\\r"),
+                            '\t' => try buf.appendSlice(self.allocator, "\\t"),
+                            else => try buf.append(self.allocator, ch),
                         }
                     }
-                    try buf.appendSlice("\"}");
-                    result_json = try buf.toOwnedSlice();
+                    try buf.appendSlice(self.allocator, "\"}");
+                    result_json = try buf.toOwnedSlice(self.allocator);
                 }
             } else {
                 std.debug.print("[ClipboardBridge] No text in clipboard\n", .{});
@@ -232,22 +232,22 @@ pub const ClipboardBridge = struct {
                     const html_str = std.mem.span(@as([*:0]const u8, @ptrCast(html_cstr)));
                     std.debug.print("[ClipboardBridge] Read HTML from clipboard: {s}\n", .{html_str});
 
-                    var buf = std.ArrayList(u8).init(self.allocator);
-                    defer buf.deinit();
+                    var buf: std.ArrayList(u8) = .{};
+                    defer buf.deinit(self.allocator);
 
-                    try buf.appendSlice("{\"html\":\"");
+                    try buf.appendSlice(self.allocator, "{\"html\":\"");
                     for (html_str) |ch| {
                         switch (ch) {
-                            '"' => try buf.appendSlice("\\\""),
-                            '\\' => try buf.appendSlice("\\\\"),
-                            '\n' => try buf.appendSlice("\\n"),
-                            '\r' => try buf.appendSlice("\\r"),
-                            '\t' => try buf.appendSlice("\\t"),
-                            else => try buf.append(ch),
+                            '"' => try buf.appendSlice(self.allocator, "\\\""),
+                            '\\' => try buf.appendSlice(self.allocator, "\\\\"),
+                            '\n' => try buf.appendSlice(self.allocator, "\\n"),
+                            '\r' => try buf.appendSlice(self.allocator, "\\r"),
+                            '\t' => try buf.appendSlice(self.allocator, "\\t"),
+                            else => try buf.append(self.allocator, ch),
                         }
                     }
-                    try buf.appendSlice("\"}");
-                    result_json = try buf.toOwnedSlice();
+                    try buf.appendSlice(self.allocator, "\"}");
+                    result_json = try buf.toOwnedSlice(self.allocator);
                 }
             } else {
                 std.debug.print("[ClipboardBridge] No HTML in clipboard\n", .{});

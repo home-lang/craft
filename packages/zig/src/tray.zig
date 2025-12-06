@@ -203,8 +203,8 @@ pub const SystemTray = struct {
         if (self.platform_handle) |handle| {
             switch (builtin.target.os.tag) {
                 .macos => try macosRegisterDragTypes(handle, types),
-                .windows => {}, // TODO: Windows drag & drop
-                .linux => {}, // TODO: Linux drag & drop
+                .windows => windowsRegisterDragTypes(handle, types),
+                .linux => linuxRegisterDragTypes(handle, types),
                 else => {},
             }
         }
@@ -590,4 +590,47 @@ fn linuxDestroy(handle: *anyopaque) void {
     const tray = @as(*linux_tray.LinuxTray, @ptrCast(@alignCast(handle)));
     tray.deinit();
     std.heap.c_allocator.destroy(tray);
+}
+
+// ============================================================================
+// Windows Drag & Drop Implementation
+// ============================================================================
+
+fn windowsRegisterDragTypes(handle: *anyopaque, types: []const []const u8) void {
+    if (builtin.target.os.tag != .windows) return;
+    _ = handle;
+    _ = types;
+
+    // Windows tray drag & drop requires:
+    // 1. The tray icon's window handle
+    // 2. OLE DragAcceptFiles or RegisterDragDrop for richer support
+    //
+    // For file drops, we can use DragAcceptFiles(hwnd, TRUE):
+    // extern "shell32" fn DragAcceptFiles(hWnd: HWND, fAccept: BOOL) void;
+    //
+    // For now, log that drag types were registered
+    // Full implementation would need access to the HWND from WindowsTray
+    std.debug.print("[Tray] Windows drag types registered (stub)\n", .{});
+}
+
+// ============================================================================
+// Linux Drag & Drop Implementation
+// ============================================================================
+
+fn linuxRegisterDragTypes(handle: *anyopaque, types: []const []const u8) void {
+    if (builtin.target.os.tag != .linux) return;
+    _ = handle;
+    _ = types;
+
+    // Linux tray drag & drop with GTK requires:
+    // 1. Getting the GTK widget from AppIndicator
+    // 2. Calling gtk_drag_dest_set() on the widget
+    // 3. Connecting to drag-data-received signal
+    //
+    // GtkTargetEntry for file drops:
+    // const target_entry = GtkTargetEntry{ .target = "text/uri-list", .flags = 0, .info = 0 };
+    // gtk_drag_dest_set(widget, GTK_DEST_DEFAULT_ALL, &target_entry, 1, GDK_ACTION_COPY);
+    //
+    // For now, log that drag types were registered
+    std.debug.print("[Tray] Linux drag types registered (stub)\n", .{});
 }

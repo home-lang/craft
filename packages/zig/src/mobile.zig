@@ -109,6 +109,95 @@ const jni = if (@import("builtin").target.os.tag == .linux) struct {
     }
 } else struct {};
 
+// ============================================================================
+// Android Callback Storage
+// ============================================================================
+
+/// Stored callbacks for Android ValueCallback (JS evaluation) and permissions
+pub const AndroidCallbackStorage = struct {
+    // JavaScript evaluation callbacks - indexed by request ID
+    js_callbacks: [16]?*const fn ([]const u8) void = .{null} ** 16,
+    js_callback_next_id: u32 = 0,
+
+    // Permission callbacks - indexed by request code
+    permission_callbacks: [16]?*const fn (bool) void = .{null} ** 16,
+
+    const Self = @This();
+
+    /// Store a JS callback and return its ID
+    pub fn storeJsCallback(self: *Self, callback: *const fn ([]const u8) void) u32 {
+        const id = self.js_callback_next_id % 16;
+        self.js_callbacks[id] = callback;
+        self.js_callback_next_id +%= 1;
+        return id;
+    }
+
+    /// Invoke and clear a JS callback
+    pub fn invokeJsCallback(self: *Self, id: u32, result: []const u8) void {
+        const idx = id % 16;
+        if (self.js_callbacks[idx]) |callback| {
+            callback(result);
+            self.js_callbacks[idx] = null;
+        }
+    }
+
+    /// Store a permission callback with request code
+    pub fn storePermissionCallback(self: *Self, request_code: u32, callback: *const fn (bool) void) void {
+        const idx = request_code % 16;
+        self.permission_callbacks[idx] = callback;
+    }
+
+    /// Invoke and clear a permission callback
+    pub fn invokePermissionCallback(self: *Self, request_code: u32, granted: bool) void {
+        const idx = request_code % 16;
+        if (self.permission_callbacks[idx]) |callback| {
+            callback(granted);
+            self.permission_callbacks[idx] = null;
+        }
+    }
+};
+
+/// Global callback storage for Android
+var android_callbacks: AndroidCallbackStorage = .{};
+
+/// JNI callback function exported for ValueCallback.onReceiveValue
+/// Called from Java when evaluateJavascript completes
+export fn Java_app_craft_CraftValueCallback_nativeOnReceiveValue(
+    env: *jni.JNIEnv,
+    this: jni.jobject,
+    callback_id: jni.jint,
+    result: jni.jstring,
+) void {
+    _ = this;
+    if (@import("builtin").target.os.tag != .linux) return;
+
+    // Convert Java string result to Zig slice
+    const result_chars = jni.GetStringUTFChars(env, result, null);
+    const result_slice = std.mem.span(result_chars);
+
+    // Invoke the stored callback
+    android_callbacks.invokeJsCallback(@intCast(callback_id), result_slice);
+
+    // Release the string
+    jni.ReleaseStringUTFChars(env, result, result_chars);
+}
+
+/// JNI callback function exported for permission results
+/// Called from Activity.onRequestPermissionsResult
+export fn Java_app_craft_CraftActivity_nativeOnPermissionResult(
+    env: *jni.JNIEnv,
+    this: jni.jobject,
+    request_code: jni.jint,
+    granted: jni.jboolean,
+) void {
+    _ = env;
+    _ = this;
+    if (@import("builtin").target.os.tag != .linux) return;
+
+    // Invoke the stored callback
+    android_callbacks.invokePermissionCallback(@intCast(request_code), granted != 0);
+}
+
 pub const Platform = enum {
     ios,
     android,
@@ -465,17 +554,82 @@ pub const iOS = struct {
         // Create NSString from script
         const ns_script = try objc.createNSString(script, allocator.*);
 
-        // For now, we'll call evaluateJavaScript without completion handler
-        // Full implementation would require creating an Objective-C block for the completion handler
+        // Create completion handler block for JavaScript evaluation
         const sel_evaluateJavaScript = objc.sel_registerName("evaluateJavaScript:completionHandler:") orelse return error.SelectorNotFound;
 
-        // Pass nil for completion handler for now (fire-and-forget)
-        // TODO: Implement proper completion handler with blocks
-        const Fn = *const fn (*anyopaque, objc.SEL, objc.id, ?*anyopaque) callconv(.C) void;
-        const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
-        func(webview_ptr, sel_evaluateJavaScript, ns_script, null);
+        // Block structure for completion handler
+        // typedef void (^CompletionHandler)(id result, NSError *error);
+        const BlockDescriptor = extern struct {
+            reserved: c_ulong,
+            size: c_ulong,
+        };
 
-        _ = callback; // TODO: Wire up callback to completion handler block
+        const Block = extern struct {
+            isa: ?*anyopaque,
+            flags: c_int,
+            reserved: c_int,
+            invoke: ?*const fn (*Block, ?objc.id, ?objc.id) callconv(.C) void,
+            descriptor: *const BlockDescriptor,
+            callback: ?*const fn (?[]const u8, ?[]const u8) void,
+        };
+
+        // Block invoke function that calls our Zig callback
+        const block_invoke = struct {
+            fn invoke(block: *Block, result: ?objc.id, err: ?objc.id) callconv(.C) void {
+                var result_str: ?[]const u8 = null;
+                var error_str: ?[]const u8 = null;
+
+                // Extract result string if present
+                if (result) |res| {
+                    const desc = @import("objc_runtime.zig").objc.objc_msgSend;
+                    const desc_fn: *const fn (objc.id, objc.SEL) callconv(.C) objc.id = @ptrCast(&desc);
+                    const description = desc_fn(res, objc.sel_registerName("description").?);
+                    if (description != null) {
+                        const utf8_fn: *const fn (objc.id, objc.SEL) callconv(.C) [*:0]const u8 = @ptrCast(&desc);
+                        const utf8 = utf8_fn(description, objc.sel_registerName("UTF8String").?);
+                        result_str = std.mem.span(utf8);
+                    }
+                }
+
+                // Extract error string if present
+                if (err) |e| {
+                    const desc = @import("objc_runtime.zig").objc.objc_msgSend;
+                    const desc_fn: *const fn (objc.id, objc.SEL) callconv(.C) objc.id = @ptrCast(&desc);
+                    const description = desc_fn(e, objc.sel_registerName("localizedDescription").?);
+                    if (description != null) {
+                        const utf8_fn: *const fn (objc.id, objc.SEL) callconv(.C) [*:0]const u8 = @ptrCast(&desc);
+                        const utf8 = utf8_fn(description, objc.sel_registerName("UTF8String").?);
+                        error_str = std.mem.span(utf8);
+                    }
+                }
+
+                // Call the user's callback
+                if (block.callback) |cb| {
+                    cb(result_str, error_str);
+                }
+            }
+        }.invoke;
+
+        // Static descriptor (must persist)
+        const descriptor = BlockDescriptor{
+            .reserved = 0,
+            .size = @sizeOf(Block),
+        };
+
+        // Create block on stack (valid for duration of call)
+        var block = Block{
+            .isa = @extern(*anyopaque, .{ .name = "_NSConcreteStackBlock" }),
+            .flags = 0,
+            .reserved = 0,
+            .invoke = block_invoke,
+            .descriptor = &descriptor,
+            .callback = callback,
+        };
+
+        // Call evaluateJavaScript with our block
+        const Fn = *const fn (*anyopaque, objc.SEL, objc.id, *Block) callconv(.C) void;
+        const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        func(webview_ptr, sel_evaluateJavaScript, ns_script, &block);
     }
 
     /// Handle Deep Links
@@ -799,6 +953,62 @@ pub const iOS = struct {
             },
         }
     }
+
+    /// Show iOS Alert/Toast
+    /// Uses UIAlertController for simple toast-like alerts
+    pub fn showAlert(message: []const u8, duration_short: bool) void {
+        if (!@import("builtin").target.isDarwin()) {
+            return;
+        }
+
+        // Get UIAlertController class
+        const UIAlertControllerClass = objc.objc_getClass("UIAlertController") orelse return;
+
+        // Create alert title NSString (nil for toast-like appearance)
+        const NSStringClass = objc.objc_getClass("NSString") orelse return;
+        const sel_stringWithUTF8String = objc.sel_registerName("stringWithUTF8String:") orelse return;
+
+        // Create message string
+        const allocator = std.heap.page_allocator;
+        const msg_z = allocator.dupeZ(u8, message) catch return;
+        defer allocator.free(msg_z);
+
+        const Fn1 = *const fn (objc.id, objc.SEL, [*:0]const u8) callconv(.C) objc.id;
+        const stringFn: Fn1 = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        const messageStr = stringFn(NSStringClass, sel_stringWithUTF8String, msg_z.ptr);
+
+        // Create UIAlertController with style Alert (1)
+        const sel_alertWithTitle = objc.sel_registerName("alertControllerWithTitle:message:preferredStyle:") orelse return;
+        const Fn2 = *const fn (objc.id, objc.SEL, ?objc.id, objc.id, i64) callconv(.C) objc.id;
+        const alertFn: Fn2 = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        const alert = alertFn(UIAlertControllerClass, sel_alertWithTitle, null, messageStr, 1); // UIAlertControllerStyleAlert = 1
+
+        // Get the key window and root view controller
+        const UIApplicationClass = objc.objc_getClass("UIApplication") orelse return;
+        const sel_sharedApplication = objc.sel_registerName("sharedApplication") orelse return;
+        const app = objc.msgSendId(UIApplicationClass, sel_sharedApplication);
+
+        const sel_keyWindow = objc.sel_registerName("keyWindow") orelse return;
+        const window = objc.msgSendId(app, sel_keyWindow);
+        if (window == null) return;
+
+        const sel_rootViewController = objc.sel_registerName("rootViewController") orelse return;
+        const rootVC = objc.msgSendId(window, sel_rootViewController);
+        if (rootVC == null) return;
+
+        // Present the alert
+        const sel_presentViewController = objc.sel_registerName("presentViewController:animated:completion:") orelse return;
+        const Fn3 = *const fn (objc.id, objc.SEL, objc.id, bool, ?objc.id) callconv(.C) void;
+        const presentFn: Fn3 = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
+        presentFn(rootVC, sel_presentViewController, alert, true, null);
+
+        // Auto-dismiss after delay using dispatch_after
+        const delay_seconds: f64 = if (duration_short) 2.0 else 3.5;
+        _ = delay_seconds;
+
+        // For simplicity, just present the alert - user can tap away
+        // In production, would use dispatch_after to dismiss automatically
+    }
 };
 
 /// Android Native Integration
@@ -964,9 +1174,27 @@ pub const Android = struct {
         defer allocator.free(script_z);
         const script_jstring = jni.NewStringUTF(env, script_z.ptr);
 
-        // Call evaluateJavascript (callback would need to be wrapped in Java ValueCallback)
-        _ = callback; // TODO: Wrap callback in ValueCallback interface
-        jni.CallVoidMethod(env, webview_obj, eval_js_method, .{ script_jstring, @as(jni.jobject, null) });
+        // Create ValueCallback wrapper if callback is provided
+        var value_callback: jni.jobject = null;
+        if (callback) |cb| {
+            // Store callback and get ID
+            const callback_id = android_callbacks.storeJsCallback(cb);
+
+            // Create CraftValueCallback instance (Java class that implements ValueCallback)
+            // Java code: new CraftValueCallback(callbackId)
+            const craft_callback_class = try getJNIClass(env, "app/craft/CraftValueCallback");
+            const callback_init = try getJNIMethod(env, craft_callback_class, "<init>", "(I)V");
+
+            // Allocate new object
+            const alloc_method = try getJNIMethod(env, craft_callback_class, "<init>", "(I)V");
+            _ = alloc_method;
+
+            // Create instance with callback ID
+            value_callback = jni.CallObjectMethod(env, craft_callback_class, callback_init, .{@as(jni.jint, @intCast(callback_id))});
+        }
+
+        // Call evaluateJavascript with the ValueCallback wrapper
+        jni.CallVoidMethod(env, webview_obj, eval_js_method, .{ script_jstring, value_callback });
     }
 
     /// Helper function to get JNI class
@@ -1044,10 +1272,17 @@ pub const Android = struct {
         defer allocator.free(permission_z);
         const permission_jstring = jni.NewStringUTF(env, permission_z.ptr);
 
-        // Call requestPermissions
-        _ = callback; // TODO: Store callback to be invoked in onRequestPermissionsResult
+        // Use a unique request code based on permission type
+        const request_code: u32 = 1001 + @intFromEnum(permission);
+
+        // Store callback to be invoked in onRequestPermissionsResult
+        if (callback) |cb| {
+            android_callbacks.storePermissionCallback(request_code, cb);
+        }
+
+        // Call requestPermissions with unique request code
         const activity_obj: jni.jobject = @ptrCast(@alignCast(activity));
-        jni.CallVoidMethod(env, activity_obj, request_permissions_method, .{ permission_jstring, @as(jni.jint, 1001) });
+        jni.CallVoidMethod(env, activity_obj, request_permissions_method, .{ permission_jstring, @as(jni.jint, @intCast(request_code)) });
     }
 
     /// Vibration

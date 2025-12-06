@@ -433,15 +433,74 @@ export fn performDragOperation(
     draggingInfo: macos.objc.id,
 ) callconv(.c) c_int {
     const callback_data = getDestinationCallbackData(self) orelse return 0;
-    _ = draggingInfo;
 
-    // Use default point for now
-    const location = CGPoint{ .x = 0, .y = 0 };
+    // Get the dragging location
+    const getDragLocation = @as(
+        *const fn (macos.objc.id, macos.objc.SEL) callconv(.c) CGPoint,
+        @ptrCast(&macos.objc.objc_msgSend),
+    );
+    const location = getDragLocation(draggingInfo, macos.sel("draggingLocation"));
+
+    // Extract item IDs from pasteboard
+    const pasteboard = macos.msgSend0(draggingInfo, "draggingPasteboard");
+
+    // Get the pasteboard items as strings (our custom drag type)
+    const craftDragType = macos.createNSString(CraftDragType);
+
+    // Try to read our custom type first
+    const draggedString = macos.msgSend1(pasteboard, "stringForType:", craftDragType);
+
+    // Use a static buffer for extracted items (avoids allocation in callback)
+    var extracted_items: [32][]const u8 = undefined;
+    var item_count: usize = 0;
+
+    if (@intFromPtr(draggedString) != 0) {
+        // Get the string value - it may contain comma-separated IDs
+        const utf8_ptr = macos.msgSend0(draggedString, "UTF8String");
+        if (@intFromPtr(utf8_ptr) != 0) {
+            const str_slice = std.mem.span(@as([*:0]const u8, @ptrCast(utf8_ptr)));
+
+            // Parse comma-separated IDs
+            var iter = std.mem.splitSequence(u8, str_slice, ",");
+            while (iter.next()) |id| {
+                if (item_count < extracted_items.len) {
+                    extracted_items[item_count] = id;
+                    item_count += 1;
+                }
+            }
+        }
+    }
+
+    // If no custom type, try to get file URLs
+    if (item_count == 0) {
+        const NSFilenamesPboardType = macos.createNSString("NSFilenamesPboardType");
+        const filenames = macos.msgSend1(pasteboard, "propertyListForType:", NSFilenamesPboardType);
+        if (@intFromPtr(filenames) != 0) {
+            const getCount = @as(
+                *const fn (macos.objc.id, macos.objc.SEL) callconv(.c) c_ulong,
+                @ptrCast(&macos.objc.objc_msgSend),
+            );
+            const count = getCount(filenames, macos.sel("count"));
+
+            var i: c_ulong = 0;
+            while (i < count and item_count < extracted_items.len) : (i += 1) {
+                const filename = macos.msgSend1(filenames, "objectAtIndex:", i);
+                if (@intFromPtr(filename) != 0) {
+                    const path_utf8 = macos.msgSend0(filename, "UTF8String");
+                    if (@intFromPtr(path_utf8) != 0) {
+                        extracted_items[item_count] = std.mem.span(@as([*:0]const u8, @ptrCast(path_utf8)));
+                        item_count += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    std.debug.print("[DragDrop] Extracted {d} items from pasteboard\n", .{item_count});
 
     if (callback_data.on_drop) |callback| {
-        // TODO: Extract item IDs from pasteboard
-        const empty_items: []const []const u8 = &.{};
-        const success = callback(empty_items, location);
+        const items_slice = extracted_items[0..item_count];
+        const success = callback(items_slice, location);
         return if (success) 1 else 0;
     }
 

@@ -200,11 +200,39 @@ pub const WindowBridge = struct {
 
     fn setFullscreen(self: *Self, data: ?[]const u8) !void {
         const handle = try self.requireWindowHandle();
-        _ = data; // TODO: Parse fullscreen boolean from data
+
+        // Parse fullscreen boolean from data: {"fullscreen": true/false}
+        var should_be_fullscreen = true; // Default to entering fullscreen
+        if (data) |json_data| {
+            // Check for explicit false value
+            if (std.mem.indexOf(u8, json_data, "\"fullscreen\":false") != null or
+                std.mem.indexOf(u8, json_data, "\"fullscreen\": false") != null or
+                std.mem.indexOf(u8, json_data, ":false") != null)
+            {
+                should_be_fullscreen = false;
+            } else if (std.mem.indexOf(u8, json_data, "\"fullscreen\":true") != null or
+                std.mem.indexOf(u8, json_data, "\"fullscreen\": true") != null or
+                std.mem.indexOf(u8, json_data, ":true") != null)
+            {
+                should_be_fullscreen = true;
+            }
+        }
+
+        std.debug.print("[WindowBridge] setFullscreen: {}\n", .{should_be_fullscreen});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            macos.toggleFullscreen(handle);
+
+            // Check current fullscreen state using styleMask
+            const style_mask_ptr = macos.msgSend0(handle, "styleMask");
+            const style_mask = @as(c_ulong, @intFromPtr(style_mask_ptr));
+            // NSWindowStyleMaskFullScreen = 1 << 14 = 16384
+            const is_currently_fullscreen = (style_mask & 16384) != 0;
+
+            // Only toggle if we need to change state
+            if (should_be_fullscreen != is_currently_fullscreen) {
+                macos.toggleFullscreen(handle);
+            }
         }
     }
 
