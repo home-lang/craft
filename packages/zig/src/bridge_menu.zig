@@ -315,17 +315,16 @@ pub const MenuBridge = struct {
     }
 
     /// Add a single menu item to existing menu
+    /// JSON: {"menuId": "file", "itemId": "save", "label": "Save", "shortcut": "cmd+s", "index": -1}
+    /// If menuId is omitted, adds to app menu. index -1 means append at end.
     fn addMenuItem(self: *Self, data: []const u8) !void {
-        _ = self;
-        _ = data;
-        std.debug.print("[MenuBridge] addMenuItem (not yet implemented)\n", .{});
+        try addMenuItemImpl(self, data);
     }
 
     /// Remove a menu item
+    /// JSON: {"itemId": "save"} or {"menuId": "file", "itemId": "save"}
     fn removeMenuItem(self: *Self, data: []const u8) !void {
-        _ = self;
-        _ = data;
-        std.debug.print("[MenuBridge] removeMenuItem (not yet implemented)\n", .{});
+        removeMenuItemImpl(self, data);
     }
 
     /// Enable a menu item
@@ -476,6 +475,191 @@ var global_dock_menu: ?*anyopaque = null;
 /// Get dock menu for applicationDockMenu: delegate
 pub fn getDockMenu() ?*anyopaque {
     return global_dock_menu;
+}
+
+/// Implementation of addMenuItem (platform-specific)
+fn addMenuItemImpl(self: *MenuBridge, data: []const u8) !void {
+    if (builtin.os.tag == .macos) {
+        const macos = @import("macos.zig");
+
+        // Parse menuId (target menu)
+        var menu_id: []const u8 = "";
+        if (std.mem.indexOf(u8, data, "\"menuId\":\"")) |idx| {
+            const start = idx + 10;
+            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
+                menu_id = data[start..end];
+            }
+        }
+
+        // Parse item details
+        var item_id: []const u8 = "";
+        var item_label: []const u8 = "";
+        var shortcut: []const u8 = "";
+        var index: i32 = -1;
+
+        if (std.mem.indexOf(u8, data, "\"itemId\":\"")) |idx| {
+            const start = idx + 10;
+            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
+                item_id = data[start..end];
+            }
+        }
+
+        if (std.mem.indexOf(u8, data, "\"label\":\"")) |idx| {
+            const start = idx + 9;
+            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
+                item_label = data[start..end];
+            }
+        }
+
+        if (std.mem.indexOf(u8, data, "\"shortcut\":\"")) |idx| {
+            const start = idx + 12;
+            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
+                shortcut = data[start..end];
+            }
+        }
+
+        if (std.mem.indexOf(u8, data, "\"index\":")) |idx| {
+            const start = idx + 8;
+            var end = start;
+            while (end < data.len and (data[end] == '-' or (data[end] >= '0' and data[end] <= '9'))) : (end += 1) {}
+            if (end > start) {
+                index = std.fmt.parseInt(i32, data[start..end], 10) catch -1;
+            }
+        }
+
+        // Check for separator
+        const is_separator = std.mem.indexOf(u8, data, "\"separator\":true") != null;
+
+        std.debug.print("[MenuBridge] addMenuItem: menu={s}, id={s}, label={s}\n", .{ menu_id, item_id, item_label });
+
+        // Find target menu
+        var target_menu: ?*anyopaque = null;
+
+        if (menu_id.len > 0) {
+            const app = macos.msgSend0(macos.getClass("NSApplication"), "sharedApplication");
+            const main_menu = macos.msgSend0(app, "mainMenu");
+            if (main_menu) |menu| {
+                target_menu = findSubmenuByTitle(menu, menu_id);
+            }
+        } else if (self.app_menu) |menu| {
+            target_menu = menu;
+        }
+
+        if (target_menu == null) {
+            std.debug.print("[MenuBridge] Target menu not found: {s}\n", .{menu_id});
+            return;
+        }
+
+        // Create menu item
+        var new_item: ?*anyopaque = null;
+        if (is_separator) {
+            new_item = macos.msgSend0(macos.getClass("NSMenuItem"), "separatorItem");
+        } else {
+            new_item = try self.createMenuItem(item_id, item_label, shortcut);
+        }
+
+        if (new_item) |item| {
+            if (index < 0) {
+                _ = macos.msgSend1(target_menu.?, "addItem:", item);
+            } else {
+                _ = macos.msgSend2(target_menu.?, "insertItem:atIndex:", item, @as(c_long, index));
+            }
+            std.debug.print("[MenuBridge] Added menu item: {s}\n", .{item_id});
+        }
+    } else {
+        // Linux/Windows: Menu APIs not yet implemented
+        _ = &self;
+        _ = &data;
+    }
+}
+
+/// Implementation of removeMenuItem (platform-specific)
+fn removeMenuItemImpl(self: *MenuBridge, data: []const u8) void {
+    _ = &self;
+    if (builtin.os.tag == .macos) {
+        const macos = @import("macos.zig");
+
+        // Parse itemId to remove
+        var item_id: []const u8 = "";
+        if (std.mem.indexOf(u8, data, "\"itemId\":\"")) |idx| {
+            const start = idx + 10;
+            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
+                item_id = data[start..end];
+            }
+        }
+
+        if (item_id.len == 0) {
+            std.debug.print("[MenuBridge] removeMenuItem: no itemId provided\n", .{});
+            return;
+        }
+
+        std.debug.print("[MenuBridge] removeMenuItem: {s}\n", .{item_id});
+
+        // Find and remove the item
+        if (findMenuItemById(item_id)) |item| {
+            const parent_menu = macos.msgSend0(item, "menu");
+            if (parent_menu) |menu| {
+                _ = macos.msgSend1(menu, "removeItem:", item);
+                std.debug.print("[MenuBridge] Removed menu item: {s}\n", .{item_id});
+            }
+        } else {
+            std.debug.print("[MenuBridge] Menu item not found: {s}\n", .{item_id});
+        }
+    } else {
+        // Linux/Windows: Menu APIs not yet implemented
+        _ = &data;
+    }
+}
+
+/// Find submenu by title (case-insensitive search)
+fn findSubmenuByTitle(menu: *anyopaque, title: []const u8) ?*anyopaque {
+    if (builtin.os.tag != .macos) return null;
+
+    const macos = @import("macos.zig");
+
+    const count_ptr = macos.msgSend0(menu, "numberOfItems");
+    const count = @as(usize, @intFromPtr(count_ptr));
+
+    var i: usize = 0;
+    while (i < count) : (i += 1) {
+        const item = macos.msgSend1(menu, "itemAtIndex:", @as(c_long, @intCast(i)));
+        if (item == null) continue;
+
+        // Check if this item has a submenu
+        const submenu = macos.msgSend0(item, "submenu");
+        if (submenu) |sub| {
+            // Get submenu title
+            const ns_title = macos.msgSend0(sub, "title");
+            if (ns_title != null) {
+                const cstr = macos.msgSend0(ns_title, "UTF8String");
+                if (cstr != null) {
+                    const title_str = std.mem.span(@as([*:0]const u8, @ptrCast(cstr)));
+                    if (std.ascii.eqlIgnoreCase(title_str, title)) {
+                        return sub;
+                    }
+                }
+            }
+
+            // Also check item title (menu bar items)
+            const item_title = macos.msgSend0(item, "title");
+            if (item_title != null) {
+                const item_cstr = macos.msgSend0(item_title, "UTF8String");
+                if (item_cstr != null) {
+                    const item_str = std.mem.span(@as([*:0]const u8, @ptrCast(item_cstr)));
+                    if (std.ascii.eqlIgnoreCase(item_str, title)) {
+                        return sub;
+                    }
+                }
+            }
+
+            // Recursively search nested submenus
+            if (findSubmenuByTitle(sub, title)) |found| {
+                return found;
+            }
+        }
+    }
+
+    return null;
 }
 
 /// Find menu item by ID (searches app menu and dock menu)

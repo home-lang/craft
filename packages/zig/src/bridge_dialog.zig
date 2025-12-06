@@ -63,7 +63,15 @@ pub const DialogBridge = struct {
     fn openFile(self: *Self, data: ?[]const u8) !void {
         std.debug.print("[DialogBridge] openFile called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            // Linux: Use zenity for file dialogs (widely available)
+            try self.linuxOpenFileDialog(data, false, false, "openFile");
+            return;
+        } else if (builtin.os.tag == .windows) {
+            // Windows: Use GetOpenFileName
+            try self.windowsOpenFileDialog(data, false, "openFile");
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             // Create NSOpenPanel
@@ -143,7 +151,13 @@ pub const DialogBridge = struct {
     fn openFiles(self: *Self, data: ?[]const u8) !void {
         std.debug.print("[DialogBridge] openFiles called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxOpenFileDialog(data, true, false, "openFiles");
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsOpenFileDialog(data, true, "openFiles");
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSOpenPanel = macos.getClass("NSOpenPanel");
@@ -223,7 +237,13 @@ pub const DialogBridge = struct {
     fn openFolder(self: *Self, data: ?[]const u8) !void {
         std.debug.print("[DialogBridge] openFolder called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxOpenFileDialog(data, false, true, "openFolder");
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsOpenFolderDialog(data);
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSOpenPanel = macos.getClass("NSOpenPanel");
@@ -292,7 +312,13 @@ pub const DialogBridge = struct {
     fn saveFile(self: *Self, data: ?[]const u8) !void {
         std.debug.print("[DialogBridge] saveFile called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxSaveFileDialog(data);
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsSaveFileDialog(data);
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSSavePanel = macos.getClass("NSSavePanel");
@@ -373,7 +399,13 @@ pub const DialogBridge = struct {
 
         std.debug.print("[DialogBridge] showAlert called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxAlertDialog(data, "showAlert", false);
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsAlertDialog(data, "showAlert", false);
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSAlert = macos.getClass("NSAlert");
@@ -447,7 +479,13 @@ pub const DialogBridge = struct {
 
         std.debug.print("[DialogBridge] showConfirm called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxAlertDialog(data, "showConfirm", true);
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsAlertDialog(data, "showConfirm", true);
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSAlert = macos.getClass("NSAlert");
@@ -512,6 +550,624 @@ pub const DialogBridge = struct {
 
             const json = if (ok) "{\"ok\":true}" else "{\"ok\":false}";
             bridge_error.sendResultToJS(self.allocator, "showConfirm", json);
+        }
+    }
+
+    // ============================================
+    // Linux Dialog Implementations (using zenity)
+    // ============================================
+
+    fn linuxOpenFileDialog(self: *Self, data: ?[]const u8, multiple: bool, folder: bool, action: []const u8) !void {
+        var args = std.ArrayList([]const u8).init(self.allocator);
+        defer args.deinit();
+
+        try args.append("zenity");
+
+        if (folder) {
+            try args.append("--file-selection");
+            try args.append("--directory");
+        } else {
+            try args.append("--file-selection");
+        }
+
+        if (multiple) {
+            try args.append("--multiple");
+            try args.append("--separator=\n");
+        }
+
+        // Parse title from data
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
+                const start = idx + 9;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const title = json_data[start..end];
+                    const title_arg = try std.fmt.allocPrint(self.allocator, "--title={s}", .{title});
+                    defer self.allocator.free(title_arg);
+                    try args.append(title_arg);
+                }
+            }
+        }
+
+        var child = std.process.Child.init(args.items, self.allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Pipe;
+
+        try child.spawn();
+        const result = try child.wait();
+
+        var json: []const u8 = "{\"canceled\":true,\"filePaths\":[]}";
+
+        if (result.Exited == 0) {
+            if (child.stdout) |stdout| {
+                const output = try stdout.reader().readAllAlloc(self.allocator, 1024 * 1024);
+                defer self.allocator.free(output);
+
+                const trimmed = std.mem.trim(u8, output, "\n\r ");
+
+                if (trimmed.len > 0) {
+                    var buf = std.ArrayList(u8).init(self.allocator);
+                    defer buf.deinit();
+
+                    try buf.appendSlice("{\"canceled\":false,\"filePaths\":[");
+
+                    if (multiple) {
+                        var it = std.mem.splitSequence(u8, trimmed, "\n");
+                        var first = true;
+                        while (it.next()) |path| {
+                            if (path.len == 0) continue;
+                            if (!first) try buf.append(',');
+                            first = false;
+                            try buf.append('"');
+                            try self.appendEscapedJson(&buf, path);
+                            try buf.append('"');
+                        }
+                    } else {
+                        try buf.append('"');
+                        try self.appendEscapedJson(&buf, trimmed);
+                        try buf.append('"');
+                    }
+
+                    try buf.appendSlice("]}");
+                    json = try buf.toOwnedSlice();
+                }
+            }
+        }
+
+        bridge_error.sendResultToJS(self.allocator, action, json);
+
+        if (!std.mem.eql(u8, json, "{\"canceled\":true,\"filePaths\":[]}")) {
+            self.allocator.free(json);
+        }
+    }
+
+    fn linuxSaveFileDialog(self: *Self, data: ?[]const u8) !void {
+        var args = std.ArrayList([]const u8).init(self.allocator);
+        defer args.deinit();
+
+        try args.append("zenity");
+        try args.append("--file-selection");
+        try args.append("--save");
+        try args.append("--confirm-overwrite");
+
+        // Parse title and default name from data
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
+                const start = idx + 9;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const title = json_data[start..end];
+                    const title_arg = try std.fmt.allocPrint(self.allocator, "--title={s}", .{title});
+                    defer self.allocator.free(title_arg);
+                    try args.append(title_arg);
+                }
+            }
+
+            if (std.mem.indexOf(u8, json_data, "\"defaultName\":\"")) |idx| {
+                const start = idx + 15;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const name = json_data[start..end];
+                    const name_arg = try std.fmt.allocPrint(self.allocator, "--filename={s}", .{name});
+                    defer self.allocator.free(name_arg);
+                    try args.append(name_arg);
+                }
+            }
+        }
+
+        var child = std.process.Child.init(args.items, self.allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Pipe;
+
+        try child.spawn();
+        const result = try child.wait();
+
+        var json: []const u8 = "{\"canceled\":true}";
+
+        if (result.Exited == 0) {
+            if (child.stdout) |stdout| {
+                const output = try stdout.reader().readAllAlloc(self.allocator, 1024 * 1024);
+                defer self.allocator.free(output);
+
+                const trimmed = std.mem.trim(u8, output, "\n\r ");
+
+                if (trimmed.len > 0) {
+                    var buf = std.ArrayList(u8).init(self.allocator);
+                    defer buf.deinit();
+
+                    try buf.appendSlice("{\"canceled\":false,\"filePath\":\"");
+                    try self.appendEscapedJson(&buf, trimmed);
+                    try buf.appendSlice("\"}");
+                    json = try buf.toOwnedSlice();
+                }
+            }
+        }
+
+        bridge_error.sendResultToJS(self.allocator, "saveFile", json);
+
+        if (!std.mem.eql(u8, json, "{\"canceled\":true}")) {
+            self.allocator.free(json);
+        }
+    }
+
+    fn linuxAlertDialog(self: *Self, data: ?[]const u8, action: []const u8, with_cancel: bool) !void {
+        var args = std.ArrayList([]const u8).init(self.allocator);
+        defer args.deinit();
+
+        try args.append("zenity");
+
+        if (with_cancel) {
+            try args.append("--question");
+        } else {
+            // Determine icon type from style
+            var icon_type: []const u8 = "--info";
+            if (data) |json_data| {
+                if (std.mem.indexOf(u8, json_data, "\"style\":\"")) |idx| {
+                    const start = idx + 9;
+                    if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                        const style = json_data[start..end];
+                        if (std.mem.eql(u8, style, "warning")) {
+                            icon_type = "--warning";
+                        } else if (std.mem.eql(u8, style, "critical") or std.mem.eql(u8, style, "error")) {
+                            icon_type = "--error";
+                        }
+                    }
+                }
+            }
+            try args.append(icon_type);
+        }
+
+        // Parse title and message from data
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
+                const start = idx + 9;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const title = json_data[start..end];
+                    const title_arg = try std.fmt.allocPrint(self.allocator, "--title={s}", .{title});
+                    defer self.allocator.free(title_arg);
+                    try args.append(title_arg);
+                }
+            }
+
+            if (std.mem.indexOf(u8, json_data, "\"message\":\"")) |idx| {
+                const start = idx + 11;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const message = json_data[start..end];
+                    const msg_arg = try std.fmt.allocPrint(self.allocator, "--text={s}", .{message});
+                    defer self.allocator.free(msg_arg);
+                    try args.append(msg_arg);
+                }
+            }
+        }
+
+        var child = std.process.Child.init(args.items, self.allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Pipe;
+
+        try child.spawn();
+        const result = try child.wait();
+
+        const json = if (with_cancel)
+            (if (result.Exited == 0) "{\"ok\":true}" else "{\"ok\":false}")
+        else
+            "{\"buttonIndex\":0}";
+
+        bridge_error.sendResultToJS(self.allocator, action, json);
+    }
+
+    // ============================================
+    // Windows Dialog Implementations (using Win32)
+    // ============================================
+
+    fn windowsOpenFileDialog(self: *Self, data: ?[]const u8, multiple: bool, action: []const u8) !void {
+        // Windows implementation using GetOpenFileName from comdlg32
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            _ = &data;
+            _ = &multiple;
+            _ = &action;
+            return;
+        }
+
+        // Windows-specific types and functions
+        const OPENFILENAMEA = extern struct {
+            lStructSize: u32,
+            hwndOwner: ?*anyopaque,
+            hInstance: ?*anyopaque,
+            lpstrFilter: ?[*:0]const u8,
+            lpstrCustomFilter: ?[*:0]u8,
+            nMaxCustFilter: u32,
+            nFilterIndex: u32,
+            lpstrFile: [*:0]u8,
+            nMaxFile: u32,
+            lpstrFileTitle: ?[*:0]u8,
+            nMaxFileTitle: u32,
+            lpstrInitialDir: ?[*:0]const u8,
+            lpstrTitle: ?[*:0]const u8,
+            Flags: u32,
+            nFileOffset: u16,
+            nFileExtension: u16,
+            lpstrDefExt: ?[*:0]const u8,
+            lCustData: usize,
+            lpfnHook: ?*anyopaque,
+            lpTemplateName: ?[*:0]const u8,
+            pvReserved: ?*anyopaque,
+            dwReserved: u32,
+            FlagsEx: u32,
+        };
+
+        const OFN_FILEMUSTEXIST = 0x00001000;
+        const OFN_PATHMUSTEXIST = 0x00000800;
+        const OFN_ALLOWMULTISELECT = 0x00000200;
+        const OFN_EXPLORER = 0x00080000;
+
+        const comdlg32 = @cImport({
+            @cInclude("windows.h");
+            @cInclude("commdlg.h");
+        });
+
+        var file_buf: [4096]u8 = undefined;
+        @memset(&file_buf, 0);
+
+        var title_buf: [256]u8 = undefined;
+        @memset(&title_buf, 0);
+        const default_title = "Open File";
+        @memcpy(title_buf[0..default_title.len], default_title);
+
+        // Parse title from data
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
+                const start = idx + 9;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const title = json_data[start..end];
+                    const copy_len = @min(title.len, title_buf.len - 1);
+                    @memcpy(title_buf[0..copy_len], title[0..copy_len]);
+                    title_buf[copy_len] = 0;
+                }
+            }
+        }
+
+        var ofn: OPENFILENAMEA = undefined;
+        @memset(std.mem.asBytes(&ofn), 0);
+        ofn.lStructSize = @sizeOf(OPENFILENAMEA);
+        ofn.hwndOwner = self.window_handle;
+        ofn.lpstrFile = &file_buf;
+        ofn.nMaxFile = file_buf.len;
+        ofn.lpstrTitle = &title_buf;
+        ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER;
+
+        if (multiple) {
+            ofn.Flags |= OFN_ALLOWMULTISELECT;
+        }
+
+        const success = comdlg32.GetOpenFileNameA(&ofn);
+
+        var json: []const u8 = "{\"canceled\":true,\"filePaths\":[]}";
+
+        if (success != 0) {
+            var buf = std.ArrayList(u8).init(self.allocator);
+            defer buf.deinit();
+
+            try buf.appendSlice("{\"canceled\":false,\"filePaths\":[");
+
+            if (multiple and ofn.nFileOffset > 0) {
+                // Multiple files: directory\0file1\0file2\0\0
+                const dir = std.mem.sliceTo(&file_buf, 0);
+                var offset: usize = dir.len + 1;
+                var first = true;
+
+                while (offset < file_buf.len and file_buf[offset] != 0) {
+                    const filename = std.mem.sliceTo(file_buf[offset..], 0);
+                    if (filename.len == 0) break;
+
+                    if (!first) try buf.append(',');
+                    first = false;
+
+                    try buf.append('"');
+                    try self.appendEscapedJson(&buf, dir);
+                    try buf.append('\\');
+                    try self.appendEscapedJson(&buf, filename);
+                    try buf.append('"');
+
+                    offset += filename.len + 1;
+                }
+            } else {
+                // Single file
+                const path = std.mem.sliceTo(&file_buf, 0);
+                try buf.append('"');
+                try self.appendEscapedJson(&buf, path);
+                try buf.append('"');
+            }
+
+            try buf.appendSlice("]}");
+            json = try buf.toOwnedSlice();
+        }
+
+        bridge_error.sendResultToJS(self.allocator, action, json);
+
+        if (!std.mem.eql(u8, json, "{\"canceled\":true,\"filePaths\":[]}")) {
+            self.allocator.free(json);
+        }
+    }
+
+    fn windowsOpenFolderDialog(self: *Self, data: ?[]const u8) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            _ = &data;
+            return;
+        }
+
+        // Use SHBrowseForFolder for folder selection
+        const shell32 = @cImport({
+            @cInclude("windows.h");
+            @cInclude("shlobj.h");
+        });
+
+        var title_buf: [256]u8 = undefined;
+        @memset(&title_buf, 0);
+        const default_title = "Select Folder";
+        @memcpy(title_buf[0..default_title.len], default_title);
+
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
+                const start = idx + 9;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const title = json_data[start..end];
+                    const copy_len = @min(title.len, title_buf.len - 1);
+                    @memcpy(title_buf[0..copy_len], title[0..copy_len]);
+                    title_buf[copy_len] = 0;
+                }
+            }
+        }
+
+        var bi: shell32.BROWSEINFOA = undefined;
+        @memset(std.mem.asBytes(&bi), 0);
+        bi.hwndOwner = self.window_handle;
+        bi.lpszTitle = &title_buf;
+        bi.ulFlags = shell32.BIF_RETURNONLYFSDIRS | shell32.BIF_NEWDIALOGSTYLE;
+
+        const pidl = shell32.SHBrowseForFolderA(&bi);
+
+        var json: []const u8 = "{\"canceled\":true,\"filePaths\":[]}";
+
+        if (pidl != null) {
+            var path_buf: [260]u8 = undefined;
+            if (shell32.SHGetPathFromIDListA(pidl, &path_buf) != 0) {
+                const path = std.mem.sliceTo(&path_buf, 0);
+
+                var buf = std.ArrayList(u8).init(self.allocator);
+                defer buf.deinit();
+
+                try buf.appendSlice("{\"canceled\":false,\"filePaths\":[\"");
+                try self.appendEscapedJson(&buf, path);
+                try buf.appendSlice("\"]}");
+                json = try buf.toOwnedSlice();
+            }
+            shell32.CoTaskMemFree(pidl);
+        }
+
+        bridge_error.sendResultToJS(self.allocator, "openFolder", json);
+
+        if (!std.mem.eql(u8, json, "{\"canceled\":true,\"filePaths\":[]}")) {
+            self.allocator.free(json);
+        }
+    }
+
+    fn windowsSaveFileDialog(self: *Self, data: ?[]const u8) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            _ = &data;
+            return;
+        }
+
+        const OPENFILENAMEA = extern struct {
+            lStructSize: u32,
+            hwndOwner: ?*anyopaque,
+            hInstance: ?*anyopaque,
+            lpstrFilter: ?[*:0]const u8,
+            lpstrCustomFilter: ?[*:0]u8,
+            nMaxCustFilter: u32,
+            nFilterIndex: u32,
+            lpstrFile: [*:0]u8,
+            nMaxFile: u32,
+            lpstrFileTitle: ?[*:0]u8,
+            nMaxFileTitle: u32,
+            lpstrInitialDir: ?[*:0]const u8,
+            lpstrTitle: ?[*:0]const u8,
+            Flags: u32,
+            nFileOffset: u16,
+            nFileExtension: u16,
+            lpstrDefExt: ?[*:0]const u8,
+            lCustData: usize,
+            lpfnHook: ?*anyopaque,
+            lpTemplateName: ?[*:0]const u8,
+            pvReserved: ?*anyopaque,
+            dwReserved: u32,
+            FlagsEx: u32,
+        };
+
+        const OFN_OVERWRITEPROMPT = 0x00000002;
+        const OFN_PATHMUSTEXIST = 0x00000800;
+
+        const comdlg32 = @cImport({
+            @cInclude("windows.h");
+            @cInclude("commdlg.h");
+        });
+
+        var file_buf: [260]u8 = undefined;
+        @memset(&file_buf, 0);
+
+        var title_buf: [256]u8 = undefined;
+        @memset(&title_buf, 0);
+        const default_title = "Save File";
+        @memcpy(title_buf[0..default_title.len], default_title);
+
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
+                const start = idx + 9;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const title = json_data[start..end];
+                    const copy_len = @min(title.len, title_buf.len - 1);
+                    @memcpy(title_buf[0..copy_len], title[0..copy_len]);
+                    title_buf[copy_len] = 0;
+                }
+            }
+
+            if (std.mem.indexOf(u8, json_data, "\"defaultName\":\"")) |idx| {
+                const start = idx + 15;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const name = json_data[start..end];
+                    const copy_len = @min(name.len, file_buf.len - 1);
+                    @memcpy(file_buf[0..copy_len], name[0..copy_len]);
+                    file_buf[copy_len] = 0;
+                }
+            }
+        }
+
+        var ofn: OPENFILENAMEA = undefined;
+        @memset(std.mem.asBytes(&ofn), 0);
+        ofn.lStructSize = @sizeOf(OPENFILENAMEA);
+        ofn.hwndOwner = self.window_handle;
+        ofn.lpstrFile = &file_buf;
+        ofn.nMaxFile = file_buf.len;
+        ofn.lpstrTitle = &title_buf;
+        ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
+
+        const success = comdlg32.GetSaveFileNameA(&ofn);
+
+        var json: []const u8 = "{\"canceled\":true}";
+
+        if (success != 0) {
+            const path = std.mem.sliceTo(&file_buf, 0);
+
+            var buf = std.ArrayList(u8).init(self.allocator);
+            defer buf.deinit();
+
+            try buf.appendSlice("{\"canceled\":false,\"filePath\":\"");
+            try self.appendEscapedJson(&buf, path);
+            try buf.appendSlice("\"}");
+            json = try buf.toOwnedSlice();
+        }
+
+        bridge_error.sendResultToJS(self.allocator, "saveFile", json);
+
+        if (!std.mem.eql(u8, json, "{\"canceled\":true}")) {
+            self.allocator.free(json);
+        }
+    }
+
+    fn windowsAlertDialog(self: *Self, data: ?[]const u8, action: []const u8, with_cancel: bool) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            _ = &data;
+            _ = &action;
+            _ = &with_cancel;
+            return;
+        }
+
+        const user32 = @cImport({
+            @cInclude("windows.h");
+        });
+
+        const MB_OK = 0x00000000;
+        const MB_OKCANCEL = 0x00000001;
+        const MB_ICONINFORMATION = 0x00000040;
+        const MB_ICONWARNING = 0x00000030;
+        const MB_ICONERROR = 0x00000010;
+        const IDOK = 1;
+
+        var title_buf: [256]u8 = undefined;
+        @memset(&title_buf, 0);
+        var message_buf: [1024]u8 = undefined;
+        @memset(&message_buf, 0);
+
+        var style: u32 = MB_ICONINFORMATION;
+
+        if (data) |json_data| {
+            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
+                const start = idx + 9;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const title = json_data[start..end];
+                    const copy_len = @min(title.len, title_buf.len - 1);
+                    @memcpy(title_buf[0..copy_len], title[0..copy_len]);
+                }
+            }
+
+            if (std.mem.indexOf(u8, json_data, "\"message\":\"")) |idx| {
+                const start = idx + 11;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const message = json_data[start..end];
+                    const copy_len = @min(message.len, message_buf.len - 1);
+                    @memcpy(message_buf[0..copy_len], message[0..copy_len]);
+                }
+            }
+
+            if (std.mem.indexOf(u8, json_data, "\"style\":\"")) |idx| {
+                const start = idx + 9;
+                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                    const style_str = json_data[start..end];
+                    if (std.mem.eql(u8, style_str, "warning")) {
+                        style = MB_ICONWARNING;
+                    } else if (std.mem.eql(u8, style_str, "critical") or std.mem.eql(u8, style_str, "error")) {
+                        style = MB_ICONERROR;
+                    }
+                }
+            }
+        }
+
+        if (with_cancel) {
+            style |= MB_OKCANCEL;
+        } else {
+            style |= MB_OK;
+        }
+
+        const result = user32.MessageBoxA(
+            self.window_handle,
+            &message_buf,
+            &title_buf,
+            style,
+        );
+
+        const json = if (with_cancel)
+            (if (result == IDOK) "{\"ok\":true}" else "{\"ok\":false}")
+        else
+            "{\"buttonIndex\":0}";
+
+        bridge_error.sendResultToJS(self.allocator, action, json);
+    }
+
+    // ============================================
+    // Helper Functions
+    // ============================================
+
+    fn appendEscapedJson(self: *Self, buf: *std.ArrayList(u8), str: []const u8) !void {
+        _ = self;
+        for (str) |ch| {
+            switch (ch) {
+                '"' => try buf.appendSlice("\\\""),
+                '\\' => try buf.appendSlice("\\\\"),
+                '\n' => try buf.appendSlice("\\n"),
+                '\r' => try buf.appendSlice("\\r"),
+                '\t' => try buf.appendSlice("\\t"),
+                else => try buf.append(ch),
+            }
         }
     }
 

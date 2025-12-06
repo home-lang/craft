@@ -58,12 +58,17 @@ pub const ClipboardBridge = struct {
     /// Write text to clipboard
     /// JSON: {"text": "Hello World"}
     fn writeText(self: *Self, data: ?[]const u8) !void {
-        _ = self;
         if (data == null) return;
 
         std.debug.print("[ClipboardBridge] writeText called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxWriteText(data);
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsWriteText(data);
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
             const json_data = data.?;
 
@@ -105,7 +110,13 @@ pub const ClipboardBridge = struct {
     fn readText(self: *Self) !void {
         std.debug.print("[ClipboardBridge] readText called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxReadText();
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsReadText();
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSPasteboard = macos.getClass("NSPasteboard");
@@ -165,12 +176,18 @@ pub const ClipboardBridge = struct {
     /// Write HTML to clipboard
     /// JSON: {"html": "<h1>Hello</h1>"}
     fn writeHTML(self: *Self, data: ?[]const u8) !void {
-        _ = self;
         if (data == null) return;
 
         std.debug.print("[ClipboardBridge] writeHTML called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            // Linux: Use xclip with HTML target
+            try self.linuxWriteHTML(data);
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsWriteHTML(data);
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
             const json_data = data.?;
 
@@ -210,7 +227,13 @@ pub const ClipboardBridge = struct {
     fn readHTML(self: *Self) !void {
         std.debug.print("[ClipboardBridge] readHTML called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxReadHTML();
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsReadHTML();
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSPasteboard = macos.getClass("NSPasteboard");
@@ -263,10 +286,15 @@ pub const ClipboardBridge = struct {
 
     /// Clear clipboard
     fn clear(self: *Self) !void {
-        _ = self;
         std.debug.print("[ClipboardBridge] clear called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxClear();
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsClear();
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSPasteboard = macos.getClass("NSPasteboard");
@@ -281,7 +309,13 @@ pub const ClipboardBridge = struct {
     fn hasText(self: *Self) !void {
         std.debug.print("[ClipboardBridge] hasText called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxHasText();
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsHasText();
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSPasteboard = macos.getClass("NSPasteboard");
@@ -310,7 +344,13 @@ pub const ClipboardBridge = struct {
     fn hasHTML(self: *Self) !void {
         std.debug.print("[ClipboardBridge] hasHTML called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxHasHTML();
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsHasHTML();
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSPasteboard = macos.getClass("NSPasteboard");
@@ -339,7 +379,13 @@ pub const ClipboardBridge = struct {
     fn hasImage(self: *Self) !void {
         std.debug.print("[ClipboardBridge] hasImage called\n", .{});
 
-        if (builtin.os.tag == .macos) {
+        if (builtin.os.tag == .linux) {
+            try self.linuxHasImage();
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsHasImage();
+            return;
+        } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSPasteboard = macos.getClass("NSPasteboard");
@@ -361,6 +407,473 @@ pub const ClipboardBridge = struct {
 
             const json = if (has_image) "{\"value\":true}" else "{\"value\":false}";
             bridge_error.sendResultToJS(self.allocator, "hasImage", json);
+        }
+    }
+
+    // ============================================
+    // Linux Clipboard Implementations (using xclip)
+    // ============================================
+
+    fn linuxWriteText(self: *Self, data: ?[]const u8) !void {
+        if (data == null) return;
+        const json_data = data.?;
+
+        // Parse text from JSON
+        if (std.mem.indexOf(u8, json_data, "\"text\":\"")) |idx| {
+            const start = idx + 8;
+            if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                const text = json_data[start..end];
+
+                // Use xclip to write to clipboard
+                var child = std.process.Child.init(&.{ "xclip", "-selection", "clipboard" }, self.allocator);
+                child.stdin_behavior = .Pipe;
+                child.stdout_behavior = .Ignore;
+                child.stderr_behavior = .Ignore;
+
+                try child.spawn();
+                if (child.stdin) |stdin| {
+                    try stdin.writeAll(text);
+                    stdin.close();
+                }
+                _ = try child.wait();
+
+                std.debug.print("[ClipboardBridge] Linux: Wrote text to clipboard\n", .{});
+            }
+        }
+    }
+
+    fn linuxReadText(self: *Self) !void {
+        // Use xclip to read from clipboard
+        var child = std.process.Child.init(&.{ "xclip", "-selection", "clipboard", "-o" }, self.allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Ignore;
+
+        try child.spawn();
+        const result = try child.wait();
+
+        var result_json: []const u8 = "{\"text\":\"\"}";
+
+        if (result.Exited == 0) {
+            if (child.stdout) |stdout| {
+                const output = try stdout.reader().readAllAlloc(self.allocator, 1024 * 1024);
+                defer self.allocator.free(output);
+
+                if (output.len > 0) {
+                    var buf = std.ArrayList(u8).init(self.allocator);
+                    defer buf.deinit();
+
+                    try buf.appendSlice("{\"text\":\"");
+                    try self.appendEscapedJson(&buf, output);
+                    try buf.appendSlice("\"}");
+                    result_json = try buf.toOwnedSlice();
+                }
+            }
+        }
+
+        bridge_error.sendResultToJS(self.allocator, "readText", result_json);
+
+        if (!std.mem.eql(u8, result_json, "{\"text\":\"\"}")) {
+            self.allocator.free(result_json);
+        }
+    }
+
+    fn linuxWriteHTML(self: *Self, data: ?[]const u8) !void {
+        if (data == null) return;
+        const json_data = data.?;
+
+        if (std.mem.indexOf(u8, json_data, "\"html\":\"")) |idx| {
+            const start = idx + 8;
+            if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                const html = json_data[start..end];
+
+                // Use xclip with HTML target
+                var child = std.process.Child.init(&.{ "xclip", "-selection", "clipboard", "-t", "text/html" }, self.allocator);
+                child.stdin_behavior = .Pipe;
+                child.stdout_behavior = .Ignore;
+                child.stderr_behavior = .Ignore;
+
+                try child.spawn();
+                if (child.stdin) |stdin| {
+                    try stdin.writeAll(html);
+                    stdin.close();
+                }
+                _ = try child.wait();
+
+                std.debug.print("[ClipboardBridge] Linux: Wrote HTML to clipboard\n", .{});
+            }
+        }
+    }
+
+    fn linuxReadHTML(self: *Self) !void {
+        var child = std.process.Child.init(&.{ "xclip", "-selection", "clipboard", "-t", "text/html", "-o" }, self.allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Ignore;
+
+        try child.spawn();
+        const result = try child.wait();
+
+        var result_json: []const u8 = "{\"html\":\"\"}";
+
+        if (result.Exited == 0) {
+            if (child.stdout) |stdout| {
+                const output = try stdout.reader().readAllAlloc(self.allocator, 1024 * 1024);
+                defer self.allocator.free(output);
+
+                if (output.len > 0) {
+                    var buf = std.ArrayList(u8).init(self.allocator);
+                    defer buf.deinit();
+
+                    try buf.appendSlice("{\"html\":\"");
+                    try self.appendEscapedJson(&buf, output);
+                    try buf.appendSlice("\"}");
+                    result_json = try buf.toOwnedSlice();
+                }
+            }
+        }
+
+        bridge_error.sendResultToJS(self.allocator, "readHTML", result_json);
+
+        if (!std.mem.eql(u8, result_json, "{\"html\":\"\"}")) {
+            self.allocator.free(result_json);
+        }
+    }
+
+    fn linuxClear(self: *Self) !void {
+        // Clear by writing empty string
+        var child = std.process.Child.init(&.{ "xclip", "-selection", "clipboard" }, self.allocator);
+        child.stdin_behavior = .Pipe;
+        child.stdout_behavior = .Ignore;
+        child.stderr_behavior = .Ignore;
+
+        try child.spawn();
+        if (child.stdin) |stdin| {
+            stdin.close();
+        }
+        _ = try child.wait();
+
+        std.debug.print("[ClipboardBridge] Linux: Clipboard cleared\n", .{});
+    }
+
+    fn linuxHasText(self: *Self) !void {
+        var child = std.process.Child.init(&.{ "xclip", "-selection", "clipboard", "-o" }, self.allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Ignore;
+
+        try child.spawn();
+        const result = try child.wait();
+
+        var has_text = false;
+        if (result.Exited == 0) {
+            if (child.stdout) |stdout| {
+                const output = try stdout.reader().readAllAlloc(self.allocator, 1024);
+                defer self.allocator.free(output);
+                has_text = output.len > 0;
+            }
+        }
+
+        const json = if (has_text) "{\"value\":true}" else "{\"value\":false}";
+        bridge_error.sendResultToJS(self.allocator, "hasText", json);
+    }
+
+    fn linuxHasHTML(self: *Self) !void {
+        var child = std.process.Child.init(&.{ "xclip", "-selection", "clipboard", "-t", "text/html", "-o" }, self.allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Ignore;
+
+        try child.spawn();
+        const result = try child.wait();
+
+        var has_html = false;
+        if (result.Exited == 0) {
+            if (child.stdout) |stdout| {
+                const output = try stdout.reader().readAllAlloc(self.allocator, 1024);
+                defer self.allocator.free(output);
+                has_html = output.len > 0;
+            }
+        }
+
+        const json = if (has_html) "{\"value\":true}" else "{\"value\":false}";
+        bridge_error.sendResultToJS(self.allocator, "hasHTML", json);
+    }
+
+    fn linuxHasImage(self: *Self) !void {
+        var child = std.process.Child.init(&.{ "xclip", "-selection", "clipboard", "-t", "image/png", "-o" }, self.allocator);
+        child.stdout_behavior = .Pipe;
+        child.stderr_behavior = .Ignore;
+
+        try child.spawn();
+        const result = try child.wait();
+
+        var has_image = false;
+        if (result.Exited == 0) {
+            if (child.stdout) |stdout| {
+                const output = try stdout.reader().readAllAlloc(self.allocator, 1024);
+                defer self.allocator.free(output);
+                has_image = output.len > 0;
+            }
+        }
+
+        const json = if (has_image) "{\"value\":true}" else "{\"value\":false}";
+        bridge_error.sendResultToJS(self.allocator, "hasImage", json);
+    }
+
+    // ============================================
+    // Windows Clipboard Implementations (Win32 API)
+    // ============================================
+
+    fn windowsWriteText(self: *Self, data: ?[]const u8) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            _ = &data;
+            return;
+        }
+
+        if (data == null) return;
+        const json_data = data.?;
+
+        if (std.mem.indexOf(u8, json_data, "\"text\":\"")) |idx| {
+            const start = idx + 8;
+            if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                const text = json_data[start..end];
+
+                const kernel32 = @cImport(@cInclude("windows.h"));
+                const user32 = kernel32;
+
+                const CF_TEXT = 1;
+                const GMEM_MOVEABLE = 0x0002;
+
+                if (user32.OpenClipboard(null) != 0) {
+                    defer _ = user32.CloseClipboard();
+                    _ = user32.EmptyClipboard();
+
+                    const len = text.len + 1;
+                    const hGlobal = kernel32.GlobalAlloc(GMEM_MOVEABLE, len);
+                    if (hGlobal != null) {
+                        const pGlobal = kernel32.GlobalLock(hGlobal);
+                        if (pGlobal != null) {
+                            @memcpy(@as([*]u8, @ptrCast(pGlobal))[0..text.len], text);
+                            @as([*]u8, @ptrCast(pGlobal))[text.len] = 0;
+                            _ = kernel32.GlobalUnlock(hGlobal);
+                            _ = user32.SetClipboardData(CF_TEXT, hGlobal);
+                        }
+                    }
+
+                    std.debug.print("[ClipboardBridge] Windows: Wrote text to clipboard\n", .{});
+                }
+            }
+        }
+    }
+
+    fn windowsReadText(self: *Self) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            return;
+        }
+
+        const kernel32 = @cImport(@cInclude("windows.h"));
+        const user32 = kernel32;
+
+        const CF_TEXT = 1;
+
+        var result_json: []const u8 = "{\"text\":\"\"}";
+
+        if (user32.OpenClipboard(null) != 0) {
+            defer _ = user32.CloseClipboard();
+
+            const hData = user32.GetClipboardData(CF_TEXT);
+            if (hData != null) {
+                const pData = kernel32.GlobalLock(hData);
+                if (pData != null) {
+                    const text = std.mem.span(@as([*:0]const u8, @ptrCast(pData)));
+
+                    var buf = std.ArrayList(u8).init(self.allocator);
+                    defer buf.deinit();
+
+                    try buf.appendSlice("{\"text\":\"");
+                    try self.appendEscapedJson(&buf, text);
+                    try buf.appendSlice("\"}");
+                    result_json = try buf.toOwnedSlice();
+
+                    _ = kernel32.GlobalUnlock(hData);
+                }
+            }
+        }
+
+        bridge_error.sendResultToJS(self.allocator, "readText", result_json);
+
+        if (!std.mem.eql(u8, result_json, "{\"text\":\"\"}")) {
+            self.allocator.free(result_json);
+        }
+    }
+
+    fn windowsWriteHTML(self: *Self, data: ?[]const u8) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            _ = &data;
+            return;
+        }
+
+        if (data == null) return;
+        const json_data = data.?;
+
+        if (std.mem.indexOf(u8, json_data, "\"html\":\"")) |idx| {
+            const start = idx + 8;
+            if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
+                const html = json_data[start..end];
+
+                const kernel32 = @cImport(@cInclude("windows.h"));
+                const user32 = kernel32;
+
+                // Register HTML clipboard format
+                const cf_html = user32.RegisterClipboardFormatA("HTML Format");
+                const GMEM_MOVEABLE = 0x0002;
+
+                if (user32.OpenClipboard(null) != 0) {
+                    defer _ = user32.CloseClipboard();
+                    _ = user32.EmptyClipboard();
+
+                    // Create CF_HTML format header
+                    const header = "Version:0.9\r\nStartHTML:00000097\r\nEndHTML:00000000\r\nStartFragment:00000000\r\nEndFragment:00000000\r\n";
+                    const total_len = header.len + html.len + 1;
+
+                    const hGlobal = kernel32.GlobalAlloc(GMEM_MOVEABLE, total_len);
+                    if (hGlobal != null) {
+                        const pGlobal = kernel32.GlobalLock(hGlobal);
+                        if (pGlobal != null) {
+                            const dest = @as([*]u8, @ptrCast(pGlobal));
+                            @memcpy(dest[0..header.len], header);
+                            @memcpy(dest[header.len..][0..html.len], html);
+                            dest[total_len - 1] = 0;
+                            _ = kernel32.GlobalUnlock(hGlobal);
+                            _ = user32.SetClipboardData(cf_html, hGlobal);
+                        }
+                    }
+
+                    std.debug.print("[ClipboardBridge] Windows: Wrote HTML to clipboard\n", .{});
+                }
+            }
+        }
+    }
+
+    fn windowsReadHTML(self: *Self) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            return;
+        }
+
+        const kernel32 = @cImport(@cInclude("windows.h"));
+        const user32 = kernel32;
+
+        const cf_html = user32.RegisterClipboardFormatA("HTML Format");
+
+        var result_json: []const u8 = "{\"html\":\"\"}";
+
+        if (user32.OpenClipboard(null) != 0) {
+            defer _ = user32.CloseClipboard();
+
+            const hData = user32.GetClipboardData(cf_html);
+            if (hData != null) {
+                const pData = kernel32.GlobalLock(hData);
+                if (pData != null) {
+                    const html = std.mem.span(@as([*:0]const u8, @ptrCast(pData)));
+
+                    var buf = std.ArrayList(u8).init(self.allocator);
+                    defer buf.deinit();
+
+                    try buf.appendSlice("{\"html\":\"");
+                    try self.appendEscapedJson(&buf, html);
+                    try buf.appendSlice("\"}");
+                    result_json = try buf.toOwnedSlice();
+
+                    _ = kernel32.GlobalUnlock(hData);
+                }
+            }
+        }
+
+        bridge_error.sendResultToJS(self.allocator, "readHTML", result_json);
+
+        if (!std.mem.eql(u8, result_json, "{\"html\":\"\"}")) {
+            self.allocator.free(result_json);
+        }
+    }
+
+    fn windowsClear(self: *Self) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            return;
+        }
+
+        const user32 = @cImport(@cInclude("windows.h"));
+
+        if (user32.OpenClipboard(null) != 0) {
+            _ = user32.EmptyClipboard();
+            _ = user32.CloseClipboard();
+            std.debug.print("[ClipboardBridge] Windows: Clipboard cleared\n", .{});
+        }
+    }
+
+    fn windowsHasText(self: *Self) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            return;
+        }
+
+        const user32 = @cImport(@cInclude("windows.h"));
+        const CF_TEXT = 1;
+
+        const has_text = user32.IsClipboardFormatAvailable(CF_TEXT) != 0;
+
+        const json = if (has_text) "{\"value\":true}" else "{\"value\":false}";
+        bridge_error.sendResultToJS(self.allocator, "hasText", json);
+    }
+
+    fn windowsHasHTML(self: *Self) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            return;
+        }
+
+        const user32 = @cImport(@cInclude("windows.h"));
+        const cf_html = user32.RegisterClipboardFormatA("HTML Format");
+
+        const has_html = user32.IsClipboardFormatAvailable(cf_html) != 0;
+
+        const json = if (has_html) "{\"value\":true}" else "{\"value\":false}";
+        bridge_error.sendResultToJS(self.allocator, "hasHTML", json);
+    }
+
+    fn windowsHasImage(self: *Self) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            return;
+        }
+
+        const user32 = @cImport(@cInclude("windows.h"));
+        const CF_BITMAP = 2;
+        const CF_DIB = 8;
+
+        const has_image = user32.IsClipboardFormatAvailable(CF_BITMAP) != 0 or
+            user32.IsClipboardFormatAvailable(CF_DIB) != 0;
+
+        const json = if (has_image) "{\"value\":true}" else "{\"value\":false}";
+        bridge_error.sendResultToJS(self.allocator, "hasImage", json);
+    }
+
+    // ============================================
+    // Helper Functions
+    // ============================================
+
+    fn appendEscapedJson(self: *Self, buf: *std.ArrayList(u8), str: []const u8) !void {
+        _ = self;
+        for (str) |ch| {
+            switch (ch) {
+                '"' => try buf.appendSlice("\\\""),
+                '\\' => try buf.appendSlice("\\\\"),
+                '\n' => try buf.appendSlice("\\n"),
+                '\r' => try buf.appendSlice("\\r"),
+                '\t' => try buf.appendSlice("\\t"),
+                else => try buf.append(ch),
+            }
         }
     }
 

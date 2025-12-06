@@ -91,6 +91,13 @@ pub const NotificationBridge = struct {
     /// Show an immediate notification
     /// JSON: {"id": "notif1", "title": "Hello", "body": "World", "sound": true, "actionId": "open"}
     fn showNotification(self: *Self, data: []const u8) !void {
+        if (builtin.os.tag == .linux) {
+            try self.linuxShowNotification(data);
+            return;
+        } else if (builtin.os.tag == .windows) {
+            try self.windowsShowNotification(data);
+            return;
+        }
         if (builtin.os.tag != .macos) return;
 
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
@@ -205,6 +212,15 @@ pub const NotificationBridge = struct {
     /// Schedule a notification for later
     /// JSON: {"id": "reminder", "title": "Reminder", "body": "Time to take a break", "delay": 60}
     fn scheduleNotification(self: *Self, data: []const u8) !void {
+        if (builtin.os.tag == .linux) {
+            // Linux: notify-send doesn't support scheduling, show immediately with a note
+            try self.linuxShowNotification(data);
+            return;
+        } else if (builtin.os.tag == .windows) {
+            // Windows: Show immediately for simplicity
+            try self.windowsShowNotification(data);
+            return;
+        }
         if (builtin.os.tag != .macos) return;
 
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
@@ -295,6 +311,12 @@ pub const NotificationBridge = struct {
     /// Cancel a pending notification
     /// JSON: {"id": "reminder"}
     fn cancelNotification(self: *Self, data: []const u8) !void {
+        if (builtin.os.tag == .linux or builtin.os.tag == .windows) {
+            // Linux/Windows: notify-send doesn't support cancellation
+            _ = &data;
+            std.debug.print("[NotificationBridge] cancel: not supported on this platform\n", .{});
+            return;
+        }
         if (builtin.os.tag != .macos) return;
 
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
@@ -327,6 +349,10 @@ pub const NotificationBridge = struct {
 
     /// Cancel all pending notifications
     fn cancelAllNotifications(self: *Self) !void {
+        if (builtin.os.tag == .linux or builtin.os.tag == .windows) {
+            std.debug.print("[NotificationBridge] cancelAll: not supported on this platform\n", .{});
+            return;
+        }
         if (builtin.os.tag != .macos) return;
 
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
@@ -341,6 +367,11 @@ pub const NotificationBridge = struct {
     /// Set app badge count
     /// JSON: {"count": 5}
     fn setBadgeCount(self: *Self, data: []const u8) !void {
+        if (builtin.os.tag == .linux or builtin.os.tag == .windows) {
+            _ = &data;
+            std.debug.print("[NotificationBridge] setBadge: not supported on this platform\n", .{});
+            return;
+        }
         if (builtin.os.tag != .macos) return;
         _ = self;
 
@@ -379,6 +410,10 @@ pub const NotificationBridge = struct {
 
     /// Clear app badge
     fn clearBadge(self: *Self) !void {
+        if (builtin.os.tag == .linux or builtin.os.tag == .windows) {
+            std.debug.print("[NotificationBridge] clearBadge: not supported on this platform\n", .{});
+            return;
+        }
         if (builtin.os.tag != .macos) return;
         _ = self;
 
@@ -394,6 +429,12 @@ pub const NotificationBridge = struct {
 
     /// Request notification permission
     fn requestPermission(self: *Self) !void {
+        if (builtin.os.tag == .linux or builtin.os.tag == .windows) {
+            // Linux/Windows: permissions are typically not required
+            std.debug.print("[NotificationBridge] requestPermission: granted by default on this platform\n", .{});
+            bridge_error.sendResultToJS(self.allocator, "requestPermission", "{\"granted\":true}");
+            return;
+        }
         if (builtin.os.tag != .macos) return;
 
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
@@ -406,6 +447,117 @@ pub const NotificationBridge = struct {
 
         const msg = @as(*const fn (@TypeOf(center), @import("macos.zig").objc.SEL, c_ulong, ?*anyopaque) callconv(.c) void, @ptrCast(&@import("macos.zig").objc.objc_msgSend));
         msg(center, macos.sel("requestAuthorizationWithOptions:completionHandler:"), options, null);
+    }
+
+    // ============================================
+    // Linux Notification Implementation (notify-send)
+    // ============================================
+
+    fn linuxShowNotification(self: *Self, data: []const u8) !void {
+        var title: []const u8 = "Notification";
+        var body: []const u8 = "";
+        var urgency: []const u8 = "normal";
+
+        // Parse title
+        if (std.mem.indexOf(u8, data, "\"title\":\"")) |idx| {
+            const start = idx + 9;
+            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
+                title = data[start..end];
+            }
+        }
+
+        // Parse body
+        if (std.mem.indexOf(u8, data, "\"body\":\"")) |idx| {
+            const start = idx + 8;
+            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
+                body = data[start..end];
+            }
+        }
+
+        // Parse urgency/style
+        if (std.mem.indexOf(u8, data, "\"style\":\"critical\"")) |_| {
+            urgency = "critical";
+        } else if (std.mem.indexOf(u8, data, "\"style\":\"low\"")) |_| {
+            urgency = "low";
+        }
+
+        std.debug.print("[NotificationBridge] Linux show: title={s}, body={s}\n", .{ title, body });
+
+        // Build args for notify-send
+        var args = std.ArrayList([]const u8).init(self.allocator);
+        defer args.deinit();
+
+        try args.append("notify-send");
+        try args.append("--urgency");
+        try args.append(urgency);
+        try args.append(title);
+        if (body.len > 0) {
+            try args.append(body);
+        }
+
+        var child = std.process.Child.init(args.items, self.allocator);
+        child.stdout_behavior = .Ignore;
+        child.stderr_behavior = .Ignore;
+
+        try child.spawn();
+        _ = try child.wait();
+
+        std.debug.print("[NotificationBridge] Linux: notification sent\n", .{});
+    }
+
+    // ============================================
+    // Windows Notification Implementation (PowerShell Toast)
+    // ============================================
+
+    fn windowsShowNotification(self: *Self, data: []const u8) !void {
+        if (builtin.os.tag != .windows) {
+            _ = &self;
+            _ = &data;
+            return;
+        }
+
+        var title: []const u8 = "Notification";
+        var body: []const u8 = "";
+
+        // Parse title
+        if (std.mem.indexOf(u8, data, "\"title\":\"")) |idx| {
+            const start = idx + 9;
+            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
+                title = data[start..end];
+            }
+        }
+
+        // Parse body
+        if (std.mem.indexOf(u8, data, "\"body\":\"")) |idx| {
+            const start = idx + 8;
+            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
+                body = data[start..end];
+            }
+        }
+
+        std.debug.print("[NotificationBridge] Windows show: title={s}, body={s}\n", .{ title, body });
+
+        // Use PowerShell to show toast notification
+        // This is a simple approach that works without additional dependencies
+        const ps_script = try std.fmt.allocPrint(self.allocator,
+            \\[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
+            \\$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+            \\$textNodes = $template.GetElementsByTagName("text")
+            \\$textNodes.Item(0).AppendChild($template.CreateTextNode("{s}")) > $null
+            \\$textNodes.Item(1).AppendChild($template.CreateTextNode("{s}")) > $null
+            \\$toast = [Windows.UI.Notifications.ToastNotification]::new($template)
+            \\[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Craft App").Show($toast)
+        , .{ title, body });
+        defer self.allocator.free(ps_script);
+
+        var child = std.process.Child.init(&.{ "powershell", "-Command", ps_script }, self.allocator);
+        child.stdout_behavior = .Ignore;
+        child.stderr_behavior = .Ignore;
+
+        try child.spawn();
+        _ = try child.wait();
+
+        std.debug.print("[NotificationBridge] Windows: notification sent\n", .{});
     }
 
     pub fn deinit(self: *Self) void {
