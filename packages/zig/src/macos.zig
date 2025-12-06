@@ -905,6 +905,41 @@ fn getCraftBridgeScript() []const u8 {
     \\
     \\   // Define the bridge API immediately (so it's available for use)
     \\   window.craft = window.craft || {};
+    \\   window.__craftBridgePending = window.__craftBridgePending || {};
+    \\   window.__craftBridgeResult = function(action, payload) {
+    \\     try {
+    \\       const pendingMap = window.__craftBridgePending || {};
+    \\       const queue = pendingMap[action];
+    \\       if (queue && queue.length > 0) {
+    \\         const entry = queue.shift();
+    \\         if (entry && typeof entry.resolve === 'function') {
+    \\           entry.resolve(payload || {});
+    \\         }
+    \\       }
+    \\     } catch (e) {
+    \\       console.error('[Craft] Bridge result handler error:', e);
+    \\     }
+    \\   };
+    \\   window.__craftBridgeError = function(error) {
+    \\     try {
+    \\       console.error('[Craft] Bridge error from native:', error);
+    \\       const pendingMap = window.__craftBridgePending || {};
+    \\       Object.keys(pendingMap).forEach((key) => {
+    \\         const queue = pendingMap[key];
+    \\         if (Array.isArray(queue)) {
+    \\           while (queue.length > 0) {
+    \\             const entry = queue.shift();
+    \\             if (entry && typeof entry.reject === 'function') {
+    \\               entry.reject(error);
+    \\             }
+    \\           }
+    \\         }
+    \\       });
+    \\       window.__craftBridgePending = {};
+    \\     } catch (e) {
+    \\       console.error('[Craft] Bridge error handler failure:', e);
+    \\     }
+    \\   };
     \\
     \\   // ===== TRAY API =====
     \\   window.craft.tray = {
@@ -1136,6 +1171,7 @@ fn getNativeUIScript() []const u8 {
 var global_tray_bridge: ?*@import("bridge_tray.zig").TrayBridge = null;
 var global_window_bridge: ?*@import("bridge_window.zig").WindowBridge = null;
 var global_app_bridge: ?*@import("bridge_app.zig").AppBridge = null;
+var global_dialog_bridge: ?*@import("bridge_dialog.zig").DialogBridge = null;
 var global_native_ui_bridge: ?*@import("bridge_native_ui.zig").NativeUIBridge = null;
 var global_notification_bridge: ?*@import("bridge_notification.zig").NotificationBridge = null;
 var global_shortcuts_bridge: ?*@import("bridge_shortcuts.zig").ShortcutsBridge = null;
@@ -1226,6 +1262,12 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         const ShellBridge = @import("bridge_shell.zig").ShellBridge;
         global_shell_bridge = try allocator.create(ShellBridge);
         global_shell_bridge.?.* = ShellBridge.init(allocator);
+    }
+
+    if (global_dialog_bridge == null) {
+        const DialogBridge = @import("bridge_dialog.zig").DialogBridge;
+        global_dialog_bridge = try allocator.create(DialogBridge);
+        global_dialog_bridge.?.* = DialogBridge.init(allocator);
     }
 
     if (global_clipboard_bridge == null) {
@@ -1410,6 +1452,11 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
     } else if (std.mem.eql(u8, msg_type, "shell")) {
         if (global_shell_bridge) |bridge| {
             try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "dialog")) {
+        if (global_dialog_bridge) |bridge| {
+            const data_opt: ?[]const u8 = if (data_json_str.len > 0) data_json_str else null;
+            try bridge.handleMessageWithData(action, data_opt);
         }
     } else if (std.mem.eql(u8, msg_type, "clipboard")) {
         if (global_clipboard_bridge) |bridge| {

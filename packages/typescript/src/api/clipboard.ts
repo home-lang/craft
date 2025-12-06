@@ -39,12 +39,14 @@ export interface ClipboardData {
  */
 export async function writeText(text: string): Promise<void> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise((resolve, reject) => {
+      const w = window as any
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',
         action: 'writeText',
         data: { text }
       })
+      // Fire-and-forget: resolve immediately on WebKit path
       resolve()
     })
   }
@@ -59,14 +61,17 @@ export async function writeText(text: string): Promise<void> {
  */
 export async function readText(): Promise<string> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise<string>((resolve, reject) => {
+      const w = window as any
+      w.__craftBridgePending = w.__craftBridgePending || {}
+      w.__craftBridgePending.readText = w.__craftBridgePending.readText || []
+      w.__craftBridgePending.readText.push({ resolve, reject })
+
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',
         action: 'readText'
       })
-      // For now return empty - actual implementation needs callback
-      resolve('')
-    })
+    }).then((payload: any) => (payload && typeof payload.text === 'string' ? payload.text : ''))
   }
 
   const bridge = getBridge()
@@ -99,13 +104,17 @@ export async function writeHTML(html: string): Promise<void> {
  */
 export async function readHTML(): Promise<string> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise<string>((resolve, reject) => {
+      const w = window as any
+      w.__craftBridgePending = w.__craftBridgePending || {}
+      w.__craftBridgePending.readHTML = w.__craftBridgePending.readHTML || []
+      w.__craftBridgePending.readHTML.push({ resolve, reject })
+
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',
         action: 'readHTML'
       })
-      resolve('')
-    })
+    }).then((payload: any) => (payload && typeof payload.html === 'string' ? payload.html : ''))
   }
 
   const bridge = getBridge()
@@ -136,13 +145,17 @@ export async function clear(): Promise<void> {
  */
 export async function hasText(): Promise<boolean> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise<boolean>((resolve, reject) => {
+      const w = window as any
+      w.__craftBridgePending = w.__craftBridgePending || {}
+      w.__craftBridgePending.hasText = w.__craftBridgePending.hasText || []
+      w.__craftBridgePending.hasText.push({ resolve, reject })
+
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',
         action: 'hasText'
       })
-      resolve(false)
-    })
+    }).then((payload: any) => !!(payload && (payload.value === true)))
   }
 
   const bridge = getBridge()
@@ -155,13 +168,17 @@ export async function hasText(): Promise<boolean> {
  */
 export async function hasHTML(): Promise<boolean> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise<boolean>((resolve, reject) => {
+      const w = window as any
+      w.__craftBridgePending = w.__craftBridgePending || {}
+      w.__craftBridgePending.hasHTML = w.__craftBridgePending.hasHTML || []
+      w.__craftBridgePending.hasHTML.push({ resolve, reject })
+
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',
         action: 'hasHTML'
       })
-      resolve(false)
-    })
+    }).then((payload: any) => !!(payload && (payload.value === true)))
   }
 
   const bridge = getBridge()
@@ -174,13 +191,17 @@ export async function hasHTML(): Promise<boolean> {
  */
 export async function hasImage(): Promise<boolean> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise<boolean>((resolve, reject) => {
+      const w = window as any
+      w.__craftBridgePending = w.__craftBridgePending || {}
+      w.__craftBridgePending.hasImage = w.__craftBridgePending.hasImage || []
+      w.__craftBridgePending.hasImage.push({ resolve, reject })
+
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',
         action: 'hasImage'
       })
-      resolve(false)
-    })
+    }).then((payload: any) => !!(payload && (payload.value === true)))
   }
 
   const bridge = getBridge()

@@ -120,14 +120,21 @@ export async function openFile(options: OpenDialogOptions = {}): Promise<OpenDia
   const action = options.multiple ? 'openFiles' : 'openFile'
 
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise<OpenDialogResult>((resolve, reject) => {
+      const w = window as any
+      w.__craftBridgePending = w.__craftBridgePending || {}
+      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
+      w.__craftBridgePending[action].push({ resolve, reject })
+
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'dialog',
         action,
         data: options
       })
-      // For now, return empty result - actual implementation needs callback
-      resolve({ canceled: false, filePaths: [] })
+    }).then((payload: any) => {
+      const canceled = !!(payload && payload.canceled === true)
+      const filePaths = Array.isArray(payload?.filePaths) ? (payload.filePaths as string[]) : []
+      return { canceled, filePaths }
     })
   }
 
@@ -142,13 +149,22 @@ export async function openFile(options: OpenDialogOptions = {}): Promise<OpenDia
  */
 export async function openFolder(options: Omit<OpenDialogOptions, 'multiple' | 'directory'> = {}): Promise<OpenDialogResult> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise<OpenDialogResult>((resolve, reject) => {
+      const w = window as any
+      const action = 'openFolder'
+      w.__craftBridgePending = w.__craftBridgePending || {}
+      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
+      w.__craftBridgePending[action].push({ resolve, reject })
+
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'dialog',
-        action: 'openFolder',
+        action,
         data: options
       })
-      resolve({ canceled: false, filePaths: [] })
+    }).then((payload: any) => {
+      const canceled = !!(payload && payload.canceled === true)
+      const filePaths = Array.isArray(payload?.filePaths) ? (payload.filePaths as string[]) : []
+      return { canceled, filePaths }
     })
   }
 
@@ -163,13 +179,22 @@ export async function openFolder(options: Omit<OpenDialogOptions, 'multiple' | '
  */
 export async function saveFile(options: SaveDialogOptions = {}): Promise<SaveDialogResult> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise<SaveDialogResult>((resolve, reject) => {
+      const w = window as any
+      const action = 'saveFile'
+      w.__craftBridgePending = w.__craftBridgePending || {}
+      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
+      w.__craftBridgePending[action].push({ resolve, reject })
+
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'dialog',
-        action: 'saveFile',
+        action,
         data: options
       })
-      resolve({ canceled: false })
+    }).then((payload: any) => {
+      const canceled = !!(payload && payload.canceled === true)
+      const filePath = typeof payload?.filePath === 'string' ? (payload.filePath as string) : undefined
+      return { canceled, filePath }
     })
   }
 
@@ -186,13 +211,23 @@ export async function showAlert(options: AlertOptions | string): Promise<number>
   const opts = typeof options === 'string' ? { title: options } : options
 
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise<number>((resolve, reject) => {
+      const w = window as any
+      const action = 'showAlert'
+      w.__craftBridgePending = w.__craftBridgePending || {}
+      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
+      w.__craftBridgePending[action].push({ resolve, reject })
+
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'dialog',
-        action: 'showAlert',
+        action,
         data: opts
       })
-      resolve(0)
+    }).then((payload: any) => {
+      if (payload && typeof payload.buttonIndex === 'number') {
+        return payload.buttonIndex as number
+      }
+      return 0
     })
   }
 
@@ -209,14 +244,19 @@ export async function showConfirm(options: ConfirmOptions | string): Promise<boo
   const opts = typeof options === 'string' ? { title: options } : options
 
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise<boolean>((resolve, reject) => {
+      const w = window as any
+      const action = 'showConfirm'
+      w.__craftBridgePending = w.__craftBridgePending || {}
+      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
+      w.__craftBridgePending[action].push({ resolve, reject })
+
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'dialog',
-        action: 'showConfirm',
+        action,
         data: opts
       })
-      resolve(true) // Default to true for now
-    })
+    }).then((payload: any) => !!(payload && (payload.ok === true)))
   }
 
   const bridge = getBridge()

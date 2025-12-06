@@ -61,7 +61,6 @@ pub const DialogBridge = struct {
     /// Open a single file picker
     /// JSON: {"title": "Open File", "filters": [{"name": "Images", "extensions": ["png", "jpg"]}], "defaultPath": "/Users"}
     fn openFile(self: *Self, data: ?[]const u8) !void {
-        _ = self;
         std.debug.print("[DialogBridge] openFile called\n", .{});
 
         if (builtin.os.tag == .macos) {
@@ -97,6 +96,8 @@ pub const DialogBridge = struct {
             const result = macos.msgSend0(panel, "runModal");
             const result_int = @as(c_long, @intCast(@intFromPtr(result)));
 
+            var json: []const u8 = "{\"canceled\":true,\"filePaths\":[]}";
+
             if (result_int == 1) { // NSModalResponseOK
                 const urls = macos.msgSend0(panel, "URLs");
                 const count_ptr = macos.msgSend0(urls, "count");
@@ -108,17 +109,38 @@ pub const DialogBridge = struct {
                     const path_cstr = macos.msgSend0(path, "UTF8String");
                     const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
                     std.debug.print("[DialogBridge] Selected file: {s}\n", .{path_str});
-                    // TODO: Send result back to JavaScript via callback
+
+                    var buf = std.ArrayList(u8).init(self.allocator);
+                    defer buf.deinit();
+
+                    try buf.appendSlice("{\"canceled\":false,\"filePaths\":[\"");
+                    for (path_str) |ch| {
+                        switch (ch) {
+                            '"' => try buf.appendSlice("\\\""),
+                            '\\' => try buf.appendSlice("\\\\"),
+                            '\n' => try buf.appendSlice("\\n"),
+                            '\r' => try buf.appendSlice("\\r"),
+                            '\t' => try buf.appendSlice("\\t"),
+                            else => try buf.append(ch),
+                        }
+                    }
+                    try buf.appendSlice("\"]}");
+                    json = try buf.toOwnedSlice();
                 }
             } else {
                 std.debug.print("[DialogBridge] File dialog cancelled\n", .{});
+            }
+
+            bridge_error.sendResultToJS(self.allocator, "openFile", json);
+
+            if (!std.mem.eql(u8, json, "{\"canceled\":true,\"filePaths\":[]}")) {
+                self.allocator.free(json);
             }
         }
     }
 
     /// Open multiple files picker
     fn openFiles(self: *Self, data: ?[]const u8) !void {
-        _ = self;
         std.debug.print("[DialogBridge] openFiles called\n", .{});
 
         if (builtin.os.tag == .macos) {
@@ -149,20 +171,56 @@ pub const DialogBridge = struct {
             const result = macos.msgSend0(panel, "runModal");
             const result_int = @as(c_long, @intCast(@intFromPtr(result)));
 
+            var json: []const u8 = "{\"canceled\":true,\"filePaths\":[]}";
+
             if (result_int == 1) {
                 const urls = macos.msgSend0(panel, "URLs");
                 const count_ptr = macos.msgSend0(urls, "count");
                 const count = @as(usize, @intFromPtr(count_ptr));
 
                 std.debug.print("[DialogBridge] Selected {d} files\n", .{count});
-                // TODO: Send results back to JavaScript
+
+                var buf = std.ArrayList(u8).init(self.allocator);
+                defer buf.deinit();
+
+                try buf.appendSlice("{\"canceled\":false,\"filePaths\":[");
+                var first: bool = true;
+                var i: usize = 0;
+                while (i < count) : (i += 1) {
+                    const url = macos.msgSend1(urls, "objectAtIndex:", @as(c_ulong, i));
+                    const path = macos.msgSend0(url, "path");
+                    const path_cstr = macos.msgSend0(path, "UTF8String");
+                    const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
+
+                    if (!first) try buf.append(self.allocator, ',');
+                    first = false;
+                    try buf.append(self.allocator, '"');
+                    for (path_str) |ch| {
+                        switch (ch) {
+                            '"' => try buf.appendSlice("\\\""),
+                            '\\' => try buf.appendSlice("\\\\"),
+                            '\n' => try buf.appendSlice("\\n"),
+                            '\r' => try buf.appendSlice("\\r"),
+                            '\t' => try buf.appendSlice("\\t"),
+                            else => try buf.append(ch),
+                        }
+                    }
+                    try buf.append(self.allocator, '"');
+                }
+                try buf.appendSlice("]}");
+                json = try buf.toOwnedSlice();
+            }
+
+            bridge_error.sendResultToJS(self.allocator, "openFiles", json);
+
+            if (!std.mem.eql(u8, json, "{\"canceled\":true,\"filePaths\":[]}")) {
+                self.allocator.free(json);
             }
         }
     }
 
     /// Open folder picker
     fn openFolder(self: *Self, data: ?[]const u8) !void {
-        _ = self;
         std.debug.print("[DialogBridge] openFolder called\n", .{});
 
         if (builtin.os.tag == .macos) {
@@ -193,6 +251,8 @@ pub const DialogBridge = struct {
             const result = macos.msgSend0(panel, "runModal");
             const result_int = @as(c_long, @intCast(@intFromPtr(result)));
 
+            var json: []const u8 = "{\"canceled\":true,\"filePaths\":[]}";
+
             if (result_int == 1) {
                 const urls = macos.msgSend0(panel, "URLs");
                 const url = macos.msgSend1(urls, "objectAtIndex:", @as(c_ulong, 0));
@@ -200,6 +260,29 @@ pub const DialogBridge = struct {
                 const path_cstr = macos.msgSend0(path, "UTF8String");
                 const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
                 std.debug.print("[DialogBridge] Selected folder: {s}\n", .{path_str});
+
+                var buf = std.ArrayList(u8).init(self.allocator);
+                defer buf.deinit();
+
+                try buf.appendSlice("{\"canceled\":false,\"filePaths\":[\"");
+                for (path_str) |ch| {
+                    switch (ch) {
+                        '"' => try buf.appendSlice("\\\""),
+                        '\\' => try buf.appendSlice("\\\\"),
+                        '\n' => try buf.appendSlice("\\n"),
+                        '\r' => try buf.appendSlice("\\r"),
+                        '\t' => try buf.appendSlice("\\t"),
+                        else => try buf.append(ch),
+                    }
+                }
+                try buf.appendSlice("\"]}");
+                json = try buf.toOwnedSlice();
+            }
+
+            bridge_error.sendResultToJS(self.allocator, "openFolder", json);
+
+            if (!std.mem.eql(u8, json, "{\"canceled\":true,\"filePaths\":[]}")) {
+                self.allocator.free(json);
             }
         }
     }
@@ -207,7 +290,6 @@ pub const DialogBridge = struct {
     /// Save file dialog
     /// JSON: {"title": "Save File", "defaultName": "untitled.txt", "filters": [...]}
     fn saveFile(self: *Self, data: ?[]const u8) !void {
-        _ = self;
         std.debug.print("[DialogBridge] saveFile called\n", .{});
 
         if (builtin.os.tag == .macos) {
@@ -249,12 +331,37 @@ pub const DialogBridge = struct {
             const result = macos.msgSend0(panel, "runModal");
             const result_int = @as(c_long, @intCast(@intFromPtr(result)));
 
+            var json: []const u8 = "{\"canceled\":true}";
+
             if (result_int == 1) {
                 const url = macos.msgSend0(panel, "URL");
                 const path = macos.msgSend0(url, "path");
                 const path_cstr = macos.msgSend0(path, "UTF8String");
                 const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
                 std.debug.print("[DialogBridge] Save path: {s}\n", .{path_str});
+
+                var buf = std.ArrayList(u8).init(self.allocator);
+                defer buf.deinit();
+
+                try buf.appendSlice("{\"canceled\":false,\"filePath\":\"");
+                for (path_str) |ch| {
+                    switch (ch) {
+                        '"' => try buf.appendSlice("\\\""),
+                        '\\' => try buf.appendSlice("\\\\"),
+                        '\n' => try buf.appendSlice("\\n"),
+                        '\r' => try buf.appendSlice("\\r"),
+                        '\t' => try buf.appendSlice("\\t"),
+                        else => try buf.append(ch),
+                    }
+                }
+                try buf.appendSlice("\"}");
+                json = try buf.toOwnedSlice();
+            }
+
+            bridge_error.sendResultToJS(self.allocator, "saveFile", json);
+
+            if (!std.mem.eql(u8, json, "{\"canceled\":true}")) {
+                self.allocator.free(json);
             }
         }
     }
@@ -262,7 +369,6 @@ pub const DialogBridge = struct {
     /// Show alert dialog
     /// JSON: {"title": "Alert", "message": "Something happened", "style": "warning"}
     fn showAlert(self: *Self, data: ?[]const u8) !void {
-        _ = self;
         if (data == null) return;
 
         std.debug.print("[DialogBridge] showAlert called\n", .{});
@@ -334,7 +440,6 @@ pub const DialogBridge = struct {
     /// Show confirm dialog with OK/Cancel
     /// JSON: {"title": "Confirm", "message": "Are you sure?"}
     fn showConfirm(self: *Self, data: ?[]const u8) !void {
-        _ = self;
         if (data == null) return;
 
         std.debug.print("[DialogBridge] showConfirm called\n", .{});
@@ -395,11 +500,15 @@ pub const DialogBridge = struct {
             const result_int = @as(c_long, @intCast(@intFromPtr(result)));
 
             // NSAlertFirstButtonReturn = 1000
-            if (result_int == 1000) {
+            const ok = result_int == 1000;
+            if (ok) {
                 std.debug.print("[DialogBridge] Confirm: OK clicked\n", .{});
             } else {
                 std.debug.print("[DialogBridge] Confirm: Cancel clicked\n", .{});
             }
+
+            const json = if (ok) "{\"ok\":true}" else "{\"ok\":false}";
+            bridge_error.sendResultToJS(self.allocator, "showConfirm", json);
         }
     }
 

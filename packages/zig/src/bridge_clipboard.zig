@@ -101,9 +101,8 @@ pub const ClipboardBridge = struct {
         }
     }
 
-    /// Read text from clipboard
+    /// Read text from clipboard and send result back to JavaScript
     fn readText(self: *Self) !void {
-        _ = self;
         std.debug.print("[ClipboardBridge] readText called\n", .{});
 
         if (builtin.os.tag == .macos) {
@@ -123,15 +122,42 @@ pub const ClipboardBridge = struct {
 
             const text = macos.msgSend1(pasteboard, "stringForType:", ns_type);
 
+            var result_json: []const u8 = "{\"text\":\"\"}";
+
             if (text != null) {
                 const text_cstr = macos.msgSend0(text, "UTF8String");
                 if (text_cstr != null) {
                     const text_str = std.mem.span(@as([*:0]const u8, @ptrCast(text_cstr)));
                     std.debug.print("[ClipboardBridge] Read text from clipboard: {s}\n", .{text_str});
-                    // TODO: Send result back to JavaScript
+
+                    // Escape backslashes and quotes for safe JSON embedding
+                    var buf = std.ArrayList(u8).init(self.allocator);
+                    defer buf.deinit();
+
+                    try buf.appendSlice("{\"text\":\"");
+                    for (text_str) |ch| {
+                        switch (ch) {
+                            '"' => try buf.appendSlice("\\\""),
+                            '\\' => try buf.appendSlice("\\\\"),
+                            '\n' => try buf.appendSlice("\\n"),
+                            '\r' => try buf.appendSlice("\\r"),
+                            '\t' => try buf.appendSlice("\\t"),
+                            else => try buf.append(ch),
+                        }
+                    }
+                    try buf.appendSlice("\"}");
+                    result_json = try buf.toOwnedSlice();
                 }
             } else {
                 std.debug.print("[ClipboardBridge] No text in clipboard\n", .{});
+            }
+
+            // Send result back to JS (action name matches clipboard action)
+            bridge_error.sendResultToJS(self.allocator, "readText", result_json);
+
+            // If we allocated a custom JSON buffer, free it
+            if (!std.mem.eql(u8, result_json, "{\"text\":\"\"}")) {
+                self.allocator.free(result_json);
             }
         }
     }
@@ -182,7 +208,6 @@ pub const ClipboardBridge = struct {
 
     /// Read HTML from clipboard
     fn readHTML(self: *Self) !void {
-        _ = self;
         std.debug.print("[ClipboardBridge] readHTML called\n", .{});
 
         if (builtin.os.tag == .macos) {
@@ -199,14 +224,39 @@ pub const ClipboardBridge = struct {
 
             const html = macos.msgSend1(pasteboard, "stringForType:", ns_type);
 
+            var result_json: []const u8 = "{\"html\":\"\"}";
+
             if (html != null) {
                 const html_cstr = macos.msgSend0(html, "UTF8String");
                 if (html_cstr != null) {
                     const html_str = std.mem.span(@as([*:0]const u8, @ptrCast(html_cstr)));
                     std.debug.print("[ClipboardBridge] Read HTML from clipboard: {s}\n", .{html_str});
+
+                    var buf = std.ArrayList(u8).init(self.allocator);
+                    defer buf.deinit();
+
+                    try buf.appendSlice("{\"html\":\"");
+                    for (html_str) |ch| {
+                        switch (ch) {
+                            '"' => try buf.appendSlice("\\\""),
+                            '\\' => try buf.appendSlice("\\\\"),
+                            '\n' => try buf.appendSlice("\\n"),
+                            '\r' => try buf.appendSlice("\\r"),
+                            '\t' => try buf.appendSlice("\\t"),
+                            else => try buf.append(ch),
+                        }
+                    }
+                    try buf.appendSlice("\"}");
+                    result_json = try buf.toOwnedSlice();
                 }
             } else {
                 std.debug.print("[ClipboardBridge] No HTML in clipboard\n", .{});
+            }
+
+            bridge_error.sendResultToJS(self.allocator, "readHTML", result_json);
+
+            if (!std.mem.eql(u8, result_json, "{\"html\":\"\"}")) {
+                self.allocator.free(result_json);
             }
         }
     }
@@ -229,7 +279,8 @@ pub const ClipboardBridge = struct {
 
     /// Check if clipboard has text
     fn hasText(self: *Self) !void {
-        _ = self;
+        std.debug.print("[ClipboardBridge] hasText called\n", .{});
+
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
@@ -249,12 +300,16 @@ pub const ClipboardBridge = struct {
             const has_text = available != null;
 
             std.debug.print("[ClipboardBridge] hasText: {}\n", .{has_text});
+
+            const json = if (has_text) "{\"value\":true}" else "{\"value\":false}";
+            bridge_error.sendResultToJS(self.allocator, "hasText", json);
         }
     }
 
     /// Check if clipboard has HTML
     fn hasHTML(self: *Self) !void {
-        _ = self;
+        std.debug.print("[ClipboardBridge] hasHTML called\n", .{});
+
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
@@ -274,12 +329,16 @@ pub const ClipboardBridge = struct {
             const has_html = available != null;
 
             std.debug.print("[ClipboardBridge] hasHTML: {}\n", .{has_html});
+
+            const json = if (has_html) "{\"value\":true}" else "{\"value\":false}";
+            bridge_error.sendResultToJS(self.allocator, "hasHTML", json);
         }
     }
 
     /// Check if clipboard has image
     fn hasImage(self: *Self) !void {
-        _ = self;
+        std.debug.print("[ClipboardBridge] hasImage called\n", .{});
+
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
@@ -299,6 +358,9 @@ pub const ClipboardBridge = struct {
             const has_image = available != null;
 
             std.debug.print("[ClipboardBridge] hasImage: {}\n", .{has_image});
+
+            const json = if (has_image) "{\"value\":true}" else "{\"value\":false}";
+            bridge_error.sendResultToJS(self.allocator, "hasImage", json);
         }
     }
 
