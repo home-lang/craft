@@ -23,7 +23,7 @@ pub const Lifecycle = struct {
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .phase = .initializing,
-            .hooks = .{},
+            .hooks = std.StringHashMap(std.ArrayList(LifecycleHook)).init(allocator),
             .allocator = allocator,
         };
     }
@@ -33,11 +33,11 @@ pub const Lifecycle = struct {
         while (it.next()) |entry| {
             entry.value_ptr.deinit(self.allocator);
         }
-        self.hooks.deinit(self.allocator);
+        self.hooks.deinit();
     }
 
     pub fn registerHook(self: *Self, phase_name: []const u8, hook: LifecycleHook) !void {
-        const result = try self.hooks.getOrPut(self.allocator, phase_name);
+        const result = try self.hooks.getOrPut(phase_name);
         if (!result.found_existing) {
             result.value_ptr.* = .{};
         }

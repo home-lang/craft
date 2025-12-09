@@ -89,7 +89,7 @@ test "Promise - initialization" {
     defer promise.deinit();
 
     try testing.expectEqual(async_mod.Promise.State.pending, promise.state);
-    try testing.expectEqual(@as(?anyerror![]const u8, null), promise.result);
+    try testing.expectEqual(@as(?[]const u8, null), promise.value);
 }
 
 test "Promise - resolve" {

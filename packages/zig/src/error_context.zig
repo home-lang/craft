@@ -3,6 +3,12 @@ const std = @import("std");
 /// Error Context System
 /// Provides detailed error information with stack traces and context
 
+/// Get current timestamp in milliseconds (compatible with Zig 0.16)
+fn getMilliTimestamp() i64 {
+    const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
+    return @as(i64, ts.sec) * 1000 + @divTrunc(ts.nsec, 1_000_000);
+}
+
 pub const ErrorSeverity = enum {
     info,
     warning,
@@ -204,7 +210,7 @@ pub const ErrorContext = struct {
             .code = code,
             .message = message,
             .severity = .err,
-            .timestamp = std.time.milliTimestamp(),
+            .timestamp = getMilliTimestamp(),
             .stack_trace = .{},
             .metadata = std.StringHashMap([]const u8).init(allocator),
             .cause = null,
@@ -252,56 +258,68 @@ pub const ErrorContext = struct {
     }
 
     pub fn format(self: *const ErrorContext, allocator: std.mem.Allocator) ![]const u8 {
-        var buf = std.ArrayList(u8){};
-        defer buf.deinit(allocator);
-
-        const writer = buf.writer(allocator);
+        var buf: std.ArrayList(u8) = .{};
+        errdefer buf.deinit(allocator);
 
         // Header
-        try writer.print("[{s}] {s} (Code: {d})\n", .{
+        const header = try std.fmt.allocPrint(allocator, "[{s}] {s} (Code: {d})\n", .{
             self.severity.toString(),
             self.code.getCategory().toString(),
             @intFromEnum(self.code),
         });
+        defer allocator.free(header);
+        try buf.appendSlice(allocator, header);
 
         // Message
-        try writer.print("Message: {s}\n", .{self.message});
+        const msg = try std.fmt.allocPrint(allocator, "Message: {s}\n", .{self.message});
+        defer allocator.free(msg);
+        try buf.appendSlice(allocator, msg);
 
         // Description
-        try writer.print("Description: {s}\n", .{self.code.getDescription()});
+        const desc = try std.fmt.allocPrint(allocator, "Description: {s}\n", .{self.code.getDescription()});
+        defer allocator.free(desc);
+        try buf.appendSlice(allocator, desc);
 
         // Timestamp
         const timestamp_sec = @divFloor(self.timestamp, 1000);
-        try writer.print("Time: {d}\n", .{timestamp_sec});
+        const time_str = try std.fmt.allocPrint(allocator, "Time: {d}\n", .{timestamp_sec});
+        defer allocator.free(time_str);
+        try buf.appendSlice(allocator, time_str);
 
         // Metadata
         if (self.metadata.count() > 0) {
-            try writer.writeAll("\nMetadata:\n");
+            try buf.appendSlice(allocator, "\nMetadata:\n");
             var it = self.metadata.iterator();
             while (it.next()) |entry| {
-                try writer.print("  {s}: {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+                const meta_line = try std.fmt.allocPrint(allocator, "  {s}: {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+                defer allocator.free(meta_line);
+                try buf.appendSlice(allocator, meta_line);
             }
         }
 
         // Stack trace
         if (self.stack_trace.items.len > 0) {
-            try writer.writeAll("\nStack trace:\n");
+            try buf.appendSlice(allocator, "\nStack trace:\n");
             for (self.stack_trace.items) |frame| {
                 const formatted = try frame.format(allocator);
                 defer allocator.free(formatted);
-                try writer.print("{s}\n", .{formatted});
+                const frame_line = try std.fmt.allocPrint(allocator, "{s}\n", .{formatted});
+                defer allocator.free(frame_line);
+                try buf.appendSlice(allocator, frame_line);
             }
         }
 
         // Cause
         if (self.cause) |cause| {
-            try writer.writeAll("\nCaused by:\n");
+            try buf.appendSlice(allocator, "\nCaused by:\n");
             const cause_formatted = try cause.format(allocator);
             defer allocator.free(cause_formatted);
-            try writer.print("{s}\n", .{cause_formatted});
+            const cause_line = try std.fmt.allocPrint(allocator, "{s}\n", .{cause_formatted});
+            defer allocator.free(cause_line);
+            try buf.appendSlice(allocator, cause_line);
         }
 
-        return buf.toOwnedSlice();
+        return buf.toOwnedSlice(allocator);
     }
 
     pub fn print(self: *const ErrorContext) !void {

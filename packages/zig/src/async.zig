@@ -221,16 +221,16 @@ pub const Promise = struct {
             .state = .pending,
             .value = null,
             .err = null,
-            .callbacks = .{},
-            .error_callbacks = .{},
+            .callbacks = std.ArrayList(Callback).init(allocator),
+            .error_callbacks = std.ArrayList(ErrorCallback).init(allocator),
             .mutex = std.Thread.Mutex{},
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *Promise) void {
-        self.callbacks.deinit(self.allocator);
-        self.error_callbacks.deinit(self.allocator);
+        self.callbacks.deinit();
+        self.error_callbacks.deinit();
     }
 
     pub fn resolve(self: *Promise, val: []const u8) void {
@@ -270,7 +270,7 @@ pub const Promise = struct {
                 callback(val);
             }
         } else {
-            try self.callbacks.append(self.allocator, callback);
+            try self.callbacks.append(callback);
         }
     }
 
@@ -283,7 +283,7 @@ pub const Promise = struct {
                 callback(error_val);
             }
         } else {
-            try self.error_callbacks.append(self.allocator, callback);
+            try self.error_callbacks.append(callback);
         }
     }
 };

@@ -290,42 +290,44 @@ test "Lifecycle - full lifecycle" {
     try testing.expectEqual(lifecycle.LifecyclePhase.stopped, lc.phase);
 }
 
+// Module-level variables for hook execution order test
+var execution_order_counter: u8 = 0;
+var execution_order_values: [3]u8 = undefined;
+
+fn hookRecordOrder1() !void {
+    execution_order_values[execution_order_counter] = 1;
+    execution_order_counter += 1;
+}
+
+fn hookRecordOrder2() !void {
+    execution_order_values[execution_order_counter] = 2;
+    execution_order_counter += 1;
+}
+
+fn hookRecordOrder3() !void {
+    execution_order_values[execution_order_counter] = 3;
+    execution_order_counter += 1;
+}
+
 test "Lifecycle - hook execution order" {
     const allocator = testing.allocator;
     var lc = lifecycle.Lifecycle.init(allocator);
     defer lc.deinit();
 
-    var execution_order = std.ArrayList(u8).init(allocator);
-    defer execution_order.deinit();
+    // Reset module-level state
+    execution_order_counter = 0;
+    execution_order_values = undefined;
 
-    const hook1 = struct {
-        fn hook() !void {
-            try execution_order.append(1);
-        }
-    }.hook;
-
-    const hook2 = struct {
-        fn hook() !void {
-            try execution_order.append(2);
-        }
-    }.hook;
-
-    const hook3 = struct {
-        fn hook() !void {
-            try execution_order.append(3);
-        }
-    }.hook;
-
-    try lc.beforeStart(hook1);
-    try lc.onStart(hook2);
-    try lc.afterStart(hook3);
+    try lc.beforeStart(hookRecordOrder1);
+    try lc.onStart(hookRecordOrder2);
+    try lc.afterStart(hookRecordOrder3);
 
     try lc.start();
 
-    try testing.expectEqual(@as(usize, 3), execution_order.items.len);
-    try testing.expectEqual(@as(u8, 1), execution_order.items[0]);
-    try testing.expectEqual(@as(u8, 2), execution_order.items[1]);
-    try testing.expectEqual(@as(u8, 3), execution_order.items[2]);
+    try testing.expectEqual(@as(u8, 3), execution_order_counter);
+    try testing.expectEqual(@as(u8, 1), execution_order_values[0]);
+    try testing.expectEqual(@as(u8, 2), execution_order_values[1]);
+    try testing.expectEqual(@as(u8, 3), execution_order_values[2]);
 }
 
 test "Lifecycle - failing hook stops execution" {
@@ -344,21 +346,16 @@ test "Lifecycle - failing hook stops execution" {
     try testing.expect(!hook_called); // onStart should not be called
 }
 
+fn noopHook() !void {
+    // Empty hook for phase transitions test
+}
+
 test "Lifecycle - phase transitions during start" {
     const allocator = testing.allocator;
     var lc = lifecycle.Lifecycle.init(allocator);
     defer lc.deinit();
 
-    var phases = std.ArrayList(lifecycle.LifecyclePhase).init(allocator);
-    defer phases.deinit();
-
-    const capturePhase = struct {
-        fn hook() !void {
-            // Would need access to lc here to capture phase
-        }
-    }.hook;
-
-    try lc.beforeStart(capturePhase);
+    try lc.beforeStart(noopHook);
     try lc.start();
 
     try testing.expectEqual(lifecycle.LifecyclePhase.running, lc.phase);

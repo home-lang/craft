@@ -166,14 +166,14 @@ fn msgSendVoid1(target: anytype, selector: [*:0]const u8, arg1: anytype) void {
 // ============================================================================
 
 // libnotify function declarations for Linux
-const notify_init = @extern(*const fn ([*:0]const u8) callconv(.C) c_int, .{ .name = "notify_init", .library_name = "notify" });
-const notify_uninit = @extern(*const fn () callconv(.C) void, .{ .name = "notify_uninit", .library_name = "notify" });
-const notify_notification_new = @extern(*const fn ([*:0]const u8, ?[*:0]const u8, ?[*:0]const u8) callconv(.C) ?*anyopaque, .{ .name = "notify_notification_new", .library_name = "notify" });
-const notify_notification_show = @extern(*const fn (?*anyopaque, ?*?*anyopaque) callconv(.C) c_int, .{ .name = "notify_notification_show", .library_name = "notify" });
-const notify_notification_set_timeout = @extern(*const fn (?*anyopaque, c_int) callconv(.C) void, .{ .name = "notify_notification_set_timeout", .library_name = "notify" });
-const notify_notification_set_urgency = @extern(*const fn (?*anyopaque, c_int) callconv(.C) void, .{ .name = "notify_notification_set_urgency", .library_name = "notify" });
-const notify_notification_add_action = @extern(*const fn (?*anyopaque, [*:0]const u8, [*:0]const u8, ?*const fn (?*anyopaque, [*:0]const u8, ?*anyopaque) callconv(.C) void, ?*anyopaque, ?*const fn (?*anyopaque) callconv(.C) void) callconv(.C) void, .{ .name = "notify_notification_add_action", .library_name = "notify" });
-const g_object_unref = @extern(*const fn (?*anyopaque) callconv(.C) void, .{ .name = "g_object_unref", .library_name = "gobject-2.0" });
+const notify_init = @extern(*const fn ([*:0]const u8) callconv(.c) c_int, .{ .name = "notify_init", .library_name = "notify" });
+const notify_uninit = @extern(*const fn () callconv(.c) void, .{ .name = "notify_uninit", .library_name = "notify" });
+const notify_notification_new = @extern(*const fn ([*:0]const u8, ?[*:0]const u8, ?[*:0]const u8) callconv(.c) ?*anyopaque, .{ .name = "notify_notification_new", .library_name = "notify" });
+const notify_notification_show = @extern(*const fn (?*anyopaque, ?*?*anyopaque) callconv(.c) c_int, .{ .name = "notify_notification_show", .library_name = "notify" });
+const notify_notification_set_timeout = @extern(*const fn (?*anyopaque, c_int) callconv(.c) void, .{ .name = "notify_notification_set_timeout", .library_name = "notify" });
+const notify_notification_set_urgency = @extern(*const fn (?*anyopaque, c_int) callconv(.c) void, .{ .name = "notify_notification_set_urgency", .library_name = "notify" });
+const notify_notification_add_action = @extern(*const fn (?*anyopaque, [*:0]const u8, [*:0]const u8, ?*const fn (?*anyopaque, [*:0]const u8, ?*anyopaque) callconv(.c) void, ?*anyopaque, ?*const fn (?*anyopaque) callconv(.c) void) callconv(.c) void, .{ .name = "notify_notification_add_action", .library_name = "notify" });
+const g_object_unref = @extern(*const fn (?*anyopaque) callconv(.c) void, .{ .name = "g_object_unref", .library_name = "gobject-2.0" });
 
 var libnotify_initialized: bool = false;
 
@@ -255,7 +255,7 @@ const LPCWSTR = [*:0]const u16;
 const MB_OK: UINT = 0x00000000;
 const MB_ICONINFORMATION: UINT = 0x00000040;
 
-extern "user32" fn MessageBoxW(hWnd: HWND, lpText: LPCWSTR, lpCaption: LPCWSTR, uType: UINT) callconv(.C) c_int;
+extern "user32" fn MessageBoxW(hWnd: HWND, lpText: LPCWSTR, lpCaption: LPCWSTR, uType: UINT) callconv(.c) c_int;
 
 fn windowsSend(self: *Notifications, options: Notifications.NotificationOptions) !void {
     if (builtin.os.tag != .windows) return error.PlatformNotSupported;

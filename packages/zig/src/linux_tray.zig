@@ -42,35 +42,35 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
         id: [*:0]const u8,
         icon_name: [*:0]const u8,
         category: AppIndicatorCategory,
-    ) callconv(.C) ?*AppIndicator = null;
+    ) callconv(.c) ?*AppIndicator = null;
 
     var app_indicator_set_status: ?*const fn (
         indicator: *AppIndicator,
         status: AppIndicatorStatus,
-    ) callconv(.C) void = null;
+    ) callconv(.c) void = null;
 
     var app_indicator_set_menu: ?*const fn (
         indicator: *AppIndicator,
         menu: *GtkMenu,
-    ) callconv(.C) void = null;
+    ) callconv(.c) void = null;
 
     var app_indicator_set_label: ?*const fn (
         indicator: *AppIndicator,
         label: [*:0]const u8,
         guide: [*:0]const u8,
-    ) callconv(.C) void = null;
+    ) callconv(.c) void = null;
 
     var app_indicator_set_icon: ?*const fn (
         indicator: *AppIndicator,
         icon_name: [*:0]const u8,
-    ) callconv(.C) void = null;
+    ) callconv(.c) void = null;
 
     // GTK function pointers
-    var gtk_init: ?*const fn (argc: ?*c_int, argv: ?*[*][*:0]u8) callconv(.C) void = null;
-    var gtk_menu_new: ?*const fn () callconv(.C) ?*GtkMenu = null;
-    var gtk_menu_item_new_with_label: ?*const fn (label: [*:0]const u8) callconv(.C) ?*GtkMenuItem = null;
-    var gtk_menu_shell_append: ?*const fn (shell: *GtkMenu, child: *GtkWidget) callconv(.C) void = null;
-    var gtk_widget_show_all: ?*const fn (widget: *GtkWidget) callconv(.C) void = null;
+    var gtk_init: ?*const fn (argc: ?*c_int, argv: ?*[*][*:0]u8) callconv(.c) void = null;
+    var gtk_menu_new: ?*const fn () callconv(.c) ?*GtkMenu = null;
+    var gtk_menu_item_new_with_label: ?*const fn (label: [*:0]const u8) callconv(.c) ?*GtkMenuItem = null;
+    var gtk_menu_shell_append: ?*const fn (shell: *GtkMenu, child: *GtkWidget) callconv(.c) void = null;
+    var gtk_widget_show_all: ?*const fn (widget: *GtkWidget) callconv(.c) void = null;
 
     indicator: *AppIndicator,
     menu: *GtkMenu,

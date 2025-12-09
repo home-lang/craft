@@ -452,11 +452,11 @@ pub const QuickLookController = struct {
         }
     }
 
-    fn handleEvent(_: objc.id, _: objc.SEL, _: objc.id, _: objc.id) callconv(.C) i8 {
+    fn handleEvent(_: objc.id, _: objc.SEL, _: objc.id, _: objc.id) callconv(.c) i8 {
         return 0; // Not handled
     }
 
-    fn numberOfItems(instance: objc.id, _: objc.SEL, _: objc.id) callconv(.C) i64 {
+    fn numberOfItems(instance: objc.id, _: objc.SEL, _: objc.id) callconv(.c) i64 {
         const self_ptr = memory.getAssociatedObject(instance, memory.AssociatedObjectKeys.ZigPointer);
         if (self_ptr) |ptr| {
             const self: *Self = @ptrCast(@alignCast(ptr));
@@ -465,7 +465,7 @@ pub const QuickLookController = struct {
         return 0;
     }
 
-    fn previewItemAtIndex(instance: objc.id, _: objc.SEL, _: objc.id, index: i64) callconv(.C) ?objc.id {
+    fn previewItemAtIndex(instance: objc.id, _: objc.SEL, _: objc.id, index: i64) callconv(.c) ?objc.id {
         const self_ptr = memory.getAssociatedObject(instance, memory.AssociatedObjectKeys.ZigPointer);
         if (self_ptr) |ptr| {
             const self: *Self = @ptrCast(@alignCast(ptr));

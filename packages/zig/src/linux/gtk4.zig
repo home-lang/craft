@@ -108,7 +108,7 @@ pub const Application = struct {
         return c.g_application_run(@ptrCast(self.app), argc, argv);
     }
 
-    fn activateCallback(_: *GApplication, user_data: ?*anyopaque) callconv(.C) void {
+    fn activateCallback(_: *GApplication, user_data: ?*anyopaque) callconv(.c) void {
         if (user_data) |data| {
             const self: *Self = @ptrCast(@alignCast(data));
             if (self.on_activate) |callback| {
@@ -313,7 +313,7 @@ pub const Button = struct {
         );
     }
 
-    fn clickedCallback(_: *GtkButton, user_data: ?*anyopaque) callconv(.C) void {
+    fn clickedCallback(_: *GtkButton, user_data: ?*anyopaque) callconv(.c) void {
         if (user_data) |data| {
             const self: *Self = @ptrCast(@alignCast(data));
             if (self.on_clicked) |callback| {
@@ -428,7 +428,7 @@ pub const Entry = struct {
         );
     }
 
-    fn changedCallback(_: *GtkEntry, user_data: ?*anyopaque) callconv(.C) void {
+    fn changedCallback(_: *GtkEntry, user_data: ?*anyopaque) callconv(.c) void {
         if (user_data) |data| {
             const self: *Self = @ptrCast(@alignCast(data));
             if (self.on_changed) |callback| {
@@ -777,7 +777,7 @@ pub const ListBox = struct {
         );
     }
 
-    fn rowSelectedCallback(_: *GtkListBox, row: ?*c.GtkListBoxRow, user_data: ?*anyopaque) callconv(.C) void {
+    fn rowSelectedCallback(_: *GtkListBox, row: ?*c.GtkListBoxRow, user_data: ?*anyopaque) callconv(.c) void {
         if (user_data) |data| {
             const self: *Self = @ptrCast(@alignCast(data));
             if (self.on_row_selected) |callback| {
@@ -890,7 +890,7 @@ pub const Switch = struct {
         );
     }
 
-    fn stateSetCallback(_: *GtkSwitch, state: c.gboolean, user_data: ?*anyopaque) callconv(.C) c.gboolean {
+    fn stateSetCallback(_: *GtkSwitch, state: c.gboolean, user_data: ?*anyopaque) callconv(.c) c.gboolean {
         if (user_data) |data| {
             const self: *Self = @ptrCast(@alignCast(data));
             if (self.on_state_set) |callback| {
@@ -964,7 +964,7 @@ pub const CheckButton = struct {
         );
     }
 
-    fn toggledCallback(_: *GtkCheckButton, user_data: ?*anyopaque) callconv(.C) void {
+    fn toggledCallback(_: *GtkCheckButton, user_data: ?*anyopaque) callconv(.c) void {
         if (user_data) |data| {
             const self: *Self = @ptrCast(@alignCast(data));
             if (self.on_toggled) |callback| {
@@ -1249,7 +1249,7 @@ pub const SearchEntry = struct {
         );
     }
 
-    fn searchChangedCallback(_: *GtkSearchEntry, user_data: ?*anyopaque) callconv(.C) void {
+    fn searchChangedCallback(_: *GtkSearchEntry, user_data: ?*anyopaque) callconv(.c) void {
         if (user_data) |data| {
             const self: *Self = @ptrCast(@alignCast(data));
             if (self.on_search_changed) |callback| {
@@ -1366,7 +1366,7 @@ pub const Scale = struct {
         );
     }
 
-    fn valueChangedCallback(range: *c.GtkRange, user_data: ?*anyopaque) callconv(.C) void {
+    fn valueChangedCallback(range: *c.GtkRange, user_data: ?*anyopaque) callconv(.c) void {
         if (user_data) |data| {
             const self: *Self = @ptrCast(@alignCast(data));
             if (self.on_value_changed) |callback| {
@@ -1595,7 +1595,7 @@ pub const GestureClick = struct {
         );
     }
 
-    fn pressedCallback(_: *c.GtkGestureClick, n_press: c_int, x: f64, y: f64, user_data: ?*anyopaque) callconv(.C) void {
+    fn pressedCallback(_: *c.GtkGestureClick, n_press: c_int, x: f64, y: f64, user_data: ?*anyopaque) callconv(.c) void {
         if (user_data) |data| {
             const self: *Self = @ptrCast(@alignCast(data));
             if (self.on_pressed) |callback| {
@@ -1677,7 +1677,7 @@ pub const EventControllerKey = struct {
         );
     }
 
-    fn keyPressedCallback(_: *c.GtkEventControllerKey, keyval: c_uint, keycode: c_uint, state: c.GdkModifierType, user_data: ?*anyopaque) callconv(.C) c.gboolean {
+    fn keyPressedCallback(_: *c.GtkEventControllerKey, keyval: c_uint, keycode: c_uint, state: c.GdkModifierType, user_data: ?*anyopaque) callconv(.c) c.gboolean {
         if (user_data) |data| {
             const self: *Self = @ptrCast(@alignCast(data));
             if (self.on_key_pressed) |callback| {
@@ -1924,7 +1924,7 @@ pub const SimpleAction = struct {
         );
     }
 
-    fn activateCallback(_: *c.GSimpleAction, parameter: ?*c.GVariant, user_data: ?*anyopaque) callconv(.C) void {
+    fn activateCallback(_: *c.GSimpleAction, parameter: ?*c.GVariant, user_data: ?*anyopaque) callconv(.c) void {
         if (user_data) |data| {
             const self: *Self = @ptrCast(@alignCast(data));
             if (self.on_activate) |callback| {

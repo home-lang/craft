@@ -45,7 +45,7 @@ pub extern "c" fn webkit_web_view_run_javascript(
     webview: *anyopaque,
     script: [*:0]const u8,
     cancellable: ?*anyopaque,
-    callback: ?*const fn (*anyopaque, *anyopaque, ?*anyopaque) callconv(.C) void,
+    callback: ?*const fn (*anyopaque, *anyopaque, ?*anyopaque) callconv(.c) void,
     user_data: ?*anyopaque,
 ) void;
 pub extern "c" fn webkit_web_view_run_javascript_finish(
@@ -78,7 +78,7 @@ pub extern "c" fn g_signal_connect_data(
 ) c_ulong;
 
 /// Permission request signal handler - auto-grants camera/microphone permissions
-fn onPermissionRequest(webview: *anyopaque, request: *anyopaque, user_data: ?*anyopaque) callconv(.C) c_int {
+fn onPermissionRequest(webview: *anyopaque, request: *anyopaque, user_data: ?*anyopaque) callconv(.c) c_int {
     _ = webview;
     _ = user_data;
     // Auto-grant all permission requests (camera, microphone, geolocation, etc.)
@@ -350,7 +350,7 @@ pub extern "c" fn gdk_clipboard_set_text(clipboard: *anyopaque, text: [*:0]const
 pub extern "c" fn gdk_clipboard_read_text_async(
     clipboard: *anyopaque,
     cancellable: ?*anyopaque,
-    callback: *const fn (*anyopaque, *anyopaque, ?*anyopaque) callconv(.C) void,
+    callback: *const fn (*anyopaque, *anyopaque, ?*anyopaque) callconv(.c) void,
     user_data: ?*anyopaque,
 ) void;
 

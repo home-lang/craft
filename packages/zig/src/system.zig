@@ -101,13 +101,13 @@ pub const Notification = struct {
         // Generate identifier
         const identifier = if (notification.id) |id| try objc.createNSString(id, allocator) else try objc.createNSString("craft-notification", allocator);
 
-        const Fn = *const fn (objc.Class, objc.SEL, objc.id, objc.id, ?*anyopaque) callconv(.C) objc.id;
+        const Fn = *const fn (objc.Class, objc.SEL, objc.id, objc.id, ?*anyopaque) callconv(.c) objc.id;
         const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         const request = func(UNNotificationRequestClass, sel_requestWithIdentifier, identifier, content, null);
 
         // Add notification request to center
         const sel_addNotificationRequest = objc.sel_registerName("addNotificationRequest:withCompletionHandler:") orelse return error.SelectorNotFound;
-        const Fn2 = *const fn (objc.id, objc.SEL, objc.id, ?*anyopaque) callconv(.C) void;
+        const Fn2 = *const fn (objc.id, objc.SEL, objc.id, ?*anyopaque) callconv(.c) void;
         const func2: Fn2 = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         func2(center, sel_addNotificationRequest, request, null);
     }
@@ -308,7 +308,7 @@ pub const Clipboard = struct {
 
         // Set string for type
         const sel_setString = objc.sel_registerName("setString:forType:") orelse return error.SelectorNotFound;
-        const Fn = *const fn (objc.id, objc.SEL, objc.id, objc.id) callconv(.C) bool;
+        const Fn = *const fn (objc.id, objc.SEL, objc.id, objc.id) callconv(.c) bool;
         const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         _ = func(pasteboard, sel_setString, ns_string, ns_type);
     }
@@ -445,7 +445,7 @@ pub const FileDialog = struct {
 
         // Run modal
         const sel_runModal = objc.sel_registerName("runModal") orelse return error.SelectorNotFound;
-        const Fn = *const fn (objc.id, objc.SEL) callconv(.C) i64;
+        const Fn = *const fn (objc.id, objc.SEL) callconv(.c) i64;
         const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         const result = func(panel, sel_runModal);
 
@@ -495,7 +495,7 @@ pub const FileDialog = struct {
 
         // Run modal
         const sel_runModal = objc.sel_registerName("runModal") orelse return error.SelectorNotFound;
-        const Fn = *const fn (objc.id, objc.SEL) callconv(.C) i64;
+        const Fn = *const fn (objc.id, objc.SEL) callconv(.c) i64;
         const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         const result = func(panel, sel_runModal);
 
@@ -508,7 +508,7 @@ pub const FileDialog = struct {
 
         // Get count
         const sel_count = objc.sel_registerName("count") orelse return error.SelectorNotFound;
-        const FnCount = *const fn (objc.id, objc.SEL) callconv(.C) u64;
+        const FnCount = *const fn (objc.id, objc.SEL) callconv(.c) u64;
         const count_func: FnCount = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         const count = count_func(urls, sel_count);
 
@@ -521,7 +521,7 @@ pub const FileDialog = struct {
 
         var i: u64 = 0;
         while (i < count) : (i += 1) {
-            const FnObj = *const fn (objc.id, objc.SEL, u64) callconv(.C) objc.id;
+            const FnObj = *const fn (objc.id, objc.SEL, u64) callconv(.c) objc.id;
             const obj_func: FnObj = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
             const url = obj_func(urls, sel_objectAtIndex, i);
 
@@ -559,7 +559,7 @@ pub const FileDialog = struct {
 
         // Run modal
         const sel_runModal = objc.sel_registerName("runModal") orelse return error.SelectorNotFound;
-        const Fn = *const fn (objc.id, objc.SEL) callconv(.C) i64;
+        const Fn = *const fn (objc.id, objc.SEL) callconv(.c) i64;
         const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         const result = func(panel, sel_runModal);
 
@@ -611,7 +611,7 @@ pub const FileDialog = struct {
 
         // Run modal
         const sel_runModal = objc.sel_registerName("runModal") orelse return error.SelectorNotFound;
-        const Fn = *const fn (objc.id, objc.SEL) callconv(.C) i64;
+        const Fn = *const fn (objc.id, objc.SEL) callconv(.c) i64;
         const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         const result = func(panel, sel_runModal);
 

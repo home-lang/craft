@@ -263,7 +263,7 @@ pub const BuiltInHandlers = struct {
         var model_size: usize = model_buf.len;
         var mib = [_]c_int{ CTL_HW, HW_MODEL };
 
-        const sysctl = @extern(*fn ([*]c_int, c_uint, ?*anyopaque, *usize, ?*anyopaque, usize) callconv(.C) c_int, .{ .name = "sysctl" });
+        const sysctl = @extern(*fn ([*]c_int, c_uint, ?*anyopaque, *usize, ?*anyopaque, usize) callconv(.c) c_int, .{ .name = "sysctl" });
 
         if (sysctl(&mib, 2, &model_buf, &model_size, null, 0) == 0) {
             model = allocator.dupe(u8, model_buf[0 .. model_size - 1]) catch "Mac";
@@ -281,7 +281,7 @@ pub const BuiltInHandlers = struct {
         var version_buf: [64]u8 = undefined;
         var version_size: usize = version_buf.len;
 
-        const sysctlbyname = @extern(*fn ([*:0]const u8, ?*anyopaque, *usize, ?*anyopaque, usize) callconv(.C) c_int, .{ .name = "sysctlbyname" });
+        const sysctlbyname = @extern(*fn ([*:0]const u8, ?*anyopaque, *usize, ?*anyopaque, usize) callconv(.c) c_int, .{ .name = "sysctlbyname" });
 
         if (sysctlbyname("kern.osproductversion", &version_buf, &version_size, null, 0) == 0) {
             os_version = allocator.dupe(u8, version_buf[0 .. version_size - 1]) catch "Unknown";

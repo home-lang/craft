@@ -53,7 +53,7 @@ test "Modifiers - none" {
 }
 
 test "Modifiers - ctrl" {
-    const mods = shortcuts.Modifiers.ctrl();
+    const mods = shortcuts.Modifiers.withCtrl();
 
     try testing.expect(mods.ctrl);
     try testing.expect(!mods.alt);
@@ -62,7 +62,7 @@ test "Modifiers - ctrl" {
 }
 
 test "Modifiers - alt" {
-    const mods = shortcuts.Modifiers.alt();
+    const mods = shortcuts.Modifiers.withAlt();
 
     try testing.expect(!mods.ctrl);
     try testing.expect(mods.alt);
@@ -71,7 +71,7 @@ test "Modifiers - alt" {
 }
 
 test "Modifiers - shift" {
-    const mods = shortcuts.Modifiers.shift();
+    const mods = shortcuts.Modifiers.withShift();
 
     try testing.expect(!mods.ctrl);
     try testing.expect(!mods.alt);
@@ -80,7 +80,7 @@ test "Modifiers - shift" {
 }
 
 test "Modifiers - meta" {
-    const mods = shortcuts.Modifiers.meta();
+    const mods = shortcuts.Modifiers.withMeta();
 
     try testing.expect(!mods.ctrl);
     try testing.expect(!mods.alt);
@@ -89,15 +89,15 @@ test "Modifiers - meta" {
 }
 
 test "Modifiers - equals same" {
-    const mods1 = shortcuts.Modifiers.ctrl();
-    const mods2 = shortcuts.Modifiers.ctrl();
+    const mods1 = shortcuts.Modifiers.withCtrl();
+    const mods2 = shortcuts.Modifiers.withCtrl();
 
     try testing.expect(mods1.equals(mods2));
 }
 
 test "Modifiers - equals different" {
-    const mods1 = shortcuts.Modifiers.ctrl();
-    const mods2 = shortcuts.Modifiers.alt();
+    const mods1 = shortcuts.Modifiers.withCtrl();
+    const mods2 = shortcuts.Modifiers.withAlt();
 
     try testing.expect(!mods1.equals(mods2));
 }
@@ -131,7 +131,7 @@ test "ShortcutManager - register shortcut" {
 
     const shortcut = shortcuts.Shortcut{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
     };
 
@@ -149,13 +149,13 @@ test "ShortcutManager - register multiple shortcuts" {
 
     try manager.register(.{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
     });
 
     try manager.register(.{
         .key = .o,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
     });
 
@@ -172,12 +172,12 @@ test "ShortcutManager - unregister shortcut" {
 
     const shortcut = shortcuts.Shortcut{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
     };
 
     try manager.register(shortcut);
-    manager.unregister(.s, shortcuts.Modifiers.ctrl());
+    manager.unregister(.s, shortcuts.Modifiers.withCtrl());
 
     try testing.expectEqual(@as(usize, 0), manager.shortcuts.items.len);
 }
@@ -197,11 +197,11 @@ test "ShortcutManager - handleKeyPress triggers action" {
 
     try manager.register(.{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
     });
 
-    const handled = manager.handleKeyPress(.s, shortcuts.Modifiers.ctrl());
+    const handled = manager.handleKeyPress(.s, shortcuts.Modifiers.withCtrl());
 
     try testing.expect(handled);
     try testing.expect(was_called);
@@ -217,11 +217,11 @@ test "ShortcutManager - handleKeyPress no match" {
 
     try manager.register(.{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
     });
 
-    const handled = manager.handleKeyPress(.o, shortcuts.Modifiers.ctrl());
+    const handled = manager.handleKeyPress(.o, shortcuts.Modifiers.withCtrl());
 
     try testing.expect(!handled);
 }
@@ -236,11 +236,11 @@ test "ShortcutManager - setEnabled" {
 
     try manager.register(.{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
     });
 
-    manager.setEnabled(.s, shortcuts.Modifiers.ctrl(), false);
+    manager.setEnabled(.s, shortcuts.Modifiers.withCtrl(), false);
 
     try testing.expect(!manager.shortcuts.items[0].enabled);
 }
@@ -260,12 +260,12 @@ test "ShortcutManager - disabled shortcut not triggered" {
 
     try manager.register(.{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
     });
 
-    manager.setEnabled(.s, shortcuts.Modifiers.ctrl(), false);
-    const handled = manager.handleKeyPress(.s, shortcuts.Modifiers.ctrl());
+    manager.setEnabled(.s, shortcuts.Modifiers.withCtrl(), false);
+    const handled = manager.handleKeyPress(.s, shortcuts.Modifiers.withCtrl());
 
     try testing.expect(!handled);
     try testing.expect(!was_called);
@@ -281,7 +281,7 @@ test "ShortcutManager - getAll" {
 
     try manager.register(.{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
     });
 
@@ -299,7 +299,7 @@ test "ShortcutManager - clear" {
 
     try manager.register(.{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
     });
 
@@ -466,7 +466,7 @@ test "ShortcutRecorder - handleKeyPress while recording" {
     TestCallback.key_ptr = &captured_key;
 
     recorder.startRecording(TestCallback.callback);
-    recorder.handleKeyPress(.s, shortcuts.Modifiers.ctrl());
+    recorder.handleKeyPress(.s, shortcuts.Modifiers.withCtrl());
 
     try testing.expect(captured_key == .s);
     try testing.expect(!recorder.recording); // Should stop after capture
@@ -479,7 +479,7 @@ test "Shortcut - with description" {
 
     const shortcut = shortcuts.Shortcut{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
         .description = "Save file",
     };
@@ -494,7 +494,7 @@ test "Shortcut - global flag" {
 
     const shortcut = shortcuts.Shortcut{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
         .global = true,
     };
@@ -509,7 +509,7 @@ test "Shortcut - enabled by default" {
 
     const shortcut = shortcuts.Shortcut{
         .key = .s,
-        .modifiers = shortcuts.Modifiers.ctrl(),
+        .modifiers = shortcuts.Modifiers.withCtrl(),
         .action = TestAction.action,
     };
 

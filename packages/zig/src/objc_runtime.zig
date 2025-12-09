@@ -60,49 +60,49 @@ pub const objc = if (is_darwin) struct {
 
     /// Send message with no return value
     pub fn msgSend(target: anytype, selector: SEL) void {
-        const Fn = *const fn (@TypeOf(target), SEL) callconv(.C) void;
+        const Fn = *const fn (@TypeOf(target), SEL) callconv(.c) void;
         const func: Fn = @ptrCast(&objc_msgSend);
         func(target, selector);
     }
 
     /// Send message returning id
     pub fn msgSendId(target: anytype, selector: SEL) id {
-        const Fn = *const fn (@TypeOf(target), SEL) callconv(.C) id;
+        const Fn = *const fn (@TypeOf(target), SEL) callconv(.c) id;
         const func: Fn = @ptrCast(&objc_msgSend);
         return func(target, selector);
     }
 
     /// Send message with 1 object argument, returning id
     pub fn msgSendId1(target: anytype, selector: SEL, arg1: anytype) id {
-        const Fn = *const fn (@TypeOf(target), SEL, @TypeOf(arg1)) callconv(.C) id;
+        const Fn = *const fn (@TypeOf(target), SEL, @TypeOf(arg1)) callconv(.c) id;
         const func: Fn = @ptrCast(&objc_msgSend);
         return func(target, selector, arg1);
     }
 
     /// Send message with 2 object arguments, returning id
     pub fn msgSendId2(target: anytype, selector: SEL, arg1: anytype, arg2: anytype) id {
-        const Fn = *const fn (@TypeOf(target), SEL, @TypeOf(arg1), @TypeOf(arg2)) callconv(.C) id;
+        const Fn = *const fn (@TypeOf(target), SEL, @TypeOf(arg1), @TypeOf(arg2)) callconv(.c) id;
         const func: Fn = @ptrCast(&objc_msgSend);
         return func(target, selector, arg1, arg2);
     }
 
     /// Send message with 1 argument, no return
     pub fn msgSendVoid1(target: anytype, selector: SEL, arg1: anytype) void {
-        const Fn = *const fn (@TypeOf(target), SEL, @TypeOf(arg1)) callconv(.C) void;
+        const Fn = *const fn (@TypeOf(target), SEL, @TypeOf(arg1)) callconv(.c) void;
         const func: Fn = @ptrCast(&objc_msgSend);
         func(target, selector, arg1);
     }
 
     /// Send message with 2 arguments, no return
     pub fn msgSendVoid2(target: anytype, selector: SEL, arg1: anytype, arg2: anytype) void {
-        const Fn = *const fn (@TypeOf(target), SEL, @TypeOf(arg1), @TypeOf(arg2)) callconv(.C) void;
+        const Fn = *const fn (@TypeOf(target), SEL, @TypeOf(arg1), @TypeOf(arg2)) callconv(.c) void;
         const func: Fn = @ptrCast(&objc_msgSend);
         func(target, selector, arg1, arg2);
     }
 
     /// Send message returning bool
     pub fn msgSendBool(target: anytype, selector: SEL) bool {
-        const Fn = *const fn (@TypeOf(target), SEL) callconv(.C) bool;
+        const Fn = *const fn (@TypeOf(target), SEL) callconv(.c) bool;
         const func: Fn = @ptrCast(&objc_msgSend);
         return func(target, selector);
     }
@@ -111,12 +111,12 @@ pub const objc = if (is_darwin) struct {
     pub fn msgSendStret(comptime T: type, target: anytype, selector: SEL) T {
         if (@sizeOf(T) <= 16) {
             // Small structs can use regular msgSend on arm64
-            const Fn = *const fn (@TypeOf(target), SEL) callconv(.C) T;
+            const Fn = *const fn (@TypeOf(target), SEL) callconv(.c) T;
             const func: Fn = @ptrCast(&objc_msgSend);
             return func(target, selector);
         } else {
             // Large structs use msgSend_stret
-            const Fn = *const fn (@TypeOf(target), SEL) callconv(.C) T;
+            const Fn = *const fn (@TypeOf(target), SEL) callconv(.c) T;
             const func: Fn = @ptrCast(&objc_msgSend_stret);
             return func(target, selector);
         }
@@ -136,7 +136,7 @@ pub const objc = if (is_darwin) struct {
     /// Helper to get C string from NSString
     pub fn getNSStringUTF8(ns_string: id) ?[*:0]const u8 {
         const sel = sel_registerName("UTF8String") orelse return null;
-        const Fn = *const fn (id, SEL) callconv(.C) [*:0]const u8;
+        const Fn = *const fn (id, SEL) callconv(.c) [*:0]const u8;
         const func: Fn = @ptrCast(&objc_msgSend);
         return func(ns_string, sel);
     }

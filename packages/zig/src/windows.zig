@@ -20,7 +20,7 @@ pub const BOOL = c_int;
 pub const WNDCLASSEXW = extern struct {
     cbSize: UINT,
     style: UINT,
-    lpfnWndProc: *const fn (HWND, UINT, WPARAM, LPARAM) callconv(.C) LRESULT,
+    lpfnWndProc: *const fn (HWND, UINT, WPARAM, LPARAM) callconv(.c) LRESULT,
     cbClsExtra: c_int,
     cbWndExtra: c_int,
     hInstance: HINSTANCE,
@@ -68,7 +68,7 @@ pub const WM_CLOSE: UINT = 0x0010;
 pub const PM_REMOVE: UINT = 0x0001;
 
 // Win32 API functions
-pub extern "user32" fn RegisterClassExW(*const WNDCLASSEXW) callconv(.C) u16;
+pub extern "user32" fn RegisterClassExW(*const WNDCLASSEXW) callconv(.c) u16;
 pub extern "user32" fn CreateWindowExW(
     dwExStyle: DWORD,
     lpClassName: LPCWSTR,
@@ -82,20 +82,20 @@ pub extern "user32" fn CreateWindowExW(
     hMenu: ?HMENU,
     hInstance: HINSTANCE,
     lpParam: LPVOID,
-) callconv(.C) ?HWND;
-pub extern "user32" fn ShowWindow(hWnd: HWND, nCmdShow: c_int) callconv(.C) BOOL;
-pub extern "user32" fn UpdateWindow(hWnd: HWND) callconv(.C) BOOL;
-pub extern "user32" fn GetMessageW(lpMsg: *MSG, hWnd: ?HWND, wMsgFilterMin: UINT, wMsgFilterMax: UINT) callconv(.C) BOOL;
-pub extern "user32" fn PeekMessageW(lpMsg: *MSG, hWnd: ?HWND, wMsgFilterMin: UINT, wMsgFilterMax: UINT, wRemoveMsg: UINT) callconv(.C) BOOL;
-pub extern "user32" fn TranslateMessage(lpMsg: *const MSG) callconv(.C) BOOL;
-pub extern "user32" fn DispatchMessageW(lpMsg: *const MSG) callconv(.C) LRESULT;
-pub extern "user32" fn DefWindowProcW(hWnd: HWND, Msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.C) LRESULT;
-pub extern "user32" fn PostQuitMessage(nExitCode: c_int) callconv(.C) void;
-pub extern "user32" fn DestroyWindow(hWnd: HWND) callconv(.C) BOOL;
-pub extern "user32" fn SetWindowTextW(hWnd: HWND, lpString: LPCWSTR) callconv(.C) BOOL;
-pub extern "user32" fn SetWindowPos(hWnd: HWND, hWndInsertAfter: ?HWND, X: c_int, Y: c_int, cx: c_int, cy: c_int, uFlags: UINT) callconv(.C) BOOL;
-pub extern "user32" fn LoadCursorW(hInstance: ?HINSTANCE, lpCursorName: LPCWSTR) callconv(.C) ?*anyopaque;
-pub extern "kernel32" fn GetModuleHandleW(lpModuleName: ?LPCWSTR) callconv(.C) ?HINSTANCE;
+) callconv(.c) ?HWND;
+pub extern "user32" fn ShowWindow(hWnd: HWND, nCmdShow: c_int) callconv(.c) BOOL;
+pub extern "user32" fn UpdateWindow(hWnd: HWND) callconv(.c) BOOL;
+pub extern "user32" fn GetMessageW(lpMsg: *MSG, hWnd: ?HWND, wMsgFilterMin: UINT, wMsgFilterMax: UINT) callconv(.c) BOOL;
+pub extern "user32" fn PeekMessageW(lpMsg: *MSG, hWnd: ?HWND, wMsgFilterMin: UINT, wMsgFilterMax: UINT, wRemoveMsg: UINT) callconv(.c) BOOL;
+pub extern "user32" fn TranslateMessage(lpMsg: *const MSG) callconv(.c) BOOL;
+pub extern "user32" fn DispatchMessageW(lpMsg: *const MSG) callconv(.c) LRESULT;
+pub extern "user32" fn DefWindowProcW(hWnd: HWND, Msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.c) LRESULT;
+pub extern "user32" fn PostQuitMessage(nExitCode: c_int) callconv(.c) void;
+pub extern "user32" fn DestroyWindow(hWnd: HWND) callconv(.c) BOOL;
+pub extern "user32" fn SetWindowTextW(hWnd: HWND, lpString: LPCWSTR) callconv(.c) BOOL;
+pub extern "user32" fn SetWindowPos(hWnd: HWND, hWndInsertAfter: ?HWND, X: c_int, Y: c_int, cx: c_int, cy: c_int, uFlags: UINT) callconv(.c) BOOL;
+pub extern "user32" fn LoadCursorW(hInstance: ?HINSTANCE, lpCursorName: LPCWSTR) callconv(.c) ?*anyopaque;
+pub extern "kernel32" fn GetModuleHandleW(lpModuleName: ?LPCWSTR) callconv(.c) ?HINSTANCE;
 
 // WebView2 bindings (simplified)
 pub const ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler = opaque {};
@@ -130,7 +130,7 @@ pub extern "WebView2Loader" fn CreateCoreWebView2EnvironmentWithOptions(
     userDataFolder: ?LPCWSTR,
     options: ?*anyopaque,
     environmentCreatedHandler: ?*ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler,
-) callconv(.C) c_long;
+) callconv(.c) c_long;
 
 // Application state
 var app_running = false;
@@ -343,7 +343,7 @@ pub const Window = struct {
     }
 };
 
-fn WindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.C) LRESULT {
+fn WindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.c) LRESULT {
     switch (msg) {
         WM_DESTROY, WM_CLOSE => {
             PostQuitMessage(0);
@@ -409,7 +409,7 @@ pub fn runApp() void {
 }
 
 // Notifications using Windows Toast
-pub extern "shell32" fn Shell_NotifyIconW(dwMessage: DWORD, lpData: *anyopaque) callconv(.C) BOOL;
+pub extern "shell32" fn Shell_NotifyIconW(dwMessage: DWORD, lpData: *anyopaque) callconv(.c) BOOL;
 
 pub fn showNotification(title: []const u8, message: []const u8) !void {
     _ = title;
@@ -419,15 +419,15 @@ pub fn showNotification(title: []const u8, message: []const u8) !void {
 }
 
 // Clipboard using Windows API
-pub extern "user32" fn OpenClipboard(hWndNewOwner: ?HWND) callconv(.C) BOOL;
-pub extern "user32" fn CloseClipboard() callconv(.C) BOOL;
-pub extern "user32" fn EmptyClipboard() callconv(.C) BOOL;
-pub extern "user32" fn SetClipboardData(uFormat: UINT, hMem: ?*anyopaque) callconv(.C) ?*anyopaque;
-pub extern "user32" fn GetClipboardData(uFormat: UINT) callconv(.C) ?*anyopaque;
-pub extern "kernel32" fn GlobalAlloc(uFlags: UINT, dwBytes: usize) callconv(.C) ?*anyopaque;
-pub extern "kernel32" fn GlobalLock(hMem: *anyopaque) callconv(.C) LPVOID;
-pub extern "kernel32" fn GlobalUnlock(hMem: *anyopaque) callconv(.C) BOOL;
-pub extern "kernel32" fn GlobalSize(hMem: *anyopaque) callconv(.C) usize;
+pub extern "user32" fn OpenClipboard(hWndNewOwner: ?HWND) callconv(.c) BOOL;
+pub extern "user32" fn CloseClipboard() callconv(.c) BOOL;
+pub extern "user32" fn EmptyClipboard() callconv(.c) BOOL;
+pub extern "user32" fn SetClipboardData(uFormat: UINT, hMem: ?*anyopaque) callconv(.c) ?*anyopaque;
+pub extern "user32" fn GetClipboardData(uFormat: UINT) callconv(.c) ?*anyopaque;
+pub extern "kernel32" fn GlobalAlloc(uFlags: UINT, dwBytes: usize) callconv(.c) ?*anyopaque;
+pub extern "kernel32" fn GlobalLock(hMem: *anyopaque) callconv(.c) LPVOID;
+pub extern "kernel32" fn GlobalUnlock(hMem: *anyopaque) callconv(.c) BOOL;
+pub extern "kernel32" fn GlobalSize(hMem: *anyopaque) callconv(.c) usize;
 
 const CF_UNICODETEXT: UINT = 13;
 const GMEM_MOVEABLE: UINT = 0x0002;

@@ -43,13 +43,13 @@ const carbon = if (builtin.os.tag == .macos) struct {
         inTarget: EventTargetRef,
         inOptions: u32,
         outRef: *EventHotKeyRef,
-    ) callconv(.C) i32;
+    ) callconv(.c) i32;
 
     pub extern "Carbon" fn UnregisterEventHotKey(
         inHotKey: EventHotKeyRef,
-    ) callconv(.C) i32;
+    ) callconv(.c) i32;
 
-    pub extern "Carbon" fn GetApplicationEventTarget() callconv(.C) EventTargetRef;
+    pub extern "Carbon" fn GetApplicationEventTarget() callconv(.c) EventTargetRef;
 } else struct {
     pub const EventHotKeyRef = *anyopaque;
     pub const EventTargetRef = *anyopaque;
@@ -927,8 +927,8 @@ fn getMachTaskInfo() MachTaskInfo {
     var count: u32 = MACH_TASK_BASIC_INFO_COUNT;
 
     // Use mach_task_self to get current task port
-    const mach_task_self = @extern(*fn () callconv(.C) u32, .{ .name = "mach_task_self" });
-    const task_info_fn = @extern(*fn (u32, u32, *anyopaque, *u32) callconv(.C) i32, .{ .name = "task_info" });
+    const mach_task_self = @extern(*fn () callconv(.c) u32, .{ .name = "mach_task_self" });
+    const task_info_fn = @extern(*fn (u32, u32, *anyopaque, *u32) callconv(.c) i32, .{ .name = "task_info" });
 
     const kern_result = task_info_fn(mach_task_self(), MACH_TASK_BASIC_INFO, @ptrCast(&info), &count);
 
@@ -957,7 +957,7 @@ fn getSystemMemory() SystemMemory {
         var mem_size: u64 = 0;
         var size: usize = @sizeOf(u64);
 
-        const sysctl_fn = @extern(*fn ([*]c_int, c_uint, *anyopaque, *usize, ?*anyopaque, usize) callconv(.C) c_int, .{ .name = "sysctl" });
+        const sysctl_fn = @extern(*fn ([*]c_int, c_uint, *anyopaque, *usize, ?*anyopaque, usize) callconv(.c) c_int, .{ .name = "sysctl" });
         const result = sysctl_fn(&mib, 2, @ptrCast(&mem_size), &size, null, 0);
 
         if (result == 0) {

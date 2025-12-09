@@ -22,7 +22,7 @@ pub const Profiler = struct {
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .entries = .{},
-            .active_profiles = .{},
+            .active_profiles = std.StringHashMap(std.time.Instant).init(allocator),
             .memory_tracker = null,
             .allocator = allocator,
         };
@@ -30,7 +30,7 @@ pub const Profiler = struct {
 
     pub fn deinit(self: *Self) void {
         self.entries.deinit(self.allocator);
-        self.active_profiles.deinit(self.allocator);
+        self.active_profiles.deinit();
     }
 
     pub fn setMemoryTracker(self: *Self, tracker: *memory.TrackingAllocator) void {
@@ -41,7 +41,7 @@ pub const Profiler = struct {
         if (!self.enabled) return;
 
         const start_time = std.time.Instant.now() catch return;
-        try self.active_profiles.put(self.allocator, name, start_time);
+        try self.active_profiles.put(name, start_time);
     }
 
     pub fn end(self: *Self, name: []const u8) !void {
@@ -80,12 +80,12 @@ pub const Profiler = struct {
 
     pub fn getReport(self: Self) ![]const u8 {
         var report: std.ArrayList(u8) = .{};
-        const writer = report.writer(self.allocator);
+        errdefer report.deinit(self.allocator);
 
-        try writer.writeAll("\n=== Performance Profile Report ===\n\n");
+        try report.appendSlice(self.allocator, "\n=== Performance Profile Report ===\n\n");
 
         if (self.entries.items.len == 0) {
-            try writer.writeAll("No profiling data collected.\n");
+            try report.appendSlice(self.allocator, "No profiling data collected.\n");
             return report.toOwnedSlice(self.allocator);
         }
 
@@ -107,28 +107,30 @@ pub const Profiler = struct {
 
         const avg_time = total_time / @as(f64, @floatFromInt(self.entries.items.len));
 
-        try writer.print("Total entries: {d}\n", .{self.entries.items.len});
-        try writer.print("Total time: {d:.2}ms\n", .{total_time});
-        try writer.print("Average time: {d:.2}ms\n\n", .{avg_time});
+        const stats = try std.fmt.allocPrint(self.allocator, "Total entries: {d}\nTotal time: {d:.2}ms\nAverage time: {d:.2}ms\n\n", .{ self.entries.items.len, total_time, avg_time });
+        defer self.allocator.free(stats);
+        try report.appendSlice(self.allocator, stats);
 
         if (slowest) |s| {
-            try writer.print("Slowest: {s} ({d:.2}ms)\n", .{ s.name, s.duration_ms });
+            const slowest_str = try std.fmt.allocPrint(self.allocator, "Slowest: {s} ({d:.2}ms)\n", .{ s.name, s.duration_ms });
+            defer self.allocator.free(slowest_str);
+            try report.appendSlice(self.allocator, slowest_str);
         }
         if (fastest) |f| {
-            try writer.print("Fastest: {s} ({d:.2}ms)\n\n", .{ f.name, f.duration_ms });
+            const fastest_str = try std.fmt.allocPrint(self.allocator, "Fastest: {s} ({d:.2}ms)\n\n", .{ f.name, f.duration_ms });
+            defer self.allocator.free(fastest_str);
+            try report.appendSlice(self.allocator, fastest_str);
         }
 
-        try writer.writeAll("Individual Entries:\n");
-        try writer.writeAll("------------------\n");
+        try report.appendSlice(self.allocator, "Individual Entries:\n------------------\n");
 
         for (self.entries.items) |entry| {
-            try writer.print("{s:30} {d:8.2}ms", .{ entry.name, entry.duration_ms });
-
-            if (entry.memory_after > 0) {
-                try writer.print("  (mem: {d} bytes)", .{entry.memory_after});
-            }
-
-            try writer.writeAll("\n");
+            const entry_str = if (entry.memory_after > 0)
+                try std.fmt.allocPrint(self.allocator, "{s:30} {d:8.2}ms  (mem: {d} bytes)\n", .{ entry.name, entry.duration_ms, entry.memory_after })
+            else
+                try std.fmt.allocPrint(self.allocator, "{s:30} {d:8.2}ms\n", .{ entry.name, entry.duration_ms });
+            defer self.allocator.free(entry_str);
+            try report.appendSlice(self.allocator, entry_str);
         }
 
         return report.toOwnedSlice(self.allocator);
@@ -147,9 +149,9 @@ pub const Profiler = struct {
 
     pub fn getHTMLDashboard(self: Self) ![]const u8 {
         var html: std.ArrayList(u8) = .{};
-        const writer = html.writer(self.allocator);
+        errdefer html.deinit(self.allocator);
 
-        try writer.writeAll(
+        const html_header =
             \\<!DOCTYPE html>
             \\<html>
             \\<head>
@@ -157,39 +159,15 @@ pub const Profiler = struct {
             \\  <title>Craft Performance Dashboard</title>
             \\  <style>
             \\    * { margin: 0; padding: 0; box-sizing: border-box; }
-            \\    body {
-            \\      font-family: -apple-system, system-ui, sans-serif;
-            \\      background: #1a1a1a;
-            \\      color: #e0e0e0;
-            \\      padding: 20px;
-            \\    }
+            \\    body { font-family: -apple-system, system-ui, sans-serif; background: #1a1a1a; color: #e0e0e0; padding: 20px; }
             \\    .container { max-width: 1200px; margin: 0 auto; }
             \\    h1 { color: #00ffff; margin-bottom: 20px; }
-            \\    .stats {
-            \\      display: grid;
-            \\      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            \\      gap: 20px;
-            \\      margin-bottom: 30px;
-            \\    }
-            \\    .stat-card {
-            \\      background: #2a2a2a;
-            \\      padding: 20px;
-            \\      border-radius: 8px;
-            \\      border-left: 4px solid #00ffff;
-            \\    }
+            \\    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+            \\    .stat-card { background: #2a2a2a; padding: 20px; border-radius: 8px; border-left: 4px solid #00ffff; }
             \\    .stat-label { color: #888; font-size: 14px; margin-bottom: 5px; }
             \\    .stat-value { font-size: 32px; font-weight: bold; color: #00ff00; }
-            \\    table {
-            \\      width: 100%;
-            \\      background: #2a2a2a;
-            \\      border-radius: 8px;
-            \\      overflow: hidden;
-            \\    }
-            \\    th, td {
-            \\      padding: 12px;
-            \\      text-align: left;
-            \\      border-bottom: 1px solid #3a3a3a;
-            \\    }
+            \\    table { width: 100%; background: #2a2a2a; border-radius: 8px; overflow: hidden; }
+            \\    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #3a3a3a; }
             \\    th { background: #333; color: #00ffff; }
             \\    tr:hover { background: #333; }
             \\    .slow { color: #ff4444; }
@@ -198,9 +176,9 @@ pub const Profiler = struct {
             \\</head>
             \\<body>
             \\  <div class="container">
-            \\    <h1>⚡ Craft Performance Dashboard</h1>
-            \\
-        );
+            \\    <h1>Craft Performance Dashboard</h1>
+        ;
+        try html.appendSlice(self.allocator, html_header);
 
         // Calculate stats
         var total_time: f64 = 0;
@@ -213,60 +191,26 @@ pub const Profiler = struct {
         else
             0;
 
-        try writer.print(
+        const stats_html = try std.fmt.allocPrint(self.allocator,
             \\    <div class="stats">
-            \\      <div class="stat-card">
-            \\        <div class="stat-label">Total Entries</div>
-            \\        <div class="stat-value">{d}</div>
-            \\      </div>
-            \\      <div class="stat-card">
-            \\        <div class="stat-label">Total Time</div>
-            \\        <div class="stat-value">{d:.2}ms</div>
-            \\      </div>
-            \\      <div class="stat-card">
-            \\        <div class="stat-label">Average Time</div>
-            \\        <div class="stat-value">{d:.2}ms</div>
-            \\      </div>
+            \\      <div class="stat-card"><div class="stat-label">Total Entries</div><div class="stat-value">{d}</div></div>
+            \\      <div class="stat-card"><div class="stat-label">Total Time</div><div class="stat-value">{d:.2}ms</div></div>
+            \\      <div class="stat-card"><div class="stat-label">Average Time</div><div class="stat-value">{d:.2}ms</div></div>
             \\    </div>
-            \\
+            \\    <table><thead><tr><th>Operation</th><th>Duration</th><th>Memory</th><th>Status</th></tr></thead><tbody>
         , .{ self.entries.items.len, total_time, avg_time });
-
-        try writer.writeAll(
-            \\    <table>
-            \\      <thead>
-            \\        <tr>
-            \\          <th>Operation</th>
-            \\          <th>Duration</th>
-            \\          <th>Memory</th>
-            \\          <th>Status</th>
-            \\        </tr>
-            \\      </thead>
-            \\      <tbody>
-            \\
-        );
+        defer self.allocator.free(stats_html);
+        try html.appendSlice(self.allocator, stats_html);
 
         for (self.entries.items) |entry| {
             const status_class = if (entry.duration_ms > 16.67) "slow" else "fast";
             const status_text = if (entry.duration_ms > 16.67) "Slow" else "Fast";
-
-            try writer.print(
-                \\        <tr>
-                \\          <td>{s}</td>
-                \\          <td>{d:.2}ms</td>
-                \\          <td>{d} bytes</td>
-                \\          <td class="{s}">{s}</td>
-                \\        </tr>
-                \\
-            , .{ entry.name, entry.duration_ms, entry.memory_after, status_class, status_text });
+            const row = try std.fmt.allocPrint(self.allocator, "<tr><td>{s}</td><td>{d:.2}ms</td><td>{d} bytes</td><td class=\"{s}\">{s}</td></tr>", .{ entry.name, entry.duration_ms, entry.memory_after, status_class, status_text });
+            defer self.allocator.free(row);
+            try html.appendSlice(self.allocator, row);
         }
 
-        try writer.writeAll(
-            \\      </tbody>
-            \\    </table>
-            \\  </div>
-            \\</body>
-            \\</html>
-        );
+        try html.appendSlice(self.allocator, "</tbody></table></div></body></html>");
 
         return html.toOwnedSlice(self.allocator);
     }

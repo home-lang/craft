@@ -27,7 +27,7 @@ pub fn setAssociatedObject(
     value: ?objc.id,
     policy: AssociationPolicy,
 ) void {
-    const objc_setAssociatedObject = @extern(*const fn (objc.id, [*:0]const u8, ?objc.id, usize) callconv(.C) void, .{
+    const objc_setAssociatedObject = @extern(*const fn (objc.id, [*:0]const u8, ?objc.id, usize) callconv(.c) void, .{
         .name = "objc_setAssociatedObject",
     });
     objc_setAssociatedObject(object, key, value, @intFromEnum(policy));
@@ -35,7 +35,7 @@ pub fn setAssociatedObject(
 
 /// Get an associated object from an ObjC object
 pub fn getAssociatedObject(object: objc.id, key: [*:0]const u8) ?objc.id {
-    const objc_getAssociatedObject = @extern(*const fn (objc.id, [*:0]const u8) callconv(.C) ?objc.id, .{
+    const objc_getAssociatedObject = @extern(*const fn (objc.id, [*:0]const u8) callconv(.c) ?objc.id, .{
         .name = "objc_getAssociatedObject",
     });
     return objc_getAssociatedObject(object, key);
@@ -43,7 +43,7 @@ pub fn getAssociatedObject(object: objc.id, key: [*:0]const u8) ?objc.id {
 
 /// Remove all associated objects from an ObjC object
 pub fn removeAssociatedObjects(object: objc.id) void {
-    const objc_removeAssociatedObjects = @extern(*const fn (objc.id) callconv(.C) void, .{
+    const objc_removeAssociatedObjects = @extern(*const fn (objc.id) callconv(.c) void, .{
         .name = "objc_removeAssociatedObjects",
     });
     objc_removeAssociatedObjects(object);
@@ -170,12 +170,12 @@ pub const DynamicClassBuilder = struct {
     const Self = @This();
 
     class: objc.Class,
-    dealloc_impl: ?*const fn (objc.id, objc.SEL) callconv(.C) void,
+    dealloc_impl: ?*const fn (objc.id, objc.SEL) callconv(.c) void,
     original_dealloc: ?objc.IMP,
 
     /// Create a new dynamic class with automatic dealloc handling
     pub fn create(name: [*:0]const u8, superclass: objc.Class) !Self {
-        const objc_allocateClassPair = @extern(*const fn (objc.Class, [*:0]const u8, usize) callconv(.C) ?objc.Class, .{
+        const objc_allocateClassPair = @extern(*const fn (objc.Class, [*:0]const u8, usize) callconv(.c) ?objc.Class, .{
             .name = "objc_allocateClassPair",
         });
 
@@ -195,7 +195,7 @@ pub const DynamicClassBuilder = struct {
         implementation: objc.IMP,
         types: [*:0]const u8,
     ) !void {
-        const class_addMethod = @extern(*const fn (objc.Class, objc.SEL, objc.IMP, [*:0]const u8) callconv(.C) bool, .{
+        const class_addMethod = @extern(*const fn (objc.Class, objc.SEL, objc.IMP, [*:0]const u8) callconv(.c) bool, .{
             .name = "class_addMethod",
         });
 
@@ -205,7 +205,7 @@ pub const DynamicClassBuilder = struct {
     }
 
     /// Set the dealloc implementation
-    pub fn setDealloc(self: *Self, dealloc: *const fn (objc.id, objc.SEL) callconv(.C) void) void {
+    pub fn setDealloc(self: *Self, dealloc: *const fn (objc.id, objc.SEL) callconv(.c) void) void {
         self.dealloc_impl = dealloc;
     }
 
@@ -217,7 +217,7 @@ pub const DynamicClassBuilder = struct {
             self.addMethod(sel_dealloc, @ptrCast(dealloc), "v@:") catch {};
         }
 
-        const objc_registerClassPair = @extern(*const fn (objc.Class) callconv(.C) void, .{
+        const objc_registerClassPair = @extern(*const fn (objc.Class) callconv(.c) void, .{
             .name = "objc_registerClassPair",
         });
         objc_registerClassPair(self.class);
@@ -225,7 +225,7 @@ pub const DynamicClassBuilder = struct {
 
     /// Dispose of the class
     pub fn dispose(self: *Self) void {
-        const objc_disposeClassPair = @extern(*const fn (objc.Class) callconv(.C) void, .{
+        const objc_disposeClassPair = @extern(*const fn (objc.Class) callconv(.c) void, .{
             .name = "objc_disposeClassPair",
         });
         objc_disposeClassPair(self.class);
@@ -326,7 +326,7 @@ pub fn WeakRef(comptime T: type) type {
         pub fn initObjC(object: objc.id) Self {
             // Use objc_storeWeak for proper weak reference
             var weak: ?objc.id = null;
-            const objc_storeWeak = @extern(*const fn (*?objc.id, ?objc.id) callconv(.C) ?objc.id, .{
+            const objc_storeWeak = @extern(*const fn (*?objc.id, ?objc.id) callconv(.c) ?objc.id, .{
                 .name = "objc_storeWeak",
             });
             _ = objc_storeWeak(&weak, object);
@@ -343,7 +343,7 @@ pub fn WeakRef(comptime T: type) type {
 
         pub fn getObjC(self: *Self) ?objc.id {
             if (self.objc_weak) |*weak| {
-                const objc_loadWeak = @extern(*const fn (*?objc.id) callconv(.C) ?objc.id, .{
+                const objc_loadWeak = @extern(*const fn (*?objc.id) callconv(.c) ?objc.id, .{
                     .name = "objc_loadWeak",
                 });
                 return objc_loadWeak(weak);
@@ -354,7 +354,7 @@ pub fn WeakRef(comptime T: type) type {
         pub fn clear(self: *Self) void {
             self.ptr = null;
             if (self.objc_weak) |*weak| {
-                const objc_storeWeak = @extern(*const fn (*?objc.id, ?objc.id) callconv(.C) ?objc.id, .{
+                const objc_storeWeak = @extern(*const fn (*?objc.id, ?objc.id) callconv(.c) ?objc.id, .{
                     .name = "objc_storeWeak",
                 });
                 _ = objc_storeWeak(weak, null);

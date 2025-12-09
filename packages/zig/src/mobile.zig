@@ -27,16 +27,16 @@ const jni = if (@import("builtin").target.os.tag == .linux) struct {
         reserved1: ?*anyopaque,
         reserved2: ?*anyopaque,
         reserved3: ?*anyopaque,
-        GetVersion: ?*const fn (*JNIEnv) callconv(.C) jint,
+        GetVersion: ?*const fn (*JNIEnv) callconv(.c) jint,
         // ... many more function pointers ...
-        FindClass: ?*const fn (*JNIEnv, [*:0]const u8) callconv(.C) jclass,
-        GetMethodID: ?*const fn (*JNIEnv, jclass, [*:0]const u8, [*:0]const u8) callconv(.C) jmethodID,
-        GetObjectClass: ?*const fn (*JNIEnv, jobject) callconv(.C) jclass,
-        CallObjectMethodV: ?*const fn (*JNIEnv, jobject, jmethodID, ...) callconv(.C) jobject,
-        CallVoidMethodV: ?*const fn (*JNIEnv, jobject, jmethodID, ...) callconv(.C) void,
-        NewStringUTF: ?*const fn (*JNIEnv, [*:0]const u8) callconv(.C) jstring,
-        GetStringUTFChars: ?*const fn (*JNIEnv, jstring, ?*jboolean) callconv(.C) [*:0]const u8,
-        ReleaseStringUTFChars: ?*const fn (*JNIEnv, jstring, [*:0]const u8) callconv(.C) void,
+        FindClass: ?*const fn (*JNIEnv, [*:0]const u8) callconv(.c) jclass,
+        GetMethodID: ?*const fn (*JNIEnv, jclass, [*:0]const u8, [*:0]const u8) callconv(.c) jmethodID,
+        GetObjectClass: ?*const fn (*JNIEnv, jobject) callconv(.c) jclass,
+        CallObjectMethodV: ?*const fn (*JNIEnv, jobject, jmethodID, ...) callconv(.c) jobject,
+        CallVoidMethodV: ?*const fn (*JNIEnv, jobject, jmethodID, ...) callconv(.c) void,
+        NewStringUTF: ?*const fn (*JNIEnv, [*:0]const u8) callconv(.c) jstring,
+        GetStringUTFChars: ?*const fn (*JNIEnv, jstring, ?*jboolean) callconv(.c) [*:0]const u8,
+        ReleaseStringUTFChars: ?*const fn (*JNIEnv, jstring, [*:0]const u8) callconv(.c) void,
     };
 
     // Helper to get the function table from JNIEnv
@@ -444,7 +444,7 @@ pub const iOS = struct {
         // Configure webview settings based on config
         if (config.allows_inline_media_playback) {
             const sel_setAllowsInlineMediaPlayback = objc.sel_registerName("setAllowsInlineMediaPlayback:") orelse return error.SelectorNotFound;
-            const Fn = *const fn (objc.id, objc.SEL, bool) callconv(.C) void;
+            const Fn = *const fn (objc.id, objc.SEL, bool) callconv(.c) void;
             const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
             func(configObj, sel_setAllowsInlineMediaPlayback, true);
         }
@@ -460,7 +460,7 @@ pub const iOS = struct {
         const sel_initWithFrame = objc.sel_registerName("initWithFrame:configuration:") orelse return error.SelectorNotFound;
 
         const allocated = objc.msgSendId(WKWebViewClass, sel_alloc);
-        const Fn = *const fn (objc.id, objc.SEL, objc.CGRect, objc.id) callconv(.C) objc.id;
+        const Fn = *const fn (objc.id, objc.SEL, objc.CGRect, objc.id) callconv(.c) objc.id;
         const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         const webview = func(allocated, sel_initWithFrame, frame, configObj);
 
@@ -572,24 +572,24 @@ pub const iOS = struct {
             isa: ?*anyopaque,
             flags: c_int,
             reserved: c_int,
-            invoke: ?*const fn (*@This(), ?objc.id, ?objc.id) callconv(.C) void,
+            invoke: ?*const fn (*@This(), ?objc.id, ?objc.id) callconv(.c) void,
             descriptor: *const BlockDescriptor,
             callback: ?*const fn (?[]const u8, ?[]const u8) void,
         };
 
         // Block invoke function that calls our Zig callback
         const block_invoke = struct {
-            fn invoke(block: *Block, result: ?objc.id, err: ?objc.id) callconv(.C) void {
+            fn invoke(block: *Block, result: ?objc.id, err: ?objc.id) callconv(.c) void {
                 var result_str: ?[]const u8 = null;
                 var error_str: ?[]const u8 = null;
 
                 // Extract result string if present
                 if (result) |res| {
                     const desc = @import("objc_runtime.zig").objc.objc_msgSend;
-                    const desc_fn: *const fn (objc.id, objc.SEL) callconv(.C) objc.id = @ptrCast(&desc);
+                    const desc_fn: *const fn (objc.id, objc.SEL) callconv(.c) objc.id = @ptrCast(&desc);
                     const description = desc_fn(res, objc.sel_registerName("description").?);
                     if (description != null) {
-                        const utf8_fn: *const fn (objc.id, objc.SEL) callconv(.C) [*:0]const u8 = @ptrCast(&desc);
+                        const utf8_fn: *const fn (objc.id, objc.SEL) callconv(.c) [*:0]const u8 = @ptrCast(&desc);
                         const utf8 = utf8_fn(description, objc.sel_registerName("UTF8String").?);
                         result_str = std.mem.span(utf8);
                     }
@@ -598,10 +598,10 @@ pub const iOS = struct {
                 // Extract error string if present
                 if (err) |e| {
                     const desc = @import("objc_runtime.zig").objc.objc_msgSend;
-                    const desc_fn: *const fn (objc.id, objc.SEL) callconv(.C) objc.id = @ptrCast(&desc);
+                    const desc_fn: *const fn (objc.id, objc.SEL) callconv(.c) objc.id = @ptrCast(&desc);
                     const description = desc_fn(e, objc.sel_registerName("localizedDescription").?);
                     if (description != null) {
-                        const utf8_fn: *const fn (objc.id, objc.SEL) callconv(.C) [*:0]const u8 = @ptrCast(&desc);
+                        const utf8_fn: *const fn (objc.id, objc.SEL) callconv(.c) [*:0]const u8 = @ptrCast(&desc);
                         const utf8 = utf8_fn(description, objc.sel_registerName("UTF8String").?);
                         error_str = std.mem.span(utf8);
                     }
@@ -631,7 +631,7 @@ pub const iOS = struct {
         };
 
         // Call evaluateJavaScript with our block
-        const Fn = *const fn (*anyopaque, objc.SEL, objc.id, *Block) callconv(.C) void;
+        const Fn = *const fn (*anyopaque, objc.SEL, objc.id, *Block) callconv(.c) void;
         const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         func(webview_ptr, sel_evaluateJavaScript, ns_script, &block);
     }
@@ -671,13 +671,13 @@ pub const iOS = struct {
                     // Fallback - create NSString for media type
                     const allocator = std.heap.page_allocator;
                     const ns_media = try objc.createNSString(mediaType, allocator);
-                    const Fn = *const fn (objc.Class, objc.SEL, objc.id) callconv(.C) i64;
+                    const Fn = *const fn (objc.Class, objc.SEL, objc.id) callconv(.c) i64;
                     const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                     const status = func(AVCaptureDeviceClass, sel_authorizationStatus, ns_media);
                     return statusFromAVAuthorizationStatus(status);
                 };
 
-                const Fn = *const fn (objc.Class, objc.SEL, objc.id) callconv(.C) i64;
+                const Fn = *const fn (objc.Class, objc.SEL, objc.id) callconv(.c) i64;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 const status = func(AVCaptureDeviceClass, sel_authorizationStatus, mediaTypeStr);
                 return statusFromAVAuthorizationStatus(status);
@@ -686,7 +686,7 @@ pub const iOS = struct {
                 const CLLocationManagerClass = objc.objc_getClass("CLLocationManager") orelse return error.ClassNotFound;
                 const sel_authorizationStatus = objc.sel_registerName("authorizationStatus") orelse return error.SelectorNotFound;
 
-                const Fn = *const fn (objc.Class, objc.SEL) callconv(.C) i32;
+                const Fn = *const fn (objc.Class, objc.SEL) callconv(.c) i32;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 const status = func(CLLocationManagerClass, sel_authorizationStatus);
                 return statusFromCLAuthorizationStatus(status);
@@ -695,7 +695,7 @@ pub const iOS = struct {
                 const PHPhotoLibraryClass = objc.objc_getClass("PHPhotoLibrary") orelse return error.ClassNotFound;
                 const sel_authorizationStatus = objc.sel_registerName("authorizationStatus") orelse return error.SelectorNotFound;
 
-                const Fn = *const fn (objc.Class, objc.SEL) callconv(.C) i64;
+                const Fn = *const fn (objc.Class, objc.SEL) callconv(.c) i64;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 const status = func(PHPhotoLibraryClass, sel_authorizationStatus);
                 return statusFromPHAuthorizationStatus(status);
@@ -708,7 +708,7 @@ pub const iOS = struct {
                 const CNContactStoreClass = objc.objc_getClass("CNContactStore") orelse return error.ClassNotFound;
                 const sel_authorizationStatus = objc.sel_registerName("authorizationStatusForEntityType:") orelse return error.SelectorNotFound;
 
-                const Fn = *const fn (objc.Class, objc.SEL, i64) callconv(.C) i64;
+                const Fn = *const fn (objc.Class, objc.SEL, i64) callconv(.c) i64;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 const status = func(CNContactStoreClass, sel_authorizationStatus, 0); // CNEntityTypeContacts = 0
                 return statusFromCNAuthorizationStatus(status);
@@ -718,7 +718,7 @@ pub const iOS = struct {
                 const sel_authorizationStatus = objc.sel_registerName("authorizationStatusForEntityType:") orelse return error.SelectorNotFound;
 
                 const entity_type: i64 = if (permission == .calendar) 0 else 1; // EKEntityTypeEvent = 0, EKEntityTypeReminder = 1
-                const Fn = *const fn (objc.Class, objc.SEL, i64) callconv(.C) i64;
+                const Fn = *const fn (objc.Class, objc.SEL, i64) callconv(.c) i64;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 const status = func(EKEventStoreClass, sel_authorizationStatus, entity_type);
                 return statusFromEKAuthorizationStatus(status);
@@ -805,7 +805,7 @@ pub const iOS = struct {
                 const ns_media = try objc.createNSString(mediaType, allocator);
 
                 // Request access (completion handler would need block creation)
-                const Fn = *const fn (objc.Class, objc.SEL, objc.id, ?*anyopaque) callconv(.C) void;
+                const Fn = *const fn (objc.Class, objc.SEL, objc.id, ?*anyopaque) callconv(.c) void;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 func(AVCaptureDeviceClass, sel_requestAccessForMediaType, ns_media, null);
             },
@@ -825,7 +825,7 @@ pub const iOS = struct {
                 const sel_requestAuthorization = objc.sel_registerName("requestAuthorization:") orelse return error.SelectorNotFound;
 
                 // Request photo library access (completion handler would need block creation)
-                const Fn = *const fn (objc.Class, objc.SEL, ?*anyopaque) callconv(.C) void;
+                const Fn = *const fn (objc.Class, objc.SEL, ?*anyopaque) callconv(.c) void;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 func(PHPhotoLibraryClass, sel_requestAuthorization, null);
             },
@@ -838,7 +838,7 @@ pub const iOS = struct {
                 const center = objc.msgSendId(UNUserNotificationCenterClass, sel_currentNotificationCenter);
 
                 // Request authorization with alert, badge, sound (7 = alert | badge | sound)
-                const Fn = *const fn (objc.id, objc.SEL, u64, ?*anyopaque) callconv(.C) void;
+                const Fn = *const fn (objc.id, objc.SEL, u64, ?*anyopaque) callconv(.c) void;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 func(center, sel_requestAuthorizationWithOptions, 7, null);
             },
@@ -852,7 +852,7 @@ pub const iOS = struct {
                 const allocated = objc.msgSendId(CNContactStoreClass, sel_alloc);
                 const store = objc.msgSendId(allocated, sel_init);
 
-                const Fn = *const fn (objc.id, objc.SEL, i64, ?*anyopaque) callconv(.C) void;
+                const Fn = *const fn (objc.id, objc.SEL, i64, ?*anyopaque) callconv(.c) void;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 func(store, sel_requestAccessForEntityType, 0, null); // CNEntityTypeContacts = 0
             },
@@ -867,7 +867,7 @@ pub const iOS = struct {
                 const store = objc.msgSendId(allocated, sel_init);
 
                 const entity_type: i64 = if (permission == .calendar) 0 else 1;
-                const Fn = *const fn (objc.id, objc.SEL, i64, ?*anyopaque) callconv(.C) void;
+                const Fn = *const fn (objc.id, objc.SEL, i64, ?*anyopaque) callconv(.c) void;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 func(store, sel_requestAccessToEntityType, entity_type, null);
             },
@@ -922,7 +922,7 @@ pub const iOS = struct {
                 const allocated = objc.msgSendId(UIImpactFeedbackGeneratorClass, sel_alloc);
 
                 // Initialize with style: [[UIImpactFeedbackGenerator alloc] initWithStyle:style]
-                const Fn = *const fn (objc.id, objc.SEL, i64) callconv(.C) objc.id;
+                const Fn = *const fn (objc.id, objc.SEL, i64) callconv(.c) objc.id;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 const generator = func(allocated, sel_initWithStyle, style);
 
@@ -948,7 +948,7 @@ pub const iOS = struct {
                 };
 
                 // Trigger notification: [generator notificationOccurred:feedbackType]
-                const Fn = *const fn (objc.id, objc.SEL, i64) callconv(.C) void;
+                const Fn = *const fn (objc.id, objc.SEL, i64) callconv(.c) void;
                 const func: Fn = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
                 func(generator, sel_notificationOccurred, feedbackType);
 
@@ -977,13 +977,13 @@ pub const iOS = struct {
         const msg_z = allocator.dupeZ(u8, message) catch return;
         defer allocator.free(msg_z);
 
-        const Fn1 = *const fn (objc.id, objc.SEL, [*:0]const u8) callconv(.C) objc.id;
+        const Fn1 = *const fn (objc.id, objc.SEL, [*:0]const u8) callconv(.c) objc.id;
         const stringFn: Fn1 = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         const messageStr = stringFn(NSStringClass, sel_stringWithUTF8String, msg_z.ptr);
 
         // Create UIAlertController with style Alert (1)
         const sel_alertWithTitle = objc.sel_registerName("alertControllerWithTitle:message:preferredStyle:") orelse return;
-        const Fn2 = *const fn (objc.id, objc.SEL, ?objc.id, objc.id, i64) callconv(.C) objc.id;
+        const Fn2 = *const fn (objc.id, objc.SEL, ?objc.id, objc.id, i64) callconv(.c) objc.id;
         const alertFn: Fn2 = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         const alert = alertFn(UIAlertControllerClass, sel_alertWithTitle, null, messageStr, 1); // UIAlertControllerStyleAlert = 1
 
@@ -1002,7 +1002,7 @@ pub const iOS = struct {
 
         // Present the alert
         const sel_presentViewController = objc.sel_registerName("presentViewController:animated:completion:") orelse return;
-        const Fn3 = *const fn (objc.id, objc.SEL, objc.id, bool, ?objc.id) callconv(.C) void;
+        const Fn3 = *const fn (objc.id, objc.SEL, objc.id, bool, ?objc.id) callconv(.c) void;
         const presentFn: Fn3 = @ptrCast(&@import("objc_runtime.zig").objc.objc_msgSend);
         presentFn(rootVC, sel_presentViewController, alert, true, null);
 
