@@ -37,7 +37,9 @@ pub const Config = struct {
         const file = try std.fs.cwd().openFile(path, .{});
         defer file.close();
 
-        const content = try file.readToEndAlloc(allocator, 1024 * 1024);
+        var buf: [4096]u8 = undefined;
+        var reader = file.reader(&buf);
+        const content = try reader.readAllAlloc(allocator, 1024 * 1024);
         defer allocator.free(content);
 
         return try parseToml(allocator, content);
@@ -146,41 +148,57 @@ pub const Config = struct {
         const file = try std.fs.cwd().createFile(path, .{});
         defer file.close();
 
-        const writer = file.writer();
+        _ = try file.write("# Craft Configuration File\n\n");
 
-        try writer.writeAll("# Craft Configuration File\n\n");
-
-        try writer.writeAll("[app]\n");
-        try writer.print("hot_reload = {}\n", .{self.app.hot_reload});
-        try writer.print("system_tray = {}\n", .{self.app.system_tray});
-        try writer.print("log_level = \"{s}\"\n", .{self.app.log_level});
+        _ = try file.write("[app]\n");
+        var buf: [256]u8 = undefined;
+        var line = try std.fmt.bufPrint(&buf, "hot_reload = {}\n", .{self.app.hot_reload});
+        _ = try file.write(line);
+        line = try std.fmt.bufPrint(&buf, "system_tray = {}\n", .{self.app.system_tray});
+        _ = try file.write(line);
+        line = try std.fmt.bufPrint(&buf, "log_level = \"{s}\"\n", .{self.app.log_level});
+        _ = try file.write(line);
         if (self.app.log_file) |log_file| {
-            try writer.print("log_file = \"{s}\"\n", .{log_file});
+            line = try std.fmt.bufPrint(&buf, "log_file = \"{s}\"\n", .{log_file});
+            _ = try file.write(line);
         }
 
-        try writer.writeAll("\n[window]\n");
-        try writer.print("title = \"{s}\"\n", .{self.window.title});
-        try writer.print("width = {d}\n", .{self.window.width});
-        try writer.print("height = {d}\n", .{self.window.height});
+        _ = try file.write("\n[window]\n");
+        line = try std.fmt.bufPrint(&buf, "title = \"{s}\"\n", .{self.window.title});
+        _ = try file.write(line);
+        line = try std.fmt.bufPrint(&buf, "width = {d}\n", .{self.window.width});
+        _ = try file.write(line);
+        line = try std.fmt.bufPrint(&buf, "height = {d}\n", .{self.window.height});
+        _ = try file.write(line);
         if (self.window.x) |x| {
-            try writer.print("x = {d}\n", .{x});
+            line = try std.fmt.bufPrint(&buf, "x = {d}\n", .{x});
+            _ = try file.write(line);
         }
         if (self.window.y) |y| {
-            try writer.print("y = {d}\n", .{y});
+            line = try std.fmt.bufPrint(&buf, "y = {d}\n", .{y});
+            _ = try file.write(line);
         }
-        try writer.print("resizable = {}\n", .{self.window.resizable});
-        try writer.print("frameless = {}\n", .{self.window.frameless});
-        try writer.print("transparent = {}\n", .{self.window.transparent});
-        try writer.print("always_on_top = {}\n", .{self.window.always_on_top});
-        try writer.print("fullscreen = {}\n", .{self.window.fullscreen});
+        line = try std.fmt.bufPrint(&buf, "resizable = {}\n", .{self.window.resizable});
+        _ = try file.write(line);
+        line = try std.fmt.bufPrint(&buf, "frameless = {}\n", .{self.window.frameless});
+        _ = try file.write(line);
+        line = try std.fmt.bufPrint(&buf, "transparent = {}\n", .{self.window.transparent});
+        _ = try file.write(line);
+        line = try std.fmt.bufPrint(&buf, "always_on_top = {}\n", .{self.window.always_on_top});
+        _ = try file.write(line);
+        line = try std.fmt.bufPrint(&buf, "fullscreen = {}\n", .{self.window.fullscreen});
+        _ = try file.write(line);
         if (self.window.dark_mode) |dark| {
-            try writer.print("dark_mode = {}\n", .{dark});
+            line = try std.fmt.bufPrint(&buf, "dark_mode = {}\n", .{dark});
+            _ = try file.write(line);
         }
 
-        try writer.writeAll("\n[webview]\n");
-        try writer.print("dev_tools = {}\n", .{self.webview.dev_tools});
+        _ = try file.write("\n[webview]\n");
+        line = try std.fmt.bufPrint(&buf, "dev_tools = {}\n", .{self.webview.dev_tools});
+        _ = try file.write(line);
         if (self.webview.user_agent) |ua| {
-            try writer.print("user_agent = \"{s}\"\n", .{ua});
+            line = try std.fmt.bufPrint(&buf, "user_agent = \"{s}\"\n", .{ua});
+            _ = try file.write(line);
         }
     }
 };

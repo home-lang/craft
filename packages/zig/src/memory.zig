@@ -124,7 +124,7 @@ pub const TrackingAllocator = struct {
         };
     }
     
-    fn alloc(ctx: *anyopaque, len: usize, ptr_align: u8, ret_addr: usize) ?[*]u8 {
+    fn alloc(ctx: *anyopaque, len: usize, ptr_align: std.mem.Alignment, ret_addr: usize) ?[*]u8 {
         const self: *Self = @ptrCast(@alignCast(ctx));
         const result = self.parent_allocator.rawAlloc(len, ptr_align, ret_addr);
         if (result) |_| {
@@ -132,8 +132,8 @@ pub const TrackingAllocator = struct {
         }
         return result;
     }
-    
-    fn resize(ctx: *anyopaque, buf: []u8, buf_align: u8, new_len: usize, ret_addr: usize) bool {
+
+    fn resize(ctx: *anyopaque, buf: []u8, buf_align: std.mem.Alignment, new_len: usize, ret_addr: usize) bool {
         const self: *Self = @ptrCast(@alignCast(ctx));
         const result = self.parent_allocator.rawResize(buf, buf_align, new_len, ret_addr);
         if (result) {
@@ -145,8 +145,8 @@ pub const TrackingAllocator = struct {
         }
         return result;
     }
-    
-    fn free(ctx: *anyopaque, buf: []u8, buf_align: u8, ret_addr: usize) void {
+
+    fn free(ctx: *anyopaque, buf: []u8, buf_align: std.mem.Alignment, ret_addr: usize) void {
         const self: *Self = @ptrCast(@alignCast(ctx));
         self.parent_allocator.rawFree(buf, buf_align, ret_addr);
         self.stats.recordFree(buf.len);
@@ -169,11 +169,8 @@ pub fn createArena(backing_allocator: std.mem.Allocator) !MemoryPool {
 /// Helper function to create a temp allocator with a stack buffer
 /// Note: The returned struct contains both buffer and allocator - caller must keep both alive
 pub fn createTempAllocator(comptime size: usize) struct { buffer: [size]u8, temp: TempAllocator } {
-    const Result = struct { buffer: [size]u8, temp: TempAllocator };
-    var result: Result = .{
+    return .{
         .buffer = undefined,
         .temp = undefined,
     };
-    result.temp = TempAllocator.init(&result.buffer);
-    return result;
 }

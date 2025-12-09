@@ -153,7 +153,9 @@ test "Log - output to file" {
     const file = try std.fs.cwd().openFile(test_path, .{});
     defer file.close();
 
-    const content = try file.readToEndAlloc(testing.allocator, 1024);
+    var buf: [1024]u8 = undefined;
+    var reader = file.reader(&buf);
+    const content = try reader.readAllAlloc(testing.allocator, 1024);
     defer testing.allocator.free(content);
 
     try testing.expect(content.len > 0);

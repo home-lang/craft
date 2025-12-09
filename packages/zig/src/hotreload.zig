@@ -21,7 +21,7 @@ pub const FileWatcher = struct {
 
     pub fn init(allocator: std.mem.Allocator, config: HotReloadConfig) !Self {
         var watcher = Self{
-            .watched_paths = .{},
+            .watched_paths = std.StringHashMap(i64).init(allocator),
             .ignore_patterns = config.ignore_patterns,
             .allocator = allocator,
             .debounce_ms = config.debounce_ms,
@@ -36,7 +36,7 @@ pub const FileWatcher = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.watched_paths.deinit(self.allocator);
+        self.watched_paths.deinit();
     }
 
     pub fn addPath(self: *Self, path: []const u8) !void {
@@ -45,8 +45,8 @@ pub const FileWatcher = struct {
             return;
         };
 
-        const mtime = stat.mtime.sec;
-        try self.watched_paths.put(self.allocator, path, mtime);
+        const mtime: i64 = @intCast(@divTrunc(stat.mtime.nanoseconds, 1_000_000_000));
+        try self.watched_paths.put(path, mtime);
         log.debug("Watching: {s}", .{path});
     }
 
@@ -65,7 +65,7 @@ pub const FileWatcher = struct {
             const old_mtime = entry.value_ptr.*;
 
             const stat = std.fs.cwd().statFile(path) catch continue;
-            const new_mtime = stat.mtime.sec;
+            const new_mtime: i64 = @intCast(@divTrunc(stat.mtime.nanoseconds, 1_000_000_000));
 
             if (new_mtime > old_mtime) {
                 log.info("File changed: {s}", .{path});

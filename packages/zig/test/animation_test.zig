@@ -1,4 +1,4 @@
-const std = @import("../src/animation.zig");
+const std = @import("std");
 const testing = std.testing;
 const animation = @import("../src/animation.zig");
 
@@ -159,7 +159,10 @@ test "Animation - basic creation" {
         .easing = .linear,
         .state = .idle,
         .elapsed_ms = 0,
-        .current_value = 0.0,
+        .start_time = null,
+        .pause_time = null,
+        .on_update = null,
+        .on_complete = null,
     };
 
     try testing.expectEqual(@as(f32, 0.0), anim.start_value);
@@ -177,7 +180,10 @@ test "Animation - with different easing" {
         .easing = .ease_in_out_quad,
         .state = .idle,
         .elapsed_ms = 0,
-        .current_value = 0.0,
+        .start_time = null,
+        .pause_time = null,
+        .on_update = null,
+        .on_complete = null,
     };
 
     try testing.expectEqual(animation.EasingFunction.ease_in_out_quad, anim.easing);
@@ -191,7 +197,10 @@ test "Animation - state transitions" {
         .easing = .linear,
         .state = .idle,
         .elapsed_ms = 0,
-        .current_value = 0.0,
+        .start_time = null,
+        .pause_time = null,
+        .on_update = null,
+        .on_complete = null,
     };
 
     try testing.expectEqual(animation.AnimationState.idle, anim.state);
@@ -214,7 +223,10 @@ test "Animation - reverse animation" {
         .easing = .linear,
         .state = .idle,
         .elapsed_ms = 0,
-        .current_value = 100.0,
+        .start_time = null,
+        .pause_time = null,
+        .on_update = null,
+        .on_complete = null,
     };
 
     try testing.expectEqual(@as(f32, 100.0), anim.start_value);
@@ -229,7 +241,10 @@ test "Animation - very short duration" {
         .easing = .linear,
         .state = .idle,
         .elapsed_ms = 0,
-        .current_value = 0.0,
+        .start_time = null,
+        .pause_time = null,
+        .on_update = null,
+        .on_complete = null,
     };
 
     try testing.expectEqual(@as(u64, 16), anim.duration_ms);
@@ -243,7 +258,10 @@ test "Animation - very long duration" {
         .easing = .linear,
         .state = .idle,
         .elapsed_ms = 0,
-        .current_value = 0.0,
+        .start_time = null,
+        .pause_time = null,
+        .on_update = null,
+        .on_complete = null,
     };
 
     try testing.expectEqual(@as(u64, 10000), anim.duration_ms);
@@ -257,7 +275,10 @@ test "Animation - negative values" {
         .easing = .linear,
         .state = .idle,
         .elapsed_ms = 0,
-        .current_value = -50.0,
+        .start_time = null,
+        .pause_time = null,
+        .on_update = null,
+        .on_complete = null,
     };
 
     try testing.expectEqual(@as(f32, -50.0), anim.start_value);
@@ -272,7 +293,10 @@ test "Animation - large values" {
         .easing = .ease_out_quad,
         .state = .idle,
         .elapsed_ms = 0,
-        .current_value = 0.0,
+        .start_time = null,
+        .pause_time = null,
+        .on_update = null,
+        .on_complete = null,
     };
 
     try testing.expectEqual(@as(f32, 10000.0), anim.end_value);
@@ -286,7 +310,10 @@ test "Animation - fractional values" {
         .easing = .linear,
         .state = .idle,
         .elapsed_ms = 0,
-        .current_value = 0.0,
+        .start_time = null,
+        .pause_time = null,
+        .on_update = null,
+        .on_complete = null,
     };
 
     try testing.expectEqual(@as(f32, 0.5), anim.end_value);

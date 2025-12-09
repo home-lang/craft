@@ -44,7 +44,7 @@ pub const EventEmitter = struct {
     
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
-            .listeners = .{},
+            .listeners = std.StringHashMap(std.ArrayList(EventCallback)).init(allocator),
             .allocator = allocator,
         };
     }
@@ -54,11 +54,11 @@ pub const EventEmitter = struct {
         while (it.next()) |entry| {
             entry.value_ptr.deinit(self.allocator);
         }
-        self.listeners.deinit(self.allocator);
+        self.listeners.deinit();
     }
 
     pub fn on(self: *Self, event_name: []const u8, callback: EventCallback) !void {
-        const result = try self.listeners.getOrPut(self.allocator, event_name);
+        const result = try self.listeners.getOrPut(event_name);
         if (!result.found_existing) {
             result.value_ptr.* = .{};
         }

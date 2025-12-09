@@ -54,9 +54,9 @@ pub const objc = if (is_darwin) struct {
     };
 
     // Message sending functions
-    extern "c" fn objc_msgSend() void;
-    extern "c" fn objc_msgSend_stret() void;
-    extern "c" fn objc_msgSend_fpret() void;
+    pub extern "c" fn objc_msgSend() void;
+    pub extern "c" fn objc_msgSend_stret() void;
+    pub extern "c" fn objc_msgSend_fpret() void;
 
     /// Send message with no return value
     pub fn msgSend(target: anytype, selector: SEL) void {

@@ -3,6 +3,12 @@ const base = @import("base.zig");
 const Component = base.Component;
 const ComponentProps = base.ComponentProps;
 
+/// Get current timestamp in milliseconds (compatible with Zig 0.16)
+fn getMilliTimestamp() i64 {
+    const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
+    return @as(i64, ts.sec) * 1000 + @divTrunc(ts.nsec, 1_000_000);
+}
+
 /// Toast/Notification Component
 pub const Toast = struct {
     component: Component,
@@ -60,7 +66,7 @@ pub const Toast = struct {
 
     pub fn show(self: *Toast) void {
         self.visible = true;
-        self.show_time = std.time.milliTimestamp();
+        self.show_time = getMilliTimestamp();
 
         if (self.on_show) |callback| {
             callback();
@@ -117,7 +123,7 @@ pub const Toast = struct {
             return false;
         }
 
-        const now = std.time.milliTimestamp();
+        const now = getMilliTimestamp();
         const elapsed = @as(u64, @intCast(now - self.show_time.?));
         return elapsed >= self.duration.?;
     }
@@ -127,7 +133,7 @@ pub const Toast = struct {
             return null;
         }
 
-        const now = std.time.milliTimestamp();
+        const now = getMilliTimestamp();
         const elapsed = @as(u64, @intCast(now - self.show_time.?));
 
         if (elapsed >= self.duration.?) {

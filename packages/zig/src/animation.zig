@@ -104,10 +104,10 @@ pub const Animation = struct {
     on_update: ?*const fn (f32) void,
     on_complete: ?*const fn () void,
 
-    pub fn init(start: f32, end: f32, duration_ms: u64, easing: EasingFunction) Animation {
+    pub fn init(start_val: f32, end_val: f32, duration_ms: u64, easing: EasingFunction) Animation {
         return Animation{
-            .start_value = start,
-            .end_value = end,
+            .start_value = start_val,
+            .end_value = end_val,
             .duration_ms = duration_ms,
             .easing = easing,
             .state = .idle,
@@ -165,9 +165,9 @@ pub const Animation = struct {
             return if (self.state == .completed) self.end_value else self.start_value;
         }
 
-        const start = self.start_time orelse return self.start_value;
+        const start_instant = self.start_time orelse return self.start_value;
         const now = std.time.Instant.now() catch return self.start_value;
-        const elapsed_ns = now.since(start);
+        const elapsed_ns = now.since(start_instant);
         self.elapsed_ms = elapsed_ns / std.time.ns_per_ms;
 
         if (self.elapsed_ms >= self.duration_ms) {
@@ -193,9 +193,9 @@ pub const Animation = struct {
         if (self.state == .completed) return self.end_value;
         if (self.state != .running) return self.start_value;
 
-        const start = self.start_time orelse return self.start_value;
+        const start_instant = self.start_time orelse return self.start_value;
         const now = std.time.Instant.now() catch return self.start_value;
-        const elapsed_ns = now.since(start);
+        const elapsed_ns = now.since(start_instant);
         const elapsed = elapsed_ns / std.time.ns_per_ms;
 
         if (elapsed >= self.duration_ms) return self.end_value;
@@ -247,9 +247,9 @@ pub const KeyframeAnimation = struct {
     pub fn update(self: *KeyframeAnimation) f32 {
         if (self.state != .running) return 0.0;
 
-        const start = self.start_time orelse return 0.0;
+        const start_instant = self.start_time orelse return 0.0;
         const now = std.time.Instant.now() catch return 0.0;
-        const elapsed_ns = now.since(start);
+        const elapsed_ns = now.since(start_instant);
         self.elapsed_ms = elapsed_ns / std.time.ns_per_ms;
 
         if (self.elapsed_ms >= self.duration_ms) {
@@ -452,10 +452,10 @@ pub const Transition = struct {
     animation: Animation,
     active: bool,
 
-    pub fn init(property: []const u8, start: f32, end: f32, duration_ms: u64, easing: EasingFunction) Transition {
+    pub fn init(property: []const u8, start_val: f32, end_val: f32, duration_ms: u64, easing: EasingFunction) Transition {
         return Transition{
             .property = property,
-            .animation = Animation.init(start, end, duration_ms, easing),
+            .animation = Animation.init(start_val, end_val, duration_ms, easing),
             .active = false,
         };
     }

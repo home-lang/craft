@@ -162,43 +162,48 @@ var android_callbacks: AndroidCallbackStorage = .{};
 
 // JNI export functions are only compiled on Android (Linux target)
 // On other platforms, these are no-ops
-pub usingnamespace if (@import("builtin").target.os.tag == .linux) struct {
-    /// JNI callback function exported for ValueCallback.onReceiveValue
-    /// Called from Java when evaluateJavascript completes
-    export fn Java_app_craft_CraftValueCallback_nativeOnReceiveValue(
-        env: *jni.JNIEnv,
-        this: jni.jobject,
-        callback_id: jni.jint,
-        result: jni.jstring,
-    ) void {
-        _ = this;
-
-        // Convert Java string result to Zig slice
-        const result_chars = jni.GetStringUTFChars(env, result, null);
-        const result_slice = std.mem.span(result_chars);
-
-        // Invoke the stored callback
-        android_callbacks.invokeJsCallback(@intCast(callback_id), result_slice);
-
-        // Release the string
-        jni.ReleaseStringUTFChars(env, result, result_chars);
+comptime {
+    if (@import("builtin").target.os.tag == .linux) {
+        @export(&Java_app_craft_CraftValueCallback_nativeOnReceiveValue_impl, .{ .name = "Java_app_craft_CraftValueCallback_nativeOnReceiveValue" });
+        @export(&Java_app_craft_CraftActivity_nativeOnPermissionResult_impl, .{ .name = "Java_app_craft_CraftActivity_nativeOnPermissionResult" });
     }
+}
 
-    /// JNI callback function exported for permission results
-    /// Called from Activity.onRequestPermissionsResult
-    export fn Java_app_craft_CraftActivity_nativeOnPermissionResult(
-        env: *jni.JNIEnv,
-        this: jni.jobject,
-        request_code: jni.jint,
-        granted: jni.jboolean,
-    ) void {
-        _ = env;
-        _ = this;
+/// JNI callback function exported for ValueCallback.onReceiveValue
+/// Called from Java when evaluateJavascript completes
+fn Java_app_craft_CraftValueCallback_nativeOnReceiveValue_impl(
+    env: *jni.JNIEnv,
+    this: jni.jobject,
+    callback_id: jni.jint,
+    result: jni.jstring,
+) callconv(.c) void {
+    _ = this;
 
-        // Invoke the stored callback
-        android_callbacks.invokePermissionCallback(@intCast(request_code), granted != 0);
-    }
-} else struct {}
+    // Convert Java string result to Zig slice
+    const result_chars = jni.GetStringUTFChars(env, result, null);
+    const result_slice = std.mem.span(result_chars);
+
+    // Invoke the stored callback
+    android_callbacks.invokeJsCallback(@intCast(callback_id), result_slice);
+
+    // Release the string
+    jni.ReleaseStringUTFChars(env, result, result_chars);
+}
+
+/// JNI callback function exported for permission results
+/// Called from Activity.onRequestPermissionsResult
+fn Java_app_craft_CraftActivity_nativeOnPermissionResult_impl(
+    env: *jni.JNIEnv,
+    this: jni.jobject,
+    request_code: jni.jint,
+    granted: jni.jboolean,
+) callconv(.c) void {
+    _ = env;
+    _ = this;
+
+    // Invoke the stored callback
+    android_callbacks.invokePermissionCallback(@intCast(request_code), granted != 0);
+}
 
 pub const Platform = enum {
     ios,

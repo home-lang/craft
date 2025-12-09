@@ -193,20 +193,20 @@ pub const MessageQueue = struct {
 
     pub fn init(allocator: std.mem.Allocator) MessageQueue {
         return MessageQueue{
-            .messages = std.ArrayList(Message).init(allocator),
+            .messages = .{},
             .mutex = std.Thread.Mutex{},
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *MessageQueue) void {
-        self.messages.deinit();
+        self.messages.deinit(self.allocator);
     }
 
     pub fn push(self: *MessageQueue, msg: Message) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        try self.messages.append(msg);
+        try self.messages.append(self.allocator, msg);
     }
 
     pub fn pop(self: *MessageQueue) ?Message {

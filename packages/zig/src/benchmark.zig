@@ -260,51 +260,61 @@ pub const BenchmarkSuite = struct {
 
     pub fn generateReport(self: *const BenchmarkSuite, allocator: std.mem.Allocator) ![]const u8 {
         var buf = std.ArrayList(u8){};
-        const writer = buf.writer(allocator);
+        errdefer buf.deinit(allocator);
 
-        try writer.print("Benchmark Suite: {s}\n", .{self.name});
-        try writer.print("=" ** 80, .{});
-        try writer.writeByte('\n');
+        const header = try std.fmt.allocPrint(allocator, "Benchmark Suite: {s}\n", .{self.name});
+        defer allocator.free(header);
+        try buf.appendSlice(allocator, header);
+        try buf.appendSlice(allocator, "=" ** 80 ++ "\n");
 
         for (self.results.items) |result| {
             const formatted = try result.format(allocator);
             defer allocator.free(formatted);
-            try writer.print("{s}\n", .{formatted});
+            const line = try std.fmt.allocPrint(allocator, "{s}\n", .{formatted});
+            defer allocator.free(line);
+            try buf.appendSlice(allocator, line);
         }
 
-        try writer.print("=" ** 80, .{});
-        try writer.writeByte('\n');
-        try writer.print("Total benchmarks: {d}\n", .{self.results.items.len});
+        try buf.appendSlice(allocator, "=" ** 80 ++ "\n");
+        const footer = try std.fmt.allocPrint(allocator, "Total benchmarks: {d}\n", .{self.results.items.len});
+        defer allocator.free(footer);
+        try buf.appendSlice(allocator, footer);
 
         return buf.toOwnedSlice(allocator);
     }
 
     pub fn generateJSON(self: *const BenchmarkSuite, allocator: std.mem.Allocator) ![]const u8 {
         var buf = std.ArrayList(u8){};
-        const writer = buf.writer(allocator);
+        errdefer buf.deinit(allocator);
 
-        try writer.writeAll("{");
-        try writer.print("\"suite\":\"{s}\",", .{self.name});
-        try writer.writeAll("\"results\":[");
+        try buf.appendSlice(allocator, "{");
+        const suite_str = try std.fmt.allocPrint(allocator, "\"suite\":\"{s}\",", .{self.name});
+        defer allocator.free(suite_str);
+        try buf.appendSlice(allocator, suite_str);
+        try buf.appendSlice(allocator, "\"results\":[");
 
         for (self.results.items, 0..) |result, i| {
-            if (i > 0) try writer.writeByte(',');
-            try writer.writeAll("{");
-            try writer.print("\"name\":\"{s}\",", .{result.name});
-            try writer.print("\"iterations\":{d},", .{result.iterations});
-            try writer.print("\"total_time_ns\":{d},", .{result.total_time_ns});
-            try writer.print("\"mean_time_ns\":{d},", .{result.mean_time_ns});
-            try writer.print("\"min_time_ns\":{d},", .{result.min_time_ns});
-            try writer.print("\"max_time_ns\":{d},", .{result.max_time_ns});
-            try writer.print("\"median_time_ns\":{d},", .{result.median_time_ns});
-            try writer.print("\"std_dev_ns\":{d},", .{result.std_dev_ns});
-            try writer.print("\"ops_per_sec\":{d},", .{result.ops_per_sec});
-            try writer.print("\"memory_allocated\":{d},", .{result.memory_allocated});
-            try writer.print("\"memory_peak\":{d}", .{result.memory_peak});
-            try writer.writeAll("}");
+            if (i > 0) try buf.append(allocator, ',');
+            const entry = try std.fmt.allocPrint(allocator,
+                \\{{"name":"{s}","iterations":{d},"total_time_ns":{d},"mean_time_ns":{d},"min_time_ns":{d},"max_time_ns":{d},"median_time_ns":{d},"std_dev_ns":{d},"ops_per_sec":{d},"memory_allocated":{d},"memory_peak":{d}}}
+            , .{
+                result.name,
+                result.iterations,
+                result.total_time_ns,
+                result.mean_time_ns,
+                result.min_time_ns,
+                result.max_time_ns,
+                result.median_time_ns,
+                result.std_dev_ns,
+                result.ops_per_sec,
+                result.memory_allocated,
+                result.memory_peak,
+            });
+            defer allocator.free(entry);
+            try buf.appendSlice(allocator, entry);
         }
 
-        try writer.writeAll("]}");
+        try buf.appendSlice(allocator, "]}");
         return buf.toOwnedSlice(allocator);
     }
 };

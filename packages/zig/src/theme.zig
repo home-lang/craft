@@ -164,35 +164,61 @@ pub const Theme = struct {
     }
 
     pub fn toCSS(self: Theme, allocator: std.mem.Allocator) ![]const u8 {
-        var css = std.ArrayList(u8).init(allocator);
-        const writer = css.writer();
+        var css: std.ArrayList(u8) = .{};
+        errdefer css.deinit(allocator);
 
-        try writer.writeAll(":root {\n");
+        try css.appendSlice(allocator, ":root {\n");
 
         // Colors
-        try writer.print("  --color-primary: #{x:0>6};\n", .{colorToHex(self.colors.primary)});
-        try writer.print("  --color-secondary: #{x:0>6};\n", .{colorToHex(self.colors.secondary)});
-        try writer.print("  --color-background: #{x:0>6};\n", .{colorToHex(self.colors.background)});
-        try writer.print("  --color-surface: #{x:0>6};\n", .{colorToHex(self.colors.surface)});
+        var line = try std.fmt.allocPrint(allocator, "  --color-primary: #{x:0>6};\n", .{colorToHex(self.colors.primary)});
+        try css.appendSlice(allocator, line);
+        allocator.free(line);
+
+        line = try std.fmt.allocPrint(allocator, "  --color-secondary: #{x:0>6};\n", .{colorToHex(self.colors.secondary)});
+        try css.appendSlice(allocator, line);
+        allocator.free(line);
+
+        line = try std.fmt.allocPrint(allocator, "  --color-background: #{x:0>6};\n", .{colorToHex(self.colors.background)});
+        try css.appendSlice(allocator, line);
+        allocator.free(line);
+
+        line = try std.fmt.allocPrint(allocator, "  --color-surface: #{x:0>6};\n", .{colorToHex(self.colors.surface)});
+        try css.appendSlice(allocator, line);
+        allocator.free(line);
 
         // Typography
-        try writer.print("  --font-primary: {s};\n", .{self.typography.primary_font});
-        try writer.print("  --font-size-body: {d}px;\n", .{self.typography.body_size});
+        line = try std.fmt.allocPrint(allocator, "  --font-primary: {s};\n", .{self.typography.primary_font});
+        try css.appendSlice(allocator, line);
+        allocator.free(line);
+
+        line = try std.fmt.allocPrint(allocator, "  --font-size-body: {d}px;\n", .{self.typography.body_size});
+        try css.appendSlice(allocator, line);
+        allocator.free(line);
 
         // Spacing
-        try writer.print("  --spacing-sm: {d}px;\n", .{self.spacing.sm});
-        try writer.print("  --spacing-md: {d}px;\n", .{self.spacing.md});
-        try writer.print("  --spacing-lg: {d}px;\n", .{self.spacing.lg});
+        line = try std.fmt.allocPrint(allocator, "  --spacing-sm: {d}px;\n", .{self.spacing.sm});
+        try css.appendSlice(allocator, line);
+        allocator.free(line);
+
+        line = try std.fmt.allocPrint(allocator, "  --spacing-md: {d}px;\n", .{self.spacing.md});
+        try css.appendSlice(allocator, line);
+        allocator.free(line);
+
+        line = try std.fmt.allocPrint(allocator, "  --spacing-lg: {d}px;\n", .{self.spacing.lg});
+        try css.appendSlice(allocator, line);
+        allocator.free(line);
 
         // Custom properties
         var iter = self.custom_properties.iterator();
         while (iter.next()) |entry| {
-            try writer.print("  --{s}: {s};\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+            line = try std.fmt.allocPrint(allocator, "  --{s}: {s};\n", .{ entry.key_ptr.*, entry.value_ptr.* });
+            try css.appendSlice(allocator, line);
+            allocator.free(line);
         }
 
-        try writer.writeAll("}\n");
+        try css.appendSlice(allocator, "}\n");
 
-        return css.toOwnedSlice();
+        return css.toOwnedSlice(allocator);
     }
 
     fn colorToHex(color: renderer.Color) u32 {
@@ -224,7 +250,7 @@ pub const ThemeManager = struct {
         return ThemeManager{
             .current_theme = current,
             .themes = themes,
-            .watchers = std.ArrayList(ThemeChangeCallback).init(allocator),
+            .watchers = .{},
             .allocator = allocator,
         };
     }
@@ -235,7 +261,7 @@ pub const ThemeManager = struct {
             theme.deinit();
         }
         self.themes.deinit();
-        self.watchers.deinit();
+        self.watchers.deinit(self.allocator);
         self.allocator.destroy(self.current_theme);
     }
 
@@ -257,7 +283,7 @@ pub const ThemeManager = struct {
     }
 
     pub fn onThemeChange(self: *ThemeManager, callback: ThemeChangeCallback) !void {
-        try self.watchers.append(callback);
+        try self.watchers.append(self.allocator, callback);
     }
 
     fn notifyWatchers(self: *ThemeManager) void {
