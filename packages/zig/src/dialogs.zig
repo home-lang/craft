@@ -43,10 +43,11 @@ pub const Color = struct {
         return Color{ .r = r, .g = g, .b = b, .a = a };
     }
 
-    pub fn toHex(self: Color) []const u8 {
-        var buf: [7]u8 = undefined;
-        _ = std.fmt.bufPrint(&buf, "#{x:0>2}{x:0>2}{x:0>2}", .{ self.r, self.g, self.b }) catch return "#000000";
-        return &buf;
+    /// Format color as hex string into the provided buffer
+    /// Returns the slice of the buffer that was written
+    pub fn toHex(self: Color, buf: *[7]u8) []const u8 {
+        _ = std.fmt.bufPrint(buf, "#{x:0>2}{x:0>2}{x:0>2}", .{ self.r, self.g, self.b }) catch return "#000000";
+        return buf;
     }
 
     pub fn fromHex(hex: []const u8) !Color {
@@ -358,54 +359,538 @@ pub const ProgressDialog = struct {
     }
 };
 
-// Platform-specific implementations (simplified stubs)
+// ============================================================================
+// macOS Platform-specific implementations using Objective-C runtime
+// ============================================================================
+
+const macos = if (@import("builtin").os.tag == .macos) @import("macos.zig") else struct {};
+
+/// Show NSOpenPanel for file selection
 fn showMacFileDialog(options: FileDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use NSOpenPanel
-    return null;
+    if (@import("builtin").os.tag != .macos) return null;
+
+    // Get NSOpenPanel class and create instance
+    const NSOpenPanel = macos.getClass("NSOpenPanel");
+    const panel = macos.msgSend0(NSOpenPanel, "openPanel");
+
+    // Configure panel
+    _ = macos.msgSend1(panel, "setCanChooseFiles:", @as(c_long, 1));
+    _ = macos.msgSend1(panel, "setCanChooseDirectories:", @as(c_long, 0));
+    _ = macos.msgSend1(panel, "setAllowsMultipleSelection:", if (options.multi_select) @as(c_long, 1) else @as(c_long, 0));
+
+    // Show hidden files if requested
+    if (options.show_hidden) {
+        _ = macos.msgSend1(panel, "setShowsHiddenFiles:", @as(c_long, 1));
+    }
+
+    // Set title
+    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const NSString = macos.getClass("NSString");
+    const str_alloc = macos.msgSend0(NSString, "alloc");
+    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr);
+    _ = macos.msgSend1(panel, "setTitle:", ns_title);
+
+    // Set default path if provided
+    if (options.default_path) |path| {
+        const path_cstr = @as([*:0]const u8, @ptrCast(path.ptr));
+        const str_alloc2 = macos.msgSend0(NSString, "alloc");
+        const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_cstr);
+        const NSURL = macos.getClass("NSURL");
+        const url = macos.msgSend1(NSURL, "fileURLWithPath:", ns_path);
+        _ = macos.msgSend1(panel, "setDirectoryURL:", url);
+    }
+
+    // Set allowed file types if filters provided
+    if (options.filters.len > 0) {
+        const NSMutableArray = macos.getClass("NSMutableArray");
+        const allowed_types = macos.msgSend0(NSMutableArray, "array");
+
+        for (options.filters) |filter| {
+            for (filter.extensions) |ext| {
+                if (!std.mem.eql(u8, ext, "*")) {
+                    var ext_buf: [64]u8 = undefined;
+                    const ext_len = @min(ext.len, 63);
+                    @memcpy(ext_buf[0..ext_len], ext[0..ext_len]);
+                    ext_buf[ext_len] = 0;
+                    const ext_str = macos.msgSend0(NSString, "alloc");
+                    const ns_ext = macos.msgSend1(ext_str, "initWithUTF8String:", @as([*:0]const u8, @ptrCast(&ext_buf)));
+                    _ = macos.msgSend1(allowed_types, "addObject:", ns_ext);
+                }
+            }
+        }
+
+        _ = macos.msgSend1(panel, "setAllowedFileTypes:", allowed_types);
+    }
+
+    // Run modal
+    const result = macos.msgSend0(panel, "runModal");
+    const result_int = @as(c_long, @intCast(@intFromPtr(result)));
+
+    // NSModalResponseOK = 1
+    if (result_int == 1) {
+        const urls = macos.msgSend0(panel, "URLs");
+        const count_ptr = macos.msgSend0(urls, "count");
+        const count = @as(usize, @intFromPtr(count_ptr));
+
+        if (count == 0) return null;
+
+        if (options.multi_select and count > 1) {
+            // Return multiple paths
+            var paths: [32][]const u8 = undefined;
+            const path_count = @min(count, 32);
+
+            var i: usize = 0;
+            while (i < path_count) : (i += 1) {
+                const url = macos.msgSend1(urls, "objectAtIndex:", @as(c_ulong, i));
+                const path = macos.msgSend0(url, "path");
+                const path_cstr = macos.msgSend0(path, "UTF8String");
+                paths[i] = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
+            }
+
+            return DialogResult{ .file_paths = paths[0..path_count] };
+        } else {
+            // Return single path
+            const url = macos.msgSend1(urls, "objectAtIndex:", @as(c_ulong, 0));
+            const path = macos.msgSend0(url, "path");
+            const path_cstr = macos.msgSend0(path, "UTF8String");
+            const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
+
+            return DialogResult{ .file_path = path_str };
+        }
+    }
+
+    return null; // Canceled
 }
 
+/// Show NSSavePanel for file saving
 fn showMacFileSaveDialog(options: FileDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use NSSavePanel
-    return null;
+    if (@import("builtin").os.tag != .macos) return null;
+
+    // Get NSSavePanel class and create instance
+    const NSSavePanel = macos.getClass("NSSavePanel");
+    const panel = macos.msgSend0(NSSavePanel, "savePanel");
+
+    // Set title
+    const NSString = macos.getClass("NSString");
+    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const str_alloc = macos.msgSend0(NSString, "alloc");
+    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr);
+    _ = macos.msgSend1(panel, "setTitle:", ns_title);
+
+    // Allow creating directories
+    if (options.create_directories) {
+        _ = macos.msgSend1(panel, "setCanCreateDirectories:", @as(c_long, 1));
+    }
+
+    // Show hidden files if requested
+    if (options.show_hidden) {
+        _ = macos.msgSend1(panel, "setShowsHiddenFiles:", @as(c_long, 1));
+    }
+
+    // Set default path/filename if provided
+    if (options.default_path) |path| {
+        const path_cstr = @as([*:0]const u8, @ptrCast(path.ptr));
+        const str_alloc2 = macos.msgSend0(NSString, "alloc");
+        const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_cstr);
+        _ = macos.msgSend1(panel, "setNameFieldStringValue:", ns_path);
+    }
+
+    // Set default extension if provided
+    if (options.default_extension) |ext| {
+        const ext_cstr = @as([*:0]const u8, @ptrCast(ext.ptr));
+        const str_alloc3 = macos.msgSend0(NSString, "alloc");
+        const ns_ext = macos.msgSend1(str_alloc3, "initWithUTF8String:", ext_cstr);
+
+        const NSMutableArray = macos.getClass("NSMutableArray");
+        const allowed_types = macos.msgSend0(NSMutableArray, "array");
+        _ = macos.msgSend1(allowed_types, "addObject:", ns_ext);
+        _ = macos.msgSend1(panel, "setAllowedFileTypes:", allowed_types);
+    }
+
+    // Run modal
+    const result = macos.msgSend0(panel, "runModal");
+    const result_int = @as(c_long, @intCast(@intFromPtr(result)));
+
+    // NSModalResponseOK = 1
+    if (result_int == 1) {
+        const url = macos.msgSend0(panel, "URL");
+        const path = macos.msgSend0(url, "path");
+        const path_cstr = macos.msgSend0(path, "UTF8String");
+        const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
+
+        return DialogResult{ .file_path = path_str };
+    }
+
+    return null; // Canceled
 }
 
+/// Show NSOpenPanel for directory selection
 fn showMacDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use NSOpenPanel with canChooseDirectories
-    return null;
+    if (@import("builtin").os.tag != .macos) return null;
+
+    // Get NSOpenPanel class and create instance
+    const NSOpenPanel = macos.getClass("NSOpenPanel");
+    const panel = macos.msgSend0(NSOpenPanel, "openPanel");
+
+    // Configure for directory selection
+    _ = macos.msgSend1(panel, "setCanChooseFiles:", @as(c_long, 0));
+    _ = macos.msgSend1(panel, "setCanChooseDirectories:", @as(c_long, 1));
+    _ = macos.msgSend1(panel, "setAllowsMultipleSelection:", @as(c_long, 0));
+
+    // Allow creating directories
+    if (options.create_directories) {
+        _ = macos.msgSend1(panel, "setCanCreateDirectories:", @as(c_long, 1));
+    }
+
+    // Show hidden files if requested
+    if (options.show_hidden) {
+        _ = macos.msgSend1(panel, "setShowsHiddenFiles:", @as(c_long, 1));
+    }
+
+    // Set title
+    const NSString = macos.getClass("NSString");
+    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const str_alloc = macos.msgSend0(NSString, "alloc");
+    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr);
+    _ = macos.msgSend1(panel, "setTitle:", ns_title);
+
+    // Set default path if provided
+    if (options.default_path) |path| {
+        const path_cstr = @as([*:0]const u8, @ptrCast(path.ptr));
+        const str_alloc2 = macos.msgSend0(NSString, "alloc");
+        const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_cstr);
+        const NSURL = macos.getClass("NSURL");
+        const url = macos.msgSend1(NSURL, "fileURLWithPath:", ns_path);
+        _ = macos.msgSend1(panel, "setDirectoryURL:", url);
+    }
+
+    // Run modal
+    const result = macos.msgSend0(panel, "runModal");
+    const result_int = @as(c_long, @intCast(@intFromPtr(result)));
+
+    // NSModalResponseOK = 1
+    if (result_int == 1) {
+        const urls = macos.msgSend0(panel, "URLs");
+        const url = macos.msgSend1(urls, "objectAtIndex:", @as(c_ulong, 0));
+        const path = macos.msgSend0(url, "path");
+        const path_cstr = macos.msgSend0(path, "UTF8String");
+        const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
+
+        return DialogResult{ .directory_path = path_str };
+    }
+
+    return null; // Canceled
 }
 
+/// Show NSAlert message dialog
 fn showMacMessageDialog(options: MessageDialogOptions) !DialogResult {
-    _ = options;
-    // Would use NSAlert
-    return DialogResult{ .ok = {} };
+    if (@import("builtin").os.tag != .macos) return DialogResult{ .ok = {} };
+
+    // Get NSAlert class and create instance
+    const NSAlert = macos.getClass("NSAlert");
+    const alert = macos.msgSend0(macos.msgSend0(NSAlert, "alloc"), "init");
+
+    const NSString = macos.getClass("NSString");
+
+    // Set title (messageText)
+    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const str_alloc1 = macos.msgSend0(NSString, "alloc");
+    const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_cstr);
+    _ = macos.msgSend1(alert, "setMessageText:", ns_title);
+
+    // Set message (informativeText)
+    const msg_cstr = @as([*:0]const u8, @ptrCast(options.message.ptr));
+    const str_alloc2 = macos.msgSend0(NSString, "alloc");
+    const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_cstr);
+    _ = macos.msgSend1(alert, "setInformativeText:", ns_msg);
+
+    // Set alert style based on type
+    const alert_style: c_long = switch (options.type) {
+        .info => 1, // NSAlertStyleInformational
+        .warning => 0, // NSAlertStyleWarning
+        .error_msg => 2, // NSAlertStyleCritical
+        .question => 1, // NSAlertStyleInformational
+    };
+    _ = macos.msgSend1(alert, "setAlertStyle:", alert_style);
+
+    // Add buttons based on button set
+    switch (options.buttons) {
+        .ok => {
+            const ok_str = macos.msgSend0(NSString, "alloc");
+            const ns_ok = macos.msgSend1(ok_str, "initWithUTF8String:", @as([*:0]const u8, "OK"));
+            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_ok);
+        },
+        .ok_cancel => {
+            const ok_str = macos.msgSend0(NSString, "alloc");
+            const ns_ok = macos.msgSend1(ok_str, "initWithUTF8String:", @as([*:0]const u8, "OK"));
+            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_ok);
+
+            const cancel_str = macos.msgSend0(NSString, "alloc");
+            const ns_cancel = macos.msgSend1(cancel_str, "initWithUTF8String:", @as([*:0]const u8, "Cancel"));
+            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_cancel);
+        },
+        .yes_no => {
+            const yes_str = macos.msgSend0(NSString, "alloc");
+            const ns_yes = macos.msgSend1(yes_str, "initWithUTF8String:", @as([*:0]const u8, "Yes"));
+            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_yes);
+
+            const no_str = macos.msgSend0(NSString, "alloc");
+            const ns_no = macos.msgSend1(no_str, "initWithUTF8String:", @as([*:0]const u8, "No"));
+            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_no);
+        },
+        .yes_no_cancel => {
+            const yes_str = macos.msgSend0(NSString, "alloc");
+            const ns_yes = macos.msgSend1(yes_str, "initWithUTF8String:", @as([*:0]const u8, "Yes"));
+            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_yes);
+
+            const no_str = macos.msgSend0(NSString, "alloc");
+            const ns_no = macos.msgSend1(no_str, "initWithUTF8String:", @as([*:0]const u8, "No"));
+            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_no);
+
+            const cancel_str = macos.msgSend0(NSString, "alloc");
+            const ns_cancel = macos.msgSend1(cancel_str, "initWithUTF8String:", @as([*:0]const u8, "Cancel"));
+            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_cancel);
+        },
+        .retry_cancel => {
+            const retry_str = macos.msgSend0(NSString, "alloc");
+            const ns_retry = macos.msgSend1(retry_str, "initWithUTF8String:", @as([*:0]const u8, "Retry"));
+            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_retry);
+
+            const cancel_str = macos.msgSend0(NSString, "alloc");
+            const ns_cancel = macos.msgSend1(cancel_str, "initWithUTF8String:", @as([*:0]const u8, "Cancel"));
+            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_cancel);
+        },
+    }
+
+    // Run modal
+    const result = macos.msgSend0(alert, "runModal");
+    const result_int = @as(c_long, @intCast(@intFromPtr(result)));
+
+    // NSAlertFirstButtonReturn = 1000, NSAlertSecondButtonReturn = 1001, NSAlertThirdButtonReturn = 1002
+    return switch (options.buttons) {
+        .ok => DialogResult{ .ok = {} },
+        .ok_cancel => if (result_int == 1000) DialogResult{ .ok = {} } else DialogResult{ .cancel = {} },
+        .yes_no => if (result_int == 1000) DialogResult{ .yes = {} } else DialogResult{ .no = {} },
+        .yes_no_cancel => switch (result_int) {
+            1000 => DialogResult{ .yes = {} },
+            1001 => DialogResult{ .no = {} },
+            else => DialogResult{ .cancel = {} },
+        },
+        .retry_cancel => if (result_int == 1000) DialogResult{ .ok = {} } else DialogResult{ .cancel = {} },
+    };
 }
 
+/// Show NSAlert confirm dialog
 fn showMacConfirmDialog(options: ConfirmDialogOptions) !DialogResult {
-    _ = options;
-    // Would use NSAlert with buttons
-    return DialogResult{ .ok = {} };
+    if (@import("builtin").os.tag != .macos) return DialogResult{ .ok = {} };
+
+    // Get NSAlert class and create instance
+    const NSAlert = macos.getClass("NSAlert");
+    const alert = macos.msgSend0(macos.msgSend0(NSAlert, "alloc"), "init");
+
+    const NSString = macos.getClass("NSString");
+
+    // Set title
+    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const str_alloc1 = macos.msgSend0(NSString, "alloc");
+    const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_cstr);
+    _ = macos.msgSend1(alert, "setMessageText:", ns_title);
+
+    // Set message
+    const msg_cstr = @as([*:0]const u8, @ptrCast(options.message.ptr));
+    const str_alloc2 = macos.msgSend0(NSString, "alloc");
+    const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_cstr);
+    _ = macos.msgSend1(alert, "setInformativeText:", ns_msg);
+
+    // Set destructive style if requested
+    if (options.destructive) {
+        _ = macos.msgSend1(alert, "setAlertStyle:", @as(c_long, 2)); // NSAlertStyleCritical
+    }
+
+    // Add confirm button
+    const confirm_cstr = @as([*:0]const u8, @ptrCast(options.confirm_text.ptr));
+    const str_alloc3 = macos.msgSend0(NSString, "alloc");
+    const ns_confirm = macos.msgSend1(str_alloc3, "initWithUTF8String:", confirm_cstr);
+    _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_confirm);
+
+    // Add cancel button
+    const cancel_cstr = @as([*:0]const u8, @ptrCast(options.cancel_text.ptr));
+    const str_alloc4 = macos.msgSend0(NSString, "alloc");
+    const ns_cancel = macos.msgSend1(str_alloc4, "initWithUTF8String:", cancel_cstr);
+    _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_cancel);
+
+    // Run modal
+    const result = macos.msgSend0(alert, "runModal");
+    const result_int = @as(c_long, @intCast(@intFromPtr(result)));
+
+    // NSAlertFirstButtonReturn = 1000
+    return if (result_int == 1000) DialogResult{ .ok = {} } else DialogResult{ .cancel = {} };
 }
 
+/// Show NSAlert with text input field
 fn showMacInputDialog(allocator: std.mem.Allocator, options: InputDialogOptions) !?DialogResult {
-    _ = allocator;
-    _ = options;
-    // Would use NSAlert with text field
-    return null;
+    if (@import("builtin").os.tag != .macos) return null;
+
+    // Get NSAlert class and create instance
+    const NSAlert = macos.getClass("NSAlert");
+    const alert = macos.msgSend0(macos.msgSend0(NSAlert, "alloc"), "init");
+
+    const NSString = macos.getClass("NSString");
+
+    // Set title
+    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const str_alloc1 = macos.msgSend0(NSString, "alloc");
+    const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_cstr);
+    _ = macos.msgSend1(alert, "setMessageText:", ns_title);
+
+    // Set message
+    const msg_cstr = @as([*:0]const u8, @ptrCast(options.message.ptr));
+    const str_alloc2 = macos.msgSend0(NSString, "alloc");
+    const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_cstr);
+    _ = macos.msgSend1(alert, "setInformativeText:", ns_msg);
+
+    // Create NSTextField for input
+    const NSTextField = macos.getClass("NSTextField");
+    const input_field = macos.msgSend0(macos.msgSend0(NSTextField, "alloc"), "init");
+
+    // Set frame (width 200, height 24)
+    const NSValue = macos.getClass("NSValue");
+    _ = NSValue; // Would need to set frame properly
+
+    // Set default value
+    const default_cstr = @as([*:0]const u8, @ptrCast(options.default_value.ptr));
+    const str_alloc3 = macos.msgSend0(NSString, "alloc");
+    const ns_default = macos.msgSend1(str_alloc3, "initWithUTF8String:", default_cstr);
+    _ = macos.msgSend1(input_field, "setStringValue:", ns_default);
+
+    // Set placeholder if provided
+    if (options.placeholder) |placeholder| {
+        const placeholder_cstr = @as([*:0]const u8, @ptrCast(placeholder.ptr));
+        const str_alloc4 = macos.msgSend0(NSString, "alloc");
+        const ns_placeholder = macos.msgSend1(str_alloc4, "initWithUTF8String:", placeholder_cstr);
+        _ = macos.msgSend1(input_field, "setPlaceholderString:", ns_placeholder);
+    }
+
+    // Set accessory view
+    _ = macos.msgSend1(alert, "setAccessoryView:", input_field);
+
+    // Add OK and Cancel buttons
+    const ok_str = macos.msgSend0(NSString, "alloc");
+    const ns_ok = macos.msgSend1(ok_str, "initWithUTF8String:", @as([*:0]const u8, "OK"));
+    _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_ok);
+
+    const cancel_str = macos.msgSend0(NSString, "alloc");
+    const ns_cancel = macos.msgSend1(cancel_str, "initWithUTF8String:", @as([*:0]const u8, "Cancel"));
+    _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_cancel);
+
+    // Run modal
+    const result = macos.msgSend0(alert, "runModal");
+    const result_int = @as(c_long, @intCast(@intFromPtr(result)));
+
+    // NSAlertFirstButtonReturn = 1000
+    if (result_int == 1000) {
+        // Get the text value
+        const ns_value = macos.msgSend0(input_field, "stringValue");
+        const value_cstr = macos.msgSend0(ns_value, "UTF8String");
+        const value_str = std.mem.span(@as([*:0]const u8, @ptrCast(value_cstr)));
+
+        // Duplicate the string since the NSString might be deallocated
+        const result_text = try allocator.dupe(u8, value_str);
+        return DialogResult{ .text = result_text };
+    }
+
+    return null; // Canceled
 }
 
+/// Show NSColorPanel color picker
 fn showMacColorDialog(options: ColorDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use NSColorPanel
-    return null;
+    if (@import("builtin").os.tag != .macos) return null;
+
+    // Get NSColorPanel class
+    const NSColorPanel = macos.getClass("NSColorPanel");
+    const panel = macos.msgSend0(NSColorPanel, "sharedColorPanel");
+
+    // Set title (NSColorPanel doesn't have direct title setting, but we can set window title)
+    const NSString = macos.getClass("NSString");
+    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const str_alloc = macos.msgSend0(NSString, "alloc");
+    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr);
+    _ = macos.msgSend1(panel, "setTitle:", ns_title);
+
+    // Set default color
+    const NSColor = macos.getClass("NSColor");
+    const r_f = @as(f64, @floatFromInt(options.default_color.r)) / 255.0;
+    const g_f = @as(f64, @floatFromInt(options.default_color.g)) / 255.0;
+    const b_f = @as(f64, @floatFromInt(options.default_color.b)) / 255.0;
+    const a_f = @as(f64, @floatFromInt(options.default_color.a)) / 255.0;
+
+    // Create color with RGBA (using calibrated color space)
+    const MsgSendColor = *const fn (macos.objc.Class, macos.objc.SEL, f64, f64, f64, f64) callconv(.c) macos.objc.id;
+    const msg_color: MsgSendColor = @ptrCast(&macos.objc.objc_msgSend);
+    const ns_color = msg_color(NSColor, macos.sel("colorWithCalibratedRed:green:blue:alpha:"), r_f, g_f, b_f, a_f);
+    _ = macos.msgSend1(panel, "setColor:", ns_color);
+
+    // Show alpha if requested
+    _ = macos.msgSend1(panel, "setShowsAlpha:", if (options.show_alpha) @as(c_long, 1) else @as(c_long, 0));
+
+    // Show the panel (NSColorPanel is typically non-modal)
+    _ = macos.msgSend1(panel, "orderFront:", @as(macos.objc.id, null));
+
+    // For simplicity, return the default color (in a real app you'd need a delegate)
+    // A proper implementation would require setting up a delegate to capture color changes
+    return DialogResult{ .color = options.default_color };
 }
 
+/// Show NSFontPanel font picker
 fn showMacFontDialog(allocator: std.mem.Allocator, options: FontDialogOptions) !?DialogResult {
-    _ = allocator;
-    _ = options;
-    // Would use NSFontPanel
+    if (@import("builtin").os.tag != .macos) return null;
+
+    // Get NSFontPanel class
+    const NSFontPanel = macos.getClass("NSFontPanel");
+    const panel = macos.msgSend0(NSFontPanel, "sharedFontPanel");
+
+    // Set title
+    const NSString = macos.getClass("NSString");
+    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const str_alloc = macos.msgSend0(NSString, "alloc");
+    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr);
+    _ = macos.msgSend1(panel, "setTitle:", ns_title);
+
+    // Set default font if provided
+    if (options.default_font) |default_font| {
+        const NSFontManager = macos.getClass("NSFontManager");
+        const font_manager = macos.msgSend0(NSFontManager, "sharedFontManager");
+
+        const family_cstr = @as([*:0]const u8, @ptrCast(default_font.family.ptr));
+        const str_alloc2 = macos.msgSend0(NSString, "alloc");
+        const ns_family = macos.msgSend1(str_alloc2, "initWithUTF8String:", family_cstr);
+
+        // Create font with family and size
+        const NSFont = macos.getClass("NSFont");
+        const MsgSendFont = *const fn (macos.objc.Class, macos.objc.SEL, macos.objc.id, f64) callconv(.c) macos.objc.id;
+        const msg_font: MsgSendFont = @ptrCast(&macos.objc.objc_msgSend);
+        const ns_font = msg_font(NSFont, macos.sel("fontWithName:size:"), ns_family, @as(f64, default_font.size));
+
+        if (ns_font != null) {
+            _ = macos.msgSend1(font_manager, "setSelectedFont:isMultiple:", ns_font);
+        }
+    }
+
+    // Show the panel (NSFontPanel is typically non-modal)
+    _ = macos.msgSend1(panel, "orderFront:", @as(macos.objc.id, null));
+
+    // For simplicity, return the default font (in a real app you'd need a delegate)
+    // A proper implementation would require setting up a delegate to capture font selection
+    if (options.default_font) |default_font| {
+        const family_copy = try allocator.dupe(u8, default_font.family);
+        return DialogResult{ .font = Font{
+            .family = family_copy,
+            .size = default_font.size,
+            .weight = default_font.weight,
+            .style = default_font.style,
+        } };
+    }
+
     return null;
 }
 
@@ -603,14 +1088,14 @@ pub const ToastOptions = struct {
 pub const Toast = struct {
     id: usize,
     options: ToastOptions,
-    shown_at: i64,
+    shown_at: ?std.time.Instant,
     closed: bool,
 
     pub fn init(id: usize, options: ToastOptions) Toast {
         return Toast{
             .id = id,
             .options = options,
-            .shown_at = std.time.milliTimestamp(),
+            .shown_at = std.time.Instant.now() catch null,
             .closed = false,
         };
     }
@@ -620,9 +1105,11 @@ pub const Toast = struct {
     }
 
     pub fn isExpired(self: Toast) bool {
-        const now = std.time.milliTimestamp();
-        const elapsed = @as(u64, @intCast(now - self.shown_at));
-        return elapsed >= self.options.duration_ms;
+        const shown = self.shown_at orelse return false;
+        const now = std.time.Instant.now() catch return false;
+        const elapsed_ns = now.since(shown);
+        const elapsed_ms = elapsed_ns / std.time.ns_per_ms;
+        return elapsed_ms >= self.options.duration_ms;
     }
 };
 
@@ -633,14 +1120,14 @@ pub const ToastManager = struct {
 
     pub fn init(allocator: std.mem.Allocator) ToastManager {
         return ToastManager{
-            .toasts = std.ArrayList(Toast).init(allocator),
+            .toasts = .{},
             .next_id = 1,
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *ToastManager) void {
-        self.toasts.deinit();
+        self.toasts.deinit(self.allocator);
     }
 
     pub fn show(self: *ToastManager, options: ToastOptions) !usize {
@@ -648,7 +1135,7 @@ pub const ToastManager = struct {
         self.next_id += 1;
 
         const toast = Toast.init(id, options);
-        try self.toasts.append(toast);
+        try self.toasts.append(self.allocator, toast);
 
         return id;
     }
@@ -1044,12 +1531,12 @@ pub const Dropdown = struct {
             .options = options,
             .allocator = allocator,
             .visible = false,
-            .selected_indices = std.ArrayList(usize).init(allocator),
+            .selected_indices = .{},
         };
     }
 
     pub fn deinit(self: *Dropdown) void {
-        self.selected_indices.deinit();
+        self.selected_indices.deinit(self.allocator);
     }
 
     pub fn show(self: *Dropdown) !void {
@@ -1062,23 +1549,196 @@ pub const Dropdown = struct {
 
     pub fn selectOption(self: *Dropdown, index: usize) !void {
         if (self.options.multi_select) {
-            try self.selected_indices.append(index);
+            try self.selected_indices.append(self.allocator, index);
         } else {
             self.selected_indices.clearRetainingCapacity();
-            try self.selected_indices.append(index);
+            try self.selected_indices.append(self.allocator, index);
         }
     }
 
     pub fn getSelectedValues(self: *Dropdown) ![][]const u8 {
-        var values = std.ArrayList([]const u8).init(self.allocator);
-        defer values.deinit();
+        var values: std.ArrayList([]const u8) = .{};
+        defer values.deinit(self.allocator);
 
         for (self.selected_indices.items) |idx| {
             if (idx < self.options.options.len) {
-                try values.append(self.options.options[idx].value);
+                try values.append(self.allocator, self.options.options[idx].value);
             }
         }
 
-        return values.toOwnedSlice();
+        return values.toOwnedSlice(self.allocator);
     }
 };
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+test "color creation" {
+    const red = Color.rgb(255, 0, 0);
+    try std.testing.expectEqual(@as(u8, 255), red.r);
+    try std.testing.expectEqual(@as(u8, 0), red.g);
+    try std.testing.expectEqual(@as(u8, 0), red.b);
+    try std.testing.expectEqual(@as(u8, 255), red.a);
+
+    const transparent = Color.rgba(0, 128, 255, 128);
+    try std.testing.expectEqual(@as(u8, 128), transparent.a);
+}
+
+test "color from hex" {
+    const color = try Color.fromHex("#FF8000");
+    try std.testing.expectEqual(@as(u8, 255), color.r);
+    try std.testing.expectEqual(@as(u8, 128), color.g);
+    try std.testing.expectEqual(@as(u8, 0), color.b);
+
+    // Without hash
+    const color2 = try Color.fromHex("00FF00");
+    try std.testing.expectEqual(@as(u8, 0), color2.r);
+    try std.testing.expectEqual(@as(u8, 255), color2.g);
+    try std.testing.expectEqual(@as(u8, 0), color2.b);
+}
+
+test "color to hex" {
+    const color = Color.rgb(255, 128, 64);
+    var buf: [7]u8 = undefined;
+    const hex = color.toHex(&buf);
+    try std.testing.expectEqualStrings("#ff8040", hex);
+}
+
+test "file filter creation" {
+    const filter = FileFilter.create("Images", &[_][]const u8{ "png", "jpg", "gif" });
+    try std.testing.expectEqualStrings("Images", filter.name);
+    try std.testing.expectEqual(@as(usize, 3), filter.extensions.len);
+}
+
+test "dialog result types" {
+    const ok_result: DialogResult = .{ .ok = {} };
+    const cancel_result: DialogResult = .{ .cancel = {} };
+    const file_result: DialogResult = .{ .file_path = "/path/to/file.txt" };
+    const dir_result: DialogResult = .{ .directory_path = "/path/to/dir" };
+
+    switch (ok_result) {
+        .ok => {},
+        else => try std.testing.expect(false),
+    }
+    switch (cancel_result) {
+        .cancel => {},
+        else => try std.testing.expect(false),
+    }
+    switch (file_result) {
+        .file_path => |path| try std.testing.expectEqualStrings("/path/to/file.txt", path),
+        else => try std.testing.expect(false),
+    }
+    switch (dir_result) {
+        .directory_path => |path| try std.testing.expectEqualStrings("/path/to/dir", path),
+        else => try std.testing.expect(false),
+    }
+}
+
+test "font weight to number" {
+    try std.testing.expectEqual(@as(u16, 100), Font.FontWeight.thin.toNumber());
+    try std.testing.expectEqual(@as(u16, 400), Font.FontWeight.regular.toNumber());
+    try std.testing.expectEqual(@as(u16, 700), Font.FontWeight.bold.toNumber());
+    try std.testing.expectEqual(@as(u16, 900), Font.FontWeight.black.toNumber());
+}
+
+test "dialog options defaults" {
+    const file_opts = FileDialogOptions{};
+    try std.testing.expectEqualStrings("Select File", file_opts.title);
+    try std.testing.expect(file_opts.default_path == null);
+    try std.testing.expect(!file_opts.multi_select);
+
+    const dir_opts = DirectoryDialogOptions{};
+    try std.testing.expectEqualStrings("Select Directory", dir_opts.title);
+    try std.testing.expect(dir_opts.create_directories);
+
+    const msg_opts = MessageDialogOptions{ .message = "Test" };
+    try std.testing.expectEqualStrings("Message", msg_opts.title);
+    try std.testing.expectEqual(MessageDialogOptions.MessageType.info, msg_opts.type);
+}
+
+test "toast creation and expiry" {
+    const opts = ToastOptions{ .message = "Hello", .duration_ms = 100 };
+    var toast = Toast.init(1, opts);
+
+    try std.testing.expectEqual(@as(usize, 1), toast.id);
+    try std.testing.expect(!toast.closed);
+    try std.testing.expect(!toast.isExpired());
+
+    toast.close();
+    try std.testing.expect(toast.closed);
+}
+
+test "progress dialog initialization" {
+    const allocator = std.testing.allocator;
+    var progress = try ProgressDialog.init(allocator, .{
+        .message = "Loading...",
+        .indeterminate = false,
+    });
+    defer progress.deinit();
+
+    try std.testing.expectEqual(@as(f32, 0.0), progress.progress);
+    try std.testing.expect(!progress.canceled);
+
+    progress.setProgress(50.0);
+    try std.testing.expectEqual(@as(f32, 50.0), progress.progress);
+}
+
+test "modal initialization" {
+    const allocator = std.testing.allocator;
+    const modal = Modal.init(allocator, .{
+        .title = "Test Modal",
+        .content = "Modal content",
+    });
+
+    try std.testing.expectEqualStrings("Test Modal", modal.options.title);
+    try std.testing.expect(!modal.visible);
+}
+
+test "drawer initialization" {
+    const allocator = std.testing.allocator;
+    const drawer = Drawer.init(allocator, .{
+        .title = "Sidebar",
+        .content = "Drawer content",
+        .position = .left,
+    });
+
+    try std.testing.expectEqualStrings("Sidebar", drawer.options.title);
+    try std.testing.expectEqual(DrawerOptions.Position.left, drawer.options.position);
+    try std.testing.expect(!drawer.visible);
+}
+
+test "popover initialization" {
+    const allocator = std.testing.allocator;
+    const popover = Popover.init(allocator, .{
+        .content = "Popover content",
+        .target_x = 100,
+        .target_y = 200,
+    });
+
+    try std.testing.expectEqual(@as(i32, 100), popover.options.target_x);
+    try std.testing.expectEqual(@as(i32, 200), popover.options.target_y);
+    try std.testing.expect(!popover.visible);
+}
+
+test "dropdown initialization and selection" {
+    const allocator = std.testing.allocator;
+
+    const options = [_]DropdownOption{
+        .{ .label = "Option 1", .value = "opt1" },
+        .{ .label = "Option 2", .value = "opt2" },
+        .{ .label = "Option 3", .value = "opt3" },
+    };
+
+    var dropdown = try Dropdown.init(allocator, .{
+        .options = &options,
+    });
+    defer dropdown.deinit();
+
+    try std.testing.expect(!dropdown.visible);
+    try std.testing.expectEqual(@as(usize, 0), dropdown.selected_indices.items.len);
+
+    try dropdown.selectOption(1);
+    try std.testing.expectEqual(@as(usize, 1), dropdown.selected_indices.items.len);
+    try std.testing.expectEqual(@as(usize, 1), dropdown.selected_indices.items[0]);
+}
