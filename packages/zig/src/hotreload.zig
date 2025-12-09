@@ -21,7 +21,7 @@ pub const FileWatcher = struct {
 
     pub fn init(allocator: std.mem.Allocator, config: HotReloadConfig) !Self {
         var watcher = Self{
-            .watched_paths = std.StringHashMap(i64).init(allocator),
+            .watched_paths = .{},
             .ignore_patterns = config.ignore_patterns,
             .allocator = allocator,
             .debounce_ms = config.debounce_ms,
@@ -36,7 +36,7 @@ pub const FileWatcher = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.watched_paths.deinit();
+        self.watched_paths.deinit(self.allocator);
     }
 
     pub fn addPath(self: *Self, path: []const u8) !void {
@@ -45,16 +45,17 @@ pub const FileWatcher = struct {
             return;
         };
 
-        const mtime = @as(i64, @intCast(stat.mtime));
-        try self.watched_paths.put(path, mtime);
+        const mtime = stat.mtime.sec;
+        try self.watched_paths.put(self.allocator, path, mtime);
         log.debug("Watching: {s}", .{path});
     }
 
     pub fn check(self: *Self) !bool {
-        const now = std.time.milliTimestamp();
+        const ts = std.posix.clock_gettime(.REALTIME) catch return false;
+        const now: i64 = @intCast(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000));
 
         // Debounce check
-        if (now - self.last_reload < self.debounce_ms) {
+        if (now - self.last_reload < @as(i64, @intCast(self.debounce_ms))) {
             return false;
         }
 
@@ -64,7 +65,7 @@ pub const FileWatcher = struct {
             const old_mtime = entry.value_ptr.*;
 
             const stat = std.fs.cwd().statFile(path) catch continue;
-            const new_mtime = @as(i64, @intCast(stat.mtime));
+            const new_mtime = stat.mtime.sec;
 
             if (new_mtime > old_mtime) {
                 log.info("File changed: {s}", .{path});
@@ -216,7 +217,7 @@ pub const ReloadServer = struct {
         return .{
             .allocator = allocator,
             .config = config,
-            .clients = std.ArrayList(*WebSocketClient).init(allocator),
+            .clients = .{},
         };
     }
 
@@ -227,7 +228,7 @@ pub const ReloadServer = struct {
             client.close();
             self.allocator.destroy(client);
         }
-        self.clients.deinit();
+        self.clients.deinit(self.allocator);
     }
 
     pub fn start(self: *Self) !void {
@@ -304,15 +305,16 @@ pub const ReloadServer = struct {
 
         // Create client
         const client = try self.allocator.create(WebSocketClient);
+        const ts = std.posix.clock_gettime(.REALTIME) catch return error.ClockError;
         client.* = .{
             .stream = stream,
             .platform = "unknown",
-            .connected_at = std.time.timestamp(),
+            .connected_at = @intCast(ts.sec),
             .id = self.next_client_id,
         };
         self.next_client_id += 1;
 
-        try self.clients.append(client);
+        try self.clients.append(self.allocator, client);
         log.info("WebSocket client connected (id: {d})", .{client.id});
     }
 
@@ -337,14 +339,14 @@ pub const ReloadServer = struct {
     pub fn broadcast(self: *Self, message: []const u8) !void {
         if (!self.running) return;
 
-        var disconnected = std.ArrayList(usize).init(self.allocator);
-        defer disconnected.deinit();
+        var disconnected: std.ArrayList(usize) = .{};
+        defer disconnected.deinit(self.allocator);
 
         // Send to all clients
         for (self.clients.items, 0..) |client, i| {
             client.send(message) catch |err| {
                 log.warn("Failed to send to client {d}: {}", .{ client.id, err });
-                try disconnected.append(i);
+                disconnected.append(self.allocator, i) catch {};
             };
         }
 

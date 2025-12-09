@@ -174,11 +174,12 @@ pub const Canvas = struct {
         const x1 = to.x;
         const y1 = to.y;
 
-        const dx = @abs(x1 - x0);
-        const dy = @abs(y1 - y0);
+        // Use i32 for dx, dy to support signed arithmetic in Bresenham's algorithm
+        const dx: i32 = @intCast(@abs(x1 - x0));
+        const dy: i32 = @intCast(@abs(y1 - y0));
         const sx: i32 = if (x0 < x1) 1 else -1;
         const sy: i32 = if (y0 < y1) 1 else -1;
-        var err = dx - dy;
+        var err: i32 = dx - dy;
 
         while (true) {
             if (x0 >= 0 and x0 < @as(i32, @intCast(self.width)) and y0 >= 0 and y0 < @as(i32, @intCast(self.height))) {
@@ -240,7 +241,7 @@ pub const Component = struct {
         return Component{
             .bounds = bounds,
             .visible = true,
-            .children = std.ArrayList(*Component).init(allocator),
+            .children = .{},
             .allocator = allocator,
         };
     }
@@ -250,11 +251,11 @@ pub const Component = struct {
             child.deinit();
             self.allocator.destroy(child);
         }
-        self.children.deinit();
+        self.children.deinit(self.allocator);
     }
 
     pub fn addChild(self: *Component, child: *Component) !void {
-        try self.children.append(child);
+        try self.children.append(self.allocator, child);
     }
 
     pub fn render(self: *Component, canvas: *Canvas) void {

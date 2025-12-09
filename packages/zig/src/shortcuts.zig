@@ -63,19 +63,19 @@ pub const Modifiers = struct {
         return .{};
     }
 
-    pub fn ctrl() Modifiers {
+    pub fn withCtrl() Modifiers {
         return .{ .ctrl = true };
     }
 
-    pub fn alt() Modifiers {
+    pub fn withAlt() Modifiers {
         return .{ .alt = true };
     }
 
-    pub fn shift() Modifiers {
+    pub fn withShift() Modifiers {
         return .{ .shift = true };
     }
 
-    pub fn meta() Modifiers {
+    pub fn withMeta() Modifiers {
         return .{ .meta = true };
     }
 
@@ -104,18 +104,18 @@ pub const ShortcutManager = struct {
 
     pub fn init(allocator: std.mem.Allocator) ShortcutManager {
         return ShortcutManager{
-            .shortcuts = std.ArrayList(Shortcut).init(allocator),
+            .shortcuts = .{},
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *ShortcutManager) void {
-        self.shortcuts.deinit();
+        self.shortcuts.deinit(self.allocator);
     }
 
     /// Register a keyboard shortcut
     pub fn register(self: *ShortcutManager, shortcut: Shortcut) !void {
-        try self.shortcuts.append(shortcut);
+        try self.shortcuts.append(self.allocator, shortcut);
     }
 
     /// Unregister a shortcut
@@ -169,7 +169,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .s,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Save",
         };
@@ -180,7 +180,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .o,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Open",
         };
@@ -191,7 +191,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .c,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Copy",
         };
@@ -202,7 +202,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .v,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Paste",
         };
@@ -213,7 +213,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .x,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Cut",
         };
@@ -224,7 +224,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .z,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Undo",
         };
@@ -249,7 +249,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .a,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Select All",
         };
@@ -260,7 +260,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .f,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Find",
         };
@@ -271,7 +271,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .n,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "New",
         };
@@ -282,7 +282,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .q,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Quit",
         };
@@ -313,7 +313,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .r,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Reload",
         };
@@ -324,7 +324,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .equal, // Plus key
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Zoom In",
         };
@@ -335,7 +335,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .minus,
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Zoom Out",
         };
@@ -346,7 +346,7 @@ pub const CommonShortcuts = struct {
         const builtin = @import("builtin");
         return Shortcut{
             .key = .@"0",
-            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.meta() else Modifiers.ctrl(),
+            .modifiers = if (builtin.target.os.tag == .macos) Modifiers.withMeta() else Modifiers.withCtrl(),
             .action = action,
             .description = "Reset Zoom",
         };

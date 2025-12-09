@@ -17,31 +17,31 @@ pub const Lifecycle = struct {
     phase: LifecyclePhase,
     hooks: std.StringHashMap(std.ArrayList(LifecycleHook)),
     allocator: std.mem.Allocator,
-    
+
     const Self = @This();
-    
+
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .phase = .initializing,
-            .hooks = std.StringHashMap(std.ArrayList(LifecycleHook)).init(allocator),
+            .hooks = .{},
             .allocator = allocator,
         };
     }
-    
+
     pub fn deinit(self: *Self) void {
         var it = self.hooks.iterator();
         while (it.next()) |entry| {
-            entry.value_ptr.deinit();
+            entry.value_ptr.deinit(self.allocator);
         }
-        self.hooks.deinit();
+        self.hooks.deinit(self.allocator);
     }
-    
+
     pub fn registerHook(self: *Self, phase_name: []const u8, hook: LifecycleHook) !void {
-        const result = try self.hooks.getOrPut(phase_name);
+        const result = try self.hooks.getOrPut(self.allocator, phase_name);
         if (!result.found_existing) {
-            result.value_ptr.* = std.ArrayList(LifecycleHook).init(self.allocator);
+            result.value_ptr.* = .{};
         }
-        try result.value_ptr.append(hook);
+        try result.value_ptr.append(self.allocator, hook);
     }
     
     pub fn onStart(self: *Self, hook: LifecycleHook) !void {
@@ -106,7 +106,8 @@ pub const Lifecycle = struct {
         self.phase = .paused;
     }
     
-    pub fn resume(self: *Self) !void {
+    /// Resume from paused state (named 'unpause' because 'resume' is a Zig keyword)
+    pub fn unpause(self: *Self) !void {
         self.phase = .resuming;
         try self.runHooks("resume");
         self.phase = .running;

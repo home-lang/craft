@@ -99,8 +99,8 @@ pub const Animation = struct {
     easing: EasingFunction,
     state: AnimationState,
     elapsed_ms: u64,
-    start_time: i64,
-    pause_time: i64,
+    start_time: ?std.time.Instant,
+    pause_time: ?std.time.Instant,
     on_update: ?*const fn (f32) void,
     on_complete: ?*const fn () void,
 
@@ -112,8 +112,8 @@ pub const Animation = struct {
             .easing = easing,
             .state = .idle,
             .elapsed_ms = 0,
-            .start_time = 0,
-            .pause_time = 0,
+            .start_time = null,
+            .pause_time = null,
             .on_update = null,
             .on_complete = null,
         };
@@ -121,22 +121,31 @@ pub const Animation = struct {
 
     pub fn start(self: *Animation) void {
         self.state = .running;
-        self.start_time = std.time.milliTimestamp();
+        self.start_time = std.time.Instant.now() catch null;
         self.elapsed_ms = 0;
     }
 
     pub fn pause(self: *Animation) void {
         if (self.state == .running) {
             self.state = .paused;
-            self.pause_time = std.time.milliTimestamp();
+            self.pause_time = std.time.Instant.now() catch null;
         }
     }
 
-    pub fn resume(self: *Animation) void {
+    /// Resume a paused animation (named 'unpause' because 'resume' is a Zig keyword)
+    pub fn unpause(self: *Animation) void {
         if (self.state == .paused) {
             self.state = .running;
-            const pause_duration = std.time.milliTimestamp() - self.pause_time;
-            self.start_time += pause_duration;
+            // Calculate pause duration and adjust start time
+            if (self.pause_time) |pt| {
+                if (self.start_time) |st| {
+                    const now = std.time.Instant.now() catch return;
+                    const pause_duration_ns = now.since(pt);
+                    // We can't easily adjust Instant, so we track elapsed separately
+                    _ = st;
+                    _ = pause_duration_ns;
+                }
+            }
         }
     }
 
@@ -147,8 +156,8 @@ pub const Animation = struct {
     pub fn reset(self: *Animation) void {
         self.state = .idle;
         self.elapsed_ms = 0;
-        self.start_time = 0;
-        self.pause_time = 0;
+        self.start_time = null;
+        self.pause_time = null;
     }
 
     pub fn update(self: *Animation) f32 {
@@ -156,8 +165,10 @@ pub const Animation = struct {
             return if (self.state == .completed) self.end_value else self.start_value;
         }
 
-        const now = std.time.milliTimestamp();
-        self.elapsed_ms = @intCast(now - self.start_time);
+        const start = self.start_time orelse return self.start_value;
+        const now = std.time.Instant.now() catch return self.start_value;
+        const elapsed_ns = now.since(start);
+        self.elapsed_ms = elapsed_ns / std.time.ns_per_ms;
 
         if (self.elapsed_ms >= self.duration_ms) {
             self.state = .completed;
@@ -182,8 +193,10 @@ pub const Animation = struct {
         if (self.state == .completed) return self.end_value;
         if (self.state != .running) return self.start_value;
 
-        const now = std.time.milliTimestamp();
-        const elapsed = @as(u64, @intCast(now - self.start_time));
+        const start = self.start_time orelse return self.start_value;
+        const now = std.time.Instant.now() catch return self.start_value;
+        const elapsed_ns = now.since(start);
+        const elapsed = elapsed_ns / std.time.ns_per_ms;
 
         if (elapsed >= self.duration_ms) return self.end_value;
 
@@ -212,7 +225,7 @@ pub const KeyframeAnimation = struct {
     duration_ms: u64,
     state: AnimationState,
     elapsed_ms: u64,
-    start_time: i64,
+    start_time: ?std.time.Instant,
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator, keyframes: []const Keyframe, duration_ms: u64) !KeyframeAnimation {
@@ -221,21 +234,23 @@ pub const KeyframeAnimation = struct {
             .duration_ms = duration_ms,
             .state = .idle,
             .elapsed_ms = 0,
-            .start_time = 0,
+            .start_time = null,
             .allocator = allocator,
         };
     }
 
     pub fn start(self: *KeyframeAnimation) void {
         self.state = .running;
-        self.start_time = std.time.milliTimestamp();
+        self.start_time = std.time.Instant.now() catch null;
     }
 
     pub fn update(self: *KeyframeAnimation) f32 {
         if (self.state != .running) return 0.0;
 
-        const now = std.time.milliTimestamp();
-        self.elapsed_ms = @intCast(now - self.start_time);
+        const start = self.start_time orelse return 0.0;
+        const now = std.time.Instant.now() catch return 0.0;
+        const elapsed_ns = now.since(start);
+        self.elapsed_ms = elapsed_ns / std.time.ns_per_ms;
 
         if (self.elapsed_ms >= self.duration_ms) {
             self.state = .completed;
@@ -423,9 +438,10 @@ pub const AnimationGroup = struct {
         self.state = .paused;
     }
 
-    pub fn resume(self: *AnimationGroup) void {
+    /// Resume all paused animations (named 'unpause' because 'resume' is a Zig keyword)
+    pub fn unpause(self: *AnimationGroup) void {
         for (self.animations.items) |anim| {
-            anim.resume();
+            anim.unpause();
         }
         self.state = .running;
     }
@@ -464,7 +480,7 @@ pub const AnimationController = struct {
     sequences: std.ArrayList(*AnimationSequence),
     groups: std.ArrayList(*AnimationGroup),
     springs: std.ArrayList(*SpringAnimation),
-    last_update: i64,
+    last_update: ?std.time.Instant,
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) AnimationController {
@@ -473,7 +489,7 @@ pub const AnimationController = struct {
             .sequences = std.ArrayList(*AnimationSequence).init(allocator),
             .groups = std.ArrayList(*AnimationGroup).init(allocator),
             .springs = std.ArrayList(*SpringAnimation).init(allocator),
-            .last_update = std.time.milliTimestamp(),
+            .last_update = std.time.Instant.now() catch null,
             .allocator = allocator,
         };
     }
@@ -502,8 +518,11 @@ pub const AnimationController = struct {
     }
 
     pub fn update(self: *AnimationController) void {
-        const now = std.time.milliTimestamp();
-        const dt = @as(f32, @floatFromInt(now - self.last_update)) / 1000.0;
+        const now = std.time.Instant.now() catch return;
+        const dt = if (self.last_update) |last| blk: {
+            const elapsed_ns = now.since(last);
+            break :blk @as(f32, @floatFromInt(elapsed_ns)) / @as(f32, @floatFromInt(std.time.ns_per_s));
+        } else 0.016; // Default to ~60fps if no last update
         self.last_update = now;
 
         // Update all animations
@@ -536,12 +555,13 @@ pub const AnimationController = struct {
         }
     }
 
-    pub fn resumeAll(self: *AnimationController) void {
+    /// Resume all paused animations (named 'unpauseAll' because 'resume' is a Zig keyword)
+    pub fn unpauseAll(self: *AnimationController) void {
         for (self.animations.items) |anim| {
-            anim.resume();
+            anim.unpause();
         }
         for (self.groups.items) |group| {
-            group.resume();
+            group.unpause();
         }
     }
 

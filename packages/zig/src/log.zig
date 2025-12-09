@@ -77,10 +77,6 @@ pub fn log(
 ) void {
     if (!shouldLog(level)) return;
 
-    var buf: [4096]u8 = undefined;
-    var stream = std.io.fixedBufferStream(&buf);
-    const writer = stream.writer();
-
     // Format message
     var msg_buf: [2048]u8 = undefined;
     const message = std.fmt.bufPrint(&msg_buf, format, args) catch return;
@@ -92,40 +88,41 @@ pub fn log(
         }
     }
 
+    var output_buf: [4096]u8 = undefined;
+    var output_len: usize = 0;
+
     if (current_config.json_output) {
         // JSON output
-        writer.writeAll("{") catch return;
-        writer.print("\"timestamp\":\"{s}\",", .{getTimestamp()}) catch return;
-        writer.print("\"level\":\"{s}\",", .{level.toString()}) catch return;
-        writer.print("\"message\":\"{s}\"", .{message}) catch return;
-        writer.writeAll("}\n") catch return;
+        const result = std.fmt.bufPrint(&output_buf, "{{\"timestamp\":\"{s}\",\"level\":\"{s}\",\"message\":\"{s}\"}}\n", .{ getTimestamp(), level.toString(), message }) catch return;
+        output_len = result.len;
     } else {
         // Standard output
         const reset = "\x1B[0m";
         const dim = "\x1B[2m";
 
-        if (current_config.enable_timestamps) {
-            const timestamp = getTimestamp();
-            writer.print("{s}[{s}]{s} ", .{ dim, timestamp, reset }) catch return;
-        }
-
-        if (current_config.enable_colors) {
-            writer.print("{s}{s}{s} ", .{ level.color(), level.toString(), reset }) catch return;
+        if (current_config.enable_timestamps and current_config.enable_colors) {
+            const result = std.fmt.bufPrint(&output_buf, "{s}[{s}]{s} {s}{s}{s} {s}\n", .{ dim, getTimestamp(), reset, level.color(), level.toString(), reset, message }) catch return;
+            output_len = result.len;
+        } else if (current_config.enable_timestamps) {
+            const result = std.fmt.bufPrint(&output_buf, "[{s}] {s} {s}\n", .{ getTimestamp(), level.toString(), message }) catch return;
+            output_len = result.len;
+        } else if (current_config.enable_colors) {
+            const result = std.fmt.bufPrint(&output_buf, "{s}{s}{s} {s}\n", .{ level.color(), level.toString(), reset, message }) catch return;
+            output_len = result.len;
         } else {
-            writer.print("{s} ", .{level.toString()}) catch return;
+            const result = std.fmt.bufPrint(&output_buf, "{s} {s}\n", .{ level.toString(), message }) catch return;
+            output_len = result.len;
         }
-
-        writer.writeAll(message) catch return;
-        writer.writeByte('\n') catch return;
     }
 
+    const output = output_buf[0..output_len];
+
     // Write to stderr
-    const stderr = std.io.getStdErr().writer();
-    stderr.writeAll(stream.getWritten()) catch return;
+    std.debug.print("{s}", .{output});
 
     // Write to file if configured
     if (log_file) |file| {
-        file.writeAll(stream.getWritten()) catch return;
+        file.writeAll(output) catch return;
     }
 }
 
@@ -156,10 +153,12 @@ fn getTimestamp() []const u8 {
         var buf: [8]u8 = undefined;
     };
 
-    const timestamp = std.time.timestamp();
-    const seconds = @mod(timestamp, 60);
-    const minutes = @mod(@divFloor(timestamp, 60), 60);
-    const hours = @mod(@divFloor(timestamp, 3600), 24);
+    // Use POSIX clock_gettime for wall clock time
+    const ts = std.posix.clock_gettime(.REALTIME) catch return "00:00:00";
+    const total_seconds: u64 = @intCast(ts.sec);
+    const seconds = @mod(total_seconds, 60);
+    const minutes = @mod(@divFloor(total_seconds, 60), 60);
+    const hours = @mod(@divFloor(total_seconds, 3600), 24);
 
     _ = std.fmt.bufPrint(&Static.buf, "{d:0>2}:{d:0>2}:{d:0>2}", .{ hours, minutes, seconds }) catch unreachable;
     return &Static.buf;

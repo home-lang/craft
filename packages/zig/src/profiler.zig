@@ -3,8 +3,8 @@ const memory = @import("memory.zig");
 
 pub const ProfileEntry = struct {
     name: []const u8,
-    start_time: i64,
-    end_time: i64,
+    start_time: ?std.time.Instant,
+    end_time: ?std.time.Instant,
     duration_ms: f64,
     memory_before: usize,
     memory_after: usize,
@@ -12,7 +12,7 @@ pub const ProfileEntry = struct {
 
 pub const Profiler = struct {
     entries: std.ArrayList(ProfileEntry),
-    active_profiles: std.StringHashMap(i64),
+    active_profiles: std.StringHashMap(std.time.Instant),
     memory_tracker: ?*memory.TrackingAllocator,
     allocator: std.mem.Allocator,
     enabled: bool = true,
@@ -21,16 +21,16 @@ pub const Profiler = struct {
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
-            .entries = std.ArrayList(ProfileEntry).init(allocator),
-            .active_profiles = std.StringHashMap(i64).init(allocator),
+            .entries = .{},
+            .active_profiles = .{},
             .memory_tracker = null,
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *Self) void {
-        self.entries.deinit();
-        self.active_profiles.deinit();
+        self.entries.deinit(self.allocator);
+        self.active_profiles.deinit(self.allocator);
     }
 
     pub fn setMemoryTracker(self: *Self, tracker: *memory.TrackingAllocator) void {
@@ -40,20 +40,21 @@ pub const Profiler = struct {
     pub fn start(self: *Self, name: []const u8) !void {
         if (!self.enabled) return;
 
-        const start_time = std.time.milliTimestamp();
-        try self.active_profiles.put(name, start_time);
+        const start_time = std.time.Instant.now() catch return;
+        try self.active_profiles.put(self.allocator, name, start_time);
     }
 
     pub fn end(self: *Self, name: []const u8) !void {
         if (!self.enabled) return;
 
-        const end_time = std.time.milliTimestamp();
+        const end_time = std.time.Instant.now() catch return;
         const start_time = self.active_profiles.get(name) orelse return;
         _ = self.active_profiles.remove(name);
 
-        const duration_ms = @as(f64, @floatFromInt(end_time - start_time));
+        const elapsed_ns = end_time.since(start_time);
+        const duration_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
 
-        var memory_before: usize = 0;
+        const memory_before: usize = 0;
         var memory_after: usize = 0;
 
         if (self.memory_tracker) |tracker| {
@@ -61,7 +62,7 @@ pub const Profiler = struct {
             memory_after = stats.current_memory;
         }
 
-        try self.entries.append(.{
+        try self.entries.append(self.allocator, .{
             .name = name,
             .start_time = start_time,
             .end_time = end_time,
@@ -78,14 +79,14 @@ pub const Profiler = struct {
     }
 
     pub fn getReport(self: Self) ![]const u8 {
-        var report = std.ArrayList(u8).init(self.allocator);
-        const writer = report.writer();
+        var report: std.ArrayList(u8) = .{};
+        const writer = report.writer(self.allocator);
 
         try writer.writeAll("\n=== Performance Profile Report ===\n\n");
 
         if (self.entries.items.len == 0) {
             try writer.writeAll("No profiling data collected.\n");
-            return report.toOwnedSlice();
+            return report.toOwnedSlice(self.allocator);
         }
 
         // Calculate totals and averages
@@ -130,7 +131,7 @@ pub const Profiler = struct {
             try writer.writeAll("\n");
         }
 
-        return report.toOwnedSlice();
+        return report.toOwnedSlice(self.allocator);
     }
 
     pub fn printReport(self: Self) !void {
@@ -145,8 +146,8 @@ pub const Profiler = struct {
     }
 
     pub fn getHTMLDashboard(self: Self) ![]const u8 {
-        var html = std.ArrayList(u8).init(self.allocator);
-        const writer = html.writer();
+        var html: std.ArrayList(u8) = .{};
+        const writer = html.writer(self.allocator);
 
         try writer.writeAll(
             \\<!DOCTYPE html>
@@ -267,7 +268,7 @@ pub const Profiler = struct {
             \\</html>
         );
 
-        return html.toOwnedSlice();
+        return html.toOwnedSlice(self.allocator);
     }
 };
 

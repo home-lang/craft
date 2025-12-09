@@ -13,7 +13,7 @@ test "MemoryPool - allocator" {
     var pool = memory.MemoryPool.init(testing.allocator);
     defer pool.deinit();
 
-    const alloc = pool.allocator();
+    const alloc = pool.getAllocator();
     const data = try alloc.alloc(u8, 100);
     try testing.expectEqual(@as(usize, 100), data.len);
 }
@@ -22,7 +22,7 @@ test "MemoryPool - reset retains capacity" {
     var pool = memory.MemoryPool.init(testing.allocator);
     defer pool.deinit();
 
-    const alloc = pool.allocator();
+    const alloc = pool.getAllocator();
     _ = try alloc.alloc(u8, 100);
 
     pool.reset();
@@ -35,7 +35,7 @@ test "MemoryPool - resetFree" {
     var pool = memory.MemoryPool.init(testing.allocator);
     defer pool.deinit();
 
-    const alloc = pool.allocator();
+    const alloc = pool.getAllocator();
     _ = try alloc.alloc(u8, 100);
 
     pool.resetFree();
@@ -48,7 +48,7 @@ test "TempAllocator - init and allocator" {
     var buffer: [1024]u8 = undefined;
     var temp = memory.TempAllocator.init(&buffer);
 
-    const alloc = temp.allocator();
+    const alloc = temp.getAllocator();
     const data = try alloc.alloc(u8, 100);
     try testing.expectEqual(@as(usize, 100), data.len);
 }
@@ -57,7 +57,7 @@ test "TempAllocator - reset" {
     var buffer: [1024]u8 = undefined;
     var temp = memory.TempAllocator.init(&buffer);
 
-    const alloc = temp.allocator();
+    const alloc = temp.getAllocator();
     _ = try alloc.alloc(u8, 100);
 
     temp.reset();
@@ -70,7 +70,7 @@ test "TempAllocator - multiple allocations" {
     var buffer: [1024]u8 = undefined;
     var temp = memory.TempAllocator.init(&buffer);
 
-    const alloc = temp.allocator();
+    const alloc = temp.getAllocator();
     const data1 = try alloc.alloc(u8, 100);
     const data2 = try alloc.alloc(u8, 200);
     const data3 = try alloc.alloc(u8, 50);
@@ -160,7 +160,7 @@ test "TrackingAllocator - init" {
 
 test "TrackingAllocator - allocator and tracking" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
-    const alloc = tracker.allocator();
+    const alloc = tracker.getAllocator();
 
     const data = try alloc.alloc(u8, 100);
     defer alloc.free(data);
@@ -172,7 +172,7 @@ test "TrackingAllocator - allocator and tracking" {
 
 test "TrackingAllocator - track multiple allocations" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
-    const alloc = tracker.allocator();
+    const alloc = tracker.getAllocator();
 
     const data1 = try alloc.alloc(u8, 100);
     const data2 = try alloc.alloc(u8, 200);
@@ -189,7 +189,7 @@ test "TrackingAllocator - track multiple allocations" {
 
 test "TrackingAllocator - track deallocations" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
-    const alloc = tracker.allocator();
+    const alloc = tracker.getAllocator();
 
     const data = try alloc.alloc(u8, 100);
     alloc.free(data);
@@ -201,7 +201,7 @@ test "TrackingAllocator - track deallocations" {
 
 test "TrackingAllocator - printStats does not crash" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
-    const alloc = tracker.allocator();
+    const alloc = tracker.getAllocator();
 
     const data = try alloc.alloc(u8, 100);
     defer alloc.free(data);
@@ -215,7 +215,7 @@ test "createArena - helper function" {
     var pool = try memory.createArena(testing.allocator);
     defer pool.deinit();
 
-    const alloc = pool.allocator();
+    const alloc = pool.getAllocator();
     const data = try alloc.alloc(u8, 100);
     try testing.expectEqual(@as(usize, 100), data.len);
 }
@@ -223,7 +223,7 @@ test "createArena - helper function" {
 test "createTempAllocator - helper function" {
     var temp = try memory.createTempAllocator(1024);
 
-    const alloc = temp.allocator.allocator();
+    const alloc = temp.allocator.getAllocator();
     const data = try alloc.alloc(u8, 100);
     try testing.expectEqual(@as(usize, 100), data.len);
 }
@@ -243,7 +243,7 @@ test "MemoryPool - multiple resets" {
     var pool = memory.MemoryPool.init(testing.allocator);
     defer pool.deinit();
 
-    const alloc = pool.allocator();
+    const alloc = pool.getAllocator();
 
     for (0..10) |_| {
         _ = try alloc.alloc(u8, 100);
@@ -259,7 +259,7 @@ test "MemoryPool - large allocation" {
     var pool = memory.MemoryPool.init(testing.allocator);
     defer pool.deinit();
 
-    const alloc = pool.allocator();
+    const alloc = pool.getAllocator();
     const large_data = try alloc.alloc(u8, 1024 * 1024); // 1MB
     try testing.expectEqual(@as(usize, 1024 * 1024), large_data.len);
 }
@@ -268,7 +268,7 @@ test "MemoryPool - zero size allocation" {
     var pool = memory.MemoryPool.init(testing.allocator);
     defer pool.deinit();
 
-    const alloc = pool.allocator();
+    const alloc = pool.getAllocator();
     const empty_data = try alloc.alloc(u8, 0);
     try testing.expectEqual(@as(usize, 0), empty_data.len);
 }
@@ -277,7 +277,7 @@ test "TempAllocator - out of memory" {
     var buffer: [100]u8 = undefined;
     var temp = memory.TempAllocator.init(&buffer);
 
-    const alloc = temp.allocator();
+    const alloc = temp.getAllocator();
 
     // First allocation should succeed
     const data1 = try alloc.alloc(u8, 50);
@@ -292,7 +292,7 @@ test "TempAllocator - exact buffer size" {
     var buffer: [100]u8 = undefined;
     var temp = memory.TempAllocator.init(&buffer);
 
-    const alloc = temp.allocator();
+    const alloc = temp.getAllocator();
 
     // Allocate exactly the buffer size (accounting for alignment overhead)
     const data = alloc.alloc(u8, 90);
@@ -303,7 +303,7 @@ test "TempAllocator - multiple small allocations" {
     var buffer: [1024]u8 = undefined;
     var temp = memory.TempAllocator.init(&buffer);
 
-    const alloc = temp.allocator();
+    const alloc = temp.getAllocator();
 
     for (0..10) |_| {
         const data = try alloc.alloc(u8, 10);
@@ -364,7 +364,7 @@ test "MemoryStats - zero allocations" {
 
 test "TrackingAllocator - complex allocation pattern" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
-    const alloc = tracker.allocator();
+    const alloc = tracker.getAllocator();
 
     var allocations = std.ArrayList([]u8).init(testing.allocator);
     defer {
@@ -388,7 +388,7 @@ test "TrackingAllocator - complex allocation pattern" {
 
 test "TrackingAllocator - reallocation tracking" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
-    const alloc = tracker.allocator();
+    const alloc = tracker.getAllocator();
 
     var data = try alloc.alloc(u8, 100);
     defer alloc.free(data);
@@ -407,7 +407,7 @@ test "TrackingAllocator - reallocation tracking" {
 
 test "TrackingAllocator - memory leak detection" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
-    const alloc = tracker.allocator();
+    const alloc = tracker.getAllocator();
 
     _ = try alloc.alloc(u8, 100);
 
@@ -423,8 +423,8 @@ test "createArena - multiple arenas" {
     var arena2 = try memory.createArena(testing.allocator);
     defer arena2.deinit();
 
-    const alloc1 = arena1.allocator();
-    const alloc2 = arena2.allocator();
+    const alloc1 = arena1.getAllocator();
+    const alloc2 = arena2.getAllocator();
 
     const data1 = try alloc1.alloc(u8, 100);
     const data2 = try alloc2.alloc(u8, 200);
@@ -438,7 +438,7 @@ test "createTempAllocator - various sizes" {
 
     for (sizes) |size| {
         var temp = try memory.createTempAllocator(size);
-        const alloc = temp.allocator.allocator();
+        const alloc = temp.allocator.getAllocator();
 
         // Should be able to allocate roughly half the buffer
         const data = try alloc.alloc(u8, size / 4);
@@ -450,7 +450,7 @@ test "MemoryPool - stress test" {
     var pool = memory.MemoryPool.init(testing.allocator);
     defer pool.deinit();
 
-    const alloc = pool.allocator();
+    const alloc = pool.getAllocator();
 
     for (0..100) |_| {
         _ = try alloc.alloc(u8, 1024);
@@ -465,7 +465,7 @@ test "MemoryPool - stress test" {
 
 test "TrackingAllocator - concurrent operations simulation" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
-    const alloc = tracker.allocator();
+    const alloc = tracker.getAllocator();
 
     var allocations = std.ArrayList([]u8).init(testing.allocator);
     defer allocations.deinit();

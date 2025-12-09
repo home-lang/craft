@@ -207,7 +207,7 @@ pub const Promise = struct {
     mutex: std.Thread.Mutex,
     allocator: std.mem.Allocator,
 
-    const State = enum {
+    pub const State = enum {
         pending,
         fulfilled,
         rejected,

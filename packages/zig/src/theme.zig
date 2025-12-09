@@ -291,7 +291,7 @@ pub fn defaultLightColors() ColorScheme {
 
         .background = renderer.Color.rgb(250, 250, 250),
         .surface = renderer.Color.rgb(255, 255, 255),
-        .error = renderer.Color.rgb(244, 67, 54),
+        .@"error" = renderer.Color.rgb(244, 67, 54),
 
         .on_primary = renderer.Color.rgb(255, 255, 255),
         .on_secondary = renderer.Color.rgb(0, 0, 0),
@@ -326,7 +326,7 @@ pub fn defaultDarkColors() ColorScheme {
 
         .background = renderer.Color.rgb(18, 18, 18),
         .surface = renderer.Color.rgb(30, 30, 30),
-        .error = renderer.Color.rgb(239, 83, 80),
+        .@"error" = renderer.Color.rgb(239, 83, 80),
 
         .on_primary = renderer.Color.rgb(0, 0, 0),
         .on_secondary = renderer.Color.rgb(0, 0, 0),

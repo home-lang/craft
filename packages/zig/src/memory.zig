@@ -3,22 +3,20 @@ const std = @import("std");
 /// Memory pool for efficient allocations
 pub const MemoryPool = struct {
     arena: std.heap.ArenaAllocator,
-    allocator: std.mem.Allocator,
-    
+
     const Self = @This();
-    
+
     pub fn init(backing_allocator: std.mem.Allocator) Self {
         return .{
             .arena = std.heap.ArenaAllocator.init(backing_allocator),
-            .allocator = undefined,
         };
     }
-    
+
     pub fn deinit(self: *Self) void {
         self.arena.deinit();
     }
-    
-    pub fn allocator(self: *Self) std.mem.Allocator {
+
+    pub fn getAllocator(self: *Self) std.mem.Allocator {
         return self.arena.allocator();
     }
     
@@ -34,16 +32,16 @@ pub const MemoryPool = struct {
 /// Stack-based temporary allocator
 pub const TempAllocator = struct {
     fba: std.heap.FixedBufferAllocator,
-    
+
     const Self = @This();
-    
+
     pub fn init(buffer: []u8) Self {
         return .{
             .fba = std.heap.FixedBufferAllocator.init(buffer),
         };
     }
-    
-    pub fn allocator(self: *Self) std.mem.Allocator {
+
+    pub fn getAllocator(self: *Self) std.mem.Allocator {
         return self.fba.allocator();
     }
     
@@ -114,8 +112,8 @@ pub const TrackingAllocator = struct {
             .stats = .{},
         };
     }
-    
-    pub fn allocator(self: *Self) std.mem.Allocator {
+
+    pub fn getAllocator(self: *Self) std.mem.Allocator {
         return .{
             .ptr = self,
             .vtable = &.{
@@ -169,11 +167,13 @@ pub fn createArena(backing_allocator: std.mem.Allocator) !MemoryPool {
 }
 
 /// Helper function to create a temp allocator with a stack buffer
-pub fn createTempAllocator(comptime size: usize) !struct { buffer: [size]u8, allocator: TempAllocator } {
-    var result = .{
+/// Note: The returned struct contains both buffer and allocator - caller must keep both alive
+pub fn createTempAllocator(comptime size: usize) struct { buffer: [size]u8, temp: TempAllocator } {
+    const Result = struct { buffer: [size]u8, temp: TempAllocator };
+    var result: Result = .{
         .buffer = undefined,
-        .allocator = undefined,
+        .temp = undefined,
     };
-    result.allocator = TempAllocator.init(&result.buffer);
+    result.temp = TempAllocator.init(&result.buffer);
     return result;
 }

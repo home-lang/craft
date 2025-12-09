@@ -143,7 +143,7 @@ test "Lifecycle - onResume hook" {
     try lc.onResume(testHook);
     try lc.start();
     try lc.pause();
-    try lc.resume();
+    try lc.unpause();
 
     try testing.expect(hook_called);
 }
@@ -265,7 +265,7 @@ test "Lifecycle - resume lifecycle" {
     try lc.pause();
     try testing.expectEqual(lifecycle.LifecyclePhase.paused, lc.phase);
 
-    try lc.resume();
+    try lc.unpause();
 
     try testing.expectEqual(lifecycle.LifecyclePhase.running, lc.phase);
 }
@@ -283,7 +283,7 @@ test "Lifecycle - full lifecycle" {
     try lc.pause();
     try testing.expectEqual(lifecycle.LifecyclePhase.paused, lc.phase);
 
-    try lc.resume();
+    try lc.unpause();
     try testing.expectEqual(lifecycle.LifecyclePhase.running, lc.phase);
 
     try lc.stop();
@@ -384,7 +384,7 @@ test "Lifecycle - no hooks registered" {
     // Should not crash with no hooks
     try lc.start();
     try lc.pause();
-    try lc.resume();
+    try lc.unpause();
     try lc.stop();
 }
 

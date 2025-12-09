@@ -1,9 +1,12 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 /// Objective-C Runtime Wrapper for iOS/macOS
 /// Provides type-safe Zig wrappers around the Objective-C runtime
 
-pub const objc = if (@import("builtin").target.isDarwin()) struct {
+const is_darwin = builtin.target.os.tag == .macos or builtin.target.os.tag == .ios or builtin.target.os.tag == .tvos or builtin.target.os.tag == .watchos;
+
+pub const objc = if (is_darwin) struct {
     // Core runtime functions
     pub extern "c" fn objc_getClass(name: [*:0]const u8) ?*anyopaque;
     pub extern "c" fn sel_registerName(name: [*:0]const u8) ?*anyopaque;

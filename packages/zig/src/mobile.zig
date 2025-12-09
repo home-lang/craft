@@ -160,43 +160,45 @@ pub const AndroidCallbackStorage = struct {
 /// Global callback storage for Android
 var android_callbacks: AndroidCallbackStorage = .{};
 
-/// JNI callback function exported for ValueCallback.onReceiveValue
-/// Called from Java when evaluateJavascript completes
-export fn Java_app_craft_CraftValueCallback_nativeOnReceiveValue(
-    env: *jni.JNIEnv,
-    this: jni.jobject,
-    callback_id: jni.jint,
-    result: jni.jstring,
-) void {
-    _ = this;
-    if (@import("builtin").target.os.tag != .linux) return;
+// JNI export functions are only compiled on Android (Linux target)
+// On other platforms, these are no-ops
+pub usingnamespace if (@import("builtin").target.os.tag == .linux) struct {
+    /// JNI callback function exported for ValueCallback.onReceiveValue
+    /// Called from Java when evaluateJavascript completes
+    export fn Java_app_craft_CraftValueCallback_nativeOnReceiveValue(
+        env: *jni.JNIEnv,
+        this: jni.jobject,
+        callback_id: jni.jint,
+        result: jni.jstring,
+    ) void {
+        _ = this;
 
-    // Convert Java string result to Zig slice
-    const result_chars = jni.GetStringUTFChars(env, result, null);
-    const result_slice = std.mem.span(result_chars);
+        // Convert Java string result to Zig slice
+        const result_chars = jni.GetStringUTFChars(env, result, null);
+        const result_slice = std.mem.span(result_chars);
 
-    // Invoke the stored callback
-    android_callbacks.invokeJsCallback(@intCast(callback_id), result_slice);
+        // Invoke the stored callback
+        android_callbacks.invokeJsCallback(@intCast(callback_id), result_slice);
 
-    // Release the string
-    jni.ReleaseStringUTFChars(env, result, result_chars);
-}
+        // Release the string
+        jni.ReleaseStringUTFChars(env, result, result_chars);
+    }
 
-/// JNI callback function exported for permission results
-/// Called from Activity.onRequestPermissionsResult
-export fn Java_app_craft_CraftActivity_nativeOnPermissionResult(
-    env: *jni.JNIEnv,
-    this: jni.jobject,
-    request_code: jni.jint,
-    granted: jni.jboolean,
-) void {
-    _ = env;
-    _ = this;
-    if (@import("builtin").target.os.tag != .linux) return;
+    /// JNI callback function exported for permission results
+    /// Called from Activity.onRequestPermissionsResult
+    export fn Java_app_craft_CraftActivity_nativeOnPermissionResult(
+        env: *jni.JNIEnv,
+        this: jni.jobject,
+        request_code: jni.jint,
+        granted: jni.jboolean,
+    ) void {
+        _ = env;
+        _ = this;
 
-    // Invoke the stored callback
-    android_callbacks.invokePermissionCallback(@intCast(request_code), granted != 0);
-}
+        // Invoke the stored callback
+        android_callbacks.invokePermissionCallback(@intCast(request_code), granted != 0);
+    }
+} else struct {}
 
 pub const Platform = enum {
     ios,
@@ -542,7 +544,9 @@ pub const iOS = struct {
 
     /// Execute JavaScript
     pub fn evaluateJavaScript(webview: *WKWebView, script: []const u8, callback: ?*const fn ([]const u8) void) !void {
-        if (!@import("builtin").target.isDarwin()) {
+        const builtin = @import("builtin");
+        const is_darwin = builtin.target.os.tag == .macos or builtin.target.os.tag == .ios or builtin.target.os.tag == .tvos or builtin.target.os.tag == .watchos;
+        if (!is_darwin) {
             return error.UnsupportedPlatform;
         }
 
@@ -568,7 +572,7 @@ pub const iOS = struct {
             isa: ?*anyopaque,
             flags: c_int,
             reserved: c_int,
-            invoke: ?*const fn (*Block, ?objc.id, ?objc.id) callconv(.C) void,
+            invoke: ?*const fn (*@This(), ?objc.id, ?objc.id) callconv(.C) void,
             descriptor: *const BlockDescriptor,
             callback: ?*const fn (?[]const u8, ?[]const u8) void,
         };
