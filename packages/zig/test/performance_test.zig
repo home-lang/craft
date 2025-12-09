@@ -331,7 +331,7 @@ test "Performance: GPU vertex buffer creation" {
 
     var i: usize = 0;
     while (i < config.iterations) : (i += 1) {
-        var vertices = try testing.allocator.alloc(gpu.Vertex, vertex_count);
+        const vertices = try testing.allocator.alloc(gpu.Vertex, vertex_count);
         defer testing.allocator.free(vertices);
 
         const timer = Timer.start();

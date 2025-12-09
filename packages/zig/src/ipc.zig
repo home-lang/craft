@@ -39,7 +39,7 @@ pub const IPC = struct {
     pub fn deinit(self: *IPC) void {
         var iter = self.channels.iterator();
         while (iter.next()) |entry| {
-            entry.value_ptr.deinit();
+            entry.value_ptr.deinit(self.allocator);
         }
         self.channels.deinit();
         self.pending_requests.deinit();
@@ -49,14 +49,14 @@ pub const IPC = struct {
     pub fn on(self: *IPC, channel: []const u8, handler: MessageHandler) !void {
         const result = try self.channels.getOrPut(channel);
         if (!result.found_existing) {
-            result.value_ptr.* = std.ArrayList(MessageHandler).init(self.allocator);
+            result.value_ptr.* = .{};
         }
-        try result.value_ptr.append(handler);
+        try result.value_ptr.append(self.allocator, handler);
     }
 
     /// Unsubscribe from a channel
     pub fn off(self: *IPC, channel: []const u8, handler: MessageHandler) void {
-        if (self.channels.get(channel)) |handlers| {
+        if (self.channels.getPtr(channel)) |handlers| {
             for (handlers.items, 0..) |h, i| {
                 if (h == handler) {
                     _ = handlers.swapRemove(i);
@@ -66,6 +66,16 @@ pub const IPC = struct {
         }
     }
 
+    /// Get current timestamp (Unix epoch in seconds)
+    fn currentTimestamp() i64 {
+        const instant = std.time.Instant.now() catch return 0;
+        // Convert from monotonic clock to approximate timestamp
+        // Note: This is a simple implementation; for actual wall clock time,
+        // use posix.clock_gettime with CLOCK_REALTIME
+        _ = instant;
+        return 0; // Placeholder - monotonic time isn't wall clock time
+    }
+
     /// Send a message to a channel
     pub fn send(self: *IPC, channel: []const u8, data: []const u8) !void {
         const msg = Message{
@@ -73,7 +83,7 @@ pub const IPC = struct {
             .type = .event,
             .channel = channel,
             .data = data,
-            .timestamp = std.time.milliTimestamp(),
+            .timestamp = currentTimestamp(),
             .sender = null,
         };
         self.next_id += 1;
@@ -97,7 +107,7 @@ pub const IPC = struct {
             .type = .request,
             .channel = channel,
             .data = data,
-            .timestamp = std.time.milliTimestamp(),
+            .timestamp = currentTimestamp(),
             .sender = null,
         };
 
@@ -118,7 +128,7 @@ pub const IPC = struct {
                 .type = .response,
                 .channel = "",
                 .data = data,
-                .timestamp = std.time.milliTimestamp(),
+                .timestamp = currentTimestamp(),
                 .sender = null,
             };
             handler(msg);

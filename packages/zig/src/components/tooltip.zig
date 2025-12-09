@@ -18,7 +18,7 @@ pub const Tooltip = struct {
     theme: TooltipTheme,
     on_show: ?*const fn () void,
     on_hide: ?*const fn () void,
-    show_time: ?i64,
+    show_time: ?std.time.Instant,
 
     pub const TooltipPosition = enum {
         top,
@@ -102,7 +102,7 @@ pub const Tooltip = struct {
     pub fn show(self: *Tooltip) void {
         if (!self.visible) {
             self.visible = true;
-            self.show_time = std.time.milliTimestamp();
+            self.show_time = std.time.Instant.now() catch null;
 
             if (self.on_show) |callback| {
                 callback();
@@ -130,11 +130,11 @@ pub const Tooltip = struct {
     }
 
     pub fn shouldShow(self: *const Tooltip) bool {
-        if (self.show_time == null) return false;
-
-        const now = std.time.milliTimestamp();
-        const elapsed = @as(u64, @intCast(now - self.show_time.?));
-        return elapsed >= self.delay_ms;
+        const show_start = self.show_time orelse return false;
+        const now = std.time.Instant.now() catch return false;
+        const elapsed_ns = now.since(show_start);
+        const elapsed_ms = elapsed_ns / std.time.ns_per_ms;
+        return elapsed_ms >= self.delay_ms;
     }
 
     pub fn onShow(self: *Tooltip, callback: *const fn () void) void {
@@ -146,9 +146,10 @@ pub const Tooltip = struct {
     }
 
     pub fn getVisibleDuration(self: *const Tooltip) ?u64 {
-        if (!self.visible or self.show_time == null) return null;
-
-        const now = std.time.milliTimestamp();
-        return @as(u64, @intCast(now - self.show_time.?));
+        if (!self.visible) return null;
+        const show_start = self.show_time orelse return null;
+        const now = std.time.Instant.now() catch return null;
+        const elapsed_ns = now.since(show_start);
+        return elapsed_ns / std.time.ns_per_ms;
     }
 };

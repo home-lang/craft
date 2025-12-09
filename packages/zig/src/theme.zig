@@ -21,7 +21,7 @@ pub const ColorScheme = struct {
     // Background
     background: renderer.Color,
     surface: renderer.Color,
-    error: renderer.Color,
+    @"error": renderer.Color,
 
     // Text
     on_primary: renderer.Color,

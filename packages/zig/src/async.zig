@@ -45,6 +45,17 @@ pub const AsyncFile = struct {
     file: ?std.fs.File,
     allocator: std.mem.Allocator,
 
+    // Context types need to be at struct level to be accessible from task functions
+    const ReadContext = struct {
+        file: *AsyncFile,
+        data: []u8,
+    };
+
+    const WriteContext = struct {
+        file: *AsyncFile,
+        data: []const u8,
+    };
+
     pub fn init(allocator: std.mem.Allocator, path: []const u8) AsyncFile {
         return AsyncFile{
             .path = path,
@@ -60,19 +71,14 @@ pub const AsyncFile = struct {
     }
 
     pub fn readAsync(self: *AsyncFile) !Task {
-        const Context = struct {
-            file: *AsyncFile,
-            data: []u8,
-        };
-
-        const context = try self.allocator.create(Context);
+        const context = try self.allocator.create(ReadContext);
         context.* = .{ .file = self, .data = &[_]u8{} };
 
         return Task.init(readTask, @ptrCast(context));
     }
 
     fn readTask(ctx: *anyopaque) !void {
-        const context: *Context = @ptrCast(@alignCast(ctx));
+        const context: *ReadContext = @ptrCast(@alignCast(ctx));
         const file = try std.fs.cwd().openFile(context.file.path, .{});
         defer file.close();
 
@@ -80,19 +86,14 @@ pub const AsyncFile = struct {
     }
 
     pub fn writeAsync(self: *AsyncFile, data: []const u8) !Task {
-        const Context = struct {
-            file: *AsyncFile,
-            data: []const u8,
-        };
-
-        const context = try self.allocator.create(Context);
+        const context = try self.allocator.create(WriteContext);
         context.* = .{ .file = self, .data = data };
 
         return Task.init(writeTask, @ptrCast(context));
     }
 
     fn writeTask(ctx: *anyopaque) !void {
-        const context: *Context = @ptrCast(@alignCast(ctx));
+        const context: *WriteContext = @ptrCast(@alignCast(ctx));
         const file = try std.fs.cwd().createFile(context.file.path, .{});
         defer file.close();
 
@@ -131,17 +132,17 @@ pub const StreamReader = struct {
     }
 
     pub fn readLine(self: *StreamReader) !?[]const u8 {
-        var line = std.ArrayList(u8).init(self.allocator);
-        defer line.deinit();
+        var line: std.ArrayList(u8) = .{};
+        defer line.deinit(self.allocator);
 
         while (true) {
             const chunk = try self.readChunk() orelse return null;
 
             for (chunk) |byte| {
                 if (byte == '\n') {
-                    return try line.toOwnedSlice();
+                    return try line.toOwnedSlice(self.allocator);
                 }
-                try line.append(byte);
+                try line.append(self.allocator, byte);
             }
         }
     }
@@ -160,22 +161,24 @@ pub const StreamWriter = struct {
     file: std.fs.File,
     buffer: std.ArrayList(u8),
     auto_flush_size: usize,
+    allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator, file: std.fs.File, auto_flush_size: usize) StreamWriter {
         return StreamWriter{
             .file = file,
-            .buffer = std.ArrayList(u8).init(allocator),
+            .buffer = .{},
             .auto_flush_size = auto_flush_size,
+            .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *StreamWriter) void {
         self.flush() catch {};
-        self.buffer.deinit();
+        self.buffer.deinit(self.allocator);
     }
 
     pub fn write(self: *StreamWriter, data: []const u8) !void {
-        try self.buffer.appendSlice(data);
+        try self.buffer.appendSlice(self.allocator, data);
 
         if (self.buffer.items.len >= self.auto_flush_size) {
             try self.flush();
@@ -197,7 +200,8 @@ pub const StreamWriter = struct {
 
 pub const Promise = struct {
     state: State,
-    result: ?anyerror![]const u8,
+    value: ?[]const u8,
+    err: ?anyerror,
     callbacks: std.ArrayList(Callback),
     error_callbacks: std.ArrayList(ErrorCallback),
     mutex: std.Thread.Mutex,
@@ -215,44 +219,45 @@ pub const Promise = struct {
     pub fn init(allocator: std.mem.Allocator) Promise {
         return Promise{
             .state = .pending,
-            .result = null,
-            .callbacks = std.ArrayList(Callback).init(allocator),
-            .error_callbacks = std.ArrayList(ErrorCallback).init(allocator),
+            .value = null,
+            .err = null,
+            .callbacks = .{},
+            .error_callbacks = .{},
             .mutex = std.Thread.Mutex{},
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *Promise) void {
-        self.callbacks.deinit();
-        self.error_callbacks.deinit();
+        self.callbacks.deinit(self.allocator);
+        self.error_callbacks.deinit(self.allocator);
     }
 
-    pub fn resolve(self: *Promise, value: []const u8) void {
+    pub fn resolve(self: *Promise, val: []const u8) void {
         self.mutex.lock();
         defer self.mutex.unlock();
 
         if (self.state != .pending) return;
 
         self.state = .fulfilled;
-        self.result = value;
+        self.value = val;
 
         for (self.callbacks.items) |callback| {
-            callback(value);
+            callback(val);
         }
     }
 
-    pub fn reject(self: *Promise, err: anyerror) void {
+    pub fn reject(self: *Promise, error_val: anyerror) void {
         self.mutex.lock();
         defer self.mutex.unlock();
 
         if (self.state != .pending) return;
 
         self.state = .rejected;
-        self.result = err;
+        self.err = error_val;
 
         for (self.error_callbacks.items) |callback| {
-            callback(err);
+            callback(error_val);
         }
     }
 
@@ -261,13 +266,11 @@ pub const Promise = struct {
         defer self.mutex.unlock();
 
         if (self.state == .fulfilled) {
-            if (self.result) |result| {
-                if (result) |value| {
-                    callback(value);
-                }
+            if (self.value) |val| {
+                callback(val);
             }
         } else {
-            try self.callbacks.append(callback);
+            try self.callbacks.append(self.allocator, callback);
         }
     }
 
@@ -276,13 +279,11 @@ pub const Promise = struct {
         defer self.mutex.unlock();
 
         if (self.state == .rejected) {
-            if (self.result) |result| {
-                if (result) |_| {} else |err| {
-                    callback(err);
-                }
+            if (self.err) |error_val| {
+                callback(error_val);
             }
         } else {
-            try self.error_callbacks.append(callback);
+            try self.error_callbacks.append(self.allocator, callback);
         }
     }
 };
@@ -295,7 +296,7 @@ pub const EventLoop = struct {
 
     pub fn init(allocator: std.mem.Allocator) EventLoop {
         return EventLoop{
-            .tasks = std.ArrayList(*Task).init(allocator),
+            .tasks = .{},
             .running = false,
             .mutex = std.Thread.Mutex{},
             .allocator = allocator,
@@ -303,13 +304,13 @@ pub const EventLoop = struct {
     }
 
     pub fn deinit(self: *EventLoop) void {
-        self.tasks.deinit();
+        self.tasks.deinit(self.allocator);
     }
 
     pub fn submit(self: *EventLoop, task: *Task) !void {
         self.mutex.lock();
         defer self.mutex.unlock();
-        try self.tasks.append(task);
+        try self.tasks.append(self.allocator, task);
     }
 
     pub fn run(self: *EventLoop) void {
@@ -367,7 +368,7 @@ pub const Channels = struct {
 
             pub fn init(allocator: std.mem.Allocator) Self {
                 return Self{
-                    .buffer = std.ArrayList(T).init(allocator),
+                    .buffer = .{},
                     .mutex = std.Thread.Mutex{},
                     .condition = std.Thread.Condition{},
                     .closed = false,
@@ -376,7 +377,7 @@ pub const Channels = struct {
             }
 
             pub fn deinit(self: *Self) void {
-                self.buffer.deinit();
+                self.buffer.deinit(self.allocator);
             }
 
             pub fn send(self: *Self, value: T) !void {
@@ -385,7 +386,7 @@ pub const Channels = struct {
 
                 if (self.closed) return error.ChannelClosed;
 
-                try self.buffer.append(value);
+                try self.buffer.append(self.allocator, value);
                 self.condition.signal();
             }
 

@@ -279,30 +279,30 @@ test "EventEmitter - multiple events" {
     try testing.expectEqual(@as(usize, 2), callback_count);
 }
 
+// Global counters for callback testing (must be at module level)
+var global_event_count1: usize = 0;
+var global_event_count2: usize = 0;
+
+fn eventCounter1Callback(event: events.Event) void {
+    _ = event;
+    global_event_count1 += 1;
+}
+
+fn eventCounter2Callback(event: events.Event) void {
+    _ = event;
+    global_event_count2 += 1;
+}
+
 test "EventEmitter - different event types" {
     const allocator = testing.allocator;
     var emitter = events.EventEmitter.init(allocator);
     defer emitter.deinit();
 
-    var count1: usize = 0;
-    var count2: usize = 0;
+    global_event_count1 = 0;
+    global_event_count2 = 0;
 
-    const counter1 = struct {
-        fn callback(event: events.Event) void {
-            _ = event;
-            count1 += 1;
-        }
-    }.callback;
-
-    const counter2 = struct {
-        fn callback(event: events.Event) void {
-            _ = event;
-            count2 += 1;
-        }
-    }.callback;
-
-    try emitter.on("app_started", counter1);
-    try emitter.on("app_stopped", counter2);
+    try emitter.on("app_started", eventCounter1Callback);
+    try emitter.on("app_stopped", eventCounter2Callback);
 
     const event1 = events.Event{
         .event_type = .app_started,
@@ -318,8 +318,8 @@ test "EventEmitter - different event types" {
     emitter.emit(event1);
     emitter.emit(event2);
 
-    try testing.expectEqual(@as(usize, 2), count1);
-    try testing.expectEqual(@as(usize, 1), count2);
+    try testing.expectEqual(@as(usize, 2), global_event_count1);
+    try testing.expectEqual(@as(usize, 1), global_event_count2);
 }
 
 test "EventEmitter - window events" {

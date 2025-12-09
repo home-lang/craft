@@ -174,26 +174,33 @@ test "Promise - reject only once" {
     try testing.expectEqual(error.FirstError, promise_error_value.?);
 }
 
+// Global counter for callback testing (must be at module level for callbacks)
+var global_callback_count: usize = 0;
+
+fn thenCounterCallback(value: []const u8) void {
+    _ = value;
+    global_callback_count += 1;
+}
+
+fn catchCounterCallback(err: anyerror) void {
+    _ = err;
+    global_callback_count += 1;
+}
+
 test "Promise - multiple then callbacks" {
     const allocator = testing.allocator;
     var promise = async_mod.Promise.init(allocator);
     defer promise.deinit();
 
-    var count: usize = 0;
-    const counter = struct {
-        fn callback(value: []const u8) void {
-            _ = value;
-            count += 1;
-        }
-    }.callback;
+    global_callback_count = 0;
 
-    try promise.then(counter);
-    try promise.then(counter);
-    try promise.then(counter);
+    try promise.then(thenCounterCallback);
+    try promise.then(thenCounterCallback);
+    try promise.then(thenCounterCallback);
 
     promise.resolve("trigger");
 
-    try testing.expectEqual(@as(usize, 3), count);
+    try testing.expectEqual(@as(usize, 3), global_callback_count);
 }
 
 test "Promise - multiple catch callbacks" {
@@ -201,20 +208,14 @@ test "Promise - multiple catch callbacks" {
     var promise = async_mod.Promise.init(allocator);
     defer promise.deinit();
 
-    var count: usize = 0;
-    const counter = struct {
-        fn callback(err: anyerror) void {
-            _ = err;
-            count += 1;
-        }
-    }.callback;
+    global_callback_count = 0;
 
-    try promise.catch_(counter);
-    try promise.catch_(counter);
+    try promise.catch_(catchCounterCallback);
+    try promise.catch_(catchCounterCallback);
 
     promise.reject(error.TestError);
 
-    try testing.expectEqual(@as(usize, 2), count);
+    try testing.expectEqual(@as(usize, 2), global_callback_count);
 }
 
 // EventLoop tests
