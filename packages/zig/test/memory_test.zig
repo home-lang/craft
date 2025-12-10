@@ -221,9 +221,12 @@ test "createArena - helper function" {
 }
 
 test "createTempAllocator - helper function" {
-    var temp = try memory.createTempAllocator(1024);
+    // Note: createTempAllocator returns a struct with undefined fields
+    // The user must manually initialize the temp field with the buffer
+    var temp = memory.createTempAllocator(1024);
+    temp.temp = memory.TempAllocator.init(&temp.buffer);
 
-    const alloc = temp.allocator.getAllocator();
+    const alloc = temp.temp.getAllocator();
     const data = try alloc.alloc(u8, 100);
     try testing.expectEqual(@as(usize, 100), data.len);
 }
@@ -366,19 +369,19 @@ test "TrackingAllocator - complex allocation pattern" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
     const alloc = tracker.getAllocator();
 
-    var allocations = std.ArrayList([]u8).init(testing.allocator);
+    var allocations: std.ArrayList([]u8) = .{};
     defer {
         for (allocations.items) |item| {
             alloc.free(item);
         }
-        allocations.deinit();
+        allocations.deinit(testing.allocator);
     }
 
     // Allocate various sizes
     const sizes = [_]usize{ 10, 100, 1000, 50, 500 };
     for (sizes) |size| {
         const data = try alloc.alloc(u8, size);
-        try allocations.append(data);
+        try allocations.append(testing.allocator, data);
     }
 
     const stats = tracker.getStats();
@@ -409,11 +412,15 @@ test "TrackingAllocator - memory leak detection" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
     const alloc = tracker.getAllocator();
 
-    _ = try alloc.alloc(u8, 100);
+    const data = try alloc.alloc(u8, 100);
 
+    // Check that current_memory reflects the allocation (simulating leak detection)
     const stats = tracker.getStats();
     try testing.expect(stats.current_memory > 0);
     // In real usage, this would indicate a leak if not freed
+
+    // Clean up to avoid test failure
+    alloc.free(data);
 }
 
 test "createArena - multiple arenas" {
@@ -434,14 +441,34 @@ test "createArena - multiple arenas" {
 }
 
 test "createTempAllocator - various sizes" {
-    const sizes = [_]usize{ 64, 256, 1024, 4096 };
-
-    for (sizes) |size| {
-        var temp = try memory.createTempAllocator(size);
-        const alloc = temp.allocator.getAllocator();
-
-        // Should be able to allocate roughly half the buffer
-        const data = try alloc.alloc(u8, size / 4);
+    // Test with fixed sizes since createTempAllocator requires comptime size
+    // Note: Must manually initialize temp after createTempAllocator
+    {
+        var temp = memory.createTempAllocator(64);
+        temp.temp = memory.TempAllocator.init(&temp.buffer);
+        const alloc = temp.temp.getAllocator();
+        const data = try alloc.alloc(u8, 16);
+        try testing.expect(data.len > 0);
+    }
+    {
+        var temp = memory.createTempAllocator(256);
+        temp.temp = memory.TempAllocator.init(&temp.buffer);
+        const alloc = temp.temp.getAllocator();
+        const data = try alloc.alloc(u8, 64);
+        try testing.expect(data.len > 0);
+    }
+    {
+        var temp = memory.createTempAllocator(1024);
+        temp.temp = memory.TempAllocator.init(&temp.buffer);
+        const alloc = temp.temp.getAllocator();
+        const data = try alloc.alloc(u8, 256);
+        try testing.expect(data.len > 0);
+    }
+    {
+        var temp = memory.createTempAllocator(4096);
+        temp.temp = memory.TempAllocator.init(&temp.buffer);
+        const alloc = temp.temp.getAllocator();
+        const data = try alloc.alloc(u8, 1024);
         try testing.expect(data.len > 0);
     }
 }
@@ -467,13 +494,13 @@ test "TrackingAllocator - concurrent operations simulation" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
     const alloc = tracker.getAllocator();
 
-    var allocations = std.ArrayList([]u8).init(testing.allocator);
-    defer allocations.deinit();
+    var allocations: std.ArrayList([]u8) = .{};
+    defer allocations.deinit(testing.allocator);
 
     // Simulate interleaved allocations and frees
     for (0..10) |i| {
         const data = try alloc.alloc(u8, (i + 1) * 10);
-        try allocations.append(data);
+        try allocations.append(testing.allocator, data);
 
         if (i % 2 == 0 and allocations.items.len > 1) {
             alloc.free(allocations.orderedRemove(0));

@@ -62,13 +62,15 @@ test "WindowOptions - custom values" {
 }
 
 test "CliError - error types exist" {
+    // Verify error types can be assigned to CliError
     const err1: cli.CliError = error.InvalidArgument;
     const err2: cli.CliError = error.MissingValue;
     const err3: cli.CliError = error.InvalidNumber;
 
-    try testing.expectError(error.InvalidArgument, err1);
-    try testing.expectError(error.MissingValue, err2);
-    try testing.expectError(error.InvalidNumber, err3);
+    // Just verify they are the expected error values
+    try testing.expectEqual(cli.CliError.InvalidArgument, err1);
+    try testing.expectEqual(cli.CliError.MissingValue, err2);
+    try testing.expectEqual(cli.CliError.InvalidNumber, err3);
 }
 
 test "WindowOptions - position coordinates" {

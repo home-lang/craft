@@ -119,6 +119,7 @@ pub const TrackingAllocator = struct {
             .vtable = &.{
                 .alloc = alloc,
                 .resize = resize,
+                .remap = remap,
                 .free = free,
             },
         };
@@ -137,6 +138,19 @@ pub const TrackingAllocator = struct {
         const self: *Self = @ptrCast(@alignCast(ctx));
         const result = self.parent_allocator.rawResize(buf, buf_align, new_len, ret_addr);
         if (result) {
+            if (new_len > buf.len) {
+                self.stats.recordAlloc(new_len - buf.len);
+            } else {
+                self.stats.recordFree(buf.len - new_len);
+            }
+        }
+        return result;
+    }
+
+    fn remap(ctx: *anyopaque, buf: []u8, buf_align: std.mem.Alignment, new_len: usize, ret_addr: usize) ?[*]u8 {
+        const self: *Self = @ptrCast(@alignCast(ctx));
+        const result = self.parent_allocator.rawRemap(buf, buf_align, new_len, ret_addr);
+        if (result) |_| {
             if (new_len > buf.len) {
                 self.stats.recordAlloc(new_len - buf.len);
             } else {

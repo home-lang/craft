@@ -89,6 +89,7 @@ pub const Renderer = struct {
     pub fn deinit(self: *Renderer) void {
         if (self.canvas) |canvas| {
             canvas.deinit();
+            self.allocator.destroy(canvas);
         }
     }
 

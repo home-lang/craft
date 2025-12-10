@@ -78,7 +78,7 @@ pub const FileWatcher = struct {
         return false;
     }
 
-    fn shouldIgnore(self: Self, path: []const u8) bool {
+    pub fn shouldIgnore(self: Self, path: []const u8) bool {
         for (self.ignore_patterns) |pattern| {
             if (std.mem.indexOf(u8, path, pattern) != null) {
                 return true;

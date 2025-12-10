@@ -200,7 +200,8 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/ipc.zig"),
     });
 
-    const performance_module = b.createModule(.{
+    // Note: performance_module not currently used by any tests
+    _ = b.createModule(.{
         .root_source_file = b.path("src/performance.zig"),
     });
 
@@ -459,9 +460,6 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("test/performance_test.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "../src/performance.zig", .module = performance_module },
-            },
         }),
     });
 

@@ -215,7 +215,7 @@ test "ThemeManager - registerTheme" {
     var manager = try theme.ThemeManager.init(testing.allocator);
     defer manager.deinit();
 
-    var custom = theme.Theme.init(testing.allocator, "custom", .custom);
+    const custom = theme.Theme.init(testing.allocator, "custom", .custom);
     try manager.registerTheme(custom);
 
     try testing.expect(manager.themes.contains("custom"));
@@ -226,7 +226,8 @@ test "ThemeManager - getCurrentTheme" {
     defer manager.deinit();
 
     const current = manager.getCurrentTheme();
-    try testing.expect(current.* == manager.current_theme.*);
+    // Compare by pointer address instead of struct equality
+    try testing.expect(current == manager.current_theme);
 }
 
 test "ThemeManager - onThemeChange callback" {

@@ -93,10 +93,9 @@ test "HotReload - init with enabled config but no paths" {
 }
 
 test "HotReload - setCallback" {
-    var called = false;
     const testCallback = struct {
         fn callback() void {
-            called = true;
+            // This callback is used to test setCallback functionality
         }
     }.callback;
 

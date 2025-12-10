@@ -229,13 +229,141 @@ const mtime: i64 = @intCast(@divTrunc(stat.mtime.nanoseconds, 1_000_000_000));
 
 ---
 
+## Feature Implementation Status (vs README Claims)
+
+### UI Components
+
+The README claims **35 native UI components**. Here's what's actually implemented:
+
+#### Exported in `components.zig` (17 components) ✅
+
+| Component | File | Status |
+|-----------|------|--------|
+| Button | `button.zig` | ✅ Implemented |
+| TextInput | `text_input.zig` | ✅ Implemented |
+| Tabs | `tabs.zig` | ✅ Implemented |
+| Modal | `modal.zig` | ✅ Implemented |
+| ProgressBar | `progress_bar.zig` | ✅ Implemented |
+| Dropdown | `dropdown.zig` | ✅ Implemented |
+| Toast/ToastManager | `toast.zig` | ✅ Implemented |
+| TreeView | `tree_view.zig` | ✅ Implemented |
+| DatePicker | `date_picker.zig` | ✅ Implemented |
+| DataGrid | `data_grid.zig` | ✅ Implemented |
+| Tooltip | `tooltip.zig` | ✅ Implemented |
+| Slider | `slider.zig` | ✅ Implemented |
+| Autocomplete | `autocomplete.zig` | ✅ Implemented |
+| ColorPicker | `color_picker.zig` | ✅ Implemented |
+| Chart | `chart.zig` | ✅ Implemented |
+| MediaPlayer | `media_player.zig` | ✅ Implemented |
+| CodeEditor | `code_editor.zig` | ✅ Implemented |
+
+#### Implemented but NOT Exported (21 components) 🔄
+
+These exist in `src/components/` but aren't exported in `components.zig`:
+
+| Component | File | Status |
+|-----------|------|--------|
+| Accordion | `accordion.zig` | 🔄 Not exported |
+| ContextMenu | `context_menu.zig` | 🔄 Not exported |
+| DragDrop | `drag_drop.zig` | 🔄 Not exported |
+| KeyboardHandler | `keyboard_handler.zig` | 🔄 Not exported |
+| ListView | `list_view.zig` | 🔄 Not exported |
+| Menu | `menu.zig` | 🔄 Not exported |
+| NativeFileBrowser | `native_file_browser.zig` | 🔄 Not exported |
+| NativeSidebar | `native_sidebar.zig` | 🔄 Not exported |
+| NativeSplitView | `native_split_view.zig` | 🔄 Not exported |
+| OutlineView | `outline_view_*.zig` | 🔄 Not exported |
+| QuickLook | `quick_look.zig` | 🔄 Not exported |
+| StatusBar | `status_bar.zig` | 🔄 Not exported |
+| Stepper | `stepper.zig` | 🔄 Not exported |
+| TableView | `table_view_*.zig` | 🔄 Not exported |
+| TimePicker | `time_picker.zig` | 🔄 Not exported |
+| Toolbar | `toolbar.zig` | 🔄 Not exported |
+
+#### Missing Components (Claimed in README but don't exist) ❌
+
+| Component | Status | Priority |
+|-----------|--------|----------|
+| Checkbox | ❌ Missing | High |
+| Radio/RadioButton | ❌ Missing | High |
+| Label | ❌ Missing | High |
+| ImageView | ❌ Missing | Medium |
+| ScrollView | ❌ Missing | Medium |
+| Table (separate from DataGrid) | ❌ Missing | Low |
+| TabView (vs Tabs?) | ❌ Clarify naming | Low |
+
+### Core Features
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Window Management | ✅ | `api.zig`, platform-specific implementations |
+| WebView Integration | ✅ | macOS (WKWebView), Linux (WebKit2GTK), Windows (WebView2) |
+| GPU Rendering | ✅ | `gpu.zig` - 47KB implementation |
+| Mobile Support | ✅ | `mobile.zig` - iOS/Android templates |
+| System Integration | ✅ | Notifications, clipboard, dialogs, tray |
+| Hot Reload | ✅ | `hotreload.zig` - file watching + state preservation |
+| IPC | ✅ | `ipc.zig` - channels, message queue, RPC |
+| Error Handling | ✅ | `error_context.zig` - 40+ error codes |
+| Benchmarking | ✅ | `benchmark.zig` - statistical analysis |
+| Profiler | ✅ | `profiler.zig` - timing + memory tracking |
+| Accessibility | ✅ | `accessibility.zig` - ARIA roles |
+| Theme System | ✅ | `theme.zig` - CSS generation |
+| Animation | ✅ | `animation.zig` - 31 easing functions |
+
+### Platform Support
+
+| Platform | Window | WebView | Tray | Notifications | Status |
+|----------|--------|---------|------|---------------|--------|
+| macOS | ✅ | ✅ WKWebView | ✅ | ✅ | Full |
+| Linux | ✅ | ✅ WebKit2GTK | ✅ | ✅ | Full |
+| Windows | ✅ | ✅ WebView2 | ✅ | ✅ | Full |
+| iOS | 🔄 | 🔄 | N/A | 🔄 | Template |
+| Android | 🔄 | 🔄 | N/A | 🔄 | Template |
+
+---
+
+## Priority Tasks
+
+### High Priority ❗
+
+1. **Create missing core components:**
+   - `checkbox.zig` - Basic form component
+   - `radio.zig` - Radio button group
+   - `label.zig` - Text label component
+
+2. **Export existing components in `components.zig`:**
+   - Add exports for ListView, StatusBar, Toolbar, TimePicker, etc.
+
+3. **Fix remaining test files** for CI/CD
+
+### Medium Priority
+
+4. **Add missing components:**
+   - `image_view.zig` - Image display
+   - `scroll_view.zig` - Scrollable container
+
+5. **Update README.md:**
+   - Correct component count (currently 38 files, 17 exported)
+   - Update Zig version requirement to 0.16
+
+### Low Priority
+
+6. **Mobile implementation completion** - iOS/Android beyond templates
+7. **Documentation** - API docs for all components
+8. **Examples** - More usage examples
+
+---
+
 ## Notes
 
 - The main library builds successfully with Zig 0.16
 - 42 unit tests pass
 - Remaining test file issues are mostly test infrastructure problems, not core functionality
 - Some test files use patterns that require refactoring (closure captures, private function access)
+- Total component files: 38 (in `src/components/`)
+- Exported components: 17 (in `components.zig`)
+- Missing claimed components: 5-7 (Checkbox, Radio, Label, ImageView, ScrollView, etc.)
 
 ---
 
-*Last updated: 2025-12-09*
+*Last updated: 2025-12-10*

@@ -2,6 +2,18 @@ const std = @import("std");
 const testing = std.testing;
 const ipc = @import("../src/ipc.zig");
 
+// Global counters for tests that need callbacks to increment counters
+var broadcast_count: usize = 0;
+var stream_chunk_count: usize = 0;
+
+fn broadcastCounterHandler(_: ipc.Message) void {
+    broadcast_count += 1;
+}
+
+fn streamChunkCounterHandler(_: ipc.Message) void {
+    stream_chunk_count += 1;
+}
+
 // MessageType tests
 test "MessageType - all variants" {
     try testing.expectEqual(ipc.MessageType.request, .request);
@@ -201,21 +213,16 @@ test "IPC - broadcast to all channels" {
     var instance = ipc.IPC.init(allocator);
     defer instance.deinit();
 
-    var count: usize = 0;
-    const counter = struct {
-        fn handler(msg: ipc.Message) void {
-            _ = msg;
-            count += 1;
-        }
-    }.handler;
+    // Reset global counter
+    broadcast_count = 0;
 
-    try instance.on("channel1", counter);
-    try instance.on("channel2", counter);
-    try instance.on("channel3", counter);
+    try instance.on("channel1", broadcastCounterHandler);
+    try instance.on("channel2", broadcastCounterHandler);
+    try instance.on("channel3", broadcastCounterHandler);
 
     try instance.broadcast("broadcast-data");
 
-    try testing.expectEqual(@as(usize, 3), count);
+    try testing.expectEqual(@as(usize, 3), broadcast_count);
 }
 
 test "IPC - message id incrementing" {
@@ -535,22 +542,17 @@ test "Stream - write chunked data" {
     var instance = ipc.IPC.init(allocator);
     defer instance.deinit();
 
-    var chunk_count: usize = 0;
-    const counter = struct {
-        fn handler(msg: ipc.Message) void {
-            _ = msg;
-            chunk_count += 1;
-        }
-    }.handler;
+    // Reset global counter
+    stream_chunk_count = 0;
 
-    try instance.on("stream-channel", counter);
+    try instance.on("stream-channel", streamChunkCounterHandler);
 
     var stream = ipc.Stream.init(allocator, &instance, "stream-channel");
     stream.chunk_size = 10;
 
     try stream.write("0123456789abcdefghij"); // 20 bytes, should create 2 chunks
 
-    try testing.expectEqual(@as(usize, 2), chunk_count);
+    try testing.expectEqual(@as(usize, 2), stream_chunk_count);
 }
 
 test "Stream - onData handler" {

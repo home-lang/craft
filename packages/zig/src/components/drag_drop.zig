@@ -523,7 +523,6 @@ pub fn registerForDraggedTypes(view: macos.objc.id) void {
 /// Create a dragging item for pasteboard
 pub fn createDraggingItem(item_id: []const u8, frame: macos.NSRect) macos.objc.id {
     const NSDraggingItem = macos.getClass("NSDraggingItem");
-    const NSString = macos.getClass("NSString");
 
     // Create pasteboard item
     const nsString = macos.createNSString(item_id);

@@ -182,8 +182,7 @@ fn thenCounterCallback(value: []const u8) void {
     global_callback_count += 1;
 }
 
-fn catchCounterCallback(err: anyerror) void {
-    _ = err;
+fn catchCounterCallback(_: anyerror) void {
     global_callback_count += 1;
 }
 
