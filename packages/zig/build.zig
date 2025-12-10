@@ -1185,4 +1185,52 @@ pub fn build(b: *std.Build) void {
 
     const run_tray_cmd = b.addRunArtifact(tray_exe);
     run_tray.dependOn(&run_tray_cmd.step);
+
+    // ========================================================================
+    // Clipboard Example
+    // ========================================================================
+
+    const run_clipboard = b.step("run-clipboard", "Run the clipboard example");
+
+    const clipboard_exe = b.addExecutable(.{
+        .name = "clipboard-example",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/clipboard/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+            },
+        }),
+    });
+    clipboard_exe.linkFramework("Cocoa");
+    clipboard_exe.linkFramework("WebKit");
+    clipboard_exe.linkLibC();
+
+    const run_clipboard_cmd = b.addRunArtifact(clipboard_exe);
+    run_clipboard.dependOn(&run_clipboard_cmd.step);
+
+    // ========================================================================
+    // Hot Reload Example
+    // ========================================================================
+
+    const run_hotreload = b.step("run-hotreload", "Run the hot reload example");
+
+    const hotreload_exe = b.addExecutable(.{
+        .name = "hotreload-example",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/hot_reload/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+            },
+        }),
+    });
+    hotreload_exe.linkFramework("Cocoa");
+    hotreload_exe.linkFramework("WebKit");
+    hotreload_exe.linkLibC();
+
+    const run_hotreload_cmd = b.addRunArtifact(hotreload_exe);
+    run_hotreload.dependOn(&run_hotreload_cmd.step);
 }

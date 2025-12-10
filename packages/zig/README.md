@@ -510,6 +510,87 @@ fn onTrayClick() void {
 
 Run: `zig build run-tray`
 
+### Clipboard
+
+```zig
+const std = @import("std");
+const craft = @import("craft");
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+
+    var clipboard = craft.ClipboardBridge.init(allocator);
+    defer clipboard.deinit();
+
+    // Write text to clipboard
+    try clipboard.handleMessageWithData("writeText", "{\"text\":\"Hello!\"}");
+
+    // Read text from clipboard
+    try clipboard.handleMessageWithData("readText", null);
+
+    // Write HTML to clipboard
+    try clipboard.handleMessageWithData("writeHTML", "{\"html\":\"<b>Bold</b>\"}");
+
+    // Check clipboard contents
+    try clipboard.handleMessageWithData("hasText", null);
+    try clipboard.handleMessageWithData("hasHTML", null);
+    try clipboard.handleMessageWithData("hasImage", null);
+
+    // Clear clipboard
+    try clipboard.handleMessageWithData("clear", null);
+}
+```
+
+Run: `zig build run-clipboard`
+
+### Hot Reload
+
+```zig
+const std = @import("std");
+const craft = @import("craft");
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+
+    // Set up file watcher
+    var hot_reload = try craft.HotReload.init(allocator, .{
+        .enabled = true,
+        .watch_paths = &[_][]const u8{ "src/", "index.html" },
+        .debounce_ms = 300,
+    });
+    defer hot_reload.deinit();
+
+    hot_reload.setCallback(onReload);
+    hot_reload.start();
+
+    // Start WebSocket server for browser/mobile reload
+    var server = craft.ReloadServer.init(allocator, .{
+        .port = 3456,
+        .host = "0.0.0.0",
+    });
+    defer server.deinit();
+    try server.start();
+
+    // Poll for changes in your event loop
+    while (true) {
+        try hot_reload.poll();
+        std.time.sleep(100 * std.time.ns_per_ms);
+    }
+}
+
+fn onReload() void {
+    std.debug.print("Reloading...\n", .{});
+}
+```
+
+**State Preservation:** Hot reload automatically preserves:
+- Scroll position
+- Form data
+- Focus state
+- Custom state via `window.__CRAFT_STATE__`
+
+Run: `zig build run-hotreload`
+
 ### Using Components
 
 ```zig

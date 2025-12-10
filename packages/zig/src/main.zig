@@ -32,6 +32,18 @@ pub const NotificationAction = Notifications.NotificationAction;
 pub const tray_module = @import("tray.zig");
 pub const SystemTray = tray_module.SystemTray;
 
+// Re-export clipboard module
+pub const clipboard_module = @import("bridge_clipboard.zig");
+pub const ClipboardBridge = clipboard_module.ClipboardBridge;
+
+// Re-export hot reload module
+pub const hotreload_module = @import("hotreload.zig");
+pub const HotReload = hotreload_module.HotReload;
+pub const HotReloadConfig = hotreload_module.HotReloadConfig;
+pub const FileWatcher = hotreload_module.FileWatcher;
+pub const ReloadServer = hotreload_module.ReloadServer;
+pub const MobileReloadConfig = hotreload_module.MobileReloadConfig;
+
 // Re-export components
 pub const components = @import("components.zig");
 pub const Component = components.Component;
