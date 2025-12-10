@@ -1113,4 +1113,28 @@ pub fn build(b: *std.Build) void {
 
     const web_to_native_ios_install = b.addInstallArtifact(web_to_native_ios_lib, .{});
     build_web_to_native_ios.dependOn(&web_to_native_ios_install.step);
+
+    // ========================================================================
+    // File Dialogs Example
+    // ========================================================================
+
+    const run_dialogs = b.step("run-dialogs", "Run the file dialogs example");
+
+    const dialogs_exe = b.addExecutable(.{
+        .name = "file-dialogs-example",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/file_dialogs/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+            },
+        }),
+    });
+    dialogs_exe.linkFramework("Cocoa");
+    dialogs_exe.linkFramework("WebKit");
+    dialogs_exe.linkLibC();
+
+    const run_dialogs_cmd = b.addRunArtifact(dialogs_exe);
+    run_dialogs.dependOn(&run_dialogs_cmd.step);
 }

@@ -13,6 +13,17 @@ pub const mobile = @import("mobile.zig");
 // Re-export API module
 pub const api = @import("api.zig");
 
+// Re-export dialogs module
+pub const dialogs = @import("dialogs.zig");
+pub const Dialog = dialogs.Dialog;
+pub const FileDialogOptions = dialogs.FileDialogOptions;
+pub const DirectoryDialogOptions = dialogs.DirectoryDialogOptions;
+pub const MessageDialogOptions = dialogs.MessageDialogOptions;
+pub const ConfirmDialogOptions = dialogs.ConfirmDialogOptions;
+pub const DialogResult = dialogs.DialogResult;
+pub const CommonDialogs = dialogs.CommonDialogs;
+pub const FileFilter = dialogs.FileFilter;
+
 // Re-export components
 pub const components = @import("components.zig");
 pub const Component = components.Component;

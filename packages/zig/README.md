@@ -369,6 +369,76 @@ if (window.craft) {
 }
 ```
 
+### File Dialogs
+
+```zig
+const std = @import("std");
+const craft = @import("craft");
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+
+    // Open file dialog with filters
+    const filters = [_]craft.FileFilter{
+        craft.FileFilter.create("Text Files", &[_][]const u8{ "txt", "md", "json" }),
+        craft.FileFilter.create("All Files", &[_][]const u8{"*"}),
+    };
+
+    if (try craft.Dialog.showFileOpen(allocator, .{
+        .title = "Open File",
+        .filters = &filters,
+    })) |result| {
+        switch (result) {
+            .file_path => |path| std.debug.print("Selected: {s}\n", .{path}),
+            else => {},
+        }
+    }
+
+    // Save file dialog
+    if (try craft.Dialog.showFileSave(allocator, .{
+        .title = "Save As",
+        .default_path = "untitled.txt",
+    })) |result| {
+        switch (result) {
+            .file_path => |path| std.debug.print("Save to: {s}\n", .{path}),
+            else => {},
+        }
+    }
+
+    // Select folder dialog
+    if (try craft.Dialog.showDirectory(allocator, .{
+        .title = "Select Folder",
+    })) |result| {
+        switch (result) {
+            .directory_path => |path| std.debug.print("Folder: {s}\n", .{path}),
+            else => {},
+        }
+    }
+
+    // Message dialog
+    _ = try craft.Dialog.showMessage(allocator, .{
+        .title = "Info",
+        .message = "Operation completed!",
+        .type = .info,
+    });
+
+    // Confirm dialog
+    const confirmed = try craft.Dialog.showConfirm(allocator, .{
+        .title = "Confirm",
+        .message = "Are you sure?",
+        .destructive = true,
+    });
+    if (confirmed == .ok) {
+        std.debug.print("User confirmed\n", .{});
+    }
+}
+```
+
+Run the file dialogs example:
+```bash
+zig build run-dialogs
+```
+
 ### Using Components
 
 ```zig
