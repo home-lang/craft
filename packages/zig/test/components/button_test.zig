@@ -1,7 +1,6 @@
 const std = @import("std");
 const components = @import("components");
 const Button = components.Button;
-const ComponentProps = components.ComponentProps;
 
 var clicked = false;
 
@@ -11,8 +10,7 @@ fn handleClick() void {
 
 test "button creation" {
     const allocator = std.testing.allocator;
-    const props = ComponentProps{};
-    const button = try Button.init(allocator, "Click Me", props);
+    const button = try Button.init(allocator, .{ .label = "Click Me" });
     defer button.deinit();
 
     try std.testing.expectEqualStrings("Click Me", button.text);
@@ -21,8 +19,7 @@ test "button creation" {
 
 test "button click handler" {
     const allocator = std.testing.allocator;
-    const props = ComponentProps{};
-    const button = try Button.init(allocator, "Click Me", props);
+    const button = try Button.init(allocator, .{ .label = "Click Me" });
     defer button.deinit();
 
     clicked = false;
@@ -33,10 +30,21 @@ test "button click handler" {
 
 test "button setText" {
     const allocator = std.testing.allocator;
-    const props = ComponentProps{};
-    const button = try Button.init(allocator, "Initial", props);
+    const button = try Button.init(allocator, .{ .label = "Initial" });
     defer button.deinit();
 
     button.setText("Updated");
     try std.testing.expectEqualStrings("Updated", button.text);
+}
+
+test "button setLabel and setVariant (README API)" {
+    const allocator = std.testing.allocator;
+    const button = try Button.init(allocator, .{});
+    defer button.deinit();
+
+    button.setLabel("Click Me!");
+    button.setVariant(.primary);
+
+    try std.testing.expectEqualStrings("Click Me!", button.getLabel());
+    try std.testing.expectEqual(Button.Variant.primary, button.getVariant());
 }
