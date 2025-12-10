@@ -82,6 +82,24 @@ zig fmt src/ build.zig
 zig fmt --check src/ build.zig
 ```
 
+### iOS Build
+
+```bash
+# Build for iOS device (arm64)
+zig build build-ios
+
+# Build for iOS Simulator
+zig build build-ios-simulator
+
+# Build for both
+zig build build-ios-all
+```
+
+Output libraries are in `zig-out/lib/`:
+- `libcraft-ios.a` - iOS device
+- `libcraft-ios-simulator-arm64.a` - iOS Simulator (Apple Silicon)
+- `libcraft-ios-simulator-x64.a` - iOS Simulator (Intel)
+
 ## Features
 
 ### 🎨 UI Components (35 total)
@@ -237,6 +255,117 @@ pub fn main() !void {
 
     _ = try app.createWindow("My App", 800, 600, html);
     try app.run();
+}
+```
+
+### iOS App
+
+```zig
+const std = @import("std");
+const ios = @import("craft").ios;
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html = @embedFile("app.html");
+
+    var app = ios.CraftAppDelegate.init(allocator, .{
+        .name = "My iOS App",
+        .initial_content = .{ .html = html },
+        .status_bar_style = .light,
+        .orientations = &[_]ios.CraftAppDelegate.AppConfig.Orientation{
+            .portrait,
+            .landscape_left,
+            .landscape_right,
+        },
+    });
+
+    // Register lifecycle callbacks
+    app.onLaunch(onAppLaunch);
+    app.onBackground(onAppBackground);
+
+    try app.run();
+}
+
+fn onAppLaunch() void {
+    std.debug.print("App launched!\n", .{});
+}
+
+fn onAppBackground() void {
+    std.debug.print("App went to background\n", .{});
+}
+```
+
+### Cross-Platform (Desktop + iOS)
+
+```zig
+const std = @import("std");
+const craft = @import("craft");
+const builtin = @import("builtin");
+
+const app_html = @embedFile("app.html");
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    switch (builtin.target.os.tag) {
+        .macos, .linux, .windows => {
+            // Desktop
+            var app = craft.App.init(allocator);
+            defer app.deinit();
+            _ = try app.createWindow("My App", 1200, 800, app_html);
+            try app.run();
+        },
+        .ios => {
+            // iOS
+            const ios = @import("craft").ios;
+            var app = ios.CraftAppDelegate.init(allocator, .{
+                .name = "My App",
+                .initial_content = .{ .html = app_html },
+            });
+            try app.run();
+        },
+        else => return error.UnsupportedPlatform,
+    }
+}
+```
+
+### JavaScript Bridge (Web App)
+
+Your web app can call native functions:
+
+```javascript
+// Check if running in Craft native environment
+if (window.craft) {
+    // Get platform info
+    const platform = await craft.invoke('getPlatform');
+    // { os: 'ios', version: '17.0', device: 'iPhone', native: true }
+
+    // Show native alert
+    await craft.invoke('showAlert', {
+        title: 'Hello',
+        message: 'Native alert!'
+    });
+
+    // Trigger haptic feedback (iOS)
+    await craft.invoke('haptic', { type: 'success' });
+
+    // Get safe area insets (iOS notch/home indicator)
+    const insets = await craft.invoke('getSafeArea');
+    // { top: 47, bottom: 34, left: 0, right: 0 }
+
+    // Copy to clipboard
+    await craft.invoke('setClipboard', { text: 'Hello!' });
+
+    // Open URL in browser
+    await craft.invoke('openURL', { url: 'https://example.com' });
+
+    // Share content
+    await craft.invoke('share', { text: 'Check this out!' });
 }
 ```
 

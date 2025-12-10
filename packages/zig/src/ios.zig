@@ -856,7 +856,7 @@ test "CraftAppDelegate initialization" {
         .initial_content = .{ .html = "<h1>Hello</h1>" },
     };
 
-    var app = CraftAppDelegate.init(allocator, config);
+    const app = CraftAppDelegate.init(allocator, config);
     _ = app;
 
     // Can't fully test without iOS runtime

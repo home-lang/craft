@@ -6,6 +6,13 @@ const BridgeAPI = @import("bridge_api.zig").BridgeAPI;
 const Notifications = @import("notifications.zig").Notifications;
 const Menu = @import("menu.zig").Menu;
 
+// Re-export iOS module (available on all platforms for cross-compilation)
+pub const ios = @import("ios.zig");
+pub const mobile = @import("mobile.zig");
+
+// Re-export API module
+pub const api = @import("api.zig");
+
 // Re-export components
 pub const components = @import("components.zig");
 pub const Component = components.Component;
