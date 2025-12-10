@@ -1,9 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const macos = if (builtin.os.tag == .macos) @import("macos.zig") else struct {};
-const SystemTray = @import("tray.zig").SystemTray;
 const BridgeAPI = @import("bridge_api.zig").BridgeAPI;
-const Notifications = @import("notifications.zig").Notifications;
 const Menu = @import("menu.zig").Menu;
 
 // Re-export iOS module (available on all platforms for cross-compilation)
@@ -23,6 +21,16 @@ pub const ConfirmDialogOptions = dialogs.ConfirmDialogOptions;
 pub const DialogResult = dialogs.DialogResult;
 pub const CommonDialogs = dialogs.CommonDialogs;
 pub const FileFilter = dialogs.FileFilter;
+
+// Re-export notifications module
+pub const notifications_module = @import("notifications.zig");
+pub const Notifications = notifications_module.Notifications;
+pub const NotificationOptions = Notifications.NotificationOptions;
+pub const NotificationAction = Notifications.NotificationAction;
+
+// Re-export system tray module
+pub const tray_module = @import("tray.zig");
+pub const SystemTray = tray_module.SystemTray;
 
 // Re-export components
 pub const components = @import("components.zig");

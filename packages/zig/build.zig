@@ -1137,4 +1137,52 @@ pub fn build(b: *std.Build) void {
 
     const run_dialogs_cmd = b.addRunArtifact(dialogs_exe);
     run_dialogs.dependOn(&run_dialogs_cmd.step);
+
+    // ========================================================================
+    // Notifications Example
+    // ========================================================================
+
+    const run_notifications = b.step("run-notifications", "Run the notifications example");
+
+    const notifications_exe = b.addExecutable(.{
+        .name = "notifications-example",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/notifications/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+            },
+        }),
+    });
+    notifications_exe.linkFramework("Cocoa");
+    notifications_exe.linkFramework("WebKit");
+    notifications_exe.linkLibC();
+
+    const run_notifications_cmd = b.addRunArtifact(notifications_exe);
+    run_notifications.dependOn(&run_notifications_cmd.step);
+
+    // ========================================================================
+    // System Tray Example
+    // ========================================================================
+
+    const run_tray = b.step("run-tray", "Run the system tray example");
+
+    const tray_exe = b.addExecutable(.{
+        .name = "tray-example",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/system_tray/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+            },
+        }),
+    });
+    tray_exe.linkFramework("Cocoa");
+    tray_exe.linkFramework("WebKit");
+    tray_exe.linkLibC();
+
+    const run_tray_cmd = b.addRunArtifact(tray_exe);
+    run_tray.dependOn(&run_tray_cmd.step);
 }

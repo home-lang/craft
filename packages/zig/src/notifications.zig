@@ -25,6 +25,8 @@ pub const Notifications = struct {
         tag: ?[]const u8 = null,
         on_action: ?ActionCallback = null,
         on_click: ?*const fn () void = null,
+        timeout_ms: ?u32 = null, // Timeout in milliseconds (Linux)
+        silent: bool = false, // Low urgency notification
     };
 
     pub fn init(allocator: std.mem.Allocator) Self {
@@ -210,8 +212,8 @@ fn linuxSend(self: *Notifications, options: Notifications.NotificationOptions) !
             if (options.actions) |actions| {
                 for (actions) |action| {
                     const action_id: [*:0]const u8 = @ptrCast(action.id.ptr);
-                    const action_label: [*:0]const u8 = @ptrCast(action.label.ptr);
-                    notify_notification_add_action(notif, action_id, action_label, null, null, null);
+                    const action_title: [*:0]const u8 = @ptrCast(action.title.ptr);
+                    notify_notification_add_action(notif, action_id, action_title, null, null, null);
                 }
             }
 

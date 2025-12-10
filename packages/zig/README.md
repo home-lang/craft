@@ -439,6 +439,77 @@ Run the file dialogs example:
 zig build run-dialogs
 ```
 
+### Notifications
+
+```zig
+const std = @import("std");
+const craft = @import("craft");
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+
+    var notifications = craft.Notifications.init(allocator);
+    defer notifications.deinit();
+
+    // Basic notification
+    try notifications.send(.{
+        .title = "Hello!",
+        .body = "This is a native notification.",
+    });
+
+    // Notification with sound
+    try notifications.send(.{
+        .title = "Download Complete",
+        .body = "Your file is ready.",
+        .sound = "Glass", // macOS sound name
+    });
+
+    // Notification with action button
+    const actions = [_]craft.NotificationAction{
+        .{ .id = "view", .title = "View" },
+    };
+    try notifications.send(.{
+        .title = "New Message",
+        .body = "You have unread messages.",
+        .actions = &actions,
+    });
+}
+```
+
+Run: `zig build run-notifications`
+
+### System Tray
+
+```zig
+const std = @import("std");
+const craft = @import("craft");
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+
+    var tray = craft.SystemTray.init(allocator, "My App");
+    defer tray.deinit();
+
+    tray.icon_text = "🚀 App";
+    try tray.setTooltip("My Application");
+    tray.setClickCallback(onTrayClick);
+    try tray.show();
+
+    // Update title dynamically
+    try tray.setTitle("📊 Active");
+
+    // Animate the icon
+    const frames = [_][]const u8{ "⏳.", "⏳..", "⏳..." };
+    try tray.animate(&frames, 500);
+}
+
+fn onTrayClick() void {
+    std.debug.print("Tray clicked!\n", .{});
+}
+```
+
+Run: `zig build run-tray`
+
 ### Using Components
 
 ```zig
