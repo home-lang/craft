@@ -142,23 +142,93 @@ pub const App = struct {
         self.windows.deinit();
     }
 
-    /// Create a window with URL
-    pub fn createWindow(self: *App, title: []const u8, width: u32, height: u32, url: []const u8, options: WindowOptions) !*Window {
-        var opts = options;
-        opts.title = title;
-        opts.width = width;
-        opts.height = height;
+    /// Create a window with HTML content (simple API - matches README example)
+    /// Usage: _ = try app.createWindow("My App", 800, 600, html);
+    pub fn createWindow(self: *App, title: []const u8, width: u32, height: u32, html: []const u8) !*Window {
+        return self.createWindowAdvanced(title, width, height, html, .{});
+    }
 
-        const window = try Window.create(opts);
+    /// Create a window with HTML content and additional options
+    /// Usage: _ = try app.createWindowAdvanced("My App", 800, 600, html, .{ .resizable = true });
+    pub fn createWindowAdvanced(self: *App, title: []const u8, width: u32, height: u32, html: []const u8, options: WindowOptions) !*Window {
+        // Convert WindowOptions to platform-specific style
+        const macos = @import("macos.zig");
+
+        // Create window handle using platform-specific implementation
+        const handle: *anyopaque = switch (@import("builtin").target.os.tag) {
+            .macos => blk: {
+                const style = macos.WindowStyle{
+                    .resizable = options.resizable,
+                    .closable = true,
+                    .miniaturizable = true,
+                    .always_on_top = options.always_on_top,
+                    .titlebar_hidden = options.titlebar_hidden,
+                    .frameless = options.frameless,
+                    .transparent = options.transparent,
+                    .x = options.x,
+                    .y = options.y,
+                };
+                const win_handle = try macos.createWindowWithHTML(title, width, height, html, style);
+                break :blk @ptrCast(win_handle);
+            },
+            .linux => blk: {
+                const linux = @import("linux.zig");
+                const win_handle = try linux.createWindow(title, width, height, html);
+                break :blk @ptrCast(win_handle);
+            },
+            .windows => blk: {
+                const win = @import("windows.zig");
+                const win_handle = try win.createWindow(title, width, height, html);
+                break :blk @ptrCast(win_handle);
+            },
+            else => return error.UnsupportedPlatform,
+        };
+
+        const window = Window{
+            .handle = handle,
+            .title = title,
+            .width = width,
+            .height = height,
+            .x = options.x orelse 0,
+            .y = options.y orelse 0,
+        };
         try self.windows.append(window);
 
-        // Load URL in window
-        switch (@import("builtin").target.os.tag) {
-            .macos => try @import("macos.zig").Window.loadURL(&self.windows.items[self.windows.items.len - 1], url),
-            .linux => try @import("linux.zig").Window.loadURL(&self.windows.items[self.windows.items.len - 1], url),
-            .windows => try @import("windows.zig").Window.loadURL(&self.windows.items[self.windows.items.len - 1], url),
+        return &self.windows.items[self.windows.items.len - 1];
+    }
+
+    /// Create a window with URL content
+    pub fn createWindowWithURL(self: *App, title: []const u8, width: u32, height: u32, url: []const u8, options: WindowOptions) !*Window {
+        const macos = @import("macos.zig");
+
+        const handle: *anyopaque = switch (@import("builtin").target.os.tag) {
+            .macos => blk: {
+                const style = macos.WindowStyle{
+                    .resizable = options.resizable,
+                    .closable = true,
+                    .miniaturizable = true,
+                    .always_on_top = options.always_on_top,
+                    .titlebar_hidden = options.titlebar_hidden,
+                    .frameless = options.frameless,
+                    .transparent = options.transparent,
+                    .x = options.x,
+                    .y = options.y,
+                };
+                const win_handle = try macos.createWindowWithURL(title, width, height, url, style);
+                break :blk @ptrCast(win_handle);
+            },
             else => return error.UnsupportedPlatform,
-        }
+        };
+
+        const window = Window{
+            .handle = handle,
+            .title = title,
+            .width = width,
+            .height = height,
+            .x = options.x orelse 0,
+            .y = options.y orelse 0,
+        };
+        try self.windows.append(window);
 
         return &self.windows.items[self.windows.items.len - 1];
     }

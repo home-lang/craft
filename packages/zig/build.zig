@@ -999,4 +999,118 @@ pub fn build(b: *std.Build) void {
     const macos_install = b.addInstallArtifact(macos_exe, .{});
     build_macos.dependOn(&macos_install.step);
     build_all.dependOn(&macos_install.step);
+
+    // ========================================================================
+    // iOS Build Targets
+    // ========================================================================
+
+    const build_ios = b.step("build-ios", "Build for iOS (device)");
+    const build_ios_simulator = b.step("build-ios-simulator", "Build for iOS Simulator");
+    const build_ios_all = b.step("build-ios-all", "Build for iOS (device + simulator)");
+
+    // iOS Device (arm64)
+    const ios_device_target = b.resolveTargetQuery(.{
+        .cpu_arch = .aarch64,
+        .os_tag = .ios,
+    });
+
+    const ios_device_lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "craft-ios",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ios_main.zig"),
+            .target = ios_device_target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+            },
+        }),
+    });
+    ios_device_lib.linkFramework("UIKit");
+    ios_device_lib.linkFramework("WebKit");
+    ios_device_lib.linkFramework("Foundation");
+    ios_device_lib.linkLibC();
+
+    const ios_device_install = b.addInstallArtifact(ios_device_lib, .{});
+    build_ios.dependOn(&ios_device_install.step);
+    build_ios_all.dependOn(&ios_device_install.step);
+
+    // iOS Simulator (arm64 for Apple Silicon Macs)
+    const ios_sim_arm64_target = b.resolveTargetQuery(.{
+        .cpu_arch = .aarch64,
+        .os_tag = .ios,
+        .abi = .simulator,
+    });
+
+    const ios_sim_arm64_lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "craft-ios-simulator-arm64",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ios_main.zig"),
+            .target = ios_sim_arm64_target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+            },
+        }),
+    });
+    ios_sim_arm64_lib.linkFramework("UIKit");
+    ios_sim_arm64_lib.linkFramework("WebKit");
+    ios_sim_arm64_lib.linkFramework("Foundation");
+    ios_sim_arm64_lib.linkLibC();
+
+    const ios_sim_arm64_install = b.addInstallArtifact(ios_sim_arm64_lib, .{});
+    build_ios_simulator.dependOn(&ios_sim_arm64_install.step);
+    build_ios_all.dependOn(&ios_sim_arm64_install.step);
+
+    // iOS Simulator (x86_64 for Intel Macs)
+    const ios_sim_x64_target = b.resolveTargetQuery(.{
+        .cpu_arch = .x86_64,
+        .os_tag = .ios,
+        .abi = .simulator,
+    });
+
+    const ios_sim_x64_lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "craft-ios-simulator-x64",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ios_main.zig"),
+            .target = ios_sim_x64_target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+            },
+        }),
+    });
+    ios_sim_x64_lib.linkFramework("UIKit");
+    ios_sim_x64_lib.linkFramework("WebKit");
+    ios_sim_x64_lib.linkFramework("Foundation");
+    ios_sim_x64_lib.linkLibC();
+
+    const ios_sim_x64_install = b.addInstallArtifact(ios_sim_x64_lib, .{});
+    build_ios_simulator.dependOn(&ios_sim_x64_install.step);
+    build_ios_all.dependOn(&ios_sim_x64_install.step);
+
+    // Web-to-native example for iOS
+    const build_web_to_native_ios = b.step("build-web-to-native-ios", "Build web-to-native example for iOS");
+
+    const web_to_native_ios_lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "web-to-native-ios",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/web_to_native/main.zig"),
+            .target = ios_device_target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+            },
+        }),
+    });
+    web_to_native_ios_lib.linkFramework("UIKit");
+    web_to_native_ios_lib.linkFramework("WebKit");
+    web_to_native_ios_lib.linkFramework("Foundation");
+    web_to_native_ios_lib.linkLibC();
+
+    const web_to_native_ios_install = b.addInstallArtifact(web_to_native_ios_lib, .{});
+    build_web_to_native_ios.dependOn(&web_to_native_ios_install.step);
 }
