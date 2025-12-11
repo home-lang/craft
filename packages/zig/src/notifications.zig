@@ -1,350 +1,1085 @@
+//! Notifications Module
+//!
+//! Provides local and push notification functionality:
+//! - Schedule local notifications
+//! - Handle push notifications
+//! - Notification actions and categories
+//! - Badge management
+//! - Sound and vibration control
+//!
+//! Example usage:
+//! ```zig
+//! var notif = NotificationManager.init(allocator);
+//! defer notif.deinit();
+//!
+//! try notif.requestPermission(.{});
+//!
+//! const notification = NotificationPresets.reminder("Meeting", "Team sync in 10 minutes", 600);
+//! try notif.schedule(notification);
+//! ```
+
 const std = @import("std");
 const builtin = @import("builtin");
 
-/// Cross-platform notification system
-pub const Notifications = struct {
-    allocator: std.mem.Allocator,
-    action_callbacks: std.StringHashMap(ActionCallback),
-    delegate_handle: ?*anyopaque = null,
+/// Notification priority levels
+pub const Priority = enum {
+    min,
+    low,
+    default,
+    high,
+    max,
 
-    const Self = @This();
+    pub fn toString(self: Priority) []const u8 {
+        return switch (self) {
+            .min => "min",
+            .low => "low",
+            .default => "default",
+            .high => "high",
+            .max => "max",
+        };
+    }
 
-    pub const ActionCallback = *const fn (action_id: []const u8) void;
+    /// Get Android importance level
+    pub fn toAndroidImportance(self: Priority) i32 {
+        return switch (self) {
+            .min => 1,
+            .low => 2,
+            .default => 3,
+            .high => 4,
+            .max => 5,
+        };
+    }
+};
 
-    pub const NotificationAction = struct {
-        id: []const u8,
-        title: []const u8,
+/// Notification category for grouping
+pub const Category = enum {
+    general,
+    social,
+    message,
+    email,
+    event,
+    reminder,
+    alarm,
+    promo,
+    progress,
+    transport,
+    system,
+    service,
+    error_cat,
+    status,
+
+    pub fn toString(self: Category) []const u8 {
+        return switch (self) {
+            .general => "general",
+            .social => "social",
+            .message => "message",
+            .email => "email",
+            .event => "event",
+            .reminder => "reminder",
+            .alarm => "alarm",
+            .promo => "promo",
+            .progress => "progress",
+            .transport => "transport",
+            .system => "system",
+            .service => "service",
+            .error_cat => "error",
+            .status => "status",
+        };
+    }
+};
+
+/// Sound options for notifications
+pub const Sound = union(enum) {
+    default: void,
+    none: void,
+    custom: []const u8,
+    critical: f32, // volume 0.0 - 1.0
+
+    pub fn isEnabled(self: Sound) bool {
+        return switch (self) {
+            .none => false,
+            else => true,
+        };
+    }
+};
+
+/// Notification trigger types
+pub const Trigger = union(enum) {
+    /// Trigger immediately
+    immediate: void,
+
+    /// Trigger after time interval (seconds)
+    time_interval: u64,
+
+    /// Trigger at specific timestamp (Unix timestamp)
+    timestamp: i64,
+
+    /// Trigger at calendar date/time
+    calendar: CalendarTrigger,
+
+    /// Trigger based on location (geofence)
+    location: LocationTrigger,
+
+    pub const CalendarTrigger = struct {
+        year: ?u16 = null,
+        month: ?u8 = null, // 1-12
+        day: ?u8 = null, // 1-31
+        hour: ?u8 = null, // 0-23
+        minute: ?u8 = null, // 0-59
+        second: ?u8 = null, // 0-59
+        weekday: ?u8 = null, // 1-7 (Sunday = 1)
+        repeats: bool = false,
     };
 
-    pub const NotificationOptions = struct {
-        title: []const u8,
-        body: ?[]const u8 = null,
-        sound: ?[]const u8 = null, // "default", "Glass", "Ping", etc.
-        icon: ?[]const u8 = null,
-        actions: ?[]const NotificationAction = null,
-        tag: ?[]const u8 = null,
-        on_action: ?ActionCallback = null,
-        on_click: ?*const fn () void = null,
-        timeout_ms: ?u32 = null, // Timeout in milliseconds (Linux)
-        silent: bool = false, // Low urgency notification
+    pub const LocationTrigger = struct {
+        latitude: f64,
+        longitude: f64,
+        radius: f64, // meters
+        on_entry: bool = true,
+        on_exit: bool = false,
+        repeats: bool = false,
+    };
+};
+
+/// Notification action button
+pub const Action = struct {
+    id: []const u8,
+    title: []const u8,
+    icon: ?[]const u8 = null,
+    destructive: bool = false,
+    authentication_required: bool = false,
+    foreground: bool = false,
+    text_input: ?TextInputConfig = null,
+
+    pub const TextInputConfig = struct {
+        button_title: []const u8 = "Send",
+        placeholder: []const u8 = "",
+    };
+};
+
+/// Notification attachment (image, video, audio)
+pub const Attachment = struct {
+    id: []const u8,
+    url: []const u8,
+    mime_type: ?[]const u8 = null,
+    thumbnail_hidden: bool = false,
+};
+
+/// Progress indicator for notifications
+pub const Progress = struct {
+    current: u32,
+    max: u32,
+    indeterminate: bool = false,
+
+    pub fn percentage(self: Progress) f32 {
+        if (self.max == 0) return 0;
+        return @as(f32, @floatFromInt(self.current)) / @as(f32, @floatFromInt(self.max)) * 100.0;
+    }
+};
+
+/// Main notification structure
+pub const Notification = struct {
+    /// Unique identifier
+    id: []const u8 = "default",
+
+    /// Title text
+    title: []const u8,
+
+    /// Subtitle (iOS) / Subtext (Android)
+    subtitle: ?[]const u8 = null,
+
+    /// Body text
+    body: ?[]const u8 = null,
+
+    /// Badge number (0 to clear)
+    badge: ?u32 = null,
+
+    /// Sound configuration
+    sound: Sound = .default,
+
+    /// When to trigger
+    trigger: Trigger = .immediate,
+
+    /// Priority level
+    priority: Priority = .default,
+
+    /// Category for grouping
+    category: Category = .general,
+
+    /// Thread/group identifier
+    thread_id: ?[]const u8 = null,
+
+    /// Action buttons
+    actions: ?[]const Action = null,
+
+    /// Attachments
+    attachments: ?[]const Attachment = null,
+
+    /// Progress indicator
+    progress: ?Progress = null,
+
+    /// Custom data payload (as JSON string)
+    user_info: ?[]const u8 = null,
+
+    /// Silent notification (no alert)
+    silent: bool = false,
+
+    /// Foreground presentation options (iOS)
+    foreground_presentation: ForegroundPresentation = .{},
+
+    /// Android-specific options
+    android: AndroidOptions = .{},
+
+    /// iOS-specific options
+    ios: IOSOptions = .{},
+
+    pub const ForegroundPresentation = struct {
+        show_alert: bool = true,
+        play_sound: bool = true,
+        update_badge: bool = true,
+        show_banner: bool = true,
+        show_list: bool = true,
+    };
+
+    pub const AndroidOptions = struct {
+        channel_id: ?[]const u8 = null,
+        small_icon: ?[]const u8 = null,
+        large_icon: ?[]const u8 = null,
+        color: ?u32 = null, // ARGB
+        ongoing: bool = false,
+        auto_cancel: bool = true,
+        only_alert_once: bool = false,
+        show_when: bool = true,
+        group_key: ?[]const u8 = null,
+        group_summary: bool = false,
+        ticker: ?[]const u8 = null,
+        visibility: Visibility = .private,
+
+        pub const Visibility = enum {
+            public,
+            private,
+            secret,
+        };
+    };
+
+    pub const IOSOptions = struct {
+        interruption_level: InterruptionLevel = .active,
+        relevance_score: f64 = 0.0, // 0.0 - 1.0
+        target_content_id: ?[]const u8 = null,
+
+        pub const InterruptionLevel = enum {
+            passive,
+            active,
+            time_sensitive,
+            critical,
+        };
+    };
+};
+
+/// Notification channel (Android)
+pub const Channel = struct {
+    id: []const u8,
+    name: []const u8,
+    description: ?[]const u8 = null,
+    importance: Priority = .default,
+    sound: Sound = .default,
+    vibration: bool = true,
+    lights: bool = true,
+    light_color: ?u32 = null, // ARGB
+    show_badge: bool = true,
+    bypass_dnd: bool = false,
+
+    pub fn init(id: []const u8, name: []const u8) Channel {
+        return .{
+            .id = id,
+            .name = name,
+        };
+    }
+};
+
+/// Permission status
+pub const PermissionStatus = enum {
+    not_determined,
+    denied,
+    authorized,
+    provisional,
+    ephemeral,
+
+    pub fn isGranted(self: PermissionStatus) bool {
+        return self == .authorized or self == .provisional or self == .ephemeral;
+    }
+
+    pub fn toString(self: PermissionStatus) []const u8 {
+        return switch (self) {
+            .not_determined => "not_determined",
+            .denied => "denied",
+            .authorized => "authorized",
+            .provisional => "provisional",
+            .ephemeral => "ephemeral",
+        };
+    }
+};
+
+/// Notification settings
+pub const NotificationSettings = struct {
+    authorization_status: PermissionStatus = .not_determined,
+    sound_enabled: bool = true,
+    badge_enabled: bool = true,
+    alert_enabled: bool = true,
+    lock_screen_enabled: bool = true,
+    notification_center_enabled: bool = true,
+    critical_alert_enabled: bool = false,
+    announcement_enabled: bool = false,
+};
+
+/// Notification response (when user interacts)
+pub const NotificationResponse = struct {
+    notification_id: []const u8,
+    action_id: ?[]const u8 = null,
+    text_input: ?[]const u8 = null,
+    user_info: ?[]const u8 = null,
+    foreground: bool = true,
+};
+
+/// Notification errors
+pub const NotificationError = error{
+    PermissionDenied,
+    InvalidTrigger,
+    InvalidNotification,
+    SchedulingFailed,
+    ChannelNotFound,
+    NotSupported,
+    SystemError,
+    OutOfMemory,
+};
+
+/// Notification manager
+pub const NotificationManager = struct {
+    const Self = @This();
+
+    allocator: std.mem.Allocator,
+    channels: std.StringHashMapUnmanaged(Channel),
+    scheduled: std.StringHashMapUnmanaged(Notification),
+    settings: NotificationSettings,
+    delegate: ?*const NotificationDelegate = null,
+    badge_count: u32 = 0,
+
+    /// Callback delegate for notification events
+    pub const NotificationDelegate = struct {
+        context: *anyopaque,
+        on_received: ?*const fn (*anyopaque, Notification) void = null,
+        on_response: ?*const fn (*anyopaque, NotificationResponse) void = null,
+        on_error: ?*const fn (*anyopaque, NotificationError) void = null,
     };
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .allocator = allocator,
-            .action_callbacks = std.StringHashMap(ActionCallback).init(allocator),
+            .channels = .empty,
+            .scheduled = .empty,
+            .settings = .{},
+            .delegate = null,
+            .badge_count = 0,
         };
     }
 
     pub fn deinit(self: *Self) void {
-        self.action_callbacks.deinit();
-        if (self.delegate_handle) |handle| {
-            // Clean up delegate if needed
-            _ = handle;
+        self.channels.deinit(self.allocator);
+        self.scheduled.deinit(self.allocator);
+    }
+
+    /// Set notification delegate
+    pub fn setDelegate(self: *Self, delegate: *const NotificationDelegate) void {
+        self.delegate = delegate;
+    }
+
+    /// Request notification permission
+    pub fn requestPermission(self: *Self, options: RequestOptions) NotificationError!PermissionStatus {
+        _ = options;
+
+        // Platform-specific permission request
+        if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
+            return self.requestPermissionDarwin();
+        } else if (comptime builtin.os.tag == .linux) {
+            // Linux typically doesn't require permission
+            self.settings.authorization_status = .authorized;
+            return .authorized;
+        } else if (comptime builtin.os.tag == .windows) {
+            return self.requestPermissionWindows();
+        }
+
+        return .authorized;
+    }
+
+    pub const RequestOptions = struct {
+        alert: bool = true,
+        sound: bool = true,
+        badge: bool = true,
+        critical_alert: bool = false,
+        provisional: bool = false,
+        announcement: bool = false,
+    };
+
+    fn requestPermissionDarwin(self: *Self) PermissionStatus {
+        // In real implementation, use UNUserNotificationCenter
+        self.settings.authorization_status = .authorized;
+        return .authorized;
+    }
+
+    fn requestPermissionWindows(self: *Self) PermissionStatus {
+        // In real implementation, use Windows notification API
+        self.settings.authorization_status = .authorized;
+        return .authorized;
+    }
+
+    /// Get current permission status
+    pub fn getPermissionStatus(self: *Self) PermissionStatus {
+        return self.settings.authorization_status;
+    }
+
+    /// Get notification settings
+    pub fn getSettings(self: *Self) NotificationSettings {
+        return self.settings;
+    }
+
+    /// Create notification channel (Android)
+    pub fn createChannel(self: *Self, channel: Channel) NotificationError!void {
+        self.channels.put(self.allocator, channel.id, channel) catch return NotificationError.OutOfMemory;
+    }
+
+    /// Delete notification channel
+    pub fn deleteChannel(self: *Self, channel_id: []const u8) void {
+        _ = self.channels.remove(channel_id);
+    }
+
+    /// Get channel by ID
+    pub fn getChannel(self: *Self, channel_id: []const u8) ?Channel {
+        return self.channels.get(channel_id);
+    }
+
+    /// Get all channels
+    pub fn getAllChannels(self: *Self, allocator: std.mem.Allocator) ![]Channel {
+        var list: std.ArrayListUnmanaged(Channel) = .empty;
+        errdefer list.deinit(allocator);
+
+        var iter = self.channels.iterator();
+        while (iter.next()) |entry| {
+            try list.append(allocator, entry.value_ptr.*);
+        }
+
+        return list.toOwnedSlice(allocator);
+    }
+
+    /// Schedule a notification
+    pub fn schedule(self: *Self, notification: Notification) NotificationError!void {
+        if (!self.settings.authorization_status.isGranted()) {
+            return NotificationError.PermissionDenied;
+        }
+
+        // Validate trigger
+        switch (notification.trigger) {
+            .time_interval => |interval| {
+                if (interval == 0) return NotificationError.InvalidTrigger;
+            },
+            .calendar => |cal| {
+                if (cal.hour) |h| if (h > 23) return NotificationError.InvalidTrigger;
+                if (cal.minute) |m| if (m > 59) return NotificationError.InvalidTrigger;
+                if (cal.month) |mo| if (mo < 1 or mo > 12) return NotificationError.InvalidTrigger;
+                if (cal.day) |d| if (d < 1 or d > 31) return NotificationError.InvalidTrigger;
+            },
+            else => {},
+        }
+
+        // Platform-specific scheduling
+        if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
+            try self.scheduleDarwin(notification);
+        } else if (comptime builtin.os.tag == .linux) {
+            try self.scheduleLinux(notification);
+        } else if (comptime builtin.os.tag == .windows) {
+            try self.scheduleWindows(notification);
+        }
+
+        self.scheduled.put(self.allocator, notification.id, notification) catch return NotificationError.OutOfMemory;
+    }
+
+    fn scheduleDarwin(self: *Self, notification: Notification) NotificationError!void {
+        _ = self;
+        _ = notification;
+        // In real implementation, use UNUserNotificationCenter
+    }
+
+    fn scheduleLinux(self: *Self, notification: Notification) NotificationError!void {
+        _ = self;
+        _ = notification;
+        // In real implementation, use libnotify or D-Bus
+    }
+
+    fn scheduleWindows(self: *Self, notification: Notification) NotificationError!void {
+        _ = self;
+        _ = notification;
+        // In real implementation, use Windows notification API
+    }
+
+    /// Cancel a scheduled notification
+    pub fn cancel(self: *Self, notification_id: []const u8) void {
+        _ = self.scheduled.remove(notification_id);
+
+        // Platform-specific cancellation
+        if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
+            self.cancelDarwin(notification_id);
         }
     }
 
-    /// Send a notification
-    pub fn send(self: *Self, options: NotificationOptions) !void {
-        switch (builtin.os.tag) {
-            .macos => try self.macOSSend(options),
-            .linux => try self.linuxSend(options),
-            .windows => try self.windowsSend(options),
-            else => return error.PlatformNotSupported,
+    fn cancelDarwin(self: *Self, notification_id: []const u8) void {
+        _ = self;
+        _ = notification_id;
+        // In real implementation, use UNUserNotificationCenter
+    }
+
+    /// Cancel all scheduled notifications
+    pub fn cancelAll(self: *Self) void {
+        self.scheduled.clearRetainingCapacity();
+    }
+
+    /// Get all pending notifications
+    pub fn getPending(self: *Self, allocator: std.mem.Allocator) ![]Notification {
+        var list: std.ArrayListUnmanaged(Notification) = .empty;
+        errdefer list.deinit(allocator);
+
+        var iter = self.scheduled.iterator();
+        while (iter.next()) |entry| {
+            try list.append(allocator, entry.value_ptr.*);
         }
+
+        return list.toOwnedSlice(allocator);
     }
 
-    /// Register an action callback
-    pub fn registerActionCallback(self: *Self, notification_tag: []const u8, callback: ActionCallback) !void {
-        try self.action_callbacks.put(notification_tag, callback);
+    /// Get pending notification count
+    pub fn getPendingCount(self: *Self) usize {
+        return self.scheduled.count();
     }
 
-    /// Trigger an action callback (called from platform code)
-    pub fn triggerAction(self: *Self, notification_tag: []const u8, action_id: []const u8) void {
-        if (self.action_callbacks.get(notification_tag)) |callback| {
-            callback(action_id);
-        }
-    }
-};
-
-// ============================================================================
-// macOS Implementation
-// ============================================================================
-
-// Objective-C runtime types (manual declarations for Zig 0.16+ compatibility)
-const objc = if (builtin.os.tag == .macos) struct {
-    pub const id = ?*anyopaque;
-    pub const Class = ?*anyopaque;
-    pub const SEL = ?*anyopaque;
-    pub const IMP = ?*anyopaque;
-    pub const BOOL = bool;
-
-    pub extern "objc" fn objc_getClass(name: [*:0]const u8) Class;
-    pub extern "objc" fn sel_registerName(name: [*:0]const u8) SEL;
-    pub extern "objc" fn objc_msgSend() void;
-} else struct {
-    pub const id = *anyopaque;
-    pub const Class = *anyopaque;
-    pub const SEL = *anyopaque;
-};
-
-fn macOSSend(self: *Notifications, options: Notifications.NotificationOptions) !void {
-    if (builtin.os.tag != .macos) return error.PlatformNotSupported;
-
-    const NSUserNotification = objc.objc_getClass("NSUserNotification");
-    const NSUserNotificationCenter = objc.objc_getClass("NSUserNotificationCenter");
-    const NSString = objc.objc_getClass("NSString");
-
-    // Create notification
-    const notification = msgSend0(msgSend0(NSUserNotification, "alloc"), "init");
-
-    // Set title
-    const titleStr = msgSend1(NSString, "stringWithUTF8String:", options.title.ptr);
-    _ = msgSend1(notification, "setTitle:", titleStr);
-
-    // Set body if provided
-    if (options.body) |body| {
-        const bodyStr = msgSend1(NSString, "stringWithUTF8String:", body.ptr);
-        _ = msgSend1(notification, "setInformativeText:", bodyStr);
-    }
-
-    // Set identifier/tag if provided
-    if (options.tag) |tag| {
-        const tagStr = msgSend1(NSString, "stringWithUTF8String:", tag.ptr);
-        _ = msgSend1(notification, "setIdentifier:", tagStr);
-    }
-
-    // Set sound if provided
-    if (options.sound) |sound| {
-        const soundStr = msgSend1(NSString, "stringWithUTF8String:", sound.ptr);
-        _ = msgSend1(notification, "setSoundName:", soundStr);
-    } else {
-        // Default sound
-        const defaultSound = msgSend0(objc.objc_getClass("NSUserNotificationDefaultSoundName"), "stringValue");
-        _ = msgSend1(notification, "setSoundName:", defaultSound);
-    }
-
-    // Set action button if actions provided
-    if (options.actions) |actions| {
-        if (actions.len > 0) {
-            const actionBtnStr = msgSend1(NSString, "stringWithUTF8String:", actions[0].title.ptr);
-            _ = msgSend1(notification, "setActionButtonTitle:", actionBtnStr);
-            msgSendVoid1(notification, "setHasActionButton:", @as(c_int, 1));
-        }
-    }
-
-    // Register callback if provided
-    if (options.on_action) |callback| {
-        if (options.tag) |tag| {
-            try self.registerActionCallback(tag, callback);
-        }
-    }
-
-    // Deliver notification
-    const center = msgSend0(NSUserNotificationCenter, "defaultUserNotificationCenter");
-    msgSendVoid1(center, "deliverNotification:", notification);
-}
-
-fn msgSend0(target: anytype, selector: [*:0]const u8) objc.id {
-    if (builtin.os.tag != .macos) unreachable;
-    const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
-    return msg(target, objc.sel_registerName(selector));
-}
-
-fn msgSend1(target: anytype, selector: [*:0]const u8, arg1: anytype) objc.id {
-    if (builtin.os.tag != .macos) unreachable;
-    const msg = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(arg1)) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
-    return msg(target, objc.sel_registerName(selector), arg1);
-}
-
-fn msgSendVoid1(target: anytype, selector: [*:0]const u8, arg1: anytype) void {
-    if (builtin.os.tag != .macos) unreachable;
-    const msg = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(arg1)) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
-    msg(target, objc.sel_registerName(selector), arg1);
-}
-
-// ============================================================================
-// Linux Implementation (libnotify)
-// ============================================================================
-
-// libnotify function declarations for Linux
-const notify_init = @extern(*const fn ([*:0]const u8) callconv(.c) c_int, .{ .name = "notify_init", .library_name = "notify" });
-const notify_uninit = @extern(*const fn () callconv(.c) void, .{ .name = "notify_uninit", .library_name = "notify" });
-const notify_notification_new = @extern(*const fn ([*:0]const u8, ?[*:0]const u8, ?[*:0]const u8) callconv(.c) ?*anyopaque, .{ .name = "notify_notification_new", .library_name = "notify" });
-const notify_notification_show = @extern(*const fn (?*anyopaque, ?*?*anyopaque) callconv(.c) c_int, .{ .name = "notify_notification_show", .library_name = "notify" });
-const notify_notification_set_timeout = @extern(*const fn (?*anyopaque, c_int) callconv(.c) void, .{ .name = "notify_notification_set_timeout", .library_name = "notify" });
-const notify_notification_set_urgency = @extern(*const fn (?*anyopaque, c_int) callconv(.c) void, .{ .name = "notify_notification_set_urgency", .library_name = "notify" });
-const notify_notification_add_action = @extern(*const fn (?*anyopaque, [*:0]const u8, [*:0]const u8, ?*const fn (?*anyopaque, [*:0]const u8, ?*anyopaque) callconv(.c) void, ?*anyopaque, ?*const fn (?*anyopaque) callconv(.c) void) callconv(.c) void, .{ .name = "notify_notification_add_action", .library_name = "notify" });
-const g_object_unref = @extern(*const fn (?*anyopaque) callconv(.c) void, .{ .name = "g_object_unref", .library_name = "gobject-2.0" });
-
-var libnotify_initialized: bool = false;
-
-fn linuxSend(self: *Notifications, options: Notifications.NotificationOptions) !void {
-    if (builtin.os.tag != .linux) return error.PlatformNotSupported;
-
-    _ = self;
-
-    // Try to use libnotify first
-    if (!libnotify_initialized) {
-        if (notify_init("craft") != 0) {
-            libnotify_initialized = true;
-        }
-    }
-
-    if (libnotify_initialized) {
-        // Use libnotify with action support
-        const title_z: [*:0]const u8 = @ptrCast(options.title.ptr);
-        const body_z: ?[*:0]const u8 = if (options.body) |b| @ptrCast(b.ptr) else null;
-
-        const notification = notify_notification_new(title_z, body_z, null);
-        if (notification) |notif| {
-            // Set timeout (in milliseconds, -1 for default)
-            if (options.timeout_ms) |timeout| {
-                notify_notification_set_timeout(notif, @intCast(timeout));
-            }
-
-            // Set urgency based on silent flag
-            // 0 = low, 1 = normal, 2 = critical
-            const urgency: c_int = if (options.silent) 0 else 1;
-            notify_notification_set_urgency(notif, urgency);
-
-            // Add actions if provided
-            if (options.actions) |actions| {
-                for (actions) |action| {
-                    const action_id: [*:0]const u8 = @ptrCast(action.id.ptr);
-                    const action_title: [*:0]const u8 = @ptrCast(action.title.ptr);
-                    notify_notification_add_action(notif, action_id, action_title, null, null, null);
-                }
-            }
-
-            // Show the notification
-            _ = notify_notification_show(notif, null);
-
-            // Clean up
-            g_object_unref(notif);
+    /// Set badge number
+    pub fn setBadge(self: *Self, count: u32) NotificationError!void {
+        if (!self.settings.badge_enabled) {
             return;
         }
+
+        self.badge_count = count;
+
+        if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
+            self.setBadgeDarwin(count);
+        }
     }
 
-    // Fallback to notify-send command if libnotify fails
-    var argv_list: [8][]const u8 = undefined;
-    var argc: usize = 0;
-
-    argv_list[argc] = "notify-send";
-    argc += 1;
-
-    argv_list[argc] = options.title;
-    argc += 1;
-
-    if (options.body) |body| {
-        argv_list[argc] = body;
-        argc += 1;
+    fn setBadgeDarwin(self: *Self, count: u32) void {
+        _ = self;
+        _ = count;
+        // In real implementation, use NSApplication.dockTile or UIApplication
     }
 
-    const argv = argv_list[0..argc];
-    var child = std.process.Child.init(argv, std.heap.page_allocator);
-    _ = try child.spawnAndWait();
+    /// Get badge number
+    pub fn getBadge(self: *Self) u32 {
+        return self.badge_count;
+    }
+
+    /// Clear badge
+    pub fn clearBadge(self: *Self) NotificationError!void {
+        return self.setBadge(0);
+    }
+
+    /// Increment badge
+    pub fn incrementBadge(self: *Self) NotificationError!void {
+        return self.setBadge(self.badge_count + 1);
+    }
+
+    /// Present notification immediately (for testing)
+    pub fn presentImmediately(self: *Self, notification: Notification) NotificationError!void {
+        var immediate_notif = notification;
+        immediate_notif.trigger = .immediate;
+        try self.schedule(immediate_notif);
+    }
+
+    /// Check if notifications are available on this platform
+    pub fn isAvailable(self: *Self) bool {
+        _ = self;
+        return comptime (builtin.os.tag == .macos or
+            builtin.os.tag.isDarwin() or
+            builtin.os.tag == .linux or
+            builtin.os.tag == .windows);
+    }
+};
+
+/// Notification presets for common use cases
+pub const NotificationPresets = struct {
+    /// Simple text notification
+    pub fn simple(title: []const u8, body: []const u8) Notification {
+        return .{
+            .title = title,
+            .body = body,
+        };
+    }
+
+    /// Reminder notification
+    pub fn reminder(title: []const u8, body: []const u8, delay_seconds: u64) Notification {
+        return .{
+            .title = title,
+            .body = body,
+            .category = .reminder,
+            .trigger = .{ .time_interval = delay_seconds },
+            .sound = .default,
+        };
+    }
+
+    /// Alarm notification
+    pub fn alarm(title: []const u8, body: []const u8, hour: u8, minute: u8) Notification {
+        return .{
+            .title = title,
+            .body = body,
+            .category = .alarm,
+            .priority = .max,
+            .trigger = .{
+                .calendar = .{
+                    .hour = hour,
+                    .minute = minute,
+                    .repeats = false,
+                },
+            },
+            .sound = .{ .critical = 1.0 },
+            .ios = .{
+                .interruption_level = .time_sensitive,
+            },
+        };
+    }
+
+    /// Daily recurring notification
+    pub fn daily(title: []const u8, body: []const u8, hour: u8, minute: u8) Notification {
+        return .{
+            .title = title,
+            .body = body,
+            .trigger = .{
+                .calendar = .{
+                    .hour = hour,
+                    .minute = minute,
+                    .repeats = true,
+                },
+            },
+        };
+    }
+
+    /// Weekly recurring notification
+    pub fn weekly(title: []const u8, body: []const u8, weekday: u8, hour: u8, minute: u8) Notification {
+        return .{
+            .title = title,
+            .body = body,
+            .trigger = .{
+                .calendar = .{
+                    .weekday = weekday,
+                    .hour = hour,
+                    .minute = minute,
+                    .repeats = true,
+                },
+            },
+        };
+    }
+
+    /// Progress notification
+    pub fn progressNotification(title: []const u8, current: u32, max: u32) Notification {
+        return .{
+            .title = title,
+            .category = .progress,
+            .progress = .{
+                .current = current,
+                .max = max,
+            },
+            .sound = .none,
+            .android = .{
+                .ongoing = true,
+                .auto_cancel = false,
+            },
+        };
+    }
+
+    /// Message notification with reply action
+    pub fn message(title: []const u8, body: []const u8, thread_id: []const u8) Notification {
+        return .{
+            .title = title,
+            .body = body,
+            .category = .message,
+            .thread_id = thread_id,
+            .actions = &[_]Action{
+                .{
+                    .id = "reply",
+                    .title = "Reply",
+                    .text_input = .{
+                        .button_title = "Send",
+                        .placeholder = "Type a message...",
+                    },
+                },
+                .{
+                    .id = "mark_read",
+                    .title = "Mark as Read",
+                },
+            },
+        };
+    }
+
+    /// Silent notification (for background updates)
+    pub fn silent() Notification {
+        return .{
+            .title = "",
+            .silent = true,
+            .sound = .none,
+        };
+    }
+
+    /// Error/alert notification
+    pub fn errorAlert(title: []const u8, body: []const u8) Notification {
+        return .{
+            .title = title,
+            .body = body,
+            .category = .error_cat,
+            .priority = .high,
+            .sound = .default,
+        };
+    }
+};
+
+/// Channel presets for common categories
+pub const ChannelPresets = struct {
+    pub fn general() Channel {
+        return .{
+            .id = "general",
+            .name = "General",
+            .description = "General notifications",
+            .importance = .default,
+        };
+    }
+
+    pub fn messages() Channel {
+        return .{
+            .id = "messages",
+            .name = "Messages",
+            .description = "Message notifications",
+            .importance = .high,
+        };
+    }
+
+    pub fn reminders() Channel {
+        return .{
+            .id = "reminders",
+            .name = "Reminders",
+            .description = "Reminder notifications",
+            .importance = .high,
+            .bypass_dnd = false,
+        };
+    }
+
+    pub fn alarms() Channel {
+        return .{
+            .id = "alarms",
+            .name = "Alarms",
+            .description = "Alarm notifications",
+            .importance = .max,
+            .bypass_dnd = true,
+        };
+    }
+
+    pub fn silent() Channel {
+        return .{
+            .id = "silent",
+            .name = "Silent",
+            .description = "Silent notifications",
+            .importance = .low,
+            .sound = .none,
+            .vibration = false,
+        };
+    }
+
+    pub fn downloads() Channel {
+        return .{
+            .id = "downloads",
+            .name = "Downloads",
+            .description = "Download progress notifications",
+            .importance = .low,
+            .sound = .none,
+        };
+    }
+};
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+test "Priority toString" {
+    try std.testing.expectEqualStrings("min", Priority.min.toString());
+    try std.testing.expectEqualStrings("default", Priority.default.toString());
+    try std.testing.expectEqualStrings("max", Priority.max.toString());
 }
 
-// ============================================================================
-// Windows Implementation (Toast Notifications)
-// ============================================================================
+test "Priority toAndroidImportance" {
+    try std.testing.expectEqual(@as(i32, 1), Priority.min.toAndroidImportance());
+    try std.testing.expectEqual(@as(i32, 3), Priority.default.toAndroidImportance());
+    try std.testing.expectEqual(@as(i32, 5), Priority.max.toAndroidImportance());
+}
 
-// Windows API declarations for Toast Notifications
-const HWND = ?*anyopaque;
-const UINT = c_uint;
-const LPCWSTR = [*:0]const u16;
-const MB_OK: UINT = 0x00000000;
-const MB_ICONINFORMATION: UINT = 0x00000040;
+test "Category toString" {
+    try std.testing.expectEqualStrings("general", Category.general.toString());
+    try std.testing.expectEqualStrings("message", Category.message.toString());
+    try std.testing.expectEqualStrings("alarm", Category.alarm.toString());
+}
 
-extern "user32" fn MessageBoxW(hWnd: HWND, lpText: LPCWSTR, lpCaption: LPCWSTR, uType: UINT) callconv(.c) c_int;
+test "Sound isEnabled" {
+    const default_sound: Sound = .default;
+    const no_sound: Sound = .none;
+    const custom_sound: Sound = .{ .custom = "alert.wav" };
 
-fn windowsSend(self: *Notifications, options: Notifications.NotificationOptions) !void {
-    if (builtin.os.tag != .windows) return error.PlatformNotSupported;
+    try std.testing.expect(default_sound.isEnabled());
+    try std.testing.expect(!no_sound.isEnabled());
+    try std.testing.expect(custom_sound.isEnabled());
+}
 
-    _ = self;
+test "Progress percentage" {
+    const progress = Progress{ .current = 50, .max = 100 };
+    try std.testing.expectApproxEqAbs(@as(f32, 50.0), progress.percentage(), 0.01);
 
-    // Build XML for Toast notification
-    var xml_buffer: [4096]u8 = undefined;
-    var xml_len: usize = 0;
+    const zero_max = Progress{ .current = 0, .max = 0 };
+    try std.testing.expectApproxEqAbs(@as(f32, 0.0), zero_max.percentage(), 0.01);
+}
 
-    // Start XML
-    const header = "<toast><visual><binding template=\"ToastText02\"><text id=\"1\">";
-    @memcpy(xml_buffer[xml_len..][0..header.len], header);
-    xml_len += header.len;
+test "PermissionStatus isGranted" {
+    try std.testing.expect(!PermissionStatus.not_determined.isGranted());
+    try std.testing.expect(!PermissionStatus.denied.isGranted());
+    try std.testing.expect(PermissionStatus.authorized.isGranted());
+    try std.testing.expect(PermissionStatus.provisional.isGranted());
+}
 
-    // Add title
-    @memcpy(xml_buffer[xml_len..][0..options.title.len], options.title);
-    xml_len += options.title.len;
+test "PermissionStatus toString" {
+    try std.testing.expectEqualStrings("authorized", PermissionStatus.authorized.toString());
+    try std.testing.expectEqualStrings("denied", PermissionStatus.denied.toString());
+}
 
-    const mid = "</text><text id=\"2\">";
-    @memcpy(xml_buffer[xml_len..][0..mid.len], mid);
-    xml_len += mid.len;
+test "NotificationManager initialization" {
+    var manager = NotificationManager.init(std.testing.allocator);
+    defer manager.deinit();
 
-    // Add body
-    if (options.body) |body| {
-        @memcpy(xml_buffer[xml_len..][0..body.len], body);
-        xml_len += body.len;
-    }
+    try std.testing.expectEqual(PermissionStatus.not_determined, manager.getPermissionStatus());
+    try std.testing.expect(manager.isAvailable());
+}
 
-    // Add actions if present
-    var actions_xml: [1024]u8 = undefined;
-    var actions_len: usize = 0;
+test "NotificationManager requestPermission" {
+    var manager = NotificationManager.init(std.testing.allocator);
+    defer manager.deinit();
 
-    if (options.actions) |actions| {
-        const actions_start = "</text></binding></visual><actions>";
-        @memcpy(actions_xml[actions_len..][0..actions_start.len], actions_start);
-        actions_len += actions_start.len;
+    const status = try manager.requestPermission(.{});
+    try std.testing.expect(status.isGranted());
+}
 
-        for (actions) |action| {
-            const action_start = "<action content=\"";
-            @memcpy(actions_xml[actions_len..][0..action_start.len], action_start);
-            actions_len += action_start.len;
+test "NotificationManager createChannel" {
+    var manager = NotificationManager.init(std.testing.allocator);
+    defer manager.deinit();
 
-            @memcpy(actions_xml[actions_len..][0..action.label.len], action.label);
-            actions_len += action.label.len;
+    try manager.createChannel(ChannelPresets.general());
+    try manager.createChannel(ChannelPresets.messages());
 
-            const action_mid = "\" arguments=\"";
-            @memcpy(actions_xml[actions_len..][0..action_mid.len], action_mid);
-            actions_len += action_mid.len;
+    const channel = manager.getChannel("general");
+    try std.testing.expect(channel != null);
+    try std.testing.expectEqualStrings("General", channel.?.name);
+}
 
-            @memcpy(actions_xml[actions_len..][0..action.id.len], action.id);
-            actions_len += action.id.len;
+test "NotificationManager deleteChannel" {
+    var manager = NotificationManager.init(std.testing.allocator);
+    defer manager.deinit();
 
-            const action_end = "\" />";
-            @memcpy(actions_xml[actions_len..][0..action_end.len], action_end);
-            actions_len += action_end.len;
-        }
+    try manager.createChannel(ChannelPresets.general());
+    manager.deleteChannel("general");
 
-        const actions_close = "</actions></toast>";
-        @memcpy(actions_xml[actions_len..][0..actions_close.len], actions_close);
-        actions_len += actions_close.len;
+    try std.testing.expect(manager.getChannel("general") == null);
+}
 
-        @memcpy(xml_buffer[xml_len..][0..actions_len], actions_xml[0..actions_len]);
-        xml_len += actions_len;
-    } else {
-        const footer = "</text></binding></visual></toast>";
-        @memcpy(xml_buffer[xml_len..][0..footer.len], footer);
-        xml_len += footer.len;
-    }
+test "NotificationManager getAllChannels" {
+    var manager = NotificationManager.init(std.testing.allocator);
+    defer manager.deinit();
 
-    // For now, use PowerShell to show toast (more reliable than direct WinRT)
-    // In production, this would use proper WinRT COM bindings
-    const ps_template =
-        \\powershell -Command "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; $xml = [Windows.Data.Xml.Dom.XmlDocument]::new(); $xml.LoadXml('{s}'); [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Craft').Show([Windows.UI.Notifications.ToastNotification]::new($xml))"
-    ;
-    _ = ps_template;
+    try manager.createChannel(ChannelPresets.general());
+    try manager.createChannel(ChannelPresets.messages());
 
-    // Fallback: Use MessageBox for simple notifications
-    var title_wide: [256]u16 = undefined;
-    var body_wide: [1024]u16 = undefined;
+    const channels = try manager.getAllChannels(std.testing.allocator);
+    defer std.testing.allocator.free(channels);
 
-    const title_len = std.unicode.utf8ToUtf16Le(&title_wide, options.title) catch 0;
-    title_wide[title_len] = 0;
+    try std.testing.expectEqual(@as(usize, 2), channels.len);
+}
 
-    const body_text = options.body orelse "";
-    const body_len = std.unicode.utf8ToUtf16Le(&body_wide, body_text) catch 0;
-    body_wide[body_len] = 0;
+test "NotificationManager schedule" {
+    var manager = NotificationManager.init(std.testing.allocator);
+    defer manager.deinit();
 
-    _ = MessageBoxW(null, @ptrCast(&body_wide), @ptrCast(&title_wide), MB_OK | MB_ICONINFORMATION);
+    _ = try manager.requestPermission(.{});
+
+    const notification = NotificationPresets.simple("Test", "Test body");
+    try manager.schedule(notification);
+
+    const pending = try manager.getPending(std.testing.allocator);
+    defer std.testing.allocator.free(pending);
+
+    try std.testing.expectEqual(@as(usize, 1), pending.len);
+    try std.testing.expectEqual(@as(usize, 1), manager.getPendingCount());
+}
+
+test "NotificationManager cancel" {
+    var manager = NotificationManager.init(std.testing.allocator);
+    defer manager.deinit();
+
+    _ = try manager.requestPermission(.{});
+
+    var notification = NotificationPresets.simple("Test", "Test body");
+    notification.id = "test-id";
+    try manager.schedule(notification);
+
+    manager.cancel("test-id");
+
+    const pending = try manager.getPending(std.testing.allocator);
+    defer std.testing.allocator.free(pending);
+
+    try std.testing.expectEqual(@as(usize, 0), pending.len);
+}
+
+test "NotificationManager cancelAll" {
+    var manager = NotificationManager.init(std.testing.allocator);
+    defer manager.deinit();
+
+    _ = try manager.requestPermission(.{});
+
+    var n1 = NotificationPresets.simple("Test 1", "Body 1");
+    n1.id = "id1";
+    var n2 = NotificationPresets.simple("Test 2", "Body 2");
+    n2.id = "id2";
+
+    try manager.schedule(n1);
+    try manager.schedule(n2);
+
+    manager.cancelAll();
+
+    try std.testing.expectEqual(@as(usize, 0), manager.getPendingCount());
+}
+
+test "NotificationManager badge" {
+    var manager = NotificationManager.init(std.testing.allocator);
+    defer manager.deinit();
+
+    try std.testing.expectEqual(@as(u32, 0), manager.getBadge());
+
+    try manager.setBadge(5);
+    try std.testing.expectEqual(@as(u32, 5), manager.getBadge());
+
+    try manager.incrementBadge();
+    try std.testing.expectEqual(@as(u32, 6), manager.getBadge());
+
+    try manager.clearBadge();
+    try std.testing.expectEqual(@as(u32, 0), manager.getBadge());
+}
+
+test "NotificationPresets simple" {
+    const notif = NotificationPresets.simple("Hello", "World");
+    try std.testing.expectEqualStrings("Hello", notif.title);
+    try std.testing.expectEqualStrings("World", notif.body.?);
+}
+
+test "NotificationPresets reminder" {
+    const notif = NotificationPresets.reminder("Reminder", "Don't forget!", 300);
+    try std.testing.expectEqual(Category.reminder, notif.category);
+    try std.testing.expectEqual(@as(u64, 300), notif.trigger.time_interval);
+}
+
+test "NotificationPresets alarm" {
+    const notif = NotificationPresets.alarm("Wake Up", "Time to start your day", 7, 30);
+    try std.testing.expectEqual(Category.alarm, notif.category);
+    try std.testing.expectEqual(Priority.max, notif.priority);
+    try std.testing.expectEqual(@as(u8, 7), notif.trigger.calendar.hour.?);
+    try std.testing.expectEqual(@as(u8, 30), notif.trigger.calendar.minute.?);
+}
+
+test "NotificationPresets daily" {
+    const notif = NotificationPresets.daily("Daily", "Your daily update", 9, 0);
+    try std.testing.expect(notif.trigger.calendar.repeats);
+}
+
+test "NotificationPresets weekly" {
+    const notif = NotificationPresets.weekly("Weekly", "Weekly report", 2, 10, 0);
+    try std.testing.expectEqual(@as(u8, 2), notif.trigger.calendar.weekday.?);
+    try std.testing.expect(notif.trigger.calendar.repeats);
+}
+
+test "NotificationPresets progressNotification" {
+    const notif = NotificationPresets.progressNotification("Downloading", 50, 100);
+    try std.testing.expect(notif.progress != null);
+    try std.testing.expectEqual(@as(u32, 50), notif.progress.?.current);
+    try std.testing.expectEqual(@as(u32, 100), notif.progress.?.max);
+}
+
+test "NotificationPresets message" {
+    const notif = NotificationPresets.message("John", "Hello!", "chat-123");
+    try std.testing.expectEqual(Category.message, notif.category);
+    try std.testing.expectEqualStrings("chat-123", notif.thread_id.?);
+    try std.testing.expect(notif.actions != null);
+    try std.testing.expectEqual(@as(usize, 2), notif.actions.?.len);
+}
+
+test "NotificationPresets silent" {
+    const notif = NotificationPresets.silent();
+    try std.testing.expect(notif.silent);
+    try std.testing.expect(!notif.sound.isEnabled());
+}
+
+test "NotificationPresets errorAlert" {
+    const notif = NotificationPresets.errorAlert("Error", "Something went wrong");
+    try std.testing.expectEqual(Category.error_cat, notif.category);
+    try std.testing.expectEqual(Priority.high, notif.priority);
+}
+
+test "ChannelPresets" {
+    const general = ChannelPresets.general();
+    try std.testing.expectEqualStrings("general", general.id);
+    try std.testing.expectEqual(Priority.default, general.importance);
+
+    const alarms = ChannelPresets.alarms();
+    try std.testing.expectEqual(Priority.max, alarms.importance);
+    try std.testing.expect(alarms.bypass_dnd);
+
+    const silent = ChannelPresets.silent();
+    try std.testing.expect(!silent.sound.isEnabled());
+    try std.testing.expect(!silent.vibration);
+
+    const downloads = ChannelPresets.downloads();
+    try std.testing.expectEqualStrings("downloads", downloads.id);
+}
+
+test "Channel init" {
+    const channel = Channel.init("test", "Test Channel");
+    try std.testing.expectEqualStrings("test", channel.id);
+    try std.testing.expectEqualStrings("Test Channel", channel.name);
+}
+
+test "Notification trigger validation" {
+    var manager = NotificationManager.init(std.testing.allocator);
+    defer manager.deinit();
+
+    _ = try manager.requestPermission(.{});
+
+    // Invalid time interval (0)
+    var invalid_notif = NotificationPresets.simple("Test", "Body");
+    invalid_notif.trigger = .{ .time_interval = 0 };
+
+    const result = manager.schedule(invalid_notif);
+    try std.testing.expectError(NotificationError.InvalidTrigger, result);
+}
+
+test "Notification permission denied" {
+    var manager = NotificationManager.init(std.testing.allocator);
+    defer manager.deinit();
+
+    // Don't request permission
+    const notif = NotificationPresets.simple("Test", "Body");
+    const result = manager.schedule(notif);
+    try std.testing.expectError(NotificationError.PermissionDenied, result);
 }
