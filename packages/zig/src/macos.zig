@@ -1490,13 +1490,24 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
     const msg_type = msg_type_val.string;
     const action = action_val.string;
 
-    // Extract data if present - could be string, object, or missing
+    // Extract data if present - could be string, object, array, or missing
     var data_json_str: []const u8 = "";
+    var data_needs_free: bool = false;
     if (root.get("data")) |data_val| {
-        // Convert data value to JSON string
-        data_json_str = try jsonValueToString(allocator, data_val);
+        switch (data_val) {
+            // If data is already a string, use it directly (common case for JSON data)
+            .string => |s| {
+                data_json_str = s;
+                data_needs_free = false;
+            },
+            // For other types, convert to JSON string
+            else => {
+                data_json_str = try jsonValueToString(allocator, data_val);
+                data_needs_free = true;
+            },
+        }
     }
-    defer if (data_json_str.len > 0) allocator.free(data_json_str);
+    defer if (data_needs_free and data_json_str.len > 0) allocator.free(data_json_str);
 
     // Route to appropriate bridge
     if (std.mem.eql(u8, msg_type, "tray")) {

@@ -310,26 +310,51 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     const defaultMenu = msgSend0(msgSend0(NSMenu, "alloc"), "init");
 
     const NSMenuItem = objc.objc_getClass("NSMenuItem");
+    const NSObject = objc.objc_getClass("NSObject");
 
-    // Add "Show Window" item
+    // Create a target object for menu actions
+    const menuTarget = msgSend0(msgSend0(NSObject, "alloc"), "init");
+    _ = msgSend0(menuTarget, "retain"); // Keep it alive
+
+    // Register the menu action method on NSObject class
+    const tray_menu = @import("tray_menu.zig");
+    const method_sel = objc.sel_registerName("menuAction:");
+    const method_imp: objc.IMP = @ptrCast(@constCast(&tray_menu.menuActionCallback));
+    _ = objc.class_addMethod(
+        @ptrCast(@alignCast(NSObject)),
+        method_sel,
+        method_imp,
+        "v@:@",
+    );
+    const action_sel = objc.sel_registerName("menuAction:");
+
+    // Add "Show Window" item with action
     const showItem = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
     const showTitle = msgSend1(NSString, "stringWithUTF8String:", "Show Window");
     msgSendVoid1(showItem, "setTitle:", showTitle);
+    msgSendVoid1(showItem, "setTarget:", menuTarget);
+    msgSendVoid1(showItem, "setAction:", action_sel);
+    const showAction = msgSend1(NSString, "stringWithUTF8String:", "show");
+    msgSendVoid1(showItem, "setRepresentedObject:", showAction);
     msgSendVoid1(defaultMenu, "addItem:", showItem);
 
     // Add separator
     const separator1 = msgSend0(NSMenuItem, "separatorItem");
     msgSendVoid1(defaultMenu, "addItem:", separator1);
 
-    // Add "Quit" item
+    // Add "Quit" item with action
     const quitItem = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
     const quitTitle = msgSend1(NSString, "stringWithUTF8String:", "Quit");
     msgSendVoid1(quitItem, "setTitle:", quitTitle);
+    msgSendVoid1(quitItem, "setTarget:", menuTarget);
+    msgSendVoid1(quitItem, "setAction:", action_sel);
+    const quitAction = msgSend1(NSString, "stringWithUTF8String:", "quit");
+    msgSendVoid1(quitItem, "setRepresentedObject:", quitAction);
     msgSendVoid1(defaultMenu, "addItem:", quitItem);
 
     // Attach default menu
     _ = msgSend1(statusItem, "setMenu:", defaultMenu);
-    std.debug.print("[Tray] Created with default menu\n", .{});
+    std.debug.print("[Tray] Created with default menu (with actions)\n", .{});
 
     // Retain the status item so it doesn't get deallocated
     _ = msgSend0(statusItem, "retain");
@@ -346,17 +371,11 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
 pub fn macosSetTitle(handle: *anyopaque, title: []const u8) !void {
     if (builtin.target.os.tag != .macos) return;
 
-    std.debug.print("[Tray] macosSetTitle: handle={*}, title={s}\n", .{ handle, title });
-
     const statusItem: objc.id = @ptrFromInt(@intFromPtr(handle));
-    std.debug.print("[Tray] macosSetTitle: statusItem={*}\n", .{statusItem});
 
     // Get the button
     const button = msgSend0(statusItem, "button");
-    std.debug.print("[Tray] macosSetTitle: button={*}\n", .{button});
-
     if (button == null) {
-        std.debug.print("[Tray] macosSetTitle: ERROR - button is null!\n", .{});
         return error.ButtonNotFound;
     }
 
@@ -368,36 +387,28 @@ pub fn macosSetTitle(handle: *anyopaque, title: []const u8) !void {
     // Create NSString from null-terminated title
     const NSString = objc.objc_getClass("NSString");
     if (NSString == null) {
-        std.debug.print("[Tray] macosSetTitle: ERROR - NSString class not found!\n", .{});
         return error.ClassNotFound;
     }
 
     const titleStr = msgSend1(NSString, "stringWithUTF8String:", title_z.ptr);
     if (titleStr == null) {
-        std.debug.print("[Tray] macosSetTitle: ERROR - NSString creation failed!\n", .{});
         return error.StringCreationFailed;
     }
-    std.debug.print("[Tray] macosSetTitle: NSString created = {*}\n", .{titleStr});
 
-    // Set title on button (use msgSendVoid1 since setTitle: returns void)
+    // Set title on button
     msgSendVoid1(button, "setTitle:", titleStr);
 
-    // Verify the title was set by getting it back
-    const currentTitle = msgSend0(button, "title");
-    std.debug.print("[Tray] macosSetTitle: button title after set = {*}\n", .{currentTitle});
-    std.debug.print("[Tray] macosSetTitle: setTitle: called\n", .{});
+    // Force the status item to recalculate its width by re-setting to variable length
+    const NSVariableStatusItemLength: f64 = -1.0;
+    msgSendVoid1(statusItem, "setLength:", NSVariableStatusItemLength);
 
-    // Call sizeToFit to resize the button to fit the new title
+    // Call sizeToFit on the button
     _ = msgSend0(button, "sizeToFit");
-    std.debug.print("[Tray] macosSetTitle: sizeToFit called\n", .{});
 
-    // Force immediate redraw by calling display
-    _ = msgSend0(button, "display");
-    std.debug.print("[Tray] macosSetTitle: display called\n", .{});
-
-    // Also mark as needing display for next run loop
+    // Mark the button as needing display
     msgSendVoid1(button, "setNeedsDisplay:", @as(bool, true));
-    std.debug.print("[Tray] macosSetTitle: setTitle: called successfully\n", .{});
+
+    std.debug.print("[Tray] Title updated: {s}\n", .{title});
 }
 
 pub fn macosSetTooltip(handle: *anyopaque, tooltip: []const u8) !void {

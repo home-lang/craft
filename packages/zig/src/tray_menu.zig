@@ -74,7 +74,16 @@ fn msgSend4(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anyty
 fn createNSString(str: []const u8) if (builtin.target.os.tag == .macos) objc.id else *anyopaque {
     if (builtin.target.os.tag != .macos) unreachable;
     const NSString = getClass("NSString");
-    return msgSend1(NSString, "stringWithUTF8String:", str.ptr);
+
+    // Create a null-terminated copy for stringWithUTF8String:
+    const cstr = std.heap.c_allocator.dupeZ(u8, str) catch {
+        // If allocation fails, return empty string
+        const empty: [*:0]const u8 = @ptrCast("");
+        return msgSend1(NSString, "stringWithUTF8String:", empty);
+    };
+    defer std.heap.c_allocator.free(cstr);
+
+    return msgSend1(NSString, "stringWithUTF8String:", cstr.ptr);
 }
 
 /// Menu item configuration from JavaScript
@@ -91,19 +100,36 @@ pub const MenuItemConfig = struct {
 
 /// Parse menu JSON from JavaScript
 pub fn parseMenuJSON(allocator: std.mem.Allocator, json_str: []const u8) ![]MenuItemConfig {
-    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_str, .{});
+    log.debug("parseMenuJSON: input len={}, str={s}", .{ json_str.len, json_str });
+
+    const parsed = std.json.parseFromSlice(std.json.Value, allocator, json_str, .{}) catch |err| {
+        log.debug("parseMenuJSON: JSON parse error: {}", .{err});
+        return err;
+    };
     defer parsed.deinit();
 
+    log.debug("parseMenuJSON: JSON parsed successfully", .{});
+
     const root = parsed.value;
-    if (root != .array) return error.InvalidMenuJSON;
+    if (root != .array) {
+        log.debug("parseMenuJSON: root is not array", .{});
+        return error.InvalidMenuJSON;
+    }
 
     const items_array = root.array.items;
+    log.debug("parseMenuJSON: array has {} items", .{items_array.len});
+
     var items = try allocator.alloc(MenuItemConfig, items_array.len);
 
     for (items_array, 0..) |item_value, i| {
-        items[i] = try parseMenuItem(allocator, item_value);
+        log.debug("parseMenuJSON: parsing item {}", .{i});
+        items[i] = parseMenuItem(allocator, item_value) catch |err| {
+            log.debug("parseMenuJSON: item {} parse error: {}", .{ i, err });
+            return err;
+        };
     }
 
+    log.debug("parseMenuJSON: all items parsed successfully", .{});
     return items;
 }
 
@@ -179,7 +205,7 @@ pub fn getGlobalWebView() ?*anyopaque {
 }
 
 /// Menu action callback - called when a menu item is clicked
-export fn menuActionCallback(self: objc.id, _: objc.SEL, sender: objc.id) void {
+pub export fn menuActionCallback(self: objc.id, _: objc.SEL, sender: objc.id) void {
     _ = self;
 
     if (builtin.target.os.tag != .macos) return;

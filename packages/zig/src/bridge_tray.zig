@@ -195,46 +195,36 @@ pub const TrayBridge = struct {
     }
 
     fn setMenu(self: *Self, menu_json: []const u8) !void {
+        log.debug("setMenu called with json: {s}", .{menu_json});
+
         const handle = try self.requireTrayHandle();
+        log.debug("setMenu: got handle", .{});
 
-        // Unescape the JSON (replace \" with ")
-        var unescaped = try self.allocator.alloc(u8, menu_json.len);
-        defer self.allocator.free(unescaped);
-
-        var write_idx: usize = 0;
-        var i: usize = 0;
-        while (i < menu_json.len) : (i += 1) {
-            if (menu_json[i] == '\\' and i + 1 < menu_json.len and menu_json[i + 1] == '"') {
-                // Skip the backslash, copy the quote
-                unescaped[write_idx] = '"';
-                write_idx += 1;
-                i += 1; // Skip next character (the quote)
-            } else {
-                unescaped[write_idx] = menu_json[i];
-                write_idx += 1;
-            }
-        }
-
-        const clean_json = unescaped[0..write_idx];
-
-        // Parse the menu JSON
-        const menu_items = try tray_menu.parseMenuJSON(self.allocator, clean_json);
+        // Parse the menu JSON directly - the outer JSON parsing already unescaped it
+        log.debug("setMenu: parsing JSON...", .{});
+        const menu_items = try tray_menu.parseMenuJSON(self.allocator, menu_json);
         defer self.allocator.free(menu_items);
+        log.debug("setMenu: parsed {} items", .{menu_items.len});
 
         // Create NSMenu (macOS)
         if (builtin.os.tag == .macos) {
             // Clean up previous menu if exists
             if (self.current_menu) |old_menu| {
+                log.debug("setMenu: destroying old menu", .{});
                 tray_menu.destroyNSMenu(old_menu);
             }
 
             // Create new menu
+            log.debug("setMenu: creating NSMenu...", .{});
             const menu = try tray_menu.createNSMenu(self.allocator, menu_items);
             self.current_menu = menu;
+            log.debug("setMenu: NSMenu created", .{});
 
             // Attach to tray
             const macos = @import("tray.zig");
+            log.debug("setMenu: attaching to tray...", .{});
             try macos.macosSetMenu(handle, menu);
+            log.debug("setMenu: completed successfully", .{});
         }
     }
 
