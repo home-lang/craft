@@ -1,10 +1,15 @@
 const std = @import("std");
-const craft = @import("../../src/api.zig");
+const craft = @import("craft");
+const builtin = @import("builtin");
 
 /// Example: Converting a Web App to Native Desktop + Mobile
 ///
 /// This example shows how to take an existing web application (HTML/CSS/JS)
 /// and wrap it in a native desktop or mobile app using Craft.
+///
+/// Supported platforms:
+/// - Desktop: macOS, Linux, Windows
+/// - Mobile: iOS, Android
 
 // Embed the web app HTML at compile time
 const app_html = @embedFile("app.html");
@@ -14,25 +19,23 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    // Detect platform
-    const builtin = @import("builtin");
-
+    // Detect platform and run appropriate version
     switch (builtin.target.os.tag) {
-        .macos => {
-            // Desktop: Create window with embedded HTML
+        .macos, .windows => {
+            // Desktop
             try runDesktop(allocator);
         },
         .ios, .tvos, .watchos => {
-            // Mobile: Use iOS app infrastructure
-            try runMobile(allocator);
+            // iOS
+            try runIOS(allocator);
         },
         .linux => {
             // Could be Linux desktop or Android
-            // For now, treat as desktop
-            try runDesktop(allocator);
-        },
-        .windows => {
-            try runDesktop(allocator);
+            if (builtin.target.abi == .android) {
+                try runAndroid(allocator);
+            } else {
+                try runDesktop(allocator);
+            }
         },
         else => {
             std.debug.print("Unsupported platform\n", .{});
@@ -41,7 +44,7 @@ pub fn main() !void {
     }
 }
 
-/// Run as desktop application
+/// Run as desktop application (macOS, Linux, Windows)
 fn runDesktop(allocator: std.mem.Allocator) !void {
     std.debug.print("Starting desktop application...\n", .{});
 
@@ -49,32 +52,23 @@ fn runDesktop(allocator: std.mem.Allocator) !void {
     var app = craft.App.init(allocator);
     defer app.deinit();
 
-    // Simple API (matches README example):
-    // _ = try app.createWindow("My Web App", 1200, 800, app_html);
-
-    // Or with options:
-    _ = try app.createWindowAdvanced("My Web App", 1200, 800, app_html, .{
-        .resizable = true,
-        .titlebar_hidden = false,
-        .dev_tools = true, // Enable for development
-    });
+    // Create window with embedded HTML
+    _ = try app.createWindow("My Web App", 1200, 800, app_html);
 
     // Run the application
     try app.run();
 }
 
-/// Run as mobile (iOS) application
-fn runMobile(allocator: std.mem.Allocator) !void {
-    const ios = @import("../../src/ios.zig");
-
+/// Run as iOS application
+fn runIOS(allocator: std.mem.Allocator) !void {
     std.debug.print("Starting iOS application...\n", .{});
 
     // Configure iOS app
-    var app = ios.CraftAppDelegate.init(allocator, .{
+    var app = craft.ios.CraftAppDelegate.init(allocator, .{
         .name = "My Web App",
         .initial_content = .{ .html = app_html },
         .status_bar_style = .light,
-        .orientations = &[_]ios.CraftAppDelegate.AppConfig.Orientation{
+        .orientations = &[_]craft.ios.CraftAppDelegate.AppConfig.Orientation{
             .portrait,
             .landscape_left,
             .landscape_right,
@@ -83,31 +77,100 @@ fn runMobile(allocator: std.mem.Allocator) !void {
     });
 
     // Set up lifecycle callbacks
-    app.onLaunch(onAppLaunch);
-    app.onBackground(onAppBackground);
-    app.onForeground(onAppForeground);
+    app.onLaunch(onIOSAppLaunch);
+    app.onBackground(onIOSAppBackground);
+    app.onForeground(onIOSAppForeground);
 
     // Run the app (blocks until app terminates)
     try app.run();
 }
 
-fn onAppLaunch() void {
-    std.debug.print("App launched!\n", .{});
+/// Run as Android application
+fn runAndroid(allocator: std.mem.Allocator) !void {
+    std.debug.print("Starting Android application...\n", .{});
+
+    // Configure Android app
+    var app = craft.android.CraftActivity.init(allocator, .{
+        .name = "My Web App",
+        .package_name = "com.example.mywebapp",
+        .initial_content = .{ .html = app_html },
+        .theme = .system,
+        .orientation = .sensor, // Allow rotation
+        .enable_javascript = true,
+        .enable_dom_storage = true,
+        .enable_inspector = true, // For development
+    });
+    defer app.deinit();
+
+    // Set up lifecycle callbacks
+    app.onCreate(onAndroidCreate);
+    app.onResume(onAndroidResume);
+    app.onPause(onAndroidPause);
+    app.onDestroy(onAndroidDestroy);
+    app.onBackPressed(onAndroidBackPressed);
+
+    // Run the app
+    try app.run();
+
+    // Register custom JavaScript handlers after bridge is initialized
+    if (app.getBridge()) |bridge| {
+        try bridge.registerHandler("nativeAction", handleNativeAction);
+    }
 }
 
-fn onAppBackground() void {
-    std.debug.print("App went to background\n", .{});
+// ============================================================================
+// iOS Lifecycle Callbacks
+// ============================================================================
+
+fn onIOSAppLaunch() void {
+    std.debug.print("[iOS] App launched!\n", .{});
 }
 
-fn onAppForeground() void {
-    std.debug.print("App came to foreground\n", .{});
+fn onIOSAppBackground() void {
+    std.debug.print("[iOS] App went to background\n", .{});
+}
+
+fn onIOSAppForeground() void {
+    std.debug.print("[iOS] App came to foreground\n", .{});
+}
+
+// ============================================================================
+// Android Lifecycle Callbacks
+// ============================================================================
+
+fn onAndroidCreate() void {
+    std.debug.print("[Android] Activity created!\n", .{});
+}
+
+fn onAndroidResume() void {
+    std.debug.print("[Android] Activity resumed\n", .{});
+}
+
+fn onAndroidPause() void {
+    std.debug.print("[Android] Activity paused\n", .{});
+}
+
+fn onAndroidDestroy() void {
+    std.debug.print("[Android] Activity destroyed\n", .{});
+}
+
+fn onAndroidBackPressed() bool {
+    std.debug.print("[Android] Back button pressed\n", .{});
+    // Return false to allow default back behavior
+    // Return true to consume the event (prevent back navigation)
+    return false;
+}
+
+fn handleNativeAction(params: []const u8, bridge: *craft.android.JSBridge, callback_id: []const u8) void {
+    std.debug.print("[Android] Native action called with: {s}\n", .{params});
+    bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
 }
 
 // ============================================================================
 // Alternative: Simple one-liner for quick apps
 // ============================================================================
 
-pub fn simpleExample() !void {
+pub fn simpleDesktopExample() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
@@ -116,7 +179,7 @@ pub fn simpleExample() !void {
     var app = craft.App.init(allocator);
     defer app.deinit();
 
-    _ = try app.createWindowWithHTML(
+    _ = try app.createWindow(
         "Simple App",
         800,
         600,
@@ -133,9 +196,33 @@ pub fn simpleExample() !void {
         \\    <button onclick="alert('Clicked!')">Click Me</button>
         \\</body>
         \\</html>
-    ,
-        .{},
     );
 
     try app.run();
+}
+
+pub fn simpleAndroidExample() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // One-liner to create an Android app from HTML
+    try craft.android.quickStart(allocator,
+        \\<!DOCTYPE html>
+        \\<html>
+        \\<head>
+        \\    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        \\    <style>
+        \\        body { font-family: Roboto, sans-serif; padding: 20px; }
+        \\        button { padding: 14px 28px; font-size: 16px; }
+        \\    </style>
+        \\</head>
+        \\<body>
+        \\    <h1>Hello from Craft Android!</h1>
+        \\    <button onclick="CraftBridge.postMessage(JSON.stringify({method:'showToast',params:{message:'Hello!'}}))">
+        \\        Show Toast
+        \\    </button>
+        \\</body>
+        \\</html>
+    );
 }

@@ -17,36 +17,41 @@ pub const NotificationBridge = struct {
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator) Self {
-        var self = Self{
+        const self = Self{
             .allocator = allocator,
             .pending_callbacks = std.StringHashMap([]const u8).init(allocator),
         };
 
-        if (builtin.os.tag == .macos) {
-            self.setupNotificationCenter();
-        }
+        // Note: Notification center setup is deferred until first use
+        // UNUserNotificationCenter requires proper app initialization
 
         return self;
     }
 
-    fn setupNotificationCenter(self: *Self) void {
+    fn ensureNotificationCenter(self: *Self) void {
+        // Already initialized
+        if (self.notification_center != null) return;
+
+        if (builtin.os.tag != .macos) return;
+
         const macos = @import("macos.zig");
 
-        // Get UNUserNotificationCenter
+        // Get UNUserNotificationCenter - may fail if app not properly initialized
         const UNUserNotificationCenter = macos.getClass("UNUserNotificationCenter");
         if (UNUserNotificationCenter == null) {
-            log.warn("UNUserNotificationCenter not available", .{});
+            log.warn("UNUserNotificationCenter class not available", .{});
             return;
         }
 
+        // Try to get the notification center - this can crash if called too early
+        // so we defer this until actually needed
         self.notification_center = macos.msgSend0(UNUserNotificationCenter, "currentNotificationCenter");
 
-        // Request authorization
         if (self.notification_center) |center| {
             // UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge
             const options: c_ulong = (1 << 0) | (1 << 1) | (1 << 2);
 
-            // Create completion handler block (simplified - just log result)
+            // Request authorization
             const msg = @as(*const fn (@TypeOf(center), @import("macos.zig").objc.SEL, c_ulong, ?*anyopaque) callconv(.c) void, @ptrCast(&@import("macos.zig").objc.objc_msgSend));
             msg(center, macos.sel("requestAuthorizationWithOptions:completionHandler:"), options, null);
 
@@ -102,6 +107,7 @@ pub const NotificationBridge = struct {
         }
         if (builtin.os.tag != .macos) return;
 
+        self.ensureNotificationCenter();
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
         const macos = @import("macos.zig");
 
@@ -225,6 +231,7 @@ pub const NotificationBridge = struct {
         }
         if (builtin.os.tag != .macos) return;
 
+        self.ensureNotificationCenter();
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
         const macos = @import("macos.zig");
 
@@ -321,6 +328,7 @@ pub const NotificationBridge = struct {
         }
         if (builtin.os.tag != .macos) return;
 
+        self.ensureNotificationCenter();
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
         const macos = @import("macos.zig");
 
@@ -357,6 +365,7 @@ pub const NotificationBridge = struct {
         }
         if (builtin.os.tag != .macos) return;
 
+        self.ensureNotificationCenter();
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
         const macos = @import("macos.zig");
 
@@ -439,6 +448,7 @@ pub const NotificationBridge = struct {
         }
         if (builtin.os.tag != .macos) return;
 
+        self.ensureNotificationCenter();
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
         const macos = @import("macos.zig");
 

@@ -324,15 +324,8 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
     _ = msgSend1(config, "setPreferences:", prefs);
 
-    // Configure media capture settings on WKWebViewConfiguration
-    // allowsInlineMediaPlayback - allows media to play inline (not fullscreen)
-    msgSendVoid1(config, "setAllowsInlineMediaPlayback:", true);
-
-    // mediaTypesRequiringUserActionForPlayback - set to none (0) to allow autoplay
-    // WKAudiovisualMediaTypeNone = 0
-    msgSendVoid1(config, "setMediaTypesRequiringUserActionForPlayback:", @as(c_ulong, 0));
-
-    std.debug.print("[Media] Configured WebView for camera/microphone access\n", .{});
+    // Note: allowsInlineMediaPlayback and mediaTypesRequiringUserActionForPlayback
+    // are iOS-only properties and not available on macOS WKWebViewConfiguration
 
     // Set up user content controller for JavaScript bridge
     const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
