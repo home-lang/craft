@@ -267,11 +267,12 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     const NSStatusBar = objc.objc_getClass("NSStatusBar");
     const systemStatusBar = msgSend0(NSStatusBar, "systemStatusBar");
 
-    // Create status item with fixed length (80 points for emoji + text)
-    const item_length: f64 = 80.0;
-    const statusItem = msgSend1(systemStatusBar, "statusItemWithLength:", item_length);
+    // Create status item with variable length (NSVariableStatusItemLength = -1)
+    // This allows the item to automatically resize based on its content
+    const NSVariableStatusItemLength: f64 = -1.0;
+    const statusItem = msgSend1(systemStatusBar, "statusItemWithLength:", NSVariableStatusItemLength);
 
-    std.debug.print("[Tray] Created status item with length {d}\n", .{item_length});
+    std.debug.print("[Tray] Created status item with variable length\n", .{});
 
     // Get the button
     const button = msgSend0(statusItem, "button");
@@ -345,10 +346,19 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
 pub fn macosSetTitle(handle: *anyopaque, title: []const u8) !void {
     if (builtin.target.os.tag != .macos) return;
 
+    std.debug.print("[Tray] macosSetTitle: handle={*}, title={s}\n", .{ handle, title });
+
     const statusItem: objc.id = @ptrFromInt(@intFromPtr(handle));
+    std.debug.print("[Tray] macosSetTitle: statusItem={*}\n", .{statusItem});
 
     // Get the button
     const button = msgSend0(statusItem, "button");
+    std.debug.print("[Tray] macosSetTitle: button={*}\n", .{button});
+
+    if (button == null) {
+        std.debug.print("[Tray] macosSetTitle: ERROR - button is null!\n", .{});
+        return error.ButtonNotFound;
+    }
 
     // Create null-terminated string for NSString
     var allocator = std.heap.c_allocator;
@@ -358,9 +368,19 @@ pub fn macosSetTitle(handle: *anyopaque, title: []const u8) !void {
     // Create NSString from null-terminated title
     const NSString = objc.objc_getClass("NSString");
     const titleStr = msgSend1(NSString, "stringWithUTF8String:", title_z.ptr);
+    std.debug.print("[Tray] macosSetTitle: NSString created\n", .{});
 
-    // Set title on button
-    _ = msgSend1(button, "setTitle:", titleStr);
+    // Set title on button (use msgSendVoid1 since setTitle: returns void)
+    msgSendVoid1(button, "setTitle:", titleStr);
+    std.debug.print("[Tray] macosSetTitle: setTitle: called\n", .{});
+
+    // Call sizeToFit to resize the button to fit the new title
+    _ = msgSend0(button, "sizeToFit");
+    std.debug.print("[Tray] macosSetTitle: sizeToFit called\n", .{});
+
+    // Force the button to redisplay
+    msgSendVoid1(button, "setNeedsDisplay:", @as(c_int, 1)); // YES
+    std.debug.print("[Tray] macosSetTitle: setTitle: called successfully\n", .{});
 }
 
 pub fn macosSetTooltip(handle: *anyopaque, tooltip: []const u8) !void {

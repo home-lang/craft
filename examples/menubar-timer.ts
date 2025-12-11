@@ -290,7 +290,8 @@ const html = `
 
     // Update timer display
     function updateDisplay() {
-      document.getElementById('timer').textContent = formatTime(timeLeft);
+      const timeStr = formatTime(timeLeft);
+      document.getElementById('timer').textContent = timeStr;
       updateProgress();
 
       // Update mode
@@ -301,6 +302,14 @@ const html = `
       } else {
         modeEl.textContent = 'Break Time';
         modeEl.className = 'mode break';
+      }
+
+      // Update system tray/menubar title
+      const icon = isWorkSession ? '🍅' : '☕';
+      if (window.craft && window.craft.tray) {
+        window.craft.tray.setTitle(icon + ' ' + timeStr).catch(err => {
+          console.log('Tray update error:', err);
+        });
       }
     }
 
@@ -420,6 +429,37 @@ const html = `
     updateDisplay();
     console.log('Pomodoro Timer ready!');
     console.log('Shortcuts: Space = Start/Pause, R = Reset, S = Skip');
+
+    // Set up tray menu when craft is ready
+    window.addEventListener('craft:ready', function() {
+      console.log('Craft bridge ready, setting up tray...');
+      if (window.craft && window.craft.tray) {
+        // Set initial tray title
+        window.craft.tray.setTitle('🍅 25:00');
+
+        // Set up tray context menu
+        window.craft.tray.setMenu([
+          { label: 'Start/Pause', action: 'toggle' },
+          { label: 'Reset', action: 'reset' },
+          { type: 'separator' },
+          { label: 'Show Window', action: 'show' },
+          { type: 'separator' },
+          { label: 'Quit', action: 'quit' }
+        ]).catch(console.error);
+      }
+    });
+
+    // Handle tray menu actions
+    window.addEventListener('craft:tray:menu', function(e) {
+      switch(e.detail.action) {
+        case 'toggle':
+          toggleTimer();
+          break;
+        case 'reset':
+          resetTimer();
+          break;
+      }
+    });
   </script>
 </body>
 </html>

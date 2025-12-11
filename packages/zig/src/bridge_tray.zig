@@ -166,15 +166,22 @@ pub const TrayBridge = struct {
     }
 
     fn setTitle(self: *Self, title: []const u8) !void {
+        log.debug("setTitle called with: {s}", .{title});
+        log.debug("setTitle: tray_handle = {*}", .{self.tray_handle});
+
         const handle = try self.requireTrayHandle();
+        log.debug("setTitle: got handle = {*}", .{handle});
 
         if (builtin.os.tag == .macos) {
             // Decode Unicode escapes like \Ud83c\Udf45 to actual UTF-8
             const decoded_title = try decodeUnicodeEscapes(self.allocator, title);
             defer self.allocator.free(decoded_title);
 
+            log.debug("setTitle: decoded = {s}", .{decoded_title});
+
             const macos = @import("tray.zig");
             try macos.macosSetTitle(handle, decoded_title);
+            log.debug("setTitle: macosSetTitle completed", .{});
         }
     }
 

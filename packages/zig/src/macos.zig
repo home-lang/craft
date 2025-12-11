@@ -71,6 +71,8 @@ pub const WindowStyle = struct {
     enable_hot_reload: bool = false, // Enable hot reload support
     hide_dock_icon: bool = false, // Hide dock icon (menubar-only mode)
     titlebar_hidden: bool = false, // Hide titlebar (content extends into titlebar area)
+    system_tray: bool = false, // Show in system tray (menubar)
+    system_tray_title: ?[]const u8 = null, // Initial title for system tray
 };
 
 // Helper functions for Objective-C runtime
@@ -169,6 +171,48 @@ pub fn msgSend0Double(target: anytype, selector: [*:0]const u8) f64 {
     return msg(target, sel(selector));
 }
 
+/// Message send with one NSRect argument (void return)
+pub fn msgSendVoid1Rect(target: anytype, selector: [*:0]const u8, rect: NSRect) void {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, NSRect) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
+    msg(target, sel(selector), rect);
+}
+
+// Custom borderless window class that can become key window
+var BorderlessWindowClass: objc.Class = null;
+
+fn getBorderlessWindowClass() objc.Class {
+    if (BorderlessWindowClass != null) return BorderlessWindowClass;
+
+    const NSWindow = getClass("NSWindow");
+    BorderlessWindowClass = objc.objc_allocateClassPair(NSWindow, "CraftBorderlessWindow", 0);
+
+    if (BorderlessWindowClass == null) {
+        std.debug.print("[Window] Failed to create CraftBorderlessWindow class\n", .{});
+        return NSWindow;
+    }
+
+    // Override canBecomeKeyWindow to return YES
+    const canBecomeKey = struct {
+        fn impl(_: objc.id, _: objc.SEL) callconv(.c) bool {
+            return true;
+        }
+    }.impl;
+    _ = objc.class_addMethod(BorderlessWindowClass, sel("canBecomeKeyWindow"), @ptrCast(@constCast(&canBecomeKey)), "B@:");
+
+    // Override canBecomeMainWindow to return YES
+    const canBecomeMain = struct {
+        fn impl(_: objc.id, _: objc.SEL) callconv(.c) bool {
+            return true;
+        }
+    }.impl;
+    _ = objc.class_addMethod(BorderlessWindowClass, sel("canBecomeMainWindow"), @ptrCast(@constCast(&canBecomeMain)), "B@:");
+
+    objc.objc_registerClassPair(BorderlessWindowClass);
+    std.debug.print("[Window] Created CraftBorderlessWindow class\n", .{});
+
+    return BorderlessWindowClass;
+}
+
 pub fn createWindow(title: []const u8, width: u32, height: u32, html: []const u8) !objc.id {
     return createWindowWithStyle(title, width, height, html, null, .{});
 }
@@ -226,14 +270,19 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
             std.debug.print("[TitlebarHidden] ✗ titlebar_hidden flag is FALSE\n", .{});
         }
     } else {
-        styleMask = 0; // Borderless
+        // Borderless window - use NSWindowStyleMaskBorderless (0)
+        // Combined with NSWindowStyleMaskNonactivatingPanel behavior workaround
+        styleMask = 0;
     }
 
     const backing: c_ulong = 2; // NSBackingStoreBuffered
     const defer_flag: bool = false;
 
+    // For borderless windows, use custom class that can become key window
+    const WindowClass = if (style.frameless) getBorderlessWindowClass() else NSWindow;
+
     // Allocate and initialize window
-    const window_alloc = msgSend0(NSWindow, "alloc");
+    const window_alloc = msgSend0(WindowClass, "alloc");
     const window = msgSend4(window_alloc, "initWithContentRect:styleMask:backing:defer:", frame, styleMask, backing, defer_flag);
 
     // Create title NSString
@@ -249,6 +298,14 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     if (style.transparent) {
         _ = msgSend1(window, "setOpaque:", false);
         _ = msgSend1(window, "setBackgroundColor:", msgSend0(getClass("NSColor"), "clearColor"));
+    }
+
+    // For frameless/borderless windows, ensure they can receive mouse events
+    if (style.frameless) {
+        // Accept mouse moved events
+        _ = msgSend1(window, "setAcceptsMouseMovedEvents:", true);
+        // Make sure the window can become key (receive keyboard/mouse input)
+        _ = msgSend1(window, "setMovableByWindowBackground:", false);
     }
 
     // Configure always on top
@@ -437,6 +494,20 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
     // Set webview as content view initially to establish proper sizing
     _ = msgSend1(window, "setContentView:", webview);
+
+    // CRITICAL: Ensure WebView frame matches the content view bounds
+    // This fixes hit testing issues where the WebView might have been initialized
+    // with the wrong frame (including titlebar area)
+    const contentView = msgSend0(window, "contentView");
+    if (contentView != null) {
+        const contentBounds: NSRect = msgSendRect(contentView, "bounds");
+        std.debug.print("[WebView] Setting frame to content bounds: {d}x{d}\n", .{ contentBounds.size.width, contentBounds.size.height });
+        msgSendVoid1Rect(webview, "setFrame:", contentBounds);
+
+        // Also set autoresizing mask to resize with window
+        // NSViewWidthSizable = 2, NSViewHeightSizable = 16
+        msgSendVoid1(webview, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
+    }
 
     // Store webview and window references globally
     if (webview) |wv| {
@@ -1271,8 +1342,12 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
 
     // Set handles - use parameter or global
     const tray_h = tray_handle orelse global_tray_handle_for_bridge;
+    std.debug.print("[Bridge] setupBridgeHandlers: tray_handle param={*}, global={*}, resolved={*}\n", .{ @as(?*anyopaque, tray_handle), global_tray_handle_for_bridge, tray_h });
     if (tray_h) |handle| {
+        std.debug.print("[Bridge] Setting tray handle on bridge: {*}\n", .{handle});
         global_tray_bridge.?.setTrayHandle(handle);
+    } else {
+        std.debug.print("[Bridge] WARNING: No tray handle available!\n", .{});
     }
 
     if (window_handle) |handle| {
