@@ -736,3 +736,737 @@ pub const Presets = struct {
         return Animation.init(0.1, 1.0, duration_ms, .ease_in_out_bounce);
     }
 };
+
+// ============================================================================
+// Text Animation System
+// Provides letter-by-letter, word-by-word, and sentence-by-sentence text reveals
+// ============================================================================
+
+/// Mode for text reveal animations
+pub const TextRevealMode = enum {
+    /// Reveal one character at a time (typewriter effect)
+    letter_by_letter,
+    /// Reveal one word at a time
+    word_by_word,
+    /// Reveal one sentence at a time
+    sentence_by_sentence,
+    /// Reveal instantly (no animation)
+    instant,
+};
+
+/// Configuration for text animations
+pub const TextAnimationConfig = struct {
+    /// Delay between each unit (letter/word/sentence) in milliseconds
+    delay_ms: u64 = 50,
+    /// Easing function for opacity/position animations
+    easing: EasingFunction = .linear,
+    /// Whether to add random variation to timing (more natural feel)
+    randomize_timing: bool = false,
+    /// Variation range in milliseconds (if randomize_timing is true)
+    timing_variation_ms: u64 = 20,
+    /// Cursor character to show at end during typing (empty for none)
+    cursor_char: []const u8 = "|",
+    /// Whether cursor should blink
+    cursor_blink: bool = true,
+    /// Cursor blink interval in milliseconds
+    cursor_blink_ms: u64 = 500,
+    /// Initial delay before animation starts
+    initial_delay_ms: u64 = 0,
+    /// Whether to loop the animation
+    loop: bool = false,
+    /// Delay before restart when looping
+    loop_delay_ms: u64 = 1000,
+};
+
+/// Text animation for progressive text reveal effects
+pub const TextAnimation = struct {
+    /// The full text to animate
+    text: []const u8,
+    /// Current reveal mode
+    mode: TextRevealMode,
+    /// Configuration
+    config: TextAnimationConfig,
+    /// Animation state
+    state: AnimationState,
+    /// Current character index (for letter mode)
+    current_char_index: usize,
+    /// Current word index (for word mode)
+    current_word_index: usize,
+    /// Current sentence index (for sentence mode)
+    current_sentence_index: usize,
+    /// Time tracking
+    start_time: ?std.time.Instant,
+    last_update_time: ?std.time.Instant,
+    accumulated_delay_ms: u64,
+    /// Parsed unit boundaries
+    word_boundaries: std.ArrayListUnmanaged(usize),
+    sentence_boundaries: std.ArrayListUnmanaged(usize),
+    /// Allocator for internal use
+    allocator: std.mem.Allocator,
+    /// Callbacks
+    on_char_reveal: ?*const fn (char: u8, index: usize) void,
+    on_word_reveal: ?*const fn (word: []const u8, index: usize) void,
+    on_sentence_reveal: ?*const fn (sentence: []const u8, index: usize) void,
+    on_complete: ?*const fn () void,
+    /// Random number generator for timing variation
+    rng: std.Random.DefaultPrng,
+
+    const Self = @This();
+
+    /// Initialize a new text animation
+    pub fn init(allocator: std.mem.Allocator, text: []const u8, mode: TextRevealMode, config: TextAnimationConfig) !Self {
+        var anim = Self{
+            .text = text,
+            .mode = mode,
+            .config = config,
+            .state = .idle,
+            .current_char_index = 0,
+            .current_word_index = 0,
+            .current_sentence_index = 0,
+            .start_time = null,
+            .last_update_time = null,
+            .accumulated_delay_ms = 0,
+            .word_boundaries = .{},
+            .sentence_boundaries = .{},
+            .allocator = allocator,
+            .on_char_reveal = null,
+            .on_word_reveal = null,
+            .on_sentence_reveal = null,
+            .on_complete = null,
+            .rng = std.Random.DefaultPrng.init(blk: {
+                // Use Instant.now() if available, otherwise use a constant seed
+                const now = std.time.Instant.now() catch break :blk @as(u64, 0x853c49e6748fea9b);
+                // timespec has tv_sec (seconds) and tv_nsec (nanoseconds)
+                const sec: u64 = @bitCast(now.timestamp.sec);
+                const nsec: u64 = @intCast(now.timestamp.nsec);
+                break :blk sec *% 1000000000 +% nsec;
+            }),
+        };
+
+        // Parse text boundaries
+        try anim.parseTextBoundaries();
+
+        return anim;
+    }
+
+    /// Clean up resources
+    pub fn deinit(self: *Self) void {
+        self.word_boundaries.deinit(self.allocator);
+        self.sentence_boundaries.deinit(self.allocator);
+    }
+
+    /// Parse word and sentence boundaries in the text
+    fn parseTextBoundaries(self: *Self) !void {
+        // Find word boundaries (spaces, tabs, newlines)
+        var in_word = false;
+
+        for (self.text, 0..) |char, i| {
+            const is_whitespace = char == ' ' or char == '\t' or char == '\n' or char == '\r';
+
+            if (!is_whitespace and !in_word) {
+                // Starting a new word
+                in_word = true;
+            } else if (is_whitespace and in_word) {
+                // Ending a word
+                try self.word_boundaries.append(self.allocator, i);
+                in_word = false;
+            }
+        }
+        // Don't forget the last word if text doesn't end with whitespace
+        if (in_word) {
+            try self.word_boundaries.append(self.allocator, self.text.len);
+        }
+
+        // Find sentence boundaries (., !, ?)
+        for (self.text, 0..) |char, i| {
+            if (char == '.' or char == '!' or char == '?') {
+                // Include trailing whitespace in sentence
+                var end_idx = i + 1;
+                while (end_idx < self.text.len and (self.text[end_idx] == ' ' or self.text[end_idx] == '\n')) {
+                    end_idx += 1;
+                }
+                try self.sentence_boundaries.append(self.allocator, end_idx);
+            }
+        }
+        // If no sentence endings found, treat entire text as one sentence
+        if (self.sentence_boundaries.items.len == 0 and self.text.len > 0) {
+            try self.sentence_boundaries.append(self.allocator, self.text.len);
+        }
+    }
+
+    /// Start the animation
+    pub fn start(self: *Self) void {
+        self.state = .running;
+        self.current_char_index = 0;
+        self.current_word_index = 0;
+        self.current_sentence_index = 0;
+        self.accumulated_delay_ms = 0;
+        self.start_time = std.time.Instant.now() catch null;
+        self.last_update_time = self.start_time;
+    }
+
+    /// Pause the animation
+    pub fn pause(self: *Self) void {
+        if (self.state == .running) {
+            self.state = .paused;
+        }
+    }
+
+    /// Resume the animation
+    pub fn unpause(self: *Self) void {
+        if (self.state == .paused) {
+            self.state = .running;
+            self.last_update_time = std.time.Instant.now() catch null;
+        }
+    }
+
+    /// Cancel the animation
+    pub fn cancel(self: *Self) void {
+        self.state = .canceled;
+    }
+
+    /// Reset the animation to beginning
+    pub fn reset(self: *Self) void {
+        self.state = .idle;
+        self.current_char_index = 0;
+        self.current_word_index = 0;
+        self.current_sentence_index = 0;
+        self.accumulated_delay_ms = 0;
+        self.start_time = null;
+        self.last_update_time = null;
+    }
+
+    /// Skip to end (reveal all text instantly)
+    pub fn skipToEnd(self: *Self) void {
+        self.current_char_index = self.text.len;
+        self.current_word_index = self.word_boundaries.items.len;
+        self.current_sentence_index = self.sentence_boundaries.items.len;
+        self.state = .completed;
+        if (self.on_complete) |callback| {
+            callback();
+        }
+    }
+
+    /// Get delay for next unit (with optional randomization)
+    fn getNextDelay(self: *Self) u64 {
+        var delay = self.config.delay_ms;
+        if (self.config.randomize_timing and self.config.timing_variation_ms > 0) {
+            const variation = self.rng.random().intRangeAtMost(u64, 0, self.config.timing_variation_ms * 2);
+            if (variation > self.config.timing_variation_ms) {
+                delay += variation - self.config.timing_variation_ms;
+            } else if (delay > variation) {
+                delay -= variation;
+            }
+        }
+        return delay;
+    }
+
+    /// Update the animation state
+    pub fn update(self: *Self) void {
+        if (self.state != .running) return;
+
+        const now = std.time.Instant.now() catch return;
+        const last = self.last_update_time orelse return;
+        const elapsed_ns = now.since(last);
+        const elapsed_ms = elapsed_ns / std.time.ns_per_ms;
+
+        // Check initial delay
+        const start_instant = self.start_time orelse return;
+        const total_elapsed_ns = now.since(start_instant);
+        const total_elapsed_ms = total_elapsed_ns / std.time.ns_per_ms;
+
+        if (total_elapsed_ms < self.config.initial_delay_ms) {
+            return;
+        }
+
+        self.accumulated_delay_ms += elapsed_ms;
+        self.last_update_time = now;
+
+        const target_delay = self.getNextDelay();
+
+        if (self.accumulated_delay_ms >= target_delay) {
+            self.accumulated_delay_ms = 0;
+
+            switch (self.mode) {
+                .letter_by_letter => self.advanceLetter(),
+                .word_by_word => self.advanceWord(),
+                .sentence_by_sentence => self.advanceSentence(),
+                .instant => self.skipToEnd(),
+            }
+        }
+    }
+
+    /// Advance by one letter
+    fn advanceLetter(self: *Self) void {
+        if (self.current_char_index < self.text.len) {
+            const char = self.text[self.current_char_index];
+            if (self.on_char_reveal) |callback| {
+                callback(char, self.current_char_index);
+            }
+            self.current_char_index += 1;
+
+            // Update word index if we passed a word boundary
+            for (self.word_boundaries.items, 0..) |boundary, i| {
+                if (self.current_char_index >= boundary and i >= self.current_word_index) {
+                    self.current_word_index = i + 1;
+                    break;
+                }
+            }
+        }
+
+        if (self.current_char_index >= self.text.len) {
+            self.handleCompletion();
+        }
+    }
+
+    /// Advance by one word
+    fn advanceWord(self: *Self) void {
+        if (self.current_word_index < self.word_boundaries.items.len) {
+            const word_end = self.word_boundaries.items[self.current_word_index];
+            const word_start = if (self.current_word_index == 0) 0 else self.word_boundaries.items[self.current_word_index - 1];
+
+            // Find actual word start (skip leading whitespace)
+            var actual_start = word_start;
+            while (actual_start < word_end and (self.text[actual_start] == ' ' or self.text[actual_start] == '\t' or self.text[actual_start] == '\n')) {
+                actual_start += 1;
+            }
+
+            if (self.on_word_reveal) |callback| {
+                callback(self.text[actual_start..word_end], self.current_word_index);
+            }
+
+            self.current_char_index = word_end;
+            self.current_word_index += 1;
+        }
+
+        if (self.current_word_index >= self.word_boundaries.items.len) {
+            self.handleCompletion();
+        }
+    }
+
+    /// Advance by one sentence
+    fn advanceSentence(self: *Self) void {
+        if (self.current_sentence_index < self.sentence_boundaries.items.len) {
+            const sentence_end = self.sentence_boundaries.items[self.current_sentence_index];
+            const sentence_start = if (self.current_sentence_index == 0) 0 else self.sentence_boundaries.items[self.current_sentence_index - 1];
+
+            if (self.on_sentence_reveal) |callback| {
+                callback(self.text[sentence_start..sentence_end], self.current_sentence_index);
+            }
+
+            self.current_char_index = sentence_end;
+            self.current_sentence_index += 1;
+
+            // Update word index
+            for (self.word_boundaries.items, 0..) |boundary, i| {
+                if (sentence_end >= boundary) {
+                    self.current_word_index = i + 1;
+                }
+            }
+        }
+
+        if (self.current_sentence_index >= self.sentence_boundaries.items.len) {
+            self.handleCompletion();
+        }
+    }
+
+    /// Handle animation completion
+    fn handleCompletion(self: *Self) void {
+        if (self.config.loop) {
+            // Reset for loop
+            self.current_char_index = 0;
+            self.current_word_index = 0;
+            self.current_sentence_index = 0;
+            self.accumulated_delay_ms = 0;
+            // Use loop delay as initial delay for next iteration
+            const saved_initial = self.config.initial_delay_ms;
+            self.config.initial_delay_ms = self.config.loop_delay_ms;
+            self.start_time = std.time.Instant.now() catch null;
+            self.config.initial_delay_ms = saved_initial;
+        } else {
+            self.state = .completed;
+            if (self.on_complete) |callback| {
+                callback();
+            }
+        }
+    }
+
+    /// Get the currently revealed text
+    pub fn getRevealedText(self: Self) []const u8 {
+        if (self.current_char_index >= self.text.len) {
+            return self.text;
+        }
+        return self.text[0..self.current_char_index];
+    }
+
+    /// Get revealed text with cursor
+    pub fn getRevealedTextWithCursor(self: Self, buffer: []u8) []const u8 {
+        const revealed = self.getRevealedText();
+        const cursor = self.config.cursor_char;
+
+        if (self.state == .completed or cursor.len == 0) {
+            if (revealed.len <= buffer.len) {
+                @memcpy(buffer[0..revealed.len], revealed);
+                return buffer[0..revealed.len];
+            }
+            return revealed;
+        }
+
+        // Show cursor only if animation is running
+        if (self.state == .running) {
+            // Check if cursor should be visible (blinking)
+            var show_cursor = true;
+            if (self.config.cursor_blink) {
+                if (self.start_time) |anim_start| {
+                    const now = std.time.Instant.now() catch return revealed;
+                    const elapsed_ns = now.since(anim_start);
+                    const elapsed_ms = elapsed_ns / std.time.ns_per_ms;
+                    const blink_cycle = elapsed_ms / self.config.cursor_blink_ms;
+                    show_cursor = (blink_cycle % 2) == 0;
+                }
+            }
+
+            if (show_cursor and revealed.len + cursor.len <= buffer.len) {
+                @memcpy(buffer[0..revealed.len], revealed);
+                @memcpy(buffer[revealed.len .. revealed.len + cursor.len], cursor);
+                return buffer[0 .. revealed.len + cursor.len];
+            }
+        }
+
+        if (revealed.len <= buffer.len) {
+            @memcpy(buffer[0..revealed.len], revealed);
+            return buffer[0..revealed.len];
+        }
+        return revealed;
+    }
+
+    /// Get progress as a float from 0.0 to 1.0
+    pub fn getProgress(self: Self) f32 {
+        if (self.text.len == 0) return 1.0;
+        return @as(f32, @floatFromInt(self.current_char_index)) / @as(f32, @floatFromInt(self.text.len));
+    }
+
+    /// Check if animation is complete
+    pub fn isComplete(self: Self) bool {
+        return self.state == .completed;
+    }
+
+    /// Check if animation is running
+    pub fn isRunning(self: Self) bool {
+        return self.state == .running;
+    }
+
+    /// Get total word count
+    pub fn getWordCount(self: Self) usize {
+        return self.word_boundaries.items.len;
+    }
+
+    /// Get total sentence count
+    pub fn getSentenceCount(self: Self) usize {
+        return self.sentence_boundaries.items.len;
+    }
+
+    /// Get current word index (0-based)
+    pub fn getCurrentWordIndex(self: Self) usize {
+        return self.current_word_index;
+    }
+
+    /// Get current sentence index (0-based)
+    pub fn getCurrentSentenceIndex(self: Self) usize {
+        return self.current_sentence_index;
+    }
+};
+
+/// Presets for common text animation configurations
+pub const TextAnimationPresets = struct {
+    /// Classic typewriter effect (fast, with cursor)
+    pub fn typewriter() TextAnimationConfig {
+        return .{
+            .delay_ms = 50,
+            .easing = .linear,
+            .randomize_timing = true,
+            .timing_variation_ms = 30,
+            .cursor_char = "|",
+            .cursor_blink = true,
+            .cursor_blink_ms = 500,
+        };
+    }
+
+    /// Slow typewriter for dramatic effect
+    pub fn typewriterSlow() TextAnimationConfig {
+        return .{
+            .delay_ms = 100,
+            .easing = .linear,
+            .randomize_timing = true,
+            .timing_variation_ms = 50,
+            .cursor_char = "_",
+            .cursor_blink = true,
+            .cursor_blink_ms = 400,
+        };
+    }
+
+    /// Very fast typing (like chat messages)
+    pub fn typewriterFast() TextAnimationConfig {
+        return .{
+            .delay_ms = 20,
+            .easing = .linear,
+            .randomize_timing = false,
+            .cursor_char = "",
+            .cursor_blink = false,
+        };
+    }
+
+    /// AI-style streaming text (like ChatGPT responses)
+    pub fn aiStreaming() TextAnimationConfig {
+        return .{
+            .delay_ms = 15,
+            .easing = .linear,
+            .randomize_timing = true,
+            .timing_variation_ms = 10,
+            .cursor_char = "",
+            .cursor_blink = false,
+        };
+    }
+
+    /// Word-by-word reveal (teleprompter style)
+    pub fn teleprompter() TextAnimationConfig {
+        return .{
+            .delay_ms = 200,
+            .easing = .ease_out_quad,
+            .randomize_timing = false,
+            .cursor_char = "",
+            .cursor_blink = false,
+        };
+    }
+
+    /// Sentence-by-sentence (subtitle/caption style)
+    pub fn subtitles() TextAnimationConfig {
+        return .{
+            .delay_ms = 2000,
+            .easing = .ease_in_out_quad,
+            .randomize_timing = false,
+            .cursor_char = "",
+            .cursor_blink = false,
+        };
+    }
+
+    /// Story reveal (dramatic sentence by sentence)
+    pub fn storyReveal() TextAnimationConfig {
+        return .{
+            .delay_ms = 1500,
+            .easing = .ease_in_out_sine,
+            .randomize_timing = true,
+            .timing_variation_ms = 300,
+            .cursor_char = "",
+            .cursor_blink = false,
+            .initial_delay_ms = 500,
+        };
+    }
+
+    /// Terminal/console style
+    pub fn terminal() TextAnimationConfig {
+        return .{
+            .delay_ms = 30,
+            .easing = .linear,
+            .randomize_timing = false,
+            .cursor_char = "_",
+            .cursor_blink = true,
+            .cursor_blink_ms = 600,
+        };
+    }
+
+    /// Code typing effect
+    pub fn codeTyping() TextAnimationConfig {
+        return .{
+            .delay_ms = 40,
+            .easing = .linear,
+            .randomize_timing = true,
+            .timing_variation_ms = 20,
+            .cursor_char = "|",
+            .cursor_blink = true,
+            .cursor_blink_ms = 530,
+        };
+    }
+
+    /// Looping announcement
+    pub fn announcement() TextAnimationConfig {
+        return .{
+            .delay_ms = 80,
+            .easing = .ease_out_sine,
+            .randomize_timing = false,
+            .cursor_char = "",
+            .cursor_blink = false,
+            .loop = true,
+            .loop_delay_ms = 3000,
+        };
+    }
+};
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+test "TextAnimation: initialization" {
+    const allocator = std.testing.allocator;
+    const text = "Hello, World!";
+
+    var anim = try TextAnimation.init(allocator, text, .letter_by_letter, TextAnimationPresets.typewriter());
+    defer anim.deinit();
+
+    try std.testing.expectEqual(@as(usize, 2), anim.getWordCount());
+    try std.testing.expectEqual(@as(usize, 1), anim.getSentenceCount());
+    try std.testing.expectEqual(AnimationState.idle, anim.state);
+    try std.testing.expectEqualStrings("", anim.getRevealedText());
+}
+
+test "TextAnimation: word boundary parsing" {
+    const allocator = std.testing.allocator;
+    const text = "One two three four five";
+
+    var anim = try TextAnimation.init(allocator, text, .word_by_word, .{});
+    defer anim.deinit();
+
+    try std.testing.expectEqual(@as(usize, 5), anim.getWordCount());
+}
+
+test "TextAnimation: sentence boundary parsing" {
+    const allocator = std.testing.allocator;
+    const text = "First sentence. Second sentence! Third sentence?";
+
+    var anim = try TextAnimation.init(allocator, text, .sentence_by_sentence, .{});
+    defer anim.deinit();
+
+    try std.testing.expectEqual(@as(usize, 3), anim.getSentenceCount());
+}
+
+test "TextAnimation: skip to end" {
+    const allocator = std.testing.allocator;
+    const text = "Test message";
+
+    var anim = try TextAnimation.init(allocator, text, .letter_by_letter, .{});
+    defer anim.deinit();
+
+    anim.start();
+    anim.skipToEnd();
+
+    try std.testing.expectEqual(AnimationState.completed, anim.state);
+    try std.testing.expectEqualStrings(text, anim.getRevealedText());
+    try std.testing.expectEqual(@as(f32, 1.0), anim.getProgress());
+}
+
+test "TextAnimation: progress calculation" {
+    const allocator = std.testing.allocator;
+    const text = "ABCD"; // 4 characters
+
+    var anim = try TextAnimation.init(allocator, text, .letter_by_letter, .{});
+    defer anim.deinit();
+
+    try std.testing.expectEqual(@as(f32, 0.0), anim.getProgress());
+
+    // Manually advance char index
+    anim.current_char_index = 2;
+    try std.testing.expectEqual(@as(f32, 0.5), anim.getProgress());
+
+    anim.current_char_index = 4;
+    try std.testing.expectEqual(@as(f32, 1.0), anim.getProgress());
+}
+
+test "TextAnimation: pause and unpause" {
+    const allocator = std.testing.allocator;
+    const text = "Test";
+
+    var anim = try TextAnimation.init(allocator, text, .letter_by_letter, .{});
+    defer anim.deinit();
+
+    anim.start();
+    try std.testing.expectEqual(AnimationState.running, anim.state);
+
+    anim.pause();
+    try std.testing.expectEqual(AnimationState.paused, anim.state);
+
+    anim.unpause();
+    try std.testing.expectEqual(AnimationState.running, anim.state);
+}
+
+test "TextAnimation: reset" {
+    const allocator = std.testing.allocator;
+    const text = "Test";
+
+    var anim = try TextAnimation.init(allocator, text, .letter_by_letter, .{});
+    defer anim.deinit();
+
+    anim.start();
+    anim.current_char_index = 3;
+    anim.reset();
+
+    try std.testing.expectEqual(AnimationState.idle, anim.state);
+    try std.testing.expectEqual(@as(usize, 0), anim.current_char_index);
+}
+
+test "TextAnimation: empty text" {
+    const allocator = std.testing.allocator;
+    const text = "";
+
+    var anim = try TextAnimation.init(allocator, text, .letter_by_letter, .{});
+    defer anim.deinit();
+
+    try std.testing.expectEqual(@as(usize, 0), anim.getWordCount());
+    try std.testing.expectEqual(@as(usize, 0), anim.getSentenceCount());
+    try std.testing.expectEqual(@as(f32, 1.0), anim.getProgress()); // Empty text = complete
+}
+
+test "TextAnimationPresets: all presets return valid config" {
+    const typewriter = TextAnimationPresets.typewriter();
+    try std.testing.expect(typewriter.delay_ms > 0);
+
+    const slow = TextAnimationPresets.typewriterSlow();
+    try std.testing.expect(slow.delay_ms > typewriter.delay_ms);
+
+    const fast = TextAnimationPresets.typewriterFast();
+    try std.testing.expect(fast.delay_ms < typewriter.delay_ms);
+
+    const ai = TextAnimationPresets.aiStreaming();
+    try std.testing.expect(ai.delay_ms > 0);
+
+    const tele = TextAnimationPresets.teleprompter();
+    try std.testing.expect(tele.delay_ms > 0);
+
+    const sub = TextAnimationPresets.subtitles();
+    try std.testing.expect(sub.delay_ms > 0);
+
+    const story = TextAnimationPresets.storyReveal();
+    try std.testing.expect(story.initial_delay_ms > 0);
+
+    const term = TextAnimationPresets.terminal();
+    try std.testing.expectEqualStrings("_", term.cursor_char);
+
+    const code = TextAnimationPresets.codeTyping();
+    try std.testing.expect(code.randomize_timing);
+
+    const announce = TextAnimationPresets.announcement();
+    try std.testing.expect(announce.loop);
+}
+
+test "EasingFunction: linear" {
+    const result = EasingFunction.linear.apply(0.5);
+    try std.testing.expectEqual(@as(f32, 0.5), result);
+}
+
+test "EasingFunction: boundaries" {
+    // All easing functions should return 0 at t=0 and 1 at t=1
+    const easings = [_]EasingFunction{
+        .linear,
+        .ease_in_quad,
+        .ease_out_quad,
+        .ease_in_out_quad,
+        .ease_in_cubic,
+        .ease_out_cubic,
+    };
+
+    for (easings) |easing| {
+        const start = easing.apply(0.0);
+        const end = easing.apply(1.0);
+        try std.testing.expectApproxEqAbs(@as(f32, 0.0), start, 0.001);
+        try std.testing.expectApproxEqAbs(@as(f32, 1.0), end, 0.001);
+    }
+}
