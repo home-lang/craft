@@ -8,6 +8,12 @@ const Menu = @import("menu.zig").Menu;
 pub const ios = @import("ios.zig");
 pub const mobile = @import("mobile.zig");
 
+// Re-export Android module (available on all platforms for cross-compilation)
+pub const android = @import("android.zig");
+pub const CraftActivity = android.CraftActivity;
+pub const AndroidJSBridge = android.JSBridge;
+pub const AndroidFeatures = android.AndroidFeatures;
+
 // Re-export API module
 pub const api = @import("api.zig");
 

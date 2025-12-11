@@ -100,6 +100,26 @@ Output libraries are in `zig-out/lib/`:
 - `libcraft-ios-simulator-arm64.a` - iOS Simulator (Apple Silicon)
 - `libcraft-ios-simulator-x64.a` - iOS Simulator (Intel)
 
+### Android Build
+
+```bash
+# Build for Android device (arm64)
+zig build build-android
+
+# Build for Android emulator (x86_64)
+zig build build-android-x86
+
+# Build for all Android architectures
+zig build build-android-all
+
+# Run Android example (demo mode)
+zig build run-android
+```
+
+Output libraries are in `zig-out/lib/`:
+- `libcraft-android-arm64.a` - Android device (arm64)
+- `libcraft-android-x86_64.a` - Android emulator (x86_64)
+
 ## Features
 
 ### 🎨 UI Components (35 total)
@@ -298,7 +318,67 @@ fn onAppBackground() void {
 }
 ```
 
-### Cross-Platform (Desktop + iOS)
+### Android App
+
+```zig
+const std = @import("std");
+const android = @import("craft").android;
+
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    const html = @embedFile("app.html");
+
+    var app = android.CraftActivity.init(allocator, .{
+        .name = "My Android App",
+        .package_name = "com.example.myapp",
+        .initial_content = .{ .html = html },
+        .theme = .system,
+        .orientation = .portrait,
+        .enable_javascript = true,
+        .enable_dom_storage = true,
+    });
+    defer app.deinit();
+
+    // Register lifecycle callbacks
+    app.onCreate(onAppCreate);
+    app.onResume(onAppResume);
+    app.onPause(onAppPause);
+    app.onBackPressed(onBackPressed);
+
+    // Register custom JavaScript handler
+    try app.run();
+    if (app.getBridge()) |bridge| {
+        try bridge.registerHandler("customAction", handleCustomAction);
+    }
+}
+
+fn onAppCreate() void {
+    std.debug.print("Activity created!\n", .{});
+}
+
+fn onAppResume() void {
+    std.debug.print("Activity resumed\n", .{});
+}
+
+fn onAppPause() void {
+    std.debug.print("Activity paused\n", .{});
+}
+
+fn onBackPressed() bool {
+    std.debug.print("Back pressed\n", .{});
+    return false; // Return true to consume the event
+}
+
+fn handleCustomAction(params: []const u8, bridge: *android.JSBridge, callback_id: []const u8) void {
+    _ = params;
+    bridge.sendResponse(callback_id, "{ \"status\": \"ok\" }") catch {};
+}
+```
+
+### Cross-Platform (Desktop + iOS + Android)
 
 ```zig
 const std = @import("std");
@@ -322,14 +402,25 @@ pub fn main() !void {
         },
         .ios => {
             // iOS
-            const ios = @import("craft").ios;
-            var app = ios.CraftAppDelegate.init(allocator, .{
+            var app = craft.ios.CraftAppDelegate.init(allocator, .{
                 .name = "My App",
                 .initial_content = .{ .html = app_html },
             });
             try app.run();
         },
-        else => return error.UnsupportedPlatform,
+        else => {
+            // Android (detected via ABI)
+            if (builtin.target.abi == .android) {
+                var app = craft.android.CraftActivity.init(allocator, .{
+                    .name = "My App",
+                    .initial_content = .{ .html = app_html },
+                });
+                defer app.deinit();
+                try app.run();
+            } else {
+                return error.UnsupportedPlatform;
+            }
+        },
     }
 }
 ```

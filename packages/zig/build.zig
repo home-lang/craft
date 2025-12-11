@@ -1233,4 +1233,128 @@ pub fn build(b: *std.Build) void {
 
     const run_hotreload_cmd = b.addRunArtifact(hotreload_exe);
     run_hotreload.dependOn(&run_hotreload_cmd.step);
+
+    // ========================================================================
+    // Android Build Targets
+    // ========================================================================
+
+    const build_android = b.step("build-android", "Build for Android (arm64)");
+    const build_android_x86 = b.step("build-android-x86", "Build for Android (x86_64)");
+    const build_android_all = b.step("build-android-all", "Build for Android (all architectures)");
+
+    // Android module
+    const android_module = b.createModule(.{
+        .root_source_file = b.path("src/android.zig"),
+    });
+
+    // Android Device (arm64)
+    const android_arm64_target = b.resolveTargetQuery(.{
+        .cpu_arch = .aarch64,
+        .os_tag = .linux,
+        .abi = .android,
+    });
+
+    const android_arm64_lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "craft-android-arm64",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/android.zig"),
+            .target = android_arm64_target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+            },
+        }),
+    });
+    android_arm64_lib.linkLibC();
+
+    const android_arm64_install = b.addInstallArtifact(android_arm64_lib, .{});
+    build_android.dependOn(&android_arm64_install.step);
+    build_android_all.dependOn(&android_arm64_install.step);
+
+    // Android Emulator (x86_64)
+    const android_x86_target = b.resolveTargetQuery(.{
+        .cpu_arch = .x86_64,
+        .os_tag = .linux,
+        .abi = .android,
+    });
+
+    const android_x86_lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "craft-android-x86_64",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/android.zig"),
+            .target = android_x86_target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+            },
+        }),
+    });
+    android_x86_lib.linkLibC();
+
+    const android_x86_install = b.addInstallArtifact(android_x86_lib, .{});
+    build_android_x86.dependOn(&android_x86_install.step);
+    build_android_all.dependOn(&android_x86_install.step);
+
+    // ========================================================================
+    // Android Example (demo mode - runs on host for testing)
+    // ========================================================================
+
+    const run_android = b.step("run-android", "Run the Android example (demo mode)");
+
+    const android_demo_exe = b.addExecutable(.{
+        .name = "android-example",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/android/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "craft", .module = craft_module },
+                .{ .name = "android", .module = android_module },
+            },
+        }),
+    });
+
+    switch (target_os) {
+        .macos => {
+            android_demo_exe.linkFramework("Cocoa");
+            android_demo_exe.linkFramework("WebKit");
+        },
+        .linux => {
+            android_demo_exe.linkSystemLibrary("gtk+-3.0");
+            android_demo_exe.linkSystemLibrary("webkit2gtk-4.0");
+        },
+        .windows => {
+            android_demo_exe.linkSystemLibrary("ole32");
+            android_demo_exe.linkSystemLibrary("user32");
+            android_demo_exe.linkSystemLibrary("gdi32");
+            android_demo_exe.linkSystemLibrary("shell32");
+        },
+        else => {},
+    }
+    android_demo_exe.linkLibC();
+
+    const run_android_cmd = b.addRunArtifact(android_demo_exe);
+    run_android.dependOn(&run_android_cmd.step);
+
+    // ========================================================================
+    // Android Tests
+    // ========================================================================
+
+    const android_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/android.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    const run_android_tests = b.addRunArtifact(android_tests);
+
+    const test_android_step = b.step("test:android", "Run Android tests");
+    test_android_step.dependOn(&run_android_tests.step);
+
+    // Add Android tests to the main test step
+    test_step.dependOn(&run_android_tests.step);
 }
