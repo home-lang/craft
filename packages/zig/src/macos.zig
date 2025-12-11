@@ -141,6 +141,12 @@ pub fn msgSendRect(target: anytype, selector: [*:0]const u8) NSRect {
     return msg(target, sel(selector));
 }
 
+/// Message send that takes NSRect and returns NSRect (for methods like -contentRectForFrameRect:)
+pub fn msgSendRect1Rect(target: anytype, selector: [*:0]const u8, rect: NSRect) NSRect {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, NSRect) callconv(.c) NSRect, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector), rect);
+}
+
 /// Message send that returns CGFloat (f64)
 pub fn msgSendFloat(target: anytype, selector: [*:0]const u8) f64 {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) f64, @ptrCast(&objc.objc_msgSend));
@@ -492,22 +498,38 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, base_url);
     }
 
-    // Set webview as content view initially to establish proper sizing
+    // CRITICAL FIX: Get the proper content rect BEFORE setting webview as content view
+    // The window's frame includes the titlebar area, but the content view should only
+    // fill the content area. We need to calculate the proper content rect.
+
+    // Get the window's content rect (the area below the titlebar)
+    const windowFrame: NSRect = msgSendRect(window, "frame");
+    const contentRect: NSRect = msgSendRect1Rect(window, "contentRectForFrameRect:", windowFrame);
+
+    std.debug.print("[WebView] Window frame: {d}x{d}, Content rect: {d}x{d}\n", .{
+        windowFrame.size.width,
+        windowFrame.size.height,
+        contentRect.size.width,
+        contentRect.size.height,
+    });
+
+    // Create the proper frame for the WebView - it should fill the content area
+    // The origin should be (0, 0) relative to the content view
+    const webviewFrame = NSRect{
+        .origin = .{ .x = 0, .y = 0 },
+        .size = contentRect.size,
+    };
+
+    // Set the WebView's frame to the content area size
+    msgSendVoid1Rect(webview, "setFrame:", webviewFrame);
+    std.debug.print("[WebView] Set WebView frame to: {d}x{d}\n", .{ webviewFrame.size.width, webviewFrame.size.height });
+
+    // Now set webview as content view
     _ = msgSend1(window, "setContentView:", webview);
 
-    // CRITICAL: Ensure WebView frame matches the content view bounds
-    // This fixes hit testing issues where the WebView might have been initialized
-    // with the wrong frame (including titlebar area)
-    const contentView = msgSend0(window, "contentView");
-    if (contentView != null) {
-        const contentBounds: NSRect = msgSendRect(contentView, "bounds");
-        std.debug.print("[WebView] Setting frame to content bounds: {d}x{d}\n", .{ contentBounds.size.width, contentBounds.size.height });
-        msgSendVoid1Rect(webview, "setFrame:", contentBounds);
-
-        // Also set autoresizing mask to resize with window
-        // NSViewWidthSizable = 2, NSViewHeightSizable = 16
-        msgSendVoid1(webview, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
-    }
+    // Also set autoresizing mask to resize with window
+    // NSViewWidthSizable = 2, NSViewHeightSizable = 16
+    msgSendVoid1(webview, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
 
     // Store webview and window references globally
     if (webview) |wv| {

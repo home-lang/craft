@@ -367,19 +367,36 @@ pub fn macosSetTitle(handle: *anyopaque, title: []const u8) !void {
 
     // Create NSString from null-terminated title
     const NSString = objc.objc_getClass("NSString");
+    if (NSString == null) {
+        std.debug.print("[Tray] macosSetTitle: ERROR - NSString class not found!\n", .{});
+        return error.ClassNotFound;
+    }
+
     const titleStr = msgSend1(NSString, "stringWithUTF8String:", title_z.ptr);
-    std.debug.print("[Tray] macosSetTitle: NSString created\n", .{});
+    if (titleStr == null) {
+        std.debug.print("[Tray] macosSetTitle: ERROR - NSString creation failed!\n", .{});
+        return error.StringCreationFailed;
+    }
+    std.debug.print("[Tray] macosSetTitle: NSString created = {*}\n", .{titleStr});
 
     // Set title on button (use msgSendVoid1 since setTitle: returns void)
     msgSendVoid1(button, "setTitle:", titleStr);
+
+    // Verify the title was set by getting it back
+    const currentTitle = msgSend0(button, "title");
+    std.debug.print("[Tray] macosSetTitle: button title after set = {*}\n", .{currentTitle});
     std.debug.print("[Tray] macosSetTitle: setTitle: called\n", .{});
 
     // Call sizeToFit to resize the button to fit the new title
     _ = msgSend0(button, "sizeToFit");
     std.debug.print("[Tray] macosSetTitle: sizeToFit called\n", .{});
 
-    // Force the button to redisplay
-    msgSendVoid1(button, "setNeedsDisplay:", @as(c_int, 1)); // YES
+    // Force immediate redraw by calling display
+    _ = msgSend0(button, "display");
+    std.debug.print("[Tray] macosSetTitle: display called\n", .{});
+
+    // Also mark as needing display for next run loop
+    msgSendVoid1(button, "setNeedsDisplay:", @as(bool, true));
     std.debug.print("[Tray] macosSetTitle: setTitle: called successfully\n", .{});
 }
 
