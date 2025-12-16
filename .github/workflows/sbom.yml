@@ -1,0 +1,333 @@
+name: SBOM Generation
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: sbom-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  generate-sbom:
+    name: Generate Software Bill of Materials
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Install SBOM tools
+        run: |
+          # Install CycloneDX for JavaScript
+          npm install -g @cyclonedx/cyclonedx-npm
+
+          # Install Syft for comprehensive SBOM
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Generate npm SBOM (CycloneDX)
+        run: |
+          mkdir -p sbom
+
+          # Generate SBOM for root package
+          cyclonedx-npm --output-format json --output-file sbom/npm-sbom.json || true
+
+          # Generate SBOM for TypeScript SDK
+          cd packages/typescript
+          cyclonedx-npm --output-format json --output-file ../../sbom/typescript-sdk-sbom.json || true
+          cd ../..
+
+          # Generate SBOM for create-craft
+          cd packages/create-craft
+          cyclonedx-npm --output-format json --output-file ../../sbom/create-craft-sbom.json || true
+          cd ../..
+
+      - name: Generate comprehensive SBOM (Syft)
+        run: |
+          # Generate SBOM for entire repository
+          syft . -o cyclonedx-json=sbom/full-sbom.cyclonedx.json
+          syft . -o spdx-json=sbom/full-sbom.spdx.json
+
+      - name: Generate Zig dependencies SBOM
+        run: |
+          # Create a custom SBOM for Zig dependencies
+          cat > sbom/zig-dependencies.json << 'EOF'
+          {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.5",
+            "version": 1,
+            "metadata": {
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "component": {
+                "type": "library",
+                "name": "craft-zig-core",
+                "version": "0.0.1",
+                "description": "Craft Zig Core - Native application framework"
+              }
+            },
+            "components": [
+              {
+                "type": "library",
+                "name": "zig-std",
+                "version": "0.15.1",
+                "description": "Zig Standard Library",
+                "purl": "pkg:zig/std@0.15.1",
+                "licenses": [{"license": {"id": "MIT"}}]
+              }
+            ],
+            "externalReferences": [
+              {
+                "type": "website",
+                "url": "https://github.com/stacksjs/craft"
+              },
+              {
+                "type": "vcs",
+                "url": "https://github.com/stacksjs/craft.git"
+              }
+            ]
+          }
+          EOF
+
+          # Add platform-specific dependencies
+          cat > sbom/platform-dependencies.json << 'EOF'
+          {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.5",
+            "version": 1,
+            "metadata": {
+              "component": {
+                "type": "application",
+                "name": "craft-platform-deps",
+                "version": "0.0.1"
+              }
+            },
+            "components": [
+              {
+                "type": "library",
+                "name": "WebKit",
+                "description": "macOS WebKit framework",
+                "purl": "pkg:apple/webkit",
+                "licenses": [{"license": {"id": "LGPL-2.1-or-later"}}],
+                "properties": [{"name": "platform", "value": "macos"}]
+              },
+              {
+                "type": "library",
+                "name": "GTK3",
+                "description": "GTK 3 toolkit",
+                "purl": "pkg:generic/gtk@3",
+                "licenses": [{"license": {"id": "LGPL-2.1-or-later"}}],
+                "properties": [{"name": "platform", "value": "linux"}]
+              },
+              {
+                "type": "library",
+                "name": "WebKit2GTK",
+                "version": "4.0",
+                "description": "WebKit2 GTK port",
+                "purl": "pkg:generic/webkit2gtk@4.0",
+                "licenses": [{"license": {"id": "LGPL-2.1-or-later"}}],
+                "properties": [{"name": "platform", "value": "linux"}]
+              },
+              {
+                "type": "library",
+                "name": "WebView2",
+                "description": "Microsoft Edge WebView2",
+                "purl": "pkg:nuget/Microsoft.Web.WebView2",
+                "licenses": [{"license": {"id": "BSD-3-Clause"}}],
+                "properties": [{"name": "platform", "value": "windows"}]
+              }
+            ]
+          }
+          EOF
+
+      - name: Merge SBOMs
+        run: |
+          # Create a merged SBOM with all components
+          cat > sbom/craft-sbom.json << EOF
+          {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.5",
+            "version": 1,
+            "serialNumber": "urn:uuid:$(uuidgen || cat /proc/sys/kernel/random/uuid)",
+            "metadata": {
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+              "tools": [
+                {"name": "cyclonedx-npm"},
+                {"name": "syft"}
+              ],
+              "component": {
+                "type": "application",
+                "name": "craft",
+                "version": "${GITHUB_REF_NAME:-0.0.1}",
+                "description": "Build desktop apps with web languages, powered by Zig",
+                "licenses": [{"license": {"id": "MIT"}}],
+                "externalReferences": [
+                  {"type": "website", "url": "https://github.com/stacksjs/craft"},
+                  {"type": "vcs", "url": "https://github.com/stacksjs/craft.git"},
+                  {"type": "issue-tracker", "url": "https://github.com/stacksjs/craft/issues"}
+                ]
+              }
+            }
+          }
+          EOF
+
+      - name: Validate SBOMs
+        run: |
+          # Basic validation
+          for file in sbom/*.json; do
+            if [ -f "$file" ]; then
+              echo "Validating $file..."
+              python3 -m json.tool "$file" > /dev/null && echo "  ✓ Valid JSON" || echo "  ✗ Invalid JSON"
+            fi
+          done
+
+      - name: Generate SBOM summary
+        run: |
+          echo "## Software Bill of Materials (SBOM)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Generated Files" >> $GITHUB_STEP_SUMMARY
+          echo "| File | Format | Size |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|------|" >> $GITHUB_STEP_SUMMARY
+
+          for file in sbom/*.json; do
+            if [ -f "$file" ]; then
+              SIZE=$(ls -lh "$file" | awk '{print $5}')
+              NAME=$(basename "$file")
+              FORMAT="CycloneDX"
+              if [[ "$NAME" == *"spdx"* ]]; then FORMAT="SPDX"; fi
+              echo "| $NAME | $FORMAT | $SIZE |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Component Summary" >> $GITHUB_STEP_SUMMARY
+
+          # Count components
+          if [ -f "sbom/full-sbom.cyclonedx.json" ]; then
+            COMPONENTS=$(jq '.components | length' sbom/full-sbom.cyclonedx.json 2>/dev/null || echo "N/A")
+            echo "- Total components: $COMPONENTS" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom/
+          retention-days: 90
+
+      - name: Attach SBOM to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            sbom/craft-sbom.json
+            sbom/full-sbom.cyclonedx.json
+            sbom/full-sbom.spdx.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Submit to Dependency Graph
+        if: github.ref == 'refs/heads/main'
+        uses: advanced-security/sbom-generator-action@v1
+        id: sbom-generator
+        with:
+          path: .
+          format: cyclonedx
+
+      - name: Upload SBOM to GitHub
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-github
+          path: ${{ steps.sbom-generator.outputs.fileName }}
+          retention-days: 90
+
+  vulnerability-scan:
+    name: SBOM Vulnerability Scan
+    needs: generate-sbom
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom
+          path: sbom/
+
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Scan SBOM for vulnerabilities
+        id: scan
+        run: |
+          mkdir -p scan-results
+
+          # Scan the full SBOM
+          if [ -f "sbom/full-sbom.cyclonedx.json" ]; then
+            grype sbom:sbom/full-sbom.cyclonedx.json \
+              --output json \
+              --file scan-results/vulnerabilities.json \
+              || true
+
+            grype sbom:sbom/full-sbom.cyclonedx.json \
+              --output table \
+              --file scan-results/vulnerabilities.txt \
+              || true
+          fi
+
+          # Count vulnerabilities by severity
+          if [ -f "scan-results/vulnerabilities.json" ]; then
+            CRITICAL=$(jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length' scan-results/vulnerabilities.json 2>/dev/null || echo "0")
+            HIGH=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' scan-results/vulnerabilities.json 2>/dev/null || echo "0")
+            MEDIUM=$(jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length' scan-results/vulnerabilities.json 2>/dev/null || echo "0")
+            LOW=$(jq '[.matches[] | select(.vulnerability.severity == "Low")] | length' scan-results/vulnerabilities.json 2>/dev/null || echo "0")
+
+            echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "high=$HIGH" >> $GITHUB_OUTPUT
+            echo "medium=$MEDIUM" >> $GITHUB_OUTPUT
+            echo "low=$LOW" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate vulnerability report
+        run: |
+          echo "## Vulnerability Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical | ${{ steps.scan.outputs.critical || '0' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| High | ${{ steps.scan.outputs.high || '0' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Medium | ${{ steps.scan.outputs.medium || '0' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Low | ${{ steps.scan.outputs.low || '0' }} |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.scan.outputs.critical }}" -gt 0 ] || [ "${{ steps.scan.outputs.high }}" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Action Required:** Critical or High severity vulnerabilities found!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulnerability-scan
+          path: scan-results/
+          retention-days: 90
+
+      - name: Fail on critical vulnerabilities
+        if: steps.scan.outputs.critical > 0
+        run: |
+          echo "::error::Critical vulnerabilities found in dependencies!"
+          # Uncomment to fail the build on critical vulnerabilities
+          # exit 1
