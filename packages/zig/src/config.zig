@@ -37,15 +37,16 @@ pub const Config = struct {
         const file = try std.fs.cwd().openFile(path, .{});
         defer file.close();
 
-        var buf: [4096]u8 = undefined;
-        var reader = file.reader(&buf);
-        const content = try reader.readAllAlloc(allocator, 1024 * 1024);
+        // Read file content
+        const stat = try file.stat();
+        const content = try allocator.alloc(u8, @intCast(stat.size));
         defer allocator.free(content);
+        _ = try file.read(content);
 
         return try parseToml(allocator, content);
     }
 
-    fn parseToml(allocator: std.mem.Allocator, content: []const u8) !Self {
+    pub fn parseToml(allocator: std.mem.Allocator, content: []const u8) !Self {
         _ = allocator;
         var config = Config{};
 

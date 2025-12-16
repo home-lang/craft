@@ -113,7 +113,7 @@ test "Style.Margin - custom values" {
 test "Button - initialization" {
     const allocator = testing.allocator;
     const props = components.ComponentProps{};
-    var button = try components.Button.init(allocator, "Click Me", props);
+    var button = try components.Button.initWithText(allocator, "Click Me", props);
     defer button.deinit();
 
     try testing.expectEqualStrings("Click Me", button.text);
@@ -218,7 +218,7 @@ test "ListView - add item" {
     var list = try components.ListView.init(allocator, props, config);
     defer list.deinit();
 
-    try list.addItem(.{ .text = "Item 1" });
+    try list.addItem(.{ .id = "item1", .text = "Item 1" });
     try testing.expectEqual(@as(usize, 1), list.items.items.len);
 }
 
@@ -241,16 +241,18 @@ test "ColorPicker - initialization" {
     var picker = try components.ColorPicker.init(allocator, props);
     defer picker.deinit();
 
-    try testing.expectEqual(@as(u8, 255), picker.color[0]);
-    try testing.expectEqual(@as(u8, 255), picker.color[1]);
-    try testing.expectEqual(@as(u8, 255), picker.color[2]);
-    try testing.expectEqual(@as(u8, 255), picker.color[3]);
+    // Default color is black (0, 0, 0)
+    try testing.expectEqual(@as(u8, 0), picker.color.r);
+    try testing.expectEqual(@as(u8, 0), picker.color.g);
+    try testing.expectEqual(@as(u8, 0), picker.color.b);
+    try testing.expectEqual(@as(u8, 255), picker.color.a);
 }
 
 test "Toolbar - initialization" {
     const allocator = testing.allocator;
     const props = components.ComponentProps{};
-    var toolbar = try components.Toolbar.init(allocator, props);
+    const config = components.Toolbar.Config{};
+    var toolbar = try components.Toolbar.init(allocator, props, config);
     defer toolbar.deinit();
 
     try testing.expectEqual(@as(usize, 0), toolbar.items.items.len);
@@ -259,8 +261,9 @@ test "Toolbar - initialization" {
 test "StatusBar - initialization" {
     const allocator = testing.allocator;
     const props = components.ComponentProps{};
-    var statusbar = try components.StatusBar.init(allocator, props);
+    const config = components.StatusBar.Config{};
+    var statusbar = try components.StatusBar.init(allocator, props, config);
     defer statusbar.deinit();
 
-    try testing.expectEqualStrings("", statusbar.text);
+    try testing.expectEqual(@as(usize, 0), statusbar.sections.items.len);
 }

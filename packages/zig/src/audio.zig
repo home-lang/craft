@@ -381,55 +381,128 @@ pub const AudioPlayer = struct {
         return @as(f32, @floatFromInt(self.position_ms)) / @as(f32, @floatFromInt(self.duration_ms));
     }
 
-    // Platform-specific implementations (stubs for now)
+    // Platform-specific implementations
     fn loadMacOS(self: *Self, file_path: []const u8) AudioError!void {
-        _ = self;
-        _ = file_path;
-        // TODO: Implement AVAudioPlayer loading via Objective-C runtime
+        const macos = @import("macos.zig");
+
+        // Get AVAudioPlayer class
+        const AVAudioPlayer = macos.getClass("AVAudioPlayer") orelse return AudioError.DeviceNotAvailable;
+
+        // Create NSURL from file path
+        const NSURLClass = macos.getClass("NSURL") orelse return AudioError.DeviceNotAvailable;
+        const file_path_z = self.allocator.dupeZ(u8, file_path) catch return AudioError.InitializationFailed;
+        defer self.allocator.free(file_path_z);
+
+        const NSString = macos.getClass("NSString") orelse return AudioError.DeviceNotAvailable;
+        const str_alloc = macos.msgSend0(NSString, "alloc");
+        const ns_path = macos.msgSend1(str_alloc, "initWithUTF8String:", file_path_z.ptr);
+        const file_url = macos.msgSend1(NSURLClass, "fileURLWithPath:", ns_path);
+
+        if (file_url == null) return AudioError.FileNotFound;
+
+        // Create AVAudioPlayer: [[AVAudioPlayer alloc] initWithContentsOfURL:error:]
+        const player_alloc = macos.msgSend0(AVAudioPlayer, "alloc");
+        const player = macos.msgSend2(player_alloc, "initWithContentsOfURL:error:", file_url, @as(?*anyopaque, null));
+
+        if (player == null) return AudioError.UnsupportedFormat;
+
+        // Prepare to play
+        _ = macos.msgSend0(player, "prepareToPlay");
+
+        // Get duration: [player duration] returns NSTimeInterval (double, seconds)
+        const duration_sel = macos.sel("duration");
+        const DurationFn = *const fn (?*anyopaque, ?*anyopaque) callconv(.c) f64;
+        const duration_fn: DurationFn = @ptrCast(&macos.objc.objc_msgSend);
+        const duration_seconds = duration_fn(player, duration_sel);
+        self.duration_ms = @intFromFloat(duration_seconds * 1000.0);
+
+        self.native_handle = player;
     }
 
     fn loadLinux(self: *Self, file_path: []const u8) AudioError!void {
+        // On Linux, we use external commands for audio playback
+        // Store the file path for later playback with paplay/aplay
         _ = self;
         _ = file_path;
-        // TODO: Implement PulseAudio/ALSA loading
+        // File path is already stored in self.current_file
+        // Actual playback will spawn a subprocess
     }
 
     fn loadWindows(self: *Self, file_path: []const u8) AudioError!void {
+        // On Windows, we'll use MCI (Media Control Interface) commands
+        // Store the file path for later playback
         _ = self;
         _ = file_path;
-        // TODO: Implement Windows Media Foundation loading
+        // File path is already stored in self.current_file
     }
 
     fn playMacOS(self: *Self) AudioError!void {
-        _ = self;
-        // TODO: AVAudioPlayer play
+        if (self.native_handle) |player| {
+            const macos = @import("macos.zig");
+
+            // Set volume
+            const SetVolumeFn = *const fn (?*anyopaque, ?*anyopaque, f32) callconv(.c) void;
+            const set_volume_fn: SetVolumeFn = @ptrCast(&macos.objc.objc_msgSend);
+            set_volume_fn(player, macos.sel("setVolume:"), self.config.volume);
+
+            // Set number of loops (-1 for infinite)
+            if (self.config.loop) {
+                const SetLoopsFn = *const fn (?*anyopaque, ?*anyopaque, c_long) callconv(.c) void;
+                const set_loops_fn: SetLoopsFn = @ptrCast(&macos.objc.objc_msgSend);
+                const loops: c_long = if (self.config.loop_count == 0) -1 else @intCast(self.config.loop_count);
+                set_loops_fn(player, macos.sel("setNumberOfLoops:"), loops);
+            }
+
+            // Play
+            _ = macos.msgSend0(player, "play");
+        } else {
+            return AudioError.FileNotFound;
+        }
     }
 
     fn pauseMacOS(self: *Self) void {
-        _ = self;
-        // TODO: AVAudioPlayer pause
+        if (self.native_handle) |player| {
+            const macos = @import("macos.zig");
+            _ = macos.msgSend0(player, "pause");
+        }
     }
 
     fn resumeMacOS(self: *Self) void {
-        _ = self;
-        // TODO: AVAudioPlayer play (resume)
+        if (self.native_handle) |player| {
+            const macos = @import("macos.zig");
+            _ = macos.msgSend0(player, "play");
+        }
     }
 
     fn stopMacOS(self: *Self) void {
-        _ = self;
-        // TODO: AVAudioPlayer stop
+        if (self.native_handle) |player| {
+            const macos = @import("macos.zig");
+            _ = macos.msgSend0(player, "stop");
+
+            // Reset to beginning
+            const SetTimeFn = *const fn (?*anyopaque, ?*anyopaque, f64) callconv(.c) void;
+            const set_time_fn: SetTimeFn = @ptrCast(&macos.objc.objc_msgSend);
+            set_time_fn(player, macos.sel("setCurrentTime:"), 0.0);
+        }
     }
 
     fn seekMacOS(self: *Self, position_ms: u64) void {
-        _ = self;
-        _ = position_ms;
-        // TODO: AVAudioPlayer currentTime
+        if (self.native_handle) |player| {
+            const macos = @import("macos.zig");
+            const time_seconds: f64 = @as(f64, @floatFromInt(position_ms)) / 1000.0;
+            const SetTimeFn = *const fn (?*anyopaque, ?*anyopaque, f64) callconv(.c) void;
+            const set_time_fn: SetTimeFn = @ptrCast(&macos.objc.objc_msgSend);
+            set_time_fn(player, macos.sel("setCurrentTime:"), time_seconds);
+        }
     }
 
     fn setVolumeMacOS(self: *Self, volume: f32) void {
-        _ = self;
-        _ = volume;
-        // TODO: AVAudioPlayer volume
+        if (self.native_handle) |player| {
+            const macos = @import("macos.zig");
+            const SetVolumeFn = *const fn (?*anyopaque, ?*anyopaque, f32) callconv(.c) void;
+            const set_volume_fn: SetVolumeFn = @ptrCast(&macos.objc.objc_msgSend);
+            set_volume_fn(player, macos.sel("setVolume:"), volume);
+        }
     }
 };
 
@@ -538,16 +611,55 @@ pub const SystemSoundPlayer = struct {
 
     fn playLinuxSound(self: *Self, name: []const u8) AudioError!void {
         _ = self;
-        _ = name;
-        // TODO: Use libcanberra or paplay
-        return AudioError.DeviceNotAvailable;
+
+        // Use canberra-gtk-play for freedesktop sound theme
+        // This is the standard way to play event sounds on Linux
+        const name_z = std.heap.c_allocator.dupeZ(u8, name) catch return AudioError.InitializationFailed;
+        defer std.heap.c_allocator.free(name_z);
+
+        // Try canberra-gtk-play first (most compatible)
+        var canberra_child = std.process.Child.init(
+            &[_][]const u8{ "canberra-gtk-play", "-i", name_z },
+            std.heap.c_allocator,
+        );
+        canberra_child.spawn() catch {
+            // Fall back to paplay with a system sound file
+            var paplay_child = std.process.Child.init(
+                &[_][]const u8{ "paplay", "/usr/share/sounds/freedesktop/stereo/bell.oga" },
+                std.heap.c_allocator,
+            );
+            paplay_child.spawn() catch return AudioError.DeviceNotAvailable;
+            return;
+        };
     }
 
     fn playWindowsSound(self: *Self, name: []const u8) AudioError!void {
         _ = self;
-        _ = name;
-        // TODO: Use PlaySound from winmm
-        return AudioError.DeviceNotAvailable;
+
+        // Windows sound playback using PlaySound
+        // We'll use the system sound registry names
+        if (builtin.os.tag != .windows) return AudioError.DeviceNotAvailable;
+
+        const windows = struct {
+            extern "winmm" fn PlaySoundA(
+                pszSound: [*:0]const u8,
+                hmod: ?*anyopaque,
+                fdwSound: u32,
+            ) callconv(.winapi) i32;
+        };
+
+        const SND_ALIAS: u32 = 0x00010000;
+        const SND_ASYNC: u32 = 0x0001;
+        const SND_NODEFAULT: u32 = 0x0002;
+
+        const name_z = std.heap.c_allocator.dupeZ(u8, name) catch return AudioError.InitializationFailed;
+        defer std.heap.c_allocator.free(name_z);
+
+        const result = windows.PlaySoundA(name_z.ptr, null, SND_ALIAS | SND_ASYNC | SND_NODEFAULT);
+        if (result == 0) {
+            // Try playing as a system default
+            _ = windows.PlaySoundA("SystemDefault", null, SND_ALIAS | SND_ASYNC);
+        }
     }
 };
 
@@ -660,10 +772,73 @@ pub const HapticEngine = struct {
 
     fn triggerIOS(self: *Self, haptic_type: HapticType, intensity: f32) AudioError!void {
         _ = self;
-        _ = haptic_type;
         _ = intensity;
-        // TODO: UIImpactFeedbackGenerator, UINotificationFeedbackGenerator
-        return AudioError.HapticNotSupported;
+
+        // iOS haptic feedback using UIKit feedback generators
+        const macos = @import("macos.zig");
+
+        switch (haptic_type) {
+            .impact_light, .impact_medium, .impact_heavy, .impact_rigid, .impact_soft => {
+                // UIImpactFeedbackGenerator
+                const UIImpactFeedbackGenerator = macos.getClass("UIImpactFeedbackGenerator") orelse
+                    return AudioError.HapticNotSupported;
+
+                // Map to UIImpactFeedbackStyle
+                const style: c_long = switch (haptic_type) {
+                    .impact_light => 0, // UIImpactFeedbackStyleLight
+                    .impact_medium => 1, // UIImpactFeedbackStyleMedium
+                    .impact_heavy => 2, // UIImpactFeedbackStyleHeavy
+                    .impact_soft => 3, // UIImpactFeedbackStyleSoft (iOS 13+)
+                    .impact_rigid => 4, // UIImpactFeedbackStyleRigid (iOS 13+)
+                    else => 1,
+                };
+
+                // Create and trigger: [[UIImpactFeedbackGenerator alloc] initWithStyle:style]
+                const gen_alloc = macos.msgSend0(UIImpactFeedbackGenerator, "alloc");
+                const InitStyleFn = *const fn (?*anyopaque, ?*anyopaque, c_long) callconv(.c) ?*anyopaque;
+                const init_fn: InitStyleFn = @ptrCast(&macos.objc.objc_msgSend);
+                const generator = init_fn(gen_alloc, macos.sel("initWithStyle:"), style);
+
+                if (generator != null) {
+                    _ = macos.msgSend0(generator, "impactOccurred");
+                }
+            },
+            .notification_success, .notification_warning, .notification_error => {
+                // UINotificationFeedbackGenerator
+                const UINotificationFeedbackGenerator = macos.getClass("UINotificationFeedbackGenerator") orelse
+                    return AudioError.HapticNotSupported;
+
+                // Map to UINotificationFeedbackType
+                const notif_type: c_long = switch (haptic_type) {
+                    .notification_success => 0, // UINotificationFeedbackTypeSuccess
+                    .notification_warning => 1, // UINotificationFeedbackTypeWarning
+                    .notification_error => 2, // UINotificationFeedbackTypeError
+                    else => 0,
+                };
+
+                // Create and trigger
+                const gen_alloc = macos.msgSend0(UINotificationFeedbackGenerator, "alloc");
+                const generator = macos.msgSend0(gen_alloc, "init");
+
+                if (generator != null) {
+                    const NotifFn = *const fn (?*anyopaque, ?*anyopaque, c_long) callconv(.c) void;
+                    const notif_fn: NotifFn = @ptrCast(&macos.objc.objc_msgSend);
+                    notif_fn(generator, macos.sel("notificationOccurred:"), notif_type);
+                }
+            },
+            .selection_changed => {
+                // UISelectionFeedbackGenerator
+                const UISelectionFeedbackGenerator = macos.getClass("UISelectionFeedbackGenerator") orelse
+                    return AudioError.HapticNotSupported;
+
+                const gen_alloc = macos.msgSend0(UISelectionFeedbackGenerator, "alloc");
+                const generator = macos.msgSend0(gen_alloc, "init");
+
+                if (generator != null) {
+                    _ = macos.msgSend0(generator, "selectionChanged");
+                }
+            },
+        }
     }
 };
 

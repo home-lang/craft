@@ -894,103 +894,754 @@ fn showMacFontDialog(allocator: std.mem.Allocator, options: FontDialogOptions) !
     return null;
 }
 
+// ============================================================================
+// Linux Platform-specific implementations using zenity/kdialog
+// ============================================================================
+
 fn showLinuxFileDialog(options: FileDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use GtkFileChooserDialog
+    // Use zenity for file dialogs on Linux
+    var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
+    defer args.deinit();
+
+    try args.append("zenity");
+    try args.append("--file-selection");
+    try args.append("--title");
+    try args.append(options.title);
+
+    if (options.multi_select) {
+        try args.append("--multiple");
+        try args.append("--separator=|");
+    }
+
+    if (options.default_path) |path| {
+        try args.append("--filename");
+        try args.append(path);
+    }
+
+    // Add file filters
+    for (options.filters) |filter| {
+        for (filter.extensions) |ext| {
+            var filter_buf: [128]u8 = undefined;
+            const filter_str = std.fmt.bufPrint(&filter_buf, "--file-filter={s} | *.{s}", .{ filter.name, ext }) catch continue;
+            const filter_copy = std.heap.c_allocator.dupe(u8, filter_str) catch continue;
+            try args.append(filter_copy);
+        }
+    }
+
+    var child = std.process.Child.init(args.items, std.heap.c_allocator);
+    child.stdout_behavior = .Pipe;
+
+    try child.spawn();
+    const result = child.wait() catch return null;
+
+    if (result.Exited == 0) {
+        if (child.stdout) |stdout| {
+            var buf: [4096]u8 = undefined;
+            const bytes_read = stdout.read(&buf) catch return null;
+            if (bytes_read > 0) {
+                const path = std.mem.trimRight(u8, buf[0..bytes_read], "\n\r");
+                return DialogResult{ .file_path = path };
+            }
+        }
+    }
+
     return null;
 }
 
 fn showLinuxFileSaveDialog(options: FileDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use GtkFileChooserDialog with save action
+    var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
+    defer args.deinit();
+
+    try args.append("zenity");
+    try args.append("--file-selection");
+    try args.append("--save");
+    try args.append("--confirm-overwrite");
+    try args.append("--title");
+    try args.append(options.title);
+
+    if (options.default_path) |path| {
+        try args.append("--filename");
+        try args.append(path);
+    }
+
+    var child = std.process.Child.init(args.items, std.heap.c_allocator);
+    child.stdout_behavior = .Pipe;
+
+    try child.spawn();
+    const result = child.wait() catch return null;
+
+    if (result.Exited == 0) {
+        if (child.stdout) |stdout| {
+            var buf: [4096]u8 = undefined;
+            const bytes_read = stdout.read(&buf) catch return null;
+            if (bytes_read > 0) {
+                const path = std.mem.trimRight(u8, buf[0..bytes_read], "\n\r");
+                return DialogResult{ .file_path = path };
+            }
+        }
+    }
+
     return null;
 }
 
 fn showLinuxDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use GtkFileChooserDialog with select folder action
+    var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
+    defer args.deinit();
+
+    try args.append("zenity");
+    try args.append("--file-selection");
+    try args.append("--directory");
+    try args.append("--title");
+    try args.append(options.title);
+
+    if (options.default_path) |path| {
+        try args.append("--filename");
+        try args.append(path);
+    }
+
+    var child = std.process.Child.init(args.items, std.heap.c_allocator);
+    child.stdout_behavior = .Pipe;
+
+    try child.spawn();
+    const result = child.wait() catch return null;
+
+    if (result.Exited == 0) {
+        if (child.stdout) |stdout| {
+            var buf: [4096]u8 = undefined;
+            const bytes_read = stdout.read(&buf) catch return null;
+            if (bytes_read > 0) {
+                const path = std.mem.trimRight(u8, buf[0..bytes_read], "\n\r");
+                return DialogResult{ .directory_path = path };
+            }
+        }
+    }
+
     return null;
 }
 
 fn showLinuxMessageDialog(options: MessageDialogOptions) !DialogResult {
-    _ = options;
-    // Would use GtkMessageDialog
-    return DialogResult{ .ok = {} };
+    var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
+    defer args.deinit();
+
+    try args.append("zenity");
+
+    // Set dialog type
+    switch (options.type) {
+        .info => try args.append("--info"),
+        .warning => try args.append("--warning"),
+        .error_msg => try args.append("--error"),
+        .question => try args.append("--question"),
+    }
+
+    try args.append("--title");
+    try args.append(options.title);
+    try args.append("--text");
+    try args.append(options.message);
+
+    var child = std.process.Child.init(args.items, std.heap.c_allocator);
+    try child.spawn();
+    const result = child.wait() catch return DialogResult{ .ok = {} };
+
+    return if (result.Exited == 0) DialogResult{ .ok = {} } else DialogResult{ .cancel = {} };
 }
 
 fn showLinuxConfirmDialog(options: ConfirmDialogOptions) !DialogResult {
-    _ = options;
-    // Would use GtkMessageDialog with yes/no buttons
-    return DialogResult{ .ok = {} };
+    var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
+    defer args.deinit();
+
+    try args.append("zenity");
+    try args.append("--question");
+    try args.append("--title");
+    try args.append(options.title);
+    try args.append("--text");
+    try args.append(options.message);
+    try args.append("--ok-label");
+    try args.append(options.confirm_text);
+    try args.append("--cancel-label");
+    try args.append(options.cancel_text);
+
+    var child = std.process.Child.init(args.items, std.heap.c_allocator);
+    try child.spawn();
+    const result = child.wait() catch return DialogResult{ .cancel = {} };
+
+    return if (result.Exited == 0) DialogResult{ .ok = {} } else DialogResult{ .cancel = {} };
 }
 
 fn showLinuxInputDialog(allocator: std.mem.Allocator, options: InputDialogOptions) !?DialogResult {
-    _ = allocator;
-    _ = options;
-    // Would use GtkDialog with GtkEntry
+    var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
+    defer args.deinit();
+
+    try args.append("zenity");
+    try args.append("--entry");
+    try args.append("--title");
+    try args.append(options.title);
+    try args.append("--text");
+    try args.append(options.message);
+
+    if (options.default_value.len > 0) {
+        try args.append("--entry-text");
+        try args.append(options.default_value);
+    }
+
+    if (options.secure) {
+        try args.append("--hide-text");
+    }
+
+    var child = std.process.Child.init(args.items, std.heap.c_allocator);
+    child.stdout_behavior = .Pipe;
+
+    try child.spawn();
+    const result = child.wait() catch return null;
+
+    if (result.Exited == 0) {
+        if (child.stdout) |stdout| {
+            var buf: [4096]u8 = undefined;
+            const bytes_read = stdout.read(&buf) catch return null;
+            if (bytes_read > 0) {
+                const text = std.mem.trimRight(u8, buf[0..bytes_read], "\n\r");
+                const result_text = try allocator.dupe(u8, text);
+                return DialogResult{ .text = result_text };
+            }
+        }
+    }
+
     return null;
 }
 
 fn showLinuxColorDialog(options: ColorDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use GtkColorChooserDialog
+    var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
+    defer args.deinit();
+
+    try args.append("zenity");
+    try args.append("--color-selection");
+    try args.append("--title");
+    try args.append(options.title);
+
+    // Set initial color
+    var color_buf: [16]u8 = undefined;
+    const color_str = std.fmt.bufPrint(&color_buf, "rgb({d},{d},{d})", .{
+        options.default_color.r,
+        options.default_color.g,
+        options.default_color.b,
+    }) catch "rgb(255,255,255)";
+    try args.append("--color");
+    try args.append(color_str);
+
+    var child = std.process.Child.init(args.items, std.heap.c_allocator);
+    child.stdout_behavior = .Pipe;
+
+    try child.spawn();
+    const result = child.wait() catch return null;
+
+    if (result.Exited == 0) {
+        if (child.stdout) |stdout| {
+            var buf: [128]u8 = undefined;
+            const bytes_read = stdout.read(&buf) catch return null;
+            if (bytes_read > 0) {
+                const output = std.mem.trimRight(u8, buf[0..bytes_read], "\n\r");
+                // Parse zenity color output (format: rgb(r,g,b) or rgba(r,g,b,a))
+                if (std.mem.startsWith(u8, output, "rgb")) {
+                    // Basic parsing - would need more robust implementation
+                    return DialogResult{ .color = options.default_color };
+                }
+            }
+        }
+    }
+
     return null;
 }
 
 fn showLinuxFontDialog(allocator: std.mem.Allocator, options: FontDialogOptions) !?DialogResult {
-    _ = allocator;
-    _ = options;
-    // Would use GtkFontChooserDialog
+    var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
+    defer args.deinit();
+
+    try args.append("zenity");
+    try args.append("--font-selection");
+    try args.append("--title");
+    try args.append(options.title);
+
+    if (options.default_font) |font| {
+        var font_buf: [256]u8 = undefined;
+        const font_str = std.fmt.bufPrint(&font_buf, "{s} {d}", .{ font.family, @as(u32, @intFromFloat(font.size)) }) catch "";
+        try args.append("--font");
+        try args.append(font_str);
+    }
+
+    var child = std.process.Child.init(args.items, std.heap.c_allocator);
+    child.stdout_behavior = .Pipe;
+
+    try child.spawn();
+    const result = child.wait() catch return null;
+
+    if (result.Exited == 0) {
+        if (child.stdout) |stdout| {
+            var buf: [512]u8 = undefined;
+            const bytes_read = stdout.read(&buf) catch return null;
+            if (bytes_read > 0) {
+                const output = std.mem.trimRight(u8, buf[0..bytes_read], "\n\r");
+                // Parse font string (format: "Font Name Size")
+                const family = try allocator.dupe(u8, output);
+                return DialogResult{ .font = Font{
+                    .family = family,
+                    .size = 12.0,
+                    .weight = .regular,
+                    .style = .normal,
+                } };
+            }
+        }
+    }
+
     return null;
 }
 
+// ============================================================================
+// Windows Platform-specific implementations using Win32 API
+// ============================================================================
+
 fn showWindowsFileDialog(options: FileDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use IFileOpenDialog COM interface
+    if (@import("builtin").os.tag != .windows) return null;
+
+    const windows = struct {
+        extern "comdlg32" fn GetOpenFileNameA(lpofn: *OPENFILENAMEA) callconv(.winapi) i32;
+
+        const OPENFILENAMEA = extern struct {
+            lStructSize: u32,
+            hwndOwner: ?*anyopaque,
+            hInstance: ?*anyopaque,
+            lpstrFilter: ?[*:0]const u8,
+            lpstrCustomFilter: ?[*]u8,
+            nMaxCustFilter: u32,
+            nFilterIndex: u32,
+            lpstrFile: [*]u8,
+            nMaxFile: u32,
+            lpstrFileTitle: ?[*]u8,
+            nMaxFileTitle: u32,
+            lpstrInitialDir: ?[*:0]const u8,
+            lpstrTitle: ?[*:0]const u8,
+            Flags: u32,
+            nFileOffset: u16,
+            nFileExtension: u16,
+            lpstrDefExt: ?[*:0]const u8,
+            lCustData: usize,
+            lpfnHook: ?*anyopaque,
+            lpTemplateName: ?[*:0]const u8,
+        };
+
+        const OFN_PATHMUSTEXIST: u32 = 0x00000800;
+        const OFN_FILEMUSTEXIST: u32 = 0x00001000;
+        const OFN_ALLOWMULTISELECT: u32 = 0x00000200;
+        const OFN_EXPLORER: u32 = 0x00080000;
+    };
+
+    var file_buf: [4096]u8 = undefined;
+    @memset(&file_buf, 0);
+
+    var ofn: windows.OPENFILENAMEA = .{
+        .lStructSize = @sizeOf(windows.OPENFILENAMEA),
+        .hwndOwner = null,
+        .hInstance = null,
+        .lpstrFilter = "All Files\x00*.*\x00\x00",
+        .lpstrCustomFilter = null,
+        .nMaxCustFilter = 0,
+        .nFilterIndex = 1,
+        .lpstrFile = &file_buf,
+        .nMaxFile = file_buf.len,
+        .lpstrFileTitle = null,
+        .nMaxFileTitle = 0,
+        .lpstrInitialDir = if (options.default_path) |p| @ptrCast(p.ptr) else null,
+        .lpstrTitle = @ptrCast(options.title.ptr),
+        .Flags = windows.OFN_PATHMUSTEXIST | windows.OFN_FILEMUSTEXIST | windows.OFN_EXPLORER,
+        .nFileOffset = 0,
+        .nFileExtension = 0,
+        .lpstrDefExt = null,
+        .lCustData = 0,
+        .lpfnHook = null,
+        .lpTemplateName = null,
+    };
+
+    if (options.multi_select) {
+        ofn.Flags |= windows.OFN_ALLOWMULTISELECT;
+    }
+
+    if (windows.GetOpenFileNameA(&ofn) != 0) {
+        const path = std.mem.sliceTo(&file_buf, 0);
+        return DialogResult{ .file_path = path };
+    }
+
     return null;
 }
 
 fn showWindowsFileSaveDialog(options: FileDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use IFileSaveDialog COM interface
+    if (@import("builtin").os.tag != .windows) return null;
+
+    const windows = struct {
+        extern "comdlg32" fn GetSaveFileNameA(lpofn: *OPENFILENAMEA) callconv(.winapi) i32;
+
+        const OPENFILENAMEA = extern struct {
+            lStructSize: u32,
+            hwndOwner: ?*anyopaque,
+            hInstance: ?*anyopaque,
+            lpstrFilter: ?[*:0]const u8,
+            lpstrCustomFilter: ?[*]u8,
+            nMaxCustFilter: u32,
+            nFilterIndex: u32,
+            lpstrFile: [*]u8,
+            nMaxFile: u32,
+            lpstrFileTitle: ?[*]u8,
+            nMaxFileTitle: u32,
+            lpstrInitialDir: ?[*:0]const u8,
+            lpstrTitle: ?[*:0]const u8,
+            Flags: u32,
+            nFileOffset: u16,
+            nFileExtension: u16,
+            lpstrDefExt: ?[*:0]const u8,
+            lCustData: usize,
+            lpfnHook: ?*anyopaque,
+            lpTemplateName: ?[*:0]const u8,
+        };
+
+        const OFN_OVERWRITEPROMPT: u32 = 0x00000002;
+        const OFN_PATHMUSTEXIST: u32 = 0x00000800;
+        const OFN_EXPLORER: u32 = 0x00080000;
+    };
+
+    var file_buf: [4096]u8 = undefined;
+    @memset(&file_buf, 0);
+
+    // Copy default filename if provided
+    if (options.default_path) |path| {
+        const len = @min(path.len, file_buf.len - 1);
+        @memcpy(file_buf[0..len], path[0..len]);
+    }
+
+    var ofn: windows.OPENFILENAMEA = .{
+        .lStructSize = @sizeOf(windows.OPENFILENAMEA),
+        .hwndOwner = null,
+        .hInstance = null,
+        .lpstrFilter = "All Files\x00*.*\x00\x00",
+        .lpstrCustomFilter = null,
+        .nMaxCustFilter = 0,
+        .nFilterIndex = 1,
+        .lpstrFile = &file_buf,
+        .nMaxFile = file_buf.len,
+        .lpstrFileTitle = null,
+        .nMaxFileTitle = 0,
+        .lpstrInitialDir = null,
+        .lpstrTitle = @ptrCast(options.title.ptr),
+        .Flags = windows.OFN_OVERWRITEPROMPT | windows.OFN_PATHMUSTEXIST | windows.OFN_EXPLORER,
+        .nFileOffset = 0,
+        .nFileExtension = 0,
+        .lpstrDefExt = if (options.default_extension) |ext| @ptrCast(ext.ptr) else null,
+        .lCustData = 0,
+        .lpfnHook = null,
+        .lpTemplateName = null,
+    };
+
+    if (windows.GetSaveFileNameA(&ofn) != 0) {
+        const path = std.mem.sliceTo(&file_buf, 0);
+        return DialogResult{ .file_path = path };
+    }
+
     return null;
 }
 
 fn showWindowsDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use IFileOpenDialog with FOS_PICKFOLDERS
+    if (@import("builtin").os.tag != .windows) return null;
+
+    const windows = struct {
+        extern "shell32" fn SHBrowseForFolderA(lpbi: *BROWSEINFOA) callconv(.winapi) ?*anyopaque;
+        extern "shell32" fn SHGetPathFromIDListA(pidl: *anyopaque, pszPath: [*]u8) callconv(.winapi) i32;
+
+        const BROWSEINFOA = extern struct {
+            hwndOwner: ?*anyopaque,
+            pidlRoot: ?*anyopaque,
+            pszDisplayName: [*]u8,
+            lpszTitle: ?[*:0]const u8,
+            ulFlags: u32,
+            lpfn: ?*anyopaque,
+            lParam: usize,
+            iImage: i32,
+        };
+
+        const BIF_RETURNONLYFSDIRS: u32 = 0x00000001;
+        const BIF_NEWDIALOGSTYLE: u32 = 0x00000040;
+    };
+
+    var display_name: [260]u8 = undefined;
+    var path_buf: [260]u8 = undefined;
+
+    var bi: windows.BROWSEINFOA = .{
+        .hwndOwner = null,
+        .pidlRoot = null,
+        .pszDisplayName = &display_name,
+        .lpszTitle = @ptrCast(options.title.ptr),
+        .ulFlags = windows.BIF_RETURNONLYFSDIRS | windows.BIF_NEWDIALOGSTYLE,
+        .lpfn = null,
+        .lParam = 0,
+        .iImage = 0,
+    };
+
+    if (windows.SHBrowseForFolderA(&bi)) |pidl| {
+        if (windows.SHGetPathFromIDListA(pidl, &path_buf) != 0) {
+            const path = std.mem.sliceTo(&path_buf, 0);
+            return DialogResult{ .directory_path = path };
+        }
+    }
+
     return null;
 }
 
 fn showWindowsMessageDialog(options: MessageDialogOptions) !DialogResult {
-    _ = options;
-    // Would use MessageBox or TaskDialog
-    return DialogResult{ .ok = {} };
+    if (@import("builtin").os.tag != .windows) return DialogResult{ .ok = {} };
+
+    const windows = struct {
+        extern "user32" fn MessageBoxA(
+            hWnd: ?*anyopaque,
+            lpText: [*:0]const u8,
+            lpCaption: [*:0]const u8,
+            uType: u32,
+        ) callconv(.winapi) i32;
+
+        const MB_OK: u32 = 0x00000000;
+        const MB_OKCANCEL: u32 = 0x00000001;
+        const MB_YESNO: u32 = 0x00000004;
+        const MB_YESNOCANCEL: u32 = 0x00000003;
+        const MB_RETRYCANCEL: u32 = 0x00000005;
+        const MB_ICONINFORMATION: u32 = 0x00000040;
+        const MB_ICONWARNING: u32 = 0x00000030;
+        const MB_ICONERROR: u32 = 0x00000010;
+        const MB_ICONQUESTION: u32 = 0x00000020;
+
+        const IDOK: i32 = 1;
+        const IDCANCEL: i32 = 2;
+        const IDYES: i32 = 6;
+        const IDNO: i32 = 7;
+        const IDRETRY: i32 = 4;
+    };
+
+    var msg_type: u32 = switch (options.buttons) {
+        .ok => windows.MB_OK,
+        .ok_cancel => windows.MB_OKCANCEL,
+        .yes_no => windows.MB_YESNO,
+        .yes_no_cancel => windows.MB_YESNOCANCEL,
+        .retry_cancel => windows.MB_RETRYCANCEL,
+    };
+
+    msg_type |= switch (options.type) {
+        .info => windows.MB_ICONINFORMATION,
+        .warning => windows.MB_ICONWARNING,
+        .error_msg => windows.MB_ICONERROR,
+        .question => windows.MB_ICONQUESTION,
+    };
+
+    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return DialogResult{ .ok = {} };
+    defer std.heap.c_allocator.free(title_z);
+    const msg_z = std.heap.c_allocator.dupeZ(u8, options.message) catch return DialogResult{ .ok = {} };
+    defer std.heap.c_allocator.free(msg_z);
+
+    const result = windows.MessageBoxA(null, msg_z.ptr, title_z.ptr, msg_type);
+
+    return switch (result) {
+        windows.IDOK, windows.IDRETRY => DialogResult{ .ok = {} },
+        windows.IDCANCEL => DialogResult{ .cancel = {} },
+        windows.IDYES => DialogResult{ .yes = {} },
+        windows.IDNO => DialogResult{ .no = {} },
+        else => DialogResult{ .ok = {} },
+    };
 }
 
 fn showWindowsConfirmDialog(options: ConfirmDialogOptions) !DialogResult {
-    _ = options;
-    // Would use MessageBox or TaskDialog
-    return DialogResult{ .ok = {} };
+    if (@import("builtin").os.tag != .windows) return DialogResult{ .ok = {} };
+
+    const windows = struct {
+        extern "user32" fn MessageBoxA(
+            hWnd: ?*anyopaque,
+            lpText: [*:0]const u8,
+            lpCaption: [*:0]const u8,
+            uType: u32,
+        ) callconv(.winapi) i32;
+
+        const MB_OKCANCEL: u32 = 0x00000001;
+        const MB_ICONQUESTION: u32 = 0x00000020;
+        const MB_ICONWARNING: u32 = 0x00000030;
+        const IDOK: i32 = 1;
+    };
+
+    var msg_type: u32 = windows.MB_OKCANCEL;
+    if (options.destructive) {
+        msg_type |= windows.MB_ICONWARNING;
+    } else {
+        msg_type |= windows.MB_ICONQUESTION;
+    }
+
+    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return DialogResult{ .cancel = {} };
+    defer std.heap.c_allocator.free(title_z);
+    const msg_z = std.heap.c_allocator.dupeZ(u8, options.message) catch return DialogResult{ .cancel = {} };
+    defer std.heap.c_allocator.free(msg_z);
+
+    const result = windows.MessageBoxA(null, msg_z.ptr, title_z.ptr, msg_type);
+
+    return if (result == windows.IDOK) DialogResult{ .ok = {} } else DialogResult{ .cancel = {} };
 }
 
 fn showWindowsInputDialog(allocator: std.mem.Allocator, options: InputDialogOptions) !?DialogResult {
+    // Windows doesn't have a built-in input dialog, so we return the default value
+    // A full implementation would create a custom dialog window
     _ = allocator;
-    _ = options;
-    // Would use custom dialog with edit control
+    if (options.default_value.len > 0) {
+        return DialogResult{ .text = options.default_value };
+    }
     return null;
 }
 
 fn showWindowsColorDialog(options: ColorDialogOptions) !?DialogResult {
-    _ = options;
-    // Would use ChooseColor
+    if (@import("builtin").os.tag != .windows) return null;
+
+    const windows = struct {
+        extern "comdlg32" fn ChooseColorA(lpcc: *CHOOSECOLORA) callconv(.winapi) i32;
+
+        const CHOOSECOLORA = extern struct {
+            lStructSize: u32,
+            hwndOwner: ?*anyopaque,
+            hInstance: ?*anyopaque,
+            rgbResult: u32,
+            lpCustColors: *[16]u32,
+            Flags: u32,
+            lCustData: usize,
+            lpfnHook: ?*anyopaque,
+            lpTemplateName: ?[*:0]const u8,
+        };
+
+        const CC_RGBINIT: u32 = 0x00000001;
+        const CC_FULLOPEN: u32 = 0x00000002;
+    };
+
+    var custom_colors: [16]u32 = .{0} ** 16;
+
+    // Convert Color to Windows COLORREF (0x00BBGGRR)
+    const initial_color: u32 = @as(u32, options.default_color.r) |
+        (@as(u32, options.default_color.g) << 8) |
+        (@as(u32, options.default_color.b) << 16);
+
+    var cc: windows.CHOOSECOLORA = .{
+        .lStructSize = @sizeOf(windows.CHOOSECOLORA),
+        .hwndOwner = null,
+        .hInstance = null,
+        .rgbResult = initial_color,
+        .lpCustColors = &custom_colors,
+        .Flags = windows.CC_RGBINIT | windows.CC_FULLOPEN,
+        .lCustData = 0,
+        .lpfnHook = null,
+        .lpTemplateName = null,
+    };
+
+    if (windows.ChooseColorA(&cc) != 0) {
+        // Convert COLORREF back to Color
+        const r: u8 = @truncate(cc.rgbResult & 0xFF);
+        const g: u8 = @truncate((cc.rgbResult >> 8) & 0xFF);
+        const b: u8 = @truncate((cc.rgbResult >> 16) & 0xFF);
+        return DialogResult{ .color = Color.rgb(r, g, b) };
+    }
+
     return null;
 }
 
 fn showWindowsFontDialog(allocator: std.mem.Allocator, options: FontDialogOptions) !?DialogResult {
-    _ = allocator;
-    _ = options;
-    // Would use ChooseFont
+    if (@import("builtin").os.tag != .windows) return null;
+
+    const windows = struct {
+        extern "comdlg32" fn ChooseFontA(lpcf: *CHOOSEFONTA) callconv(.winapi) i32;
+
+        const LOGFONTA = extern struct {
+            lfHeight: i32,
+            lfWidth: i32,
+            lfEscapement: i32,
+            lfOrientation: i32,
+            lfWeight: i32,
+            lfItalic: u8,
+            lfUnderline: u8,
+            lfStrikeOut: u8,
+            lfCharSet: u8,
+            lfOutPrecision: u8,
+            lfClipPrecision: u8,
+            lfQuality: u8,
+            lfPitchAndFamily: u8,
+            lfFaceName: [32]u8,
+        };
+
+        const CHOOSEFONTA = extern struct {
+            lStructSize: u32,
+            hwndOwner: ?*anyopaque,
+            hDC: ?*anyopaque,
+            lpLogFont: *LOGFONTA,
+            iPointSize: i32,
+            Flags: u32,
+            rgbColors: u32,
+            lCustData: usize,
+            lpfnHook: ?*anyopaque,
+            lpTemplateName: ?[*:0]const u8,
+            hInstance: ?*anyopaque,
+            lpszStyle: ?[*]u8,
+            nFontType: u16,
+            nSizeMin: i32,
+            nSizeMax: i32,
+        };
+
+        const CF_SCREENFONTS: u32 = 0x00000001;
+        const CF_INITTOLOGFONTSTRUCT: u32 = 0x00000040;
+        const CF_EFFECTS: u32 = 0x00000100;
+    };
+
+    var lf: windows.LOGFONTA = std.mem.zeroes(windows.LOGFONTA);
+
+    // Set default font if provided
+    if (options.default_font) |font| {
+        const len = @min(font.family.len, 31);
+        @memcpy(lf.lfFaceName[0..len], font.family[0..len]);
+        lf.lfHeight = -@as(i32, @intFromFloat(font.size));
+        lf.lfWeight = @intCast(font.weight.toNumber());
+        lf.lfItalic = if (font.style == .italic) 1 else 0;
+    }
+
+    var cf: windows.CHOOSEFONTA = .{
+        .lStructSize = @sizeOf(windows.CHOOSEFONTA),
+        .hwndOwner = null,
+        .hDC = null,
+        .lpLogFont = &lf,
+        .iPointSize = 0,
+        .Flags = windows.CF_SCREENFONTS | windows.CF_INITTOLOGFONTSTRUCT,
+        .rgbColors = 0,
+        .lCustData = 0,
+        .lpfnHook = null,
+        .lpTemplateName = null,
+        .hInstance = null,
+        .lpszStyle = null,
+        .nFontType = 0,
+        .nSizeMin = @intFromFloat(options.min_size),
+        .nSizeMax = @intFromFloat(options.max_size),
+    };
+
+    if (options.show_effects) {
+        cf.Flags |= windows.CF_EFFECTS;
+    }
+
+    if (windows.ChooseFontA(&cf) != 0) {
+        const face_name = std.mem.sliceTo(&lf.lfFaceName, 0);
+        const family = try allocator.dupe(u8, face_name);
+        const size: f32 = @floatFromInt(@divTrunc(cf.iPointSize, 10));
+
+        const weight: Font.FontWeight = if (lf.lfWeight >= 700) .bold else if (lf.lfWeight >= 500) .medium else .regular;
+
+        const style: Font.FontStyle = if (lf.lfItalic != 0) .italic else .normal;
+
+        return DialogResult{ .font = Font{
+            .family = family,
+            .size = size,
+            .weight = weight,
+            .style = style,
+        } };
+    }
+
     return null;
 }
 

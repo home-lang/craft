@@ -153,10 +153,11 @@ test "Log - output to file" {
     const file = try std.fs.cwd().openFile(test_path, .{});
     defer file.close();
 
-    var buf: [1024]u8 = undefined;
-    var reader = file.reader(&buf);
-    const content = try reader.readAllAlloc(testing.allocator, 1024);
+    const stat = try file.stat();
+    const content = try testing.allocator.alloc(u8, @intCast(stat.size));
     defer testing.allocator.free(content);
+    const bytes_read = try file.read(content);
+    _ = bytes_read;
 
     try testing.expect(content.len > 0);
     try testing.expect(std.mem.indexOf(u8, content, "Test log message") != null);

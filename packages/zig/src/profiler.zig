@@ -72,10 +72,18 @@ pub const Profiler = struct {
         });
     }
 
-    pub fn measure(self: *Self, comptime name: []const u8, comptime func: anytype, args: anytype) !@TypeOf(@call(.auto, func, args)) {
-        try self.start(name);
+    pub fn measure(self: *Self, comptime name: []const u8, comptime func: anytype, args: anytype) MeasureReturnType(@TypeOf(func)) {
+        self.start(name) catch {};
         defer self.end(name) catch {};
         return @call(.auto, func, args);
+    }
+
+    fn MeasureReturnType(comptime FnType: type) type {
+        const ReturnType = @typeInfo(FnType).@"fn".return_type.?;
+        return switch (@typeInfo(ReturnType)) {
+            .error_union => ReturnType,
+            else => ReturnType,
+        };
     }
 
     pub fn getReport(self: Self) ![]const u8 {

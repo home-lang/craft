@@ -504,20 +504,261 @@ pub const NotificationManager = struct {
 
     fn scheduleDarwin(self: *Self, notification: Notification) NotificationError!void {
         _ = self;
-        _ = notification;
-        // In real implementation, use UNUserNotificationCenter
+
+        const macos = @import("macos.zig");
+
+        // Get UNUserNotificationCenter
+        const UNUserNotificationCenter = macos.getClass("UNUserNotificationCenter") orelse
+            return NotificationError.NotSupported;
+
+        const center = macos.msgSend0(UNUserNotificationCenter, "currentNotificationCenter");
+        if (center == null) return NotificationError.SystemError;
+
+        // Create UNMutableNotificationContent
+        const UNMutableNotificationContent = macos.getClass("UNMutableNotificationContent") orelse
+            return NotificationError.NotSupported;
+
+        const content = macos.msgSend0(macos.msgSend0(UNMutableNotificationContent, "alloc"), "init");
+        if (content == null) return NotificationError.OutOfMemory;
+
+        // Set title
+        const NSString = macos.getClass("NSString") orelse return NotificationError.NotSupported;
+        const title_str = macos.msgSend0(NSString, "alloc");
+        const title_z = std.heap.c_allocator.dupeZ(u8, notification.title) catch
+            return NotificationError.OutOfMemory;
+        defer std.heap.c_allocator.free(title_z);
+        const title_ns = macos.msgSend1(title_str, "initWithUTF8String:", title_z.ptr);
+        _ = macos.msgSend1(content, "setTitle:", title_ns);
+
+        // Set body if present
+        if (notification.body) |body| {
+            const body_str = macos.msgSend0(NSString, "alloc");
+            const body_z = std.heap.c_allocator.dupeZ(u8, body) catch
+                return NotificationError.OutOfMemory;
+            defer std.heap.c_allocator.free(body_z);
+            const body_ns = macos.msgSend1(body_str, "initWithUTF8String:", body_z.ptr);
+            _ = macos.msgSend1(content, "setBody:", body_ns);
+        }
+
+        // Set sound
+        if (notification.sound.isEnabled()) {
+            const UNNotificationSound = macos.getClass("UNNotificationSound") orelse return NotificationError.NotSupported;
+            const sound = macos.msgSend0(UNNotificationSound, "defaultSound");
+            _ = macos.msgSend1(content, "setSound:", sound);
+        }
+
+        // Create trigger based on notification type
+        var trigger: ?*anyopaque = null;
+        switch (notification.trigger) {
+            .immediate => {
+                // No trigger for immediate
+            },
+            .time_interval => |interval| {
+                const UNTimeIntervalNotificationTrigger = macos.getClass("UNTimeIntervalNotificationTrigger") orelse
+                    return NotificationError.NotSupported;
+                const TriggerFn = *const fn (?*anyopaque, ?*anyopaque, f64, bool) callconv(.c) ?*anyopaque;
+                const trigger_fn: TriggerFn = @ptrCast(&macos.objc.objc_msgSend);
+                trigger = trigger_fn(
+                    UNTimeIntervalNotificationTrigger,
+                    macos.sel("triggerWithTimeInterval:repeats:"),
+                    @floatFromInt(interval),
+                    false,
+                );
+            },
+            .calendar => |cal| {
+                const UNCalendarNotificationTrigger = macos.getClass("UNCalendarNotificationTrigger") orelse
+                    return NotificationError.NotSupported;
+                const NSDateComponents = macos.getClass("NSDateComponents") orelse
+                    return NotificationError.NotSupported;
+
+                const components = macos.msgSend0(macos.msgSend0(NSDateComponents, "alloc"), "init");
+
+                const SetIntFn = *const fn (?*anyopaque, ?*anyopaque, c_long) callconv(.c) void;
+                const set_fn: SetIntFn = @ptrCast(&macos.objc.objc_msgSend);
+
+                if (cal.hour) |h| set_fn(components, macos.sel("setHour:"), @intCast(h));
+                if (cal.minute) |m| set_fn(components, macos.sel("setMinute:"), @intCast(m));
+                if (cal.day) |d| set_fn(components, macos.sel("setDay:"), @intCast(d));
+                if (cal.month) |mo| set_fn(components, macos.sel("setMonth:"), @intCast(mo));
+
+                trigger = macos.msgSend2(
+                    UNCalendarNotificationTrigger,
+                    "triggerWithDateMatchingComponents:repeats:",
+                    components,
+                    @as(?*anyopaque, if (cal.repeats) @ptrFromInt(1) else null),
+                );
+            },
+            else => {},
+        }
+
+        // Create request
+        const UNNotificationRequest = macos.getClass("UNNotificationRequest") orelse
+            return NotificationError.NotSupported;
+
+        const id_str = macos.msgSend0(NSString, "alloc");
+        const id_z = std.heap.c_allocator.dupeZ(u8, notification.id) catch
+            return NotificationError.OutOfMemory;
+        defer std.heap.c_allocator.free(id_z);
+        const id_ns = macos.msgSend1(id_str, "initWithUTF8String:", id_z.ptr);
+
+        const request = macos.msgSend3(
+            UNNotificationRequest,
+            "requestWithIdentifier:content:trigger:",
+            id_ns,
+            content,
+            trigger,
+        );
+
+        // Add to notification center
+        _ = macos.msgSend2(center, "addNotificationRequest:withCompletionHandler:", request, @as(?*anyopaque, null));
     }
 
     fn scheduleLinux(self: *Self, notification: Notification) NotificationError!void {
         _ = self;
-        _ = notification;
-        // In real implementation, use libnotify or D-Bus
+
+        // Use libnotify via dynamic loading or fall back to notify-send
+        // Try native libnotify first
+        const libnotify = struct {
+            extern "notify" fn notify_init(app_name: [*:0]const u8) callconv(.c) c_int;
+            extern "notify" fn notify_notification_new(
+                summary: [*:0]const u8,
+                body: ?[*:0]const u8,
+                icon: ?[*:0]const u8,
+            ) callconv(.c) ?*anyopaque;
+            extern "notify" fn notify_notification_set_urgency(
+                notification: *anyopaque,
+                urgency: c_int,
+            ) callconv(.c) void;
+            extern "notify" fn notify_notification_show(
+                notification: *anyopaque,
+                error_ptr: ?*?*anyopaque,
+            ) callconv(.c) c_int;
+        };
+
+        // Try to use libnotify
+        const use_libnotify = @hasDecl(libnotify, "notify_init");
+
+        if (use_libnotify) {
+            // Initialize libnotify
+            _ = libnotify.notify_init("craft");
+
+            // Create notification
+            const title_z = std.heap.c_allocator.dupeZ(u8, notification.title) catch
+                return NotificationError.OutOfMemory;
+            defer std.heap.c_allocator.free(title_z);
+
+            var body_z: ?[:0]u8 = null;
+            if (notification.body) |body| {
+                body_z = std.heap.c_allocator.dupeZ(u8, body) catch
+                    return NotificationError.OutOfMemory;
+            }
+            defer if (body_z) |b| std.heap.c_allocator.free(b);
+
+            const notif = libnotify.notify_notification_new(
+                title_z.ptr,
+                if (body_z) |b| b.ptr else null,
+                null,
+            ) orelse return NotificationError.SystemError;
+
+            // Set urgency based on priority
+            const urgency: c_int = switch (notification.priority) {
+                .min, .low => 0, // NOTIFY_URGENCY_LOW
+                .default => 1, // NOTIFY_URGENCY_NORMAL
+                .high, .max => 2, // NOTIFY_URGENCY_CRITICAL
+            };
+            libnotify.notify_notification_set_urgency(notif, urgency);
+
+            // Show notification
+            if (libnotify.notify_notification_show(notif, null) == 0) {
+                return NotificationError.SystemError;
+            }
+        } else {
+            // Fall back to notify-send command
+            var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
+            defer args.deinit();
+
+            args.append("notify-send") catch return NotificationError.OutOfMemory;
+
+            // Set urgency
+            args.append("--urgency") catch return NotificationError.OutOfMemory;
+            const urgency = switch (notification.priority) {
+                .min, .low => "low",
+                .default => "normal",
+                .high, .max => "critical",
+            };
+            args.append(urgency) catch return NotificationError.OutOfMemory;
+
+            // Set category
+            args.append("--category") catch return NotificationError.OutOfMemory;
+            args.append(notification.category.toString()) catch return NotificationError.OutOfMemory;
+
+            // Add title
+            args.append(notification.title) catch return NotificationError.OutOfMemory;
+
+            // Add body if present
+            if (notification.body) |body| {
+                args.append(body) catch return NotificationError.OutOfMemory;
+            }
+
+            var child = std.process.Child.init(args.items, std.heap.c_allocator);
+            child.spawn() catch return NotificationError.SystemError;
+        }
     }
 
     fn scheduleWindows(self: *Self, notification: Notification) NotificationError!void {
         _ = self;
-        _ = notification;
-        // In real implementation, use Windows notification API
+
+        if (builtin.os.tag != .windows) return NotificationError.NotSupported;
+
+        // Windows Toast Notification using Shell API
+        // For a full implementation, we'd use WinRT COM interfaces
+        // Here we use a simpler approach with PowerShell for cross-version compatibility
+
+        const windows = struct {
+            extern "shell32" fn ShellExecuteA(
+                hwnd: ?*anyopaque,
+                lpOperation: [*:0]const u8,
+                lpFile: [*:0]const u8,
+                lpParameters: ?[*:0]const u8,
+                lpDirectory: ?[*:0]const u8,
+                nShowCmd: i32,
+            ) callconv(.winapi) isize;
+        };
+
+        // Build PowerShell command for toast notification
+        var cmd_buf: [2048]u8 = undefined;
+
+        const body_text = notification.body orelse "";
+        const ps_cmd = std.fmt.bufPrint(&cmd_buf,
+            \\[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+            \\$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+            \\$textNodes = $template.GetElementsByTagName('text')
+            \\$textNodes.Item(0).AppendChild($template.CreateTextNode('{s}')) | Out-Null
+            \\$textNodes.Item(1).AppendChild($template.CreateTextNode('{s}')) | Out-Null
+            \\$toast = [Windows.UI.Notifications.ToastNotification]::new($template)
+            \\[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Craft').Show($toast)
+        , .{ notification.title, body_text }) catch return NotificationError.OutOfMemory;
+
+        // Build full command
+        var full_cmd: [4096]u8 = undefined;
+        const cmd_str = std.fmt.bufPrint(&full_cmd, "-ExecutionPolicy Bypass -Command \"{s}\"", .{ps_cmd}) catch
+            return NotificationError.OutOfMemory;
+
+        const cmd_z = std.heap.c_allocator.dupeZ(u8, cmd_str) catch return NotificationError.OutOfMemory;
+        defer std.heap.c_allocator.free(cmd_z);
+
+        const result = windows.ShellExecuteA(
+            null,
+            "open",
+            "powershell.exe",
+            cmd_z.ptr,
+            null,
+            0, // SW_HIDE
+        );
+
+        if (result <= 32) {
+            return NotificationError.SystemError;
+        }
     }
 
     /// Cancel a scheduled notification
@@ -806,6 +1047,11 @@ pub const ChannelPresets = struct {
         };
     }
 };
+
+// Type aliases for backwards compatibility with main.zig
+pub const Notifications = NotificationManager;
+pub const NotificationOptions = Notification.ForegroundPresentation;
+pub const NotificationAction = Action;
 
 // ============================================================================
 // Tests

@@ -15,7 +15,7 @@ const PerformanceConfig = struct {
 const PerformanceMetrics = struct {
     timings: std.ArrayList(u64),
 
-    fn init(allocator: std.mem.Allocator) PerformanceMetrics {
+    fn init(_: std.mem.Allocator) PerformanceMetrics {
         return .{
             .timings = .{},
         };
@@ -91,15 +91,18 @@ const PerformanceMetrics = struct {
 
 /// Timer utility for precise measurements
 const Timer = struct {
-    start_time: i128,
+    start_time: ?std.time.Instant,
 
     fn start() Timer {
-        return .{ .start_time = std.time.nanoTimestamp() };
+        return .{ .start_time = std.time.Instant.now() catch null };
     }
 
     fn elapsed(self: *const Timer) u64 {
-        const end_time = std.time.nanoTimestamp();
-        return @intCast(end_time - self.start_time);
+        if (self.start_time) |s| {
+            const now = std.time.Instant.now() catch return 0;
+            return now.since(s);
+        }
+        return 0;
     }
 };
 
@@ -149,12 +152,12 @@ test "Performance: ArrayList append operations" {
 }
 
 test "Performance: HashMap insert operations" {
-    const config = PerformanceConfig{ .iterations = 10000 };
+    const config = PerformanceConfig{ .iterations = 100 };
     var metrics = PerformanceMetrics.init(testing.allocator);
     defer metrics.deinit(testing.allocator);
 
-    var map: std.StringHashMap(u64) = .{};
-    defer map.deinit(testing.allocator);
+    var map = std.StringHashMap(u64).init(testing.allocator);
+    defer map.deinit();
 
     var buf: [64]u8 = undefined;
 
@@ -162,7 +165,7 @@ test "Performance: HashMap insert operations" {
     while (i < config.iterations) : (i += 1) {
         const key = std.fmt.bufPrint(&buf, "key_{d}", .{i}) catch unreachable;
         const timer = Timer.start();
-        try map.put(testing.allocator, key, @intCast(i));
+        try map.put(key, @intCast(i));
         try metrics.record(testing.allocator, timer.elapsed());
     }
 

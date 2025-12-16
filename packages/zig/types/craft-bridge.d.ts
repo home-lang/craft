@@ -421,6 +421,259 @@ export type IconName =
   | 'star' | 'star_filled' | 'heart' | 'heart_filled' | 'bookmark' | 'flag';
 
 // ============================================
+// Shell Bridge Types
+// ============================================
+
+export interface ShellBridge {
+  execute(options: ShellExecuteOptions): Promise<ShellResult>;
+  spawn(options: ShellSpawnOptions): Promise<ShellProcess>;
+  kill(options: { pid: number }): Promise<void>;
+  openTerminal(options?: { workingDirectory?: string }): Promise<void>;
+}
+
+export interface ShellExecuteOptions {
+  command: string;
+  args?: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  timeout?: number;
+}
+
+export interface ShellSpawnOptions extends ShellExecuteOptions {
+  detached?: boolean;
+}
+
+export interface ShellResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+export interface ShellProcess {
+  pid: number;
+}
+
+// ============================================
+// Network Bridge Types
+// ============================================
+
+export interface NetworkBridge {
+  isOnline(): Promise<{ online: boolean }>;
+  getNetworkType(): Promise<{ type: NetworkType }>;
+  getPublicIP(): Promise<{ ip: string | null }>;
+  getLocalIP(): Promise<{ ip: string | null }>;
+  fetch(options: FetchOptions): Promise<FetchResponse>;
+  download(options: DownloadOptions): Promise<DownloadResult>;
+}
+
+export type NetworkType = 'wifi' | 'ethernet' | 'cellular' | 'none' | 'unknown';
+
+export interface FetchOptions {
+  url: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD';
+  headers?: Record<string, string>;
+  body?: string;
+  timeout?: number;
+}
+
+export interface FetchResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export interface DownloadOptions {
+  url: string;
+  destination: string;
+  onProgress?: string; // JS callback name
+}
+
+export interface DownloadResult {
+  success: boolean;
+  path?: string;
+  error?: string;
+}
+
+// ============================================
+// TouchBar Bridge Types (macOS only)
+// ============================================
+
+export interface TouchBarBridge {
+  setItems(options: { items: TouchBarItem[] }): Promise<void>;
+  clear(): Promise<void>;
+  show(): Promise<void>;
+  hide(): Promise<void>;
+  isSupported(): Promise<{ supported: boolean }>;
+}
+
+export interface TouchBarItem {
+  id: string;
+  type: 'button' | 'label' | 'slider' | 'colorPicker' | 'spacer' | 'group';
+  label?: string;
+  icon?: IconName;
+  backgroundColor?: string;
+  action?: string;
+  items?: TouchBarItem[]; // For group type
+  min?: number; // For slider
+  max?: number; // For slider
+  value?: number; // For slider
+}
+
+// ============================================
+// Audio Bridge Types
+// ============================================
+
+export interface AudioBridge {
+  play(options: AudioPlayOptions): Promise<{ clipId: string }>;
+  pause(options: { clipId: string }): Promise<void>;
+  resume(options: { clipId: string }): Promise<void>;
+  stop(options: { clipId: string }): Promise<void>;
+  setVolume(options: { clipId: string; volume: number }): Promise<void>;
+  seek(options: { clipId: string; position: number }): Promise<void>;
+  getDuration(options: { clipId: string }): Promise<{ duration: number }>;
+  getCurrentTime(options: { clipId: string }): Promise<{ time: number }>;
+  isPlaying(options: { clipId: string }): Promise<{ playing: boolean }>;
+  playSystemSound(options: { sound: SystemSound }): Promise<void>;
+  triggerHaptic(options: { style: HapticStyle }): Promise<void>;
+}
+
+export interface AudioPlayOptions {
+  path: string;
+  volume?: number;
+  loop?: boolean;
+}
+
+export type SystemSound =
+  | 'beep' | 'alert' | 'error' | 'warning'
+  | 'notification' | 'message' | 'complete'
+  | 'click' | 'pop' | 'delete';
+
+export type HapticStyle =
+  | 'light' | 'medium' | 'heavy'
+  | 'soft' | 'rigid'
+  | 'success' | 'warning' | 'error'
+  | 'selection';
+
+// ============================================
+// Camera Bridge Types
+// ============================================
+
+export interface CameraBridge {
+  requestPermission(): Promise<{ granted: boolean }>;
+  checkPermission(): Promise<{ status: PermissionStatus }>;
+  listDevices(): Promise<{ devices: CameraDevice[] }>;
+  startCapture(options: CaptureOptions): Promise<void>;
+  stopCapture(): Promise<void>;
+  takePhoto(): Promise<{ path: string }>;
+  startRecording(options?: RecordingOptions): Promise<void>;
+  stopRecording(): Promise<{ path: string }>;
+  startBarcodeScanning(options?: BarcodeScanOptions): Promise<void>;
+  stopBarcodeScanning(): Promise<void>;
+}
+
+export type PermissionStatus = 'not_determined' | 'denied' | 'authorized' | 'restricted';
+
+export interface CameraDevice {
+  id: string;
+  name: string;
+  position: 'front' | 'back' | 'external';
+  hasFlash: boolean;
+}
+
+export interface CaptureOptions {
+  deviceId?: string;
+  resolution?: { width: number; height: number };
+  frameRate?: number;
+  onFrame?: string; // JS callback name
+}
+
+export interface RecordingOptions {
+  path?: string;
+  quality?: 'low' | 'medium' | 'high' | 'max';
+  maxDuration?: number;
+}
+
+export interface BarcodeScanOptions {
+  formats?: BarcodeFormat[];
+  onDetected?: string; // JS callback name
+}
+
+export type BarcodeFormat =
+  | 'qr' | 'ean13' | 'ean8' | 'upce'
+  | 'code39' | 'code128' | 'pdf417' | 'aztec';
+
+// ============================================
+// I18n Bridge Types
+// ============================================
+
+export interface I18nBridge {
+  getLocale(): Promise<{ locale: string }>;
+  setLocale(options: { locale: string }): Promise<void>;
+  translate(options: TranslateOptions): Promise<{ text: string }>;
+  formatDate(options: DateFormatOptions): Promise<{ formatted: string }>;
+  formatNumber(options: NumberFormatOptions): Promise<{ formatted: string }>;
+  formatCurrency(options: CurrencyFormatOptions): Promise<{ formatted: string }>;
+  getSupportedLocales(): Promise<{ locales: string[] }>;
+  getTextDirection(): Promise<{ direction: 'ltr' | 'rtl' }>;
+}
+
+export interface TranslateOptions {
+  key: string;
+  params?: Record<string, string | number>;
+  locale?: string;
+  fallback?: string;
+}
+
+export interface DateFormatOptions {
+  date: number | string; // Unix timestamp or ISO string
+  style?: 'short' | 'medium' | 'long' | 'full';
+  locale?: string;
+}
+
+export interface NumberFormatOptions {
+  value: number;
+  style?: 'decimal' | 'percent' | 'scientific';
+  minimumFractionDigits?: number;
+  maximumFractionDigits?: number;
+  locale?: string;
+}
+
+export interface CurrencyFormatOptions {
+  value: number;
+  currency: string; // ISO 4217 code, e.g., 'USD'
+  locale?: string;
+}
+
+// ============================================
+// App Bridge Types
+// ============================================
+
+export interface AppBridge {
+  getVersion(): Promise<{ version: string }>;
+  getBuildNumber(): Promise<{ build: string }>;
+  getName(): Promise<{ name: string }>;
+  getPath(options: { name: AppPath }): Promise<{ path: string }>;
+  quit(): Promise<void>;
+  relaunch(): Promise<void>;
+  hide(): Promise<void>;
+  show(): Promise<void>;
+  focus(): Promise<void>;
+  isHidden(): Promise<{ hidden: boolean }>;
+  setLoginItemEnabled(options: { enabled: boolean }): Promise<void>;
+  isLoginItemEnabled(): Promise<{ enabled: boolean }>;
+  setBadge(options: { text: string }): Promise<void>;
+  getBadge(): Promise<{ text: string }>;
+  removeBadge(): Promise<void>;
+  showAboutPanel(): Promise<void>;
+}
+
+export type AppPath =
+  | 'home' | 'appData' | 'userData' | 'temp'
+  | 'desktop' | 'documents' | 'downloads' | 'music'
+  | 'pictures' | 'videos' | 'logs' | 'cache';
+
+// ============================================
 // Main Craft Bridge Interface
 // ============================================
 
@@ -437,6 +690,13 @@ export interface CraftBridge {
   shortcuts: ShortcutsBridge;
   fs: FSBridge;
   updater: UpdaterBridge;
+  shell: ShellBridge;
+  network: NetworkBridge;
+  touchbar: TouchBarBridge;
+  audio: AudioBridge;
+  camera: CameraBridge;
+  i18n: I18nBridge;
+  app: AppBridge;
 }
 
 declare global {

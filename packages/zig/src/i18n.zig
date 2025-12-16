@@ -1008,9 +1008,167 @@ pub const LocalizationManager = struct {
     }
 };
 
-/// Get system locale (stub)
+/// Get system locale from OS settings
 pub fn systemLocale() Locale {
-    return Locale.en_US; // Would use platform APIs
+    const builtin = @import("builtin");
+
+    if (builtin.os.tag == .macos or builtin.target.os.tag == .ios) {
+        return systemLocaleMacOS();
+    } else if (builtin.os.tag == .linux) {
+        return systemLocaleLinux();
+    } else if (builtin.os.tag == .windows) {
+        return systemLocaleWindows();
+    }
+
+    return Locale.en_US;
+}
+
+fn systemLocaleMacOS() Locale {
+    if (@import("builtin").os.tag != .macos and @import("builtin").target.os.tag != .ios) {
+        return Locale.en_US;
+    }
+
+    const macos = @import("macos.zig");
+
+    // Get preferred language from NSLocale
+    const NSLocale = macos.getClass("NSLocale") orelse return Locale.en_US;
+    const current_locale = macos.msgSend0(NSLocale, "currentLocale");
+
+    if (current_locale == null) return Locale.en_US;
+
+    // Get language code
+    const lang_code_ns = macos.msgSend0(current_locale, "languageCode");
+    if (lang_code_ns != null) {
+        const lang_cstr = macos.msgSend0(lang_code_ns, "UTF8String");
+        if (lang_cstr != null) {
+            const lang_str = std.mem.span(@as([*:0]const u8, @ptrCast(lang_cstr)));
+            const lang = LanguageCode.fromString(lang_str);
+
+            // Get country code
+            const country_code_ns = macos.msgSend0(current_locale, "countryCode");
+            if (country_code_ns != null) {
+                const country_cstr = macos.msgSend0(country_code_ns, "UTF8String");
+                if (country_cstr != null) {
+                    const country_str = std.mem.span(@as([*:0]const u8, @ptrCast(country_cstr)));
+                    const region = regionFromString(country_str);
+                    return Locale.init(lang, region);
+                }
+            }
+
+            return Locale.init(lang, .US);
+        }
+    }
+
+    return Locale.en_US;
+}
+
+fn systemLocaleLinux() Locale {
+    if (@import("builtin").os.tag != .linux) return Locale.en_US;
+
+    // Read from LANG or LC_ALL environment variable
+    const lang_env = std.c.getenv("LC_ALL") orelse std.c.getenv("LANG") orelse return Locale.en_US;
+    const lang_str = std.mem.span(lang_env);
+
+    // Parse locale string (format: "en_US.UTF-8" or "en_US")
+    if (lang_str.len < 2) return Locale.en_US;
+
+    // Extract language code (first 2 chars)
+    const lang_code = lang_str[0..2];
+    const lang = LanguageCode.fromString(lang_code);
+
+    // Try to extract region code (chars 3-4 if present and preceded by '_')
+    if (lang_str.len >= 5 and lang_str[2] == '_') {
+        const region_code = lang_str[3..5];
+        const region = regionFromString(region_code);
+        return Locale.init(lang, region);
+    }
+
+    return Locale.init(lang, .US);
+}
+
+fn systemLocaleWindows() Locale {
+    if (@import("builtin").os.tag != .windows) return Locale.en_US;
+
+    const windows = struct {
+        extern "kernel32" fn GetUserDefaultLocaleName(
+            lpLocaleName: [*]u16,
+            cchLocaleName: i32,
+        ) callconv(.winapi) i32;
+    };
+
+    var locale_name: [85]u16 = undefined;
+    const len = windows.GetUserDefaultLocaleName(&locale_name, 85);
+
+    if (len > 0) {
+        // Convert UTF-16 to string and parse
+        // Format: "en-US" or similar
+        var buf: [85]u8 = undefined;
+        var idx: usize = 0;
+        for (locale_name[0..@intCast(len)]) |char| {
+            if (char == 0) break;
+            if (idx >= buf.len) break;
+            buf[idx] = @truncate(char & 0xFF);
+            idx += 1;
+        }
+
+        if (idx >= 2) {
+            const lang = LanguageCode.fromString(buf[0..2]);
+
+            // Look for region after dash
+            if (idx >= 5) {
+                var dash_idx: ?usize = null;
+                for (buf[0..idx], 0..) |c, i| {
+                    if (c == '-') {
+                        dash_idx = i;
+                        break;
+                    }
+                }
+                if (dash_idx) |di| {
+                    if (di + 3 <= idx) {
+                        const region = regionFromString(buf[di + 1 .. di + 3]);
+                        return Locale.init(lang, region);
+                    }
+                }
+            }
+
+            return Locale.init(lang, .US);
+        }
+    }
+
+    return Locale.en_US;
+}
+
+fn regionFromString(code: []const u8) RegionCode {
+    if (code.len < 2) return .unknown;
+    if (std.mem.eql(u8, code, "US")) return .US;
+    if (std.mem.eql(u8, code, "GB")) return .GB;
+    if (std.mem.eql(u8, code, "CA")) return .CA;
+    if (std.mem.eql(u8, code, "AU")) return .AU;
+    if (std.mem.eql(u8, code, "DE")) return .DE;
+    if (std.mem.eql(u8, code, "FR")) return .FR;
+    if (std.mem.eql(u8, code, "ES")) return .ES;
+    if (std.mem.eql(u8, code, "IT")) return .IT;
+    if (std.mem.eql(u8, code, "PT")) return .PT;
+    if (std.mem.eql(u8, code, "BR")) return .BR;
+    if (std.mem.eql(u8, code, "MX")) return .MX;
+    if (std.mem.eql(u8, code, "CN")) return .CN;
+    if (std.mem.eql(u8, code, "TW")) return .TW;
+    if (std.mem.eql(u8, code, "HK")) return .HK;
+    if (std.mem.eql(u8, code, "JP")) return .JP;
+    if (std.mem.eql(u8, code, "KR")) return .KR;
+    if (std.mem.eql(u8, code, "IN")) return .IN;
+    if (std.mem.eql(u8, code, "RU")) return .RU;
+    if (std.mem.eql(u8, code, "SA")) return .SA;
+    if (std.mem.eql(u8, code, "AE")) return .AE;
+    if (std.mem.eql(u8, code, "IL")) return .IL;
+    if (std.mem.eql(u8, code, "TR")) return .TR;
+    if (std.mem.eql(u8, code, "NL")) return .NL;
+    if (std.mem.eql(u8, code, "PL")) return .PL;
+    if (std.mem.eql(u8, code, "SE")) return .SE;
+    if (std.mem.eql(u8, code, "NO")) return .NO;
+    if (std.mem.eql(u8, code, "DK")) return .DK;
+    if (std.mem.eql(u8, code, "FI")) return .FI;
+    return .unknown;
 }
 
 /// Check if locale is supported

@@ -327,7 +327,7 @@ pub const PluginManager = struct {
         return PluginManager{
             .plugins = std.StringHashMap(*Plugin).init(allocator),
             .allocator = allocator,
-            .audit_log = std.ArrayList(AuditEntry).init(allocator),
+            .audit_log = .{},
         };
     }
 
@@ -337,7 +337,7 @@ pub const PluginManager = struct {
             plugin.*.deinit();
         }
         self.plugins.deinit();
-        self.audit_log.deinit();
+        self.audit_log.deinit(self.allocator);
     }
 
     pub fn register(self: *PluginManager, plugin: *Plugin) !void {
@@ -364,7 +364,7 @@ pub const PluginManager = struct {
     }
 
     fn logAction(self: *PluginManager, plugin_id: []const u8, action: []const u8, permission: ?Permission, allowed: bool) !void {
-        try self.audit_log.append(.{
+        try self.audit_log.append(self.allocator, .{
             .timestamp = std.time.milliTimestamp(),
             .plugin_id = plugin_id,
             .action = action,
@@ -397,13 +397,13 @@ pub const ResourceMonitor = struct {
     pub fn init(allocator: std.mem.Allocator, plugin: *Plugin) ResourceMonitor {
         return .{
             .plugin = plugin,
-            .memory_snapshots = std.ArrayList(MemorySnapshot).init(allocator),
+            .memory_snapshots = .{},
             .allocator = allocator,
         };
     }
 
     pub fn deinit(self: *ResourceMonitor) void {
-        self.memory_snapshots.deinit();
+        self.memory_snapshots.deinit(self.allocator);
     }
 
     pub fn startMonitoring(self: *ResourceMonitor) void {
@@ -415,7 +415,7 @@ pub const ResourceMonitor = struct {
     }
 
     pub fn takeMemorySnapshot(self: *ResourceMonitor) !void {
-        try self.memory_snapshots.append(.{
+        try self.memory_snapshots.append(self.allocator, .{
             .timestamp = std.time.milliTimestamp(),
             .bytes_used = self.plugin.memory_used,
         });

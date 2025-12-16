@@ -28,16 +28,33 @@ pub const CliError = error{
     InvalidNumber,
 };
 
+/// Enable debug logging via --debug flag
+var debug_mode: bool = false;
+
+/// Debug print helper - only prints when debug mode is enabled
+fn debugPrint(comptime fmt: []const u8, args: anytype) void {
+    if (debug_mode) {
+        std.debug.print(fmt, args);
+    }
+}
+
 pub fn parseArgs(allocator: std.mem.Allocator) !WindowOptions {
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
-    // CRITICAL DEBUG: Print ALL arguments received
-    std.debug.print("\n[CLI DEBUG] Total arguments received: {d}\n", .{args.len});
-    for (args, 0..) |arg, idx| {
-        std.debug.print("[CLI DEBUG] arg[{d}] = '{s}'\n", .{idx, arg});
+    // First pass: check for --debug flag
+    for (args) |arg| {
+        if (std.mem.eql(u8, arg, "--debug")) {
+            debug_mode = true;
+            break;
+        }
     }
-    std.debug.print("\n", .{});
+
+    debugPrint("\n[CLI DEBUG] Total arguments received: {d}\n", .{args.len});
+    for (args, 0..) |arg, idx| {
+        debugPrint("[CLI DEBUG] arg[{d}] = '{s}'\n", .{ idx, arg });
+    }
+    debugPrint("\n", .{});
 
     var options = WindowOptions{};
     var i: usize = 1; // Skip program name
@@ -90,9 +107,10 @@ pub fn parseArgs(allocator: std.mem.Allocator) !WindowOptions {
         } else if (std.mem.eql(u8, arg, "--no-resize")) {
             options.resizable = false;
         } else if (std.mem.eql(u8, arg, "--titlebar-hidden")) {
-            std.debug.print("[CLI DEBUG] ✓✓✓ FOUND --titlebar-hidden flag! Setting to TRUE\n", .{});
+            debugPrint("[CLI DEBUG] Found --titlebar-hidden flag, setting to true\n", .{});
             options.titlebar_hidden = true;
-            std.debug.print("[CLI DEBUG] ✓✓✓ options.titlebar_hidden is now: {}\n", .{options.titlebar_hidden});
+        } else if (std.mem.eql(u8, arg, "--debug")) {
+            // Already handled in first pass
         } else if (std.mem.eql(u8, arg, "--no-devtools")) {
             options.dev_tools = false;
         } else if (std.mem.eql(u8, arg, "--dark")) {
@@ -117,11 +135,11 @@ pub fn parseArgs(allocator: std.mem.Allocator) !WindowOptions {
         }
     }
 
-    // CRITICAL DEBUG: Print final options state
-    std.debug.print("[CLI DEBUG] ========================================\n", .{});
-    std.debug.print("[CLI DEBUG] FINAL OPTIONS STATE:\n", .{});
-    std.debug.print("[CLI DEBUG] titlebar_hidden = {}\n", .{options.titlebar_hidden});
-    std.debug.print("[CLI DEBUG] ========================================\n\n", .{});
+    debugPrint("[CLI DEBUG] Final options: titlebar_hidden={}, frameless={}, transparent={}\n", .{
+        options.titlebar_hidden,
+        options.frameless,
+        options.transparent,
+    });
 
     return options;
 }
@@ -161,6 +179,10 @@ fn printHelp() void {
         \\      --hide-dock-icon     Hide dock icon (menubar-only mode, macOS)
         \\      --menubar-only       Menubar-only mode (no window, system tray only)
         \\      --no-devtools        Disable WebKit DevTools
+        \\      --titlebar-hidden    Hide window titlebar
+        \\
+        \\Debugging:
+        \\      --debug              Enable debug output
         \\
         \\Information:
         \\  -h, --help               Show this help message

@@ -31,8 +31,8 @@ pub const FileFilter = dialogs.FileFilter;
 // Re-export notifications module
 pub const notifications_module = @import("notifications.zig");
 pub const Notifications = notifications_module.Notifications;
-pub const NotificationOptions = Notifications.NotificationOptions;
-pub const NotificationAction = Notifications.NotificationAction;
+pub const NotificationOptions = notifications_module.NotificationOptions;
+pub const NotificationAction = notifications_module.NotificationAction;
 
 // Re-export system tray module
 pub const tray_module = @import("tray.zig");

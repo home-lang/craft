@@ -543,23 +543,74 @@ pub const CameraSession = struct {
         }
     }
 
-    // Platform-specific implementations (stubs for non-matching platforms)
+    // Platform-specific implementations
 
     fn startPreviewMacOS(self: *Self) CameraError!void {
         if (builtin.os.tag != .macos and builtin.target.os.tag != .ios) return;
-        _ = self;
-        // AVCaptureSession setup would go here
+
+        const macos = @import("macos.zig");
+
+        // Create AVCaptureSession
+        const AVCaptureSession = macos.getClass("AVCaptureSession") orelse return CameraError.DeviceNotFound;
+        const session = macos.msgSend0(macos.msgSend0(AVCaptureSession, "alloc"), "init");
+        if (session == null) return CameraError.DeviceNotFound;
+
+        // Set session preset
+        const NSString = macos.getClass("NSString") orelse return CameraError.DeviceNotFound;
+        const preset_alloc = macos.msgSend0(NSString, "alloc");
+        const preset = macos.msgSend1(preset_alloc, "initWithUTF8String:", @as([*:0]const u8, "AVCaptureSessionPresetHigh"));
+        _ = macos.msgSend1(session, "setSessionPreset:", preset);
+
+        // Get default camera device
+        const AVCaptureDevice = macos.getClass("AVCaptureDevice") orelse return CameraError.DeviceNotFound;
+
+        // Get the position-specific device
+        const position: c_long = switch (self.config.position) {
+            .front => 2, // AVCaptureDevicePositionFront
+            .back => 1, // AVCaptureDevicePositionBack
+            else => 0, // AVCaptureDevicePositionUnspecified
+        };
+
+        // defaultDeviceWithDeviceType:mediaType:position:
+        const video_type_alloc = macos.msgSend0(NSString, "alloc");
+        const video_type = macos.msgSend1(video_type_alloc, "initWithUTF8String:", @as([*:0]const u8, "vide"));
+        const device = macos.msgSend3(AVCaptureDevice, "defaultDeviceWithMediaType:", video_type, @as(?*anyopaque, null), position);
+
+        if (device == null) return CameraError.DeviceNotFound;
+
+        // Create device input
+        const AVCaptureDeviceInput = macos.getClass("AVCaptureDeviceInput") orelse return CameraError.DeviceNotFound;
+        const input = macos.msgSend2(AVCaptureDeviceInput, "deviceInputWithDevice:error:", device, @as(?*anyopaque, null));
+
+        if (input == null) return CameraError.DeviceNotFound;
+
+        // Add input to session
+        const can_add_input = macos.msgSend1(session, "canAddInput:", input);
+        if (can_add_input != null) {
+            _ = macos.msgSend1(session, "addInput:", input);
+        }
+
+        // Start running
+        _ = macos.msgSend0(session, "startRunning");
+
+        self.native_handle = session;
     }
 
     fn stopPreviewMacOS(self: *Self) void {
         if (builtin.os.tag != .macos and builtin.target.os.tag != .ios) return;
-        _ = self;
+
+        if (self.native_handle) |session| {
+            const macos = @import("macos.zig");
+            _ = macos.msgSend0(session, "stopRunning");
+            self.native_handle = null;
+        }
     }
 
     fn capturePhotoMacOS(self: *Self) CameraError![]const u8 {
         if (builtin.os.tag != .macos and builtin.target.os.tag != .ios)
             return CameraError.UnsupportedFeature;
         _ = self;
+        // Full implementation would use AVCapturePhotoOutput
         return CameraError.UnsupportedFeature;
     }
 
@@ -567,6 +618,7 @@ pub const CameraSession = struct {
         if (builtin.os.tag != .macos and builtin.target.os.tag != .ios) return;
         _ = self;
         _ = path;
+        // Full implementation would use AVCaptureMovieFileOutput
     }
 
     fn stopRecordingMacOS(self: *Self) void {
@@ -576,48 +628,112 @@ pub const CameraSession = struct {
 
     fn enableBarcodeScanningMacOS(self: *Self) CameraError!void {
         if (builtin.os.tag != .macos and builtin.target.os.tag != .ios) return;
-        _ = self;
+
+        if (self.native_handle) |session| {
+            const macos = @import("macos.zig");
+
+            // Create AVCaptureMetadataOutput for barcode scanning
+            const AVCaptureMetadataOutput = macos.getClass("AVCaptureMetadataOutput") orelse return CameraError.UnsupportedFeature;
+            const metadata_output = macos.msgSend0(macos.msgSend0(AVCaptureMetadataOutput, "alloc"), "init");
+
+            if (metadata_output != null) {
+                const can_add = macos.msgSend1(session, "canAddOutput:", metadata_output);
+                if (can_add != null) {
+                    _ = macos.msgSend1(session, "addOutput:", metadata_output);
+
+                    // Set metadata object types (QR codes, barcodes)
+                    const NSArray = macos.getClass("NSArray") orelse return CameraError.UnsupportedFeature;
+                    const NSString = macos.getClass("NSString") orelse return CameraError.UnsupportedFeature;
+
+                    const qr_str = macos.msgSend0(NSString, "alloc");
+                    const qr_type = macos.msgSend1(qr_str, "initWithUTF8String:", @as([*:0]const u8, "org.iso.QRCode"));
+
+                    const types_array = macos.msgSend1(NSArray, "arrayWithObject:", qr_type);
+                    _ = macos.msgSend1(metadata_output, "setMetadataObjectTypes:", types_array);
+                }
+            }
+        }
     }
 
     fn disableBarcodeScanningMacOS(self: *Self) void {
         if (builtin.os.tag != .macos and builtin.target.os.tag != .ios) return;
         _ = self;
+        // Would remove the metadata output from session
     }
 
     fn setFocusPointMacOS(self: *Self) CameraError!void {
         if (builtin.os.tag != .macos and builtin.target.os.tag != .ios) return;
         _ = self;
+        // Would use AVCaptureDevice focusPointOfInterest
     }
 
     fn setExposurePointMacOS(self: *Self) CameraError!void {
         if (builtin.os.tag != .macos and builtin.target.os.tag != .ios) return;
         _ = self;
+        // Would use AVCaptureDevice exposurePointOfInterest
     }
 
     fn setZoomMacOS(self: *Self) CameraError!void {
         if (builtin.os.tag != .macos and builtin.target.os.tag != .ios) return;
         _ = self;
+        // Would use AVCaptureDevice videoZoomFactor
     }
 
     fn setTorchMacOS(self: *Self) CameraError!void {
         if (builtin.os.tag != .macos and builtin.target.os.tag != .ios) return;
         _ = self;
+        // Would use AVCaptureDevice torchMode
     }
 
     fn startPreviewLinux(self: *Self) CameraError!void {
         if (builtin.os.tag != .linux) return;
-        _ = self;
-        // V4L2 setup would go here
+
+        // V4L2 implementation
+        const c = @cImport({
+            @cInclude("fcntl.h");
+            @cInclude("sys/ioctl.h");
+            @cInclude("linux/videodev2.h");
+        });
+
+        // Try to open default video device
+        const device_path = if (self.config.device_id) |id| id else "/dev/video0";
+        const device_path_z = self.allocator.dupeZ(u8, device_path) catch return CameraError.OutOfMemory;
+        defer self.allocator.free(device_path_z);
+
+        const fd = std.c.open(device_path_z.ptr, std.c.O.RDWR);
+        if (fd < 0) return CameraError.DeviceNotFound;
+
+        // Query device capabilities
+        var cap: c.v4l2_capability = undefined;
+        if (std.c.ioctl(fd, c.VIDIOC_QUERYCAP, &cap) < 0) {
+            _ = std.c.close(fd);
+            return CameraError.DeviceNotFound;
+        }
+
+        // Check if it's a video capture device
+        if ((cap.capabilities & c.V4L2_CAP_VIDEO_CAPTURE) == 0) {
+            _ = std.c.close(fd);
+            return CameraError.InvalidConfiguration;
+        }
+
+        // Store the file descriptor as native handle
+        self.native_handle = @ptrFromInt(@as(usize, @intCast(fd)));
     }
 
     fn stopPreviewLinux(self: *Self) void {
         if (builtin.os.tag != .linux) return;
-        _ = self;
+
+        if (self.native_handle) |handle| {
+            const fd: c_int = @intCast(@intFromPtr(handle));
+            _ = std.c.close(fd);
+            self.native_handle = null;
+        }
     }
 
     fn capturePhotoLinux(self: *Self) CameraError![]const u8 {
         if (builtin.os.tag != .linux) return CameraError.UnsupportedFeature;
         _ = self;
+        // Full implementation would use V4L2 buffer capture
         return CameraError.UnsupportedFeature;
     }
 
@@ -625,6 +741,7 @@ pub const CameraSession = struct {
         if (builtin.os.tag != .linux) return;
         _ = self;
         _ = path;
+        // Would use V4L2 + ffmpeg/gstreamer for encoding
     }
 
     fn stopRecordingLinux(self: *Self) void {
@@ -635,7 +752,9 @@ pub const CameraSession = struct {
     fn startPreviewWindows(self: *Self) CameraError!void {
         if (builtin.os.tag != .windows) return;
         _ = self;
-        // Media Foundation setup would go here
+
+        // Media Foundation implementation would go here
+        // Using MFCreateDeviceSource, IMFMediaSource, etc.
     }
 
     fn stopPreviewWindows(self: *Self) void {

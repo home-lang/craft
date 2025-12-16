@@ -12,7 +12,7 @@ pub const Crypto = struct {
 
     /// Generate a new Ed25519 keypair
     pub fn generateKeyPair() !KeyPair {
-        var seed: [Ed25519.seed_length]u8 = undefined;
+        var seed: [32]u8 = undefined; // Ed25519 seed is 32 bytes
         std.crypto.random.bytes(&seed);
         return try Ed25519.KeyPair.create(seed);
     }
