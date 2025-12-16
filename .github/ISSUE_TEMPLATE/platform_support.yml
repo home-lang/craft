@@ -1,0 +1,109 @@
+name: Platform Support Issue
+description: Report issues specific to a platform (macOS, Linux, Windows, iOS, Android)
+title: "[Platform]: "
+labels: ["platform", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report platform-specific issues or request better platform support.
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Which platform is affected?
+      options:
+        - macOS (Apple Silicon / M1/M2/M3)
+        - macOS (Intel)
+        - Linux (Ubuntu/Debian)
+        - Linux (Fedora/RHEL)
+        - Linux (Arch)
+        - Linux (Other)
+        - Windows 10
+        - Windows 11
+        - iOS (Device)
+        - iOS (Simulator)
+        - Android (Device)
+        - Android (Emulator)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-category
+    attributes:
+      label: Issue Category
+      description: What category does this issue fall under?
+      options:
+        - Build/compilation failure
+        - Runtime crash
+        - Visual/rendering issue
+        - Native API not working
+        - Performance issue
+        - Missing platform feature
+        - WebView issue
+        - System integration (notifications, tray, etc.)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS Version
+      description: Exact version of the operating system
+      placeholder: "e.g., macOS 14.2.1, Ubuntu 22.04.3 LTS, Windows 11 23H2"
+    validations:
+      required: true
+
+  - type: input
+    id: architecture
+    attributes:
+      label: Architecture
+      description: CPU architecture
+      placeholder: "e.g., x86_64, aarch64, arm64"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Issue Description
+      description: Describe the platform-specific issue
+      placeholder: "What doesn't work correctly on this platform?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Build with `zig build`
+        2. Run `./zig-out/bin/craft`
+        3. See error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround
+      description: Have you found any workaround?
+      placeholder: "Any temporary solution you've discovered..."
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Logs / Stack Trace
+      description: Relevant error messages or stack traces
+      render: shell
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other relevant information (screenshots, system info, etc.)

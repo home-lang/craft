@@ -1,0 +1,222 @@
+name: Binary Size Tracking
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: binary-size-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  # Maximum allowed binary size in bytes (2MB = 2097152)
+  MAX_BINARY_SIZE: 2097152
+  # Warning threshold (1.5MB = 1572864)
+  WARN_BINARY_SIZE: 1572864
+
+jobs:
+  track-size:
+    name: Track Binary Size
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: '0.15.1'
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Cache Zig artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/zig
+            packages/zig/zig-cache
+          key: size-${{ runner.os }}-zig-0.15.1-${{ hashFiles('packages/zig/build.zig') }}
+          restore-keys: |
+            size-${{ runner.os }}-zig-0.15.1-
+
+      - name: Build release binary
+        working-directory: packages/zig
+        run: |
+          zig build -Doptimize=ReleaseSafe
+
+      - name: Measure binary size
+        id: size
+        working-directory: packages/zig
+        run: |
+          BINARY_PATH="zig-out/bin/craft-minimal"
+          if [ -f "$BINARY_PATH" ]; then
+            SIZE=$(stat -c%s "$BINARY_PATH")
+            SIZE_KB=$((SIZE / 1024))
+            SIZE_MB=$(echo "scale=2; $SIZE / 1048576" | bc)
+
+            echo "size=$SIZE" >> $GITHUB_OUTPUT
+            echo "size_kb=$SIZE_KB" >> $GITHUB_OUTPUT
+            echo "size_mb=$SIZE_MB" >> $GITHUB_OUTPUT
+
+            echo "Binary size: ${SIZE_KB}KB (${SIZE_MB}MB)"
+          else
+            echo "Binary not found at $BINARY_PATH"
+            exit 1
+          fi
+
+      - name: Check size limits
+        run: |
+          SIZE=${{ steps.size.outputs.size }}
+          SIZE_MB=${{ steps.size.outputs.size_mb }}
+
+          if [ "$SIZE" -gt "$MAX_BINARY_SIZE" ]; then
+            echo "::error::Binary size (${SIZE_MB}MB) exceeds maximum allowed size ($(echo "scale=2; $MAX_BINARY_SIZE / 1048576" | bc)MB)"
+            exit 1
+          elif [ "$SIZE" -gt "$WARN_BINARY_SIZE" ]; then
+            echo "::warning::Binary size (${SIZE_MB}MB) is approaching the limit"
+          fi
+
+      - name: Get baseline size (main branch)
+        if: github.event_name == 'pull_request'
+        id: baseline
+        run: |
+          git fetch origin main
+          git checkout origin/main -- packages/zig 2>/dev/null || true
+
+          cd packages/zig
+          zig build -Doptimize=ReleaseSafe 2>/dev/null || true
+
+          if [ -f "zig-out/bin/craft-minimal" ]; then
+            BASELINE=$(stat -c%s "zig-out/bin/craft-minimal")
+            echo "baseline=$BASELINE" >> $GITHUB_OUTPUT
+          else
+            echo "baseline=0" >> $GITHUB_OUTPUT
+          fi
+
+          git checkout - -- packages/zig 2>/dev/null || true
+
+      - name: Calculate size difference
+        if: github.event_name == 'pull_request'
+        id: diff
+        run: |
+          CURRENT=${{ steps.size.outputs.size }}
+          BASELINE=${{ steps.baseline.outputs.baseline }}
+
+          if [ "$BASELINE" -gt 0 ]; then
+            DIFF=$((CURRENT - BASELINE))
+            DIFF_KB=$((DIFF / 1024))
+            PERCENT=$(echo "scale=2; ($DIFF * 100) / $BASELINE" | bc)
+
+            echo "diff=$DIFF" >> $GITHUB_OUTPUT
+            echo "diff_kb=$DIFF_KB" >> $GITHUB_OUTPUT
+            echo "percent=$PERCENT" >> $GITHUB_OUTPUT
+
+            if [ "$DIFF" -gt 0 ]; then
+              echo "direction=increased" >> $GITHUB_OUTPUT
+            elif [ "$DIFF" -lt 0 ]; then
+              echo "direction=decreased" >> $GITHUB_OUTPUT
+            else
+              echo "direction=unchanged" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Generate size report
+        run: |
+          echo "## Binary Size Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Current Size | ${{ steps.size.outputs.size_kb }}KB (${{ steps.size.outputs.size_mb }}MB) |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ github.event_name }}" == "pull_request" ] && [ "${{ steps.baseline.outputs.baseline }}" -gt 0 ]; then
+            BASELINE_KB=$(( ${{ steps.baseline.outputs.baseline }} / 1024 ))
+            echo "| Baseline (main) | ${BASELINE_KB}KB |" >> $GITHUB_STEP_SUMMARY
+            echo "| Difference | ${{ steps.diff.outputs.diff_kb }}KB (${{ steps.diff.outputs.percent }}%) |" >> $GITHUB_STEP_SUMMARY
+            echo "| Status | ${{ steps.diff.outputs.direction }} |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Limits" >> $GITHUB_STEP_SUMMARY
+          echo "- Warning threshold: $(echo "scale=2; $WARN_BINARY_SIZE / 1048576" | bc)MB" >> $GITHUB_STEP_SUMMARY
+          echo "- Maximum allowed: $(echo "scale=2; $MAX_BINARY_SIZE / 1048576" | bc)MB" >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const size = '${{ steps.size.outputs.size_kb }}';
+            const sizeMB = '${{ steps.size.outputs.size_mb }}';
+            const diff = '${{ steps.diff.outputs.diff_kb }}';
+            const percent = '${{ steps.diff.outputs.percent }}';
+            const direction = '${{ steps.diff.outputs.direction }}';
+
+            let emoji = '✅';
+            if (direction === 'increased' && parseInt(diff) > 10) emoji = '⚠️';
+            if (direction === 'decreased') emoji = '📉';
+
+            const body = `## ${emoji} Binary Size Report
+
+            | Metric | Value |
+            |--------|-------|
+            | Current Size | ${size}KB (${sizeMB}MB) |
+            | Change | ${diff}KB (${percent}%) ${direction} |
+
+            <details>
+            <summary>Size limits</summary>
+
+            - Warning: 1.5MB
+            - Maximum: 2MB
+            </details>`;
+
+            // Find existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existingComment = comments.find(c =>
+              c.user.login === 'github-actions[bot]' &&
+              c.body.includes('Binary Size Report')
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      - name: Save size history
+        if: github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p .github/metrics
+          DATE=$(date -u +%Y-%m-%d)
+          COMMIT=$(git rev-parse --short HEAD)
+
+          echo "{\"date\": \"$DATE\", \"commit\": \"$COMMIT\", \"size\": ${{ steps.size.outputs.size }}}" >> .github/metrics/binary-size.jsonl
+
+      - name: Upload metrics
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-size-metrics
+          path: .github/metrics/
+          retention-days: 90

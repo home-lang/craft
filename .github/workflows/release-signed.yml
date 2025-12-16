@@ -1,0 +1,261 @@
+name: Signed Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos-signed:
+    name: Build macOS (Signed & Notarized)
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: '0.15.1'
+
+      - name: Cache Zig artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/zig
+            packages/zig/zig-cache
+          key: release-macos-zig-0.15.1-${{ hashFiles('packages/zig/build.zig') }}
+
+      - name: Build for Apple Silicon
+        working-directory: packages/zig
+        run: |
+          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-macos
+
+      - name: Build for Intel
+        working-directory: packages/zig
+        run: |
+          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-macos
+
+      - name: Import signing certificate
+        if: env.APPLE_CERTIFICATE_BASE64 != ''
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Create keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+
+          # Import certificate
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+          rm certificate.p12
+
+      - name: Sign binaries
+        if: env.APPLE_SIGNING_IDENTITY != ''
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          # Sign ARM64 binary
+          codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" \
+            --entitlements scripts/entitlements.plist \
+            packages/zig/zig-out/bin/craft-minimal
+
+          # Verify signature
+          codesign --verify --deep --strict packages/zig/zig-out/bin/craft-minimal
+          echo "ARM64 binary signed successfully"
+
+      - name: Create universal binary
+        run: |
+          mkdir -p bin
+          # If we have both architectures, create universal binary
+          if [ -f "packages/zig/zig-out/bin/craft-minimal" ]; then
+            cp packages/zig/zig-out/bin/craft-minimal bin/craft-darwin-arm64
+          fi
+
+      - name: Notarize binary
+        if: env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != ''
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Create zip for notarization
+          cd bin
+          zip -r craft-darwin-arm64.zip craft-darwin-arm64
+
+          # Submit for notarization
+          xcrun notarytool submit craft-darwin-arm64.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          # Staple the notarization ticket
+          xcrun stapler staple craft-darwin-arm64 || true
+
+          rm craft-darwin-arm64.zip
+
+      - name: Upload signed macOS binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: craft-darwin-signed
+          path: bin/
+
+  build-windows-signed:
+    name: Build Windows (Signed)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: '0.15.1'
+
+      - name: Cache Zig artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\.cache\zig
+            packages\zig\zig-cache
+          key: release-windows-zig-0.15.1-${{ hashFiles('packages/zig/build.zig') }}
+
+      - name: Build for Windows
+        working-directory: packages/zig
+        run: |
+          zig build -Doptimize=ReleaseSafe
+
+      - name: Import code signing certificate
+        if: env.WINDOWS_CERTIFICATE_BASE64 != ''
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $certBytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64)
+          [IO.File]::WriteAllBytes("certificate.pfx", $certBytes)
+
+          $securePassword = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          Import-PfxCertificate -FilePath certificate.pfx -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword
+
+          Remove-Item certificate.pfx
+
+      - name: Sign Windows binary
+        if: env.WINDOWS_CERTIFICATE_THUMBPRINT != ''
+        env:
+          WINDOWS_CERTIFICATE_THUMBPRINT: ${{ secrets.WINDOWS_CERTIFICATE_THUMBPRINT }}
+        run: |
+          $signtool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
+
+          if (Test-Path $signtool) {
+            & $signtool sign /sha1 $env:WINDOWS_CERTIFICATE_THUMBPRINT /t http://timestamp.digicert.com /fd sha256 packages\zig\zig-out\bin\craft-minimal.exe
+            Write-Host "Binary signed successfully"
+          } else {
+            Write-Host "SignTool not found, skipping signing"
+          }
+
+      - name: Prepare artifacts
+        run: |
+          mkdir bin
+          copy packages\zig\zig-out\bin\craft-minimal.exe bin\craft-windows-x64.exe
+
+      - name: Upload signed Windows binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: craft-windows-signed
+          path: bin/
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: '0.15.1'
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Cache Zig artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/zig
+            packages/zig/zig-cache
+          key: release-linux-zig-0.15.1-${{ hashFiles('packages/zig/build.zig') }}
+
+      - name: Build for x86_64
+        working-directory: packages/zig
+        run: |
+          zig build -Doptimize=ReleaseSafe
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p bin
+          cp packages/zig/zig-out/bin/craft-minimal bin/craft-linux-x64
+          chmod +x bin/craft-linux-x64
+
+      - name: Upload Linux binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: craft-linux
+          path: bin/
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-macos-signed, build-windows-signed, build-linux]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          cp artifacts/craft-darwin-signed/* release/ 2>/dev/null || true
+          cp artifacts/craft-windows-signed/* release/ 2>/dev/null || true
+          cp artifacts/craft-linux/* release/ 2>/dev/null || true
+
+          chmod +x release/craft-* 2>/dev/null || true
+          ls -la release/
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum * > checksums.sha256
+          cat checksums.sha256
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            release/*
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

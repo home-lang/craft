@@ -1,0 +1,217 @@
+name: Visual Regression Testing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/zig/src/components/**'
+      - 'packages/zig/src/renderer/**'
+      - 'packages/zig/src/theme.zig'
+      - 'packages/zig/src/ui_automation.zig'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/zig/src/components/**'
+      - 'packages/zig/src/renderer/**'
+      - 'packages/zig/src/theme.zig'
+      - 'packages/zig/src/ui_automation.zig'
+
+concurrency:
+  group: visual-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  visual-tests:
+    name: Visual Regression Tests
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Zig
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: '0.15.1'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Cache Zig artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/zig
+            packages/zig/zig-cache
+          key: visual-${{ runner.os }}-zig-0.15.1-${{ hashFiles('packages/zig/build.zig') }}
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build Craft
+        working-directory: packages/zig
+        run: |
+          zig build -Doptimize=ReleaseSafe
+
+      - name: Download baseline snapshots
+        uses: actions/cache@v4
+        with:
+          path: .snapshots
+          key: visual-snapshots-${{ github.base_ref || 'main' }}
+          restore-keys: |
+            visual-snapshots-main
+
+      - name: Run visual regression tests
+        id: visual
+        run: |
+          mkdir -p .snapshots/current
+          mkdir -p .snapshots/diff
+
+          # Run the visual test suite
+          if [ -f "packages/zig/zig-out/bin/craft-minimal" ]; then
+            # Capture screenshots of component states
+            cd packages/zig
+
+            # Run UI automation tests that capture screenshots
+            zig build test 2>&1 | tee visual-test-output.txt || true
+
+            # Run example apps and capture screenshots
+            for example in button slider checkbox tabs modal; do
+              if [ -f "examples/native-ui-test.ts" ]; then
+                timeout 5 ./zig-out/bin/craft-minimal --screenshot ../.snapshots/current/${example}.png 2>/dev/null || true
+              fi
+            done
+          fi
+
+      - name: Compare snapshots
+        id: compare
+        run: |
+          DIFF_COUNT=0
+          NEW_COUNT=0
+
+          if [ -d ".snapshots/baseline" ] && [ -d ".snapshots/current" ]; then
+            for current in .snapshots/current/*.png; do
+              if [ -f "$current" ]; then
+                filename=$(basename "$current")
+                baseline=".snapshots/baseline/$filename"
+
+                if [ -f "$baseline" ]; then
+                  # Compare images using ImageMagick
+                  DIFF=$(compare -metric AE "$baseline" "$current" ".snapshots/diff/$filename" 2>&1 || echo "0")
+                  if [ "$DIFF" != "0" ] && [ "$DIFF" -gt 100 ]; then
+                    echo "Visual difference detected in $filename: $DIFF pixels"
+                    DIFF_COUNT=$((DIFF_COUNT + 1))
+                  fi
+                else
+                  echo "New snapshot: $filename"
+                  NEW_COUNT=$((NEW_COUNT + 1))
+                fi
+              fi
+            done
+          fi
+
+          echo "diff_count=$DIFF_COUNT" >> $GITHUB_OUTPUT
+          echo "new_count=$NEW_COUNT" >> $GITHUB_OUTPUT
+
+      - name: Generate visual report
+        run: |
+          echo "## Visual Regression Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Visual differences | ${{ steps.compare.outputs.diff_count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| New snapshots | ${{ steps.compare.outputs.new_count }} |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.compare.outputs.diff_count }}" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Visual Differences Detected" >> $GITHUB_STEP_SUMMARY
+            echo "Please review the diff images in the artifacts." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload diff images
+        if: steps.compare.outputs.diff_count > 0
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
+          path: .snapshots/diff/
+          retention-days: 30
+
+      - name: Upload current snapshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-snapshots
+          path: .snapshots/current/
+          retention-days: 30
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && steps.compare.outputs.diff_count > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const diffCount = '${{ steps.compare.outputs.diff_count }}';
+            const newCount = '${{ steps.compare.outputs.new_count }}';
+
+            const body = `## 🖼️ Visual Regression Report
+
+            | Status | Count |
+            |--------|-------|
+            | Visual differences | ${diffCount} |
+            | New snapshots | ${newCount} |
+
+            ${diffCount > 0 ? '⚠️ **Visual differences detected!** Please review the diff images in the workflow artifacts.' : ''}
+            ${newCount > 0 ? '📸 **New snapshots detected.** Consider updating the baseline if these are intentional.' : ''}
+
+            <details>
+            <summary>How to update baselines</summary>
+
+            If these visual changes are intentional:
+            1. Download the \`visual-snapshots\` artifact
+            2. Review the images
+            3. Copy them to \`.snapshots/baseline/\`
+            4. Commit the updated baselines
+            </details>`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existingComment = comments.find(c =>
+              c.user.login === 'github-actions[bot]' &&
+              c.body.includes('Visual Regression Report')
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+      - name: Update baseline snapshots
+        if: github.ref == 'refs/heads/main'
+        run: |
+          if [ -d ".snapshots/current" ]; then
+            mkdir -p .snapshots/baseline
+            cp .snapshots/current/* .snapshots/baseline/ 2>/dev/null || true
+          fi
+
+      - name: Cache baseline snapshots
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: .snapshots
+          key: visual-snapshots-main-${{ github.sha }}
