@@ -159,6 +159,12 @@ pub fn msgSendBool(target: anytype, selector: [*:0]const u8) bool {
     return msg(target, sel(selector));
 }
 
+/// Message send that returns NSInteger (c_long)
+fn msgSendNSInteger(target: anytype, selector: [*:0]const u8) c_long {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) c_long, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector));
+}
+
 /// Message send with one bool argument
 pub fn msgSend1Bool(target: anytype, selector: [*:0]const u8, arg1: bool) objc.id {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL, bool) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
@@ -181,6 +187,37 @@ pub fn msgSend0Double(target: anytype, selector: [*:0]const u8) f64 {
 pub fn msgSendVoid1Rect(target: anytype, selector: [*:0]const u8, rect: NSRect) void {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL, NSRect) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
     msg(target, sel(selector), rect);
+}
+
+/// Message send with NSRect + 2 f64 arguments (for bezierPathWithRoundedRect:xRadius:yRadius:)
+fn msgSendRect2Double(target: anytype, selector: [*:0]const u8, rect: NSRect, arg1: f64, arg2: f64) objc.id {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, NSRect, f64, f64) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector), rect, arg1, arg2);
+}
+
+/// Parse hex color string (e.g. "#ef4444" or "ef4444") and create NSColor
+fn createColorFromHex(hex_str: []const u8) ?objc.id {
+    // Skip leading # if present
+    const hex = if (hex_str.len > 0 and hex_str[0] == '#') hex_str[1..] else hex_str;
+
+    // Must be 6 characters (RRGGBB)
+    if (hex.len != 6) return null;
+
+    // Parse hex components
+    const r = std.fmt.parseInt(u8, hex[0..2], 16) catch return null;
+    const g = std.fmt.parseInt(u8, hex[2..4], 16) catch return null;
+    const b = std.fmt.parseInt(u8, hex[4..6], 16) catch return null;
+
+    // Convert to 0.0-1.0 range
+    const rf: f64 = @as(f64, @floatFromInt(r)) / 255.0;
+    const gf: f64 = @as(f64, @floatFromInt(g)) / 255.0;
+    const bf: f64 = @as(f64, @floatFromInt(b)) / 255.0;
+
+    // Create NSColor using colorWithRed:green:blue:alpha:
+    const NSColor = getClass("NSColor");
+    const color = msgSend4(NSColor, "colorWithRed:green:blue:alpha:", rf, gf, bf, @as(f64, 1.0));
+
+    return color;
 }
 
 // Custom borderless window class that can become key window
@@ -570,6 +607,1055 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     // _ = msgSend1(window, "makeKeyAndOrderFront:", @as(?*anyopaque, null));
 
     return window;
+}
+
+// ============================================================================
+// Native Sidebar Support (NSSplitViewController + NSVisualEffectView)
+// ============================================================================
+
+/// Sidebar item for native NSOutlineView
+pub const SidebarItem = struct {
+    id: []const u8,
+    label: []const u8,
+    icon: ?[]const u8 = null, // SF Symbol name
+    badge: ?[]const u8 = null,
+    tint_color: ?[]const u8 = null, // Hex color for tags
+    children: ?[]const SidebarItem = null,
+    is_section_header: bool = false,
+};
+
+// Global storage for sidebar data source class
+var sidebarDataSourceClass: objc.Class = null;
+
+/// Setup a simple data source for the sidebar outline view
+/// Returns an Objective-C object that implements NSOutlineViewDataSource and NSOutlineViewDelegate
+fn setupSidebarDataSource() !objc.id {
+    const NSObject = getClass("NSObject");
+    const className = "CraftSidebarDataSource";
+
+    // Check if class already exists
+    if (sidebarDataSourceClass == null) {
+        sidebarDataSourceClass = objc.objc_getClass(className);
+    }
+
+    if (sidebarDataSourceClass == null) {
+        std.debug.print("[NativeSidebar] Creating data source class...\n", .{});
+
+        // Create the class
+        sidebarDataSourceClass = objc.objc_allocateClassPair(NSObject, className, 0);
+        if (sidebarDataSourceClass == null) {
+            return error.ClassCreationFailed;
+        }
+
+        // Add NSOutlineViewDataSource methods
+        // outlineView:numberOfChildrenOfItem:
+        _ = objc.class_addMethod(
+            sidebarDataSourceClass,
+            sel("outlineView:numberOfChildrenOfItem:"),
+            @ptrCast(@constCast(&sidebarNumberOfChildren)),
+            "l@:@@",
+        );
+
+        // outlineView:child:ofItem:
+        _ = objc.class_addMethod(
+            sidebarDataSourceClass,
+            sel("outlineView:child:ofItem:"),
+            @ptrCast(@constCast(&sidebarChildOfItem)),
+            "@@:@l@",
+        );
+
+        // outlineView:isItemExpandable:
+        _ = objc.class_addMethod(
+            sidebarDataSourceClass,
+            sel("outlineView:isItemExpandable:"),
+            @ptrCast(@constCast(&sidebarIsItemExpandable)),
+            "B@:@@",
+        );
+
+        // NSOutlineViewDelegate method for view-based outline
+        // outlineView:viewForTableColumn:item:
+        _ = objc.class_addMethod(
+            sidebarDataSourceClass,
+            sel("outlineView:viewForTableColumn:item:"),
+            @ptrCast(@constCast(&sidebarViewForItem)),
+            "@@:@@@",
+        );
+
+        // outlineView:isGroupItem:
+        _ = objc.class_addMethod(
+            sidebarDataSourceClass,
+            sel("outlineView:isGroupItem:"),
+            @ptrCast(@constCast(&sidebarIsGroupItem)),
+            "B@:@@",
+        );
+
+        // outlineViewSelectionDidChange: - Handle selection events
+        _ = objc.class_addMethod(
+            sidebarDataSourceClass,
+            sel("outlineViewSelectionDidChange:"),
+            @ptrCast(@constCast(&sidebarSelectionDidChange)),
+            "v@:@",
+        );
+
+        // outlineView:shouldSelectItem: - Prevent selection of section headers
+        _ = objc.class_addMethod(
+            sidebarDataSourceClass,
+            sel("outlineView:shouldSelectItem:"),
+            @ptrCast(@constCast(&sidebarShouldSelectItem)),
+            "B@:@@",
+        );
+
+        // outlineView:rowViewForItem: - Return custom row view for Finder-style selection
+        _ = objc.class_addMethod(
+            sidebarDataSourceClass,
+            sel("outlineView:rowViewForItem:"),
+            @ptrCast(@constCast(&sidebarRowViewForItem)),
+            "@@:@@",
+        );
+
+        objc.objc_registerClassPair(sidebarDataSourceClass);
+        std.debug.print("[NativeSidebar] Data source class registered\n", .{});
+    }
+
+    // Create instance
+    const instance = msgSend0(msgSend0(sidebarDataSourceClass, "alloc"), "init");
+    std.debug.print("[NativeSidebar] Data source instance created\n", .{});
+
+    return instance;
+}
+
+// Dynamic sidebar data structures
+const DynamicSidebarItem = struct {
+    id: []const u8,
+    label: []const u8,
+    icon: []const u8,
+    badge: ?[]const u8 = null,
+    tint_color: ?[]const u8 = null,
+};
+
+const DynamicSidebarSection = struct {
+    id: []const u8,
+    title: []const u8,
+    items: []DynamicSidebarItem,
+    collapsed: bool = false,
+};
+
+// Global dynamic sidebar data (parsed from JSON config)
+var dynamic_sections: ?[]DynamicSidebarSection = null;
+var sidebar_allocator: ?std.mem.Allocator = null;
+
+// Global WebView reference for sending sidebar events
+var sidebar_webview: objc.id = null;
+
+// Default demo sections (used when no config provided)
+const default_sections = [_]DynamicSidebarSection{
+    .{
+        .id = "favorites",
+        .title = "Favorites",
+        .items = @constCast(&[_]DynamicSidebarItem{
+            .{ .id = "home", .label = "Home", .icon = "house.fill" },
+            .{ .id = "documents", .label = "Documents", .icon = "folder.fill" },
+            .{ .id = "downloads", .label = "Downloads", .icon = "arrow.down.circle.fill" },
+        }),
+    },
+    .{
+        .id = "icloud",
+        .title = "iCloud",
+        .items = @constCast(&[_]DynamicSidebarItem{
+            .{ .id = "icloud-drive", .label = "iCloud Drive", .icon = "externaldrive.fill.badge.icloud" },
+            .{ .id = "shared", .label = "Shared", .icon = "person.2.fill" },
+        }),
+    },
+    .{
+        .id = "tags",
+        .title = "Tags",
+        .items = @constCast(&[_]DynamicSidebarItem{
+            .{ .id = "tag-red", .label = "Red", .icon = "circle.fill", .tint_color = "#ef4444" },
+            .{ .id = "tag-blue", .label = "Blue", .icon = "circle.fill", .tint_color = "#3b82f6" },
+            .{ .id = "tag-green", .label = "Green", .icon = "circle.fill", .tint_color = "#22c55e" },
+        }),
+    },
+};
+
+/// Get the current sidebar sections (dynamic or default)
+fn getSidebarSections() []const DynamicSidebarSection {
+    if (dynamic_sections) |sections| {
+        return sections;
+    }
+    return &default_sections;
+}
+
+/// Parse JSON sidebar configuration
+fn parseSidebarConfig(json: []const u8) !void {
+    std.debug.print("[NativeSidebar] Parsing sidebar config ({d} bytes)\n", .{json.len});
+
+    // Use a simple allocator for parsing
+    var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    sidebar_allocator = arena.allocator();
+    const allocator = sidebar_allocator.?;
+
+    // Parse JSON using std.json
+    const parsed = std.json.parseFromSlice(std.json.Value, allocator, json, .{}) catch |err| {
+        std.debug.print("[NativeSidebar] JSON parse error: {}\n", .{err});
+        return err;
+    };
+    const root = parsed.value;
+
+    // Extract sections array
+    const sections_json = root.object.get("sections") orelse {
+        std.debug.print("[NativeSidebar] No 'sections' field in config\n", .{});
+        return;
+    };
+
+    const sections_array = sections_json.array;
+    var sections = try allocator.alloc(DynamicSidebarSection, sections_array.items.len);
+
+    for (sections_array.items, 0..) |section_val, i| {
+        const section_obj = section_val.object;
+
+        // Get section fields
+        const id = if (section_obj.get("id")) |v| v.string else "section";
+        const title = if (section_obj.get("title")) |v| v.string else "Section";
+        const collapsed = if (section_obj.get("collapsed")) |v| v.bool else false;
+
+        // Parse items
+        const items_json = section_obj.get("items") orelse continue;
+        const items_array = items_json.array;
+        var items = try allocator.alloc(DynamicSidebarItem, items_array.items.len);
+
+        for (items_array.items, 0..) |item_val, j| {
+            const item_obj = item_val.object;
+
+            items[j] = .{
+                .id = if (item_obj.get("id")) |v| v.string else "item",
+                .label = if (item_obj.get("label")) |v| v.string else "Item",
+                .icon = if (item_obj.get("icon")) |v| v.string else "doc",
+                .badge = if (item_obj.get("badge")) |v| switch (v) {
+                    .string => |s| s,
+                    .integer => |n| std.fmt.allocPrint(allocator, "{d}", .{n}) catch null,
+                    else => null,
+                } else null,
+                .tint_color = if (item_obj.get("tintColor")) |v| v.string else null,
+            };
+        }
+
+        sections[i] = .{
+            .id = id,
+            .title = title,
+            .items = items,
+            .collapsed = collapsed,
+        };
+    }
+
+    dynamic_sections = sections;
+    std.debug.print("[NativeSidebar] Parsed {d} sections from config\n", .{sections.len});
+}
+
+// NSOutlineViewDataSource: numberOfChildrenOfItem
+fn sidebarNumberOfChildren(
+    _: objc.id,
+    _: objc.SEL,
+    _: objc.id, // outlineView
+    item: objc.id,
+) callconv(.c) c_long {
+    const sections = getSidebarSections();
+
+    // If item is nil, return number of sections
+    if (item == null) {
+        return @intCast(sections.len);
+    }
+
+    // Check if it's a section (NSNumber with section index)
+    const isSection = msgSend1(item, "respondsToSelector:", sel("isSection"));
+    if (@intFromPtr(isSection) != 0) {
+        // It's a section wrapper, get the children count
+        const idx_obj = msgSend0(item, "sectionIndex");
+        const idx: usize = @intCast(@intFromPtr(idx_obj));
+        if (idx < sections.len) {
+            return @intCast(sections[idx].items.len);
+        }
+    }
+
+    // Regular items have no children
+    return 0;
+}
+
+// NSOutlineViewDataSource: child:ofItem
+fn sidebarChildOfItem(
+    _: objc.id,
+    _: objc.SEL,
+    _: objc.id, // outlineView
+    index: c_long,
+    item: objc.id,
+) callconv(.c) objc.id {
+    const sections = getSidebarSections();
+    const idx: usize = @intCast(index);
+
+    // If item is nil, return section wrapper
+    if (item == null) {
+        if (idx >= sections.len) return null;
+        return createSectionWrapper(idx);
+    }
+
+    // Check if it's a section
+    const isSection = msgSend1(item, "respondsToSelector:", sel("isSection"));
+    if (@intFromPtr(isSection) != 0) {
+        const section_idx_obj = msgSend0(item, "sectionIndex");
+        const section_idx: usize = @intCast(@intFromPtr(section_idx_obj));
+        if (section_idx < sections.len) {
+            const section = &sections[section_idx];
+            if (idx < section.items.len) {
+                return createItemWrapper(section_idx, idx);
+            }
+        }
+    }
+
+    return null;
+}
+
+// NSOutlineViewDataSource: isItemExpandable
+fn sidebarIsItemExpandable(
+    _: objc.id,
+    _: objc.SEL,
+    _: objc.id, // outlineView
+    item: objc.id,
+) callconv(.c) bool {
+    if (item == null) return false;
+
+    // Sections are expandable
+    const isSection = msgSend1(item, "respondsToSelector:", sel("isSection"));
+    return @intFromPtr(isSection) != 0;
+}
+
+// NSOutlineViewDelegate: isGroupItem (for section headers)
+fn sidebarIsGroupItem(
+    _: objc.id,
+    _: objc.SEL,
+    _: objc.id, // outlineView
+    item: objc.id,
+) callconv(.c) bool {
+    if (item == null) return false;
+
+    // Sections are group items
+    const isSection = msgSend1(item, "respondsToSelector:", sel("isSection"));
+    return @intFromPtr(isSection) != 0;
+}
+
+// NSOutlineViewDelegate: selectionDidChange - Handle selection events
+fn sidebarSelectionDidChange(
+    _: objc.id,
+    _: objc.SEL,
+    notification: objc.id,
+) callconv(.c) void {
+    // Get the outline view from the notification
+    const outlineView = msgSend0(notification, "object");
+    if (outlineView == null) return;
+
+    // Get selected row (returns NSInteger, can be -1 if no selection)
+    const rowIndex = msgSendNSInteger(outlineView, "selectedRow");
+
+    // -1 means no selection (NSNotFound or deselected)
+    if (rowIndex < 0) return;
+
+    // Get the item at the selected row
+    const item = msgSend1(outlineView, "itemAtRow:", rowIndex);
+    if (item == null) return;
+
+    // Check if it's a section (we don't send events for sections)
+    const isSection = msgSend1(item, "respondsToSelector:", sel("isSection"));
+    if (@intFromPtr(isSection) != 0) return;
+
+    // Get item indices
+    const isItem = msgSend1(item, "respondsToSelector:", sel("itemIndex"));
+    if (@intFromPtr(isItem) == 0) return;
+
+    const section_idx_obj = msgSend0(item, "sectionIndex");
+    const item_idx_obj = msgSend0(item, "itemIndex");
+    const section_idx: usize = @intCast(@intFromPtr(section_idx_obj));
+    const item_idx: usize = @intCast(@intFromPtr(item_idx_obj));
+
+    const sections = getSidebarSections();
+    if (section_idx >= sections.len) return;
+
+    const section = &sections[section_idx];
+    if (item_idx >= section.items.len) return;
+
+    const child = &section.items[item_idx];
+
+    std.debug.print("[NativeSidebar] Selection changed: section={s}, item={s}\n", .{ section.id, child.id });
+
+    // Send event to WebView if available
+    if (sidebar_webview != null) {
+        // Create JavaScript to dispatch sidebar selection event
+        var js_buf: [1024]u8 = undefined;
+        const js = std.fmt.bufPrint(&js_buf,
+            \\if (window.craft && window.craft._sidebarSelectHandler) {{
+            \\  window.craft._sidebarSelectHandler({{
+            \\    itemId: "{s}",
+            \\    sectionId: "{s}",
+            \\    item: {{ id: "{s}", label: "{s}", icon: "{s}" }}
+            \\  }});
+            \\}}
+        , .{ child.id, section.id, child.id, child.label, child.icon }) catch return;
+
+        const js_str = createNSString(js);
+        _ = msgSend2(sidebar_webview, "evaluateJavaScript:completionHandler:", js_str, @as(?*anyopaque, null));
+    }
+}
+
+// NSOutlineViewDelegate: shouldSelectItem - Prevent section headers from being selected
+fn sidebarShouldSelectItem(
+    _: objc.id,
+    _: objc.SEL,
+    _: objc.id, // outlineView
+    item: objc.id,
+) callconv(.c) bool {
+    if (item == null) return false;
+
+    // Section headers (group items) should not be selectable
+    const isSection = msgSend1(item, "respondsToSelector:", sel("isSection"));
+    if (@intFromPtr(isSection) != 0) {
+        return false; // Don't allow selection of section headers
+    }
+
+    return true; // Allow selection of regular items
+}
+
+// NSOutlineViewDelegate: viewForTableColumn:item
+fn sidebarViewForItem(
+    _: objc.id,
+    _: objc.SEL,
+    outlineView: objc.id,
+    _: objc.id, // tableColumn
+    item: objc.id,
+) callconv(.c) objc.id {
+    const NSTableCellView = getClass("NSTableCellView");
+    const NSTextField = getClass("NSTextField");
+    const NSImageView = getClass("NSImageView");
+    const NSImage = getClass("NSImage");
+
+    // Determine if this is a section or item
+    const isSection = msgSend1(item, "respondsToSelector:", sel("isSection"));
+    const isSectionItem = @intFromPtr(isSection) != 0;
+
+    // Get the appropriate identifier
+    const identifier = if (isSectionItem) createNSString("HeaderCell") else createNSString("DataCell");
+
+    // Try to reuse a cell
+    var cellView = msgSend2(outlineView, "makeViewWithIdentifier:owner:", identifier, @as(?*anyopaque, null));
+
+    if (cellView == null) {
+        // Create new cell view
+        const frame = NSRect{
+            .origin = .{ .x = 0, .y = 0 },
+            .size = .{ .width = 200, .height = 24 },
+        };
+
+        const cellAlloc = msgSend0(NSTableCellView, "alloc");
+        cellView = msgSend1Rect(cellAlloc, "initWithFrame:", frame);
+        _ = msgSend1(cellView, "setIdentifier:", identifier);
+
+        // Create text field
+        const textField = msgSend0(msgSend0(NSTextField, "alloc"), "init");
+        _ = msgSend1(textField, "setBezeled:", @as(c_int, 0));
+        _ = msgSend1(textField, "setDrawsBackground:", @as(c_int, 0));
+        _ = msgSend1(textField, "setEditable:", @as(c_int, 0));
+        _ = msgSend1(textField, "setSelectable:", @as(c_int, 0));
+
+        if (isSectionItem) {
+            // Section header style
+            const font = msgSend1(getClass("NSFont"), "boldSystemFontOfSize:", @as(f64, 11.0));
+            _ = msgSend1(textField, "setFont:", font);
+        } else {
+            // Regular item style
+            const font = msgSend1(getClass("NSFont"), "systemFontOfSize:", @as(f64, 13.0));
+            _ = msgSend1(textField, "setFont:", font);
+        }
+
+        _ = msgSend1(cellView, "setTextField:", textField);
+        _ = msgSend1(cellView, "addSubview:", textField);
+
+        // Create image view for icons (only for non-section items)
+        if (!isSectionItem) {
+            const imageView = msgSend0(msgSend0(NSImageView, "alloc"), "init");
+            _ = msgSend1(cellView, "setImageView:", imageView);
+            _ = msgSend1(cellView, "addSubview:", imageView);
+        }
+
+        // Set autoresizing
+        msgSendVoid1(textField, "setAutoresizingMask:", @as(c_ulong, 2)); // Width flexible
+    }
+
+    // Get the text field and set the text
+    const textField = msgSend0(cellView, "textField");
+    const sections = getSidebarSections();
+
+    if (isSectionItem) {
+        const section_idx_obj = msgSend0(item, "sectionIndex");
+        const section_idx: usize = @intCast(@intFromPtr(section_idx_obj));
+        if (section_idx < sections.len) {
+            const section = &sections[section_idx];
+            _ = msgSend1(textField, "setStringValue:", createNSString(section.title));
+        }
+    } else {
+        const isItem = msgSend1(item, "respondsToSelector:", sel("itemIndex"));
+        if (@intFromPtr(isItem) != 0) {
+            const section_idx_obj = msgSend0(item, "sectionIndex");
+            const item_idx_obj = msgSend0(item, "itemIndex");
+            const section_idx: usize = @intCast(@intFromPtr(section_idx_obj));
+            const item_idx: usize = @intCast(@intFromPtr(item_idx_obj));
+
+            if (section_idx < sections.len) {
+                const section = &sections[section_idx];
+                if (item_idx < section.items.len) {
+                    const child = &section.items[item_idx];
+                    _ = msgSend1(textField, "setStringValue:", createNSString(child.label));
+
+                    // Set the icon using SF Symbols
+                    const imageView = msgSend0(cellView, "imageView");
+                    if (imageView != null) {
+                        const symbolName = createNSString(child.icon);
+                        const image = msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", symbolName, @as(?*anyopaque, null));
+                        if (image != null) {
+                            _ = msgSend1(imageView, "setImage:", image);
+
+                            // Apply tint color if specified
+                            if (child.tint_color) |tint_hex| {
+                                if (createColorFromHex(tint_hex)) |tintColor| {
+                                    _ = msgSend1(imageView, "setContentTintColor:", tintColor);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return cellView;
+}
+
+// Custom row view class for Finder-style selection
+var sidebarRowViewClass: objc.Class = null;
+
+fn getSidebarRowViewClass() objc.Class {
+    if (sidebarRowViewClass != null) return sidebarRowViewClass;
+
+    const NSTableRowView = getClass("NSTableRowView");
+    sidebarRowViewClass = objc.objc_allocateClassPair(NSTableRowView, "CraftSidebarRowView", 0);
+
+    if (sidebarRowViewClass == null) {
+        std.debug.print("[NativeSidebar] Failed to create CraftSidebarRowView class\n", .{});
+        return NSTableRowView;
+    }
+
+    // Override drawSelectionInRect: to draw custom selection
+    _ = objc.class_addMethod(
+        sidebarRowViewClass,
+        sel("drawSelectionInRect:"),
+        @ptrCast(@constCast(&rowViewDrawSelection)),
+        "v@:{CGRect=dddd}",
+    );
+
+    // Override isEmphasized to return NO for subtle selection
+    _ = objc.class_addMethod(
+        sidebarRowViewClass,
+        sel("isEmphasized"),
+        @ptrCast(@constCast(&rowViewIsEmphasized)),
+        "B@:",
+    );
+
+    objc.objc_registerClassPair(sidebarRowViewClass);
+    std.debug.print("[NativeSidebar] Custom row view class registered\n", .{});
+
+    return sidebarRowViewClass;
+}
+
+// Custom drawing for selection - Finder-style subtle gray pill
+fn rowViewDrawSelection(
+    self: objc.id,
+    _: objc.SEL,
+    dirtyRect: NSRect,
+) callconv(.c) void {
+    _ = dirtyRect;
+
+    // Only draw if selected
+    const isSelected = msgSendBool(self, "isSelected");
+    if (!isSelected) return;
+
+    // Get the bounds
+    const bounds = msgSendRect(self, "bounds");
+
+    // Create a slightly inset rounded rect for the selection
+    const inset: f64 = 4.0;
+    const selectionRect = NSRect{
+        .origin = .{ .x = inset, .y = 1.0 },
+        .size = .{ .width = bounds.size.width - (inset * 2), .height = bounds.size.height - 2.0 },
+    };
+
+    // Create NSBezierPath for rounded rect
+    const NSBezierPath = getClass("NSBezierPath");
+    const cornerRadius: f64 = 6.0;
+    const path = msgSendRect2Double(NSBezierPath, "bezierPathWithRoundedRect:xRadius:yRadius:", selectionRect, cornerRadius, cornerRadius);
+
+    // Set the fill color - subtle gray like Finder
+    // Light mode: rgba(0, 0, 0, 0.06), Dark mode: rgba(255, 255, 255, 0.10)
+    const NSColor = getClass("NSColor");
+
+    // Use a color that works for both light and dark mode
+    // This creates a subtle selection similar to Finder
+    const fillColor = msgSend2(NSColor, "colorWithWhite:alpha:", @as(f64, 0.5), @as(f64, 0.12));
+
+    _ = msgSend0(fillColor, "setFill");
+    _ = msgSend0(path, "fill");
+}
+
+// Return NO for isEmphasized to get the subtle (non-key window) selection style
+fn rowViewIsEmphasized(
+    _: objc.id,
+    _: objc.SEL,
+) callconv(.c) bool {
+    return false;
+}
+
+// NSOutlineViewDelegate: rowViewForItem - Return custom row view
+fn sidebarRowViewForItem(
+    _: objc.id,
+    _: objc.SEL,
+    _: objc.id, // outlineView
+    _: objc.id, // item
+) callconv(.c) objc.id {
+    const rowViewClass = getSidebarRowViewClass();
+    const rowView = msgSend0(msgSend0(rowViewClass, "alloc"), "init");
+    return rowView;
+}
+
+// Global class for section wrappers
+var sidebarSectionWrapperClass: objc.Class = null;
+var sidebarItemWrapperClass: objc.Class = null;
+
+// Create a wrapper object for a section
+fn createSectionWrapper(section_idx: usize) objc.id {
+    if (sidebarSectionWrapperClass == null) {
+        const NSObject = getClass("NSObject");
+        sidebarSectionWrapperClass = objc.objc_allocateClassPair(NSObject, "CraftSidebarSectionWrapper", 0);
+
+        // Add isSection method that returns YES
+        _ = objc.class_addMethod(
+            sidebarSectionWrapperClass,
+            sel("isSection"),
+            @ptrCast(@constCast(&wrapperIsSection)),
+            "B@:",
+        );
+
+        // Add sectionIndex method
+        _ = objc.class_addMethod(
+            sidebarSectionWrapperClass,
+            sel("sectionIndex"),
+            @ptrCast(@constCast(&wrapperSectionIndex)),
+            "L@:",
+        );
+
+        // Add ivar to store section index
+        _ = objc.class_addIvar(sidebarSectionWrapperClass, "_sectionIdx", @sizeOf(usize), @alignOf(usize), "L");
+
+        objc.objc_registerClassPair(sidebarSectionWrapperClass);
+    }
+
+    const instance = msgSend0(msgSend0(sidebarSectionWrapperClass, "alloc"), "init");
+
+    // Store the section index using associated objects (simpler than ivar)
+    const key = @as(*const anyopaque, @ptrCast(&sidebarSectionWrapperClass));
+    const NSNumber = getClass("NSNumber");
+    const idx_num = msgSend1(NSNumber, "numberWithUnsignedLong:", @as(c_ulong, section_idx));
+    objc.objc_setAssociatedObject(instance, key, idx_num, objc.OBJC_ASSOCIATION_RETAIN);
+
+    return instance;
+}
+
+// Create a wrapper object for an item
+fn createItemWrapper(section_idx: usize, item_idx: usize) objc.id {
+    if (sidebarItemWrapperClass == null) {
+        const NSObject = getClass("NSObject");
+        sidebarItemWrapperClass = objc.objc_allocateClassPair(NSObject, "CraftSidebarItemWrapper", 0);
+
+        // Add itemIndex method
+        _ = objc.class_addMethod(
+            sidebarItemWrapperClass,
+            sel("itemIndex"),
+            @ptrCast(@constCast(&wrapperItemIndex)),
+            "L@:",
+        );
+
+        // Add sectionIndex method
+        _ = objc.class_addMethod(
+            sidebarItemWrapperClass,
+            sel("sectionIndex"),
+            @ptrCast(@constCast(&wrapperItemSectionIndex)),
+            "L@:",
+        );
+
+        objc.objc_registerClassPair(sidebarItemWrapperClass);
+    }
+
+    const instance = msgSend0(msgSend0(sidebarItemWrapperClass, "alloc"), "init");
+
+    // Store indices using associated objects
+    const section_key = @as(*const anyopaque, @ptrCast(&sidebarItemWrapperClass));
+    const item_key = @as(*const anyopaque, @ptrFromInt(@intFromPtr(section_key) + 1));
+
+    const NSNumber = getClass("NSNumber");
+    const section_num = msgSend1(NSNumber, "numberWithUnsignedLong:", @as(c_ulong, section_idx));
+    const item_num = msgSend1(NSNumber, "numberWithUnsignedLong:", @as(c_ulong, item_idx));
+
+    objc.objc_setAssociatedObject(instance, section_key, section_num, objc.OBJC_ASSOCIATION_RETAIN);
+    objc.objc_setAssociatedObject(instance, item_key, item_num, objc.OBJC_ASSOCIATION_RETAIN);
+
+    return instance;
+}
+
+// Wrapper methods
+fn wrapperIsSection(_: objc.id, _: objc.SEL) callconv(.c) bool {
+    return true;
+}
+
+fn wrapperSectionIndex(self: objc.id, _: objc.SEL) callconv(.c) c_ulong {
+    const key = @as(*const anyopaque, @ptrCast(&sidebarSectionWrapperClass));
+    const num = objc.objc_getAssociatedObject(self, key);
+    if (num == null) return 0;
+    const val = msgSend0(num, "unsignedLongValue");
+    return @intCast(@intFromPtr(val));
+}
+
+fn wrapperItemIndex(self: objc.id, _: objc.SEL) callconv(.c) c_ulong {
+    const section_key = @as(*const anyopaque, @ptrCast(&sidebarItemWrapperClass));
+    const item_key = @as(*const anyopaque, @ptrFromInt(@intFromPtr(section_key) + 1));
+    const num = objc.objc_getAssociatedObject(self, item_key);
+    if (num == null) return 0;
+    const val = msgSend0(num, "unsignedLongValue");
+    return @intCast(@intFromPtr(val));
+}
+
+fn wrapperItemSectionIndex(self: objc.id, _: objc.SEL) callconv(.c) c_ulong {
+    const section_key = @as(*const anyopaque, @ptrCast(&sidebarItemWrapperClass));
+    const num = objc.objc_getAssociatedObject(self, section_key);
+    if (num == null) return 0;
+    const val = msgSend0(num, "unsignedLongValue");
+    return @intCast(@intFromPtr(val));
+}
+
+/// Create a window with a native macOS sidebar (Finder-style)
+/// This uses NSSplitViewController, NSVisualEffectView, and NSOutlineView
+pub fn createWindowWithSidebar(
+    title: []const u8,
+    width: u32,
+    height: u32,
+    html: []const u8,
+    sidebar_width: u32,
+    sidebar_config_json: ?[]const u8,
+    style: WindowStyle,
+) !objc.id {
+    // Parse sidebar config if provided
+    if (sidebar_config_json) |json| {
+        parseSidebarConfig(json) catch |err| {
+            std.debug.print("[NativeSidebar] Failed to parse sidebar config: {}\n", .{err});
+        };
+    }
+    const NSApplication = getClass("NSApplication");
+    const NSWindow = getClass("NSWindow");
+    const NSString = getClass("NSString");
+    const NSSplitViewController = getClass("NSSplitViewController");
+    const NSSplitViewItem = getClass("NSSplitViewItem");
+    const NSViewController = getClass("NSViewController");
+    const NSVisualEffectView = getClass("NSVisualEffectView");
+    const NSScrollView = getClass("NSScrollView");
+    const NSOutlineView = getClass("NSOutlineView");
+    const NSTableColumn = getClass("NSTableColumn");
+    const WKWebView = getClass("WKWebView");
+    const WKWebViewConfiguration = getClass("WKWebViewConfiguration");
+    const WKPreferences = getClass("WKPreferences");
+    const WKUserContentController = getClass("WKUserContentController");
+
+    _ = NSApplication;
+    std.debug.print("[NativeSidebar] Creating window with native macOS sidebar...\n", .{});
+
+    // Create window frame
+    const frame = NSRect{
+        .origin = .{
+            .x = if (style.x) |x| @as(f64, @floatFromInt(x)) else 200,
+            .y = if (style.y) |y| @as(f64, @floatFromInt(y)) else 200,
+        },
+        .size = .{ .width = @as(f64, @floatFromInt(width)), .height = @as(f64, @floatFromInt(height)) },
+    };
+
+    // Style mask with full-size content view for proper toolbar integration
+    var styleMask: c_ulong = 1 | 2 | 4 | 8; // Titled, Closable, Miniaturizable, Resizable
+    styleMask |= 32768; // NSWindowStyleMaskFullSizeContentView
+
+    const backing: c_ulong = 2;
+    const defer_flag: bool = false;
+
+    // Create window
+    const window_alloc = msgSend0(NSWindow, "alloc");
+    const window = msgSend4(window_alloc, "initWithContentRect:styleMask:backing:defer:", frame, styleMask, backing, defer_flag);
+
+    // Set window title
+    const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
+    defer std.heap.c_allocator.free(title_cstr);
+    const title_str = msgSend1(msgSend0(NSString, "alloc"), "initWithUTF8String:", title_cstr.ptr);
+    _ = msgSend1(window, "setTitle:", title_str);
+
+    // Configure for native sidebar appearance
+    _ = msgSend1(window, "setTitlebarAppearsTransparent:", @as(c_int, 1));
+    _ = msgSend1(window, "setTitleVisibility:", @as(c_int, 1)); // NSWindowTitleHidden = 1
+
+    // Create NSToolbar - this is REQUIRED for traffic lights to appear in sidebar
+    const NSToolbar = getClass("NSToolbar");
+    const toolbar_id = createNSString("MainToolbar");
+    const toolbar_alloc = msgSend0(NSToolbar, "alloc");
+    const toolbar = msgSend1(toolbar_alloc, "initWithIdentifier:", toolbar_id);
+    _ = msgSend1(toolbar, "setShowsBaselineSeparator:", @as(c_int, 0));
+    _ = msgSend1(window, "setToolbar:", toolbar);
+    _ = msgSend1(window, "setToolbarStyle:", @as(c_long, 3)); // NSWindowToolbarStyleUnifiedCompact = 3
+
+    std.debug.print("[NativeSidebar] Window created with toolbar for traffic lights\n", .{});
+
+    // ========================================
+    // Create NSSplitViewController
+    // ========================================
+    const splitVC_alloc = msgSend0(NSSplitViewController, "alloc");
+    const splitVC = msgSend0(splitVC_alloc, "init");
+
+    // ========================================
+    // Create Sidebar View Controller
+    // ========================================
+
+    // Create NSVisualEffectView for sidebar vibrancy
+    const sidebarFrame = NSRect{
+        .origin = .{ .x = 0, .y = 0 },
+        .size = .{ .width = @as(f64, @floatFromInt(sidebar_width)), .height = @as(f64, @floatFromInt(height)) },
+    };
+
+    const visualEffect_alloc = msgSend0(NSVisualEffectView, "alloc");
+    const visualEffectView = msgSend1Rect(visualEffect_alloc, "initWithFrame:", sidebarFrame);
+
+    // Set material to sidebar (NSVisualEffectMaterialSidebar = 7)
+    _ = msgSend1(visualEffectView, "setMaterial:", @as(c_long, 7));
+    // Set blending mode to behind window (NSVisualEffectBlendingModeBehindWindow = 0)
+    _ = msgSend1(visualEffectView, "setBlendingMode:", @as(c_long, 0));
+    // Set state to follow window (NSVisualEffectStateFollowsWindowActiveState = 0)
+    _ = msgSend1(visualEffectView, "setState:", @as(c_long, 0));
+
+    std.debug.print("[NativeSidebar] Created NSVisualEffectView with sidebar material\n", .{});
+
+    // Create NSScrollView for the outline view
+    const scrollView_alloc = msgSend0(NSScrollView, "alloc");
+    const scrollView = msgSend1Rect(scrollView_alloc, "initWithFrame:", sidebarFrame);
+    _ = msgSend1(scrollView, "setHasVerticalScroller:", @as(c_int, 1));
+    _ = msgSend1(scrollView, "setHasHorizontalScroller:", @as(c_int, 0));
+    _ = msgSend1(scrollView, "setAutohidesScrollers:", @as(c_int, 1));
+    _ = msgSend1(scrollView, "setBorderType:", @as(c_long, 0)); // NSNoBorder = 0
+    _ = msgSend1(scrollView, "setDrawsBackground:", @as(c_int, 0)); // Transparent for vibrancy
+
+    // Create NSOutlineView with source list style
+    const outlineView_alloc = msgSend0(NSOutlineView, "alloc");
+    const outlineView = msgSend1Rect(outlineView_alloc, "initWithFrame:", sidebarFrame);
+
+    // Configure source list style (NSTableViewStyleSourceList)
+    _ = msgSend1(outlineView, "setStyle:", @as(c_long, 1)); // NSTableViewStyleSourceList = 1
+    _ = msgSend1(outlineView, "setSelectionHighlightStyle:", @as(c_long, 1)); // NSTableViewSelectionHighlightStyleSourceList = 1
+    _ = msgSend1(outlineView, "setRowSizeStyle:", @as(c_long, 2)); // NSTableViewRowSizeStyleDefault = 2
+    _ = msgSend1(outlineView, "setFloatsGroupRows:", @as(c_int, 1));
+    _ = msgSend1(outlineView, "setIndentationPerLevel:", @as(f64, 13.0));
+    _ = msgSend1(outlineView, "setHeaderView:", @as(?*anyopaque, null)); // No header
+
+    // Create table column
+    const columnId = createNSString("SidebarColumn");
+    const column_alloc = msgSend0(NSTableColumn, "alloc");
+    const column = msgSend1(column_alloc, "initWithIdentifier:", columnId);
+    _ = msgSend1(column, "setWidth:", @as(f64, @floatFromInt(sidebar_width - 20)));
+    _ = msgSend1(outlineView, "addTableColumn:", column);
+    _ = msgSend1(outlineView, "setOutlineTableColumn:", column);
+
+    std.debug.print("[NativeSidebar] Created NSOutlineView with source list style\n", .{});
+
+    // Setup data source and delegate for the outline view
+    const dataSource = try setupSidebarDataSource();
+    _ = msgSend1(outlineView, "setDataSource:", dataSource);
+    _ = msgSend1(outlineView, "setDelegate:", dataSource);
+
+    // Reload data and expand all sections
+    _ = msgSend0(outlineView, "reloadData");
+
+    // Expand all root items (sections)
+    const numSections = msgSend0(outlineView, "numberOfRows");
+    const numSectionsInt: c_long = @intCast(@intFromPtr(numSections));
+    std.debug.print("[NativeSidebar] Number of rows after reload: {d}\n", .{numSectionsInt});
+
+    // Expand root items
+    var i: c_long = 0;
+    while (i < numSectionsInt) : (i += 1) {
+        const item = msgSend1(outlineView, "itemAtRow:", i);
+        if (item != null) {
+            _ = msgSend1(outlineView, "expandItem:", item);
+        }
+    }
+
+    std.debug.print("[NativeSidebar] Data source configured with demo items\n", .{});
+
+    // Set outline view as document view of scroll view
+    _ = msgSend1(scrollView, "setDocumentView:", outlineView);
+
+    // Add scroll view to visual effect view
+    _ = msgSend1(visualEffectView, "addSubview:", scrollView);
+    // Set autoresizing mask for scroll view
+    msgSendVoid1(scrollView, "setAutoresizingMask:", @as(c_ulong, 2 | 16)); // Width + Height
+
+    // Create sidebar view controller
+    const sidebarVC_alloc = msgSend0(NSViewController, "alloc");
+    const sidebarVC = msgSend0(sidebarVC_alloc, "init");
+    _ = msgSend1(sidebarVC, "setView:", visualEffectView);
+
+    // Create sidebar split view item
+    const sidebarItem = msgSend1(NSSplitViewItem, "sidebarWithViewController:", sidebarVC);
+    _ = msgSend1(sidebarItem, "setCanCollapse:", @as(c_int, 1));
+    _ = msgSend1(sidebarItem, "setMinimumThickness:", @as(f64, 180.0));
+    _ = msgSend1(sidebarItem, "setMaximumThickness:", @as(f64, 320.0));
+
+    // Add sidebar to split view controller
+    _ = msgSend1(splitVC, "addSplitViewItem:", sidebarItem);
+
+    std.debug.print("[NativeSidebar] Sidebar view controller configured\n", .{});
+
+    // ========================================
+    // Create Content (WebView) View Controller
+    // ========================================
+
+    const contentFrame = NSRect{
+        .origin = .{ .x = 0, .y = 0 },
+        .size = .{ .width = @as(f64, @floatFromInt(width - sidebar_width)), .height = @as(f64, @floatFromInt(height)) },
+    };
+
+    // Create WebView configuration
+    const config_alloc = msgSend0(WKWebViewConfiguration, "alloc");
+    const config = msgSend0(config_alloc, "init");
+
+    const prefs_alloc = msgSend0(WKPreferences, "alloc");
+    const prefs = msgSend0(prefs_alloc, "init");
+    msgSendVoid1(prefs, "setJavaScriptEnabled:", true);
+
+    // Enable developer extras
+    const key_str = createNSString("developerExtrasEnabled");
+    const value_obj = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
+    msgSendVoid2(prefs, "setValue:forKey:", value_obj, key_str);
+    _ = msgSend1(config, "setPreferences:", prefs);
+
+    // Set up user content controller
+    const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
+    setupScriptMessageHandler(userContentController) catch |err| {
+        std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
+    };
+    _ = msgSend1(config, "setUserContentController:", userContentController);
+
+    // Create WKWebView
+    const webview_alloc = msgSend0(WKWebView, "alloc");
+    const webview = msgSend2(webview_alloc, "initWithFrame:configuration:", contentFrame, config);
+
+    // Setup UI delegate
+    setupUIDelegate(webview) catch |err| {
+        std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
+    };
+
+    // Load HTML content with bridge injection
+    const bridge_js = getCraftBridgeScript();
+    const native_ui_js = getNativeUIScript();
+
+    var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, html.len + bridge_js.len + native_ui_js.len + 100);
+    defer modified_html.deinit(std.heap.c_allocator);
+
+    if (std.mem.indexOf(u8, html, "</head>")) |head_pos| {
+        try modified_html.appendSlice(std.heap.c_allocator, html[0..head_pos]);
+        try modified_html.appendSlice(std.heap.c_allocator, "<script>");
+        try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
+        try modified_html.appendSlice(std.heap.c_allocator, "</script><script>");
+        try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
+        try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+        try modified_html.appendSlice(std.heap.c_allocator, html[head_pos..]);
+    } else {
+        try modified_html.appendSlice(std.heap.c_allocator, "<script>");
+        try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
+        try modified_html.appendSlice(std.heap.c_allocator, "</script><script>");
+        try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
+        try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+        try modified_html.appendSlice(std.heap.c_allocator, html);
+    }
+
+    const final_html = try modified_html.toOwnedSlice(std.heap.c_allocator);
+    defer std.heap.c_allocator.free(final_html);
+
+    const html_cstr = try std.heap.c_allocator.dupeZ(u8, final_html);
+    defer std.heap.c_allocator.free(html_cstr);
+    const html_str = msgSend1(msgSend0(NSString, "alloc"), "initWithUTF8String:", html_cstr.ptr);
+    const base_url_string = createNSString("http://localhost/");
+    const base_url = msgSend1(getClass("NSURL"), "URLWithString:", base_url_string);
+    _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, base_url);
+
+    std.debug.print("[NativeSidebar] WebView created and HTML loaded\n", .{});
+
+    // Store WebView reference for sidebar events
+    sidebar_webview = webview;
+
+    // Create content view controller
+    const contentVC_alloc = msgSend0(NSViewController, "alloc");
+    const contentVC = msgSend0(contentVC_alloc, "init");
+    _ = msgSend1(contentVC, "setView:", webview);
+
+    // Create content split view item
+    const contentItem = msgSend1(NSSplitViewItem, "contentListWithViewController:", contentVC);
+    _ = msgSend1(splitVC, "addSplitViewItem:", contentItem);
+
+    std.debug.print("[NativeSidebar] Content view controller configured\n", .{});
+
+    // ========================================
+    // Set split view controller as window's content
+    // ========================================
+
+    _ = msgSend1(window, "setContentViewController:", splitVC);
+
+    // Apply dark mode if specified
+    if (style.dark_mode) |is_dark| {
+        setAppearance(window, is_dark);
+    }
+
+    // Center window
+    if (style.x == null or style.y == null) {
+        msgSendVoid0(window, "center");
+    }
+
+    // Store references
+    if (webview) |wv| {
+        setGlobalWebView(wv);
+        const tray_menu = @import("tray_menu.zig");
+        tray_menu.setGlobalWebView(wv);
+        if (window) |win| {
+            tray_menu.setGlobalWindow(win);
+        }
+    }
+
+    // Setup bridge handlers
+    setupBridgeHandlers(std.heap.c_allocator, null, window) catch |err| {
+        std.debug.print("[Bridge] Failed to setup bridge handlers: {}\n", .{err});
+    };
+
+    std.debug.print("[NativeSidebar] ✓ Window with native sidebar created successfully\n", .{});
+
+    return window;
+}
+
+// Helper to send message with NSRect parameter
+fn msgSend1Rect(target: anytype, selector: [*:0]const u8, rect: NSRect) objc.id {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, NSRect) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector), rect);
 }
 
 // Helper to create NSString

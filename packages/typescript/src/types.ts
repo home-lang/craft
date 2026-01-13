@@ -96,6 +96,277 @@ export interface WindowOptions {
    * @default false
    */
   titlebarHidden?: boolean
+
+  /**
+   * Use native macOS sidebar (Finder-style with vibrancy)
+   * Creates a split view with NSOutlineView sidebar and WebView content
+   * @default false
+   */
+  nativeSidebar?: boolean
+
+  /**
+   * Width of the native sidebar in pixels
+   * Only used when nativeSidebar is true
+   * @default 220
+   */
+  sidebarWidth?: number
+
+  /**
+   * Sidebar configuration (sections and items)
+   * Only used when nativeSidebar is true
+   */
+  sidebarConfig?: SidebarConfig
+}
+
+// ============================================================================
+// Native Sidebar Configuration Types
+// ============================================================================
+
+/**
+ * Sidebar item configuration
+ */
+export interface SidebarItem {
+  /**
+   * Unique identifier for the item
+   */
+  id: string
+
+  /**
+   * Display label
+   */
+  label: string
+
+  /**
+   * SF Symbol name (macOS) or icon path
+   * @example "house.fill", "folder", "star.fill"
+   */
+  icon?: string
+
+  /**
+   * Badge text (e.g., unread count)
+   */
+  badge?: string | number
+
+  /**
+   * Tint color for the icon (hex color)
+   * Useful for tag colors
+   * @example "#ff0000"
+   */
+  tintColor?: string
+
+  /**
+   * Whether this item is currently selected
+   */
+  selected?: boolean
+
+  /**
+   * Whether this item is disabled
+   */
+  disabled?: boolean
+
+  /**
+   * Nested items (for expandable sections)
+   */
+  children?: SidebarItem[]
+
+  /**
+   * Custom data to pass to event handlers
+   */
+  data?: Record<string, unknown>
+}
+
+/**
+ * Sidebar section configuration
+ */
+export interface SidebarSection {
+  /**
+   * Unique identifier for the section
+   */
+  id: string
+
+  /**
+   * Section header text
+   */
+  title: string
+
+  /**
+   * Whether section is collapsible
+   * @default true
+   */
+  collapsible?: boolean
+
+  /**
+   * Whether section is initially collapsed
+   * @default false
+   */
+  collapsed?: boolean
+
+  /**
+   * Items in this section
+   */
+  items: SidebarItem[]
+}
+
+/**
+ * Complete sidebar configuration
+ */
+export interface SidebarConfig {
+  /**
+   * Sections to display in the sidebar
+   */
+  sections: SidebarSection[]
+
+  /**
+   * Minimum sidebar width
+   * @default 180
+   */
+  minWidth?: number
+
+  /**
+   * Maximum sidebar width
+   * @default 320
+   */
+  maxWidth?: number
+
+  /**
+   * Whether sidebar can be collapsed
+   * @default true
+   */
+  canCollapse?: boolean
+
+  /**
+   * Search placeholder text (shows search field if provided)
+   */
+  searchPlaceholder?: string
+
+  /**
+   * Header content (optional custom header)
+   */
+  header?: {
+    title?: string
+    subtitle?: string
+  }
+}
+
+/**
+ * Sidebar selection event
+ */
+export interface SidebarSelectEvent {
+  /**
+   * ID of the selected item
+   */
+  itemId: string
+
+  /**
+   * ID of the section containing the item
+   */
+  sectionId: string
+
+  /**
+   * The full item configuration
+   */
+  item: SidebarItem
+
+  /**
+   * Custom data from the item
+   */
+  data?: Record<string, unknown>
+}
+
+/**
+ * Sidebar API (available as window.craft.sidebar in WebView)
+ */
+export interface CraftSidebarAPI {
+  /**
+   * Update sidebar configuration
+   * @param config - New sidebar configuration
+   */
+  setConfig(config: SidebarConfig): Promise<void>
+
+  /**
+   * Update a specific section
+   * @param sectionId - Section ID to update
+   * @param section - New section configuration
+   */
+  updateSection(sectionId: string, section: Partial<SidebarSection>): Promise<void>
+
+  /**
+   * Update a specific item
+   * @param itemId - Item ID to update
+   * @param item - New item configuration
+   */
+  updateItem(itemId: string, item: Partial<SidebarItem>): Promise<void>
+
+  /**
+   * Add an item to a section
+   * @param sectionId - Section to add to
+   * @param item - Item to add
+   * @param index - Optional index to insert at
+   */
+  addItem(sectionId: string, item: SidebarItem, index?: number): Promise<void>
+
+  /**
+   * Remove an item
+   * @param itemId - Item ID to remove
+   */
+  removeItem(itemId: string): Promise<void>
+
+  /**
+   * Select an item programmatically
+   * @param itemId - Item ID to select
+   */
+  selectItem(itemId: string): Promise<void>
+
+  /**
+   * Get the currently selected item ID
+   */
+  getSelectedItem(): Promise<string | null>
+
+  /**
+   * Set badge for an item
+   * @param itemId - Item ID
+   * @param badge - Badge text or number (null to remove)
+   */
+  setBadge(itemId: string, badge: string | number | null): Promise<void>
+
+  /**
+   * Expand a section
+   * @param sectionId - Section ID to expand
+   */
+  expandSection(sectionId: string): Promise<void>
+
+  /**
+   * Collapse a section
+   * @param sectionId - Section ID to collapse
+   */
+  collapseSection(sectionId: string): Promise<void>
+
+  /**
+   * Toggle section expanded state
+   * @param sectionId - Section ID to toggle
+   */
+  toggleSection(sectionId: string): Promise<void>
+
+  /**
+   * Register selection change handler
+   * @param callback - Function called when selection changes
+   * @returns Unsubscribe function
+   */
+  onSelect(callback: (event: SidebarSelectEvent) => void): () => void
+
+  /**
+   * Register search handler
+   * @param callback - Function called when search text changes
+   * @returns Unsubscribe function
+   */
+  onSearch(callback: (query: string) => void): () => void
+
+  /**
+   * Register context menu handler
+   * @param callback - Function called on right-click
+   * @returns Unsubscribe function
+   */
+  onContextMenu(callback: (event: SidebarSelectEvent) => void): () => void
 }
 
 export interface AppConfig {
@@ -675,6 +946,11 @@ export interface CraftBridgeAPI {
    * HTTP client APIs
    */
   http?: CraftHttpAPI
+
+  /**
+   * Native sidebar APIs (macOS)
+   */
+  sidebar?: CraftSidebarAPI
 
   /**
    * Crypto APIs

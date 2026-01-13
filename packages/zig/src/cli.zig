@@ -20,6 +20,9 @@ pub const WindowOptions = struct {
     hide_dock_icon: bool = false,
     menubar_only: bool = false,
     titlebar_hidden: bool = false,
+    native_sidebar: bool = false,
+    sidebar_width: u32 = 220,
+    sidebar_config: ?[]const u8 = null,
 };
 
 pub const CliError = error{
@@ -127,6 +130,16 @@ pub fn parseArgs(allocator: std.mem.Allocator) !WindowOptions {
             options.menubar_only = true;
             options.system_tray = true; // Menubar-only implies system tray
             options.hide_dock_icon = true; // And hiding dock icon
+        } else if (std.mem.eql(u8, arg, "--native-sidebar")) {
+            options.native_sidebar = true;
+        } else if (std.mem.eql(u8, arg, "--sidebar-width")) {
+            i += 1;
+            if (i >= args.len) return CliError.MissingValue;
+            options.sidebar_width = std.fmt.parseInt(u32, args[i], 10) catch return CliError.InvalidNumber;
+        } else if (std.mem.eql(u8, arg, "--sidebar-config")) {
+            i += 1;
+            if (i >= args.len) return CliError.MissingValue;
+            options.sidebar_config = try allocator.dupe(u8, args[i]);
         } else if (!std.mem.startsWith(u8, arg, "--")) {
             // Treat as positional URL argument
             if (options.url == null) {
@@ -180,6 +193,8 @@ fn printHelp() void {
         \\      --menubar-only       Menubar-only mode (no window, system tray only)
         \\      --no-devtools        Disable WebKit DevTools
         \\      --titlebar-hidden    Hide window titlebar
+        \\      --native-sidebar     Use native macOS sidebar (Finder-style)
+        \\      --sidebar-width <W>  Sidebar width in pixels (default: 220)
         \\
         \\Debugging:
         \\      --debug              Enable debug output
@@ -197,6 +212,7 @@ fn printHelp() void {
         \\  craft http://localhost:3000 --transparent --always-on-top
         \\  craft http://localhost:3000 --dark --hot-reload
         \\  craft http://localhost:3000 --system-tray --light
+        \\  craft http://localhost:3000 --native-sidebar --sidebar-width 250
         \\
         \\For more information, visit: https://github.com/stacksjs/craft
         \\

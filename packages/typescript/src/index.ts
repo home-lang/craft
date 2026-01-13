@@ -227,6 +227,13 @@ export class CraftApp {
     } else {
       console.log('[TS DEBUG] ✗✗✗ titlebarHidden is falsy, NOT adding to args')
     }
+    if (window?.nativeSidebar) {
+      args.push('--native-sidebar')
+      if (window?.sidebarWidth)
+        args.push('--sidebar-width', String(window.sidebarWidth))
+      if (window?.sidebarConfig)
+        args.push('--sidebar-config', JSON.stringify(window.sidebarConfig))
+    }
 
     // CRITICAL DEBUG: Log final args array
     console.log('\n[TS DEBUG] ========================================')

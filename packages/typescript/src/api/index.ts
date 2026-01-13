@@ -316,3 +316,22 @@ export type {
   MicrophoneOptions,
   MediaStreamOptions
 } from './media'
+
+// Cross-Platform Sidebar API (macOS, Windows, Linux)
+export {
+  Sidebar,
+  createSidebar,
+  createFileSidebar,
+  createSettingsSidebar,
+  sidebar
+} from './sidebar'
+export type {
+  SidebarItem,
+  SidebarSection,
+  SidebarConfig,
+  MacOSSidebarConfig,
+  WindowsSidebarConfig,
+  LinuxSidebarConfig,
+  SidebarSelectEvent,
+  SidebarSearchEvent
+} from './sidebar'
