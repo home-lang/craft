@@ -102,8 +102,15 @@ jobs:
           chmod +x bin/craft-* || true
           ls -lh bin/
 
-      - name: Install Bun
+      - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup pantry
+        uses: stacksjs/pantry@v0.7
+        with:
+          setup-only: 'true'
 
       - name: Update package version
         run: |
@@ -116,7 +123,7 @@ jobs:
           "
 
       - name: Publish to npm
-        run: bun publish --access public
+        run: pantry publish --access public
         env:
           BUN_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -142,7 +149,7 @@ jobs:
           ls -lh bin/
 
       - name: Create GitHub Release
-        uses: stacksjs/action-releaser@v1.2.6
+        uses: stacksjs/action-releaser@v1.2.7
         with:
           files: |
             bin/craft-linux-x64
