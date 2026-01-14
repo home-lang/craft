@@ -1186,11 +1186,13 @@ fn rowViewDrawSelection(
     // Get the bounds
     const bounds = msgSendRect(self, "bounds");
 
-    // Create a slightly inset rounded rect for the selection
-    const inset: f64 = 4.0;
+    // Create an inset rounded rect for the selection - macOS Tahoe style
+    // More horizontal padding for narrower pill appearance
+    const horizontal_inset: f64 = 8.0; // Left/right padding
+    const vertical_inset: f64 = 2.0; // Top/bottom padding
     const selectionRect = NSRect{
-        .origin = .{ .x = inset, .y = 1.0 },
-        .size = .{ .width = bounds.size.width - (inset * 2), .height = bounds.size.height - 2.0 },
+        .origin = .{ .x = horizontal_inset, .y = vertical_inset },
+        .size = .{ .width = bounds.size.width - (horizontal_inset * 2), .height = bounds.size.height - (vertical_inset * 2) },
     };
 
     // Create NSBezierPath for rounded rect
