@@ -258,12 +258,26 @@ pub const App = struct {
         }
     }
 
-    /// Create a window with a native macOS sidebar (Finder-style with vibrancy)
+    /// Create a window with a native macOS sidebar (Finder-style with vibrancy) - HTML mode
     pub fn createWindowWithNativeSidebar(self: *Self, title: []const u8, width: u32, height: u32, html: []const u8, sidebar_width: u32, sidebar_config: ?[]const u8, style: WindowStyle) !*Window {
         if (builtin.os.tag == .macos) {
             const native_window = try macos.createWindowWithSidebar(title, width, height, html, sidebar_width, sidebar_config, style);
             const window = try self.allocator.create(Window);
             window.* = Window.init(title, width, height, html);
+            window.native_handle = @ptrCast(native_window);
+            try self.windows.append(self.allocator, window);
+            return window;
+        } else {
+            return error.UnsupportedPlatform;
+        }
+    }
+
+    /// Create a window with a native macOS sidebar (Finder-style with vibrancy) - URL mode
+    pub fn createWindowWithNativeSidebarURL(self: *Self, title: []const u8, width: u32, height: u32, url: []const u8, sidebar_width: u32, sidebar_config: ?[]const u8, style: WindowStyle) !*Window {
+        if (builtin.os.tag == .macos) {
+            const native_window = try macos.createWindowWithSidebarURL(title, width, height, url, sidebar_width, sidebar_config, style);
+            const window = try self.allocator.create(Window);
+            window.* = Window.init(title, width, height, url);
             window.native_handle = @ptrCast(native_window);
             try self.windows.append(self.allocator, window);
             return window;

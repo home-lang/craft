@@ -33,10 +33,42 @@ pub fn main() !void {
     app.initPlatform();
 
     // Determine what to load
-    if (options.native_sidebar and options.html != null) {
-        // Create window with native macOS sidebar (Finder-style)
+    if (options.native_sidebar and options.url != null) {
+        // Create window with native macOS sidebar loading a URL
+        const url = options.url.?;
+        std.debug.print("\n⚡ Creating window with native macOS sidebar (URL mode)\n", .{});
+        std.debug.print("   Title: {s}\n", .{options.title});
+        std.debug.print("   URL: {s}\n", .{url});
+        std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
+        std.debug.print("   Sidebar Width: {d}px\n", .{options.sidebar_width});
+        if (options.dark_mode) |is_dark| std.debug.print("   Theme: {s}\n", .{if (is_dark) "Dark" else "Light"});
+        std.debug.print("\n", .{});
+
+        _ = try app.createWindowWithNativeSidebarURL(
+            options.title,
+            options.width,
+            options.height,
+            url,
+            options.sidebar_width,
+            options.sidebar_config,
+            .{
+                .frameless = options.frameless,
+                .transparent = options.transparent,
+                .always_on_top = options.always_on_top,
+                .resizable = options.resizable,
+                .fullscreen = options.fullscreen,
+                .x = options.x,
+                .y = options.y,
+                .dark_mode = options.dark_mode,
+                .enable_hot_reload = options.hot_reload,
+                .hide_dock_icon = options.hide_dock_icon,
+                .titlebar_hidden = options.titlebar_hidden,
+            },
+        );
+    } else if (options.native_sidebar and options.html != null) {
+        // Create window with native macOS sidebar (inline HTML mode)
         const html = options.html.?;
-        std.debug.print("\n⚡ Creating window with native macOS sidebar\n", .{});
+        std.debug.print("\n⚡ Creating window with native macOS sidebar (HTML mode)\n", .{});
         std.debug.print("   Title: {s}\n", .{options.title});
         std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
         std.debug.print("   Sidebar Width: {d}px\n", .{options.sidebar_width});
