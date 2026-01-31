@@ -29,3 +29,5 @@ release/
 
 # Logs
 *.log
+/docs/.bunpress
+.env

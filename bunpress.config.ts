@@ -84,4 +84,13 @@ export default {
       provider: 'local',
     },
   },
+
+  cloud: {
+    driver: 'aws',
+    region: 'us-east-1',
+    domain: 'craft-native.org',
+    dnsProvider: {
+      provider: 'porkbun',
+    },
+  },
 } satisfies BunPressConfig
