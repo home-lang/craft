@@ -56,6 +56,11 @@ pub const NSSize = extern struct {
     height: f64,
 };
 
+pub const NSRange = extern struct {
+    location: c_ulong,
+    length: c_ulong,
+};
+
 // Window style options
 pub const WindowStyle = struct {
     frameless: bool = false,
@@ -133,6 +138,12 @@ pub fn msgSend3(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: a
     const typed_arg2: Arg2Type = if (@TypeOf(arg2) == @TypeOf(null)) null else arg2;
     const typed_arg3: Arg3Type = if (@TypeOf(arg3) == @TypeOf(null)) null else arg3;
     return msg(target, sel(selector), typed_arg1, typed_arg2, typed_arg3);
+}
+
+/// Message send with 2 args + NSRange (for addAttribute:value:range:)
+pub fn msgSend3Range(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: anytype, range: NSRange) void {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(arg1), @TypeOf(arg2), NSRange) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
+    msg(target, sel(selector), arg1, arg2, range);
 }
 
 /// Message send that returns NSRect (for methods like -frame)
@@ -934,6 +945,7 @@ fn sidebarIsItemExpandable(
 }
 
 // NSOutlineViewDelegate: isGroupItem (for section headers)
+// Returns true for sections to get the right-side disclosure chevron
 fn sidebarIsGroupItem(
     _: objc.id,
     _: objc.SEL,
@@ -942,7 +954,7 @@ fn sidebarIsGroupItem(
 ) callconv(.c) bool {
     if (item == null) return false;
 
-    // Sections are group items
+    // Sections are group items - this gives us the right-side chevron
     const isSection = msgSend1(item, "respondsToSelector:", sel("isSection"));
     return @intFromPtr(isSection) != 0;
 }
@@ -1081,15 +1093,19 @@ fn sidebarViewForItem(
         _ = msgSend1(textField, "setLineBreakMode:", @as(c_long, 4)); // NSLineBreakByTruncatingTail
 
         if (isSectionItem) {
-            // Section header style - uppercase, smaller, muted color
+            // Section header style - uppercase, smaller, muted light color
             const font = msgSend1(getClass("NSFont"), "boldSystemFontOfSize:", @as(f64, 11.0));
             _ = msgSend1(textField, "setFont:", font);
-            const grayColor = msgSend0(getClass("NSColor"), "secondaryLabelColor");
-            _ = msgSend1(textField, "setTextColor:", grayColor);
+            // Light gray for section headers on dark background
+            const sectionColor = msgSend4(getClass("NSColor"), "colorWithRed:green:blue:alpha:",
+                @as(f64, 0.6), @as(f64, 0.6), @as(f64, 0.7), @as(f64, 1.0));
+            _ = msgSend1(textField, "setTextColor:", sectionColor);
         } else {
-            // Regular item style
+            // Regular item style - WHITE text on dark background
             const font = msgSend1(getClass("NSFont"), "systemFontOfSize:", @as(f64, 13.0));
             _ = msgSend1(textField, "setFont:", font);
+            const whiteColor = msgSend0(getClass("NSColor"), "whiteColor");
+            _ = msgSend1(textField, "setTextColor:", whiteColor);
         }
 
         _ = msgSend1(cellView, "setTextField:", textField);
@@ -1114,13 +1130,35 @@ fn sidebarViewForItem(
     const textField = msgSend0(cellView, "textField");
     const sections = getSidebarSections();
 
+    // Always set text color (in case cell is reused from different type)
     if (isSectionItem) {
+        // Section header - light gray text
+        const sectionColor = msgSend4(getClass("NSColor"), "colorWithRed:green:blue:alpha:",
+            @as(f64, 0.6), @as(f64, 0.6), @as(f64, 0.7), @as(f64, 1.0));
+        const font = msgSend1(getClass("NSFont"), "boldSystemFontOfSize:", @as(f64, 11.0));
+
         const section_idx: usize = @intCast(msgSendULong(item, "sectionIndex"));
         if (section_idx < sections.len) {
             const section = &sections[section_idx];
+
+            // Set font first
+            _ = msgSend1(textField, "setFont:", font);
+
+            // Set string value
             _ = msgSend1(textField, "setStringValue:", createNSString(section.title));
+
+            // Force text color using multiple methods to ensure it sticks
+            _ = msgSend1(textField, "setTextColor:", sectionColor);
+
+            // Also try KVC which might bypass system overrides
+            _ = msgSend2(textField, "setValue:forKey:", sectionColor, createNSString("textColor"));
         }
     } else {
+        // Regular item - white text
+        const whiteColor = msgSend0(getClass("NSColor"), "whiteColor");
+        _ = msgSend1(textField, "setTextColor:", whiteColor);
+        const font = msgSend1(getClass("NSFont"), "systemFontOfSize:", @as(f64, 13.0));
+        _ = msgSend1(textField, "setFont:", font);
         const isItem = msgSend1(item, "respondsToSelector:", sel("itemIndex"));
         if (@intFromPtr(isItem) != 0) {
             const section_idx: usize = @intCast(msgSendULong(item, "sectionIndex"));
@@ -1140,11 +1178,16 @@ fn sidebarViewForItem(
                         if (image != null) {
                             _ = msgSend1(imageView, "setImage:", image);
 
-                            // Apply tint color if specified
+                            // Apply tint color - use custom color or default to white
                             if (child.tint_color) |tint_hex| {
                                 if (createColorFromHex(tint_hex)) |tintColor| {
                                     _ = msgSend1(imageView, "setContentTintColor:", tintColor);
                                 }
+                            } else {
+                                // Default to white/light color for icons on dark background
+                                const defaultIconColor = msgSend4(getClass("NSColor"), "colorWithRed:green:blue:alpha:",
+                                    @as(f64, 0.85), @as(f64, 0.85), @as(f64, 0.9), @as(f64, 1.0));
+                                _ = msgSend1(imageView, "setContentTintColor:", defaultIconColor);
                             }
                         }
                     }
@@ -1184,6 +1227,14 @@ fn getSidebarRowViewClass() objc.Class {
         sel("isEmphasized"),
         @ptrCast(@constCast(&rowViewIsEmphasized)),
         "B@:",
+    );
+
+    // Override drawBackgroundInRect: to make row backgrounds transparent
+    _ = objc.class_addMethod(
+        sidebarRowViewClass,
+        sel("drawBackgroundInRect:"),
+        @ptrCast(@constCast(&rowViewDrawBackground)),
+        "v@:{CGRect=dddd}",
     );
 
     objc.objc_registerClassPair(sidebarRowViewClass);
@@ -1239,6 +1290,15 @@ fn rowViewIsEmphasized(
     _: objc.SEL,
 ) callconv(.c) bool {
     return false;
+}
+
+// Draw transparent background for row views
+fn rowViewDrawBackground(
+    _: objc.id,
+    _: objc.SEL,
+    _: NSRect,
+) callconv(.c) void {
+    // Do nothing - let the container background show through
 }
 
 // NSOutlineViewDelegate: rowViewForItem - Return custom row view
@@ -1433,9 +1493,14 @@ pub fn createWindowWithSidebar(
     // Set titlebar separator style to none so sidebar extends into titlebar
     _ = msgSend1(window, "setTitlebarSeparatorStyle:", @as(c_long, 0)); // NSTitlebarSeparatorStyleNone = 0
 
-    // Use vibrant appearance for the window to enable sidebar vibrancy
+    // Apply dark mode appearance FIRST so sidebar inherits it
+    // Use vibrant appearance for proper sidebar vibrancy
     const NSAppearance = getClass("NSAppearance");
-    const appearanceName = createNSString("NSAppearanceNameVibrantLight");
+    const is_dark = if (style.dark_mode) |dm| dm else false;
+    const appearanceName = if (is_dark)
+        createNSString("NSAppearanceNameVibrantDark")
+    else
+        createNSString("NSAppearanceNameVibrantLight");
     const appearance = msgSend1(NSAppearance, "appearanceNamed:", appearanceName);
     if (appearance != null) {
         _ = msgSend1(window, "setAppearance:", appearance);
@@ -1490,7 +1555,7 @@ pub fn createWindowWithSidebar(
     _ = msgSend1(outlineView, "setStyle:", @as(c_long, 1)); // NSTableViewStyleSourceList = 1
     _ = msgSend1(outlineView, "setSelectionHighlightStyle:", @as(c_long, 1)); // NSTableViewSelectionHighlightStyleSourceList = 1
     _ = msgSend1(outlineView, "setRowSizeStyle:", @as(c_long, 2)); // NSTableViewRowSizeStyleDefault = 2
-    _ = msgSend1(outlineView, "setFloatsGroupRows:", @as(c_int, 1));
+    _ = msgSend1(outlineView, "setFloatsGroupRows:", @as(c_int, 0)); // Disable floating to prevent first row special treatment
     _ = msgSend1(outlineView, "setIndentationPerLevel:", @as(f64, 13.0));
     _ = msgSend1(outlineView, "setHeaderView:", @as(?*anyopaque, null)); // No header
 
@@ -1658,10 +1723,7 @@ pub fn createWindowWithSidebar(
         _ = msgSend1(splitView, "setDividerStyle:", @as(c_long, 1)); // NSSplitViewDividerStyleThin = 1
     }
 
-    // Apply dark mode if specified
-    if (style.dark_mode) |is_dark| {
-        setAppearance(window, is_dark);
-    }
+    // Dark mode already applied at the start with vibrant appearance
 
     // Center window
     if (style.x == null or style.y == null) {
@@ -1688,6 +1750,95 @@ pub fn createWindowWithSidebar(
     return window;
 }
 
+/// Generate HTML for the web-based sidebar
+fn generateSidebarHtml(sidebar_config: ?[]const u8) []const u8 {
+    _ = sidebar_config; // TODO: Parse and use config for dynamic content
+
+    // For now, return a simple sidebar HTML that matches the app's theme
+    return
+        \\<!DOCTYPE html>
+        \\<html>
+        \\<head>
+        \\<meta charset="UTF-8">
+        \\<style>
+        \\* { margin: 0; padding: 0; box-sizing: border-box; }
+        \\body {
+        \\  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+        \\  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+        \\  color: #fff;
+        \\  height: 100vh;
+        \\  overflow-y: auto;
+        \\  padding: 60px 12px 12px 12px;
+        \\  -webkit-user-select: none;
+        \\  user-select: none;
+        \\}
+        \\.section { margin-bottom: 24px; }
+        \\.section-title {
+        \\  font-size: 11px;
+        \\  font-weight: 600;
+        \\  color: rgba(255,255,255,0.5);
+        \\  text-transform: uppercase;
+        \\  letter-spacing: 0.5px;
+        \\  padding: 0 8px 8px 8px;
+        \\}
+        \\.item {
+        \\  display: flex;
+        \\  align-items: center;
+        \\  gap: 10px;
+        \\  padding: 8px 12px;
+        \\  border-radius: 8px;
+        \\  cursor: pointer;
+        \\  font-size: 13px;
+        \\  color: rgba(255,255,255,0.85);
+        \\}
+        \\.item:hover { background: rgba(255,255,255,0.08); }
+        \\.item.selected { background: rgba(139, 92, 246, 0.25); }
+        \\.item-icon {
+        \\  width: 20px;
+        \\  height: 20px;
+        \\  display: flex;
+        \\  align-items: center;
+        \\  justify-content: center;
+        \\  font-size: 14px;
+        \\}
+        \\.badge {
+        \\  margin-left: auto;
+        \\  background: rgba(139, 92, 246, 0.6);
+        \\  padding: 2px 8px;
+        \\  border-radius: 10px;
+        \\  font-size: 11px;
+        \\  font-weight: 500;
+        \\}
+        \\</style>
+        \\</head>
+        \\<body>
+        \\<div class="section">
+        \\  <div class="section-title">Inbox</div>
+        \\  <div class="item selected"><span class="item-icon">📥</span>All Messages<span class="badge">68</span></div>
+        \\  <div class="item"><span class="item-icon">📧</span>Unread<span class="badge">21</span></div>
+        \\  <div class="item"><span class="item-icon">@</span>Mentions<span class="badge">3</span></div>
+        \\  <div class="item"><span class="item-icon">📌</span>Pinned</div>
+        \\</div>
+        \\<div class="section">
+        \\  <div class="section-title">Platforms</div>
+        \\  <div class="item"><span class="item-icon">💬</span>iMessage<span class="badge">4</span></div>
+        \\  <div class="item"><span class="item-icon">📱</span>WhatsApp</div>
+        \\  <div class="item"><span class="item-icon">#</span>Slack<span class="badge">12</span></div>
+        \\  <div class="item"><span class="item-icon">🎮</span>Discord<span class="badge">5</span></div>
+        \\  <div class="item"><span class="item-icon">✈️</span>Telegram<span class="badge">47</span></div>
+        \\  <div class="item"><span class="item-icon">🛡️</span>Signal</div>
+        \\</div>
+        \\<div class="section">
+        \\  <div class="section-title">Channels</div>
+        \\  <div class="item"><span class="item-icon">#</span>Design Team</div>
+        \\  <div class="item"><span class="item-icon">#</span>General</div>
+        \\  <div class="item"><span class="item-icon">#</span>Gaming Squad</div>
+        \\</div>
+        \\</body>
+        \\</html>
+    ;
+}
+
 /// Create a window with native sidebar loading a URL instead of inline HTML
 pub fn createWindowWithSidebarURL(
     title: []const u8,
@@ -1709,12 +1860,6 @@ pub fn createWindowWithSidebarURL(
     // Import the necessary classes
     const NSApplication = getClass("NSApplication");
     const NSWindow = getClass("NSWindow");
-    const NSSplitViewController = getClass("NSSplitViewController");
-    const NSSplitViewItem = getClass("NSSplitViewItem");
-    const NSViewController = getClass("NSViewController");
-    const NSScrollView = getClass("NSScrollView");
-    const NSOutlineView = getClass("NSOutlineView");
-    const NSTableColumn = getClass("NSTableColumn");
     const WKWebView = getClass("WKWebView");
     const WKWebViewConfiguration = getClass("WKWebViewConfiguration");
     const WKPreferences = getClass("WKPreferences");
@@ -1747,104 +1892,75 @@ pub fn createWindowWithSidebarURL(
     const title_str = createNSString(title);
     _ = msgSend1(window, "setTitle:", title_str);
 
+    // Simple window configuration - no transparent titlebar or toolbar
+    _ = msgSend1(window, "setHasShadow:", @as(c_int, 1));
+
+    // Apply dark mode appearance with VibrantDark for proper sidebar vibrancy
+    const NSAppearance = getClass("NSAppearance");
+    const is_dark = if (style.dark_mode) |dm| dm else false;
+    const appearanceName = if (is_dark)
+        createNSString("NSAppearanceNameVibrantDark")
+    else
+        createNSString("NSAppearanceNameVibrantLight");
+    const dark_appearance = msgSend1(NSAppearance, "appearanceNamed:", appearanceName);
+    if (dark_appearance != null) {
+        _ = msgSend1(window, "setAppearance:", dark_appearance);
+    }
+
     // Configure for native sidebar appearance
     _ = msgSend1(window, "setTitlebarAppearsTransparent:", @as(c_int, 1));
-    _ = msgSend1(window, "setTitleVisibility:", @as(c_int, 1));
+    _ = msgSend1(window, "setTitleVisibility:", @as(c_int, 1)); // NSWindowTitleHidden = 1
     _ = msgSend1(window, "setHasShadow:", @as(c_int, 1));
-    _ = msgSend1(window, "setTitlebarSeparatorStyle:", @as(c_long, 0));
+    _ = msgSend1(window, "setTitlebarSeparatorStyle:", @as(c_long, 0)); // NSTitlebarSeparatorStyleNone = 0
 
-    // Create NSToolbar for traffic lights
+    // Create NSToolbar - REQUIRED for traffic lights to appear in sidebar
     const NSToolbar = getClass("NSToolbar");
     const toolbar_id = createNSString("MainToolbar");
     const toolbar_alloc = msgSend0(NSToolbar, "alloc");
     const toolbar = msgSend1(toolbar_alloc, "initWithIdentifier:", toolbar_id);
     _ = msgSend1(toolbar, "setShowsBaselineSeparator:", @as(c_int, 0));
     _ = msgSend1(window, "setToolbar:", toolbar);
-    _ = msgSend1(window, "setToolbarStyle:", @as(c_long, 3));
+    _ = msgSend1(window, "setToolbarStyle:", @as(c_long, 3)); // NSWindowToolbarStyleUnifiedCompact = 3
 
-    std.debug.print("[NativeSidebar] Window created\n", .{});
+    std.debug.print("[NativeSidebar] Window created with toolbar\n", .{});
 
-    // Create NSSplitViewController
-    const splitVC_alloc = msgSend0(NSSplitViewController, "alloc");
-    const splitVC = msgSend0(splitVC_alloc, "init");
+    // ========================================
+    // TAHOE-STYLE FLOATING SIDEBAR
+    // Left side: purple background with floating sidebar
+    // Right side: WebView content
+    // ========================================
 
-    // Create sidebar frame
-    const sidebarFrame = NSRect{
-        .origin = .{ .x = 0, .y = 0 },
-        .size = .{ .width = @floatFromInt(sidebar_width), .height = @floatFromInt(height) },
-    };
-
-    // Create NSScrollView for sidebar
-    const scrollView_alloc = msgSend0(NSScrollView, "alloc");
-    const scrollView = msgSend1Rect(scrollView_alloc, "initWithFrame:", sidebarFrame);
-    _ = msgSend1(scrollView, "setHasVerticalScroller:", @as(c_int, 1));
-    _ = msgSend1(scrollView, "setHasHorizontalScroller:", @as(c_int, 0));
-    _ = msgSend1(scrollView, "setAutohidesScrollers:", @as(c_int, 1));
-    _ = msgSend1(scrollView, "setBorderType:", @as(c_long, 0));
-    _ = msgSend1(scrollView, "setDrawsBackground:", @as(c_int, 1));
-    // Set sidebar background color for visibility
+    const NSViewClass = getClass("NSView");
+    const NSScrollView = getClass("NSScrollView");
+    const NSOutlineView = getClass("NSOutlineView");
+    const NSTableColumn = getClass("NSTableColumn");
     const NSColor = getClass("NSColor");
-    const sidebarBgColor = msgSend0(NSColor, "windowBackgroundColor");
-    _ = msgSend1(scrollView, "setBackgroundColor:", sidebarBgColor);
-    msgSendVoid1(scrollView, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
 
-    // Create NSOutlineView
-    const outlineView_alloc = msgSend0(NSOutlineView, "alloc");
-    const outlineView = msgSend1Rect(outlineView_alloc, "initWithFrame:", sidebarFrame);
+    // Set window background to match app theme (#0f0f23 - darkest color from gradient)
+    const windowBgColor = msgSend4(
+        NSColor,
+        "colorWithRed:green:blue:alpha:",
+        @as(f64, 15.0 / 255.0),  // 0x0f
+        @as(f64, 15.0 / 255.0),  // 0x0f
+        @as(f64, 35.0 / 255.0),  // 0x23
+        @as(f64, 1.0),
+    );
+    _ = msgSend1(window, "setBackgroundColor:", windowBgColor);
 
-    _ = msgSend1(outlineView, "setStyle:", @as(c_long, 1));
-    _ = msgSend1(outlineView, "setSelectionHighlightStyle:", @as(c_long, 1));
-    _ = msgSend1(outlineView, "setRowSizeStyle:", @as(c_long, 2));
-    _ = msgSend1(outlineView, "setFloatsGroupRows:", @as(c_int, 1));
-    _ = msgSend1(outlineView, "setIndentationPerLevel:", @as(f64, 13.0));
-    _ = msgSend1(outlineView, "setHeaderView:", @as(?*anyopaque, null));
-    _ = msgSend1(outlineView, "setUsesAlternatingRowBackgroundColors:", @as(c_int, 0));
-
-    // Create table column
-    const columnId = createNSString("SidebarColumn");
-    const column_alloc = msgSend0(NSTableColumn, "alloc");
-    const column = msgSend1(column_alloc, "initWithIdentifier:", columnId);
-    _ = msgSend1(column, "setWidth:", @as(f64, @floatFromInt(sidebar_width - 20)));
-    _ = msgSend1(outlineView, "addTableColumn:", column);
-    _ = msgSend1(outlineView, "setOutlineTableColumn:", column);
-
-    // Setup data source
-    const dataSource = try setupSidebarDataSource();
-    _ = msgSend1(outlineView, "setDataSource:", dataSource);
-    _ = msgSend1(outlineView, "setDelegate:", dataSource);
-    _ = msgSend0(outlineView, "reloadData");
-
-    // Expand sections
-    const numRows = msgSendNSInteger(outlineView, "numberOfRows");
-    var i: c_long = 0;
-    while (i < numRows) : (i += 1) {
-        const item = msgSend1(outlineView, "itemAtRow:", i);
-        if (item != null) {
-            _ = msgSend1(outlineView, "expandItem:", item);
-        }
-    }
-
-    _ = msgSend1(scrollView, "setDocumentView:", outlineView);
-
-    // Create sidebar view controller
-    const sidebarVC_alloc = msgSend0(NSViewController, "alloc");
-    const sidebarVC = msgSend0(sidebarVC_alloc, "init");
-    _ = msgSend1(sidebarVC, "setView:", scrollView);
-
-    // Create sidebar split view item
-    const sidebarItem = msgSend1(NSSplitViewItem, "sidebarWithViewController:", sidebarVC);
-    _ = msgSend1(sidebarItem, "setCanCollapse:", @as(c_int, 0));
-    _ = msgSend1(sidebarItem, "setMinimumThickness:", @as(f64, @floatFromInt(sidebar_width)));
-    _ = msgSend1(sidebarItem, "setMaximumThickness:", @as(f64, 320.0));
-    _ = msgSend1(sidebarItem, "setHoldingPriority:", @as(f32, 250.0));
-    _ = msgSend1(sidebarItem, "setCollapsed:", @as(c_int, 0));
-    _ = msgSend1(splitVC, "addSplitViewItem:", sidebarItem);
-
-    std.debug.print("[NativeSidebar] Sidebar configured\n", .{});
-
-    // Create content WebView
-    const contentFrame = NSRect{
+    // Main container fills the window
+    const containerFrame = NSRect{
         .origin = .{ .x = 0, .y = 0 },
+        .size = .{ .width = @floatFromInt(width), .height = @floatFromInt(height) },
+    };
+    const mainContainer_alloc = msgSend0(NSViewClass, "alloc");
+    const mainContainer = msgSend1Rect(mainContainer_alloc, "initWithFrame:", containerFrame);
+    msgSendVoid1(mainContainer, "setAutoresizingMask:", @as(c_ulong, 2 | 16)); // Width + Height
+
+    // ========================================
+    // Content WebView - positioned to the RIGHT of sidebar area
+    // ========================================
+    const contentFrame = NSRect{
+        .origin = .{ .x = @floatFromInt(sidebar_width), .y = 0 },
         .size = .{ .width = @floatFromInt(width - sidebar_width), .height = @floatFromInt(height) },
     };
 
@@ -1865,9 +1981,10 @@ pub fn createWindowWithSidebarURL(
         std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
     };
 
-    // Inject bridge script that sets __craftNativeSidebar and handles navigation
+    // Inject bridge script with sidebar width for CSS env variable
     const bridgeScript =
         \\window.__craftNativeSidebar = true;
+        \\window.__craftSidebarWidth = 260;
         \\window.craft = window.craft || {};
         \\window.craft._sidebarSelectHandler = function(event) {
         \\  console.log('[Craft] Sidebar navigation:', event);
@@ -1876,7 +1993,6 @@ pub fn createWindowWithSidebarURL(
     const WKUserScript = getClass("WKUserScript");
     const scriptStr = createNSString(bridgeScript);
     const userScript_alloc = msgSend0(WKUserScript, "alloc");
-    // WKUserScriptInjectionTimeAtDocumentStart = 0
     const userScript = msgSend3(userScript_alloc, "initWithSource:injectionTime:forMainFrameOnly:", scriptStr, @as(c_long, 0), @as(c_int, 1));
     _ = msgSend1(userContentController, "addUserScript:", userScript);
 
@@ -1889,38 +2005,136 @@ pub fn createWindowWithSidebarURL(
         std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
     };
 
+    msgSendVoid1(webview, "setAutoresizingMask:", @as(c_ulong, 2 | 16 | 4)); // Width + Height + Left margin flexible
+
     // Load URL
     const url_str = createNSString(url);
     const nsurl = msgSend1(NSURL, "URLWithString:", url_str);
     const request = msgSend1(getClass("NSURLRequest"), "requestWithURL:", nsurl);
     _ = msgSend1(webview, "loadRequest:", request);
 
-    std.debug.print("[NativeSidebar] WebView loading URL: {s}\n", .{url});
+    std.debug.print("[NativeSidebar] WebView loading URL (full window): {s}\n", .{url});
 
     sidebar_webview = webview;
 
-    // Create content view controller
-    const contentVC_alloc = msgSend0(NSViewController, "alloc");
-    const contentVC = msgSend0(contentVC_alloc, "init");
-    _ = msgSend1(contentVC, "setView:", webview);
+    // Add webview to main container FIRST (it goes behind)
+    _ = msgSend1(mainContainer, "addSubview:", webview);
 
-    const contentItem = msgSend1(NSSplitViewItem, "contentListWithViewController:", contentVC);
-    _ = msgSend1(splitVC, "addSplitViewItem:", contentItem);
+    // ========================================
+    // FLOATING SIDEBAR - Tahoe style with rounded corners and shadow
+    // Extends into titlebar area so traffic lights are inside
+    // ========================================
+    const sidebar_margin: f64 = 12.0;  // Visible gap around sidebar (left, right, bottom)
+    const sidebar_top_margin: f64 = 8.0; // Small top margin (traffic lights will be inside)
+    const corner_radius: f64 = 14.0;
 
-    // Set split view controller as window content
-    _ = msgSend1(window, "setContentViewController:", splitVC);
+    const sidebarFrame = NSRect{
+        .origin = .{ .x = sidebar_margin, .y = sidebar_margin },
+        .size = .{
+            .width = @as(f64, @floatFromInt(sidebar_width)) - (sidebar_margin * 2),
+            .height = @as(f64, @floatFromInt(height)) - sidebar_top_margin - sidebar_margin,
+        },
+    };
 
-    const splitView = msgSend0(splitVC, "splitView");
-    if (splitView != null) {
-        _ = msgSend1(splitView, "setDividerStyle:", @as(c_long, 1)); // Thin divider
-        // Explicitly set divider position to show sidebar
-        _ = msgSend2(splitView, "setPosition:ofDividerAtIndex:", @as(f64, @floatFromInt(sidebar_width)), @as(c_long, 0));
+    // Create sidebar container with rounded corners
+    const sidebarContainer_alloc = msgSend0(NSViewClass, "alloc");
+    const sidebarContainer = msgSend1Rect(sidebarContainer_alloc, "initWithFrame:", sidebarFrame);
+    msgSendVoid1(sidebarContainer, "setAutoresizingMask:", @as(c_ulong, 16)); // Height sizable only
+
+    // Enable layer backing for rounded corners, background, and SHADOW
+    _ = msgSend1(sidebarContainer, "setWantsLayer:", @as(c_int, 1));
+    const sidebarLayer = msgSend0(sidebarContainer, "layer");
+    if (sidebarLayer != null) {
+        // Set corner radius for Tahoe-style rounded corners
+        _ = msgSend1(sidebarLayer, "setCornerRadius:", corner_radius);
+        // Don't mask to bounds so shadow can show
+        _ = msgSend1(sidebarLayer, "setMasksToBounds:", @as(c_int, 0));
+
+        // Set custom background color matching app theme (#1a1a2e with slight transparency)
+        const customBgColor = msgSend4(
+            NSColor,
+            "colorWithRed:green:blue:alpha:",
+            @as(f64, 26.0 / 255.0),  // 0x1a
+            @as(f64, 26.0 / 255.0),  // 0x1a
+            @as(f64, 46.0 / 255.0),  // 0x2e
+            @as(f64, 0.95),
+        );
+        const cgColor = msgSend0(customBgColor, "CGColor");
+        if (cgColor != null) {
+            _ = msgSend1(sidebarLayer, "setBackgroundColor:", cgColor);
+        }
+
+        // Add shadow for floating effect
+        _ = msgSend1(sidebarLayer, "setShadowOpacity:", @as(f32, 0.4));
+        _ = msgSend1(sidebarLayer, "setShadowRadius:", @as(f64, 8.0));
+        const shadowOffset = NSSize{ .width = 0, .height = -2 };
+        _ = msgSend1(sidebarLayer, "setShadowOffset:", shadowOffset);
+        const shadowColor = msgSend4(NSColor, "colorWithRed:green:blue:alpha:", @as(f64, 0.0), @as(f64, 0.0), @as(f64, 0.0), @as(f64, 1.0));
+        _ = msgSend1(sidebarLayer, "setShadowColor:", msgSend0(shadowColor, "CGColor"));
+
+        std.debug.print("[NativeSidebar] Floating sidebar with shadow created\n", .{});
     }
 
-    // Apply dark mode if specified
-    if (style.dark_mode) |is_dark| {
-        setAppearance(window, is_dark);
+    // Create scroll view for sidebar content
+    const scrollViewFrame = NSRect{
+        .origin = .{ .x = 0, .y = 0 },
+        .size = sidebarFrame.size,
+    };
+    const scrollView_alloc = msgSend0(NSScrollView, "alloc");
+    const scrollView = msgSend1Rect(scrollView_alloc, "initWithFrame:", scrollViewFrame);
+    _ = msgSend1(scrollView, "setHasVerticalScroller:", @as(c_int, 1));
+    _ = msgSend1(scrollView, "setHasHorizontalScroller:", @as(c_int, 0));
+    _ = msgSend1(scrollView, "setAutohidesScrollers:", @as(c_int, 1));
+    _ = msgSend1(scrollView, "setBorderType:", @as(c_long, 0));
+    _ = msgSend1(scrollView, "setDrawsBackground:", @as(c_int, 0));
+    msgSendVoid1(scrollView, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
+
+    // Create outline view
+    const outlineView_alloc = msgSend0(NSOutlineView, "alloc");
+    const outlineView = msgSend1Rect(outlineView_alloc, "initWithFrame:", scrollViewFrame);
+    _ = msgSend1(outlineView, "setStyle:", @as(c_long, 1)); // Source list style
+    _ = msgSend1(outlineView, "setSelectionHighlightStyle:", @as(c_long, 1));
+    _ = msgSend1(outlineView, "setRowSizeStyle:", @as(c_long, 2));
+    _ = msgSend1(outlineView, "setFloatsGroupRows:", @as(c_int, 0)); // Disable floating to prevent first row special treatment
+    _ = msgSend1(outlineView, "setIndentationPerLevel:", @as(f64, 13.0));
+    _ = msgSend1(outlineView, "setHeaderView:", @as(?*anyopaque, null));
+    _ = msgSend1(outlineView, "setUsesAlternatingRowBackgroundColors:", @as(c_int, 0));
+    _ = msgSend1(outlineView, "setBackgroundColor:", msgSend0(getClass("NSColor"), "clearColor"));
+
+    // Create table column
+    const columnId = createNSString("SidebarColumn");
+    const column_alloc = msgSend0(NSTableColumn, "alloc");
+    const column = msgSend1(column_alloc, "initWithIdentifier:", columnId);
+    _ = msgSend1(column, "setWidth:", sidebarFrame.size.width - 20);
+    _ = msgSend1(outlineView, "addTableColumn:", column);
+    _ = msgSend1(outlineView, "setOutlineTableColumn:", column);
+
+    // Setup data source
+    const dataSource = try setupSidebarDataSource();
+    _ = msgSend1(outlineView, "setDataSource:", dataSource);
+    _ = msgSend1(outlineView, "setDelegate:", dataSource);
+    _ = msgSend0(outlineView, "reloadData");
+
+    // Expand sections
+    const numRows = msgSendNSInteger(outlineView, "numberOfRows");
+    var i: c_long = 0;
+    while (i < numRows) : (i += 1) {
+        const item = msgSend1(outlineView, "itemAtRow:", i);
+        if (item != null) {
+            _ = msgSend1(outlineView, "expandItem:", item);
+        }
     }
+
+    _ = msgSend1(scrollView, "setDocumentView:", outlineView);
+    _ = msgSend1(sidebarContainer, "addSubview:", scrollView);
+
+    // Add floating sidebar ON TOP of webview
+    _ = msgSend1(mainContainer, "addSubview:", sidebarContainer);
+
+    // Set main container as window content view
+    _ = msgSend1(window, "setContentView:", mainContainer);
+
+    std.debug.print("[NativeSidebar] Tahoe-style floating sidebar configured\n", .{});
 
     // Center window
     if (style.x == null or style.y == null) {
