@@ -55,7 +55,7 @@ jobs:
         id: size
         working-directory: packages/zig
         run: |
-          BINARY_PATH="zig-out/bin/craft-minimal"
+          BINARY_PATH="zig-out/bin/craft"
           if [ -f "$BINARY_PATH" ]; then
             SIZE=$(stat -c%s "$BINARY_PATH")
             SIZE_KB=$((SIZE / 1024))
@@ -93,8 +93,8 @@ jobs:
           cd packages/zig
           zig build -Doptimize=ReleaseSafe 2>/dev/null || true
 
-          if [ -f "zig-out/bin/craft-minimal" ]; then
-            BASELINE=$(stat -c%s "zig-out/bin/craft-minimal")
+          if [ -f "zig-out/bin/craft" ]; then
+            BASELINE=$(stat -c%s "zig-out/bin/craft")
             echo "baseline=$BASELINE" >> $GITHUB_OUTPUT
           else
             echo "baseline=0" >> $GITHUB_OUTPUT

@@ -18,7 +18,7 @@
     "test:sdk": "cd packages/typescript && bun test",
     "typecheck": "cd packages/typescript && bun run typecheck && cd ../create-craft && bun run typecheck",
     "run": "cd packages/zig && zig build run",
-    "run:minimal": "cd packages/zig && zig build run-minimal",
+    "run:demo": "cd packages/zig && zig build run-demo",
     "create": "cd packages/create-craft && bun bin/cli.ts",
     "clean": "rm -rf packages/zig/zig-cache packages/zig/zig-out && bun run clean:packages",
     "clean:packages": "rm -rf packages/*/dist packages/*/node_modules",

@@ -20,7 +20,7 @@ const APP_VERSION = '1.0.0'
 const BUNDLE_ID = 'com.stacks.buddy'
 
 // Paths
-const CRAFT_BINARY = join(import.meta.dir, '../packages/zig/zig-out/bin/craft-minimal')
+const CRAFT_BINARY = join(import.meta.dir, '../packages/zig/zig-out/bin/craft')
 const STX_FILE = '/Users/glennmichaeltorregosa/Documents/Projects/stx/examples/voice-buddy.stx'
 const OUT_DIR = join(import.meta.dir, '../dist')
 const APP_BUNDLE = join(OUT_DIR, `${APP_NAME}.app`)

@@ -52,14 +52,14 @@ jobs:
           mkdir -p benchmark-results
 
           # Run system tray benchmark
-          if [ -f "zig-out/bin/craft-minimal" ]; then
+          if [ -f "zig-out/bin/craft" ]; then
             echo "Running startup benchmark..."
 
             # Measure startup time (average of 5 runs)
             TOTAL=0
             for i in {1..5}; do
               START=$(date +%s%N)
-              timeout 2 ./zig-out/bin/craft-minimal --help 2>/dev/null || true
+              timeout 2 ./zig-out/bin/craft --help 2>/dev/null || true
               END=$(date +%s%N)
               ELAPSED=$(( (END - START) / 1000000 ))
               TOTAL=$((TOTAL + ELAPSED))

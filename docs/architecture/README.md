@@ -378,8 +378,8 @@ graph TB
     end
 
     subgraph "Build Targets"
-        FULL[craft<br/>Full build]
-        MIN[craft-minimal<br/>Minimal build]
+        CLI[craft<br/>Main CLI]
+        DEMO[craft-demo<br/>Demo app]
         EX[Examples]
         TEST[Tests]
     end
@@ -430,8 +430,8 @@ zig build
 # Release build
 zig build -Doptimize=ReleaseSafe
 
-# Run minimal example
-zig build run-minimal
+# Run the craft CLI
+zig build run
 
 # Run tests
 zig build test

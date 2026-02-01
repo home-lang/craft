@@ -28,8 +28,8 @@ pub fn build(b: *std.Build) void {
     delegate_test.cwd = b.path("packages/zig");
     test_step.dependOn(&delegate_test.step);
 
-    // Add run step
-    const run_step = b.step("run", "Run the example");
+    // Add run step (runs the main craft CLI)
+    const run_step = b.step("run", "Run the craft CLI");
     const delegate_run = b.addSystemCommand(&.{
         "zig",
         "build",
@@ -38,13 +38,13 @@ pub fn build(b: *std.Build) void {
     delegate_run.cwd = b.path("packages/zig");
     run_step.dependOn(&delegate_run.step);
 
-    // Add run-minimal step
-    const run_minimal_step = b.step("run-minimal", "Run the minimal example");
-    const delegate_run_minimal = b.addSystemCommand(&.{
+    // Add run-demo step (runs the simple demo)
+    const run_demo_step = b.step("run-demo", "Run the demo app");
+    const delegate_run_demo = b.addSystemCommand(&.{
         "zig",
         "build",
-        "run-minimal",
+        "run-demo",
     });
-    delegate_run_minimal.cwd = b.path("packages/zig");
-    run_minimal_step.dependOn(&delegate_run_minimal.step);
+    delegate_run_demo.cwd = b.path("packages/zig");
+    run_demo_step.dependOn(&delegate_run_demo.step);
 }

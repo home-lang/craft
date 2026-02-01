@@ -138,8 +138,8 @@ export PATH=$PATH:$(pwd)/zig-linux-x86_64-0.15.1
 # Build
 zig build
 
-# Run minimal example
-./zig-out/bin/craft-minimal http://localhost:3000
+# Run craft CLI
+./zig-out/bin/craft http://localhost:3000
 ```
 
 ### Build Options

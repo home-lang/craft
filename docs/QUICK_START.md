@@ -44,7 +44,7 @@ The compiled example is **~1.3MB** - impressively small for a desktop app framew
 
 ```bash
 $ ls -lh zig-out/bin/
--rwxr-xr-x  1.3M  craft-example
+-rwxr-xr-x  1.3M  craft
 ```
 
 ## Next Steps for Full Functionality

@@ -65,18 +65,18 @@ jobs:
           # Sign ARM64 binary
           codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" \
             --entitlements scripts/entitlements.plist \
-            packages/zig/zig-out/bin/craft-minimal
+            packages/zig/zig-out/bin/craft
 
           # Verify signature
-          codesign --verify --deep --strict packages/zig/zig-out/bin/craft-minimal
+          codesign --verify --deep --strict packages/zig/zig-out/bin/craft
           echo "ARM64 binary signed successfully"
 
       - name: Create universal binary
         run: |
           mkdir -p bin
           # If we have both architectures, create universal binary
-          if [ -f "packages/zig/zig-out/bin/craft-minimal" ]; then
-            cp packages/zig/zig-out/bin/craft-minimal bin/craft-darwin-arm64
+          if [ -f "packages/zig/zig-out/bin/craft" ]; then
+            cp packages/zig/zig-out/bin/craft bin/craft-darwin-arm64
           fi
 
       - name: Notarize binary
@@ -157,7 +157,7 @@ jobs:
           $signtool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
 
           if (Test-Path $signtool) {
-            & $signtool sign /sha1 $env:WINDOWS_CERTIFICATE_THUMBPRINT /t http://timestamp.digicert.com /fd sha256 packages\zig\zig-out\bin\craft-minimal.exe
+            & $signtool sign /sha1 $env:WINDOWS_CERTIFICATE_THUMBPRINT /t http://timestamp.digicert.com /fd sha256 packages\zig\zig-out\bin\craft.exe
             Write-Host "Binary signed successfully"
           } else {
             Write-Host "SignTool not found, skipping signing"
@@ -166,7 +166,7 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir bin
-          copy packages\zig\zig-out\bin\craft-minimal.exe bin\craft-windows-x64.exe
+          copy packages\zig\zig-out\bin\craft.exe bin\craft-windows-x64.exe
 
       - name: Upload signed Windows binary
         uses: actions/upload-artifact@v4
@@ -209,7 +209,7 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir -p bin
-          cp packages/zig/zig-out/bin/craft-minimal bin/craft-linux-x64
+          cp packages/zig/zig-out/bin/craft bin/craft-linux-x64
           chmod +x bin/craft-linux-x64
 
       - name: Upload Linux binaries

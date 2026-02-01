@@ -4,7 +4,7 @@ import { spawn } from "bun";
 import { join } from "path";
 
 // Path to the craft executable
-const craftBin = join(import.meta.dir, "zig-out/bin/craft-minimal");
+const craftBin = join(import.meta.dir, "zig-out/bin/craft");
 
 // HTML content with Liquid Glass sidebar
 const html = `

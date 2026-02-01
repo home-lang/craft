@@ -9,11 +9,11 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/main.zig"),
     });
 
-    // Example executable
+    // Demo executable - simple hardcoded example
     const exe = b.addExecutable(.{
-        .name = "craft-example",
+        .name = "craft-demo",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/example.zig"),
+            .root_source_file = b.path("src/demo.zig"),
             .target = target,
             .optimize = optimize,
             .imports = &.{
@@ -52,12 +52,12 @@ pub fn build(b: *std.Build) void {
         run_cmd.addArgs(args);
     }
 
-    const run_step = b.step("run", "Run the example app");
+    const run_step = b.step("run-demo", "Run the demo app");
     run_step.dependOn(&run_cmd.step);
 
-    // Minimal app executable
-    const minimal_exe = b.addExecutable(.{
-        .name = "craft-minimal",
+    // Main CLI executable - full-featured command-line interface
+    const craft_exe = b.addExecutable(.{
+        .name = "craft",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/minimal.zig"),
             .target = target,
@@ -70,34 +70,34 @@ pub fn build(b: *std.Build) void {
 
     switch (target_os) {
         .macos => {
-            minimal_exe.linkFramework("Cocoa");
-            minimal_exe.linkFramework("WebKit");
+            craft_exe.linkFramework("Cocoa");
+            craft_exe.linkFramework("WebKit");
         },
         .linux => {
-            minimal_exe.linkSystemLibrary("gtk+-3.0");
-            minimal_exe.linkSystemLibrary("webkit2gtk-4.0");
+            craft_exe.linkSystemLibrary("gtk+-3.0");
+            craft_exe.linkSystemLibrary("webkit2gtk-4.0");
         },
         .windows => {
-            minimal_exe.linkSystemLibrary("ole32");
-            minimal_exe.linkSystemLibrary("user32");
-            minimal_exe.linkSystemLibrary("gdi32");
-            minimal_exe.linkSystemLibrary("shell32");
+            craft_exe.linkSystemLibrary("ole32");
+            craft_exe.linkSystemLibrary("user32");
+            craft_exe.linkSystemLibrary("gdi32");
+            craft_exe.linkSystemLibrary("shell32");
         },
         else => {},
     }
 
-    minimal_exe.linkLibC();
-    b.installArtifact(minimal_exe);
+    craft_exe.linkLibC();
+    b.installArtifact(craft_exe);
 
-    const run_minimal_cmd = b.addRunArtifact(minimal_exe);
-    run_minimal_cmd.step.dependOn(b.getInstallStep());
+    const run_craft_cmd = b.addRunArtifact(craft_exe);
+    run_craft_cmd.step.dependOn(b.getInstallStep());
 
     if (b.args) |args| {
-        run_minimal_cmd.addArgs(args);
+        run_craft_cmd.addArgs(args);
     }
 
-    const run_minimal_step = b.step("run-minimal", "Run the minimal app");
-    run_minimal_step.dependOn(&run_minimal_cmd.step);
+    const run_craft_step = b.step("run", "Run the craft CLI");
+    run_craft_step.dependOn(&run_craft_cmd.step);
 
     // Tests
     const lib_unit_tests = b.addTest(.{

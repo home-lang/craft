@@ -261,25 +261,19 @@ export class CraftApp {
 
     // Try common locations
     const possiblePaths = [
-      // From monorepo zig package (current binary names)
-      join(process.cwd(), 'packages/zig/zig-out/bin/craft-minimal'),
-      join(process.cwd(), 'packages/zig/zig-out/bin/craft-example'),
+      // From monorepo zig package
       join(process.cwd(), 'packages/zig/zig-out/bin/craft'),
       // From ts-craft package (when in monorepo)
-      join(process.cwd(), '../zig/zig-out/bin/craft-minimal'),
-      join(process.cwd(), '../zig/zig-out/bin/craft-example'),
       join(process.cwd(), '../zig/zig-out/bin/craft'),
-      // Legacy locations (for backward compatibility)
-      join(process.cwd(), 'zig-out/bin/craft-minimal'),
+      // Direct build output
       join(process.cwd(), 'zig-out/bin/craft'),
       join(process.cwd(), '../../zig-out/bin/craft'),
       // In PATH
-      'craft-minimal',
       'craft',
     ]
 
     for (const path of possiblePaths) {
-      if (path === 'craft' || path === 'craft-minimal') {
+      if (path === 'craft') {
         // Check if it's in PATH by trying to spawn it
         try {
           await this.checkBinaryExists(path)

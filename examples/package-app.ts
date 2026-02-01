@@ -22,7 +22,7 @@ async function main() {
     homepage: 'https://github.com/yourname/pomodoro',
 
     // Path to your built binary
-    binaryPath: join(__dirname, '../packages/zig/zig-out/bin/craft-minimal'),
+    binaryPath: join(__dirname, '../packages/zig/zig-out/bin/craft'),
 
     // Bundle identifier (macOS/iOS)
     bundleId: 'com.example.pomodoro',

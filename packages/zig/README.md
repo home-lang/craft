@@ -65,8 +65,8 @@ zig build
 zig build -Doptimize=ReleaseSafe
 
 # Run examples
-zig build run
-zig build run-minimal
+zig build run        # Run the craft CLI
+zig build run-demo   # Run the demo app
 ```
 
 ### Testing

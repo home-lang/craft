@@ -8,7 +8,7 @@
     "build:debug": "zig build",
     "test": "zig build test",
     "run": "zig build run",
-    "run:minimal": "zig build run-minimal",
+    "run:demo": "zig build run-demo",
     "clean": "rm -rf zig-cache zig-out",
     "fmt": "zig fmt src/ build.zig",
     "fmt:check": "zig fmt --check src/ build.zig"

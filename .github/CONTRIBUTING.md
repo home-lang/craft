@@ -52,8 +52,8 @@ zig build test
 # Run example
 zig build run
 
-# Run minimal example
-zig build run-minimal
+# Run the craft CLI
+zig build run
 ```
 
 ## Project Structure
@@ -102,9 +102,9 @@ bun run fmt
 # Run all tests
 bun run test
 
-# Build all examples
+# Build and run
 zig build
-zig build run-minimal
+zig build run
 ```
 
 ### 5. Commit Changes

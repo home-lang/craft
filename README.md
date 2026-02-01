@@ -359,7 +359,7 @@ tar -xf zig-linux-x86_64-0.15.1.tar.xz
 zig build
 
 # Run
-./zig-out/bin/craft-minimal http://localhost:3000
+./zig-out/bin/craft http://localhost:3000
 ```
 
 ### Platform-Specific Dependencies

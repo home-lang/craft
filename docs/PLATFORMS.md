@@ -31,7 +31,7 @@ cd stx/packages/craft
 zig build
 
 # Run
-./zig-out/bin/craft-minimal http://localhost:3000
+./zig-out/bin/craft http://localhost:3000
 ```
 
 ### Building for macOS
@@ -116,7 +116,7 @@ cd stx/packages/craft
 zig build
 
 # Run
-./zig-out/bin/craft-minimal http://localhost:3000
+./zig-out/bin/craft http://localhost:3000
 ```
 
 ### Building for Linux
@@ -210,7 +210,7 @@ cd stx\packages\craft
 zig build
 
 # Run
-.\zig-out\bin\craft-minimal.exe http://localhost:3000
+.\zig-out\bin\craft.exe http://localhost:3000
 ```
 
 ### Building for Windows
@@ -365,10 +365,10 @@ zig build build-macos
 
 ### macOS
 
-**Issue**: "craft-minimal cannot be opened because the developer cannot be verified"
+**Issue**: "craft cannot be opened because the developer cannot be verified"
 ```bash
 # Solution: Remove quarantine attribute
-xattr -d com.apple.quarantine ./zig-out/bin/craft-minimal
+xattr -d com.apple.quarantine ./zig-out/bin/craft
 ```
 
 **Issue**: WebKit Inspector not showing

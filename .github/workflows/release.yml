@@ -66,14 +66,14 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           mkdir -p bin
-          cp zig-out/bin/craft-minimal bin/${{ matrix.artifact_name }}
+          cp zig-out/bin/craft bin/${{ matrix.artifact_name }}
           chmod +x bin/${{ matrix.artifact_name }}
 
       - name: Prepare artifact (Windows)
         if: runner.os == 'Windows'
         run: |
           mkdir bin
-          cp zig-out/bin/craft-minimal.exe bin/${{ matrix.artifact_name }}
+          cp zig-out/bin/craft.exe bin/${{ matrix.artifact_name }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

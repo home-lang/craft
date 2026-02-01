@@ -52,8 +52,8 @@ if (!currentPlatform || !currentArch) {
 }
 
 const sourceBinary = platform() === 'win32'
-  ? 'zig-out/bin/craft-minimal.exe'
-  : 'zig-out/bin/craft-minimal'
+  ? 'zig-out/bin/craft.exe'
+  : 'zig-out/bin/craft'
 
 const targetBinary = platform() === 'win32'
   ? `bin/craft-${currentPlatform}-${currentArch}.exe`

@@ -71,7 +71,7 @@ jobs:
           mkdir -p .snapshots/diff
 
           # Run the visual test suite
-          if [ -f "packages/zig/zig-out/bin/craft-minimal" ]; then
+          if [ -f "packages/zig/zig-out/bin/craft" ]; then
             # Capture screenshots of component states
             cd packages/zig
 
@@ -81,7 +81,7 @@ jobs:
             # Run example apps and capture screenshots
             for example in button slider checkbox tabs modal; do
               if [ -f "examples/native-ui-test.ts" ]; then
-                timeout 5 ./zig-out/bin/craft-minimal --screenshot ../.snapshots/current/${example}.png 2>/dev/null || true
+                timeout 5 ./zig-out/bin/craft --screenshot ../.snapshots/current/${example}.png 2>/dev/null || true
               fi
             done
           fi

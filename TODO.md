@@ -91,7 +91,7 @@ Focus modules: `api.zig`, `main.zig`, `minimal.zig`, `system.zig`, `tray.zig`, `
 
 - **[C3] Minimal CLI host executable** (`minimal.zig`, `cli.zig`, top-level `build.zig`)
   - **Tasks**:
-    - **[C3.1]** Treat `craft-minimal` as **the canonical minimal shell**:
+    - **[C3.1]** Treat `craft` as **the canonical minimal shell**:
       - Parses CLI (URL or inline HTML, window options, tray options).
       - Initializes platform (`app.initPlatform*`) and opens at least one window or system tray.
       - Has NO dependency on higher-level devmode/hotreload when disabled.
@@ -397,7 +397,7 @@ Focus modules: `cli.zig`, `cli_enhanced.zig`, `config.zig`, `package.zig`, `devt
   - Add a small codegen step that reads Zig bridge metadata and emits TS declaration files.
 
 - **[T4] Devtools and hot reload**
-  - Make `hotreload.zig` / `devmode.zig` **opt-in** (feature flags and CLI flags), keeping `craft-minimal` as clean as possible.
+  - Make `hotreload.zig` / `devmode.zig` **opt-in** (feature flags and CLI flags), keeping `craft` as clean as possible.
   - Document the state-preservation semantics of hot reload for desktop and mobile.
 
 ---
