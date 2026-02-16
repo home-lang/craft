@@ -209,8 +209,11 @@ pub const BarcodeResult = struct {
     }
 
     fn getCurrentTimestamp() u64 {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-        return @intCast(@divTrunc(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000), 1));
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+            return @intCast(@divTrunc(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000), 1));
+        }
+        return 0;
     }
 };
 
@@ -562,8 +565,10 @@ pub const BarcodeScanner = struct {
 
     pub fn onBarcodeDetected(self: *BarcodeScanner, result: BarcodeResult) !void {
         try self.results.append(self.allocator, result);
-        const ts = std.posix.clock_gettime(.REALTIME) catch return;
-        self.last_scan_time = @intCast(@divTrunc(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000), 1));
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+            self.last_scan_time = @intCast(@divTrunc(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000), 1));
+        }
         self.scan_count += 1;
     }
 

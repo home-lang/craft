@@ -25,15 +25,18 @@ const builtin = @import("builtin");
 
 /// Get current timestamp in seconds (Zig 0.16 compatible)
 fn getCurrentTimestamp() i64 {
-    // Use posix clock_gettime for real timestamp
-    // In Zig 0.16, clock_gettime takes 1 arg and returns timespec
-    // Darwin uses .sec, Linux uses .tv_sec
     if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-        return @intCast(ts.sec);
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+            return @intCast(ts.sec);
+        }
+        return 0;
     } else if (comptime builtin.os.tag == .linux) {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-        return ts.sec;
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+            return ts.sec;
+        }
+        return 0;
     } else if (comptime builtin.os.tag == .windows) {
         // Windows: use GetSystemTimeAsFileTime
         return 0; // Stub for now

@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// File System API
 /// Provides cross-platform file system operations
@@ -12,11 +13,14 @@ pub const FileSystem = struct {
 
     /// Read file contents
     pub fn readFile(self: *FileSystem, path: []const u8, encoding: []const u8) ![]u8 {
-        const file = try std.fs.cwd().openFile(path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().openFile(io, path, .{});
+        defer file.close(io);
 
-        const file_stat = try file.stat();
-        const contents = try file.readToEndAlloc(self.allocator, file_stat.size);
+        const file_stat = try file.stat(io);
+        const contents = try self.allocator.alloc(u8, file_stat.size);
+        errdefer self.allocator.free(contents);
+        _ = try file.readPositional(io, &.{contents}, 0);
 
         if (std.mem.eql(u8, encoding, "utf8")) {
             // Validate UTF-8
@@ -34,16 +38,18 @@ pub const FileSystem = struct {
         _ = encoding; // encoding is implicit in the data
         _ = self;
 
-        const file = try std.fs.cwd().createFile(path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, path, .{});
+        defer file.close(io);
 
-        try file.writeAll(data);
+        try file.writeStreamingAll(io, data);
     }
 
     /// Read directory contents
     pub fn readDir(self: *FileSystem, path: []const u8) ![][]const u8 {
-        var dir = try std.fs.cwd().openDir(path, .{ .iterate = true });
-        defer dir.close();
+        const io = io_context.get();
+        var dir = try io_context.cwd().openDir(io, path, .{ .iterate = true });
+        defer dir.close(io);
 
         var entries = std.ArrayList([]const u8).init(self.allocator);
         errdefer {
@@ -54,7 +60,7 @@ pub const FileSystem = struct {
         }
 
         var it = dir.iterate();
-        while (try it.next()) |entry| {
+        while (try it.next(io)) |entry| {
             const name = try self.allocator.dupe(u8, entry.name);
             try entries.append(name);
         }
@@ -65,25 +71,28 @@ pub const FileSystem = struct {
     /// Create directory
     pub fn mkdir(self: *FileSystem, path: []const u8, recursive: bool) !void {
         _ = self;
+        const io = io_context.get();
 
         if (recursive) {
-            try std.fs.cwd().makePath(path);
+            try io_context.cwd().createDirPath(io, path);
         } else {
-            try std.fs.cwd().makeDir(path);
+            try io_context.cwd().createDir(io, path, .default_dir);
         }
     }
 
     /// Remove file or directory
     pub fn remove(self: *FileSystem, path: []const u8, recursive: bool) !void {
         _ = self;
+        const io = io_context.get();
+        const d = io_context.cwd();
 
         if (recursive) {
-            try std.fs.cwd().deleteTree(path);
+            try d.deleteTree(io, path);
         } else {
             // Try to delete as file first, then as directory
-            std.fs.cwd().deleteFile(path) catch |err| {
+            d.deleteFile(io, path) catch |err| {
                 if (err == error.IsDir) {
-                    try std.fs.cwd().deleteDir(path);
+                    try d.deleteDir(io, path);
                 } else {
                     return err;
                 }
@@ -94,18 +103,19 @@ pub const FileSystem = struct {
     /// Check if path exists
     pub fn exists(self: *FileSystem, path: []const u8) bool {
         _ = self;
-        std.fs.cwd().access(path, .{}) catch return false;
+        io_context.cwd().access(io_context.get(), path, .{}) catch return false;
         return true;
     }
 
     /// Get file statistics
     pub fn stat(self: *FileSystem, path: []const u8) !FileStat {
         _ = self;
+        const io = io_context.get();
 
-        const file = try std.fs.cwd().openFile(path, .{});
-        defer file.close();
+        const file = try io_context.cwd().openFile(io, path, .{});
+        defer file.close(io);
 
-        const file_stat = try file.stat();
+        const file_stat = try file.stat(io);
 
         return FileStat{
             .size = file_stat.size,
@@ -121,13 +131,17 @@ pub const FileSystem = struct {
     /// Copy file
     pub fn copyFile(self: *FileSystem, src: []const u8, dest: []const u8) !void {
         _ = self;
-        try std.fs.cwd().copyFile(src, std.fs.cwd(), dest, .{});
+        const io = io_context.get();
+        const d = io_context.cwd();
+        try std.Io.Dir.copyFile(d, src, d, dest, io, .{});
     }
 
     /// Move/rename file
     pub fn moveFile(self: *FileSystem, src: []const u8, dest: []const u8) !void {
         _ = self;
-        try std.fs.cwd().rename(src, dest);
+        const io = io_context.get();
+        const d = io_context.cwd();
+        try std.Io.Dir.rename(d, src, d, dest, io);
     }
 
     /// Watch directory for changes
@@ -223,7 +237,7 @@ test "File operations" {
 
     // Write test file
     try fs.writeFile("test_file.txt", "Hello, World!", "utf8");
-    defer std.fs.cwd().deleteFile("test_file.txt") catch {};
+    defer io_context.cwd().deleteFile(io_context.get(), "test_file.txt") catch {};
 
     // Read test file
     const content = try fs.readFile("test_file.txt", "utf8");

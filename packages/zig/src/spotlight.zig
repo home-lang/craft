@@ -18,8 +18,11 @@ const Allocator = std.mem.Allocator;
 
 /// Gets current timestamp in seconds
 fn getCurrentTimestamp() i64 {
-    const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-    return ts.sec;
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+        return ts.sec;
+    }
+    return 0;
 }
 
 /// Search platform

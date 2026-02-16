@@ -1,10 +1,10 @@
 const std = @import("std");
 const craft = @import("craft");
+const io_context = craft.io_context;
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    io_context.init(init.io);
+    const allocator = init.gpa;
 
     var app = craft.App.init(allocator);
     defer app.deinit();

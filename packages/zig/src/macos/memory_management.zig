@@ -1,6 +1,7 @@
 const std = @import("std");
 const macos = @import("../macos.zig");
 const objc = macos.objc;
+const compat_mutex = @import("../compat_mutex.zig");
 
 /// Associated object keys for Zig-to-ObjC connections
 pub const AssociatedObjectKeys = struct {
@@ -57,7 +58,7 @@ pub const AllocationTracker = struct {
     const Self = @This();
 
     allocations: std.AutoHashMap(usize, AllocationInfo),
-    mutex: std.Thread.Mutex,
+    mutex: compat_mutex.Mutex,
     total_allocated: usize,
     total_freed: usize,
     peak_allocated: usize,

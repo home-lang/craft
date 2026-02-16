@@ -746,12 +746,15 @@ pub fn isPlatformSupported(permission: Permission) bool {
 
 /// Get current timestamp in milliseconds
 fn getCurrentTimestamp() i64 {
-    const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-    if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
-        return @as(i64, @intCast(ts.sec)) * 1000 + @divTrunc(@as(i64, @intCast(ts.nsec)), 1_000_000);
-    } else {
-        return @as(i64, @intCast(ts.sec)) * 1000 + @divTrunc(@as(i64, @intCast(ts.nsec)), 1_000_000);
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+        if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
+            return @as(i64, @intCast(ts.sec)) * 1000 + @divTrunc(@as(i64, @intCast(ts.nsec)), 1_000_000);
+        } else {
+            return @as(i64, @intCast(ts.sec)) * 1000 + @divTrunc(@as(i64, @intCast(ts.nsec)), 1_000_000);
+        }
     }
+    return 0;
 }
 
 // ============================================================================

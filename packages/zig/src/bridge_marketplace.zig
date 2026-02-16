@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
 
@@ -33,8 +34,9 @@ pub const MarketplaceBridge = struct {
             "~/.bun/bin/pantry",
         };
 
+        const io = io_context.get();
         for (locations) |loc| {
-            if (std.fs.cwd().access(loc, .{})) |_| {
+            if (io_context.cwd().access(io, loc, .{})) |_| {
                 self.pantry_path = loc;
                 break;
             } else |_| {}

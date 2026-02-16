@@ -782,11 +782,8 @@ pub const Migrator = struct {
 
                 try self.db.executeRaw(migration.up);
 
-                // Get current timestamp (use Instant for Zig 0.16 compatibility)
-                const now: i64 = if (std.time.Instant.now()) |instant|
-                    @intCast(@divFloor(instant.timestamp.sec * 1_000_000_000 + instant.timestamp.nsec, 1_000_000_000))
-                else |_|
-                    0;
+                // Get current timestamp
+                const now: i64 = std.time.timestamp();
 
                 try self.db.execute(
                     "INSERT INTO _migrations (version, applied_at) VALUES (?, ?)",

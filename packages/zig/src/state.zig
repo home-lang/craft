@@ -1,4 +1,6 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
+const compat_mutex = @import("compat_mutex.zig");
 
 /// State Management System
 /// Provides reactive state management with observers and middleware
@@ -16,7 +18,7 @@ pub const State = struct {
     middleware: std.ArrayList(Middleware),
     history: StateHistory,
     is_computing: bool,
-    mutex: std.Thread.Mutex,
+    mutex: compat_mutex.Mutex,
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) State {
@@ -27,7 +29,7 @@ pub const State = struct {
             .middleware = std.ArrayList(Middleware).init(allocator),
             .history = StateHistory.init(allocator),
             .is_computing = false,
-            .mutex = std.Thread.Mutex{},
+            .mutex = .{},
             .allocator = allocator,
         };
     }
@@ -755,20 +757,22 @@ pub const StateSerializer = struct {
 
     pub fn serializeToFile(self: StateSerializer, state: *State, file_path: []const u8) !void {
         const serialized = try self.serialize(state);
-        const file = try std.fs.cwd().createFile(file_path, .{});
-        defer file.close();
-        try file.writeAll(serialized);
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, file_path, .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, serialized);
     }
 
     pub fn deserializeFromFile(self: StateSerializer, state: *State, file_path: []const u8) !void {
-        const file = try std.fs.cwd().openFile(file_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().openFile(io, file_path, .{});
+        defer file.close(io);
 
-        const file_size = try file.getEndPos();
-        const buffer = try self.allocator.alloc(u8, file_size);
+        const file_stat = try file.stat(io);
+        const buffer = try self.allocator.alloc(u8, file_stat.size);
         defer self.allocator.free(buffer);
 
-        _ = try file.readAll(buffer);
+        _ = try file.readPositional(io, &.{buffer}, 0);
         try self.deserialize(buffer, state);
     }
 };

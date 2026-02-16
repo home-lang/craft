@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// Android Kotlin Template Generator
 /// Generates complete Android app templates with Craft integration
@@ -38,7 +39,8 @@ pub const AndroidTemplate = struct {
     }
 
     fn createDirectoryStructure(self: *AndroidTemplate) !void {
-        const cwd = std.fs.cwd();
+        const io = io_context.get();
+        const cwd = io_context.cwd();
 
         const package_path = try std.mem.replaceOwned(u8, self.allocator, self.package_name, ".", "/");
         defer self.allocator.free(package_path);
@@ -57,7 +59,7 @@ pub const AndroidTemplate = struct {
         };
 
         for (dirs) |dir| {
-            cwd.makeDir(dir) catch |err| {
+            cwd.createDir(io, dir, .default_dir) catch |err| {
                 if (err != error.PathAlreadyExists) return err;
             };
         }
@@ -522,11 +524,12 @@ pub const AndroidTemplate = struct {
         const full_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ self.output_dir, relative_path });
         defer self.allocator.free(full_path);
 
-        const cwd = std.fs.cwd();
-        const file = try cwd.createFile(full_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        const file = try cwd.createFile(io, full_path, .{});
+        defer file.close(io);
 
-        try file.writeAll(content);
+        try file.writeStreamingAll(io, content);
     }
 };
 

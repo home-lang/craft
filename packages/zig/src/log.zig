@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 pub const LogLevel = enum {
     Debug,
@@ -38,13 +39,13 @@ pub const LogConfig = struct {
 };
 
 var current_config: LogConfig = .{};
-var log_file: ?std.fs.File = null;
+var log_file: ?std.Io.File = null;
 
 pub fn init(config: LogConfig) !void {
     current_config = config;
 
     if (config.output_file) |path| {
-        log_file = try std.fs.cwd().createFile(path, .{
+        log_file = try std.Io.Dir.cwd().createFile(io_context.get(), path, .{
             .truncate = false,
             .read = true,
         });
@@ -53,7 +54,7 @@ pub fn init(config: LogConfig) !void {
 
 pub fn deinit() void {
     if (log_file) |file| {
-        file.close();
+        file.close(io_context.get());
         log_file = null;
     }
 }
@@ -118,11 +119,11 @@ pub fn log(
     const output = output_buf[0..output_len];
 
     // Write to stderr
-    std.debug.print("{s}", .{output});
+    _ = std.Io.File.stderr().writeStreamingAll(io_context.get(), output) catch return;
 
     // Write to file if configured
     if (log_file) |file| {
-        file.writeAll(output) catch return;
+        _ = file.writeStreamingAll(io_context.get(), output) catch return;
     }
 }
 
@@ -153,8 +154,9 @@ fn getTimestamp() []const u8 {
         var buf: [8]u8 = undefined;
     };
 
-    // Use POSIX clock_gettime for wall clock time
-    const ts = std.posix.clock_gettime(.REALTIME) catch return "00:00:00";
+    // Use C clock_gettime for wall clock time
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.REALTIME, &ts) != 0) return "00:00:00";
     const total_seconds: u64 = @intCast(ts.sec);
     const seconds = @mod(total_seconds, 60);
     const minutes = @mod(@divFloor(total_seconds, 60), 60);

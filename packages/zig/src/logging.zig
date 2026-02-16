@@ -1,5 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const compat_mutex = @import("compat_mutex.zig");
+const io_context = @import("io_context.zig");
 
 /// Log levels for Craft logging system
 pub const LogLevel = enum(u8) {
@@ -59,8 +61,8 @@ pub const LogConfig = struct {
 
 /// Global logger state
 var global_config: LogConfig = .{};
-var global_file: ?std.fs.File = null;
-var global_mutex: std.Thread.Mutex = .{};
+var global_file: ?std.Io.File = null;
+var global_mutex: compat_mutex.Mutex = .{};
 
 /// Initialize the logging system
 pub fn init(config: LogConfig) void {
@@ -71,10 +73,8 @@ pub fn init(config: LogConfig) void {
 
     if (config.target == .file) {
         if (config.file_path) |path| {
-            global_file = std.fs.cwd().createFile(path, .{ .truncate = false }) catch null;
-            if (global_file) |f| {
-                f.seekFromEnd(0) catch {};
-            }
+            const io = io_context.get();
+            global_file = std.Io.Dir.cwd().createFile(io, path, .{ .truncate = false }) catch null;
         }
     }
 }
@@ -85,7 +85,7 @@ pub fn deinit() void {
     defer global_mutex.unlock();
 
     if (global_file) |f| {
-        f.close();
+        f.close(io_context.get());
         global_file = null;
     }
 }
@@ -124,24 +124,23 @@ fn logInternal(
     var buf: [4096]u8 = undefined;
     var pos: usize = 0;
 
-    // Timestamp - use posix clock for wall time where available
+    // Timestamp - use C clock for wall time where available
     if (config.show_timestamp) {
-        if (comptime @hasDecl(std.posix, "clock_gettime")) {
-            const ts = std.posix.clock_gettime(.REALTIME) catch {
-                // Skip timestamp if clock not available
-                return;
-            };
-            const secs_total: i64 = ts.sec;
-            const hours = @mod(@divFloor(secs_total, 3600), 24);
-            const mins = @mod(@divFloor(secs_total, 60), 60);
-            const secs = @mod(secs_total, 60);
+        if (comptime @hasDecl(std.c, "clock_gettime")) {
+            var ts: std.c.timespec = undefined;
+            if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+                const secs_total: i64 = ts.sec;
+                const hours = @mod(@divFloor(secs_total, 3600), 24);
+                const mins = @mod(@divFloor(secs_total, 60), 60);
+                const secs = @mod(secs_total, 60);
 
-            const ts_str = std.fmt.bufPrint(buf[pos..], "{d:0>2}:{d:0>2}:{d:0>2} ", .{
-                @as(u64, @intCast(hours)),
-                @as(u64, @intCast(mins)),
-                @as(u64, @intCast(secs)),
-            }) catch return;
-            pos += ts_str.len;
+                const ts_str = std.fmt.bufPrint(buf[pos..], "{d:0>2}:{d:0>2}:{d:0>2} ", .{
+                    @as(u64, @intCast(hours)),
+                    @as(u64, @intCast(mins)),
+                    @as(u64, @intCast(secs)),
+                }) catch return;
+                pos += ts_str.len;
+            }
         }
     }
 
@@ -183,17 +182,18 @@ fn logInternal(
     buf[pos] = '\n';
     pos += 1;
 
-    // Output - use posix write for cross-platform stderr/stdout
+    // Output
+    const io = io_context.get();
     switch (config.target) {
         .stderr => {
-            _ = std.posix.write(std.posix.STDERR_FILENO, buf[0..pos]) catch {};
+            std.Io.File.stderr().writeStreamingAll(io, buf[0..pos]) catch {};
         },
         .stdout => {
-            _ = std.posix.write(std.posix.STDOUT_FILENO, buf[0..pos]) catch {};
+            std.Io.File.stdout().writeStreamingAll(io, buf[0..pos]) catch {};
         },
         .file => {
             if (global_file) |f| {
-                f.writeAll(buf[0..pos]) catch {};
+                f.writeStreamingAll(io_context.get(), buf[0..pos]) catch {};
             }
         },
         .callback => {

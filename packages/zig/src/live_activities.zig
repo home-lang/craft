@@ -635,13 +635,19 @@ fn getCurrentTimestamp() i64 {
     if (builtin.os.tag == .macos or builtin.os.tag == .ios or
         builtin.os.tag == .tvos or builtin.os.tag == .watchos)
     {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-        return ts.sec;
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+            return ts.sec;
+        }
+        return 0;
     } else if (builtin.os.tag == .windows) {
         return std.time.timestamp();
     } else if (builtin.os.tag == .linux) {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-        return ts.sec;
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+            return ts.sec;
+        }
+        return 0;
     } else {
         return 0;
     }

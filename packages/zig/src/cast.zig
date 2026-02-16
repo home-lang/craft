@@ -693,9 +693,12 @@ pub const CastController = struct {
 
 /// Get current timestamp in milliseconds
 fn getCurrentTimestamp() u64 {
-    const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-    const ms = @divTrunc(ts.nsec, 1_000_000);
-    return @intCast(@as(i128, ts.sec) * 1000 + ms);
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+        const ms = @divTrunc(ts.nsec, 1_000_000);
+        return @intCast(@as(i128, ts.sec) * 1000 + ms);
+    }
+    return 0;
 }
 
 /// Check if casting is supported

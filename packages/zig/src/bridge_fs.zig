@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
+const io_context = @import("io_context.zig");
 
 const BridgeError = bridge_error.BridgeError;
 
@@ -109,27 +110,27 @@ pub const FSBridge = struct {
         std.debug.print("[FSBridge] readFile: {s}\n", .{path});
 
         // Read file
-        const file = std.fs.cwd().openFile(path, .{}) catch |err| {
+        const file = std.Io.Dir.cwd().openFile(io_context.get(), path, .{}) catch |err| {
             self.sendFSError(callback_id, "readFile", path, err);
             return;
         };
-        defer file.close();
+        defer file.close(io_context.get());
 
         // Get file size
-        const file_stat = file.stat() catch |err| {
+        const file_stat = file.stat(io_context.get()) catch |err| {
             self.sendFSError(callback_id, "readFile", path, err);
             return;
         };
         const size = file_stat.size;
 
-        // Allocate and read using pread
+        // Allocate and read using readPositional
         const content = self.allocator.alloc(u8, size) catch |err| {
             self.sendFSError(callback_id, "readFile", path, err);
             return;
         };
         defer self.allocator.free(content);
 
-        const bytes_read = file.pread(content, 0) catch |err| {
+        const bytes_read = file.readPositional(io_context.get(), &.{content}, 0) catch |err| {
             self.sendFSError(callback_id, "readFile", path, err);
             return;
         };
@@ -175,13 +176,13 @@ pub const FSBridge = struct {
         std.debug.print("[FSBridge] writeFile: {s} ({d} bytes)\n", .{ path, content.len });
 
         // Write file
-        const file = std.fs.cwd().createFile(path, .{}) catch |err| {
+        const file = std.Io.Dir.cwd().createFile(io_context.get(), path, .{}) catch |err| {
             self.sendFSError(callback_id, "writeFile", path, err);
             return;
         };
-        defer file.close();
+        defer file.close(io_context.get());
 
-        file.writeAll(content) catch |err| {
+        file.writeStreamingAll(io_context.get(), content) catch |err| {
             self.sendFSError(callback_id, "writeFile", path, err);
             return;
         };
@@ -221,14 +222,13 @@ pub const FSBridge = struct {
 
         std.debug.print("[FSBridge] appendFile: {s}\n", .{path});
 
-        const file = std.fs.cwd().openFile(path, .{ .mode = .write_only }) catch |err| {
+        const file = std.Io.Dir.cwd().openFile(io_context.get(), path, .{ .mode = .write_only }) catch |err| {
             self.sendFSError(callback_id, "appendFile", path, err);
             return;
         };
-        defer file.close();
+        defer file.close(io_context.get());
 
-        file.seekFromEnd(0) catch {};
-        file.writeAll(content) catch |err| {
+        file.writeStreamingAll(io_context.get(), content) catch |err| {
             self.sendFSError(callback_id, "appendFile", path, err);
             return;
         };
@@ -260,7 +260,7 @@ pub const FSBridge = struct {
 
         std.debug.print("[FSBridge] deleteFile: {s}\n", .{path});
 
-        std.fs.cwd().deleteFile(path) catch |err| {
+        std.Io.Dir.cwd().deleteFile(io_context.get(), path) catch |err| {
             self.sendFSError(callback_id, "deleteFile", path, err);
             return;
         };
@@ -290,7 +290,7 @@ pub const FSBridge = struct {
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        const file_exists = std.fs.cwd().access(path, .{}) != error.FileNotFound;
+        const file_exists = if (std.Io.Dir.cwd().access(io_context.get(), path, .{})) |_| true else |_| false;
 
         self.sendFSBool(callback_id, "exists", file_exists);
     }
@@ -317,7 +317,7 @@ pub const FSBridge = struct {
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        const file_stat = std.fs.cwd().statFile(path) catch |err| {
+        const file_stat = std.Io.Dir.cwd().statFile(io_context.get(), path, .{}) catch |err| {
             self.sendFSError(callback_id, "stat", path, err);
             return;
         };
@@ -369,11 +369,11 @@ pub const FSBridge = struct {
 
         std.debug.print("[FSBridge] readDir: {s}\n", .{path});
 
-        var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| {
+        var dir = std.Io.Dir.cwd().openDir(io_context.get(), path, .{ .iterate = true }) catch |err| {
             self.sendFSError(callback_id, "readDir", path, err);
             return;
         };
-        defer dir.close();
+        defer dir.close(io_context.get());
 
         // Build JSON array of entries
         var buf: [8192]u8 = undefined;
@@ -383,7 +383,7 @@ pub const FSBridge = struct {
 
         var first = true;
         var iter = dir.iterate();
-        while (iter.next() catch null) |entry| {
+        while (iter.next(io_context.get()) catch null) |entry| {
             if (!first) {
                 buf[pos] = ',';
                 pos += 1;
@@ -438,12 +438,12 @@ pub const FSBridge = struct {
         std.debug.print("[FSBridge] mkdir: {s} (recursive={})\n", .{ path, recursive });
 
         if (recursive) {
-            std.fs.cwd().makePath(path) catch |err| {
+            std.Io.Dir.cwd().createDirPath(io_context.get(), path) catch |err| {
                 self.sendFSError(callback_id, "mkdir", path, err);
                 return;
             };
         } else {
-            std.fs.cwd().makeDir(path) catch |err| {
+            std.Io.Dir.cwd().createDir(io_context.get(), path, .default_dir) catch |err| {
                 self.sendFSError(callback_id, "mkdir", path, err);
                 return;
             };
@@ -476,7 +476,7 @@ pub const FSBridge = struct {
 
         std.debug.print("[FSBridge] rmdir: {s}\n", .{path});
 
-        std.fs.cwd().deleteDir(path) catch |err| {
+        std.Io.Dir.cwd().deleteDir(io_context.get(), path) catch |err| {
             self.sendFSError(callback_id, "rmdir", path, err);
             return;
         };
@@ -517,7 +517,8 @@ pub const FSBridge = struct {
         std.debug.print("[FSBridge] copy: {s} -> {s}\n", .{ src, dest });
 
         // In Zig 0.16, copyFile uses dest_dir parameter
-        std.fs.cwd().copyFile(src, std.fs.cwd(), dest, .{}) catch |err| {
+        const d = std.Io.Dir.cwd();
+        std.Io.Dir.copyFile(d, src, d, dest, io_context.get(), .{}) catch |err| {
             self.sendFSError(callback_id, "copy", src, err);
             return;
         };
@@ -557,7 +558,8 @@ pub const FSBridge = struct {
 
         std.debug.print("[FSBridge] move: {s} -> {s}\n", .{ src, dest });
 
-        std.fs.cwd().rename(src, dest) catch |err| {
+        const d = std.Io.Dir.cwd();
+        std.Io.Dir.rename(d, src, d, dest, io_context.get()) catch |err| {
             self.sendFSError(callback_id, "move", src, err);
             return;
         };

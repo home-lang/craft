@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// Package configuration structure
 pub const Package = struct {
@@ -72,11 +73,14 @@ pub fn findAndLoadPackage(allocator: std.mem.Allocator, dir_path: []const u8) !P
 }
 
 fn loadPackageFromToml(allocator: std.mem.Allocator, path: []const u8) !Package {
-    const file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
+    const io = io_context.get();
+    const file = try io_context.cwd().openFile(io, path, .{});
+    defer file.close(io);
 
-    const content = try file.readToEndAlloc(allocator, 10 * 1024 * 1024); // 10MB max
+    const stat = try file.stat(io);
+    const content = try allocator.alloc(u8, stat.size);
     defer allocator.free(content);
+    _ = try file.readPositional(io, &.{content}, 0);
 
     return parseToml(allocator, content);
 }
@@ -957,11 +961,14 @@ fn parseTomlDependency(allocator: std.mem.Allocator, value: TomlValue) !Package.
 }
 
 fn loadPackageFromJson(allocator: std.mem.Allocator, path: []const u8) !Package {
-    const file = try std.fs.cwd().openFile(path, .{});
-    defer file.close();
+    const io = io_context.get();
+    const file = try io_context.cwd().openFile(io, path, .{});
+    defer file.close(io);
 
-    const content = try file.readToEndAlloc(allocator, 10 * 1024 * 1024); // 10MB max
+    const stat = try file.stat(io);
+    const content = try allocator.alloc(u8, stat.size);
     defer allocator.free(content);
+    _ = try file.readPositional(io, &.{content}, 0);
 
     // Strip comments if it's a JSONC file
     const file_ext = std.fs.path.extension(path);
@@ -1179,14 +1186,16 @@ pub fn createDEB(allocator: std.mem.Allocator, config: PackagingConfig) ![]const
     const control_dir = try std.fs.path.join(allocator, &[_][]const u8{ deb_dir, "DEBIAN" });
     defer allocator.free(control_dir);
 
-    try std.fs.cwd().makePath(control_dir);
+    const io = io_context.get();
+    const d = io_context.cwd();
+    try d.createDirPath(io, control_dir);
 
     // Create control file
     const control_path = try std.fs.path.join(allocator, &[_][]const u8{ control_dir, "control" });
     defer allocator.free(control_path);
 
-    const control_file = try std.fs.cwd().createFile(control_path, .{});
-    defer control_file.close();
+    const control_file = try d.createFile(io, control_path, .{});
+    defer control_file.close(io);
 
     const control_content = try std.fmt.allocPrint(allocator,
         \\Package: {s}
@@ -1203,18 +1212,18 @@ pub fn createDEB(allocator: std.mem.Allocator, config: PackagingConfig) ![]const
     });
     defer allocator.free(control_content);
 
-    try control_file.writeAll(control_content);
+    try control_file.writeStreamingAll(io, control_content);
 
     // Create package structure
     const bin_dir = try std.fs.path.join(allocator, &[_][]const u8{ deb_dir, "usr", "bin" });
     defer allocator.free(bin_dir);
-    try std.fs.cwd().makePath(bin_dir);
+    try d.createDirPath(io, bin_dir);
 
     // Copy binary
     const dest_binary = try std.fs.path.join(allocator, &[_][]const u8{ bin_dir, config.app_name });
     defer allocator.free(dest_binary);
 
-    try std.fs.cwd().copyFile(config.binary_path, std.fs.cwd(), dest_binary, .{});
+    try std.Io.Dir.copyFile(d, config.binary_path, d, dest_binary, io, .{});
 
     // Build DEB package
     const package_name = try std.fmt.allocPrint(allocator, "{s}_{s}_amd64.deb", .{ config.app_name, config.version });
@@ -1233,10 +1242,12 @@ pub fn createRPM(allocator: std.mem.Allocator, config: PackagingConfig) ![]const
 
     // Create RPM directory structure
     const dirs = [_][]const u8{ "BUILD", "RPMS", "SOURCES", "SPECS", "SRPMS" };
+    const io = io_context.get();
+    const d = io_context.cwd();
     for (dirs) |dir| {
         const path = try std.fs.path.join(allocator, &[_][]const u8{ rpm_dir, dir });
         defer allocator.free(path);
-        try std.fs.cwd().makePath(path);
+        try d.createDirPath(io, path);
     }
 
     // Create spec file
@@ -1246,8 +1257,8 @@ pub fn createRPM(allocator: std.mem.Allocator, config: PackagingConfig) ![]const
     const spec_file_path = try std.fmt.allocPrint(allocator, "{s}.spec", .{spec_path});
     defer allocator.free(spec_file_path);
 
-    const spec_file = try std.fs.cwd().createFile(spec_file_path, .{});
-    defer spec_file.close();
+    const spec_file = try d.createFile(io, spec_file_path, .{});
+    defer spec_file.close(io);
 
     const spec_content = try std.fmt.allocPrint(allocator,
         \\Name:           {s}
@@ -1272,7 +1283,7 @@ pub fn createRPM(allocator: std.mem.Allocator, config: PackagingConfig) ![]const
     });
     defer allocator.free(spec_content);
 
-    try spec_file.writeAll(spec_content);
+    try spec_file.writeStreamingAll(io, spec_content);
 
     const output_path = try std.fmt.allocPrint(allocator, "{s}/{s}-{s}-1.x86_64.rpm", .{ config.output_dir, config.app_name, config.version });
     std.debug.print("Creating RPM package: {s}\n", .{output_path});
@@ -1284,24 +1295,26 @@ pub fn createAppImage(allocator: std.mem.Allocator, config: PackagingConfig) ![]
     const appdir = try std.fmt.allocPrint(allocator, "{s}/{s}.AppDir", .{ config.output_dir, config.app_name });
     defer allocator.free(appdir);
 
-    try std.fs.cwd().makePath(appdir);
+    const io = io_context.get();
+    const d = io_context.cwd();
+    try d.createDirPath(io, appdir);
 
     // Create directory structure
     const bin_dir = try std.fs.path.join(allocator, &[_][]const u8{ appdir, "usr", "bin" });
     defer allocator.free(bin_dir);
-    try std.fs.cwd().makePath(bin_dir);
+    try d.createDirPath(io, bin_dir);
 
     // Copy binary
     const dest_binary = try std.fs.path.join(allocator, &[_][]const u8{ bin_dir, config.app_name });
     defer allocator.free(dest_binary);
-    try std.fs.cwd().copyFile(config.binary_path, std.fs.cwd(), dest_binary, .{});
+    try std.Io.Dir.copyFile(d, config.binary_path, d, dest_binary, io, .{});
 
     // Create desktop file
     const desktop_file_path = try std.fmt.allocPrint(allocator, "{s}/{s}.desktop", .{ appdir, config.app_name });
     defer allocator.free(desktop_file_path);
 
-    const desktop_file = try std.fs.cwd().createFile(desktop_file_path, .{});
-    defer desktop_file.close();
+    const desktop_file = try d.createFile(io, desktop_file_path, .{});
+    defer desktop_file.close(io);
 
     const desktop_content = try std.fmt.allocPrint(allocator,
         \\[Desktop Entry]
@@ -1314,7 +1327,7 @@ pub fn createAppImage(allocator: std.mem.Allocator, config: PackagingConfig) ![]
     , .{ config.app_name, config.app_name, config.app_name });
     defer allocator.free(desktop_content);
 
-    try desktop_file.writeAll(desktop_content);
+    try desktop_file.writeStreamingAll(io, desktop_content);
 
     const output_path = try std.fmt.allocPrint(allocator, "{s}/{s}-{s}-x86_64.AppImage", .{ config.output_dir, config.app_name, config.version });
     std.debug.print("Creating AppImage: {s}\n", .{output_path});
@@ -1326,14 +1339,16 @@ pub fn createMSI(allocator: std.mem.Allocator, config: PackagingConfig) ![]const
     const wix_dir = try std.fs.path.join(allocator, &[_][]const u8{ config.output_dir, "wix" });
     defer allocator.free(wix_dir);
 
-    try std.fs.cwd().makePath(wix_dir);
+    const io = io_context.get();
+    const d = io_context.cwd();
+    try d.createDirPath(io, wix_dir);
 
     // Create WXS file
     const wxs_file_path = try std.fmt.allocPrint(allocator, "{s}/{s}.wxs", .{ wix_dir, config.app_name });
     defer allocator.free(wxs_file_path);
 
-    const wxs_file = try std.fs.cwd().createFile(wxs_file_path, .{});
-    defer wxs_file.close();
+    const wxs_file = try d.createFile(io, wxs_file_path, .{});
+    defer wxs_file.close(io);
 
     const guid = "YOUR-GUID-HERE";
     const wxs_content = try std.fmt.allocPrint(allocator,
@@ -1368,7 +1383,7 @@ pub fn createMSI(allocator: std.mem.Allocator, config: PackagingConfig) ![]const
     });
     defer allocator.free(wxs_content);
 
-    try wxs_file.writeAll(wxs_content);
+    try wxs_file.writeStreamingAll(io, wxs_content);
 
     const output_path = try std.fmt.allocPrint(allocator, "{s}/{s}-{s}.msi", .{ config.output_dir, config.app_name, config.version });
     std.debug.print("Creating MSI package: {s}\n", .{output_path});

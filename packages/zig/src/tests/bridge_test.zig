@@ -1,5 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
+const io_context = @import("../io_context.zig");
 
 // Import modules to test
 const memory = @import("../memory.zig");
@@ -359,7 +360,7 @@ test "Performance - allocation benchmark" {
     var pool = memory.MemoryPool.init(testing.allocator);
     defer pool.deinit();
 
-    var timer = try std.time.Timer.start();
+    const start_ts = std.Io.Timestamp.now(io_context.get(), .awake);
 
     // Benchmark allocations
     var ptrs: [iterations]*[1024]u8 = undefined;
@@ -372,8 +373,9 @@ test "Performance - allocation benchmark" {
         pool.free(ptr);
     }
 
-    const elapsed = timer.read();
-    const elapsed_ms = @as(f64, @floatFromInt(elapsed)) / 1_000_000.0;
+    const end_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+    const elapsed_dur = start_ts.durationTo(end_ts);
+    const elapsed_ms = @as(f64, @floatFromInt(@as(u64, @intCast(elapsed_dur.nanoseconds)))) / 1_000_000.0;
 
     // Should complete in reasonable time (< 100ms for 1000 allocs)
     try testing.expect(elapsed_ms < 100.0);
@@ -396,15 +398,16 @@ test "Performance - event emission benchmark" {
         }
     }.handler, &counter);
 
-    var timer = try std.time.Timer.start();
+    const start_ts = std.Io.Timestamp.now(io_context.get(), .awake);
 
     // Emit events
     for (0..iterations) |_| {
         emitter.emit("perf-event", types.Value.null_value);
     }
 
-    const elapsed = timer.read();
-    const elapsed_ms = @as(f64, @floatFromInt(elapsed)) / 1_000_000.0;
+    const end_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+    const elapsed_dur = start_ts.durationTo(end_ts);
+    const elapsed_ms = @as(f64, @floatFromInt(@as(u64, @intCast(elapsed_dur.nanoseconds)))) / 1_000_000.0;
 
     try testing.expectEqual(@as(u64, iterations), counter);
 

@@ -347,12 +347,15 @@ pub const FormField = union(enum) {
 
 /// Get current timestamp in nanoseconds for seeding PRNG
 fn getCurrentNanos() u64 {
-    const ts = std.posix.clock_gettime(.REALTIME) catch return 12345;
-    if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
-        return @as(u64, @intCast(ts.sec)) *% 1_000_000_000 +% @as(u64, @intCast(ts.nsec));
-    } else {
-        return @as(u64, @intCast(ts.sec)) *% 1_000_000_000 +% @as(u64, @intCast(ts.nsec));
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+        if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
+            return @as(u64, @intCast(ts.sec)) *% 1_000_000_000 +% @as(u64, @intCast(ts.nsec));
+        } else {
+            return @as(u64, @intCast(ts.sec)) *% 1_000_000_000 +% @as(u64, @intCast(ts.nsec));
+        }
     }
+    return 12345;
 }
 
 /// Multipart form data builder

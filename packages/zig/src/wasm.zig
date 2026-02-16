@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// WebAssembly Plugin System
 /// Allows loading and running WASM modules as plugins
@@ -128,10 +129,13 @@ pub const WasmRuntime = struct {
     }
 
     pub fn loadModule(self: *WasmRuntime, name: []const u8, path: []const u8) !void {
-        const file = try std.fs.cwd().openFile(path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().openFile(io, path, .{});
+        defer file.close(io);
 
-        const bytes = try file.readToEndAlloc(self.allocator, 10 * 1024 * 1024);
+        const stat = try file.stat(io);
+        const bytes = try self.allocator.alloc(u8, stat.size);
+        _ = try file.readPositional(io, &.{bytes}, 0);
         defer self.allocator.free(bytes);
 
         var module = try WasmModule.init(self.allocator, name, bytes);

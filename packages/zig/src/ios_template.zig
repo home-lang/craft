@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// iOS Swift Template Generator
 /// Generates complete iOS app templates with Craft integration
@@ -40,7 +41,8 @@ pub const IOSTemplate = struct {
     }
 
     fn createDirectoryStructure(self: *IOSTemplate) !void {
-        const cwd = std.fs.cwd();
+        const io = io_context.get();
+        const cwd = io_context.cwd();
 
         const dirs = [_][]const u8{
             self.output_dir,
@@ -52,7 +54,7 @@ pub const IOSTemplate = struct {
         };
 
         for (dirs) |dir| {
-            cwd.makeDir(dir) catch |err| {
+            cwd.createDir(io, dir, .default_dir) catch |err| {
                 if (err != error.PathAlreadyExists) return err;
             };
         }
@@ -601,11 +603,12 @@ pub const IOSTemplate = struct {
         const full_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ self.output_dir, relative_path });
         defer self.allocator.free(full_path);
 
-        const cwd = std.fs.cwd();
-        const file = try cwd.createFile(full_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        const file = try cwd.createFile(io, full_path, .{});
+        defer file.close(io);
 
-        try file.writeAll(content);
+        try file.writeStreamingAll(io, content);
     }
 };
 

@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// Windows Packaging
 /// Supports MSI installer creation using WiX Toolset
@@ -135,10 +136,11 @@ pub const WindowsPackager = struct {
         );
         defer self.allocator.free(wxs_content);
 
-        const file = try std.fs.cwd().createFile(wxs_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, wxs_path, .{});
+        defer file.close(io);
 
-        try file.writeAll(wxs_content);
+        try file.writeStreamingAll(io, wxs_content);
 
         return wxs_path;
     }
@@ -253,16 +255,18 @@ pub fn createPortableZIP(
     const temp_dir = try std.fmt.allocPrint(allocator, "{s}/portable_temp", .{output_dir});
     defer allocator.free(temp_dir);
 
-    std.fs.cwd().makeDir(temp_dir) catch |err| {
+    const io = io_context.get();
+    const d = io_context.cwd();
+    d.createDir(io, temp_dir, .default_dir) catch |err| {
         if (err != error.PathAlreadyExists) return err;
     };
-    defer std.fs.cwd().deleteTree(temp_dir) catch {};
+    defer d.deleteTree(io, temp_dir) catch {};
 
     // Copy binary to temp directory
     const dest_binary = try std.fmt.allocPrint(allocator, "{s}/{s}.exe", .{ temp_dir, app_name });
     defer allocator.free(dest_binary);
 
-    try std.fs.cwd().copyFile(binary_path, std.fs.cwd(), dest_binary, .{});
+    try std.Io.Dir.copyFile(d, binary_path, d, dest_binary, io, .{});
 
     // Create README
     const readme_path = try std.fmt.allocPrint(allocator, "{s}/README.txt", .{temp_dir});
@@ -281,9 +285,9 @@ pub fn createPortableZIP(
     );
     defer allocator.free(readme_content);
 
-    const readme_file = try std.fs.cwd().createFile(readme_path, .{});
-    defer readme_file.close();
-    try readme_file.writeAll(readme_content);
+    const readme_file = try d.createFile(io, readme_path, .{});
+    defer readme_file.close(io);
+    try readme_file.writeStreamingAll(io, readme_content);
 
     // Create ZIP using PowerShell
     const cmd = try std.fmt.allocPrint(

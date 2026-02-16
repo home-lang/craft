@@ -16,6 +16,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const io_context = @import("io_context.zig");
 
 /// Camera device position (for mobile devices)
 pub const CameraPosition = enum {
@@ -361,7 +362,7 @@ pub const CameraSession = struct {
     error_callback: ?ErrorCallback = null,
 
     // Recording state
-    recording_start_time: ?std.time.Instant = null,
+    recording_start_time: ?std.Io.Timestamp = null,
     recording_file_path: ?[]const u8 = null,
 
     const Self = @This();
@@ -429,7 +430,7 @@ pub const CameraSession = struct {
         if (self.is_recording) return CameraError.DeviceBusy;
 
         self.recording_file_path = output_path;
-        self.recording_start_time = std.time.Instant.now() catch null;
+        self.recording_start_time = std.Io.Timestamp.now(io_context.get(), .awake);
 
         if (builtin.os.tag == .macos or builtin.target.os.tag == .ios) {
             try self.startRecordingMacOS(output_path);
@@ -447,8 +448,9 @@ pub const CameraSession = struct {
         if (!self.is_recording) return CameraError.RecordingError;
 
         const duration: u64 = if (self.recording_start_time) |start| blk: {
-            const now = std.time.Instant.now() catch break :blk 0;
-            break :blk now.since(start) / std.time.ns_per_ms;
+            const now = std.Io.Timestamp.now(io_context.get(), .awake);
+            const elapsed = start.durationTo(now);
+            break :blk @as(u64, @intCast(elapsed.nanoseconds)) / std.time.ns_per_ms;
         } else 0;
 
         if (builtin.os.tag == .macos or builtin.target.os.tag == .ios) {

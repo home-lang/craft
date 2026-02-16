@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 const builtin = @import("builtin");
 
 /// Enhanced CLI with project scaffolding and templates
@@ -208,8 +209,9 @@ pub const EnhancedCLI = struct {
         }
 
         // Check if directory already exists
-        const cwd = std.fs.cwd();
-        const project_dir = cwd.openDir(project_name, .{}) catch |err| {
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        const project_dir = cwd.openDir(io, project_name, .{}) catch |err| {
             if (err == error.FileNotFound) {
                 // Directory doesn't exist, we can proceed
                 try self.createProject(project_name);
@@ -217,7 +219,7 @@ pub const EnhancedCLI = struct {
             }
             return err;
         };
-        defer project_dir.close();
+        defer project_dir.close(io);
 
         if (!self.config.force) {
             std.debug.print("Error: Directory '{s}' already exists\n", .{project_name});
@@ -229,12 +231,13 @@ pub const EnhancedCLI = struct {
     }
 
     fn createProject(self: *Self, name: []const u8) !void {
-        const cwd = std.fs.cwd();
+        const io = io_context.get();
+        const cwd = io_context.cwd();
 
         // Create project directory
-        try cwd.makeDir(name);
-        var project_dir = try cwd.openDir(name, .{});
-        defer project_dir.close();
+        try cwd.createDir(io, name, .default_dir);
+        var project_dir = try cwd.openDir(io, name, .{});
+        defer project_dir.close(io);
 
         std.debug.print("✓ Created directory: {s}\n", .{name});
 
@@ -249,10 +252,11 @@ pub const EnhancedCLI = struct {
     }
 
     fn createProjectStructure(self: *Self, dir: *std.fs.Dir, name: []const u8) !void {
+        const io = io_context.get();
         // Create standard directories
-        try dir.makeDir("src");
-        try dir.makeDir("public");
-        try dir.makeDir("dist");
+        try dir.createDir(io, "src", .default_dir);
+        try dir.createDir(io, "public", .default_dir);
+        try dir.createDir(io, "dist", .default_dir);
 
         std.debug.print("✓ Created project structure\n", .{});
 
@@ -295,16 +299,18 @@ pub const EnhancedCLI = struct {
         , .{ name, self.config.template.toString() });
         defer self.allocator.free(package_json);
 
-        const file = try dir.createFile("package.json", .{});
-        defer file.close();
-        try file.writeAll(package_json);
+        const io = io_context.get();
+        const file = try dir.createFile(io, "package.json", .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, package_json);
 
         std.debug.print("✓ Created package.json\n", .{});
     }
 
     fn createTemplateFiles(self: *Self, dir: *std.fs.Dir) !void {
-        var src_dir = try dir.openDir("src", .{});
-        defer src_dir.close();
+        const io = io_context.get();
+        var src_dir = try dir.openDir(io, "src", .{});
+        defer src_dir.close(io);
 
         switch (self.config.template) {
             .vanilla => try self.createVanillaTemplate(&src_dir),
@@ -578,9 +584,10 @@ pub const EnhancedCLI = struct {
         , .{ name, name });
         defer self.allocator.free(config);
 
-        const file = try dir.createFile("craft.config.json", .{});
-        defer file.close();
-        try file.writeAll(config);
+        const io = io_context.get();
+        const file = try dir.createFile(io, "craft.config.json", .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, config);
 
         std.debug.print("✓ Created craft.config.json\n", .{});
     }
@@ -613,9 +620,10 @@ pub const EnhancedCLI = struct {
         , .{name});
         defer self.allocator.free(readme);
 
-        const file = try dir.createFile("README.md", .{});
-        defer file.close();
-        try file.writeAll(readme);
+        const io = io_context.get();
+        const file = try dir.createFile(io, "README.md", .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, readme);
 
         std.debug.print("✓ Created README.md\n", .{});
     }
@@ -630,9 +638,10 @@ pub const EnhancedCLI = struct {
             \\
         ;
 
-        const file = try dir.createFile(".gitignore", .{});
-        defer file.close();
-        try file.writeAll(gitignore);
+        const io = io_context.get();
+        const file = try dir.createFile(io, ".gitignore", .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, gitignore);
 
         std.debug.print("✓ Created .gitignore\n", .{});
     }
@@ -667,9 +676,10 @@ pub const EnhancedCLI = struct {
 };
 
 fn writeFile(dir: *std.fs.Dir, name: []const u8, content: []const u8) !void {
-    const file = try dir.createFile(name, .{});
-    defer file.close();
-    try file.writeAll(content);
+    const io = io_context.get();
+    const file = try dir.createFile(io, name, .{});
+    defer file.close(io);
+    try file.writeStreamingAll(io, content);
 }
 
 fn isValidProjectName(name: []const u8) bool {

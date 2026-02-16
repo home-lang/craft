@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// File System API for cross-platform file operations
 /// Provides async file operations with proper error handling
@@ -76,21 +77,24 @@ pub const FileSystem = struct {
             }
         }
 
-        const file = std.fs.cwd().openFile(path, .{}) catch |err| {
+        const io = io_context.get();
+        const file = io_context.cwd().openFile(io, path, .{}) catch |err| {
             return switch (err) {
                 error.FileNotFound => FileSystemError.FileNotFound,
                 error.AccessDenied => FileSystemError.PermissionDenied,
                 else => err,
             };
         };
-        defer file.close();
+        defer file.close(io);
 
-        const stat = try file.stat();
-        if (stat.size > self.config.max_file_size) {
+        const file_stat = try file.stat(io);
+        if (file_stat.size > self.config.max_file_size) {
             return error.FileTooLarge;
         }
 
-        const content = try file.readToEndAlloc(self.allocator, self.config.max_file_size);
+        const content = try self.allocator.alloc(u8, file_stat.size);
+        errdefer self.allocator.free(content);
+        _ = try file.readPositional(io, &.{content}, 0);
 
         // Cache the content
         if (self.config.enable_cache and content.len < self.config.cache_size) {
@@ -103,20 +107,21 @@ pub const FileSystem = struct {
 
     /// Write file contents
     pub fn writeFile(self: *Self, path: []const u8, content: []const u8) !void {
-        const file = std.fs.cwd().createFile(path, .{}) catch |err| {
+        const io = io_context.get();
+        const file = io_context.cwd().createFile(io, path, .{}) catch |err| {
             return switch (err) {
                 error.AccessDenied => FileSystemError.PermissionDenied,
                 error.PathAlreadyExists => blk: {
                     // Overwrite existing file
-                    const f = try std.fs.cwd().openFile(path, .{ .mode = .write_only });
+                    const f = try io_context.cwd().openFile(io, path, .{ .mode = .write_only });
                     break :blk f;
                 },
                 else => err,
             };
         };
-        defer file.close();
+        defer file.close(io);
 
-        try file.writeAll(content);
+        try file.writeStreamingAll(io, content);
 
         // Update cache
         if (self.config.enable_cache and content.len < self.config.cache_size) {
@@ -130,7 +135,8 @@ pub const FileSystem = struct {
 
     /// Read directory contents
     pub fn readDir(self: *Self, path: []const u8) ![]DirEntry {
-        var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| {
+        const io = io_context.get();
+        var dir = io_context.cwd().openDir(io, path, .{ .iterate = true }) catch |err| {
             return switch (err) {
                 error.FileNotFound => FileSystemError.FileNotFound,
                 error.AccessDenied => FileSystemError.PermissionDenied,
@@ -138,26 +144,26 @@ pub const FileSystem = struct {
                 else => err,
             };
         };
-        defer dir.close();
+        defer dir.close(io);
 
         var entries = std.ArrayList(DirEntry).init(self.allocator);
         defer entries.deinit();
 
         var iterator = dir.iterate();
-        while (try iterator.next()) |entry| {
+        while (try iterator.next(io)) |entry| {
             const full_path = try std.fs.path.join(self.allocator, &[_][]const u8{ path, entry.name });
             defer self.allocator.free(full_path);
 
-            const stat = try dir.statFile(entry.name);
+            const dir_stat = try dir.statFile(io, entry.name);
             const metadata = FileMetadata{
-                .size = stat.size,
-                .created = @intCast(stat.ctime),
-                .modified = @intCast(stat.mtime),
-                .accessed = @intCast(stat.atime),
+                .size = dir_stat.size,
+                .created = @intCast(dir_stat.ctime),
+                .modified = @intCast(dir_stat.mtime),
+                .accessed = @intCast(dir_stat.atime),
                 .is_directory = entry.kind == .directory,
                 .is_file = entry.kind == .file,
                 .is_symlink = entry.kind == .sym_link,
-                .permissions = @intCast(stat.mode),
+                .permissions = @intCast(dir_stat.mode),
             };
 
             try entries.append(.{
@@ -173,7 +179,8 @@ pub const FileSystem = struct {
     /// Create directory
     pub fn mkdir(self: *Self, path: []const u8) !void {
         _ = self;
-        std.fs.cwd().makePath(path) catch |err| {
+        const io = io_context.get();
+        io_context.cwd().createDirPath(io, path) catch |err| {
             return switch (err) {
                 error.AccessDenied => FileSystemError.PermissionDenied,
                 error.PathAlreadyExists => return, // Already exists, success
@@ -185,9 +192,11 @@ pub const FileSystem = struct {
     /// Remove file or directory
     pub fn remove(self: *Self, path: []const u8) !void {
         _ = self;
+        const io = io_context.get();
+        const d = io_context.cwd();
 
         // Try to determine if it's a directory or file
-        const stat = std.fs.cwd().statFile(path) catch |err| {
+        const file_stat = d.statFile(io, path) catch |err| {
             return switch (err) {
                 error.FileNotFound => FileSystemError.FileNotFound,
                 error.AccessDenied => FileSystemError.PermissionDenied,
@@ -195,8 +204,8 @@ pub const FileSystem = struct {
             };
         };
 
-        if (stat.kind == .directory) {
-            std.fs.cwd().deleteTree(path) catch |err| {
+        if (file_stat.kind == .directory) {
+            d.deleteTree(io, path) catch |err| {
                 return switch (err) {
                     error.AccessDenied => FileSystemError.PermissionDenied,
                     error.DirNotEmpty => FileSystemError.DirectoryNotEmpty,
@@ -204,7 +213,7 @@ pub const FileSystem = struct {
                 };
             };
         } else {
-            std.fs.cwd().deleteFile(path) catch |err| {
+            d.deleteFile(io, path) catch |err| {
                 return switch (err) {
                     error.AccessDenied => FileSystemError.PermissionDenied,
                     error.FileNotFound => FileSystemError.FileNotFound,
@@ -222,7 +231,7 @@ pub const FileSystem = struct {
     /// Check if path exists
     pub fn exists(self: *Self, path: []const u8) bool {
         _ = self;
-        std.fs.cwd().access(path, .{}) catch {
+        io_context.cwd().access(io_context.get(), path, .{}) catch {
             return false;
         };
         return true;
@@ -231,7 +240,8 @@ pub const FileSystem = struct {
     /// Get file metadata
     pub fn stat(self: *Self, path: []const u8) !FileMetadata {
         _ = self;
-        const file_stat = std.fs.cwd().statFile(path) catch |err| {
+        const io = io_context.get();
+        const file_stat = io_context.cwd().statFile(io, path) catch |err| {
             return switch (err) {
                 error.FileNotFound => FileSystemError.FileNotFound,
                 error.AccessDenied => FileSystemError.PermissionDenied,
@@ -254,13 +264,17 @@ pub const FileSystem = struct {
     /// Copy file
     pub fn copyFile(self: *Self, src: []const u8, dest: []const u8) !void {
         _ = self;
-        try std.fs.cwd().copyFile(src, std.fs.cwd(), dest, .{});
+        const io = io_context.get();
+        const d = io_context.cwd();
+        try std.Io.Dir.copyFile(d, src, d, dest, io, .{});
     }
 
     /// Move/rename file
     pub fn moveFile(self: *Self, src: []const u8, dest: []const u8) !void {
         _ = self;
-        try std.fs.cwd().rename(src, dest);
+        const io = io_context.get();
+        const d = io_context.cwd();
+        try std.Io.Dir.rename(d, src, d, dest, io);
 
         // Update cache key if present
         if (self.cache.fetchRemove(src)) |entry| {
@@ -303,7 +317,7 @@ test "filesystem read/write" {
 
     // Write file
     try fs.writeFile(test_path, content);
-    defer std.fs.cwd().deleteFile(test_path) catch {};
+    defer io_context.cwd().deleteFile(io_context.get(), test_path) catch {};
 
     // Read file
     const read_content = try fs.readFile(test_path);
@@ -319,7 +333,7 @@ test "filesystem exists" {
 
     const test_path = "test_exists.txt";
     try fs.writeFile(test_path, "test");
-    defer std.fs.cwd().deleteFile(test_path) catch {};
+    defer io_context.cwd().deleteFile(io_context.get(), test_path) catch {};
 
     try std.testing.expect(fs.exists(test_path));
     try std.testing.expect(!fs.exists("nonexistent.txt"));

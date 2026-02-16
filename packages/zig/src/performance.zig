@@ -1,4 +1,5 @@
 const std = @import("std");
+const compat_mutex = @import("compat_mutex.zig");
 
 /// Performance Optimization Module
 /// Provides caching, pooling, and optimization utilities
@@ -187,13 +188,13 @@ pub const ObjectPool = struct {
 pub const LazyLoader = struct {
     loaded: bool,
     load_fn: *const fn () anyerror!void,
-    mutex: std.Thread.Mutex,
+    mutex: compat_mutex.Mutex,
 
     pub fn init(load_fn: *const fn () anyerror!void) LazyLoader {
         return LazyLoader{
             .loaded = false,
             .load_fn = load_fn,
-            .mutex = std.Thread.Mutex{},
+            .mutex = .{},
         };
     }
 
@@ -217,14 +218,12 @@ pub const LazyLoader = struct {
 pub const Debouncer = struct {
     delay_ms: u64,
     last_call: i64,
-    timer: ?std.time.Timer,
     callback: *const fn () void,
 
     pub fn init(delay_ms: u64, callback: *const fn () void) Debouncer {
         return Debouncer{
             .delay_ms = delay_ms,
             .last_call = 0,
-            .timer = null,
             .callback = callback,
         };
     }
@@ -349,7 +348,7 @@ pub const WorkQueue = struct {
     tasks: std.ArrayList(Task),
     workers: std.ArrayList(std.Thread),
     running: bool,
-    mutex: std.Thread.Mutex,
+    mutex: compat_mutex.Mutex,
     condition: std.Thread.Condition,
     allocator: std.mem.Allocator,
 
@@ -363,7 +362,7 @@ pub const WorkQueue = struct {
             .tasks = std.ArrayList(Task).init(allocator),
             .workers = std.ArrayList(std.Thread).init(allocator),
             .running = true,
-            .mutex = std.Thread.Mutex{},
+            .mutex = .{},
             .condition = std.Thread.Condition{},
             .allocator = allocator,
         };

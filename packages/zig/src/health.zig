@@ -839,8 +839,11 @@ pub fn formatPace(seconds_per_km: f64, buffer: []u8) []const u8 {
 }
 
 fn getTimestampMs() i64 {
-    const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-    return @as(i64, ts.sec) * 1000 + @divTrunc(ts.nsec, 1_000_000);
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+        return @as(i64, ts.sec) * 1000 + @divTrunc(ts.nsec, 1_000_000);
+    }
+    return 0;
 }
 
 // ============================================================================

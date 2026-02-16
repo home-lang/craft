@@ -1,4 +1,5 @@
 const std = @import("std");
+const compat_mutex = @import("compat_mutex.zig");
 
 /// Bidirectional async communication system with binary data transfer
 /// Provides Promise-based responses, streaming, and binary protocol
@@ -121,7 +122,7 @@ pub const AsyncChannel = struct {
     allocator: std.mem.Allocator,
     next_id: std.atomic.Value(u32),
     pending: std.StringHashMap(*PendingRequest),
-    mutex: std.Thread.Mutex,
+    mutex: compat_mutex.Mutex,
 
     const Self = @This();
 
@@ -183,7 +184,7 @@ pub const AsyncChannel = struct {
             .allocator = allocator,
             .next_id = std.atomic.Value(u32).init(1),
             .pending = std.StringHashMap(*PendingRequest).init(allocator),
-            .mutex = std.Thread.Mutex{},
+            .mutex = .{},
         };
     }
 

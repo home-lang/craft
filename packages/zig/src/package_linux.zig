@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// Linux Packaging
 /// Supports DEB, RPM, and AppImage formats
@@ -52,7 +53,8 @@ pub const LinuxPackager = struct {
     }
 
     fn createDEBStructure(self: *LinuxPackager, pkg_dir: []const u8, binary_path: []const u8) !void {
-        const cwd = std.fs.cwd();
+        const io = io_context.get();
+        const cwd = io_context.cwd();
 
         // Create directories
         const dirs = [_][]const u8{
@@ -64,7 +66,7 @@ pub const LinuxPackager = struct {
 
         for (dirs) |dir| {
             defer self.allocator.free(dir);
-            cwd.makeDir(dir) catch |err| {
+            cwd.createDir(io, dir, .default_dir) catch |err| {
                 if (err != error.PathAlreadyExists) return err;
             };
         }
@@ -73,7 +75,7 @@ pub const LinuxPackager = struct {
         const dest_binary = try std.fmt.allocPrint(self.allocator, "{s}/usr/bin/{s}", .{ pkg_dir, self.app_name });
         defer self.allocator.free(dest_binary);
 
-        try std.fs.cwd().copyFile(binary_path, std.fs.cwd(), dest_binary, .{});
+        try std.Io.Dir.copyFile(cwd, binary_path, cwd, dest_binary, io, .{});
 
         // Make binary executable
         const chmod_cmd = try std.fmt.allocPrint(self.allocator, "chmod +x {s}", .{dest_binary});
@@ -105,10 +107,11 @@ pub const LinuxPackager = struct {
         );
         defer self.allocator.free(control_content);
 
-        const file = try std.fs.cwd().createFile(control_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, control_path, .{});
+        defer file.close(io);
 
-        try file.writeAll(control_content);
+        try file.writeStreamingAll(io, control_content);
     }
 
     fn generateDesktopFile(self: *LinuxPackager, pkg_dir: []const u8) !void {
@@ -135,10 +138,11 @@ pub const LinuxPackager = struct {
         );
         defer self.allocator.free(desktop_content);
 
-        const file = try std.fs.cwd().createFile(desktop_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, desktop_path, .{});
+        defer file.close(io);
 
-        try file.writeAll(desktop_content);
+        try file.writeStreamingAll(io, desktop_content);
     }
 
     fn buildDEB(self: *LinuxPackager, pkg_dir: []const u8, output_dir: []const u8, package_name: []const u8) !void {
@@ -228,10 +232,11 @@ pub const LinuxPackager = struct {
         );
         defer self.allocator.free(spec_content);
 
-        const file = try std.fs.cwd().createFile(spec_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, spec_path, .{});
+        defer file.close(io);
 
-        try file.writeAll(spec_content);
+        try file.writeStreamingAll(io, spec_content);
 
         return spec_path;
     }
@@ -250,7 +255,8 @@ pub const LinuxPackager = struct {
     }
 
     fn createAppImageStructure(self: *LinuxPackager, appdir: []const u8, binary_path: []const u8) !void {
-        const cwd = std.fs.cwd();
+        const io = io_context.get();
+        const cwd = io_context.cwd();
 
         // Create AppDir structure
         const dirs = [_][]const u8{
@@ -262,7 +268,7 @@ pub const LinuxPackager = struct {
 
         for (dirs) |dir| {
             defer if (dir.ptr != appdir.ptr) self.allocator.free(dir);
-            cwd.makeDir(dir) catch |err| {
+            cwd.createDir(io, dir, .default_dir) catch |err| {
                 if (err != error.PathAlreadyExists) return err;
             };
         }
@@ -271,7 +277,7 @@ pub const LinuxPackager = struct {
         const dest_binary = try std.fmt.allocPrint(self.allocator, "{s}/usr/bin/{s}", .{ appdir, self.app_name });
         defer self.allocator.free(dest_binary);
 
-        try cwd.copyFile(binary_path, cwd, dest_binary, .{});
+        try std.Io.Dir.copyFile(cwd, binary_path, cwd, dest_binary, io, .{});
 
         // Create AppRun script
         try self.generateAppRun(appdir);
@@ -290,7 +296,7 @@ pub const LinuxPackager = struct {
         const root_desktop = try std.fmt.allocPrint(self.allocator, "{s}/{s}.desktop", .{ appdir, self.app_name });
         defer self.allocator.free(root_desktop);
 
-        try cwd.copyFile(desktop_path, cwd, root_desktop, .{});
+        try std.Io.Dir.copyFile(cwd, desktop_path, cwd, root_desktop, io, .{});
     }
 
     fn generateAppRun(self: *LinuxPackager, appdir: []const u8) !void {
@@ -310,10 +316,11 @@ pub const LinuxPackager = struct {
         );
         defer self.allocator.free(apprun_content);
 
-        const file = try std.fs.cwd().createFile(apprun_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, apprun_path, .{});
+        defer file.close(io);
 
-        try file.writeAll(apprun_content);
+        try file.writeStreamingAll(io, apprun_content);
 
         // Make AppRun executable
         const chmod_cmd = try std.fmt.allocPrint(self.allocator, "chmod +x {s}", .{apprun_path});
@@ -354,7 +361,7 @@ pub const LinuxPackager = struct {
         const tool_path = try std.fmt.allocPrint(self.allocator, "{s}/appimagetool-x86_64.AppImage", .{output_dir});
 
         // Check if already exists
-        std.fs.cwd().access(tool_path, .{}) catch {
+        io_context.cwd().access(io_context.get(), tool_path, .{}) catch {
             // Download appimagetool
             std.debug.print("Downloading appimagetool...\n", .{});
 

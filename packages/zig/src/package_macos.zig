@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// macOS Packaging
 /// Supports .app bundle creation, DMG, and PKG installer
@@ -50,7 +51,8 @@ pub const MacOSPackager = struct {
     }
 
     fn createAppBundleStructure(self: *MacOSPackager, app_bundle: []const u8, binary_path: []const u8) !void {
-        const cwd = std.fs.cwd();
+        const io = io_context.get();
+        const cwd = io_context.cwd();
 
         // Create directory structure
         const dirs = [_][]const u8{
@@ -62,7 +64,7 @@ pub const MacOSPackager = struct {
 
         for (dirs) |dir| {
             defer if (dir.ptr != app_bundle.ptr) self.allocator.free(dir);
-            cwd.makeDir(dir) catch |err| {
+            cwd.createDir(io, dir, .default_dir) catch |err| {
                 if (err != error.PathAlreadyExists) return err;
             };
         }
@@ -75,7 +77,7 @@ pub const MacOSPackager = struct {
         );
         defer self.allocator.free(dest_binary);
 
-        try cwd.copyFile(binary_path, cwd, dest_binary, .{});
+        try std.Io.Dir.copyFile(cwd, binary_path, cwd, dest_binary, io, .{});
 
         // Make binary executable
         const chmod_cmd = try std.fmt.allocPrint(self.allocator, "chmod +x {s}", .{dest_binary});
@@ -141,10 +143,11 @@ pub const MacOSPackager = struct {
         );
         defer self.allocator.free(plist_content);
 
-        const file = try std.fs.cwd().createFile(plist_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, plist_path, .{});
+        defer file.close(io);
 
-        try file.writeAll(plist_content);
+        try file.writeStreamingAll(io, plist_content);
     }
 
     /// Create DMG disk image
@@ -162,10 +165,12 @@ pub const MacOSPackager = struct {
         const temp_dmg_dir = try std.fmt.allocPrint(self.allocator, "{s}/dmg_temp", .{output_dir});
         defer self.allocator.free(temp_dmg_dir);
 
-        std.fs.cwd().makeDir(temp_dmg_dir) catch |err| {
+        const io = io_context.get();
+        const d = io_context.cwd();
+        d.createDir(io, temp_dmg_dir, .default_dir) catch |err| {
             if (err != error.PathAlreadyExists) return err;
         };
-        defer std.fs.cwd().deleteTree(temp_dmg_dir) catch {};
+        defer d.deleteTree(io, temp_dmg_dir) catch {};
 
         // Copy app bundle to temp directory
         const dest_app = try std.fmt.allocPrint(self.allocator, "{s}/{s}.app", .{ temp_dmg_dir, self.app_name });
@@ -281,7 +286,7 @@ pub const MacOSPackager = struct {
 
         var zip_proc = std.process.Child.init(&[_][]const u8{ "sh", "-c", zip_cmd }, self.allocator);
         _ = try zip_proc.spawnAndWait();
-        defer std.fs.cwd().deleteFile(zip_path) catch {};
+        defer io_context.cwd().deleteFile(io_context.get(), zip_path) catch {};
 
         // Submit for notarization
         const notarize_cmd = try std.fmt.allocPrint(

@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 const wasm = @import("wasm.zig");
 const security = @import("plugin_security.zig");
 
@@ -279,7 +280,7 @@ pub const Marketplace = struct {
     pub fn uninstall(self: *Marketplace, plugin_id: []const u8) !void {
         if (self.installed_plugins.fetchRemove(plugin_id)) |kv| {
             // Delete plugin files
-            std.fs.cwd().deleteTree(kv.value.install_path) catch {};
+            io_context.cwd().deleteTree(io_context.get(), kv.value.install_path) catch {};
             self.allocator.free(kv.value.install_path);
         } else {
             return error.PluginNotInstalled;

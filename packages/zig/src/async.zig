@@ -1,4 +1,6 @@
 const std = @import("std");
+const compat_mutex = @import("compat_mutex.zig");
+const io_context = @import("io_context.zig");
 
 /// Async/Await System for Craft
 /// Provides non-blocking I/O and task scheduling
@@ -7,7 +9,7 @@ pub const Task = struct {
     context: *anyopaque,
     result: ?anyerror!void,
     completed: bool,
-    mutex: std.Thread.Mutex,
+    mutex: compat_mutex.Mutex,
 
     pub fn init(fn_ptr: *const fn (*anyopaque) anyerror!void, context: *anyopaque) Task {
         return Task{
@@ -15,7 +17,7 @@ pub const Task = struct {
             .context = context,
             .result = null,
             .completed = false,
-            .mutex = std.Thread.Mutex{},
+            .mutex = .{},
         };
     }
 
@@ -42,7 +44,7 @@ pub const Task = struct {
 
 pub const AsyncFile = struct {
     path: []const u8,
-    file: ?std.fs.File,
+    file: ?std.Io.File,
     allocator: std.mem.Allocator,
 
     // Context types need to be at struct level to be accessible from task functions
@@ -66,7 +68,7 @@ pub const AsyncFile = struct {
 
     pub fn deinit(self: *AsyncFile) void {
         if (self.file) |file| {
-            file.close();
+            file.close(io_context.get());
         }
     }
 
@@ -79,10 +81,15 @@ pub const AsyncFile = struct {
 
     fn readTask(ctx: *anyopaque) !void {
         const context: *ReadContext = @ptrCast(@alignCast(ctx));
-        const file = try std.fs.cwd().openFile(context.file.path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try std.Io.Dir.cwd().openFile(io, context.file.path, .{});
+        defer file.close(io);
 
-        context.data = try file.readToEndAlloc(context.file.allocator, 10 * 1024 * 1024);
+        const file_stat = try file.stat(io);
+        const size = file_stat.size;
+        const content = try context.file.allocator.alloc(u8, size);
+        _ = try file.readPositional(io, &.{content}, 0);
+        context.data = content;
     }
 
     pub fn writeAsync(self: *AsyncFile, data: []const u8) !Task {
@@ -94,21 +101,22 @@ pub const AsyncFile = struct {
 
     fn writeTask(ctx: *anyopaque) !void {
         const context: *WriteContext = @ptrCast(@alignCast(ctx));
-        const file = try std.fs.cwd().createFile(context.file.path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try std.Io.Dir.cwd().createFile(io, context.file.path, .{});
+        defer file.close(io);
 
-        try file.writeAll(context.data);
+        try file.writeStreamingAll(io, context.data);
     }
 };
 
 pub const StreamReader = struct {
-    file: std.fs.File,
+    file: std.Io.File,
     buffer: []u8,
     buffer_size: usize,
     position: usize,
     allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator, file: std.fs.File, buffer_size: usize) !StreamReader {
+    pub fn init(allocator: std.mem.Allocator, file: std.Io.File, buffer_size: usize) !StreamReader {
         const buffer = try allocator.alloc(u8, buffer_size);
         return StreamReader{
             .file = file,
@@ -124,7 +132,8 @@ pub const StreamReader = struct {
     }
 
     pub fn readChunk(self: *StreamReader) !?[]const u8 {
-        const bytes_read = try self.file.read(self.buffer);
+        const io = io_context.get();
+        const bytes_read = try self.file.readPositional(io, &.{self.buffer}, self.position);
         if (bytes_read == 0) return null;
 
         self.position += bytes_read;
@@ -148,7 +157,6 @@ pub const StreamReader = struct {
     }
 
     pub fn skip(self: *StreamReader, bytes: usize) !void {
-        try self.file.seekBy(@intCast(bytes));
         self.position += bytes;
     }
 
@@ -158,12 +166,12 @@ pub const StreamReader = struct {
 };
 
 pub const StreamWriter = struct {
-    file: std.fs.File,
+    file: std.Io.File,
     buffer: std.ArrayList(u8),
     auto_flush_size: usize,
     allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator, file: std.fs.File, auto_flush_size: usize) StreamWriter {
+    pub fn init(allocator: std.mem.Allocator, file: std.Io.File, auto_flush_size: usize) StreamWriter {
         return StreamWriter{
             .file = file,
             .buffer = .{},
@@ -193,7 +201,7 @@ pub const StreamWriter = struct {
     pub fn flush(self: *StreamWriter) !void {
         if (self.buffer.items.len == 0) return;
 
-        try self.file.writeAll(self.buffer.items);
+        try self.file.writeStreamingAll(io_context.get(), self.buffer.items);
         self.buffer.clearRetainingCapacity();
     }
 };
@@ -204,7 +212,7 @@ pub const Promise = struct {
     err: ?anyerror,
     callbacks: std.ArrayList(Callback),
     error_callbacks: std.ArrayList(ErrorCallback),
-    mutex: std.Thread.Mutex,
+    mutex: compat_mutex.Mutex,
     allocator: std.mem.Allocator,
 
     pub const State = enum {
@@ -223,7 +231,7 @@ pub const Promise = struct {
             .err = null,
             .callbacks = .{},
             .error_callbacks = .{},
-            .mutex = std.Thread.Mutex{},
+            .mutex = .{},
             .allocator = allocator,
         };
     }
@@ -291,14 +299,14 @@ pub const Promise = struct {
 pub const EventLoop = struct {
     tasks: std.ArrayList(*Task),
     running: bool,
-    mutex: std.Thread.Mutex,
+    mutex: compat_mutex.Mutex,
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) EventLoop {
         return EventLoop{
             .tasks = .{},
             .running = false,
-            .mutex = std.Thread.Mutex{},
+            .mutex = .{},
             .allocator = allocator,
         };
     }
@@ -359,7 +367,7 @@ pub const Channels = struct {
     pub fn Channel(comptime T: type) type {
         return struct {
             buffer: std.ArrayList(T),
-            mutex: std.Thread.Mutex,
+            mutex: compat_mutex.Mutex,
             condition: std.Thread.Condition,
             closed: bool,
             allocator: std.mem.Allocator,
@@ -369,8 +377,8 @@ pub const Channels = struct {
             pub fn init(allocator: std.mem.Allocator) Self {
                 return Self{
                     .buffer = .{},
-                    .mutex = std.Thread.Mutex{},
-                    .condition = std.Thread.Condition{},
+                    .mutex = .{},
+                    .condition = .{},
                     .closed = false,
                     .allocator = allocator,
                 };
@@ -396,7 +404,7 @@ pub const Channels = struct {
 
                 while (self.buffer.items.len == 0) {
                     if (self.closed) return error.ChannelClosed;
-                    self.condition.wait(&self.mutex);
+                    self.condition.wait(&self.mutex.inner);
                 }
 
                 return self.buffer.orderedRemove(0);

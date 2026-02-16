@@ -3,6 +3,13 @@ const base = @import("base.zig");
 const Component = base.Component;
 const ComponentProps = base.ComponentProps;
 
+/// Get current timestamp in milliseconds
+fn getMilliTimestamp() i64 {
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.REALTIME, &ts) != 0) return 0;
+    return @as(i64, ts.sec) * 1000 + @divTrunc(ts.nsec, 1_000_000);
+}
+
 /// Tooltip Component - Displays hover information
 pub const Tooltip = struct {
     component: Component,
@@ -18,7 +25,7 @@ pub const Tooltip = struct {
     theme: TooltipTheme,
     on_show: ?*const fn () void,
     on_hide: ?*const fn () void,
-    show_time: ?std.time.Instant,
+    show_time: ?i64,
 
     pub const TooltipPosition = enum {
         top,
@@ -102,7 +109,7 @@ pub const Tooltip = struct {
     pub fn show(self: *Tooltip) void {
         if (!self.visible) {
             self.visible = true;
-            self.show_time = std.time.Instant.now() catch null;
+            self.show_time = getMilliTimestamp();
 
             if (self.on_show) |callback| {
                 callback();
@@ -131,9 +138,8 @@ pub const Tooltip = struct {
 
     pub fn shouldShow(self: *const Tooltip) bool {
         const show_start = self.show_time orelse return false;
-        const now = std.time.Instant.now() catch return false;
-        const elapsed_ns = now.since(show_start);
-        const elapsed_ms = elapsed_ns / std.time.ns_per_ms;
+        const now = getMilliTimestamp();
+        const elapsed_ms: u64 = @intCast(@max(0, now - show_start));
         return elapsed_ms >= self.delay_ms;
     }
 
@@ -148,8 +154,7 @@ pub const Tooltip = struct {
     pub fn getVisibleDuration(self: *const Tooltip) ?u64 {
         if (!self.visible) return null;
         const show_start = self.show_time orelse return null;
-        const now = std.time.Instant.now() catch return null;
-        const elapsed_ns = now.since(show_start);
-        return elapsed_ns / std.time.ns_per_ms;
+        const now = getMilliTimestamp();
+        return @intCast(@max(0, now - show_start));
     }
 };

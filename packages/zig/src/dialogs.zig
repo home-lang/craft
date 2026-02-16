@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// Native Dialog System
 /// Provides comprehensive native dialogs with platform-specific implementations
@@ -1739,14 +1740,14 @@ pub const ToastOptions = struct {
 pub const Toast = struct {
     id: usize,
     options: ToastOptions,
-    shown_at: ?std.time.Instant,
+    shown_at: ?std.Io.Timestamp,
     closed: bool,
 
     pub fn init(id: usize, options: ToastOptions) Toast {
         return Toast{
             .id = id,
             .options = options,
-            .shown_at = std.time.Instant.now() catch null,
+            .shown_at = std.Io.Timestamp.now(io_context.get(), .awake),
             .closed = false,
         };
     }
@@ -1757,9 +1758,9 @@ pub const Toast = struct {
 
     pub fn isExpired(self: Toast) bool {
         const shown = self.shown_at orelse return false;
-        const now = std.time.Instant.now() catch return false;
-        const elapsed_ns = now.since(shown);
-        const elapsed_ms = elapsed_ns / std.time.ns_per_ms;
+        const now = std.Io.Timestamp.now(io_context.get(), .awake);
+        const elapsed = shown.durationTo(now);
+        const elapsed_ms = @as(u64, @intCast(elapsed.nanoseconds)) / std.time.ns_per_ms;
         return elapsed_ms >= self.options.duration_ms;
     }
 };

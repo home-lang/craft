@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// GPU Acceleration Module
 /// Provides hardware-accelerated rendering capabilities
@@ -162,27 +163,29 @@ pub const GPU = struct {
 pub const FrameLimiter = struct {
     target_fps: u32,
     frame_time_ns: u64,
-    timer: ?std.time.Timer,
+    start_ts: ?std.Io.Timestamp,
 
     pub fn init(target_fps: u32) FrameLimiter {
         const frame_time: u64 = 1_000_000_000 / target_fps;
         return FrameLimiter{
             .target_fps = target_fps,
             .frame_time_ns = frame_time,
-            .timer = std.time.Timer.start() catch null,
+            .start_ts = std.Io.Timestamp.now(io_context.get(), .awake),
         };
     }
 
     pub fn limit(self: *FrameLimiter) void {
-        if (self.timer) |*timer| {
-            const elapsed = timer.read();
+        if (self.start_ts) |start| {
+            const end_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+            const elapsed = start.durationTo(end_ts);
+            const elapsed_ns = @as(u64, @intCast(elapsed.nanoseconds));
 
-            if (elapsed < self.frame_time_ns) {
-                const sleep_ns = self.frame_time_ns - elapsed;
+            if (elapsed_ns < self.frame_time_ns) {
+                const sleep_ns = self.frame_time_ns - elapsed_ns;
                 std.posix.nanosleep(0, sleep_ns);
             }
 
-            timer.reset();
+            self.start_ts = std.Io.Timestamp.now(io_context.get(), .awake);
         }
     }
 
@@ -393,7 +396,7 @@ pub const RenderPipeline = struct {
                 self.statistics.triangles_drawn += (draw_cmd.index_count / 3) * draw_cmd.instance_count;
                 // Software rasterization would go here
             },
-            .dispatch_compute => |_| {
+            .dispatch_compute => {
                 // Compute shader dispatch
             },
             .set_shader => |shader| {
@@ -1212,7 +1215,7 @@ pub const Effect = enum {
 pub const GPUProfiler = struct {
     queries: std.ArrayList(Query),
     allocator: std.mem.Allocator,
-    active_timer: ?std.time.Timer,
+    active_start_ts: ?std.Io.Timestamp,
     active_query_name: ?[]const u8,
 
     pub const Query = struct {
@@ -1224,7 +1227,7 @@ pub const GPUProfiler = struct {
         return GPUProfiler{
             .queries = .{},
             .allocator = allocator,
-            .active_timer = null,
+            .active_start_ts = null,
             .active_query_name = null,
         };
     }
@@ -1235,20 +1238,22 @@ pub const GPUProfiler = struct {
 
     pub fn beginQuery(self: *GPUProfiler, name: []const u8) !void {
         self.active_query_name = name;
-        self.active_timer = std.time.Timer.start() catch null;
+        self.active_start_ts = std.Io.Timestamp.now(io_context.get(), .awake);
     }
 
     pub fn endQuery(self: *GPUProfiler) !void {
-        if (self.active_timer) |*timer| {
+        if (self.active_start_ts) |start_ts| {
             if (self.active_query_name) |name| {
-                const duration = timer.read();
+                const end_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+                const elapsed = start_ts.durationTo(end_ts);
+                const duration = @as(u64, @intCast(elapsed.nanoseconds));
                 try self.queries.append(self.allocator, .{
                     .name = name,
                     .duration_ns = duration,
                 });
             }
         }
-        self.active_timer = null;
+        self.active_start_ts = null;
         self.active_query_name = null;
     }
 

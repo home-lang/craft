@@ -989,12 +989,15 @@ pub const QuickStorage = struct {
     }
 
     fn getCurrentTimeMs() u64 {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-        if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
-            return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1_000_000;
-        } else {
-            return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1_000_000;
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+            if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
+                return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1_000_000;
+            } else {
+                return @as(u64, @intCast(ts.sec)) * 1000 + @as(u64, @intCast(ts.nsec)) / 1_000_000;
+            }
         }
+        return 0;
     }
 };
 

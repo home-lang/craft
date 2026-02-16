@@ -1,6 +1,7 @@
 const std = @import("std");
 const plugin_security = @import("plugin_security.zig");
 const wasm = @import("wasm.zig");
+const io_context = @import("io_context.zig");
 
 /// Unified Plugin System
 /// Integrates WASM runtime with security sandbox and permission management
@@ -464,13 +465,14 @@ pub const PluginLoader = struct {
         defer self.allocator.free(manifest_path);
 
         // Read manifest
-        const manifest_file = try std.fs.cwd().openFile(manifest_path, .{});
-        defer manifest_file.close();
+        const io = io_context.get();
+        const manifest_file = try io_context.cwd().openFile(io, manifest_path, .{});
+        defer manifest_file.close(io);
 
-        const stat = try manifest_file.stat();
-        const manifest_json = try self.allocator.alloc(u8, @intCast(stat.size));
+        const file_stat = try manifest_file.stat(io);
+        const manifest_json = try self.allocator.alloc(u8, @intCast(file_stat.size));
         defer self.allocator.free(manifest_json);
-        _ = try manifest_file.read(manifest_json);
+        _ = try manifest_file.readPositional(io, &.{manifest_json}, 0);
 
         const manifest = try PluginManifest.parseJson(self.allocator, manifest_json);
 
@@ -479,13 +481,13 @@ pub const PluginLoader = struct {
             const wasm_path = try std.fs.path.join(self.allocator, &.{ self.plugins_dir, plugin_name, manifest.main });
             defer self.allocator.free(wasm_path);
 
-            const wasm_file = try std.fs.cwd().openFile(wasm_path, .{});
-            defer wasm_file.close();
+            const wasm_file = try io_context.cwd().openFile(io, wasm_path, .{});
+            defer wasm_file.close(io);
 
-            const wasm_stat = try wasm_file.stat();
+            const wasm_stat = try wasm_file.stat(io);
             const wasm_bytes = try self.allocator.alloc(u8, @intCast(wasm_stat.size));
             defer self.allocator.free(wasm_bytes);
-            _ = try wasm_file.read(wasm_bytes);
+            _ = try wasm_file.readPositional(io, &.{wasm_bytes}, 0);
 
             try manager.installPlugin(manifest, wasm_bytes);
         } else {
@@ -497,13 +499,14 @@ pub const PluginLoader = struct {
         var plugins = std.ArrayList([]const u8).init(self.allocator);
         errdefer plugins.deinit();
 
-        var dir = std.fs.cwd().openDir(self.plugins_dir, .{ .iterate = true }) catch {
+        const io = io_context.get();
+        var dir = io_context.cwd().openDir(io, self.plugins_dir, .{ .iterate = true }) catch {
             return plugins.toOwnedSlice();
         };
-        defer dir.close();
+        defer dir.close(io);
 
         var iter = dir.iterate();
-        while (try iter.next()) |entry| {
+        while (try iter.next(io)) |entry| {
             if (entry.kind == .directory) {
                 const name = try self.allocator.dupe(u8, entry.name);
                 try plugins.append(name);

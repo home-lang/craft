@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// Benchmarking System
 /// Provides performance measurement and reporting for components and operations
@@ -93,13 +94,13 @@ pub const Benchmark = struct {
         }
 
         // Actual benchmark
-        var timer = try std.time.Timer.start();
         i = 0;
         while (i < self.iterations) : (i += 1) {
-            const start = timer.read();
+            const start_ts = std.Io.Timestamp.now(io_context.get(), .awake);
             _ = try @call(.auto, func, args);
-            const end = timer.read();
-            try self.times.append(self.allocator, end - start);
+            const end_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+            const elapsed = start_ts.durationTo(end_ts);
+            try self.times.append(self.allocator, @as(u64, @intCast(elapsed.nanoseconds)));
         }
 
         return self.calculateResult();

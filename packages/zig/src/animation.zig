@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// Animation System
 /// Provides comprehensive animation support with easing functions and transitions
@@ -99,8 +100,8 @@ pub const Animation = struct {
     easing: EasingFunction,
     state: AnimationState,
     elapsed_ms: u64,
-    start_time: ?std.time.Instant,
-    pause_time: ?std.time.Instant,
+    start_time: ?std.Io.Timestamp,
+    pause_time: ?std.Io.Timestamp,
     on_update: ?*const fn (f32) void,
     on_complete: ?*const fn () void,
 
@@ -121,14 +122,14 @@ pub const Animation = struct {
 
     pub fn start(self: *Animation) void {
         self.state = .running;
-        self.start_time = std.time.Instant.now() catch null;
+        self.start_time = std.Io.Timestamp.now(io_context.get(), .awake);
         self.elapsed_ms = 0;
     }
 
     pub fn pause(self: *Animation) void {
         if (self.state == .running) {
             self.state = .paused;
-            self.pause_time = std.time.Instant.now() catch null;
+            self.pause_time = std.Io.Timestamp.now(io_context.get(), .awake);
         }
     }
 
@@ -139,11 +140,11 @@ pub const Animation = struct {
             // Calculate pause duration and adjust start time
             if (self.pause_time) |pt| {
                 if (self.start_time) |st| {
-                    const now = std.time.Instant.now() catch return;
-                    const pause_duration_ns = now.since(pt);
-                    // We can't easily adjust Instant, so we track elapsed separately
+                    const now = std.Io.Timestamp.now(io_context.get(), .awake);
+                    const pause_duration = pt.durationTo(now);
+                    // We can't easily adjust Timestamp, so we track elapsed separately
                     _ = st;
-                    _ = pause_duration_ns;
+                    _ = pause_duration;
                 }
             }
         }
@@ -166,8 +167,9 @@ pub const Animation = struct {
         }
 
         const start_instant = self.start_time orelse return self.start_value;
-        const now = std.time.Instant.now() catch return self.start_value;
-        const elapsed_ns = now.since(start_instant);
+        const now = std.Io.Timestamp.now(io_context.get(), .awake);
+        const elapsed_duration = start_instant.durationTo(now);
+        const elapsed_ns: u64 = @intCast(elapsed_duration.nanoseconds);
         self.elapsed_ms = elapsed_ns / std.time.ns_per_ms;
 
         if (self.elapsed_ms >= self.duration_ms) {
@@ -194,8 +196,9 @@ pub const Animation = struct {
         if (self.state != .running) return self.start_value;
 
         const start_instant = self.start_time orelse return self.start_value;
-        const now = std.time.Instant.now() catch return self.start_value;
-        const elapsed_ns = now.since(start_instant);
+        const now = std.Io.Timestamp.now(io_context.get(), .awake);
+        const elapsed_duration = start_instant.durationTo(now);
+        const elapsed_ns: u64 = @intCast(elapsed_duration.nanoseconds);
         const elapsed = elapsed_ns / std.time.ns_per_ms;
 
         if (elapsed >= self.duration_ms) return self.end_value;
@@ -225,7 +228,7 @@ pub const KeyframeAnimation = struct {
     duration_ms: u64,
     state: AnimationState,
     elapsed_ms: u64,
-    start_time: ?std.time.Instant,
+    start_time: ?std.Io.Timestamp,
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator, keyframes: []const Keyframe, duration_ms: u64) !KeyframeAnimation {
@@ -241,15 +244,16 @@ pub const KeyframeAnimation = struct {
 
     pub fn start(self: *KeyframeAnimation) void {
         self.state = .running;
-        self.start_time = std.time.Instant.now() catch null;
+        self.start_time = std.Io.Timestamp.now(io_context.get(), .awake);
     }
 
     pub fn update(self: *KeyframeAnimation) f32 {
         if (self.state != .running) return 0.0;
 
         const start_instant = self.start_time orelse return 0.0;
-        const now = std.time.Instant.now() catch return 0.0;
-        const elapsed_ns = now.since(start_instant);
+        const now = std.Io.Timestamp.now(io_context.get(), .awake);
+        const elapsed_duration = start_instant.durationTo(now);
+        const elapsed_ns: u64 = @intCast(elapsed_duration.nanoseconds);
         self.elapsed_ms = elapsed_ns / std.time.ns_per_ms;
 
         if (self.elapsed_ms >= self.duration_ms) {
@@ -480,7 +484,7 @@ pub const AnimationController = struct {
     sequences: std.ArrayList(*AnimationSequence),
     groups: std.ArrayList(*AnimationGroup),
     springs: std.ArrayList(*SpringAnimation),
-    last_update: ?std.time.Instant,
+    last_update: ?std.Io.Timestamp,
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) AnimationController {
@@ -489,7 +493,7 @@ pub const AnimationController = struct {
             .sequences = std.ArrayList(*AnimationSequence).init(allocator),
             .groups = std.ArrayList(*AnimationGroup).init(allocator),
             .springs = std.ArrayList(*SpringAnimation).init(allocator),
-            .last_update = std.time.Instant.now() catch null,
+            .last_update = std.Io.Timestamp.now(io_context.get(), .awake),
             .allocator = allocator,
         };
     }
@@ -518,10 +522,10 @@ pub const AnimationController = struct {
     }
 
     pub fn update(self: *AnimationController) void {
-        const now = std.time.Instant.now() catch return;
+        const now = std.Io.Timestamp.now(io_context.get(), .awake);
         const dt = if (self.last_update) |last| blk: {
-            const elapsed_ns = now.since(last);
-            break :blk @as(f32, @floatFromInt(elapsed_ns)) / @as(f32, @floatFromInt(std.time.ns_per_s));
+            const elapsed_duration = last.durationTo(now);
+            break :blk @as(f32, @floatFromInt(elapsed_duration.nanoseconds)) / @as(f32, @floatFromInt(std.time.ns_per_s));
         } else 0.016; // Default to ~60fps if no last update
         self.last_update = now;
 
@@ -795,8 +799,8 @@ pub const TextAnimation = struct {
     /// Current sentence index (for sentence mode)
     current_sentence_index: usize,
     /// Time tracking
-    start_time: ?std.time.Instant,
-    last_update_time: ?std.time.Instant,
+    start_time: ?std.Io.Timestamp,
+    last_update_time: ?std.Io.Timestamp,
     accumulated_delay_ms: u64,
     /// Parsed unit boundaries
     word_boundaries: std.ArrayListUnmanaged(usize),
@@ -834,12 +838,10 @@ pub const TextAnimation = struct {
             .on_sentence_reveal = null,
             .on_complete = null,
             .rng = std.Random.DefaultPrng.init(blk: {
-                // Use Instant.now() if available, otherwise use a constant seed
-                const now = std.time.Instant.now() catch break :blk @as(u64, 0x853c49e6748fea9b);
-                // timespec has tv_sec (seconds) and tv_nsec (nanoseconds)
-                const sec: u64 = @bitCast(now.timestamp.sec);
-                const nsec: u64 = @intCast(now.timestamp.nsec);
-                break :blk sec *% 1000000000 +% nsec;
+                // Use Timestamp.now() to seed the RNG
+                const now = std.Io.Timestamp.now(io_context.get(), .awake);
+                const epoch_duration = std.Io.Timestamp.epoch.durationTo(now);
+                break :blk @as(u64, @intCast(epoch_duration.nanoseconds));
             }),
         };
 
@@ -901,7 +903,7 @@ pub const TextAnimation = struct {
         self.current_word_index = 0;
         self.current_sentence_index = 0;
         self.accumulated_delay_ms = 0;
-        self.start_time = std.time.Instant.now() catch null;
+        self.start_time = std.Io.Timestamp.now(io_context.get(), .awake);
         self.last_update_time = self.start_time;
     }
 
@@ -916,7 +918,7 @@ pub const TextAnimation = struct {
     pub fn unpause(self: *Self) void {
         if (self.state == .paused) {
             self.state = .running;
-            self.last_update_time = std.time.Instant.now() catch null;
+            self.last_update_time = std.Io.Timestamp.now(io_context.get(), .awake);
         }
     }
 
@@ -965,14 +967,16 @@ pub const TextAnimation = struct {
     pub fn update(self: *Self) void {
         if (self.state != .running) return;
 
-        const now = std.time.Instant.now() catch return;
+        const now = std.Io.Timestamp.now(io_context.get(), .awake);
         const last = self.last_update_time orelse return;
-        const elapsed_ns = now.since(last);
+        const elapsed_duration = last.durationTo(now);
+        const elapsed_ns: u64 = @intCast(elapsed_duration.nanoseconds);
         const elapsed_ms = elapsed_ns / std.time.ns_per_ms;
 
         // Check initial delay
         const start_instant = self.start_time orelse return;
-        const total_elapsed_ns = now.since(start_instant);
+        const total_elapsed_duration = start_instant.durationTo(now);
+        const total_elapsed_ns: u64 = @intCast(total_elapsed_duration.nanoseconds);
         const total_elapsed_ms = total_elapsed_ns / std.time.ns_per_ms;
 
         if (total_elapsed_ms < self.config.initial_delay_ms) {
@@ -1081,7 +1085,7 @@ pub const TextAnimation = struct {
             // Use loop delay as initial delay for next iteration
             const saved_initial = self.config.initial_delay_ms;
             self.config.initial_delay_ms = self.config.loop_delay_ms;
-            self.start_time = std.time.Instant.now() catch null;
+            self.start_time = std.Io.Timestamp.now(io_context.get(), .awake);
             self.config.initial_delay_ms = saved_initial;
         } else {
             self.state = .completed;
@@ -1118,8 +1122,9 @@ pub const TextAnimation = struct {
             var show_cursor = true;
             if (self.config.cursor_blink) {
                 if (self.start_time) |anim_start| {
-                    const now = std.time.Instant.now() catch return revealed;
-                    const elapsed_ns = now.since(anim_start);
+                    const now = std.Io.Timestamp.now(io_context.get(), .awake);
+                    const elapsed_duration = anim_start.durationTo(now);
+                    const elapsed_ns: u64 = @intCast(elapsed_duration.nanoseconds);
                     const elapsed_ms = elapsed_ns / std.time.ns_per_ms;
                     const blink_cycle = elapsed_ms / self.config.cursor_blink_ms;
                     show_cursor = (blink_cycle % 2) == 0;

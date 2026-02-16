@@ -1,6 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
+const io_context = @import("io_context.zig");
 
 const BridgeError = bridge_error.BridgeError;
 
@@ -99,21 +100,22 @@ pub const ShellBridge = struct {
 
         // Build argv array directly
         const argv = [_][]const u8{ "/bin/sh", "-c", command };
+        const io = io_context.get();
 
         // Create child process using Zig 0.16 API
-        var child = std.process.Child.init(&argv, self.allocator);
-        child.cwd = if (cwd.len > 0) cwd else null;
-        child.stdout_behavior = .Pipe;
-        child.stderr_behavior = .Pipe;
-        child.stdin_behavior = .Ignore;
-
-        child.spawn() catch |err| {
+        var child = std.process.spawn(io, .{
+            .argv = &argv,
+            .cwd = if (cwd.len > 0) .{ .path = cwd } else .inherit,
+            .stdout = .pipe,
+            .stderr = .pipe,
+            .stdin = .ignore,
+        }) catch |err| {
             self.sendShellError(callback_id, "exec", command, err);
             return;
         };
 
         // Wait for completion first
-        const term = child.wait() catch |err| {
+        const term = child.wait(io) catch |err| {
             self.sendShellError(callback_id, "exec", command, err);
             return;
         };
@@ -122,7 +124,7 @@ pub const ShellBridge = struct {
         var stdout_buf: [65536]u8 = undefined;
         var stdout_len: usize = 0;
         if (child.stdout) |stdout_file| {
-            stdout_len = stdout_file.read(&stdout_buf) catch 0;
+            stdout_len = stdout_file.readStreaming(io, &.{&stdout_buf}) catch 0;
         }
         const stdout = stdout_buf[0..stdout_len];
 
@@ -130,13 +132,13 @@ pub const ShellBridge = struct {
         var stderr_buf: [8192]u8 = undefined;
         var stderr_len: usize = 0;
         if (child.stderr) |stderr_file| {
-            stderr_len = stderr_file.read(&stderr_buf) catch 0;
+            stderr_len = stderr_file.readStreaming(io, &.{&stderr_buf}) catch 0;
         }
         const stderr = stderr_buf[0..stderr_len];
 
         const exit_code: i32 = switch (term) {
-            .Exited => |code| @intCast(code),
-            .Signal => |sig| -@as(i32, @intCast(sig)),
+            .exited => |code| @intCast(code),
+            .signal => |sig| -@as(i32, @intCast(@intFromEnum(sig))),
             else => -1,
         };
 
@@ -177,15 +179,16 @@ pub const ShellBridge = struct {
 
         // Build argv array directly
         const argv = [_][]const u8{ "/bin/sh", "-c", command };
+        const io = io_context.get();
 
         // Create child process using Zig 0.16 API
-        var child = std.process.Child.init(&argv, self.allocator);
-        child.cwd = if (cwd.len > 0) cwd else null;
-        child.stdout_behavior = .Ignore;
-        child.stderr_behavior = .Ignore;
-        child.stdin_behavior = .Ignore;
-
-        child.spawn() catch |err| {
+        const child = std.process.spawn(io, .{
+            .argv = &argv,
+            .cwd = if (cwd.len > 0) .{ .path = cwd } else .inherit,
+            .stdout = .inherit,
+            .stderr = .inherit,
+            .stdin = .ignore,
+        }) catch |err| {
             self.sendShellError("", "spawn", command, err);
             return;
         };
@@ -218,7 +221,7 @@ pub const ShellBridge = struct {
 
         if (self.processes.getPtr(id)) |entry| {
             if (entry.child) |*child| {
-                _ = child.kill() catch {};
+                child.kill(io_context.get());
             }
         }
 
@@ -366,8 +369,12 @@ pub const ShellBridge = struct {
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
-            // Use getenv
-            const value = std.posix.getenv(name) orelse "";
+            // Use getenv via C library - need null-terminated string
+            var name_buf: [256]u8 = undefined;
+            if (name.len >= name_buf.len) return BridgeError.MissingData;
+            @memcpy(name_buf[0..name.len], name);
+            name_buf[name.len] = 0;
+            const value = if (std.c.getenv(@ptrCast(name_buf[0..name.len :0]))) |v| std.mem.span(v) else "";
 
             var buf: [4096]u8 = undefined;
             const js = std.fmt.bufPrint(&buf,
@@ -540,7 +547,7 @@ pub const ShellBridge = struct {
         var it = self.processes.iterator();
         while (it.next()) |entry| {
             if (entry.value_ptr.child) |*child| {
-                _ = child.kill() catch {};
+                child.kill(io_context.get());
             }
             self.allocator.free(entry.value_ptr.id);
         }

@@ -101,9 +101,12 @@ pub const TimelineEntry = struct {
     }
 
     pub fn now() TimelineEntry {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return TimelineEntry.init(0);
-        const ms: u64 = @intCast(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000));
-        return TimelineEntry.init(ms);
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+            const ms: u64 = @intCast(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000));
+            return TimelineEntry.init(ms);
+        }
+        return TimelineEntry.init(0);
     }
 
     pub fn withRelevance(self: TimelineEntry, relevance: f32) TimelineEntry {
@@ -119,7 +122,8 @@ pub const TimelineEntry = struct {
     }
 
     pub fn isExpired(self: TimelineEntry) bool {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return false;
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) != 0) return false;
         const now_ms: u64 = @intCast(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000));
         return self.date < now_ms;
     }
@@ -167,7 +171,8 @@ pub const Timeline = struct {
     pub fn getCurrentEntry(self: *const Timeline) ?TimelineEntry {
         if (self.entries.items.len == 0) return null;
 
-        const ts = std.posix.clock_gettime(.REALTIME) catch return self.entries.items[0];
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) != 0) return self.entries.items[0];
         const now_ms: u64 = @intCast(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000));
 
         var best: ?TimelineEntry = null;
@@ -547,19 +552,16 @@ pub const LiveActivity = struct {
     content: ?WidgetElement,
 
     pub fn init(id: []const u8, activity_type: []const u8) LiveActivity {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return .{
-            .id = id,
-            .activity_type = activity_type,
-            .state = .active,
-            .start_time = 0,
-            .stale_date = null,
-            .content = null,
-        };
+        var start: u64 = 0;
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+            start = @intCast(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000));
+        }
         return .{
             .id = id,
             .activity_type = activity_type,
             .state = .active,
-            .start_time = @intCast(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000)),
+            .start_time = start,
             .stale_date = null,
             .content = null,
         };
@@ -582,7 +584,8 @@ pub const LiveActivity = struct {
     }
 
     pub fn duration(self: *const LiveActivity) u64 {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) != 0) return 0;
         const now_ms: u64 = @intCast(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000));
         if (now_ms > self.start_time) {
             return now_ms - self.start_time;

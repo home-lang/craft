@@ -1,4 +1,6 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
+const compat_mutex = @import("compat_mutex.zig");
 
 /// Message Queue System with reliable delivery, ordering, retry logic, and offline queue
 /// Ensures messages are delivered even when connection is temporarily unavailable
@@ -75,7 +77,7 @@ pub const MessageQueue = struct {
     retry_strategy: RetryStrategy,
     next_id: std.atomic.Value(u64),
     max_size: usize,
-    mutex: std.Thread.Mutex,
+    mutex: compat_mutex.Mutex,
     delivery_callback: ?DeliveryCallback,
 
     const Self = @This();
@@ -87,7 +89,7 @@ pub const MessageQueue = struct {
             .retry_strategy = RetryStrategy{},
             .next_id = std.atomic.Value(u64).init(1),
             .max_size = max_size,
-            .mutex = std.Thread.Mutex{},
+            .mutex = .{},
             .delivery_callback = null,
         };
     }
@@ -291,21 +293,23 @@ pub const PersistentQueue = struct {
 
     pub fn load(self: *Self) !void {
         // Load queue from disk
-        const file = std.fs.cwd().openFile(self.storage_path, .{}) catch |err| {
+        const io = io_context.get();
+        const file = io_context.cwd().openFile(io, self.storage_path, .{}) catch |err| {
             if (err == error.FileNotFound) {
                 return; // New queue
             }
             return err;
         };
-        defer file.close();
+        defer file.close(io);
 
         std.debug.print("Loaded queue from {s}\n", .{self.storage_path});
     }
 
     pub fn save(self: *Self) !void {
         // Save queue to disk
-        const file = try std.fs.cwd().createFile(self.storage_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, self.storage_path, .{});
+        defer file.close(io);
 
         std.debug.print("Saved queue to {s}\n", .{self.storage_path});
     }

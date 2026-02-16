@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("../io_context.zig");
 const c = @cImport({
     @cInclude("gio/gio.h");
 });
@@ -1139,8 +1140,9 @@ pub const FlatpakPortal = struct {
     /// Check if running in Flatpak
     pub fn isRunningInFlatpak() bool {
         // Check for /.flatpak-info
-        const file = std.fs.openFileAbsolute("/.flatpak-info", .{}) catch return false;
-        file.close();
+        const io = io_context.get();
+        const file = std.Io.Dir.cwd().openFile(io, "/.flatpak-info", .{}) catch return false;
+        file.close(io);
         return true;
     }
 };

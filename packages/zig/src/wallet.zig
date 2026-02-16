@@ -5,8 +5,11 @@ const std = @import("std");
 
 /// Get current timestamp in seconds
 fn getCurrentTimestamp() i64 {
-    const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-    return ts.sec;
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+        return ts.sec;
+    }
+    return 0;
 }
 
 /// Payment provider/wallet type
@@ -241,7 +244,8 @@ pub const PaymentCard = struct {
     }
 
     pub fn isExpired(self: PaymentCard) bool {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return false;
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) != 0) return false;
         const epoch_seconds: u64 = @intCast(ts.sec);
         // Approximate: seconds since 1970 / seconds per year + 1970
         const current_year: u16 = @intCast(1970 + epoch_seconds / 31536000);
@@ -622,14 +626,16 @@ pub const Subscription = struct {
 
     pub fn isInTrial(self: Subscription) bool {
         if (self.trial_end) |trial_end| {
-            const ts = std.posix.clock_gettime(.REALTIME) catch return false;
+            var ts: std.c.timespec = undefined;
+            if (std.c.clock_gettime(.REALTIME, &ts) != 0) return false;
             return ts.sec < trial_end;
         }
         return false;
     }
 
     pub fn daysUntilRenewal(self: Subscription) i64 {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
+        var ts: std.c.timespec = undefined;
+        if (std.c.clock_gettime(.REALTIME, &ts) != 0) return 0;
         const diff = self.current_period_end - ts.sec;
         return @divFloor(diff, 86400);
     }

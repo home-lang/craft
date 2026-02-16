@@ -450,8 +450,11 @@ pub const ContactsError = error{
 // ============================================================================
 
 fn getTimestampMs() i64 {
-    const ts = std.posix.clock_gettime(.REALTIME) catch return 0;
-    return @as(i64, ts.sec) * 1000 + @divTrunc(ts.nsec, 1_000_000);
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
+        return @as(i64, ts.sec) * 1000 + @divTrunc(ts.nsec, 1_000_000);
+    }
+    return 0;
 }
 
 const Platform = enum {

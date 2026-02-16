@@ -1,4 +1,6 @@
 const std = @import("std");
+const compat_mutex = @import("compat_mutex.zig");
+const io_context = @import("io_context.zig");
 
 /// Advanced Inter-Process Communication Module
 /// Provides structured message passing between processes
@@ -68,11 +70,11 @@ pub const IPC = struct {
 
     /// Get current timestamp (Unix epoch in seconds)
     fn currentTimestamp() i64 {
-        const instant = std.time.Instant.now() catch return 0;
+        const timestamp = std.Io.Timestamp.now(io_context.get(), .awake);
         // Convert from monotonic clock to approximate timestamp
         // Note: This is a simple implementation; for actual wall clock time,
         // use posix.clock_gettime with CLOCK_REALTIME
-        _ = instant;
+        _ = timestamp;
         return 0; // Placeholder - monotonic time isn't wall clock time
     }
 
@@ -188,13 +190,13 @@ pub const SharedMemory = struct {
 /// Message queue for async IPC
 pub const MessageQueue = struct {
     messages: std.ArrayList(Message),
-    mutex: std.Thread.Mutex,
+    mutex: compat_mutex.Mutex,
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) MessageQueue {
         return MessageQueue{
             .messages = .{},
-            .mutex = std.Thread.Mutex{},
+            .mutex = compat_mutex.Mutex{},
             .allocator = allocator,
         };
     }

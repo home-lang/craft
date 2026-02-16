@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// Integration testing utilities for Craft
 /// Tests interaction between multiple components and systems
@@ -31,14 +32,15 @@ pub const IntegrationTestContext = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        const io = io_context.get();
         // Clean up temp files
         if (self.temp_dir) |*dir| {
             for (self.temp_files.items) |file_path| {
-                dir.deleteFile(file_path) catch {};
+                dir.deleteFile(io, file_path) catch {};
                 self.allocator.free(file_path);
             }
-            std.fs.cwd().deleteTree("temp_test") catch {};
-            dir.close();
+            io_context.cwd().deleteTree(io, "temp_test") catch {};
+            dir.close(io);
         }
 
         self.temp_files.deinit();
@@ -47,17 +49,19 @@ pub const IntegrationTestContext = struct {
 
     /// Create a temporary directory for test artifacts
     pub fn createTempDir(self: *Self) !void {
-        const cwd = std.fs.cwd();
-        try cwd.makeDir("temp_test");
-        self.temp_dir = try cwd.openDir("temp_test", .{});
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        try cwd.createDir(io, "temp_test", .default_dir);
+        self.temp_dir = try cwd.openDir(io, "temp_test", .{});
     }
 
     /// Create a temporary file
     pub fn createTempFile(self: *Self, name: []const u8, content: []const u8) !void {
         if (self.temp_dir) |*dir| {
-            const file = try dir.createFile(name, .{});
-            defer file.close();
-            try file.writeAll(content);
+            const io = io_context.get();
+            const file = try dir.createFile(io, name, .{});
+            defer file.close(io);
+            try file.writeStreamingAll(io, content);
 
             const owned_name = try self.allocator.dupe(u8, name);
             try self.temp_files.append(owned_name);
@@ -69,12 +73,13 @@ pub const IntegrationTestContext = struct {
     /// Read temp file content
     pub fn readTempFile(self: *Self, name: []const u8) ![]u8 {
         if (self.temp_dir) |*dir| {
-            const file = try dir.openFile(name, .{});
-            defer file.close();
+            const io = io_context.get();
+            const file = try dir.openFile(io, name, .{});
+            defer file.close(io);
 
-            const stat = try file.stat();
+            const stat = try file.stat(io);
             const content = try self.allocator.alloc(u8, stat.size);
-            _ = try file.readAll(content);
+            _ = try file.readPositional(io, &.{content}, 0);
 
             return content;
         } else {
@@ -251,8 +256,9 @@ pub const FSTestHelper = struct {
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, test_root: []const u8) !Self {
-        const cwd = std.fs.cwd();
-        try cwd.makeDir(test_root);
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        try cwd.createDir(io, test_root, .default_dir);
 
         return Self{
             .test_root = try allocator.dupe(u8, test_root),
@@ -262,8 +268,9 @@ pub const FSTestHelper = struct {
 
     pub fn deinit(self: *Self) void {
         // Clean up test directory
-        const cwd = std.fs.cwd();
-        cwd.deleteTree(self.test_root) catch {};
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        cwd.deleteTree(io, self.test_root) catch {};
         self.allocator.free(self.test_root);
     }
 
@@ -272,11 +279,12 @@ pub const FSTestHelper = struct {
         const full_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ self.test_root, relative_path });
         defer self.allocator.free(full_path);
 
-        const cwd = std.fs.cwd();
-        const file = try cwd.createFile(full_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        const file = try cwd.createFile(io, full_path, .{});
+        defer file.close(io);
 
-        try file.writeAll(content);
+        try file.writeStreamingAll(io, content);
         std.debug.print("[FS] Created file: {s}\n", .{full_path});
     }
 
@@ -285,8 +293,9 @@ pub const FSTestHelper = struct {
         const full_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ self.test_root, relative_path });
         defer self.allocator.free(full_path);
 
-        const cwd = std.fs.cwd();
-        try cwd.makeDir(full_path);
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        try cwd.createDir(io, full_path, .default_dir);
         std.debug.print("[FS] Created directory: {s}\n", .{full_path});
     }
 
@@ -295,13 +304,14 @@ pub const FSTestHelper = struct {
         const full_path = try std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ self.test_root, relative_path });
         defer self.allocator.free(full_path);
 
-        const cwd = std.fs.cwd();
-        const file = try cwd.openFile(full_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        const file = try cwd.openFile(io, full_path, .{});
+        defer file.close(io);
 
-        const stat = try file.stat();
+        const stat = try file.stat(io);
         const content = try self.allocator.alloc(u8, stat.size);
-        _ = try file.readAll(content);
+        _ = try file.readPositional(io, &.{content}, 0);
 
         return content;
     }
@@ -311,9 +321,9 @@ pub const FSTestHelper = struct {
         const full_path = std.fmt.allocPrint(self.allocator, "{s}/{s}", .{ self.test_root, relative_path }) catch return false;
         defer self.allocator.free(full_path);
 
-        const cwd = std.fs.cwd();
-        const file = cwd.openFile(full_path, .{}) catch return false;
-        file.close();
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        cwd.access(io, full_path, .{}) catch return false;
         return true;
     }
 };

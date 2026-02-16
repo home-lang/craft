@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 const builtin = @import("builtin");
 
 /// System-level enhancements for Craft framework
@@ -621,7 +622,7 @@ pub const LocalStorage = struct {
 
         // Ensure directory exists
         const dir_path = std.fs.path.dirname(path) orelse return error.InvalidPath;
-        try std.fs.cwd().makePath(dir_path);
+        try io_context.cwd().createDirPath(io_context.get(), dir_path);
 
         return .{
             .file_path = path,
@@ -694,9 +695,10 @@ pub const LocalStorage = struct {
         try output.appendSlice("}");
 
         // Write to file
-        const file = try std.fs.cwd().createFile(self.file_path, .{});
-        defer file.close();
-        try file.writeAll(output.items);
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, self.file_path, .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, output.items);
     }
 
     pub fn get(self: *LocalStorage, key: []const u8) !?[]const u8 {
@@ -760,27 +762,33 @@ pub const LocalStorage = struct {
 
         try output.appendSlice("}");
 
-        const file = try std.fs.cwd().createFile(self.file_path, .{});
-        defer file.close();
-        try file.writeAll(output.items);
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, self.file_path, .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, output.items);
     }
 
     pub fn clear(self: *LocalStorage) !void {
-        const file = try std.fs.cwd().createFile(self.file_path, .{});
-        defer file.close();
-        try file.writeAll("{}");
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, self.file_path, .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, "{}");
     }
 
     fn loadAll(self: *LocalStorage) ![]const u8 {
-        const file = std.fs.cwd().openFile(self.file_path, .{}) catch |err| {
+        const io = io_context.get();
+        const file = io_context.cwd().openFile(io, self.file_path, .{}) catch |err| {
             if (err == error.FileNotFound) {
                 return try self.allocator.dupe(u8, "{}");
             }
             return err;
         };
-        defer file.close();
+        defer file.close(io);
 
-        return try file.readToEndAlloc(self.allocator, 1024 * 1024); // Max 1MB
+        const stat = try file.stat(io);
+        const buf = try self.allocator.alloc(u8, stat.size);
+        _ = try file.readPositional(io, &.{buf}, 0);
+        return buf;
     }
 
     fn writeJson(self: *LocalStorage, pairs: []const struct { []const u8, []const u8 }) !void {
@@ -798,9 +806,10 @@ pub const LocalStorage = struct {
         }
         try output.appendSlice("}");
 
-        const file = try std.fs.cwd().createFile(self.file_path, .{});
-        defer file.close();
-        try file.writeAll(output.items);
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, self.file_path, .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, output.items);
     }
 };
 
@@ -979,13 +988,14 @@ fn getLinuxProcessMemory() LinuxMemory {
     }
 
     // Read /proc/self/statm
-    const file = std.fs.cwd().openFile("/proc/self/statm", .{}) catch {
+    const io = io_context.get();
+    const file = io_context.cwd().openFile(io, "/proc/self/statm", .{}) catch {
         return .{ .virtual = 0, .resident = 0 };
     };
-    defer file.close();
+    defer file.close(io);
 
     var buf: [256]u8 = undefined;
-    const bytes_read = file.read(&buf) catch return .{ .virtual = 0, .resident = 0 };
+    const bytes_read = file.readPositional(io, &.{&buf}, 0) catch return .{ .virtual = 0, .resident = 0 };
     const content = buf[0..bytes_read];
 
     // Parse: size resident shared text lib data dt

@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 const mobile = @import("mobile.zig");
 
 /// Unified JavaScript Bridge API
@@ -312,13 +313,14 @@ pub const BuiltInHandlers = struct {
         var os_name: []const u8 = "Linux";
 
         // Read /etc/os-release
-        const file = std.fs.cwd().openFile("/etc/os-release", .{}) catch {
+        const io = io_context.get();
+        const file = io_context.cwd().openFile(io, "/etc/os-release", .{}) catch {
             return .{ .model = model, .os_version = os_version, .os_name = os_name };
         };
-        defer file.close();
+        defer file.close(io);
 
         var buf: [4096]u8 = undefined;
-        const bytes_read = file.read(&buf) catch return .{ .model = model, .os_version = os_version, .os_name = os_name };
+        const bytes_read = file.readPositional(io, &.{&buf}, 0) catch return .{ .model = model, .os_version = os_version, .os_name = os_name };
         const content = buf[0..bytes_read];
 
         var lines = std.mem.splitScalar(u8, content, '\n');
@@ -333,13 +335,13 @@ pub const BuiltInHandlers = struct {
         }
 
         // Try to get hardware model from /sys/class/dmi/id/product_name
-        const model_file = std.fs.cwd().openFile("/sys/class/dmi/id/product_name", .{}) catch {
+        const model_file = io_context.cwd().openFile(io, "/sys/class/dmi/id/product_name", .{}) catch {
             return .{ .model = model, .os_version = os_version, .os_name = os_name };
         };
-        defer model_file.close();
+        defer model_file.close(io);
 
         var model_buf: [256]u8 = undefined;
-        const model_len = model_file.read(&model_buf) catch 0;
+        const model_len = model_file.readPositional(io, &.{&model_buf}, 0) catch 0;
         if (model_len > 0) {
             model = allocator.dupe(u8, std.mem.trim(u8, model_buf[0..model_len], " \n\r\t")) catch "Linux PC";
         }

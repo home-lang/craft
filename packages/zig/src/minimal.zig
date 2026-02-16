@@ -2,14 +2,15 @@ const std = @import("std");
 const builtin = @import("builtin");
 const craft = @import("craft");
 const cli = @import("cli.zig");
+const io_context = craft.io_context;
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    io_context.init(init.io);
+    const allocator = init.gpa;
 
     // Parse CLI arguments
-    const options = cli.parseArgs(allocator) catch |err| {
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    const options = cli.parseArgs(allocator, args) catch |err| {
         switch (err) {
             cli.CliError.InvalidArgument => std.debug.print("Error: Invalid argument\n", .{}),
             cli.CliError.MissingValue => std.debug.print("Error: Missing value for argument\n", .{}),

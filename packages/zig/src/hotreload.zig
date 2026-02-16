@@ -1,5 +1,6 @@
 const std = @import("std");
 const log = @import("log.zig");
+const io_context = @import("io_context.zig");
 
 pub const HotReloadConfig = struct {
     enabled: bool = true,
@@ -40,7 +41,7 @@ pub const FileWatcher = struct {
     }
 
     pub fn addPath(self: *Self, path: []const u8) !void {
-        const stat = std.fs.cwd().statFile(path) catch |err| {
+        const stat = std.Io.Dir.cwd().statFile(io_context.get(), path) catch |err| {
             log.warn("Failed to stat {s}: {}", .{ path, err });
             return;
         };
@@ -51,7 +52,8 @@ pub const FileWatcher = struct {
     }
 
     pub fn check(self: *Self) !bool {
-        const ts = std.posix.clock_gettime(.REALTIME) catch return false;
+        var ts: std.c.timespec = undefined;
+        _ = std.c.clock_gettime(.REALTIME, &ts);
         const now: i64 = @intCast(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000));
 
         // Debounce check
@@ -64,7 +66,7 @@ pub const FileWatcher = struct {
             const path = entry.key_ptr.*;
             const old_mtime = entry.value_ptr.*;
 
-            const stat = std.fs.cwd().statFile(path) catch continue;
+            const stat = std.Io.Dir.cwd().statFile(io_context.get(), path) catch continue;
             const new_mtime: i64 = @intCast(@divTrunc(stat.mtime.nanoseconds, 1_000_000_000));
 
             if (new_mtime > old_mtime) {
@@ -305,11 +307,12 @@ pub const ReloadServer = struct {
 
         // Create client
         const client = try self.allocator.create(WebSocketClient);
-        const ts = std.posix.clock_gettime(.REALTIME) catch return error.ClockError;
+        var cts: std.c.timespec = undefined;
+        _ = std.c.clock_gettime(.REALTIME, &cts);
         client.* = .{
             .stream = stream,
             .platform = "unknown",
-            .connected_at = @intCast(ts.sec),
+            .connected_at = @intCast(cts.sec),
             .id = self.next_client_id,
         };
         self.next_client_id += 1;

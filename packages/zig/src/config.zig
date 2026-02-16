@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 pub const WindowConfig = struct {
     title: []const u8 = "Craft App",
@@ -34,14 +35,15 @@ pub const Config = struct {
     const Self = @This();
 
     pub fn loadFromFile(allocator: std.mem.Allocator, path: []const u8) !Self {
-        const file = try std.fs.cwd().openFile(path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try std.Io.Dir.cwd().openFile(io, path, .{});
+        defer file.close(io);
 
         // Read file content
-        const stat = try file.stat();
+        const stat = try file.stat(io);
         const content = try allocator.alloc(u8, @intCast(stat.size));
         defer allocator.free(content);
-        _ = try file.read(content);
+        _ = try file.readStreaming(io, content);
 
         return try parseToml(allocator, content);
     }
@@ -146,60 +148,61 @@ pub const Config = struct {
     }
 
     pub fn saveToFile(self: Self, path: []const u8) !void {
-        const file = try std.fs.cwd().createFile(path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try std.Io.Dir.cwd().createFile(io, path, .{});
+        defer file.close(io);
 
-        _ = try file.write("# Craft Configuration File\n\n");
+        try file.writeStreamingAll(io, "# Craft Configuration File\n\n");
 
-        _ = try file.write("[app]\n");
+        try file.writeStreamingAll(io, "[app]\n");
         var buf: [256]u8 = undefined;
         var line = try std.fmt.bufPrint(&buf, "hot_reload = {}\n", .{self.app.hot_reload});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = try std.fmt.bufPrint(&buf, "system_tray = {}\n", .{self.app.system_tray});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = try std.fmt.bufPrint(&buf, "log_level = \"{s}\"\n", .{self.app.log_level});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         if (self.app.log_file) |log_file| {
             line = try std.fmt.bufPrint(&buf, "log_file = \"{s}\"\n", .{log_file});
-            _ = try file.write(line);
+            try file.writeStreamingAll(io, line);
         }
 
-        _ = try file.write("\n[window]\n");
+        try file.writeStreamingAll(io, "\n[window]\n");
         line = try std.fmt.bufPrint(&buf, "title = \"{s}\"\n", .{self.window.title});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = try std.fmt.bufPrint(&buf, "width = {d}\n", .{self.window.width});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = try std.fmt.bufPrint(&buf, "height = {d}\n", .{self.window.height});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         if (self.window.x) |x| {
             line = try std.fmt.bufPrint(&buf, "x = {d}\n", .{x});
-            _ = try file.write(line);
+            try file.writeStreamingAll(io, line);
         }
         if (self.window.y) |y| {
             line = try std.fmt.bufPrint(&buf, "y = {d}\n", .{y});
-            _ = try file.write(line);
+            try file.writeStreamingAll(io, line);
         }
         line = try std.fmt.bufPrint(&buf, "resizable = {}\n", .{self.window.resizable});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = try std.fmt.bufPrint(&buf, "frameless = {}\n", .{self.window.frameless});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = try std.fmt.bufPrint(&buf, "transparent = {}\n", .{self.window.transparent});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = try std.fmt.bufPrint(&buf, "always_on_top = {}\n", .{self.window.always_on_top});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         line = try std.fmt.bufPrint(&buf, "fullscreen = {}\n", .{self.window.fullscreen});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         if (self.window.dark_mode) |dark| {
             line = try std.fmt.bufPrint(&buf, "dark_mode = {}\n", .{dark});
-            _ = try file.write(line);
+            try file.writeStreamingAll(io, line);
         }
 
-        _ = try file.write("\n[webview]\n");
+        try file.writeStreamingAll(io, "\n[webview]\n");
         line = try std.fmt.bufPrint(&buf, "dev_tools = {}\n", .{self.webview.dev_tools});
-        _ = try file.write(line);
+        try file.writeStreamingAll(io, line);
         if (self.webview.user_agent) |ua| {
             line = try std.fmt.bufPrint(&buf, "user_agent = \"{s}\"\n", .{ua});
-            _ = try file.write(line);
+            try file.writeStreamingAll(io, line);
         }
     }
 };

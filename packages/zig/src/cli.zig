@@ -41,10 +41,7 @@ fn debugPrint(comptime fmt: []const u8, args: anytype) void {
     }
 }
 
-pub fn parseArgs(allocator: std.mem.Allocator) !WindowOptions {
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
-
+pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !WindowOptions {
     // First pass: check for --debug flag
     for (args) |arg| {
         if (std.mem.eql(u8, arg, "--debug")) {
@@ -231,7 +228,7 @@ fn printVersion() void {
 
     std.debug.print(
         \\craft version 1.3.0
-        \\Built with Zig 0.15.1
+        \\Built with Zig 0.16.0
         \\Platform: {s}
         \\Features: 79
         \\

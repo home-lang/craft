@@ -26,23 +26,23 @@ pub fn build(b: *std.Build) void {
     const target_os = target.result.os.tag;
     switch (target_os) {
         .macos => {
-            exe.linkFramework("Cocoa");
-            exe.linkFramework("WebKit");
+            exe.root_module.linkFramework("Cocoa", .{});
+            exe.root_module.linkFramework("WebKit", .{});
         },
         .linux => {
-            exe.linkSystemLibrary("gtk+-3.0");
-            exe.linkSystemLibrary("webkit2gtk-4.0");
+            exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
+            exe.root_module.linkSystemLibrary("webkit2gtk-4.0", .{});
         },
         .windows => {
-            exe.linkSystemLibrary("ole32");
-            exe.linkSystemLibrary("user32");
-            exe.linkSystemLibrary("gdi32");
-            exe.linkSystemLibrary("shell32");
+            exe.root_module.linkSystemLibrary("ole32", .{});
+            exe.root_module.linkSystemLibrary("user32", .{});
+            exe.root_module.linkSystemLibrary("gdi32", .{});
+            exe.root_module.linkSystemLibrary("shell32", .{});
         },
         else => {},
     }
 
-    exe.linkLibC();
+    exe.root_module.link_libc = true;
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
@@ -70,23 +70,23 @@ pub fn build(b: *std.Build) void {
 
     switch (target_os) {
         .macos => {
-            craft_exe.linkFramework("Cocoa");
-            craft_exe.linkFramework("WebKit");
+            craft_exe.root_module.linkFramework("Cocoa", .{});
+            craft_exe.root_module.linkFramework("WebKit", .{});
         },
         .linux => {
-            craft_exe.linkSystemLibrary("gtk+-3.0");
-            craft_exe.linkSystemLibrary("webkit2gtk-4.0");
+            craft_exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
+            craft_exe.root_module.linkSystemLibrary("webkit2gtk-4.0", .{});
         },
         .windows => {
-            craft_exe.linkSystemLibrary("ole32");
-            craft_exe.linkSystemLibrary("user32");
-            craft_exe.linkSystemLibrary("gdi32");
-            craft_exe.linkSystemLibrary("shell32");
+            craft_exe.root_module.linkSystemLibrary("ole32", .{});
+            craft_exe.root_module.linkSystemLibrary("user32", .{});
+            craft_exe.root_module.linkSystemLibrary("gdi32", .{});
+            craft_exe.root_module.linkSystemLibrary("shell32", .{});
         },
         else => {},
     }
 
-    craft_exe.linkLibC();
+    craft_exe.root_module.link_libc = true;
     b.installArtifact(craft_exe);
 
     const run_craft_cmd = b.addRunArtifact(craft_exe);
@@ -939,9 +939,9 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    linux_exe.linkSystemLibrary("gtk+-3.0");
-    linux_exe.linkSystemLibrary("webkit2gtk-4.0");
-    linux_exe.linkLibC();
+    linux_exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
+    linux_exe.root_module.linkSystemLibrary("webkit2gtk-4.0", .{});
+    linux_exe.root_module.link_libc = true;
 
     const linux_install = b.addInstallArtifact(linux_exe, .{});
     build_linux.dependOn(&linux_install.step);
@@ -965,11 +965,11 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    windows_exe.linkSystemLibrary("ole32");
-    windows_exe.linkSystemLibrary("user32");
-    windows_exe.linkSystemLibrary("gdi32");
-    windows_exe.linkSystemLibrary("shell32");
-    windows_exe.linkLibC();
+    windows_exe.root_module.linkSystemLibrary("ole32", .{});
+    windows_exe.root_module.linkSystemLibrary("user32", .{});
+    windows_exe.root_module.linkSystemLibrary("gdi32", .{});
+    windows_exe.root_module.linkSystemLibrary("shell32", .{});
+    windows_exe.root_module.link_libc = true;
 
     const windows_install = b.addInstallArtifact(windows_exe, .{});
     build_windows.dependOn(&windows_install.step);
@@ -992,9 +992,9 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    macos_exe.linkFramework("Cocoa");
-    macos_exe.linkFramework("WebKit");
-    macos_exe.linkLibC();
+    macos_exe.root_module.linkFramework("Cocoa", .{});
+    macos_exe.root_module.linkFramework("WebKit", .{});
+    macos_exe.root_module.link_libc = true;
 
     const macos_install = b.addInstallArtifact(macos_exe, .{});
     build_macos.dependOn(&macos_install.step);
@@ -1026,10 +1026,10 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    ios_device_lib.linkFramework("UIKit");
-    ios_device_lib.linkFramework("WebKit");
-    ios_device_lib.linkFramework("Foundation");
-    ios_device_lib.linkLibC();
+    ios_device_lib.root_module.linkFramework("UIKit", .{});
+    ios_device_lib.root_module.linkFramework("WebKit", .{});
+    ios_device_lib.root_module.linkFramework("Foundation", .{});
+    ios_device_lib.root_module.link_libc = true;
 
     const ios_device_install = b.addInstallArtifact(ios_device_lib, .{});
     build_ios.dependOn(&ios_device_install.step);
@@ -1054,10 +1054,10 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    ios_sim_arm64_lib.linkFramework("UIKit");
-    ios_sim_arm64_lib.linkFramework("WebKit");
-    ios_sim_arm64_lib.linkFramework("Foundation");
-    ios_sim_arm64_lib.linkLibC();
+    ios_sim_arm64_lib.root_module.linkFramework("UIKit", .{});
+    ios_sim_arm64_lib.root_module.linkFramework("WebKit", .{});
+    ios_sim_arm64_lib.root_module.linkFramework("Foundation", .{});
+    ios_sim_arm64_lib.root_module.link_libc = true;
 
     const ios_sim_arm64_install = b.addInstallArtifact(ios_sim_arm64_lib, .{});
     build_ios_simulator.dependOn(&ios_sim_arm64_install.step);
@@ -1082,10 +1082,10 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    ios_sim_x64_lib.linkFramework("UIKit");
-    ios_sim_x64_lib.linkFramework("WebKit");
-    ios_sim_x64_lib.linkFramework("Foundation");
-    ios_sim_x64_lib.linkLibC();
+    ios_sim_x64_lib.root_module.linkFramework("UIKit", .{});
+    ios_sim_x64_lib.root_module.linkFramework("WebKit", .{});
+    ios_sim_x64_lib.root_module.linkFramework("Foundation", .{});
+    ios_sim_x64_lib.root_module.link_libc = true;
 
     const ios_sim_x64_install = b.addInstallArtifact(ios_sim_x64_lib, .{});
     build_ios_simulator.dependOn(&ios_sim_x64_install.step);
@@ -1106,10 +1106,10 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    web_to_native_ios_lib.linkFramework("UIKit");
-    web_to_native_ios_lib.linkFramework("WebKit");
-    web_to_native_ios_lib.linkFramework("Foundation");
-    web_to_native_ios_lib.linkLibC();
+    web_to_native_ios_lib.root_module.linkFramework("UIKit", .{});
+    web_to_native_ios_lib.root_module.linkFramework("WebKit", .{});
+    web_to_native_ios_lib.root_module.linkFramework("Foundation", .{});
+    web_to_native_ios_lib.root_module.link_libc = true;
 
     const web_to_native_ios_install = b.addInstallArtifact(web_to_native_ios_lib, .{});
     build_web_to_native_ios.dependOn(&web_to_native_ios_install.step);
@@ -1131,9 +1131,9 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    dialogs_exe.linkFramework("Cocoa");
-    dialogs_exe.linkFramework("WebKit");
-    dialogs_exe.linkLibC();
+    dialogs_exe.root_module.linkFramework("Cocoa", .{});
+    dialogs_exe.root_module.linkFramework("WebKit", .{});
+    dialogs_exe.root_module.link_libc = true;
 
     const run_dialogs_cmd = b.addRunArtifact(dialogs_exe);
     run_dialogs.dependOn(&run_dialogs_cmd.step);
@@ -1155,9 +1155,9 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    notifications_exe.linkFramework("Cocoa");
-    notifications_exe.linkFramework("WebKit");
-    notifications_exe.linkLibC();
+    notifications_exe.root_module.linkFramework("Cocoa", .{});
+    notifications_exe.root_module.linkFramework("WebKit", .{});
+    notifications_exe.root_module.link_libc = true;
 
     const run_notifications_cmd = b.addRunArtifact(notifications_exe);
     run_notifications.dependOn(&run_notifications_cmd.step);
@@ -1179,9 +1179,9 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    tray_exe.linkFramework("Cocoa");
-    tray_exe.linkFramework("WebKit");
-    tray_exe.linkLibC();
+    tray_exe.root_module.linkFramework("Cocoa", .{});
+    tray_exe.root_module.linkFramework("WebKit", .{});
+    tray_exe.root_module.link_libc = true;
 
     const run_tray_cmd = b.addRunArtifact(tray_exe);
     run_tray.dependOn(&run_tray_cmd.step);
@@ -1203,9 +1203,9 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    clipboard_exe.linkFramework("Cocoa");
-    clipboard_exe.linkFramework("WebKit");
-    clipboard_exe.linkLibC();
+    clipboard_exe.root_module.linkFramework("Cocoa", .{});
+    clipboard_exe.root_module.linkFramework("WebKit", .{});
+    clipboard_exe.root_module.link_libc = true;
 
     const run_clipboard_cmd = b.addRunArtifact(clipboard_exe);
     run_clipboard.dependOn(&run_clipboard_cmd.step);
@@ -1227,9 +1227,9 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    hotreload_exe.linkFramework("Cocoa");
-    hotreload_exe.linkFramework("WebKit");
-    hotreload_exe.linkLibC();
+    hotreload_exe.root_module.linkFramework("Cocoa", .{});
+    hotreload_exe.root_module.linkFramework("WebKit", .{});
+    hotreload_exe.root_module.link_libc = true;
 
     const run_hotreload_cmd = b.addRunArtifact(hotreload_exe);
     run_hotreload.dependOn(&run_hotreload_cmd.step);
@@ -1266,7 +1266,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    android_arm64_lib.linkLibC();
+    android_arm64_lib.root_module.link_libc = true;
 
     const android_arm64_install = b.addInstallArtifact(android_arm64_lib, .{});
     build_android.dependOn(&android_arm64_install.step);
@@ -1291,7 +1291,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    android_x86_lib.linkLibC();
+    android_x86_lib.root_module.link_libc = true;
 
     const android_x86_install = b.addInstallArtifact(android_x86_lib, .{});
     build_android_x86.dependOn(&android_x86_install.step);
@@ -1318,22 +1318,22 @@ pub fn build(b: *std.Build) void {
 
     switch (target_os) {
         .macos => {
-            android_demo_exe.linkFramework("Cocoa");
-            android_demo_exe.linkFramework("WebKit");
+            android_demo_exe.root_module.linkFramework("Cocoa", .{});
+            android_demo_exe.root_module.linkFramework("WebKit", .{});
         },
         .linux => {
-            android_demo_exe.linkSystemLibrary("gtk+-3.0");
-            android_demo_exe.linkSystemLibrary("webkit2gtk-4.0");
+            android_demo_exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
+            android_demo_exe.root_module.linkSystemLibrary("webkit2gtk-4.0", .{});
         },
         .windows => {
-            android_demo_exe.linkSystemLibrary("ole32");
-            android_demo_exe.linkSystemLibrary("user32");
-            android_demo_exe.linkSystemLibrary("gdi32");
-            android_demo_exe.linkSystemLibrary("shell32");
+            android_demo_exe.root_module.linkSystemLibrary("ole32", .{});
+            android_demo_exe.root_module.linkSystemLibrary("user32", .{});
+            android_demo_exe.root_module.linkSystemLibrary("gdi32", .{});
+            android_demo_exe.root_module.linkSystemLibrary("shell32", .{});
         },
         else => {},
     }
-    android_demo_exe.linkLibC();
+    android_demo_exe.root_module.link_libc = true;
 
     const run_android_cmd = b.addRunArtifact(android_demo_exe);
     run_android.dependOn(&run_android_cmd.step);

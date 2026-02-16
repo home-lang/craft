@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// HTTP Client API
 /// Provides HTTP/HTTPS request functionality
@@ -77,10 +78,11 @@ pub const HttpClient = struct {
         });
         defer self.allocator.free(response.body);
 
-        const file = try std.fs.cwd().createFile(dest_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().createFile(io, dest_path, .{});
+        defer file.close(io);
 
-        try file.writeAll(response.body);
+        try file.writeStreamingAll(io, response.body);
 
         if (progress_callback) |callback| {
             callback(response.body.len, response.body.len);
@@ -89,11 +91,13 @@ pub const HttpClient = struct {
 
     pub fn upload(self: *HttpClient, url: []const u8, file_path: []const u8, progress_callback: ?*const fn (u64, u64) void) !Response {
         // Read file
-        const file = try std.fs.cwd().openFile(file_path, .{});
-        defer file.close();
+        const io = io_context.get();
+        const file = try io_context.cwd().openFile(io, file_path, .{});
+        defer file.close(io);
 
-        const stat = try file.stat();
-        const file_contents = try file.readToEndAlloc(self.allocator, stat.size);
+        const stat = try file.stat(io);
+        const file_contents = try self.allocator.alloc(u8, stat.size);
+        _ = try file.readPositional(io, &.{file_contents}, 0);
         defer self.allocator.free(file_contents);
 
         if (progress_callback) |callback| {

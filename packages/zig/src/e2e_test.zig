@@ -1,4 +1,5 @@
 const std = @import("std");
+const io_context = @import("io_context.zig");
 
 /// End-to-end testing utilities for Craft applications
 /// Tests complete user workflows and application behavior
@@ -26,8 +27,9 @@ pub const E2ETestContext = struct {
 
     pub fn init(allocator: std.mem.Allocator, screenshots_dir: []const u8) !Self {
         // Create screenshots directory
-        const cwd = std.fs.cwd();
-        cwd.makeDir(screenshots_dir) catch |err| {
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        cwd.createDir(io, screenshots_dir, .default_dir) catch |err| {
             if (err != error.PathAlreadyExists) return err;
         };
 
@@ -385,10 +387,11 @@ pub const VisualRegressionTester = struct {
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator) !Self {
-        const cwd = std.fs.cwd();
-        try cwd.makeDir("baseline");
-        try cwd.makeDir("current");
-        try cwd.makeDir("diff");
+        const io = io_context.get();
+        const cwd = io_context.cwd();
+        try cwd.createDir(io, "baseline", .default_dir);
+        try cwd.createDir(io, "current", .default_dir);
+        try cwd.createDir(io, "diff", .default_dir);
 
         return Self{
             .baseline_dir = try allocator.dupe(u8, "baseline"),
