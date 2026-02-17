@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  npm:
+  release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -22,39 +22,11 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v2
-
       - name: Setup Pantry
         uses: home-lang/pantry-setup@v1
 
       - name: Install Dependencies
         run: bun install
-
-      - name: Build Zig Binaries
-        working-directory: packages/zig
-        run: |
-          mkdir -p ../typescript/bin
-
-          # Linux x64
-          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-linux
-          zip -j ../typescript/bin/craft-linux-x64.zip zig-out/bin/craft
-
-          # Linux arm64
-          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-linux
-          zip -j ../typescript/bin/craft-linux-arm64.zip zig-out/bin/craft
-
-          # macOS x64
-          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-macos
-          zip -j ../typescript/bin/craft-darwin-x64.zip zig-out/bin/craft
-
-          # macOS arm64
-          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-macos
-          zip -j ../typescript/bin/craft-darwin-arm64.zip zig-out/bin/craft
-
-          # Windows x64
-          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-windows
-          zip -j ../typescript/bin/craft-windows-x64.zip zig-out/bin/craft.exe
 
       - name: Publish
         run: pantry npm:publish --access public
@@ -63,12 +35,5 @@ jobs:
 
       - name: Create GitHub Release
         uses: stacksjs/action-releaser@v1.2.9
-        with:
-          files: |
-            packages/typescript/bin/craft-linux-x64.zip
-            packages/typescript/bin/craft-linux-arm64.zip
-            packages/typescript/bin/craft-darwin-x64.zip
-            packages/typescript/bin/craft-darwin-arm64.zip
-            packages/typescript/bin/craft-windows-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

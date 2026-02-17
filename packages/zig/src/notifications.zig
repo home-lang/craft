@@ -1157,6 +1157,9 @@ test "NotificationManager getAllChannels" {
 }
 
 test "NotificationManager schedule" {
+    // UNUserNotificationCenter requires an app bundle; skip in test binaries
+    if (comptime @import("builtin").os.tag == .macos) return error.SkipZigTest;
+
     var manager = NotificationManager.init(std.testing.allocator);
     defer manager.deinit();
 
@@ -1173,6 +1176,8 @@ test "NotificationManager schedule" {
 }
 
 test "NotificationManager cancel" {
+    if (comptime @import("builtin").os.tag == .macos) return error.SkipZigTest;
+
     var manager = NotificationManager.init(std.testing.allocator);
     defer manager.deinit();
 
@@ -1191,6 +1196,8 @@ test "NotificationManager cancel" {
 }
 
 test "NotificationManager cancelAll" {
+    if (comptime @import("builtin").os.tag == .macos) return error.SkipZigTest;
+
     var manager = NotificationManager.init(std.testing.allocator);
     defer manager.deinit();
 

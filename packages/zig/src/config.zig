@@ -43,7 +43,8 @@ pub const Config = struct {
         const stat = try file.stat(io);
         const content = try allocator.alloc(u8, @intCast(stat.size));
         defer allocator.free(content);
-        _ = try file.readStreaming(io, content);
+        const iov = [_][]u8{content};
+        _ = try file.readStreaming(io, &iov);
 
         return try parseToml(allocator, content);
     }

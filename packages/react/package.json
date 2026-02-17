@@ -1,6 +1,7 @@
 {
   "name": "@craft/react",
   "version": "1.3.0",
+  "private": true,
   "description": "React bindings for Craft framework",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

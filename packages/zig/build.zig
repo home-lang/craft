@@ -108,6 +108,26 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    // Link platform libraries for tests (needed for ObjC symbols etc.)
+    switch (target_os) {
+        .macos => {
+            lib_unit_tests.root_module.linkFramework("Cocoa", .{});
+            lib_unit_tests.root_module.linkFramework("WebKit", .{});
+        },
+        .linux => {
+            lib_unit_tests.root_module.linkSystemLibrary("gtk+-3.0", .{});
+            lib_unit_tests.root_module.linkSystemLibrary("webkit2gtk-4.0", .{});
+        },
+        .windows => {
+            lib_unit_tests.root_module.linkSystemLibrary("ole32", .{});
+            lib_unit_tests.root_module.linkSystemLibrary("user32", .{});
+            lib_unit_tests.root_module.linkSystemLibrary("gdi32", .{});
+            lib_unit_tests.root_module.linkSystemLibrary("shell32", .{});
+        },
+        else => {},
+    }
+    lib_unit_tests.root_module.link_libc = true;
+
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
     // Individual test files with proper imports
@@ -278,6 +298,19 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+
+    // system.zig uses ObjC on macOS (Clipboard, etc.)
+    switch (target_os) {
+        .macos => {
+            system_tests.root_module.linkFramework("Cocoa", .{});
+            system_tests.root_module.linkFramework("WebKit", .{});
+        },
+        .linux => {
+            system_tests.root_module.linkSystemLibrary("gtk+-3.0", .{});
+        },
+        else => {},
+    }
+    system_tests.root_module.link_libc = true;
 
     const profiler_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -685,6 +718,19 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    // Link platform libraries for tray tests (tray.zig uses ObjC on macOS)
+    switch (target_os) {
+        .macos => {
+            system_tray_tests.root_module.linkFramework("Cocoa", .{});
+            system_tray_tests.root_module.linkFramework("WebKit", .{});
+        },
+        .linux => {
+            system_tray_tests.root_module.linkSystemLibrary("gtk+-3.0", .{});
+        },
+        else => {},
+    }
+    system_tray_tests.root_module.link_libc = true;
+
     const system_tray_benchmark = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("test/system_tray_benchmark.zig"),
@@ -695,6 +741,18 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+
+    switch (target_os) {
+        .macos => {
+            system_tray_benchmark.root_module.linkFramework("Cocoa", .{});
+            system_tray_benchmark.root_module.linkFramework("WebKit", .{});
+        },
+        .linux => {
+            system_tray_benchmark.root_module.linkSystemLibrary("gtk+-3.0", .{});
+        },
+        else => {},
+    }
+    system_tray_benchmark.root_module.link_libc = true;
 
     const run_api_tests = b.addRunArtifact(api_tests);
     const run_mobile_tests = b.addRunArtifact(mobile_tests);

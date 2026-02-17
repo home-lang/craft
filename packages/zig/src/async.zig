@@ -368,7 +368,7 @@ pub const Channels = struct {
         return struct {
             buffer: std.ArrayList(T),
             mutex: compat_mutex.Mutex,
-            condition: std.Thread.Condition,
+            condition: compat_mutex.Condition,
             closed: bool,
             allocator: std.mem.Allocator,
 
@@ -404,7 +404,7 @@ pub const Channels = struct {
 
                 while (self.buffer.items.len == 0) {
                     if (self.closed) return error.ChannelClosed;
-                    self.condition.wait(&self.mutex.inner);
+                    self.condition.wait(&self.mutex);
                 }
 
                 return self.buffer.orderedRemove(0);

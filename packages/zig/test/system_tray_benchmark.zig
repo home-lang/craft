@@ -3,13 +3,35 @@ const testing = std.testing;
 const builtin = @import("builtin");
 const tray_module = @import("../src/tray.zig");
 const SystemTray = tray_module.SystemTray;
+const c_time = @cImport({ @cInclude("time.h"); });
+
+/// Zig 0.16 compatible timer
+const Timer = struct {
+    start_ns: i128,
+
+    fn start() error{}!Timer {
+        return .{ .start_ns = monotonic_ns() };
+    }
+
+    fn read(self: Timer) u64 {
+        const diff = monotonic_ns() - self.start_ns;
+        if (diff < 0) return 0;
+        return @as(u64, @intCast(diff));
+    }
+
+    fn monotonic_ns() i128 {
+        var ts: c_time.struct_timespec = undefined;
+        _ = c_time.clock_gettime(c_time.CLOCK_MONOTONIC, &ts);
+        return @as(i128, ts.tv_sec) * 1_000_000_000 + ts.tv_nsec;
+    }
+};
 
 // Benchmark SystemTray creation
 test "Benchmark: SystemTray creation" {
     const allocator = testing.allocator;
     const iterations = 1000;
 
-    var timer = try std.time.Timer.start();
+    var timer = try Timer.start();
     const start = timer.read();
 
     var i: usize = 0;
@@ -41,7 +63,7 @@ test "Benchmark: SystemTray setTitle" {
     var tray = SystemTray.init(allocator, "App");
     defer tray.deinit();
 
-    var timer = try std.time.Timer.start();
+    var timer = try Timer.start();
     const start = timer.read();
 
     var i: usize = 0;
@@ -72,7 +94,7 @@ test "Benchmark: SystemTray setTooltip" {
     var tray = SystemTray.init(allocator, "App");
     defer tray.deinit();
 
-    var timer = try std.time.Timer.start();
+    var timer = try Timer.start();
     const start = timer.read();
 
     var i: usize = 0;
@@ -107,7 +129,7 @@ test "Benchmark: SystemTray setClickCallback" {
         fn callback() void {}
     };
 
-    var timer = try std.time.Timer.start();
+    var timer = try Timer.start();
     const start = timer.read();
 
     var i: usize = 0;
@@ -148,7 +170,7 @@ test "Benchmark: SystemTray triggerClick" {
     tray.setClickCallback(&TestCallback.callback);
     TestCallback.counter = 0;
 
-    var timer = try std.time.Timer.start();
+    var timer = try Timer.start();
     const start = timer.read();
 
     var i: usize = 0;
@@ -185,7 +207,7 @@ test "Benchmark: SystemTray setMenu" {
     var fake_menu: u8 = 0;
     const menu_ptr: *anyopaque = @ptrCast(&fake_menu);
 
-    var timer = try std.time.Timer.start();
+    var timer = try Timer.start();
     const start = timer.read();
 
     var i: usize = 0;
@@ -216,7 +238,7 @@ test "Benchmark: SystemTray hide operation" {
     var tray = SystemTray.init(allocator, "App");
     defer tray.deinit();
 
-    var timer = try std.time.Timer.start();
+    var timer = try Timer.start();
     const start = timer.read();
 
     var i: usize = 0;
@@ -263,7 +285,7 @@ test "Benchmark: Multiple SystemTray instances" {
     const num_trays = 10;
     const iterations = 100;
 
-    var timer = try std.time.Timer.start();
+    var timer = try Timer.start();
     const start = timer.read();
 
     var round: usize = 0;
@@ -320,7 +342,7 @@ test "Benchmark: SystemTray rapid updates stress test" {
         "Long title text that might exceed normal limits",
     };
 
-    var timer = try std.time.Timer.start();
+    var timer = try Timer.start();
     const start = timer.read();
 
     var i: usize = 0;

@@ -73,6 +73,7 @@ test "Clipboard - getText returns optional" {
     const allocator = testing.allocator;
     const clipboard = system.Clipboard.init(allocator);
     const text = try clipboard.getText();
+    defer if (text) |t| allocator.free(t);
 
     try testing.expect(text == null or text.?.len >= 0);
 }

@@ -1,6 +1,12 @@
 const std = @import("std");
 const testing = std.testing;
 const log_module = @import("../src/log.zig");
+const c_fs = @cImport({
+    @cInclude("unistd.h");
+    @cInclude("stdio.h");
+    @cInclude("fcntl.h");
+    @cInclude("sys/stat.h");
+});
 
 test "LogLevel - toString" {
     try testing.expectEqualStrings("DEBUG", log_module.LogLevel.Debug.toString());
@@ -137,7 +143,7 @@ test "Log - convenience functions exist" {
 
 test "Log - output to file" {
     const test_path = "/tmp/craft_log_test.log";
-    defer std.fs.cwd().deleteFile(test_path) catch {};
+    defer _ = c_fs.remove(test_path);
 
     const config = log_module.LogConfig{
         .min_level = .Info,
@@ -149,14 +155,17 @@ test "Log - output to file" {
 
     log_module.info("Test log message", .{});
 
-    // Verify file was created
-    const file = try std.fs.cwd().openFile(test_path, .{});
-    defer file.close();
+    // Verify file was created using C open
+    const fd = c_fs.open(test_path, c_fs.O_RDONLY);
+    if (fd < 0) return error.FileNotFound;
+    defer _ = c_fs.close(fd);
 
-    const stat = try file.stat();
-    const content = try testing.allocator.alloc(u8, @intCast(stat.size));
+    var stat: c_fs.struct_stat = undefined;
+    _ = c_fs.fstat(fd, &stat);
+    const size: usize = @intCast(stat.st_size);
+    const content = try testing.allocator.alloc(u8, size);
     defer testing.allocator.free(content);
-    const bytes_read = try file.read(content);
+    const bytes_read = c_fs.read(fd, content.ptr, size);
     _ = bytes_read;
 
     try testing.expect(content.len > 0);

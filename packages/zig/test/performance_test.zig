@@ -89,20 +89,26 @@ const PerformanceMetrics = struct {
     };
 };
 
-/// Timer utility for precise measurements
+/// Timer utility for precise measurements (Zig 0.16 compat)
+const c_time = @cImport({ @cInclude("time.h"); });
+
 const Timer = struct {
-    start_time: ?std.time.Instant,
+    start_ns: i128,
 
     fn start() Timer {
-        return .{ .start_time = std.time.Instant.now() catch null };
+        return .{ .start_ns = monotonic_ns() };
     }
 
     fn elapsed(self: *const Timer) u64 {
-        if (self.start_time) |s| {
-            const now = std.time.Instant.now() catch return 0;
-            return now.since(s);
-        }
-        return 0;
+        const diff = monotonic_ns() - self.start_ns;
+        if (diff < 0) return 0;
+        return @as(u64, @intCast(diff));
+    }
+
+    fn monotonic_ns() i128 {
+        var ts: c_time.struct_timespec = undefined;
+        _ = c_time.clock_gettime(c_time.CLOCK_MONOTONIC, &ts);
+        return @as(i128, ts.tv_sec) * 1_000_000_000 + ts.tv_nsec;
     }
 };
 
@@ -156,16 +162,13 @@ test "Performance: HashMap insert operations" {
     var metrics = PerformanceMetrics.init(testing.allocator);
     defer metrics.deinit(testing.allocator);
 
-    var map = std.StringHashMap(u64).init(testing.allocator);
+    var map = std.AutoHashMap(u64, u64).init(testing.allocator);
     defer map.deinit();
-
-    var buf: [64]u8 = undefined;
 
     var i: usize = 0;
     while (i < config.iterations) : (i += 1) {
-        const key = std.fmt.bufPrint(&buf, "key_{d}", .{i}) catch unreachable;
         const timer = Timer.start();
-        try map.put(key, @intCast(i));
+        try map.put(@intCast(i), @intCast(i));
         try metrics.record(testing.allocator, timer.elapsed());
     }
 

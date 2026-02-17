@@ -41,7 +41,7 @@ pub const FileWatcher = struct {
     }
 
     pub fn addPath(self: *Self, path: []const u8) !void {
-        const stat = std.Io.Dir.cwd().statFile(io_context.get(), path) catch |err| {
+        const stat = std.Io.Dir.cwd().statFile(io_context.get(), path, .{}) catch |err| {
             log.warn("Failed to stat {s}: {}", .{ path, err });
             return;
         };
@@ -66,7 +66,7 @@ pub const FileWatcher = struct {
             const path = entry.key_ptr.*;
             const old_mtime = entry.value_ptr.*;
 
-            const stat = std.Io.Dir.cwd().statFile(io_context.get(), path) catch continue;
+            const stat = std.Io.Dir.cwd().statFile(io_context.get(), path, .{}) catch continue;
             const new_mtime: i64 = @intCast(@divTrunc(stat.mtime.nanoseconds, 1_000_000_000));
 
             if (new_mtime > old_mtime) {

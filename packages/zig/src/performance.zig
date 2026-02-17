@@ -348,7 +348,7 @@ pub const WorkQueue = struct {
     workers: std.ArrayList(std.Thread),
     running: bool,
     mutex: compat_mutex.Mutex,
-    condition: std.Thread.Condition,
+    condition: compat_mutex.Condition,
     allocator: std.mem.Allocator,
 
     const Task = struct {
@@ -362,7 +362,7 @@ pub const WorkQueue = struct {
             .workers = std.ArrayList(std.Thread).init(allocator),
             .running = true,
             .mutex = .{},
-            .condition = std.Thread.Condition{},
+            .condition = compat_mutex.Condition{},
             .allocator = allocator,
         };
 
