@@ -27,6 +27,9 @@ yarn-error.log*
 dist/
 release/
 
+# Test outputs
+test-app/
+
 # Logs
 *.log
 /docs/.bunpress
