@@ -1,6 +1,6 @@
 {
   "name": "craft-benchmarks",
-  "version": "0.0.2",
+  "version": "1.0.0",
   "description": "Performance benchmarks comparing Craft to Electron and Tauri",
   "type": "module",
   "scripts": {

@@ -1,6 +1,6 @@
 {
   "name": "@craft/svelte",
-  "version": "0.0.2",
+  "version": "1.3.0",
   "private": true,
   "description": "Svelte bindings for Craft framework",
   "svelte": "src/index.ts",
@@ -20,13 +20,7 @@
     "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
     "test": "vitest"
   },
-  "keywords": [
-    "craft",
-    "svelte",
-    "stores",
-    "actions",
-    "native"
-  ],
+  "keywords": ["craft", "svelte", "stores", "actions", "native"],
   "author": "Craft Team",
   "license": "MIT",
   "peerDependencies": {
