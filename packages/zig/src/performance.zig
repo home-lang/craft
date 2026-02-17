@@ -3,7 +3,6 @@ const compat_mutex = @import("compat_mutex.zig");
 
 /// Performance Optimization Module
 /// Provides caching, pooling, and optimization utilities
-
 pub const Cache = struct {
     entries: std.StringHashMap(CacheEntry),
     max_size: usize,

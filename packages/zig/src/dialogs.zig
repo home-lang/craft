@@ -3,7 +3,6 @@ const io_context = @import("io_context.zig");
 
 /// Native Dialog System
 /// Provides comprehensive native dialogs with platform-specific implementations
-
 pub const DialogType = enum {
     file_open,
     file_save,

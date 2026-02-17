@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Native menu system for application menus, context menus, and accelerators
 /// Cross-platform menu abstraction
-
 pub const MenuError = error{
     InvalidMenuItem,
     MenuNotFound,

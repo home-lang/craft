@@ -3,7 +3,6 @@ const io_context = @import("io_context.zig");
 
 /// Linux Packaging
 /// Supports DEB, RPM, and AppImage formats
-
 pub const LinuxPackager = struct {
     allocator: std.mem.Allocator,
     app_name: []const u8,

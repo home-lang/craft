@@ -395,11 +395,10 @@ test "vibrancy material types" {
 
 test "action list completeness" {
     const window_actions = [_][]const u8{
-        "show", "hide", "toggle", "focus", "minimize", "maximize", "close",
-        "center", "toggleFullscreen", "setFullscreen", "setSize", "setPosition",
-        "setTitle", "reload", "setVibrancy", "setAlwaysOnTop", "setOpacity",
-        "setResizable", "setBackgroundColor", "setMinSize", "setMaxSize",
-        "setMovable", "setHasShadow", "setAspectRatio", "flashFrame", "setProgressBar",
+        "show",        "hide",             "toggle",         "focus",        "minimize",           "maximize",   "close",
+        "center",      "toggleFullscreen", "setFullscreen",  "setSize",      "setPosition",        "setTitle",   "reload",
+        "setVibrancy", "setAlwaysOnTop",   "setOpacity",     "setResizable", "setBackgroundColor", "setMinSize", "setMaxSize",
+        "setMovable",  "setHasShadow",     "setAspectRatio", "flashFrame",   "setProgressBar",
     };
 
     const tray_actions = [_][]const u8{

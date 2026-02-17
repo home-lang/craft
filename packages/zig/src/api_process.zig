@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Process API
 /// Spawn and manage system processes
-
 pub const Process = struct {
     allocator: std.mem.Allocator,
 

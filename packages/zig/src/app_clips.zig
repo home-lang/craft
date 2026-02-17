@@ -423,7 +423,7 @@ pub const LocationTrigger = struct {
 
         const a = std.math.sin(delta_lat / 2) * std.math.sin(delta_lat / 2) +
             std.math.cos(lat1_rad) * std.math.cos(lat2_rad) *
-            std.math.sin(delta_lon / 2) * std.math.sin(delta_lon / 2);
+                std.math.sin(delta_lon / 2) * std.math.sin(delta_lon / 2);
         const c = 2 * std.math.atan2(@sqrt(a), @sqrt(1 - a));
         const distance = earth_radius * c;
 

@@ -4,7 +4,6 @@ const builtin = @import("builtin");
 /// Advanced GTK4 features for Linux
 /// Provides access to modern GTK4 widgets and features
 /// Requires GTK 4.0 or later
-
 pub const GTK4Error = error{
     PlatformNotSupported,
     InitializationFailed,

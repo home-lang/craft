@@ -4,7 +4,6 @@ const compat_mutex = @import("compat_mutex.zig");
 
 /// Message Queue System with reliable delivery, ordering, retry logic, and offline queue
 /// Ensures messages are delivered even when connection is temporarily unavailable
-
 pub const QueueError = error{
     QueueFull,
     MessageNotFound,

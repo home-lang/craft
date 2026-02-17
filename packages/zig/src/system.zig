@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// System Integration Module
 /// Provides native system integrations: notifications, clipboard, file system
-
 /// System Notifications
 pub const Notification = struct {
     title: []const u8,

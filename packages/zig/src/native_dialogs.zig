@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Native dialog system for open/save dialogs, message boxes, and color pickers
 /// Cross-platform dialog abstraction
-
 pub const DialogError = error{
     DialogCancelled,
     InvalidPath,

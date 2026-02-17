@@ -3,7 +3,6 @@ const builtin = @import("builtin");
 
 /// Objective-C Runtime Wrapper for iOS/macOS
 /// Provides type-safe Zig wrappers around the Objective-C runtime
-
 const is_darwin = builtin.target.os.tag == .macos or builtin.target.os.tag == .ios or builtin.target.os.tag == .tvos or builtin.target.os.tag == .watchos;
 
 pub const objc = if (is_darwin) struct {

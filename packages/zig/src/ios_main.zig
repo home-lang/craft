@@ -12,7 +12,6 @@ const objc_runtime = @import("objc_runtime.zig");
 /// 1. Build the Craft static library for iOS: `zig build build-ios`
 /// 2. Link libcraft-ios.a in your Xcode project
 /// 3. Call craft_ios_main() from your main.m or AppDelegate
-
 /// Application delegate storage (global for Objective-C callbacks)
 var g_app_delegate: ?*ios.CraftAppDelegate = null;
 var g_allocator: ?std.mem.Allocator = null;

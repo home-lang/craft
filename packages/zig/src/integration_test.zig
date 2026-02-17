@@ -6,7 +6,6 @@ const io_context = @import("io_context.zig");
 ///
 /// Note: This module provides integration test helpers that work with
 /// the zig-test-framework package (~/Code/zig-test-framework)
-
 pub const IntegrationTestError = error{
     ServiceNotAvailable,
     ConnectionFailed,

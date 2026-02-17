@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Error overlay for visual error display in development mode
 /// Shows errors with stack traces and actionable suggestions
-
 pub const ErrorSeverity = enum {
     Error,
     Warning,

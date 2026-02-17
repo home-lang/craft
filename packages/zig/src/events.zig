@@ -11,18 +11,18 @@ pub const EventType = enum {
     window_minimized,
     window_maximized,
     window_restored,
-    
+
     // Application events
     app_started,
     app_stopped,
     app_paused,
     app_resumed,
-    
+
     // WebView events
     webview_loaded,
     webview_failed,
     webview_navigating,
-    
+
     // Custom events
     custom,
 };
@@ -39,9 +39,9 @@ pub const EventCallback = *const fn (event: Event) void;
 pub const EventEmitter = struct {
     listeners: std.StringHashMap(std.ArrayList(EventCallback)),
     allocator: std.mem.Allocator,
-    
+
     const Self = @This();
-    
+
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .listeners = std.StringHashMap(std.ArrayList(EventCallback)).init(allocator),
@@ -64,7 +64,7 @@ pub const EventEmitter = struct {
         }
         try result.value_ptr.append(self.allocator, callback);
     }
-    
+
     pub fn off(self: *Self, event_name: []const u8, callback: EventCallback) bool {
         if (self.listeners.getPtr(event_name)) |callbacks| {
             var i: usize = 0;
@@ -78,26 +78,26 @@ pub const EventEmitter = struct {
         }
         return false;
     }
-    
+
     pub fn emit(self: *Self, event: Event) void {
         const event_name = if (event.event_type == .custom)
             event.custom_name orelse return
         else
             @tagName(event.event_type);
-            
+
         if (self.listeners.get(event_name)) |callbacks| {
             for (callbacks.items) |callback| {
                 callback(event);
             }
         }
     }
-    
+
     pub fn once(self: *Self, event_name: []const u8, callback: EventCallback) !void {
         const wrapper = struct {
             var emitter: ?*EventEmitter = null;
             var original_callback: ?EventCallback = null;
             var name: ?[]const u8 = null;
-            
+
             fn onceCallback(event: Event) void {
                 if (original_callback) |cb| {
                     cb(event);
@@ -109,11 +109,11 @@ pub const EventEmitter = struct {
                 }
             }
         };
-        
+
         wrapper.emitter = self;
         wrapper.original_callback = callback;
         wrapper.name = event_name;
-        
+
         try self.on(event_name, wrapper.onceCallback);
     }
 };

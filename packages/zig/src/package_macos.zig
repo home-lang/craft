@@ -3,7 +3,6 @@ const io_context = @import("io_context.zig");
 
 /// macOS Packaging
 /// Supports .app bundle creation, DMG, and PKG installer
-
 pub const MacOSPackager = struct {
     allocator: std.mem.Allocator,
     app_name: []const u8,

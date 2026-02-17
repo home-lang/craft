@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Process API for spawning and managing child processes
 /// Provides spawn, exec, env, cwd, exit functionality
-
 pub const ProcessError = error{
     SpawnFailed,
     ExecutionFailed,

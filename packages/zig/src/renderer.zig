@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Native Rendering Module
 /// Provides alternative to WebView for pure native UI
-
 pub const RenderBackend = enum {
     webview, // Default WebView rendering
     native, // Pure native rendering

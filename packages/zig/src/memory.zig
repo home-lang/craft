@@ -19,11 +19,11 @@ pub const MemoryPool = struct {
     pub fn getAllocator(self: *Self) std.mem.Allocator {
         return self.arena.allocator();
     }
-    
+
     pub fn reset(self: *Self) void {
         _ = self.arena.reset(.retain_capacity);
     }
-    
+
     pub fn resetFree(self: *Self) void {
         _ = self.arena.reset(.free_all);
     }
@@ -44,7 +44,7 @@ pub const TempAllocator = struct {
     pub fn getAllocator(self: *Self) std.mem.Allocator {
         return self.fba.allocator();
     }
-    
+
     pub fn reset(self: *Self) void {
         self.fba.reset();
     }
@@ -58,7 +58,7 @@ pub const MemoryStats = struct {
     bytes_freed: usize = 0,
     peak_memory: usize = 0,
     current_memory: usize = 0,
-    
+
     pub fn recordAlloc(self: *MemoryStats, size: usize) void {
         self.allocations += 1;
         self.bytes_allocated += size;
@@ -67,7 +67,7 @@ pub const MemoryStats = struct {
             self.peak_memory = self.current_memory;
         }
     }
-    
+
     pub fn recordFree(self: *MemoryStats, size: usize) void {
         self.deallocations += 1;
         self.bytes_freed += size;
@@ -77,7 +77,7 @@ pub const MemoryStats = struct {
             self.current_memory = 0;
         }
     }
-    
+
     pub fn print(self: MemoryStats) void {
         std.debug.print(
             \\Memory Statistics:
@@ -103,9 +103,9 @@ pub const MemoryStats = struct {
 pub const TrackingAllocator = struct {
     parent_allocator: std.mem.Allocator,
     stats: MemoryStats,
-    
+
     const Self = @This();
-    
+
     pub fn init(parent: std.mem.Allocator) Self {
         return .{
             .parent_allocator = parent,
@@ -124,7 +124,7 @@ pub const TrackingAllocator = struct {
             },
         };
     }
-    
+
     fn alloc(ctx: *anyopaque, len: usize, ptr_align: std.mem.Alignment, ret_addr: usize) ?[*]u8 {
         const self: *Self = @ptrCast(@alignCast(ctx));
         const result = self.parent_allocator.rawAlloc(len, ptr_align, ret_addr);
@@ -165,11 +165,11 @@ pub const TrackingAllocator = struct {
         self.parent_allocator.rawFree(buf, buf_align, ret_addr);
         self.stats.recordFree(buf.len);
     }
-    
+
     pub fn getStats(self: *Self) MemoryStats {
         return self.stats;
     }
-    
+
     pub fn printStats(self: *Self) void {
         self.stats.print();
     }

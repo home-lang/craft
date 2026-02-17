@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// JSON parsing utilities for bridge modules
 /// Provides type-safe JSON parsing to replace manual indexOf patterns
-
 pub const JsonError = error{
     ParseError,
     MissingField,

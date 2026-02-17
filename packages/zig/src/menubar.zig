@@ -5,7 +5,6 @@ const log = logging.scoped("Menubar");
 
 /// Native Menubar Application Support
 /// Provides system tray/menubar integration for macOS, Linux, and Windows
-
 pub const MenubarApp = struct {
     title: []const u8,
     icon: ?[]const u8,
@@ -340,7 +339,6 @@ pub const MenubarBuilder = struct {
 };
 
 /// Platform-specific implementations
-
 /// macOS NSStatusBar Integration
 pub const MacOS = struct {
     const c = @cImport({

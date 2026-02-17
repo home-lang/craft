@@ -3,7 +3,6 @@ const io_context = @import("io_context.zig");
 
 /// WebAssembly Plugin System
 /// Allows loading and running WASM modules as plugins
-
 pub const WasmModule = struct {
     name: []const u8,
     bytes: []const u8,

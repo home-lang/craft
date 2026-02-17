@@ -110,11 +110,7 @@ pub const NativeSplitViewController = struct {
 
         // Use sidebarWithViewController: class method to create sidebar item
         const NSSplitViewItem = macos.getClass("NSSplitViewItem");
-        const sidebar_item = macos.msgSend1(
-            NSSplitViewItem,
-            "sidebarWithViewController:",
-            view_controller_wrapper.getViewController()
-        );
+        const sidebar_item = macos.msgSend1(NSSplitViewItem, "sidebarWithViewController:", view_controller_wrapper.getViewController());
 
         // Configure sidebar constraints
         _ = macos.msgSend1(sidebar_item, "setMinimumThickness:", @as(f64, 240.0));
@@ -148,11 +144,7 @@ pub const NativeSplitViewController = struct {
 
         // Create NSSplitViewItem for content
         const NSSplitViewItem = macos.getClass("NSSplitViewItem");
-        const content_item = macos.msgSend1(
-            NSSplitViewItem,
-            "splitViewItemWithViewController:",
-            view_controller_wrapper.getViewController()
-        );
+        const content_item = macos.msgSend1(NSSplitViewItem, "splitViewItemWithViewController:", view_controller_wrapper.getViewController());
 
         // Content should not collapse
         _ = macos.msgSend1(content_item, "setCanCollapse:", @as(c_int, 0)); // NO
@@ -175,12 +167,7 @@ pub const NativeSplitViewController = struct {
 
     /// Optional: Set divider position manually (usually AppKit handles this automatically)
     pub fn setDividerPosition(self: *NativeSplitViewController, position: f64) void {
-        _ = macos.msgSend2(
-            self.split_view,
-            "setPosition:ofDividerAtIndex:",
-            position,
-            @as(c_long, 0)
-        );
+        _ = macos.msgSend2(self.split_view, "setPosition:ofDividerAtIndex:", position, @as(c_long, 0));
         std.debug.print("[LiquidGlass] Set divider position to {d}px\n", .{position});
     }
 };

@@ -19,7 +19,6 @@ const mobile = @import("mobile.zig");
 /// // Listen for events
 /// window.craft.on('ready', () => console.log('App ready'));
 /// ```
-
 pub const JSBridgeError = error{
     InvalidJSON,
     MethodNotFound,

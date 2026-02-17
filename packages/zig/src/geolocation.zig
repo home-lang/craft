@@ -87,7 +87,7 @@ pub const Coordinate = struct {
 
         const a = std.math.sin(delta_lat / 2.0) * std.math.sin(delta_lat / 2.0) +
             std.math.cos(lat1) * std.math.cos(lat2) *
-            std.math.sin(delta_lon / 2.0) * std.math.sin(delta_lon / 2.0);
+                std.math.sin(delta_lon / 2.0) * std.math.sin(delta_lon / 2.0);
 
         const c = 2.0 * std.math.atan2(@sqrt(a), @sqrt(1.0 - a));
 

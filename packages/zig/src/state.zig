@@ -4,7 +4,6 @@ const compat_mutex = @import("compat_mutex.zig");
 
 /// State Management System
 /// Provides reactive state management with observers and middleware
-
 pub const StateError = error{
     InvalidState,
     MutationDuringComputation,

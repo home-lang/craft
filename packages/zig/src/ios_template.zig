@@ -3,7 +3,6 @@ const io_context = @import("io_context.zig");
 
 /// iOS Swift Template Generator
 /// Generates complete iOS app templates with Craft integration
-
 pub const IOSTemplate = struct {
     allocator: std.mem.Allocator,
     app_name: []const u8,

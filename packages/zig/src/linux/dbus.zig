@@ -730,7 +730,7 @@ pub const PowerManagement = struct {
     }
 
     /// Suspend the system
-    pub fn suspend() !void {
+    pub fn suspendSystem() !void {
         var conn = try Connection.getSystem();
         defer conn.close();
 

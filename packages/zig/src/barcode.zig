@@ -451,9 +451,9 @@ pub const ScannerConfig = struct {
 
     pub fn addAllFormats(self: *ScannerConfig, allocator: std.mem.Allocator) !void {
         const all_formats = [_]BarcodeFormat{
-            .code_39,  .code_93,    .code_128,   .ean_8,      .ean_13,
-            .upc_a,    .upc_e,      .itf,        .codabar,    .pdf417,
-            .qr_code,  .data_matrix, .aztec,      .micro_qr,   .maxi_code,
+            .code_39, .code_93,     .code_128, .ean_8,    .ean_13,
+            .upc_a,   .upc_e,       .itf,      .codabar,  .pdf417,
+            .qr_code, .data_matrix, .aztec,    .micro_qr, .maxi_code,
         };
         for (all_formats) |format| {
             try self.formats.append(allocator, format);

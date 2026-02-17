@@ -3,7 +3,6 @@ const macos = @import("../macos.zig");
 
 /// Drag and Drop support for native UI components
 /// Implements NSDraggingSource and NSDraggingDestination protocols
-
 /// Use NSPoint as CGPoint (they're the same on macOS)
 pub const CGPoint = macos.NSPoint;
 

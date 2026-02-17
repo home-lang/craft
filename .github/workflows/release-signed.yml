@@ -250,12 +250,9 @@ jobs:
           cat checksums.sha256
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: stacksjs/action-releaser@v1.2.9
         with:
           files: |
             release/*
-          generate_release_notes: true
-          draft: false
-          prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

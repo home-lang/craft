@@ -3,7 +3,6 @@ const io_context = @import("io_context.zig");
 
 /// GPU Acceleration Module
 /// Provides hardware-accelerated rendering capabilities
-
 pub const GPUBackend = enum {
     auto,
     metal, // macOS

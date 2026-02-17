@@ -4,7 +4,6 @@ const builtin = @import("builtin");
 /// Cross-platform icon support
 /// Provides a unified icon API that works across macOS (SF Symbols),
 /// Windows (Segoe MDL2/Fluent icons), and Linux (Freedesktop icons)
-
 /// Icon category for grouping related icons
 pub const IconCategory = enum {
     navigation,

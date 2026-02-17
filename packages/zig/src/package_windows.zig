@@ -3,7 +3,6 @@ const io_context = @import("io_context.zig");
 
 /// Windows Packaging
 /// Supports MSI installer creation using WiX Toolset
-
 pub const WindowsPackager = struct {
     allocator: std.mem.Allocator,
     app_name: []const u8,

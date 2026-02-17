@@ -4,7 +4,6 @@ const database = @import("database.zig");
 /// Database API
 /// High-level SQLite wrapper for cross-platform database access
 /// This module provides a simplified API that wraps the underlying database.zig implementation
-
 pub const Database = struct {
     allocator: std.mem.Allocator,
     inner: database.Database,

@@ -3,7 +3,6 @@ const io_context = @import("io_context.zig");
 
 /// File System API for cross-platform file operations
 /// Provides async file operations with proper error handling
-
 pub const FileSystemError = error{
     FileNotFound,
     PermissionDenied,

@@ -1231,12 +1231,12 @@ test "IntegrityVerdict passing" {
             .is_rooted = false,
         })
         .withAppIntegrity(.{
-            .is_recognized = true,
-            .is_licensed = false,
-            .package_name_matches = true,
-            .certificate_matches = true,
-            .version_code = 1,
-        });
+        .is_recognized = true,
+        .is_licensed = false,
+        .package_name_matches = true,
+        .certificate_matches = true,
+        .version_code = 1,
+    });
     try std.testing.expect(verdict.isPassing());
     try std.testing.expect(!verdict.isHighTrust());
 }
@@ -1251,12 +1251,12 @@ test "IntegrityVerdict high trust" {
             .is_rooted = false,
         })
         .withAppIntegrity(.{
-            .is_recognized = true,
-            .is_licensed = true,
-            .package_name_matches = true,
-            .certificate_matches = true,
-            .version_code = 1,
-        });
+        .is_recognized = true,
+        .is_licensed = true,
+        .package_name_matches = true,
+        .certificate_matches = true,
+        .version_code = 1,
+    });
     try std.testing.expect(verdict.isHighTrust());
 }
 

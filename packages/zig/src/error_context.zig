@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Error Context System
 /// Provides detailed error information with stack traces and context
-
 /// Get current timestamp in milliseconds (compatible with Zig 0.16)
 fn getMilliTimestamp() i64 {
     var ts: std.c.timespec = undefined;

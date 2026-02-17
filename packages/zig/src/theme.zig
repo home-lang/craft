@@ -3,7 +3,6 @@ const renderer = @import("renderer.zig");
 
 /// Advanced Theming System
 /// Provides comprehensive theming with hot-reload and custom themes
-
 pub const ThemeMode = enum {
     light,
     dark,

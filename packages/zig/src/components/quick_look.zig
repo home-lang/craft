@@ -4,7 +4,6 @@ const objc = macos.objc;
 
 /// Quick Look support for native UI components
 /// Implements QLPreviewPanel integration for file previews
-
 /// Preview item representing a file to preview
 pub const PreviewItem = struct {
     id: []const u8,

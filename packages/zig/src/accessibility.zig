@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Accessibility Module
 /// Provides comprehensive accessibility support (WCAG 2.1 AAA compliance)
-
 pub const Role = enum {
     // Document structure
     document,
@@ -189,9 +188,19 @@ pub const Accessibility = struct {
 
     fn isInteractive(role: Role) bool {
         return switch (role) {
-            .button, .checkbox, .radio, .textbox, .combobox,
-            .listbox, .menu, .menuitem, .slider, .spinbutton,
-            .tab, .dialog, => true,
+            .button,
+            .checkbox,
+            .radio,
+            .textbox,
+            .combobox,
+            .listbox,
+            .menu,
+            .menuitem,
+            .slider,
+            .spinbutton,
+            .tab,
+            .dialog,
+            => true,
             else => false,
         };
     }

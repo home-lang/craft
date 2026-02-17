@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Crypto API
 /// Cryptographic operations
-
 pub const Crypto = struct {
     allocator: std.mem.Allocator,
 

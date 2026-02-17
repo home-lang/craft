@@ -5,7 +5,6 @@ const io_context = @import("io_context.zig");
 
 /// Unified Plugin System
 /// Integrates WASM runtime with security sandbox and permission management
-
 pub const PluginManifest = struct {
     id: []const u8,
     name: []const u8,

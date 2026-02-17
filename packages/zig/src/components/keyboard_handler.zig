@@ -4,7 +4,6 @@ const objc = macos.objc;
 
 /// Keyboard event handler for native UI components
 /// Provides arrow key navigation, spacebar Quick Look, and other shortcuts
-
 /// Key codes for common keys
 pub const KeyCode = struct {
     pub const Return: u16 = 36;

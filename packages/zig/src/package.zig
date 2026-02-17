@@ -467,8 +467,8 @@ const TomlParser = struct {
                     // Line ending backslash - skip whitespace
                     while (self.pos < self.content.len and
                         (self.content[self.pos] == ' ' or
-                        self.content[self.pos] == '\t' or
-                        self.content[self.pos] == '\n'))
+                            self.content[self.pos] == '\t' or
+                            self.content[self.pos] == '\n'))
                     {
                         if (self.content[self.pos] == '\n') {
                             self.line += 1;

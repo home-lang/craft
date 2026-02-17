@@ -4,7 +4,6 @@ const builtin = @import("builtin");
 
 /// Enhanced CLI with project scaffolding and templates
 /// Provides tools for creating, managing, and building Craft projects
-
 pub const CLIError = error{
     InvalidCommand,
     InvalidTemplate,

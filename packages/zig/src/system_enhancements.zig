@@ -820,6 +820,9 @@ pub const LocalStorage = struct {
 pub const PerformanceMonitor = struct {
     start_time: i64,
     allocator: std.mem.Allocator,
+    // For CPU tracking
+    last_cpu_time: i64 = 0,
+    last_cpu_usage: f64 = 0.0,
 
     pub const Stats = struct {
         memory_used: u64,
@@ -834,10 +837,6 @@ pub const PerformanceMonitor = struct {
             .allocator = allocator,
         };
     }
-
-    // For CPU tracking
-    last_cpu_time: i64 = 0,
-    last_cpu_usage: f64 = 0.0,
 
     pub fn getStats(self: *PerformanceMonitor) !Stats {
         const uptime = std.time.timestamp() - self.start_time;

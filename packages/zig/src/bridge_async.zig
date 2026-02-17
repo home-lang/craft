@@ -3,7 +3,6 @@ const compat_mutex = @import("compat_mutex.zig");
 
 /// Bidirectional async communication system with binary data transfer
 /// Provides Promise-based responses, streaming, and binary protocol
-
 pub const BridgeError = error{
     MessageTooLarge,
     InvalidMessage,

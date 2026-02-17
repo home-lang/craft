@@ -3,7 +3,6 @@ const hotreload = @import("hotreload.zig");
 
 /// Mobile Hot Reload
 /// WebSocket-based hot reload for iOS and Android
-
 pub const MobileHotReloadServer = struct {
     allocator: std.mem.Allocator,
     port: u16,

@@ -1097,8 +1097,7 @@ fn sidebarViewForItem(
             const font = msgSend1(getClass("NSFont"), "boldSystemFontOfSize:", @as(f64, 11.0));
             _ = msgSend1(textField, "setFont:", font);
             // Light gray for section headers on dark background
-            const sectionColor = msgSend4(getClass("NSColor"), "colorWithRed:green:blue:alpha:",
-                @as(f64, 0.6), @as(f64, 0.6), @as(f64, 0.7), @as(f64, 1.0));
+            const sectionColor = msgSend4(getClass("NSColor"), "colorWithRed:green:blue:alpha:", @as(f64, 0.6), @as(f64, 0.6), @as(f64, 0.7), @as(f64, 1.0));
             _ = msgSend1(textField, "setTextColor:", sectionColor);
         } else {
             // Regular item style - WHITE text on dark background
@@ -1133,8 +1132,7 @@ fn sidebarViewForItem(
     // Always set text color (in case cell is reused from different type)
     if (isSectionItem) {
         // Section header - light gray text
-        const sectionColor = msgSend4(getClass("NSColor"), "colorWithRed:green:blue:alpha:",
-            @as(f64, 0.6), @as(f64, 0.6), @as(f64, 0.7), @as(f64, 1.0));
+        const sectionColor = msgSend4(getClass("NSColor"), "colorWithRed:green:blue:alpha:", @as(f64, 0.6), @as(f64, 0.6), @as(f64, 0.7), @as(f64, 1.0));
         const font = msgSend1(getClass("NSFont"), "boldSystemFontOfSize:", @as(f64, 11.0));
 
         const section_idx: usize = @intCast(msgSendULong(item, "sectionIndex"));
@@ -1185,8 +1183,7 @@ fn sidebarViewForItem(
                                 }
                             } else {
                                 // Default to white/light color for icons on dark background
-                                const defaultIconColor = msgSend4(getClass("NSColor"), "colorWithRed:green:blue:alpha:",
-                                    @as(f64, 0.85), @as(f64, 0.85), @as(f64, 0.9), @as(f64, 1.0));
+                                const defaultIconColor = msgSend4(getClass("NSColor"), "colorWithRed:green:blue:alpha:", @as(f64, 0.85), @as(f64, 0.85), @as(f64, 0.9), @as(f64, 1.0));
                                 _ = msgSend1(imageView, "setContentTintColor:", defaultIconColor);
                             }
                         }
@@ -1755,87 +1752,87 @@ fn generateSidebarHtml(sidebar_config: ?[]const u8) []const u8 {
     _ = sidebar_config; // TODO: Parse and use config for dynamic content
 
     // For now, return a simple sidebar HTML that matches the app's theme
-    return
-        \\<!DOCTYPE html>
-        \\<html>
-        \\<head>
-        \\<meta charset="UTF-8">
-        \\<style>
-        \\* { margin: 0; padding: 0; box-sizing: border-box; }
-        \\body {
-        \\  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
-        \\  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
-        \\  color: #fff;
-        \\  height: 100vh;
-        \\  overflow-y: auto;
-        \\  padding: 60px 12px 12px 12px;
-        \\  -webkit-user-select: none;
-        \\  user-select: none;
-        \\}
-        \\.section { margin-bottom: 24px; }
-        \\.section-title {
-        \\  font-size: 11px;
-        \\  font-weight: 600;
-        \\  color: rgba(255,255,255,0.5);
-        \\  text-transform: uppercase;
-        \\  letter-spacing: 0.5px;
-        \\  padding: 0 8px 8px 8px;
-        \\}
-        \\.item {
-        \\  display: flex;
-        \\  align-items: center;
-        \\  gap: 10px;
-        \\  padding: 8px 12px;
-        \\  border-radius: 8px;
-        \\  cursor: pointer;
-        \\  font-size: 13px;
-        \\  color: rgba(255,255,255,0.85);
-        \\}
-        \\.item:hover { background: rgba(255,255,255,0.08); }
-        \\.item.selected { background: rgba(139, 92, 246, 0.25); }
-        \\.item-icon {
-        \\  width: 20px;
-        \\  height: 20px;
-        \\  display: flex;
-        \\  align-items: center;
-        \\  justify-content: center;
-        \\  font-size: 14px;
-        \\}
-        \\.badge {
-        \\  margin-left: auto;
-        \\  background: rgba(139, 92, 246, 0.6);
-        \\  padding: 2px 8px;
-        \\  border-radius: 10px;
-        \\  font-size: 11px;
-        \\  font-weight: 500;
-        \\}
-        \\</style>
-        \\</head>
-        \\<body>
-        \\<div class="section">
-        \\  <div class="section-title">Inbox</div>
-        \\  <div class="item selected"><span class="item-icon">📥</span>All Messages<span class="badge">68</span></div>
-        \\  <div class="item"><span class="item-icon">📧</span>Unread<span class="badge">21</span></div>
-        \\  <div class="item"><span class="item-icon">@</span>Mentions<span class="badge">3</span></div>
-        \\  <div class="item"><span class="item-icon">📌</span>Pinned</div>
-        \\</div>
-        \\<div class="section">
-        \\  <div class="section-title">Platforms</div>
-        \\  <div class="item"><span class="item-icon">💬</span>iMessage<span class="badge">4</span></div>
-        \\  <div class="item"><span class="item-icon">📱</span>WhatsApp</div>
-        \\  <div class="item"><span class="item-icon">#</span>Slack<span class="badge">12</span></div>
-        \\  <div class="item"><span class="item-icon">🎮</span>Discord<span class="badge">5</span></div>
-        \\  <div class="item"><span class="item-icon">✈️</span>Telegram<span class="badge">47</span></div>
-        \\  <div class="item"><span class="item-icon">🛡️</span>Signal</div>
-        \\</div>
-        \\<div class="section">
-        \\  <div class="section-title">Channels</div>
-        \\  <div class="item"><span class="item-icon">#</span>Design Team</div>
-        \\  <div class="item"><span class="item-icon">#</span>General</div>
-        \\  <div class="item"><span class="item-icon">#</span>Gaming Squad</div>
-        \\</div>
-        \\</body>
-        \\</html>
+    return 
+    \\<!DOCTYPE html>
+    \\<html>
+    \\<head>
+    \\<meta charset="UTF-8">
+    \\<style>
+    \\* { margin: 0; padding: 0; box-sizing: border-box; }
+    \\body {
+    \\  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    \\  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+    \\  color: #fff;
+    \\  height: 100vh;
+    \\  overflow-y: auto;
+    \\  padding: 60px 12px 12px 12px;
+    \\  -webkit-user-select: none;
+    \\  user-select: none;
+    \\}
+    \\.section { margin-bottom: 24px; }
+    \\.section-title {
+    \\  font-size: 11px;
+    \\  font-weight: 600;
+    \\  color: rgba(255,255,255,0.5);
+    \\  text-transform: uppercase;
+    \\  letter-spacing: 0.5px;
+    \\  padding: 0 8px 8px 8px;
+    \\}
+    \\.item {
+    \\  display: flex;
+    \\  align-items: center;
+    \\  gap: 10px;
+    \\  padding: 8px 12px;
+    \\  border-radius: 8px;
+    \\  cursor: pointer;
+    \\  font-size: 13px;
+    \\  color: rgba(255,255,255,0.85);
+    \\}
+    \\.item:hover { background: rgba(255,255,255,0.08); }
+    \\.item.selected { background: rgba(139, 92, 246, 0.25); }
+    \\.item-icon {
+    \\  width: 20px;
+    \\  height: 20px;
+    \\  display: flex;
+    \\  align-items: center;
+    \\  justify-content: center;
+    \\  font-size: 14px;
+    \\}
+    \\.badge {
+    \\  margin-left: auto;
+    \\  background: rgba(139, 92, 246, 0.6);
+    \\  padding: 2px 8px;
+    \\  border-radius: 10px;
+    \\  font-size: 11px;
+    \\  font-weight: 500;
+    \\}
+    \\</style>
+    \\</head>
+    \\<body>
+    \\<div class="section">
+    \\  <div class="section-title">Inbox</div>
+    \\  <div class="item selected"><span class="item-icon">📥</span>All Messages<span class="badge">68</span></div>
+    \\  <div class="item"><span class="item-icon">📧</span>Unread<span class="badge">21</span></div>
+    \\  <div class="item"><span class="item-icon">@</span>Mentions<span class="badge">3</span></div>
+    \\  <div class="item"><span class="item-icon">📌</span>Pinned</div>
+    \\</div>
+    \\<div class="section">
+    \\  <div class="section-title">Platforms</div>
+    \\  <div class="item"><span class="item-icon">💬</span>iMessage<span class="badge">4</span></div>
+    \\  <div class="item"><span class="item-icon">📱</span>WhatsApp</div>
+    \\  <div class="item"><span class="item-icon">#</span>Slack<span class="badge">12</span></div>
+    \\  <div class="item"><span class="item-icon">🎮</span>Discord<span class="badge">5</span></div>
+    \\  <div class="item"><span class="item-icon">✈️</span>Telegram<span class="badge">47</span></div>
+    \\  <div class="item"><span class="item-icon">🛡️</span>Signal</div>
+    \\</div>
+    \\<div class="section">
+    \\  <div class="section-title">Channels</div>
+    \\  <div class="item"><span class="item-icon">#</span>Design Team</div>
+    \\  <div class="item"><span class="item-icon">#</span>General</div>
+    \\  <div class="item"><span class="item-icon">#</span>Gaming Squad</div>
+    \\</div>
+    \\</body>
+    \\</html>
     ;
 }
 
@@ -1940,9 +1937,9 @@ pub fn createWindowWithSidebarURL(
     const windowBgColor = msgSend4(
         NSColor,
         "colorWithRed:green:blue:alpha:",
-        @as(f64, 15.0 / 255.0),  // 0x0f
-        @as(f64, 15.0 / 255.0),  // 0x0f
-        @as(f64, 35.0 / 255.0),  // 0x23
+        @as(f64, 15.0 / 255.0), // 0x0f
+        @as(f64, 15.0 / 255.0), // 0x0f
+        @as(f64, 35.0 / 255.0), // 0x23
         @as(f64, 1.0),
     );
     _ = msgSend1(window, "setBackgroundColor:", windowBgColor);
@@ -2024,7 +2021,7 @@ pub fn createWindowWithSidebarURL(
     // FLOATING SIDEBAR - Tahoe style with rounded corners and shadow
     // Extends into titlebar area so traffic lights are inside
     // ========================================
-    const sidebar_margin: f64 = 12.0;  // Visible gap around sidebar (left, right, bottom)
+    const sidebar_margin: f64 = 12.0; // Visible gap around sidebar (left, right, bottom)
     const sidebar_top_margin: f64 = 8.0; // Small top margin (traffic lights will be inside)
     const corner_radius: f64 = 14.0;
 
@@ -2054,9 +2051,9 @@ pub fn createWindowWithSidebarURL(
         const customBgColor = msgSend4(
             NSColor,
             "colorWithRed:green:blue:alpha:",
-            @as(f64, 26.0 / 255.0),  // 0x1a
-            @as(f64, 26.0 / 255.0),  // 0x1a
-            @as(f64, 46.0 / 255.0),  // 0x2e
+            @as(f64, 26.0 / 255.0), // 0x1a
+            @as(f64, 26.0 / 255.0), // 0x1a
+            @as(f64, 46.0 / 255.0), // 0x2e
             @as(f64, 0.95),
         );
         const cgColor = msgSend0(customBgColor, "CGColor");

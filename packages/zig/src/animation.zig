@@ -3,7 +3,6 @@ const io_context = @import("io_context.zig");
 
 /// Animation System
 /// Provides comprehensive animation support with easing functions and transitions
-
 pub const EasingFunction = enum {
     linear,
     ease_in_quad,

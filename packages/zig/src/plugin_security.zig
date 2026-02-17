@@ -4,7 +4,6 @@ const Crypto = @import("crypto.zig").Crypto;
 
 /// Plugin Security & Sandboxing System
 /// Provides secure isolation for plugins using WASM sandboxing and permission management
-
 pub const Permission = enum {
     // File system permissions
     read_files,

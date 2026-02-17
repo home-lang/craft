@@ -4,7 +4,6 @@ const mobile = @import("mobile.zig");
 
 /// iOS Application Infrastructure
 /// Provides UIApplicationDelegate, UIViewController, and full app lifecycle management
-
 const objc = objc_runtime.objc;
 
 // ============================================================================
@@ -37,7 +36,7 @@ pub const CraftAppDelegate = struct {
         /// Status bar style
         status_bar_style: StatusBarStyle = .default,
         /// Support orientations
-        orientations: []const Orientation = &[_]Orientation{ .portrait },
+        orientations: []const Orientation = &[_]Orientation{.portrait},
         /// Enable WebKit inspector (debug only)
         enable_inspector: bool = false,
         /// Custom user agent suffix
@@ -68,10 +67,10 @@ pub const CraftAppDelegate = struct {
 
             pub fn toMask(self: Orientation) u32 {
                 return switch (self) {
-                    .portrait => 0x02,              // UIInterfaceOrientationMaskPortrait
-                    .portrait_upside_down => 0x04,  // UIInterfaceOrientationMaskPortraitUpsideDown
-                    .landscape_left => 0x10,        // UIInterfaceOrientationMaskLandscapeLeft
-                    .landscape_right => 0x08,       // UIInterfaceOrientationMaskLandscapeRight
+                    .portrait => 0x02, // UIInterfaceOrientationMaskPortrait
+                    .portrait_upside_down => 0x04, // UIInterfaceOrientationMaskPortraitUpsideDown
+                    .landscape_left => 0x10, // UIInterfaceOrientationMaskLandscapeLeft
+                    .landscape_right => 0x08, // UIInterfaceOrientationMaskLandscapeRight
                 };
             }
         };

@@ -2,7 +2,6 @@ const std = @import("std");
 
 /// Type-safe bridge protocol with auto-generated TypeScript types
 /// Ensures type safety across Zig-JavaScript boundary
-
 pub const TypeInfo = struct {
     name: []const u8,
     kind: TypeKind,

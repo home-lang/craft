@@ -4,7 +4,6 @@ const objc = macos.objc;
 
 /// Context Menu support for native UI components
 /// Implements NSMenu creation and NSMenuDelegate for handling right-click menus
-
 /// Menu item types
 pub const MenuItemType = enum {
     standard, // Regular clickable item

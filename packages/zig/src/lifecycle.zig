@@ -43,39 +43,39 @@ pub const Lifecycle = struct {
         }
         try result.value_ptr.append(self.allocator, hook);
     }
-    
+
     pub fn onStart(self: *Self, hook: LifecycleHook) !void {
         try self.registerHook("start", hook);
     }
-    
+
     pub fn onStop(self: *Self, hook: LifecycleHook) !void {
         try self.registerHook("stop", hook);
     }
-    
+
     pub fn onPause(self: *Self, hook: LifecycleHook) !void {
         try self.registerHook("pause", hook);
     }
-    
+
     pub fn onResume(self: *Self, hook: LifecycleHook) !void {
         try self.registerHook("resume", hook);
     }
-    
+
     pub fn beforeStart(self: *Self, hook: LifecycleHook) !void {
         try self.registerHook("before_start", hook);
     }
-    
+
     pub fn afterStart(self: *Self, hook: LifecycleHook) !void {
         try self.registerHook("after_start", hook);
     }
-    
+
     pub fn beforeStop(self: *Self, hook: LifecycleHook) !void {
         try self.registerHook("before_stop", hook);
     }
-    
+
     pub fn afterStop(self: *Self, hook: LifecycleHook) !void {
         try self.registerHook("after_stop", hook);
     }
-    
+
     fn runHooks(self: *Self, phase_name: []const u8) !void {
         if (self.hooks.get(phase_name)) |hooks_list| {
             for (hooks_list.items) |hook| {
@@ -83,7 +83,7 @@ pub const Lifecycle = struct {
             }
         }
     }
-    
+
     pub fn start(self: *Self) !void {
         try self.runHooks("before_start");
         self.phase = .starting;
@@ -91,7 +91,7 @@ pub const Lifecycle = struct {
         self.phase = .running;
         try self.runHooks("after_start");
     }
-    
+
     pub fn stop(self: *Self) !void {
         try self.runHooks("before_stop");
         self.phase = .stopping;
@@ -99,32 +99,32 @@ pub const Lifecycle = struct {
         self.phase = .stopped;
         try self.runHooks("after_stop");
     }
-    
+
     pub fn pause(self: *Self) !void {
         self.phase = .pausing;
         try self.runHooks("pause");
         self.phase = .paused;
     }
-    
+
     /// Resume from paused state (named 'unpause' because 'resume' is a Zig keyword)
     pub fn unpause(self: *Self) !void {
         self.phase = .resuming;
         try self.runHooks("resume");
         self.phase = .running;
     }
-    
+
     pub fn getPhase(self: Self) LifecyclePhase {
         return self.phase;
     }
-    
+
     pub fn isRunning(self: Self) bool {
         return self.phase == .running;
     }
-    
+
     pub fn isPaused(self: Self) bool {
         return self.phase == .paused;
     }
-    
+
     pub fn isStopped(self: Self) bool {
         return self.phase == .stopped;
     }

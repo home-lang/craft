@@ -4,7 +4,6 @@ const builtin = @import("builtin");
 /// SF Symbols support for macOS
 /// Provides access to Apple's SF Symbols icon library
 /// Available on macOS 11.0+ (Big Sur and later)
-
 pub const SFSymbolError = error{
     PlatformNotSupported,
     SymbolNotFound,

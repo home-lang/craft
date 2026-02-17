@@ -1,154 +1,74 @@
-name: Release
+name: Releaser
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 jobs:
-  build-binaries:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-linux-gnu
-            artifact_name: craft-linux-x64
-            build_command: zig build -Doptimize=ReleaseSafe
-          - os: ubuntu-latest
-            target: aarch64-linux-gnu
-            artifact_name: craft-linux-arm64
-            build_command: zig build -Doptimize=ReleaseSafe
-          - os: macos-latest
-            target: x86_64-macos
-            artifact_name: craft-darwin-x64
-            build_command: zig build -Doptimize=ReleaseSafe
-          - os: macos-latest
-            target: aarch64-macos
-            artifact_name: craft-darwin-arm64
-            build_command: zig build -Doptimize=ReleaseSafe
-          - os: windows-latest
-            target: x86_64-windows
-            artifact_name: craft-windows-x64.exe
-            build_command: zig build -Doptimize=ReleaseSafe
-
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: '0.15.1'
-
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
-
-      - name: Cache Zig artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/zig
-            zig-cache
-          key: release-${{ runner.os }}-${{ matrix.target }}-zig-0.15.1-${{ hashFiles('build.zig') }}
-          restore-keys: |
-            release-${{ runner.os }}-${{ matrix.target }}-zig-0.15.1-
-
-      - name: Build binary
-        run: ${{ matrix.build_command }}
-
-      - name: Prepare artifact (Unix)
-        if: runner.os != 'Windows'
-        run: |
-          mkdir -p bin
-          cp zig-out/bin/craft bin/${{ matrix.artifact_name }}
-          chmod +x bin/${{ matrix.artifact_name }}
-
-      - name: Prepare artifact (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          mkdir bin
-          cp zig-out/bin/craft.exe bin/${{ matrix.artifact_name }}
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: bin/${{ matrix.artifact_name }}
-
-  publish-npm:
-    needs: build-binaries
+  npm:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Move binaries to bin directory
-        run: |
-          mkdir -p bin
-          find artifacts -type f -exec cp {} bin/ \;
-          chmod +x bin/craft-* || true
-          ls -lh bin/
-
-      - name: Install Bun
+      - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Update package version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          bun run -e "
-          import { readFileSync, writeFileSync } from 'fs';
-          const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
-          pkg.version = '$VERSION';
-          writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          "
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
 
-      - name: Publish to npm
-        run: bun publish --access public
+      - name: Setup Pantry
+        uses: home-lang/pantry-setup@v1
+
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Build Zig Binaries
+        working-directory: packages/zig
+        run: |
+          mkdir -p ../typescript/bin
+
+          # Linux x64
+          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-linux
+          zip -j ../typescript/bin/craft-linux-x64.zip zig-out/bin/craft
+
+          # Linux arm64
+          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-linux
+          zip -j ../typescript/bin/craft-linux-arm64.zip zig-out/bin/craft
+
+          # macOS x64
+          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-macos
+          zip -j ../typescript/bin/craft-darwin-x64.zip zig-out/bin/craft
+
+          # macOS arm64
+          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-macos
+          zip -j ../typescript/bin/craft-darwin-arm64.zip zig-out/bin/craft
+
+          # Windows x64
+          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-windows
+          zip -j ../typescript/bin/craft-windows-x64.zip zig-out/bin/craft.exe
+
+      - name: Publish
+        run: pantry npm:publish --access public
         env:
-          BUN_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  create-github-release:
-    needs: build-binaries
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Prepare binaries for release
-        run: |
-          mkdir -p bin
-          find artifacts -type f -exec cp {} bin/ \;
-          chmod +x bin/craft-* || true
-          ls -lh bin/
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
-        uses: stacksjs/action-releaser@v1.2.6
+        uses: stacksjs/action-releaser@v1.2.9
         with:
           files: |
-            bin/craft-linux-x64
-            bin/craft-linux-arm64
-            bin/craft-windows-x64.exe
-            bin/craft-darwin-x64
-            bin/craft-darwin-arm64
+            packages/typescript/bin/craft-linux-x64.zip
+            packages/typescript/bin/craft-linux-arm64.zip
+            packages/typescript/bin/craft-darwin-x64.zip
+            packages/typescript/bin/craft-darwin-arm64.zip
+            packages/typescript/bin/craft-windows-x64.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

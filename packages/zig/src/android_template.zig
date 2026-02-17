@@ -3,7 +3,6 @@ const io_context = @import("io_context.zig");
 
 /// Android Kotlin Template Generator
 /// Generates complete Android app templates with Craft integration
-
 pub const AndroidTemplate = struct {
     allocator: std.mem.Allocator,
     app_name: []const u8,

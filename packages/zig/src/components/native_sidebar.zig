@@ -202,11 +202,7 @@ pub const NativeSidebar = struct {
                 if (std.mem.eql(u8, item.id, item_id)) {
                     // Create NSIndexSet for the row
                     const NSIndexSet = macos.getClass("NSIndexSet");
-                    const index_set = macos.msgSend1(
-                        NSIndexSet,
-                        "indexSetWithIndex:",
-                        @as(c_ulong, @intCast(row_index))
-                    );
+                    const index_set = macos.msgSend1(NSIndexSet, "indexSetWithIndex:", @as(c_ulong, @intCast(row_index)));
 
                     // Select this row (NO = don't extend selection)
                     _ = macos.msgSend2(self.outline_view, "selectRowIndexes:byExtendingSelection:", index_set, @as(c_int, 0));

@@ -4,7 +4,6 @@ const builtin = @import("builtin");
 /// Advanced WinUI 3 features for Windows
 /// Provides access to modern WinUI 3 controls and features
 /// Requires Windows 10 1809 (Build 17763) or later
-
 pub const WinUI3Error = error{
     PlatformNotSupported,
     InitializationFailed,
@@ -392,7 +391,7 @@ pub const ProgressRing = struct {
 
 /// WinUI 3 SplitView (master-detail pattern)
 pub const SplitView = struct {
-    display_mode: DisplayMode = .inline,
+    display_mode: DisplayMode = .inline_mode,
     is_pane_open: bool = true,
     pane_placement: PanePlacement = .left,
     open_pane_length: f64 = 320.0,
@@ -402,7 +401,7 @@ pub const SplitView = struct {
 
     pub const DisplayMode = enum {
         overlay,
-        inline,
+        inline_mode,
         compact_overlay,
         compact_inline,
     };
@@ -509,11 +508,11 @@ pub const NumberBox = struct {
     maximum: f64 = std.math.floatMax(f64),
     small_change: f64 = 1.0,
     large_change: f64 = 10.0,
-    spin_button_placement_mode: SpinButtonPlacement = .inline,
+    spin_button_placement_mode: SpinButtonPlacement = .inline_mode,
     validation_mode: ValidationMode = .invalid_input_overwritten,
 
     pub const SpinButtonPlacement = enum {
-        inline,
+        inline_mode,
         compact,
         hidden,
     };
