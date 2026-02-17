@@ -289,13 +289,20 @@ export async function showPrompt(title: string, defaultValue?: string): Promise<
 // Convenience exports
 // ============================================================================
 
-export const dialog = {
-  openFile,
-  openFolder,
-  saveFile,
-  showAlert,
-  showConfirm,
-  showPrompt,
+export const dialog: {
+  openFile: typeof openFile
+  openFolder: typeof openFolder
+  saveFile: typeof saveFile
+  showAlert: typeof showAlert
+  showConfirm: typeof showConfirm
+  showPrompt: typeof showPrompt
+} = {
+  openFile: openFile,
+  openFolder: openFolder,
+  saveFile: saveFile,
+  showAlert: showAlert,
+  showConfirm: showConfirm,
+  showPrompt: showPrompt,
 }
 
 export default dialog

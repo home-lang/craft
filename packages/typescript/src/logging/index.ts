@@ -437,12 +437,12 @@ export function setDefaultLogger(logger: Logger): void {
 
 // Convenience functions using default logger
 export const log = {
-  trace: (message: string, context?: Record<string, unknown>) => getLogger().trace(message, context),
-  debug: (message: string, context?: Record<string, unknown>) => getLogger().debug(message, context),
-  info: (message: string, context?: Record<string, unknown>) => getLogger().info(message, context),
-  warn: (message: string, context?: Record<string, unknown>) => getLogger().warn(message, context),
-  error: (message: string, context?: Record<string, unknown>) => getLogger().error(message, context),
-  fatal: (message: string, context?: Record<string, unknown>) => getLogger().fatal(message, context),
+  trace: (message: string, context?: Record<string, unknown>): void => getLogger().trace(message, context),
+  debug: (message: string, context?: Record<string, unknown>): void => getLogger().debug(message, context),
+  info: (message: string, context?: Record<string, unknown>): void => getLogger().info(message, context),
+  warn: (message: string, context?: Record<string, unknown>): void => getLogger().warn(message, context),
+  error: (message: string, context?: Record<string, unknown>): void => getLogger().error(message, context),
+  fatal: (message: string, context?: Record<string, unknown>): void => getLogger().fatal(message, context),
 }
 
 export default Logger

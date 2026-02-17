@@ -191,7 +191,7 @@ export class IOSWebView {
     await this.callNative('destroyWebView', { id: this.id })
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     // Bridge to native via window.webkit.messageHandlers or custom bridge
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
@@ -244,7 +244,7 @@ export class IOSPermissions {
     return this.callNative('canOpenSettings', {})
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}_${Math.random().toString(36).slice(2)}`
@@ -287,7 +287,7 @@ export class IOSHaptics {
     await this.callNative('triggerHaptic', { type: 'selection' })
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve) => {
         ;(window as any).webkit.messageHandlers.craft.postMessage({ method, params })
@@ -328,7 +328,7 @@ export class IOSAppClips {
     await this.callNative('requestFullAppInstallation', {})
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -389,7 +389,7 @@ export class IOSSharePlay {
     return () => window.removeEventListener('shareplay-message' as any, handler)
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -442,7 +442,7 @@ export class IOSLiveActivities {
     return this.callNative('areLiveActivitiesSupported', {})
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -481,7 +481,7 @@ export class IOSFocusFilters {
     return this.callNative('isFocusActive', {})
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -530,7 +530,7 @@ export class IOSAppIntents {
     return () => window.removeEventListener('app-intent-execute' as any, handler)
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -583,7 +583,7 @@ export class IOSTipKit {
     await this.callNative('resetAllTips', {})
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -657,7 +657,7 @@ export class IOSStoreKit {
     return () => window.removeEventListener('storekit-transaction' as any, handler)
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -739,7 +739,7 @@ export class IOSCarPlay {
     return () => window.removeEventListener('carplay-connection' as any, handler)
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -801,7 +801,7 @@ export class IOSNativeComponents {
     await this.callNative('showSwiftUIView', { viewName, props })
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -876,7 +876,7 @@ export class IOSPushNotifications {
     return () => window.removeEventListener('notification-response' as any, handler)
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -950,7 +950,7 @@ export class IOSAppLifecycle {
     return () => window.removeEventListener('app-state-change' as any, handler)
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -967,7 +967,22 @@ export class IOSAppLifecycle {
 }
 
 // Export all iOS modules
-export const ios = {
+export const ios: {
+  WebView: typeof IOSWebView
+  Permissions: IOSPermissions
+  Haptics: IOSHaptics
+  AppClips: IOSAppClips
+  SharePlay: IOSSharePlay
+  LiveActivities: IOSLiveActivities
+  FocusFilters: IOSFocusFilters
+  AppIntents: IOSAppIntents
+  TipKit: IOSTipKit
+  StoreKit: IOSStoreKit
+  CarPlay: IOSCarPlay
+  NativeComponents: IOSNativeComponents
+  PushNotifications: IOSPushNotifications
+  AppLifecycle: IOSAppLifecycle
+} = {
   WebView: IOSWebView,
   Permissions: new IOSPermissions(),
   Haptics: new IOSHaptics(),

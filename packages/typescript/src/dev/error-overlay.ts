@@ -425,26 +425,33 @@ export class ErrorOverlay {
 }
 
 // React error boundary support
-export function createReactErrorBoundary(overlay: ErrorOverlay) {
-  return class ErrorBoundary {
-    state = { hasError: false }
+class ErrorBoundary {
+  state = { hasError: false }
+  props: { children?: unknown } = {}
 
-    static getDerivedStateFromError() {
-      return { hasError: true }
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true }
+  }
+
+  componentDidCatch(_error: Error, _errorInfo: { componentStack: string }): void {
+    // overridden in createReactErrorBoundary
+  }
+
+  render(): unknown {
+    if (this.state.hasError) {
+      return null
     }
+    return this.props.children
+  }
+}
 
-    componentDidCatch(error: Error, errorInfo: { componentStack: string }) {
+export function createReactErrorBoundary(overlay: ErrorOverlay): typeof ErrorBoundary {
+  class BoundaryWithOverlay extends ErrorBoundary {
+    override componentDidCatch(error: Error, errorInfo: { componentStack: string }): void {
       overlay.show(error, errorInfo.componentStack)
     }
-
-    render() {
-      if (this.state.hasError) {
-        return null
-      }
-      // @ts-ignore
-      return this.props.children
-    }
   }
+  return BoundaryWithOverlay
 }
 
 // Global instance

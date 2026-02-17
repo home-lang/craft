@@ -900,8 +900,8 @@ export interface ProgressConfig extends ComponentProps {
   showText?: boolean
   /** Size */
   size?: 'small' | 'regular' | 'large'
-  /** Style */
-  style?: 'bar' | 'spinning' | 'circular'
+  /** Progress style variant */
+  progressStyle?: 'bar' | 'spinning' | 'circular'
 }
 
 /**
@@ -1142,41 +1142,41 @@ async function callNative<T = void>(method: string, params: Record<string, any>)
 
 export default {
   // Split View
-  createSplitView,
-  SplitViewInstance,
+  createSplitView: createSplitView,
+  SplitViewInstance: SplitViewInstance,
 
   // File Browser
-  createFileBrowser,
-  FileBrowserInstance,
+  createFileBrowser: createFileBrowser,
+  FileBrowserInstance: FileBrowserInstance,
 
   // Outline View
-  createOutlineView,
-  OutlineViewInstance,
+  createOutlineView: createOutlineView,
+  OutlineViewInstance: OutlineViewInstance,
 
   // Table View
-  createTableView,
-  TableViewInstance,
+  createTableView: createTableView,
+  TableViewInstance: TableViewInstance,
 
   // Quick Look
-  showQuickLook,
-  hideQuickLook,
-  canQuickLook,
+  showQuickLook: showQuickLook,
+  hideQuickLook: hideQuickLook,
+  canQuickLook: canQuickLook,
 
   // Pickers
-  showColorPicker,
-  showFontPicker,
-  showDatePicker,
+  showColorPicker: showColorPicker,
+  showFontPicker: showFontPicker,
+  showDatePicker: showDatePicker,
 
   // Progress
-  createProgress,
-  ProgressInstance,
+  createProgress: createProgress,
+  ProgressInstance: ProgressInstance,
 
   // Toolbar
-  setToolbar,
-  updateToolbarItem,
-  setToolbarVisible,
+  setToolbar: setToolbar,
+  updateToolbarItem: updateToolbarItem,
+  setToolbarVisible: setToolbarVisible,
 
   // Touch Bar
-  setTouchBar,
-  updateTouchBarItem
+  setTouchBar: setTouchBar,
+  updateTouchBarItem: updateTouchBarItem
 }

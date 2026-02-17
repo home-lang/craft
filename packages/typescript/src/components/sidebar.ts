@@ -804,15 +804,15 @@ export function sidebarSeparator(id?: string): SidebarItem {
 // ============================================================================
 
 export default {
-  Sidebar,
-  createSidebar,
-  createTahoeSidebar,
-  createArcSidebar,
-  createOrbStackSidebar,
-  sidebarItem,
-  sidebarSection,
-  sidebarSeparator,
-  tahoeStyle,
-  arcStyle,
-  orbstackStyle
+  Sidebar: Sidebar,
+  createSidebar: createSidebar,
+  createTahoeSidebar: createTahoeSidebar,
+  createArcSidebar: createArcSidebar,
+  createOrbStackSidebar: createOrbStackSidebar,
+  sidebarItem: sidebarItem,
+  sidebarSection: sidebarSection,
+  sidebarSeparator: sidebarSeparator,
+  tahoeStyle: tahoeStyle,
+  arcStyle: arcStyle,
+  orbstackStyle: orbstackStyle
 }

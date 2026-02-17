@@ -150,7 +150,7 @@ describe('Headwind CSS', () => {
           {
             size: 'lg',
             color: 'danger',
-            class: 'btn-lg-danger-special'
+            className: 'btn-lg-danger-special'
           }
         ]
       })

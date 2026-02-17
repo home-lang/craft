@@ -28,6 +28,7 @@ describe('Bridge Type Definitions', () => {
         hideDockIcon: async () => {},
         showDockIcon: async () => {},
         quit: async () => {},
+        notify: async () => {},
         getInfo: async () => ({
           name: 'Test App',
           version: '1.0.0',
@@ -78,6 +79,7 @@ describe('Bridge Type Definitions', () => {
       hideDockIcon: async () => {},
       showDockIcon: async () => {},
       quit: async () => {},
+      notify: async () => {},
       getInfo: async () => ({
         name: 'Test App',
         version: '1.0.0',
@@ -278,6 +280,7 @@ describe('Bridge API Method Signatures', () => {
       hideDockIcon: async () => {},
       showDockIcon: async () => {},
       quit: async () => {},
+      notify: async () => {},
       getInfo: async () => ({
         name: 'Test App',
         version: '1.0.0',
@@ -318,6 +321,7 @@ describe('Window Global Type Augmentation', () => {
           hideDockIcon: async () => {},
           showDockIcon: async () => {},
           quit: async () => {},
+          notify: async () => {},
           getInfo: async () => ({
             name: 'Test App',
             version: '1.0.0',

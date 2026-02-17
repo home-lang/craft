@@ -200,11 +200,11 @@ export class BundleOptimizer {
       }
 
       return {
-        outputs: result.outputs.map((output) => ({
+        outputs: await Promise.all(result.outputs.map(async (output) => ({
           path: output.path.replace(this.config.outDir + '/', ''),
-          contents: Buffer.from(output.text()),
+          contents: Buffer.from(await output.text()),
           kind: output.kind,
-        })),
+        }))),
       }
     } catch (error: any) {
       // Fallback to esbuild if Bun.build is not available

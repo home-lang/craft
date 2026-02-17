@@ -557,7 +557,15 @@ export class RateLimiter {
   }
 }
 
-export default {
+const _exports: {
+  ContentSecurityPolicy: typeof ContentSecurityPolicy;
+  CORSHandler: typeof CORSHandler;
+  CertificatePinner: typeof CertificatePinner;
+  SecureStorage: typeof SecureStorage;
+  validators: typeof validators;
+  sanitizers: typeof sanitizers;
+  RateLimiter: typeof RateLimiter;
+} = {
   ContentSecurityPolicy,
   CORSHandler,
   CertificatePinner,
@@ -565,4 +573,5 @@ export default {
   validators,
   sanitizers,
   RateLimiter,
-}
+};
+export default _exports;

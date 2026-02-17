@@ -3,7 +3,7 @@
  * @module @craft/react
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 
 // ============================================
 // Types
@@ -75,7 +75,7 @@ class CraftStore<T> {
 }
 
 // Global stores
-const windowStore = new CraftStore<WindowState>({
+const windowStore: CraftStore<WindowState> = new CraftStore<WindowState>({
   isVisible: true,
   isFullscreen: false,
   isMaximized: false,
@@ -88,13 +88,13 @@ const windowStore = new CraftStore<WindowState>({
   y: 0,
 });
 
-const trayStore = new CraftStore<TrayState>({
+const trayStore: CraftStore<TrayState> = new CraftStore<TrayState>({
   isVisible: false,
   tooltip: '',
   icon: '',
 });
 
-const contextStore = new CraftStore<CraftContext>({
+const contextStore: CraftStore<CraftContext> = new CraftStore<CraftContext>({
   platform: 'web',
   isDarkMode: false,
   isOnline: true,
@@ -455,7 +455,7 @@ export function useFileDrop(options: {
   accept?: string[];
 }): {
   isDragging: boolean;
-  dropRef: React.RefObject<HTMLElement>;
+  dropRef: RefObject<HTMLElement>;
 } {
   const [isDragging, setIsDragging] = useState(false);
   const dropRef = useRef<HTMLElement>(null);
@@ -515,7 +515,7 @@ export function useFileDrop(options: {
     };
   }, [options.onDrop, options.onDragEnter, options.onDragLeave, options.accept]);
 
-  return { isDragging, dropRef: dropRef as React.RefObject<HTMLElement> };
+  return { isDragging, dropRef: dropRef as RefObject<HTMLElement> };
 }
 
 /**
@@ -578,7 +578,7 @@ export function useLocalStorage<T>(
 
   const setValue = useCallback(
     (value: T | ((prev: T) => T)) => {
-      setStoredValue((prev) => {
+      setStoredValue((prev: T) => {
         const newValue = value instanceof Function ? value(prev) : value;
         if (typeof window !== 'undefined') {
           window.localStorage.setItem(key, JSON.stringify(newValue));

@@ -7,13 +7,10 @@
 import { describe, expect, it } from 'bun:test'
 import type {
   AppConfig,
-  WindowConfig,
-  MenuConfig,
-  TrayConfig,
-  NotificationConfig,
+  WindowOptions,
+  MenuItem,
+  NotificationOptions,
   CraftEventType,
-  CraftEventMap,
-  CraftEventEmitter,
   IOSConfig,
   AndroidConfig,
   MacOSConfig,
@@ -26,21 +23,18 @@ describe('Type Definitions', () => {
   describe('AppConfig', () => {
     it('should define basic app configuration', () => {
       const config: AppConfig = {
-        name: 'Test App',
-        version: '1.0.0',
-        identifier: 'com.test.app'
+        html: '<h1>Hello</h1>',
+        url: 'https://example.com',
+        craftPath: '/usr/local/bin/craft'
       }
 
-      expect(config.name).toBe('Test App')
-      expect(config.version).toBe('1.0.0')
-      expect(config.identifier).toBe('com.test.app')
+      expect(config.html).toBe('<h1>Hello</h1>')
+      expect(config.url).toBe('https://example.com')
+      expect(config.craftPath).toBe('/usr/local/bin/craft')
     })
 
     it('should support optional fields', () => {
       const config: AppConfig = {
-        name: 'Test App',
-        version: '1.0.0',
-        identifier: 'com.test.app',
         window: {
           title: 'Test Window'
         }
@@ -50,9 +44,9 @@ describe('Type Definitions', () => {
     })
   })
 
-  describe('WindowConfig', () => {
+  describe('WindowOptions', () => {
     it('should define window configuration', () => {
-      const config: WindowConfig = {
+      const config: WindowOptions = {
         title: 'My Window',
         width: 800,
         height: 600,
@@ -67,69 +61,39 @@ describe('Type Definitions', () => {
     })
 
     it('should support all position options', () => {
-      const config: WindowConfig = {
+      const config: WindowOptions = {
         title: 'Test',
         x: 100,
-        y: 200,
-        center: false
+        y: 200
       }
 
       expect(config.x).toBe(100)
       expect(config.y).toBe(200)
-      expect(config.center).toBe(false)
     })
   })
 
-  describe('MenuConfig', () => {
+  describe('MenuItem', () => {
     it('should define menu structure', () => {
-      const config: MenuConfig = {
-        items: [
-          {
-            label: 'File',
-            submenu: [
-              { label: 'New', accelerator: 'Cmd+N' },
-              { type: 'separator' },
-              { label: 'Quit', role: 'quit' }
-            ]
-          }
-        ]
-      }
-
-      expect(config.items).toHaveLength(1)
-      expect(config.items[0].label).toBe('File')
-      expect(config.items[0].submenu).toHaveLength(3)
-    })
-  })
-
-  describe('TrayConfig', () => {
-    it('should define tray configuration', () => {
-      const config: TrayConfig = {
-        icon: 'icon.png',
-        tooltip: 'My App'
-      }
-
-      expect(config.icon).toBe('icon.png')
-      expect(config.tooltip).toBe('My App')
-    })
-
-    it('should support menu in tray', () => {
-      const config: TrayConfig = {
-        icon: 'icon.png',
-        menu: {
-          items: [
-            { label: 'Show', click: 'show' },
-            { label: 'Quit', click: 'quit' }
+      const items: MenuItem[] = [
+        {
+          label: 'File',
+          submenu: [
+            { label: 'New', shortcut: 'Cmd+N' },
+            { type: 'separator' },
+            { label: 'Quit', action: 'quit' }
           ]
         }
-      }
+      ]
 
-      expect(config.menu?.items).toHaveLength(2)
+      expect(items).toHaveLength(1)
+      expect(items[0].label).toBe('File')
+      expect(items[0].submenu).toHaveLength(3)
     })
   })
 
-  describe('NotificationConfig', () => {
+  describe('NotificationOptions', () => {
     it('should define notification options', () => {
-      const config: NotificationConfig = {
+      const config: NotificationOptions = {
         title: 'Hello',
         body: 'World'
       }
@@ -139,19 +103,19 @@ describe('Type Definitions', () => {
     })
 
     it('should support rich notifications', () => {
-      const config: NotificationConfig = {
+      const config: NotificationOptions = {
         title: 'Alert',
         body: 'Something happened',
         icon: 'alert.png',
-        silent: false,
+        sound: 'Glass',
         actions: [
-          { id: 'view', title: 'View' },
-          { id: 'dismiss', title: 'Dismiss' }
+          { action: 'view', title: 'View' },
+          { action: 'dismiss', title: 'Dismiss' }
         ]
       }
 
       expect(config.actions).toHaveLength(2)
-      expect(config.silent).toBe(false)
+      expect(config.sound).toBe('Glass')
     })
   })
 
@@ -205,30 +169,30 @@ describe('Type Definitions', () => {
         appName: 'Example App',
         version: '1.0.0',
         buildNumber: '1',
-        deploymentTarget: '15.0',
-        deviceFamily: ['iphone', 'ipad'],
+        minimumOSVersion: '15.0',
+        deviceFamily: [1, 2],
         orientations: ['portrait'],
-        capabilities: ['push-notifications'],
-        infoPlist: {}
+        capabilities: {
+          pushNotifications: true
+        },
+        entitlements: {}
       }
 
       expect(config.bundleId).toBe('com.example.app')
-      expect(config.deviceFamily).toContain('iphone')
+      expect(config.deviceFamily).toContain(1)
     })
 
     it('should define Android configuration', () => {
       const config: AndroidConfig = {
         packageName: 'com.example.app',
+        appName: 'Example App',
         versionCode: 1,
         versionName: '1.0.0',
-        minSdk: 24,
-        targetSdk: 34,
-        compileSdk: 34,
+        minSdkVersion: 24,
+        targetSdkVersion: 34,
+        compileSdkVersion: 34,
         permissions: ['CAMERA', 'INTERNET'],
-        features: [],
-        applicationClass: 'com.example.app.App',
-        mainActivity: 'com.example.app.MainActivity',
-        theme: '@style/AppTheme'
+        features: []
       }
 
       expect(config.packageName).toBe('com.example.app')
@@ -241,13 +205,12 @@ describe('Type Definitions', () => {
         appName: 'Example App',
         version: '1.0.0',
         buildNumber: '1',
-        minimumSystemVersion: '12.0',
+        minimumOSVersion: '12.0',
         category: 'public.app-category.productivity',
         sandbox: true,
         entitlements: {
           'com.apple.security.network.client': true
-        },
-        infoPlist: {}
+        }
       }
 
       expect(config.bundleId).toBe('com.example.app')
@@ -257,15 +220,14 @@ describe('Type Definitions', () => {
     it('should define Windows configuration', () => {
       const config: WindowsConfig = {
         appId: 'ExampleApp',
+        appName: 'Example App',
         publisher: 'CN=Example',
-        displayName: 'Example App',
-        version: '1.0.0.0',
-        minWindowsVersion: '10.0.17763.0',
-        capabilities: ['internetClient']
+        publisherDisplayName: 'Example Publisher',
+        version: '1.0.0.0'
       }
 
       expect(config.appId).toBe('ExampleApp')
-      expect(config.capabilities).toContain('internetClient')
+      expect(config.publisherDisplayName).toBe('Example Publisher')
     })
 
     it('should define Linux configuration', () => {
@@ -273,74 +235,64 @@ describe('Type Definitions', () => {
         appName: 'example-app',
         executableName: 'example-app',
         version: '1.0.0',
-        categories: ['Utility'],
-        mimeTypes: ['text/plain']
+        category: 'Utility'
       }
 
       expect(config.appName).toBe('example-app')
-      expect(config.categories).toContain('Utility')
+      expect(config.category).toBe('Utility')
     })
   })
 
   describe('CraftAppConfig', () => {
     it('should combine all platform configs', () => {
       const config: CraftAppConfig = {
-        name: 'Cross-Platform App',
-        version: '1.0.0',
-        identifier: 'com.example.app',
+        url: 'https://example.com',
         ios: {
           bundleId: 'com.example.app',
           appName: 'Example App',
           version: '1.0.0',
           buildNumber: '1',
-          deploymentTarget: '15.0',
-          deviceFamily: ['iphone'],
+          minimumOSVersion: '15.0',
+          deviceFamily: [1],
           orientations: ['portrait'],
-          capabilities: [],
-          infoPlist: {}
+          capabilities: {}
         },
         android: {
           packageName: 'com.example.app',
+          appName: 'Example App',
           versionCode: 1,
           versionName: '1.0.0',
-          minSdk: 24,
-          targetSdk: 34,
-          compileSdk: 34,
+          minSdkVersion: 24,
+          targetSdkVersion: 34,
+          compileSdkVersion: 34,
           permissions: [],
-          features: [],
-          applicationClass: 'App',
-          mainActivity: 'MainActivity',
-          theme: '@style/Theme'
+          features: []
         },
         macos: {
           bundleId: 'com.example.app',
           appName: 'Example App',
           version: '1.0.0',
           buildNumber: '1',
-          minimumSystemVersion: '12.0',
+          minimumOSVersion: '12.0',
           category: 'utility',
           sandbox: false,
-          entitlements: {},
-          infoPlist: {}
+          entitlements: {}
         },
         windows: {
           appId: 'ExampleApp',
+          appName: 'Example App',
           publisher: 'CN=Example',
-          displayName: 'Example App',
-          version: '1.0.0.0',
-          minWindowsVersion: '10.0.0.0',
-          capabilities: []
+          publisherDisplayName: 'Example Publisher',
+          version: '1.0.0.0'
         },
         linux: {
           appName: 'example-app',
           executableName: 'example-app',
-          version: '1.0.0',
-          categories: [],
-          mimeTypes: []
+          version: '1.0.0'
         }
       }
 
-      expect(config.name).toBe('Cross-Platform App')
+      expect(config.url).toBe('https://example.com')
       expect(config.ios?.bundleId).toBe('com.example.app')
       expect(config.android?.packageName).toBe('com.example.app')
       expect(config.macos?.bundleId).toBe('com.example.app')

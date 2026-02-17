@@ -450,7 +450,7 @@ export class StartupCache {
   private hits = 0
   private misses = 0
 
-  constructor(maxSizeBytes = 50 * 1024 * 1024) {
+  constructor(maxSizeBytes: number = 50 * 1024 * 1024) {
     // 50MB default
     this.maxSize = maxSizeBytes
   }
@@ -569,7 +569,17 @@ export function getStartupCache(): StartupCache {
   return startupCache
 }
 
-export default {
+const _exports: {
+  LazyLoader: typeof LazyLoader;
+  ModuleRegistry: typeof ModuleRegistry;
+  AssetPrecompiler: typeof AssetPrecompiler;
+  ColdStartOptimizer: typeof ColdStartOptimizer;
+  BinarySizeReducer: typeof BinarySizeReducer;
+  StartupCache: typeof StartupCache;
+  getModuleRegistry: typeof getModuleRegistry;
+  getColdStartOptimizer: typeof getColdStartOptimizer;
+  getStartupCache: typeof getStartupCache;
+} = {
   LazyLoader,
   ModuleRegistry,
   AssetPrecompiler,
@@ -579,4 +589,5 @@ export default {
   getModuleRegistry,
   getColdStartOptimizer,
   getStartupCache,
-}
+};
+export default _exports;

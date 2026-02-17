@@ -518,11 +518,19 @@ export async function buildCSS(options: HeadwindConfig): Promise<void> {
 // Exports
 // ============================================================================
 
-export default {
+const _exports: {
+  tw: typeof tw;
+  cx: typeof cx;
+  variants: typeof variants;
+  style: typeof style;
+  generateConfig: typeof generateConfig;
+  buildCSS: typeof buildCSS;
+} = {
   tw,
   cx,
   variants,
   style,
   generateConfig,
   buildCSS
-}
+};
+export default _exports;

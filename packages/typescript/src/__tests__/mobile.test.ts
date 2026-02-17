@@ -30,12 +30,21 @@ describe('Mobile API Types', () => {
         osVersion: '17.0',
         model: 'iPhone 15 Pro',
         manufacturer: 'Apple',
-        isSimulator: false,
-        screenWidth: 393,
-        screenHeight: 852,
-        screenScale: 3,
-        locale: 'en-US',
-        timezone: 'America/New_York'
+        deviceId: 'test-device-id',
+        isTablet: false,
+        screen: {
+          width: 393,
+          height: 852,
+          scale: 3
+        },
+        battery: {
+          level: 100,
+          isCharging: false
+        },
+        network: {
+          type: 'wifi',
+          isConnected: true
+        }
       }
 
       expect(info.platform).toBe('ios')
@@ -47,20 +56,21 @@ describe('Mobile API Types', () => {
   describe('DeviceCapabilities', () => {
     it('should define device capabilities', () => {
       const capabilities: DeviceCapabilities = {
-        hasCamera: true,
-        hasBiometrics: true,
-        biometricType: 'face',
-        hasNfc: true,
-        hasGps: true,
-        hasAccelerometer: true,
-        hasGyroscope: true,
-        hasMagnetometer: true,
-        hasBarometer: true,
-        hasHaptics: true
+        camera: true,
+        biometrics: true,
+        nfc: true,
+        bluetooth: true,
+        gps: true,
+        accelerometer: true,
+        gyroscope: true,
+        haptics: true,
+        ar: false,
+        faceId: true,
+        touchId: false
       }
 
-      expect(capabilities.hasCamera).toBe(true)
-      expect(capabilities.biometricType).toBe('face')
+      expect(capabilities.camera).toBe(true)
+      expect(capabilities.biometrics).toBe(true)
     })
   })
 
@@ -88,10 +98,10 @@ describe('Mobile API Types', () => {
         'photos',
         'location',
         'locationAlways',
+        'notifications',
         'contacts',
         'calendar',
         'reminders',
-        'notifications',
         'bluetooth',
         'motion'
       ]
@@ -104,7 +114,7 @@ describe('Mobile API Types', () => {
 
   describe('PermissionStatus', () => {
     it('should define permission statuses', () => {
-      const statuses: PermissionStatus[] = ['granted', 'denied', 'undetermined', 'restricted', 'limited']
+      const statuses: PermissionStatus[] = ['granted', 'denied', 'undetermined', 'restricted']
       expect(statuses).toContain('granted')
       expect(statuses).toContain('denied')
     })
@@ -113,19 +123,16 @@ describe('Mobile API Types', () => {
   describe('CameraOptions', () => {
     it('should define camera options', () => {
       const options: CameraOptions = {
-        source: 'camera',
-        quality: 0.8,
+        camera: 'back',
+        quality: 80,
         maxWidth: 1920,
         maxHeight: 1080,
-        allowsEditing: true,
-        mediaType: 'photo',
-        cameraType: 'back',
-        saveToPhotos: false
+        saveToGallery: false
       }
 
-      expect(options.source).toBe('camera')
-      expect(options.quality).toBe(0.8)
-      expect(options.cameraType).toBe('back')
+      expect(options.camera).toBe('back')
+      expect(options.quality).toBe(80)
+      expect(options.saveToGallery).toBe(false)
     })
   })
 
@@ -135,22 +142,20 @@ describe('Mobile API Types', () => {
         uri: 'file:///path/to/photo.jpg',
         width: 1920,
         height: 1080,
-        type: 'image/jpeg',
-        fileSize: 1024000,
-        base64: undefined,
-        exif: undefined
+        mimeType: 'image/jpeg',
+        base64: 'base64data'
       }
 
       expect(result.uri).toContain('photo.jpg')
       expect(result.width).toBe(1920)
-      expect(result.type).toBe('image/jpeg')
+      expect(result.mimeType).toBe('image/jpeg')
     })
   })
 
   describe('BiometricType', () => {
     it('should define biometric types', () => {
-      const types: BiometricType[] = ['none', 'touch', 'face', 'iris']
-      expect(types).toContain('touch')
+      const types: BiometricType[] = ['faceId', 'touchId', 'fingerprint', 'face', 'iris']
+      expect(types).toContain('touchId')
       expect(types).toContain('face')
     })
   })
@@ -162,7 +167,6 @@ describe('Mobile API Types', () => {
         longitude: -122.4194,
         altitude: 10,
         accuracy: 5,
-        altitudeAccuracy: 3,
         heading: 90,
         speed: 0,
         timestamp: Date.now()
@@ -179,8 +183,7 @@ describe('Mobile API Types', () => {
       const options: LocationOptions = {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 5000,
-        distanceFilter: 10
+        maximumAge: 5000
       }
 
       expect(options.enableHighAccuracy).toBe(true)
@@ -192,9 +195,8 @@ describe('Mobile API Types', () => {
     it('should define share options', () => {
       const options: ShareOptions = {
         title: 'Share this',
-        message: 'Check out this content',
-        url: 'https://example.com',
-        dialogTitle: 'Share via'
+        text: 'Check out this content',
+        url: 'https://example.com'
       }
 
       expect(options.title).toBe('Share this')
@@ -213,18 +215,15 @@ describe('Mobile API Types', () => {
   describe('NotificationOptions', () => {
     it('should define notification options', () => {
       const options: NotificationOptions = {
-        id: 'notification-1',
         title: 'New Message',
         body: 'You have a new message',
         sound: 'default',
         badge: 1,
-        data: { messageId: '123' },
-        categoryId: 'message',
-        threadId: 'thread-1'
+        data: { messageId: '123' }
       }
 
-      expect(options.id).toBe('notification-1')
       expect(options.title).toBe('New Message')
+      expect(options.body).toBe('You have a new message')
       expect(options.badge).toBe(1)
     })
   })

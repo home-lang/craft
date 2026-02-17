@@ -119,8 +119,9 @@ export const device = {
    * @returns Promise resolving to DeviceInfo
    */
   async getInfo(): Promise<DeviceInfo> {
-    if (typeof window !== 'undefined' && window.craft?.device) {
-      return window.craft.device.getInfo()
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.device) {
+      return craft.device.getInfo()
     }
     // Return web defaults
     return {
@@ -131,12 +132,12 @@ export const device = {
       deviceId: 'web-' + Math.random().toString(36).slice(2),
       isTablet: false,
       screen: {
-        width: window?.innerWidth || 0,
-        height: window?.innerHeight || 0,
-        scale: window?.devicePixelRatio || 1
+        width: typeof window !== 'undefined' ? window.innerWidth || 0 : 0,
+        height: typeof window !== 'undefined' ? window.innerHeight || 0 : 0,
+        scale: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
       },
       battery: { level: 100, isCharging: false },
-      network: { type: 'wifi', isConnected: navigator?.onLine ?? true }
+      network: { type: 'wifi', isConnected: typeof navigator !== 'undefined' ? navigator.onLine ?? true : true }
     }
   },
 
@@ -146,8 +147,9 @@ export const device = {
    * @returns Promise resolving to DeviceCapabilities
    */
   async getCapabilities(): Promise<DeviceCapabilities> {
-    if (typeof window !== 'undefined' && window.craft?.device) {
-      return window.craft.device.getCapabilities()
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.device) {
+      return craft.device.getCapabilities()
     }
     return {
       camera: true,
@@ -241,8 +243,9 @@ export const haptics = {
    * @param style - Impact style intensity
    */
   async impact(style: HapticStyle = 'medium'): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.haptics) {
-      return window.craft.haptics.impact(style)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.haptics) {
+      return craft.haptics.impact(style)
     }
     // Web fallback using Vibration API
     if ('vibrate' in navigator) {
@@ -257,8 +260,9 @@ export const haptics = {
    * @param type - Notification type
    */
   async notification(type: HapticNotificationType = 'success'): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.haptics) {
-      return window.craft.haptics.notification(type)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.haptics) {
+      return craft.haptics.notification(type)
     }
     if ('vibrate' in navigator) {
       const patterns = {
@@ -275,8 +279,9 @@ export const haptics = {
    * Use when a selection changes (e.g., picker value change).
    */
   async selection(): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.haptics) {
-      return window.craft.haptics.selection()
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.haptics) {
+      return craft.haptics.selection()
     }
     if ('vibrate' in navigator) {
       navigator.vibrate(5)
@@ -289,8 +294,9 @@ export const haptics = {
    * @param pattern - Array of durations in ms [vibrate, pause, vibrate, ...]
    */
   async vibrate(pattern: number[]): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.haptics) {
-      return window.craft.haptics.vibrate(pattern)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.haptics) {
+      return craft.haptics.vibrate(pattern)
     }
     if ('vibrate' in navigator) {
       navigator.vibrate(pattern)
@@ -356,8 +362,9 @@ export const permissions = {
    * @returns Promise resolving to PermissionStatus
    */
   async check(permission: PermissionType): Promise<PermissionStatus> {
-    if (typeof window !== 'undefined' && window.craft?.permissions) {
-      return window.craft.permissions.check(permission)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.permissions) {
+      return craft.permissions.check(permission)
     }
     // Web fallback using Permissions API
     try {
@@ -379,8 +386,9 @@ export const permissions = {
    * @returns Promise resolving to new PermissionStatus
    */
   async request(permission: PermissionType): Promise<PermissionStatus> {
-    if (typeof window !== 'undefined' && window.craft?.permissions) {
-      return window.craft.permissions.request(permission)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.permissions) {
+      return craft.permissions.request(permission)
     }
     // Web fallback - trigger permission request through relevant API
     try {
@@ -442,8 +450,9 @@ export const permissions = {
    * Open app settings (to change permissions manually).
    */
   async openSettings(): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.permissions) {
-      return window.craft.permissions.openSettings()
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.permissions) {
+      return craft.permissions.openSettings()
     }
   }
 }
@@ -507,8 +516,9 @@ export const camera = {
    * @returns Promise resolving to PhotoResult
    */
   async takePicture(options: CameraOptions = {}): Promise<PhotoResult> {
-    if (typeof window !== 'undefined' && window.craft?.camera) {
-      return window.craft.camera.takePicture(options)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.camera) {
+      return craft.camera.takePicture(options)
     }
     throw new Error('Camera API not available. Must run in Craft environment.')
   },
@@ -519,8 +529,9 @@ export const camera = {
    * @returns Promise resolving to PhotoResult
    */
   async pickImage(): Promise<PhotoResult> {
-    if (typeof window !== 'undefined' && window.craft?.camera) {
-      return window.craft.camera.pickImage()
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.camera) {
+      return craft.camera.pickImage()
     }
     // Web fallback using file input
     return new Promise((resolve, reject) => {
@@ -558,8 +569,9 @@ export const camera = {
    * @returns Promise resolving to array of PhotoResults
    */
   async pickMultiple(options: { maxCount?: number } = {}): Promise<PhotoResult[]> {
-    if (typeof window !== 'undefined' && window.craft?.camera) {
-      return window.craft.camera.pickMultiple(options)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.camera) {
+      return craft.camera.pickMultiple(options)
     }
     throw new Error('Camera API not available. Must run in Craft environment.')
   },
@@ -568,8 +580,9 @@ export const camera = {
    * Check if camera is available.
    */
   async isAvailable(): Promise<boolean> {
-    if (typeof window !== 'undefined' && window.craft?.camera) {
-      return window.craft.camera.isAvailable()
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.camera) {
+      return craft.camera.isAvailable()
     }
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
@@ -614,8 +627,9 @@ export const biometrics = {
    * Check if biometric authentication is available.
    */
   async isAvailable(): Promise<boolean> {
-    if (typeof window !== 'undefined' && window.craft?.biometrics) {
-      return window.craft.biometrics.isAvailable()
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.biometrics) {
+      return craft.biometrics.isAvailable()
     }
     return false
   },
@@ -624,8 +638,9 @@ export const biometrics = {
    * Get the type of biometric authentication available.
    */
   async getBiometricType(): Promise<BiometricType | null> {
-    if (typeof window !== 'undefined' && window.craft?.biometrics) {
-      return window.craft.biometrics.getBiometricType()
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.biometrics) {
+      return craft.biometrics.getBiometricType()
     }
     return null
   },
@@ -638,8 +653,9 @@ export const biometrics = {
    * @throws Error if authentication fails or is cancelled
    */
   async authenticate(reason: string): Promise<boolean> {
-    if (typeof window !== 'undefined' && window.craft?.biometrics) {
-      return window.craft.biometrics.authenticate(reason)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.biometrics) {
+      return craft.biometrics.authenticate(reason)
     }
     throw new Error('Biometrics not available')
   }
@@ -677,8 +693,9 @@ export const secureStorage = {
    * @param value - Value to store
    */
   async set(key: string, value: string): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.secureStorage) {
-      return window.craft.secureStorage.set(key, value)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.secureStorage) {
+      return craft.secureStorage.set(key, value)
     }
     // Fallback to localStorage (not secure, but functional for development)
     localStorage.setItem(`secure_${key}`, value)
@@ -691,8 +708,9 @@ export const secureStorage = {
    * @returns Promise resolving to value or null
    */
   async get(key: string): Promise<string | null> {
-    if (typeof window !== 'undefined' && window.craft?.secureStorage) {
-      return window.craft.secureStorage.get(key)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.secureStorage) {
+      return craft.secureStorage.get(key)
     }
     return localStorage.getItem(`secure_${key}`)
   },
@@ -703,8 +721,9 @@ export const secureStorage = {
    * @param key - Storage key
    */
   async delete(key: string): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.secureStorage) {
-      return window.craft.secureStorage.delete(key)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.secureStorage) {
+      return craft.secureStorage.delete(key)
     }
     localStorage.removeItem(`secure_${key}`)
   },
@@ -713,8 +732,9 @@ export const secureStorage = {
    * Clear all securely stored values.
    */
   async clear(): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.secureStorage) {
-      return window.craft.secureStorage.clear()
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.secureStorage) {
+      return craft.secureStorage.clear()
     }
     Object.keys(localStorage)
       .filter(k => k.startsWith('secure_'))
@@ -777,8 +797,9 @@ export const location = {
    * @returns Promise resolving to Location
    */
   async getCurrentPosition(options: LocationOptions = {}): Promise<Location> {
-    if (typeof window !== 'undefined' && window.craft?.location) {
-      return window.craft.location.getCurrentPosition(options)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.location) {
+      return craft.location.getCurrentPosition(options)
     }
     return new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
@@ -809,8 +830,9 @@ export const location = {
    * @returns Watch ID to use with clearWatch
    */
   watchPosition(callback: (location: Location) => void, options: LocationOptions = {}): number {
-    if (typeof window !== 'undefined' && window.craft?.location) {
-      return window.craft.location.watchPosition(callback, options)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.location) {
+      return craft.location.watchPosition(callback, options)
     }
     return navigator.geolocation.watchPosition(
       (pos) => callback({
@@ -837,8 +859,9 @@ export const location = {
    * @param watchId - Watch ID returned from watchPosition
    */
   clearWatch(watchId: number): void {
-    if (typeof window !== 'undefined' && window.craft?.location) {
-      return window.craft.location.clearWatch(watchId)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.location) {
+      return craft.location.clearWatch(watchId)
     }
     navigator.geolocation.clearWatch(watchId)
   }
@@ -884,8 +907,9 @@ export const share = {
    * @param options - Share options
    */
   async share(options: ShareOptions): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.share) {
-      return window.craft.share.share(options)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.share) {
+      return craft.share.share(options)
     }
     // Web Share API fallback
     if (navigator.share) {
@@ -903,7 +927,8 @@ export const share = {
    * Check if sharing is available.
    */
   isAvailable(): boolean {
-    if (typeof window !== 'undefined' && window.craft?.share) {
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.share) {
       return true
     }
     return 'share' in navigator
@@ -945,8 +970,9 @@ export const lifecycle = {
    * Get current app state.
    */
   getState(): AppState {
-    if (typeof window !== 'undefined' && window.craft?.lifecycle) {
-      return window.craft.lifecycle.getState()
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.lifecycle) {
+      return craft.lifecycle.getState()
     }
     return document.visibilityState === 'visible' ? 'active' : 'background'
   },
@@ -958,8 +984,9 @@ export const lifecycle = {
    * @returns Function to remove listener
    */
   onStateChange(callback: (state: AppState) => void): () => void {
-    if (typeof window !== 'undefined' && window.craft?.lifecycle) {
-      return window.craft.lifecycle.onStateChange(callback)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.lifecycle) {
+      return craft.lifecycle.onStateChange(callback)
     }
     const handler = () => {
       callback(document.visibilityState === 'visible' ? 'active' : 'background')
@@ -1020,8 +1047,9 @@ export const notifications = {
    * @param options - Notification options
    */
   async show(options: NotificationOptions): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.notifications) {
-      return window.craft.notifications.show(options)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.notifications) {
+      return craft.notifications.show(options)
     }
     // Web Notifications API fallback
     if ('Notification' in window && Notification.permission === 'granted') {
@@ -1035,8 +1063,9 @@ export const notifications = {
    * @param options - Notification options with scheduleAt
    */
   async schedule(options: NotificationOptions): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.notifications) {
-      return window.craft.notifications.schedule(options)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.notifications) {
+      return craft.notifications.schedule(options)
     }
     throw new Error('Scheduled notifications not available in web')
   },
@@ -1045,8 +1074,9 @@ export const notifications = {
    * Cancel all scheduled notifications.
    */
   async cancelAll(): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.notifications) {
-      return window.craft.notifications.cancelAll()
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.notifications) {
+      return craft.notifications.cancelAll()
     }
   },
 
@@ -1056,8 +1086,9 @@ export const notifications = {
    * @param count - Badge count (0 to clear)
    */
   async setBadge(count: number): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.notifications) {
-      return window.craft.notifications.setBadge(count)
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.notifications) {
+      return craft.notifications.setBadge(count)
     }
   }
 }
@@ -1095,73 +1126,93 @@ function mapWebPermissionStatus(state: PermissionState): PermissionStatus {
   return mapping[state]
 }
 
-// Extend Window interface
-declare global {
-  interface Window {
-    craft?: {
-      device?: {
-        getInfo(): Promise<DeviceInfo>
-        getCapabilities(): Promise<DeviceCapabilities>
-      }
-      haptics?: {
-        impact(style: HapticStyle): Promise<void>
-        notification(type: HapticNotificationType): Promise<void>
-        selection(): Promise<void>
-        vibrate(pattern: number[]): Promise<void>
-      }
-      permissions?: {
-        check(permission: PermissionType): Promise<PermissionStatus>
-        request(permission: PermissionType): Promise<PermissionStatus>
-        openSettings(): Promise<void>
-      }
-      camera?: {
-        takePicture(options: CameraOptions): Promise<PhotoResult>
-        pickImage(): Promise<PhotoResult>
-        pickMultiple(options: { maxCount?: number }): Promise<PhotoResult[]>
-        isAvailable(): Promise<boolean>
-      }
-      biometrics?: {
-        isAvailable(): Promise<boolean>
-        getBiometricType(): Promise<BiometricType | null>
-        authenticate(reason: string): Promise<boolean>
-      }
-      secureStorage?: {
-        set(key: string, value: string): Promise<void>
-        get(key: string): Promise<string | null>
-        delete(key: string): Promise<void>
-        clear(): Promise<void>
-      }
-      location?: {
-        getCurrentPosition(options: LocationOptions): Promise<Location>
-        watchPosition(callback: (location: Location) => void, options: LocationOptions): number
-        clearWatch(watchId: number): void
-      }
-      share?: {
-        share(options: ShareOptions): Promise<void>
-      }
-      lifecycle?: {
-        getState(): AppState
-        onStateChange(callback: (state: AppState) => void): () => void
-      }
-      notifications?: {
-        show(options: NotificationOptions): Promise<void>
-        schedule(options: NotificationOptions): Promise<void>
-        cancelAll(): Promise<void>
-        setBadge(count: number): Promise<void>
-      }
-    }
+// Mobile bridge type for window.craft with mobile-specific properties
+interface CraftMobileBridge {
+  device?: {
+    getInfo(): Promise<DeviceInfo>
+    getCapabilities(): Promise<DeviceCapabilities>
+  }
+  haptics?: {
+    impact(style: HapticStyle): Promise<void>
+    notification(type: HapticNotificationType): Promise<void>
+    selection(): Promise<void>
+    vibrate(pattern: number[]): Promise<void>
+  }
+  permissions?: {
+    check(permission: PermissionType): Promise<PermissionStatus>
+    request(permission: PermissionType): Promise<PermissionStatus>
+    openSettings(): Promise<void>
+  }
+  camera?: {
+    takePicture(options: CameraOptions): Promise<PhotoResult>
+    pickImage(): Promise<PhotoResult>
+    pickMultiple(options: { maxCount?: number }): Promise<PhotoResult[]>
+    isAvailable(): Promise<boolean>
+  }
+  biometrics?: {
+    isAvailable(): Promise<boolean>
+    getBiometricType(): Promise<BiometricType | null>
+    authenticate(reason: string): Promise<boolean>
+  }
+  secureStorage?: {
+    set(key: string, value: string): Promise<void>
+    get(key: string): Promise<string | null>
+    delete(key: string): Promise<void>
+    clear(): Promise<void>
+  }
+  location?: {
+    getCurrentPosition(options: LocationOptions): Promise<Location>
+    watchPosition(callback: (location: Location) => void, options: LocationOptions): number
+    clearWatch(watchId: number): void
+  }
+  share?: {
+    share(options: ShareOptions): Promise<void>
+  }
+  lifecycle?: {
+    getState(): AppState
+    onStateChange(callback: (state: AppState) => void): () => void
+  }
+  notifications?: {
+    show(options: NotificationOptions): Promise<void>
+    schedule(options: NotificationOptions): Promise<void>
+    cancelAll(): Promise<void>
+    setBadge(count: number): Promise<void>
   }
 }
 
-export default {
-  device,
-  haptics,
-  permissions,
-  camera,
-  biometrics,
-  secureStorage,
-  location,
-  share,
-  lifecycle,
-  notifications
+/**
+ * Helper to access window.craft with mobile-specific type extensions.
+ * This avoids conflicts with the CraftBridgeAPI declaration in types.ts.
+ */
+function getCraftMobile(): CraftMobileBridge | undefined {
+  if (typeof window !== 'undefined') {
+    return (window as any).craft as CraftMobileBridge | undefined
+  }
+  return undefined
 }
+
+const mobile: {
+  device: typeof device
+  haptics: typeof haptics
+  permissions: typeof permissions
+  camera: typeof camera
+  biometrics: typeof biometrics
+  secureStorage: typeof secureStorage
+  location: typeof location
+  share: typeof share
+  lifecycle: typeof lifecycle
+  notifications: typeof notifications
+} = {
+  device: device,
+  haptics: haptics,
+  permissions: permissions,
+  camera: camera,
+  biometrics: biometrics,
+  secureStorage: secureStorage,
+  location: location,
+  share: share,
+  lifecycle: lifecycle,
+  notifications: notifications
+}
+
+export default mobile

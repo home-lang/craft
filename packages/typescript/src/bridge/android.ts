@@ -220,7 +220,7 @@ export class AndroidWebView {
     await this.callNative('destroyWebView', { id: this.id })
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}_${Math.random().toString(36).slice(2)}`
@@ -279,7 +279,7 @@ export class AndroidPermissions {
     await this.callNative('openAppSettings', {})
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -323,7 +323,7 @@ export class AndroidBiometrics {
     return this.callNative('hasEnrolledBiometrics', {})
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -395,7 +395,7 @@ export class AndroidNotifications {
     return this.callNative('areNotificationsEnabled', {})
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -441,7 +441,7 @@ export class AndroidMaterialYou {
     return () => window.removeEventListener('material-you-colors' as any, handler)
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -492,7 +492,7 @@ export class AndroidPhotoPicker {
     return this.callNative('pickVisualMedia', { maxItems })
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -557,7 +557,7 @@ export class AndroidWorkManager {
     return this.callNative('getWorkInfoById', { id })
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -605,7 +605,7 @@ export class AndroidForegroundService {
     await this.callNative('updateForegroundNotification', notification)
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -670,7 +670,7 @@ export class AndroidPredictiveBack {
     return () => window.removeEventListener('back-progress' as any, handler)
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -714,7 +714,7 @@ export class AndroidPerAppLanguage {
     await this.callNative('resetToSystemLocale', {})
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -758,7 +758,7 @@ export class AndroidWidgets {
     return this.callNative('getWidgetIds', { className })
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -841,7 +841,7 @@ export class AndroidPlayBilling {
     return this.callNative('queryPurchases', { productType })
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -937,7 +937,7 @@ export class AndroidFirebase {
     await this.callNative('fetchRemoteConfig', { minimumFetchInterval })
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -1026,7 +1026,7 @@ export class AndroidNativeComponents {
     return this.callNative('showSnackbar', config)
   }
 
-  private async callNative<T>(method: string, params: Record<string, unknown>): Promise<T> {
+  private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
         const callbackId = `cb_${Date.now()}`
@@ -1048,7 +1048,22 @@ export class AndroidNativeComponents {
 }
 
 // Export all Android modules
-export const android = {
+export const android: {
+  WebView: typeof AndroidWebView
+  Permissions: AndroidPermissions
+  Biometrics: AndroidBiometrics
+  Notifications: AndroidNotifications
+  MaterialYou: AndroidMaterialYou
+  PhotoPicker: AndroidPhotoPicker
+  WorkManager: AndroidWorkManager
+  ForegroundService: AndroidForegroundService
+  PredictiveBack: AndroidPredictiveBack
+  PerAppLanguage: AndroidPerAppLanguage
+  Widgets: AndroidWidgets
+  PlayBilling: AndroidPlayBilling
+  Firebase: AndroidFirebase
+  NativeComponents: AndroidNativeComponents
+} = {
   WebView: AndroidWebView,
   Permissions: new AndroidPermissions(),
   Biometrics: new AndroidBiometrics(),

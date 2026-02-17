@@ -502,7 +502,16 @@ export function getFullPageHTML(sidebarHTML: string, style: 'tahoe' | 'arc' | 'o
 // Export
 // ============================================================================
 
-export default {
+const _exports: {
+  renderTahoeSidebar: typeof renderTahoeSidebar;
+  renderArcSidebar: typeof renderArcSidebar;
+  renderOrbStackSidebar: typeof renderOrbStackSidebar;
+  tahoeDemoData: typeof tahoeDemoData;
+  arcDemoData: typeof arcDemoData;
+  orbstackDemoData: typeof orbstackDemoData;
+  getFullPageHTML: typeof getFullPageHTML;
+  icons: typeof icons;
+} = {
   renderTahoeSidebar,
   renderArcSidebar,
   renderOrbStackSidebar,
@@ -511,4 +520,5 @@ export default {
   orbstackDemoData,
   getFullPageHTML,
   icons,
-}
+};
+export default _exports;

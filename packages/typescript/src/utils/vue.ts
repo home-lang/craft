@@ -611,7 +611,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 
   watch(
     storedValue,
-    (newValue) => {
+    (newValue: T) => {
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(key, JSON.stringify(newValue));
       }

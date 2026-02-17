@@ -58,7 +58,11 @@ export interface CraftContext {
 // Core Stores
 // ============================================
 
-function createCraftStore() {
+function createCraftStore(): {
+  subscribe: Writable<CraftContext>['subscribe'];
+  setDarkMode: (dark: boolean) => void;
+  setAppVersion: (version: string) => void;
+} {
   const { subscribe, update, set } = writable<CraftContext>({
     platform: 'web',
     isDarkMode: false,
@@ -83,30 +87,43 @@ function createCraftStore() {
     // Detect online
     const isOnline = navigator.onLine;
 
-    update((state) => ({ ...state, platform, isDarkMode, isOnline }));
+    update((state: CraftContext) => ({ ...state, platform, isDarkMode, isOnline }));
 
     // Listen for dark mode changes
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-      update((state) => ({ ...state, isDarkMode: e.matches }));
+      update((state: CraftContext) => ({ ...state, isDarkMode: e.matches }));
     });
 
     // Listen for online/offline
     window.addEventListener('online', () => {
-      update((state) => ({ ...state, isOnline: true }));
+      update((state: CraftContext) => ({ ...state, isOnline: true }));
     });
     window.addEventListener('offline', () => {
-      update((state) => ({ ...state, isOnline: false }));
+      update((state: CraftContext) => ({ ...state, isOnline: false }));
     });
   }
 
   return {
-    subscribe,
-    setDarkMode: (dark: boolean) => update((state) => ({ ...state, isDarkMode: dark })),
-    setAppVersion: (version: string) => update((state) => ({ ...state, appVersion: version })),
+    subscribe: subscribe,
+    setDarkMode: (dark: boolean): void => update((state: CraftContext) => ({ ...state, isDarkMode: dark })),
+    setAppVersion: (version: string): void => update((state: CraftContext) => ({ ...state, appVersion: version })),
   };
 }
 
-function createWindowStore() {
+function createWindowStore(): {
+  subscribe: Writable<WindowState>['subscribe'];
+  setTitle: (title: string) => void;
+  setSize: (width: number, height: number) => void;
+  setPosition: (x: number, y: number) => void;
+  minimize: () => void;
+  maximize: () => void;
+  restore: () => void;
+  close: () => void;
+  toggleFullscreen: () => void;
+  show: () => void;
+  hide: () => void;
+  focus: () => void;
+} {
   const { subscribe, update, set } = writable<WindowState>({
     isVisible: true,
     isFullscreen: false,
@@ -121,47 +138,55 @@ function createWindowStore() {
   });
 
   return {
-    subscribe,
-    setTitle: (title: string) => {
-      update((state) => ({ ...state, title }));
+    subscribe: subscribe,
+    setTitle: (title: string): void => {
+      update((state: WindowState) => ({ ...state, title }));
       if (typeof document !== 'undefined') {
         document.title = title;
       }
     },
-    setSize: (width: number, height: number) => {
-      update((state) => ({ ...state, width, height }));
+    setSize: (width: number, height: number): void => {
+      update((state: WindowState) => ({ ...state, width, height }));
     },
-    setPosition: (x: number, y: number) => {
-      update((state) => ({ ...state, x, y }));
+    setPosition: (x: number, y: number): void => {
+      update((state: WindowState) => ({ ...state, x, y }));
     },
-    minimize: () => {
-      update((state) => ({ ...state, isMinimized: true, isMaximized: false }));
+    minimize: (): void => {
+      update((state: WindowState) => ({ ...state, isMinimized: true, isMaximized: false }));
     },
-    maximize: () => {
-      update((state) => ({ ...state, isMaximized: true, isMinimized: false }));
+    maximize: (): void => {
+      update((state: WindowState) => ({ ...state, isMaximized: true, isMinimized: false }));
     },
-    restore: () => {
-      update((state) => ({ ...state, isMaximized: false, isMinimized: false }));
+    restore: (): void => {
+      update((state: WindowState) => ({ ...state, isMaximized: false, isMinimized: false }));
     },
-    close: () => {
+    close: (): void => {
       // Would call native API
     },
-    toggleFullscreen: () => {
-      update((state) => ({ ...state, isFullscreen: !state.isFullscreen }));
+    toggleFullscreen: (): void => {
+      update((state: WindowState) => ({ ...state, isFullscreen: !state.isFullscreen }));
     },
-    show: () => {
-      update((state) => ({ ...state, isVisible: true }));
+    show: (): void => {
+      update((state: WindowState) => ({ ...state, isVisible: true }));
     },
-    hide: () => {
-      update((state) => ({ ...state, isVisible: false }));
+    hide: (): void => {
+      update((state: WindowState) => ({ ...state, isVisible: false }));
     },
-    focus: () => {
-      update((state) => ({ ...state, isFocused: true }));
+    focus: (): void => {
+      update((state: WindowState) => ({ ...state, isFocused: true }));
     },
   };
 }
 
-function createTrayStore() {
+function createTrayStore(): {
+  subscribe: Writable<TrayState>['subscribe'];
+  menu: Writable<TrayMenuItem[]>;
+  setIcon: (icon: string) => void;
+  setTooltip: (tooltip: string) => void;
+  setMenu: (items: TrayMenuItem[]) => void;
+  show: () => void;
+  hide: () => void;
+} {
   const { subscribe, update, set } = writable<TrayState>({
     isVisible: false,
     tooltip: '',
@@ -171,57 +196,62 @@ function createTrayStore() {
   const menu = writable<TrayMenuItem[]>([]);
 
   return {
-    subscribe,
-    menu,
-    setIcon: (icon: string) => {
-      update((state) => ({ ...state, icon }));
+    subscribe: subscribe,
+    menu: menu,
+    setIcon: (icon: string): void => {
+      update((state: TrayState) => ({ ...state, icon }));
     },
-    setTooltip: (tooltip: string) => {
-      update((state) => ({ ...state, tooltip }));
+    setTooltip: (tooltip: string): void => {
+      update((state: TrayState) => ({ ...state, tooltip }));
     },
-    setMenu: (items: TrayMenuItem[]) => {
+    setMenu: (items: TrayMenuItem[]): void => {
       menu.set(items);
     },
-    show: () => {
-      update((state) => ({ ...state, isVisible: true }));
+    show: (): void => {
+      update((state: TrayState) => ({ ...state, isVisible: true }));
     },
-    hide: () => {
-      update((state) => ({ ...state, isVisible: false }));
+    hide: (): void => {
+      update((state: TrayState) => ({ ...state, isVisible: false }));
     },
   };
 }
 
 // Create singleton stores
-export const craftStore = createCraftStore();
-export const windowStore = createWindowStore();
-export const trayStore = createTrayStore();
+export const craftStore: ReturnType<typeof createCraftStore> = createCraftStore();
+export const windowStore: ReturnType<typeof createWindowStore> = createWindowStore();
+export const trayStore: ReturnType<typeof createTrayStore> = createTrayStore();
 
 // ============================================
 // Derived Stores
 // ============================================
 
-export const platform = derived(craftStore, ($craft) => $craft.platform);
-export const isDarkMode = derived(craftStore, ($craft) => $craft.isDarkMode);
-export const isOnline = derived(craftStore, ($craft) => $craft.isOnline);
+export const platform: Readable<CraftContext['platform']> = derived(craftStore, ($craft: CraftContext) => $craft.platform);
+export const isDarkMode: Readable<boolean> = derived(craftStore, ($craft: CraftContext) => $craft.isDarkMode);
+export const isOnline: Readable<boolean> = derived(craftStore, ($craft: CraftContext) => $craft.isOnline);
 
-export const isMobile = derived(
+export const isMobile: Readable<boolean> = derived(
   craftStore,
-  ($craft) => $craft.platform === 'ios' || $craft.platform === 'android'
+  ($craft: CraftContext) => $craft.platform === 'ios' || $craft.platform === 'android'
 );
 
-export const isDesktop = derived(
+export const isDesktop: Readable<boolean> = derived(
   craftStore,
-  ($craft) =>
+  ($craft: CraftContext) =>
     $craft.platform === 'macos' || $craft.platform === 'windows' || $craft.platform === 'linux'
 );
 
-export const isWeb = derived(craftStore, ($craft) => $craft.platform === 'web');
+export const isWeb: Readable<boolean> = derived(craftStore, ($craft: CraftContext) => $craft.platform === 'web');
 
 // ============================================
 // Notification Store
 // ============================================
 
-function createNotificationStore() {
+function createNotificationStore(): {
+  hasPermission: { subscribe: Writable<boolean>['subscribe'] };
+  requestPermission: () => Promise<boolean>;
+  show: (options: NotificationOptions) => Promise<string>;
+  close: (id: string) => void;
+} {
   const hasPermission = writable(false);
 
   // Check permission on browser
@@ -229,7 +259,7 @@ function createNotificationStore() {
     hasPermission.set(Notification.permission === 'granted');
   }
 
-  const requestPermission = async () => {
+  const requestPermission = async (): Promise<boolean> => {
     if (typeof Notification !== 'undefined') {
       const result = await Notification.requestPermission();
       const granted = result === 'granted';
@@ -253,7 +283,7 @@ function createNotificationStore() {
     return id;
   };
 
-  const close = (id: string) => {
+  const close = (id: string): void => {
     console.log('Close notification:', id);
   };
 
@@ -265,7 +295,7 @@ function createNotificationStore() {
   };
 }
 
-export const notificationStore = createNotificationStore();
+export const notificationStore: ReturnType<typeof createNotificationStore> = createNotificationStore();
 
 // ============================================
 // Utility Stores
@@ -291,7 +321,7 @@ export function persistentStore<T>(key: string, initialValue: T): Writable<T> {
   const { subscribe, set, update } = writable<T>(storedValue);
 
   // Sync to localStorage
-  subscribe((value) => {
+  subscribe((value: T) => {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(key, JSON.stringify(value));
     }
@@ -312,14 +342,18 @@ export function persistentStore<T>(key: string, initialValue: T): Writable<T> {
 /**
  * Create a store for clipboard operations
  */
-export function createClipboardStore() {
-  const copy = async (text: string) => {
+export function createClipboardStore(): {
+  copy: (text: string) => Promise<void>;
+  paste: () => Promise<string>;
+  readImage: () => Promise<Blob | null>;
+} {
+  const copy = async (text: string): Promise<void> => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(text);
     }
   };
 
-  const paste = async () => {
+  const paste = async (): Promise<string> => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       return navigator.clipboard.readText();
     }
@@ -342,10 +376,10 @@ export function createClipboardStore() {
     return null;
   };
 
-  return { copy, paste, readImage };
+  return { copy: copy, paste: paste, readImage: readImage };
 }
 
-export const clipboardStore = createClipboardStore();
+export const clipboardStore: ReturnType<typeof createClipboardStore> = createClipboardStore();
 
 // ============================================
 // Actions (Svelte use: directives)
@@ -392,10 +426,10 @@ export function shortcut(
   window.addEventListener('keydown', handler);
 
   return {
-    destroy() {
+    destroy(): void {
       window.removeEventListener('keydown', handler);
     },
-    update(newParams: typeof params) {
+    update(newParams: typeof params): void {
       // Remove old listener and add new one
       window.removeEventListener('keydown', handler);
       Object.assign(params, newParams);

@@ -59,8 +59,8 @@ export const fs: CraftFileSystemAPI = {
    * ```
    */
   async readFile(path: string): Promise<string> {
-    if (typeof window !== 'undefined' && window.craft?.fs) {
-      return window.craft.fs.readFile(path)
+    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
+      return (window as any).craft.fs.readFile(path)
     }
     // Node.js fallback
     const { readFile } = await import('node:fs/promises')
@@ -86,8 +86,8 @@ export const fs: CraftFileSystemAPI = {
    * ```
    */
   async writeFile(path: string, content: string): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.fs) {
-      return window.craft.fs.writeFile(path, content)
+    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
+      return (window as any).craft.fs.writeFile(path, content)
     }
     // Node.js fallback
     const { writeFile } = await import('node:fs/promises')
@@ -112,8 +112,8 @@ export const fs: CraftFileSystemAPI = {
    * ```
    */
   async readDir(path: string): Promise<string[]> {
-    if (typeof window !== 'undefined' && window.craft?.fs) {
-      return window.craft.fs.readDir(path)
+    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
+      return (window as any).craft.fs.readDir(path)
     }
     // Node.js fallback
     const { readdir } = await import('node:fs/promises')
@@ -134,12 +134,12 @@ export const fs: CraftFileSystemAPI = {
    * ```
    */
   async mkdir(path: string): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.fs) {
-      return window.craft.fs.mkdir(path)
+    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
+      return (window as any).craft.fs.mkdir(path)
     }
     // Node.js fallback
     const { mkdir } = await import('node:fs/promises')
-    return mkdir(path, { recursive: true })
+    await mkdir(path, { recursive: true })
   },
 
   /**
@@ -159,8 +159,8 @@ export const fs: CraftFileSystemAPI = {
    * ```
    */
   async remove(path: string): Promise<void> {
-    if (typeof window !== 'undefined' && window.craft?.fs) {
-      return window.craft.fs.remove(path)
+    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
+      return (window as any).craft.fs.remove(path)
     }
     // Node.js fallback
     const { rm } = await import('node:fs/promises')
@@ -183,8 +183,8 @@ export const fs: CraftFileSystemAPI = {
    * ```
    */
   async exists(path: string): Promise<boolean> {
-    if (typeof window !== 'undefined' && window.craft?.fs) {
-      return window.craft.fs.exists(path)
+    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
+      return (window as any).craft.fs.exists(path)
     }
     // Node.js fallback
     const { access } = await import('node:fs/promises')
@@ -422,8 +422,9 @@ export function watch(path: string, callback: (event: string, filename: string) 
   }
 
   // Node.js fallback
-  const { watch: nodeWatch } = require('node:fs')
-  const watcher = nodeWatch(path, (event: string, filename: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const nodeFs = require('node:fs') as { watch: (path: string, callback: (event: string, filename: string) => void) => { close: () => void } }
+  const watcher = nodeFs.watch(path, (event: string, filename: string) => {
     callback(event, filename)
   })
   return () => watcher.close()

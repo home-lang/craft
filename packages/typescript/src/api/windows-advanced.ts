@@ -1016,14 +1016,26 @@ export const secondaryTiles = {
 // Exports
 // ============================================================================
 
-export default {
-  jumpList,
-  taskbarProgress,
-  toastNotifications,
-  windowsHello,
-  windowsWidgets,
-  msixUpdate,
-  shareTarget,
-  startupTask,
-  secondaryTiles
+const windowsAdvanced: {
+  jumpList: typeof jumpList
+  taskbarProgress: typeof taskbarProgress
+  toastNotifications: typeof toastNotifications
+  windowsHello: typeof windowsHello
+  windowsWidgets: typeof windowsWidgets
+  msixUpdate: typeof msixUpdate
+  shareTarget: typeof shareTarget
+  startupTask: typeof startupTask
+  secondaryTiles: typeof secondaryTiles
+} = {
+  jumpList: jumpList,
+  taskbarProgress: taskbarProgress,
+  toastNotifications: toastNotifications,
+  windowsHello: windowsHello,
+  windowsWidgets: windowsWidgets,
+  msixUpdate: msixUpdate,
+  shareTarget: shareTarget,
+  startupTask: startupTask,
+  secondaryTiles: secondaryTiles
 }
+
+export default windowsAdvanced

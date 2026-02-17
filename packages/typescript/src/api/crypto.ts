@@ -273,7 +273,7 @@ export function timingSafeEqual(a: string, b: string): boolean {
  * Generate password hash (using PBKDF2)
  */
 export async function hashPassword(password: string, salt?: string): Promise<{ hash: string; salt: string }> {
-  const actualSalt = salt || bufferToBase64((await crypto.randomBytes(16)).buffer)
+  const actualSalt = salt || bufferToBase64((await crypto.randomBytes(16)).buffer as ArrayBuffer)
 
   if (typeof globalThis.crypto !== 'undefined') {
     const encoder = new TextEncoder()

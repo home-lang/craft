@@ -6,7 +6,7 @@
 export type TimerCallback = (timeRemaining: number) => void
 
 export class Timer {
-  private intervalId: Timer | null = null
+  private intervalId: ReturnType<typeof setInterval> | null = null
   private timeRemaining: number = 0
   private isRunning: boolean = false
 
@@ -31,7 +31,7 @@ export class Timer {
       this.onTick(this.timeRemaining)
 
       if (this.timeRemaining <= 0) {
-        this.stop()
+        this.pause()
         this.onComplete?.()
       }
     }, 1000)

@@ -496,26 +496,6 @@ export interface CraftAppAPI {
 }
 
 /**
- * Complete Craft Bridge API (available as window.craft in WebView)
- */
-export interface CraftBridgeAPI {
-    /**
-     * System tray control
-     */
-    tray: CraftTrayAPI
-
-    /**
-     * Window control
-     */
-    window: CraftWindowAPI
-
-    /**
-     * Application control
-     */
-    app: CraftAppAPI
-}
-
-/**
  * Tray click event details
  */
 export interface TrayClickEvent {
@@ -1646,6 +1626,6 @@ declare global {
     /**
      * Craft native bridge API (auto-injected)
      */
-    craft: CraftBridgeAPI & CraftEventEmitter
+    craft?: CraftBridgeAPI & CraftEventEmitter
   }
 }

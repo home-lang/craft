@@ -687,11 +687,16 @@ export function createSettingsSidebar(items: SidebarItem[]): Sidebar {
 // Convenience Export
 // ============================================================================
 
-export const sidebar = {
+export const sidebar: {
+  create: typeof createSidebar
+  file: typeof createFileSidebar
+  settings: typeof createSettingsSidebar
+  Sidebar: typeof Sidebar
+} = {
   create: createSidebar,
   file: createFileSidebar,
   settings: createSettingsSidebar,
-  Sidebar
+  Sidebar: Sidebar
 }
 
 export default sidebar

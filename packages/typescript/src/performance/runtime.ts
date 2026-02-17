@@ -231,7 +231,7 @@ export class MemoryOptimizer {
 
 // Object Pool Implementation
 class ObjectPoolImpl<T> implements ObjectPool<T> {
-  private available: T[] = []
+  private _available: T[] = []
   private inUse = new Set<T>()
 
   constructor(
@@ -240,14 +240,14 @@ class ObjectPoolImpl<T> implements ObjectPool<T> {
     initialSize = 0
   ) {
     for (let i = 0; i < initialSize; i++) {
-      this.available.push(this.factory())
+      this._available.push(this.factory())
     }
   }
 
   acquire(): T {
     let obj: T
-    if (this.available.length > 0) {
-      obj = this.available.pop()!
+    if (this._available.length > 0) {
+      obj = this._available.pop()!
     } else {
       obj = this.factory()
     }
@@ -259,21 +259,21 @@ class ObjectPoolImpl<T> implements ObjectPool<T> {
     if (!this.inUse.has(obj)) return
     this.inUse.delete(obj)
     if (this.reset) this.reset(obj)
-    this.available.push(obj)
+    this._available.push(obj)
   }
 
   size(): number {
-    return this.available.length + this.inUse.size
+    return this._available.length + this.inUse.size
   }
 
-  available_count(): number {
-    return this.available.length
+  available(): number {
+    return this._available.length
   }
 
   trim(): void {
     // Keep only half of available objects
-    const keep = Math.floor(this.available.length / 2)
-    this.available.length = keep
+    const keep = Math.floor(this._available.length / 2)
+    this._available.length = keep
   }
 }
 
@@ -662,7 +662,19 @@ export function getFrameScheduler(): FrameScheduler {
   return frameScheduler
 }
 
-export default {
+const _exports: {
+  GPUAccelerator: typeof GPUAccelerator;
+  MemoryOptimizer: typeof MemoryOptimizer;
+  LRUCache: typeof LRUCache;
+  AnimationMonitor: typeof AnimationMonitor;
+  FrameScheduler: typeof FrameScheduler;
+  GPUTransition: typeof GPUTransition;
+  ReduceMotion: typeof ReduceMotion;
+  getGPUAccelerator: typeof getGPUAccelerator;
+  getMemoryOptimizer: typeof getMemoryOptimizer;
+  getAnimationMonitor: typeof getAnimationMonitor;
+  getFrameScheduler: typeof getFrameScheduler;
+} = {
   GPUAccelerator,
   MemoryOptimizer,
   LRUCache,
@@ -674,4 +686,5 @@ export default {
   getMemoryOptimizer,
   getAnimationMonitor,
   getFrameScheduler,
-}
+};
+export default _exports;

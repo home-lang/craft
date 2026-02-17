@@ -1042,13 +1042,24 @@ export const playBilling = {
 // Exports
 // ============================================================================
 
-export default {
-  materialYou,
-  photoPicker,
-  workManager,
-  foregroundService,
-  predictiveBack,
-  appLanguage,
-  widgets,
-  playBilling
+const androidAdvanced: {
+  materialYou: typeof materialYou
+  photoPicker: typeof photoPicker
+  workManager: typeof workManager
+  foregroundService: typeof foregroundService
+  predictiveBack: typeof predictiveBack
+  appLanguage: typeof appLanguage
+  widgets: typeof widgets
+  playBilling: typeof playBilling
+} = {
+  materialYou: materialYou,
+  photoPicker: photoPicker,
+  workManager: workManager,
+  foregroundService: foregroundService,
+  predictiveBack: predictiveBack,
+  appLanguage: appLanguage,
+  widgets: widgets,
+  playBilling: playBilling
 }
+
+export default androidAdvanced

@@ -53,7 +53,21 @@ import { tahoeStyles, arcStyles, orbstackStyles } from './sidebars'
 import { renderTahoeSidebar, renderArcSidebar, renderOrbStackSidebar } from './sidebar-templates'
 import { tw, cx, variants } from './headwind'
 
-export const styles = {
+export const styles: {
+  tw: typeof tw;
+  cx: typeof cx;
+  variants: typeof variants;
+  sidebar: {
+    tahoe: typeof tahoeStyles;
+    arc: typeof arcStyles;
+    orbstack: typeof orbstackStyles;
+  };
+  templates: {
+    tahoe: typeof renderTahoeSidebar;
+    arc: typeof renderArcSidebar;
+    orbstack: typeof renderOrbStackSidebar;
+  };
+} = {
   // Headwind utilities
   tw,
   cx,

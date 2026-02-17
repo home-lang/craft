@@ -659,28 +659,28 @@ class TrayManager {
   // ==========================================================================
 
   /** Set main tray title */
-  setTitle = (title: string) => this.main.setTitle(title)
+  setTitle = (title: string): Promise<void> => this.main.setTitle(title)
 
   /** Set main tray icon */
-  setIcon = (icon: string) => this.main.setIcon(icon)
+  setIcon = (icon: string): Promise<void> => this.main.setIcon(icon)
 
   /** Set main tray tooltip */
-  setTooltip = (tooltip: string) => this.main.setTooltip(tooltip)
+  setTooltip = (tooltip: string): Promise<void> => this.main.setTooltip(tooltip)
 
   /** Set main tray menu */
-  setMenu = (items: MenuItem[]) => this.main.setMenu(items)
+  setMenu = (items: MenuItem[]): Promise<void> => this.main.setMenu(items)
 
   /** Register menu action on main tray */
-  onMenuAction = (actionId: string, handler: () => void) => this.main.onMenuAction(actionId, handler)
+  onMenuAction = (actionId: string, handler: () => void): (() => void) => this.main.onMenuAction(actionId, handler)
 
   /** Register click handler on main tray */
-  onClick = (handler: TrayEventHandler<'click'>) => this.main.on('click', handler)
+  onClick = (handler: TrayEventHandler<'click'>): (() => void) => this.main.on('click', handler)
 
   /** Register right-click handler on main tray */
-  onRightClick = (handler: TrayEventHandler<'right-click'>) => this.main.on('right-click', handler)
+  onRightClick = (handler: TrayEventHandler<'right-click'>): (() => void) => this.main.on('right-click', handler)
 
   /** Toggle window on click */
-  onClickToggleWindow = () => this.main.onClickToggleWindow()
+  onClickToggleWindow = (): (() => void) => this.main.onClickToggleWindow()
 }
 
 // ============================================================================
@@ -690,12 +690,12 @@ class TrayManager {
 /**
  * Global tray manager instance
  */
-export const trayManager = new TrayManager()
+export const trayManager: TrayManager = new TrayManager()
 
 /**
  * Alias for convenience
  */
-export const tray = trayManager
+export const tray: TrayManager = trayManager
 
 /**
  * Create a menubar app

@@ -709,70 +709,70 @@ class WindowManager {
   // ==========================================================================
 
   /** Show current window */
-  show = () => this.current.show()
+  show = (): Promise<void> => this.current.show()
 
   /** Hide current window */
-  hide = () => this.current.hide()
+  hide = (): Promise<void> => this.current.hide()
 
   /** Toggle current window visibility */
-  toggle = () => this.current.toggle()
+  toggle = (): Promise<void> => this.current.toggle()
 
   /** Minimize current window */
-  minimize = () => this.current.minimize()
+  minimize = (): Promise<void> => this.current.minimize()
 
   /** Maximize current window */
-  maximize = () => this.current.maximize()
+  maximize = (): Promise<void> => this.current.maximize()
 
   /** Close current window */
-  close = () => this.current.close()
+  close = (): Promise<void> => this.current.close()
 
   /** Focus current window */
-  focus = () => this.current.focus()
+  focus = (): Promise<void> => this.current.focus()
 
   /** Center current window */
-  center = () => this.current.center()
+  center = (): Promise<void> => this.current.center()
 
   /** Set current window fullscreen */
-  setFullscreen = (fullscreen?: boolean) => this.current.setFullscreen(fullscreen)
+  setFullscreen = (fullscreen?: boolean): Promise<void> => this.current.setFullscreen(fullscreen)
 
   /** Toggle current window fullscreen */
-  toggleFullscreen = () => this.current.toggleFullscreen()
+  toggleFullscreen = (): Promise<void> => this.current.toggleFullscreen()
 
   /** Set current window title */
-  setTitle = (title: string) => this.current.setTitle(title)
+  setTitle = (title: string): Promise<void> => this.current.setTitle(title)
 
   /** Set current window size */
-  setSize = (width: number, height: number, animate?: boolean) => this.current.setSize(width, height, animate)
+  setSize = (width: number, height: number, animate?: boolean): Promise<void> => this.current.setSize(width, height, animate)
 
   /** Set current window position */
-  setPosition = (x: number, y: number, animate?: boolean) => this.current.setPosition(x, y, animate)
+  setPosition = (x: number, y: number, animate?: boolean): Promise<void> => this.current.setPosition(x, y, animate)
 
   /** Set current window bounds */
-  setBounds = (bounds: Partial<WindowBounds>, animate?: boolean) => this.current.setBounds(bounds, animate)
+  setBounds = (bounds: Partial<WindowBounds>, animate?: boolean): Promise<void> => this.current.setBounds(bounds, animate)
 
   /** Set current window always on top */
-  setAlwaysOnTop = (alwaysOnTop: boolean) => this.current.setAlwaysOnTop(alwaysOnTop)
+  setAlwaysOnTop = (alwaysOnTop: boolean): Promise<void> => this.current.setAlwaysOnTop(alwaysOnTop)
 
   /** Set current window opacity */
-  setOpacity = (opacity: number) => this.current.setOpacity(opacity)
+  setOpacity = (opacity: number): Promise<void> => this.current.setOpacity(opacity)
 
   /** Set current window background color */
-  setBackgroundColor = (color: string) => this.current.setBackgroundColor(color)
+  setBackgroundColor = (color: string): Promise<void> => this.current.setBackgroundColor(color)
 
   /** Set current window vibrancy (macOS) */
-  setVibrancy = (vibrancy: WindowCreateOptions['vibrancy'] | null) => this.current.setVibrancy(vibrancy)
+  setVibrancy = (vibrancy: WindowCreateOptions['vibrancy'] | null): Promise<void> => this.current.setVibrancy(vibrancy)
 
   /** Set current window resizable */
-  setResizable = (resizable: boolean) => this.current.setResizable(resizable)
+  setResizable = (resizable: boolean): Promise<void> => this.current.setResizable(resizable)
 
   /** Get current window state */
-  getState = () => this.current.getState()
+  getState = (): Promise<WindowState> => this.current.getState()
 
   /** Register event handler on current window */
-  on = <T extends WindowEventType>(event: T, handler: WindowEventHandler<T>) => this.current.on(event, handler)
+  on = <T extends WindowEventType>(event: T, handler: WindowEventHandler<T>): (() => void) => this.current.on(event, handler)
 
   /** Register one-time event handler on current window */
-  once = <T extends WindowEventType>(event: T, handler: WindowEventHandler<T>) => this.current.once(event, handler)
+  once = <T extends WindowEventType>(event: T, handler: WindowEventHandler<T>): (() => void) => this.current.once(event, handler)
 }
 
 // ============================================================================
@@ -782,11 +782,11 @@ class WindowManager {
 /**
  * Global window manager instance
  */
-export const windowManager = new WindowManager()
+export const windowManager: WindowManager = new WindowManager()
 
 /**
  * Alias for convenience - access current window directly
  */
-export const win = windowManager
+export const win: WindowManager = windowManager
 
 export default windowManager

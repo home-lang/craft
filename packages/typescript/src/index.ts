@@ -18,7 +18,110 @@ export * from './utils'
 export * from './api'
 
 // Export component abstractions (React Native-style primitives)
-export * from './components'
+// Use explicit exports to avoid conflicts with names from './api':
+// Excluded duplicates: Sidebar, createSidebar, SidebarItem, SidebarSection,
+// SidebarConfig, TouchBarItem, TableColumn, Platform
+export {
+  // Sidebar (component variants, aliased to avoid conflict with api/sidebar)
+  createTahoeSidebar,
+  createArcSidebar,
+  createOrbStackSidebar,
+  sidebarItem,
+  sidebarSection,
+  sidebarSeparator,
+  tahoeStyle,
+  arcStyle,
+  orbstackStyle,
+
+  // Native UI Components
+  createSplitView,
+  SplitViewInstance,
+  createFileBrowser,
+  FileBrowserInstance,
+  createOutlineView,
+  OutlineViewInstance,
+  createTableView,
+  TableViewInstance,
+  showQuickLook,
+  hideQuickLook,
+  canQuickLook,
+  showColorPicker,
+  showFontPicker,
+  showDatePicker,
+  createProgress,
+  ProgressInstance,
+  setToolbar,
+  updateToolbarItem,
+  setToolbarVisible,
+  setTouchBar,
+  updateTouchBarItem,
+
+  // Animated & StyleSheet
+  StyleSheet,
+  Animated,
+} from './components'
+export type {
+  // Sidebar types (excluding duplicates with api)
+  ContextMenuItem,
+  SidebarStyle,
+  SidebarPosition,
+  SidebarHeaderConfig,
+  SidebarFooterConfig,
+  SidebarEventType,
+  SidebarEventMap,
+  SidebarEventHandler,
+
+  // Native component types (excluding duplicates with api)
+  ComponentProps,
+  ComponentInstance,
+  SplitViewOrientation,
+  SplitViewDividerStyle,
+  SplitViewConfig,
+  FileBrowserConfig,
+  FileBrowserSelection,
+  OutlineItem,
+  OutlineViewConfig,
+  TableRow,
+  TableViewConfig,
+  QuickLookConfig,
+  ColorPickerConfig,
+  FontPickerConfig,
+  FontResult,
+  DatePickerConfig,
+  ProgressConfig,
+  ToolbarItem,
+  ToolbarConfig,
+  TouchBarConfig,
+
+  // Style types
+  FlexStyle,
+  LayoutStyle,
+  SpacingStyle,
+  BorderStyle,
+  ColorStyle,
+  ShadowStyle,
+  TransformStyle,
+  ViewStyle,
+  TextStyleProps,
+  TextStyle,
+  ImageStyleProps,
+  ImageStyle,
+
+  // Component props
+  BaseProps,
+  ViewProps,
+  TextProps,
+  ImageSource,
+  ImageProps,
+  ScrollViewProps,
+  PressableProps,
+  TextInputProps,
+  FlatListProps,
+
+  // Events
+  LayoutEvent,
+  ScrollEvent,
+} from './components'
 
 // Export styling utilities (Headwind CSS integration + Sidebar styles)
 export * from './styles/headwind'
@@ -351,4 +454,35 @@ export async function loadURL(url: string, options?: WindowOptions): Promise<voi
   return app.loadURL(url)
 }
 
-export * from './types'
+// Export types explicitly, excluding names already exported by './api'
+// Excluded duplicates: SidebarItem, SidebarSection, SidebarConfig, SidebarSelectEvent,
+// TrayClickEvent, MenuItem, AppInfo, NotificationOptions, DeviceInfo,
+// PermissionStatus, ShareOptions, DisplayInfo
+export type {
+  WindowOptions,
+  CraftSidebarAPI,
+  AppConfig,
+  CraftTrayAPI,
+  CraftWindowAPI,
+  CraftAppAPI,
+  CraftBridgeAPI,
+  Permission,
+  HapticType,
+  CameraOptions,
+  PhotoPickerOptions,
+  CraftMobileAPI,
+  CraftFileSystemAPI,
+  CraftDatabaseAPI,
+  CraftHttpAPI,
+  CraftCryptoAPI,
+  CraftEventType,
+  CraftEventMap,
+  CraftEventHandler,
+  CraftEventEmitter,
+  IOSConfig,
+  AndroidConfig,
+  MacOSConfig,
+  WindowsConfig,
+  LinuxConfig,
+  CraftAppConfig,
+} from './types'

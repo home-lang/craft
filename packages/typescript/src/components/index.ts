@@ -660,10 +660,10 @@ export interface ScrollEvent {
  */
 export const Platform = {
   /** Current platform */
-  OS: detectOS(),
+  OS: detectOS() as 'ios' | 'android' | 'web',
 
   /** Platform version */
-  Version: getOSVersion(),
+  Version: getOSVersion() as string,
 
   /**
    * Check if running on iOS.
@@ -751,7 +751,7 @@ export const StyleSheet = {
   /**
    * Get hairline width (1px on device).
    */
-  hairlineWidth: typeof window !== 'undefined' ? 1 / (window.devicePixelRatio || 1) : 1
+  hairlineWidth: (typeof window !== 'undefined' ? 1 / (window.devicePixelRatio || 1) : 1) as number
 }
 
 /**
@@ -777,49 +777,57 @@ export const StyleSheet = {
  * }).start()
  * ```
  */
-export const Animated = {
+class AnimatedValue {
+  private _value: number
+  private _listeners: Array<(value: number) => void> = []
+
+  constructor(value: number) {
+    this._value = value
+  }
+
+  setValue(value: number): void {
+    this._value = value
+    this._listeners.forEach(listener => listener(value))
+  }
+
+  getValue(): number {
+    return this._value
+  }
+
+  addListener(callback: (value: number) => void): string {
+    this._listeners.push(callback)
+    return String(this._listeners.length - 1)
+  }
+
+  removeListener(id: string): void {
+    const index = parseInt(id)
+    if (index >= 0 && index < this._listeners.length) {
+      this._listeners.splice(index, 1)
+    }
+  }
+
+  removeAllListeners(): void {
+    this._listeners = []
+  }
+}
+
+export const Animated: {
+  Value: typeof AnimatedValue
+  timing(value: AnimatedValue, config: { toValue: number; duration?: number; delay?: number; easing?: (t: number) => number; useNativeDriver?: boolean }): { start(callback?: (result: { finished: boolean }) => void): void; stop(): void }
+  spring(value: AnimatedValue, config: { toValue: number; friction?: number; tension?: number; useNativeDriver?: boolean }): { start(callback?: (result: { finished: boolean }) => void): void; stop(): void }
+  parallel(animations: Array<{ start: (callback?: (result: { finished: boolean }) => void) => void }>): { start(callback?: (result: { finished: boolean }) => void): void; stop(): void }
+  sequence(animations: Array<{ start: (callback?: (result: { finished: boolean }) => void) => void }>): { start(callback?: (result: { finished: boolean }) => void): void; stop(): void }
+} = {
   /**
    * Animated value class.
    */
-  Value: class AnimatedValue {
-    private _value: number
-    private _listeners: Array<(value: number) => void> = []
-
-    constructor(value: number) {
-      this._value = value
-    }
-
-    setValue(value: number): void {
-      this._value = value
-      this._listeners.forEach(listener => listener(value))
-    }
-
-    getValue(): number {
-      return this._value
-    }
-
-    addListener(callback: (value: number) => void): string {
-      this._listeners.push(callback)
-      return String(this._listeners.length - 1)
-    }
-
-    removeListener(id: string): void {
-      const index = parseInt(id)
-      if (index >= 0 && index < this._listeners.length) {
-        this._listeners.splice(index, 1)
-      }
-    }
-
-    removeAllListeners(): void {
-      this._listeners = []
-    }
-  },
+  Value: AnimatedValue,
 
   /**
    * Create a timing animation.
    */
   timing(
-    value: InstanceType<typeof Animated.Value>,
+    value: AnimatedValue,
     config: {
       toValue: number
       duration?: number
@@ -866,7 +874,7 @@ export const Animated = {
    * Create a spring animation.
    */
   spring(
-    value: InstanceType<typeof Animated.Value>,
+    value: AnimatedValue,
     config: {
       toValue: number
       friction?: number
@@ -971,7 +979,7 @@ function getOSVersion(): string {
 // ============================================================================
 
 export default {
-  Platform,
-  StyleSheet,
-  Animated
+  Platform: Platform,
+  StyleSheet: StyleSheet,
+  Animated: Animated
 }

@@ -645,7 +645,7 @@ describe('Shortcuts Bridge Messages', () => {
     expect(msg?.type).toBe('shortcuts')
     expect(msg?.action).toBe('register')
     expect(msg?.data?.key).toBe('Space')
-    expect(msg?.data?.modifiers?.cmd).toBe(true)
+    expect((msg?.data?.modifiers as Record<string, unknown>)?.cmd).toBe(true)
   })
 
   it('should format unregister shortcut message', () => {

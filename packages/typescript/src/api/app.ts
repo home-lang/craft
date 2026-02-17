@@ -674,29 +674,29 @@ class AppManager {
 /**
  * Global app manager instance
  */
-export const appManager = new AppManager()
+export const appManager: AppManager = new AppManager()
 
 /**
  * Alias for convenience
  */
-export const app = appManager
+export const app: AppManager = appManager
 
 // Re-export common functionality directly
-export const quit = () => appManager.quit()
-export const hide = () => appManager.hide()
-export const show = () => appManager.show()
-export const focus = () => appManager.focus()
-export const hideDockIcon = () => appManager.hideDockIcon()
-export const showDockIcon = () => appManager.showDockIcon()
-export const setBadge = (badge: string | number | null) => appManager.setBadge(badge)
-export const getInfo = () => appManager.getInfo()
-export const getVersion = () => appManager.getVersion()
-export const getName = () => appManager.getName()
-export const getPath = (name: Parameters<typeof appManager.getPath>[0]) => appManager.getPath(name)
-export const isDarkMode = () => appManager.isDarkMode()
-export const getLocale = () => appManager.getLocale()
-export const notify = (options: NotificationOptions) => appManager.notify(options)
-export const registerShortcut = (accelerator: string, handler: ShortcutHandler) => appManager.registerShortcut(accelerator, handler)
-export const unregisterShortcut = (accelerator: string) => appManager.unregisterShortcut(accelerator)
+export const quit = (): Promise<void> => appManager.quit()
+export const hide = (): Promise<void> => appManager.hide()
+export const show = (): Promise<void> => appManager.show()
+export const focus = (): Promise<void> => appManager.focus()
+export const hideDockIcon = (): Promise<void> => appManager.hideDockIcon()
+export const showDockIcon = (): Promise<void> => appManager.showDockIcon()
+export const setBadge = (badge: string | number | null): Promise<void> => appManager.setBadge(badge)
+export const getInfo = (): Promise<AppInfo> => appManager.getInfo()
+export const getVersion = (): Promise<string> => appManager.getVersion()
+export const getName = (): Promise<string> => appManager.getName()
+export const getPath = (name: Parameters<typeof appManager.getPath>[0]): Promise<string> => appManager.getPath(name)
+export const isDarkMode = (): Promise<boolean> => appManager.isDarkMode()
+export const getLocale = (): Promise<string> => appManager.getLocale()
+export const notify = (options: NotificationOptions): Promise<void> => appManager.notify(options)
+export const registerShortcut = (accelerator: string, handler: ShortcutHandler): Promise<boolean> => appManager.registerShortcut(accelerator, handler)
+export const unregisterShortcut = (accelerator: string): Promise<void> => appManager.unregisterShortcut(accelerator)
 
 export default appManager

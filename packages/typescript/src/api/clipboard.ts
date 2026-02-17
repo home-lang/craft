@@ -246,17 +246,28 @@ export async function read(): Promise<ClipboardData> {
 // Convenience exports
 // ============================================================================
 
-export const clipboard = {
-  writeText,
-  readText,
-  writeHTML,
-  readHTML,
-  clear,
-  hasText,
-  hasHTML,
-  hasImage,
-  write,
-  read,
+export const clipboard: {
+  writeText: typeof writeText
+  readText: typeof readText
+  writeHTML: typeof writeHTML
+  readHTML: typeof readHTML
+  clear: typeof clear
+  hasText: typeof hasText
+  hasHTML: typeof hasHTML
+  hasImage: typeof hasImage
+  write: typeof write
+  read: typeof read
+} = {
+  writeText: writeText,
+  readText: readText,
+  writeHTML: writeHTML,
+  readHTML: readHTML,
+  clear: clear,
+  hasText: hasText,
+  hasHTML: hasHTML,
+  hasImage: hasImage,
+  write: write,
+  read: read,
 }
 
 export default clipboard

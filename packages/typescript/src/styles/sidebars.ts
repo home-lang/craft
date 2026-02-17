@@ -724,7 +724,7 @@ export function cx(...classes: (string | undefined | null | false)[]): string {
 /**
  * Get style preset by name
  */
-export function getSidebarStyle(name: 'tahoe' | 'arc' | 'orbstack') {
+export function getSidebarStyle(name: 'tahoe' | 'arc' | 'orbstack'): typeof tahoeStyles | typeof arcStyles | typeof orbstackStyles {
   switch (name) {
     case 'tahoe':
       return tahoeStyles
@@ -741,7 +741,15 @@ export function getSidebarStyle(name: 'tahoe' | 'arc' | 'orbstack') {
 // Export all styles
 // ============================================================================
 
-export default {
+const _exports: {
+  tahoe: typeof tahoeStyles;
+  arc: typeof arcStyles;
+  orbstack: typeof orbstackStyles;
+  utils: typeof sidebarUtils;
+  cssVariables: typeof sidebarCSSVariables;
+  cx: typeof cx;
+  getSidebarStyle: typeof getSidebarStyle;
+} = {
   tahoe: tahoeStyles,
   arc: arcStyles,
   orbstack: orbstackStyles,
@@ -749,4 +757,5 @@ export default {
   cssVariables: sidebarCSSVariables,
   cx,
   getSidebarStyle,
-}
+};
+export default _exports;

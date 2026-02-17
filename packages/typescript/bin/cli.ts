@@ -418,6 +418,7 @@ cli
   .example('craft ios init MyApp')
   .example('craft ios init MyApp --bundle-id com.example.myapp')
   .action(async (name: string, options?: any) => {
+    // @ts-ignore -- sibling package may not exist at typecheck time
     const iosModule = await import('../../ios/dist/index.js')
     await iosModule.init({
       name,
@@ -438,6 +439,7 @@ cli
   .example('craft ios build --dev-server http://localhost:3456')
   .example('craft ios build --watch')
   .action(async (options?: any) => {
+    // @ts-ignore -- sibling package may not exist at typecheck time
     const iosModule = await import('../../ios/dist/index.js')
 
     const doBuild = async () => {
@@ -472,6 +474,7 @@ cli
   .command('ios open', 'Open iOS project in Xcode')
   .option('-o, --output <dir>', 'iOS project directory', { default: './ios' })
   .action(async (options?: any) => {
+    // @ts-ignore -- sibling package may not exist at typecheck time
     const iosModule = await import('../../ios/dist/index.js')
     await iosModule.open({
       output: options?.output || './ios',
@@ -485,6 +488,7 @@ cli
   .example('craft ios run')
   .example('craft ios run --simulator')
   .action(async (options?: any) => {
+    // @ts-ignore -- sibling package may not exist at typecheck time
     const iosModule = await import('../../ios/dist/index.js')
     await iosModule.run({
       simulator: options?.simulator || false,
@@ -500,6 +504,7 @@ cli
   .example('craft android init MyApp')
   .example('craft android init MyApp --package com.example.myapp')
   .action(async (name: string, options?: any) => {
+    // @ts-ignore -- sibling package may not exist at typecheck time
     const androidModule = await import('../../android/dist/index.js')
     await androidModule.init({
       name,
@@ -519,6 +524,7 @@ cli
   .example('craft android build --release')
   .example('craft android build --watch')
   .action(async (options?: any) => {
+    // @ts-ignore -- sibling package may not exist at typecheck time
     const androidModule = await import('../../android/dist/index.js')
 
     const doBuild = async () => {
@@ -554,6 +560,7 @@ cli
   .command('android open', 'Open Android project in Android Studio')
   .option('-o, --output <dir>', 'Android project directory', { default: './android' })
   .action(async (options?: any) => {
+    // @ts-ignore -- sibling package may not exist at typecheck time
     const androidModule = await import('../../android/dist/index.js')
     await androidModule.open({
       output: options?.output || './android',
@@ -567,6 +574,7 @@ cli
   .example('craft android run')
   .example('craft android run --device emulator-5554')
   .action(async (options?: any) => {
+    // @ts-ignore -- sibling package may not exist at typecheck time
     const androidModule = await import('../../android/dist/index.js')
     await androidModule.run({
       device: options?.device,
@@ -885,7 +893,8 @@ export default {
 
     if (template === 'ios' || template === 'all') {
       console.log('📱 Creating iOS project...')
-      const iosModule = await import('../../ios/dist/index.js')
+      // @ts-ignore -- sibling package may not exist at typecheck time
+    const iosModule = await import('../../ios/dist/index.js')
       await iosModule.init({
         name,
         bundleId: options?.bundleId,
@@ -896,7 +905,8 @@ export default {
 
     if (template === 'android' || template === 'all') {
       console.log('🤖 Creating Android project...')
-      const androidModule = await import('../../android/dist/index.js')
+      // @ts-ignore -- sibling package may not exist at typecheck time
+    const androidModule = await import('../../android/dist/index.js')
       await androidModule.init({
         name,
         packageName: options?.bundleId,

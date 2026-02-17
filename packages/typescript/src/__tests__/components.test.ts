@@ -39,11 +39,10 @@ describe('Component System', () => {
 
     it('should fall back to default', () => {
       const value = Platform.select({
-        nonexistent: 'Never selected' as never,
         default: 'Default value'
       })
 
-      // Since 'nonexistent' won't match, it should use default
+      // Since no platform-specific key matches, it should use default
       expect(value).toBe('Default value')
     })
   })
@@ -68,9 +67,9 @@ describe('Component System', () => {
     })
 
     it('should flatten style arrays', () => {
-      const style1 = { flex: 1 }
-      const style2 = { padding: 16 }
-      const style3 = { margin: 8 }
+      const style1: Record<string, unknown> = { flex: 1 }
+      const style2: Record<string, unknown> = { padding: 16 }
+      const style3: Record<string, unknown> = { margin: 8 }
 
       const flattened = StyleSheet.flatten([style1, style2, style3])
 
@@ -89,7 +88,7 @@ describe('Component System', () => {
         { padding: 16 },
         { margin: 8 },
         { backgroundColor: 'white' }
-      ])
+      ] as Record<string, unknown>[])
 
       expect(styles).toEqual({
         flex: 1,
@@ -106,7 +105,7 @@ describe('Component System', () => {
         undefined,
         false && { padding: 16 },
         { margin: 8 }
-      ])
+      ] as Array<Record<string, unknown> | null | undefined | false>)
 
       expect(styles).toEqual({
         flex: 1,

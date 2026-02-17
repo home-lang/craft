@@ -1166,13 +1166,24 @@ export const focusFilters = {
 // Exports
 // ============================================================================
 
-export default {
-  carplay,
-  appClips,
-  liveActivities,
-  sharePlay,
-  storeKit,
-  appIntents,
-  tipKit,
-  focusFilters
+const iosAdvanced: {
+  carplay: typeof carplay
+  appClips: typeof appClips
+  liveActivities: typeof liveActivities
+  sharePlay: typeof sharePlay
+  storeKit: typeof storeKit
+  appIntents: typeof appIntents
+  tipKit: typeof tipKit
+  focusFilters: typeof focusFilters
+} = {
+  carplay: carplay,
+  appClips: appClips,
+  liveActivities: liveActivities,
+  sharePlay: sharePlay,
+  storeKit: storeKit,
+  appIntents: appIntents,
+  tipKit: tipKit,
+  focusFilters: focusFilters
 }
+
+export default iosAdvanced

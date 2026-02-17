@@ -733,15 +733,15 @@ export function getComponents(): NativeComponentBridge {
 }
 
 export default {
-  NativeBridge,
-  BridgeError,
-  createTypedBridge,
-  NativeMenus,
-  NativeDialogs,
-  NativeComponentBridge,
-  getBridge,
-  createBridge,
-  getMenus,
-  getDialogs,
-  getComponents,
+  NativeBridge: NativeBridge,
+  BridgeError: BridgeError,
+  createTypedBridge: createTypedBridge,
+  NativeMenus: NativeMenus,
+  NativeDialogs: NativeDialogs,
+  NativeComponentBridge: NativeComponentBridge,
+  getBridge: getBridge,
+  createBridge: createBridge,
+  getMenus: getMenus,
+  getDialogs: getDialogs,
+  getComponents: getComponents,
 }

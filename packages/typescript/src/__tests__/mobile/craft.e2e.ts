@@ -3,6 +3,8 @@
  * Detox tests for iOS and Android
  */
 
+import { describe, it, beforeAll, beforeEach } from 'bun:test'
+
 // Mock Detox types for testing
 interface DetoxDevice {
   launchApp(options?: { newInstance?: boolean; permissions?: Record<string, string> }): Promise<void>
@@ -534,6 +536,9 @@ describe('Network', () => {
   })
 })
 
-export default {
+const _exports: {
+  CraftTestUtils: typeof CraftTestUtils;
+} = {
   CraftTestUtils,
-}
+};
+export default _exports;

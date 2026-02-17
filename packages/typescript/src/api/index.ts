@@ -139,14 +139,14 @@ export type {
   HapticNotificationType,
   PermissionType,
   PermissionStatus,
-  CameraOptions,
+  CameraOptions as MobileCameraOptions,
   PhotoResult,
   BiometricType,
   Location,
   LocationOptions,
   ShareOptions,
   AppState,
-  NotificationOptions
+  NotificationOptions as MobileNotificationOptions
 } from './mobile'
 
 // iOS Advanced Features
@@ -312,7 +312,7 @@ export type {
 export { media } from './media'
 export type {
   MediaDeviceInfo,
-  CameraOptions,
+  CameraOptions as MediaCameraOptions,
   MicrophoneOptions,
   MediaStreamOptions
 } from './media'

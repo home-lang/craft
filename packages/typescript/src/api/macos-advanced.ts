@@ -1055,14 +1055,26 @@ export const windowManagement = {
 // Exports
 // ============================================================================
 
-export default {
-  touchBar,
-  desktopWidgets,
-  stageManager,
-  handoff,
-  sidecar,
-  spotlight,
-  quickActions,
-  shareExtension,
-  windowManagement
+const macosAdvanced: {
+  touchBar: typeof touchBar
+  desktopWidgets: typeof desktopWidgets
+  stageManager: typeof stageManager
+  handoff: typeof handoff
+  sidecar: typeof sidecar
+  spotlight: typeof spotlight
+  quickActions: typeof quickActions
+  shareExtension: typeof shareExtension
+  windowManagement: typeof windowManagement
+} = {
+  touchBar: touchBar,
+  desktopWidgets: desktopWidgets,
+  stageManager: stageManager,
+  handoff: handoff,
+  sidecar: sidecar,
+  spotlight: spotlight,
+  quickActions: quickActions,
+  shareExtension: shareExtension,
+  windowManagement: windowManagement
 }
+
+export default macosAdvanced

@@ -13,7 +13,7 @@ export const env: Record<string, string | undefined> = typeof process !== 'undef
 /**
  * Current platform
  */
-export type Platform = 'darwin' | 'win32' | 'linux' | 'ios' | 'android' | 'unknown'
+export type Platform = 'darwin' | 'macos' | 'win32' | 'windows' | 'linux' | 'ios' | 'android' | 'unknown'
 
 /**
  * Get current platform
@@ -384,19 +384,36 @@ export async function open(target: string): Promise<void> {
   await exec(`${command} "${target}"`)
 }
 
-export default {
-  env,
-  getPlatform,
-  isDesktop,
-  isMobile,
-  isCraft,
-  getSystemInfo,
-  exec,
-  spawn,
-  cwd,
-  homeDir,
-  tempDir,
-  exit,
-  argv,
-  open
+const processApi: {
+  env: typeof env
+  getPlatform: typeof getPlatform
+  isDesktop: typeof isDesktop
+  isMobile: typeof isMobile
+  isCraft: typeof isCraft
+  getSystemInfo: typeof getSystemInfo
+  exec: typeof exec
+  spawn: typeof spawn
+  cwd: typeof cwd
+  homeDir: typeof homeDir
+  tempDir: typeof tempDir
+  exit: typeof exit
+  argv: typeof argv
+  open: typeof open
+} = {
+  env: env,
+  getPlatform: getPlatform,
+  isDesktop: isDesktop,
+  isMobile: isMobile,
+  isCraft: isCraft,
+  getSystemInfo: getSystemInfo,
+  exec: exec,
+  spawn: spawn,
+  cwd: cwd,
+  homeDir: homeDir,
+  tempDir: tempDir,
+  exit: exit,
+  argv: argv,
+  open: open
 }
+
+export default processApi
