@@ -496,13 +496,13 @@ export function fileDrop(
   node.addEventListener('drop', handleDrop);
 
   return {
-    destroy() {
+    destroy(): void {
       node.removeEventListener('dragenter', handleDragEnter);
       node.removeEventListener('dragleave', handleDragLeave);
       node.removeEventListener('dragover', handleDragOver);
       node.removeEventListener('drop', handleDrop);
     },
-    update(newParams: typeof params) {
+    update(newParams: typeof params): void {
       Object.assign(params, newParams);
     },
   };
@@ -522,10 +522,10 @@ export function clickOutside(node: HTMLElement, callback: () => void) {
   document.addEventListener('click', handleClick, true);
 
   return {
-    destroy() {
+    destroy(): void {
       document.removeEventListener('click', handleClick, true);
     },
-    update(newCallback: () => void) {
+    update(newCallback: () => void): void {
       callback = newCallback;
     },
   };
@@ -558,10 +558,10 @@ export function inView(
   observer.observe(node);
 
   return {
-    destroy() {
+    destroy(): void {
       observer.disconnect();
     },
-    update(newParams: typeof params) {
+    update(newParams: typeof params): void {
       Object.assign(params, newParams);
     },
   };
@@ -575,7 +575,7 @@ export function autoFocus(node: HTMLElement) {
   node.focus();
 
   return {
-    destroy() {},
+    destroy(): void {},
   };
 }
 
@@ -618,12 +618,12 @@ export function tooltip(node: HTMLElement, text: string) {
   node.addEventListener('mouseleave', hide);
 
   return {
-    destroy() {
+    destroy(): void {
       node.removeEventListener('mouseenter', show);
       node.removeEventListener('mouseleave', hide);
       hide();
     },
-    update(newText: string) {
+    update(newText: string): void {
       text = newText;
       if (tooltipEl) {
         tooltipEl.textContent = text;
@@ -662,7 +662,7 @@ export function longPress(
   node.addEventListener('touchcancel', cancel);
 
   return {
-    destroy() {
+    destroy(): void {
       cancel();
       node.removeEventListener('mousedown', start);
       node.removeEventListener('mouseup', cancel);
@@ -671,7 +671,7 @@ export function longPress(
       node.removeEventListener('touchend', cancel);
       node.removeEventListener('touchcancel', cancel);
     },
-    update(newParams: typeof params) {
+    update(newParams: typeof params): void {
       Object.assign(params, newParams);
     },
   };
@@ -684,7 +684,7 @@ export function longPress(
 /**
  * Run callback on mount and return cleanup function
  */
-export function onMountWithCleanup(callback: () => void | (() => void)) {
+export function onMountWithCleanup(callback: () => void | (() => void)): void {
   let cleanup: void | (() => void);
 
   onMount(() => {
@@ -701,7 +701,7 @@ export function onMountWithCleanup(callback: () => void | (() => void)) {
 /**
  * Subscribe to a store only when component is mounted
  */
-export function subscribeOnMount<T>(store: Readable<T>, callback: (value: T) => void) {
+export function subscribeOnMount<T>(store: Readable<T>, callback: (value: T) => void): void {
   let unsubscribe: () => void;
 
   onMount(() => {

@@ -80,7 +80,10 @@ export const TRAY_KEY: InjectionKey<ReturnType<typeof createTrayContext>> = Symb
 // Context Creators
 // ============================================
 
-function createCraftContext() {
+function createCraftContext(): {
+  state: Readonly<CraftContext>;
+  setDarkMode: (dark: boolean) => void;
+} {
   const state = reactive<CraftContext>({
     platform: 'web',
     isDarkMode: false,
@@ -108,18 +111,31 @@ function createCraftContext() {
     state.isOnline = navigator.onLine;
   }
 
-  const setDarkMode = (dark: boolean) => {
+  const setDarkMode = (dark: boolean): void => {
     state.isDarkMode = dark;
     // Would call native API
   };
 
   return {
     state: readonly(state),
-    setDarkMode,
+    setDarkMode: setDarkMode,
   };
 }
 
-function createWindowContext() {
+function createWindowContext(): {
+  state: Readonly<WindowState>;
+  setTitle: (title: string) => void;
+  setSize: (width: number, height: number) => void;
+  setPosition: (x: number, y: number) => void;
+  minimize: () => void;
+  maximize: () => void;
+  restore: () => void;
+  close: () => void;
+  toggleFullscreen: () => void;
+  show: () => void;
+  hide: () => void;
+  focus: () => void;
+} {
   const state = reactive<WindowState>({
     isVisible: true,
     isFullscreen: false,
@@ -133,75 +149,83 @@ function createWindowContext() {
     y: 0,
   });
 
-  const setTitle = (title: string) => {
+  const setTitle = (title: string): void => {
     state.title = title;
     if (typeof document !== 'undefined') {
       document.title = title;
     }
   };
 
-  const setSize = (width: number, height: number) => {
+  const setSize = (width: number, height: number): void => {
     state.width = width;
     state.height = height;
   };
 
-  const setPosition = (x: number, y: number) => {
+  const setPosition = (x: number, y: number): void => {
     state.x = x;
     state.y = y;
   };
 
-  const minimize = () => {
+  const minimize = (): void => {
     state.isMinimized = true;
     state.isMaximized = false;
   };
 
-  const maximize = () => {
+  const maximize = (): void => {
     state.isMaximized = true;
     state.isMinimized = false;
   };
 
-  const restore = () => {
+  const restore = (): void => {
     state.isMaximized = false;
     state.isMinimized = false;
   };
 
-  const close = () => {
+  const close = (): void => {
     // Would call native API
   };
 
-  const toggleFullscreen = () => {
+  const toggleFullscreen = (): void => {
     state.isFullscreen = !state.isFullscreen;
   };
 
-  const show = () => {
+  const show = (): void => {
     state.isVisible = true;
   };
 
-  const hide = () => {
+  const hide = (): void => {
     state.isVisible = false;
   };
 
-  const focus = () => {
+  const focus = (): void => {
     state.isFocused = true;
   };
 
   return {
     state: readonly(state),
-    setTitle,
-    setSize,
-    setPosition,
-    minimize,
-    maximize,
-    restore,
-    close,
-    toggleFullscreen,
-    show,
-    hide,
-    focus,
+    setTitle: setTitle,
+    setSize: setSize,
+    setPosition: setPosition,
+    minimize: minimize,
+    maximize: maximize,
+    restore: restore,
+    close: close,
+    toggleFullscreen: toggleFullscreen,
+    show: show,
+    hide: hide,
+    focus: focus,
   };
 }
 
-function createTrayContext() {
+function createTrayContext(): {
+  state: Readonly<TrayState>;
+  menu: Readonly<Ref<readonly TrayMenuItem[]>>;
+  setIcon: (icon: string) => void;
+  setTooltip: (tooltip: string) => void;
+  setMenu: (items: TrayMenuItem[]) => void;
+  show: () => void;
+  hide: () => void;
+} {
   const state = reactive<TrayState>({
     isVisible: false,
     tooltip: '',
@@ -210,34 +234,34 @@ function createTrayContext() {
 
   const menu = shallowRef<TrayMenuItem[]>([]);
 
-  const setIcon = (icon: string) => {
+  const setIcon = (icon: string): void => {
     state.icon = icon;
   };
 
-  const setTooltip = (tooltip: string) => {
+  const setTooltip = (tooltip: string): void => {
     state.tooltip = tooltip;
   };
 
-  const setMenu = (items: TrayMenuItem[]) => {
+  const setMenu = (items: TrayMenuItem[]): void => {
     menu.value = items;
   };
 
-  const show = () => {
+  const show = (): void => {
     state.isVisible = true;
   };
 
-  const hide = () => {
+  const hide = (): void => {
     state.isVisible = false;
   };
 
   return {
     state: readonly(state),
     menu: readonly(menu),
-    setIcon,
-    setTooltip,
-    setMenu,
-    show,
-    hide,
+    setIcon: setIcon,
+    setTooltip: setTooltip,
+    setMenu: setMenu,
+    show: show,
+    hide: hide,
   };
 }
 
@@ -250,7 +274,7 @@ export interface CraftPluginOptions {
 }
 
 export const CraftPlugin = {
-  install(app: App, options: CraftPluginOptions = {}) {
+  install(app: App, options: CraftPluginOptions = {}): void {
     const craftContext = createCraftContext();
     const windowContext = createWindowContext();
     const trayContext = createTrayContext();
@@ -277,7 +301,7 @@ export const CraftPlugin = {
 /**
  * Composable to access the Craft context
  */
-export function useCraft() {
+export function useCraft(): ReturnType<typeof createCraftContext> {
   const context = inject(CRAFT_KEY);
   if (!context) {
     // Return a fallback for when not using the plugin
@@ -289,7 +313,7 @@ export function useCraft() {
 /**
  * Composable to manage the application window
  */
-export function useWindow() {
+export function useWindow(): ReturnType<typeof createWindowContext> {
   const context = inject(WINDOW_KEY);
   if (!context) {
     return createWindowContext();
@@ -300,7 +324,7 @@ export function useWindow() {
 /**
  * Composable to manage the system tray
  */
-export function useTray() {
+export function useTray(): ReturnType<typeof createTrayContext> {
   const context = inject(TRAY_KEY);
   if (!context) {
     return createTrayContext();
@@ -311,7 +335,12 @@ export function useTray() {
 /**
  * Composable for native notifications
  */
-export function useNotification() {
+export function useNotification(): {
+  hasPermission: Readonly<Ref<boolean>>;
+  requestPermission: () => Promise<boolean>;
+  show: (options: NotificationOptions) => Promise<string>;
+  close: (id: string) => void;
+} {
   const hasPermission = ref(false);
 
   onMounted(() => {
@@ -320,7 +349,7 @@ export function useNotification() {
     }
   });
 
-  const requestPermission = async () => {
+  const requestPermission = async (): Promise<boolean> => {
     if (typeof Notification !== 'undefined') {
       const result = await Notification.requestPermission();
       hasPermission.value = result === 'granted';
@@ -343,22 +372,25 @@ export function useNotification() {
     return id;
   };
 
-  const close = (id: string) => {
+  const close = (id: string): void => {
     console.log('Close notification:', id);
   };
 
   return {
     hasPermission: readonly(hasPermission),
-    requestPermission,
-    show,
-    close,
+    requestPermission: requestPermission,
+    show: show,
+    close: close,
   };
 }
 
 /**
  * Composable to detect dark mode preference
  */
-export function useDarkMode() {
+export function useDarkMode(): {
+  isDark: Readonly<Ref<boolean>>;
+  setDarkMode: (dark: boolean) => void;
+} {
   const isDark = ref(false);
 
   onMounted(() => {
@@ -377,20 +409,20 @@ export function useDarkMode() {
     }
   });
 
-  const setDarkMode = (dark: boolean) => {
+  const setDarkMode = (dark: boolean): void => {
     isDark.value = dark;
   };
 
   return {
     isDark: readonly(isDark),
-    setDarkMode,
+    setDarkMode: setDarkMode,
   };
 }
 
 /**
  * Composable to detect online status
  */
-export function useOnline() {
+export function useOnline(): Readonly<Ref<boolean>> {
   const isOnline = ref(true);
 
   onMounted(() => {
@@ -426,7 +458,7 @@ export function useShortcut(
   shortcut: string | Ref<string>,
   callback: () => void,
   options: { preventDefault?: boolean; enabled?: Ref<boolean> | boolean } = {}
-) {
+): void {
   const { preventDefault = true, enabled = true } = options;
 
   onMounted(() => {
@@ -537,21 +569,25 @@ export function useFileDrop(options: {
 
   return {
     isDragging: readonly(isDragging),
-    dropRef,
+    dropRef: dropRef,
   };
 }
 
 /**
  * Composable for clipboard operations
  */
-export function useClipboard() {
-  const copy = async (text: string) => {
+export function useClipboard(): {
+  copy: (text: string) => Promise<void>;
+  paste: () => Promise<string>;
+  readImage: () => Promise<Blob | null>;
+} {
+  const copy = async (text: string): Promise<void> => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(text);
     }
   };
 
-  const paste = async () => {
+  const paste = async (): Promise<string> => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       return navigator.clipboard.readText();
     }
