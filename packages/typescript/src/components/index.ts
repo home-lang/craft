@@ -811,12 +811,51 @@ class AnimatedValue {
   }
 }
 
+type AnimationResult = { start(callback?: (result: { finished: boolean }) => void): void; stop(): void }
+type TimingConfig = { toValue: number; duration?: number; delay?: number; easing?: (t: number) => number; useNativeDriver?: boolean }
+type SpringConfig = { toValue: number; friction?: number; tension?: number; useNativeDriver?: boolean }
+
+function animatedTiming(value: AnimatedValue, config: TimingConfig): AnimationResult {
+  return {
+    start(callback?: (result: { finished: boolean }) => void) {
+      const startValue = value.getValue()
+      const startTime = Date.now()
+      const duration = config.duration || 300
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime - (config.delay || 0)
+        if (elapsed < 0) {
+          requestAnimationFrame(animate)
+          return
+        }
+
+        const progress = Math.min(elapsed / duration, 1)
+        const easedProgress = config.easing ? config.easing(progress) : progress
+        const currentValue = startValue + (config.toValue - startValue) * easedProgress
+
+        value.setValue(currentValue)
+
+        if (progress < 1) {
+          requestAnimationFrame(animate)
+        } else {
+          callback?.({ finished: true })
+        }
+      }
+
+      requestAnimationFrame(animate)
+    },
+    stop() {
+      // Stop animation
+    },
+  }
+}
+
 export const Animated: {
   Value: typeof AnimatedValue
-  timing(value: AnimatedValue, config: { toValue: number; duration?: number; delay?: number; easing?: (t: number) => number; useNativeDriver?: boolean }): { start(callback?: (result: { finished: boolean }) => void): void; stop(): void }
-  spring(value: AnimatedValue, config: { toValue: number; friction?: number; tension?: number; useNativeDriver?: boolean }): { start(callback?: (result: { finished: boolean }) => void): void; stop(): void }
-  parallel(animations: Array<{ start: (callback?: (result: { finished: boolean }) => void) => void }>): { start(callback?: (result: { finished: boolean }) => void): void; stop(): void }
-  sequence(animations: Array<{ start: (callback?: (result: { finished: boolean }) => void) => void }>): { start(callback?: (result: { finished: boolean }) => void): void; stop(): void }
+  timing(value: AnimatedValue, config: TimingConfig): AnimationResult
+  spring(value: AnimatedValue, config: SpringConfig): AnimationResult
+  parallel(animations: Array<{ start: (callback?: (result: { finished: boolean }) => void) => void }>): AnimationResult
+  sequence(animations: Array<{ start: (callback?: (result: { finished: boolean }) => void) => void }>): AnimationResult
 } = {
   /**
    * Animated value class.
@@ -826,76 +865,29 @@ export const Animated: {
   /**
    * Create a timing animation.
    */
-  timing(
-    value: AnimatedValue,
-    config: {
-      toValue: number
-      duration?: number
-      delay?: number
-      easing?: (t: number) => number
-      useNativeDriver?: boolean
-    }
-  ) {
-    return {
-      start(callback?: (result: { finished: boolean }) => void) {
-        const startValue = value.getValue()
-        const startTime = Date.now()
-        const duration = config.duration || 300
-
-        const animate = () => {
-          const elapsed = Date.now() - startTime - (config.delay || 0)
-          if (elapsed < 0) {
-            requestAnimationFrame(animate)
-            return
-          }
-
-          const progress = Math.min(elapsed / duration, 1)
-          const easedProgress = config.easing ? config.easing(progress) : progress
-          const currentValue = startValue + (config.toValue - startValue) * easedProgress
-
-          value.setValue(currentValue)
-
-          if (progress < 1) {
-            requestAnimationFrame(animate)
-          } else {
-            callback?.({ finished: true })
-          }
-        }
-
-        requestAnimationFrame(animate)
-      },
-      stop() {
-        // Stop animation
-      }
-    }
-  },
+  timing: animatedTiming,
 
   /**
    * Create a spring animation.
    */
   spring(
     value: AnimatedValue,
-    config: {
-      toValue: number
-      friction?: number
-      tension?: number
-      useNativeDriver?: boolean
-    }
+    config: SpringConfig,
   ) {
     return {
       start(callback?: (result: { finished: boolean }) => void) {
         // Simplified spring using timing with ease-out
         const duration = 300 * (config.friction || 7) / 7
-        Animated.timing(value, {
+        animatedTiming(value, {
           toValue: config.toValue,
           duration,
-          easing: (t) => 1 - Math.pow(1 - t, 3),
-          useNativeDriver: config.useNativeDriver
+          easing: (t: number) => 1 - (1 - t) ** 3,
+          useNativeDriver: config.useNativeDriver,
         }).start(callback)
       },
       stop() {
         // Stop animation
-      }
+      },
     }
   },
 
@@ -978,8 +970,14 @@ function getOSVersion(): string {
 // Exports
 // ============================================================================
 
-export default {
+const components: {
+  Platform: typeof Platform
+  StyleSheet: typeof StyleSheet
+  Animated: typeof Animated
+} = {
   Platform: Platform,
   StyleSheet: StyleSheet,
   Animated: Animated
 }
+
+export default components

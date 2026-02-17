@@ -45,6 +45,7 @@ const config: PickierConfig = {
     // TypeScript rules
     'ts/no-explicit-any': 'off',
     'ts/no-unused-vars': 'warn',
+    'ts/no-top-level-await': 'off',
 
     // Disable rules with false positives
     'regexp/no-unused-capturing-group': 'off',

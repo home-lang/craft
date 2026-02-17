@@ -199,13 +199,15 @@ export class BundleOptimizer {
         throw new Error(result.logs.map((l) => l.message).join('\n'))
       }
 
-      return {
-        outputs: await Promise.all(result.outputs.map(async (output) => ({
+      const outputs: Array<{ path: string; contents: Buffer; kind: string }> = []
+      for (const output of result.outputs) {
+        outputs.push({
           path: output.path.replace(this.config.outDir + '/', ''),
           contents: Buffer.from(await output.text()),
           kind: output.kind,
-        }))),
+        })
       }
+      return { outputs }
     } catch (error: any) {
       // Fallback to esbuild if Bun.build is not available
       return this.bundleWithEsbuild()

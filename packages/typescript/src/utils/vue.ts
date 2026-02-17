@@ -508,7 +508,10 @@ export function useFileDrop(options: {
   onDragEnter?: () => void;
   onDragLeave?: () => void;
   accept?: string[];
-}) {
+}): {
+  isDragging: Readonly<Ref<boolean>>;
+  dropRef: Ref<HTMLElement | null>;
+} {
   const isDragging = ref(false);
   const dropRef = ref<HTMLElement | null>(null);
   let dragCounter = 0;
@@ -610,13 +613,13 @@ export function useClipboard(): {
     return null;
   };
 
-  return { copy, paste, readImage };
+  return { copy: copy, paste: paste, readImage: readImage };
 }
 
 /**
  * Composable for local storage with reactivity
  */
-export function useLocalStorage<T>(key: string, initialValue: T) {
+export function useLocalStorage<T>(key: string, initialValue: T): Ref<T> {
   const storedValue = ref<T>(initialValue) as Ref<T>;
 
   onMounted(() => {
@@ -661,7 +664,12 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 /**
  * Composable to detect platform
  */
-export function usePlatform() {
+export function usePlatform(): {
+  platform: ComputedRef<'ios' | 'android' | 'macos' | 'windows' | 'linux' | 'web'>;
+  isMobile: ComputedRef<boolean>;
+  isDesktop: ComputedRef<boolean>;
+  isWeb: ComputedRef<boolean>;
+} {
   const platform = computed(() => {
     if (typeof navigator === 'undefined') return 'web' as const;
 
@@ -683,10 +691,10 @@ export function usePlatform() {
   const isWeb = computed(() => platform.value === 'web');
 
   return {
-    platform,
-    isMobile,
-    isDesktop,
-    isWeb,
+    platform: platform,
+    isMobile: isMobile,
+    isDesktop: isDesktop,
+    isWeb: isWeb,
   };
 }
 

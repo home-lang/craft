@@ -732,7 +732,19 @@ export function getComponents(): NativeComponentBridge {
   return new NativeComponentBridge(getBridge())
 }
 
-export default {
+const bridgeCore: {
+  NativeBridge: typeof NativeBridge
+  BridgeError: typeof BridgeError
+  createTypedBridge: typeof createTypedBridge
+  NativeMenus: typeof NativeMenus
+  NativeDialogs: typeof NativeDialogs
+  NativeComponentBridge: typeof NativeComponentBridge
+  getBridge: typeof getBridge
+  createBridge: typeof createBridge
+  getMenus: typeof getMenus
+  getDialogs: typeof getDialogs
+  getComponents: typeof getComponents
+} = {
   NativeBridge: NativeBridge,
   BridgeError: BridgeError,
   createTypedBridge: createTypedBridge,
@@ -745,3 +757,5 @@ export default {
   getDialogs: getDialogs,
   getComponents: getComponents,
 }
+
+export default bridgeCore

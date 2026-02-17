@@ -803,7 +803,19 @@ export function sidebarSeparator(id?: string): SidebarItem {
 // Exports
 // ============================================================================
 
-export default {
+const sidebarModule: {
+  Sidebar: typeof Sidebar
+  createSidebar: typeof createSidebar
+  createTahoeSidebar: typeof createTahoeSidebar
+  createArcSidebar: typeof createArcSidebar
+  createOrbStackSidebar: typeof createOrbStackSidebar
+  sidebarItem: typeof sidebarItem
+  sidebarSection: typeof sidebarSection
+  sidebarSeparator: typeof sidebarSeparator
+  tahoeStyle: typeof tahoeStyle
+  arcStyle: typeof arcStyle
+  orbstackStyle: typeof orbstackStyle
+} = {
   Sidebar: Sidebar,
   createSidebar: createSidebar,
   createTahoeSidebar: createTahoeSidebar,
@@ -816,3 +828,5 @@ export default {
   arcStyle: arcStyle,
   orbstackStyle: orbstackStyle
 }
+
+export default sidebarModule

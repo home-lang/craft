@@ -33,6 +33,7 @@ export interface ObjectPool<T> {
   release(obj: T): void
   size(): number
   available(): number
+  trim(): void
 }
 
 // GPU Acceleration

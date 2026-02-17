@@ -898,6 +898,8 @@ export interface ProgressConfig extends ComponentProps {
   max?: number
   /** Show as percentage text */
   showText?: boolean
+  /** Inline styles */
+  style?: Record<string, any>
   /** Size */
   size?: 'small' | 'regular' | 'large'
   /** Progress style variant */
@@ -1140,43 +1142,50 @@ async function callNative<T = void>(method: string, params: Record<string, any>)
 // Exports
 // ============================================================================
 
-export default {
-  // Split View
+const nativeComponents: {
+  createSplitView: typeof createSplitView
+  SplitViewInstance: typeof SplitViewInstance
+  createFileBrowser: typeof createFileBrowser
+  FileBrowserInstance: typeof FileBrowserInstance
+  createOutlineView: typeof createOutlineView
+  OutlineViewInstance: typeof OutlineViewInstance
+  createTableView: typeof createTableView
+  TableViewInstance: typeof TableViewInstance
+  showQuickLook: typeof showQuickLook
+  hideQuickLook: typeof hideQuickLook
+  canQuickLook: typeof canQuickLook
+  showColorPicker: typeof showColorPicker
+  showFontPicker: typeof showFontPicker
+  showDatePicker: typeof showDatePicker
+  createProgress: typeof createProgress
+  ProgressInstance: typeof ProgressInstance
+  setToolbar: typeof setToolbar
+  updateToolbarItem: typeof updateToolbarItem
+  setToolbarVisible: typeof setToolbarVisible
+  setTouchBar: typeof setTouchBar
+  updateTouchBarItem: typeof updateTouchBarItem
+} = {
   createSplitView: createSplitView,
   SplitViewInstance: SplitViewInstance,
-
-  // File Browser
   createFileBrowser: createFileBrowser,
   FileBrowserInstance: FileBrowserInstance,
-
-  // Outline View
   createOutlineView: createOutlineView,
   OutlineViewInstance: OutlineViewInstance,
-
-  // Table View
   createTableView: createTableView,
   TableViewInstance: TableViewInstance,
-
-  // Quick Look
   showQuickLook: showQuickLook,
   hideQuickLook: hideQuickLook,
   canQuickLook: canQuickLook,
-
-  // Pickers
   showColorPicker: showColorPicker,
   showFontPicker: showFontPicker,
   showDatePicker: showDatePicker,
-
-  // Progress
   createProgress: createProgress,
   ProgressInstance: ProgressInstance,
-
-  // Toolbar
   setToolbar: setToolbar,
   updateToolbarItem: updateToolbarItem,
   setToolbarVisible: setToolbarVisible,
-
-  // Touch Bar
   setTouchBar: setTouchBar,
   updateTouchBarItem: updateTouchBarItem
 }
+
+export default nativeComponents
