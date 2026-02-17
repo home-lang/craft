@@ -3,7 +3,7 @@
  * A functional todo list application showcasing interactivity
  */
 
-import { createApp } from 'ts-craft'
+import { createApp } from '@stacksjs/ts-craft'
 
 const html = `
 <!DOCTYPE html>

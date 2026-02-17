@@ -17,7 +17,7 @@ Webview integration provides:
 ### HTML String
 
 ```typescript
-import { show } from 'ts-craft'
+import { show } from '@stacksjs/ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -234,7 +234,7 @@ const canGoForward = window.canGoForward()
 ### Register Protocol
 
 ```typescript
-import { registerProtocol } from 'ts-craft'
+import { registerProtocol } from '@stacksjs/ts-craft'
 
 registerProtocol('app', async (request) => {
   const path = request.url.replace('app://', '')

@@ -24,7 +24,7 @@ bun add ts-craft
 ### Minimal Example (1 line!)
 
 ```ts
-import { show } from 'ts-craft'
+import { show } from '@stacksjs/ts-craft'
 
 await show('<h1>Hello Craft!</h1>', { title: 'My App', width: 600, height: 400 })
 ```
@@ -32,7 +32,7 @@ await show('<h1>Hello Craft!</h1>', { title: 'My App', width: 600, height: 400 }
 ### Hello World
 
 ```ts
-import { createApp } from 'ts-craft'
+import { createApp } from '@stacksjs/ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -73,7 +73,7 @@ await app.show()
 ### Load a URL
 
 ```ts
-import { loadURL } from 'ts-craft'
+import { loadURL } from '@stacksjs/ts-craft'
 
 // Load any website or local dev server
 await loadURL('http://localhost:3000', {
@@ -92,7 +92,7 @@ await loadURL('http://localhost:3000', {
 Create a new Craft app instance.
 
 ```ts
-import { createApp } from 'ts-craft'
+import { createApp } from '@stacksjs/ts-craft'
 
 const app = createApp({
   html: '<h1>Hello</h1>',  // HTML content
@@ -113,7 +113,7 @@ await app.show()
 Quick helper to show a window with HTML.
 
 ```ts
-import { show } from 'ts-craft'
+import { show } from '@stacksjs/ts-craft'
 
 await show('<h1>Hello World</h1>', {
   title: 'My App',
@@ -127,7 +127,7 @@ await show('<h1>Hello World</h1>', {
 Quick helper to load a URL.
 
 ```ts
-import { loadURL } from 'ts-craft'
+import { loadURL } from '@stacksjs/ts-craft'
 
 await loadURL('http://localhost:3000', {
   title: 'Dev Server',
@@ -169,7 +169,7 @@ Craft supports menubar/system tray apps with or without a popup window.
 ### Menubar with Popup Window
 
 ```ts
-import { createApp } from 'ts-craft'
+import { createApp } from '@stacksjs/ts-craft'
 
 const app = createApp({
   html: `<h1>Pomodoro Timer</h1>`,
@@ -287,7 +287,7 @@ Craft includes pre-built CSS styles for three popular sidebar designs:
 ### Tahoe Style (macOS Finder)
 
 ```ts
-import { tahoeStyles, renderTahoeSidebar, tahoeDemoData } from 'ts-craft'
+import { tahoeStyles, renderTahoeSidebar, tahoeDemoData } from '@stacksjs/ts-craft'
 
 // Use Tailwind classes
 const sidebar = `<div class="${tahoeStyles.sidebar}">...</div>`
@@ -299,7 +299,7 @@ const html = renderTahoeSidebar(tahoeDemoData)
 ### Arc Style (Arc Browser)
 
 ```ts
-import { arcStyles, renderArcSidebar, arcDemoData } from 'ts-craft'
+import { arcStyles, renderArcSidebar, arcDemoData } from '@stacksjs/ts-craft'
 
 // Gradient pills, collapsible sections
 const html = renderArcSidebar(arcDemoData, false) // collapsed = false
@@ -308,7 +308,7 @@ const html = renderArcSidebar(arcDemoData, false) // collapsed = false
 ### OrbStack Style (Minimal Dark)
 
 ```ts
-import { orbstackStyles, renderOrbStackSidebar, orbstackDemoData } from 'ts-craft'
+import { orbstackStyles, renderOrbStackSidebar, orbstackDemoData } from '@stacksjs/ts-craft'
 
 // Dark #1a1a1a theme with status indicators
 const html = renderOrbStackSidebar(orbstackDemoData)

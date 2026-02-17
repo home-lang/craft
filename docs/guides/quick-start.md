@@ -39,7 +39,7 @@ my-app/
 ## Understanding craft.config.ts
 
 ```typescript
-import type { CraftAppConfig } from 'ts-craft'
+import type { CraftAppConfig } from '@stacksjs/ts-craft'
 
 const config: CraftAppConfig = {
   name: 'My App',
@@ -65,7 +65,7 @@ export default config
 Edit `src/main.ts`:
 
 ```typescript
-import { window, notification, Platform } from 'ts-craft'
+import { window, notification, Platform } from '@stacksjs/ts-craft'
 
 // Update window title
 window.setTitle('Hello Craft!')
@@ -146,7 +146,7 @@ button:hover {
 Craft includes Headwind for Tailwind-style utilities:
 
 ```typescript
-import { tw, cx } from 'ts-craft'
+import { tw, cx } from '@stacksjs/ts-craft'
 
 const buttonClass = tw`
   px-4 py-2
@@ -189,8 +189,8 @@ Here's a complete counter app example:
 
 ```typescript
 // src/main.ts
-import { window, haptics, Platform } from 'ts-craft'
-import { tw } from 'ts-craft'
+import { window, haptics, Platform } from '@stacksjs/ts-craft'
+import { tw } from '@stacksjs/ts-craft'
 
 let count = 0
 

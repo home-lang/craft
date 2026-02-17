@@ -17,7 +17,7 @@ Window management in Craft includes:
 ### Basic Window
 
 ```typescript
-import { show } from 'ts-craft'
+import { show } from '@stacksjs/ts-craft'
 
 await show(html, {
   title: 'My App',
@@ -29,7 +29,7 @@ await show(html, {
 ### Advanced Window Creation
 
 ```typescript
-import { createWindow } from 'ts-craft'
+import { createWindow } from '@stacksjs/ts-craft'
 
 const window = await createWindow(html, {
   // Identification
@@ -264,7 +264,7 @@ window.setAlwaysOnTop(!window.isAlwaysOnTop())
 ### Creating Multiple Windows
 
 ```typescript
-import { createApp, createWindow } from 'ts-craft'
+import { createApp, createWindow } from '@stacksjs/ts-craft'
 
 const app = await createApp()
 
@@ -310,7 +310,7 @@ windows.forEach((win) => {
 ### Get Monitors
 
 ```typescript
-import { getMonitors, getPrimaryMonitor } from 'ts-craft'
+import { getMonitors, getPrimaryMonitor } from '@stacksjs/ts-craft'
 
 // All monitors
 const monitors = await getMonitors()

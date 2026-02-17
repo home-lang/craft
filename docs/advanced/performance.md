@@ -62,7 +62,7 @@ setTimeout(async () => {
 ### Monitor Memory Usage
 
 ```typescript
-import { getMemoryUsage } from 'ts-craft'
+import { getMemoryUsage } from '@stacksjs/ts-craft'
 
 setInterval(() => {
   const memory = getMemoryUsage()
@@ -228,8 +228,8 @@ setInterval(() => {
 
 ```typescript
 // Import only what you need
-import { show } from 'ts-craft' // Good
-import * as craft from 'ts-craft' // Bad - imports everything
+import { show } from '@stacksjs/ts-craft' // Good
+import * as craft from '@stacksjs/ts-craft' // Bad - imports everything
 ```
 
 ### Code Splitting

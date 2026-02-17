@@ -3,7 +3,7 @@
  * A cross-platform shopping app built with Craft
  */
 
-import { db, window, Platform, haptics } from 'ts-craft'
+import { db, window, Platform, haptics } from '@stacksjs/ts-craft'
 
 // Types
 interface Product {

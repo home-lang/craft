@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
 
 **Craft (Headwind):**
 ```typescript
-import { tw } from 'ts-craft'
+import { tw } from '@stacksjs/ts-craft'
 
 const containerClass = tw`flex flex-1 bg-white p-4`
 const titleClass = tw`text-2xl font-bold`
@@ -100,7 +100,7 @@ const titleClass = tw`text-2xl font-bold`
 
 **Craft (Compatible API):**
 ```typescript
-import { StyleSheet } from 'ts-craft'
+import { StyleSheet } from '@stacksjs/ts-craft'
 
 const styles = StyleSheet.create({
   container: {
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
 
 **Craft:**
 ```typescript
-import { Platform } from 'ts-craft'
+import { Platform } from '@stacksjs/ts-craft'
 
 if (Platform.OS === 'ios') {
   // iOS specific
@@ -161,7 +161,7 @@ Animated.timing(fadeAnim, {
 
 **Craft:**
 ```typescript
-import { Animated } from 'ts-craft'
+import { Animated } from '@stacksjs/ts-craft'
 
 const fadeAnim = new Animated.Value(0)
 
@@ -184,7 +184,7 @@ const token = await AsyncStorage.getItem('token')
 
 **Craft:**
 ```typescript
-import { secureStorage } from 'ts-craft'
+import { secureStorage } from '@stacksjs/ts-craft'
 
 await secureStorage.set('token', 'value')
 const token = await secureStorage.get('token')
@@ -202,7 +202,7 @@ Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
 **Craft:**
 ```typescript
-import { haptics } from 'ts-craft'
+import { haptics } from '@stacksjs/ts-craft'
 
 await haptics.impact('light')
 await haptics.notification('success')
@@ -221,7 +221,7 @@ const result = await LocalAuthentication.authenticateAsync({
 
 **Craft:**
 ```typescript
-import { biometrics } from 'ts-craft'
+import { biometrics } from '@stacksjs/ts-craft'
 
 const result = await biometrics.authenticate({
   reason: 'Authenticate'
@@ -239,7 +239,7 @@ const { status } = await Camera.requestCameraPermissionsAsync()
 
 **Craft:**
 ```typescript
-import { camera, permissions } from 'ts-craft'
+import { camera, permissions } from '@stacksjs/ts-craft'
 
 await permissions.request('camera')
 const photo = await camera.takePhoto()
@@ -256,7 +256,7 @@ const { coords } = await Location.getCurrentPositionAsync()
 
 **Craft:**
 ```typescript
-import { location } from 'ts-craft'
+import { location } from '@stacksjs/ts-craft'
 
 const position = await location.getCurrentPosition()
 ```
@@ -341,7 +341,7 @@ function MyComponent() {
 
 **After:**
 ```jsx
-import { tw } from 'ts-craft'
+import { tw } from '@stacksjs/ts-craft'
 
 function MyComponent() {
   return (
@@ -361,7 +361,7 @@ Convert StyleSheet to CSS or Headwind:
 
 ```typescript
 // Using Headwind (Tailwind-style)
-import { tw, cx } from 'ts-craft'
+import { tw, cx } from '@stacksjs/ts-craft'
 
 const styles = {
   container: tw`flex flex-1 bg-white p-4`,
@@ -381,7 +381,7 @@ import * as Haptics from 'expo-haptics'
 import * as LocalAuthentication from 'expo-local-authentication'
 
 // After
-import { secureStorage, haptics, biometrics } from 'ts-craft'
+import { secureStorage, haptics, biometrics } from '@stacksjs/ts-craft'
 ```
 
 ### 6. Update Navigation
@@ -452,7 +452,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 **Craft:**
 ```jsx
-import { device } from 'ts-craft'
+import { device } from '@stacksjs/ts-craft'
 
 function SafeArea({ children }) {
   const [insets, setInsets] = useState({ top: 0, bottom: 0 })
@@ -512,10 +512,10 @@ import { View, Text } from 'ts-craft/components'
 Replace with Craft APIs or web alternatives:
 ```typescript
 // Expo Camera → Craft camera
-import { camera } from 'ts-craft'
+import { camera } from '@stacksjs/ts-craft'
 
 // Native SQLite → Craft db
-import { db } from 'ts-craft'
+import { db } from '@stacksjs/ts-craft'
 ```
 
 ### Layout differences

@@ -3,7 +3,7 @@
  * Features: Audio playback, playlists, queue, visualizer, media controls
  */
 
-import { fs, db, window, Platform, haptics } from 'ts-craft'
+import { fs, db, window, Platform, haptics } from '@stacksjs/ts-craft'
 
 // Types
 interface Track {

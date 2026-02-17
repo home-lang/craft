@@ -39,7 +39,7 @@ bun add ts-craft
 
 ```typescript
 // app.ts
-import { show } from 'ts-craft'
+import { show } from '@stacksjs/ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -94,7 +94,7 @@ bun run dev
 Full control over window appearance and behavior:
 
 ```typescript
-import { show } from 'ts-craft'
+import { show } from '@stacksjs/ts-craft'
 
 await show(html, {
   title: 'My App',
@@ -150,7 +150,7 @@ app.on('greet', (data) => {
 Build native system tray/menubar apps:
 
 ```typescript
-import { createMenubar } from 'ts-craft'
+import { createMenubar } from '@stacksjs/ts-craft'
 
 const menubar = await createMenubar({
   icon: './icon.png',

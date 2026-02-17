@@ -5,7 +5,7 @@ The Database API provides SQLite database operations with a simple, Promise-base
 ## Import
 
 ```typescript
-import { db } from 'ts-craft'
+import { db } from '@stacksjs/ts-craft'
 ```
 
 ## Methods
@@ -153,7 +153,7 @@ await database.close()
 ## Example Usage
 
 ```typescript
-import { db } from 'ts-craft'
+import { db } from '@stacksjs/ts-craft'
 
 interface Todo {
   id: number

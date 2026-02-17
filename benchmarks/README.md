@@ -27,7 +27,7 @@ bun add ts-craft
 #### Create your app (`app.ts`):
 
 ```typescript
-import { show } from 'ts-craft'
+import { show } from '@stacksjs/ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -70,7 +70,7 @@ bun run app.ts
 #### Load from URL (for existing web apps):
 
 ```typescript
-import { loadURL } from 'ts-craft'
+import { loadURL } from '@stacksjs/ts-craft'
 
 await loadURL('http://localhost:3000', {
   title: 'My Web App',

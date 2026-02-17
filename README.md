@@ -292,7 +292,7 @@ bun add ts-craft
 
 ```typescript
 // app.ts
-import { show } from 'ts-craft'
+import { show } from '@stacksjs/ts-craft'
 
 const html = `
 <!DOCTYPE html>

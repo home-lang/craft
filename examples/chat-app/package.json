@@ -11,7 +11,7 @@
     "build:macos": "craft build --platform macos"
   },
   "dependencies": {
-    "ts-craft": "workspace:*"
+    "@stacksjs/ts-craft": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

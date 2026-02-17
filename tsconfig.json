@@ -19,7 +19,7 @@
     "verbatimModuleSyntax": true,
     "skipDefaultLibCheck": true,
     "paths": {
-      "ts-craft": ["./packages/typescript/src/index.ts"]
+      "@stacksjs/ts-craft": ["./packages/typescript/src/index.ts"]
     },
     "skipLibCheck": true
   }

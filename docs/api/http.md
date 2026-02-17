@@ -5,7 +5,7 @@ The HTTP API provides methods for making network requests with progress tracking
 ## Import
 
 ```typescript
-import { http } from 'ts-craft'
+import { http } from '@stacksjs/ts-craft'
 ```
 
 ## Methods
@@ -146,7 +146,7 @@ await http.upload(
 ## Example Usage
 
 ```typescript
-import { http } from 'ts-craft'
+import { http } from '@stacksjs/ts-craft'
 
 // REST API example
 async function fetchUsers() {
