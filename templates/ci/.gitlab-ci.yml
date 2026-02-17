@@ -36,7 +36,7 @@ build:zig:linux:
   image: ubuntu:22.04
   <<: *cache_zig
   before_script:
-    - apt-get update && apt-get install -y curl xz-utils libgtk-3-dev libwebkit2gtk-4.0-dev
+    - apt-get update && apt-get install -y curl xz-utils libgtk-3-dev libwebkit2gtk-4.1-dev
     - curl -LO "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz"
     - tar xf "zig-linux-x86_64-${ZIG_VERSION}.tar.xz"
     - export PATH="$PWD/zig-linux-x86_64-${ZIG_VERSION}:$PATH"
@@ -101,7 +101,7 @@ test:zig:
   needs:
     - build:zig:linux
   before_script:
-    - apt-get update && apt-get install -y curl xz-utils libgtk-3-dev libwebkit2gtk-4.0-dev
+    - apt-get update && apt-get install -y curl xz-utils libgtk-3-dev libwebkit2gtk-4.1-dev
     - curl -LO "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz"
     - tar xf "zig-linux-x86_64-${ZIG_VERSION}.tar.xz"
     - export PATH="$PWD/zig-linux-x86_64-${ZIG_VERSION}:$PATH"

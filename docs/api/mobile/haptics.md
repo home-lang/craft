@@ -5,7 +5,7 @@ Provide tactile feedback through device vibrations.
 ## Import
 
 ```typescript
-import { haptics } from 'ts-craft'
+import { haptics } from '@stacksjs/ts-craft'
 ```
 
 ## Methods
@@ -118,7 +118,7 @@ if (supported) {
 ## Example Usage
 
 ```typescript
-import { haptics } from 'ts-craft'
+import { haptics } from '@stacksjs/ts-craft'
 
 // Button press feedback
 async function onButtonPress() {

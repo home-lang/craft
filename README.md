@@ -292,7 +292,7 @@ bun add ts-craft
 
 ```typescript
 // app.ts
-import { show } from 'ts-craft'
+import { show } from '@stacksjs/ts-craft'
 
 const html = `
 <!DOCTYPE html>
@@ -367,7 +367,7 @@ zig build
 **Linux:**
 
 ```bash
-sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
 **Windows:**

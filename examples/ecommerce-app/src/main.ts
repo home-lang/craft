@@ -3,7 +3,7 @@
  * Features: Product catalog, cart, checkout, orders, wishlist, search, reviews
  */
 
-import { db, http, window, Platform, haptics, secureStorage } from 'ts-craft'
+import { db, http, window, Platform, haptics, secureStorage } from '@stacksjs/ts-craft'
 
 // Types
 interface Product {

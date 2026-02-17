@@ -5,7 +5,7 @@ The Crypto API provides cryptographic operations including hashing, encryption, 
 ## Import
 
 ```typescript
-import { crypto } from 'ts-craft'
+import { crypto } from '@stacksjs/ts-craft'
 ```
 
 ## Methods
@@ -154,7 +154,7 @@ const signature = await crypto.hmac(key, 'Message to sign')
 ## Example Usage
 
 ```typescript
-import { crypto, fs } from 'ts-craft'
+import { crypto, fs } from '@stacksjs/ts-craft'
 
 // Password-based encryption
 async function encryptWithPassword(data: string, password: string) {

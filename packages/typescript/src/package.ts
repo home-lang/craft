@@ -272,7 +272,7 @@ async function packageLinux(config: PackageConfig, outDir: string): Promise<Pack
       outputPath: join(outDir, `${name}_${version}_amd64.deb`),
       description: config.description || '',
       maintainer: config.author || 'Unknown',
-      dependencies: opts.debDependencies || ['libgtk-3-0', 'libwebkit2gtk-4.0-37'],
+      dependencies: opts.debDependencies || ['libgtk-3-0', 'libwebkit2gtk-4.1-37'],
     })
     results.push({
       success: debResult.success,

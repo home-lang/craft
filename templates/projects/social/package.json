@@ -11,7 +11,7 @@
     "build:all": "craft build --platform ios,android,macos,windows"
   },
   "dependencies": {
-    "ts-craft": "workspace:*"
+    "@stacksjs/ts-craft": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

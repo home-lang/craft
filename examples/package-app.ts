@@ -51,7 +51,7 @@ async function main() {
       rpm: true,      // Create RPM
       appImage: true, // Create AppImage
       categories: ['Utility', 'Development'],
-      debDependencies: ['libgtk-3-0', 'libwebkit2gtk-4.0-37'],
+      debDependencies: ['libgtk-3-0', 'libwebkit2gtk-4.1-37'],
       rpmDependencies: ['gtk3', 'webkit2gtk3'],
     },
   })

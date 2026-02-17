@@ -65,7 +65,7 @@ pub const Accordion = struct {
     /// Remove a section by index
     pub fn removeSection(self: *Accordion, index: usize) void {
         if (index < self.sections.items.len) {
-            var section = self.sections.orderedRemove(index);
+            const section = self.sections.orderedRemove(index);
             if (section.content) |content| {
                 content.deinit();
                 self.component.allocator.destroy(content);

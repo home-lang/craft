@@ -1,4 +1,4 @@
-import type { CraftConfig } from 'ts-craft'
+import type { CraftConfig } from '@stacksjs/ts-craft'
 
 export default {
   name: 'Chat',

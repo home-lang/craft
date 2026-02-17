@@ -1,6 +1,6 @@
 {
   "name": "ts-craft-examples",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "description": "TypeScript examples for Craft",
@@ -11,7 +11,7 @@
     "dashboard": "bun run dashboard.ts"
   },
   "dependencies": {
-    "ts-craft": "workspace:*"
+    "@stacksjs/ts-craft": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest"

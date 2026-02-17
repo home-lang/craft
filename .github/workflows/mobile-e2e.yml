@@ -34,7 +34,7 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
-          version: '0.15.1'
+          version: master
 
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -46,8 +46,8 @@ jobs:
         with:
           path: |
             ~/.cache/zig
-            packages/zig/zig-cache
-          key: ios-${{ runner.os }}-zig-0.15.1-${{ hashFiles('packages/zig/build.zig') }}
+            packages/zig/.zig-cache
+          key: ios-${{ runner.os }}-zig-master-${{ hashFiles('packages/zig/build.zig') }}
 
       - name: List available simulators
         run: |
@@ -142,7 +142,7 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
-          version: '0.15.1'
+          version: master
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -158,8 +158,8 @@ jobs:
         with:
           path: |
             ~/.cache/zig
-            packages/zig/zig-cache
-          key: android-${{ runner.os }}-zig-0.15.1-${{ hashFiles('packages/zig/build.zig') }}
+            packages/zig/.zig-cache
+          key: android-${{ runner.os }}-zig-master-${{ hashFiles('packages/zig/build.zig') }}
 
       - name: Install Android NDK
         run: |
@@ -204,19 +204,10 @@ jobs:
           disable-animations: true
           script: |
             echo "Emulator started"
-
-            # Wait for emulator to be ready
             adb wait-for-device
-
-            # Take a screenshot
             mkdir -p screenshots/android
             adb exec-out screencap -p > screenshots/android/emulator.png || true
-
-            # Run Android tests if available
-            if [ -d "packages/android" ]; then
-              cd packages/android
-              ./gradlew test || echo "Android tests skipped"
-            fi
+            if [ -d "packages/android" ]; then cd packages/android && ./gradlew test || echo "Android tests skipped"; fi
 
       - name: Upload Android screenshots
         uses: actions/upload-artifact@v4

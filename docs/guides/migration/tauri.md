@@ -68,7 +68,7 @@ my-craft-app/
 
 ### Craft (craft.config.ts)
 ```typescript
-import { defineConfig } from 'ts-craft';
+import { defineConfig } from '@stacksjs/ts-craft';
 
 export default defineConfig({
   name: 'My App',
@@ -121,13 +121,13 @@ const greeting = await invoke('greet', { name: 'World' });
 ### Craft Equivalent
 ```typescript
 // src/main.ts
-import { bridge } from 'ts-craft';
+import { bridge } from '@stacksjs/ts-craft';
 
 // Native bridge is built-in, no Rust required
 const result = await bridge.request('greet', { name: 'World' });
 
 // Or use the built-in APIs directly
-import { dialog } from 'ts-craft';
+import { dialog } from '@stacksjs/ts-craft';
 await dialog.message('Hello, World!');
 ```
 
@@ -146,7 +146,7 @@ await writeTextFile('config.json', JSON.stringify(data), { dir: BaseDirectory.Ap
 
 **Craft:**
 ```typescript
-import { fs } from 'ts-craft';
+import { fs } from '@stacksjs/ts-craft';
 
 const content = await fs.readFile('config.json', { encoding: 'utf-8' });
 await fs.writeFile('config.json', JSON.stringify(data));
@@ -168,7 +168,7 @@ const confirmed = await confirm('Are you sure?', { title: 'Confirm' });
 
 **Craft:**
 ```typescript
-import { dialog } from 'ts-craft';
+import { dialog } from '@stacksjs/ts-craft';
 
 const files = await dialog.open({
   multiple: true,
@@ -194,7 +194,7 @@ await appWindow.setFullscreen(true);
 
 **Craft:**
 ```typescript
-import { window } from 'ts-craft';
+import { window } from '@stacksjs/ts-craft';
 
 await window.setTitle('New Title');
 await window.setSize(1200, 800);
@@ -227,7 +227,7 @@ const tray = await TrayIcon.new({
 
 **Craft:**
 ```typescript
-import { tray, window } from 'ts-craft';
+import { tray, window } from '@stacksjs/ts-craft';
 
 await tray.create({
   icon: 'icons/tray.png',
@@ -253,7 +253,7 @@ const response = await fetch('https://api.example.com/data', {
 
 **Craft:**
 ```typescript
-import { http } from 'ts-craft';
+import { http } from '@stacksjs/ts-craft';
 
 const response = await http.fetch('https://api.example.com/data', {
   method: 'GET',
@@ -279,7 +279,7 @@ sendNotification({
 
 **Craft:**
 ```typescript
-import { notification } from 'ts-craft';
+import { notification } from '@stacksjs/ts-craft';
 
 await notification.requestPermission();
 await notification.show({
@@ -300,7 +300,7 @@ const text = await readText();
 
 **Craft:**
 ```typescript
-import { clipboard } from 'ts-craft';
+import { clipboard } from '@stacksjs/ts-craft';
 
 await clipboard.writeText('Hello');
 const text = await clipboard.readText();
@@ -319,7 +319,7 @@ console.log(output.stdout);
 
 **Craft:**
 ```typescript
-import { process } from 'ts-craft';
+import { process } from '@stacksjs/ts-craft';
 
 const output = await process.exec('git', ['status']);
 console.log(output.stdout);
@@ -342,7 +342,7 @@ await emit('my-event', { data: 'value' });
 
 ### Craft Events
 ```typescript
-import { events } from 'ts-craft';
+import { events } from '@stacksjs/ts-craft';
 
 // Listen for events
 const unsubscribe = events.on('my-event', (payload) => {
@@ -363,7 +363,7 @@ Craft uses TypeScript/JavaScript plugins:
 
 ```typescript
 // craft.config.ts
-import { defineConfig } from 'ts-craft';
+import { defineConfig } from '@stacksjs/ts-craft';
 import analyticsPlugin from '@craft/plugin-analytics';
 
 export default defineConfig({
@@ -499,7 +499,7 @@ Both Tauri and Craft run web content in a native webview, so CORS restrictions d
 ### Path Handling
 Craft uses web-standard paths. For platform-specific paths, use the path utilities:
 ```typescript
-import { path } from 'ts-craft';
+import { path } from '@stacksjs/ts-craft';
 
 const appDir = await path.appDir();
 const homeDir = await path.homeDir();

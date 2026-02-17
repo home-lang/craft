@@ -46,7 +46,7 @@ xcode-select --install
 **Linux:**
 ```bash
 # WebKit2GTK and GTK3
-sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
 **Windows:**

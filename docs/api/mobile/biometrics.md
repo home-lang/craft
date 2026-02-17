@@ -5,7 +5,7 @@ Authenticate users using Face ID, Touch ID, or fingerprint.
 ## Import
 
 ```typescript
-import { biometrics } from 'ts-craft'
+import { biometrics } from '@stacksjs/ts-craft'
 ```
 
 ## Methods
@@ -112,7 +112,7 @@ if (canAuth.available) {
 ## Example Usage
 
 ```typescript
-import { biometrics, secureStorage } from 'ts-craft'
+import { biometrics, secureStorage } from '@stacksjs/ts-craft'
 
 // Login flow with biometrics
 async function handleLogin() {

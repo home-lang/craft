@@ -288,7 +288,7 @@ export async function hashPassword(password: string, salt?: string): Promise<{ h
     const derivedBits = await globalThis.crypto.subtle.deriveBits(
       {
         name: 'PBKDF2',
-        salt: base64ToBuffer(actualSalt),
+        salt: base64ToBuffer(actualSalt).buffer as ArrayBuffer,
         iterations: 100000,
         hash: 'SHA-256'
       },

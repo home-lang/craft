@@ -7,7 +7,7 @@ Craft provides comprehensive packaging tools to create installers for your appli
 ### Using the API
 
 ```typescript
-import { packageApp } from 'ts-craft'
+import { packageApp } from '@stacksjs/ts-craft'
 
 const results = await packageApp({
   name: 'My App',
@@ -44,7 +44,7 @@ craft-package --name "My App" --version "1.0.0" --binary ./build/myapp
 ### Complete Example
 
 ```typescript
-import { packageApp } from 'ts-craft'
+import { packageApp } from '@stacksjs/ts-craft'
 import { join } from 'path'
 
 async function buildInstallers() {
@@ -95,7 +95,7 @@ async function buildInstallers() {
       rpm: true,
       appImage: true,
       categories: ['Utility', 'Development'],
-      debDependencies: ['libgtk-3-0', 'libwebkit2gtk-4.0-37'],
+      debDependencies: ['libgtk-3-0', 'libwebkit2gtk-4.1-37'],
       rpmDependencies: ['gtk3', 'webkit2gtk3'],
     },
   })
@@ -118,7 +118,7 @@ buildInstallers()
 For quick packaging of the current platform:
 
 ```typescript
-import { pack } from 'ts-craft'
+import { pack } from '@stacksjs/ts-craft'
 
 const results = await pack({
   name: 'My App',
@@ -184,7 +184,7 @@ Create `package.json`:
     "rpm": true,
     "appImage": true,
     "categories": ["Utility"],
-    "debDependencies": ["libgtk-3-0", "libwebkit2gtk-4.0-37"],
+    "debDependencies": ["libgtk-3-0", "libwebkit2gtk-4.1-37"],
     "rpmDependencies": ["gtk3", "webkit2gtk3"]
   }
 }

@@ -130,7 +130,7 @@ pub const StatusBar = struct {
     /// Remove a section by index
     pub fn removeSection(self: *StatusBar, index: usize) void {
         if (index < self.sections.items.len) {
-            var section = self.sections.orderedRemove(index);
+            const section = self.sections.orderedRemove(index);
             switch (section.content) {
                 .custom => |custom| {
                     custom.deinit();

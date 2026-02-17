@@ -74,7 +74,7 @@ bun add ts-craft
 # Check tsconfig.json includes the types
 {
   "compilerOptions": {
-    "types": ["ts-craft"]
+    "types": ["@stacksjs/ts-craft"]
   }
 }
 ```
@@ -130,7 +130,7 @@ window: {
 **Solution:**
 1. Ensure Craft is initialized:
 ```typescript
-import { isReady } from 'ts-craft'
+import { isReady } from '@stacksjs/ts-craft'
 
 // Wait for Craft to initialize
 await isReady()
@@ -234,7 +234,7 @@ ios: {
 
 **Solution:**
 ```typescript
-import { device } from 'ts-craft'
+import { device } from '@stacksjs/ts-craft'
 
 const { safeAreaInsets } = await device.getScreenInfo()
 
@@ -260,10 +260,10 @@ body {
 2. Defer non-critical loading:
 ```typescript
 // Load immediately
-import { window } from 'ts-craft'
+import { window } from '@stacksjs/ts-craft'
 
 // Load when needed
-const { db } = await import('ts-craft')
+const { db } = await import('@stacksjs/ts-craft')
 ```
 
 3. Use code splitting in bundler
@@ -311,7 +311,7 @@ Animated.timing(value, {
 
 Craft hasn't finished loading. Wait for ready state:
 ```typescript
-import { isReady } from 'ts-craft'
+import { isReady } from '@stacksjs/ts-craft'
 await isReady()
 ```
 

@@ -56,7 +56,7 @@ win.close()
 
 **Craft:**
 ```typescript
-import { window } from 'ts-craft'
+import { window } from '@stacksjs/ts-craft'
 
 // Configuration in craft.config.ts
 window: {
@@ -89,7 +89,7 @@ const content = await window.electron.invoke('read-file', '/path/to/file')
 
 **Craft:**
 ```typescript
-import { fs } from 'ts-craft'
+import { fs } from '@stacksjs/ts-craft'
 
 // No IPC setup needed - direct API
 const content = await fs.readFile('/path/to/file')
@@ -111,7 +111,7 @@ tray.setContextMenu(Menu.buildFromTemplate([
 
 **Craft:**
 ```typescript
-import { tray } from 'ts-craft'
+import { tray } from '@stacksjs/ts-craft'
 
 await tray.create({
   icon: 'icon.png',
@@ -141,7 +141,7 @@ new Notification({
 
 **Craft:**
 ```typescript
-import { notification } from 'ts-craft'
+import { notification } from '@stacksjs/ts-craft'
 
 await notification.show({
   title: 'Hello',
@@ -166,7 +166,7 @@ ipcMain.handle('fs:write', async (e, path, data) => {
 
 **Craft:**
 ```typescript
-import { fs } from 'ts-craft'
+import { fs } from '@stacksjs/ts-craft'
 
 // Direct access - no IPC needed
 const content = await fs.readFile('/path/to/file')
@@ -187,7 +187,7 @@ const result = await dialog.showOpenDialog({
 
 **Craft:**
 ```typescript
-import { dialog } from 'ts-craft'
+import { dialog } from '@stacksjs/ts-craft'
 
 const result = await dialog.open({
   multiple: false,
@@ -208,7 +208,7 @@ globalShortcut.register('CommandOrControl+S', () => {
 
 **Craft:**
 ```typescript
-import { shortcuts } from 'ts-craft'
+import { shortcuts } from '@stacksjs/ts-craft'
 
 shortcuts.register('mod+s', () => {
   saveDocument()
@@ -236,7 +236,7 @@ app.on('window-all-closed', () => {
 // Your app code runs when ready
 
 // For custom lifecycle handling:
-import { lifecycle } from 'ts-craft'
+import { lifecycle } from '@stacksjs/ts-craft'
 
 lifecycle.on('willQuit', () => {
   // Cleanup
@@ -265,7 +265,7 @@ Replace `package.json` scripts and create `craft.config.ts`:
 
 ```typescript
 // craft.config.ts
-import type { CraftAppConfig } from 'ts-craft'
+import type { CraftAppConfig } from '@stacksjs/ts-craft'
 
 const config: CraftAppConfig = {
   name: 'My App',
@@ -294,7 +294,7 @@ Find and replace all `ipcRenderer.invoke()` calls:
 const data = await window.electron.invoke('read-file', path)
 
 // After (Craft)
-import { fs } from 'ts-craft'
+import { fs } from '@stacksjs/ts-craft'
 const data = await fs.readFile(path)
 ```
 
@@ -305,7 +305,7 @@ const data = await fs.readFile(path)
 const { contextBridge, ipcRenderer } = require('electron')
 
 // After (Craft)
-import { fs, db, http, window, notification } from 'ts-craft'
+import { fs, db, http, window, notification } from '@stacksjs/ts-craft'
 ```
 
 ### 6. Remove Electron-Specific Code
@@ -344,7 +344,7 @@ function App() {
 **Craft:**
 ```jsx
 import { useCraft } from 'ts-craft/react'
-import { db } from 'ts-craft'
+import { db } from '@stacksjs/ts-craft'
 
 function App() {
   const { isReady } = useCraft()
@@ -367,7 +367,7 @@ const isDev = !app.isPackaged
 
 **Craft:**
 ```typescript
-import { Platform } from 'ts-craft'
+import { Platform } from '@stacksjs/ts-craft'
 
 const isDev = Platform.isDev
 ```
@@ -403,7 +403,7 @@ Your app will be much smaller. Consider removing unused dependencies that were o
 
 You're trying to use Node.js fs module. Use Craft's fs API:
 ```typescript
-import { fs } from 'ts-craft'
+import { fs } from '@stacksjs/ts-craft'
 ```
 
 ### "require is not defined"

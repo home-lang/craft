@@ -21,7 +21,7 @@ Thank you for your interest in contributing to Craft! This document provides gui
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
 **Windows:**

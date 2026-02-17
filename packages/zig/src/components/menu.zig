@@ -110,7 +110,7 @@ pub const Menu = struct {
     /// Remove an item by index
     pub fn removeItem(self: *Menu, index: usize) void {
         if (index < self.items.items.len) {
-            var item = self.items.orderedRemove(index);
+            const item = self.items.orderedRemove(index);
             if (item.submenu) |submenu| {
                 submenu.deinit();
             }

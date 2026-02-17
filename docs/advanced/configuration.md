@@ -18,7 +18,7 @@ Craft loads configuration in this order (later overrides earlier):
 
 ```typescript
 // craft.config.ts
-import type { CraftConfig } from 'ts-craft'
+import type { CraftConfig } from '@stacksjs/ts-craft'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -381,7 +381,7 @@ export default {
 ### Dynamic Configuration
 
 ```typescript
-import { createApp, configure } from 'ts-craft'
+import { createApp, configure } from '@stacksjs/ts-craft'
 
 // Configure at runtime
 configure({
@@ -400,7 +400,7 @@ const app = await createApp()
 ### Configuration API
 
 ```typescript
-import { config } from 'ts-craft'
+import { config } from '@stacksjs/ts-craft'
 
 // Get configuration
 const windowConfig = config.get('window')
@@ -420,7 +420,7 @@ config.on('change', (key, newValue, oldValue) => {
 ### Schema Validation
 
 ```typescript
-import { validateConfig } from 'ts-craft'
+import { validateConfig } from '@stacksjs/ts-craft'
 
 const config = loadConfig()
 const errors = validateConfig(config)
@@ -437,7 +437,7 @@ if (errors.length > 0) {
 ### Type Checking
 
 ```typescript
-import type { CraftConfig } from 'ts-craft'
+import type { CraftConfig } from '@stacksjs/ts-craft'
 
 // TypeScript will catch configuration errors
 const config: CraftConfig = {

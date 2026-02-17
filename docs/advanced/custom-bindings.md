@@ -16,7 +16,7 @@ Custom bindings enable:
 ### Register Custom Handler
 
 ```typescript
-import { createApp } from 'ts-craft'
+import { createApp } from '@stacksjs/ts-craft'
 
 const app = await createApp(html, options)
 
@@ -56,7 +56,7 @@ my-plugin/
 
 ```typescript
 // craft.plugin.ts
-import type { CraftPlugin } from 'ts-craft'
+import type { CraftPlugin } from '@stacksjs/ts-craft'
 
 export default {
   name: 'my-plugin',
@@ -140,7 +140,7 @@ pub fn build(b: *std.Build) void {
 
 ```typescript
 // src/index.ts
-import { loadNativeLibrary } from 'ts-craft'
+import { loadNativeLibrary } from '@stacksjs/ts-craft'
 
 const lib = loadNativeLibrary('./libmy-plugin')
 
@@ -193,7 +193,7 @@ export const getString = lib.symbols.getString
 
 ```typescript
 // src/macos.ts
-import { platform } from 'ts-craft'
+import { platform } from '@stacksjs/ts-craft'
 
 if (platform === 'darwin') {
   // macOS-specific implementation
@@ -213,7 +213,7 @@ if (platform === 'darwin') {
 
 ```typescript
 // src/windows.ts
-import { platform } from 'ts-craft'
+import { platform } from '@stacksjs/ts-craft'
 
 if (platform === 'win32') {
   const winLib = loadNativeLibrary('./libwin-bridge')
@@ -232,7 +232,7 @@ if (platform === 'win32') {
 
 ```typescript
 // src/platform-features.ts
-import { platform } from 'ts-craft'
+import { platform } from '@stacksjs/ts-craft'
 
 export interface PlatformFeatures {
   showBadge(text: string): void
@@ -279,7 +279,7 @@ pub fn monitorSomething() void {
 
 ```typescript
 // In TypeScript
-import { on } from 'ts-craft'
+import { on } from '@stacksjs/ts-craft'
 
 on('sensor:reading', (data) => {
   console.log(`Sensor value: ${data.value} at ${data.timestamp}`)
@@ -291,7 +291,7 @@ on('sensor:reading', (data) => {
 ### Handling Native Memory
 
 ```typescript
-import { NativePointer } from 'ts-craft'
+import { NativePointer } from '@stacksjs/ts-craft'
 
 // Allocate native memory
 const buffer = NativePointer.allocate(1024)
@@ -309,7 +309,7 @@ finally {
 ### Automatic Cleanup
 
 ```typescript
-import { using } from 'ts-craft'
+import { using } from '@stacksjs/ts-craft'
 
 // Automatically freed when scope exits
 await using(NativePointer.allocate(1024), async (buffer) => {
@@ -417,7 +417,7 @@ test('custom handler works', async () => {
     "native/"
   ],
   "peerDependencies": {
-    "ts-craft": "^1.0.0"
+    "@stacksjs/ts-craft": "^1.0.0"
   }
 }
 ```

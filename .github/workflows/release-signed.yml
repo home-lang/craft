@@ -18,7 +18,7 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
-          version: '0.15.1'
+          version: master
 
       - name: Cache Zig artifacts
         uses: actions/cache@v4
@@ -26,7 +26,7 @@ jobs:
           path: |
             ~/.cache/zig
             packages/zig/zig-cache
-          key: release-macos-zig-0.15.1-${{ hashFiles('packages/zig/build.zig') }}
+          key: release-macos-zig-master-${{ hashFiles('packages/zig/build.zig') }}
 
       - name: Build for Apple Silicon
         working-directory: packages/zig
@@ -120,7 +120,7 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
-          version: '0.15.1'
+          version: master
 
       - name: Cache Zig artifacts
         uses: actions/cache@v4
@@ -128,7 +128,7 @@ jobs:
           path: |
             ~\.cache\zig
             packages\zig\zig-cache
-          key: release-windows-zig-0.15.1-${{ hashFiles('packages/zig/build.zig') }}
+          key: release-windows-zig-master-${{ hashFiles('packages/zig/build.zig') }}
 
       - name: Build for Windows
         working-directory: packages/zig
@@ -186,12 +186,12 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
-          version: '0.15.1'
+          version: master
 
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
       - name: Cache Zig artifacts
         uses: actions/cache@v4
@@ -199,7 +199,7 @@ jobs:
           path: |
             ~/.cache/zig
             packages/zig/zig-cache
-          key: release-linux-zig-0.15.1-${{ hashFiles('packages/zig/build.zig') }}
+          key: release-linux-zig-master-${{ hashFiles('packages/zig/build.zig') }}
 
       - name: Build for x86_64
         working-directory: packages/zig

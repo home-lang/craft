@@ -438,7 +438,7 @@ xattr -cr MyApp.app
 ldd my-app
 
 # Install GTK dependencies
-sudo apt install libgtk-3-0 libwebkit2gtk-4.0-37
+sudo apt install libgtk-3-0 libwebkit2gtk-4.1-37
 ```
 
 ### Windows: DLL not found

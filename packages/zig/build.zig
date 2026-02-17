@@ -31,7 +31,7 @@ pub fn build(b: *std.Build) void {
         },
         .linux => {
             exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
-            exe.root_module.linkSystemLibrary("webkit2gtk-4.0", .{});
+            exe.root_module.linkSystemLibrary("webkit2gtk-4.1", .{});
         },
         .windows => {
             exe.root_module.linkSystemLibrary("ole32", .{});
@@ -75,7 +75,7 @@ pub fn build(b: *std.Build) void {
         },
         .linux => {
             craft_exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
-            craft_exe.root_module.linkSystemLibrary("webkit2gtk-4.0", .{});
+            craft_exe.root_module.linkSystemLibrary("webkit2gtk-4.1", .{});
         },
         .windows => {
             craft_exe.root_module.linkSystemLibrary("ole32", .{});
@@ -116,7 +116,7 @@ pub fn build(b: *std.Build) void {
         },
         .linux => {
             lib_unit_tests.root_module.linkSystemLibrary("gtk+-3.0", .{});
-            lib_unit_tests.root_module.linkSystemLibrary("webkit2gtk-4.0", .{});
+            lib_unit_tests.root_module.linkSystemLibrary("webkit2gtk-4.1", .{});
         },
         .windows => {
             lib_unit_tests.root_module.linkSystemLibrary("ole32", .{});
@@ -998,7 +998,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
     linux_exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
-    linux_exe.root_module.linkSystemLibrary("webkit2gtk-4.0", .{});
+    linux_exe.root_module.linkSystemLibrary("webkit2gtk-4.1", .{});
     linux_exe.root_module.link_libc = true;
 
     const linux_install = b.addInstallArtifact(linux_exe, .{});
@@ -1381,7 +1381,7 @@ pub fn build(b: *std.Build) void {
         },
         .linux => {
             android_demo_exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
-            android_demo_exe.root_module.linkSystemLibrary("webkit2gtk-4.0", .{});
+            android_demo_exe.root_module.linkSystemLibrary("webkit2gtk-4.1", .{});
         },
         .windows => {
             android_demo_exe.root_module.linkSystemLibrary("ole32", .{});

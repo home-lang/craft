@@ -55,7 +55,7 @@ bun create craft my-app
 ```
 
 ```typescript
-import { show } from 'ts-craft'
+import { show } from '@stacksjs/ts-craft'
 
 await show(`
   <h1>Hello from Craft!</h1>

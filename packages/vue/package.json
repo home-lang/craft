@@ -1,6 +1,6 @@
 {
   "name": "@craft/vue",
-  "version": "1.3.0",
+  "version": "0.0.2",
   "private": true,
   "description": "Vue 3 bindings for Craft framework",
   "main": "dist/index.js",

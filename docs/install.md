@@ -90,7 +90,7 @@ Install WebKit2GTK:
 
 ```bash
 # Debian/Ubuntu
-sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
 # Fedora
 sudo dnf install gtk3-devel webkit2gtk4.0-devel
@@ -215,10 +215,10 @@ my-craft-app/
 
 ```bash
 # Check if installed
-pkg-config --libs webkit2gtk-4.0
+pkg-config --libs webkit2gtk-4.1
 
 # If not found, install development packages
-sudo apt-get install libwebkit2gtk-4.0-dev
+sudo apt-get install libwebkit2gtk-4.1-dev
 ```
 
 ### Windows: WebView2 not available

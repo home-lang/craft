@@ -158,7 +158,7 @@ Install required dependencies:
 **Ubuntu/Debian:**
 
 ```bash
-sudo apt-get install libgtk-3-dev libwebkit2gtk-4.0-dev
+sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
 **Fedora:**
@@ -219,7 +219,7 @@ Make sure you have the required development libraries:
 
 ```bash
 # Ubuntu/Debian
-sudo apt-get install build-essential libgtk-3-dev libwebkit2gtk-4.0-dev
+sudo apt-get install build-essential libgtk-3-dev libwebkit2gtk-4.1-dev
 ```
 
 ### WebView not showing on Windows

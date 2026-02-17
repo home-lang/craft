@@ -9,7 +9,7 @@
     "build:release": "craft build --release"
   },
   "dependencies": {
-    "ts-craft": "workspace:*"
+    "@stacksjs/ts-craft": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.3.0"

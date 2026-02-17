@@ -83,9 +83,9 @@ jobs:
               {
                 "type": "library",
                 "name": "zig-std",
-                "version": "0.15.1",
+                "version": "0.16.0-dev",
                 "description": "Zig Standard Library",
-                "purl": "pkg:zig/std@0.15.1",
+                "purl": "pkg:zig/std@0.16.0-dev",
                 "licenses": [{"license": {"id": "MIT"}}]
               }
             ],
@@ -135,9 +135,9 @@ jobs:
               {
                 "type": "library",
                 "name": "WebKit2GTK",
-                "version": "4.0",
+                "version": "4.1",
                 "description": "WebKit2 GTK port",
-                "purl": "pkg:generic/webkit2gtk@4.0",
+                "purl": "pkg:generic/webkit2gtk@4.1",
                 "licenses": [{"license": {"id": "LGPL-2.1-or-later"}}],
                 "properties": [{"name": "platform", "value": "linux"}]
               },

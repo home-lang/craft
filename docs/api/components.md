@@ -12,7 +12,7 @@ import {
   type ViewStyle,
   type TextStyle,
   type ImageStyle
-} from 'ts-craft'
+} from '@stacksjs/ts-craft'
 ```
 
 ## Platform
@@ -400,7 +400,7 @@ const flexStyle: FlexStyle = {
 ## Example Usage
 
 ```typescript
-import { Platform, StyleSheet, Animated, Easing } from 'ts-craft'
+import { Platform, StyleSheet, Animated, Easing } from '@stacksjs/ts-craft'
 
 // Create styles
 const styles = StyleSheet.create({
