@@ -15,6 +15,10 @@ import {
   dirSize,
   fileSize,
   findCraftBinary,
+  findElectrobunApp,
+  findElectrobunAppBundle,
+  findRNMacOSAppBundle,
+  findRNMacOSBinary,
   findTauriBinary,
   formatBytes,
   header,
@@ -101,6 +105,40 @@ if (tauriBin) {
   })
 } else {
   console.log('  Tauri: binary not found (build with: cd benchmarks/apps/tauri/src-tauri && cargo build --release)\n')
+}
+
+// ---------------------------------------------------------------------------
+// Electrobun
+// ---------------------------------------------------------------------------
+const electrobunBin = findElectrobunApp()
+const electrobunBundle = findElectrobunAppBundle()
+if (electrobunBin && electrobunBundle) {
+  const bundleSize = dirSize(electrobunBundle)
+  entries.push({
+    framework: 'Electrobun',
+    binarySize: fileSize(electrobunBin),
+    bundleSize,
+    details: 'Bun + native WebView .app bundle',
+  })
+} else {
+  console.log('  Electrobun: app not found (build with: cd benchmarks/apps/electrobun && bun install && npx electrobun build)\n')
+}
+
+// ---------------------------------------------------------------------------
+// React Native macOS
+// ---------------------------------------------------------------------------
+const rnBin = findRNMacOSBinary()
+const rnBundle = findRNMacOSAppBundle()
+if (rnBin && rnBundle) {
+  const bundleSize = dirSize(rnBundle)
+  entries.push({
+    framework: 'React Native',
+    binarySize: fileSize(rnBin),
+    bundleSize,
+    details: 'React Native macOS .app bundle',
+  })
+} else {
+  console.log('  React Native macOS: app not found (build with xcodebuild)\n')
 }
 
 // ---------------------------------------------------------------------------

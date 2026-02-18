@@ -62,6 +62,11 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/minimal.zig"),
             .target = target,
             .optimize = optimize,
+            .single_threaded = true,
+            .strip = if (optimize != .Debug) true else null,
+            .unwind_tables = if (optimize != .Debug) .none else null,
+            .omit_frame_pointer = if (optimize == .ReleaseSmall) true else null,
+            .error_tracing = if (optimize != .Debug) false else null,
             .imports = &.{
                 .{ .name = "craft", .module = craft_module },
             },

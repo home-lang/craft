@@ -61,7 +61,8 @@ pub const DialogBridge = struct {
     /// Open a single file picker
     /// JSON: {"title": "Open File", "filters": [{"name": "Images", "extensions": ["png", "jpg"]}], "defaultPath": "/Users"}
     fn openFile(self: *Self, data: ?[]const u8) !void {
-        std.debug.print("[DialogBridge] openFile called\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[DialogBridge] openFile called\n", .{});
 
         if (builtin.os.tag == .linux) {
             // Linux: Use zenity for file dialogs (widely available)
@@ -116,7 +117,8 @@ pub const DialogBridge = struct {
                     const path = macos.msgSend0(url, "path");
                     const path_cstr = macos.msgSend0(path, "UTF8String");
                     const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
-                    std.debug.print("[DialogBridge] Selected file: {s}\n", .{path_str});
+                    if (comptime builtin.mode == .Debug)
+                        std.debug.print("[DialogBridge] Selected file: {s}\n", .{path_str});
 
                     var buf: std.ArrayList(u8) = .{};
                     defer buf.deinit(self.allocator);
@@ -136,7 +138,8 @@ pub const DialogBridge = struct {
                     json = try buf.toOwnedSlice(self.allocator);
                 }
             } else {
-                std.debug.print("[DialogBridge] File dialog cancelled\n", .{});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[DialogBridge] File dialog cancelled\n", .{});
             }
 
             bridge_error.sendResultToJS(self.allocator, "openFile", json);
@@ -149,7 +152,8 @@ pub const DialogBridge = struct {
 
     /// Open multiple files picker
     fn openFiles(self: *Self, data: ?[]const u8) !void {
-        std.debug.print("[DialogBridge] openFiles called\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[DialogBridge] openFiles called\n", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxOpenFileDialog(data, true, false, "openFiles");
@@ -192,7 +196,8 @@ pub const DialogBridge = struct {
                 const count_ptr = macos.msgSend0(urls, "count");
                 const count = @as(usize, @intFromPtr(count_ptr));
 
-                std.debug.print("[DialogBridge] Selected {d} files\n", .{count});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[DialogBridge] Selected {d} files\n", .{count});
 
                 var buf: std.ArrayList(u8) = .{};
                 defer buf.deinit(self.allocator);
@@ -235,7 +240,8 @@ pub const DialogBridge = struct {
 
     /// Open folder picker
     fn openFolder(self: *Self, data: ?[]const u8) !void {
-        std.debug.print("[DialogBridge] openFolder called\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[DialogBridge] openFolder called\n", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxOpenFileDialog(data, false, true, "openFolder");
@@ -279,7 +285,8 @@ pub const DialogBridge = struct {
                 const path = macos.msgSend0(url, "path");
                 const path_cstr = macos.msgSend0(path, "UTF8String");
                 const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
-                std.debug.print("[DialogBridge] Selected folder: {s}\n", .{path_str});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[DialogBridge] Selected folder: {s}\n", .{path_str});
 
                 var buf: std.ArrayList(u8) = .{};
                 defer buf.deinit(self.allocator);
@@ -310,7 +317,8 @@ pub const DialogBridge = struct {
     /// Save file dialog
     /// JSON: {"title": "Save File", "defaultName": "untitled.txt", "filters": [...]}
     fn saveFile(self: *Self, data: ?[]const u8) !void {
-        std.debug.print("[DialogBridge] saveFile called\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[DialogBridge] saveFile called\n", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxSaveFileDialog(data);
@@ -364,7 +372,8 @@ pub const DialogBridge = struct {
                 const path = macos.msgSend0(url, "path");
                 const path_cstr = macos.msgSend0(path, "UTF8String");
                 const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
-                std.debug.print("[DialogBridge] Save path: {s}\n", .{path_str});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[DialogBridge] Save path: {s}\n", .{path_str});
 
                 var buf: std.ArrayList(u8) = .{};
                 defer buf.deinit(self.allocator);
@@ -397,7 +406,8 @@ pub const DialogBridge = struct {
     fn showAlert(self: *Self, data: ?[]const u8) !void {
         if (data == null) return;
 
-        std.debug.print("[DialogBridge] showAlert called\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[DialogBridge] showAlert called\n", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxAlertDialog(data, "showAlert", false);
@@ -477,7 +487,8 @@ pub const DialogBridge = struct {
     fn showConfirm(self: *Self, data: ?[]const u8) !void {
         if (data == null) return;
 
-        std.debug.print("[DialogBridge] showConfirm called\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[DialogBridge] showConfirm called\n", .{});
 
         if (builtin.os.tag == .linux) {
             try self.linuxAlertDialog(data, "showConfirm", true);
@@ -542,10 +553,12 @@ pub const DialogBridge = struct {
 
             // NSAlertFirstButtonReturn = 1000
             const ok = result_int == 1000;
-            if (ok) {
-                std.debug.print("[DialogBridge] Confirm: OK clicked\n", .{});
-            } else {
-                std.debug.print("[DialogBridge] Confirm: Cancel clicked\n", .{});
+            if (comptime builtin.mode == .Debug) {
+                if (ok) {
+                    std.debug.print("[DialogBridge] Confirm: OK clicked\n", .{});
+                } else {
+                    std.debug.print("[DialogBridge] Confirm: Cancel clicked\n", .{});
+                }
             }
 
             const json = if (ok) "{\"ok\":true}" else "{\"ok\":false}";

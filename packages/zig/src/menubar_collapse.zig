@@ -6,14 +6,21 @@ const log = logging.menu;
 
 /// Menu Bar Collapse/Hide System
 ///
-/// Two NSStatusItems are created at init:
-///   1. A "separator" (toggle button showing ‹ or ›) — always visible.
-///   2. A "hider" — 10 000 px wide, starts hidden (visible=NO).
+/// Hides menu bar status items by creating a very wide (10000px) NSStatusItem
+/// with an NSVisualEffectView (.menu material) as its content. Since the hider
+/// is itself a status item (window level 25), it lives at the SAME level as
+/// other status items and blends naturally with the menu bar — no floating
+/// overlay, no visual mismatch.
 ///
-/// To collapse: hider.visible = YES  → pushes everything left off-screen.
-/// To expand:   hider.visible = NO   → items reappear.
+/// On collapse:  create hider item (10000px) with visual effect background
+/// On expand:    remove hider item entirely
+///
+/// The separator toggle (‹/›) stays persistent across collapse/expand cycles.
 
-// Objective-C runtime types
+// ============================================================================
+// Objective-C runtime
+// ============================================================================
+
 const objc = if (builtin.target.os.tag == .macos) struct {
     pub const id = ?*anyopaque;
     pub const Class = ?*anyopaque;
@@ -33,28 +40,56 @@ const objc = if (builtin.target.os.tag == .macos) struct {
     pub const SEL = *anyopaque;
 };
 
-fn getClass(name: [*:0]const u8) if (builtin.target.os.tag == .macos) objc.id else *anyopaque {
+const CGRect = extern struct {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+};
+
+// ============================================================================
+// ObjC message sending helpers
+// ============================================================================
+
+fn getClass(name: [*:0]const u8) objc.id {
     if (builtin.target.os.tag != .macos) unreachable;
-    const class_ptr = objc.objc_getClass(name);
-    return @ptrCast(@alignCast(class_ptr));
+    return @ptrCast(@alignCast(objc.objc_getClass(name)));
 }
 
-fn msgSend0(target: anytype, selector: [*:0]const u8) if (builtin.target.os.tag == .macos) objc.id else *anyopaque {
+fn msgSend0(target: anytype, sel: [*:0]const u8) objc.id {
     if (builtin.target.os.tag != .macos) unreachable;
-    const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
-    return msg(target, objc.sel_registerName(selector));
+    const f = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
+    return f(target, objc.sel_registerName(sel));
 }
 
-fn msgSend1(target: anytype, selector: [*:0]const u8, arg1: anytype) if (builtin.target.os.tag == .macos) objc.id else *anyopaque {
+fn msgSend1(target: anytype, sel: [*:0]const u8, a1: anytype) objc.id {
     if (builtin.target.os.tag != .macos) unreachable;
-    const msg = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(arg1)) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
-    return msg(target, objc.sel_registerName(selector), arg1);
+    const f = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(a1)) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
+    return f(target, objc.sel_registerName(sel), a1);
 }
 
-fn msgSendVoid1(target: anytype, selector: [*:0]const u8, arg1: anytype) void {
+fn msgSendVoid0(target: anytype, sel: [*:0]const u8) void {
     if (builtin.target.os.tag != .macos) unreachable;
-    const msg = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(arg1)) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
-    msg(target, objc.sel_registerName(selector), arg1);
+    const f = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
+    f(target, objc.sel_registerName(sel));
+}
+
+fn msgSendVoid1(target: anytype, sel: [*:0]const u8, a1: anytype) void {
+    if (builtin.target.os.tag != .macos) unreachable;
+    const f = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(a1)) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
+    f(target, objc.sel_registerName(sel), a1);
+}
+
+fn msgSendRect(target: anytype, sel: [*:0]const u8) CGRect {
+    if (builtin.target.os.tag != .macos) unreachable;
+    const f = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) CGRect, @ptrCast(&objc.objc_msgSend));
+    return f(target, objc.sel_registerName(sel));
+}
+
+fn msgSendF64(target: anytype, sel: [*:0]const u8) f64 {
+    if (builtin.target.os.tag != .macos) unreachable;
+    const f = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) f64, @ptrCast(&objc.objc_msgSend));
+    return f(target, objc.sel_registerName(sel));
 }
 
 fn createNSString(str: []const u8) objc.id {
@@ -67,8 +102,7 @@ fn createNSString(str: []const u8) objc.id {
 }
 
 fn getSystemStatusBar() objc.id {
-    const NSStatusBar = getClass("NSStatusBar");
-    return msgSend0(NSStatusBar, "systemStatusBar");
+    return msgSend0(getClass("NSStatusBar"), "systemStatusBar");
 }
 
 // ============================================================================
@@ -78,16 +112,14 @@ fn getSystemStatusBar() objc.id {
 var is_initialized: bool = false;
 var is_collapsed: bool = false;
 
-var separator_item: if (builtin.target.os.tag == .macos) objc.id else ?*anyopaque = if (builtin.target.os.tag == .macos) null else null;
-var hider_item: if (builtin.target.os.tag == .macos) objc.id else ?*anyopaque = if (builtin.target.os.tag == .macos) null else null;
-var separator_target: if (builtin.target.os.tag == .macos) objc.id else ?*anyopaque = if (builtin.target.os.tag == .macos) null else null;
+var separator_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
+var hider_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
+var separator_target: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var class_registered: bool = false;
 
 var auto_collapse_delay: u32 = 0;
 var auto_collapse_timer_active: bool = false;
 var last_expand_instant: ?std.time.Instant = null;
-
-const HIDER_WIDTH: f64 = 10000.0;
 
 // ============================================================================
 // Public API
@@ -97,11 +129,10 @@ pub fn init() void {
     if (builtin.target.os.tag != .macos) return;
     if (is_initialized) return;
 
-    std.debug.print("[Menubar] Initializing...\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Menubar] Initializing...\n", .{});
 
-    const statusBar = getSystemStatusBar();
-
-    // Register ObjC click handler class (once)
+    // Register ObjC click handler class
     if (!class_registered) {
         const NSObject = getClass("NSObject");
         const className: [*:0]const u8 = "CraftMenubarCollapseTarget";
@@ -113,9 +144,12 @@ pub fn init() void {
                 className,
                 0,
             );
-            const sel = objc.sel_registerName("separatorClicked:");
-            const imp: objc.IMP = @ptrCast(@constCast(&separatorClicked));
-            _ = objc.class_addMethod(@ptrCast(@alignCast(targetClass)), sel, imp, "v@:@");
+            _ = objc.class_addMethod(
+                @ptrCast(@alignCast(targetClass)),
+                objc.sel_registerName("separatorClicked:"),
+                @ptrCast(@constCast(&separatorClicked)),
+                "v@:@",
+            );
             objc.objc_registerClassPair(@ptrCast(@alignCast(targetClass)));
         }
 
@@ -125,45 +159,28 @@ pub fn init() void {
         class_registered = true;
     }
 
-    // 1) Create the SEPARATOR (toggle button, always visible)
+    // Create the separator toggle button (‹/›)
     const NSVariableStatusItemLength: f64 = -1.0;
-    separator_item = msgSend1(statusBar, "statusItemWithLength:", NSVariableStatusItemLength);
+    separator_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", NSVariableStatusItemLength);
     _ = msgSend0(separator_item, "retain");
     msgSendVoid1(separator_item, "setAutosaveName:", createNSString("barista_expandcollapse"));
 
-    const sep_button = msgSend0(separator_item, "button");
-    if (sep_button != null) {
-        msgSendVoid1(sep_button, "setTitle:", createNSString("\xE2\x80\xB9")); // ‹
-        msgSendVoid1(sep_button, "setTarget:", separator_target);
-        msgSendVoid1(sep_button, "setAction:", objc.sel_registerName("separatorClicked:"));
+    const btn = msgSend0(separator_item, "button");
+    if (btn != null) {
+        msgSendVoid1(btn, "setTitle:", createNSString("\xE2\x80\xB9")); // ‹
+        msgSendVoid1(btn, "setTarget:", separator_target);
+        msgSendVoid1(btn, "setAction:", objc.sel_registerName("separatorClicked:"));
     }
-
-    std.debug.print("[Menubar] Separator created: {*}\n", .{@as(?*anyopaque, separator_item)});
-
-    // 2) Create the HIDER (10000px wide, starts HIDDEN via visible=NO)
-    //    Created after separator → positioned to the LEFT of separator.
-    //    Must have button content for macOS to allocate space when visible.
-    hider_item = msgSend1(statusBar, "statusItemWithLength:", HIDER_WIDTH);
-    _ = msgSend0(hider_item, "retain");
-    msgSendVoid1(hider_item, "setAutosaveName:", createNSString("barista_separate"));
-
-    const hider_button = msgSend0(hider_item, "button");
-    if (hider_button != null) {
-        msgSendVoid1(hider_button, "setTitle:", createNSString(" "));
-    }
-
-    // Start hidden — items are visible (expanded state)
-    msgSendVoid1(hider_item, "setVisible:", @as(bool, false));
-
-    std.debug.print("[Menubar] Hider created (hidden): {*}\n", .{@as(?*anyopaque, hider_item)});
 
     is_initialized = true;
     is_collapsed = false;
 
-    std.debug.print("[Menubar] Ready\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Menubar] Ready\n", .{});
 }
 
-/// Collapse: show the 10000px hider → pushes items off-screen.
+/// Collapse: create a wide status item with a visual effect view that covers
+/// other items. Since it's a status item (level 25), it blends with the menu bar.
 pub fn collapse() void {
     if (builtin.target.os.tag != .macos) return;
     if (!is_initialized) {
@@ -172,21 +189,62 @@ pub fn collapse() void {
     }
     if (is_collapsed) return;
 
-    std.debug.print("[Menubar] Collapsing — showing hider...\n", .{});
+    // Remove any existing hider
+    if (hider_item != null) {
+        _ = msgSend1(getSystemStatusBar(), "removeStatusItem:", hider_item);
+        hider_item = null;
+    }
 
-    // Make the wide hider visible → status bar re-layouts, pushing items left
-    msgSendVoid1(hider_item, "setVisible:", @as(bool, true));
+    // Create a very wide status item — it will overlap other items at the same level
+    const hider_length: f64 = 10000.0;
+    hider_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", hider_length);
+    if (hider_item == null) {
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Menubar] Failed to create hider item\n", .{});
+        return;
+    }
+    _ = msgSend0(hider_item, "retain");
+    msgSendVoid1(hider_item, "setAutosaveName:", createNSString("barista_hider"));
+
+    // Get the button and set up a visual effect view as its content
+    const button = msgSend0(hider_item, "button");
+    if (button != null) {
+        // Clear default title
+        msgSendVoid1(button, "setTitle:", createNSString(""));
+
+        // Get the menu bar thickness for the view height
+        const thickness = msgSendF64(getSystemStatusBar(), "thickness");
+
+        // Create NSVisualEffectView matching the menu bar
+        const NSVisualEffectView = getClass("NSVisualEffectView");
+        const effect_view = msgSend1(
+            msgSend0(NSVisualEffectView, "alloc"),
+            "initWithFrame:",
+            CGRect{ .x = 0, .y = 0, .width = hider_length, .height = thickness },
+        );
+
+        // material = .menu (5), state = .active (1), blendingMode = .behindWindow (0)
+        msgSendVoid1(effect_view, "setMaterial:", @as(c_long, 5));
+        msgSendVoid1(effect_view, "setState:", @as(c_long, 1));
+        msgSendVoid1(effect_view, "setBlendingMode:", @as(c_long, 0));
+
+        // Add the visual effect view as a subview of the button
+        msgSendVoid1(button, "addSubview:", effect_view);
+
+        // Also set the button's layer to clip content
+        msgSendVoid1(button, "setWantsLayer:", @as(objc.BOOL, true));
+    }
 
     updateSeparatorIcon("\xE2\x80\xBA"); // ›
-
     is_collapsed = true;
     auto_collapse_timer_active = false;
 
-    std.debug.print("[Menubar] Collapsed\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Menubar] Collapsed\n", .{});
     notifyJS();
 }
 
-/// Expand: hide the hider → items reappear.
+/// Expand: remove the hider status item entirely.
 pub fn expand() void {
     if (builtin.target.os.tag != .macos) return;
     if (!is_initialized) {
@@ -195,12 +253,13 @@ pub fn expand() void {
     }
     if (!is_collapsed) return;
 
-    std.debug.print("[Menubar] Expanding — hiding hider...\n", .{});
-
-    msgSendVoid1(hider_item, "setVisible:", @as(bool, false));
+    if (hider_item != null) {
+        _ = msgSend1(getSystemStatusBar(), "removeStatusItem:", hider_item);
+        msgSendVoid0(hider_item, "release");
+        hider_item = null;
+    }
 
     updateSeparatorIcon("\xE2\x80\xB9"); // ‹
-
     is_collapsed = false;
 
     last_expand_instant = std.time.Instant.now() catch null;
@@ -208,22 +267,22 @@ pub fn expand() void {
         auto_collapse_timer_active = true;
     }
 
-    std.debug.print("[Menubar] Expanded\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Menubar] Expanded\n", .{});
     notifyJS();
 }
 
-/// Toggle collapsed/expanded. Auto-initializes.
 pub fn toggle() void {
     if (builtin.target.os.tag != .macos) return;
-
     if (!is_initialized) {
-        std.debug.print("[Menubar] Auto-init on toggle\n", .{});
         init();
         if (!is_initialized) return;
     }
-
-    std.debug.print("[Menubar] Toggle (collapsed={})\n", .{is_collapsed});
     if (is_collapsed) expand() else collapse();
+}
+
+pub fn cleanup() void {
+    if (is_collapsed) expand();
 }
 
 pub fn isCollapsed() bool {
@@ -249,19 +308,17 @@ pub fn checkAutoCollapse() void {
         if (is_collapsed) auto_collapse_timer_active = false;
         return;
     }
-
     const start = last_expand_instant orelse return;
     const now = std.time.Instant.now() catch return;
     const elapsed_ns = now.since(start);
     const delay_ns: u64 = @as(u64, auto_collapse_delay) * std.time.ns_per_s;
-
     if (elapsed_ns >= delay_ns) {
         collapse();
     }
 }
 
 // ============================================================================
-// Internal
+// Internal helpers
 // ============================================================================
 
 fn updateSeparatorIcon(icon: []const u8) void {
@@ -282,6 +339,7 @@ fn notifyJS() void {
 }
 
 fn separatorClicked(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
-    std.debug.print("[Menubar] Separator clicked\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Menubar] Separator clicked\n", .{});
     toggle();
 }

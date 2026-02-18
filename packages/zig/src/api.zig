@@ -364,7 +364,8 @@ pub fn Result(comptime T: type, comptime E: type) type {
             return switch (self) {
                 .ok => |val| val,
                 .err => |e| {
-                    std.debug.print("Expected ok value: {s}. Got error: {}\n", .{ msg, e });
+                    if (comptime @import("builtin").mode == .Debug)
+                        std.debug.print("Expected ok value: {s}. Got error: {}\n", .{ msg, e });
                     @panic("expect() failed");
                 },
             };

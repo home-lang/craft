@@ -15,9 +15,7 @@ pub const AppBridge = struct {
 
     /// Handle app-related messages from JavaScript
     pub fn handleMessage(self: *Self, action: []const u8) !void {
-        self.handleMessageWithData(action, null) catch |err| {
-            std.debug.print("[AppBridge] Error handling {s}: {}\n", .{ action, err });
-        };
+        self.handleMessageWithData(action, null) catch {};
     }
 
     pub fn handleMessageWithData(self: *Self, action: []const u8, data: ?[]const u8) !void {
@@ -36,7 +34,8 @@ pub const AppBridge = struct {
         } else if (std.mem.eql(u8, action, "bounce")) {
             try self.bounce();
         } else {
-            std.debug.print("[AppBridge] Unknown action: {s}\n", .{action});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[AppBridge] Unknown action: {s}\n", .{action});
         }
     }
 
@@ -51,7 +50,8 @@ pub const AppBridge = struct {
             const NSApplicationActivationPolicyAccessory: c_long = 1;
             _ = macos.msgSend1(app, "setActivationPolicy:", NSApplicationActivationPolicyAccessory);
 
-            std.debug.print("[Bridge] Dock icon hidden\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[Bridge] Dock icon hidden\n", .{});
         }
     }
 
@@ -66,13 +66,18 @@ pub const AppBridge = struct {
             const NSApplicationActivationPolicyRegular: c_long = 0;
             _ = macos.msgSend1(app, "setActivationPolicy:", NSApplicationActivationPolicyRegular);
 
-            std.debug.print("[Bridge] Dock icon shown\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[Bridge] Dock icon shown\n", .{});
         }
     }
 
     fn quit(self: *Self) !void {
         _ = self;
         if (builtin.os.tag == .macos) {
+            // Restore any hidden menubar items before quitting
+            const menubar_collapse = @import("menubar_collapse.zig");
+            menubar_collapse.cleanup();
+
             const macos = @import("macos.zig");
             const NSApplication = macos.getClass("NSApplication");
             const app = macos.msgSend0(NSApplication, "sharedApplication");
@@ -86,7 +91,8 @@ pub const AppBridge = struct {
         _ = self;
         // This would return app info as JSON
         // For now, just log it
-        std.debug.print("[Bridge] App info requested\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] App info requested\n", .{});
     }
 
     fn notify(self: *Self, data: ?[]const u8) !void {
@@ -112,12 +118,14 @@ pub const AppBridge = struct {
             }
         }
 
-        std.debug.print("[AppBridge] Sending notification: {s} - {s}\n", .{ title, body });
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[AppBridge] Sending notification: {s} - {s}\n", .{ title, body });
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
             macos.showNotification(title, body) catch |err| {
-                std.debug.print("[AppBridge] Notification error: {}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[AppBridge] Notification error: {}\n", .{err});
             };
         }
     }

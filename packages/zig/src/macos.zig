@@ -81,6 +81,7 @@ pub const WindowStyle = struct {
     system_tray_title: ?[]const u8 = null, // Initial title for system tray
     dev_tools: bool = true, // Enable WebKit DevTools (inspector)
     native_sidebar: bool = false, // Enable native sidebar (injects sidebar UI script)
+    benchmark: bool = false, // Benchmark mode: skip bridge setup for fastest window creation
 };
 
 // Helper functions for Objective-C runtime
@@ -250,7 +251,8 @@ fn getBorderlessWindowClass() objc.Class {
     BorderlessWindowClass = objc.objc_allocateClassPair(NSWindow, "CraftBorderlessWindow", 0);
 
     if (BorderlessWindowClass == null) {
-        std.debug.print("[Window] Failed to create CraftBorderlessWindow class\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Window] Failed to create CraftBorderlessWindow class\n", .{});
         return NSWindow;
     }
 
@@ -288,24 +290,15 @@ pub fn createWindowWithURL(title: []const u8, width: u32, height: u32, url: []co
 }
 
 pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?[]const u8, url: ?[]const u8, style: WindowStyle) !objc.id {
-    // Get classes
-    const NSApplication = getClass("NSApplication");
+    // Get classes (lazy-resolve URL classes only when needed)
     const NSWindow = getClass("NSWindow");
     const NSString = getClass("NSString");
-    const NSURL = getClass("NSURL");
-    const NSURLRequest = getClass("NSURLRequest");
     const WKWebView = getClass("WKWebView");
     const WKPreferences = getClass("WKPreferences");
     const WKWebViewConfiguration = getClass("WKWebViewConfiguration");
     const WKUserContentController = getClass("WKUserContentController");
 
     // Note: Activation policy is set in initApp(), NOT here!
-    // We must not call setActivationPolicy after finishLaunching has been called
-    // (which happens in initApp before window creation)
-
-    // Get shared application (just to check, not to modify)
-    const app = msgSend0(NSApplication, "sharedApplication");
-    _ = app; // We get it but don't modify activation policy here anymore
 
     // Create window frame
     const frame = NSRect{
@@ -404,16 +397,18 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
     }
 
-    // Configure toolbar style for Liquid Glass
-    // NSWindowToolbarStyleUnified = 1 - Creates unified toolbar that works with glass materials
-    _ = msgSend1(window, "setToolbarStyle:", @as(c_long, 1));
+    // Configure toolbar style and vibrancy (skip in benchmark mode for faster startup)
+    if (!style.benchmark) {
+        // NSWindowToolbarStyleUnified = 1 - Creates unified toolbar that works with glass materials
+        _ = msgSend1(window, "setToolbarStyle:", @as(c_long, 1));
 
-    // Configure window for vibrancy - allow NSVisualEffectView to show through
-    _ = msgSend1(window, "setOpaque:", @as(c_int, 0)); // NO - window is not opaque
-    const clearColor = msgSend0(getClass("NSColor"), "clearColor");
-    _ = msgSend1(window, "setBackgroundColor:", clearColor);
+        // Configure window for vibrancy - allow NSVisualEffectView to show through
+        _ = msgSend1(window, "setOpaque:", @as(c_int, 0)); // NO - window is not opaque
+        const clearColor = msgSend0(getClass("NSColor"), "clearColor");
+        _ = msgSend1(window, "setBackgroundColor:", clearColor);
+    }
 
-    // Create WebView configuration with DevTools enabled
+    // Create WebView configuration
     const config_alloc = msgSend0(WKWebViewConfiguration, "alloc");
     const config = msgSend0(config_alloc, "init");
 
@@ -430,11 +425,12 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         msgSendVoid2(prefs, "setValue:forKey:", value_obj, key_str);
     }
 
-    // Enable camera and microphone access for getUserMedia()
-    // javaScriptCanAccessClipboard is needed for some media-related APIs
-    const clipboard_key = createNSString("javaScriptCanAccessClipboard");
-    const clipboard_value = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
-    msgSendVoid2(prefs, "setValue:forKey:", clipboard_value, clipboard_key);
+    // Enable clipboard access only when dev tools / full features are enabled
+    if (style.dev_tools) {
+        const clipboard_key = createNSString("javaScriptCanAccessClipboard");
+        const clipboard_value = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
+        msgSendVoid2(prefs, "setValue:forKey:", clipboard_value, clipboard_key);
+    }
 
     _ = msgSend1(config, "setPreferences:", prefs);
 
@@ -444,48 +440,61 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     // Set up user content controller for JavaScript bridge
     const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
 
-    // CRITICAL: For URL loading, we MUST use WKUserScript to inject the bridge
-    // For HTML loading, we inject directly into the HTML string (more reliable for loadHTMLString)
-    if (url != null) {
-        // Inject bridge scripts via WKUserScript for URL loading
-        const WKUserScript = getClass("WKUserScript");
-        const bridge_js = getCraftBridgeScript();
+    // Skip bridge injection and message handler in benchmark mode for fastest startup
+    if (!style.benchmark) {
+        // CRITICAL: For URL loading, we MUST use WKUserScript to inject the bridge
+        // For HTML loading, we inject directly into the HTML string (more reliable for loadHTMLString)
+        if (url != null) {
+            // Inject bridge scripts via WKUserScript for URL loading
+            const WKUserScript = getClass("WKUserScript");
+            const bridge_js = if (style.system_tray) getCraftBridgeScriptFull() else getCraftBridgeScriptMinimal();
 
-        // Create bridge script
-        const bridge_js_str = createNSString(bridge_js);
-        const bridge_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", bridge_js_str, @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
-            @as(c_int, 1) // YES - main frame only
-        );
-        _ = msgSend1(userContentController, "addUserScript:", bridge_script);
-
-        // Only inject native UI script when native sidebar is enabled
-        if (style.native_sidebar) {
-            const native_ui_js = getNativeUIScript();
-            const native_ui_js_str = createNSString(native_ui_js);
-            const native_ui_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", native_ui_js_str, @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
+            // Create bridge script
+            const bridge_js_str = createNSString(bridge_js);
+            const bridge_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", bridge_js_str, @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
                 @as(c_int, 1) // YES - main frame only
             );
-            _ = msgSend1(userContentController, "addUserScript:", native_ui_script);
-        }
-    }
-    // NOTE: For HTML loading, we inject the bridge script directly into the HTML instead of using WKUserScript
-    // because WKUserScript doesn't reliably inject when using loadHTMLString with null baseURL
+            _ = msgSend1(userContentController, "addUserScript:", bridge_script);
 
-    // Set up the script message handler NOW (not later)
-    setupScriptMessageHandler(userContentController) catch |err| {
-        std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
-    };
+            // Only inject native UI script when native sidebar is enabled
+            if (style.native_sidebar) {
+                const native_ui_js = getNativeUIScript();
+                const native_ui_js_str = createNSString(native_ui_js);
+                const native_ui_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", native_ui_js_str, @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
+                    @as(c_int, 1) // YES - main frame only
+                );
+                _ = msgSend1(userContentController, "addUserScript:", native_ui_script);
+            }
+        }
+
+        // Set up the script message handler
+        setupScriptMessageHandler(userContentController) catch |err| {
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
+        };
+    }
 
     _ = msgSend1(config, "setUserContentController:", userContentController);
+
+    // Use non-persistent data store to avoid disk I/O overhead at startup
+    const WKWebsiteDataStore = getClass("WKWebsiteDataStore");
+    const nonPersistentStore = msgSend0(WKWebsiteDataStore, "nonPersistentDataStore");
+    _ = msgSend1(config, "setWebsiteDataStore:", nonPersistentStore);
+
+    // Suppress incremental rendering to reduce peak memory during page load
+    msgSendVoid1(config, "setSuppressesIncrementalRendering:", true);
 
     // Create WKWebView with configuration
     const webview_alloc = msgSend0(WKWebView, "alloc");
     const webview = msgSend2(webview_alloc, "initWithFrame:configuration:", frame, config);
 
-    // Set up UI delegate for camera/microphone permission handling
-    setupUIDelegate(webview) catch |err| {
-        std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
-    };
+    // Set up UI delegate for camera/microphone permission handling (skip if not needed)
+    if (style.dev_tools) {
+        setupUIDelegate(webview) catch |err| {
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
+        };
+    }
 
     // Load content - either URL or HTML
     if (url) |u| {
@@ -495,13 +504,13 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         const url_str_alloc = msgSend0(NSString, "alloc");
         const url_str = msgSend1(url_str_alloc, "initWithUTF8String:", url_cstr.ptr);
 
-        const nsurl = msgSend1(NSURL, "URLWithString:", url_str);
-        const request = msgSend1(NSURLRequest, "requestWithURL:", nsurl);
+        const nsurl = msgSend1(getClass("NSURL"), "URLWithString:", url_str);
+        const request = msgSend1(getClass("NSURLRequest"), "requestWithURL:", nsurl);
         _ = msgSend1(webview, "loadRequest:", request);
     } else if (html) |h| {
         // CRITICAL FIX: WKUserScript doesn't reliably inject with loadHTMLString when baseURL is null
         // So we inject the bridge script directly into the HTML before loading
-        const bridge_js = getCraftBridgeScript();
+        const bridge_js = if (style.system_tray) getCraftBridgeScriptFull() else getCraftBridgeScriptMinimal();
         const native_ui_js = if (style.native_sidebar) getNativeUIScript() else "";
 
         // Find </head> tag and inject script before it
@@ -546,7 +555,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // Create a baseURL - use http://localhost to avoid security restrictions
         // about:blank has restrictions on evaluateJavaScript from native code
         const base_url_string = createNSString("http://localhost/");
-        const base_url = msgSend1(NSURL, "URLWithString:", base_url_string);
+        const base_url = msgSend1(getClass("NSURL"), "URLWithString:", base_url_string);
 
         _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, base_url);
     }
@@ -585,23 +594,26 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     // NSViewWidthSizable = 2, NSViewHeightSizable = 16
     msgSendVoid1(webview, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
 
-    // Store webview and window references globally
-    if (webview) |wv| {
-        setGlobalWebView(wv);
-        // Also set references for tray menu actions
-        const tray_menu = @import("tray_menu.zig");
-        tray_menu.setGlobalWebView(wv);
-        if (window) |win| {
-            tray_menu.setGlobalWindow(win);
+    // In benchmark mode, skip bridge setup and global refs for fastest window creation
+    if (!style.benchmark) {
+        // Store webview and window references globally
+        if (webview) |wv| {
+            setGlobalWebView(wv);
+            // Also set references for tray menu actions
+            const tray_menu = @import("tray_menu.zig");
+            tray_menu.setGlobalWebView(wv);
+            if (window) |win| {
+                tray_menu.setGlobalWindow(win);
+            }
         }
-    }
 
-    // Setup bridge handlers (need allocator and handles)
-    // We'll use a global allocator for now
-    const allocator = std.heap.c_allocator;
-    setupBridgeHandlers(allocator, null, window) catch |err| {
-        std.debug.print("[Bridge] Failed to setup bridge handlers: {}\n", .{err});
-    };
+        // Setup bridge handlers (need allocator and handles)
+        const allocator = std.heap.c_allocator;
+        setupBridgeHandlers(allocator, null, window) catch |err| {
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[Bridge] Failed to setup bridge handlers: {}\n", .{err});
+        };
+    }
 
     // Apply dark mode if specified
     if (style.dark_mode) |is_dark| {
@@ -656,7 +668,8 @@ fn setupSidebarDataSource() !objc.id {
     }
 
     if (sidebarDataSourceClass == null) {
-        std.debug.print("[NativeSidebar] Creating data source class...\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeSidebar] Creating data source class...\n", .{});
 
         // Create the class
         sidebarDataSourceClass = objc.objc_allocateClassPair(NSObject, className, 0);
@@ -731,12 +744,14 @@ fn setupSidebarDataSource() !objc.id {
         );
 
         objc.objc_registerClassPair(sidebarDataSourceClass);
-        std.debug.print("[NativeSidebar] Data source class registered\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeSidebar] Data source class registered\n", .{});
     }
 
     // Create instance
     const instance = msgSend0(msgSend0(sidebarDataSourceClass, "alloc"), "init");
-    std.debug.print("[NativeSidebar] Data source instance created\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Data source instance created\n", .{});
 
     return instance;
 }
@@ -805,7 +820,8 @@ fn getSidebarSections() []const DynamicSidebarSection {
 
 /// Parse JSON sidebar configuration
 fn parseSidebarConfig(json: []const u8) !void {
-    std.debug.print("[NativeSidebar] Parsing sidebar config ({d} bytes)\n", .{json.len});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Parsing sidebar config ({d} bytes)\n", .{json.len});
 
     // Use a simple allocator for parsing
     var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
@@ -814,14 +830,16 @@ fn parseSidebarConfig(json: []const u8) !void {
 
     // Parse JSON using std.json
     const parsed = std.json.parseFromSlice(std.json.Value, allocator, json, .{}) catch |err| {
-        std.debug.print("[NativeSidebar] JSON parse error: {}\n", .{err});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeSidebar] JSON parse error: {}\n", .{err});
         return err;
     };
     const root = parsed.value;
 
     // Extract sections array
     const sections_json = root.object.get("sections") orelse {
-        std.debug.print("[NativeSidebar] No 'sections' field in config\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeSidebar] No 'sections' field in config\n", .{});
         return;
     };
 
@@ -867,7 +885,8 @@ fn parseSidebarConfig(json: []const u8) !void {
     }
 
     dynamic_sections = sections;
-    std.debug.print("[NativeSidebar] Parsed {d} sections from config\n", .{sections.len});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Parsed {d} sections from config\n", .{sections.len});
 }
 
 // NSOutlineViewDataSource: numberOfChildrenOfItem
@@ -998,7 +1017,8 @@ fn sidebarSelectionDidChange(
 
     const child = &section.items[item_idx];
 
-    std.debug.print("[NativeSidebar] Selection changed: section={s}, item={s}\n", .{ section.id, child.id });
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Selection changed: section={s}, item={s}\n", .{ section.id, child.id });
 
     // Navigate to URL if item has one
     if (sidebar_webview != null and child.url != null) {
@@ -1007,7 +1027,8 @@ fn sidebarSelectionDidChange(
         const nsurl = msgSend1(NSURL, "URLWithString:", url_str);
         const request = msgSend1(getClass("NSURLRequest"), "requestWithURL:", nsurl);
         _ = msgSend1(sidebar_webview, "loadRequest:", request);
-        std.debug.print("[NativeSidebar] Navigating to: {s}\n", .{child.url.?});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeSidebar] Navigating to: {s}\n", .{child.url.?});
     } else if (sidebar_webview != null) {
         // Send event to WebView if no URL (legacy behavior)
         var js_buf: [1024]u8 = undefined;
@@ -1206,7 +1227,8 @@ fn getSidebarRowViewClass() objc.Class {
     sidebarRowViewClass = objc.objc_allocateClassPair(NSTableRowView, "CraftSidebarRowView", 0);
 
     if (sidebarRowViewClass == null) {
-        std.debug.print("[NativeSidebar] Failed to create CraftSidebarRowView class\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeSidebar] Failed to create CraftSidebarRowView class\n", .{});
         return NSTableRowView;
     }
 
@@ -1235,7 +1257,8 @@ fn getSidebarRowViewClass() objc.Class {
     );
 
     objc.objc_registerClassPair(sidebarRowViewClass);
-    std.debug.print("[NativeSidebar] Custom row view class registered\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Custom row view class registered\n", .{});
 
     return sidebarRowViewClass;
 }
@@ -1435,7 +1458,8 @@ pub fn createWindowWithSidebar(
     // Parse sidebar config if provided
     if (sidebar_config_json) |json| {
         parseSidebarConfig(json) catch |err| {
-            std.debug.print("[NativeSidebar] Failed to parse sidebar config: {}\n", .{err});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeSidebar] Failed to parse sidebar config: {}\n", .{err});
         };
     }
     const NSApplication = getClass("NSApplication");
@@ -1453,7 +1477,8 @@ pub fn createWindowWithSidebar(
     const WKUserContentController = getClass("WKUserContentController");
 
     _ = NSApplication;
-    std.debug.print("[NativeSidebar] Creating window with native macOS sidebar...\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Creating window with native macOS sidebar...\n", .{});
 
     // Create window frame
     const frame = NSRect{
@@ -1512,7 +1537,8 @@ pub fn createWindowWithSidebar(
     _ = msgSend1(window, "setToolbar:", toolbar);
     _ = msgSend1(window, "setToolbarStyle:", @as(c_long, 3)); // NSWindowToolbarStyleUnifiedCompact = 3
 
-    std.debug.print("[NativeSidebar] Window created with toolbar for traffic lights\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Window created with toolbar for traffic lights\n", .{});
 
     // ========================================
     // Create NSSplitViewController
@@ -1541,7 +1567,8 @@ pub fn createWindowWithSidebar(
     _ = msgSend1(scrollView, "setDrawsBackground:", @as(c_int, 1));
     msgSendVoid1(scrollView, "setAutoresizingMask:", @as(c_ulong, 2 | 16)); // Width + Height
 
-    std.debug.print("[NativeSidebar] Created NSScrollView for sidebar\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Created NSScrollView for sidebar\n", .{});
 
     // Create NSOutlineView with source list style
     const outlineView_alloc = msgSend0(NSOutlineView, "alloc");
@@ -1568,7 +1595,8 @@ pub fn createWindowWithSidebar(
     _ = msgSend1(outlineView, "addTableColumn:", column);
     _ = msgSend1(outlineView, "setOutlineTableColumn:", column);
 
-    std.debug.print("[NativeSidebar] Created NSOutlineView with source list style\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Created NSOutlineView with source list style\n", .{});
 
     // Setup data source and delegate for the outline view
     const dataSource = try setupSidebarDataSource();
@@ -1580,7 +1608,8 @@ pub fn createWindowWithSidebar(
 
     // Expand all root items (sections)
     const numRows = msgSendNSInteger(outlineView, "numberOfRows");
-    std.debug.print("[NativeSidebar] Number of rows after reload: {d}\n", .{numRows});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Number of rows after reload: {d}\n", .{numRows});
 
     // Expand root items
     var i: c_long = 0;
@@ -1591,7 +1620,8 @@ pub fn createWindowWithSidebar(
         }
     }
 
-    std.debug.print("[NativeSidebar] Data source configured with demo items\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Data source configured with demo items\n", .{});
 
     // Set outline view as document view of scroll view
     _ = msgSend1(scrollView, "setDocumentView:", outlineView);
@@ -1615,9 +1645,10 @@ pub fn createWindowWithSidebar(
     // Add sidebar to split view controller
     _ = msgSend1(splitVC, "addSplitViewItem:", sidebarItem);
 
-    std.debug.print("[NativeSidebar] Sidebar item added to split view controller\n", .{});
-
-    std.debug.print("[NativeSidebar] Sidebar view controller configured\n", .{});
+    if (comptime builtin.mode == .Debug) {
+        std.debug.print("[NativeSidebar] Sidebar item added to split view controller\n", .{});
+        std.debug.print("[NativeSidebar] Sidebar view controller configured\n", .{});
+    }
 
     // ========================================
     // Create Content (WebView) View Controller
@@ -1645,7 +1676,8 @@ pub fn createWindowWithSidebar(
     // Set up user content controller
     const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
     setupScriptMessageHandler(userContentController) catch |err| {
-        std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
     };
     _ = msgSend1(config, "setUserContentController:", userContentController);
 
@@ -1655,11 +1687,12 @@ pub fn createWindowWithSidebar(
 
     // Setup UI delegate
     setupUIDelegate(webview) catch |err| {
-        std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
     };
 
-    // Load HTML content with bridge injection
-    const bridge_js = getCraftBridgeScript();
+    // Load HTML content with bridge injection - sidebar always uses full bridge
+    const bridge_js = getCraftBridgeScriptFull();
     const native_ui_js = getNativeUIScript();
 
     var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, html.len + bridge_js.len + native_ui_js.len + 100);
@@ -1692,7 +1725,8 @@ pub fn createWindowWithSidebar(
     const base_url = msgSend1(getClass("NSURL"), "URLWithString:", base_url_string);
     _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, base_url);
 
-    std.debug.print("[NativeSidebar] WebView created and HTML loaded\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] WebView created and HTML loaded\n", .{});
 
     // Store WebView reference for sidebar events
     sidebar_webview = webview;
@@ -1706,7 +1740,8 @@ pub fn createWindowWithSidebar(
     const contentItem = msgSend1(NSSplitViewItem, "contentListWithViewController:", contentVC);
     _ = msgSend1(splitVC, "addSplitViewItem:", contentItem);
 
-    std.debug.print("[NativeSidebar] Content view controller configured\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Content view controller configured\n", .{});
 
     // ========================================
     // Set split view controller as window's content
@@ -1739,10 +1774,12 @@ pub fn createWindowWithSidebar(
 
     // Setup bridge handlers
     setupBridgeHandlers(std.heap.c_allocator, null, window) catch |err| {
-        std.debug.print("[Bridge] Failed to setup bridge handlers: {}\n", .{err});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Failed to setup bridge handlers: {}\n", .{err});
     };
 
-    std.debug.print("[NativeSidebar] ✓ Window with native sidebar created successfully\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] ✓ Window with native sidebar created successfully\n", .{});
 
     return window;
 }
@@ -1848,9 +1885,11 @@ pub fn createWindowWithSidebarURL(
 ) !objc.id {
     // Parse sidebar config if provided
     if (sidebar_config) |config| {
-        std.debug.print("[NativeSidebar] Parsing sidebar config ({d} bytes)\n", .{config.len});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeSidebar] Parsing sidebar config ({d} bytes)\n", .{config.len});
         parseSidebarConfig(config) catch |err| {
-            std.debug.print("[NativeSidebar] Failed to parse config: {}\n", .{err});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeSidebar] Failed to parse config: {}\n", .{err});
         };
     }
 
@@ -1919,7 +1958,8 @@ pub fn createWindowWithSidebarURL(
     _ = msgSend1(window, "setToolbar:", toolbar);
     _ = msgSend1(window, "setToolbarStyle:", @as(c_long, 3)); // NSWindowToolbarStyleUnifiedCompact = 3
 
-    std.debug.print("[NativeSidebar] Window created with toolbar\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Window created with toolbar\n", .{});
 
     // ========================================
     // TAHOE-STYLE FLOATING SIDEBAR
@@ -1975,7 +2015,8 @@ pub fn createWindowWithSidebarURL(
 
     const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
     setupScriptMessageHandler(userContentController) catch |err| {
-        std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
     };
 
     // Inject bridge script with sidebar width for CSS env variable
@@ -1999,7 +2040,8 @@ pub fn createWindowWithSidebarURL(
     const webview = msgSend2(webview_alloc, "initWithFrame:configuration:", contentFrame, config);
 
     setupUIDelegate(webview) catch |err| {
-        std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
     };
 
     msgSendVoid1(webview, "setAutoresizingMask:", @as(c_ulong, 2 | 16 | 4)); // Width + Height + Left margin flexible
@@ -2010,7 +2052,8 @@ pub fn createWindowWithSidebarURL(
     const request = msgSend1(getClass("NSURLRequest"), "requestWithURL:", nsurl);
     _ = msgSend1(webview, "loadRequest:", request);
 
-    std.debug.print("[NativeSidebar] WebView loading URL (full window): {s}\n", .{url});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] WebView loading URL (full window): {s}\n", .{url});
 
     sidebar_webview = webview;
 
@@ -2069,7 +2112,8 @@ pub fn createWindowWithSidebarURL(
         const shadowColor = msgSend4(NSColor, "colorWithRed:green:blue:alpha:", @as(f64, 0.0), @as(f64, 0.0), @as(f64, 0.0), @as(f64, 1.0));
         _ = msgSend1(sidebarLayer, "setShadowColor:", msgSend0(shadowColor, "CGColor"));
 
-        std.debug.print("[NativeSidebar] Floating sidebar with shadow created\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeSidebar] Floating sidebar with shadow created\n", .{});
     }
 
     // Create scroll view for sidebar content
@@ -2131,7 +2175,8 @@ pub fn createWindowWithSidebarURL(
     // Set main container as window content view
     _ = msgSend1(window, "setContentView:", mainContainer);
 
-    std.debug.print("[NativeSidebar] Tahoe-style floating sidebar configured\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] Tahoe-style floating sidebar configured\n", .{});
 
     // Center window
     if (style.x == null or style.y == null) {
@@ -2149,10 +2194,12 @@ pub fn createWindowWithSidebarURL(
     }
 
     setupBridgeHandlers(std.heap.c_allocator, null, window) catch |err| {
-        std.debug.print("[Bridge] Failed to setup bridge handlers: {}\n", .{err});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Failed to setup bridge handlers: {}\n", .{err});
     };
 
-    std.debug.print("[NativeSidebar] ✓ Window with native sidebar (URL mode) created\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[NativeSidebar] ✓ Window with native sidebar (URL mode) created\n", .{});
 
     // Make visible
     _ = msgSend1(window, "makeKeyAndOrderFront:", @as(?*anyopaque, null));
@@ -2582,365 +2629,130 @@ pub fn getGlobalWebView() ?objc.id {
 // JavaScript Bridge Injection
 // ============================================================================
 
-/// Generate the complete Craft JavaScript bridge to inject into WebViews
-fn getCraftBridgeScript() []const u8 {
-    return 
-    \\ // Craft JavaScript Bridge - Auto-injected
+/// Generate the minimal Craft JavaScript bridge (core only, no tray/menubar/polling)
+fn getCraftBridgeScriptMinimal() []const u8 {
+    return
     \\ (function() {
-    \\   console.log('[Craft] Initializing JavaScript bridge...');
-    \\
-    \\   // Define the bridge API immediately (so it's available for use)
     \\   window.craft = window.craft || {};
-    \\   window.__craftBridgePending = window.__craftBridgePending || {};
+    \\   window.__craftBridgePending = {};
     \\   window.__craftBridgeResult = function(action, payload) {
-    \\     try {
-    \\       const pendingMap = window.__craftBridgePending || {};
-    \\       const queue = pendingMap[action];
-    \\       if (queue && queue.length > 0) {
-    \\         const entry = queue.shift();
-    \\         if (entry && typeof entry.resolve === 'function') {
-    \\           entry.resolve(payload || {});
-    \\         }
-    \\       }
-    \\     } catch (e) {
-    \\       console.error('[Craft] Bridge result handler error:', e);
-    \\     }
+    \\     var q = (window.__craftBridgePending[action] || []);
+    \\     if (q.length > 0) { var e = q.shift(); if (e && e.resolve) e.resolve(payload || {}); }
     \\   };
-    \\   window.__craftBridgeError = function(error) {
-    \\     try {
-    \\       console.error('[Craft] Bridge error from native:', error);
-    \\       const pendingMap = window.__craftBridgePending || {};
-    \\       Object.keys(pendingMap).forEach((key) => {
-    \\         const queue = pendingMap[key];
-    \\         if (Array.isArray(queue)) {
-    \\           while (queue.length > 0) {
-    \\             const entry = queue.shift();
-    \\             if (entry && typeof entry.reject === 'function') {
-    \\               entry.reject(error);
-    \\             }
-    \\           }
-    \\         }
-    \\       });
-    \\       window.__craftBridgePending = {};
-    \\     } catch (e) {
-    \\       console.error('[Craft] Bridge error handler failure:', e);
-    \\     }
+    \\   window.__craftBridgeError = function(err) {
+    \\     var p = window.__craftBridgePending || {};
+    \\     Object.keys(p).forEach(function(k) {
+    \\       var q = p[k]; if (Array.isArray(q)) while (q.length > 0) { var e = q.shift(); if (e && e.reject) e.reject(err); }
+    \\     });
+    \\     window.__craftBridgePending = {};
     \\   };
-    \\
-    \\   // ===== TRAY API =====
-    \\   window.craft.tray = {
-    \\     async setTitle(title) {
-    \\       if (typeof title !== 'string') throw new TypeError('Title must be a string');
-    \\       if (title.length > 20) {
-    \\         console.warn('Tray title truncated to 20 characters');
-    \\         title = title.substring(0, 20);
-    \\       }
-    \\       return new Promise((resolve, reject) => {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'tray', action: 'setTitle', data: title
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error(`Failed to set tray title: ${error.message}`));
-    \\         }
-    \\       });
-    \\     },
-    \\     async setTooltip(tooltip) {
-    \\       if (typeof tooltip !== 'string') throw new TypeError('Tooltip must be a string');
-    \\       return new Promise((resolve, reject) => {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'tray', action: 'setTooltip', data: tooltip
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error(`Failed to set tray tooltip: ${error.message}`));
-    \\         }
-    \\       });
-    \\     },
-    \\     async setMenu(items) {
-    \\       if (!Array.isArray(items)) throw new TypeError('Menu items must be an array');
-    \\       return new Promise((resolve, reject) => {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'tray', action: 'setMenu', data: JSON.stringify(items)
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error(`Failed to set tray menu: ${error.message}`));
-    \\         }
-    \\       });
-    \\     },
-    \\     onClick(callback) {
-    \\       if (typeof callback !== 'function') throw new TypeError('Callback must be a function');
-    \\       const handler = (event) => {
-    \\         callback({
-    \\           button: event.detail?.button || 'left',
-    \\           timestamp: event.detail?.timestamp || Date.now(),
-    \\           modifiers: event.detail?.modifiers || {}
-    \\         });
-    \\       };
-    \\       if (!window.__craft_tray_handlers) window.__craft_tray_handlers = [];
-    \\       window.__craft_tray_handlers.push(handler);
-    \\       window.addEventListener('craft:tray:click', handler);
-    \\       return () => {
-    \\         const index = window.__craft_tray_handlers.indexOf(handler);
-    \\         if (index > -1) window.__craft_tray_handlers.splice(index, 1);
-    \\         window.removeEventListener('craft:tray:click', handler);
-    \\       };
-    \\     },
-    \\     onClickToggleWindow() {
-    \\       return this.onClick(() => { window.craft.window.toggle(); });
-    \\     }
-    \\   };
-    \\
-    \\   // ===== WINDOW API =====
+    \\   function _m(t, a, d) {
+    \\     return new Promise(function(ok, no) {
+    \\       try { window.webkit.messageHandlers.craft.postMessage({t:t,a:a,d:d||''}); ok(); } catch(e) { no(e); }
+    \\     });
+    \\   }
     \\   window.craft.window = {
-    \\     async show() {
-    \\       return new Promise((resolve, reject) => {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'window', action: 'show'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error(`Failed to show window: ${error.message}`));
-    \\         }
-    \\       });
-    \\     },
-    \\     async hide() {
-    \\       return new Promise((resolve, reject) => {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'window', action: 'hide'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error(`Failed to hide window: ${error.message}`));
-    \\         }
-    \\       });
-    \\     },
-    \\     async toggle() {
-    \\       return new Promise((resolve, reject) => {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'window', action: 'toggle'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error(`Failed to toggle window: ${error.message}`));
-    \\         }
-    \\       });
-    \\     },
-    \\     async minimize() {
-    \\       return new Promise((resolve, reject) => {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'window', action: 'minimize'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error(`Failed to minimize window: ${error.message}`));
-    \\         }
-    \\       });
-    \\     },
-    \\     async close() {
-    \\       return new Promise((resolve, reject) => {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'window', action: 'close'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error(`Failed to close window: ${error.message}`));
-    \\         }
-    \\       });
-    \\     }
+    \\     show: function() { return _m('window','show'); },
+    \\     hide: function() { return _m('window','hide'); },
+    \\     toggle: function() { return _m('window','toggle'); },
+    \\     minimize: function() { return _m('window','minimize'); },
+    \\     close: function() { return _m('window','close'); }
     \\   };
-    \\
-    \\   // ===== APP API =====
     \\   window.craft.app = {
-    \\     async hideDockIcon() {
-    \\       return new Promise((resolve, reject) => {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'app', action: 'hideDockIcon'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error(`Failed to hide dock icon: ${error.message}`));
-    \\         }
-    \\       });
-    \\     },
-    \\     async showDockIcon() {
-    \\       return new Promise((resolve, reject) => {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'app', action: 'showDockIcon'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error(`Failed to show dock icon: ${error.message}`));
-    \\         }
-    \\       });
-    \\     },
-    \\     async quit() {
-    \\       return new Promise((resolve, reject) => {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'app', action: 'quit'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error(`Failed to quit: ${error.message}`));
-    \\         }
-    \\       });
-    \\     }
+    \\     hideDockIcon: function() { return _m('app','hideDockIcon'); },
+    \\     showDockIcon: function() { return _m('app','showDockIcon'); },
+    \\     quit: function() { return _m('app','quit'); }
     \\   };
-    \\
-    \\   // ===== MENUBAR COLLAPSE API =====
-    \\   window.craft.menubar = {
-    \\     async init() {
-    \\       return new Promise(function(resolve, reject) {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'menubarCollapse', action: 'init'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error('Failed to init menubar collapse: ' + error.message));
-    \\         }
-    \\       });
-    \\     },
-    \\     async collapse() {
-    \\       return new Promise(function(resolve, reject) {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'menubarCollapse', action: 'collapse'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error('Failed to collapse menubar: ' + error.message));
-    \\         }
-    \\       });
-    \\     },
-    \\     async expand() {
-    \\       return new Promise(function(resolve, reject) {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'menubarCollapse', action: 'expand'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error('Failed to expand menubar: ' + error.message));
-    \\         }
-    \\       });
-    \\     },
-    \\     async toggle() {
-    \\       return new Promise(function(resolve, reject) {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'menubarCollapse', action: 'toggle'
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error('Failed to toggle menubar: ' + error.message));
-    \\         }
-    \\       });
-    \\     },
-    \\     async getState() {
-    \\       return new Promise(function(resolve, reject) {
-    \\         try {
-    \\           var pending = window.__craftBridgePending;
-    \\           if (!pending['menubarCollapse:getState']) pending['menubarCollapse:getState'] = [];
-    \\           pending['menubarCollapse:getState'].push({ resolve: resolve, reject: reject });
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'menubarCollapse', action: 'getState'
-    \\           });
-    \\         } catch (error) {
-    \\           reject(new Error('Failed to get menubar state: ' + error.message));
-    \\         }
-    \\       });
-    \\     },
-    \\     async setAutoCollapse(seconds) {
-    \\       return new Promise(function(resolve, reject) {
-    \\         try {
-    \\           window.webkit.messageHandlers.craft.postMessage({
-    \\             type: 'menubarCollapse', action: 'setAutoCollapse', data: String(seconds)
-    \\           });
-    \\           resolve();
-    \\         } catch (error) {
-    \\           reject(new Error('Failed to set auto-collapse: ' + error.message));
-    \\         }
-    \\       });
-    \\     },
-    \\     onStateChange(callback) {
-    \\       var handler = function(event) {
-    \\         callback(event.detail || {});
-    \\       };
-    \\       window.addEventListener('craft:menubar:stateChange', handler);
-    \\       return function() { window.removeEventListener('craft:menubar:stateChange', handler); };
-    \\     }
-    \\   };
-    \\
-    \\   // Fire the ready event and manually trigger any event listeners
-    \\   // Since loadHTMLString doesn't reliably execute body scripts, we need a workaround
     \\   function fireReady() {
-    \\     console.log('[Craft] JavaScript bridge ready - firing craft:ready event');
     \\     window.dispatchEvent(new CustomEvent('craft:ready'));
-    \\
-    \\     // WORKAROUND: If body scripts don't load, manually check for initialization functions
-    \\     // Look for a global init function that may have been defined
-    \\     if (typeof window.initializeCraftApp === 'function') {
-    \\       window.initializeCraftApp();
-    \\     }
+    \\     if (typeof window.initializeCraftApp === 'function') window.initializeCraftApp();
     \\   }
-    \\
-    \\   // Try multiple strategies to ensure scripts execute
-    \\   if (document.readyState === 'loading') {
-    \\     document.addEventListener('DOMContentLoaded', fireReady);
-    \\   } else if (document.readyState === 'interactive') {
-    \\     // DOM parsed but resources loading
-    \\     setTimeout(fireReady, 100);
-    \\   } else {
-    \\     // Already complete
-    \\     fireReady();
+    \\   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fireReady);
+    \\   else fireReady();
+    \\ })();
+    ;
+}
+
+/// Generate the full Craft JavaScript bridge (includes tray, menubar, polling)
+fn getCraftBridgeScriptFull() []const u8 {
+    return
+    \\ (function() {
+    \\   window.craft = window.craft || {};
+    \\   window.__craftBridgePending = {};
+    \\   window.__craftBridgeResult = function(action, payload) {
+    \\     var q = (window.__craftBridgePending[action] || []);
+    \\     if (q.length > 0) { var e = q.shift(); if (e && e.resolve) e.resolve(payload || {}); }
+    \\   };
+    \\   window.__craftBridgeError = function(err) {
+    \\     var p = window.__craftBridgePending || {};
+    \\     Object.keys(p).forEach(function(k) {
+    \\       var q = p[k]; if (Array.isArray(q)) while (q.length > 0) { var e = q.shift(); if (e && e.reject) e.reject(err); }
+    \\     });
+    \\     window.__craftBridgePending = {};
+    \\   };
+    \\   function _m(t, a, d) {
+    \\     return new Promise(function(ok, no) {
+    \\       try { window.webkit.messageHandlers.craft.postMessage({t:t,a:a,d:d||''}); ok(); } catch(e) { no(e); }
+    \\     });
     \\   }
-    \\
-    \\   // ===== POLLING FOR MENU ACTIONS =====
-    \\   // evaluateJavaScript doesn't work from menu callbacks, so we poll
-    \\   window.__craftDeliverAction = function(action) {
-    \\     if (action && action.length > 0) {
-    \\       console.log('[Craft] Polled menu action:', action);
-    \\       window.dispatchEvent(new CustomEvent('craft:tray:menuAction', {
-    \\         detail: { action: action }
-    \\       }));
+    \\   window.craft.tray = {
+    \\     setTitle: function(t) { if (t.length > 20) t = t.substring(0,20); return _m('tray','setTitle',t); },
+    \\     setTooltip: function(t) { return _m('tray','setTooltip',t); },
+    \\     setMenu: function(items) { return _m('tray','setMenu',JSON.stringify(items)); },
+    \\     onClick: function(cb) {
+    \\       var h = function(e) { cb({button:e.detail?.button||'left',timestamp:e.detail?.timestamp||Date.now(),modifiers:e.detail?.modifiers||{}}); };
+    \\       if (!window.__craft_tray_handlers) window.__craft_tray_handlers = [];
+    \\       window.__craft_tray_handlers.push(h);
+    \\       window.addEventListener('craft:tray:click', h);
+    \\       return function() { var i = window.__craft_tray_handlers.indexOf(h); if (i > -1) window.__craft_tray_handlers.splice(i,1); window.removeEventListener('craft:tray:click',h); };
+    \\     },
+    \\     onClickToggleWindow: function() { return this.onClick(function() { window.craft.window.toggle(); }); }
+    \\   };
+    \\   window.craft.window = {
+    \\     show: function() { return _m('window','show'); },
+    \\     hide: function() { return _m('window','hide'); },
+    \\     toggle: function() { return _m('window','toggle'); },
+    \\     minimize: function() { return _m('window','minimize'); },
+    \\     close: function() { return _m('window','close'); }
+    \\   };
+    \\   window.craft.app = {
+    \\     hideDockIcon: function() { return _m('app','hideDockIcon'); },
+    \\     showDockIcon: function() { return _m('app','showDockIcon'); },
+    \\     quit: function() { return _m('app','quit'); }
+    \\   };
+    \\   window.craft.menubar = {
+    \\     init: function() { return _m('menubarCollapse','init'); },
+    \\     collapse: function() { return _m('menubarCollapse','collapse'); },
+    \\     expand: function() { return _m('menubarCollapse','expand'); },
+    \\     toggle: function() { return _m('menubarCollapse','toggle'); },
+    \\     getState: function() {
+    \\       return new Promise(function(ok, no) {
+    \\         try {
+    \\           var p = window.__craftBridgePending;
+    \\           if (!p['menubarCollapse:getState']) p['menubarCollapse:getState'] = [];
+    \\           p['menubarCollapse:getState'].push({resolve:ok,reject:no});
+    \\           window.webkit.messageHandlers.craft.postMessage({t:'menubarCollapse',a:'getState'});
+    \\         } catch(e) { no(e); }
+    \\       });
+    \\     },
+    \\     setAutoCollapse: function(s) { return _m('menubarCollapse','setAutoCollapse',String(s)); },
+    \\     onStateChange: function(cb) {
+    \\       var h = function(e) { cb(e.detail||{}); };
+    \\       window.addEventListener('craft:menubar:stateChange',h);
+    \\       return function() { window.removeEventListener('craft:menubar:stateChange',h); };
     \\     }
     \\   };
-    \\
-    \\   setInterval(function() {
-    \\     try {
-    \\       window.webkit.messageHandlers.craft.postMessage({
-    \\         type: 'tray',
-    \\         action: 'pollActions',
-    \\         data: ''
-    \\       });
-    \\     } catch (e) {
-    \\       // Ignore polling errors
-    \\     }
-    \\   }, 100);
-    \\
-    \\   // Poll for menubar auto-collapse (every 2 seconds is fine for this)
-    \\   setInterval(function() {
-    \\     try {
-    \\       window.webkit.messageHandlers.craft.postMessage({
-    \\         type: 'menubarCollapse',
-    \\         action: 'poll',
-    \\         data: ''
-    \\       });
-    \\     } catch (e) {}
-    \\   }, 2000);
+    \\   function fireReady() {
+    \\     window.dispatchEvent(new CustomEvent('craft:ready'));
+    \\     if (typeof window.initializeCraftApp === 'function') window.initializeCraftApp();
+    \\   }
+    \\   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fireReady);
+    \\   else fireReady();
+    \\   window.__craftDeliverAction = function(a) {
+    \\     if (a && a.length > 0) window.dispatchEvent(new CustomEvent('craft:tray:menuAction',{detail:{action:a}}));
+    \\   };
+    \\   setInterval(function() { try { window.webkit.messageHandlers.craft.postMessage({t:'tray',a:'pollActions',d:''}); } catch(e) {} }, 100);
+    \\   setInterval(function() { try { window.webkit.messageHandlers.craft.postMessage({t:'menubarCollapse',a:'poll',d:''}); } catch(e) {} }, 2000);
     \\ })();
     ;
 }
@@ -3067,19 +2879,24 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
 
     // Set handles - use parameter or global
     const tray_h = tray_handle orelse global_tray_handle_for_bridge;
-    std.debug.print("[Bridge] setupBridgeHandlers: tray_handle param={*}, global={*}, resolved={*}\n", .{ @as(?*anyopaque, tray_handle), global_tray_handle_for_bridge, tray_h });
+    if (comptime builtin.mode == .Debug) {
+        std.debug.print("[Bridge] setupBridgeHandlers: tray_handle param={*}, global={*}, resolved={*}\n", .{ @as(?*anyopaque, tray_handle), global_tray_handle_for_bridge, tray_h });
+    }
     if (tray_h) |handle| {
-        std.debug.print("[Bridge] Setting tray handle on bridge: {*}\n", .{handle});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Setting tray handle on bridge: {*}\n", .{handle});
         global_tray_bridge.?.setTrayHandle(handle);
 
         // Auto-initialize menubar collapse system for tray apps
         const menubar_collapse = @import("menubar_collapse.zig");
         if (!menubar_collapse.isInitialized()) {
-            std.debug.print("[Bridge] Auto-initializing menubar collapse for tray app\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[Bridge] Auto-initializing menubar collapse for tray app\n", .{});
             menubar_collapse.init();
         }
     } else {
-        std.debug.print("[Bridge] WARNING: No tray handle available!\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] WARNING: No tray handle available!\n", .{});
     }
 
     if (window_handle) |handle| {
@@ -3099,7 +2916,8 @@ pub fn tryEvalJS(js_code: []const u8) !void {
         const webview_id: objc.id = @ptrFromInt(@intFromPtr(webview));
         const js_str = createNSString(js_code);
         _ = msgSend2(webview_id, "evaluateJavaScript:completionHandler:", js_str, null);
-        std.debug.print("[Bridge] Executed JS: {s}\n", .{js_code});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Executed JS: {s}\n", .{js_code});
     } else {
         return error.NoWebView;
     }
@@ -3173,27 +2991,32 @@ fn jsonValueToString(allocator: std.mem.Allocator, value: std.json.Value) ![]con
 /// Handle properly formatted JSON messages
 pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
     // Skip logging pollActions to reduce noise
-    if (std.mem.indexOf(u8, json_str, "pollActions") == null) {
-        std.debug.print("[Bridge] Received JSON message: {s}\n", .{json_str});
+    if (comptime builtin.mode == .Debug) {
+        if (std.mem.indexOf(u8, json_str, "pollActions") == null) {
+            std.debug.print("[Bridge] Received JSON message: {s}\n", .{json_str});
+        }
     }
 
     // Parse JSON to extract type, action, and data
     const allocator = std.heap.c_allocator;
     const parsed = std.json.parseFromSlice(std.json.Value, allocator, json_str, .{}) catch |err| {
-        std.debug.print("[Bridge] JSON parse error: {any}\n", .{err});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] JSON parse error: {any}\n", .{err});
         return err;
     };
     defer parsed.deinit();
 
     const root = parsed.value.object;
 
-    // Extract type and action
-    const msg_type_val = root.get("type") orelse {
-        std.debug.print("[Bridge] Missing 'type' field in JSON\n", .{});
+    // Extract type and action (short keys: t, a, d)
+    const msg_type_val = root.get("t") orelse {
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Missing 't' field in JSON\n", .{});
         return error.MissingType;
     };
-    const action_val = root.get("action") orelse {
-        std.debug.print("[Bridge] Missing 'action' field in JSON\n", .{});
+    const action_val = root.get("a") orelse {
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Missing 'a' field in JSON\n", .{});
         return error.MissingAction;
     };
 
@@ -3203,7 +3026,7 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
     // Extract data if present - could be string, object, array, or missing
     var data_json_str: []const u8 = "";
     var data_needs_free: bool = false;
-    if (root.get("data")) |data_val| {
+    if (root.get("d")) |data_val| {
         switch (data_val) {
             // If data is already a string, use it directly (common case for JSON data)
             .string => |s| {
@@ -3281,13 +3104,16 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         }
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages
-        if (root.get("message")) |msg_val| {
-            std.debug.print("[JS Debug] {s}\n", .{msg_val.string});
-        } else if (root.get("msg")) |msg_val| {
-            std.debug.print("[JS Debug] {s}\n", .{msg_val.string});
+        if (comptime builtin.mode == .Debug) {
+            if (root.get("message")) |msg_val| {
+                std.debug.print("[JS Debug] {s}\n", .{msg_val.string});
+            } else if (root.get("msg")) |msg_val| {
+                std.debug.print("[JS Debug] {s}\n", .{msg_val.string});
+            }
         }
     } else {
-        std.debug.print("Unknown message type: {s}\n", .{msg_type});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("Unknown message type: {s}\n", .{msg_type});
     }
 }
 
@@ -3297,8 +3123,10 @@ pub fn handleBridgeMessage(message_json: []const u8) !void {
     // Or JSON format: {"type":"tray","action":"setTitle","data":"text"}
 
     // Skip logging pollActions to reduce noise
-    if (std.mem.indexOf(u8, message_json, "pollActions") == null) {
-        std.debug.print("[Bridge] Received message: {s}\n", .{message_json});
+    if (comptime builtin.mode == .Debug) {
+        if (std.mem.indexOf(u8, message_json, "pollActions") == null) {
+            std.debug.print("[Bridge] Received message: {s}\n", .{message_json});
+        }
     }
 
     var type_start: usize = 0;
@@ -3384,7 +3212,8 @@ pub fn handleBridgeMessage(message_json: []const u8) !void {
     }
 
     if (type_end == 0 or action_end == 0) {
-        std.debug.print("[Bridge] Invalid message format (missing type or action)\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Invalid message format (missing type or action)\n", .{});
         return;
     }
 
@@ -3447,7 +3276,8 @@ pub fn handleBridgeMessage(message_json: []const u8) !void {
                     const msg_start = start + 1;
                     if (std.mem.indexOfPos(u8, message_json, msg_start, "\"")) |msg_end| {
                         const debug_msg = message_json[msg_start..msg_end];
-                        std.debug.print("[JS Debug] {s}\n", .{debug_msg});
+                        if (comptime builtin.mode == .Debug)
+                            std.debug.print("[JS Debug] {s}\n", .{debug_msg});
                     }
                 }
             }
@@ -3459,13 +3289,15 @@ pub fn handleBridgeMessage(message_json: []const u8) !void {
                     const msg_start = start + 1;
                     if (std.mem.indexOfPos(u8, message_json, msg_start, "\"")) |msg_end| {
                         const debug_msg = message_json[msg_start..msg_end];
-                        std.debug.print("[JS Debug] {s}\n", .{debug_msg});
+                        if (comptime builtin.mode == .Debug)
+                            std.debug.print("[JS Debug] {s}\n", .{debug_msg});
                     }
                 }
             }
         }
     } else {
-        std.debug.print("Unknown message type: {s}\n", .{msg_type});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("Unknown message type: {s}\n", .{msg_type});
     }
 }
 
@@ -3486,12 +3318,14 @@ export fn didReceiveScriptMessage(self: objc.id, _: objc.SEL, userContentControl
 
     if (json_data == null) {
         // Fallback to description format if JSON serialization fails
-        std.debug.print("[Bridge] Failed to serialize to JSON, using description format\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Failed to serialize to JSON, using description format\n", .{});
         const description = msgSend0(body, "description");
         const cstr = @as([*:0]const u8, @ptrCast(msgSend0(description, "UTF8String")));
         const desc_str = std.mem.span(cstr);
         handleBridgeMessage(desc_str) catch |err| {
-            std.debug.print("[Bridge] Error handling message: {}\n", .{err});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[Bridge] Error handling message: {}\n", .{err});
         };
         return;
     }
@@ -3503,7 +3337,8 @@ export fn didReceiveScriptMessage(self: objc.id, _: objc.SEL, userContentControl
     const initialized_string = msgSend2(json_string, "initWithData:encoding:", json_data, NSUTF8StringEncoding);
 
     if (initialized_string == null) {
-        std.debug.print("[Bridge] Failed to convert JSON data to string\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Failed to convert JSON data to string\n", .{});
         return;
     }
 
@@ -3513,7 +3348,8 @@ export fn didReceiveScriptMessage(self: objc.id, _: objc.SEL, userContentControl
 
     // Now handle the properly formatted JSON
     handleBridgeMessageJSON(json_str) catch |err| {
-        std.debug.print("[Bridge] Error handling JSON message: {}\n", .{err});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Error handling JSON message: {}\n", .{err});
     };
 
     // Release the NSString
@@ -3522,7 +3358,8 @@ export fn didReceiveScriptMessage(self: objc.id, _: objc.SEL, userContentControl
 
 /// Create and register the script message handler with WKUserContentController
 pub fn setupScriptMessageHandler(userContentController: objc.id) !void {
-    std.debug.print("[Bridge] Setting up WKScriptMessageHandler...\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Bridge] Setting up WKScriptMessageHandler...\n", .{});
 
     // Create a custom class at runtime that implements WKScriptMessageHandler
     const superclass = getClass("NSObject");
@@ -3536,7 +3373,8 @@ pub fn setupScriptMessageHandler(userContentController: objc.id) !void {
         handlerClass = objc.objc_allocateClassPair(@ptrCast(superclass), className, 0);
 
         if (handlerClass == null) {
-            std.debug.print("[Bridge] Failed to allocate class pair\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[Bridge] Failed to allocate class pair\n", .{});
             return error.ClassAllocationFailed;
         }
 
@@ -3551,13 +3389,16 @@ pub fn setupScriptMessageHandler(userContentController: objc.id) !void {
             method_types,
         );
 
-        if (!method_added) {
-            std.debug.print("[Bridge] Failed to add method\n", .{});
+        if (comptime builtin.mode == .Debug) {
+            if (!method_added) {
+                std.debug.print("[Bridge] Failed to add method\n", .{});
+            }
         }
 
         // Register the class
         objc.objc_registerClassPair(@ptrCast(handlerClass));
-        std.debug.print("[Bridge] Registered CraftScriptMessageHandler class\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Bridge] Registered CraftScriptMessageHandler class\n", .{});
     }
 
     // Create an instance of our handler
@@ -3568,7 +3409,8 @@ pub fn setupScriptMessageHandler(userContentController: objc.id) !void {
     const handler_name = createNSString("craft");
     msgSendVoid2(userContentController, "addScriptMessageHandler:name:", handler, handler_name);
 
-    std.debug.print("[Bridge] Script message handler registered successfully\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Bridge] Script message handler registered successfully\n", .{});
 }
 
 // ============================================================================
@@ -3602,7 +3444,8 @@ fn handleMediaCapturePermission(
         2 => "camera+microphone",
         else => "unknown",
     };
-    std.debug.print("[Media] Permission requested for: {s}\n", .{media_type_str});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Media] Permission requested for: {s}\n", .{media_type_str});
 
     // Grant permission by calling decisionHandler with WKPermissionDecisionGrant (1)
     // WKPermissionDecision:
@@ -3640,13 +3483,15 @@ fn handleMediaCapturePermission(
         const block: *BlockLayout = @ptrCast(@alignCast(handler));
         // Call the block with WKPermissionDecisionGrant (1)
         block.invoke(handler, 1);
-        std.debug.print("[Media] Permission granted for {s}\n", .{media_type_str});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Media] Permission granted for {s}\n", .{media_type_str});
     }
 }
 
 /// Set up WKUIDelegate to handle media capture permission requests
 pub fn setupUIDelegate(webview: objc.id) !void {
-    std.debug.print("[Media] Setting up WKUIDelegate for media permissions...\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Media] Setting up WKUIDelegate for media permissions...\n", .{});
 
     // Create a custom class at runtime that implements WKUIDelegate
     const superclass = getClass("NSObject");
@@ -3660,7 +3505,8 @@ pub fn setupUIDelegate(webview: objc.id) !void {
         delegateClass = objc.objc_allocateClassPair(@ptrCast(superclass), className, 0);
 
         if (delegateClass == null) {
-            std.debug.print("[Media] Failed to allocate UI delegate class pair\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[Media] Failed to allocate UI delegate class pair\n", .{});
             return error.ClassAllocationFailed;
         }
 
@@ -3678,15 +3524,18 @@ pub fn setupUIDelegate(webview: objc.id) !void {
             method_types,
         );
 
-        if (!method_added) {
-            std.debug.print("[Media] Failed to add media permission method\n", .{});
-        } else {
-            std.debug.print("[Media] Added webView:requestMediaCapturePermissionForOrigin:... method\n", .{});
+        if (comptime builtin.mode == .Debug) {
+            if (!method_added) {
+                std.debug.print("[Media] Failed to add media permission method\n", .{});
+            } else {
+                std.debug.print("[Media] Added webView:requestMediaCapturePermissionForOrigin:... method\n", .{});
+            }
         }
 
         // Register the class
         objc.objc_registerClassPair(@ptrCast(delegateClass));
-        std.debug.print("[Media] Registered CraftUIDelegate class\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Media] Registered CraftUIDelegate class\n", .{});
     }
 
     // Create an instance of our delegate
@@ -3696,7 +3545,8 @@ pub fn setupUIDelegate(webview: objc.id) !void {
     // Set the UI delegate on the webview
     msgSendVoid1(webview, "setUIDelegate:", delegate);
 
-    std.debug.print("[Media] UI delegate set successfully - camera/microphone permissions enabled\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Media] UI delegate set successfully - camera/microphone permissions enabled\n", .{});
 }
 
 // ============================================================================

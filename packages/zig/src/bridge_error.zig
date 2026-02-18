@@ -171,7 +171,8 @@ pub fn errorMessage(err: BridgeError) []const u8 {
 pub fn sendErrorToJS(allocator: std.mem.Allocator, action: []const u8, err: BridgeError) void {
     const ctx = ErrorContext.init(err, action, errorMessage(err));
     const json = ctx.toJSON(allocator) catch {
-        std.debug.print("[BridgeError] Failed to serialize error\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[BridgeError] Failed to serialize error\n", .{});
         return;
     };
     defer allocator.free(json);
@@ -182,17 +183,20 @@ pub fn sendErrorToJS(allocator: std.mem.Allocator, action: []const u8, err: Brid
         // Build JavaScript to call error handler
         var js_buf: [1024]u8 = undefined;
         const js = std.fmt.bufPrint(&js_buf, "if(window.__craftBridgeError)window.__craftBridgeError({s});", .{json}) catch {
-            std.debug.print("[BridgeError] Failed to format JS\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[BridgeError] Failed to format JS\n", .{});
             return;
         };
 
         macos.tryEvalJS(js) catch |eval_err| {
-            std.debug.print("[BridgeError] Failed to send error to JS: {}\n", .{eval_err});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[BridgeError] Failed to send error to JS: {}\n", .{eval_err});
         };
     }
 
     // Always log to console
-    std.debug.print("[BridgeError] {s}: {s} - {s}\n", .{ action, errorCodeString(err), errorMessage(err) });
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[BridgeError] {s}: {s} - {s}\n", .{ action, errorCodeString(err), errorMessage(err) });
 }
 
 /// Send success result to JavaScript
@@ -205,19 +209,19 @@ pub fn sendResultToJS(allocator: std.mem.Allocator, action: []const u8, result_j
         const js_len = js_template.len + action.len + result_json.len;
 
         const js_buf = allocator.alloc(u8, js_len) catch {
-            std.debug.print("[BridgeResult] Failed to allocate JS buffer\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[BridgeResult] Failed to allocate JS buffer\n", .{});
             return;
         };
         defer allocator.free(js_buf);
 
         const js = std.fmt.bufPrint(js_buf, js_template, .{ action, result_json }) catch {
-            std.debug.print("[BridgeResult] Failed to format JS\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[BridgeResult] Failed to format JS\n", .{});
             return;
         };
 
-        macos.tryEvalJS(js) catch |eval_err| {
-            std.debug.print("[BridgeResult] Failed to send result to JS: {}\n", .{eval_err});
-        };
+        macos.tryEvalJS(js) catch {};
     }
 }
 

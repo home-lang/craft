@@ -9,19 +9,18 @@
  *   Each app is launched in benchmark mode and auto-quits after initialization.
  *   We measure wall-clock time from spawn to exit.
  *
- *   - Craft:    --benchmark flag: creates window, prints "ready", exits immediately
- *   - Electron: BENCHMARK=1 env: quits after `did-finish-load` (HTML fully parsed)
- *   - Tauri:    BENCHMARK=1 env: quits ~50ms after setup() (window created)
- *
- * Requirements:
- *   Craft:    Build the Zig binary (cd packages/zig && zig build)
- *   Electron: Install deps (cd benchmarks/apps/electron && bun install)
- *   Tauri:    Build binary (cd benchmarks/apps/tauri/src-tauri && cargo build --release)
+ *   - Craft:        --benchmark flag: creates window, prints "ready", exits immediately
+ *   - Electron:     BENCHMARK=1 env: quits after `did-finish-load` (HTML fully parsed)
+ *   - Tauri:        BENCHMARK=1 env: quits ~50ms after setup() (window created)
+ *   - Electrobun:   BENCHMARK=1 env: quits ~50ms after window creation
+ *   - React Native: BENCHMARK=1 env: quits ~100ms after applicationDidFinishLaunching
  */
 import { join } from 'node:path'
 import {
   checkFrameworks,
   findCraftBinary,
+  findElectrobunApp,
+  findRNMacOSBinary,
   findTauriBinary,
   header,
 } from './utils'
@@ -182,6 +181,26 @@ const tauriBin = findTauriBinary()
 if (tauriBin) {
   console.log('  Measuring Tauri...')
   const r = await measureAutoQuit('Tauri', [tauriBin], {
+    env: { BENCHMARK: '1' },
+  })
+  results.push(r)
+}
+
+// --- Electrobun ---
+const electrobunBin = findElectrobunApp()
+if (electrobunBin) {
+  console.log('  Measuring Electrobun...')
+  const r = await measureAutoQuit('Electrobun', [electrobunBin], {
+    env: { BENCHMARK: '1' },
+  })
+  results.push(r)
+}
+
+// --- React Native macOS ---
+const rnBin = findRNMacOSBinary()
+if (rnBin) {
+  console.log('  Measuring React Native macOS...')
+  const r = await measureAutoQuit('React Native', [rnBin], {
     env: { BENCHMARK: '1' },
   })
   results.push(r)

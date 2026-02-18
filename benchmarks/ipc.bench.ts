@@ -8,8 +8,8 @@
  * All three frameworks use JSON serialization when crossing the JS <-> native
  * boundary. The difference is the MESSAGE FORMAT (envelope structure):
  *
- * - Craft:    Flat envelope via WebKit message handlers
- *             Request:  { type, action, data }
+ * - Craft:    Minimal envelope via WebKit message handlers
+ *             Request:  { t, a, d }  (single-char keys for minimal overhead)
  *             Response: raw result (no envelope — callback invoked directly)
  *
  * - Tauri:    Invoke-style envelope via WebKit message handlers + serde
@@ -41,12 +41,12 @@ const DATA = {
 boxplot(() => {
   summary(() => {
     bench('Craft', () => {
-      // Craft's WebKit bridge: flat JSON envelope
+      // Craft's WebKit bridge: minimal JSON envelope with single-char keys
       // JS -> native: webkit.messageHandlers.craft.postMessage(json)
       const request = JSON.stringify({
-        type: 'window',
-        action: 'updateTitle',
-        data: DATA,
+        t: 'window',
+        a: 'updateTitle',
+        d: DATA,
       })
       const parsed = JSON.parse(request)
 
@@ -55,7 +55,7 @@ boxplot(() => {
       const response = JSON.stringify({ ok: true })
       JSON.parse(response)
 
-      return parsed.action
+      return parsed.a
     })
 
     bench('Tauri', () => {
@@ -113,14 +113,14 @@ boxplot(() => {
     bench('Craft - 1k messages', () => {
       let sum = 0
       for (let i = 0; i < 1000; i++) {
-        // Flat request envelope
+        // Minimal request envelope with single-char keys
         const wire = JSON.stringify({
-          type: 'event',
-          action: 'update',
-          data: { value: i },
+          t: 'event',
+          a: 'update',
+          d: { value: i },
         })
         const msg = JSON.parse(wire)
-        sum += msg.data.value
+        sum += msg.d.value
       }
       return sum
     })

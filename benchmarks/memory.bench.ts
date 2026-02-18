@@ -18,6 +18,8 @@ import { join } from 'node:path'
 import {
   checkFrameworks,
   findCraftBinary,
+  findElectrobunApp,
+  findRNMacOSBinary,
   findTauriBinary,
   formatBytes,
   getProcessRSS,
@@ -141,6 +143,34 @@ if (tauriBin) {
   }
   if (samples.length > 0) {
     results.push({ framework: 'Tauri', samples, median: median(samples) })
+  }
+}
+
+// --- Electrobun ---
+const electrobunBin = findElectrobunApp()
+if (electrobunBin) {
+  const samples: number[] = []
+  for (let i = 0; i < SAMPLES; i++) {
+    const rss = await measureRSS([electrobunBin])
+    if (rss > 0) samples.push(rss)
+    process.stdout.write(`  Electrobun sample ${i + 1}/${SAMPLES}: ${formatBytes(rss * 1024)}\n`)
+  }
+  if (samples.length > 0) {
+    results.push({ framework: 'Electrobun', samples, median: median(samples) })
+  }
+}
+
+// --- React Native macOS ---
+const rnBin = findRNMacOSBinary()
+if (rnBin) {
+  const samples: number[] = []
+  for (let i = 0; i < SAMPLES; i++) {
+    const rss = await measureRSS([rnBin])
+    if (rss > 0) samples.push(rss)
+    process.stdout.write(`  React Native sample ${i + 1}/${SAMPLES}: ${formatBytes(rss * 1024)}\n`)
+  }
+  if (samples.length > 0) {
+    results.push({ framework: 'React Native', samples, median: median(samples) })
   }
 }
 

@@ -272,23 +272,27 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     const NSVariableStatusItemLength: f64 = -1.0;
     const statusItem = msgSend1(systemStatusBar, "statusItemWithLength:", NSVariableStatusItemLength);
 
-    std.debug.print("[Tray] Created status item with variable length\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Tray] Created status item with variable length\n", .{});
 
     // Get the button
     const button = msgSend0(statusItem, "button");
     if (button == null) {
-        std.debug.print("[Tray] ERROR: button is null!\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Tray] ERROR: button is null!\n", .{});
         return error.ButtonCreationFailed;
     }
 
-    std.debug.print("[Tray] Got button: {*}\n", .{button});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Tray] Got button: {*}\n", .{button});
 
     // Set initial title with null-terminated string
     const text_to_display = icon_text orelse title;
 
     var allocator = std.heap.c_allocator;
     const text_z = allocator.dupeZ(u8, text_to_display) catch |err| {
-        std.debug.print("[Tray] Error creating null-terminated title: {}\n", .{err});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Tray] Error creating null-terminated title: {}\n", .{err});
         return error.AllocationFailed;
     };
     defer allocator.free(text_z);
@@ -297,13 +301,15 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     const titleStr = msgSend1(NSString, "stringWithUTF8String:", text_z.ptr);
     msgSendVoid1(button, "setTitle:", titleStr);
 
-    std.debug.print("[Tray] Set button title to: {s}\n", .{text_to_display});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Tray] Set button title to: {s}\n", .{text_to_display});
 
     // Make sure the status item is visible
     const visible: c_int = 1;
     msgSendVoid1(statusItem, "setVisible:", visible);
 
-    std.debug.print("[Tray] Status item visibility set\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Tray] Status item visibility set\n", .{});
 
     // Create a default menu with basic items
     const NSMenu = objc.objc_getClass("NSMenu");
@@ -354,7 +360,8 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
 
     // Attach default menu
     _ = msgSend1(statusItem, "setMenu:", defaultMenu);
-    std.debug.print("[Tray] Created with default menu (with actions)\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Tray] Created with default menu (with actions)\n", .{});
 
     // Retain the status item so it doesn't get deallocated
     _ = msgSend0(statusItem, "retain");
@@ -408,7 +415,8 @@ pub fn macosSetTitle(handle: *anyopaque, title: []const u8) !void {
     // Mark the button as needing display
     msgSendVoid1(button, "setNeedsDisplay:", @as(bool, true));
 
-    std.debug.print("[Tray] Title updated: {s}\n", .{title});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Tray] Title updated: {s}\n", .{title});
 }
 
 pub fn macosSetTooltip(handle: *anyopaque, tooltip: []const u8) !void {
@@ -439,7 +447,8 @@ pub fn macosHide(handle: *anyopaque) void {
 
     // Set visible to NO
     msgSendVoid1(statusItem, "setVisible:", @as(c_int, 0));
-    std.debug.print("[Tray] Status item hidden\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Tray] Status item hidden\n", .{});
 }
 
 pub fn macosShow(handle: *anyopaque) void {
@@ -449,7 +458,8 @@ pub fn macosShow(handle: *anyopaque) void {
 
     // Set visible to YES
     msgSendVoid1(statusItem, "setVisible:", @as(c_int, 1));
-    std.debug.print("[Tray] Status item shown\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Tray] Status item shown\n", .{});
 }
 
 fn macosDestroy(handle: *anyopaque) void {
@@ -472,14 +482,17 @@ pub fn macosSetMenu(handle: *anyopaque, menu: *anyopaque) !void {
     const statusItem: objc.id = @ptrFromInt(@intFromPtr(handle));
     const nsMenu: objc.id = @ptrFromInt(@intFromPtr(menu));
 
-    std.debug.print("[Tray] Setting menu on status item\n", .{});
-    std.debug.print("[Tray] Status item: {*}\n", .{statusItem});
-    std.debug.print("[Tray] Menu: {*}\n", .{nsMenu});
+    if (comptime builtin.mode == .Debug) {
+        std.debug.print("[Tray] Setting menu on status item\n", .{});
+        std.debug.print("[Tray] Status item: {*}\n", .{statusItem});
+        std.debug.print("[Tray] Menu: {*}\n", .{nsMenu});
+    }
 
     // Set the menu on the status item
     _ = msgSend1(statusItem, "setMenu:", nsMenu);
 
-    std.debug.print("[Tray] Menu set successfully\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Tray] Menu set successfully\n", .{});
 }
 
 fn macosSetIcon(handle: *anyopaque, icon_path: []const u8) !void {
@@ -658,7 +671,8 @@ fn windowsRegisterDragTypes(handle: *anyopaque, types: []const []const u8) void 
     //
     // For now, log that drag types were registered
     // Full implementation would need access to the HWND from WindowsTray
-    std.debug.print("[Tray] Windows drag types registered (stub)\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Tray] Windows drag types registered (stub)\n", .{});
 }
 
 // ============================================================================
@@ -680,5 +694,6 @@ fn linuxRegisterDragTypes(handle: *anyopaque, types: []const []const u8) void {
     // gtk_drag_dest_set(widget, GTK_DEST_DEFAULT_ALL, &target_entry, 1, GDK_ACTION_COPY);
     //
     // For now, log that drag types were registered
-    std.debug.print("[Tray] Linux drag types registered (stub)\n", .{});
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Tray] Linux drag types registered (stub)\n", .{});
 }

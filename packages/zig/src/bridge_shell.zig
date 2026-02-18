@@ -96,7 +96,8 @@ pub const ShellBridge = struct {
 
         if (command.len == 0) return BridgeError.MissingData;
 
-        std.debug.print("[ShellBridge] exec: {s}\n", .{command});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[ShellBridge] exec: {s}\n", .{command});
 
         // Build argv array directly
         const argv = [_][]const u8{ "/bin/sh", "-c", command };
@@ -175,7 +176,8 @@ pub const ShellBridge = struct {
 
         if (id.len == 0 or command.len == 0) return BridgeError.MissingData;
 
-        std.debug.print("[ShellBridge] spawn: {s} -> {s}\n", .{ id, command });
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[ShellBridge] spawn: {s} -> {s}\n", .{ id, command });
 
         // Build argv array directly
         const argv = [_][]const u8{ "/bin/sh", "-c", command };
@@ -217,7 +219,8 @@ pub const ShellBridge = struct {
 
         if (id.len == 0) return BridgeError.MissingData;
 
-        std.debug.print("[ShellBridge] kill: {s}\n", .{id});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[ShellBridge] kill: {s}\n", .{id});
 
         if (self.processes.getPtr(id)) |entry| {
             if (entry.child) |*child| {
@@ -245,7 +248,8 @@ pub const ShellBridge = struct {
 
         if (url.len == 0) return BridgeError.MissingData;
 
-        std.debug.print("[ShellBridge] openUrl: {s}\n", .{url});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[ShellBridge] openUrl: {s}\n", .{url});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -283,7 +287,8 @@ pub const ShellBridge = struct {
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        std.debug.print("[ShellBridge] openPath: {s}\n", .{path});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[ShellBridge] openPath: {s}\n", .{path});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -320,7 +325,8 @@ pub const ShellBridge = struct {
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        std.debug.print("[ShellBridge] showInFinder: {s}\n", .{path});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[ShellBridge] showInFinder: {s}\n", .{path});
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -407,7 +413,8 @@ pub const ShellBridge = struct {
 
         if (name.len == 0) return BridgeError.MissingData;
 
-        std.debug.print("[ShellBridge] setEnv: {s}={s}\n", .{ name, value });
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[ShellBridge] setEnv: {s}={s}\n", .{ name, value });
 
         // Note: setenv in Zig requires null-terminated strings
         // For now, just log the intent - actual setenv would need more work

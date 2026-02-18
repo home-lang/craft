@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const macos = @import("macos.zig");
 const NativeSidebar = @import("components/native_sidebar.zig").NativeSidebar;
 const NativeFileBrowser = @import("components/native_file_browser.zig").NativeFileBrowser;
@@ -90,12 +91,14 @@ pub const NativeUIBridge = struct {
         self.window = null;
         self.original_webview = null;
 
-        std.debug.print("[NativeUI] Bridge destroyed and all components cleaned up\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Bridge destroyed and all components cleaned up\n", .{});
     }
 
     /// Called when window is about to close - cleanup all resources
     pub fn handleWindowClose(self: *Self) void {
-        std.debug.print("[NativeUI] Window closing - cleaning up resources\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Window closing - cleaning up resources\n", .{});
         self.deinit();
     }
 
@@ -107,70 +110,86 @@ pub const NativeUIBridge = struct {
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
         // Edge case: Bridge is destroyed
         if (self.is_destroyed) {
-            std.debug.print("[NativeUI] WARNING: Message received after bridge destroyed. Ignoring.\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] WARNING: Message received after bridge destroyed. Ignoring.\n", .{});
             return;
         }
 
         // Edge case: Empty action
         if (action.len == 0) {
-            std.debug.print("[NativeUI] WARNING: Empty action received. Ignoring.\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] WARNING: Empty action received. Ignoring.\n", .{});
             return;
         }
 
-        std.debug.print("[NativeUI] Action: {s}, Data length: {d}\n", .{ action, data.len });
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Action: {s}, Data length: {d}\n", .{ action, data.len });
 
         if (std.mem.eql(u8, action, "createSidebar")) {
             self.createSidebar(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR creating sidebar: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR creating sidebar: {any}\n", .{err});
             };
         } else if (std.mem.eql(u8, action, "addSidebarSection")) {
             self.addSidebarSection(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR adding sidebar section: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR adding sidebar section: {any}\n", .{err});
             };
         } else if (std.mem.eql(u8, action, "setSelectedItem")) {
             self.setSelectedItem(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR setting selected item: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR setting selected item: {any}\n", .{err});
             };
         } else if (std.mem.eql(u8, action, "createFileBrowser")) {
             self.createFileBrowser(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR creating file browser: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR creating file browser: {any}\n", .{err});
             };
         } else if (std.mem.eql(u8, action, "addFile")) {
             self.addFile(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR adding file: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR adding file: {any}\n", .{err});
             };
         } else if (std.mem.eql(u8, action, "addFiles")) {
             self.addFiles(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR adding files: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR adding files: {any}\n", .{err});
             };
         } else if (std.mem.eql(u8, action, "clearFiles")) {
             self.clearFiles(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR clearing files: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR clearing files: {any}\n", .{err});
             };
         } else if (std.mem.eql(u8, action, "createSplitView")) {
             self.createSplitView(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR creating split view: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR creating split view: {any}\n", .{err});
             };
         } else if (std.mem.eql(u8, action, "destroyComponent")) {
             self.destroyComponent(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR destroying component: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR destroying component: {any}\n", .{err});
             };
         } else if (std.mem.eql(u8, action, "showContextMenu")) {
             self.showContextMenu(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR showing context menu: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR showing context menu: {any}\n", .{err});
             };
         } else if (std.mem.eql(u8, action, "showQuickLook")) {
             self.showQuickLook(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR showing Quick Look: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR showing Quick Look: {any}\n", .{err});
             };
         } else if (std.mem.eql(u8, action, "closeQuickLook")) {
             self.closeQuickLook();
         } else if (std.mem.eql(u8, action, "toggleQuickLook")) {
             self.toggleQuickLook(data) catch |err| {
-                std.debug.print("[NativeUI] ERROR toggling Quick Look: {any}\n", .{err});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] ERROR toggling Quick Look: {any}\n", .{err});
             };
         } else {
-            std.debug.print("[NativeUI] Unknown action: {s}\n", .{action});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] Unknown action: {s}\n", .{action});
         }
     }
 
@@ -188,37 +207,44 @@ pub const NativeUIBridge = struct {
     fn createSidebar(self: *Self, data: []const u8) !void {
         // Edge case: Empty data
         if (data.len == 0) {
-            std.debug.print("[NativeUI] ERROR: Empty data for createSidebar\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] ERROR: Empty data for createSidebar\n", .{});
             return error.EmptyData;
         }
 
         // Edge case: Missing window reference
         if (self.window == null) {
-            std.debug.print("[NativeUI] WARNING: No window reference set. Sidebar will be created but not displayed.\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] WARNING: No window reference set. Sidebar will be created but not displayed.\n", .{});
         }
 
-        std.debug.print("[NativeUI] Parsing JSON: {s}\n", .{data});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Parsing JSON: {s}\n", .{data});
 
         const parsed = std.json.parseFromSlice(std.json.Value, self.allocator, data, .{}) catch |err| {
-            std.debug.print("[NativeUI] JSON parse error: {any}\n", .{err});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] JSON parse error: {any}\n", .{err});
             return error.MalformedJSON;
         };
         defer parsed.deinit();
 
         const root = parsed.value.object;
         const id = root.get("id") orelse {
-            std.debug.print("[NativeUI] ERROR: Missing 'id' field in createSidebar data\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] ERROR: Missing 'id' field in createSidebar data\n", .{});
             return error.MissingRequiredField;
         };
         const id_str = id.string;
 
         // Check if a sidebar already exists
         if (self.sidebars.count() > 0) {
-            std.debug.print("[NativeUI] WARNING: Sidebar already exists. Only one sidebar is supported. Ignoring request for: {s}\n", .{id_str});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] WARNING: Sidebar already exists. Only one sidebar is supported. Ignoring request for: {s}\n", .{id_str});
             return;
         }
 
-        std.debug.print("[LiquidGlass] Creating sidebar with NSSplitViewController: {s}\n", .{id_str});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[LiquidGlass] Creating sidebar with NSSplitViewController: {s}\n", .{id_str});
 
         // Create sidebar
         const sidebar = try NativeSidebar.init(self.allocator);
@@ -232,7 +258,8 @@ pub const NativeUIBridge = struct {
         if (self.window) |window| {
             // Save the original webview (current content view)
             self.original_webview = macos.msgSend0(window, "contentView");
-            std.debug.print("[LiquidGlass] Saved original webview: {*}\n", .{self.original_webview.?});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[LiquidGlass] Saved original webview: {*}\n", .{self.original_webview.?});
 
             // Create NSSplitViewController
             const split_vc = try NativeSplitViewController.init(self.allocator);
@@ -240,15 +267,18 @@ pub const NativeUIBridge = struct {
 
             // CRITICAL: Add sidebar FIRST (AppKit applies Liquid Glass automatically)
             try split_vc.setSidebar(sidebar.getView());
-            std.debug.print("[LiquidGlass] ✓ Sidebar added with native Liquid Glass material\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[LiquidGlass] Sidebar added with native Liquid Glass material\n", .{});
 
             // CRITICAL: Add content SECOND (extends full-width under sidebar)
             try split_vc.setContent(self.original_webview.?);
-            std.debug.print("[LiquidGlass] ✓ Content extends under floating sidebar\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[LiquidGlass] Content extends under floating sidebar\n", .{});
 
             // Set split view controller as window's content view controller
             _ = macos.msgSend1(window, "setContentViewController:", split_vc.getSplitViewController());
-            std.debug.print("[LiquidGlass] ✓ Set NSSplitViewController as window content view controller\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[LiquidGlass] Set NSSplitViewController as window content view controller\n", .{});
 
             // CRITICAL: Reposition traffic lights to float over the sidebar (macOS Tahoe style)
             // The traffic lights should be 13px from the top of the window
@@ -270,8 +300,10 @@ pub const NativeUIBridge = struct {
                 _ = macos.msgSend2(zoomButton, "setFrameOrigin:", @as(f64, 53.0), traffic_light_y);
             }
 
-            std.debug.print("[LiquidGlass] ✓ Repositioned traffic lights over sidebar at y={d}\n", .{traffic_light_y});
-            std.debug.print("[LiquidGlass] ✓ Native Liquid Glass sidebar created successfully\n", .{});
+            if (comptime builtin.mode == .Debug) {
+                std.debug.print("[LiquidGlass] Repositioned traffic lights over sidebar at y={d}\n", .{traffic_light_y});
+                std.debug.print("[LiquidGlass] Native Liquid Glass sidebar created successfully\n", .{});
+            }
         }
     }
 
@@ -312,7 +344,8 @@ pub const NativeUIBridge = struct {
             .items = items.items,
         });
 
-        std.debug.print("[NativeUI] ✓ Added section '{s}' to sidebar '{s}'\n", .{ section_id, sidebar_id });
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Added section '{s}' to sidebar '{s}'\n", .{ section_id, sidebar_id });
     }
 
     /// Set selected item in sidebar
@@ -327,7 +360,8 @@ pub const NativeUIBridge = struct {
         const sidebar = self.sidebars.get(sidebar_id) orelse return error.SidebarNotFound;
         sidebar.setSelectedItem(item_id);
 
-        std.debug.print("[NativeUI] ✓ Selected item '{s}' in sidebar '{s}'\n", .{ item_id, sidebar_id });
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Selected item '{s}' in sidebar '{s}'\n", .{ item_id, sidebar_id });
     }
 
     /// Create a new file browser component
@@ -338,7 +372,8 @@ pub const NativeUIBridge = struct {
         const root = parsed.value.object;
         const id = root.get("id").?.string;
 
-        std.debug.print("[NativeUI] Creating file browser: {s}\n", .{id});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Creating file browser: {s}\n", .{id});
 
         // Create file browser
         const browser = try NativeFileBrowser.init(self.allocator);
@@ -363,7 +398,8 @@ pub const NativeUIBridge = struct {
             browser.setAutoresizingMask(18); // Width + Height resizable
 
             _ = macos.msgSend1(content_view, "addSubview:", browser_view);
-            std.debug.print("[NativeUI] ✓ File browser added to window\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] File browser added to window\n", .{});
         }
     }
 
@@ -388,7 +424,8 @@ pub const NativeUIBridge = struct {
         };
 
         try browser.addFile(file);
-        std.debug.print("[NativeUI] ✓ Added file '{s}' to browser '{s}'\n", .{ file.name, browser_id });
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Added file '{s}' to browser '{s}'\n", .{ file.name, browser_id });
     }
 
     /// Add multiple files to file browser
@@ -418,7 +455,8 @@ pub const NativeUIBridge = struct {
         }
 
         try browser.addFiles(files.items);
-        std.debug.print("[NativeUI] ✓ Added {d} files to browser '{s}'\n", .{ files.items.len, browser_id });
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Added {d} files to browser '{s}'\n", .{ files.items.len, browser_id });
     }
 
     /// Clear all files from file browser
@@ -432,7 +470,8 @@ pub const NativeUIBridge = struct {
         const browser = self.file_browsers.get(browser_id) orelse return error.BrowserNotFound;
         browser.clearFiles();
 
-        std.debug.print("[NativeUI] ✓ Cleared files from browser '{s}'\n", .{browser_id});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Cleared files from browser '{s}'\n", .{browser_id});
     }
 
     /// Create a split view combining sidebar and file browser
@@ -445,7 +484,8 @@ pub const NativeUIBridge = struct {
         const sidebar_id = root.get("sidebarId").?.string;
         const browser_id = root.get("browserId").?.string;
 
-        std.debug.print("[NativeUI] Creating split view: {s}\n", .{id});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Creating split view: {s}\n", .{id});
 
         // Get sidebar and browser
         const sidebar = self.sidebars.get(sidebar_id) orelse return error.SidebarNotFound;
@@ -478,7 +518,8 @@ pub const NativeUIBridge = struct {
             split_view.setAutoresizingMask(18); // Width + Height resizable
 
             _ = macos.msgSend1(content_view, "addSubview:", split_view_obj);
-            std.debug.print("[NativeUI] ✓ Split view added to window\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] Split view added to window\n", .{});
         }
     }
 
@@ -495,19 +536,22 @@ pub const NativeUIBridge = struct {
             if (self.sidebars.fetchRemove(id)) |entry| {
                 self.allocator.free(entry.key);
                 entry.value.deinit();
-                std.debug.print("[NativeUI] ✓ Destroyed sidebar '{s}'\n", .{id});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] Destroyed sidebar '{s}'\n", .{id});
             }
         } else if (std.mem.eql(u8, component_type, "fileBrowser")) {
             if (self.file_browsers.fetchRemove(id)) |entry| {
                 self.allocator.free(entry.key);
                 entry.value.deinit();
-                std.debug.print("[NativeUI] ✓ Destroyed file browser '{s}'\n", .{id});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] Destroyed file browser '{s}'\n", .{id});
             }
         } else if (std.mem.eql(u8, component_type, "splitView")) {
             if (self.split_views.fetchRemove(id)) |entry| {
                 self.allocator.free(entry.key);
                 entry.value.deinit();
-                std.debug.print("[NativeUI] ✓ Destroyed split view '{s}'\n", .{id});
+                if (comptime builtin.mode == .Debug)
+                    std.debug.print("[NativeUI] Destroyed split view '{s}'\n", .{id});
             }
         }
     }
@@ -642,13 +686,15 @@ pub const NativeUIBridge = struct {
         }
 
         if (view == null) {
-            std.debug.print("[NativeUI] ERROR: No view available for context menu\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] ERROR: No view available for context menu\n", .{});
             return error.NoViewAvailable;
         }
 
         // Show the menu
         context_menu.showContextMenu(menu, view, .{ .x = x, .y = y });
-        std.debug.print("[NativeUI] ✓ Showed context menu for {s} '{s}' at ({d}, {d})\n", .{ target_type, target_id, x, y });
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Showed context menu for {s} '{s}' at ({d}, {d})\n", .{ target_type, target_id, x, y });
     }
 
     /// Show Quick Look panel for files
@@ -663,7 +709,8 @@ pub const NativeUIBridge = struct {
     fn showQuickLook(self: *Self, data: []const u8) !void {
         // Check if Quick Look is available
         if (!quick_look.isQuickLookAvailable()) {
-            std.debug.print("[NativeUI] ERROR: Quick Look is not available on this system\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] ERROR: Quick Look is not available on this system\n", .{});
             return error.QuickLookNotAvailable;
         }
 
@@ -707,14 +754,16 @@ pub const NativeUIBridge = struct {
 
         // Show the panel
         controller.showPanel();
-        std.debug.print("[NativeUI] ✓ Showed Quick Look with {d} files\n", .{files_json.items.len});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Showed Quick Look with {d} files\n", .{files_json.items.len});
     }
 
     /// Close Quick Look panel
     fn closeQuickLook(self: *Self) void {
         if (self.quick_look_controller) |controller| {
             controller.closePanel();
-            std.debug.print("[NativeUI] ✓ Closed Quick Look panel\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] Closed Quick Look panel\n", .{});
         }
     }
 
@@ -723,7 +772,8 @@ pub const NativeUIBridge = struct {
     fn toggleQuickLook(self: *Self, data: []const u8) !void {
         // Check if Quick Look is available
         if (!quick_look.isQuickLookAvailable()) {
-            std.debug.print("[NativeUI] ERROR: Quick Look is not available on this system\n", .{});
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[NativeUI] ERROR: Quick Look is not available on this system\n", .{});
             return error.QuickLookNotAvailable;
         }
 
@@ -739,7 +789,8 @@ pub const NativeUIBridge = struct {
 
                 if (isVisible(panel, macos.sel("isVisible"))) {
                     controller.closePanel();
-                    std.debug.print("[NativeUI] ✓ Toggled Quick Look OFF\n", .{});
+                    if (comptime builtin.mode == .Debug)
+                        std.debug.print("[NativeUI] Toggled Quick Look OFF\n", .{});
                     return;
                 }
             }
@@ -747,6 +798,7 @@ pub const NativeUIBridge = struct {
 
         // Otherwise, show the panel with provided data
         try self.showQuickLook(data);
-        std.debug.print("[NativeUI] ✓ Toggled Quick Look ON\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeUI] Toggled Quick Look ON\n", .{});
     }
 };

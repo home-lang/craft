@@ -15,6 +15,7 @@ export interface FrameworkInfo {
   name: string
   available: boolean
   binary?: string
+  appBundle?: string
   reason?: string
 }
 
@@ -57,18 +58,71 @@ export function findTauriBinary(): string | null {
   return null
 }
 
-/** Get availability status of all three frameworks. */
+/** Check if Electrobun app is built. */
+export function findElectrobunApp(): string | null {
+  const appPath = join(APPS, 'electrobun/build/dev-macos-arm64')
+  // Find the .app directory inside
+  if (existsSync(appPath)) {
+    try {
+      const entries = readdirSync(appPath)
+      const app = entries.find(e => e.endsWith('.app'))
+      if (app) return join(appPath, app, 'Contents/MacOS/launcher')
+    } catch {}
+  }
+  return null
+}
+
+/** Check if React Native macOS app is built. */
+export function findRNMacOSBinary(): string | null {
+  const candidates = [
+    join(APPS, 'react-native-macos/build/Build/Products/Release/RNMacBench.app/Contents/MacOS/RNMacBench'),
+    join(APPS, 'react-native-macos/build/Build/Products/Debug/RNMacBench.app/Contents/MacOS/RNMacBench'),
+  ]
+  for (const p of candidates) {
+    if (existsSync(p)) return p
+  }
+  return null
+}
+
+/** Find the React Native macOS .app bundle for size measurement. */
+export function findRNMacOSAppBundle(): string | null {
+  const candidates = [
+    join(APPS, 'react-native-macos/build/Build/Products/Release/RNMacBench.app'),
+    join(APPS, 'react-native-macos/build/Build/Products/Debug/RNMacBench.app'),
+  ]
+  for (const p of candidates) {
+    if (existsSync(p)) return p
+  }
+  return null
+}
+
+/** Find the Electrobun .app bundle for size measurement. */
+export function findElectrobunAppBundle(): string | null {
+  const appPath = join(APPS, 'electrobun/build/dev-macos-arm64')
+  if (existsSync(appPath)) {
+    try {
+      const entries = readdirSync(appPath)
+      const app = entries.find(e => e.endsWith('.app'))
+      if (app) return join(appPath, app)
+    } catch {}
+  }
+  return null
+}
+
+/** Get availability status of all frameworks. */
 export function checkFrameworks(): FrameworkInfo[] {
   const craft = findCraftBinary()
   const electron = electronAvailable()
   const tauri = findTauriBinary()
+  const electrobun = findElectrobunApp()
+  const rnMacOS = findRNMacOSBinary()
 
   return [
     {
       name: 'Craft',
       available: craft !== null,
       binary: craft ?? undefined,
-      reason: craft ? undefined : 'Build with: cd packages/zig && zig build',
+      reason: craft ? undefined : 'Build with: cd packages/zig && zig build -Doptimize=ReleaseSmall',
     },
     {
       name: 'Electron',
@@ -81,6 +135,18 @@ export function checkFrameworks(): FrameworkInfo[] {
       available: tauri !== null,
       binary: tauri ?? undefined,
       reason: tauri ? undefined : 'Build with: cd benchmarks/apps/tauri/src-tauri && cargo build --release',
+    },
+    {
+      name: 'Electrobun',
+      available: electrobun !== null,
+      binary: electrobun ?? undefined,
+      reason: electrobun ? undefined : 'Build with: cd benchmarks/apps/electrobun && bun install && npx electrobun build',
+    },
+    {
+      name: 'React Native',
+      available: rnMacOS !== null,
+      binary: rnMacOS ?? undefined,
+      reason: rnMacOS ? undefined : 'Build with: cd benchmarks/apps/react-native-macos && bun install && pod install --project-directory=macos && xcodebuild ...',
     },
   ]
 }

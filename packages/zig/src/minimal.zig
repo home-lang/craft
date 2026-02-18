@@ -71,6 +71,7 @@ pub fn main(init: std.process.Init) !void {
                 .titlebar_hidden = options.titlebar_hidden,
                 .dev_tools = effective_dev_tools,
                 .native_sidebar = true,
+                .benchmark = options.benchmark,
             },
         );
     } else if (options.native_sidebar and options.html != null) {
@@ -106,6 +107,7 @@ pub fn main(init: std.process.Init) !void {
                 .titlebar_hidden = options.titlebar_hidden,
                 .dev_tools = effective_dev_tools,
                 .native_sidebar = true,
+                .benchmark = options.benchmark,
             },
         );
     } else if (options.url) |url| {
@@ -143,6 +145,7 @@ pub fn main(init: std.process.Init) !void {
                 .hide_dock_icon = options.hide_dock_icon,
                 .titlebar_hidden = options.titlebar_hidden,
                 .dev_tools = effective_dev_tools,
+                .benchmark = options.benchmark,
             },
         );
     } else if (options.html) |html| {
@@ -171,6 +174,7 @@ pub fn main(init: std.process.Init) !void {
                 .hide_dock_icon = options.hide_dock_icon,
                 .titlebar_hidden = options.titlebar_hidden,
                 .dev_tools = effective_dev_tools,
+                .benchmark = options.benchmark,
             },
         );
     } else {

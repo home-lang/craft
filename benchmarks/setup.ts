@@ -11,6 +11,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
+const ROOT = join(import.meta.dir, '..')
 const APPS = join(import.meta.dir, 'apps')
 
 console.log('Setting up benchmark apps...\n')
@@ -39,19 +40,30 @@ if (existsSync(join(electronDir, 'node_modules/electron'))) {
 }
 
 // ---------------------------------------------------------------------------
-// Craft
+// Craft (build with ReleaseFast + strip for fair comparison)
 // ---------------------------------------------------------------------------
 console.log('2. Craft')
-const craftBinaryPaths = [
-  join(import.meta.dir, '..', 'packages/zig/zig-out/bin/craft'),
-  join(import.meta.dir, '..', 'zig-out/bin/craft'),
-]
-const craftFound = craftBinaryPaths.some(p => existsSync(p))
-if (craftFound) {
-  console.log('   Binary found.\n')
+const craftDir = join(ROOT, 'packages/zig')
+const craftBinary = join(craftDir, 'zig-out/bin/craft')
+
+console.log('   Building with ReleaseSmall optimization...')
+const buildResult = Bun.spawnSync({
+  cmd: ['zig', 'build', '-Doptimize=ReleaseSmall'],
+  cwd: craftDir,
+  stdout: 'inherit',
+  stderr: 'inherit',
+})
+
+if (buildResult.exitCode === 0) {
+  // Strip debug symbols for smallest binary
+  Bun.spawnSync({
+    cmd: ['strip', craftBinary],
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  console.log('   Built and stripped successfully.\n')
 } else {
-  console.log('   Binary not found. Build with:')
-  console.log('   cd packages/zig && zig build\n')
+  console.log('   Build failed. Check Zig installation.\n')
 }
 
 // ---------------------------------------------------------------------------

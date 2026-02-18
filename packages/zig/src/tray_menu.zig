@@ -237,6 +237,10 @@ pub export fn menuActionCallback(self: objc.id, _: objc.SEL, sender: objc.id) vo
             macos.toggleWindow(window);
         }
     } else if (std.mem.eql(u8, action_str, "quit")) {
+        // Restore any hidden menubar items before quitting
+        const menubar_collapse = @import("menubar_collapse.zig");
+        menubar_collapse.cleanup();
+
         const NSApp = getClass("NSApplication");
         const app = msgSend0(NSApp, "sharedApplication");
         msgSendVoid1(app, "terminate:", null);

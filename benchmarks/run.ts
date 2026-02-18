@@ -14,9 +14,10 @@
  */
 import { checkFrameworks, header } from './utils'
 
-console.log('╔══════════════════════════════════════════════════════════════╗')
-console.log('║  Craft vs Electron vs Tauri — Hello World Benchmark Suite   ║')
-console.log('╚══════════════════════════════════════════════════════════════╝')
+console.log('╔══════════════════════════════════════════════════════════════════════════╗')
+console.log('║  Desktop Framework Benchmark Suite — Hello World                       ║')
+console.log('║  Craft vs Electron vs Tauri vs Electrobun vs React Native macOS        ║')
+console.log('╚══════════════════════════════════════════════════════════════════════════╝')
 
 // Report framework availability
 const frameworks = checkFrameworks()
@@ -24,7 +25,7 @@ console.log('\nFramework availability:')
 for (const f of frameworks) {
   const status = f.available ? '  ready' : '  not found'
   const note = f.available ? '' : ` — ${f.reason}`
-  console.log(`  ${f.name.padEnd(10)} ${status}${note}`)
+  console.log(`  ${f.name.padEnd(15)} ${status}${note}`)
 }
 console.log()
 
@@ -48,6 +49,6 @@ for (const b of benchmarks) {
   }
 }
 
-console.log('╔══════════════════════════════════════════════════════════════╗')
-console.log('║  All benchmarks complete                                    ║')
-console.log('╚══════════════════════════════════════════════════════════════╝\n')
+console.log('╔══════════════════════════════════════════════════════════════════════════╗')
+console.log('║  All benchmarks complete                                                ║')
+console.log('╚══════════════════════════════════════════════════════════════════════════╝\n')

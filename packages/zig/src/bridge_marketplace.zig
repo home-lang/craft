@@ -63,10 +63,12 @@ pub const MarketplaceBridge = struct {
             }
         }
 
-        if (self.pantry_path != null) {
-            std.debug.print("[MarketplaceBridge] Found pantry at: {s}\n", .{self.pantry_path.?});
-        } else {
-            std.debug.print("[MarketplaceBridge] Pantry not found, marketplace features limited\n", .{});
+        if (comptime builtin.mode == .Debug) {
+            if (self.pantry_path != null) {
+                std.debug.print("[MarketplaceBridge] Found pantry at: {s}\n", .{self.pantry_path.?});
+            } else {
+                std.debug.print("[MarketplaceBridge] Pantry not found, marketplace features limited\n", .{});
+            }
         }
     }
 
@@ -197,7 +199,8 @@ pub const MarketplaceBridge = struct {
             }
         }
 
-        std.debug.print("[MarketplaceBridge] search: {s}\n", .{query});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[MarketplaceBridge] search: {s}\n", .{query});
 
         if (self.pantry_path == null) {
             self.sendError(callback_id, "search", "Pantry not installed");
@@ -264,7 +267,8 @@ pub const MarketplaceBridge = struct {
             return;
         }
 
-        std.debug.print("[MarketplaceBridge] install: {s}@{s}\n", .{ name, version });
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[MarketplaceBridge] install: {s}@{s}\n", .{ name, version });
 
         if (self.pantry_path == null) {
             self.sendError(callback_id, "install", "Pantry not installed");
@@ -331,7 +335,8 @@ pub const MarketplaceBridge = struct {
             return;
         }
 
-        std.debug.print("[MarketplaceBridge] uninstall: {s}\n", .{name});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[MarketplaceBridge] uninstall: {s}\n", .{name});
 
         if (self.pantry_path == null) {
             self.sendError(callback_id, "uninstall", "Pantry not installed");
@@ -379,7 +384,8 @@ pub const MarketplaceBridge = struct {
             }
         }
 
-        std.debug.print("[MarketplaceBridge] update: {s}\n", .{if (name.len > 0) name else "all"});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[MarketplaceBridge] update: {s}\n", .{if (name.len > 0) name else "all"});
 
         if (self.pantry_path == null) {
             self.sendError(callback_id, "update", "Pantry not installed");
@@ -425,7 +431,8 @@ pub const MarketplaceBridge = struct {
             }
         }
 
-        std.debug.print("[MarketplaceBridge] list\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[MarketplaceBridge] list\n", .{});
 
         if (self.pantry_path == null) {
             self.sendError(callback_id, "list", "Pantry not installed");
@@ -481,7 +488,8 @@ pub const MarketplaceBridge = struct {
             return;
         }
 
-        std.debug.print("[MarketplaceBridge] info: {s}\n", .{name});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[MarketplaceBridge] info: {s}\n", .{name});
 
         if (self.pantry_path == null) {
             self.sendError(callback_id, "info", "Pantry not installed");
@@ -524,7 +532,8 @@ pub const MarketplaceBridge = struct {
             }
         }
 
-        std.debug.print("[MarketplaceBridge] login\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[MarketplaceBridge] login\n", .{});
 
         if (self.pantry_path == null) {
             self.sendError(callback_id, "login", "Pantry not installed");
@@ -565,7 +574,8 @@ pub const MarketplaceBridge = struct {
             }
         }
 
-        std.debug.print("[MarketplaceBridge] logout\n", .{});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[MarketplaceBridge] logout\n", .{});
 
         if (self.pantry_path == null) {
             self.sendError(callback_id, "logout", "Pantry not installed");
@@ -613,7 +623,8 @@ pub const MarketplaceBridge = struct {
             }
         }
 
-        std.debug.print("[MarketplaceBridge] publish: {s}\n", .{path});
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[MarketplaceBridge] publish: {s}\n", .{path});
 
         if (self.pantry_path == null) {
             self.sendError(callback_id, "publish", "Pantry not installed");
