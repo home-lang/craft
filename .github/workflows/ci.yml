@@ -27,7 +27,7 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
-          version: master
+          version: 0.16.0-dev.2565+684032671
 
       - name: Verify Zig installation
         run: zig version
@@ -99,7 +99,7 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
-          version: master
+          version: 0.16.0-dev.2565+684032671
 
       - name: Check Zig formatting
         working-directory: packages/zig
@@ -116,7 +116,7 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
-          version: master
+          version: 0.16.0-dev.2565+684032671
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
