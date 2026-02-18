@@ -16,9 +16,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v1
         with:
-          version: 0.16.0-dev.2565+684032671
+          version: master
 
       - name: Cache Zig artifacts
         uses: actions/cache@v4
@@ -118,9 +118,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v1
         with:
-          version: 0.16.0-dev.2565+684032671
+          version: master
 
       - name: Cache Zig artifacts
         uses: actions/cache@v4
@@ -184,9 +184,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v1
         with:
-          version: 0.16.0-dev.2565+684032671
+          version: master
 
       - name: Install Linux dependencies
         run: |

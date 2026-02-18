@@ -25,9 +25,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v1
         with:
-          version: 0.16.0-dev.2565+684032671
+          version: master
 
       - name: Verify Zig installation
         run: zig version
@@ -97,9 +97,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v1
         with:
-          version: 0.16.0-dev.2565+684032671
+          version: master
 
       - name: Check Zig formatting
         working-directory: packages/zig
@@ -114,9 +114,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v1
         with:
-          version: 0.16.0-dev.2565+684032671
+          version: master
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
