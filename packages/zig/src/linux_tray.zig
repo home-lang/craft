@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const c_dl = @cImport(@cInclude("dlfcn.h"));
 
 // Only compile on Linux
 pub const LinuxTray = if (builtin.os.tag == .linux) LinuxTrayImpl else struct {
@@ -80,77 +81,77 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
         if (initialized) return;
 
         // Try to load libappindicator3
-        libappindicator = std.c.dlopen(
+        libappindicator = c_dl.dlopen(
             "libappindicator3.so.1",
-            .{ .LAZY = true },
+            c_dl.RTLD_LAZY,
         ) orelse {
             // Try without version number
-            libappindicator = std.c.dlopen(
+            libappindicator = c_dl.dlopen(
                 "libappindicator3.so",
-                .{ .LAZY = true },
+                c_dl.RTLD_LAZY,
             ) orelse return error.AppIndicatorNotFound;
         };
 
         // Try to load libgtk-3
-        libgtk = std.c.dlopen(
+        libgtk = c_dl.dlopen(
             "libgtk-3.so.0",
-            .{ .LAZY = true },
+            c_dl.RTLD_LAZY,
         ) orelse {
             // Try without version number
-            libgtk = std.c.dlopen(
+            libgtk = c_dl.dlopen(
                 "libgtk-3.so",
-                .{ .LAZY = true },
+                c_dl.RTLD_LAZY,
             ) orelse return error.GtkNotFound;
         };
 
         // Load AppIndicator function pointers
-        app_indicator_new = @ptrCast(@alignCast(std.c.dlsym(
+        app_indicator_new = @ptrCast(@alignCast(c_dl.dlsym(
             libappindicator,
             "app_indicator_new",
         ) orelse return error.SymbolNotFound));
 
-        app_indicator_set_status = @ptrCast(@alignCast(std.c.dlsym(
+        app_indicator_set_status = @ptrCast(@alignCast(c_dl.dlsym(
             libappindicator,
             "app_indicator_set_status",
         ) orelse return error.SymbolNotFound));
 
-        app_indicator_set_menu = @ptrCast(@alignCast(std.c.dlsym(
+        app_indicator_set_menu = @ptrCast(@alignCast(c_dl.dlsym(
             libappindicator,
             "app_indicator_set_menu",
         ) orelse return error.SymbolNotFound));
 
-        app_indicator_set_label = @ptrCast(@alignCast(std.c.dlsym(
+        app_indicator_set_label = @ptrCast(@alignCast(c_dl.dlsym(
             libappindicator,
             "app_indicator_set_label",
         ) orelse return error.SymbolNotFound));
 
-        app_indicator_set_icon = @ptrCast(@alignCast(std.c.dlsym(
+        app_indicator_set_icon = @ptrCast(@alignCast(c_dl.dlsym(
             libappindicator,
             "app_indicator_set_icon",
         ) orelse return error.SymbolNotFound));
 
         // Load GTK function pointers
-        gtk_init = @ptrCast(@alignCast(std.c.dlsym(
+        gtk_init = @ptrCast(@alignCast(c_dl.dlsym(
             libgtk,
             "gtk_init",
         ) orelse return error.SymbolNotFound));
 
-        gtk_menu_new = @ptrCast(@alignCast(std.c.dlsym(
+        gtk_menu_new = @ptrCast(@alignCast(c_dl.dlsym(
             libgtk,
             "gtk_menu_new",
         ) orelse return error.SymbolNotFound));
 
-        gtk_menu_item_new_with_label = @ptrCast(@alignCast(std.c.dlsym(
+        gtk_menu_item_new_with_label = @ptrCast(@alignCast(c_dl.dlsym(
             libgtk,
             "gtk_menu_item_new_with_label",
         ) orelse return error.SymbolNotFound));
 
-        gtk_menu_shell_append = @ptrCast(@alignCast(std.c.dlsym(
+        gtk_menu_shell_append = @ptrCast(@alignCast(c_dl.dlsym(
             libgtk,
             "gtk_menu_shell_append",
         ) orelse return error.SymbolNotFound));
 
-        gtk_widget_show_all = @ptrCast(@alignCast(std.c.dlsym(
+        gtk_widget_show_all = @ptrCast(@alignCast(c_dl.dlsym(
             libgtk,
             "gtk_widget_show_all",
         ) orelse return error.SymbolNotFound));
@@ -249,11 +250,11 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
 
     pub fn unloadLibraries() void {
         if (libappindicator) |lib| {
-            std.c.dlclose(lib);
+            c_dl.dlclose(lib);
             libappindicator = null;
         }
         if (libgtk) |lib| {
-            std.c.dlclose(lib);
+            c_dl.dlclose(lib);
             libgtk = null;
         }
         initialized = false;
