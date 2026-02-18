@@ -6,17 +6,12 @@
  * Measures real cold-start time for Hello World apps across frameworks.
  *
  * Methodology:
- *   Each app is launched in benchmark mode (BENCHMARK=1) and auto-quits
- *   after initialization. We measure wall-clock time from spawn to exit.
+ *   Each app is launched in benchmark mode and auto-quits after initialization.
+ *   We measure wall-clock time from spawn to exit.
  *
- *   - Electron: Quits after `did-finish-load` (HTML fully parsed + rendered)
- *   - Tauri:    Quits ~50ms after setup() (window created, brief event loop tick)
- *   - Craft:    Binary stays open — we kill after 300ms (see note below)
- *
- *   NOTE: Craft's binary doesn't support auto-quit. The 300ms measurement
- *   includes ~300ms of idle wait time + kill overhead, so Craft's actual
- *   startup time is faster than reported. The real startup is roughly
- *   the time to spawn the process + create the WebView + load HTML.
+ *   - Craft:    --benchmark flag: creates window, prints "ready", exits immediately
+ *   - Electron: BENCHMARK=1 env: quits after `did-finish-load` (HTML fully parsed)
+ *   - Tauri:    BENCHMARK=1 env: quits ~50ms after setup() (window created)
  *
  * Requirements:
  *   Craft:    Build the Zig binary (cd packages/zig && zig build)
@@ -163,10 +158,9 @@ const craftBin = findCraftBinary()
 if (craftBin) {
   const html = '<html><body><h1>Hello World</h1></body></html>'
   console.log('  Measuring Craft...')
-  const r = await measureWithKill(
+  const r = await measureAutoQuit(
     'Craft',
-    [craftBin, '--html', html, '--title', 'Bench', '--width', '400', '--height', '300'],
-    300,
+    [craftBin, '--html', html, '--title', 'Bench', '--width', '400', '--height', '300', '--benchmark'],
   )
   results.push(r)
 }
@@ -218,15 +212,14 @@ for (const r of results) {
   }
 }
 
-// Comparison (only between auto-quit frameworks for fairness)
-const autoQuitResults = results.filter(r => !r.note)
-if (autoQuitResults.length >= 2) {
+// Comparison
+if (results.length >= 2) {
   console.log()
-  console.log('Comparison (auto-quit frameworks only):')
-  const fastest = autoQuitResults.reduce((a, b) =>
+  console.log('Comparison:')
+  const fastest = results.reduce((a, b) =>
     stats(a.times).p50 < stats(b.times).p50 ? a : b,
   )
-  for (const r of autoQuitResults) {
+  for (const r of results) {
     if (r === fastest) continue
     const ratio = (stats(r.times).p50 / stats(fastest.times).p50).toFixed(1)
     console.log(`  ${fastest.framework} is ${ratio}x faster than ${r.framework} (p50)`)

@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 // Objective-C runtime types and functions (manual declarations to avoid @cImport issues)
 pub const objc = struct {
@@ -78,6 +79,8 @@ pub const WindowStyle = struct {
     titlebar_hidden: bool = false, // Hide titlebar (content extends into titlebar area)
     system_tray: bool = false, // Show in system tray (menubar)
     system_tray_title: ?[]const u8 = null, // Initial title for system tray
+    dev_tools: bool = true, // Enable WebKit DevTools (inspector)
+    native_sidebar: bool = false, // Enable native sidebar (injects sidebar UI script)
 };
 
 // Helper functions for Objective-C runtime
@@ -268,7 +271,6 @@ fn getBorderlessWindowClass() objc.Class {
     _ = objc.class_addMethod(BorderlessWindowClass, sel("canBecomeMainWindow"), @ptrCast(@constCast(&canBecomeMain)), "B@:");
 
     objc.objc_registerClassPair(BorderlessWindowClass);
-    std.debug.print("[Window] Created CraftBorderlessWindow class\n", .{});
 
     return BorderlessWindowClass;
 }
@@ -323,11 +325,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
         // Add full-size content view for hidden titlebar
         if (style.titlebar_hidden) {
-            std.debug.print("[TitlebarHidden] ✓ titlebar_hidden flag is TRUE - adding NSWindowStyleMaskFullSizeContentView\n", .{});
             styleMask |= 32768; // NSWindowStyleMaskFullSizeContentView
-            std.debug.print("[TitlebarHidden] ✓ styleMask before window creation: {d}\n", .{styleMask});
-        } else {
-            std.debug.print("[TitlebarHidden] ✗ titlebar_hidden flag is FALSE\n", .{});
         }
     } else {
         // Borderless window - use NSWindowStyleMaskBorderless (0)
@@ -404,19 +402,16 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
             _ = msgSend2(zoomButton, "setFrameOrigin:", @as(f64, 60.0), @as(f64, @as(f64, @floatFromInt(height)) - 28.0));
         }
 
-        std.debug.print("[TitlebarHidden] ✓ COMPLETE: Titlebar hidden, traffic lights positioned in sidebar\n", .{});
     }
 
-    // CRITICAL: Configure toolbar style for Liquid Glass
+    // Configure toolbar style for Liquid Glass
     // NSWindowToolbarStyleUnified = 1 - Creates unified toolbar that works with glass materials
     _ = msgSend1(window, "setToolbarStyle:", @as(c_long, 1));
-    std.debug.print("[LiquidGlass] ✓ Set unified toolbar style for Liquid Glass compatibility\n", .{});
 
-    // CRITICAL: Configure window for vibrancy - allow NSVisualEffectView to show through
+    // Configure window for vibrancy - allow NSVisualEffectView to show through
     _ = msgSend1(window, "setOpaque:", @as(c_int, 0)); // NO - window is not opaque
     const clearColor = msgSend0(getClass("NSColor"), "clearColor");
     _ = msgSend1(window, "setBackgroundColor:", clearColor);
-    std.debug.print("[LiquidGlass] ✓ Window configured for vibrancy (non-opaque, clear background)\n", .{});
 
     // Create WebView configuration with DevTools enabled
     const config_alloc = msgSend0(WKWebViewConfiguration, "alloc");
@@ -428,10 +423,12 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     // Enable JavaScript explicitly (should be enabled by default, but let's be explicit)
     msgSendVoid1(prefs, "setJavaScriptEnabled:", true);
 
-    // Enable developer extras (DevTools)
-    const key_str = createNSString("developerExtrasEnabled");
-    const value_obj = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
-    msgSendVoid2(prefs, "setValue:forKey:", value_obj, key_str);
+    // Enable developer extras (DevTools) only when requested
+    if (style.dev_tools) {
+        const key_str = createNSString("developerExtrasEnabled");
+        const value_obj = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
+        msgSendVoid2(prefs, "setValue:forKey:", value_obj, key_str);
+    }
 
     // Enable camera and microphone access for getUserMedia()
     // javaScriptCanAccessClipboard is needed for some media-related APIs
@@ -453,7 +450,6 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // Inject bridge scripts via WKUserScript for URL loading
         const WKUserScript = getClass("WKUserScript");
         const bridge_js = getCraftBridgeScript();
-        const native_ui_js = getNativeUIScript();
 
         // Create bridge script
         const bridge_js_str = createNSString(bridge_js);
@@ -462,14 +458,15 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         );
         _ = msgSend1(userContentController, "addUserScript:", bridge_script);
 
-        // Create native UI script
-        const native_ui_js_str = createNSString(native_ui_js);
-        const native_ui_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", native_ui_js_str, @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
-            @as(c_int, 1) // YES - main frame only
-        );
-        _ = msgSend1(userContentController, "addUserScript:", native_ui_script);
-
-        std.debug.print("[Bridge] Injected bridge scripts via WKUserScript for URL loading\n", .{});
+        // Only inject native UI script when native sidebar is enabled
+        if (style.native_sidebar) {
+            const native_ui_js = getNativeUIScript();
+            const native_ui_js_str = createNSString(native_ui_js);
+            const native_ui_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", native_ui_js_str, @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
+                @as(c_int, 1) // YES - main frame only
+            );
+            _ = msgSend1(userContentController, "addUserScript:", native_ui_script);
+        }
     }
     // NOTE: For HTML loading, we inject the bridge script directly into the HTML instead of using WKUserScript
     // because WKUserScript doesn't reliably inject when using loadHTMLString with null baseURL
@@ -505,7 +502,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // CRITICAL FIX: WKUserScript doesn't reliably inject with loadHTMLString when baseURL is null
         // So we inject the bridge script directly into the HTML before loading
         const bridge_js = getCraftBridgeScript();
-        const native_ui_js = getNativeUIScript();
+        const native_ui_js = if (style.native_sidebar) getNativeUIScript() else "";
 
         // Find </head> tag and inject script before it
         var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, h.len + bridge_js.len + native_ui_js.len + 40);
@@ -517,25 +514,27 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
             try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
             try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
             try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-            try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
-            try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
-            try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+            if (native_ui_js.len > 0) {
+                try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
+                try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
+                try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+            }
             try modified_html.appendSlice(std.heap.c_allocator, h[head_pos..]);
         } else {
             // No </head> found, just prepend to the HTML
             try modified_html.appendSlice(std.heap.c_allocator, "<script>");
             try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
             try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-            try modified_html.appendSlice(std.heap.c_allocator, "<script>");
-            try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
-            try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+            if (native_ui_js.len > 0) {
+                try modified_html.appendSlice(std.heap.c_allocator, "<script>");
+                try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
+                try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+            }
             try modified_html.appendSlice(std.heap.c_allocator, h);
         }
 
         const final_html = try modified_html.toOwnedSlice(std.heap.c_allocator);
         defer std.heap.c_allocator.free(final_html);
-
-        std.debug.print("[HTML] Injected bridge script ({d} bytes) and native UI script ({d} bytes)\n", .{ bridge_js.len, native_ui_js.len });
 
         // Load the modified HTML with a proper baseURL
         // This is important - without a baseURL, body scripts may not execute!
@@ -560,12 +559,14 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     const windowFrame: NSRect = msgSendRect(window, "frame");
     const contentRect: NSRect = msgSendRect1Rect(window, "contentRectForFrameRect:", windowFrame);
 
-    std.debug.print("[WebView] Window frame: {d}x{d}, Content rect: {d}x{d}\n", .{
-        windowFrame.size.width,
-        windowFrame.size.height,
-        contentRect.size.width,
-        contentRect.size.height,
-    });
+    if (comptime builtin.mode == .Debug) {
+        std.debug.print("[WebView] Window frame: {d}x{d}, Content rect: {d}x{d}\n", .{
+            windowFrame.size.width,
+            windowFrame.size.height,
+            contentRect.size.width,
+            contentRect.size.height,
+        });
+    }
 
     // Create the proper frame for the WebView - it should fill the content area
     // The origin should be (0, 0) relative to the content view
@@ -576,7 +577,6 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
     // Set the WebView's frame to the content area size
     msgSendVoid1Rect(webview, "setFrame:", webviewFrame);
-    std.debug.print("[WebView] Set WebView frame to: {d}x{d}\n", .{ webviewFrame.size.width, webviewFrame.size.height });
 
     // Now set webview as content view
     _ = msgSend1(window, "setContentView:", webview);

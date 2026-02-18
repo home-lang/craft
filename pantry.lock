@@ -1,0 +1,97 @@
+{
+  "version": "1.0.0",
+  "lockfileVersion": 1,
+  "generatedAt": "1771374602",
+  "packages": {
+    "vue@^3.3.0": {
+      "name": "vue",
+      "version": "^3.3.0",
+      "source": "pkgx"
+    },
+    "svelte@^4.0.0": {
+      "name": "svelte",
+      "version": "^4.0.0",
+      "source": "pkgx"
+    },
+    "npm:@types/archiver@^6.0.2": {
+      "name": "npm:@types/archiver",
+      "version": "^6.0.2",
+      "source": "pkgx"
+    },
+    "npm:@types/bun@^1.2.0": {
+      "name": "npm:@types/bun",
+      "version": "^1.2.0",
+      "source": "pkgx"
+    },
+    "react@^18.2.0": {
+      "name": "react",
+      "version": "^18.2.0",
+      "source": "pkgx"
+    },
+    "archiver@^7.0.1": {
+      "name": "archiver",
+      "version": "^7.0.1",
+      "source": "pkgx"
+    },
+    "vue@^3.0.0": {
+      "name": "vue",
+      "version": "^3.0.0",
+      "source": "pkgx"
+    },
+    "npm:@types/react@^18.2.0": {
+      "name": "npm:@types/react",
+      "version": "^18.2.0",
+      "source": "pkgx"
+    },
+    "react@>=16.8.0": {
+      "name": "react",
+      "version": ">=16.8.0",
+      "source": "pkgx"
+    },
+    "mitata@^1.0.10": {
+      "name": "mitata",
+      "version": "^1.0.10",
+      "source": "pkgx"
+    },
+    "tsup@^8.0.0": {
+      "name": "tsup",
+      "version": "^8.0.0",
+      "source": "pkgx"
+    },
+    "vitest@^1.0.0": {
+      "name": "vitest",
+      "version": "^1.0.0",
+      "source": "pkgx"
+    },
+    "better-dx@^0.1.7": {
+      "name": "better-dx",
+      "version": "^0.1.7",
+      "source": "pkgx"
+    },
+    "npm:@stacksjs/clapp@^0.2.0": {
+      "name": "npm:@stacksjs/clapp",
+      "version": "^0.2.0",
+      "source": "pkgx"
+    },
+    "svelte@^3.0.0 || ^4.0.0": {
+      "name": "svelte",
+      "version": "^3.0.0 || ^4.0.0",
+      "source": "pkgx"
+    },
+    "npm:@types/bun@latest": {
+      "name": "npm:@types/bun",
+      "version": "latest",
+      "source": "pkgx"
+    },
+    "typescript@^5.3.0": {
+      "name": "typescript",
+      "version": "^5.3.0",
+      "source": "pkgx"
+    },
+    "npm:@types/node@^22.0.0": {
+      "name": "npm:@types/node",
+      "version": "^22.0.0",
+      "source": "pkgx"
+    }
+  }
+}

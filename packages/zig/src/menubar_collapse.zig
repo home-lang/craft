@@ -6,16 +6,12 @@ const log = logging.menu;
 
 /// Menu Bar Collapse/Hide System
 ///
-/// Implements the "Hidden Bar" technique for collapsing macOS menu bar items.
+/// Two NSStatusItems are created at init:
+///   1. A "separator" (toggle button showing ‹ or ›) — always visible.
+///   2. A "hider" — 10 000 px wide, starts hidden (visible=NO).
 ///
-/// A visible "separator" item (toggle button showing ‹ or ›) is created at init.
-/// To collapse: a new 10 000-px-wide status item is created via statusItemWithLength:
-///   — this pushes everything to its left off the screen edge.
-/// To expand: the wide item is removed via removeStatusItem:
-///   — items spring back into view.
-///
-/// Note: setLength: does NOT trigger a status bar re-layout, so we must
-/// destroy and re-create the hider item each time.
+/// To collapse: hider.visible = YES  → pushes everything left off-screen.
+/// To expand:   hider.visible = NO   → items reappear.
 
 // Objective-C runtime types
 const objc = if (builtin.target.os.tag == .macos) struct {
@@ -37,7 +33,6 @@ const objc = if (builtin.target.os.tag == .macos) struct {
     pub const SEL = *anyopaque;
 };
 
-// Objective-C message sending helpers
 fn getClass(name: [*:0]const u8) if (builtin.target.os.tag == .macos) objc.id else *anyopaque {
     if (builtin.target.os.tag != .macos) unreachable;
     const class_ptr = objc.objc_getClass(name);
@@ -83,29 +78,21 @@ fn getSystemStatusBar() objc.id {
 var is_initialized: bool = false;
 var is_collapsed: bool = false;
 
-/// The visible separator/toggle item (shows ‹ or ›)
 var separator_item: if (builtin.target.os.tag == .macos) objc.id else ?*anyopaque = if (builtin.target.os.tag == .macos) null else null;
-/// The wide hider item — only exists while collapsed
 var hider_item: if (builtin.target.os.tag == .macos) objc.id else ?*anyopaque = if (builtin.target.os.tag == .macos) null else null;
-/// Target object for separator click action
 var separator_target: if (builtin.target.os.tag == .macos) objc.id else ?*anyopaque = if (builtin.target.os.tag == .macos) null else null;
-/// Whether the target class has been registered
 var class_registered: bool = false;
 
-/// Auto-collapse delay in seconds (0 = disabled)
 var auto_collapse_delay: u32 = 0;
 var auto_collapse_timer_active: bool = false;
 var last_expand_instant: ?std.time.Instant = null;
 
-/// Width of the hider item when collapsed.
 const HIDER_WIDTH: f64 = 10000.0;
 
 // ============================================================================
 // Public API
 // ============================================================================
 
-/// Initialize the menu bar collapse system.
-/// Creates only the separator NSStatusItem.
 pub fn init() void {
     if (builtin.target.os.tag != .macos) return;
     if (is_initialized) return;
@@ -113,12 +100,8 @@ pub fn init() void {
     std.debug.print("[Menubar] Initializing...\n", .{});
 
     const statusBar = getSystemStatusBar();
-    if (statusBar == null) {
-        std.debug.print("[Menubar] ERROR: systemStatusBar is null\n", .{});
-        return;
-    }
 
-    // Register the click handler ObjC class (once globally)
+    // Register ObjC click handler class (once)
     if (!class_registered) {
         const NSObject = getClass("NSObject");
         const className: [*:0]const u8 = "CraftMenubarCollapseTarget";
@@ -142,7 +125,7 @@ pub fn init() void {
         class_registered = true;
     }
 
-    // Create the separator item (visible toggle button)
+    // 1) Create the SEPARATOR (toggle button, always visible)
     const NSVariableStatusItemLength: f64 = -1.0;
     separator_item = msgSend1(statusBar, "statusItemWithLength:", NSVariableStatusItemLength);
     _ = msgSend0(separator_item, "retain");
@@ -155,13 +138,32 @@ pub fn init() void {
         msgSendVoid1(sep_button, "setAction:", objc.sel_registerName("separatorClicked:"));
     }
 
+    std.debug.print("[Menubar] Separator created: {*}\n", .{@as(?*anyopaque, separator_item)});
+
+    // 2) Create the HIDER (10000px wide, starts HIDDEN via visible=NO)
+    //    Created after separator → positioned to the LEFT of separator.
+    //    Must have button content for macOS to allocate space when visible.
+    hider_item = msgSend1(statusBar, "statusItemWithLength:", HIDER_WIDTH);
+    _ = msgSend0(hider_item, "retain");
+    msgSendVoid1(hider_item, "setAutosaveName:", createNSString("barista_separate"));
+
+    const hider_button = msgSend0(hider_item, "button");
+    if (hider_button != null) {
+        msgSendVoid1(hider_button, "setTitle:", createNSString(" "));
+    }
+
+    // Start hidden — items are visible (expanded state)
+    msgSendVoid1(hider_item, "setVisible:", @as(bool, false));
+
+    std.debug.print("[Menubar] Hider created (hidden): {*}\n", .{@as(?*anyopaque, hider_item)});
+
     is_initialized = true;
     is_collapsed = false;
 
-    std.debug.print("[Menubar] Initialized. separator={*}\n", .{@as(?*anyopaque, separator_item)});
+    std.debug.print("[Menubar] Ready\n", .{});
 }
 
-/// Collapse: create a fresh 10000-px-wide status item to push items off-screen.
+/// Collapse: show the 10000px hider → pushes items off-screen.
 pub fn collapse() void {
     if (builtin.target.os.tag != .macos) return;
     if (!is_initialized) {
@@ -170,38 +172,21 @@ pub fn collapse() void {
     }
     if (is_collapsed) return;
 
-    std.debug.print("[Menubar] Collapsing...\n", .{});
+    std.debug.print("[Menubar] Collapsing — showing hider...\n", .{});
 
-    // Remove any leftover hider
-    destroyHider();
+    // Make the wide hider visible → status bar re-layouts, pushing items left
+    msgSendVoid1(hider_item, "setVisible:", @as(bool, true));
 
-    // Create a brand-new status item with the full 10000px width.
-    // statusItemWithLength: triggers a proper layout (unlike setLength:).
-    const statusBar = getSystemStatusBar();
-    hider_item = msgSend1(statusBar, "statusItemWithLength:", HIDER_WIDTH);
-    if (hider_item == null) {
-        std.debug.print("[Menubar] ERROR: failed to create hider\n", .{});
-        return;
-    }
-    _ = msgSend0(hider_item, "retain");
-
-    // Give the button some content so macOS allocates the full width
-    const btn = msgSend0(hider_item, "button");
-    if (btn != null) {
-        msgSendVoid1(btn, "setTitle:", createNSString(" "));
-    }
-
-    // Update separator icon → ›
-    updateSeparatorIcon("\xE2\x80\xBA");
+    updateSeparatorIcon("\xE2\x80\xBA"); // ›
 
     is_collapsed = true;
     auto_collapse_timer_active = false;
 
-    std.debug.print("[Menubar] Collapsed. hider={*}\n", .{@as(?*anyopaque, hider_item)});
+    std.debug.print("[Menubar] Collapsed\n", .{});
     notifyJS();
 }
 
-/// Expand: destroy the hider item so menu bar icons reappear.
+/// Expand: hide the hider → items reappear.
 pub fn expand() void {
     if (builtin.target.os.tag != .macos) return;
     if (!is_initialized) {
@@ -210,12 +195,11 @@ pub fn expand() void {
     }
     if (!is_collapsed) return;
 
-    std.debug.print("[Menubar] Expanding...\n", .{});
+    std.debug.print("[Menubar] Expanding — hiding hider...\n", .{});
 
-    destroyHider();
+    msgSendVoid1(hider_item, "setVisible:", @as(bool, false));
 
-    // Update separator icon → ‹
-    updateSeparatorIcon("\xE2\x80\xB9");
+    updateSeparatorIcon("\xE2\x80\xB9"); // ‹
 
     is_collapsed = false;
 
@@ -238,7 +222,7 @@ pub fn toggle() void {
         if (!is_initialized) return;
     }
 
-    std.debug.print("[Menubar] Toggle (is_collapsed={})\n", .{is_collapsed});
+    std.debug.print("[Menubar] Toggle (collapsed={})\n", .{is_collapsed});
     if (is_collapsed) expand() else collapse();
 }
 
@@ -277,18 +261,8 @@ pub fn checkAutoCollapse() void {
 }
 
 // ============================================================================
-// Internal helpers
+// Internal
 // ============================================================================
-
-/// Remove the hider from the status bar and release it.
-fn destroyHider() void {
-    if (hider_item == null) return;
-    const statusBar = getSystemStatusBar();
-    msgSendVoid1(statusBar, "removeStatusItem:", hider_item);
-    _ = msgSend0(hider_item, "release");
-    hider_item = null;
-    std.debug.print("[Menubar] Hider destroyed\n", .{});
-}
 
 fn updateSeparatorIcon(icon: []const u8) void {
     if (separator_item == null) return;
@@ -307,7 +281,6 @@ fn notifyJS() void {
     macos.tryEvalJS(js) catch {};
 }
 
-/// ObjC callback — separator button clicked.
 fn separatorClicked(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
     std.debug.print("[Menubar] Separator clicked\n", .{});
     toggle();

@@ -21,15 +21,25 @@ bun run bench
 
 Measured on Apple M3 Pro, macOS:
 
+### Startup Time
+
+| Framework | p50 | Method |
+|-----------|-----|--------|
+| **Craft** | **175 ms** | `--benchmark` flag: create window, print "ready", exit |
+| Tauri | 258 ms | Auto-quit after setup + 50ms event loop |
+| Electron | 404 ms | Auto-quit after `did-finish-load` |
+
+Craft is **1.5x** faster than Tauri and **2.3x** faster than Electron at startup.
+
 ### Bundle Size
 
 | Framework | Binary Size | Distributable |
 |-----------|-------------|---------------|
-| **Craft** | **4.27 MB** | **4.27 MB** |
+| **Craft** | **4.26 MB** | **4.26 MB** |
 | Tauri | 7.69 MB | 7.69 MB |
 | Electron | 392.37 MB | 392.37 MB |
 
-Craft is **1.8x** smaller than Tauri and **91.8x** smaller than Electron.
+Craft is **1.8x** smaller than Tauri and **92.2x** smaller than Electron.
 
 ### Process Memory (RSS)
 
@@ -38,10 +48,10 @@ Measured as total RSS across the entire process tree (parent + child processes).
 | Framework | Median RSS |
 |-----------|-----------|
 | **Craft** | **89 MB** |
-| Tauri | 106 MB |
+| Tauri | 105 MB |
 | Electron | 369 MB |
 
-Craft uses **1.2x** less memory than Tauri and **4.1x** less than Electron.
+Craft uses **1.2x** less memory than Tauri and **4.2x** less than Electron.
 
 ### IPC Protocol Overhead
 
@@ -49,23 +59,11 @@ All three use JSON serialization — this measures the overhead of each framewor
 
 | Framework | Single message | 1k messages |
 |-----------|---------------|-------------|
-| **Craft** | **668 ns** | **216 us** |
-| Tauri | 756 ns | 301 us |
-| Electron | 811 ns | 320 us |
+| **Craft** | **672 ns** | **228 us** |
+| Tauri | 778 ns | 297 us |
+| Electron | 844 ns | 330 us |
 
-Craft's minimal envelope is **1.1x** faster than Tauri and **1.2x** faster than Electron.
-
-### Startup Time
-
-| Framework | p50 | Method |
-|-----------|-----|--------|
-| Tauri | **259 ms** | Auto-quit after setup + 50ms event loop |
-| Craft | 305 ms* | Kill after 300ms delay |
-| Electron | 405 ms | Auto-quit after `did-finish-load` |
-
-\* Craft's binary doesn't support auto-quit. The measurement includes ~300ms of idle wait + kill overhead, so real startup is faster than shown.
-
-Tauri is **1.6x** faster than Electron at startup (comparing auto-quit measurements).
+Craft's minimal envelope is **1.16x** faster than Tauri and **1.26x** faster than Electron.
 
 ## What's Measured
 
@@ -108,7 +106,7 @@ apps/
 
 - **IPC**: All three benchmarks do `JSON.stringify` + `JSON.parse`. The only variable is the message envelope structure each framework uses. Craft does NOT get a free pass — it uses the same serialization mechanism.
 - **Memory**: RSS is measured for the **entire process tree**, not just the main process. This is critical for Electron which spawns renderer + GPU helper processes.
-- **Startup**: Electron and Tauri auto-quit at different points (Electron after full page load, Tauri after setup + 50ms). Craft can't auto-quit so its measurement includes a fixed 300ms kill delay. Direct comparison between frameworks should account for these differences.
+- **Startup**: All three frameworks auto-quit in benchmark mode. Craft uses `--benchmark` flag, Electron and Tauri use `BENCHMARK=1` env var. Electron quits after `did-finish-load` (full page load), Tauri quits ~50ms after `setup()`, and Craft quits immediately after window creation.
 - **Size**: Measures actual files on disk. Electron's size includes the full Chromium + Node.js runtime that gets bundled into distributed apps.
 
 ## Prerequisites

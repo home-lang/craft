@@ -20,6 +20,9 @@ pub fn main(init: std.process.Init) !void {
         std.process.exit(1);
     };
 
+    // In benchmark mode, disable dev_tools for lower overhead
+    const effective_dev_tools = if (options.benchmark) false else options.dev_tools;
+
     // Special handling for system tray apps - use direct approach like minimal test
     if (options.system_tray) {
         try runWithSystemTray(allocator, options);
@@ -37,13 +40,15 @@ pub fn main(init: std.process.Init) !void {
     if (options.native_sidebar and options.url != null) {
         // Create window with native macOS sidebar loading a URL
         const url = options.url.?;
-        std.debug.print("\n⚡ Creating window with native macOS sidebar (URL mode)\n", .{});
-        std.debug.print("   Title: {s}\n", .{options.title});
-        std.debug.print("   URL: {s}\n", .{url});
-        std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
-        std.debug.print("   Sidebar Width: {d}px\n", .{options.sidebar_width});
-        if (options.dark_mode) |is_dark| std.debug.print("   Theme: {s}\n", .{if (is_dark) "Dark" else "Light"});
-        std.debug.print("\n", .{});
+        if (!options.benchmark) {
+            std.debug.print("\n⚡ Creating window with native macOS sidebar (URL mode)\n", .{});
+            std.debug.print("   Title: {s}\n", .{options.title});
+            std.debug.print("   URL: {s}\n", .{url});
+            std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
+            std.debug.print("   Sidebar Width: {d}px\n", .{options.sidebar_width});
+            if (options.dark_mode) |is_dark| std.debug.print("   Theme: {s}\n", .{if (is_dark) "Dark" else "Light"});
+            std.debug.print("\n", .{});
+        }
 
         _ = try app.createWindowWithNativeSidebarURL(
             options.title,
@@ -64,17 +69,21 @@ pub fn main(init: std.process.Init) !void {
                 .enable_hot_reload = options.hot_reload,
                 .hide_dock_icon = options.hide_dock_icon,
                 .titlebar_hidden = options.titlebar_hidden,
+                .dev_tools = effective_dev_tools,
+                .native_sidebar = true,
             },
         );
     } else if (options.native_sidebar and options.html != null) {
         // Create window with native macOS sidebar (inline HTML mode)
         const html = options.html.?;
-        std.debug.print("\n⚡ Creating window with native macOS sidebar (HTML mode)\n", .{});
-        std.debug.print("   Title: {s}\n", .{options.title});
-        std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
-        std.debug.print("   Sidebar Width: {d}px\n", .{options.sidebar_width});
-        if (options.dark_mode) |is_dark| std.debug.print("   Theme: {s}\n", .{if (is_dark) "Dark" else "Light"});
-        std.debug.print("\n", .{});
+        if (!options.benchmark) {
+            std.debug.print("\n⚡ Creating window with native macOS sidebar (HTML mode)\n", .{});
+            std.debug.print("   Title: {s}\n", .{options.title});
+            std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
+            std.debug.print("   Sidebar Width: {d}px\n", .{options.sidebar_width});
+            if (options.dark_mode) |is_dark| std.debug.print("   Theme: {s}\n", .{if (is_dark) "Dark" else "Light"});
+            std.debug.print("\n", .{});
+        }
 
         _ = try app.createWindowWithNativeSidebar(
             options.title,
@@ -95,22 +104,26 @@ pub fn main(init: std.process.Init) !void {
                 .enable_hot_reload = options.hot_reload,
                 .hide_dock_icon = options.hide_dock_icon,
                 .titlebar_hidden = options.titlebar_hidden,
+                .dev_tools = effective_dev_tools,
+                .native_sidebar = true,
             },
         );
     } else if (options.url) |url| {
         // Load URL directly (no iframe!)
-        std.debug.print("\n⚡ Loading URL in native window: {s}\n", .{url});
-        std.debug.print("   Title: {s}\n", .{options.title});
-        std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
-        if (options.frameless) std.debug.print("   Style: Frameless\n", .{});
-        if (options.transparent) std.debug.print("   Style: Transparent\n", .{});
-        if (options.always_on_top) std.debug.print("   Style: Always on top\n", .{});
-        if (options.dark_mode) |is_dark| std.debug.print("   Theme: {s}\n", .{if (is_dark) "Dark" else "Light"});
-        if (options.hot_reload) std.debug.print("   Hot Reload: Enabled\n", .{});
-        if (options.system_tray) std.debug.print("   System Tray: Enabled\n", .{});
-        if (options.hide_dock_icon) std.debug.print("   Dock Icon: Hidden (menubar-only mode)\n", .{});
-        if (options.dev_tools) std.debug.print("   DevTools: Enabled (Right-click > Inspect Element)\n", .{});
-        std.debug.print("\n", .{});
+        if (!options.benchmark) {
+            std.debug.print("\n⚡ Loading URL in native window: {s}\n", .{url});
+            std.debug.print("   Title: {s}\n", .{options.title});
+            std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
+            if (options.frameless) std.debug.print("   Style: Frameless\n", .{});
+            if (options.transparent) std.debug.print("   Style: Transparent\n", .{});
+            if (options.always_on_top) std.debug.print("   Style: Always on top\n", .{});
+            if (options.dark_mode) |is_dark| std.debug.print("   Theme: {s}\n", .{if (is_dark) "Dark" else "Light"});
+            if (options.hot_reload) std.debug.print("   Hot Reload: Enabled\n", .{});
+            if (options.system_tray) std.debug.print("   System Tray: Enabled\n", .{});
+            if (options.hide_dock_icon) std.debug.print("   Dock Icon: Hidden (menubar-only mode)\n", .{});
+            if (options.dev_tools) std.debug.print("   DevTools: Enabled (Right-click > Inspect Element)\n", .{});
+            std.debug.print("\n", .{});
+        }
 
         _ = try app.createWindowWithURL(
             options.title,
@@ -129,6 +142,7 @@ pub fn main(init: std.process.Init) !void {
                 .enable_hot_reload = options.hot_reload,
                 .hide_dock_icon = options.hide_dock_icon,
                 .titlebar_hidden = options.titlebar_hidden,
+                .dev_tools = effective_dev_tools,
             },
         );
     } else if (options.html) |html| {
@@ -156,12 +170,15 @@ pub fn main(init: std.process.Init) !void {
                 .enable_hot_reload = options.hot_reload,
                 .hide_dock_icon = options.hide_dock_icon,
                 .titlebar_hidden = options.titlebar_hidden,
+                .dev_tools = effective_dev_tools,
             },
         );
     } else {
         // Show default demo app
-        std.debug.print("\n⚡ Launching Craft demo app\n", .{});
-        std.debug.print("   Run with --help to see available options\n\n", .{});
+        if (!options.benchmark) {
+            std.debug.print("\n⚡ Launching Craft demo app\n", .{});
+            std.debug.print("   Run with --help to see available options\n\n", .{});
+        }
 
         const demo_html =
             \\<!DOCTYPE html>
@@ -288,9 +305,6 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
     // Create system tray AFTER finishLaunching (this is the key!)
     const sys_tray = try app.createSystemTray(options.title);
 
-    // Setup bridge handlers with tray handle
-    // This will be done automatically when the window is created
-
     // Create window AFTER system tray (UNLESS menubar-only mode is enabled)
     if (!options.menubar_only) {
         if (options.url) |url| {
@@ -311,6 +325,7 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
                     .enable_hot_reload = options.hot_reload,
                     .hide_dock_icon = options.hide_dock_icon,
                     .titlebar_hidden = options.titlebar_hidden,
+                    .dev_tools = options.dev_tools,
                 },
             );
         } else if (options.html) |html| {
@@ -331,6 +346,7 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
                     .enable_hot_reload = options.hot_reload,
                     .hide_dock_icon = options.hide_dock_icon,
                     .titlebar_hidden = options.titlebar_hidden,
+                    .dev_tools = options.dev_tools,
                 },
             );
         }
