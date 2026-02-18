@@ -82,24 +82,24 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
         // Try to load libappindicator3
         libappindicator = std.c.dlopen(
             "libappindicator3.so.1",
-            @bitCast(@as(c_int, 1)),
+            .{ .LAZY = true },
         ) orelse {
             // Try without version number
             libappindicator = std.c.dlopen(
                 "libappindicator3.so",
-                @bitCast(@as(c_int, 1)),
+                .{ .LAZY = true },
             ) orelse return error.AppIndicatorNotFound;
         };
 
         // Try to load libgtk-3
         libgtk = std.c.dlopen(
             "libgtk-3.so.0",
-            @bitCast(@as(c_int, 1)),
+            .{ .LAZY = true },
         ) orelse {
             // Try without version number
             libgtk = std.c.dlopen(
                 "libgtk-3.so",
-                @bitCast(@as(c_int, 1)),
+                .{ .LAZY = true },
             ) orelse return error.GtkNotFound;
         };
 
