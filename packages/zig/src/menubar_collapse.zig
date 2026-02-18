@@ -119,7 +119,7 @@ var class_registered: bool = false;
 
 var auto_collapse_delay: u32 = 0;
 var auto_collapse_timer_active: bool = false;
-var last_expand_instant: ?std.time.Instant = null;
+var last_expand_ns: ?u64 = null;
 
 // ============================================================================
 // Public API
@@ -262,7 +262,7 @@ pub fn expand() void {
     updateSeparatorIcon("\xE2\x80\xB9"); // ‹
     is_collapsed = false;
 
-    last_expand_instant = std.time.Instant.now() catch null;
+    last_expand_ns = nanoTimestamp();
     if (auto_collapse_delay > 0) {
         auto_collapse_timer_active = true;
     }
@@ -297,7 +297,7 @@ pub fn setAutoCollapse(delay_seconds: u32) void {
     auto_collapse_delay = delay_seconds;
     if (delay_seconds > 0 and !is_collapsed) {
         auto_collapse_timer_active = true;
-        last_expand_instant = std.time.Instant.now() catch null;
+        last_expand_ns = nanoTimestamp();
     } else {
         auto_collapse_timer_active = false;
     }
@@ -308,13 +308,20 @@ pub fn checkAutoCollapse() void {
         if (is_collapsed) auto_collapse_timer_active = false;
         return;
     }
-    const start = last_expand_instant orelse return;
-    const now = std.time.Instant.now() catch return;
-    const elapsed_ns = now.since(start);
+    const start = last_expand_ns orelse return;
+    const now = nanoTimestamp() orelse return;
+    const elapsed_ns = now - start;
     const delay_ns: u64 = @as(u64, auto_collapse_delay) * std.time.ns_per_s;
     if (elapsed_ns >= delay_ns) {
         collapse();
     }
+}
+
+fn nanoTimestamp() ?u64 {
+    const c = @cImport(@cInclude("time.h"));
+    var ts: c.struct_timespec = undefined;
+    if (c.clock_gettime(c.CLOCK_MONOTONIC, &ts) != 0) return null;
+    return @as(u64, @intCast(ts.tv_sec)) * 1_000_000_000 + @as(u64, @intCast(ts.tv_nsec));
 }
 
 // ============================================================================

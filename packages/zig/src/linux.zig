@@ -66,7 +66,7 @@ pub extern "c" fn webkit_user_script_new(
 pub extern "c" fn webkit_user_content_manager_add_script(manager: *anyopaque, script: *anyopaque) void;
 pub extern "c" fn webkit_user_content_manager_remove_all_scripts(manager: *anyopaque) void;
 
-pub extern "c" fn gtk_window_set_child(window: *anyopaque, child: *anyopaque) void;
+pub extern "c" fn gtk_container_add(container: *anyopaque, widget: *anyopaque) void;
 
 pub extern "c" fn g_signal_connect_data(
     instance: *anyopaque,
@@ -180,7 +180,7 @@ pub const Window = struct {
         }
 
         // Add WebView to window
-        gtk_window_set_child(window, webview);
+        gtk_container_add(window, webview);
 
         return Window{
             .gtk_window = window,

@@ -394,7 +394,6 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         if (zoomButton != null) {
             _ = msgSend2(zoomButton, "setFrameOrigin:", @as(f64, 60.0), @as(f64, @as(f64, @floatFromInt(height)) - 28.0));
         }
-
     }
 
     // Configure toolbar style and vibrancy (skip in benchmark mode for faster startup)
@@ -2631,7 +2630,7 @@ pub fn getGlobalWebView() ?objc.id {
 
 /// Generate the minimal Craft JavaScript bridge (core only, no tray/menubar/polling)
 fn getCraftBridgeScriptMinimal() []const u8 {
-    return
+    return 
     \\ (function() {
     \\   window.craft = window.craft || {};
     \\   window.__craftBridgePending = {};
@@ -2675,7 +2674,7 @@ fn getCraftBridgeScriptMinimal() []const u8 {
 
 /// Generate the full Craft JavaScript bridge (includes tray, menubar, polling)
 fn getCraftBridgeScriptFull() []const u8 {
-    return
+    return 
     \\ (function() {
     \\   window.craft = window.craft || {};
     \\   window.__craftBridgePending = {};

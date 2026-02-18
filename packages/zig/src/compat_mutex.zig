@@ -4,7 +4,7 @@ const std = @import("std");
 /// Provides lock()/unlock() semantics via spin-wait on tryLock().
 /// In Zig 0.16, std.atomic.Mutex only provides tryLock() and unlock().
 pub const Mutex = struct {
-    inner: std.Thread.Mutex = .{},
+    inner: std.atomic.Mutex = .unlocked,
 
     pub fn lock(self: *Mutex) void {
         while (!self.inner.tryLock()) {
