@@ -8,7 +8,7 @@
 
 # Craft
 
-Craft is a lightweight, high-performance cross-platform application framework. Create native apps that work on macOS, Linux, Windows, iOS, and Android with web technologies - all with a tiny 1.4MB binary and blazing fast <100ms startup time.
+Craft is a lightweight, high-performance cross-platform application framework. Create native apps that work on macOS, Linux, Windows, iOS, and Android with web technologies - all with a tiny ~297KB binary and blazing fast ~168ms startup time.
 
 ## Features
 
@@ -17,9 +17,9 @@ Craft is a lightweight, high-performance cross-platform application framework. C
 - 🖥️ **Desktop** - macOS, Linux, Windows
 - 📱 **Mobile** - iOS _(WKWebView, UIKit)_ and Android _(WebView, Activity)_
 - 🪟 **Menubar Apps** - Native system tray/menubar integration
-- ⚡ **Native Performance** - <100ms startup, <1% CPU idle, ~92MB memory
-- 🪶 **Tiny Binary** - 1.4MB binary size _(vs 150MB Electron)_
-- 🔧 **Zig-Powered** - Built with Zig 0.15.1 for maximum performance
+- ⚡ **Native Performance** - ~168ms startup, <1% CPU idle, ~86MB memory
+- 🪶 **Tiny Binary** - ~297KB binary size _(1351x smaller than Electron)_
+- 🔧 **Zig-Powered** - Built with Zig for maximum performance
 
 ### 📱 Mobile Platform Support
 
@@ -937,14 +937,18 @@ src/
 
 ## Performance
 
-| Metric | Craft | Electron | Tauri |
-|--------|------|----------|-------|
-| Binary Size | **1.4MB** | ~150MB | ~2MB |
-| Memory (idle) | **~92MB** | ~200MB | ~80MB |
-| Startup Time | **<100ms** | ~1000ms | ~100ms |
-| CPU (idle) | **<1%** | ~4% | <1% |
-<!-- | Platforms | **5** (Desktop + Mobile) | 3 | 3 |
-| Native Components | **35** | 0 | Limited | -->
+Benchmarked on Apple M3 Pro with Hello World apps. See [`benchmarks/`](./benchmarks/) for full methodology.
+
+| Metric | Craft | Tauri | React Native | Electrobun | Electron |
+|--------|-------|-------|-------------|------------|----------|
+| Binary Size | **297 KB** | 7.69 MB | 20.65 MB | 131 KB* | 392.37 MB |
+| Startup (p50) | **168 ms** | 259 ms | 243 ms | 246 ms | 412 ms |
+| Memory (RSS) | **86 MB** | 106 MB | 109 MB | 148 MB | 369 MB |
+| IPC (single msg) | **532 ns** | 778 ns | — | 760 ns | 837 ns |
+
+_*Electrobun binary is 131 KB but distributable is 60.12 MB_
+
+Craft is **1351x** smaller than Electron, **2.4x** faster to start, and uses **4.3x** less memory.
 
 ## Platform Support
 

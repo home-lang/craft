@@ -5,7 +5,7 @@
  *
  * Measures the serialization overhead of each framework's IPC protocol.
  *
- * All three frameworks use JSON serialization when crossing the JS <-> native
+ * All four frameworks use JSON serialization when crossing the JS <-> native
  * boundary. The difference is the MESSAGE FORMAT (envelope structure):
  *
  * - Craft:    Minimal envelope via WebKit message handlers
@@ -15,6 +15,10 @@
  * - Tauri:    Invoke-style envelope via WebKit message handlers + serde
  *             Request:  { cmd, callback, error, payload: { __tauriModule, message } }
  *             Response: { id, result }
+ *
+ * - Electrobun: RPC-style envelope via WebSocket + JSON
+ *             Request:  { type, id, method, params }
+ *             Response: { type, id, success, payload }
  *
  * - Electron: IPC channel envelope via Chromium structured clone
  *             Request:  { channel, sender: { id }, args: [...] }
@@ -82,6 +86,29 @@ boxplot(() => {
       return parsed.payload.message.action
     })
 
+    bench('Electrobun', () => {
+      // Electrobun's RPC protocol: typed packet envelope
+      // JS -> native: transport.send(JSON.stringify(packet)) via WebSocket
+      const request = JSON.stringify({
+        type: 'request',
+        id: 1,
+        method: 'updateTitle',
+        params: DATA,
+      })
+      const parsed = JSON.parse(request)
+
+      // Native -> JS: RPC response packet
+      const response = JSON.stringify({
+        type: 'response',
+        id: 1,
+        success: true,
+        payload: { ok: true },
+      })
+      JSON.parse(response)
+
+      return parsed.method
+    })
+
     bench('Electron', () => {
       // Electron's IPC: channel-based message passing
       // Renderer -> Main: ipcRenderer.invoke(channel, ...args)
@@ -136,6 +163,21 @@ boxplot(() => {
         })
         const msg = JSON.parse(wire)
         sum += msg.payload.value
+      }
+      return sum
+    })
+
+    bench('Electrobun - 1k messages', () => {
+      let sum = 0
+      for (let i = 0; i < 1000; i++) {
+        const wire = JSON.stringify({
+          type: 'request',
+          id: i,
+          method: 'update',
+          params: { value: i },
+        })
+        const msg = JSON.parse(wire)
+        sum += msg.params.value
       }
       return sum
     })

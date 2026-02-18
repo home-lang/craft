@@ -7,9 +7,9 @@ A guide to migrating your Electron application to Craft.
 | Aspect | Electron | Craft |
 |--------|----------|-------|
 | Runtime | Chromium + Node.js | Native WebView + Zig |
-| Binary size | ~150-200 MB | ~5-15 MB |
-| Memory | 200-500 MB | 50-150 MB |
-| Startup | 1-3 seconds | <100ms |
+| Binary size | ~392 MB | ~297 KB |
+| Memory | ~369 MB | ~86 MB |
+| Startup | ~412 ms | ~168 ms |
 | Mobile | Not supported | iOS & Android |
 
 ## Project Structure

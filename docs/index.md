@@ -3,7 +3,7 @@ layout: home
 hero:
   name: Craft
   text: Build Native Apps with Web Technologies
-  tagline: A lightweight, high-performance desktop framework powered by Zig. 1.4MB binary, <100ms startup.
+  tagline: A lightweight, high-performance desktop framework powered by Zig. ~297KB binary, ~168ms startup.
   actions:
     - theme: brand
       text: Get Started
@@ -14,10 +14,10 @@ hero:
 features:
   - icon: "🚀"
     title: Blazing Fast
-    details: Sub-100ms startup time with a tiny 1.4MB binary. Your apps launch instantly.
+    details: ~168ms startup time with a tiny ~297KB binary. Your apps launch instantly.
   - icon: "💾"
     title: Lightweight
-    details: ~92MB memory footprint vs Electron's ~200MB. Perfect for menubar apps and utilities.
+    details: ~86 MB memory footprint vs Electron's ~369 MB. Perfect for menubar apps and utilities.
   - icon: "🌍"
     title: Cross-Platform
     details: Build once, run on macOS, Linux, Windows, iOS, and Android with native performance.
@@ -35,12 +35,13 @@ features:
 <div class="custom-block tip" style="margin: 2rem auto; max-width: 800px; padding: 1.5rem;">
 <h2 style="margin-top: 0;">Why Craft?</h2>
 
-| Metric | Craft | Electron | Tauri |
-|--------|-------|----------|-------|
-| **Binary Size** | **1.4MB** | ~150MB | ~2MB |
-| **Memory (idle)** | **~92MB** | ~200MB | ~80MB |
-| **Startup Time** | **<100ms** | ~1000ms | ~100ms |
-| **CPU (idle)** | **<1%** | ~4% | <1% |
+| Metric | Craft | Tauri | React Native | Electrobun | Electron |
+|--------|-------|-------|--------------|------------|----------|
+| **Binary Size** | **~297 KB** | ~7.69 MB | ~20.65 MB | ~131 KB (60.12 MB dist) | ~392 MB |
+| **Memory (RSS)** | **~86 MB** | ~106 MB | ~109 MB | ~148 MB | ~369 MB |
+| **Startup Time (p50)** | **~168 ms** | ~259 ms | ~243 ms | ~246 ms | ~412 ms |
+| **CPU (idle)** | **<1%** | <1% | — | — | ~4% |
+| **IPC (single msg)** | **532 ns** | 778 ns | — | 760 ns | 837 ns |
 
 </div>
 

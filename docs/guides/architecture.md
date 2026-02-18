@@ -48,7 +48,7 @@ The Zig core provides:
 - **Cross-compilation** - Build for any platform from any platform
 - **Memory safety** - No garbage collection, predictable performance
 - **Small binaries** - Final apps are typically <10MB
-- **Fast startup** - <100ms cold start on most platforms
+- **Fast startup** - ~168 ms cold start on most platforms
 
 ### Key Modules
 
@@ -283,7 +283,7 @@ macos: {
 
 | Metric | Typical Value |
 |--------|---------------|
-| Cold start | <100ms |
+| Cold start | ~168 ms |
 | Binary size | 5-15 MB |
 | Memory usage | 50-150 MB |
 | Bridge latency | <1ms |

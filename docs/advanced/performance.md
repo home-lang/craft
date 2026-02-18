@@ -6,12 +6,13 @@ This guide covers performance optimization strategies for Craft applications.
 
 Craft is designed for high performance:
 
-| Metric | Craft | Electron | Tauri |
-|--------|-------|----------|-------|
-| Binary Size | **1.4MB** | ~150MB | ~2MB |
-| Memory (idle) | **~92MB** | ~200MB | ~80MB |
-| Startup Time | **<100ms** | ~1000ms | ~100ms |
-| CPU (idle) | **<1%** | ~4% | <1% |
+| Metric | Craft | Tauri | React Native | Electrobun | Electron |
+|--------|-------|-------|--------------|------------|----------|
+| Binary Size | **~297 KB** | ~7.69 MB | ~20.65 MB | ~131 KB (60.12 MB dist) | ~392 MB |
+| Memory (RSS) | **~86 MB** | ~106 MB | ~109 MB | ~148 MB | ~369 MB |
+| Startup Time (p50) | **~168 ms** | ~259 ms | ~243 ms | ~246 ms | ~412 ms |
+| CPU (idle) | **<1%** | <1% | — | — | ~4% |
+| IPC (single msg) | **532 ns** | 778 ns | — | 760 ns | 837 ns |
 
 ## Startup Optimization
 

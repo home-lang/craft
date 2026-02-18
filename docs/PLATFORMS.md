@@ -6,7 +6,7 @@ Craft v1.0.0 provides complete platform support for macOS, Linux, and Windows wi
 
 | Platform | Status | WebView Technology | Binary Size | Notes |
 |----------|--------|-------------------|-------------|-------|
-| **macOS** | ✅ Production | WKWebView (Native) | ~1.4MB | Full native support |
+| **macOS** | ✅ Production | WKWebView (Native) | ~297 KB | Full native support |
 | **Linux** | ✅ Production | WebKit2GTK | ~1.5MB | Requires GTK4 + WebKit2GTK |
 | **Windows** | ✅ Production | WebView2 (Edge) | ~1.6MB | Requires WebView2 Runtime |
 
@@ -354,9 +354,9 @@ zig build build-macos
 
 | Metric | macOS | Linux | Windows |
 |--------|-------|-------|---------|
-| **Binary Size** | 1.4MB | 1.5MB | 1.6MB |
-| **Startup Time** | <100ms | <120ms | <150ms |
-| **Memory (idle)** | ~92MB | ~95MB | ~98MB |
+| **Binary Size** | ~297 KB | 1.5MB | 1.6MB |
+| **Startup Time** | ~168 ms | <120ms | <150ms |
+| **Memory (idle)** | ~86 MB | ~95MB | ~98MB |
 | **CPU (idle)** | <1% | <1% | <1% |
 
 ---
@@ -463,13 +463,13 @@ const authenticated = try windows.authenticateWithHello();
 
 ### From Electron
 
-Craft apps are 100x smaller and start 10x faster than Electron:
+Craft apps are 1351x smaller and start 2.4x faster than Electron:
 
 | Aspect | Electron | Craft |
 |--------|----------|------|
-| Binary | ~150MB | 1.4MB |
-| Startup | ~1000ms | <100ms |
-| Memory | ~200MB | ~92MB |
+| Binary | ~392 MB | ~297 KB |
+| Startup | ~412 ms | ~168 ms |
+| Memory | ~369 MB | ~86 MB |
 | Language | JavaScript | Zig + Web |
 
 ### From Tauri
@@ -478,7 +478,7 @@ Craft provides similar performance with simpler architecture:
 
 | Aspect | Tauri | Craft |
 |--------|-------|------|
-| Binary | ~2MB | 1.4MB |
+| Binary | ~7.69 MB | ~297 KB |
 | Language | Rust + Web | Zig + Web |
 | Features | 50+ | 67 |
 | Platform | Rust bridge | Native |

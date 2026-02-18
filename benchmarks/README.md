@@ -61,15 +61,16 @@ Craft uses **1.2x** less memory than Tauri, **1.3x** less than React Native, **1
 
 ### IPC Protocol Overhead
 
-All three use JSON serialization — this measures the overhead of each framework's message envelope format.
+All four use JSON serialization — this measures the overhead of each framework's message envelope format.
 
 | Framework | Single message | 1k messages |
 |-----------|---------------|-------------|
-| **Craft** | **511 ns** | **216 us** |
-| Tauri | 786 ns | 293 us |
-| Electron | 845 ns | 327 us |
+| **Craft** | **532 ns** | **221 us** |
+| Electrobun | 760 ns | 257 us |
+| Tauri | 778 ns | 302 us |
+| Electron | 837 ns | 333 us |
 
-Craft's minimal envelope is **1.5x** faster than Tauri and **1.7x** faster than Electron.
+Craft's minimal envelope is **1.4x** faster than Electrobun, **1.5x** faster than Tauri, and **1.6x** faster than Electron.
 
 ## What's Measured
 
@@ -119,7 +120,7 @@ apps/
 
 ## Fairness Notes
 
-- **IPC**: All benchmarks do `JSON.stringify` + `JSON.parse`. The only variable is the message envelope structure each framework uses. Craft does NOT get a free pass — it uses the same serialization mechanism.
+- **IPC**: All benchmarks do `JSON.stringify` + `JSON.parse`. The only variable is the message envelope structure each framework uses. Craft does NOT get a free pass — it uses the same serialization mechanism. Electrobun uses `{type, id, method, params}` request / `{type, id, success, payload}` response envelopes.
 - **Memory**: RSS is measured for the **entire process tree**, not just the main process. This is critical for Electron which spawns renderer + GPU helper processes, and Electrobun which also uses helper processes.
 - **Startup**: All five frameworks auto-quit in benchmark mode. Craft uses `--benchmark` flag, others use `BENCHMARK=1` env var. Electron quits after `did-finish-load` (full page load), Tauri quits ~50ms after `setup()`, Electrobun quits ~50ms after window creation, React Native quits ~100ms after `applicationDidFinishLaunching`, and Craft quits immediately after window creation.
 - **Size**: Measures actual files on disk. Craft is built with `ReleaseSmall` + `strip` + `single_threaded` + `unwind_tables=none`. Tauri uses `cargo build --release`. React Native uses xcodebuild Release configuration. Electron's size includes the full Chromium + Node.js runtime.

@@ -312,7 +312,7 @@ zig build -Doptimize=ReleaseSmall
 
 ### Performance Metrics
 - **Binary Size:** 1.3MB (Debug), <1MB (ReleaseSmall)
-- **Memory Usage:** ~92MB runtime
+- **Memory Usage:** ~86 MB runtime
 - **Startup Time:** Near-instant
 - **Load Time:** 50% faster (no iframe overhead)
 
