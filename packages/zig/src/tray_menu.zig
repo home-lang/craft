@@ -240,6 +240,23 @@ pub export fn menuActionCallback(self: objc.id, _: objc.SEL, sender: objc.id) vo
         const NSApp = getClass("NSApplication");
         const app = msgSend0(NSApp, "sharedApplication");
         msgSendVoid1(app, "terminate:", null);
+    } else if (std.mem.eql(u8, action_str, "preferences") or std.mem.eql(u8, action_str, "about")) {
+        // Built-in actions that show the window
+        if (global_window_handle) |window| {
+            const macos = @import("macos.zig");
+            macos.showWindow(window);
+        }
+        // Also dispatch to JS so the app can handle it (e.g., navigate to preferences view)
+        if (global_webview) |webview| {
+            const webview_id: objc.id = @ptrFromInt(@intFromPtr(webview));
+            dispatchMenuActionToJS(webview_id, action_str) catch |err| {
+                log.debug("Failed to dispatch to JS: {}", .{err});
+            };
+        }
+    } else if (std.mem.eql(u8, action_str, "toggleMenubar")) {
+        // Built-in: toggle menu bar collapse directly
+        const menubar_collapse = @import("menubar_collapse.zig");
+        menubar_collapse.toggle();
     } else {
         // Dispatch custom action to JavaScript
         log.debug("Custom action - dispatching to JS", .{});

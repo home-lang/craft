@@ -133,9 +133,11 @@ pub fn main(init: std.process.Init) !void {
         );
     } else if (options.html) |html| {
         // Load HTML content
-        std.debug.print("\n⚡ Loading HTML content in native window\n", .{});
-        std.debug.print("   Title: {s}\n", .{options.title});
-        std.debug.print("   Size: {d}x{d}\n\n", .{ options.width, options.height });
+        if (!options.benchmark) {
+            std.debug.print("\n⚡ Loading HTML content in native window\n", .{});
+            std.debug.print("   Title: {s}\n", .{options.title});
+            std.debug.print("   Size: {d}x{d}\n\n", .{ options.width, options.height });
+        }
 
         _ = try app.createWindowWithHTML(
             options.title,
@@ -232,6 +234,13 @@ pub fn main(init: std.process.Init) !void {
         _ = try app.createWindow("Craft - Demo", 600, 400, demo_html);
     }
 
+    // Benchmark mode: window created, print "ready" and exit immediately
+    if (options.benchmark) {
+        // Write "ready" to stdout (fd 1) to signal the parent process
+        _ = std.c.write(1, "ready\n", 6);
+        std.process.exit(0);
+    }
+
     // Create system tray if requested
     if (options.system_tray) {
         const sys_tray = try app.createSystemTray(options.title);
@@ -301,6 +310,7 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
                     .dark_mode = options.dark_mode,
                     .enable_hot_reload = options.hot_reload,
                     .hide_dock_icon = options.hide_dock_icon,
+                    .titlebar_hidden = options.titlebar_hidden,
                 },
             );
         } else if (options.html) |html| {
@@ -320,6 +330,7 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
                     .dark_mode = options.dark_mode,
                     .enable_hot_reload = options.hot_reload,
                     .hide_dock_icon = options.hide_dock_icon,
+                    .titlebar_hidden = options.titlebar_hidden,
                 },
             );
         }

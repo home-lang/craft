@@ -2503,12 +2503,17 @@ pub fn startDownload(url: []const u8, destination: []const u8) !Download {
 
 // Theme support (dark/light mode)
 pub fn setAppearance(window: objc.id, dark_mode: bool) void {
-    const NSAppearance = getClass("NSAppearance");
-    const appearance_name = if (dark_mode) "NSAppearanceNameDarkAqua" else "NSAppearanceNameAqua";
+    const NSAppearanceClass = getClass("NSAppearance");
+    const NSString = getClass("NSString");
+    const appearance_name: [*:0]const u8 = if (dark_mode) "NSAppearanceNameDarkAqua" else "NSAppearanceNameAqua";
 
-    const name_cstr: [*:0]const u8 = appearance_name;
-    const appearance = msgSend1(NSAppearance, "appearanceNamed:", name_cstr);
-    _ = msgSend1(window, "setAppearance:", appearance);
+    // appearanceNamed: expects an NSString, not a C string
+    const name_str = msgSend1(msgSend0(NSString, "alloc"), "initWithUTF8String:", appearance_name);
+    const appearance = msgSend1(NSAppearanceClass, "appearanceNamed:", name_str);
+
+    if (appearance != null) {
+        _ = msgSend1(window, "setAppearance:", appearance);
+    }
 }
 
 pub fn getSystemAppearance() bool {
@@ -2794,6 +2799,91 @@ fn getCraftBridgeScript() []const u8 {
     \\     }
     \\   };
     \\
+    \\   // ===== MENUBAR COLLAPSE API =====
+    \\   window.craft.menubar = {
+    \\     async init() {
+    \\       return new Promise(function(resolve, reject) {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'menubarCollapse', action: 'init'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error('Failed to init menubar collapse: ' + error.message));
+    \\         }
+    \\       });
+    \\     },
+    \\     async collapse() {
+    \\       return new Promise(function(resolve, reject) {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'menubarCollapse', action: 'collapse'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error('Failed to collapse menubar: ' + error.message));
+    \\         }
+    \\       });
+    \\     },
+    \\     async expand() {
+    \\       return new Promise(function(resolve, reject) {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'menubarCollapse', action: 'expand'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error('Failed to expand menubar: ' + error.message));
+    \\         }
+    \\       });
+    \\     },
+    \\     async toggle() {
+    \\       return new Promise(function(resolve, reject) {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'menubarCollapse', action: 'toggle'
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error('Failed to toggle menubar: ' + error.message));
+    \\         }
+    \\       });
+    \\     },
+    \\     async getState() {
+    \\       return new Promise(function(resolve, reject) {
+    \\         try {
+    \\           var pending = window.__craftBridgePending;
+    \\           if (!pending['menubarCollapse:getState']) pending['menubarCollapse:getState'] = [];
+    \\           pending['menubarCollapse:getState'].push({ resolve: resolve, reject: reject });
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'menubarCollapse', action: 'getState'
+    \\           });
+    \\         } catch (error) {
+    \\           reject(new Error('Failed to get menubar state: ' + error.message));
+    \\         }
+    \\       });
+    \\     },
+    \\     async setAutoCollapse(seconds) {
+    \\       return new Promise(function(resolve, reject) {
+    \\         try {
+    \\           window.webkit.messageHandlers.craft.postMessage({
+    \\             type: 'menubarCollapse', action: 'setAutoCollapse', data: String(seconds)
+    \\           });
+    \\           resolve();
+    \\         } catch (error) {
+    \\           reject(new Error('Failed to set auto-collapse: ' + error.message));
+    \\         }
+    \\       });
+    \\     },
+    \\     onStateChange(callback) {
+    \\       var handler = function(event) {
+    \\         callback(event.detail || {});
+    \\       };
+    \\       window.addEventListener('craft:menubar:stateChange', handler);
+    \\       return function() { window.removeEventListener('craft:menubar:stateChange', handler); };
+    \\     }
+    \\   };
+    \\
     \\   // Fire the ready event and manually trigger any event listeners
     \\   // Since loadHTMLString doesn't reliably execute body scripts, we need a workaround
     \\   function fireReady() {
@@ -2840,6 +2930,17 @@ fn getCraftBridgeScript() []const u8 {
     \\       // Ignore polling errors
     \\     }
     \\   }, 100);
+    \\
+    \\   // Poll for menubar auto-collapse (every 2 seconds is fine for this)
+    \\   setInterval(function() {
+    \\     try {
+    \\       window.webkit.messageHandlers.craft.postMessage({
+    \\         type: 'menubarCollapse',
+    \\         action: 'poll',
+    \\         data: ''
+    \\       });
+    \\     } catch (e) {}
+    \\   }, 2000);
     \\ })();
     ;
 }
@@ -2867,6 +2968,7 @@ var global_network_bridge: ?*@import("bridge_network.zig").NetworkBridge = null;
 var global_bluetooth_bridge: ?*@import("bridge_bluetooth.zig").BluetoothBridge = null;
 var global_tray_handle_for_bridge: ?*anyopaque = null;
 var global_clipboard_bridge: ?*@import("bridge_clipboard.zig").ClipboardBridge = null;
+var global_menubar_collapse_bridge: ?*@import("bridge_menubar.zig").MenubarCollapseBridge = null;
 
 pub fn setGlobalTrayHandle(handle: *anyopaque) void {
     global_tray_handle_for_bridge = handle;
@@ -2957,12 +3059,25 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         global_clipboard_bridge.?.* = ClipboardBridge.init(allocator);
     }
 
+    if (global_menubar_collapse_bridge == null) {
+        const MenubarCollapseBridge = @import("bridge_menubar.zig").MenubarCollapseBridge;
+        global_menubar_collapse_bridge = try allocator.create(MenubarCollapseBridge);
+        global_menubar_collapse_bridge.?.* = MenubarCollapseBridge.init(allocator);
+    }
+
     // Set handles - use parameter or global
     const tray_h = tray_handle orelse global_tray_handle_for_bridge;
     std.debug.print("[Bridge] setupBridgeHandlers: tray_handle param={*}, global={*}, resolved={*}\n", .{ @as(?*anyopaque, tray_handle), global_tray_handle_for_bridge, tray_h });
     if (tray_h) |handle| {
         std.debug.print("[Bridge] Setting tray handle on bridge: {*}\n", .{handle});
         global_tray_bridge.?.setTrayHandle(handle);
+
+        // Auto-initialize menubar collapse system for tray apps
+        const menubar_collapse = @import("menubar_collapse.zig");
+        if (!menubar_collapse.isInitialized()) {
+            std.debug.print("[Bridge] Auto-initializing menubar collapse for tray app\n", .{});
+            menubar_collapse.init();
+        }
     } else {
         std.debug.print("[Bridge] WARNING: No tray handle available!\n", .{});
     }
@@ -3159,6 +3274,10 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
             // ClipboardBridge expects optional raw JSON slice for data
             const data_opt: ?[]const u8 = if (data_json_str.len > 0) data_json_str else null;
             try bridge.handleMessageWithData(action, data_opt);
+        }
+    } else if (std.mem.eql(u8, msg_type, "menubarCollapse")) {
+        if (global_menubar_collapse_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
         }
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages

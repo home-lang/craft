@@ -34,3 +34,4 @@ test-app/
 *.log
 /docs/.bunpress
 .env
+/pantry

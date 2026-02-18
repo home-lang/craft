@@ -1,0 +1,13 @@
+{
+  "name": "electron-hello-world",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "bench": "BENCHMARK=1 electron ."
+  },
+  "dependencies": {
+    "electron": "^33.0.0"
+  }
+}

@@ -17,7 +17,7 @@ pub fn get() std.Io {
     if (global_io) |io| return io;
 
     // Lazy init for test mode or when not explicitly initialized
-    default_threaded = std.Io.Threaded.init(std.heap.c_allocator, .{});
+    default_threaded = std.Io.Threaded.init(std.heap.c_allocator, .{ .environ = .empty });
     global_io = default_threaded.?.io();
     return global_io.?;
 }

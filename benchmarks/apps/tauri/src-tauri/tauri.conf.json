@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/main/.schema/tauri.config.json",
+  "productName": "tauri-hello-world",
+  "version": "1.0.0",
+  "identifier": "com.benchmark.tauri-hello-world",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Hello World",
+        "width": 400,
+        "height": 300,
+        "resizable": false
+      }
+    ]
+  }
+}

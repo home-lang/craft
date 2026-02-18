@@ -186,17 +186,6 @@ export class CraftApp {
     const args = this.buildArgs()
     const craftPath = await this.findCraftBinary()
 
-    // CRITICAL DEBUG: Log spawn command
-    console.log('\n[SPAWN DEBUG] ========================================')
-    console.log('[SPAWN DEBUG] Spawning:', craftPath)
-    console.log('[SPAWN DEBUG] With args array length:', args.length)
-    console.log('[SPAWN DEBUG] FULL ARGS ARRAY:')
-    args.forEach((arg, idx) => {
-      const preview = arg.length > 100 ? arg.substring(0, 100) + '...[truncated]' : arg
-      console.log(`[SPAWN DEBUG] args[${idx}] = "${preview}"`)
-    })
-    console.log('[SPAWN DEBUG] ========================================\n')
-
     this.process = spawn(craftPath, args, {
       stdio: 'inherit',
     })
@@ -271,13 +260,6 @@ export class CraftApp {
     const args: string[] = []
     const { window, html, url } = this.config
 
-    // CRITICAL DEBUG: Log window config
-    console.log('\n[TS DEBUG] ========================================')
-    console.log('[TS DEBUG] buildArgs() called')
-    console.log('[TS DEBUG] window config:', JSON.stringify(window, null, 2))
-    console.log('[TS DEBUG] titlebarHidden value:', window?.titlebarHidden)
-    console.log('[TS DEBUG] ========================================\n')
-
     // Menubar-only mode doesn't need content
     if (!window?.menubarOnly) {
       // URL takes precedence over HTML
@@ -313,23 +295,19 @@ export class CraftApp {
     if (!window?.resizable)
       args.push('--no-resize')
     if (window?.darkMode)
-      args.push('--dark-mode')
+      args.push('--dark')
     if (window?.hotReload)
       args.push('--hot-reload')
-    if (window?.devTools)
-      args.push('--dev-tools')
+    if (window?.devTools === false)
+      args.push('--no-devtools')
     if (window?.systemTray)
       args.push('--system-tray')
     if (window?.hideDockIcon)
       args.push('--hide-dock-icon')
     if (window?.menubarOnly)
       args.push('--menubar-only')
-    if (window?.titlebarHidden) {
-      console.log('[TS DEBUG] ✓✓✓ Adding --titlebar-hidden to args!')
+    if (window?.titlebarHidden)
       args.push('--titlebar-hidden')
-    } else {
-      console.log('[TS DEBUG] ✗✗✗ titlebarHidden is falsy, NOT adding to args')
-    }
     if (window?.nativeSidebar) {
       args.push('--native-sidebar')
       if (window?.sidebarWidth)
@@ -337,15 +315,6 @@ export class CraftApp {
       if (window?.sidebarConfig)
         args.push('--sidebar-config', JSON.stringify(window.sidebarConfig))
     }
-
-    // CRITICAL DEBUG: Log final args array
-    console.log('\n[TS DEBUG] ========================================')
-    console.log('[TS DEBUG] FINAL ARGS ARRAY:')
-    console.log('[TS DEBUG] Total args:', args.length)
-    args.forEach((arg, idx) => {
-      console.log(`[TS DEBUG] args[${idx}] = "${arg}"`)
-    })
-    console.log('[TS DEBUG] ========================================\n')
 
     return args
   }
