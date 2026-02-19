@@ -34,7 +34,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: master
+          version: 0.16.0-dev.2565+684032671
 
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -142,7 +142,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: master
+          version: 0.16.0-dev.2565+684032671
 
       - name: Setup Java
         uses: actions/setup-java@v4
