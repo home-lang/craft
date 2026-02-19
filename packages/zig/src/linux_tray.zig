@@ -1,11 +1,23 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-// Direct extern declarations for dlopen/dlsym/dlclose to avoid Zig 0.16 std.c.RTLD issues
-const RTLD_LAZY: c_int = 1;
-extern "c" fn dlopen(path: ?[*:0]const u8, mode: c_int) ?*anyopaque;
-extern "c" fn dlsym(handle: ?*anyopaque, symbol: [*:0]const u8) ?*anyopaque;
-extern "c" fn dlclose(handle: ?*anyopaque) c_int;
+// Use @cImport for dl functions to avoid Zig 0.16 std.c.RTLD type issues
+const dl = struct {
+    const c = @cImport(@cInclude("dlfcn.h"));
+
+    fn open(path: [*:0]const u8) ?*anyopaque {
+        const result = c.dlopen(path, c.RTLD_LAZY);
+        return @ptrCast(result);
+    }
+
+    fn sym(handle: ?*anyopaque, symbol: [*:0]const u8) ?*anyopaque {
+        return @ptrCast(c.dlsym(handle, symbol));
+    }
+
+    fn close(handle: ?*anyopaque) void {
+        _ = c.dlclose(handle);
+    }
+};
 
 // Only compile on Linux
 pub const LinuxTray = if (builtin.os.tag == .linux) LinuxTrayImpl else struct {
@@ -86,77 +98,63 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
         if (initialized) return;
 
         // Try to load libappindicator3
-        libappindicator = dlopen(
-            "libappindicator3.so.1",
-            RTLD_LAZY,
-        ) orelse {
-            // Try without version number
-            libappindicator = dlopen(
-                "libappindicator3.so",
-                RTLD_LAZY,
-            ) orelse return error.AppIndicatorNotFound;
-        };
+        libappindicator = dl.open("libappindicator3.so.1") orelse
+            dl.open("libappindicator3.so") orelse
+            return error.AppIndicatorNotFound;
 
         // Try to load libgtk-3
-        libgtk = dlopen(
-            "libgtk-3.so.0",
-            RTLD_LAZY,
-        ) orelse {
-            // Try without version number
-            libgtk = dlopen(
-                "libgtk-3.so",
-                RTLD_LAZY,
-            ) orelse return error.GtkNotFound;
-        };
+        libgtk = dl.open("libgtk-3.so.0") orelse
+            dl.open("libgtk-3.so") orelse
+            return error.GtkNotFound;
 
         // Load AppIndicator function pointers
-        app_indicator_new = @ptrCast(@alignCast(dlsym(
+        app_indicator_new = @ptrCast(@alignCast(dl.sym(
             libappindicator,
             "app_indicator_new",
         ) orelse return error.SymbolNotFound));
 
-        app_indicator_set_status = @ptrCast(@alignCast(dlsym(
+        app_indicator_set_status = @ptrCast(@alignCast(dl.sym(
             libappindicator,
             "app_indicator_set_status",
         ) orelse return error.SymbolNotFound));
 
-        app_indicator_set_menu = @ptrCast(@alignCast(dlsym(
+        app_indicator_set_menu = @ptrCast(@alignCast(dl.sym(
             libappindicator,
             "app_indicator_set_menu",
         ) orelse return error.SymbolNotFound));
 
-        app_indicator_set_label = @ptrCast(@alignCast(dlsym(
+        app_indicator_set_label = @ptrCast(@alignCast(dl.sym(
             libappindicator,
             "app_indicator_set_label",
         ) orelse return error.SymbolNotFound));
 
-        app_indicator_set_icon = @ptrCast(@alignCast(dlsym(
+        app_indicator_set_icon = @ptrCast(@alignCast(dl.sym(
             libappindicator,
             "app_indicator_set_icon",
         ) orelse return error.SymbolNotFound));
 
         // Load GTK function pointers
-        gtk_init = @ptrCast(@alignCast(dlsym(
+        gtk_init = @ptrCast(@alignCast(dl.sym(
             libgtk,
             "gtk_init",
         ) orelse return error.SymbolNotFound));
 
-        gtk_menu_new = @ptrCast(@alignCast(dlsym(
+        gtk_menu_new = @ptrCast(@alignCast(dl.sym(
             libgtk,
             "gtk_menu_new",
         ) orelse return error.SymbolNotFound));
 
-        gtk_menu_item_new_with_label = @ptrCast(@alignCast(dlsym(
+        gtk_menu_item_new_with_label = @ptrCast(@alignCast(dl.sym(
             libgtk,
             "gtk_menu_item_new_with_label",
         ) orelse return error.SymbolNotFound));
 
-        gtk_menu_shell_append = @ptrCast(@alignCast(dlsym(
+        gtk_menu_shell_append = @ptrCast(@alignCast(dl.sym(
             libgtk,
             "gtk_menu_shell_append",
         ) orelse return error.SymbolNotFound));
 
-        gtk_widget_show_all = @ptrCast(@alignCast(dlsym(
+        gtk_widget_show_all = @ptrCast(@alignCast(dl.sym(
             libgtk,
             "gtk_widget_show_all",
         ) orelse return error.SymbolNotFound));
@@ -255,11 +253,11 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
 
     pub fn unloadLibraries() void {
         if (libappindicator) |lib| {
-            dlclose(lib);
+            dl.close(lib);
             libappindicator = null;
         }
         if (libgtk) |lib| {
-            dlclose(lib);
+            dl.close(lib);
             libgtk = null;
         }
         initialized = false;
