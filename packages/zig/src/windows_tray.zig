@@ -176,7 +176,7 @@ const WindowsTrayImpl = if (builtin.os.tag == .windows) struct {
         self.notify_data.szTip[copy_len] = 0;
 
         // Update if already created
-        if (self.notify_data.hWnd != null) {
+        if (@intFromPtr(self.notify_data.hWnd) != 0) {
             _ = Shell_NotifyIconW(NIM_MODIFY, &self.notify_data);
         }
     }
