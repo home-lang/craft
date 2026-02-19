@@ -258,9 +258,22 @@ pub fn main(init: std.process.Init) !void {
     // Benchmark mode: window created, print "ready" and exit immediately
     if (options.benchmark) {
         // Write "ready" to stdout to signal the parent process
-        const c = @cImport(@cInclude("stdio.h"));
-        _ = c.printf("ready\n");
-        _ = c.fflush(c.stdout);
+        const msg = "ready\n";
+        if (builtin.os.tag == .windows) {
+            const k32 = struct {
+                extern "kernel32" fn GetStdHandle(nStdHandle: u32) callconv(.c) ?*anyopaque;
+                extern "kernel32" fn WriteFile(hFile: *anyopaque, lpBuffer: [*]const u8, nNumberOfBytesToWrite: u32, lpNumberOfBytesWritten: ?*u32, lpOverlapped: ?*anyopaque) callconv(.c) c_int;
+            };
+            const STD_OUTPUT_HANDLE: u32 = @bitCast(@as(i32, -11));
+            if (k32.GetStdHandle(STD_OUTPUT_HANDLE)) |handle| {
+                _ = k32.WriteFile(handle, msg, msg.len, null, null);
+            }
+        } else {
+            const write_fn = struct {
+                extern "c" fn write(fd: c_int, buf: [*]const u8, count: usize) isize;
+            };
+            _ = write_fn.write(1, msg, msg.len);
+        }
         std.process.exit(0);
     }
 
