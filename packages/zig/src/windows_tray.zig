@@ -33,7 +33,7 @@ const WindowsTrayImpl = if (builtin.os.tag == .windows) struct {
         uID: windows.UINT,
         uFlags: windows.UINT,
         uCallbackMessage: windows.UINT,
-        hIcon: windows.HICON,
+        hIcon: ?windows.HICON,
         szTip: [128]u16,
         dwState: windows.DWORD,
         dwStateMask: windows.DWORD,
@@ -42,7 +42,7 @@ const WindowsTrayImpl = if (builtin.os.tag == .windows) struct {
         szInfoTitle: [64]u16,
         dwInfoFlags: windows.DWORD,
         guidItem: windows.GUID,
-        hBalloonIcon: windows.HICON,
+        hBalloonIcon: ?windows.HICON,
     };
 
     extern "shell32" fn Shell_NotifyIconW(
@@ -97,8 +97,8 @@ const WindowsTrayImpl = if (builtin.os.tag == .windows) struct {
             const hInstance = GetModuleHandleW(null);
 
             // Class name for message window
-            var class_name_buf = [_]u16{ 'Z', 'y', 't', 'e', 'T', 'r', 'a', 'y', 0 };
-            const class_name: windows.LPCWSTR = &class_name_buf;
+            const class_name_buf = [_:0]u16{ 'Z', 'y', 't', 'e', 'T', 'r', 'a', 'y' };
+            const class_name: [*:0]const u16 = &class_name_buf;
 
             // Create message-only window
             const hwnd_result = CreateWindowExW(

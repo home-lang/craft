@@ -201,6 +201,7 @@ pub const Window = struct {
         var title_wide: [256]u16 = undefined;
         const title_len = std.unicode.utf8ToUtf16Le(&title_wide, options.title) catch return error.WindowCreationFailed;
         title_wide[title_len] = 0;
+        const title_ptr: [*:0]const u16 = title_wide[0..title_len :0];
 
         // Calculate window position
         const x = options.x orelse CW_USEDEFAULT;
@@ -210,7 +211,7 @@ pub const Window = struct {
         const hwnd = CreateWindowExW(
             ex_style,
             CLASS_NAME.ptr,
-            &title_wide,
+            title_ptr,
             style,
             x,
             y,
