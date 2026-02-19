@@ -135,7 +135,7 @@ pub extern "WebView2Loader" fn CreateCoreWebView2EnvironmentWithOptions(
 // Application state
 var app_running = false;
 var window_class_registered = false;
-const CLASS_NAME = [_]u16{ 'Z', 'y', 't', 'e', 'W', 'i', 'n', 'd', 'o', 'w', 0 };
+const CLASS_NAME: [:0]const u16 = &[_:0]u16{ 'Z', 'y', 't', 'e', 'W', 'i', 'n', 'd', 'o', 'w' };
 
 pub const WindowStyle = struct {
     frameless: bool = false,
@@ -178,7 +178,7 @@ pub const Window = struct {
                 .hCursor = LoadCursorW(null, @ptrFromInt(32512)), // IDC_ARROW
                 .hbrBackground = null,
                 .lpszMenuName = null,
-                .lpszClassName = &CLASS_NAME,
+                .lpszClassName = CLASS_NAME.ptr,
                 .hIconSm = null,
             };
 
@@ -209,7 +209,7 @@ pub const Window = struct {
         // Create window
         const hwnd = CreateWindowExW(
             ex_style,
-            &CLASS_NAME,
+            CLASS_NAME.ptr,
             &title_wide,
             style,
             x,

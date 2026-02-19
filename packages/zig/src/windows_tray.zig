@@ -48,16 +48,16 @@ const WindowsTrayImpl = if (builtin.os.tag == .windows) struct {
     extern "shell32" fn Shell_NotifyIconW(
         dwMessage: windows.DWORD,
         lpData: *NOTIFYICONDATA,
-    ) callconv(windows.WINAPI) windows.BOOL;
+    ) callconv(.c) windows.BOOL;
 
     extern "user32" fn LoadIconW(
         hInstance: ?windows.HINSTANCE,
         lpIconName: windows.LPCWSTR,
-    ) callconv(windows.WINAPI) ?windows.HICON;
+    ) callconv(.c) ?windows.HICON;
 
     extern "user32" fn DestroyIcon(
         hIcon: windows.HICON,
-    ) callconv(windows.WINAPI) windows.BOOL;
+    ) callconv(.c) windows.BOOL;
 
     extern "user32" fn CreateWindowExW(
         dwExStyle: windows.DWORD,
@@ -72,11 +72,11 @@ const WindowsTrayImpl = if (builtin.os.tag == .windows) struct {
         hMenu: ?windows.HMENU,
         hInstance: ?windows.HINSTANCE,
         lpParam: ?windows.LPVOID,
-    ) callconv(windows.WINAPI) ?windows.HWND;
+    ) callconv(.c) ?windows.HWND;
 
     extern "kernel32" fn GetModuleHandleW(
         lpModuleName: ?windows.LPCWSTR,
-    ) callconv(windows.WINAPI) ?windows.HINSTANCE;
+    ) callconv(.c) ?windows.HINSTANCE;
 
     hwnd: windows.HWND,
     icon_id: windows.UINT,
@@ -152,7 +152,7 @@ const WindowsTrayImpl = if (builtin.os.tag == .windows) struct {
 
     extern "user32" fn DestroyWindow(
         hWnd: windows.HWND,
-    ) callconv(windows.WINAPI) windows.BOOL;
+    ) callconv(.c) windows.BOOL;
 
     pub fn deinit(self: *WindowsTrayImpl) void {
         _ = Shell_NotifyIconW(NIM_DELETE, &self.notify_data);
