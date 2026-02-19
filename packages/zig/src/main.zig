@@ -89,6 +89,13 @@ pub const WindowStyle = if (builtin.os.tag == .macos) macos.WindowStyle else str
     y: ?i32 = null,
     dark_mode: ?bool = null,
     enable_hot_reload: bool = false,
+    hide_dock_icon: bool = false,
+    titlebar_hidden: bool = false,
+    system_tray: bool = false,
+    system_tray_title: ?[]const u8 = null,
+    dev_tools: bool = true,
+    native_sidebar: bool = false,
+    benchmark: bool = false,
 };
 
 pub const Window = struct {
