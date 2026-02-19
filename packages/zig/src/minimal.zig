@@ -258,8 +258,9 @@ pub fn main(init: std.process.Init) !void {
     // Benchmark mode: window created, print "ready" and exit immediately
     if (options.benchmark) {
         // Write "ready" to stdout to signal the parent process
-        const stdout = std.io.getStdOut();
-        stdout.writeAll("ready\n") catch {};
+        const c = @cImport(@cInclude("stdio.h"));
+        _ = c.printf("ready\n");
+        _ = c.fflush(c.stdout);
         std.process.exit(0);
     }
 
