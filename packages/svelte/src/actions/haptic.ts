@@ -3,9 +3,9 @@ import { craft } from '../stores/craft';
 
 export function haptic(node: HTMLElement, type: string = 'selection') {
   const handleClick = async () => {
-    const $craft = get(craft);
-    if (!$craft) return;
-    await $craft.haptic(type);
+    const _$craft = get(craft);
+    if (!_$craft) return;
+    await _$craft.haptic(type);
   };
 
   node.addEventListener('click', handleClick);

@@ -40,4 +40,4 @@ function createCraftStore() {
 }
 
 export const craft = createCraftStore();
-export const isReady = derived(craft, ($craft) => $craft !== null);
+export const isReady = derived(craft, (_$craft) => _$craft !== null);

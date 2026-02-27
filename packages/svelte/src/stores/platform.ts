@@ -4,9 +4,9 @@ import { craft } from './craft';
 export function createPlatformStore() {
   const { subscribe, set } = writable<{ platform: string; version: string } | null>(null);
 
-  craft.subscribe(async ($craft) => {
-    if ($craft) {
-      const info = await $craft.getPlatform();
+  craft.subscribe(async (_$craft) => {
+    if (_$craft) {
+      const info = await _$craft.getPlatform();
       set(info);
     }
   });

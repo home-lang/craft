@@ -194,7 +194,7 @@ export interface AppEventMap {
 /**
  * App event handler
  */
-export type AppEventHandler<T extends AppEventType> = (data: AppEventMap[T]) => void
+export type AppEventHandler<T extends AppEventType> = (_data: AppEventMap[T]) => void
 
 /**
  * Global shortcut handler

@@ -1158,7 +1158,7 @@ export interface CraftEventMap {
 /**
  * Event handler type
  */
-export type CraftEventHandler<T extends CraftEventType> = (data: CraftEventMap[T]) => void
+export type CraftEventHandler<T extends CraftEventType> = (_data: CraftEventMap[T]) => void
 
 /**
  * Display information

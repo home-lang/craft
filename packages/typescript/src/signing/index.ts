@@ -88,7 +88,7 @@ export class CodeSigner {
       await execAsync(command)
 
       // Verify signature
-      const verifyResult = await execAsync(`codesign --verify --verbose "${path}"`)
+      const _verifyResult = await execAsync(`codesign --verify --verbose "${path}"`)
 
       return {
         success: true,

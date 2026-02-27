@@ -3,7 +3,7 @@
  * Simple interval-based timer with callbacks
  */
 
-export type TimerCallback = (timeRemaining: number) => void
+export type TimerCallback = (_timeRemaining: number) => void
 
 export class Timer {
   private intervalId: ReturnType<typeof setInterval> | null = null

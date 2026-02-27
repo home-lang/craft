@@ -646,7 +646,7 @@ export class AndroidPredictiveBack {
    * Register back callback
    */
   onBackPressed(callback: () => boolean): () => void {
-    const handler = (event: CustomEvent) => {
+    const handler = (_event: CustomEvent) => {
       const handled = callback()
       if ((window as any).CraftBridge) {
         ;(window as any).CraftBridge.postMessage(

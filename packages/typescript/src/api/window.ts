@@ -166,7 +166,7 @@ export interface WindowEventMap {
 /**
  * Window event handler
  */
-export type WindowEventHandler<T extends WindowEventType> = (data: WindowEventMap[T]) => void
+export type WindowEventHandler<T extends WindowEventType> = (_data: WindowEventMap[T]) => void
 
 // ============================================================================
 // Window Class

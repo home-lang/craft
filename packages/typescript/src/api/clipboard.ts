@@ -39,7 +39,7 @@ export interface ClipboardData {
  */
 export async function writeText(text: string): Promise<void> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, _reject) => {
       const w = window as any
       w.webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',

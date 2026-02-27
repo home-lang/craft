@@ -265,7 +265,7 @@ export class WebSocketClient {
   private maxReconnectAttempts: number
   private reconnectDelay: number
   private handlers: Map<string, Set<(data: unknown) => void>> = new Map()
-  private messageHandler: ((event: MessageEvent) => void) | null = null
+  private messageHandler: ((_event: MessageEvent) => void) | null = null
 
   constructor(url: string, options: WebSocketOptions = {}) {
     this.url = url
@@ -285,7 +285,7 @@ export class WebSocketClient {
         resolve()
       }
 
-      this.ws.onerror = (event) => {
+      this.ws.onerror = (_event) => {
         reject(new Error('WebSocket connection failed'))
       }
 

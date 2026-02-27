@@ -28,7 +28,7 @@
     const domListFnErrors = document.getElementById("listFnErrors");
     const domListFns = document.getElementById("listFns");
     const domListGlobalVars = document.getElementById("listGlobalVars");
-    const domListInfo = document.getElementById("listInfo");
+    const _domListInfo = document.getElementById("listInfo");
     const domListNamespaces = document.getElementById("listNamespaces");
     const domListNav = document.getElementById("listNav");
     const domListSearchResults = document.getElementById("listSearchResults");
@@ -79,10 +79,10 @@
     // names of modules in the same order as wasm
     const moduleList = [];
 
-    let wasm_promise = fetch("main.wasm");
-    let sources_promise = fetch("sources.tar").then(function(response) {
-      if (!response.ok) throw new Error("unable to download sources");
-      return response.arrayBuffer();
+    const wasm_promise = fetch("main.wasm");
+    const _sources_promise = fetch("sources.tar").then((_response) => {
+      if (!_response.ok) throw new Error("unable to download sources");
+      return _response.arrayBuffer();
     });
     var wasm_exports = null;
 
@@ -115,7 +115,7 @@
       wasm_exports = obj.instance.exports;
       window.wasm = obj; // for debugging
 
-      sources_promise.then(function(buffer) {
+      _sources_promise.then(function(buffer) {
         const js_array = new Uint8Array(buffer);
         const ptr = wasm_exports.alloc(js_array.length);
         const wasm_array = new Uint8Array(wasm_exports.memory.buffer, ptr, js_array.length);
@@ -263,7 +263,7 @@
       }
     }
 
-    function renderNav(cur_nav_decl, list) {
+    function renderNav(cur_nav_decl, _list) {
       return renderNavFancy(cur_nav_decl, []);
     }
 
@@ -733,7 +733,7 @@
       }
     }
 
-    function onSearchChange(ev) {
+    function onSearchChange(_ev) {
       curSearchIndex = -1;
       startAsyncSearch();
     }
@@ -857,7 +857,7 @@
 
     function renderSearchCursor() {
         for (let i = 0; i < domListSearchResults.children.length; i += 1) {
-            var liDom = domListSearchResults.children[i];
+            const liDom = domListSearchResults.children[i];
             if (curSearchIndex === i) {
                 liDom.classList.add("selected");
             } else {

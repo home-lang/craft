@@ -150,7 +150,7 @@ export interface TrayEventMap {
 /**
  * Tray event handler
  */
-export type TrayEventHandler<T extends TrayEventType> = (data: TrayEventMap[T]) => void
+export type TrayEventHandler<T extends TrayEventType> = (_data: TrayEventMap[T]) => void
 
 // ============================================================================
 // System Tray Class

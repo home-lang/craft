@@ -225,22 +225,22 @@ export const trayStore: ReturnType<typeof createTrayStore> = createTrayStore();
 // Derived Stores
 // ============================================
 
-export const platform: Readable<CraftContext['platform']> = derived(craftStore, ($craft: CraftContext) => $craft.platform);
-export const isDarkMode: Readable<boolean> = derived(craftStore, ($craft: CraftContext) => $craft.isDarkMode);
-export const isOnline: Readable<boolean> = derived(craftStore, ($craft: CraftContext) => $craft.isOnline);
+export const platform: Readable<CraftContext['platform']> = derived(craftStore, (_$craft: CraftContext) => _$craft.platform);
+export const isDarkMode: Readable<boolean> = derived(craftStore, (_$craft: CraftContext) => _$craft.isDarkMode);
+export const isOnline: Readable<boolean> = derived(craftStore, (_$craft: CraftContext) => _$craft.isOnline);
 
 export const isMobile: Readable<boolean> = derived(
   craftStore,
-  ($craft: CraftContext) => $craft.platform === 'ios' || $craft.platform === 'android'
+  (_$craft: CraftContext) => _$craft.platform === 'ios' || _$craft.platform === 'android'
 );
 
 export const isDesktop: Readable<boolean> = derived(
   craftStore,
-  ($craft: CraftContext) =>
-    $craft.platform === 'macos' || $craft.platform === 'windows' || $craft.platform === 'linux'
+  (_$craft: CraftContext) =>
+    _$craft.platform === 'macos' || _$craft.platform === 'windows' || _$craft.platform === 'linux'
 );
 
-export const isWeb: Readable<boolean> = derived(craftStore, ($craft: CraftContext) => $craft.platform === 'web');
+export const isWeb: Readable<boolean> = derived(craftStore, (_$craft: CraftContext) => _$craft.platform === 'web');
 
 // ============================================
 // Notification Store
@@ -390,7 +390,7 @@ export const clipboardStore: ReturnType<typeof createClipboardStore> = createCli
  * Usage: <div use:shortcut={{ key: 'ctrl+s', callback: save }}>
  */
 export function shortcut(
-  node: HTMLElement,
+  _node: HTMLElement,
   params: {
     key: string;
     callback: () => void;

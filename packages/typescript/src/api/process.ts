@@ -175,9 +175,9 @@ export interface SpawnOptions {
 
 export class ChildProcess {
   private processId: string | null = null
-  private onStdoutHandlers: ((data: string) => void)[] = []
-  private onStderrHandlers: ((data: string) => void)[] = []
-  private onExitHandlers: ((code: number) => void)[] = []
+  private onStdoutHandlers: ((_data: string) => void)[] = []
+  private onStderrHandlers: ((_data: string) => void)[] = []
+  private onExitHandlers: ((_code: number) => void)[] = []
 
   constructor(
     private command: string,

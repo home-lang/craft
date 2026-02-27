@@ -28,7 +28,7 @@ export interface CSPDirectives {
 }
 
 export interface CORSConfig {
-  origin?: string | string[] | boolean | ((origin: string) => boolean)
+  origin?: string | string[] | boolean | ((_origin: string) => boolean)
   methods?: string[]
   allowedHeaders?: string[]
   exposedHeaders?: string[]

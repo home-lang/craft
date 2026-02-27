@@ -59,7 +59,7 @@ class CraftStore<T> {
 
   getState = (): T => this.state;
 
-  setState = (newState: Partial<T> | ((prev: T) => T)): void => {
+  setState = (newState: Partial<T> | ((_prev: T) => T)): void => {
     if (typeof newState === 'function') {
       this.state = newState(this.state);
     } else {

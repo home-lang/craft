@@ -385,7 +385,7 @@ export class BinarySizeReducer {
 
     // Find all imports
     const importMatches = code.matchAll(/import\s+\{([^}]+)\}\s+from/g)
-    const imports = [...importMatches].flatMap((m) =>
+    const _imports = [...importMatches].flatMap((m) =>
       m[1]
         .split(',')
         .map((i) => i.trim().split(' as ')[0])

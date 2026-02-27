@@ -403,7 +403,7 @@ const html = `
     };
 
     // Audio elements
-    let transitionAudio = null;
+    const transitionAudio = null;
     let backgroundAudio = null;
 
     // Audio URLs (using Web Audio API oscillators for sounds)
@@ -1028,7 +1028,7 @@ const html = `
     console.log('The timer is displayed in the menubar (window title)');
 
     // Track window visibility state
-    let isWindowVisible = true;
+    const isWindowVisible = true;
 
     // Show About dialog
     function showAbout() {

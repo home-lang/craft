@@ -213,7 +213,7 @@ export interface SidebarEventMap {
 /**
  * Sidebar event handler
  */
-export type SidebarEventHandler<T extends SidebarEventType> = (data: SidebarEventMap[T]) => void
+export type SidebarEventHandler<T extends SidebarEventType> = (_data: SidebarEventMap[T]) => void
 
 // ============================================================================
 // Style Presets

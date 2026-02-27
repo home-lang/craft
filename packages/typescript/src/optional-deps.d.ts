@@ -17,7 +17,7 @@ declare module 'sharp' {
     toFile(path: string): Promise<any>;
   }
 
-  function sharp(input: string | Buffer): SharpInstance;
+  function sharp(_input: string | Buffer): SharpInstance;
   export default sharp;
 }
 

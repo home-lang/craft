@@ -10,20 +10,20 @@ interface HttpOptions {
 
 export const http = {
   async fetch<T = any>(url: string, options: HttpOptions = {}): Promise<T> {
-    const $craft = get(craft);
-    if (!$craft) throw new Error('Craft not ready');
-    return await $craft.invoke('http.fetch', { url, ...options });
+    const _$craft = get(craft);
+    if (!_$craft) throw new Error('Craft not ready');
+    return await _$craft.invoke('http.fetch', { url, ...options });
   },
 
   async download(url: string, path: string) {
-    const $craft = get(craft);
-    if (!$craft) throw new Error('Craft not ready');
-    await $craft.invoke('http.download', { url, path });
+    const _$craft = get(craft);
+    if (!_$craft) throw new Error('Craft not ready');
+    await _$craft.invoke('http.download', { url, path });
   },
 
   async upload(url: string, filePath: string, options: HttpOptions = {}) {
-    const $craft = get(craft);
-    if (!$craft) throw new Error('Craft not ready');
-    return await $craft.invoke('http.upload', { url, filePath, ...options });
+    const _$craft = get(craft);
+    if (!_$craft) throw new Error('Craft not ready');
+    return await _$craft.invoke('http.upload', { url, filePath, ...options });
   },
 };

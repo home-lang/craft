@@ -184,20 +184,20 @@ export interface VariantConfig<V extends Record<string, Record<string, string>>>
  * ```
  */
 export function variants<V extends Record<string, Record<string, string>>>(
-  config: VariantConfig<V>
+  _config: VariantConfig<V>
 ): (props?: { [K in keyof V]?: keyof V[K] } & { className?: string }) => string {
   return (props = {}) => {
     const classes: string[] = []
 
     // Add base classes
-    if (config.base) {
-      classes.push(config.base)
+    if (_config.base) {
+      classes.push(_config.base)
     }
 
     // Apply variants
-    for (const [variantKey, variantOptions] of Object.entries(config.variants)) {
+    for (const [variantKey, variantOptions] of Object.entries(_config.variants)) {
       const value = props[variantKey as keyof V] ??
-                   config.defaultVariants?.[variantKey as keyof V]
+                   _config.defaultVariants?.[variantKey as keyof V]
 
       if (value !== undefined && variantOptions[value as string]) {
         classes.push(variantOptions[value as string])
@@ -205,14 +205,14 @@ export function variants<V extends Record<string, Record<string, string>>>(
     }
 
     // Apply compound variants
-    if (config.compoundVariants) {
-      for (const compound of config.compoundVariants) {
+    if (_config.compoundVariants) {
+      for (const compound of _config.compoundVariants) {
         const { className, ...conditions } = compound
         let matches = true
 
         for (const [key, value] of Object.entries(conditions)) {
           const propValue = props[key as keyof V] ??
-                           config.defaultVariants?.[key as keyof V]
+                           _config.defaultVariants?.[key as keyof V]
           if (propValue !== value) {
             matches = false
             break

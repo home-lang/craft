@@ -166,7 +166,7 @@ export class AutoUpdater extends EventEmitter {
       (d) => d.fromVersion === this.config.currentVersion
     )
 
-    const updateSource = deltaUpdate || platformUpdate
+    const _updateSource = deltaUpdate || platformUpdate
     const url = deltaUpdate?.url || platformUpdate.url
     const expectedSize = deltaUpdate?.size || platformUpdate.size
     const expectedHash = deltaUpdate?.sha256 || platformUpdate.sha256

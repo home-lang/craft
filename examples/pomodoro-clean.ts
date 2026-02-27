@@ -35,7 +35,7 @@ const audio = new AudioManager()
 
 // App state
 let isWorkSession = true
-let isWindowVisible = true
+const _isWindowVisible = true
 let timer: Timer
 
 const html = `

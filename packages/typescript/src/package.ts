@@ -458,7 +458,7 @@ async function createPKG(opts: {
 /**
  * Helper: Create Windows MSI
  */
-async function createMSI(opts: {
+async function createMSI(_opts: {
   name: string
   version: string
   binaryPath: string
