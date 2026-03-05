@@ -24,6 +24,8 @@
     "clean:packages": "rm -rf packages/*/dist packages/*/node_modules",
     "lint": "bunx --bun pickier .",
     "lint:fix": "bunx --bun pickier . --fix",
+    "format": "bunx --bun pickier . --format",
+    "format:fix": "bunx --bun pickier . --format --write",
     "fmt": "cd packages/zig && zig fmt src/ build.zig",
     "fmt:check": "cd packages/zig && zig fmt --check src/ build.zig",
     "dev": "cd packages/typescript && bun run dev",
