@@ -263,6 +263,11 @@ fn msgSendVoid1(target: anytype, selector: [*:0]const u8, arg1: anytype) void {
 fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     if (builtin.target.os.tag != .macos) return error.PlatformNotSupported;
 
+    // Create menubar collapse items BEFORE the tray item so they get
+    // positions 1 and 2 (rightmost). The tray item will be position 3.
+    const menubar_collapse = @import("menubar_collapse.zig");
+    menubar_collapse.earlyInit();
+
     // Get NSStatusBar systemStatusBar
     const NSStatusBar = objc.objc_getClass("NSStatusBar");
     const systemStatusBar = msgSend0(NSStatusBar, "systemStatusBar");
@@ -304,6 +309,11 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     if (comptime builtin.mode == .Debug)
         std.debug.print("[Tray] Set button title to: {s}\n", .{text_to_display});
 
+    // Set autosaveName for stable positioning
+    const NSString_as = objc.objc_getClass("NSString");
+    const autosaveName = msgSend1(NSString_as, "stringWithUTF8String:", "barista_tray");
+    msgSendVoid1(statusItem, "setAutosaveName:", autosaveName);
+
     // Make sure the status item is visible
     const visible: c_int = 1;
     msgSendVoid1(statusItem, "setVisible:", visible);
@@ -343,6 +353,16 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     const showAction = msgSend1(NSString, "stringWithUTF8String:", "show");
     msgSendVoid1(showItem, "setRepresentedObject:", showAction);
     msgSendVoid1(defaultMenu, "addItem:", showItem);
+
+    // Add "Toggle Menu Bar Items" item with action
+    const toggleItem = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
+    const toggleTitle = msgSend1(NSString, "stringWithUTF8String:", "Toggle Menu Bar Items");
+    msgSendVoid1(toggleItem, "setTitle:", toggleTitle);
+    msgSendVoid1(toggleItem, "setTarget:", menuTarget);
+    msgSendVoid1(toggleItem, "setAction:", action_sel);
+    const toggleAction = msgSend1(NSString, "stringWithUTF8String:", "toggleMenubar");
+    msgSendVoid1(toggleItem, "setRepresentedObject:", toggleAction);
+    msgSendVoid1(defaultMenu, "addItem:", toggleItem);
 
     // Add separator
     const separator1 = msgSend0(NSMenuItem, "separatorItem");

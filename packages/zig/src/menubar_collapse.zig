@@ -4,18 +4,23 @@ const logging = @import("logging.zig");
 
 const log = logging.menu;
 
-/// Menu Bar Collapse/Hide System
+/// Menu Bar Collapse/Hide System — single visible chevron, dynamic expand indicator
 ///
-/// Hides menu bar status items by creating a very wide (10000px) NSStatusItem
-/// with an NSVisualEffectView (.menu material) as its content. Since the hider
-/// is itself a status item (window level 25), it lives at the SAME level as
-/// other status items and blends naturally with the menu bar — no floating
-/// overlay, no visual mismatch.
+///   Position 1 (rightmost, created in earlyInit): ‹ — the chevron/separator
+///   Position 2 (created by tray.zig):             ☕️ — the app's tray icon (untouched)
 ///
-/// On collapse:  create hider item (10000px) with visual effect background
-/// On expand:    remove hider item entirely
+///   On collapse:
+///     1. The ‹ item expands to 10000px, pushing ☕️ and other items off-screen
+///        (its button goes off-screen too — that's unavoidable)
+///     2. A NEW temporary › item is created — it becomes the new rightmost item,
+///        so it appears to the RIGHT of the expanded item and stays visible
 ///
-/// The separator toggle (‹/›) stays persistent across collapse/expand cycles.
+///   On expand:
+///     1. The temporary › item is removed
+///     2. The original item shrinks back, ‹ reappears
+///
+///   Normal:    [other apps] [☕️] [‹]
+///   Collapsed:                   [›]  (← temporary item, original ‹ is expanded behind it)
 
 // ============================================================================
 // Objective-C runtime
@@ -40,13 +45,6 @@ const objc = if (builtin.target.os.tag == .macos) struct {
     pub const SEL = *anyopaque;
 };
 
-const CGRect = extern struct {
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-};
-
 // ============================================================================
 // ObjC message sending helpers
 // ============================================================================
@@ -68,27 +66,27 @@ fn msgSend1(target: anytype, sel: [*:0]const u8, a1: anytype) objc.id {
     return f(target, objc.sel_registerName(sel), a1);
 }
 
-fn msgSendVoid0(target: anytype, sel: [*:0]const u8) void {
-    if (builtin.target.os.tag != .macos) unreachable;
-    const f = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
-    f(target, objc.sel_registerName(sel));
-}
-
 fn msgSendVoid1(target: anytype, sel: [*:0]const u8, a1: anytype) void {
     if (builtin.target.os.tag != .macos) unreachable;
     const f = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(a1)) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
     f(target, objc.sel_registerName(sel), a1);
 }
 
-fn msgSendRect(target: anytype, sel: [*:0]const u8) CGRect {
+fn msgSendVoid2(target: anytype, sel: [*:0]const u8, a1: anytype, a2: anytype) void {
     if (builtin.target.os.tag != .macos) unreachable;
-    const f = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) CGRect, @ptrCast(&objc.objc_msgSend));
-    return f(target, objc.sel_registerName(sel));
+    const f = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(a1), @TypeOf(a2)) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
+    f(target, objc.sel_registerName(sel), a1, a2);
 }
 
-fn msgSendF64(target: anytype, sel: [*:0]const u8) f64 {
+fn msgSendVoid3(target: anytype, sel: [*:0]const u8, a1: anytype, a2: anytype, a3: anytype) void {
     if (builtin.target.os.tag != .macos) unreachable;
-    const f = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) f64, @ptrCast(&objc.objc_msgSend));
+    const f = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(a1), @TypeOf(a2), @TypeOf(a3)) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
+    f(target, objc.sel_registerName(sel), a1, a2, a3);
+}
+
+fn msgSendUsize(target: anytype, sel: [*:0]const u8) usize {
+    if (builtin.target.os.tag != .macos) unreachable;
+    const f = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) usize, @ptrCast(&objc.objc_msgSend));
     return f(target, objc.sel_registerName(sel));
 }
 
@@ -109,28 +107,42 @@ fn getSystemStatusBar() objc.id {
 // Global State
 // ============================================================================
 
+var early_initialized: bool = false;
 var is_initialized: bool = false;
 var is_collapsed: bool = false;
 
-var separator_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
-var hider_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
-var separator_target: objc.id = if (builtin.target.os.tag == .macos) null else null;
+// The permanent ‹ item — expands to push items off-screen
+var chevron_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
+var item_constraint: objc.id = if (builtin.target.os.tag == .macos) null else null;
+
+// Temporary › item — created when collapsed, removed when expanded
+var expand_indicator: objc.id = if (builtin.target.os.tag == .macos) null else null;
+
+var saved_tray_menu: objc.id = if (builtin.target.os.tag == .macos) null else null;
+var click_target: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var class_registered: bool = false;
 
 var auto_collapse_delay: u32 = 0;
 var auto_collapse_timer_active: bool = false;
 var last_expand_ns: ?u64 = null;
 
+const LENGTH_VARIABLE: f64 = -1.0;
+const COLLAPSE_WIDTH: f64 = 10_000.0;
+
+const CHEVRON_COLLAPSE = "\xE2\x80\xB9"; // ‹ (items visible, click to hide)
+const CHEVRON_EXPAND = "\xE2\x80\xBA"; // › (items hidden, click to show)
+
 // ============================================================================
 // Public API
 // ============================================================================
 
-pub fn init() void {
+/// Called from tray.zig BEFORE the tray item is created.
+pub fn earlyInit() void {
     if (builtin.target.os.tag != .macos) return;
-    if (is_initialized) return;
+    if (early_initialized) return;
 
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] Initializing...\n", .{});
+        std.debug.print("[Menubar] earlyInit — creating chevron (pos1)...\n", .{});
 
     // Register ObjC click handler class
     if (!class_registered) {
@@ -146,30 +158,54 @@ pub fn init() void {
             );
             _ = objc.class_addMethod(
                 @ptrCast(@alignCast(targetClass)),
-                objc.sel_registerName("separatorClicked:"),
-                @ptrCast(@constCast(&separatorClicked)),
+                objc.sel_registerName("toggleClicked:"),
+                @ptrCast(@constCast(&toggleClicked)),
                 "v@:@",
             );
             objc.objc_registerClassPair(@ptrCast(@alignCast(targetClass)));
         }
 
         const cls_id: objc.id = @ptrCast(@alignCast(targetClass));
-        separator_target = msgSend0(msgSend0(cls_id, "alloc"), "init");
-        _ = msgSend0(separator_target, "retain");
+        click_target = msgSend0(msgSend0(cls_id, "alloc"), "init");
+        _ = msgSend0(click_target, "retain");
         class_registered = true;
     }
 
-    // Create the separator toggle button (‹/›)
-    const NSVariableStatusItemLength: f64 = -1.0;
-    separator_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", NSVariableStatusItemLength);
-    _ = msgSend0(separator_item, "retain");
-    msgSendVoid1(separator_item, "setAutosaveName:", createNSString("barista_expandcollapse"));
+    // === Create the chevron/separator item (position 1, rightmost) ===
+    chevron_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", LENGTH_VARIABLE);
+    _ = msgSend0(chevron_item, "retain");
 
-    const btn = msgSend0(separator_item, "button");
+    const btn = msgSend0(chevron_item, "button");
     if (btn != null) {
-        msgSendVoid1(btn, "setTitle:", createNSString("\xE2\x80\xB9")); // ‹
-        msgSendVoid1(btn, "setTarget:", separator_target);
-        msgSendVoid1(btn, "setAction:", objc.sel_registerName("separatorClicked:"));
+        msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_COLLAPSE)); // ‹
+        msgSendVoid1(btn, "setTarget:", click_target);
+        msgSendVoid1(btn, "setAction:", objc.sel_registerName("toggleClicked:"));
+    }
+
+    // Find and cache the width constraint for expansion
+    findConstraintForItem(chevron_item);
+
+    early_initialized = true;
+
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Menubar] earlyInit done (constraint={s})\n", .{if (item_constraint != null) "found" else "NOT found"});
+}
+
+/// Called after tray is created.
+pub fn init() void {
+    if (builtin.target.os.tag != .macos) return;
+    if (is_initialized) return;
+    if (!early_initialized) earlyInit();
+
+    // Save the tray's context menu for right-click on the chevron
+    const macos = @import("macos.zig");
+    if (macos.getGlobalTrayHandle()) |tray_handle| {
+        const statusItem: objc.id = @ptrFromInt(@intFromPtr(tray_handle));
+        const menu = msgSend0(statusItem, "menu");
+        if (menu != null) {
+            saved_tray_menu = menu;
+            _ = msgSend0(saved_tray_menu, "retain");
+        }
     }
 
     is_initialized = true;
@@ -179,8 +215,6 @@ pub fn init() void {
         std.debug.print("[Menubar] Ready\n", .{});
 }
 
-/// Collapse: create a wide status item with a visual effect view that covers
-/// other items. Since it's a status item (level 25), it blends with the menu bar.
 pub fn collapse() void {
     if (builtin.target.os.tag != .macos) return;
     if (!is_initialized) {
@@ -188,63 +222,36 @@ pub fn collapse() void {
         if (!is_initialized) return;
     }
     if (is_collapsed) return;
+    if (chevron_item == null) return;
 
-    // Remove any existing hider
-    if (hider_item != null) {
-        _ = msgSend1(getSystemStatusBar(), "removeStatusItem:", hider_item);
-        hider_item = null;
+    // 1. Expand the ‹ item to 10000px — pushes everything to its LEFT off-screen
+    //    (the ‹ button goes off-screen too, that's expected)
+    msgSendVoid1(chevron_item, "setLength:", COLLAPSE_WIDTH);
+
+    if (item_constraint != null) {
+        msgSendVoid1(item_constraint, "setActive:", @as(c_int, 1));
     }
 
-    // Create a very wide status item — it will overlap other items at the same level
-    const hider_length: f64 = 10000.0;
-    hider_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", hider_length);
-    if (hider_item == null) {
-        if (comptime builtin.mode == .Debug)
-            std.debug.print("[Menubar] Failed to create hider item\n", .{});
-        return;
-    }
-    _ = msgSend0(hider_item, "retain");
-    msgSendVoid1(hider_item, "setAutosaveName:", createNSString("barista_hider"));
+    // 2. Create a NEW temporary › item — it becomes the new rightmost item,
+    //    appearing to the RIGHT of the expanded item, so it stays visible
+    expand_indicator = msgSend1(getSystemStatusBar(), "statusItemWithLength:", LENGTH_VARIABLE);
+    _ = msgSend0(expand_indicator, "retain");
 
-    // Get the button and set up a visual effect view as its content
-    const button = msgSend0(hider_item, "button");
-    if (button != null) {
-        // Clear default title
-        msgSendVoid1(button, "setTitle:", createNSString(""));
-
-        // Get the menu bar thickness for the view height
-        const thickness = msgSendF64(getSystemStatusBar(), "thickness");
-
-        // Create NSVisualEffectView matching the menu bar
-        const NSVisualEffectView = getClass("NSVisualEffectView");
-        const effect_view = msgSend1(
-            msgSend0(NSVisualEffectView, "alloc"),
-            "initWithFrame:",
-            CGRect{ .x = 0, .y = 0, .width = hider_length, .height = thickness },
-        );
-
-        // material = .menu (5), state = .active (1), blendingMode = .behindWindow (0)
-        msgSendVoid1(effect_view, "setMaterial:", @as(c_long, 5));
-        msgSendVoid1(effect_view, "setState:", @as(c_long, 1));
-        msgSendVoid1(effect_view, "setBlendingMode:", @as(c_long, 0));
-
-        // Add the visual effect view as a subview of the button
-        msgSendVoid1(button, "addSubview:", effect_view);
-
-        // Also set the button's layer to clip content
-        msgSendVoid1(button, "setWantsLayer:", @as(objc.BOOL, true));
+    const ind_btn = msgSend0(expand_indicator, "button");
+    if (ind_btn != null) {
+        msgSendVoid1(ind_btn, "setTitle:", createNSString(CHEVRON_EXPAND)); // ›
+        msgSendVoid1(ind_btn, "setTarget:", click_target);
+        msgSendVoid1(ind_btn, "setAction:", objc.sel_registerName("toggleClicked:"));
     }
 
-    updateSeparatorIcon("\xE2\x80\xBA"); // ›
     is_collapsed = true;
     auto_collapse_timer_active = false;
 
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] Collapsed\n", .{});
+        std.debug.print("[Menubar] Collapsed — ‹ expanded, › indicator created\n", .{});
     notifyJS();
 }
 
-/// Expand: remove the hider status item entirely.
 pub fn expand() void {
     if (builtin.target.os.tag != .macos) return;
     if (!is_initialized) {
@@ -252,14 +259,22 @@ pub fn expand() void {
         if (!is_initialized) return;
     }
     if (!is_collapsed) return;
+    if (chevron_item == null) return;
 
-    if (hider_item != null) {
-        _ = msgSend1(getSystemStatusBar(), "removeStatusItem:", hider_item);
-        msgSendVoid0(hider_item, "release");
-        hider_item = null;
+    // 1. Remove the temporary › indicator
+    if (expand_indicator != null) {
+        msgSendVoid1(getSystemStatusBar(), "removeStatusItem:", expand_indicator);
+        _ = msgSend0(expand_indicator, "release");
+        expand_indicator = null;
     }
 
-    updateSeparatorIcon("\xE2\x80\xB9"); // ‹
+    // 2. Shrink the original ‹ item back
+    msgSendVoid1(chevron_item, "setLength:", LENGTH_VARIABLE);
+
+    if (item_constraint != null) {
+        msgSendVoid1(item_constraint, "setActive:", @as(c_int, 0));
+    }
+
     is_collapsed = false;
 
     last_expand_ns = nanoTimestamp();
@@ -268,7 +283,7 @@ pub fn expand() void {
     }
 
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] Expanded\n", .{});
+        std.debug.print("[Menubar] Expanded — › indicator removed, ‹ restored\n", .{});
     notifyJS();
 }
 
@@ -328,12 +343,67 @@ fn nanoTimestamp() ?u64 {
 // Internal helpers
 // ============================================================================
 
-fn updateSeparatorIcon(icon: []const u8) void {
-    if (separator_item == null) return;
-    const button = msgSend0(separator_item, "button");
-    if (button != null) {
-        msgSendVoid1(button, "setTitle:", createNSString(icon));
+fn findConstraintForItem(item: objc.id) void {
+    if (item == null) return;
+
+    const button = msgSend0(item, "button");
+    if (button == null) return;
+
+    const superview = msgSend0(button, "superview");
+    const window = msgSend0(button, "window");
+    if (window == null) return;
+
+    const contentView = msgSend0(window, "contentView");
+    if (contentView == null) return;
+
+    const constraints = msgSend0(contentView, "constraints");
+    if (constraints == null) return;
+
+    const count: usize = @intFromPtr(msgSend0(constraints, "count"));
+
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Menubar] Constraints: {} on contentView\n", .{count});
+
+    var i: usize = 0;
+    while (i < count) : (i += 1) {
+        const constraint = msgSend1(constraints, "objectAtIndex:", i);
+        const secondItem = msgSend0(constraint, "secondItem");
+
+        if (secondItem == superview and superview != null) {
+            item_constraint = constraint;
+            _ = msgSend0(item_constraint, "retain");
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[Menubar] Constraint MATCH idx={}\n", .{i});
+            return;
+        }
     }
+
+    i = 0;
+    while (i < count) : (i += 1) {
+        const constraint = msgSend1(constraints, "objectAtIndex:", i);
+        const firstItem = msgSend0(constraint, "firstItem");
+
+        if (firstItem == superview and superview != null) {
+            item_constraint = constraint;
+            _ = msgSend0(item_constraint, "retain");
+            if (comptime builtin.mode == .Debug)
+                std.debug.print("[Menubar] Constraint MATCH (fallback) idx={}\n", .{i});
+            return;
+        }
+    }
+
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Menubar] WARNING: No constraint found\n", .{});
+}
+
+fn showTrayMenu(view: objc.id) void {
+    if (saved_tray_menu == null) return;
+
+    const NSApp = msgSend0(getClass("NSApplication"), "sharedApplication");
+    const event = msgSend0(NSApp, "currentEvent");
+    if (event == null) return;
+
+    msgSendVoid3(getClass("NSMenu"), "popUpContextMenu:withEvent:forView:", saved_tray_menu, event, view);
 }
 
 fn notifyJS() void {
@@ -345,8 +415,22 @@ fn notifyJS() void {
     macos.tryEvalJS(js) catch {};
 }
 
-fn separatorClicked(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
+fn toggleClicked(_: objc.id, _: objc.SEL, sender: objc.id) callconv(.c) void {
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] Separator clicked\n", .{});
+        std.debug.print("[Menubar] Chevron clicked\n", .{});
+
+    const NSApp = msgSend0(getClass("NSApplication"), "sharedApplication");
+    const event = msgSend0(NSApp, "currentEvent");
+    if (event != null) {
+        const eventType = msgSendUsize(event, "type");
+        // Right-click → show context menu
+        if (eventType == 3 or eventType == 4) {
+            if (sender != null) {
+                showTrayMenu(sender);
+            }
+            return;
+        }
+    }
+
     toggle();
 }

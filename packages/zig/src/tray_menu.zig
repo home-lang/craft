@@ -222,9 +222,23 @@ pub export fn menuActionCallback(self: objc.id, _: objc.SEL, sender: objc.id) vo
 
     // Handle built-in actions
     if (std.mem.eql(u8, action_str, "show")) {
+        // If menu bar is collapsed, expand it first
+        const menubar_collapse = @import("menubar_collapse.zig");
+        if (menubar_collapse.isCollapsed()) {
+            menubar_collapse.expand();
+            log.debug("Menu bar expanded via show action", .{});
+        }
+
         if (global_window_handle) |window| {
             const macos = @import("macos.zig");
+            // Activate the app first (required for menubar-only/accessory apps)
+            const NSApp = getClass("NSApplication");
+            const nsapp = msgSend0(NSApp, "sharedApplication");
+            msgSendVoid1(nsapp, "activateIgnoringOtherApps:", @as(c_int, 1));
             macos.showWindow(window);
+            log.debug("Window shown", .{});
+        } else {
+            log.debug("WARNING: global_window_handle is null, cannot show window", .{});
         }
     } else if (std.mem.eql(u8, action_str, "hide")) {
         if (global_window_handle) |window| {
@@ -248,6 +262,10 @@ pub export fn menuActionCallback(self: objc.id, _: objc.SEL, sender: objc.id) vo
         // Built-in actions that show the window
         if (global_window_handle) |window| {
             const macos = @import("macos.zig");
+            // Activate the app first (required for menubar-only/accessory apps)
+            const NSApp_pref = getClass("NSApplication");
+            const nsapp_pref = msgSend0(NSApp_pref, "sharedApplication");
+            msgSendVoid1(nsapp_pref, "activateIgnoringOtherApps:", @as(c_int, 1));
             macos.showWindow(window);
         }
         // Also dispatch to JS so the app can handle it (e.g., navigate to preferences view)

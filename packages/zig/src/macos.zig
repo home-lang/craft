@@ -290,13 +290,13 @@ pub fn createWindowWithURL(title: []const u8, width: u32, height: u32, url: []co
 }
 
 pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?[]const u8, url: ?[]const u8, style: WindowStyle) !objc.id {
-    // Get classes (lazy-resolve URL classes only when needed)
+    // Get classes (skip unnecessary lookups in benchmark mode)
     const NSWindow = getClass("NSWindow");
     const NSString = getClass("NSString");
     const WKWebView = getClass("WKWebView");
-    const WKPreferences = getClass("WKPreferences");
+    const WKPreferences = if (!style.benchmark) getClass("WKPreferences") else null;
     const WKWebViewConfiguration = getClass("WKWebViewConfiguration");
-    const WKUserContentController = getClass("WKUserContentController");
+    const WKUserContentController = if (!style.benchmark) getClass("WKUserContentController") else null;
 
     // Note: Activation policy is set in initApp(), NOT here!
 
@@ -411,36 +411,36 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     const config_alloc = msgSend0(WKWebViewConfiguration, "alloc");
     const config = msgSend0(config_alloc, "init");
 
-    const prefs_alloc = msgSend0(WKPreferences, "alloc");
-    const prefs = msgSend0(prefs_alloc, "init");
-
-    // Enable JavaScript explicitly (should be enabled by default, but let's be explicit)
-    msgSendVoid1(prefs, "setJavaScriptEnabled:", true);
-
-    // Enable developer extras (DevTools) only when requested
-    if (style.dev_tools) {
-        const key_str = createNSString("developerExtrasEnabled");
-        const value_obj = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
-        msgSendVoid2(prefs, "setValue:forKey:", value_obj, key_str);
-    }
-
-    // Enable clipboard access only when dev tools / full features are enabled
-    if (style.dev_tools) {
-        const clipboard_key = createNSString("javaScriptCanAccessClipboard");
-        const clipboard_value = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
-        msgSendVoid2(prefs, "setValue:forKey:", clipboard_value, clipboard_key);
-    }
-
-    _ = msgSend1(config, "setPreferences:", prefs);
-
-    // Note: allowsInlineMediaPlayback and mediaTypesRequiringUserActionForPlayback
-    // are iOS-only properties and not available on macOS WKWebViewConfiguration
-
-    // Set up user content controller for JavaScript bridge
-    const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
-
-    // Skip bridge injection and message handler in benchmark mode for fastest startup
+    // In benchmark mode, use bare default config (JS enabled by default, no bridge needed)
     if (!style.benchmark) {
+        const prefs_alloc = msgSend0(WKPreferences, "alloc");
+        const prefs = msgSend0(prefs_alloc, "init");
+
+        // Enable JavaScript explicitly (should be enabled by default, but let's be explicit)
+        msgSendVoid1(prefs, "setJavaScriptEnabled:", true);
+
+        // Enable developer extras (DevTools) only when requested
+        if (style.dev_tools) {
+            const key_str = createNSString("developerExtrasEnabled");
+            const value_obj = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
+            msgSendVoid2(prefs, "setValue:forKey:", value_obj, key_str);
+        }
+
+        // Enable clipboard access only when dev tools / full features are enabled
+        if (style.dev_tools) {
+            const clipboard_key = createNSString("javaScriptCanAccessClipboard");
+            const clipboard_value = msgSend1(msgSend0(getClass("NSNumber"), "alloc"), "initWithBool:", true);
+            msgSendVoid2(prefs, "setValue:forKey:", clipboard_value, clipboard_key);
+        }
+
+        _ = msgSend1(config, "setPreferences:", prefs);
+
+        // Note: allowsInlineMediaPlayback and mediaTypesRequiringUserActionForPlayback
+        // are iOS-only properties and not available on macOS WKWebViewConfiguration
+
+        // Set up user content controller for JavaScript bridge
+        const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
+
         // CRITICAL: For URL loading, we MUST use WKUserScript to inject the bridge
         // For HTML loading, we inject directly into the HTML string (more reliable for loadHTMLString)
         if (url != null) {
@@ -471,17 +471,17 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
             if (comptime builtin.mode == .Debug)
                 std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
         };
+
+        _ = msgSend1(config, "setUserContentController:", userContentController);
+
+        // Use non-persistent data store to avoid disk I/O overhead at startup
+        const WKWebsiteDataStore = getClass("WKWebsiteDataStore");
+        const nonPersistentStore = msgSend0(WKWebsiteDataStore, "nonPersistentDataStore");
+        _ = msgSend1(config, "setWebsiteDataStore:", nonPersistentStore);
+
+        // Suppress incremental rendering to reduce peak memory during page load
+        msgSendVoid1(config, "setSuppressesIncrementalRendering:", true);
     }
-
-    _ = msgSend1(config, "setUserContentController:", userContentController);
-
-    // Use non-persistent data store to avoid disk I/O overhead at startup
-    const WKWebsiteDataStore = getClass("WKWebsiteDataStore");
-    const nonPersistentStore = msgSend0(WKWebsiteDataStore, "nonPersistentDataStore");
-    _ = msgSend1(config, "setWebsiteDataStore:", nonPersistentStore);
-
-    // Suppress incremental rendering to reduce peak memory during page load
-    msgSendVoid1(config, "setSuppressesIncrementalRendering:", true);
 
     // Create WKWebView with configuration
     const webview_alloc = msgSend0(WKWebView, "alloc");
@@ -507,94 +507,104 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         const request = msgSend1(getClass("NSURLRequest"), "requestWithURL:", nsurl);
         _ = msgSend1(webview, "loadRequest:", request);
     } else if (html) |h| {
-        // CRITICAL FIX: WKUserScript doesn't reliably inject with loadHTMLString when baseURL is null
-        // So we inject the bridge script directly into the HTML before loading
-        const bridge_js = if (style.system_tray) getCraftBridgeScriptFull() else getCraftBridgeScriptMinimal();
-        const native_ui_js = if (style.native_sidebar) getNativeUIScript() else "";
-
-        // Find </head> tag and inject script before it
-        var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, h.len + bridge_js.len + native_ui_js.len + 40);
-        defer modified_html.deinit(std.heap.c_allocator);
-
-        if (std.mem.indexOf(u8, h, "</head>")) |head_pos| {
-            // Inject before </head>
-            try modified_html.appendSlice(std.heap.c_allocator, h[0..head_pos]);
-            try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
-            try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
-            try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-            if (native_ui_js.len > 0) {
-                try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
-                try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
-                try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-            }
-            try modified_html.appendSlice(std.heap.c_allocator, h[head_pos..]);
+        if (style.benchmark) {
+            // Benchmark mode: load raw HTML directly without bridge injection or ArrayList
+            const html_cstr = try std.heap.c_allocator.dupeZ(u8, h);
+            defer std.heap.c_allocator.free(html_cstr);
+            const html_str = msgSend1(msgSend0(NSString, "alloc"), "initWithUTF8String:", html_cstr.ptr);
+            _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, @as(?*anyopaque, null));
         } else {
-            // No </head> found, just prepend to the HTML
-            try modified_html.appendSlice(std.heap.c_allocator, "<script>");
-            try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
-            try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-            if (native_ui_js.len > 0) {
-                try modified_html.appendSlice(std.heap.c_allocator, "<script>");
-                try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
+            // CRITICAL FIX: WKUserScript doesn't reliably inject with loadHTMLString when baseURL is null
+            // So we inject the bridge script directly into the HTML before loading
+            const bridge_js = if (style.system_tray) getCraftBridgeScriptFull() else getCraftBridgeScriptMinimal();
+            const native_ui_js = if (style.native_sidebar) getNativeUIScript() else "";
+
+            // Find </head> tag and inject script before it
+            var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, h.len + bridge_js.len + native_ui_js.len + 40);
+            defer modified_html.deinit(std.heap.c_allocator);
+
+            if (std.mem.indexOf(u8, h, "</head>")) |head_pos| {
+                // Inject before </head>
+                try modified_html.appendSlice(std.heap.c_allocator, h[0..head_pos]);
+                try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
+                try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
                 try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+                if (native_ui_js.len > 0) {
+                    try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
+                    try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
+                    try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+                }
+                try modified_html.appendSlice(std.heap.c_allocator, h[head_pos..]);
+            } else {
+                // No </head> found, just prepend to the HTML
+                try modified_html.appendSlice(std.heap.c_allocator, "<script>");
+                try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
+                try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+                if (native_ui_js.len > 0) {
+                    try modified_html.appendSlice(std.heap.c_allocator, "<script>");
+                    try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
+                    try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+                }
+                try modified_html.appendSlice(std.heap.c_allocator, h);
             }
-            try modified_html.appendSlice(std.heap.c_allocator, h);
+
+            const final_html = try modified_html.toOwnedSlice(std.heap.c_allocator);
+            defer std.heap.c_allocator.free(final_html);
+
+            // Load the modified HTML with a proper baseURL
+            // This is important - without a baseURL, body scripts may not execute!
+            const html_cstr = try std.heap.c_allocator.dupeZ(u8, final_html);
+            defer std.heap.c_allocator.free(html_cstr);
+            const html_str_alloc = msgSend0(NSString, "alloc");
+            const html_str = msgSend1(html_str_alloc, "initWithUTF8String:", html_cstr.ptr);
+
+            // Create a baseURL - use http://localhost to avoid security restrictions
+            // about:blank has restrictions on evaluateJavaScript from native code
+            const base_url_string = createNSString("http://localhost/");
+            const base_url = msgSend1(getClass("NSURL"), "URLWithString:", base_url_string);
+
+            _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, base_url);
+        }
+    }
+
+    if (style.benchmark) {
+        // Benchmark mode: minimal setup — just set content view and return
+        _ = msgSend1(window, "setContentView:", webview);
+    } else {
+        // CRITICAL FIX: Get the proper content rect BEFORE setting webview as content view
+        // The window's frame includes the titlebar area, but the content view should only
+        // fill the content area. We need to calculate the proper content rect.
+
+        // Get the window's content rect (the area below the titlebar)
+        const windowFrame: NSRect = msgSendRect(window, "frame");
+        const contentRect: NSRect = msgSendRect1Rect(window, "contentRectForFrameRect:", windowFrame);
+
+        if (comptime builtin.mode == .Debug) {
+            std.debug.print("[WebView] Window frame: {d}x{d}, Content rect: {d}x{d}\n", .{
+                windowFrame.size.width,
+                windowFrame.size.height,
+                contentRect.size.width,
+                contentRect.size.height,
+            });
         }
 
-        const final_html = try modified_html.toOwnedSlice(std.heap.c_allocator);
-        defer std.heap.c_allocator.free(final_html);
+        // Create the proper frame for the WebView - it should fill the content area
+        // The origin should be (0, 0) relative to the content view
+        const webviewFrame = NSRect{
+            .origin = .{ .x = 0, .y = 0 },
+            .size = contentRect.size,
+        };
 
-        // Load the modified HTML with a proper baseURL
-        // This is important - without a baseURL, body scripts may not execute!
-        const html_cstr = try std.heap.c_allocator.dupeZ(u8, final_html);
-        defer std.heap.c_allocator.free(html_cstr);
-        const html_str_alloc = msgSend0(NSString, "alloc");
-        const html_str = msgSend1(html_str_alloc, "initWithUTF8String:", html_cstr.ptr);
+        // Set the WebView's frame to the content area size
+        msgSendVoid1Rect(webview, "setFrame:", webviewFrame);
 
-        // Create a baseURL - use http://localhost to avoid security restrictions
-        // about:blank has restrictions on evaluateJavaScript from native code
-        const base_url_string = createNSString("http://localhost/");
-        const base_url = msgSend1(getClass("NSURL"), "URLWithString:", base_url_string);
+        // Now set webview as content view
+        _ = msgSend1(window, "setContentView:", webview);
 
-        _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, base_url);
-    }
+        // Also set autoresizing mask to resize with window
+        // NSViewWidthSizable = 2, NSViewHeightSizable = 16
+        msgSendVoid1(webview, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
 
-    // CRITICAL FIX: Get the proper content rect BEFORE setting webview as content view
-    // The window's frame includes the titlebar area, but the content view should only
-    // fill the content area. We need to calculate the proper content rect.
-
-    // Get the window's content rect (the area below the titlebar)
-    const windowFrame: NSRect = msgSendRect(window, "frame");
-    const contentRect: NSRect = msgSendRect1Rect(window, "contentRectForFrameRect:", windowFrame);
-
-    if (comptime builtin.mode == .Debug) {
-        std.debug.print("[WebView] Window frame: {d}x{d}, Content rect: {d}x{d}\n", .{
-            windowFrame.size.width,
-            windowFrame.size.height,
-            contentRect.size.width,
-            contentRect.size.height,
-        });
-    }
-
-    // Create the proper frame for the WebView - it should fill the content area
-    // The origin should be (0, 0) relative to the content view
-    const webviewFrame = NSRect{
-        .origin = .{ .x = 0, .y = 0 },
-        .size = contentRect.size,
-    };
-
-    // Set the WebView's frame to the content area size
-    msgSendVoid1Rect(webview, "setFrame:", webviewFrame);
-
-    // Now set webview as content view
-    _ = msgSend1(window, "setContentView:", webview);
-
-    // Also set autoresizing mask to resize with window
-    // NSViewWidthSizable = 2, NSViewHeightSizable = 16
-    msgSendVoid1(webview, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
-
-    // In benchmark mode, skip bridge setup and global refs for fastest window creation
-    if (!style.benchmark) {
         // Store webview and window references globally
         if (webview) |wv| {
             setGlobalWebView(wv);
@@ -612,21 +622,21 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
             if (comptime builtin.mode == .Debug)
                 std.debug.print("[Bridge] Failed to setup bridge handlers: {}\n", .{err});
         };
-    }
 
-    // Apply dark mode if specified
-    if (style.dark_mode) |is_dark| {
-        setAppearance(window, is_dark);
-    }
+        // Apply dark mode if specified
+        if (style.dark_mode) |is_dark| {
+            setAppearance(window, is_dark);
+        }
 
-    // Center window if no custom position specified
-    if (style.x == null or style.y == null) {
-        msgSendVoid0(window, "center");
-    }
+        // Center window if no custom position specified
+        if (style.x == null or style.y == null) {
+            msgSendVoid0(window, "center");
+        }
 
-    // Enter fullscreen if requested
-    if (style.fullscreen) {
-        msgSendVoid0(window, "toggleFullScreen:");
+        // Enter fullscreen if requested
+        if (style.fullscreen) {
+            msgSendVoid0(window, "toggleFullScreen:");
+        }
     }
 
     // DON'T show window here - it will be shown in runApp() after system tray is created
@@ -2788,6 +2798,10 @@ pub fn setGlobalTrayHandle(handle: *anyopaque) void {
     if (global_tray_bridge) |bridge| {
         bridge.setTrayHandle(handle);
     }
+}
+
+pub fn getGlobalTrayHandle() ?*anyopaque {
+    return global_tray_handle_for_bridge;
 }
 
 pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaque, window_handle: ?*anyopaque) !void {
