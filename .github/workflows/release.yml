@@ -25,7 +25,12 @@ jobs:
       - name: Install Dependencies
         run: bun install
 
-      - name: Publish
+      - name: Publish to Pantry Registry
+        run: pantry publish --access public
+        env:
+          PANTRY_TOKEN: ${{ secrets.PANTRY_TOKEN }}
+
+      - name: Publish to npm
         run: pantry publish --npm --access public
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
