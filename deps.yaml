@@ -1,3 +1,3 @@
 dependencies:
-  bun: ^1.3.10
-  zig: "*"
+  bun.sh: ^1.3.10
+  ziglang.org: "*"
