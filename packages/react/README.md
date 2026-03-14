@@ -1,15 +1,15 @@
-# @craft/react
+# @craft-native/react
 
 React bindings for the Craft framework. Provides hooks to access native functionality in your React applications.
 
 ## Installation
 
 ```bash
-npm install @craft/react
+npm install @craft-native/react
 # or
-yarn add @craft/react
+yarn add @craft-native/react
 # or
-pnpm add @craft/react
+pnpm add @craft-native/react
 ```
 
 ## Usage
@@ -21,7 +21,7 @@ pnpm add @craft/react
 Access the Craft API:
 
 ```tsx
-import { useCraft } from '@craft/react';
+import { useCraft } from '@craft-native/react';
 
 function App() {
   const { craft, isReady } = useCraft();
@@ -39,7 +39,7 @@ function App() {
 Get platform information:
 
 ```tsx
-import { usePlatform } from '@craft/react';
+import { usePlatform } from '@craft-native/react';
 
 function PlatformInfo() {
   const { platform, loading } = usePlatform();
@@ -60,7 +60,7 @@ function PlatformInfo() {
 Get device information:
 
 ```tsx
-import { useDeviceInfo } from '@craft/react';
+import { useDeviceInfo } from '@craft-native/react';
 
 function DeviceInfo() {
   const { deviceInfo } = useDeviceInfo();
@@ -81,7 +81,7 @@ function DeviceInfo() {
 Show toast notifications:
 
 ```tsx
-import { useToast } from '@craft/react';
+import { useToast } from '@craft-native/react';
 
 function ToastExample() {
   const { showToast } = useToast();
@@ -99,7 +99,7 @@ function ToastExample() {
 Trigger haptic feedback:
 
 ```tsx
-import { useHaptic } from '@craft/react';
+import { useHaptic } from '@craft-native/react';
 
 function HapticButton() {
   const { haptic } = useHaptic();
@@ -117,7 +117,7 @@ function HapticButton() {
 Request permissions:
 
 ```tsx
-import { usePermission } from '@craft/react';
+import { usePermission } from '@craft-native/react';
 
 function CameraPermission() {
   const { granted, request, loading } = usePermission('camera');
@@ -143,7 +143,7 @@ function CameraPermission() {
 Manage the application window:
 
 ```tsx
-import { useWindow } from '@craft/react';
+import { useWindow } from '@craft-native/react';
 
 function WindowControls() {
   const { maximize, minimize, toggleFullscreen, isFullscreen } = useWindow();
@@ -167,7 +167,7 @@ function WindowControls() {
 Manage system tray icon:
 
 ```tsx
-import { useTray } from '@craft/react';
+import { useTray } from '@craft-native/react';
 
 function TrayManager() {
   const { create, setMenu } = useTray();
@@ -189,7 +189,7 @@ function TrayManager() {
 Send system notifications:
 
 ```tsx
-import { useNotification } from '@craft/react';
+import { useNotification } from '@craft-native/react';
 
 function NotificationExample() {
   const { send } = useNotification();
@@ -212,7 +212,7 @@ function NotificationExample() {
 Interact with the file system:
 
 ```tsx
-import { useFileSystem } from '@craft/react';
+import { useFileSystem } from '@craft-native/react';
 
 function FileEditor() {
   const { readFile, writeFile, loading, error } = useFileSystem();
@@ -246,7 +246,7 @@ function FileEditor() {
 Work with SQLite databases:
 
 ```tsx
-import { useDatabase } from '@craft/react';
+import { useDatabase } from '@craft-native/react';
 
 function TodoList() {
   const { query, execute } = useDatabase('/path/to/db.sqlite');
@@ -283,7 +283,7 @@ function TodoList() {
 Make HTTP requests:
 
 ```tsx
-import { useHttp } from '@craft/react';
+import { useHttp } from '@craft-native/react';
 
 function ApiExample() {
   const { fetch, loading } = useHttp();
@@ -312,7 +312,7 @@ function ApiExample() {
 Listen to Craft events:
 
 ```tsx
-import { useCraftEvent } from '@craft/react';
+import { useCraftEvent } from '@craft-native/react';
 
 function EventListener() {
   useCraftEvent('app.ready', () => {
@@ -334,7 +334,7 @@ function EventListener() {
 Check if running on mobile:
 
 ```tsx
-import { useIsMobile } from '@craft/react';
+import { useIsMobile } from '@craft-native/react';
 
 function ResponsiveComponent() {
   const isMobile = useIsMobile();
@@ -348,7 +348,7 @@ function ResponsiveComponent() {
 Check if running on desktop:
 
 ```tsx
-import { useIsDesktop } from '@craft/react';
+import { useIsDesktop } from '@craft-native/react';
 
 function DesktopOnly() {
   const isDesktop = useIsDesktop();

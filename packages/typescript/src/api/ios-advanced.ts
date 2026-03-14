@@ -2,7 +2,7 @@
  * @fileoverview iOS Advanced Features API
  * @description Advanced iOS-specific features including CarPlay, App Clips, Live Activities,
  * SharePlay, StoreKit 2, App Intents, TipKit, and Focus Filters.
- * @module @craft/api/ios-advanced
+ * @module @craft-native/api/ios-advanced
  */
 
 import { isCraft, getPlatform } from './process'

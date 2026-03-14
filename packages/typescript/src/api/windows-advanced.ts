@@ -2,7 +2,7 @@
  * @fileoverview Windows Advanced Features API
  * @description Advanced Windows-specific features including Jump Lists, Taskbar Progress,
  * Toast Notifications, Windows Hello, Widgets, and Windows App SDK integration.
- * @module @craft/api/windows-advanced
+ * @module @craft-native/api/windows-advanced
  */
 
 import { isCraft, getPlatform } from './process'

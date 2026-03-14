@@ -7,7 +7,7 @@ import type {
   PermissionStatus,
   HapticType,
   NotificationOptions,
-} from '@craft/types'
+} from '@craft-native/types'
 
 declare global {
   interface Window {

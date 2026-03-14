@@ -4,7 +4,7 @@
  * - Tahoe (macOS Sonoma/Sequoia Finder style)
  * - Arc (Browser-style collapsible vertical tabs)
  * - OrbStack (Dark minimal sidebar)
- * @module @craft/components/sidebar
+ * @module @craft-native/components/sidebar
  */
 
 import { getBridge } from '../bridge/core'

@@ -1,11 +1,11 @@
-# @craft/svelte
+# @craft-native/svelte
 
 Svelte bindings for the Craft framework using stores and actions.
 
 ## Installation
 
 ```bash
-npm install @craft/svelte
+npm install @craft-native/svelte
 ```
 
 ## Usage
@@ -14,7 +14,7 @@ npm install @craft/svelte
 
 ```svelte
 <script>
-  import { craft, isReady, platform } from '@craft/svelte';
+  import { craft, isReady, platform } from '@craft-native/svelte';
 </script>
 
 {#if $isReady}
@@ -26,7 +26,7 @@ npm install @craft/svelte
 
 ```svelte
 <script>
-  import { windowActions, isFullscreen } from '@craft/svelte';
+  import { windowActions, isFullscreen } from '@craft-native/svelte';
 </script>
 
 <button on:click={windowActions.maximize}>Maximize</button>
@@ -39,7 +39,7 @@ npm install @craft/svelte
 
 ```svelte
 <script>
-  import { haptic } from '@craft/svelte';
+  import { haptic } from '@craft-native/svelte';
 </script>
 
 <button use:haptic={'impact_medium'}>Tap Me</button>
@@ -49,7 +49,7 @@ npm install @craft/svelte
 
 ```svelte
 <script>
-  import { showToast } from '@craft/svelte';
+  import { showToast } from '@craft-native/svelte';
 </script>
 
 <button on:click={() => showToast('Hello!')}>Show Toast</button>
@@ -59,7 +59,7 @@ npm install @craft/svelte
 
 ```svelte
 <script>
-  import { filesystem } from '@craft/svelte';
+  import { filesystem } from '@craft-native/svelte';
 
   let content = '';
 
@@ -82,7 +82,7 @@ npm install @craft/svelte
 ```svelte
 <script>
   import { onMount } from 'svelte';
-  import { createDatabase } from '@craft/svelte';
+  import { createDatabase } from '@craft-native/svelte';
 
   const db = createDatabase('/path/to/db.sqlite');
   let todos = [];
@@ -103,7 +103,7 @@ npm install @craft/svelte
 
 ```svelte
 <script>
-  import { http } from '@craft/svelte';
+  import { http } from '@craft-native/svelte';
 
   let data = null;
 

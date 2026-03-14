@@ -5,7 +5,7 @@
  * These can be rendered directly in Craft WebView or used as
  * reference for building your own components.
  *
- * @module @craft/styles/sidebar-templates
+ * @module @craft-native/styles/sidebar-templates
  */
 
 import { tahoeStyles, arcStyles, orbstackStyles, cx } from './sidebars'

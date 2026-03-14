@@ -1,7 +1,7 @@
 /**
  * Craft Styles
  * CSS/Tailwind utilities and pre-built component styles
- * @module @craft/styles
+ * @module @craft-native/styles
  */
 
 // Headwind (Tailwind-compatible) utilities

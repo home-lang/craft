@@ -2,11 +2,11 @@
  * @fileoverview Craft Component Abstractions
  * @description React Native-style component primitives for cross-platform UI development.
  * These provide a consistent abstraction layer over native platform components.
- * @module @craft/components
+ * @module @craft-native/components
  *
  * @example
  * ```tsx
- * import { View, Text, Image, ScrollView, Pressable } from '@craft/components'
+ * import { View, Text, Image, ScrollView, Pressable } from '@craft-native/components'
  *
  * function MyComponent() {
  *   return (

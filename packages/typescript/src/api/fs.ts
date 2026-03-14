@@ -2,11 +2,11 @@
  * @fileoverview Craft File System API
  * @description Provides native file system access through the Craft bridge.
  * Works in both browser (via native bridge) and Node.js environments.
- * @module @craft/api/fs
+ * @module @craft-native/api/fs
  *
  * @example
  * ```typescript
- * import { fs, readBinaryFile, stat, watch } from '@craft/api/fs'
+ * import { fs, readBinaryFile, stat, watch } from '@craft-native/api/fs'
  *
  * // Read a text file
  * const content = await fs.readFile('/path/to/file.txt')
@@ -33,7 +33,7 @@ import type { CraftFileSystemAPI } from '../types'
  *
  * @example
  * ```typescript
- * import { fs } from '@craft/api/fs'
+ * import { fs } from '@craft-native/api/fs'
  *
  * // Check if a file exists before reading
  * if (await fs.exists('/config.json')) {

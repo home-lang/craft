@@ -1,6 +1,6 @@
 /**
  * Svelte bindings for Craft
- * @module @craft/svelte
+ * @module @craft-native/svelte
  */
 
 import { writable, derived, readable, get, type Writable, type Readable } from 'svelte/store';

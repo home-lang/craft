@@ -2,11 +2,11 @@
  * @fileoverview Craft Mobile API
  * @description Unified cross-platform mobile API for iOS and Android.
  * Provides consistent access to device features, sensors, and native capabilities.
- * @module @craft/api/mobile
+ * @module @craft-native/api/mobile
  *
  * @example
  * ```typescript
- * import { device, haptics, permissions, camera, biometrics, location, share } from '@craft/api/mobile'
+ * import { device, haptics, permissions, camera, biometrics, location, share } from '@craft-native/api/mobile'
  *
  * // Get device info
  * const info = await device.getInfo()

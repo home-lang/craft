@@ -7,7 +7,7 @@
  * - Arc: Arc browser vertical tabs style
  * - OrbStack: Dark minimal style
  *
- * @module @craft/styles/sidebars
+ * @module @craft-native/styles/sidebars
  */
 
 // ============================================================================

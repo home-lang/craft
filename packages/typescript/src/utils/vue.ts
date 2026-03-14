@@ -1,6 +1,6 @@
 /**
  * Vue bindings for Craft
- * @module @craft/vue
+ * @module @craft-native/vue
  */
 
 import {

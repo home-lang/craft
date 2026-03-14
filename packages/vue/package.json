@@ -1,5 +1,5 @@
 {
-  "name": "@craft/vue",
+  "name": "@craft-native/vue",
   "version": "0.0.2",
   "private": true,
   "description": "Vue 3 bindings for Craft framework",

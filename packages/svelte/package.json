@@ -1,5 +1,5 @@
 {
-  "name": "@craft/svelte",
+  "name": "@craft-native/svelte",
   "version": "0.0.2",
   "private": true,
   "description": "Svelte bindings for Craft framework",

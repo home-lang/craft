@@ -1,5 +1,5 @@
 {
-  "name": "@craft/react",
+  "name": "@craft-native/react",
   "version": "0.0.2",
   "private": true,
   "description": "React bindings for Craft framework",

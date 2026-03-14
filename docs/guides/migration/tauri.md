@@ -364,7 +364,7 @@ Craft uses TypeScript/JavaScript plugins:
 ```typescript
 // craft.config.ts
 import { defineConfig } from '@stacksjs/ts-craft';
-import analyticsPlugin from '@craft/plugin-analytics';
+import analyticsPlugin from '@craft-native/plugin-analytics';
 
 export default defineConfig({
   plugins: [

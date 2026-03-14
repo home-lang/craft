@@ -380,7 +380,7 @@ const html = `<!DOCTYPE html>
       </ul>
 
       <h2>Usage</h2>
-      <pre>import { sidebar, createFileSidebar } from '@craft/api'
+      <pre>import { sidebar, createFileSidebar } from '@craft-native/api'
 
 // Quick file browser sidebar
 const nav = createFileSidebar()

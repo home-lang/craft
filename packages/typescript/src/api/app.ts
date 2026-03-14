@@ -1,7 +1,7 @@
 /**
  * Craft App API
  * Application lifecycle, configuration, and system integration
- * @module @craft/api/app
+ * @module @craft-native/api/app
  */
 
 import { getBridge } from '../bridge/core'

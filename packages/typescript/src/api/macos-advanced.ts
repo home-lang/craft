@@ -2,7 +2,7 @@
  * @fileoverview macOS Advanced Features API
  * @description Advanced macOS-specific features including Touch Bar, Desktop Widgets,
  * Stage Manager, Handoff/Continuity, Sidecar, and system integration.
- * @module @craft/api/macos-advanced
+ * @module @craft-native/api/macos-advanced
  */
 
 import { isCraft, getPlatform } from './process'

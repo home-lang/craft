@@ -1,7 +1,7 @@
 /**
  * Craft Dialog API
  * Native file pickers and alert dialogs
- * @module @craft/api/dialog
+ * @module @craft-native/api/dialog
  */
 
 import { getBridge } from '../bridge/core'

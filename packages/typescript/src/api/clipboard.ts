@@ -1,7 +1,7 @@
 /**
  * Craft Clipboard API
  * Read and write to the system clipboard
- * @module @craft/api/clipboard
+ * @module @craft-native/api/clipboard
  */
 
 import { getBridge } from '../bridge/core'

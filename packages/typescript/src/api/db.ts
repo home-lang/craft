@@ -2,11 +2,11 @@
  * @fileoverview Craft Database API
  * @description Provides SQLite database access through the Craft bridge.
  * Includes transaction support, table management, and a key-value store abstraction.
- * @module @craft/api/db
+ * @module @craft-native/api/db
  *
  * @example
  * ```typescript
- * import { openDatabase, KeyValueStore } from '@craft/api/db'
+ * import { openDatabase, KeyValueStore } from '@craft-native/api/db'
  *
  * // Open a database
  * const myDb = await openDatabase('myapp.db')
@@ -35,7 +35,7 @@ import type { CraftDatabaseAPI } from '../types'
  *
  * @example
  * ```typescript
- * import { db } from '@craft/api/db'
+ * import { db } from '@craft-native/api/db'
  *
  * // Execute a statement
  * await db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)')

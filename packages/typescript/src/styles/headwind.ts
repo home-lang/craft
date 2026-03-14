@@ -2,11 +2,11 @@
  * @fileoverview Headwind CSS Integration
  * @description Integration with zig-headwind, a blazing-fast Tailwind CSS alternative built in Zig.
  * Provides utility-first CSS styling with Tailwind-compatible class names.
- * @module @craft/styles/headwind
+ * @module @craft-native/styles/headwind
  *
  * @example
  * ```typescript
- * import { tw, cx, variants, style } from '@craft/styles/headwind'
+ * import { tw, cx, variants, style } from '@craft-native/styles/headwind'
  *
  * // Use Tailwind-compatible classes
  * const buttonClass = tw`px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600`

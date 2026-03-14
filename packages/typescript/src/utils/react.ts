@@ -1,6 +1,6 @@
 /**
  * React bindings for Craft
- * @module @craft/react
+ * @module @craft-native/react
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';

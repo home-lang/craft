@@ -2,7 +2,7 @@
  * @fileoverview Android Advanced Features API
  * @description Advanced Android-specific features including Jetpack Compose integration,
  * Material You dynamic colors, Photo Picker, Work Manager, Foreground Services, and more.
- * @module @craft/api/android-advanced
+ * @module @craft-native/api/android-advanced
  */
 
 import { isCraft, getPlatform } from './process'

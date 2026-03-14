@@ -1,7 +1,7 @@
 /**
  * Craft Native UI Components
  * Type-safe bindings for native platform UI components
- * @module @craft/components/native
+ * @module @craft-native/components/native
  */
 
 import { getBridge } from '../bridge/core'

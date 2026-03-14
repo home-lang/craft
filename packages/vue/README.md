@@ -1,15 +1,15 @@
-# @craft/vue
+# @craft-native/vue
 
 Vue 3 Composition API bindings for the Craft framework.
 
 ## Installation
 
 ```bash
-npm install @craft/vue
+npm install @craft-native/vue
 # or
-yarn add @craft/vue
+yarn add @craft-native/vue
 # or
-pnpm add @craft/vue
+pnpm add @craft-native/vue
 ```
 
 ## Usage
@@ -20,7 +20,7 @@ pnpm add @craft/vue
 
 ```vue
 <script setup>
-import { useCraft } from '@craft/vue';
+import { useCraft } from '@craft-native/vue';
 
 const { craft, isReady } = useCraft();
 </script>
@@ -34,7 +34,7 @@ const { craft, isReady } = useCraft();
 
 ```vue
 <script setup>
-import { usePlatform } from '@craft/vue';
+import { usePlatform } from '@craft-native/vue';
 
 const { platform, loading } = usePlatform();
 </script>
@@ -51,7 +51,7 @@ const { platform, loading } = usePlatform();
 
 ```vue
 <script setup>
-import { useToast } from '@craft/vue';
+import { useToast } from '@craft-native/vue';
 
 const { showToast } = useToast();
 
@@ -69,7 +69,7 @@ const handleClick = () => {
 
 ```vue
 <script setup>
-import { useWindow } from '@craft/vue';
+import { useWindow } from '@craft-native/vue';
 
 const { maximize, minimize, toggleFullscreen, isFullscreen } = useWindow();
 </script>
@@ -90,7 +90,7 @@ const { maximize, minimize, toggleFullscreen, isFullscreen } = useWindow();
 ```vue
 <script setup>
 import { ref } from 'vue';
-import { useFileSystem } from '@craft/vue';
+import { useFileSystem } from '@craft-native/vue';
 
 const { readFile, writeFile, loading } = useFileSystem();
 const content = ref('');
@@ -119,7 +119,7 @@ const save = async () => {
 ```vue
 <script setup>
 import { ref, onMounted } from 'vue';
-import { useDatabase } from '@craft/vue';
+import { useDatabase } from '@craft-native/vue';
 
 const { query, execute } = useDatabase('/path/to/db.sqlite');
 const todos = ref([]);
@@ -146,7 +146,7 @@ const addTodo = async (title) => {
 ```vue
 <script setup>
 import { ref } from 'vue';
-import { useHttp } from '@craft/vue';
+import { useHttp } from '@craft-native/vue';
 
 const { fetch: httpFetch, loading } = useHttp();
 const data = ref(null);
@@ -168,7 +168,7 @@ const loadData = async () => {
 
 ```vue
 <script setup>
-import { useCraftEvent } from '@craft/vue';
+import { useCraftEvent } from '@craft-native/vue';
 
 useCraftEvent('app.ready', () => {
   console.log('App is ready!');
@@ -184,7 +184,7 @@ useCraftEvent('window.close', () => {
 
 ```vue
 <script setup>
-import { useIsMobile, useIsDesktop } from '@craft/vue';
+import { useIsMobile, useIsDesktop } from '@craft-native/vue';
 
 const isMobile = useIsMobile();
 const isDesktop = useIsDesktop();

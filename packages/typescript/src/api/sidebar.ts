@@ -2,7 +2,7 @@
  * @fileoverview Cross-Platform Native Sidebar API
  * @description Unified sidebar component that renders with native styling
  * on macOS, Windows, and Linux.
- * @module @craft/api/sidebar
+ * @module @craft-native/api/sidebar
  */
 
 import { isCraft, getPlatform, type Platform } from './process'

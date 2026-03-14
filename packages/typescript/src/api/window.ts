@@ -1,7 +1,7 @@
 /**
  * Craft Window API
  * Comprehensive window management for desktop applications
- * @module @craft/api/window
+ * @module @craft-native/api/window
  */
 
 import { getBridge } from '../bridge/core'

@@ -1,7 +1,7 @@
 /**
  * Craft System Tray / Menubar API
  * Comprehensive system tray and menubar app management
- * @module @craft/api/tray
+ * @module @craft-native/api/tray
  */
 
 import { getBridge } from '../bridge/core'
