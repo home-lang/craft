@@ -1,4 +1,25 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.3...v0.0.4)
+
+### 🧹 Chores
+
+- release v0.0.4 ([685e553](https://github.com/home-lang/craft/commit/685e553)) _(by Chris <chrisbreuer93@gmail.com>)_
+- publish to both pantry registry and npm ([3c59fd3](https://github.com/home-lang/craft/commit/3c59fd3)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.3...HEAD)
+
+### 🧹 Chores
+
+- publish to both pantry registry and npm ([3c59fd3](https://github.com/home-lang/craft/commit/3c59fd3)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.2...v0.0.3)
 
 ### 🧹 Chores
