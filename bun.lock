@@ -6,7 +6,6 @@
       "name": "craft",
       "devDependencies": {
         "better-dx": "^0.2.6",
-        "pickier": "^0.1.18",
       },
     },
     "benchmarks": {
