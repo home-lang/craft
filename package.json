@@ -1,6 +1,6 @@
 {
   "name": "craft",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "description": "Build desktop apps with web languages, powered by Zig",
   "author": "Chris Breuer <chris@stacksjs.org>",
@@ -31,8 +31,7 @@
     "dev": "cd packages/typescript && bun run dev",
     "changelog": "bunx logsmith --verbose",
     "changelog:generate": "bunx logsmith --output CHANGELOG.md",
-    "release": "bun --bun run changelog:generate && bunx --bun bumpx prompt --recursive",
-    "publish:all": "cd packages/typescript && bun publish && cd ../create-craft && bun publish"
+    "release": "bun --bun run changelog:generate && bunx --bun bumpx prompt --recursive"
   },
   "devDependencies": {
     "better-dx": "^0.2.6"
