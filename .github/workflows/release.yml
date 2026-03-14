@@ -7,15 +7,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  release:
+  pantry:
+    name: pantry
     runs-on: ubuntu-latest
     permissions:
       contents: write
       id-token: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -30,6 +30,24 @@ jobs:
         env:
           PANTRY_TOKEN: ${{ secrets.PANTRY_TOKEN }}
 
+  npm:
+    name: npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Pantry
+        uses: home-lang/pantry/packages/action@main
+
+      - name: Install Dependencies
+        run: bun install
+
       - name: Publish to npm
         run: pantry publish --npm --access public
         env:
@@ -39,3 +57,25 @@ jobs:
         uses: stacksjs/action-releaser@v1.2.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: discord-notification
+    needs: [pantry, npm]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/discord-notify
+        if: hashFiles('.github/actions/discord-notify/action.yml') != ''
+        with:
+          title: "Release — ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'Published' || 'Failed' }}"
+          description: "Tag: ${{ github.ref_name }}"
+          status: ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'success' || 'failure' }}
+          fields: |
+            [
+              {"name": "Tag", "value": "${{ github.ref_name }}", "inline": true},
+              {"name": "Pantry", "value": "${{ needs.pantry.result }}", "inline": true},
+              {"name": "npm", "value": "${{ needs.npm.result }}", "inline": true}
+            ]
+          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        continue-on-error: true
