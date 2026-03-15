@@ -12,9 +12,9 @@
     "bench:memory": "bun run memory.bench.ts"
   },
   "dependencies": {
-    "mitata": "^1.0.10"
+    "mitata": "^1.0.34"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest1.3.10"
   }
 }

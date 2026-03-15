@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "svelte": "^4.0.0",
-    "tsup": "^8.0.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.3.0",
     "vitest": "^1.0.0"
   }
