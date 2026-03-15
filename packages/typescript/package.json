@@ -63,7 +63,7 @@
     "@stacksjs/clapp": "^0.2.0",
     "@types/archiver": "^6.0.2",
     "@types/bun": "^1.2.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^25.5.0",
     "better-dx": "^0.2.6"
   }
 }
