@@ -8,6 +8,6 @@
     "bench": "BENCHMARK=1 electron ."
   },
   "dependencies": {
-    "electron": "^33.0.0"
+    "electron": "^41.0.2"
   }
 }
