@@ -33,7 +33,7 @@
     "svelte": "^3.0.0 || ^4.0.0"
   },
   "devDependencies": {
-    "svelte": "^4.0.0",
+    "svelte": "^5.53.12",
     "tsup": "^8.0.0",
     "typescript": "^5.3.0",
     "vitest": "^1.0.0"
