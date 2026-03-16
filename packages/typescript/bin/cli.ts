@@ -6,8 +6,6 @@
 
 import { CLI } from '@stacksjs/clapp'
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import process from 'node:process'
 import { version } from '../package.json'
 
@@ -38,54 +36,8 @@ async function runCraftBinary(args: string[]): Promise<void> {
 }
 
 async function findCraftBinary(): Promise<string> {
-  const possiblePaths = [
-    // From monorepo zig package
-    join(process.cwd(), 'packages/zig/zig-out/bin/craft'),
-    // From typescript package (when in monorepo)
-    join(process.cwd(), '../zig/zig-out/bin/craft'),
-    join(import.meta.dir, '../../zig/zig-out/bin/craft'),
-    // Legacy locations
-    join(process.cwd(), 'zig-out/bin/craft'),
-    join(process.cwd(), '../../zig-out/bin/craft'),
-    join(import.meta.dir, '../../../zig-out/bin/craft'),
-    // Global install
-    'craft',
-  ]
-
-  for (const path of possiblePaths) {
-    if (path === 'craft') {
-      // Check if it's in PATH
-      try {
-        await checkBinaryExists(path)
-        return path
-      }
-      catch {
-        continue
-      }
-    }
-    else if (existsSync(path)) {
-      return path
-    }
-  }
-
-  throw new Error(
-    'Craft binary not found. Please build the project first with: bun run build:core',
-  )
-}
-
-function checkBinaryExists(path: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(path, ['--version'], { stdio: 'ignore' })
-    proc.on('error', reject)
-    proc.on('exit', (code) => {
-      if (code === 0 || code === null) {
-        resolve()
-      }
-      else {
-        reject(new Error(`Binary check failed`))
-      }
-    })
-  })
+  // Craft native binary is installed via pantry and available in PATH
+  return 'craft'
 }
 
 // Default command - launch app with URL

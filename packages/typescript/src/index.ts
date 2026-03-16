@@ -148,6 +148,7 @@ export class CraftApp {
     }
 
     this.config = {
+      ...config,
       window: {
         title: 'Craft App',
         width: 800,
@@ -162,7 +163,6 @@ export class CraftApp {
         systemTray: false,
         ...config.window,
       },
-      ...config,
     }
   }
 
@@ -319,19 +319,14 @@ export class CraftApp {
   }
 
   private async findCraftBinary(): Promise<string> {
-    // Custom path takes precedence
     if (this.config.craftPath) {
       if (!existsSync(this.config.craftPath)) {
-        throw new Error(
-          `Custom Craft binary path not found: ${this.config.craftPath}\n\n` +
-          'Please ensure the path is correct or build the Craft core:\n' +
-          '  bun run build:core'
-        )
+        throw new Error(`Custom Craft binary path not found: ${this.config.craftPath}`)
       }
       return this.config.craftPath
     }
 
-    // Craft binary is expected to be in PATH (installed via pantry)
+    // Craft binary is installed via pantry and available in PATH
     return 'craft'
   }
 }

@@ -1,7 +1,6 @@
 {
-  "name": "craft-core",
+  "name": "craft",
   "version": "0.0.4",
-  "private": true,
   "description": "Craft core - Native Zig implementation",
   "scripts": {
     "build": "zig build -Doptimize=ReleaseSafe",
