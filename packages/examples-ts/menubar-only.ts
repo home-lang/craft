@@ -34,7 +34,7 @@ const html = `
 
       // Update menubar title
       if (window.craft?.tray?.setTitle) {
-        window.craft.tray.setTitle('CPU ' + cpuUsage + '% | RAM ' + memUsage + '%');
+        window.craft.tray.setTitle(`CPU ${cpuUsage}% | RAM ${memUsage}%`);
       }
     }
 
@@ -44,8 +44,8 @@ const html = `
         window.craft.tray.setMenu([
           { label: 'System Monitor', enabled: false },
           { type: 'separator' },
-          { label: 'CPU: ' + cpuUsage + '%', enabled: false },
-          { label: 'Memory: ' + memUsage + '%', enabled: false },
+          { label: `CPU: ${cpuUsage}%`, enabled: false },
+          { label: `Memory: ${memUsage}%`, enabled: false },
           { type: 'separator' },
           {
             label: isMonitoring ? '⏸ Pause Monitoring' : '▶ Resume Monitoring',

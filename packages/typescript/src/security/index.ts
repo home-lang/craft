@@ -60,7 +60,7 @@ export class ContentSecurityPolicy {
 
   constructor(directives: CSPDirectives = {}) {
     this.directives = {
-      'default-src': ["'self'"],
+      'default-src': ['\'self\''],
       ...directives,
     }
   }

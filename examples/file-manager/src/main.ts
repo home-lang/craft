@@ -225,7 +225,7 @@ function getBreadcrumbs(): { name: string; path: string }[] {
 
   let accumulated = ''
   for (const part of parts) {
-    accumulated += '/' + part
+    accumulated += `/${part}`
     crumbs.push({ name: part, path: accumulated })
   }
 

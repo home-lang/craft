@@ -688,7 +688,7 @@ function renderSearch(store: SocialStore): string {
     <div class="search-view">
       <div class="search-bar">
         <input type="search" id="search-input" placeholder="Search users and posts..."
-               value="${query}" class="search-input" autofocus />
+          value="${query}" class="search-input" autofocus />
       </div>
 
       ${query ? `

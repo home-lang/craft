@@ -600,12 +600,13 @@ const html = `
     document.querySelectorAll('[data-style]').forEach(item => {
       item.addEventListener('click', (e) => {
         const style = item.dataset.style;
-        const className = style === 'tahoe' ? 'tahoe-item' :
-                         style === 'arc' ? 'arc-item' : 'orbstack-item';
+        const className = style === 'tahoe'
+          ? 'tahoe-item'
+          : style === 'arc' ? 'arc-item' : 'orbstack-item';
 
         // Remove selected from siblings
         item.closest('.demo-content')
-          .querySelectorAll('.' + className)
+          .querySelectorAll(`.${className}`)
           .forEach(el => el.classList.remove('selected'));
 
         // Add selected to clicked item

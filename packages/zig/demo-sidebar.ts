@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 
-import { spawn } from "bun";
-import { join } from "path";
+import { spawn } from 'bun'
+import { join } from 'path'
 
 // Path to the craft executable
-const craftBin = join(import.meta.dir, "zig-out/bin/craft");
+const craftBin = join(import.meta.dir, 'zig-out/bin/craft')
 
 // HTML content with Liquid Glass sidebar
 const html = `

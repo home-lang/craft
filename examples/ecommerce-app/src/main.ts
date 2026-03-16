@@ -879,7 +879,7 @@ function renderSearch(store: Store): string {
     <div class="search-view">
       <div class="search-bar">
         <input type="search" id="search-input" placeholder="Search products..."
-               value="${query}" class="search-input" autofocus />
+          value="${query}" class="search-input" autofocus />
       </div>
 
       ${query ? `

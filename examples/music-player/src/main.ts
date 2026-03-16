@@ -432,7 +432,7 @@ class MusicLibrary {
     try {
       const result = await db.execute(
         `INSERT INTO tracks (title, artist, album, duration, path, artwork)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+          VALUES (?, ?, ?, ?, ?, ?)`,
         [track.title, track.artist, track.album, track.duration, track.path, track.artwork || null]
       )
 
@@ -455,8 +455,8 @@ catch {
   async searchTracks(query: string): Promise<Track[]> {
     return db.query<Track>(
       `SELECT * FROM tracks
-       WHERE title LIKE ? OR artist LIKE ? OR album LIKE ?
-       ORDER BY title`,
+        WHERE title LIKE ? OR artist LIKE ? OR album LIKE ?
+        ORDER BY title`,
       [`%${query}%`, `%${query}%`, `%${query}%`]
     )
   }

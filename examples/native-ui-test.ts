@@ -172,7 +172,7 @@ else {
         log('✓ Sidebar creation message sent');
       }
 catch (error) {
-        log('ERROR: Failed to create sidebar - ' + error.message);
+        log(`ERROR: Failed to create sidebar - ${error.message}`);
       }
     }
 
@@ -192,7 +192,7 @@ catch (error) {
         log('✓ File browser creation message sent');
       }
 catch (error) {
-        log('ERROR: Failed to create file browser - ' + error.message);
+        log(`ERROR: Failed to create file browser - ${error.message}`);
       }
     }
 
@@ -213,7 +213,7 @@ catch (error) {
         log('✓ Split view creation message sent');
       }
 catch (error) {
-        log('ERROR: Failed to create split view - ' + error.message);
+        log(`ERROR: Failed to create split view - ${error.message}`);
       }
     }
 

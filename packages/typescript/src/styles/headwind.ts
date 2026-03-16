@@ -198,8 +198,8 @@ export function variants<V extends Record<string, Record<string, string>>>(
 
     // Apply variants
     for (const [variantKey, variantOptions] of Object.entries(_config.variants)) {
-      const value = props[variantKey as keyof V] ??
-                   _config.defaultVariants?.[variantKey as keyof V]
+      const value = props[variantKey as keyof V]
+        ?? _config.defaultVariants?.[variantKey as keyof V]
 
       if (value !== undefined && variantOptions[value as string]) {
         classes.push(variantOptions[value as string])
@@ -213,8 +213,8 @@ export function variants<V extends Record<string, Record<string, string>>>(
         let matches = true
 
         for (const [key, value] of Object.entries(conditions)) {
-          const propValue = props[key as keyof V] ??
-                           _config.defaultVariants?.[key as keyof V]
+          const propValue = props[key as keyof V]
+            ?? _config.defaultVariants?.[key as keyof V]
           if (propValue !== value) {
             matches = false
             break

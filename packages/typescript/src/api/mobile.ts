@@ -129,7 +129,7 @@ export const device = {
       osVersion: 'unknown',
       model: 'unknown',
       manufacturer: 'unknown',
-      deviceId: 'web-' + Math.random().toString(36).slice(2),
+      deviceId: `web-${Math.random().toString(36).slice(2)}`,
       isTablet: false,
       screen: {
         width: typeof window !== 'undefined' ? window.innerWidth || 0 : 0,

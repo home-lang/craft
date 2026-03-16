@@ -96,7 +96,7 @@
           switch (level) {
             case LOG_err:
               console.error(msg);
-              domErrorsText.textContent += msg + "\n";
+              domErrorsText.textContent += `${msg}\n`;
               domErrors.classList.remove("hidden");
               break;
             case LOG_warn:
@@ -140,7 +140,7 @@
     function renderTitle() {
       const suffix = " - Zig Documentation";
       if (curNavSearch.length > 0) {
-        document.title = curNavSearch + " - Search" + suffix;
+        document.title = `${curNavSearch} - Search${suffix}`;
       }
 else if (curNav.decl != null) {
         document.title = fullyQualifiedName(curNav.decl) + suffix;
@@ -229,7 +229,7 @@ else {
         case CAT_alias:
           return renderDecl(wasm_exports.get_aliasee());
         default:
-          throw new Error("unrecognized category " + category);
+          throw new Error(`unrecognized category ${category}`);
       }
     }
 
@@ -248,7 +248,7 @@ else {
     }
 
     function renderDeclHeading(decl_index) {
-      curNav.viewSourceHash = "#src/" + unwrapString(wasm_exports.decl_file_path(decl_index));
+      curNav.viewSourceHash = `#src/${unwrapString(wasm_exports.decl_file_path(decl_index))}`;
 
       const hdrNameSpan = domHdrName.children[0];
       const srcLink = domHdrName.children[1];
@@ -327,7 +327,7 @@ else {
     }
 
     function navLinkFqn(full_name) {
-      return '#' + full_name;
+      return `#${full_name}`;
     }
 
     function navLinkDeclIndex(decl_index) {
@@ -486,7 +486,7 @@ else {
               member = wasm_exports.get_aliasee();
               continue;
             default:
-              throw new Error("uknown category: " + member_category);
+              throw new Error(`uknown category: ${member_category}`);
           }
         }
       }
@@ -834,10 +834,10 @@ else {
       // 3. http://example.com/#foo => "#foo"
       // wat
       const oldWatHash = location.hash;
-      const oldHash = oldWatHash.startsWith("#") ? oldWatHash : "#" + oldWatHash;
+      const oldHash = oldWatHash.startsWith("#") ? oldWatHash : `#${oldWatHash}`;
       const parts = oldHash.split("?");
-      const newPart2 = (domSearch.value === "") ? "" : ("?" + domSearch.value);
-      return parts[0] + newPart2;
+      const newPart2 = (domSearch.value === "") ? "" : (`?${domSearch.value}`);
+      return `${parts[0]}${newPart2}`;
     }
     function startSearch() {
       clearAsyncSearch();

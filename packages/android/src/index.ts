@@ -241,7 +241,7 @@ zipStorePath=wrapper/dists
   </div>
   <script>
     window.addEventListener('craftReady', (e) => {
-      document.getElementById('status').textContent = '✓ Craft bridge ready (platform: ' + e.detail.platform + ')';
+      document.getElementById('status').textContent = \`✓ Craft bridge ready (platform: \${e.detail.platform})\`;
       console.log('Craft capabilities:', e.detail.capabilities);
     });
   </script>

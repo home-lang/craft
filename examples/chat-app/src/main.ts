@@ -397,7 +397,7 @@ class ChatApp {
   private async saveMessageLocally(message: Message): Promise<void> {
     await db.execute(
       `INSERT OR REPLACE INTO messages (id, roomId, userId, content, type, timestamp, readBy, replyTo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         message.id,
         message.roomId,

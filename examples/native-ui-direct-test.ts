@@ -77,7 +77,7 @@ const html = `<!DOCTYPE html>
         updateStatus('Creating sidebar...');
 
         sidebarInstance = window.craft.nativeUI.createSidebar({
-          id: 'test-sidebar-' + Date.now()
+          id: `test-sidebar-${Date.now()}`
         });
 
         updateStatus('Adding sections to sidebar...');
@@ -104,7 +104,7 @@ const html = `<!DOCTYPE html>
         updateStatus('Sidebar created successfully! Check the window.');
       }
 catch (error) {
-        updateStatus('ERROR creating sidebar: ' + error.message);
+        updateStatus(`ERROR creating sidebar: ${error.message}`);
         console.error('[Test] Sidebar error:', error);
       }
     }
@@ -114,7 +114,7 @@ catch (error) {
         updateStatus('Creating file browser...');
 
         browserInstance = window.craft.nativeUI.createFileBrowser({
-          id: 'test-browser-' + Date.now()
+          id: `test-browser-${Date.now()}`
         });
 
         updateStatus('Adding files to browser...');
@@ -130,7 +130,7 @@ catch (error) {
         updateStatus('File browser created successfully! Check the window.');
       }
 catch (error) {
-        updateStatus('ERROR creating file browser: ' + error.message);
+        updateStatus(`ERROR creating file browser: ${error.message}`);
         console.error('[Test] File browser error:', error);
       }
     }
@@ -149,7 +149,7 @@ catch (error) {
 
         setTimeout(() => {
           splitViewInstance = window.craft.nativeUI.createSplitView({
-            id: 'test-splitview-' + Date.now(),
+            id: `test-splitview-${Date.now()}`,
             sidebar: sidebarInstance,
             browser: browserInstance
           });
@@ -159,7 +159,7 @@ catch (error) {
 
       }
 catch (error) {
-        updateStatus('ERROR creating split view: ' + error.message);
+        updateStatus(`ERROR creating split view: ${error.message}`);
         console.error('[Test] Split view error:', error);
       }
     }

@@ -453,7 +453,7 @@ catch (e) {
     // Load settings
     function loadSettings() {
       try {
-        const saved = localStorage.getItem(STORAGE_KEY + '_settings');
+        const saved = localStorage.getItem(`${STORAGE_KEY}_settings`);
         if (saved) {
           audioSettings = JSON.parse(saved);
           document.getElementById('transitionSound').value = audioSettings.transitionSound;
@@ -470,7 +470,7 @@ catch (e) {
     function saveSettings() {
       audioSettings.transitionSound = document.getElementById('transitionSound').value;
       try {
-        localStorage.setItem(STORAGE_KEY + '_settings', JSON.stringify(audioSettings));
+        localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(audioSettings));
       }
 catch (e) {
         console.error('Failed to save settings:', e);
@@ -483,7 +483,7 @@ catch (e) {
     // Save all settings (without playing transition sound)
     function saveAllSettings() {
       try {
-        localStorage.setItem(STORAGE_KEY + '_settings', JSON.stringify(audioSettings));
+        localStorage.setItem(`${STORAGE_KEY}_settings`, JSON.stringify(audioSettings));
       }
 catch (e) {
         console.error('Failed to save settings:', e);

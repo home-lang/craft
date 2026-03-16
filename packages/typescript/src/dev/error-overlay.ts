@@ -221,7 +221,7 @@ function generateOverlayHtml(error: ErrorInfo, config: ErrorOverlayConfig): stri
       ${
         error.source
           ? `
-        <div style="color: #888; font-size: 12px;">
+        <div style='color: #888; font-size: 12px;'>
           ${escapeHtml(error.source)}${error.line ? `:${error.line}` : ''}${error.column ? `:${error.column}` : ''}
         </div>
       `
@@ -310,7 +310,7 @@ function generateOverlayHtml(error: ErrorInfo, config: ErrorOverlayConfig): stri
     document.getElementById('craft-error-overlay').remove();
   };
   document.getElementById('craft-error-copy').onclick = function() {
-    navigator.clipboard.writeText(${JSON.stringify(error.message + '\n\n' + (error.stack || ''))});
+    navigator.clipboard.writeText(${JSON.stringify(`${error.message}\n\n${error.stack || ''}`)});
     this.textContent = '✓ Copied!';
     setTimeout(() => this.textContent = '📋 Copy Error', 2000);
   };

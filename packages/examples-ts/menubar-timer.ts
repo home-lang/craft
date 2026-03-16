@@ -143,7 +143,7 @@ const popupHtml = `
     function formatTime(secs) {
       const m = Math.floor(secs / 60);
       const s = secs % 60;
-      return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0');
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     }
 
     function updateDisplay() {
@@ -152,7 +152,7 @@ const popupHtml = `
       // Update menubar title via Craft API
       if (window.craft?.tray?.setTitle) {
         const emoji = isRunning ? '🍅' : '⏸️';
-        window.craft.tray.setTitle(emoji + ' ' + formatTime(seconds));
+        window.craft.tray.setTitle(`${emoji} ${formatTime(seconds)}`);
       }
     }
 
