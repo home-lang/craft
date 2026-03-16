@@ -5,7 +5,6 @@
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import type { AppConfig, WindowOptions } from './types'
 
 // Export packaging API
@@ -320,6 +319,7 @@ export class CraftApp {
   }
 
   private async findCraftBinary(): Promise<string> {
+    // Custom path takes precedence
     if (this.config.craftPath) {
       if (!existsSync(this.config.craftPath)) {
         throw new Error(
@@ -331,72 +331,8 @@ export class CraftApp {
       return this.config.craftPath
     }
 
-    // Try common locations
-    const possiblePaths = [
-      // From monorepo zig package
-      join(process.cwd(), 'packages/zig/zig-out/bin/craft'),
-      // From ts-craft package (when in monorepo)
-      join(process.cwd(), '../zig/zig-out/bin/craft'),
-      // Direct build output
-      join(process.cwd(), 'zig-out/bin/craft'),
-      join(process.cwd(), '../../zig-out/bin/craft'),
-      // In PATH
-      'craft',
-    ]
-
-    for (const path of possiblePaths) {
-      if (path === 'craft') {
-        // Check if it's in PATH by trying to spawn it
-        try {
-          await this.checkBinaryExists(path)
-          return path
-        }
-        catch {
-          continue
-        }
-      }
-      else if (existsSync(path)) {
-        return path
-      }
-    }
-
-    // Provide helpful error message with troubleshooting steps
-    const errorMessage = [
-      '❌ Craft binary not found',
-      '',
-      'Tried the following locations:',
-      ...possiblePaths.map(p => `  • ${p}`),
-      '',
-      'To fix this issue:',
-      '',
-      '1. Build the Craft core:',
-      '   bun run build:core',
-      '',
-      '2. Or install Craft globally:',
-      '   bun install -g ts-craft',
-      '',
-      '3. Or specify a custom binary path:',
-      '   createApp({ craftPath: "/path/to/craft" })',
-      '',
-      'For more help, visit: https://github.com/stacksjs/craft',
-    ].join('\n')
-
-    throw new Error(errorMessage)
-  }
-
-  private checkBinaryExists(path: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const proc = spawn(path, ['--version'], { stdio: 'ignore' })
-      proc.on('error', reject)
-      proc.on('exit', (code) => {
-        if (code === 0 || code === null) {
-          resolve()
-        }
-        else {
-          reject(new Error(`Binary check failed with code ${code}`))
-        }
-      })
-    })
+    // Craft binary is expected to be in PATH (installed via pantry)
+    return 'craft'
   }
 }
 
