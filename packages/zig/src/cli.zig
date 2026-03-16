@@ -194,6 +194,7 @@ fn printHelp() void {
         \\      --no-devtools        Disable WebKit DevTools
         \\      --titlebar-hidden    Hide window titlebar
         \\      --native-sidebar     Use native macOS sidebar (Finder-style)
+        \\      --sidebar-config <J> Sidebar JSON configuration
         \\      --sidebar-width <W>  Sidebar width in pixels (default: 220)
         \\
         \\Debugging:
