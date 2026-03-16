@@ -31,7 +31,8 @@ export function useCraft() {
     if (window.craft) {
       setCraft(window.craft);
       setIsReady(true);
-    } else {
+    }
+else {
       // Wait for craft to be ready
       const checkCraft = setInterval(() => {
         if (window.craft) {
@@ -154,9 +155,11 @@ export function usePermission(permission: string) {
     try {
       const result = await craft.requestPermission(permission);
       setGranted(result.granted);
-    } catch (err) {
+    }
+catch (err) {
       setError(err as Error);
-    } finally {
+    }
+finally {
       setLoading(false);
     }
   }, [craft, isReady, permission]);

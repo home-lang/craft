@@ -17,10 +17,12 @@ export function useFileSystem() {
       try {
         const result = await craft.invoke('fs.readFile', { path, encoding });
         return result;
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         setLoading(false);
       }
     },
@@ -34,10 +36,12 @@ export function useFileSystem() {
       setError(null);
       try {
         await craft.invoke('fs.writeFile', { path, data, encoding });
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         setLoading(false);
       }
     },
@@ -52,10 +56,12 @@ export function useFileSystem() {
       try {
         const result = await craft.invoke('fs.readDir', { path });
         return result;
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         setLoading(false);
       }
     },
@@ -69,10 +75,12 @@ export function useFileSystem() {
       setError(null);
       try {
         await craft.invoke('fs.mkdir', { path, recursive });
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         setLoading(false);
       }
     },
@@ -86,10 +94,12 @@ export function useFileSystem() {
       setError(null);
       try {
         await craft.invoke('fs.remove', { path, recursive });
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         setLoading(false);
       }
     },
@@ -102,7 +112,8 @@ export function useFileSystem() {
       try {
         const result = await craft.invoke('fs.exists', { path });
         return result;
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         return false;
       }
@@ -118,10 +129,12 @@ export function useFileSystem() {
       try {
         const result = await craft.invoke('fs.stat', { path });
         return result;
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         setLoading(false);
       }
     },

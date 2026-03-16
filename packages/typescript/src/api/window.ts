@@ -623,7 +623,8 @@ export class Window {
           })
           // For actions that return data, we'd need to listen for a response
           resolve(undefined as T)
-        } catch (error) {
+        }
+catch (error) {
           reject(error)
         }
       })

@@ -80,7 +80,8 @@ export class NativeBridge extends EventEmitter {
     let data: BridgeMessage
     try {
       data = 'detail' in event ? event.detail : typeof event.data === 'string' ? JSON.parse(event.data) : event.data
-    } catch {
+    }
+catch {
       return
     }
 
@@ -108,7 +109,8 @@ export class NativeBridge extends EventEmitter {
 
     if (message.error) {
       pending.reject(new BridgeError(message.error.message, message.error.code, message.error.data))
-    } else {
+    }
+else {
       pending.resolve(message.result)
     }
   }
@@ -149,7 +151,8 @@ export class NativeBridge extends EventEmitter {
   private async requestWithRetry<T, R>(method: string, params: T | undefined, retriesLeft: number): Promise<R> {
     try {
       return await this.sendRequest<T, R>(method, params)
-    } catch (error) {
+    }
+catch (error) {
       if (retriesLeft > 0 && this.isRetryableError(error)) {
         await this.delay(this.config.retryDelay)
         return this.requestWithRetry(method, params, retriesLeft - 1)
@@ -318,7 +321,8 @@ export class NativeBridge extends EventEmitter {
 
     if (this.batchBuffer.length >= this.config.batchSize) {
       this.flushBatch()
-    } else if (!this.batchTimer) {
+    }
+else if (!this.batchTimer) {
       this.batchTimer = setTimeout(() => this.flushBatch(), this.config.batchDelay)
     }
   }
@@ -352,7 +356,8 @@ export class NativeBridge extends EventEmitter {
     if (connected && !wasConnected) {
       this.emit('connected')
       this.flushOfflineQueue()
-    } else if (!connected && wasConnected) {
+    }
+else if (!connected && wasConnected) {
       this.emit('disconnected')
     }
   }

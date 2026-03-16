@@ -141,11 +141,14 @@
       const suffix = " - Zig Documentation";
       if (curNavSearch.length > 0) {
         document.title = curNavSearch + " - Search" + suffix;
-      } else if (curNav.decl != null) {
+      }
+else if (curNav.decl != null) {
         document.title = fullyQualifiedName(curNav.decl) + suffix;
-      } else if (curNav.path != null) {
+      }
+else if (curNav.path != null) {
         document.title = curNav.path + suffix;
-      } else {
+      }
+else {
         document.title = moduleList[0] + suffix; // Home
       }
     }
@@ -182,7 +185,8 @@
           case 1:
             if (curNav.decl == null) {
               return renderNotFound();
-            } else {
+            }
+else {
               return renderDecl(curNav.decl);
             }
           case 2: return renderSource(curNav.path);
@@ -308,7 +312,8 @@
           aDom.setAttribute('href', list[i].href);
           if (i + 1 == list.length) {
               aDom.classList.add("active");
-          } else {
+          }
+else {
               aDom.classList.remove("active");
           }
       }
@@ -352,7 +357,8 @@
     function renderErrorSet(base_decl, errorSetList) {
       if (errorSetList == null) {
         domFnErrorsAnyError.classList.remove("hidden");
-      } else {
+      }
+else {
         resizeDomList(domListFnErrors, errorSetList.length, '<div></div>');
         for (let i = 0; i < errorSetList.length; i += 1) {
             const divDom = domListFnErrors.children[i];
@@ -388,7 +394,8 @@
       const fields = unwrapSlice32(wasm_exports.type_fn_fields(decl_index)).slice();
       if (members.length !== 0 || fields.length !== 0) {
         renderNamespace(decl_index, members, fields);
-      } else {
+      }
+else {
         domSourceText.innerHTML = declSourceHtml(decl_index);
         domSectSource.classList.remove("hidden");
       }
@@ -609,9 +616,11 @@
     function operatorCompare(a, b) {
         if (a === b) {
             return 0;
-        } else if (a < b) {
+        }
+else if (a < b) {
             return -1;
-        } else {
+        }
+else {
             return 1;
         }
     }
@@ -629,7 +638,8 @@
             let nonSearchPart;
             if (qpos === -1) {
                 nonSearchPart = query;
-            } else {
+            }
+else {
                 nonSearchPart = query.substring(0, qpos);
                 curNavSearch = decodeURIComponent(query.substring(qpos + 1));
             }
@@ -639,7 +649,8 @@
               if (source_mode) {
                 curNav.tag = 2;
                 curNav.path = nonSearchPart.substring(4);
-              } else {
+              }
+else {
                 curNav.tag = 1;
                 curNav.decl = findDecl(nonSearchPart);
               }
@@ -742,10 +753,12 @@
         if (curSearchIndex < 0 || curSearchIndex >= domListSearchResults.children.length) {
             if (dir > 0) {
                 curSearchIndex = -1 + dir;
-            } else if (dir < 0) {
+            }
+else if (dir < 0) {
                 curSearchIndex = domListSearchResults.children.length + dir;
             }
-        } else {
+        }
+else {
             curSearchIndex += dir;
         }
         if (curSearchIndex < 0) {
@@ -850,7 +863,8 @@
             renderSearchCursor();
 
             domSectSearchResults.classList.remove("hidden");
-        } else {
+        }
+else {
             domSectSearchNoResults.classList.remove("hidden");
         }
     }
@@ -860,7 +874,8 @@
             const liDom = domListSearchResults.children[i];
             if (curSearchIndex === i) {
                 liDom.classList.add("selected");
-            } else {
+            }
+else {
                 liDom.classList.remove("selected");
             }
         }

@@ -23,7 +23,8 @@ console.log('1. Electron')
 const electronDir = join(APPS, 'electron')
 if (existsSync(join(electronDir, 'node_modules/electron'))) {
   console.log('   Already installed.\n')
-} else {
+}
+else {
   console.log('   Installing electron...')
   const result = Bun.spawnSync({
     cmd: ['bun', 'install'],
@@ -33,7 +34,8 @@ if (existsSync(join(electronDir, 'node_modules/electron'))) {
   })
   if (result.exitCode === 0) {
     console.log('   Done.\n')
-  } else {
+  }
+else {
     console.log('   Failed to install. You may need to run manually:\n')
     console.log(`   cd ${electronDir} && bun install\n`)
   }
@@ -62,7 +64,8 @@ if (buildResult.exitCode === 0) {
     stderr: 'pipe',
   })
   console.log('   Built and stripped successfully.\n')
-} else {
+}
+else {
   console.log('   Build failed. Check Zig installation.\n')
 }
 
@@ -77,7 +80,8 @@ const tauriBinaryPaths = [
 const tauriFound = tauriBinaryPaths.some(p => existsSync(p))
 if (tauriFound) {
   console.log('   Binary found.\n')
-} else {
+}
+else {
   console.log('   Binary not found. Build with:')
   console.log('   cd benchmarks/apps/tauri/src-tauri && cargo build --release')
   console.log('   (Requires Rust toolchain)\n')

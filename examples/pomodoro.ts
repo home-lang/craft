@@ -434,7 +434,8 @@ const html = `
 
           updateStatsDisplay();
         }
-      } catch (e) {
+      }
+catch (e) {
         console.error('Failed to load stats:', e);
       }
     }
@@ -443,7 +444,8 @@ const html = `
     function saveStats() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
-      } catch (e) {
+      }
+catch (e) {
         console.error('Failed to save stats:', e);
       }
     }
@@ -458,7 +460,8 @@ const html = `
           document.getElementById('backgroundNoise').value = audioSettings.backgroundNoise;
           document.getElementById('backgroundVolume').value = audioSettings.backgroundVolume;
         }
-      } catch (e) {
+      }
+catch (e) {
         console.error('Failed to load settings:', e);
       }
     }
@@ -468,7 +471,8 @@ const html = `
       audioSettings.transitionSound = document.getElementById('transitionSound').value;
       try {
         localStorage.setItem(STORAGE_KEY + '_settings', JSON.stringify(audioSettings));
-      } catch (e) {
+      }
+catch (e) {
         console.error('Failed to save settings:', e);
       }
 
@@ -480,7 +484,8 @@ const html = `
     function saveAllSettings() {
       try {
         localStorage.setItem(STORAGE_KEY + '_settings', JSON.stringify(audioSettings));
-      } catch (e) {
+      }
+catch (e) {
         console.error('Failed to save settings:', e);
       }
     }
@@ -508,7 +513,8 @@ const html = `
 
         oscillator.start(now);
         oscillator.stop(now + 1.5);
-      } catch (e) {
+      }
+catch (e) {
         console.error('Failed to play transition sound:', e);
       }
     }
@@ -543,7 +549,8 @@ const html = `
 
           backgroundAudio = { source: whiteNoise, context: audioContext, gain: gainNode, type: 'webaudio' };
 
-        } else if (audioSettings.backgroundNoise === 'brownnoise') {
+        }
+else if (audioSettings.backgroundNoise === 'brownnoise') {
           // Brown noise - deep, low frequency rumble
           const bufferSize = 2 * audioContext.sampleRate;
           const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
@@ -565,7 +572,8 @@ const html = `
 
           backgroundAudio = { source: brownNoise, context: audioContext, gain: gainNode, type: 'webaudio' };
 
-        } else if (audioSettings.backgroundNoise === 'ocean') {
+        }
+else if (audioSettings.backgroundNoise === 'ocean') {
           // Ocean waves - low frequency oscillation + filtered noise
           const bufferSize = 2 * audioContext.sampleRate;
           const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
@@ -607,7 +615,8 @@ const html = `
 
           backgroundAudio = { source: noise, source2: lfo, context: audioContext, gain: gainNode, type: 'webaudio' };
 
-        } else if (audioSettings.backgroundNoise === 'rain') {
+        }
+else if (audioSettings.backgroundNoise === 'rain') {
           // Rain - high frequency filtered noise with random bursts
           const bufferSize = 2 * audioContext.sampleRate;
           const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
@@ -636,7 +645,8 @@ const html = `
 
           backgroundAudio = { source: noise, context: audioContext, gain: gainNode, type: 'webaudio' };
 
-        } else if (audioSettings.backgroundNoise === 'forest') {
+        }
+else if (audioSettings.backgroundNoise === 'forest') {
           // Forest - gentle filtered noise with bird-like tones
           const bufferSize = 2 * audioContext.sampleRate;
           const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
@@ -673,7 +683,8 @@ const html = `
 
           backgroundAudio = { source: noise, context: audioContext, gain: gainNode, type: 'webaudio' };
         }
-      } catch (e) {
+      }
+catch (e) {
         console.error('Failed to generate background noise:', e);
       }
     }
@@ -686,7 +697,8 @@ const html = `
           if (backgroundAudio.source2) backgroundAudio.source2.stop();
           if (backgroundAudio.context) backgroundAudio.context.close();
           backgroundAudio = null;
-        } catch (e) {
+        }
+catch (e) {
           console.error('Failed to stop background noise:', e);
         }
       }
@@ -761,7 +773,8 @@ const html = `
       // Update running animation
       if (isRunning) {
         timerEl.classList.add('running');
-      } else {
+      }
+else {
         timerEl.classList.remove('running');
       }
 
@@ -769,7 +782,8 @@ const html = `
       if (isWorkSession) {
         modeEl.textContent = 'Work Session';
         modeEl.className = 'mode-indicator work';
-      } else {
+      }
+else {
         modeEl.textContent = 'Break Time';
         modeEl.className = 'mode-indicator break';
       }
@@ -802,7 +816,8 @@ const html = `
         isRunning = false;
         stopBackgroundNoise();
         console.log('Timer paused');
-      } else {
+      }
+else {
         // Start
         isRunning = true;
         if (audioSettings.backgroundNoise !== 'none') {
@@ -816,7 +831,8 @@ const html = `
 
           if (timeRemaining <= 0) {
             completeSession();
-          } else if (timeRemaining <= 10 && timeRemaining > 0) {
+          }
+else if (timeRemaining <= 10 && timeRemaining > 0) {
             // Optional: beep in last 10 seconds
             console.log(\`⏰ \${timeRemaining} seconds remaining\`);
           }
@@ -851,7 +867,8 @@ const html = `
         // Switch to break
         isWorkSession = false;
         timeRemaining = BREAK_DURATION;
-      } else {
+      }
+else {
         // Completed break
         showNotification('✨ Break over! Ready for another session?');
         console.log('Break completed');
@@ -906,11 +923,14 @@ const html = `
 
       if (e.code === 'Space') {
         toggleTimer();
-      } else if (e.code === 'KeyR' && !isRunning) {
+      }
+else if (e.code === 'KeyR' && !isRunning) {
         resetTimer();
-      } else if (e.code === 'KeyS') {
+      }
+else if (e.code === 'KeyS') {
         skipSession();
-      } else if ((e.metaKey || e.ctrlKey) && e.code === 'KeyH') {
+      }
+else if ((e.metaKey || e.ctrlKey) && e.code === 'KeyH') {
         e.preventDefault();
         console.log('Hide window (minimize to menubar)');
         if (window.craft?.window) {
@@ -934,7 +954,8 @@ const html = `
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         console.log('Window hidden - timer continues in background');
-      } else {
+      }
+else {
         console.log('Window visible');
         updateDisplay(); // Refresh display
       }
@@ -1046,7 +1067,8 @@ https://github.com/stacksjs/craft\`;
       if (window.craft?.window) {
         // Show alert dialog
         window.craft.window.alert(aboutMessage);
-      } else {
+      }
+else {
         alert(aboutMessage);
       }
     }
@@ -1079,7 +1101,8 @@ https://github.com/stacksjs/craft\`;
             label: 'Hide Window',
             action: 'hide'
           });
-        } else {
+        }
+else {
           menuItems.push({
             label: 'Show Window',
             action: 'show'
@@ -1113,7 +1136,8 @@ https://github.com/stacksjs/craft\`;
       if (window.craft?.tray) {
         console.log('[Pomodoro] Setting up menu via window.craft.tray');
         updateMenuLabels();
-      } else {
+      }
+else {
         console.error('[Pomodoro] ERROR: window.craft.tray is not available!');
       }
     }
@@ -1186,7 +1210,8 @@ async function main() {
   try {
     await app.show()
     console.log('\n✅ Pomodoro timer closed')
-  } catch (error) {
+  }
+catch (error) {
     console.error('\n❌ Error:', error)
     process.exit(1)
   }

@@ -160,7 +160,8 @@ const popupHtml = `
       if (seconds > 0) {
         seconds--;
         updateDisplay();
-      } else {
+      }
+else {
         stop();
         statusEl.textContent = 'Time\\'s up!';
         // Send notification

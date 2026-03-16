@@ -166,7 +166,8 @@ class AudioPlayer {
   togglePlayPause(): void {
     if (this.state.isPlaying) {
       this.pause()
-    } else {
+    }
+else {
       this.play()
     }
   }
@@ -176,7 +177,8 @@ class AudioPlayer {
 
     if (this.state.shuffle) {
       this.state.queueIndex = Math.floor(Math.random() * this.state.queue.length)
-    } else {
+    }
+else {
       this.state.queueIndex = (this.state.queueIndex + 1) % this.state.queue.length
     }
 
@@ -197,7 +199,8 @@ class AudioPlayer {
 
     if (this.state.shuffle) {
       this.state.queueIndex = Math.floor(Math.random() * this.state.queue.length)
-    } else {
+    }
+else {
       this.state.queueIndex =
         (this.state.queueIndex - 1 + this.state.queue.length) % this.state.queue.length
     }
@@ -251,7 +254,8 @@ class AudioPlayer {
     if (this.state.repeat === 'one') {
       this.audio.currentTime = 0
       this.play()
-    } else if (this.state.repeat === 'all' || this.state.queueIndex < this.state.queue.length - 1) {
+    }
+else if (this.state.repeat === 'all' || this.state.queueIndex < this.state.queue.length - 1) {
       this.next()
     }
   }
@@ -437,7 +441,8 @@ class MusicLibrary {
         ...track,
         addedAt: new Date().toISOString(),
       }
-    } catch {
+    }
+catch {
       // Track already exists
       return null
     }
@@ -594,14 +599,16 @@ async function main(): Promise<void> {
       case 'ArrowRight':
         if (e.metaKey || e.ctrlKey) {
           player.next()
-        } else {
+        }
+else {
           player.seek(player.getState().currentTime + 10)
         }
         break
       case 'ArrowLeft':
         if (e.metaKey || e.ctrlKey) {
           player.previous()
-        } else {
+        }
+else {
           player.seek(player.getState().currentTime - 10)
         }
         break

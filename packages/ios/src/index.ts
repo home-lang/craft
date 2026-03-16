@@ -203,7 +203,8 @@ export async function build(options: BuildOptions): Promise<void> {
         writeFileSync(join(distDir, 'index.html'), html)
         console.log(`   Copied: ${htmlPath} → dist/index.html`)
       }
-    } else {
+    }
+else {
       throw new Error(`HTML path not found: ${htmlPath}`)
     }
   }
@@ -215,10 +216,12 @@ export async function build(options: BuildOptions): Promise<void> {
       console.log('   Running xcodegen...')
       await $`cd ${output} && xcodegen generate`.quiet()
       console.log(`✅ Xcode project created: ${config.appName}.xcodeproj`)
-    } else {
+    }
+else {
       throw new Error('xcodegen not found')
     }
-  } catch {
+  }
+catch {
     console.log('⚠️  xcodegen not found. Install with: brew install xcodegen')
     console.log('   Then run: craft ios build')
     return
@@ -279,10 +282,12 @@ export async function run(options: RunOptions): Promise<void> {
       await $`open -a Simulator`
 
       console.log('✅ App deployed to simulator')
-    } catch (error) {
+    }
+catch (error) {
       console.error('Build failed. Open in Xcode for details:', projectPath)
     }
-  } else {
+  }
+else {
     // Open in Xcode for device deployment
     console.log('📱 Opening Xcode for device deployment...')
     await $`open ${projectPath}`

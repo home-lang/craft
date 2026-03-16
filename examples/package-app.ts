@@ -65,7 +65,8 @@ async function main() {
 
     if (result.success && result.outputPath) {
       console.log(`   📁 ${result.outputPath}`)
-    } else if (result.error) {
+    }
+else if (result.error) {
       console.log(`   ⚠️  ${result.error}`)
     }
   }

@@ -94,10 +94,12 @@ export class PluginManager {
     if (nameOrUrl.startsWith('http://') || nameOrUrl.startsWith('https://')) {
       // Install from URL
       plugin = await this.installFromUrl(nameOrUrl)
-    } else if (nameOrUrl.startsWith('git://') || nameOrUrl.includes('github.com')) {
+    }
+else if (nameOrUrl.startsWith('git://') || nameOrUrl.includes('github.com')) {
       // Install from Git
       plugin = await this.installFromGit(nameOrUrl)
-    } else {
+    }
+else {
       // Install from registry
       plugin = await this.installFromRegistry(nameOrUrl, version)
     }
@@ -348,7 +350,8 @@ export class PluginManager {
             if (typeof hook.default === 'function') {
               await hook.default(context)
             }
-          } catch (error) {
+          }
+catch (error) {
             console.error(`Error running ${name} ${hookName} hook:`, error)
           }
         }
@@ -427,7 +430,8 @@ export async function pluginCommand(args: string[]): Promise<void> {
       const plugins = manager.list()
       if (plugins.length === 0) {
         console.log('No plugins installed')
-      } else {
+      }
+else {
         console.log('Installed plugins:')
         for (const plugin of plugins) {
           const status = plugin.enabled ? '✓' : '○'
@@ -439,7 +443,8 @@ export async function pluginCommand(args: string[]): Promise<void> {
     case 'update':
       if (rest[0]) {
         await manager.update(rest[0])
-      } else {
+      }
+else {
         await manager.updateAll()
       }
       break
@@ -452,7 +457,8 @@ export async function pluginCommand(args: string[]): Promise<void> {
       const results = await manager.search(rest.join(' '))
       if (results.length === 0) {
         console.log('No plugins found')
-      } else {
+      }
+else {
         console.log('Search results:')
         for (const plugin of results) {
           console.log(`  ${plugin.name} - ${plugin.description}`)

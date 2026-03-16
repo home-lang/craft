@@ -1028,7 +1028,8 @@ function setupEventListeners(store: SocialStore): void {
     try {
       const result = await camera.pickImage()
       console.log('Image selected:', result)
-    } catch (err) {
+    }
+catch (err) {
       console.error('Failed to pick image:', err)
     }
   })

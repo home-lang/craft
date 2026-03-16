@@ -356,7 +356,8 @@ async function main() {
   try {
     await app.show()
     console.log('✅ App closed successfully')
-  } catch (error) {
+  }
+catch (error) {
     console.error('❌ Error running app:', error)
     process.exit(1)
   }

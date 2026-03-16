@@ -102,7 +102,8 @@ const html = `<!DOCTYPE html>
         });
 
         updateStatus('Sidebar created successfully! Check the window.');
-      } catch (error) {
+      }
+catch (error) {
         updateStatus('ERROR creating sidebar: ' + error.message);
         console.error('[Test] Sidebar error:', error);
       }
@@ -127,7 +128,8 @@ const html = `<!DOCTYPE html>
         ]);
 
         updateStatus('File browser created successfully! Check the window.');
-      } catch (error) {
+      }
+catch (error) {
         updateStatus('ERROR creating file browser: ' + error.message);
         console.error('[Test] File browser error:', error);
       }
@@ -155,7 +157,8 @@ const html = `<!DOCTYPE html>
           updateStatus('Split view created! You should see a Finder-like layout.');
         }, 100);
 
-      } catch (error) {
+      }
+catch (error) {
         updateStatus('ERROR creating split view: ' + error.message);
         console.error('[Test] Split view error:', error);
       }

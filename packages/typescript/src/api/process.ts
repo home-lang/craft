@@ -155,7 +155,8 @@ export async function exec(command: string, options?: ExecOptions): Promise<Exec
       maxBuffer: options?.maxBuffer || 1024 * 1024
     })
     return { stdout, stderr, exitCode: 0 }
-  } catch (error: any) {
+  }
+catch (error: any) {
     return {
       stdout: error.stdout || '',
       stderr: error.stderr || error.message,
@@ -339,7 +340,8 @@ export async function tempDir(): Promise<string> {
 export function exit(code: number = 0): void {
   if (typeof window !== 'undefined' && window.craft?.app) {
     window.craft.app.quit()
-  } else if (typeof process !== 'undefined') {
+  }
+else if (typeof process !== 'undefined') {
     process.exit(code)
   }
 }

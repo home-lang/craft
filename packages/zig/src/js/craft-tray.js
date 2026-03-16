@@ -28,7 +28,8 @@ window.craft.tray = {
           data: title
         });
         resolve();
-      } catch (error) {
+      }
+catch (error) {
         reject(new Error(`Failed to set tray title: ${error.message}`));
       }
     });
@@ -52,7 +53,8 @@ window.craft.tray = {
           data: tooltip
         });
         resolve();
-      } catch (error) {
+      }
+catch (error) {
         reject(new Error(`Failed to set tray tooltip: ${error.message}`));
       }
     });
@@ -149,7 +151,8 @@ window.craft.tray = {
           data: JSON.stringify(menuData)
         });
         resolve();
-      } catch (error) {
+      }
+catch (error) {
         reject(new Error(`Failed to set tray menu: ${error.message}`));
       }
     });
@@ -209,7 +212,8 @@ setInterval(() => {
       action: 'pollActions',
       data: ''
     });
-  } catch (error) {
+  }
+catch (error) {
     // Ignore polling errors
   }
 }, 100); // Poll every 100ms

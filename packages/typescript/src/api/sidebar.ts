@@ -306,7 +306,8 @@ function generateCSS(config: SidebarConfig, platform: Platform): string {
         .craft-sidebar-item-badge { background: var(--craft-badge-bg-dark); }
       }
     `
-  } else if (platform === 'windows') {
+  }
+else if (platform === 'windows') {
     const winConfig = config.platform?.windows
     platformStyles = `
       :root {
@@ -342,7 +343,8 @@ function generateCSS(config: SidebarConfig, platform: Platform): string {
         .craft-sidebar-item-badge { background: var(--craft-badge-bg-dark); }
       }
     `
-  } else {
+  }
+else {
     // Linux / GTK style
     platformStyles = `
       :root {

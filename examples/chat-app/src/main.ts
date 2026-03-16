@@ -77,7 +77,8 @@ class ChatConnection {
         try {
           const data = JSON.parse(event.data)
           this.handleMessage(data)
-        } catch (e) {
+        }
+catch (e) {
           console.error('Failed to parse message:', e)
         }
       }
@@ -103,7 +104,8 @@ class ChatConnection {
   send(data: any): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data))
-    } else {
+    }
+else {
       this.pendingMessages.push(data)
     }
   }
@@ -219,10 +221,12 @@ class ChatStore {
     if (isTyping) {
       if (existingIndex >= 0) {
         indicators[existingIndex].timestamp = Date.now()
-      } else {
+      }
+else {
         indicators.push({ roomId, userId, timestamp: Date.now() })
       }
-    } else {
+    }
+else {
       if (existingIndex >= 0) {
         indicators.splice(existingIndex, 1)
       }

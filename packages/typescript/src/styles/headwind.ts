@@ -108,10 +108,12 @@ export function cx(...inputs: ClassValue[]): string {
 
     if (typeof input === 'string' || typeof input === 'number') {
       classes.push(String(input))
-    } else if (Array.isArray(input)) {
+    }
+else if (Array.isArray(input)) {
       const nested = cx(...input)
       if (nested) classes.push(nested)
-    } else if (typeof input === 'object') {
+    }
+else if (typeof input === 'object') {
       for (const [key, value] of Object.entries(input)) {
         if (value) classes.push(key)
       }
@@ -508,7 +510,8 @@ export async function buildCSS(options: HeadwindConfig): Promise<void> {
   try {
     await execAsync(`headwind ${args.join(' ')}`)
     console.log(`CSS built successfully: ${options.output}`)
-  } catch (error) {
+  }
+catch (error) {
     console.error('Failed to build CSS:', error)
     throw error
   }

@@ -303,7 +303,8 @@ export function CraftProvider({ children }: { children: React.ReactNode }) {
     // Wait for craft bridge to be ready
     if (window.craft) {
       setReady(true)
-    } else {
+    }
+else {
       const checkInterval = setInterval(() => {
         if (window.craft) {
           setReady(true)

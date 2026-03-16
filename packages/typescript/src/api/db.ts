@@ -118,7 +118,8 @@ export const db: CraftDatabaseAPI = {
    *   await db.execute('INSERT INTO orders (user_id, total) VALUES (?, ?)', [1, 99.99])
    *   await db.execute('UPDATE inventory SET quantity = quantity - 1 WHERE product_id = ?', [42])
    *   await db.commit()
-   * } catch (error) {
+   * }
+catch (error) {
    *   await db.rollback()
    *   throw error
    * }
@@ -345,7 +346,8 @@ export class Database {
    * const user = await db.get<User>('SELECT * FROM users WHERE id = ?', [1])
    * if (user) {
    *   console.log(`Found user: ${user.name}`)
-   * } else {
+   * }
+else {
    *   console.log('User not found')
    * }
    * ```
@@ -389,7 +391,8 @@ export class Database {
       const result = await fn()
       await db.commit()
       return result
-    } catch (error) {
+    }
+catch (error) {
       await db.rollback()
       throw error
     }
@@ -562,7 +565,8 @@ export class KeyValueStore {
     if (row) {
       try {
         return JSON.parse(row.value) as T
-      } catch {
+      }
+catch {
         return row.value as unknown as T
       }
     }

@@ -43,7 +43,8 @@ async function loadNotes() {
   if (searchQuery) {
     const pattern = `%${searchQuery}%`
     notes = await database.query<Note>(query, [pattern, pattern])
-  } else {
+  }
+else {
     notes = await database.query<Note>(query)
   }
 }
@@ -148,9 +149,11 @@ function formatDate(dateStr: string): string {
 
   if (diff < 86400000) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  } else if (diff < 604800000) {
+  }
+else if (diff < 604800000) {
     return date.toLocaleDateString([], { weekday: 'short' })
-  } else {
+  }
+else {
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
   }
 }
@@ -330,7 +333,8 @@ function setupShortcuts() {
         searchQuery = ''
         await loadNotes()
         render()
-      } else if (sidebarOpen) {
+      }
+else if (sidebarOpen) {
         sidebarOpen = false
         render()
       }
@@ -358,6 +362,7 @@ async function init() {
 // Start app
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init)
-} else {
+}
+else {
   init()
 }

@@ -50,7 +50,8 @@ if (craftBin && craftBin !== 'craft') {
     bundleSize: binSize, // Craft is a single static binary
     details: 'Single native binary (Zig)',
   })
-} else if (craftBin === 'craft') {
+}
+else if (craftBin === 'craft') {
   // In PATH — try to find the actual binary
   const which = Bun.spawnSync({ cmd: ['which', 'craft'], stdout: 'pipe' })
   const path = new TextDecoder().decode(which.stdout).trim()
@@ -63,7 +64,8 @@ if (craftBin && craftBin !== 'craft') {
       details: `Single native binary at ${path}`,
     })
   }
-} else {
+}
+else {
   console.log('  Craft: binary not found (build with: cd packages/zig && zig build)\n')
 }
 
@@ -86,7 +88,8 @@ if (existsSync(electronModules)) {
     bundleSize: electronPkgSize + appCodeSize,
     details: 'Chromium + Node.js runtime + app',
   })
-} else {
+}
+else {
   console.log('  Electron: not installed (run: cd benchmarks/apps/electron && bun install)\n')
 }
 
@@ -103,7 +106,8 @@ if (tauriBin) {
     bundleSize: binSize + frontendSize,
     details: 'Rust binary + frontend assets',
   })
-} else {
+}
+else {
   console.log('  Tauri: binary not found (build with: cd benchmarks/apps/tauri/src-tauri && cargo build --release)\n')
 }
 
@@ -120,7 +124,8 @@ if (electrobunBin && electrobunBundle) {
     bundleSize,
     details: 'Bun + native WebView .app bundle',
   })
-} else {
+}
+else {
   console.log('  Electrobun: app not found (build with: cd benchmarks/apps/electrobun && bun install && npx electrobun build)\n')
 }
 
@@ -137,7 +142,8 @@ if (rnBin && rnBundle) {
     bundleSize,
     details: 'React Native macOS .app bundle',
   })
-} else {
+}
+else {
   console.log('  React Native macOS: app not found (build with xcodebuild)\n')
 }
 

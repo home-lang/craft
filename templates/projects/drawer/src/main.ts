@@ -400,6 +400,7 @@ function init(): void {
 // Start app
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init)
-} else {
+}
+else {
   init()
 }

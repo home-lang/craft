@@ -17,10 +17,12 @@ export function useDatabase(dbPath: string) {
       try {
         const result = await craft.invoke('db.execute', { path: dbPath, sql, params });
         return result;
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         setLoading(false);
       }
     },
@@ -35,10 +37,12 @@ export function useDatabase(dbPath: string) {
       try {
         const result = await craft.invoke('db.query', { path: dbPath, sql, params });
         return result;
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         setLoading(false);
       }
     },
@@ -59,14 +63,17 @@ export function useDatabase(dbPath: string) {
             },
           });
           await craft.invoke('db.transaction.commit', { path: dbPath });
-        } catch (err) {
+        }
+catch (err) {
           await craft.invoke('db.transaction.rollback', { path: dbPath });
           throw err;
         }
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         setLoading(false);
       }
     },

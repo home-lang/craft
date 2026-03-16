@@ -13,10 +13,12 @@ export function useFileSystem() {
     try {
       const result = await craft.value.invoke('fs.readFile', { path, encoding });
       return result;
-    } catch (err) {
+    }
+catch (err) {
       error.value = err as Error;
       throw err;
-    } finally {
+    }
+finally {
       loading.value = false;
     }
   };
@@ -27,10 +29,12 @@ export function useFileSystem() {
     error.value = null;
     try {
       await craft.value.invoke('fs.writeFile', { path, data, encoding });
-    } catch (err) {
+    }
+catch (err) {
       error.value = err as Error;
       throw err;
-    } finally {
+    }
+finally {
       loading.value = false;
     }
   };
@@ -42,10 +46,12 @@ export function useFileSystem() {
     try {
       const result = await craft.value.invoke('fs.readDir', { path });
       return result;
-    } catch (err) {
+    }
+catch (err) {
       error.value = err as Error;
       throw err;
-    } finally {
+    }
+finally {
       loading.value = false;
     }
   };
@@ -56,10 +62,12 @@ export function useFileSystem() {
     error.value = null;
     try {
       await craft.value.invoke('fs.mkdir', { path, recursive });
-    } catch (err) {
+    }
+catch (err) {
       error.value = err as Error;
       throw err;
-    } finally {
+    }
+finally {
       loading.value = false;
     }
   };
@@ -70,10 +78,12 @@ export function useFileSystem() {
     error.value = null;
     try {
       await craft.value.invoke('fs.remove', { path, recursive });
-    } catch (err) {
+    }
+catch (err) {
       error.value = err as Error;
       throw err;
-    } finally {
+    }
+finally {
       loading.value = false;
     }
   };
@@ -83,7 +93,8 @@ export function useFileSystem() {
     try {
       const result = await craft.value.invoke('fs.exists', { path });
       return result;
-    } catch (err) {
+    }
+catch (err) {
       error.value = err as Error;
       return false;
     }
@@ -96,10 +107,12 @@ export function useFileSystem() {
     try {
       const result = await craft.value.invoke('fs.stat', { path });
       return result;
-    } catch (err) {
+    }
+catch (err) {
       error.value = err as Error;
       throw err;
-    } finally {
+    }
+finally {
       loading.value = false;
     }
   };

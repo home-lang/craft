@@ -481,7 +481,8 @@ export class Sidebar {
   async toggle(): Promise<void> {
     if (this._config.collapsed) {
       await this.expand()
-    } else {
+    }
+else {
       await this.collapse()
     }
   }
@@ -634,7 +635,8 @@ export class Sidebar {
     }
     if (index !== undefined) {
       this._config.sections.splice(index, 0, section)
-    } else {
+    }
+else {
       this._config.sections.push(section)
     }
     section.items.forEach(item => this._items.set(item.id, item))
@@ -731,7 +733,8 @@ export class Sidebar {
             data: payload
           })
           resolve(undefined as T)
-        } catch (error) {
+        }
+catch (error) {
           reject(error)
         }
       })

@@ -208,7 +208,8 @@ export class BundleOptimizer {
         })
       }
       return { outputs }
-    } catch (error: any) {
+    }
+catch (error: any) {
       // Fallback to esbuild if Bun.build is not available
       return this.bundleWithEsbuild()
     }

@@ -360,7 +360,8 @@ describe('Error Handling', () => {
       onClick: (callback: (event: any) => void) => {
         try {
           callback({ button: 'left', timestamp: Date.now(), modifiers: {} })
-        } catch (error) {
+        }
+catch (error) {
           // Errors in callbacks should be caught
           expect(error).toBeDefined()
         }

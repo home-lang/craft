@@ -98,7 +98,8 @@ export class DevToolsServer extends EventEmitter {
         try {
           const message = JSON.parse(data.toString())
           this.handleMessage(ws, message)
-        } catch (e) {
+        }
+catch (e) {
           console.error('[DevTools] Failed to parse message:', e)
         }
       })
@@ -157,7 +158,8 @@ export class DevToolsServer extends EventEmitter {
           },
         ])
       )
-    } else if (url === '/json/version') {
+    }
+else if (url === '/json/version') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(
         JSON.stringify({
@@ -168,23 +170,29 @@ export class DevToolsServer extends EventEmitter {
           'WebKit-Version': 'N/A',
         })
       )
-    } else if (url === '/') {
+    }
+else if (url === '/') {
       // Dashboard
       res.writeHead(200, { 'Content-Type': 'text/html' })
       res.end(this.getDashboardHtml())
-    } else if (url === '/api/console') {
+    }
+else if (url === '/api/console') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(this.consoleLogs))
-    } else if (url === '/api/network') {
+    }
+else if (url === '/api/network') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(Array.from(this.networkRequests.values())))
-    } else if (url === '/api/performance') {
+    }
+else if (url === '/api/performance') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(this.performanceEntries))
-    } else if (url === '/api/memory') {
+    }
+else if (url === '/api/memory') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(this.memorySnapshots))
-    } else {
+    }
+else {
       res.writeHead(404)
       res.end('Not found')
     }
@@ -215,7 +223,8 @@ export class DevToolsServer extends EventEmitter {
               },
             },
           })
-        } catch (e: any) {
+        }
+catch (e: any) {
           this.send(ws, {
             id,
             result: {
@@ -535,10 +544,12 @@ export class DevToolsServer extends EventEmitter {
       if (msg.method === 'Console.messageAdded') {
         logs.push(msg.params.message);
         if (activeTab === 'console') render();
-      } else if (msg.method === 'Network.requestWillBeSent') {
+      }
+else if (msg.method === 'Network.requestWillBeSent') {
         requests.push({ ...msg.params, status: 'pending' });
         if (activeTab === 'network') render();
-      } else if (msg.method === 'Network.responseReceived') {
+      }
+else if (msg.method === 'Network.responseReceived') {
         const req = requests.find(r => r.requestId === msg.params.requestId);
         if (req) req.status = msg.params.response.status;
         if (activeTab === 'network') render();
@@ -560,14 +571,16 @@ export class DevToolsServer extends EventEmitter {
         content.innerHTML = logs.map(l =>
           '<div class="log ' + l.level + '">' + l.text + '</div>'
         ).join('');
-      } else if (activeTab === 'network') {
+      }
+else if (activeTab === 'network') {
         content.innerHTML = requests.map(r =>
           '<div class="request">' +
           '<div class="request-url">' + r.request.method + ' ' + r.request.url + '</div>' +
           '<div class="request-status status-' + r.status + '">' + r.status + '</div>' +
           '</div>'
         ).join('');
-      } else {
+      }
+else {
         content.innerHTML = '<p>Coming soon...</p>';
       }
       content.scrollTop = content.scrollHeight;

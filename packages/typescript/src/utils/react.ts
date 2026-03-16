@@ -62,7 +62,8 @@ class CraftStore<T> {
   setState = (newState: Partial<T> | ((_prev: T) => T)): void => {
     if (typeof newState === 'function') {
       this.state = newState(this.state);
-    } else {
+    }
+else {
       this.state = { ...this.state, ...newState };
     }
     this.listeners.forEach((listener) => listener());
@@ -548,7 +549,8 @@ export function useClipboard(): {
             return item.getType('image/png');
           }
         }
-      } catch {
+      }
+catch {
         return null;
       }
     }
@@ -571,7 +573,8 @@ export function useLocalStorage<T>(
     try {
       const item = window.localStorage.getItem(key);
       return item ? JSON.parse(item) : initialValue;
-    } catch {
+    }
+catch {
       return initialValue;
     }
   });

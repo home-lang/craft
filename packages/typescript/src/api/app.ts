@@ -656,7 +656,8 @@ class AppManager {
             data
           })
           resolve(undefined as T)
-        } catch (error) {
+        }
+catch (error) {
           reject(error)
         }
       })

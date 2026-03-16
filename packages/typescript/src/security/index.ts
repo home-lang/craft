@@ -74,7 +74,8 @@ export class ContentSecurityPolicy {
       if (!current.includes(source)) {
         current.push(source)
       }
-    } else {
+    }
+else {
       (this.directives[directive] as string[]) = [source]
     }
     return this
@@ -103,7 +104,8 @@ export class ContentSecurityPolicy {
     for (const [directive, value] of Object.entries(this.directives)) {
       if (value === true) {
         parts.push(directive)
-      } else if (Array.isArray(value) && value.length > 0) {
+      }
+else if (Array.isArray(value) && value.length > 0) {
         parts.push(`${directive} ${value.join(' ')}`)
       }
     }
@@ -397,7 +399,8 @@ export const validators = {
     try {
       new URL(value)
       return true
-    } catch {
+    }
+catch {
       return false
     }
   },

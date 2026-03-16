@@ -31,10 +31,12 @@ export function findCraftBinary(): string | null {
       try {
         Bun.spawnSync({ cmd: ['which', 'craft'], stdout: 'pipe' })
         return 'craft'
-      } catch {
+      }
+catch {
         continue
       }
-    } else if (existsSync(p)) {
+    }
+else if (existsSync(p)) {
       return p
     }
   }
@@ -67,7 +69,8 @@ export function findElectrobunApp(): string | null {
       const entries = readdirSync(appPath)
       const app = entries.find(e => e.endsWith('.app'))
       if (app) return join(appPath, app, 'Contents/MacOS/launcher')
-    } catch {}
+    }
+catch {}
   }
   return null
 }
@@ -104,7 +107,8 @@ export function findElectrobunAppBundle(): string | null {
       const entries = readdirSync(appPath)
       const app = entries.find(e => e.endsWith('.app'))
       if (app) return join(appPath, app)
-    } catch {}
+    }
+catch {}
   }
   return null
 }
@@ -209,7 +213,8 @@ export function dirSize(dirPath: string): number {
     const fullPath = join(dirPath, entry.name)
     if (entry.isDirectory()) {
       total += dirSize(fullPath)
-    } else {
+    }
+else {
       total += statSync(fullPath).size
     }
   }

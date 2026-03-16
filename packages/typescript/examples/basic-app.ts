@@ -55,7 +55,8 @@ function setupEventListeners(): void {
     if (event.detail.state === 'background') {
       // Save state, pause operations
       saveAppState();
-    } else if (event.detail.state === 'active') {
+    }
+else if (event.detail.state === 'active') {
       // Restore state, resume operations
       restoreAppState();
     }
@@ -119,7 +120,8 @@ async function captureAndProcessImage(): Promise<void> {
         console.log('Detected text:', textResults);
       }
     }
-  } catch (error) {
+  }
+catch (error) {
     console.error('Camera error:', error);
   }
 }
@@ -147,7 +149,8 @@ async function authenticateUser(): Promise<boolean> {
     }
 
     return authenticated;
-  } catch (error) {
+  }
+catch (error) {
     console.error('Authentication failed:', error);
     return false;
   }
@@ -168,7 +171,8 @@ async function secureStorageExample(): Promise<void> {
 
     // Delete when done
     await craft.secureStore.delete('auth_token');
-  } catch (error) {
+  }
+catch (error) {
     console.error('Secure storage error:', error);
   }
 }
@@ -201,7 +205,8 @@ async function databaseExample(): Promise<void> {
     );
 
     console.log('Found users:', users);
-  } catch (error) {
+  }
+catch (error) {
     console.error('Database error:', error);
   }
 }
@@ -229,7 +234,8 @@ async function contactsExample(): Promise<void> {
       email: 'jane@example.com'
     });
     console.log('Created contact:', newContactId);
-  } catch (error) {
+  }
+catch (error) {
     console.error('Contacts error:', error);
   }
 }
@@ -256,7 +262,8 @@ async function calendarExample(): Promise<void> {
       isAllDay: false
     });
     console.log('Created event:', eventId);
-  } catch (error) {
+  }
+catch (error) {
     console.error('Calendar error:', error);
   }
 }
@@ -283,7 +290,8 @@ async function notificationExample(): Promise<void> {
 
     // Cancel if needed
     // await craft.cancelNotification(notificationId);
-  } catch (error) {
+  }
+catch (error) {
     console.error('Notification error:', error);
   }
 }
@@ -310,7 +318,8 @@ async function purchaseExample(): Promise<void> {
     // Restore purchases for returning users
     const restored = await craft.restorePurchases();
     console.log('Restored purchases:', restored);
-  } catch (error) {
+  }
+catch (error) {
     console.error('Purchase error:', error);
   }
 }
@@ -348,12 +357,14 @@ async function checkForUpdates(): Promise<void> {
         // Force update
         await craft.ota.downloadUpdate();
         await craft.ota.applyUpdate();
-      } else {
+      }
+else {
         // Prompt user
         // showUpdatePrompt(update);
       }
     }
-  } catch (error) {
+  }
+catch (error) {
     console.error('OTA check failed:', error);
   }
 }
@@ -405,7 +416,8 @@ async function arExample(): Promise<void> {
 
     // Stop AR session when done
     // await craft.ar.stop();
-  } catch (error) {
+  }
+catch (error) {
     console.error('AR error:', error);
   }
 }
@@ -426,7 +438,8 @@ async function updateWidget(): Promise<void> {
 
     // Force widget refresh
     await craft.widget.reload();
-  } catch (error) {
+  }
+catch (error) {
     console.error('Widget error:', error);
   }
 }
@@ -465,7 +478,8 @@ function restoreAppState(): void {
 function updateUIForNetwork(status: NetworkStatus): void {
   if (!status.connected) {
     console.log('No network connection');
-  } else {
+  }
+else {
     console.log('Connected via:', status.type);
   }
 }

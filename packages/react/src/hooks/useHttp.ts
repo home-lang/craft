@@ -28,10 +28,12 @@ export function useHttp() {
       try {
         const result = await craft.invoke('http.fetch', { url, ...options });
         return result;
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         setLoading(false);
       }
     },
@@ -51,10 +53,12 @@ export function useHttp() {
 
       try {
         await craft.invoke('http.download', { url, path });
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         if (options.onProgress) {
           craft.off('download.progress', options.onProgress);
         }
@@ -78,10 +82,12 @@ export function useHttp() {
       try {
         const result = await craft.invoke('http.upload', { url, filePath, ...options });
         return result;
-      } catch (err) {
+      }
+catch (err) {
         setError(err as Error);
         throw err;
-      } finally {
+      }
+finally {
         if (options.onProgress) {
           craft.off('upload.progress', options.onProgress);
         }

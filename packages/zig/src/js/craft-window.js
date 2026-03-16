@@ -17,7 +17,8 @@ window.craft.window = {
           data
         });
         resolve();
-      } catch (error) {
+      }
+catch (error) {
         reject(new Error(`Window ${action} failed: ${error.message}`));
       }
     });
@@ -174,7 +175,8 @@ window.craft.window = {
       listeners.forEach(fn => {
         try {
           fn(data);
-        } catch (e) {
+        }
+catch (e) {
           console.error('[Craft] Window event handler error:', e);
         }
       });

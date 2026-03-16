@@ -18,7 +18,8 @@ window.craft.app = {
           data
         });
         resolve();
-      } catch (error) {
+      }
+catch (error) {
         reject(new Error(`App ${action} failed: ${error.message}`));
       }
     });
@@ -211,7 +212,8 @@ window.craft.app = {
       listeners.forEach(fn => {
         try {
           fn(data);
-        } catch (e) {
+        }
+catch (e) {
           console.error('[Craft] App event handler error:', e);
         }
       });
@@ -241,7 +243,8 @@ window.__craftShortcut = function(accelerator) {
   if (handler) {
     try {
       handler();
-    } catch (e) {
+    }
+catch (e) {
       console.error('[Craft] Shortcut handler error:', e);
     }
   }

@@ -161,7 +161,8 @@ const html = `
                 if (typeof window.craft !== 'undefined' && window.craft.nativeUI) {
                     clearInterval(checkBridge);
                     initializeSidebar();
-                } else if (attempts >= maxAttempts) {
+                }
+else if (attempts >= maxAttempts) {
                     clearInterval(checkBridge);
                     document.getElementById('status').innerHTML =
                         '❌ Craft bridge not available<br><span style="font-size: 0.8rem;">Bridge may not be loaded yet</span>';
@@ -219,7 +220,8 @@ const html = `
                     '✅ Liquid Glass Sidebar Active!<br><span style="font-size: 0.9rem; opacity: 0.8;">NSVisualEffectView with sidebar material</span>';
 
                 console.log('✅ Sidebar initialized successfully!');
-            } catch (error) {
+            }
+catch (error) {
                 console.error('Error creating sidebar:', error);
                 document.getElementById('status').innerHTML =
                     '❌ Error creating sidebar<br><span style="font-size: 0.8rem;">' + error.message + '</span>';

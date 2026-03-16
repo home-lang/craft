@@ -24,7 +24,8 @@ function createCraftStore() {
   if (typeof window !== 'undefined') {
     if (window.craft) {
       set(window.craft);
-    } else {
+    }
+else {
       const checkCraft = setInterval(() => {
         if (window.craft) {
           set(window.craft);

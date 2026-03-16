@@ -373,7 +373,8 @@ export const permissions = {
         const result = await navigator.permissions.query({ name: webPermission as PermissionName })
         return mapWebPermissionStatus(result.state)
       }
-    } catch {
+    }
+catch {
       // Permissions API not supported
     }
     return 'undetermined'
@@ -412,7 +413,8 @@ export const permissions = {
         const result = await Notification.requestPermission()
         return result === 'granted' ? 'granted' : 'denied'
       }
-    } catch {
+    }
+catch {
       return 'denied'
     }
     return 'undetermined'
@@ -554,7 +556,8 @@ export const camera = {
           }
           reader.onerror = () => reject(new Error('Failed to read file'))
           reader.readAsDataURL(file)
-        } else {
+        }
+else {
           reject(new Error('No file selected'))
         }
       }
@@ -587,7 +590,8 @@ export const camera = {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices()
       return devices.some(d => d.kind === 'videoinput')
-    } catch {
+    }
+catch {
       return false
     }
   }
@@ -617,7 +621,8 @@ export type BiometricType = 'faceId' | 'touchId' | 'fingerprint' | 'face' | 'iri
  *   if (success) {
  *     // Proceed with authenticated action
  *   }
- * } catch (error) {
+ * }
+catch (error) {
  *   console.log('Authentication failed:', error)
  * }
  * ```
@@ -918,7 +923,8 @@ export const share = {
         text: options.text,
         url: options.url
       })
-    } else {
+    }
+else {
       throw new Error('Share API not available')
     }
   },
@@ -953,7 +959,8 @@ export type AppState = 'active' | 'inactive' | 'background'
  * const removeListener = lifecycle.onStateChange((state) => {
  *   if (state === 'background') {
  *     // Save data, pause tasks
- *   } else if (state === 'active') {
+ *   }
+else if (state === 'active') {
  *     // Refresh data
  *   }
  * })

@@ -36,7 +36,8 @@ const html = `<!DOCTYPE html>
           });
           console.log('[Test] Section added successfully');
 
-        } catch (error) {
+        }
+catch (error) {
           console.error('[Test] ERROR:', error);
         }
       }, 500);

@@ -108,7 +108,8 @@ async function main() {
         console.log('Run craft-ios --help for usage')
         process.exit(1)
     }
-  } catch (error) {
+  }
+catch (error) {
     console.error('Error:', error instanceof Error ? error.message : error)
     process.exit(1)
   }

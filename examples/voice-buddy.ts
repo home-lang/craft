@@ -27,7 +27,8 @@ let html: string
 try {
   html = readFileSync(stxPath, 'utf-8')
   console.log('✅ Loaded voice-buddy.stx')
-} catch (e) {
+}
+catch (e) {
   console.error(`❌ Failed to load STX file: ${stxPath}`)
   console.error('   Make sure the file exists at the specified path.')
   process.exit(1)
@@ -67,7 +68,8 @@ async function main() {
   try {
     await app.show()
     console.log('\n✅ Buddy closed')
-  } catch (error) {
+  }
+catch (error) {
     console.error('\n❌ Error:', error)
     process.exit(1)
   }

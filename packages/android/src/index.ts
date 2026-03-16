@@ -294,7 +294,8 @@ export async function build(options: BuildOptions): Promise<void> {
       const html = readFileSync(htmlPath, 'utf-8')
       writeFileSync(join(assetsDir, 'index.html'), html)
       console.log(`   Copied: ${htmlPath} → assets/index.html`)
-    } else {
+    }
+else {
       throw new Error(`HTML path not found: ${htmlPath}`)
     }
   }
@@ -305,7 +306,8 @@ export async function build(options: BuildOptions): Promise<void> {
     console.log('   Generating Gradle wrapper...')
     try {
       await $`cd ${output} && gradle wrapper`.quiet()
-    } catch {
+    }
+catch {
       console.log('⚠️  Gradle not found. Please install Android Studio or Gradle.')
       console.log('   Download: https://developer.android.com/studio')
       return
@@ -322,7 +324,8 @@ export async function build(options: BuildOptions): Promise<void> {
       ? 'app/build/outputs/apk/release/app-release.apk'
       : 'app/build/outputs/apk/debug/app-debug.apk'
     console.log(`✅ APK built: ${apkPath}`)
-  } catch (error) {
+  }
+catch (error) {
     console.error('Build failed. Open in Android Studio for details.')
     throw error
   }
@@ -346,11 +349,13 @@ export async function open(options: OpenOptions): Promise<void> {
   try {
     // macOS
     await $`open -a "Android Studio" ${output}`.quiet()
-  } catch {
+  }
+catch {
     try {
       // Linux
       await $`studio ${output}`.quiet()
-    } catch {
+    }
+catch {
       console.log('⚠️  Android Studio not found.')
       console.log('   Please open the project manually in Android Studio:')
       console.log(`   ${output}`)
@@ -375,7 +380,8 @@ export async function run(options: RunOptions): Promise<void> {
 
     if (device) {
       await $`adb -s ${device} install -r ${apkPath}`
-    } else {
+    }
+else {
       await $`adb install -r ${apkPath}`
     }
 
@@ -388,12 +394,14 @@ export async function run(options: RunOptions): Promise<void> {
     const launchCmd = `${config.packageName}/.MainActivity`
     if (device) {
       await $`adb -s ${device} shell am start -n ${launchCmd}`
-    } else {
+    }
+else {
       await $`adb shell am start -n ${launchCmd}`
     }
 
     console.log('✅ App launched')
-  } catch (error) {
+  }
+catch (error) {
     console.error('Failed to install/run. Make sure:')
     console.error('  1. ADB is installed and in PATH')
     console.error('  2. A device/emulator is connected (run: adb devices)')

@@ -166,7 +166,8 @@ export class A11yChecker {
           level: 'A',
           fix: 'Add alt="" for decorative images, or descriptive alt text for informative images'
         })
-      } else if (img.alt === '' && !img.hasAttribute('role')) {
+      }
+else if (img.alt === '' && !img.hasAttribute('role')) {
         this.addIssue({
           id: `img-decorative-${index}`,
           type: 'notice',
@@ -382,7 +383,8 @@ export class A11yChecker {
             level: 'AA',
             fix: 'Increase the contrast between text and background colors'
           })
-        } else if (this.level === 'AAA' && contrast < enhancedContrast) {
+        }
+else if (this.level === 'AAA' && contrast < enhancedContrast) {
           this.addIssue({
             id: `contrast-enhanced-${index}`,
             type: 'warning',
@@ -532,7 +534,8 @@ export class A11yChecker {
         level: 'A',
         fix: 'Add lang attribute to html element, e.g., lang="en"'
       })
-    } else if (!/^[a-z]{2}(-[A-Z]{2})?$/.test(lang)) {
+    }
+else if (!/^[a-z]{2}(-[A-Z]{2})?$/.test(lang)) {
       this.addIssue({
         id: 'lang-invalid',
         type: 'warning',
@@ -775,7 +778,8 @@ Notices: ${report.summary.notices}
 
   if (report.issues.length === 0) {
     output += '\nNo issues found!'
-  } else {
+  }
+else {
     output += '\nIssues\n------\n'
 
     for (const issue of report.issues) {

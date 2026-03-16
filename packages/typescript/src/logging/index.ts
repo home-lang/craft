@@ -311,9 +311,11 @@ export class Logger {
 
       if (shouldRedact) {
         result[key] = '[REDACTED]'
-      } else if (typeof value === 'object' && value !== null) {
+      }
+else if (typeof value === 'object' && value !== null) {
         result[key] = this.redactSensitive(value as Record<string, unknown>)
-      } else {
+      }
+else {
         result[key] = value
       }
     }
@@ -336,7 +338,8 @@ export class Logger {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ logs: entries }),
       })
-    } catch (error) {
+    }
+catch (error) {
       // Re-add failed entries
       this.buffer.unshift(...entries)
       console.error('[Logger] Failed to flush to remote:', error)

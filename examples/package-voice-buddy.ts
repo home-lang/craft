@@ -134,7 +134,8 @@ exec "$APP_DIR/Contents/MacOS/${APP_NAME}" --url "file://$APP_DIR/Contents/Resou
 
   if (dmgResult.success) {
     console.log(`✅ DMG created: ${dmgPath}`)
-  } else {
+  }
+else {
     console.log(`⚠️  DMG creation failed: ${dmgResult.error}`)
     console.log('   You can still use the .app bundle directly.')
   }
@@ -184,7 +185,8 @@ async function createDMG(
     proc.on('close', (code) => {
       if (code === 0) {
         resolve({ success: true })
-      } else {
+      }
+else {
         resolve({ success: false, error: stderr || `hdiutil exited with code ${code}` })
       }
     })

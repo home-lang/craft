@@ -203,7 +203,8 @@ cli
               proc.on('error', reject)
             })
             console.log(`   ✅ iOS ${buildType} build complete`)
-          } else {
+          }
+else {
             console.log(`   ⚠️  No iOS project found. Run: craft ios init`)
           }
         }
@@ -221,7 +222,8 @@ cli
               proc.on('error', reject)
             })
             console.log(`   ✅ Android ${options?.release ? 'Release' : 'Debug'} build complete`)
-          } else {
+          }
+else {
             console.log(`   ⚠️  No Android project found. Run: craft android init`)
           }
         }
@@ -242,7 +244,8 @@ cli
           console.log(`   ✅ ${platform} build complete`)
         }
 
-      } catch (error: any) {
+      }
+catch (error: any) {
         console.error(`   ❌ ${platform} build failed: ${error.message}`)
       }
     }
@@ -650,11 +653,13 @@ cli
         console.log('3. Uploading to TestFlight...')
         if (options?.apiKey) {
           await $`xcrun altool --upload-app -f ${iosDir}/build/*.ipa --apiKey ${options.apiKey} --type ios`
-        } else {
+        }
+else {
           await $`xcrun altool --upload-app -f ${iosDir}/build/*.ipa --type ios`
         }
         console.log('✅ Uploaded to TestFlight!')
-      } catch (error) {
+      }
+catch (error) {
         console.error('❌ Publish failed. Make sure you have:')
         console.error('   - Valid signing certificates')
         console.error('   - App Store Connect API key (--api-key)')
@@ -685,14 +690,16 @@ cli
           console.log(`   AAB file: ${aabPath}`)
           console.log('   Upload manually via Play Console or use:')
           console.log('   fastlane supply --aab ' + aabPath)
-        } else {
+        }
+else {
           console.log('✅ Release AAB ready:')
           console.log(`   ${aabPath}`)
           console.log('')
           console.log('Upload manually via Play Console, or use fastlane:')
           console.log('  fastlane supply --aab ' + aabPath)
         }
-      } catch (error) {
+      }
+catch (error) {
         console.error('❌ Build failed. Make sure you have:')
         console.error('   - Valid signing key (keystore)')
         console.error('   - Release signing config in build.gradle.kts')
@@ -756,7 +763,8 @@ cli
 
           if (entry.isDirectory()) {
             copyRecursive(srcPath, destPath)
-          } else {
+          }
+else {
             const content = readFileSync(srcPath, 'utf-8')
             const processedContent = replaceVars(content)
             writeFileSync(destPath, processedContent)

@@ -115,7 +115,8 @@ export const media = {
         kind: d.kind as 'audioinput' | 'audiooutput' | 'videoinput',
         label: d.label || `${d.kind} (${d.deviceId.slice(0, 8)}...)`,
       }))
-    } catch {
+    }
+catch {
       return []
     }
   },
@@ -283,7 +284,8 @@ export const media = {
       const devices = await navigator.mediaDevices.enumerateDevices()
       const cameras = devices.filter((d) => d.kind === 'videoinput')
       return cameras.length > 0
-    } catch {
+    }
+catch {
       return false
     }
   },
@@ -309,7 +311,8 @@ export const media = {
       const devices = await navigator.mediaDevices.enumerateDevices()
       const mics = devices.filter((d) => d.kind === 'audioinput')
       return mics.length > 0
-    } catch {
+    }
+catch {
       return false
     }
   },
@@ -336,7 +339,8 @@ export const media = {
       // Stop all tracks immediately - we just needed to trigger the permission
       stream.getTracks().forEach((track) => track.stop())
       return true
-    } catch {
+    }
+catch {
       return false
     }
   },

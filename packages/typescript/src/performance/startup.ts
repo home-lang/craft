@@ -155,7 +155,8 @@ export class ModuleRegistry {
   private estimateSize(obj: unknown): number {
     try {
       return JSON.stringify(obj).length
-    } catch {
+    }
+catch {
       return 0
     }
   }
@@ -537,7 +538,8 @@ export class StartupCache {
   private estimateSize(data: unknown): number {
     try {
       return JSON.stringify(data).length * 2 // UTF-16 encoding
-    } catch {
+    }
+catch {
       return 1024 // Default estimate
     }
   }

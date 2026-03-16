@@ -30,7 +30,8 @@ export function useCraft() {
     if (window.craft) {
       craft.value = window.craft;
       isReady.value = true;
-    } else {
+    }
+else {
       // Wait for craft to be ready
       const checkCraft = setInterval(() => {
         if (window.craft) {
@@ -60,9 +61,11 @@ export function usePlatform() {
     if (ready && craft.value) {
       try {
         platform.value = await craft.value.getPlatform();
-      } catch (err) {
+      }
+catch (err) {
         error.value = err as Error;
-      } finally {
+      }
+finally {
         loading.value = false;
       }
     }
@@ -84,9 +87,11 @@ export function useDeviceInfo() {
     if (ready && craft.value) {
       try {
         deviceInfo.value = await craft.value.getDeviceInfo();
-      } catch (err) {
+      }
+catch (err) {
         error.value = err as Error;
-      } finally {
+      }
+finally {
         loading.value = false;
       }
     }
@@ -148,9 +153,11 @@ export function usePermission(permission: string) {
     try {
       const result = await craft.value.requestPermission(permission);
       granted.value = result.granted;
-    } catch (err) {
+    }
+catch (err) {
       error.value = err as Error;
-    } finally {
+    }
+finally {
       loading.value = false;
     }
   };

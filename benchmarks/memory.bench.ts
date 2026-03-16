@@ -83,7 +83,8 @@ async function measureRSS(
   let rss = 0
   try {
     rss = await getProcessRSS(proc.pid)
-  } catch {
+  }
+catch {
     // Process may have already exited
   }
 

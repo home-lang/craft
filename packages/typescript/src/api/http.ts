@@ -148,7 +148,8 @@ export class HttpClient {
 
       if (contentType?.includes('application/json')) {
         data = await response.json()
-      } else if (contentType?.includes('text/')) {
+      }
+else if (contentType?.includes('text/')) {
         data = await response.text() as unknown as T
       }
 
@@ -159,7 +160,8 @@ export class HttpClient {
         headers: Object.fromEntries(response.headers.entries()),
         ok: response.ok
       }
-    } catch (error) {
+    }
+catch (error) {
       clearTimeout(timeoutId)
       if (error instanceof Error && error.name === 'AbortError') {
         throw new HttpError('Request timeout', 0, 'TIMEOUT')
@@ -301,7 +303,8 @@ export class WebSocketClient {
           if (handlers) {
             handlers.forEach(handler => handler(data.payload || data))
           }
-        } catch {
+        }
+catch {
           // Handle non-JSON messages
           const handlers = this.handlers.get('message')
           if (handlers) {

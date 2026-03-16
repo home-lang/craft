@@ -805,7 +805,8 @@ export interface SharedDataItem {
  *   for (const item of items) {
  *     if (item.type === 'uri') {
  *       await saveBookmark(item.uri)
- *     } else if (item.type === 'file') {
+ *     }
+else if (item.type === 'file') {
  *       await importFile(item.filePath)
  *     }
  *   }

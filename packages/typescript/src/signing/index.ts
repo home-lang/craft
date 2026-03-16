@@ -95,7 +95,8 @@ export class CodeSigner {
         path,
         signature: identity,
       }
-    } catch (error: any) {
+    }
+catch (error: any) {
       return {
         success: false,
         path,
@@ -138,7 +139,8 @@ export class CodeSigner {
         path,
         signature: certificate,
       }
-    } catch (error: any) {
+    }
+catch (error: any) {
       // Try osslsigncode as fallback (cross-platform)
       try {
         const args = [
@@ -165,7 +167,8 @@ export class CodeSigner {
           path,
           signature: certificate,
         }
-      } catch (fallbackError: any) {
+      }
+catch (fallbackError: any) {
         return {
           success: false,
           path,
@@ -190,7 +193,8 @@ export class CodeSigner {
         path,
         signature: signatureFile,
       }
-    } catch (error: any) {
+    }
+catch (error: any) {
       return {
         success: false,
         path,
@@ -224,7 +228,8 @@ export class CodeSigner {
         default:
           return false
       }
-    } catch {
+    }
+catch {
       return false
     }
   }
@@ -292,7 +297,8 @@ export class Notarizer {
         }
 
         return { success: true, requestId }
-      } else {
+      }
+else {
         // Get detailed log
         if (requestId) {
           const { stdout: logOutput } = await execAsync(`
@@ -306,9 +312,11 @@ export class Notarizer {
 
         return { success: false, error: stdout }
       }
-    } catch (error: any) {
+    }
+catch (error: any) {
       return { success: false, error: error.message }
-    } finally {
+    }
+finally {
       // Clean up temporary zip
       if (isApp && existsSync(submitPath)) {
         execSync(`rm "${submitPath}"`)
@@ -332,7 +340,8 @@ export class Notarizer {
       const status = statusMatch?.[1] || 'unknown'
 
       return { status, message: stdout }
-    } catch (error: any) {
+    }
+catch (error: any) {
       return { status: 'error', message: error.message }
     }
   }
@@ -349,7 +358,8 @@ export class Notarizer {
           --password "${this.config.password}"
       `)
       return stdout
-    } catch (error: any) {
+    }
+catch (error: any) {
       return error.message
     }
   }
@@ -442,7 +452,8 @@ export function generateEntitlements(options: {
     plist += `    <key>${key}</key>\n`
     if (typeof value === 'boolean') {
       plist += `    <${value}/>\n`
-    } else if (Array.isArray(value)) {
+    }
+else if (Array.isArray(value)) {
       plist += '    <array>\n'
       for (const item of value) {
         plist += `        <string>${item}</string>\n`
@@ -489,7 +500,8 @@ export async function signingCommand(args: string[]): Promise<void> {
 
       if (result.success) {
         console.log(`✓ Signed: ${path}`)
-      } else {
+      }
+else {
         console.error(`✗ Failed to sign: ${path}`)
         result.errors?.forEach((e) => console.error(`  ${e}`))
         process.exit(1)
@@ -531,7 +543,8 @@ export async function signingCommand(args: string[]): Promise<void> {
         if (result.requestId) {
           console.log(`  Request ID: ${result.requestId}`)
         }
-      } else {
+      }
+else {
         console.error(`✗ Notarization failed: ${path}`)
         if (result.error) {
           console.error(result.error)
@@ -560,7 +573,8 @@ export async function signingCommand(args: string[]): Promise<void> {
 
       if (valid) {
         console.log(`✓ Signature valid: ${path}`)
-      } else {
+      }
+else {
         console.log(`✗ Signature invalid or not found: ${path}`)
         process.exit(1)
       }

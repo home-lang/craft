@@ -837,7 +837,8 @@ function animatedTiming(value: AnimatedValue, config: TimingConfig): AnimationRe
 
         if (progress < 1) {
           requestAnimationFrame(animate)
-        } else {
+        }
+else {
           callback?.({ finished: true })
         }
       }

@@ -80,7 +80,8 @@ export class HotReloadServer extends EventEmitter {
         try {
           const message = JSON.parse(data.toString())
           this.handleClientMessage(client, message)
-        } catch (e) {
+        }
+catch (e) {
           console.error('[HMR] Failed to parse message:', e)
         }
       })
@@ -189,12 +190,15 @@ export class HotReloadServer extends EventEmitter {
 
     if (isCss) {
       this.broadcastCssUpdate(change, filePath)
-    } else if (isHtml) {
+    }
+else if (isHtml) {
       this.broadcastFullReload('HTML changed')
-    } else if (this.config.cssOnly) {
+    }
+else if (this.config.cssOnly) {
       // Only reload CSS in cssOnly mode
       return
-    } else {
+    }
+else {
       this.broadcastHotUpdate(change, filePath, version)
     }
   }
@@ -266,18 +270,21 @@ export class HotReloadServer extends EventEmitter {
     if (req.url === '/hmr-runtime.js') {
       res.writeHead(200, { 'Content-Type': 'application/javascript' })
       res.end(this.getHmrRuntime())
-    } else if (req.url?.startsWith('/hmr-module/')) {
+    }
+else if (req.url?.startsWith('/hmr-module/')) {
       const path = req.url.replace('/hmr-module/', '')
       const fullPath = join(this.config.watchDir, path)
 
       if (existsSync(fullPath)) {
         res.writeHead(200, { 'Content-Type': 'application/javascript' })
         res.end(readFileSync(fullPath, 'utf-8'))
-      } else {
+      }
+else {
         res.writeHead(404)
         res.end('Not found')
       }
-    } else {
+    }
+else {
       res.writeHead(200, { 'Content-Type': 'text/plain' })
       res.end('Craft HMR Server')
     }
@@ -360,11 +367,13 @@ export class HotReloadServer extends EventEmitter {
     if (existing) {
       if (existing.tagName === 'STYLE') {
         existing.textContent = message.content;
-      } else {
+      }
+else {
         // Link tag - add cache buster
         existing.href = existing.href.split('?')[0] + '?t=' + message.timestamp;
       }
-    } else if (message.content) {
+    }
+else if (message.content) {
       // Create new style tag
       const style = document.createElement('style');
       style.setAttribute('data-hmr-path', message.path);
@@ -391,11 +400,13 @@ export class HotReloadServer extends EventEmitter {
 
         // Restore state
         restoreState(state);
-      } else {
+      }
+else {
         // No hot accept, need full reload
         socket.send(JSON.stringify({ type: 'decline', path: message.path }));
       }
-    } catch (error) {
+    }
+catch (error) {
       console.error('[HMR] Update failed:', error);
       socket.send(JSON.stringify({ type: 'error', error: error.message }));
       location.reload();
@@ -467,7 +478,8 @@ export class HotReloadServer extends EventEmitter {
     for (const pattern of this.config.ignored!) {
       if (typeof pattern === 'string') {
         if (filePath.includes(pattern)) return true
-      } else if (pattern.test(filePath)) {
+      }
+else if (pattern.test(filePath)) {
         return true
       }
     }

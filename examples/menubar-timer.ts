@@ -299,7 +299,8 @@ const html = `
       if (isWorkSession) {
         modeEl.textContent = 'Work Session';
         modeEl.className = 'mode work';
-      } else {
+      }
+else {
         modeEl.textContent = 'Break Time';
         modeEl.className = 'mode break';
       }
@@ -323,7 +324,8 @@ const html = `
         isRunning = false;
         btn.textContent = 'Resume';
         console.log('Timer paused');
-      } else {
+      }
+else {
         // Start/Resume
         isRunning = true;
         btn.textContent = 'Pause';
@@ -359,7 +361,8 @@ const html = `
         // Switch to break
         isWorkSession = false;
         timeLeft = BREAK_TIME;
-      } else {
+      }
+else {
         // Completed break
         console.log('Break completed!');
         showNotification('Break over!', 'Ready for another session?');
@@ -417,9 +420,11 @@ const html = `
       if (e.code === 'Space') {
         e.preventDefault();
         toggleTimer();
-      } else if (e.code === 'KeyR') {
+      }
+else if (e.code === 'KeyR') {
         resetTimer();
-      } else if (e.code === 'KeyS') {
+      }
+else if (e.code === 'KeyS') {
         skipSession();
       }
     });
@@ -495,7 +500,8 @@ async function main() {
   try {
     await app.show()
     console.log('✅ Timer closed')
-  } catch (error) {
+  }
+catch (error) {
     console.error('❌ Error:', error)
     process.exit(1)
   }

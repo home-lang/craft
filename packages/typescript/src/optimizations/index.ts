@@ -72,7 +72,8 @@ export const reactOptimizations = {
       if (options.preload) {
         if (typeof requestIdleCallback !== 'undefined') {
           requestIdleCallback(() => load())
-        } else {
+        }
+else {
           setTimeout(() => load(), 0)
         }
       }
@@ -192,7 +193,8 @@ export const vueOptimizations = {
       onError(error: Error, retry: () => void, fail: () => void, attempts: number) {
         if (attempts <= retries) {
           retry()
-        } else {
+        }
+else {
           fail()
         }
       }
@@ -227,7 +229,8 @@ export const vueOptimizations = {
       invalidate(key?: string) {
         if (key) {
           cache.delete(key)
-        } else {
+        }
+else {
           cache.clear()
         }
       }
@@ -329,7 +332,8 @@ export const svelteOptimizations = {
         if (now - lastRan >= delay) {
           callback(value)
           lastRan = now
-        } else {
+        }
+else {
           pending = { value, callback }
 
           if (!timeout) {
@@ -403,7 +407,8 @@ export const commonOptimizations = {
   defer(fn: () => void): void {
     if (typeof requestIdleCallback !== 'undefined') {
       requestIdleCallback(fn)
-    } else {
+    }
+else {
       setTimeout(fn, 0)
     }
   },
@@ -544,7 +549,8 @@ export const commonOptimizations = {
       requestAnimationFrame(() => {
         updates.forEach((update) => update())
       })
-    } else {
+    }
+else {
       updates.forEach((update) => update())
     }
   },

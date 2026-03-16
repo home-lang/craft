@@ -436,7 +436,8 @@ export class SystemTray {
             data: typeof data === 'string' ? data : JSON.stringify(data)
           })
           resolve(undefined as T)
-        } catch (error) {
+        }
+catch (error) {
           reject(error)
         }
       })
@@ -543,7 +544,8 @@ export class MenubarApp {
   async toggleWindow(): Promise<void> {
     if (this._windowVisible) {
       await this.hideWindow()
-    } else {
+    }
+else {
       await this.showWindow()
     }
   }

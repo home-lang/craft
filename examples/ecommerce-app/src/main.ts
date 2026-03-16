@@ -137,7 +137,8 @@ class Store {
 
     if (existingIndex >= 0) {
       this.cart[existingIndex].quantity += quantity
-    } else {
+    }
+else {
       this.cart.push({
         productId,
         variantId,
@@ -165,7 +166,8 @@ class Store {
     if (item) {
       if (quantity <= 0) {
         this.removeFromCart(productId, variantId)
-      } else {
+      }
+else {
         item.quantity = quantity
         this.saveCart()
         this.notify()
@@ -930,7 +932,8 @@ function setupEventListeners(store: Store): void {
       if (productId) {
         if (store.isInWishlist(productId)) {
           store.removeFromWishlist(productId)
-        } else {
+        }
+else {
           store.addToWishlist(productId)
         }
         renderApp(store)

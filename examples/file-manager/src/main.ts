@@ -75,9 +75,11 @@ function formatDate(date: Date): string {
 
   if (diff < 86400000) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  } else if (diff < 604800000) {
+  }
+else if (diff < 604800000) {
     return date.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' })
-  } else {
+  }
+else {
     return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
   }
 }
@@ -112,7 +114,8 @@ async function navigateTo(path: string, addToHistory = true) {
 
       try {
         stat = await fs.stat(fullPath)
-      } catch {
+      }
+catch {
         // Ignore stat errors
       }
 
@@ -143,7 +146,8 @@ async function navigateTo(path: string, addToHistory = true) {
     }
 
     window.setTitle(`Craft Files - ${path}`)
-  } catch (error) {
+  }
+catch (error) {
     console.error('Failed to read directory:', error)
     files = []
   }
@@ -180,11 +184,13 @@ function goUp() {
 async function openItem(item: FileEntry) {
   if (item.isDirectory) {
     navigateTo(item.path)
-  } else {
+  }
+else {
     // Open with default application
     try {
       await (window as any).shell?.openPath(item.path)
-    } catch {
+    }
+catch {
       console.log('Open file:', item.path)
     }
   }
@@ -198,7 +204,8 @@ function toggleSelect(path: string, multi = false) {
 
   if (selectedFiles.has(path)) {
     selectedFiles.delete(path)
-  } else {
+  }
+else {
     selectedFiles.add(path)
   }
 
@@ -406,7 +413,8 @@ function setupShortcuts() {
 
       if (e.key === 'ArrowDown') {
         newIndex = Math.min(currentIndex + 1, files.length - 1)
-      } else {
+      }
+else {
         newIndex = Math.max(currentIndex - 1, 0)
       }
 
@@ -429,6 +437,7 @@ async function init() {
 // Start app
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init)
-} else {
+}
+else {
   init()
 }

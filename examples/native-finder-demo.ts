@@ -136,7 +136,8 @@ const html = `<!DOCTYPE html>
       if (window.craft && window.craft.nativeUI) {
         updateStatus('✅ Native UI API Ready');
         log('Craft Native UI API available', 'success');
-      } else {
+      }
+else {
         log('ERROR: Craft Native UI API not available', 'error');
       }
     }, 500);
@@ -245,7 +246,8 @@ const html = `<!DOCTYPE html>
         updateStatus('✅ Complete Finder UI Created!');
         log('=== Finder UI successfully created! ===', 'success');
 
-      } catch (error) {
+      }
+catch (error) {
         log(\`ERROR: \${error.message}\`, 'error');
         updateStatus('❌ Error creating UI');
       }
@@ -270,7 +272,8 @@ const html = `<!DOCTYPE html>
         log('✓ Added test section', 'success');
 
         updateStatus('✅ Sidebar Created');
-      } catch (error) {
+      }
+catch (error) {
         log(\`ERROR: \${error.message}\`, 'error');
       }
     }
@@ -290,7 +293,8 @@ const html = `<!DOCTYPE html>
         log('✓ Added 3 test files', 'success');
 
         updateStatus('✅ File Browser Created');
-      } catch (error) {
+      }
+catch (error) {
         log(\`ERROR: \${error.message}\`, 'error');
       }
     }

@@ -177,7 +177,8 @@ export const fs: CraftFileSystemAPI = {
    * ```typescript
    * if (await fs.exists('/config.json')) {
    *   const config = await fs.readFile('/config.json')
-   * } else {
+   * }
+else {
    *   console.log('Config file not found')
    * }
    * ```
@@ -191,7 +192,8 @@ export const fs: CraftFileSystemAPI = {
     try {
       await access(path)
       return true
-    } catch {
+    }
+catch {
       return false
     }
   }

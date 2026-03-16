@@ -1128,7 +1128,8 @@ async function callNative<T = void>(method: string, params: Record<string, any>)
           params
         })
         resolve(undefined as T)
-      } catch (error) {
+      }
+catch (error) {
         reject(error)
       }
     })

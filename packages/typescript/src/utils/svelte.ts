@@ -312,7 +312,8 @@ export function persistentStore<T>(key: string, initialValue: T): Writable<T> {
     if (stored) {
       try {
         storedValue = JSON.parse(stored);
-      } catch {
+      }
+catch {
         // Ignore parse errors
       }
     }
@@ -369,7 +370,8 @@ export function createClipboardStore(): {
             return item.getType('image/png');
           }
         }
-      } catch {
+      }
+catch {
         return null;
       }
     }

@@ -108,7 +108,8 @@ export class GPUAccelerator {
 
     if (transform.scale !== undefined) {
       transforms.push(`scale3d(${transform.scale}, ${transform.scale}, 1)`)
-    } else if (transform.scaleX !== undefined || transform.scaleY !== undefined) {
+    }
+else if (transform.scaleX !== undefined || transform.scaleY !== undefined) {
       transforms.push(`scale3d(${transform.scaleX ?? 1}, ${transform.scaleY ?? 1}, 1)`)
     }
 
@@ -217,7 +218,8 @@ export class MemoryOptimizer {
       let level: 'none' | 'moderate' | 'critical' = 'none'
       if (info.usedPercentage > 90) {
         level = 'critical'
-      } else if (info.usedPercentage > 70) {
+      }
+else if (info.usedPercentage > 70) {
         level = 'moderate'
       }
 
@@ -249,7 +251,8 @@ class ObjectPoolImpl<T> implements ObjectPool<T> {
     let obj: T
     if (this._available.length > 0) {
       obj = this._available.pop()!
-    } else {
+    }
+else {
       obj = this.factory()
     }
     this.inUse.add(obj)
@@ -300,7 +303,8 @@ export class LRUCache<K, V> {
   set(key: K, value: V): void {
     if (this.cache.has(key)) {
       this.cache.delete(key)
-    } else if (this.cache.size >= this.maxSize) {
+    }
+else if (this.cache.size >= this.maxSize) {
       // Remove least recently used (first item)
       const firstKey = this.cache.keys().next().value
       if (firstKey !== undefined) {
@@ -493,7 +497,8 @@ export class FrameScheduler {
       if (task) {
         try {
           task.callback()
-        } catch (error) {
+        }
+catch (error) {
           console.error('Frame task error:', error)
         }
       }

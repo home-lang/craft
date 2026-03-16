@@ -374,7 +374,8 @@ function createMacOSAppBundle(opts: {
     writeFileSync(join(outputPath, 'Contents', 'Info.plist'), infoPlist)
 
     return { success: true }
-  } catch (error) {
+  }
+catch (error) {
     return { success: false, error: (error as Error).message }
   }
 }
@@ -400,7 +401,8 @@ async function createDMG(opts: {
     proc.on('close', (code) => {
       if (code === 0) {
         resolve({ success: true, outputPath: opts.outputPath })
-      } else {
+      }
+else {
         resolve({ success: false, error: `hdiutil exited with code ${code}` })
       }
     })
@@ -443,7 +445,8 @@ async function createPKG(opts: {
 
       if (code === 0) {
         resolve({ success: true, outputPath: opts.outputPath })
-      } else {
+      }
+else {
         resolve({ success: false, error: `pkgbuild exited with code ${code}` })
       }
     })
@@ -474,7 +477,8 @@ async function createMSI(_opts: {
           success: false,
           error: 'WiX Toolset not found. Install from https://wixtoolset.org/',
         })
-      } else {
+      }
+else {
         // WiX implementation would go here
         resolve({
           success: false,
@@ -576,7 +580,8 @@ Categories=Utility;
         rmSync(tempDir, { recursive: true, force: true })
         if (code === 0) {
           resolve({ success: true, outputPath: opts.outputPath })
-        } else {
+        }
+else {
           resolve({ success: false, error: `dpkg-deb exited with code ${code}` })
         }
       })
@@ -585,7 +590,8 @@ Categories=Utility;
         rmSync(tempDir, { recursive: true, force: true })
         resolve({ success: false, error: err.message })
       })
-    } catch (error) {
+    }
+catch (error) {
       resolve({ success: false, error: (error as Error).message })
     }
   })
@@ -655,10 +661,12 @@ install -m 755 %{SOURCE0} %{buildroot}/usr/bin/${opts.name.toLowerCase()}
           try {
             copy(builtRpmPath, opts.outputPath)
             resolve({ success: true, outputPath: opts.outputPath })
-          } catch {
+          }
+catch {
             resolve({ success: false, error: 'Failed to copy built RPM' })
           }
-        } else {
+        }
+else {
           resolve({ success: false, error: `rpmbuild exited with code ${code}` })
         }
       })
@@ -666,7 +674,8 @@ install -m 755 %{SOURCE0} %{buildroot}/usr/bin/${opts.name.toLowerCase()}
       proc.on('error', (err) => {
         resolve({ success: false, error: err.message })
       })
-    } catch (error) {
+    }
+catch (error) {
       resolve({ success: false, error: (error as Error).message })
     }
   })
@@ -725,7 +734,8 @@ Icon=${binaryName}
       // Copy or create icon
       if (opts.iconPath && existsSync(opts.iconPath)) {
         copyFileSync(opts.iconPath, join(appDirPath, `${binaryName}.png`))
-      } else {
+      }
+else {
         // Create placeholder icon (1x1 PNG)
         const placeholderPng = Buffer.from([
           0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
@@ -748,7 +758,8 @@ Icon=${binaryName}
         if (code === 0) {
           chmodSync(opts.outputPath, 0o755)
           resolve({ success: true, outputPath: opts.outputPath })
-        } else {
+        }
+else {
           resolve({ success: false, error: `appimagetool exited with code ${code}. Install from https://appimage.github.io/appimagetool/` })
         }
       })
@@ -757,7 +768,8 @@ Icon=${binaryName}
         rmSync(appDir, { recursive: true, force: true })
         resolve({ success: false, error: `appimagetool not found: ${err.message}` })
       })
-    } catch (error) {
+    }
+catch (error) {
       resolve({ success: false, error: (error as Error).message })
     }
   })

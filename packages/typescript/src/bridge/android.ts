@@ -230,7 +230,8 @@ export class AndroidWebView {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -289,7 +290,8 @@ export class AndroidPermissions {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -333,7 +335,8 @@ export class AndroidBiometrics {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -405,7 +408,8 @@ export class AndroidNotifications {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -451,7 +455,8 @@ export class AndroidMaterialYou {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -502,7 +507,8 @@ export class AndroidPhotoPicker {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -567,7 +573,8 @@ export class AndroidWorkManager {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -615,7 +622,8 @@ export class AndroidForegroundService {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -680,7 +688,8 @@ export class AndroidPredictiveBack {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -724,7 +733,8 @@ export class AndroidPerAppLanguage {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -768,7 +778,8 @@ export class AndroidWidgets {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -851,7 +862,8 @@ export class AndroidPlayBilling {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -947,7 +959,8 @@ export class AndroidFirebase {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }
@@ -1036,7 +1049,8 @@ export class AndroidNativeComponents {
             const parsed = JSON.parse(result)
             if (parsed.error) reject(new Error(parsed.error))
             else resolve(parsed.result)
-          } catch {
+          }
+catch {
             resolve(result as T)
           }
         }

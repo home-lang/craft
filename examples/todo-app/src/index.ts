@@ -111,7 +111,8 @@ async function updateTodo(id: number, updates: Partial<Todo>): Promise<void> {
       if (isMobile()) {
         haptics.notification('success')
       }
-    } else {
+    }
+else {
       setClauses.push('completed_at = NULL')
     }
   }
@@ -334,7 +335,8 @@ function attachEventListeners(): void {
     editInput?.addEventListener('keydown', async (e) => {
       if (e.key === 'Enter') {
         editInput.blur()
-      } else if (e.key === 'Escape') {
+      }
+else if (e.key === 'Escape') {
         state.editingId = null
         render()
       }
@@ -355,9 +357,11 @@ function attachEventListeners(): void {
       const href = link.getAttribute('href')!
       if (href === '#/') {
         state.filter = 'all'
-      } else if (href === '#/active') {
+      }
+else if (href === '#/active') {
         state.filter = 'active'
-      } else if (href === '#/completed') {
+      }
+else if (href === '#/completed') {
         state.filter = 'completed'
       }
       render()
@@ -398,9 +402,11 @@ async function init(): Promise<void> {
     const hash = window.location.hash
     if (hash === '#/active') {
       state.filter = 'active'
-    } else if (hash === '#/completed') {
+    }
+else if (hash === '#/completed') {
       state.filter = 'completed'
-    } else {
+    }
+else {
       state.filter = 'all'
     }
     render()
@@ -410,7 +416,8 @@ async function init(): Promise<void> {
   const hash = window.location.hash
   if (hash === '#/active') {
     state.filter = 'active'
-  } else if (hash === '#/completed') {
+  }
+else if (hash === '#/completed') {
     state.filter = 'completed'
   }
 }

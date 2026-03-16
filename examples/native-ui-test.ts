@@ -149,7 +149,8 @@ const html = `<!DOCTYPE html>
       if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.craft) {
         updateStatus('bridge', 'Bridge: Connected ✓', true);
         log('Craft bridge is available');
-      } else {
+      }
+else {
         updateStatus('bridge', 'Bridge: Not available ✗');
         log('ERROR: Craft bridge not available');
       }
@@ -169,7 +170,8 @@ const html = `<!DOCTYPE html>
 
         updateStatus('sidebar', 'Sidebar: Created ✓', true);
         log('✓ Sidebar creation message sent');
-      } catch (error) {
+      }
+catch (error) {
         log('ERROR: Failed to create sidebar - ' + error.message);
       }
     }
@@ -188,7 +190,8 @@ const html = `<!DOCTYPE html>
 
         updateStatus('browser', 'File Browser: Created ✓', true);
         log('✓ File browser creation message sent');
-      } catch (error) {
+      }
+catch (error) {
         log('ERROR: Failed to create file browser - ' + error.message);
       }
     }
@@ -208,7 +211,8 @@ const html = `<!DOCTYPE html>
         });
 
         log('✓ Split view creation message sent');
-      } catch (error) {
+      }
+catch (error) {
         log('ERROR: Failed to create split view - ' + error.message);
       }
     }

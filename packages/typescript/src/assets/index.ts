@@ -132,7 +132,8 @@ export class AssetOptimizer {
 
       if (stat.isDirectory()) {
         await this.processDirectory(fullPath)
-      } else {
+      }
+else {
         await this.processFile(fullPath)
       }
     }
@@ -156,15 +157,18 @@ export class AssetOptimizer {
         const result = await this.optimizeImage(filePath, outputPath)
         optimizedSize = result.size
         generatedFormats = result.formats
-      } else if (ext === '.svg') {
+      }
+else if (ext === '.svg') {
         type = 'svg'
         optimizedSize = await this.optimizeSvg(filePath, outputPath)
-      } else if (['.ttf', '.otf', '.woff', '.woff2'].includes(ext)) {
+      }
+else if (['.ttf', '.otf', '.woff', '.woff2'].includes(ext)) {
         type = 'font'
         const result = await this.optimizeFont(filePath, outputPath)
         optimizedSize = result.size
         generatedFormats = result.formats
-      } else {
+      }
+else {
         // Copy file as-is
         writeFileSync(outputPath, readFileSync(filePath))
       }
@@ -192,7 +196,8 @@ export class AssetOptimizer {
             : 'no change'
         console.log(`  ${relativePath}: ${savingsStr}`)
       }
-    } catch (error) {
+    }
+catch (error) {
       console.error(`Failed to process ${filePath}:`, error)
       // Copy original file on error
       writeFileSync(outputPath, readFileSync(filePath))
@@ -254,7 +259,8 @@ export class AssetOptimizer {
           formats.push(format)
           totalSize += statSync(formatPath).size
         }
-      } else {
+      }
+else {
         // Fall back to ImageMagick
         const quality = opts.quality || 80
         const resize = opts.maxWidth ? `-resize ${opts.maxWidth}x${opts.maxHeight}\\>` : ''
@@ -264,7 +270,8 @@ export class AssetOptimizer {
         totalSize = statSync(outputPath).size
         formats.push(extname(outputPath).slice(1))
       }
-    } catch {
+    }
+catch {
       // If all else fails, just copy the file
       writeFileSync(outputPath, readFileSync(inputPath))
       totalSize = statSync(outputPath).size
@@ -335,12 +342,14 @@ export class AssetOptimizer {
           execSync(
             `pyftsubset "${inputPath}" --unicodes="${unicodeRange}" ${flavorFlag} --output-file="${formatPath}"`
           )
-        } else if (this.commandExists('woff2_compress') && format === 'woff2') {
+        }
+else if (this.commandExists('woff2_compress') && format === 'woff2') {
           // Just compress to woff2
           const tempPath = formatPath.replace('.woff2', '.ttf')
           writeFileSync(tempPath, readFileSync(inputPath))
           execSync(`woff2_compress "${tempPath}"`)
-        } else {
+        }
+else {
           // Copy as-is
           writeFileSync(formatPath, readFileSync(inputPath))
         }
@@ -349,7 +358,8 @@ export class AssetOptimizer {
           formats.push(format)
           totalSize += statSync(formatPath).size
         }
-      } catch {
+      }
+catch {
         // Copy original format on error
         writeFileSync(outputPath, readFileSync(inputPath))
         totalSize = statSync(outputPath).size
@@ -364,7 +374,8 @@ export class AssetOptimizer {
     try {
       execSync(`which ${command}`, { stdio: 'ignore' })
       return true
-    } catch {
+    }
+catch {
       return false
     }
   }
@@ -480,20 +491,24 @@ function analyzeAssets(dir: string): {
 
       if (stat.isDirectory()) {
         walk(fullPath)
-      } else {
+      }
+else {
         const ext = extname(entry).toLowerCase()
         const size = stat.size
 
         if (['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif'].includes(ext)) {
           result.images.count++
           result.images.size += size
-        } else if (ext === '.svg') {
+        }
+else if (ext === '.svg') {
           result.svgs.count++
           result.svgs.size += size
-        } else if (['.ttf', '.otf', '.woff', '.woff2', '.eot'].includes(ext)) {
+        }
+else if (['.ttf', '.otf', '.woff', '.woff2', '.eot'].includes(ext)) {
           result.fonts.count++
           result.fonts.size += size
-        } else {
+        }
+else {
           result.other.count++
           result.other.size += size
         }

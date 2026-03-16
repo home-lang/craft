@@ -606,7 +606,8 @@ export function useClipboard(): {
             return item.getType('image/png');
           }
         }
-      } catch {
+      }
+catch {
         return null;
       }
     }
@@ -630,7 +631,8 @@ export function useLocalStorage<T>(key: string, initialValue: T): Ref<T> {
       if (item) {
         storedValue.value = JSON.parse(item);
       }
-    } catch {
+    }
+catch {
       // Ignore errors
     }
 

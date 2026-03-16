@@ -136,11 +136,13 @@ export class AutoUpdater extends EventEmitter {
         }
 
         return updateInfo
-      } else {
+      }
+else {
         this.emit('update-not-available')
         return null
       }
-    } catch (error) {
+    }
+catch (error) {
       this.emit('error', error)
       return null
     }
@@ -249,7 +251,8 @@ export class AutoUpdater extends EventEmitter {
       }
 
       return this.downloadPath
-    } catch (error) {
+    }
+catch (error) {
       this.emit('error', error)
       return null
     }
@@ -296,7 +299,8 @@ export class AutoUpdater extends EventEmitter {
       if (restartAfter) {
         this.restartApp()
       }
-    } catch (error) {
+    }
+catch (error) {
       progress.phase = 'error'
       this.emit('error', error)
     }
@@ -327,7 +331,8 @@ export class AutoUpdater extends EventEmitter {
 
       // Clean up
       execSync(`rm -rf "${tempDir}"`)
-    } else if (downloadPath.endsWith('.dmg')) {
+    }
+else if (downloadPath.endsWith('.dmg')) {
       // Mount DMG
       const mountOutput = execSync(`hdiutil attach "${downloadPath}" -nobrowse`).toString()
       const mountPoint = mountOutput.match(/\/Volumes\/[^\n]+/)?.[0]
@@ -346,7 +351,8 @@ export class AutoUpdater extends EventEmitter {
         // Unmount
         execSync(`hdiutil detach "${mountPoint}"`)
       }
-    } else if (downloadPath.endsWith('.pkg')) {
+    }
+else if (downloadPath.endsWith('.pkg')) {
       // Install package
       execSync(`sudo installer -pkg "${downloadPath}" -target /`)
     }
@@ -361,13 +367,15 @@ export class AutoUpdater extends EventEmitter {
         detached: true,
         stdio: 'ignore',
       })
-    } else if (downloadPath.endsWith('.msi')) {
+    }
+else if (downloadPath.endsWith('.msi')) {
       // Run MSI installer
       spawn('msiexec', ['/i', downloadPath, '/quiet', '/norestart'], {
         detached: true,
         stdio: 'ignore',
       })
-    } else if (downloadPath.endsWith('.zip')) {
+    }
+else if (downloadPath.endsWith('.zip')) {
       // Extract and replace
       const appDir = dirname(this.config.appPath)
       execSync(`powershell -command "Expand-Archive -Force '${downloadPath}' '${appDir}'"`)
@@ -381,11 +389,14 @@ export class AutoUpdater extends EventEmitter {
       // Replace AppImage
       execSync(`chmod +x "${downloadPath}"`)
       execSync(`mv "${downloadPath}" "${this.config.appPath}"`)
-    } else if (downloadPath.endsWith('.deb')) {
+    }
+else if (downloadPath.endsWith('.deb')) {
       execSync(`sudo dpkg -i "${downloadPath}"`)
-    } else if (downloadPath.endsWith('.rpm')) {
+    }
+else if (downloadPath.endsWith('.rpm')) {
       execSync(`sudo rpm -U "${downloadPath}"`)
-    } else if (downloadPath.endsWith('.tar.gz')) {
+    }
+else if (downloadPath.endsWith('.tar.gz')) {
       const appDir = dirname(this.config.appPath)
       execSync(`tar -xzf "${downloadPath}" -C "${appDir}"`)
     }
@@ -490,7 +501,8 @@ export class DeltaGenerator {
         size: stats.size,
         sha256: hash,
       }
-    } catch {
+    }
+catch {
       // Fall back to xdelta3
       execSync(`xdelta3 -e -s "${oldPath}" "${newPath}" "${outputPath}"`)
 
@@ -510,7 +522,8 @@ export class DeltaGenerator {
   static async apply(basePath: string, deltaPath: string, outputPath: string): Promise<void> {
     try {
       execSync(`bspatch "${basePath}" "${outputPath}" "${deltaPath}"`)
-    } catch {
+    }
+catch {
       execSync(`xdelta3 -d -s "${basePath}" "${deltaPath}" "${outputPath}"`)
     }
   }
@@ -610,7 +623,8 @@ export async function updaterCommand(args: string[]): Promise<void> {
         if (update.releaseNotes) {
           console.log(`\nRelease notes:\n${update.releaseNotes}`)
         }
-      } else {
+      }
+else {
         console.log('No updates available')
       }
       break

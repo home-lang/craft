@@ -220,7 +220,8 @@ const html = `
           </div>
         \`
         stats.textContent = 'No tasks yet'
-      } else {
+      }
+else {
         list.innerHTML = todos.map(todo => \`
           <li class="todo-item \${todo.completed ? 'completed' : ''}">
             <input
