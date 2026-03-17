@@ -3,7 +3,7 @@
  * A slightly more advanced example with modern styling
  */
 
-import { createApp } from '@stacksjs/ts-craft'
+import { createApp } from '@craft-native/ts'
 
 const html = `
 <!DOCTYPE html>

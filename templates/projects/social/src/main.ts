@@ -3,7 +3,7 @@
  * A cross-platform social app built with Craft
  */
 
-import { db, window, Platform, haptics, share } from '@stacksjs/ts-craft'
+import { db, window, Platform, haptics, share } from '@craft-native/ts'
 
 // Types
 interface Post {

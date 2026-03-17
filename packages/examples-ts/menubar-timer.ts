@@ -9,7 +9,7 @@
  * - Optional popup window
  */
 
-import { createApp } from '@stacksjs/ts-craft'
+import { createApp } from '@craft-native/ts'
 
 // Timer state
 let seconds = 25 * 60 // 25 minutes

@@ -789,6 +789,12 @@ var sidebar_allocator: ?std.mem.Allocator = null;
 // Global WebView reference for sending sidebar events
 var sidebar_webview: objc.id = null;
 
+// Global references for sidebar toggle
+var sidebar_container: objc.id = null;
+var sidebar_content_webview: objc.id = null;
+var sidebar_collapsed: bool = false;
+var sidebar_width_stored: f64 = 240.0;
+
 // Default demo sections (used when no config provided)
 const default_sections = [_]DynamicSidebarSection{
     .{
@@ -1882,6 +1888,138 @@ fn generateSidebarHtml(sidebar_config: ?[]const u8) []const u8 {
     ;
 }
 
+// ============================================================================
+// Toolbar Delegate for Sidebar Toggle Button
+// ============================================================================
+
+var toolbarDelegateClass: objc.Class = null;
+const sidebarToggleItemId = "SidebarToggle";
+
+fn getToolbarDelegateClass() objc.Class {
+    if (toolbarDelegateClass != null) return toolbarDelegateClass;
+
+    const NSObject = getClass("NSObject");
+    toolbarDelegateClass = objc.objc_allocateClassPair(NSObject, "CraftToolbarDelegate", 0);
+    if (toolbarDelegateClass == null) return null;
+
+    // toolbarAllowedItemIdentifiers:
+    _ = objc.class_addMethod(
+        toolbarDelegateClass,
+        sel("toolbarAllowedItemIdentifiers:"),
+        @ptrCast(@constCast(&toolbarAllowedItems)),
+        "@@:@",
+    );
+
+    // toolbarDefaultItemIdentifiers:
+    _ = objc.class_addMethod(
+        toolbarDelegateClass,
+        sel("toolbarDefaultItemIdentifiers:"),
+        @ptrCast(@constCast(&toolbarDefaultItems)),
+        "@@:@",
+    );
+
+    // toolbar:itemForItemIdentifier:willBeInsertedIntoToolbar:
+    _ = objc.class_addMethod(
+        toolbarDelegateClass,
+        sel("toolbar:itemForItemIdentifier:willBeInsertedIntoToolbar:"),
+        @ptrCast(@constCast(&toolbarItemForIdentifier)),
+        "@@:@@B",
+    );
+
+    // toggleSidebar: action
+    _ = objc.class_addMethod(
+        toolbarDelegateClass,
+        sel("toggleSidebar:"),
+        @ptrCast(@constCast(&toggleSidebarAction)),
+        "v@:@",
+    );
+
+    objc.objc_registerClassPair(toolbarDelegateClass);
+    return toolbarDelegateClass;
+}
+
+fn toolbarAllowedItems(_: objc.id, _: objc.SEL, _: objc.id) objc.id {
+    const NSArray = getClass("NSArray");
+    const itemId = createNSString(sidebarToggleItemId);
+    const flexId = createNSString("NSToolbarFlexibleSpaceItem");
+    return msgSend1(NSArray, "arrayWithObjects:", @as([*]const objc.id, @ptrCast(&[_]objc.id{ itemId, flexId }))); // simplified — just return both
+}
+
+fn toolbarDefaultItems(_: objc.id, _: objc.SEL, _: objc.id) objc.id {
+    const NSArray = getClass("NSArray");
+    const itemId = createNSString(sidebarToggleItemId);
+    return msgSend1(NSArray, "arrayWithObject:", itemId);
+}
+
+fn toolbarItemForIdentifier(_: objc.id, _: objc.SEL, _: objc.id, identifier: objc.id, _: bool) objc.id {
+    // Get the identifier string to check if it's our toggle item
+    const utf8Fn = @as(*const fn (objc.id, objc.SEL) callconv(.c) ?[*:0]const u8, @ptrCast(&objc.objc_msgSend));
+    const nsIdStr = utf8Fn(identifier, sel("UTF8String"));
+    if (nsIdStr == null) return null;
+    const idStr = std.mem.span(nsIdStr.?);
+    if (!std.mem.eql(u8, idStr, sidebarToggleItemId)) return null;
+
+    const NSToolbarItem = getClass("NSToolbarItem");
+    const item_alloc = msgSend0(NSToolbarItem, "alloc");
+    const item = msgSend1(item_alloc, "initWithItemIdentifier:", identifier);
+
+    // Use sidebar.left SF Symbol (macOS 11+)
+    const NSImage = getClass("NSImage");
+    const symbolName = createNSString("sidebar.left");
+    const image = msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", symbolName, @as(?*anyopaque, null));
+    if (image != null) {
+        _ = msgSend1(item, "setImage:", image);
+    }
+
+    _ = msgSend1(item, "setLabel:", createNSString("Toggle Sidebar"));
+    _ = msgSend1(item, "setToolTip:", createNSString("Show or hide the sidebar"));
+
+    // Target the delegate itself for the action
+    const delegate = msgSend0(msgSend0(getToolbarDelegateClass(), "alloc"), "init");
+    _ = msgSend1(item, "setTarget:", delegate);
+    _ = msgSend1(item, "setAction:", sel("toggleSidebar:"));
+
+    return item;
+}
+
+fn toggleSidebarAction(_: objc.id, _: objc.SEL, _: objc.id) void {
+    if (sidebar_container == null or sidebar_content_webview == null) return;
+
+    const NSAnimationContext = getClass("NSAnimationContext");
+    _ = msgSend0(NSAnimationContext, "beginGrouping");
+    const ctx = msgSend0(NSAnimationContext, "currentContext");
+    _ = msgSend1(ctx, "setDuration:", @as(f64, 0.2));
+    _ = msgSend1(ctx, "setAllowsImplicitAnimation:", @as(c_int, 1));
+
+    if (sidebar_collapsed) {
+        // Show sidebar
+        _ = msgSend1(sidebar_container, "setHidden:", @as(c_int, 0));
+
+        // Move webview to the right
+        const webviewFrame = msgSendRect(sidebar_content_webview, "frame");
+        const newFrame = NSRect{
+            .origin = .{ .x = sidebar_width_stored, .y = webviewFrame.origin.y },
+            .size = .{ .width = webviewFrame.size.width - sidebar_width_stored + webviewFrame.origin.x, .height = webviewFrame.size.height },
+        };
+        msgSendVoid1Rect(sidebar_content_webview, "setFrame:", newFrame);
+        sidebar_collapsed = false;
+    } else {
+        // Hide sidebar
+        _ = msgSend1(sidebar_container, "setHidden:", @as(c_int, 1));
+
+        // Expand webview to fill
+        const webviewFrame = msgSendRect(sidebar_content_webview, "frame");
+        const newFrame = NSRect{
+            .origin = .{ .x = 0, .y = webviewFrame.origin.y },
+            .size = .{ .width = webviewFrame.size.width + webviewFrame.origin.x, .height = webviewFrame.size.height },
+        };
+        msgSendVoid1Rect(sidebar_content_webview, "setFrame:", newFrame);
+        sidebar_collapsed = true;
+    }
+
+    _ = msgSend0(NSAnimationContext, "endGrouping");
+}
+
 /// Create a window with native sidebar loading a URL instead of inline HTML
 pub fn createWindowWithSidebarURL(
     title: []const u8,
@@ -1958,17 +2096,28 @@ pub fn createWindowWithSidebarURL(
     _ = msgSend1(window, "setHasShadow:", @as(c_int, 1));
     _ = msgSend1(window, "setTitlebarSeparatorStyle:", @as(c_long, 0)); // NSTitlebarSeparatorStyleNone = 0
 
-    // Create NSToolbar - REQUIRED for traffic lights to appear in sidebar
+    // Create NSToolbar with sidebar toggle button
     const NSToolbar = getClass("NSToolbar");
     const toolbar_id = createNSString("MainToolbar");
     const toolbar_alloc = msgSend0(NSToolbar, "alloc");
     const toolbar = msgSend1(toolbar_alloc, "initWithIdentifier:", toolbar_id);
     _ = msgSend1(toolbar, "setShowsBaselineSeparator:", @as(c_int, 0));
+
+    // Set toolbar delegate so it can provide the sidebar toggle button
+    const delegateClass = getToolbarDelegateClass();
+    if (delegateClass != null) {
+        const delegate = msgSend0(msgSend0(delegateClass, "alloc"), "init");
+        _ = msgSend1(toolbar, "setDelegate:", delegate);
+    }
+
     _ = msgSend1(window, "setToolbar:", toolbar);
     _ = msgSend1(window, "setToolbarStyle:", @as(c_long, 3)); // NSWindowToolbarStyleUnifiedCompact = 3
 
+    // Store sidebar width for toggle animation
+    sidebar_width_stored = @floatFromInt(sidebar_width);
+
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[NativeSidebar] Window created with toolbar\n", .{});
+        std.debug.print("[NativeSidebar] Window created with toolbar and toggle button\n", .{});
 
     // ========================================
     // TAHOE-STYLE FLOATING SIDEBAR
@@ -2180,6 +2329,11 @@ pub fn createWindowWithSidebarURL(
 
     // Add floating sidebar ON TOP of webview
     _ = msgSend1(mainContainer, "addSubview:", sidebarContainer);
+
+    // Store references for sidebar toggle
+    sidebar_container = sidebarContainer;
+    sidebar_content_webview = webview;
+    sidebar_collapsed = false;
 
     // Set main container as window content view
     _ = msgSend1(window, "setContentView:", mainContainer);

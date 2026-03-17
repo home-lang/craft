@@ -3,7 +3,7 @@
  * Demonstrates: File System API, keyboard shortcuts, context menus
  */
 
-import { fs, window, Platform } from '@stacksjs/ts-craft'
+import { fs, window, Platform } from '@craft-native/ts'
 
 interface FileEntry {
   name: string

@@ -1,4 +1,4 @@
-import type { CraftAppConfig } from '@stacksjs/ts-craft'
+import type { CraftAppConfig } from '@craft-native/ts'
 
 const config: CraftAppConfig = {
   name: 'Craft Files',

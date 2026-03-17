@@ -5,6 +5,7 @@ zig-out/
 
 # Compiled binaries
 bin/craft-*
+packages/typescript/native/
 
 # OS files
 .DS_Store

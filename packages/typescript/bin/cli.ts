@@ -6,6 +6,7 @@
 
 import { CLI } from '@stacksjs/clapp'
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import process from 'node:process'
 import { version } from '../package.json'
 
@@ -767,7 +768,7 @@ else {
             build: 'craft build'
           },
           dependencies: {
-            '@stacksjs/ts-craft': 'workspace:*'
+            '@craft-native/ts': 'workspace:*'
           }
         }, null, 2)))
       }
@@ -783,7 +784,7 @@ else {
       }
 
       // Create craft.config.ts
-      const configContent = `import type { CraftConfig } from '@stacksjs/ts-craft'
+      const configContent = `import type { CraftConfig } from '@craft-native/ts'
 
 export default {
   name: '${name}',
@@ -843,7 +844,7 @@ export default {
           'ios:open': 'craft ios open',
         },
         devDependencies: {
-          '@stacksjs/ts-craft': '*',
+          '@craft-native/ts': '*',
         },
       }
       writeFileSync(`${name}/package.json`, JSON.stringify(packageJson, null, 2))

@@ -10,7 +10,7 @@
     },
     "benchmarks": {
       "name": "craft-benchmarks",
-      "version": "0.1.0",
+      "version": "0.0.4",
       "dependencies": {
         "mitata": "^1.0.10",
       },
@@ -20,11 +20,11 @@
     },
     "packages/android": {
       "name": "@craft-native/android",
-      "version": "0.0.2",
+      "version": "0.0.4",
     },
     "packages/create-craft": {
       "name": "create-craft",
-      "version": "0.0.2",
+      "version": "0.0.4",
       "bin": {
         "create-craft": "./bin/cli.ts",
       },
@@ -37,9 +37,9 @@
     },
     "packages/examples-ts": {
       "name": "ts-craft-examples",
-      "version": "0.0.2",
+      "version": "0.0.4",
       "dependencies": {
-        "@stacksjs/ts-craft": "workspace:*",
+        "@craft-native/ts": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -47,14 +47,14 @@
     },
     "packages/ios": {
       "name": "@craft-native/ios",
-      "version": "0.0.2",
+      "version": "0.0.4",
       "bin": {
         "craft-ios": "./dist/cli.js",
       },
     },
     "packages/react": {
       "name": "@craft-native/react",
-      "version": "0.0.2",
+      "version": "0.0.4",
       "devDependencies": {
         "@types/react": "^18.2.0",
         "react": "^18.2.0",
@@ -68,7 +68,7 @@
     },
     "packages/svelte": {
       "name": "@craft-native/svelte",
-      "version": "0.0.2",
+      "version": "0.0.4",
       "devDependencies": {
         "svelte": "^4.0.0",
         "tsup": "^8.0.0",
@@ -80,10 +80,11 @@
       },
     },
     "packages/typescript": {
-      "name": "@stacksjs/ts-craft",
-      "version": "0.0.2",
+      "name": "@craft-native/ts",
+      "version": "0.0.4",
       "bin": {
-        "craft": "./bin/cli.ts",
+        "craft": "./native/craft",
+        "craft-sdk": "./bin/cli.ts",
       },
       "dependencies": {
         "archiver": "^7.0.1",
@@ -98,7 +99,7 @@
     },
     "packages/vue": {
       "name": "@craft-native/vue",
-      "version": "0.0.2",
+      "version": "0.0.4",
       "devDependencies": {
         "tsup": "^8.0.0",
         "typescript": "^5.3.0",
@@ -110,8 +111,8 @@
       },
     },
     "packages/zig": {
-      "name": "craft-core",
-      "version": "0.0.2",
+      "name": "craft",
+      "version": "0.0.4",
     },
   },
   "packages": {
@@ -132,6 +133,8 @@
     "@craft-native/react": ["@craft-native/react@workspace:packages/react"],
 
     "@craft-native/svelte": ["@craft-native/svelte@workspace:packages/svelte"],
+
+    "@craft-native/ts": ["@craft-native/ts@workspace:packages/typescript"],
 
     "@craft-native/vue": ["@craft-native/vue@workspace:packages/vue"],
 
@@ -275,8 +278,6 @@
 
     "@stacksjs/ts-cloud-types": ["@stacksjs/ts-cloud-types@0.1.9", "", {}, "sha512-uBRtR/4CzSf2ZDDQ2vGM0ZSbxnxHaMkh/YLdSlXBhJuy30JMBKsos/CuHgBrL1W0CPETxwd9G+Bt7NQ7et6kkQ=="],
 
-    "@stacksjs/ts-craft": ["@stacksjs/ts-craft@workspace:packages/typescript"],
-
     "@stacksjs/ts-md": ["@stacksjs/ts-md@0.1.1", "", { "bin": { "md": "./bin/cli.ts" } }, "sha512-kvsSg7S3vHq65fnHIRggTLudN4n1sjkos86xLB62V6PVRa8iosYAmFKVDTGaJk+0MdsIoRwQbJ2vLWVcNQsgGw=="],
 
     "@types/archiver": ["@types/archiver@6.0.4", "", { "dependencies": { "@types/readdir-glob": "*" } }, "sha512-ULdQpARQ3sz9WH4nb98mJDYA0ft2A8C4f4fovvUcFwINa1cgGjY36JCAYuP5YypRq4mco1lJp1/7jEMS2oR0Hg=="],
@@ -407,9 +408,9 @@
 
     "core-util-is": ["core-util-is@1.0.3", "", {}, "sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ=="],
 
-    "craft-benchmarks": ["craft-benchmarks@workspace:benchmarks"],
+    "craft": ["craft@workspace:packages/zig"],
 
-    "craft-core": ["craft-core@workspace:packages/zig"],
+    "craft-benchmarks": ["craft-benchmarks@workspace:benchmarks"],
 
     "crc-32": ["crc-32@1.2.2", "", { "bin": { "crc32": "bin/crc32.njs" } }, "sha512-ROmzCKrTnOwybPcJApAA6WBWij23HVfGVNKqqrZpuyZOHqK2CwHSvpGuyt/UNNvaIjEd8X5IFGp4Mh+Ie1IHJQ=="],
 

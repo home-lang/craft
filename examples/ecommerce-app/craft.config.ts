@@ -1,4 +1,4 @@
-import type { CraftConfig } from '@stacksjs/ts-craft'
+import type { CraftConfig } from '@craft-native/ts'
 
 export default {
   name: 'Shop',

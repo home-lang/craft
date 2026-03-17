@@ -3,7 +3,7 @@
  * Features: Feed, posts, stories, profile, notifications, messaging, search
  */
 
-import { db, window, Platform, haptics, camera, share } from '@stacksjs/ts-craft'
+import { db, window, Platform, haptics, camera, share } from '@craft-native/ts'
 
 // Types
 interface User {
