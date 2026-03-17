@@ -792,6 +792,7 @@ var sidebar_webview: objc.id = null;
 // Global references for sidebar toggle
 var sidebar_container: objc.id = null;
 var sidebar_content_webview: objc.id = null;
+var sidebar_toggle_btn: objc.id = null;
 var sidebar_collapsed: bool = false;
 var sidebar_width_stored: f64 = 240.0;
 
@@ -1889,102 +1890,16 @@ fn generateSidebarHtml(sidebar_config: ?[]const u8) []const u8 {
 }
 
 // ============================================================================
-// Toolbar Delegate for Sidebar Toggle Button
+// Sidebar Toggle via NSToolbarItem with toggleSidebar: responder
 // ============================================================================
 
-var toolbarDelegateClass: objc.Class = null;
-const sidebarToggleItemId = "SidebarToggle";
-
-fn getToolbarDelegateClass() objc.Class {
-    if (toolbarDelegateClass != null) return toolbarDelegateClass;
-
-    const NSObject = getClass("NSObject");
-    toolbarDelegateClass = objc.objc_allocateClassPair(NSObject, "CraftToolbarDelegate", 0);
-    if (toolbarDelegateClass == null) return null;
-
-    // toolbarAllowedItemIdentifiers:
-    _ = objc.class_addMethod(
-        toolbarDelegateClass,
-        sel("toolbarAllowedItemIdentifiers:"),
-        @ptrCast(@constCast(&toolbarAllowedItems)),
-        "@@:@",
-    );
-
-    // toolbarDefaultItemIdentifiers:
-    _ = objc.class_addMethod(
-        toolbarDelegateClass,
-        sel("toolbarDefaultItemIdentifiers:"),
-        @ptrCast(@constCast(&toolbarDefaultItems)),
-        "@@:@",
-    );
-
-    // toolbar:itemForItemIdentifier:willBeInsertedIntoToolbar:
-    _ = objc.class_addMethod(
-        toolbarDelegateClass,
-        sel("toolbar:itemForItemIdentifier:willBeInsertedIntoToolbar:"),
-        @ptrCast(@constCast(&toolbarItemForIdentifier)),
-        "@@:@@B",
-    );
-
-    // toggleSidebar: action
-    _ = objc.class_addMethod(
-        toolbarDelegateClass,
-        sel("toggleSidebar:"),
-        @ptrCast(@constCast(&toggleSidebarAction)),
-        "v@:@",
-    );
-
-    objc.objc_registerClassPair(toolbarDelegateClass);
-    return toolbarDelegateClass;
-}
-
-fn toolbarAllowedItems(_: objc.id, _: objc.SEL, _: objc.id) objc.id {
-    const NSArray = getClass("NSArray");
-    const itemId = createNSString(sidebarToggleItemId);
-    const flexId = createNSString("NSToolbarFlexibleSpaceItem");
-    return msgSend1(NSArray, "arrayWithObjects:", @as([*]const objc.id, @ptrCast(&[_]objc.id{ itemId, flexId }))); // simplified — just return both
-}
-
-fn toolbarDefaultItems(_: objc.id, _: objc.SEL, _: objc.id) objc.id {
-    const NSArray = getClass("NSArray");
-    const itemId = createNSString(sidebarToggleItemId);
-    return msgSend1(NSArray, "arrayWithObject:", itemId);
-}
-
-fn toolbarItemForIdentifier(_: objc.id, _: objc.SEL, _: objc.id, identifier: objc.id, _: bool) objc.id {
-    // Get the identifier string to check if it's our toggle item
-    const utf8Fn = @as(*const fn (objc.id, objc.SEL) callconv(.c) ?[*:0]const u8, @ptrCast(&objc.objc_msgSend));
-    const nsIdStr = utf8Fn(identifier, sel("UTF8String"));
-    if (nsIdStr == null) return null;
-    const idStr = std.mem.span(nsIdStr.?);
-    if (!std.mem.eql(u8, idStr, sidebarToggleItemId)) return null;
-
-    const NSToolbarItem = getClass("NSToolbarItem");
-    const item_alloc = msgSend0(NSToolbarItem, "alloc");
-    const item = msgSend1(item_alloc, "initWithItemIdentifier:", identifier);
-
-    // Use sidebar.left SF Symbol (macOS 11+)
-    const NSImage = getClass("NSImage");
-    const symbolName = createNSString("sidebar.left");
-    const image = msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", symbolName, @as(?*anyopaque, null));
-    if (image != null) {
-        _ = msgSend1(item, "setImage:", image);
-    }
-
-    _ = msgSend1(item, "setLabel:", createNSString("Toggle Sidebar"));
-    _ = msgSend1(item, "setToolTip:", createNSString("Show or hide the sidebar"));
-
-    // Target the delegate itself for the action
-    const delegate = msgSend0(msgSend0(getToolbarDelegateClass(), "alloc"), "init");
-    _ = msgSend1(item, "setTarget:", delegate);
-    _ = msgSend1(item, "setAction:", sel("toggleSidebar:"));
-
-    return item;
-}
-
-fn toggleSidebarAction(_: objc.id, _: objc.SEL, _: objc.id) void {
+/// Toggle sidebar visibility with animation. Called via responder chain from toolbar button.
+fn sidebarToggleCallback(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
     if (sidebar_container == null or sidebar_content_webview == null) return;
 
+    sidebar_collapsed = !sidebar_collapsed;
+
+    // Animate
     const NSAnimationContext = getClass("NSAnimationContext");
     _ = msgSend0(NSAnimationContext, "beginGrouping");
     const ctx = msgSend0(NSAnimationContext, "currentContext");
@@ -1992,32 +1907,74 @@ fn toggleSidebarAction(_: objc.id, _: objc.SEL, _: objc.id) void {
     _ = msgSend1(ctx, "setAllowsImplicitAnimation:", @as(c_int, 1));
 
     if (sidebar_collapsed) {
-        // Show sidebar
-        _ = msgSend1(sidebar_container, "setHidden:", @as(c_int, 0));
-
-        // Move webview to the right
-        const webviewFrame = msgSendRect(sidebar_content_webview, "frame");
-        const newFrame = NSRect{
-            .origin = .{ .x = sidebar_width_stored, .y = webviewFrame.origin.y },
-            .size = .{ .width = webviewFrame.size.width - sidebar_width_stored + webviewFrame.origin.x, .height = webviewFrame.size.height },
-        };
-        msgSendVoid1Rect(sidebar_content_webview, "setFrame:", newFrame);
-        sidebar_collapsed = false;
-    } else {
-        // Hide sidebar
         _ = msgSend1(sidebar_container, "setHidden:", @as(c_int, 1));
+        const f = msgSendRect(sidebar_content_webview, "frame");
+        msgSendVoid1Rect(sidebar_content_webview, "setFrame:", .{
+            .origin = .{ .x = 0, .y = f.origin.y },
+            .size = .{ .width = f.size.width + f.origin.x, .height = f.size.height },
+        });
+    } else {
+        _ = msgSend1(sidebar_container, "setHidden:", @as(c_int, 0));
+        const f = msgSendRect(sidebar_content_webview, "frame");
+        msgSendVoid1Rect(sidebar_content_webview, "setFrame:", .{
+            .origin = .{ .x = sidebar_width_stored, .y = f.origin.y },
+            .size = .{ .width = f.size.width - sidebar_width_stored, .height = f.size.height },
+        });
+    }
 
-        // Expand webview to fill
-        const webviewFrame = msgSendRect(sidebar_content_webview, "frame");
-        const newFrame = NSRect{
-            .origin = .{ .x = 0, .y = webviewFrame.origin.y },
-            .size = .{ .width = webviewFrame.size.width + webviewFrame.origin.x, .height = webviewFrame.size.height },
-        };
-        msgSendVoid1Rect(sidebar_content_webview, "setFrame:", newFrame);
-        sidebar_collapsed = true;
+    // Reposition toggle button: right-aligned when expanded, left (after traffic lights) when collapsed
+    if (sidebar_toggle_btn != null) {
+        const btnFrame = msgSendRect(sidebar_toggle_btn, "frame");
+        const newX: f64 = if (sidebar_collapsed) 88.0 else sidebar_width_stored - 28.0 - 12.0;
+        msgSendVoid1Rect(sidebar_toggle_btn, "setFrame:", .{
+            .origin = .{ .x = newX, .y = btnFrame.origin.y },
+            .size = btnFrame.size,
+        });
+    }
+
+    // Tell the webview about collapsed state so it can show/hide the home icon
+    // Also inject CSS to add left padding so content clears the traffic lights + toggle button
+    if (sidebar_webview != null) {
+        const js = if (sidebar_collapsed)
+            \\window.__craftSidebarCollapsed = true;
+            \\document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
+            \\if (!document.getElementById('craft-collapsed-pad')) {
+            \\  var s = document.createElement('style');
+            \\  s.id = 'craft-collapsed-pad';
+            \\  s.textContent = 'html[data-sidebar-collapsed] body { padding-left: 128px; }';
+            \\  document.head.appendChild(s);
+            \\}
+        else
+            \\window.__craftSidebarCollapsed = false;
+            \\document.documentElement.removeAttribute('data-sidebar-collapsed');
+            \\var ps = document.getElementById('craft-collapsed-pad');
+            \\if (ps) ps.remove();
+        ;
+        const jsStr = createNSString(js);
+        _ = msgSend2(sidebar_webview, "evaluateJavaScript:completionHandler:", jsStr, @as(?*anyopaque, null));
     }
 
     _ = msgSend0(NSAnimationContext, "endGrouping");
+}
+
+var sidebarToggleResponderClass: objc.Class = null;
+
+/// Register a custom responder class that handles toggleSidebar: from the toolbar button
+fn ensureSidebarToggleResponder() void {
+    if (sidebarToggleResponderClass != null) return;
+
+    const NSView = getClass("NSView");
+    sidebarToggleResponderClass = objc.objc_allocateClassPair(NSView, "CraftSidebarToggleView", 0);
+    if (sidebarToggleResponderClass == null) return;
+
+    _ = objc.class_addMethod(
+        sidebarToggleResponderClass,
+        sel("toggleSidebar:"),
+        @ptrCast(@constCast(&sidebarToggleCallback)),
+        "v@:@",
+    );
+
+    objc.objc_registerClassPair(sidebarToggleResponderClass);
 }
 
 /// Create a window with native sidebar loading a URL instead of inline HTML
@@ -2096,20 +2053,12 @@ pub fn createWindowWithSidebarURL(
     _ = msgSend1(window, "setHasShadow:", @as(c_int, 1));
     _ = msgSend1(window, "setTitlebarSeparatorStyle:", @as(c_long, 0)); // NSTitlebarSeparatorStyleNone = 0
 
-    // Create NSToolbar with sidebar toggle button
+    // Create NSToolbar - REQUIRED for traffic lights to appear in sidebar
     const NSToolbar = getClass("NSToolbar");
     const toolbar_id = createNSString("MainToolbar");
     const toolbar_alloc = msgSend0(NSToolbar, "alloc");
     const toolbar = msgSend1(toolbar_alloc, "initWithIdentifier:", toolbar_id);
     _ = msgSend1(toolbar, "setShowsBaselineSeparator:", @as(c_int, 0));
-
-    // Set toolbar delegate so it can provide the sidebar toggle button
-    const delegateClass = getToolbarDelegateClass();
-    if (delegateClass != null) {
-        const delegate = msgSend0(msgSend0(delegateClass, "alloc"), "init");
-        _ = msgSend1(toolbar, "setDelegate:", delegate);
-    }
-
     _ = msgSend1(window, "setToolbar:", toolbar);
     _ = msgSend1(window, "setToolbarStyle:", @as(c_long, 3)); // NSWindowToolbarStyleUnifiedCompact = 3
 
@@ -2117,7 +2066,7 @@ pub fn createWindowWithSidebarURL(
     sidebar_width_stored = @floatFromInt(sidebar_width);
 
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[NativeSidebar] Window created with toolbar and toggle button\n", .{});
+        std.debug.print("[NativeSidebar] Window created with toolbar\n", .{});
 
     // ========================================
     // TAHOE-STYLE FLOATING SIDEBAR
@@ -2337,6 +2286,55 @@ pub fn createWindowWithSidebarURL(
 
     // Set main container as window content view
     _ = msgSend1(window, "setContentView:", mainContainer);
+
+    // Add sidebar toggle button directly to the titlebar area
+    ensureSidebarToggleResponder();
+    if (sidebarToggleResponderClass != null) {
+        const NSButton = getClass("NSButton");
+        const NSImage = getClass("NSImage");
+
+        // Create the responder that handles toggleSidebar:
+        const responder_alloc = msgSend0(sidebarToggleResponderClass, "alloc");
+        const responderFrame = NSRect{ .origin = .{ .x = 0, .y = 0 }, .size = .{ .width = 0, .height = 0 } };
+        const responder = msgSend1Rect(responder_alloc, "initWithFrame:", responderFrame);
+        _ = msgSend1(mainContainer, "addSubview:", responder);
+
+        // Create toggle button with sidebar.left SF Symbol
+        const symbolName = createNSString("sidebar.left");
+        const image = msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", symbolName, @as(?*anyopaque, null));
+
+        const btnFrame = NSRect{ .origin = .{ .x = 0, .y = 0 }, .size = .{ .width = 28, .height = 22 } };
+        const toggleBtn_alloc = msgSend0(NSButton, "alloc");
+        const toggleBtn = msgSend1Rect(toggleBtn_alloc, "initWithFrame:", btnFrame);
+        _ = msgSend1(toggleBtn, "setImage:", image);
+        _ = msgSend1(toggleBtn, "setBezelStyle:", @as(c_long, 0)); // NSBezelStyleAutomatic
+        _ = msgSend1(toggleBtn, "setBordered:", @as(c_int, 0));
+        _ = msgSend1(toggleBtn, "setTarget:", responder);
+        _ = msgSend1(toggleBtn, "setAction:", sel("toggleSidebar:"));
+        _ = msgSend1(toggleBtn, "setToolTip:", createNSString("Toggle Sidebar"));
+
+        // Store reference for repositioning on toggle
+        sidebar_toggle_btn = toggleBtn;
+
+        // Position it in the titlebar by adding to the window's contentView's superview (themeFrame)
+        // Traffic lights are at roughly x=7..67, y centered in titlebar (38px high)
+        const contentView = msgSend0(window, "contentView");
+        const themeFrame = msgSend0(contentView, "superview");
+        if (themeFrame != null) {
+            // Position at the right edge of the sidebar area
+            const btnX: f64 = @as(f64, @floatFromInt(sidebar_width)) - 28.0 - 12.0;
+            const themeFrameHeight = msgSendRect(themeFrame, "frame").size.height;
+            const titlebarHeight: f64 = 52.0;
+            const btnH: f64 = 22.0;
+            const btnY: f64 = themeFrameHeight - titlebarHeight + (titlebarHeight - btnH) / 2.0;
+            msgSendVoid1Rect(toggleBtn, "setFrame:", .{
+                .origin = .{ .x = btnX, .y = btnY },
+                .size = .{ .width = 28, .height = 22 },
+            });
+            msgSendVoid1(toggleBtn, "setAutoresizingMask:", @as(c_ulong, 4)); // NSViewMinYMargin - stick to top
+            _ = msgSend1(themeFrame, "addSubview:", toggleBtn);
+        }
+    }
 
     if (comptime builtin.mode == .Debug)
         std.debug.print("[NativeSidebar] Tahoe-style floating sidebar configured\n", .{});
