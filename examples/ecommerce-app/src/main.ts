@@ -509,9 +509,9 @@ function renderApp(store: Store): void {
   }
 
   app.innerHTML = `
-    <div class="shop-app">
+    <div class='shop-app'>
       ${renderHeader(store)}
-      <main class="main-content">${content}</main>
+      <main class='main-content'>${content}</main>
       ${renderBottomNav(store)}
     </div>
   `
@@ -524,14 +524,14 @@ function renderHeader(store: Store): string {
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0)
 
   return `
-    <header class="header">
-      <button class="menu-btn" id="menu-btn">☰</button>
-      <h1 class="logo" data-nav="home">Shop</h1>
-      <div class="header-actions">
-        <button class="icon-btn" id="search-btn">🔍</button>
-        <button class="icon-btn cart-btn" data-nav="cart">
+    <header class='header'>
+      <button class='menu-btn' id='menu-btn'>☰</button>
+      <h1 class='logo' data-nav='home'>Shop</h1>
+      <div class='header-actions'>
+        <button class='icon-btn' id='search-btn'>🔍</button>
+        <button class='icon-btn cart-btn' data-nav='cart'>
           🛒
-          ${cartCount > 0 ? `<span class="cart-badge">${cartCount}</span>` : ''}
+          ${cartCount > 0 ? `<span class='cart-badge'>${cartCount}</span>` : ''}
         </button>
       </div>
     </header>
@@ -541,22 +541,22 @@ function renderHeader(store: Store): string {
 function renderBottomNav(store: Store): string {
   const view = store.getView()
   return `
-    <nav class="bottom-nav">
-      <button class="nav-item ${view === 'home' ? 'active' : ''}" data-nav="home">
-        <span class="nav-icon">🏠</span>
-        <span class="nav-label">Home</span>
+    <nav class='bottom-nav'>
+      <button class='nav-item ${view === 'home' ? 'active' : ''}' data-nav='home'>
+        <span class='nav-icon'>🏠</span>
+        <span class='nav-label'>Home</span>
       </button>
-      <button class="nav-item ${view === 'search' ? 'active' : ''}" data-nav="search">
-        <span class="nav-icon">🔍</span>
-        <span class="nav-label">Search</span>
+      <button class='nav-item ${view === 'search' ? 'active' : ''}' data-nav='search'>
+        <span class='nav-icon'>🔍</span>
+        <span class='nav-label'>Search</span>
       </button>
-      <button class="nav-item ${view === 'wishlist' ? 'active' : ''}" data-nav="wishlist">
-        <span class="nav-icon">❤</span>
-        <span class="nav-label">Wishlist</span>
+      <button class='nav-item ${view === 'wishlist' ? 'active' : ''}' data-nav='wishlist'>
+        <span class='nav-icon'>❤</span>
+        <span class='nav-label'>Wishlist</span>
       </button>
-      <button class="nav-item ${view === 'orders' ? 'active' : ''}" data-nav="orders">
-        <span class="nav-icon">📦</span>
-        <span class="nav-label">Orders</span>
+      <button class='nav-item ${view === 'orders' ? 'active' : ''}' data-nav='orders'>
+        <span class='nav-icon'>📦</span>
+        <span class='nav-label'>Orders</span>
       </button>
     </nav>
   `
@@ -568,18 +568,18 @@ function renderHome(store: Store): string {
   const products = store.getProducts(selectedCategory)
 
   return `
-    <div class="home-view">
-      <div class="categories-scroll">
+    <div class='home-view'>
+      <div class='categories-scroll'>
         ${categories.map((cat) => `
-          <button class="category-chip ${cat === selectedCategory ? 'active' : ''}" data-category="${cat}">
+          <button class='category-chip ${cat === selectedCategory ? 'active' : ''}' data-category='${cat}'>
             ${cat === 'all' ? 'All' : cat}
           </button>
         `).join('')}
       </div>
 
-      <section class="featured-section">
+      <section class='featured-section'>
         <h2>Featured Products</h2>
-        <div class="products-grid">
+        <div class='products-grid'>
           ${products.map((product) => renderProductCard(product, store)).join('')}
         </div>
       </section>
@@ -594,23 +594,23 @@ function renderProductCard(product: Product, store: Store): string {
     : 0
 
   return `
-    <div class="product-card" data-product-id="${product.id}">
-      <div class="product-image">
-        <div class="image-placeholder">${product.name.charAt(0)}</div>
-        ${discount > 0 ? `<span class="discount-badge">-${discount}%</span>` : ''}
-        <button class="wishlist-btn ${isWishlisted ? 'active' : ''}" data-wishlist="${product.id}">
+    <div class='product-card' data-product-id='${product.id}'>
+      <div class='product-image'>
+        <div class='image-placeholder'>${product.name.charAt(0)}</div>
+        ${discount > 0 ? `<span class='discount-badge'>-${discount}%</span>` : ''}
+        <button class='wishlist-btn ${isWishlisted ? 'active' : ''}' data-wishlist='${product.id}'>
           ${isWishlisted ? '❤' : '♡'}
         </button>
       </div>
-      <div class="product-info">
-        <h3 class="product-name">${product.name}</h3>
-        <div class="product-rating">
-          <span class="stars">${renderStars(product.rating)}</span>
-          <span class="review-count">(${product.reviewCount})</span>
+      <div class='product-info'>
+        <h3 class='product-name'>${product.name}</h3>
+        <div class='product-rating'>
+          <span class='stars'>${renderStars(product.rating)}</span>
+          <span class='review-count'>(${product.reviewCount})</span>
         </div>
-        <div class="product-price">
-          <span class="current-price">${formatPrice(product.price)}</span>
-          ${product.compareAtPrice ? `<span class="compare-price">${formatPrice(product.compareAtPrice)}</span>` : ''}
+        <div class='product-price'>
+          <span class='current-price'>${formatPrice(product.price)}</span>
+          ${product.compareAtPrice ? `<span class='compare-price'>${formatPrice(product.compareAtPrice)}</span>` : ''}
         </div>
       </div>
     </div>
@@ -627,33 +627,33 @@ function renderProductDetail(store: Store): string {
   const isWishlisted = store.isInWishlist(product.id)
 
   return `
-    <div class="product-detail">
-      <button class="back-btn" data-nav="home">← Back</button>
+    <div class='product-detail'>
+      <button class='back-btn' data-nav='home'>← Back</button>
 
-      <div class="product-gallery">
-        <div class="main-image">
-          <div class="image-placeholder large">${product.name.charAt(0)}</div>
+      <div class='product-gallery'>
+        <div class='main-image'>
+          <div class='image-placeholder large'>${product.name.charAt(0)}</div>
         </div>
       </div>
 
-      <div class="product-content">
-        <h1 class="product-title">${product.name}</h1>
-        <div class="product-rating">
-          <span class="stars">${renderStars(product.rating)}</span>
-          <span class="review-count">${product.reviewCount} reviews</span>
+      <div class='product-content'>
+        <h1 class='product-title'>${product.name}</h1>
+        <div class='product-rating'>
+          <span class='stars'>${renderStars(product.rating)}</span>
+          <span class='review-count'>${product.reviewCount} reviews</span>
         </div>
 
-        <div class="product-price-large">
-          <span class="current-price">${formatPrice(product.price)}</span>
-          ${product.compareAtPrice ? `<span class="compare-price">${formatPrice(product.compareAtPrice)}</span>` : ''}
+        <div class='product-price-large'>
+          <span class='current-price'>${formatPrice(product.price)}</span>
+          ${product.compareAtPrice ? `<span class='compare-price'>${formatPrice(product.compareAtPrice)}</span>` : ''}
         </div>
 
-        <p class="product-description">${product.description}</p>
+        <p class='product-description'>${product.description}</p>
 
         ${product.variants.length > 1 ? `
-          <div class="variants-section">
+          <div class='variants-section'>
             <h3>Options</h3>
-            <div class="variants-grid">
+            <div class='variants-grid'>
               ${product.variants.map((v, i) => `
                 <button class="variant-btn ${i === 0 ? 'selected' : ''} ${!v.inStock ? 'out-of-stock' : ''}"
                         data-variant-id="${v.id}"
@@ -665,22 +665,22 @@ function renderProductDetail(store: Store): string {
           </div>
         ` : ''}
 
-        <div class="quantity-section">
+        <div class='quantity-section'>
           <h3>Quantity</h3>
-          <div class="quantity-selector">
-            <button class="qty-btn" id="qty-minus">-</button>
-            <span id="quantity">1</span>
-            <button class="qty-btn" id="qty-plus">+</button>
+          <div class='quantity-selector'>
+            <button class='qty-btn' id='qty-minus'>-</button>
+            <span id='quantity'>1</span>
+            <button class='qty-btn' id='qty-plus'>+</button>
           </div>
         </div>
 
-        <div class="action-buttons">
-          <button class="add-to-cart-btn" id="add-to-cart"
-                  data-product-id="${product.id}"
-                  data-variant-id="${product.variants[0]?.id}">
+        <div class='action-buttons'>
+          <button class='add-to-cart-btn' id='add-to-cart'
+                  data-product-id='${product.id}'
+                  data-variant-id='${product.variants[0]?.id}'>
             Add to Cart - ${formatPrice(product.price)}
           </button>
-          <button class="wishlist-btn-large ${isWishlisted ? 'active' : ''}" data-wishlist="${product.id}">
+          <button class='wishlist-btn-large ${isWishlisted ? 'active' : ''}' data-wishlist='${product.id}'>
             ${isWishlisted ? '❤ Saved' : '♡ Save'}
           </button>
         </div>
@@ -695,64 +695,64 @@ function renderCart(store: Store): string {
 
   if (cart.length === 0) {
     return `
-      <div class="empty-state">
-        <div class="empty-icon">🛒</div>
+      <div class='empty-state'>
+        <div class='empty-icon'>🛒</div>
         <h2>Your cart is empty</h2>
         <p>Add some items to get started</p>
-        <button class="primary-btn" data-nav="home">Start Shopping</button>
+        <button class='primary-btn' data-nav='home'>Start Shopping</button>
       </div>
     `
   }
 
   return `
-    <div class="cart-view">
+    <div class='cart-view'>
       <h1>Shopping Cart</h1>
 
-      <div class="cart-items">
+      <div class='cart-items'>
         ${cart.map((item) => {
           const product = store.getProduct(item.productId)
           if (!product) return ''
           const variant = product.variants.find((v) => v.id === item.variantId)
 
           return `
-            <div class="cart-item">
-              <div class="item-image">
-                <div class="image-placeholder small">${product.name.charAt(0)}</div>
+            <div class='cart-item'>
+              <div class='item-image'>
+                <div class='image-placeholder small'>${product.name.charAt(0)}</div>
               </div>
-              <div class="item-details">
+              <div class='item-details'>
                 <h3>${product.name}</h3>
                 ${variant?.name !== 'Default' ? `<p class="variant-name">${variant?.name}</p>` : ''}
-                <p class="item-price">${formatPrice(item.price)}</p>
+                <p class='item-price'>${formatPrice(item.price)}</p>
               </div>
-              <div class="item-quantity">
-                <button class="qty-btn small" data-cart-qty="${item.productId}:${item.variantId}:-1">-</button>
+              <div class='item-quantity'>
+                <button class='qty-btn small' data-cart-qty='${item.productId}:${item.variantId}:-1'>-</button>
                 <span>${item.quantity}</span>
-                <button class="qty-btn small" data-cart-qty="${item.productId}:${item.variantId}:1">+</button>
+                <button class='qty-btn small' data-cart-qty='${item.productId}:${item.variantId}:1'>+</button>
               </div>
-              <button class="remove-btn" data-remove-cart="${item.productId}:${item.variantId}">×</button>
+              <button class='remove-btn' data-remove-cart='${item.productId}:${item.variantId}'>×</button>
             </div>
           `
         }).join('')}
       </div>
 
-      <div class="cart-summary">
-        <div class="summary-row">
+      <div class='cart-summary'>
+        <div class='summary-row'>
           <span>Subtotal</span>
           <span>${formatPrice(totals.subtotal)}</span>
         </div>
-        <div class="summary-row">
+        <div class='summary-row'>
           <span>Tax</span>
           <span>${formatPrice(totals.tax)}</span>
         </div>
-        <div class="summary-row">
+        <div class='summary-row'>
           <span>Shipping</span>
           <span>${totals.shipping === 0 ? 'Free' : formatPrice(totals.shipping)}</span>
         </div>
-        <div class="summary-row total">
+        <div class='summary-row total'>
           <span>Total</span>
           <span>${formatPrice(totals.total)}</span>
         </div>
-        <button class="checkout-btn" data-nav="checkout">Proceed to Checkout</button>
+        <button class='checkout-btn' data-nav='checkout'>Proceed to Checkout</button>
       </div>
     </div>
   `
@@ -760,52 +760,52 @@ function renderCart(store: Store): string {
 
 function renderCheckout(store: Store): string {
   return `
-    <div class="checkout-view">
-      <button class="back-btn" data-nav="cart">← Back to Cart</button>
+    <div class='checkout-view'>
+      <button class='back-btn' data-nav='cart'>← Back to Cart</button>
       <h1>Checkout</h1>
 
-      <form id="checkout-form" class="checkout-form">
-        <section class="form-section">
+      <form id='checkout-form' class='checkout-form'>
+        <section class='form-section'>
           <h2>Shipping Address</h2>
-          <div class="form-grid">
-            <input type="text" name="name" placeholder="Full Name" required class="form-input" />
-            <input type="text" name="line1" placeholder="Address Line 1" required class="form-input full-width" />
-            <input type="text" name="line2" placeholder="Address Line 2 (optional)" class="form-input full-width" />
-            <input type="text" name="city" placeholder="City" required class="form-input" />
-            <input type="text" name="state" placeholder="State" required class="form-input" />
-            <input type="text" name="postalCode" placeholder="ZIP Code" required class="form-input" />
-            <input type="text" name="country" placeholder="Country" value="United States" required class="form-input" />
-            <input type="tel" name="phone" placeholder="Phone Number" required class="form-input" />
+          <div class='form-grid'>
+            <input type='text' name='name' placeholder='Full Name' required class='form-input' />
+            <input type='text' name='line1' placeholder='Address Line 1' required class='form-input full-width' />
+            <input type='text' name='line2' placeholder='Address Line 2 (optional)' class='form-input full-width' />
+            <input type='text' name='city' placeholder='City' required class='form-input' />
+            <input type='text' name='state' placeholder='State' required class='form-input' />
+            <input type='text' name='postalCode' placeholder='ZIP Code' required class='form-input' />
+            <input type='text' name='country' placeholder='Country' value='United States' required class='form-input' />
+            <input type='tel' name='phone' placeholder='Phone Number' required class='form-input' />
           </div>
         </section>
 
-        <section class="form-section">
+        <section class='form-section'>
           <h2>Payment Method</h2>
-          <div class="payment-options">
-            <label class="payment-option">
-              <input type="radio" name="payment" value="card" checked />
+          <div class='payment-options'>
+            <label class='payment-option'>
+              <input type='radio' name='payment' value='card' checked />
               <span>💳 Credit Card</span>
             </label>
-            <label class="payment-option">
-              <input type="radio" name="payment" value="apple-pay" />
+            <label class='payment-option'>
+              <input type='radio' name='payment' value='apple-pay' />
               <span>🍎 Apple Pay</span>
             </label>
-            <label class="payment-option">
-              <input type="radio" name="payment" value="paypal" />
+            <label class='payment-option'>
+              <input type='radio' name='payment' value='paypal' />
               <span>💰 PayPal</span>
             </label>
           </div>
         </section>
 
-        <div class="order-summary">
+        <div class='order-summary'>
           <h2>Order Summary</h2>
-          <div class="summary-row total">
+          <div class='summary-row total'>
             <span>Total</span>
             <span>${formatPrice(store.getCartTotal().total)}</span>
           </div>
         </div>
 
-        <button type="submit" class="place-order-btn">Place Order</button>
+        <button type='submit' class='place-order-btn'>Place Order</button>
       </form>
     </div>
   `
@@ -816,30 +816,30 @@ function renderOrders(store: Store): string {
 
   if (orders.length === 0) {
     return `
-      <div class="empty-state">
-        <div class="empty-icon">📦</div>
+      <div class='empty-state'>
+        <div class='empty-icon'>📦</div>
         <h2>No orders yet</h2>
         <p>Your order history will appear here</p>
-        <button class="primary-btn" data-nav="home">Start Shopping</button>
+        <button class='primary-btn' data-nav='home'>Start Shopping</button>
       </div>
     `
   }
 
   return `
-    <div class="orders-view">
+    <div class='orders-view'>
       <h1>Order History</h1>
-      <div class="orders-list">
+      <div class='orders-list'>
         ${orders.map((order) => `
-          <div class="order-card">
-            <div class="order-header">
-              <span class="order-id">Order #${order.id.slice(-8)}</span>
-              <span class="order-status ${order.status}">${order.status}</span>
+          <div class='order-card'>
+            <div class='order-header'>
+              <span class='order-id'>Order #${order.id.slice(-8)}</span>
+              <span class='order-status ${order.status}'>${order.status}</span>
             </div>
-            <div class="order-date">${new Date(order.createdAt).toLocaleDateString()}</div>
-            <div class="order-items">
+            <div class='order-date'>${new Date(order.createdAt).toLocaleDateString()}</div>
+            <div class='order-items'>
               ${order.items.length} item${order.items.length > 1 ? 's' : ''}
             </div>
-            <div class="order-total">${formatPrice(order.total)}</div>
+            <div class='order-total'>${formatPrice(order.total)}</div>
           </div>
         `).join('')}
       </div>
@@ -852,19 +852,19 @@ function renderWishlist(store: Store): string {
 
   if (wishlist.length === 0) {
     return `
-      <div class="empty-state">
-        <div class="empty-icon">❤</div>
+      <div class='empty-state'>
+        <div class='empty-icon'>❤</div>
         <h2>Your wishlist is empty</h2>
         <p>Save items you love for later</p>
-        <button class="primary-btn" data-nav="home">Explore Products</button>
+        <button class='primary-btn' data-nav='home'>Explore Products</button>
       </div>
     `
   }
 
   return `
-    <div class="wishlist-view">
+    <div class='wishlist-view'>
       <h1>Wishlist</h1>
-      <div class="products-grid">
+      <div class='products-grid'>
         ${wishlist.map((product) => renderProductCard(product, store)).join('')}
       </div>
     </div>
@@ -876,25 +876,25 @@ function renderSearch(store: Store): string {
   const results = query ? store.searchProducts(query) : []
 
   return `
-    <div class="search-view">
-      <div class="search-bar">
-        <input type="search" id="search-input" placeholder="Search products..."
-          value="${query}" class="search-input" autofocus />
+    <div class='search-view'>
+      <div class='search-bar'>
+        <input type='search' id='search-input' placeholder='Search products...'
+          value='${query}' class='search-input' autofocus />
       </div>
 
       ${query ? `
-        <p class="search-results-count">${results.length} result${results.length !== 1 ? 's' : ''} for "${query}"</p>
-        <div class="products-grid">
+        <p class='search-results-count'>${results.length} result${results.length !== 1 ? 's' : ''} for '${query}'</p>
+        <div class='products-grid'>
           ${results.map((product) => renderProductCard(product, store)).join('')}
         </div>
       ` : `
-        <div class="search-suggestions">
+        <div class='search-suggestions'>
           <h3>Popular Searches</h3>
-          <div class="suggestion-chips">
-            <button class="suggestion-chip" data-search="headphones">Headphones</button>
-            <button class="suggestion-chip" data-search="watch">Watch</button>
-            <button class="suggestion-chip" data-search="backpack">Backpack</button>
-            <button class="suggestion-chip" data-search="shoes">Shoes</button>
+          <div class='suggestion-chips'>
+            <button class='suggestion-chip' data-search='headphones'>Headphones</button>
+            <button class='suggestion-chip' data-search='watch'>Watch</button>
+            <button class='suggestion-chip' data-search='backpack'>Backpack</button>
+            <button class='suggestion-chip' data-search='shoes'>Shoes</button>
           </div>
         </div>
       `}

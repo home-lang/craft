@@ -170,8 +170,8 @@ function renderNotesList() {
 
   if (notes.length === 0) {
     list.innerHTML = `
-      <div class="empty-state" style="padding: 24px; text-align: center;">
-        <p style="color: var(--text-secondary);">
+      <div class='empty-state' style='padding: 24px; text-align: center;'>
+        <p style='color: var(--text-secondary);'>
           ${searchQuery ? 'No notes found' : 'No notes yet'}
         </p>
       </div>
@@ -181,12 +181,12 @@ function renderNotesList() {
 
   list.innerHTML = notes.map(note => `
     <div
-      class="note-item ${note.id === activeNoteId ? 'active' : ''}"
-      data-id="${note.id}"
+      class='note-item ${note.id === activeNoteId ? 'active' : ''}'
+      data-id='${note.id}'
     >
-      <div class="note-title">${note.title || 'Untitled'}</div>
-      <div class="note-preview">${getPreview(note.content)}</div>
-      <div class="note-date">${formatDate(note.updatedAt)}</div>
+      <div class='note-title'>${note.title || 'Untitled'}</div>
+      <div class='note-preview'>${getPreview(note.content)}</div>
+      <div class='note-date'>${formatDate(note.updatedAt)}</div>
     </div>
   `).join('')
 
@@ -207,57 +207,57 @@ function render() {
   const isMobile = window.innerWidth <= 768
 
   app.innerHTML = `
-    <div class="sidebar-overlay ${sidebarOpen ? 'open' : ''}" id="sidebar-overlay"></div>
+    <div class='sidebar-overlay ${sidebarOpen ? 'open' : ''}' id='sidebar-overlay'></div>
 
-    <aside class="sidebar ${sidebarOpen ? 'open' : ''}">
-      <div class="sidebar-header">
+    <aside class='sidebar ${sidebarOpen ? 'open' : ''}'>
+      <div class='sidebar-header'>
         <h1>Notes</h1>
-        <button id="new-note-btn" title="New Note">+</button>
+        <button id='new-note-btn' title='New Note'>+</button>
       </div>
 
-      <div class="search-box">
+      <div class='search-box'>
         <input
-          type="text"
-          id="search-input"
-          placeholder="Search notes..."
-          value="${searchQuery}"
+          type='text'
+          id='search-input'
+          placeholder='Search notes...'
+          value='${searchQuery}'
         >
       </div>
 
-      <div class="notes-list" id="notes-list"></div>
+      <div class='notes-list' id='notes-list'></div>
     </aside>
 
     ${activeNote ? `
-      <main class="editor">
-        <div class="editor-header">
+      <main class='editor'>
+        <div class='editor-header'>
           ${isMobile ? `
             <button id="menu-btn" style="margin-right: 12px; font-size: 1.25rem;">☰</button>
           ` : ''}
           <input
-            type="text"
-            id="note-title"
-            value="${activeNote.title}"
-            placeholder="Note title"
+            type='text'
+            id='note-title'
+            value='${activeNote.title}'
+            placeholder='Note title'
           >
-          <div class="editor-actions">
-            <button id="delete-btn" class="delete" title="Delete Note">🗑</button>
+          <div class='editor-actions'>
+            <button id='delete-btn' class='delete' title='Delete Note'>🗑</button>
           </div>
         </div>
-        <div class="editor-content">
+        <div class='editor-content'>
           <textarea
-            id="note-content"
-            placeholder="Start writing..."
+            id='note-content'
+            placeholder='Start writing...'
           >${activeNote.content}</textarea>
         </div>
       </main>
     ` : `
-      <main class="empty-state">
+      <main class='empty-state'>
         ${isMobile ? `
           <button id="menu-btn" style="position: absolute; top: 16px; left: 16px; font-size: 1.5rem; background: none; border: none; color: var(--text-primary);">☰</button>
         ` : ''}
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z"/>
-          <path d="M7 7h10M7 12h10M7 17h6"/>
+        <svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'>
+          <path d='M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2z'/>
+          <path d='M7 7h10M7 12h10M7 17h6'/>
         </svg>
         <h2>Select a note</h2>
         <p>Or create a new one to get started</p>

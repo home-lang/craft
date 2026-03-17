@@ -392,41 +392,41 @@ else {
 
 function generateHTML(config: SidebarConfig): string {
   const renderItem = (item: SidebarItem): string => `
-    <div class="craft-sidebar-item${item.selected ? ' selected' : ''}" data-id="${item.id}">
-      ${item.icon ? `<span class="craft-sidebar-item-icon">${getIcon(item.icon, item.tintColor)}</span>` : ''}
-      <span class="craft-sidebar-item-label">${item.label}</span>
-      ${item.badge !== undefined ? `<span class="craft-sidebar-item-badge">${item.badge}</span>` : ''}
+    <div class='craft-sidebar-item${item.selected ? ' selected' : ''}' data-id='${item.id}'>
+      ${item.icon ? `<span class='craft-sidebar-item-icon'>${getIcon(item.icon, item.tintColor)}</span>` : ''}
+      <span class='craft-sidebar-item-label'>${item.label}</span>
+      ${item.badge !== undefined ? `<span class='craft-sidebar-item-badge'>${item.badge}</span>` : ''}
     </div>
   `
 
   const renderSection = (section: SidebarSection): string => `
-    <div class="craft-sidebar-section" data-section="${section.id}">
+    <div class='craft-sidebar-section' data-section='${section.id}'>
       ${section.title ? `
-        <div class="craft-sidebar-section-header${section.collapsed ? ' collapsed' : ''}" data-section-toggle="${section.id}">
+        <div class='craft-sidebar-section-header${section.collapsed ? ' collapsed' : ''}' data-section-toggle='${section.id}'>
           ${section.collapsible !== false ? `<svg class="craft-sidebar-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>` : ''}
           ${section.title}
         </div>
       ` : ''}
-      <div class="craft-sidebar-section-items${section.collapsed ? ' collapsed' : ''}" data-section-items="${section.id}">
+      <div class='craft-sidebar-section-items${section.collapsed ? ' collapsed' : ''}' data-section-items='${section.id}'>
         ${section.items.map(renderItem).join('')}
       </div>
     </div>
   `
 
   return `
-    <aside class="craft-sidebar">
+    <aside class='craft-sidebar'>
       ${config.headerTitle ? `
-        <div class="craft-sidebar-header">
-          <div class="craft-sidebar-header-title">${config.headerTitle}</div>
+        <div class='craft-sidebar-header'>
+          <div class='craft-sidebar-header-title'>${config.headerTitle}</div>
           ${config.headerSubtitle ? `<div class="craft-sidebar-header-subtitle">${config.headerSubtitle}</div>` : ''}
         </div>
       ` : ''}
       ${config.showSearch ? `
-        <div class="craft-sidebar-search">
-          <input type="text" placeholder="${config.searchPlaceholder || 'Search'}" data-sidebar-search>
+        <div class='craft-sidebar-search'>
+          <input type='text' placeholder='${config.searchPlaceholder || 'Search'}' data-sidebar-search>
         </div>
       ` : ''}
-      <div class="craft-sidebar-content">
+      <div class='craft-sidebar-content'>
         ${config.sections?.map(renderSection).join('') || ''}
         ${config.items?.map(renderItem).join('') || ''}
       </div>
@@ -438,20 +438,20 @@ function generateHTML(config: SidebarConfig): string {
 function getIcon(name: string, tintColor?: string): string {
   const color = tintColor || 'currentColor'
   const icons: Record<string, string> = {
-    folder: `<svg viewBox="0 0 24 24" fill="${color}"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
-    file: `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>`,
-    home: `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
-    download: `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
-    cloud: `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>`,
-    star: `<svg viewBox="0 0 24 24" fill="${color}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
-    settings: `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`,
-    user: `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
-    users: `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87m-4-12a4 4 0 0 1 0 7.75"/></svg>`,
-    clock: `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
-    computer: `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`,
-    globe: `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
-    tag: `<svg viewBox="0 0 24 24" fill="${color}"><circle cx="12" cy="12" r="8"/></svg>`,
-    wifi: `<svg viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>`,
+    folder: `<svg viewBox='0 0 24 24' fill='${color}'><path d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'/></svg>`,
+    file: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><path d='M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'/><polyline points='13 2 13 9 20 9'/></svg>`,
+    home: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><path d='m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/></svg>`,
+    download: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg>`,
+    cloud: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><path d='M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z'/></svg>`,
+    star: `<svg viewBox='0 0 24 24' fill='${color}'><polygon points='12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2'/></svg>`,
+    settings: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><circle cx='12' cy='12' r='3'/><path d='M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72 1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42'/></svg>`,
+    user: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/><circle cx='12' cy='7' r='4'/></svg>`,
+    users: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><path d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M23 21v-2a4 4 0 0 0-3-3.87m-4-12a4 4 0 0 1 0 7.75'/></svg>`,
+    clock: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/></svg>`,
+    computer: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><rect x='2' y='3' width='20' height='14' rx='2' ry='2'/><line x1='8' y1='21' x2='16' y2='21'/><line x1='12' y1='17' x2='12' y2='21'/></svg>`,
+    globe: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><circle cx='12' cy='12' r='10'/><line x1='2' y1='12' x2='22' y2='12'/><path d='M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'/></svg>`,
+    tag: `<svg viewBox='0 0 24 24' fill='${color}'><circle cx='12' cy='12' r='8'/></svg>`,
+    wifi: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><path d='M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01'/></svg>`,
   }
   return icons[name] || icons.file
 }
@@ -565,7 +565,7 @@ export class Sidebar {
     this.element.querySelectorAll('[data-section-toggle]').forEach(header => {
       header.addEventListener('click', () => {
         const sectionId = header.getAttribute('data-section-toggle')
-        const items = this.element?.querySelector(`[data-section-items="${sectionId}"]`)
+        const items = this.element?.querySelector(`[data-section-items='${sectionId}']`)
         if (items) {
           header.classList.toggle('collapsed')
           items.classList.toggle('collapsed')

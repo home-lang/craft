@@ -535,9 +535,9 @@ function renderApp(store: SocialStore): void {
   }
 
   app.innerHTML = `
-    <div class="social-app">
+    <div class='social-app'>
       ${renderHeader(store)}
-      <main class="main-content">${content}</main>
+      <main class='main-content'>${content}</main>
       ${renderBottomNav(store)}
     </div>
   `
@@ -558,10 +558,10 @@ function renderHeader(store: SocialStore): string {
   }
 
   return `
-    <header class="header">
-      ${view !== 'feed' ? `<button class="back-btn" data-nav="feed">←</button>` : ''}
-      <h1 class="title">${titles[view]}</h1>
-      ${view === 'feed' ? `<button class="icon-btn" id="messages-btn">✉</button>` : ''}
+    <header class='header'>
+      ${view !== 'feed' ? `<button class='back-btn' data-nav='feed'>←</button>` : ''}
+      <h1 class='title'>${titles[view]}</h1>
+      ${view === 'feed' ? `<button class='icon-btn' id='messages-btn'>✉</button>` : ''}
     </header>
   `
 }
@@ -571,22 +571,22 @@ function renderBottomNav(store: SocialStore): string {
   const unreadCount = store.getUnreadCount()
 
   return `
-    <nav class="bottom-nav">
-      <button class="nav-item ${view === 'feed' ? 'active' : ''}" data-nav="feed">
-        <span class="nav-icon">🏠</span>
+    <nav class='bottom-nav'>
+      <button class='nav-item ${view === 'feed' ? 'active' : ''}' data-nav='feed'>
+        <span class='nav-icon'>🏠</span>
       </button>
-      <button class="nav-item ${view === 'search' ? 'active' : ''}" data-nav="search">
-        <span class="nav-icon">🔍</span>
+      <button class='nav-item ${view === 'search' ? 'active' : ''}' data-nav='search'>
+        <span class='nav-icon'>🔍</span>
       </button>
-      <button class="nav-item ${view === 'create' ? 'active' : ''}" data-nav="create">
-        <span class="nav-icon create-icon">+</span>
+      <button class='nav-item ${view === 'create' ? 'active' : ''}' data-nav='create'>
+        <span class='nav-icon create-icon'>+</span>
       </button>
-      <button class="nav-item ${view === 'notifications' ? 'active' : ''}" data-nav="notifications">
-        <span class="nav-icon">🔔</span>
-        ${unreadCount > 0 ? `<span class="badge">${unreadCount}</span>` : ''}
+      <button class='nav-item ${view === 'notifications' ? 'active' : ''}' data-nav='notifications'>
+        <span class='nav-icon'>🔔</span>
+        ${unreadCount > 0 ? `<span class='badge'>${unreadCount}</span>` : ''}
       </button>
-      <button class="nav-item ${view === 'profile' ? 'active' : ''}" data-nav="profile">
-        <span class="nav-icon">👤</span>
+      <button class='nav-item ${view === 'profile' ? 'active' : ''}' data-nav='profile'>
+        <span class='nav-icon'>👤</span>
       </button>
     </nav>
   `
@@ -597,12 +597,12 @@ function renderFeed(store: SocialStore): string {
   const posts = store.getFeed()
 
   return `
-    <div class="feed-view">
+    <div class='feed-view'>
       ${stories.length > 0 ? `
-        <div class="stories-container">
-          <div class="story add-story">
-            <div class="story-avatar add">+</div>
-            <span class="story-name">Add Story</span>
+        <div class='stories-container'>
+          <div class='story add-story'>
+            <div class='story-avatar add'>+</div>
+            <span class='story-name'>Add Story</span>
           </div>
           ${stories.map((story) => {
             const user = store.getUser(story.userId)
@@ -616,7 +616,7 @@ function renderFeed(store: SocialStore): string {
         </div>
       ` : ''}
 
-      <div class="posts-feed">
+      <div class='posts-feed'>
         ${posts.map((post) => renderPost(post, store)).join('')}
       </div>
     </div>
@@ -627,44 +627,44 @@ function renderPost(post: Post, store: SocialStore): string {
   const user = store.getUser(post.userId)
 
   return `
-    <article class="post" data-post-id="${post.id}">
-      <header class="post-header">
-        <div class="post-user" data-user-id="${post.userId}">
-          <div class="avatar">${user?.displayName.charAt(0) || '?'}</div>
-          <div class="user-info">
-            <span class="display-name">
+    <article class='post' data-post-id='${post.id}'>
+      <header class='post-header'>
+        <div class='post-user' data-user-id='${post.userId}'>
+          <div class='avatar'>${user?.displayName.charAt(0) || '?'}</div>
+          <div class='user-info'>
+            <span class='display-name'>
               ${user?.displayName || 'Unknown'}
               ${user?.isVerified ? '<span class="verified">✓</span>' : ''}
             </span>
-            <span class="username">@${user?.username || 'unknown'}</span>
+            <span class='username'>@${user?.username || 'unknown'}</span>
           </div>
         </div>
-        <span class="post-time">${formatTimestamp(post.createdAt)}</span>
+        <span class='post-time'>${formatTimestamp(post.createdAt)}</span>
       </header>
 
-      <div class="post-content" data-view-post="${post.id}">
+      <div class='post-content' data-view-post='${post.id}'>
         <p>${formatContent(post.content)}</p>
         ${post.images.length > 0 ? `
-          <div class="post-images ${post.images.length > 1 ? 'grid' : ''}">
+          <div class='post-images ${post.images.length > 1 ? 'grid' : ''}'>
             ${post.images.map(() => `<div class="post-image"></div>`).join('')}
           </div>
         ` : ''}
       </div>
 
-      <footer class="post-actions">
-        <button class="action-btn ${post.isLiked ? 'liked' : ''}" data-like="${post.id}">
+      <footer class='post-actions'>
+        <button class='action-btn ${post.isLiked ? 'liked' : ''}' data-like='${post.id}'>
           <span>${post.isLiked ? '❤️' : '🤍'}</span>
           <span>${formatNumber(post.likes)}</span>
         </button>
-        <button class="action-btn" data-comment="${post.id}">
+        <button class='action-btn' data-comment='${post.id}'>
           <span>💬</span>
           <span>${formatNumber(post.comments)}</span>
         </button>
-        <button class="action-btn" data-share="${post.id}">
+        <button class='action-btn' data-share='${post.id}'>
           <span>🔄</span>
           <span>${formatNumber(post.shares)}</span>
         </button>
-        <button class="action-btn ${post.isBookmarked ? 'bookmarked' : ''}" data-bookmark="${post.id}">
+        <button class='action-btn ${post.isBookmarked ? 'bookmarked' : ''}' data-bookmark='${post.id}'>
           <span>${post.isBookmarked ? '🔖' : '📑'}</span>
         </button>
       </footer>
@@ -685,10 +685,10 @@ function renderSearch(store: SocialStore): string {
   const posts = query ? store.searchPosts(query) : []
 
   return `
-    <div class="search-view">
-      <div class="search-bar">
-        <input type="search" id="search-input" placeholder="Search users and posts..."
-          value="${query}" class="search-input" autofocus />
+    <div class='search-view'>
+      <div class='search-bar'>
+        <input type='search' id='search-input' placeholder='Search users and posts...'
+          value='${query}' class='search-input' autofocus />
       </div>
 
       ${query ? `
@@ -714,13 +714,13 @@ function renderSearch(store: SocialStore): string {
           </div>
         ` : ''}
       ` : `
-        <div class="search-suggestions">
+        <div class='search-suggestions'>
           <h2>Trending</h2>
-          <div class="trending-tags">
-            <span class="trending-tag" data-search="#technology">#technology</span>
-            <span class="trending-tag" data-search="#photography">#photography</span>
-            <span class="trending-tag" data-search="#design">#design</span>
-            <span class="trending-tag" data-search="#art">#art</span>
+          <div class='trending-tags'>
+            <span class='trending-tag' data-search='#technology'>#technology</span>
+            <span class='trending-tag' data-search='#photography'>#photography</span>
+            <span class='trending-tag' data-search='#design'>#design</span>
+            <span class='trending-tag' data-search='#art'>#art</span>
           </div>
         </div>
       `}
@@ -732,18 +732,18 @@ function renderUserCard(user: User, store: SocialStore): string {
   const isCurrentUser = user.id === store.getCurrentUser()?.id
 
   return `
-    <div class="user-card" data-user-id="${user.id}">
-      <div class="avatar large">${user.displayName.charAt(0)}</div>
-      <div class="user-details">
-        <span class="display-name">
+    <div class='user-card' data-user-id='${user.id}'>
+      <div class='avatar large'>${user.displayName.charAt(0)}</div>
+      <div class='user-details'>
+        <span class='display-name'>
           ${user.displayName}
           ${user.isVerified ? '<span class="verified">✓</span>' : ''}
         </span>
-        <span class="username">@${user.username}</span>
-        <span class="follower-count">${formatNumber(user.followers)} followers</span>
+        <span class='username'>@${user.username}</span>
+        <span class='follower-count'>${formatNumber(user.followers)} followers</span>
       </div>
       ${!isCurrentUser ? `
-        <button class="follow-btn ${user.isFollowing ? 'following' : ''}" data-follow="${user.id}">
+        <button class='follow-btn ${user.isFollowing ? 'following' : ''}' data-follow='${user.id}'>
           ${user.isFollowing ? 'Following' : 'Follow'}
         </button>
       ` : ''}
@@ -753,22 +753,22 @@ function renderUserCard(user: User, store: SocialStore): string {
 
 function renderCreate(store: SocialStore): string {
   return `
-    <div class="create-view">
-      <form id="create-post-form" class="create-form">
-        <div class="create-header">
-          <div class="avatar">${store.getCurrentUser()?.displayName.charAt(0)}</div>
-          <span class="username">@${store.getCurrentUser()?.username}</span>
+    <div class='create-view'>
+      <form id='create-post-form' class='create-form'>
+        <div class='create-header'>
+          <div class='avatar'>${store.getCurrentUser()?.displayName.charAt(0)}</div>
+          <span class='username'>@${store.getCurrentUser()?.username}</span>
         </div>
 
-        <textarea id="post-content" placeholder="What's on your mind?" class="post-textarea" rows="6"></textarea>
+        <textarea id='post-content' placeholder='What's on your mind?' class='post-textarea' rows='6'></textarea>
 
-        <div class="create-actions">
-          <div class="media-actions">
-            <button type="button" class="media-btn" id="add-image">📷 Photo</button>
-            <button type="button" class="media-btn" id="add-gif">🎬 GIF</button>
-            <button type="button" class="media-btn" id="add-poll">📊 Poll</button>
+        <div class='create-actions'>
+          <div class='media-actions'>
+            <button type='button' class='media-btn' id='add-image'>📷 Photo</button>
+            <button type='button' class='media-btn' id='add-gif'>🎬 GIF</button>
+            <button type='button' class='media-btn' id='add-poll'>📊 Poll</button>
           </div>
-          <button type="submit" class="post-btn" id="submit-post" disabled>Post</button>
+          <button type='submit' class='post-btn' id='submit-post' disabled>Post</button>
         </div>
       </form>
     </div>
@@ -780,8 +780,8 @@ function renderNotifications(store: SocialStore): string {
 
   if (notifications.length === 0) {
     return `
-      <div class="empty-state">
-        <div class="empty-icon">🔔</div>
+      <div class='empty-state'>
+        <div class='empty-icon'>🔔</div>
         <h2>No notifications yet</h2>
         <p>When you get notifications, they'll show up here</p>
       </div>
@@ -789,9 +789,9 @@ function renderNotifications(store: SocialStore): string {
   }
 
   return `
-    <div class="notifications-view">
-      <button class="mark-read-btn" id="mark-all-read">Mark all as read</button>
-      <div class="notifications-list">
+    <div class='notifications-view'>
+      <button class='mark-read-btn' id='mark-all-read'>Mark all as read</button>
+      <div class='notifications-list'>
         ${notifications.map((notif) => {
           const user = store.getUser(notif.userId)
           const icons: Record<string, string> = {
@@ -803,13 +803,13 @@ function renderNotifications(store: SocialStore): string {
           }
 
           return `
-            <div class="notification ${notif.read ? '' : 'unread'}" data-notif-post="${notif.postId || ''}">
-              <div class="notif-icon">${icons[notif.type]}</div>
-              <div class="avatar">${user?.displayName.charAt(0) || '?'}</div>
-              <div class="notif-content">
-                <span class="notif-user">${user?.displayName || 'Unknown'}</span>
-                <span class="notif-text">${notif.content}</span>
-                <span class="notif-time">${formatTimestamp(notif.createdAt)}</span>
+            <div class='notification ${notif.read ? '' : 'unread'}' data-notif-post='${notif.postId || ''}'>
+              <div class='notif-icon'>${icons[notif.type]}</div>
+              <div class='avatar'>${user?.displayName.charAt(0) || '?'}</div>
+              <div class='notif-content'>
+                <span class='notif-user'>${user?.displayName || 'Unknown'}</span>
+                <span class='notif-text'>${notif.content}</span>
+                <span class='notif-time'>${formatTimestamp(notif.createdAt)}</span>
               </div>
             </div>
           `
@@ -824,49 +824,49 @@ function renderProfile(store: SocialStore, user: User): string {
   const posts = store.getUserPosts(user.id)
 
   return `
-    <div class="profile-view">
-      <div class="profile-header">
-        <div class="avatar xlarge">${user.displayName.charAt(0)}</div>
-        <h1 class="display-name">
+    <div class='profile-view'>
+      <div class='profile-header'>
+        <div class='avatar xlarge'>${user.displayName.charAt(0)}</div>
+        <h1 class='display-name'>
           ${user.displayName}
           ${user.isVerified ? '<span class="verified">✓</span>' : ''}
         </h1>
-        <p class="username">@${user.username}</p>
-        ${user.bio ? `<p class="bio">${user.bio}</p>` : ''}
+        <p class='username'>@${user.username}</p>
+        ${user.bio ? `<p class='bio'>${user.bio}</p>` : ''}
 
-        <div class="profile-stats">
-          <div class="stat">
-            <span class="stat-value">${formatNumber(user.posts)}</span>
-            <span class="stat-label">Posts</span>
+        <div class='profile-stats'>
+          <div class='stat'>
+            <span class='stat-value'>${formatNumber(user.posts)}</span>
+            <span class='stat-label'>Posts</span>
           </div>
-          <div class="stat">
-            <span class="stat-value">${formatNumber(user.followers)}</span>
-            <span class="stat-label">Followers</span>
+          <div class='stat'>
+            <span class='stat-value'>${formatNumber(user.followers)}</span>
+            <span class='stat-label'>Followers</span>
           </div>
-          <div class="stat">
-            <span class="stat-value">${formatNumber(user.following)}</span>
-            <span class="stat-label">Following</span>
+          <div class='stat'>
+            <span class='stat-value'>${formatNumber(user.following)}</span>
+            <span class='stat-label'>Following</span>
           </div>
         </div>
 
         ${isCurrentUser ? `
-          <button class="edit-profile-btn">Edit Profile</button>
+          <button class='edit-profile-btn'>Edit Profile</button>
         ` : `
-          <button class="follow-btn large ${user.isFollowing ? 'following' : ''}" data-follow="${user.id}">
+          <button class='follow-btn large ${user.isFollowing ? 'following' : ''}' data-follow='${user.id}'>
             ${user.isFollowing ? 'Following' : 'Follow'}
           </button>
         `}
       </div>
 
-      <div class="profile-tabs">
-        <button class="tab active">Posts</button>
-        <button class="tab">Media</button>
-        <button class="tab">Likes</button>
+      <div class='profile-tabs'>
+        <button class='tab active'>Posts</button>
+        <button class='tab'>Media</button>
+        <button class='tab'>Likes</button>
       </div>
 
-      <div class="profile-posts">
+      <div class='profile-posts'>
         ${posts.length > 0 ? posts.map((post) => renderPost(post, store)).join('') : `
-          <div class="empty-state">
+          <div class='empty-state'>
             <p>No posts yet</p>
           </div>
         `}
@@ -883,18 +883,18 @@ function renderPostDetail(store: SocialStore): string {
   if (!post) return '<div>Post not found</div>'
 
   return `
-    <div class="post-detail-view">
+    <div class='post-detail-view'>
       ${renderPost(post, store)}
 
-      <div class="comments-section">
+      <div class='comments-section'>
         <h3>Comments</h3>
-        <form class="comment-form" id="comment-form">
-          <input type="text" placeholder="Add a comment..." class="comment-input" />
-          <button type="submit" class="comment-submit">Post</button>
+        <form class='comment-form' id='comment-form'>
+          <input type='text' placeholder='Add a comment...' class='comment-input' />
+          <button type='submit' class='comment-submit'>Post</button>
         </form>
 
-        <div class="comments-list">
-          <div class="empty-state">
+        <div class='comments-list'>
+          <div class='empty-state'>
             <p>No comments yet. Be the first to comment!</p>
           </div>
         </div>

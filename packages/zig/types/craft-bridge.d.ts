@@ -48,7 +48,7 @@ export type VibrancyType =
   | 'titlebar';
 
 export type BackgroundColorOptions =
-  | { color: string } // Hex color "#RRGGBB"
+  | { color: string } // Hex color '#RRGGBB'
   | { r: number; g: number; b: number; a?: number };
 
 export type AspectRatioOptions =
@@ -326,7 +326,7 @@ export interface ShortcutsBridge {
 }
 
 export interface ShortcutOptions {
-  accelerator: string; // e.g., "CommandOrControl+Shift+P"
+  accelerator: string; // e.g., 'CommandOrControl+Shift+P'
   callback: string; // JS callback name
 }
 

@@ -11,7 +11,7 @@ const html = `
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
+    <meta charset='UTF-8'>
     <title>Liquid Glass Sidebar</title>
     <style>
         * {
@@ -105,43 +105,43 @@ const html = `
     </style>
 </head>
 <body>
-    <div class="arrow">←</div>
+    <div class='arrow'>←</div>
 
-    <div class="container">
-        <div class="glass-icon">✨</div>
+    <div class='container'>
+        <div class='glass-icon'>✨</div>
         <h1>Liquid Glass</h1>
-        <p class="subtitle">Native macOS Tahoe Design</p>
+        <p class='subtitle'>Native macOS Tahoe Design</p>
 
-        <div class="status">
-            <p id="status" style="font-size: 1.2rem; font-weight: 600;">
+        <div class='status'>
+            <p id='status' style='font-size: 1.2rem; font-weight: 600;'>
                 ⏳ Initializing sidebar...
             </p>
         </div>
 
-        <div class="features">
-            <div class="feature">
-                <div class="feature-icon">🎨</div>
-                <div class="feature-title">Native Material</div>
-                <div class="feature-desc">AppKit handles glass effects automatically</div>
+        <div class='features'>
+            <div class='feature'>
+                <div class='feature-icon'>🎨</div>
+                <div class='feature-title'>Native Material</div>
+                <div class='feature-desc'>AppKit handles glass effects automatically</div>
             </div>
-            <div class="feature">
-                <div class="feature-icon">🔄</div>
-                <div class="feature-title">Auto Layout</div>
-                <div class="feature-desc">Proper constraint-based positioning</div>
+            <div class='feature'>
+                <div class='feature-icon'>🔄</div>
+                <div class='feature-title'>Auto Layout</div>
+                <div class='feature-desc'>Proper constraint-based positioning</div>
             </div>
-            <div class="feature">
-                <div class="feature-icon">📐</div>
-                <div class="feature-title">Safe Areas</div>
-                <div class="feature-desc">Content extends with proper insets</div>
+            <div class='feature'>
+                <div class='feature-icon'>📐</div>
+                <div class='feature-title'>Safe Areas</div>
+                <div class='feature-desc'>Content extends with proper insets</div>
             </div>
-            <div class="feature">
-                <div class="feature-icon">🚀</div>
-                <div class="feature-title">Future-Proof</div>
-                <div class="feature-desc">Follows Apple's Tahoe guidelines</div>
+            <div class='feature'>
+                <div class='feature-icon'>🚀</div>
+                <div class='feature-title'>Future-Proof</div>
+                <div class='feature-desc'>Follows Apple's Tahoe guidelines</div>
             </div>
         </div>
 
-        <p style="margin-top: 2rem; font-size: 1rem; opacity: 0.7;">
+        <p style='margin-top: 2rem; font-size: 1rem; opacity: 0.7;'>
             Look to the left ← for the native Liquid Glass sidebar!
         </p>
     </div>
@@ -224,7 +224,7 @@ else if (attempts >= maxAttempts) {
 catch (error) {
                 console.error('Error creating sidebar:', error);
                 document.getElementById('status').innerHTML =
-                    '❌ Error creating sidebar<br><span style="font-size: 0.8rem;">' + error.message + '</span>';
+                    `❌ Error creating sidebar<br><span style='font-size: 0.8rem;'>${error.message}</span>`;
             }
         }
     </script>
@@ -233,38 +233,38 @@ catch (error) {
 `.trim();
 
 // Write HTML to temp file
-const tmpDir = "/tmp";
-const htmlPath = join(tmpDir, "craft-sidebar-demo.html");
+const tmpDir = '/tmp';
+const htmlPath = join(tmpDir, 'craft-sidebar-demo.html');
 await Bun.write(htmlPath, html);
 
-console.log("🎨 Launching Liquid Glass Sidebar Demo...\n");
-console.log("Features:");
-console.log("  ✓ Native NSSplitViewController");
-console.log("  ✓ Automatic Liquid Glass material");
-console.log("  ✓ No manual NSVisualEffectView");
-console.log("  ✓ Proper Auto Layout");
-console.log("  ✓ Safe area insets");
-console.log("  ✓ Unified toolbar style\n");
+console.log('🎨 Launching Liquid Glass Sidebar Demo...\n');
+console.log('Features:');
+console.log('  ✓ Native NSSplitViewController');
+console.log('  ✓ Automatic Liquid Glass material');
+console.log('  ✓ No manual NSVisualEffectView');
+console.log('  ✓ Proper Auto Layout');
+console.log('  ✓ Safe area insets');
+console.log('  ✓ Unified toolbar style\n');
 
 // Launch the app
 const proc = spawn({
   cmd: [
     craftBin,
-    "--url", `file://${htmlPath}`,
-    "--title", "Liquid Glass Demo",
-    "--width", "1200",
-    "--height", "800",
-    "--titlebar-hidden"
+    '--url', `file://${htmlPath}`,
+    '--title', 'Liquid Glass Demo',
+    '--width', '1200',
+    '--height', '800',
+    '--titlebar-hidden'
   ],
-  stdout: "inherit",
-  stderr: "inherit",
+  stdout: 'inherit',
+  stderr: 'inherit',
 });
 
-console.log("🚀 App launched!");
-console.log("\n👀 Look for:");
-console.log("  • Floating glass sidebar on the left");
-console.log("  • Beautiful gradient background");
-console.log("  • Native macOS appearance\n");
+console.log('🚀 App launched!');
+console.log('\n👀 Look for:');
+console.log('  • Floating glass sidebar on the left');
+console.log('  • Beautiful gradient background');
+console.log('  • Native macOS appearance\n');
 
 // Wait for the process
 await proc.exited;

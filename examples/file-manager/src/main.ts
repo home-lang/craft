@@ -238,53 +238,53 @@ function render() {
   const breadcrumbs = getBreadcrumbs()
 
   app.innerHTML = `
-    <div class="toolbar">
-      <button class="toolbar-btn" id="back-btn" ${historyIndex <= 0 ? 'disabled' : ''}>◀</button>
-      <button class="toolbar-btn" id="forward-btn" ${historyIndex >= history.length - 1 ? 'disabled' : ''}>▶</button>
-      <button class="toolbar-btn" id="up-btn">↑</button>
+    <div class='toolbar'>
+      <button class='toolbar-btn' id='back-btn' ${historyIndex <= 0 ? 'disabled' : ''}>◀</button>
+      <button class='toolbar-btn' id='forward-btn' ${historyIndex >= history.length - 1 ? 'disabled' : ''}>▶</button>
+      <button class='toolbar-btn' id='up-btn'>↑</button>
 
-      <div class="toolbar-separator"></div>
+      <div class='toolbar-separator'></div>
 
-      <div class="breadcrumb">
+      <div class='breadcrumb'>
         ${breadcrumbs.map((crumb, i) => `
-          <button class="breadcrumb-item ${i === breadcrumbs.length - 1 ? 'current' : ''}" data-path="${crumb.path}">
+          <button class='breadcrumb-item ${i === breadcrumbs.length - 1 ? 'current' : ''}' data-path='${crumb.path}'>
             ${crumb.name}
           </button>
-          ${i < breadcrumbs.length - 1 ? '<span class="breadcrumb-separator">/</span>' : ''}
+          ${i < breadcrumbs.length - 1 ? '<span class='breadcrumb-separator'>/</span>' : ''}
         `).join('')}
       </div>
 
-      <div class="view-toggle">
-        <button class="${viewMode === 'list' ? 'active' : ''}" id="list-view-btn">☰</button>
-        <button class="${viewMode === 'grid' ? 'active' : ''}" id="grid-view-btn">⊞</button>
+      <div class='view-toggle'>
+        <button class='${viewMode === 'list' ? 'active' : ''}' id='list-view-btn'>☰</button>
+        <button class='${viewMode === 'grid' ? 'active' : ''}' id='grid-view-btn'>⊞</button>
       </div>
     </div>
 
-    <div class="main">
-      <aside class="sidebar">
-        <div class="sidebar-section">
-          <div class="sidebar-title">Favorites</div>
+    <div class='main'>
+      <aside class='sidebar'>
+        <div class='sidebar-section'>
+          <div class='sidebar-title'>Favorites</div>
           ${locations.map(loc => `
-            <div class="sidebar-item ${currentPath === loc.path ? 'active' : ''}" data-path="${loc.path}">
-              <span class="icon">${loc.icon}</span>
+            <div class='sidebar-item ${currentPath === loc.path ? 'active' : ''}' data-path='${loc.path}'>
+              <span class='icon'>${loc.icon}</span>
               <span>${loc.name}</span>
             </div>
           `).join('')}
         </div>
       </aside>
 
-      <div class="file-list ${viewMode}-view">
+      <div class='file-list ${viewMode}-view'>
         ${loading ? `
-          <div class="loading">
-            <div class="spinner"></div>
+          <div class='loading'>
+            <div class='spinner'></div>
           </div>
         ` : files.length === 0 ? `
-          <div class="empty-state">
-            <div class="icon">📂</div>
+          <div class='empty-state'>
+            <div class='icon'>📂</div>
             <div>This folder is empty</div>
           </div>
         ` : `
-          <div class="file-header">
+          <div class='file-header'>
             <span>Name</span>
             <span>Size</span>
             <span>Kind</span>
@@ -309,7 +309,7 @@ function render() {
       </div>
     </div>
 
-    <div class="status-bar">
+    <div class='status-bar'>
       ${files.length} items${selectedFiles.size > 0 ? ` • ${selectedFiles.size} selected` : ''}
     </div>
   `

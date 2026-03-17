@@ -16,45 +16,45 @@
     const LOG_info = 2;
     const LOG_debug = 3;
 
-    const domDocTestsCode = document.getElementById("docTestsCode");
-    const domFnErrorsAnyError = document.getElementById("fnErrorsAnyError");
-    const domFnProto = document.getElementById("fnProto");
-    const domFnProtoCode = document.getElementById("fnProtoCode");
-    const domHdrName = document.getElementById("hdrName");
-    const domHelpModal = document.getElementById("helpDialog");
-    const domListErrSets = document.getElementById("listErrSets");
-    const domListFields = document.getElementById("listFields");
-    const domListParams = document.getElementById("listParams");
-    const domListFnErrors = document.getElementById("listFnErrors");
-    const domListFns = document.getElementById("listFns");
-    const domListGlobalVars = document.getElementById("listGlobalVars");
-    const _domListInfo = document.getElementById("listInfo");
-    const domListNamespaces = document.getElementById("listNamespaces");
-    const domListNav = document.getElementById("listNav");
-    const domListSearchResults = document.getElementById("listSearchResults");
-    const domListTypes = document.getElementById("listTypes");
-    const domListValues = document.getElementById("listValues");
-    const domSearch = document.getElementById("search");
-    const domSectDocTests = document.getElementById("sectDocTests");
-    const domSectErrSets = document.getElementById("sectErrSets");
-    const domSectFields = document.getElementById("sectFields");
-    const domSectParams = document.getElementById("sectParams");
-    const domSectFnErrors = document.getElementById("sectFnErrors");
-    const domSectFns = document.getElementById("sectFns");
-    const domSectGlobalVars = document.getElementById("sectGlobalVars");
-    const domSectNamespaces = document.getElementById("sectNamespaces");
-    const domSectNav = document.getElementById("sectNav");
-    const domSectSearchNoResults = document.getElementById("sectSearchNoResults");
-    const domSectSearchResults = document.getElementById("sectSearchResults");
-    const domSectSource = document.getElementById("sectSource");
-    const domSectTypes = document.getElementById("sectTypes");
-    const domSectValues = document.getElementById("sectValues");
-    const domSourceText = document.getElementById("sourceText");
-    const domStatus = document.getElementById("status");
-    const domTableFnErrors = document.getElementById("tableFnErrors");
-    const domTldDocs = document.getElementById("tldDocs");
-    const domErrors = document.getElementById("errors");
-    const domErrorsText = document.getElementById("errorsText");
+    const domDocTestsCode = document.getElementById('docTestsCode');
+    const domFnErrorsAnyError = document.getElementById('fnErrorsAnyError');
+    const domFnProto = document.getElementById('fnProto');
+    const domFnProtoCode = document.getElementById('fnProtoCode');
+    const domHdrName = document.getElementById('hdrName');
+    const domHelpModal = document.getElementById('helpDialog');
+    const domListErrSets = document.getElementById('listErrSets');
+    const domListFields = document.getElementById('listFields');
+    const domListParams = document.getElementById('listParams');
+    const domListFnErrors = document.getElementById('listFnErrors');
+    const domListFns = document.getElementById('listFns');
+    const domListGlobalVars = document.getElementById('listGlobalVars');
+    const _domListInfo = document.getElementById('listInfo');
+    const domListNamespaces = document.getElementById('listNamespaces');
+    const domListNav = document.getElementById('listNav');
+    const domListSearchResults = document.getElementById('listSearchResults');
+    const domListTypes = document.getElementById('listTypes');
+    const domListValues = document.getElementById('listValues');
+    const domSearch = document.getElementById('search');
+    const domSectDocTests = document.getElementById('sectDocTests');
+    const domSectErrSets = document.getElementById('sectErrSets');
+    const domSectFields = document.getElementById('sectFields');
+    const domSectParams = document.getElementById('sectParams');
+    const domSectFnErrors = document.getElementById('sectFnErrors');
+    const domSectFns = document.getElementById('sectFns');
+    const domSectGlobalVars = document.getElementById('sectGlobalVars');
+    const domSectNamespaces = document.getElementById('sectNamespaces');
+    const domSectNav = document.getElementById('sectNav');
+    const domSectSearchNoResults = document.getElementById('sectSearchNoResults');
+    const domSectSearchResults = document.getElementById('sectSearchResults');
+    const domSectSource = document.getElementById('sectSource');
+    const domSectTypes = document.getElementById('sectTypes');
+    const domSectValues = document.getElementById('sectValues');
+    const domSourceText = document.getElementById('sourceText');
+    const domStatus = document.getElementById('status');
+    const domTableFnErrors = document.getElementById('tableFnErrors');
+    const domTldDocs = document.getElementById('tldDocs');
+    const domErrors = document.getElementById('errors');
+    const domErrorsText = document.getElementById('errorsText');
 
     var searchTimer = null;
 
@@ -68,20 +68,20 @@
       // string file name matching tarball path
       path: null,
 
-      // when this is populated, pressing the "view source" command will
+      // when this is populated, pressing the 'view source' command will
       // navigate to this hash.
       viewSourceHash: null,
     };
-    var curNavSearch = "";
+    var curNavSearch = '';
     var curSearchIndex = -1;
     var imFeelingLucky = false;
 
     // names of modules in the same order as wasm
     const moduleList = [];
 
-    const wasm_promise = fetch("main.wasm");
-    const _sources_promise = fetch("sources.tar").then((_response) => {
-      if (!_response.ok) throw new Error("unable to download sources");
+    const wasm_promise = fetch('main.wasm');
+    const _sources_promise = fetch('sources.tar').then((_response) => {
+      if (!_response.ok) throw new Error('unable to download sources');
       return _response.arrayBuffer();
     });
     var wasm_exports = null;
@@ -97,7 +97,7 @@
             case LOG_err:
               console.error(msg);
               domErrorsText.textContent += `${msg}\n`;
-              domErrors.classList.remove("hidden");
+              domErrors.classList.remove('hidden');
               break;
             case LOG_warn:
               console.warn(msg);
@@ -138,7 +138,7 @@
     });
 
     function renderTitle() {
-      const suffix = " - Zig Documentation";
+      const suffix = ' - Zig Documentation';
       if (curNavSearch.length > 0) {
         document.title = `${curNavSearch} - Search${suffix}`;
       }
@@ -154,31 +154,31 @@ else {
     }
 
     function render() {
-        domFnErrorsAnyError.classList.add("hidden");
-        domFnProto.classList.add("hidden");
-        domHdrName.classList.add("hidden");
-        domHelpModal.classList.add("hidden");
-        domSectErrSets.classList.add("hidden");
-        domSectDocTests.classList.add("hidden");
-        domSectFields.classList.add("hidden");
-        domSectParams.classList.add("hidden");
-        domSectFnErrors.classList.add("hidden");
-        domSectFns.classList.add("hidden");
-        domSectGlobalVars.classList.add("hidden");
-        domSectNamespaces.classList.add("hidden");
-        domSectNav.classList.add("hidden");
-        domSectSearchNoResults.classList.add("hidden");
-        domSectSearchResults.classList.add("hidden");
-        domSectSource.classList.add("hidden");
-        domSectTypes.classList.add("hidden");
-        domSectValues.classList.add("hidden");
-        domStatus.classList.add("hidden");
-        domTableFnErrors.classList.add("hidden");
-        domTldDocs.classList.add("hidden");
+        domFnErrorsAnyError.classList.add('hidden');
+        domFnProto.classList.add('hidden');
+        domHdrName.classList.add('hidden');
+        domHelpModal.classList.add('hidden');
+        domSectErrSets.classList.add('hidden');
+        domSectDocTests.classList.add('hidden');
+        domSectFields.classList.add('hidden');
+        domSectParams.classList.add('hidden');
+        domSectFnErrors.classList.add('hidden');
+        domSectFns.classList.add('hidden');
+        domSectGlobalVars.classList.add('hidden');
+        domSectNamespaces.classList.add('hidden');
+        domSectNav.classList.add('hidden');
+        domSectSearchNoResults.classList.add('hidden');
+        domSectSearchResults.classList.add('hidden');
+        domSectSource.classList.add('hidden');
+        domSectTypes.classList.add('hidden');
+        domSectValues.classList.add('hidden');
+        domStatus.classList.add('hidden');
+        domTableFnErrors.classList.add('hidden');
+        domTldDocs.classList.add('hidden');
 
         renderTitle();
 
-        if (curNavSearch !== "") return renderSearch();
+        if (curNavSearch !== '') return renderSearch();
 
         switch (curNav.tag) {
           case 0: return renderHome();
@@ -190,14 +190,14 @@ else {
               return renderDecl(curNav.decl);
             }
           case 2: return renderSource(curNav.path);
-          default: throw new Error("invalid navigation state");
+          default: throw new Error('invalid navigation state');
         }
     }
 
     function renderHome() {
       if (moduleList.length == 0) {
-        domStatus.textContent = "sources.tar contains no modules";
-        domStatus.classList.remove("hidden");
+        domStatus.textContent = 'sources.tar contains no modules';
+        domStatus.classList.remove('hidden');
         return;
       }
       return renderModule(0);
@@ -238,13 +238,13 @@ else {
       if (decl_index == null) return renderNotFound();
 
       renderNavFancy(decl_index, [{
-        name: "[src]",
+        name: '[src]',
         href: location.hash,
       }]);
 
       domSourceText.innerHTML = declSourceHtml(decl_index);
 
-      domSectSource.classList.remove("hidden");
+      domSectSource.classList.remove('hidden');
     }
 
     function renderDeclHeading(decl_index) {
@@ -254,7 +254,7 @@ else {
       const srcLink = domHdrName.children[1];
       hdrNameSpan.innerText = unwrapString(wasm_exports.decl_category_name(decl_index));
       srcLink.setAttribute('href', curNav.viewSourceHash);
-      domHdrName.classList.remove("hidden");
+      domHdrName.classList.remove('hidden');
 
       renderTopLevelDocs(decl_index);
     }
@@ -263,7 +263,7 @@ else {
       const tld_docs_html = unwrapString(wasm_exports.decl_docs_html(decl_index, false));
       if (tld_docs_html.length > 0) {
         domTldDocs.innerHTML = tld_docs_html;
-        domTldDocs.classList.remove("hidden");
+        domTldDocs.classList.remove('hidden');
       }
     }
 
@@ -288,10 +288,10 @@ else {
         // Next, walk backwards the file path segments.
         if (prev_decl_it != null) {
           const file_path = fullyQualifiedName(prev_decl_it);
-          const parts = file_path.split(".");
+          const parts = file_path.split('.');
           parts.pop(); // skip last
           for (;;) {
-            const href = navLinkFqn(parts.join("."));
+            const href = navLinkFqn(parts.join('.'));
             const part = parts.pop();
             if (!part) break;
             list.push({
@@ -311,19 +311,19 @@ else {
           aDom.textContent = list[i].name;
           aDom.setAttribute('href', list[i].href);
           if (i + 1 == list.length) {
-              aDom.classList.add("active");
+              aDom.classList.add('active');
           }
 else {
-              aDom.classList.remove("active");
+              aDom.classList.remove('active');
           }
       }
 
-      domSectNav.classList.remove("hidden");
+      domSectNav.classList.remove('hidden');
     }
 
     function renderNotFound() {
-        domStatus.textContent = "Declaration not found.";
-        domStatus.classList.remove("hidden");
+        domStatus.textContent = 'Declaration not found.';
+        domStatus.classList.remove('hidden');
     }
 
     function navLinkFqn(full_name) {
@@ -356,7 +356,7 @@ else {
 
     function renderErrorSet(base_decl, errorSetList) {
       if (errorSetList == null) {
-        domFnErrorsAnyError.classList.remove("hidden");
+        domFnErrorsAnyError.classList.remove('hidden');
       }
 else {
         resizeDomList(domListFnErrors, errorSetList.length, '<div></div>');
@@ -365,9 +365,9 @@ else {
             const html = unwrapString(wasm_exports.error_html(base_decl, errorSetList[i]));
             divDom.innerHTML = html;
         }
-        domTableFnErrors.classList.remove("hidden");
+        domTableFnErrors.classList.remove('hidden');
       }
-      domSectFnErrors.classList.remove("hidden");
+      domSectFnErrors.classList.remove('hidden');
     }
 
     function renderParams(decl_index) {
@@ -379,7 +379,7 @@ else {
               const divDom = domListParams.children[i];
               divDom.innerHTML = unwrapString(wasm_exports.decl_param_html(decl_index, params[i]));
           }
-          domSectParams.classList.remove("hidden");
+          domSectParams.classList.remove('hidden');
       }
     }
 
@@ -397,7 +397,7 @@ else {
       }
 else {
         domSourceText.innerHTML = declSourceHtml(decl_index);
-        domSectSource.classList.remove("hidden");
+        domSectSource.classList.remove('hidden');
       }
     }
 
@@ -405,7 +405,7 @@ else {
       const doctest_html = declDoctestHtml(decl_index);
       if (doctest_html.length > 0) {
         domDocTestsCode.innerHTML = doctest_html;
-        domSectDocTests.classList.remove("hidden");
+        domSectDocTests.classList.remove('hidden');
       }
     }
 
@@ -417,7 +417,7 @@ else {
       renderDocTests(decl_index);
 
       domFnProtoCode.innerHTML = fnProtoHtml(decl_index, false);
-      domFnProto.classList.remove("hidden");
+      domFnProto.classList.remove('hidden');
 
 
       const errorSetNode = fnErrorSet(decl_index);
@@ -427,7 +427,7 @@ else {
       }
 
       domSourceText.innerHTML = declSourceHtml(decl_index);
-      domSectSource.classList.remove("hidden");
+      domSectSource.classList.remove('hidden');
     }
 
     function renderGlobal(decl_index) {
@@ -437,11 +437,11 @@ else {
       const docs_html = declDocsHtmlShort(decl_index);
       if (docs_html.length > 0) {
         domTldDocs.innerHTML = docs_html;
-        domTldDocs.classList.remove("hidden");
+        domTldDocs.classList.remove('hidden');
       }
 
       domSourceText.innerHTML = declSourceHtml(decl_index);
-      domSectSource.classList.remove("hidden");
+      domSectSource.classList.remove('hidden');
     }
 
     function renderNamespace(base_decl, members, fields) {
@@ -508,7 +508,7 @@ else {
               aDom.textContent = declIndexName(original_decl);
               aDom.setAttribute('href', navLinkDeclIndex(decl));
           }
-          domSectTypes.classList.remove("hidden");
+          domSectTypes.classList.remove('hidden');
       }
       if (namespacesList.length !== 0) {
           resizeDomList(domListNamespaces, namespacesList.length, '<li><a href="#"></a></li>');
@@ -520,7 +520,7 @@ else {
               aDom.textContent = declIndexName(original_decl);
               aDom.setAttribute('href', navLinkDeclIndex(decl));
           }
-          domSectNamespaces.classList.remove("hidden");
+          domSectNamespaces.classList.remove('hidden');
       }
 
       if (errSetsList.length !== 0) {
@@ -533,7 +533,7 @@ else {
               aDom.textContent = declIndexName(original_decl);
               aDom.setAttribute('href', navLinkDeclIndex(decl));
           }
-          domSectErrSets.classList.remove("hidden");
+          domSectErrSets.classList.remove('hidden');
       }
 
       if (fnsList.length !== 0) {
@@ -550,7 +550,7 @@ else {
               protoCodeDom.innerHTML = fnProtoHtml(decl, true);
               ddDocs.innerHTML = declDocsHtmlShort(decl);
           }
-          domSectFns.classList.remove("hidden");
+          domSectFns.classList.remove('hidden');
       }
 
       if (fields.length !== 0) {
@@ -559,7 +559,7 @@ else {
               const divDom = domListFields.children[i];
               divDom.innerHTML = unwrapString(wasm_exports.decl_field_html(base_decl, fields[i]));
           }
-          domSectFields.classList.remove("hidden");
+          domSectFields.classList.remove('hidden');
       }
 
       if (varsList.length !== 0) {
@@ -580,7 +580,7 @@ else {
               tdType.innerHTML = declTypeHtml(decl);
               tdDesc.innerHTML = declDocsHtmlShort(decl);
           }
-          domSectGlobalVars.classList.remove("hidden");
+          domSectGlobalVars.classList.remove('hidden');
       }
 
       if (valsList.length !== 0) {
@@ -601,7 +601,7 @@ else {
               tdType.innerHTML = declTypeHtml(decl);
               tdDesc.innerHTML = declDocsHtmlShort(decl);
           }
-          domSectValues.classList.remove("hidden");
+          domSectValues.classList.remove('hidden');
       }
     }
 
@@ -630,11 +630,11 @@ else {
         curNav.decl = null;
         curNav.path = null;
         curNav.viewSourceHash = null;
-        curNavSearch = "";
+        curNavSearch = '';
 
         if (location_hash.length > 1 && location_hash[0] === '#') {
             const query = location_hash.substring(1);
-            const qpos = query.indexOf("?");
+            const qpos = query.indexOf('?');
             let nonSearchPart;
             if (qpos === -1) {
                 nonSearchPart = query;
@@ -645,7 +645,7 @@ else {
             }
 
             if (nonSearchPart.length > 0) {
-              const source_mode = nonSearchPart.startsWith("src/");
+              const source_mode = nonSearchPart.startsWith('src/');
               if (source_mode) {
                 curNav.tag = 2;
                 curNav.path = nonSearchPart.substring(4);
@@ -660,7 +660,7 @@ else {
 
     function onHashChange(state) {
       // Use a non-null state value to prevent the window scrolling if the user goes back to this history entry.
-      history.replaceState({}, "");
+      history.replaceState({}, '');
       navigate(location.hash);
       if (state == null) window.scrollTo({top: 0});
     }
@@ -686,7 +686,7 @@ else {
     }
 
     function activateSelectedResult() {
-        if (domSectSearchResults.classList.contains("hidden")) {
+        if (domSectSearchResults.classList.contains('hidden')) {
             return;
         }
 
@@ -696,7 +696,7 @@ else {
         }
         if (liDom != null) {
             var aDom = liDom.children[0];
-            location.href = aDom.getAttribute("href");
+            location.href = aDom.getAttribute('href');
             curSearchIndex = -1;
         }
         domSearch.blur();
@@ -704,7 +704,7 @@ else {
 
     function onSearchKeyDown(ev) {
       switch (ev.code) {
-        case "Enter":
+        case 'Enter':
           if (ev.shiftKey || ev.ctrlKey || ev.altKey) return;
 
           clearAsyncSearch();
@@ -714,24 +714,24 @@ else {
           ev.preventDefault();
           ev.stopPropagation();
           return;
-        case "Escape":
+        case 'Escape':
           if (ev.shiftKey || ev.ctrlKey || ev.altKey) return;
 
-          domSearch.value = "";
+          domSearch.value = '';
           domSearch.blur();
           curSearchIndex = -1;
           ev.preventDefault();
           ev.stopPropagation();
           startSearch();
           return;
-        case "ArrowUp":
+        case 'ArrowUp':
           if (ev.shiftKey || ev.ctrlKey || ev.altKey) return;
 
           moveSearchCursor(-1);
           ev.preventDefault();
           ev.stopPropagation();
           return;
-        case "ArrowDown":
+        case 'ArrowDown':
           if (ev.shiftKey || ev.ctrlKey || ev.altKey) return;
 
           moveSearchCursor(1);
@@ -772,15 +772,15 @@ else {
 
     function onWindowKeyDown(ev) {
         switch (ev.code) {
-            case "Escape":
+            case 'Escape':
                 if (ev.shiftKey || ev.ctrlKey || ev.altKey) return;
-                if (!domHelpModal.classList.contains("hidden")) {
-                    domHelpModal.classList.add("hidden");
+                if (!domHelpModal.classList.contains('hidden')) {
+                    domHelpModal.classList.add('hidden');
                     ev.preventDefault();
                     ev.stopPropagation();
                 }
                 break;
-            case "KeyS":
+            case 'KeyS':
                 if (ev.shiftKey || ev.ctrlKey || ev.altKey) return;
                 domSearch.focus();
                 domSearch.select();
@@ -788,13 +788,13 @@ else {
                 ev.stopPropagation();
                 startAsyncSearch();
                 break;
-            case "KeyU":
+            case 'KeyU':
                 if (ev.shiftKey || ev.ctrlKey || ev.altKey) return;
                 ev.preventDefault();
                 ev.stopPropagation();
                 navigateToSource();
                 break;
-            case "Slash":
+            case 'Slash':
                 if (!ev.shiftKey || ev.ctrlKey || ev.altKey) return;
                 ev.preventDefault();
                 ev.stopPropagation();
@@ -804,9 +804,9 @@ else {
     }
 
     function showHelpModal() {
-        domHelpModal.classList.remove("hidden");
-        domHelpModal.style.left = (window.innerWidth / 2 - domHelpModal.clientWidth / 2) + "px";
-        domHelpModal.style.top = (window.innerHeight / 2 - domHelpModal.clientHeight / 2) + "px";
+        domHelpModal.classList.remove('hidden');
+        domHelpModal.style.left = (window.innerWidth / 2 - domHelpModal.clientWidth / 2) + 'px';
+        domHelpModal.style.top = (window.innerHeight / 2 - domHelpModal.clientHeight / 2) + 'px';
         domHelpModal.focus();
     }
 
@@ -829,14 +829,14 @@ else {
     }
     function computeSearchHash() {
       // How location.hash works:
-      // 1. http://example.com/     => ""
-      // 2. http://example.com/#    => ""
-      // 3. http://example.com/#foo => "#foo"
+      // 1. http://example.com/     => ''
+      // 2. http://example.com/#    => ''
+      // 3. http://example.com/#foo => '#foo'
       // wat
       const oldWatHash = location.hash;
-      const oldHash = oldWatHash.startsWith("#") ? oldWatHash : `#${oldWatHash}`;
-      const parts = oldHash.split("?");
-      const newPart2 = (domSearch.value === "") ? "" : (`?${domSearch.value}`);
+      const oldHash = oldWatHash.startsWith('#') ? oldWatHash : `#${oldWatHash}`;
+      const parts = oldHash.split('?');
+      const newPart2 = (domSearch.value === '') ? '' : (`?${domSearch.value}`);
       return `${parts[0]}${newPart2}`;
     }
     function startSearch() {
@@ -862,10 +862,10 @@ else {
             }
             renderSearchCursor();
 
-            domSectSearchResults.classList.remove("hidden");
+            domSectSearchResults.classList.remove('hidden');
         }
 else {
-            domSectSearchNoResults.classList.remove("hidden");
+            domSectSearchNoResults.classList.remove('hidden');
         }
     }
 
@@ -873,10 +873,10 @@ else {
         for (let i = 0; i < domListSearchResults.children.length; i += 1) {
             const liDom = domListSearchResults.children[i];
             if (curSearchIndex === i) {
-                liDom.classList.add("selected");
+                liDom.classList.add('selected');
             }
 else {
-                liDom.classList.remove("selected");
+                liDom.classList.remove('selected');
             }
         }
     }
@@ -903,7 +903,7 @@ else {
     }
 
     function decodeString(ptr, len) {
-      if (len === 0) return "";
+      if (len === 0) return '';
       return text_decoder.decode(new Uint8Array(wasm_exports.memory.buffer, ptr, len));
     }
 

@@ -125,16 +125,16 @@ else if (Array.isArray(value) && value.length > 0) {
    */
   static strict(): ContentSecurityPolicy {
     return new ContentSecurityPolicy({
-      'default-src': ["'self'"],
-      'script-src': ["'self'"],
-      'style-src': ["'self'", "'unsafe-inline'"],
-      'img-src': ["'self'", 'data:', 'https:'],
-      'font-src': ["'self'"],
-      'connect-src': ["'self'"],
-      'object-src': ["'none'"],
-      'frame-ancestors': ["'none'"],
-      'base-uri': ["'self'"],
-      'form-action': ["'self'"],
+      'default-src': ['\'self\''],
+      'script-src': ['\'self\''],
+      'style-src': ['\'self\'', '\'unsafe-inline\''],
+      'img-src': ['\'self\'', 'data:', 'https:'],
+      'font-src': ['\'self\''],
+      'connect-src': ['\'self\''],
+      'object-src': ['\'none\''],
+      'frame-ancestors': ['\'none\''],
+      'base-uri': ['\'self\''],
+      'form-action': ['\'self\''],
       'upgrade-insecure-requests': true,
       'block-all-mixed-content': true,
     })
@@ -145,11 +145,11 @@ else if (Array.isArray(value) && value.length > 0) {
    */
   static development(): ContentSecurityPolicy {
     return new ContentSecurityPolicy({
-      'default-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      'style-src': ["'self'", "'unsafe-inline'"],
-      'img-src': ["'self'", 'data:', 'blob:', '*'],
-      'connect-src': ["'self'", 'ws:', 'wss:', '*'],
+      'default-src': ['\'self\'', '\'unsafe-inline\'', '\'unsafe-eval\''],
+      'script-src': ['\'self\'', '\'unsafe-inline\'', '\'unsafe-eval\''],
+      'style-src': ['\'self\'', '\'unsafe-inline\''],
+      'img-src': ['\'self\'', 'data:', 'blob:', '*'],
+      'connect-src': ['\'self\'', 'ws:', 'wss:', '*'],
     })
   }
 }
@@ -285,7 +285,7 @@ export class CertificatePinner {
     const config = this.pins.get(hostname)
     if (!config) return null
 
-    const pinDirectives = config.pins.map((pin) => `pin-sha256="${pin}"`).join('; ')
+    const pinDirectives = config.pins.map((pin) => `pin-sha256='${pin}'`).join('; ')
     const maxAge = `max-age=${config.maxAge || 5184000}` // Default 60 days
 
     let header = `${pinDirectives}; ${maxAge}`
@@ -295,7 +295,7 @@ export class CertificatePinner {
     }
 
     if (config.reportUri) {
-      header += `; report-uri="${config.reportUri}"`
+      header += `; report-uri='${config.reportUri}'`
     }
 
     return header
@@ -504,7 +504,7 @@ export const sanitizers = {
    * Escape SQL (basic - prefer parameterized queries)
    */
   escapeSql: (value: string): string => {
-    return value.replace(/'/g, "''").replace(/\\/g, '\\\\')
+    return value.replace(/'/g, '\'\'').replace(/\\/g, '\\\\')
   },
 }
 

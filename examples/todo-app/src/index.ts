@@ -177,34 +177,34 @@ function render(): void {
   const completedCount = getCompletedCount()
 
   app.innerHTML = `
-    <div class="todo-app">
-      <header class="header">
+    <div class='todo-app'>
+      <header class='header'>
         <h1>Todos</h1>
-        <p class="platform-badge">${getPlatform()}</p>
+        <p class='platform-badge'>${getPlatform()}</p>
       </header>
 
-      <div class="input-section">
+      <div class='input-section'>
         <input
-          id="new-todo"
-          class="new-todo"
-          placeholder="What needs to be done?"
+          id='new-todo'
+          class='new-todo'
+          placeholder='What needs to be done?'
           autofocus
         />
       </div>
 
       ${state.todos.length > 0 ? `
-        <section class="main">
-          <div class="toggle-all-container">
+        <section class='main'>
+          <div class='toggle-all-container'>
             <input
-              id="toggle-all"
-              class="toggle-all"
-              type="checkbox"
+              id='toggle-all'
+              class='toggle-all'
+              type='checkbox'
               ${activeCount === 0 ? 'checked' : ''}
             />
-            <label for="toggle-all">Mark all as complete</label>
+            <label for='toggle-all'>Mark all as complete</label>
           </div>
 
-          <ul class="todo-list">
+          <ul class='todo-list'>
             ${filteredTodos.map(todo => `
               <li class="todo-item ${todo.completed ? 'completed' : ''} ${state.editingId === todo.id ? 'editing' : ''}" data-id="${todo.id}">
                 <div class="view">
@@ -222,20 +222,20 @@ function render(): void {
           </ul>
         </section>
 
-        <footer class="footer">
-          <span class="todo-count">
+        <footer class='footer'>
+          <span class='todo-count'>
             <strong>${activeCount}</strong> ${activeCount === 1 ? 'item' : 'items'} left
           </span>
 
-          <ul class="filters">
+          <ul class='filters'>
             <li>
-              <a href="#/" class="${state.filter === 'all' ? 'selected' : ''}">All</a>
+              <a href='#/' class='${state.filter === 'all' ? 'selected' : ''}'>All</a>
             </li>
             <li>
-              <a href="#/active" class="${state.filter === 'active' ? 'selected' : ''}">Active</a>
+              <a href='#/active' class='${state.filter === 'active' ? 'selected' : ''}'>Active</a>
             </li>
             <li>
-              <a href="#/completed" class="${state.filter === 'completed' ? 'selected' : ''}">Completed</a>
+              <a href='#/completed' class='${state.filter === 'completed' ? 'selected' : ''}'>Completed</a>
             </li>
           </ul>
 
@@ -245,7 +245,7 @@ function render(): void {
         </footer>
       ` : ''}
 
-      <footer class="info">
+      <footer class='info'>
         <p>Double-click to edit a todo</p>
         ${isDesktop() ? '<p>Press <kbd>Cmd/Ctrl+N</kbd> for new todo</p>' : ''}
       </footer>
@@ -313,7 +313,7 @@ function attachEventListeners(): void {
     item.querySelector('.todo-text')?.addEventListener('dblclick', () => {
       state.editingId = id
       render()
-      const editInput = document.querySelector(`.todo-item[data-id="${id}"] .edit`) as HTMLInputElement
+      const editInput = document.querySelector(`.todo-item[data-id='${id}'] .edit`) as HTMLInputElement
       editInput?.focus()
       editInput?.setSelectionRange(editInput.value.length, editInput.value.length)
     })

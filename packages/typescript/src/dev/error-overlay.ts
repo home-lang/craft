@@ -167,7 +167,7 @@ function generateOverlayHtml(error: ErrorInfo, config: ErrorOverlayConfig): stri
         : 'top: 50%; transform: translateY(-50%);'
 
   return `
-<div id="craft-error-overlay" style="
+<div id='craft-error-overlay' style='
   position: fixed;
   ${positionStyles}
   left: 0;
@@ -176,28 +176,28 @@ function generateOverlayHtml(error: ErrorInfo, config: ErrorOverlayConfig): stri
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 14px;
   line-height: 1.5;
-">
-  <div style="
+'>
+  <div style='
     background: #1e1e1e;
     color: #f8f8f2;
     max-height: 80vh;
     overflow: auto;
     box-shadow: 0 4px 24px rgba(0,0,0,0.5);
-  ">
+  '>
     <!-- Header -->
-    <div style="
+    <div style='
       background: #cc3333;
       color: white;
       padding: 12px 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-    ">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="font-size: 20px;">⚠️</span>
-        <span style="font-weight: 600;">Runtime Error</span>
+    '>
+      <div style='display: flex; align-items: center; gap: 8px;'>
+        <span style='font-size: 20px;'>⚠️</span>
+        <span style='font-weight: 600;'>Runtime Error</span>
       </div>
-      <button id="craft-error-close" style="
+      <button id='craft-error-close' style='
         background: rgba(255,255,255,0.2);
         border: none;
         color: white;
@@ -205,18 +205,18 @@ function generateOverlayHtml(error: ErrorInfo, config: ErrorOverlayConfig): stri
         border-radius: 4px;
         cursor: pointer;
         font-size: 14px;
-      ">✕ Close</button>
+      '>✕ Close</button>
     </div>
 
     <!-- Error Message -->
-    <div style="padding: 16px; border-bottom: 1px solid #333;">
-      <div style="
+    <div style='padding: 16px; border-bottom: 1px solid #333;'>
+      <div style='
         color: #ff6b6b;
         font-size: 18px;
         font-weight: 500;
         margin-bottom: 8px;
         word-break: break-word;
-      ">${escapeHtml(error.message)}</div>
+      '>${escapeHtml(error.message)}</div>
 
       ${
         error.source
@@ -233,9 +233,9 @@ function generateOverlayHtml(error: ErrorInfo, config: ErrorOverlayConfig): stri
       error.suggestions && error.suggestions.length > 0
         ? `
       <!-- Suggestions -->
-      <div style="padding: 16px; background: #252526; border-bottom: 1px solid #333;">
-        <div style="color: #569cd6; font-weight: 600; margin-bottom: 8px;">💡 Suggestions</div>
-        <ul style="margin: 0; padding-left: 20px; color: #9cdcfe;">
+      <div style='padding: 16px; background: #252526; border-bottom: 1px solid #333;'>
+        <div style='color: #569cd6; font-weight: 600; margin-bottom: 8px;'>💡 Suggestions</div>
+        <ul style='margin: 0; padding-left: 20px; color: #9cdcfe;'>
           ${error.suggestions.map((s) => `<li style="margin-bottom: 4px;">${escapeHtml(s)}</li>`).join('')}
         </ul>
       </div>
@@ -247,15 +247,15 @@ function generateOverlayHtml(error: ErrorInfo, config: ErrorOverlayConfig): stri
       error.stack
         ? `
       <!-- Stack Trace -->
-      <div style="padding: 16px;">
-        <div style="color: #888; font-weight: 600; margin-bottom: 8px;">Stack Trace</div>
-        <pre style="
+      <div style='padding: 16px;'>
+        <div style='color: #888; font-weight: 600; margin-bottom: 8px;'>Stack Trace</div>
+        <pre style='
           margin: 0;
           white-space: pre-wrap;
           word-break: break-word;
           color: #888;
           font-size: 12px;
-        "><style>
+        '><style>
           .stack-location { color: #6a9955; }
           .stack-line { color: #b5cea8; }
           .stack-function { color: #dcdcaa; }
@@ -269,22 +269,22 @@ function generateOverlayHtml(error: ErrorInfo, config: ErrorOverlayConfig): stri
       error.componentStack
         ? `
       <!-- Component Stack -->
-      <div style="padding: 16px; border-top: 1px solid #333;">
-        <div style="color: #888; font-weight: 600; margin-bottom: 8px;">Component Stack</div>
-        <pre style="
+      <div style='padding: 16px; border-top: 1px solid #333;'>
+        <div style='color: #888; font-weight: 600; margin-bottom: 8px;'>Component Stack</div>
+        <pre style='
           margin: 0;
           white-space: pre-wrap;
           color: #ce9178;
           font-size: 12px;
-        ">${escapeHtml(error.componentStack)}</pre>
+        '>${escapeHtml(error.componentStack)}</pre>
       </div>
     `
         : ''
     }
 
     <!-- Actions -->
-    <div style="padding: 12px 16px; background: #252526; display: flex; gap: 8px;">
-      <button onclick="location.reload()" style="
+    <div style='padding: 12px 16px; background: #252526; display: flex; gap: 8px;'>
+      <button onclick='location.reload()' style='
         background: #0e639c;
         color: white;
         border: none;
@@ -292,8 +292,8 @@ function generateOverlayHtml(error: ErrorInfo, config: ErrorOverlayConfig): stri
         border-radius: 4px;
         cursor: pointer;
         font-size: 14px;
-      ">🔄 Reload Page</button>
-      <button id="craft-error-copy" style="
+      '>🔄 Reload Page</button>
+      <button id='craft-error-copy' style='
         background: #3c3c3c;
         color: white;
         border: none;
@@ -301,7 +301,7 @@ function generateOverlayHtml(error: ErrorInfo, config: ErrorOverlayConfig): stri
         border-radius: 4px;
         cursor: pointer;
         font-size: 14px;
-      ">📋 Copy Error</button>
+      '>📋 Copy Error</button>
     </div>
   </div>
 </div>
