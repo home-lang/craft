@@ -2126,20 +2126,31 @@ pub fn createWindowWithSidebarURL(
             std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
     };
 
-    // Inject bridge script with sidebar width for CSS env variable
-    const bridgeScript =
+    // Inject minimal bridge (no menubar/tray polling) + native sidebar flag
+    const WKUserScript = getClass("WKUserScript");
+    const bridge_js = getCraftBridgeScriptMinimal();
+    const bridge_js_str = createNSString(bridge_js);
+    const bridge_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", bridge_js_str, @as(c_long, 0), @as(c_int, 1));
+    _ = msgSend1(userContentController, "addUserScript:", bridge_script);
+
+    // Inject native UI script for sidebar/split-view components
+    const native_ui_js = getNativeUIScript();
+    const native_ui_js_str = createNSString(native_ui_js);
+    const native_ui_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", native_ui_js_str, @as(c_long, 0), @as(c_int, 1));
+    _ = msgSend1(userContentController, "addUserScript:", native_ui_script);
+
+    // Inject native sidebar flag and default handler
+    const sidebarFlagScript =
         \\window.__craftNativeSidebar = true;
         \\window.__craftSidebarWidth = 260;
         \\window.craft = window.craft || {};
-        \\window.craft._sidebarSelectHandler = function(event) {
+        \\window.craft._sidebarSelectHandler = window.craft._sidebarSelectHandler || function(event) {
         \\  console.log('[Craft] Sidebar navigation:', event);
         \\};
     ;
-    const WKUserScript = getClass("WKUserScript");
-    const scriptStr = createNSString(bridgeScript);
-    const userScript_alloc = msgSend0(WKUserScript, "alloc");
-    const userScript = msgSend3(userScript_alloc, "initWithSource:injectionTime:forMainFrameOnly:", scriptStr, @as(c_long, 0), @as(c_int, 1));
-    _ = msgSend1(userContentController, "addUserScript:", userScript);
+    const flagStr = createNSString(sidebarFlagScript);
+    const flagScript = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", flagStr, @as(c_long, 0), @as(c_int, 1));
+    _ = msgSend1(userContentController, "addUserScript:", flagScript);
 
     _ = msgSend1(config, "setUserContentController:", userContentController);
 

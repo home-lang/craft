@@ -471,6 +471,17 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    const native_sidebar_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("test/native_sidebar_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "../src/cli.zig", .module = cli_module },
+            },
+        }),
+    });
+
     const config_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("test/config_test.zig"),
@@ -779,6 +790,7 @@ pub fn build(b: *std.Build) void {
     const run_theme_tests = b.addRunArtifact(theme_tests);
     const run_animation_tests = b.addRunArtifact(animation_tests);
     const run_cli_tests = b.addRunArtifact(cli_tests);
+    const run_native_sidebar_tests = b.addRunArtifact(native_sidebar_tests);
     const run_config_tests = b.addRunArtifact(config_tests);
     const run_ipc_tests = b.addRunArtifact(ipc_tests);
     const run_performance_tests = b.addRunArtifact(performance_tests);
@@ -826,6 +838,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_theme_tests.step);
     test_step.dependOn(&run_animation_tests.step);
     test_step.dependOn(&run_cli_tests.step);
+    test_step.dependOn(&run_native_sidebar_tests.step);
     test_step.dependOn(&run_config_tests.step);
     test_step.dependOn(&run_ipc_tests.step);
     test_step.dependOn(&run_performance_tests.step);
@@ -911,6 +924,9 @@ pub fn build(b: *std.Build) void {
 
     const test_cli_step = b.step("test:cli", "Run CLI tests");
     test_cli_step.dependOn(&run_cli_tests.step);
+
+    const test_native_sidebar_step = b.step("test:native-sidebar", "Run Native Sidebar tests");
+    test_native_sidebar_step.dependOn(&run_native_sidebar_tests.step);
 
     const test_config_step = b.step("test:config", "Run Config tests");
     test_config_step.dependOn(&run_config_tests.step);

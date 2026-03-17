@@ -44,7 +44,6 @@
     "LICENSE.md"
   ],
   "bin": {
-    "craft": "./native/craft",
     "craft-sdk": "./bin/cli.ts"
   },
   "scripts": {
@@ -56,7 +55,7 @@
     "lint:fix": "bunx --bun pickier lint . --fix --config ../../pickier.config.ts --max-warnings 9999",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "bun run build && cd ../zig && zig build -Doptimize=ReleaseSafe && mkdir -p ../typescript/native && cp zig-out/bin/craft ../typescript/native/craft"
+    "prepublishOnly": "bun run build"
   },
   "dependencies": {
     "archiver": "^7.0.1"
