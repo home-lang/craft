@@ -37,7 +37,8 @@
     "dev": "bun --watch src/index.ts"
   },
   "dependencies": {
-    "@craft-native/craft": "workspace:*"
+    "@craft-native/craft": "workspace:*",
+    "@cwcss/crosswind": "^0.1.6"
   },
   "devDependencies": {
     "better-dx": "^0.2.6"

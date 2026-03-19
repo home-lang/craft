@@ -45,6 +45,7 @@
     "release": "bun --bun run changelog:generate && bunx --bun bumpx prompt --recursive"
   },
   "devDependencies": {
+    "@cwcss/crosswind": "^0.1.6",
     "better-dx": "^0.2.6"
   }
 }
