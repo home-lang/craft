@@ -5,6 +5,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import type { AppConfig, WindowOptions } from './types'
 
 // Export packaging API
@@ -326,7 +327,22 @@ export class CraftApp {
       return this.config.craftPath
     }
 
-    // Craft binary is installed via pantry and available in PATH
+    // Search for the native Craft binary (not the CLI wrapper)
+    const possiblePaths = [
+      // From monorepo zig package
+      join(process.cwd(), 'packages/zig/zig-out/bin/craft'),
+      // From typescript package (when in monorepo)
+      join(import.meta.dir, '../../zig/zig-out/bin/craft'),
+      // Legacy locations
+      join(process.cwd(), 'zig-out/bin/craft'),
+      join(import.meta.dir, '../../../zig-out/bin/craft'),
+    ]
+
+    for (const path of possiblePaths) {
+      if (existsSync(path)) return path
+    }
+
+    // Fall back to PATH (may resolve to CLI wrapper)
     return 'craft'
   }
 }
