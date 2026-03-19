@@ -30,3 +30,7 @@ export * from './composables'
 
 // Directives
 export * from './directives'
+
+// Router
+export { createRouter, navigate, getCurrentRoute, StxLink, loadShell, injectPage } from './router'
+export type { Route, RouterOptions, StxLinkProps } from './router'

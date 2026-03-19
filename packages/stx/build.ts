@@ -16,6 +16,7 @@ await Bun.build({
     './src/composables/index.ts',
     './src/directives/index.ts',
     './src/styles.ts',
+    './src/router/index.ts',
     './src/compiler/index.ts',
   ],
   outdir: './dist',

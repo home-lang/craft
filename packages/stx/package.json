@@ -25,6 +25,10 @@
       "types": "./dist/styles.d.ts",
       "import": "./dist/styles.js"
     },
+    "./router": {
+      "types": "./dist/router/index.d.ts",
+      "import": "./dist/router/index.js"
+    },
     "./compiler": {
       "types": "./dist/compiler/index.d.ts",
       "import": "./dist/compiler/index.js"
