@@ -1,4 +1,4 @@
-import type { CraftAppConfig } from '@craft-native/ts'
+import type { CraftAppConfig } from '@craft-native/craft'
 
 const config: CraftAppConfig = {
   // App Identity

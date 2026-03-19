@@ -1,4 +1,4 @@
-import type { CraftConfig } from '@craft-native/ts'
+import type { CraftConfig } from '@craft-native/craft'
 
 export default {
   name: '{{appName}}',

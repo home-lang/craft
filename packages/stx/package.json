@@ -1,0 +1,44 @@
+{
+  "name": "@craft-native/stx",
+  "version": "0.0.4",
+  "private": true,
+  "type": "module",
+  "description": "STX component library for Craft — signals, composables, and crosswind-styled UI primitives",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./components": {
+      "import": "./dist/components/index.js",
+      "types": "./dist/components/index.d.ts"
+    },
+    "./composables": {
+      "import": "./dist/composables/index.js",
+      "types": "./dist/composables/index.d.ts"
+    },
+    "./directives": {
+      "import": "./dist/directives/index.js",
+      "types": "./dist/directives/index.d.ts"
+    },
+    "./styles": {
+      "import": "./dist/styles.js",
+      "types": "./dist/styles.d.ts"
+    }
+  },
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build.ts",
+    "dev": "bun --watch src/index.ts"
+  },
+  "dependencies": {
+    "@craft-native/craft": "workspace:*"
+  },
+  "devDependencies": {
+    "better-dx": "^0.2.6"
+  }
+}

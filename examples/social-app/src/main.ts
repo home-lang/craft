@@ -3,7 +3,7 @@
  * Features: Feed, posts, stories, profile, notifications, messaging, search
  */
 
-import { db, window, Platform, haptics, camera, share } from '@craft-native/ts'
+import { db, window, Platform, haptics, camera, share } from '@craft-native/craft'
 
 // Types
 interface User {

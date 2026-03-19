@@ -3,7 +3,7 @@
  * Features: Product catalog, cart, checkout, orders, wishlist, search, reviews
  */
 
-import { db, http, window, Platform, haptics, secureStorage } from '@craft-native/ts'
+import { db, http, window, Platform, haptics, secureStorage } from '@craft-native/craft'
 
 // Types
 interface Product {
