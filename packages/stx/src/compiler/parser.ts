@@ -1,12 +1,18 @@
 /**
- * STX SFC Parser
+ * STX SFC Parser (v2)
  *
  * Parses .stx files into a descriptor with template, script, and style blocks.
+ *
+ * v2 changes:
+ * - Scripts are TypeScript by default (no lang="ts" needed)
+ * - <script> = client TS, <script server> = server TS, <script js> = plain JS
+ * - Tracks script language for Bun.Transpiler routing
  */
 
 export interface SFCBlock {
   content: string
   attrs: Record<string, string | true>
+  lang: 'ts' | 'js'
   start: number
   end: number
 }
@@ -35,6 +41,13 @@ function parseAttrs(raw: string | undefined): Record<string, string | true> {
   return attrs
 }
 
+function resolveScriptLang(attrs: Record<string, string | true>): 'ts' | 'js' {
+  // v2: TypeScript by default. Opt out with <script js> or <script lang="js">
+  if (attrs.js === true) return 'js'
+  if (attrs.lang === 'js' || attrs.lang === 'javascript') return 'js'
+  return 'ts'
+}
+
 /**
  * Parse an .stx file into its constituent blocks.
  */
@@ -55,6 +68,7 @@ export function parse(source: string, filename: string = 'anonymous.stx'): SFCDe
     const block: SFCBlock = {
       content: content.trim(),
       attrs,
+      lang: tag === 'script' ? resolveScriptLang(attrs) : 'ts',
       start: match.index,
       end: match.index + fullMatch.length,
     }
@@ -68,6 +82,7 @@ export function parse(source: string, filename: string = 'anonymous.stx'): SFCDe
           descriptor.scriptServer = block
         }
         else {
+          // <script>, <script client>, <script js>, etc. are all client
           descriptor.scriptClient = block
         }
         break
