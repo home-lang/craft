@@ -24,7 +24,8 @@
     "./styles": {
       "import": "./dist/styles.js",
       "types": "./dist/styles.d.ts"
-    }
+    },
+    "./crosswind.css": "./dist/crosswind.css"
   },
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",

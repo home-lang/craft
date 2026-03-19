@@ -2,25 +2,21 @@
  * {{APP_NAME}} - Built with Craft
  */
 
-import { getPlatform, isDesktop, isMobile } from '@craft-native/craft'
+import { state, derived, effect, mount, h } from '@craft-native/stx'
+import { Badge } from '@craft-native/stx/components'
+import { usePlatform, useTheme } from '@craft-native/stx/composables'
 
-// Initialize app
-function init() {
-  const app = document.getElementById('app')!
+const { platform } = usePlatform()
+const { isDark } = useTheme()
 
-  app.innerHTML = `
-    <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem;">
-      <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">{{APP_NAME}}</h1>
-      <p style="opacity: 0.7; margin-bottom: 2rem;">Built with Craft</p>
-      <p style="font-size: 0.875rem; opacity: 0.5;">Running on ${getPlatform()}</p>
-    </div>
-  `
+const platformName = derived(() => platform().platform)
+
+function App() {
+  return h('div', { class: 'flex flex-col items-center justify-center min-h-screen p-8' },
+    h('h1', { class: 'text-4xl font-bold mb-4' }, '{{APP_NAME}}'),
+    Badge({ variant: 'info', size: 'md' }, 'Built with Craft'),
+    h('p', { class: 'text-sm opacity-50 mt-8' }, 'Running on ', platformName),
+  )
 }
 
-// Start app
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init)
-}
-else {
-  init()
-}
+mount(App, '#app')
