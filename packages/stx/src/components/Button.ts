@@ -1,6 +1,6 @@
 import { variants, cx } from '../styles'
 import { h } from '../component'
-import type { ReadonlySignal } from '../runtime'
+import type { State, Derived } from '../runtime'
 
 export interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger'
@@ -35,7 +35,7 @@ export const buttonVariants = variants({
 
 export function Button(
   props: ButtonProps = {},
-  ...children: Array<string | HTMLElement | ReadonlySignal<string>>
+  ...children: Array<string | HTMLElement | State<string> | Derived<string>>
 ): HTMLElement {
   const className = cx(
     buttonVariants({ variant: props.variant, size: props.size }),

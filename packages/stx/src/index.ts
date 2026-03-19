@@ -3,14 +3,20 @@
  *
  * STX component library for Craft — signal-driven UI primitives
  * with crosswind utility styling for desktop, mobile, and web.
+ *
+ * Aligned with stx syntax migration:
+ * - state() / derived() / effect() reactivity
+ * - defineProps / defineEmits / withDefaults composition API
+ * - onMount / onDestroy / onUpdate lifecycle hooks
+ * - @ directive syntax (@model, @show, @text, @class, @bind:*)
  */
 
 // Core reactivity
-export { signal, computed, effect, batch } from './runtime'
-export type { Signal, Computed, ReadonlySignal } from './runtime'
+export { state, derived, effect, batch, onMount, onDestroy, onUpdate, nextTick } from './runtime'
+export type { State, Derived } from './runtime'
 
-// Component helpers
-export { defineComponent, h, mount } from './component'
+// Composition API
+export { defineComponent, defineProps, defineEmits, withDefaults, defineExpose, provide, inject, h, mount } from './component'
 export type { Component, ComponentDef, Props, Slot } from './component'
 
 // Styles

@@ -1,6 +1,6 @@
 import { variants, cx } from '../styles'
 import { h } from '../component'
-import type { ReadonlySignal } from '../runtime'
+import type { State, Derived } from '../runtime'
 
 export interface AlertProps {
   variant?: 'info' | 'success' | 'warning' | 'error'
@@ -26,7 +26,7 @@ export const alertVariants = variants({
 
 export function Alert(
   props: AlertProps = {},
-  ...children: Array<string | HTMLElement | ReadonlySignal<string>>
+  ...children: Array<string | HTMLElement | State<string> | Derived<string>>
 ): HTMLElement {
   const className = cx(
     alertVariants({ variant: props.variant }),

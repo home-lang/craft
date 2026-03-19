@@ -1,4 +1,4 @@
-import { signal, computed } from '../runtime'
+import { state, derived } from '../runtime'
 
 export interface PlatformInfo {
   platform: 'macos' | 'linux' | 'windows' | 'ios' | 'android' | 'web'
@@ -9,15 +9,19 @@ export interface PlatformInfo {
 
 /**
  * Detect the current platform via signals.
+ *
+ * @example
+ * const { platform, isDesktop, isMobile } = usePlatform()
+ * if (isMobile()) { ... }
  */
 export function usePlatform() {
-  const platform = signal<PlatformInfo>(detectPlatform())
+  const platform = state<PlatformInfo>(detectPlatform())
 
   return {
     platform,
-    isDesktop: computed(() => platform.value.isDesktop),
-    isMobile: computed(() => platform.value.isMobile),
-    isWeb: computed(() => platform.value.isWeb),
+    isDesktop: derived(() => platform().isDesktop),
+    isMobile: derived(() => platform().isMobile),
+    isWeb: derived(() => platform().isWeb),
   }
 }
 

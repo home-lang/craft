@@ -4,16 +4,21 @@ type HapticStyle = 'light' | 'medium' | 'heavy' | 'selection' | 'success' | 'war
 
 /**
  * Trigger haptic feedback on supported platforms (iOS, Android).
+ *
+ * @example
+ * const { impact } = useHaptics()
+ * impact('medium')
  */
 export function useHaptics() {
   const { craft, isReady } = useCraft()
 
   const impact = (style: HapticStyle = 'medium') => {
-    if (!isReady.value || !craft.value) return
+    if (!isReady() || !craft()) return
 
     try {
-      if (typeof craft.value.haptic === 'function') {
-        ;(craft.value.haptic as (style: string) => void)(style)
+      const bridge = craft()
+      if (bridge && typeof bridge.haptic === 'function') {
+        ;(bridge.haptic as (style: string) => void)(style)
       }
     }
     catch {

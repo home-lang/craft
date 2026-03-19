@@ -1,17 +1,17 @@
 import { cx } from '../styles'
 import { h } from '../component'
-import { signal, effect } from '../runtime'
-import type { Signal } from '../runtime'
+import { state, effect } from '../runtime'
+import type { State } from '../runtime'
 
 export interface ToggleProps {
-  checked?: Signal<boolean>
+  checked?: State<boolean>
   disabled?: boolean
   class?: string
   onChange?: (checked: boolean) => void
 }
 
 export function Toggle(props: ToggleProps = {}): HTMLElement {
-  const isChecked = props.checked ?? signal(false)
+  const isChecked = props.checked ?? state(false)
 
   const track = h('div', {
     class: 'relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer',
@@ -24,7 +24,7 @@ export function Toggle(props: ToggleProps = {}): HTMLElement {
   track.appendChild(thumb)
 
   effect(() => {
-    if (isChecked.value) {
+    if (isChecked()) {
       track.className = cx(
         'relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer bg-blue-500',
         props.disabled && 'opacity-50 cursor-not-allowed',
@@ -44,8 +44,8 @@ export function Toggle(props: ToggleProps = {}): HTMLElement {
 
   track.addEventListener('click', () => {
     if (props.disabled) return
-    isChecked.value = !isChecked.value
-    props.onChange?.(isChecked.value)
+    isChecked.update(v => !v)
+    props.onChange?.(isChecked())
   })
 
   return track

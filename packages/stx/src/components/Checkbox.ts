@@ -1,10 +1,10 @@
 import { cx } from '../styles'
 import { h } from '../component'
-import { signal, effect } from '../runtime'
-import type { Signal } from '../runtime'
+import { state, effect } from '../runtime'
+import type { State } from '../runtime'
 
 export interface CheckboxProps {
-  checked?: Signal<boolean>
+  checked?: State<boolean>
   label?: string
   disabled?: boolean
   class?: string
@@ -12,7 +12,7 @@ export interface CheckboxProps {
 }
 
 export function Checkbox(props: CheckboxProps = {}): HTMLElement {
-  const isChecked = props.checked ?? signal(false)
+  const isChecked = props.checked ?? state(false)
 
   const wrapper = h('label', {
     class: cx(
@@ -28,13 +28,13 @@ export function Checkbox(props: CheckboxProps = {}): HTMLElement {
     disabled: props.disabled,
     onChange: (e: Event) => {
       const target = e.target as HTMLInputElement
-      isChecked.value = target.checked
+      isChecked.set(target.checked)
       props.onChange?.(target.checked)
     },
   }) as HTMLInputElement
 
   effect(() => {
-    input.checked = isChecked.value
+    input.checked = isChecked()
   })
 
   wrapper.appendChild(input)

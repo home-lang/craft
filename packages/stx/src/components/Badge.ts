@@ -1,6 +1,6 @@
 import { variants, cx } from '../styles'
 import { h } from '../component'
-import type { ReadonlySignal } from '../runtime'
+import type { State, Derived } from '../runtime'
 
 export interface BadgeProps {
   variant?: 'default' | 'success' | 'warning' | 'danger' | 'info'
@@ -31,7 +31,7 @@ export const badgeVariants = variants({
 
 export function Badge(
   props: BadgeProps = {},
-  ...children: Array<string | HTMLElement | ReadonlySignal<string>>
+  ...children: Array<string | HTMLElement | State<string> | Derived<string>>
 ): HTMLElement {
   const className = cx(
     badgeVariants({ variant: props.variant, size: props.size }),

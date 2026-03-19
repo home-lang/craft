@@ -1,15 +1,17 @@
 import { cx } from '../styles'
 import { h } from '../component'
-import type { ReadonlySignal } from '../runtime'
+import type { State, Derived } from '../runtime'
 
 export interface CardProps {
   class?: string
   padding?: boolean
 }
 
+type Child = string | HTMLElement | State<string> | Derived<string>
+
 export function Card(
   props: CardProps = {},
-  ...children: Array<string | HTMLElement | ReadonlySignal<string>>
+  ...children: Child[]
 ): HTMLElement {
   const className = cx(
     'rounded-lg border border-gray-200 bg-white shadow-sm',
@@ -22,7 +24,7 @@ export function Card(
 
 export function CardHeader(
   props: { class?: string } = {},
-  ...children: Array<string | HTMLElement | ReadonlySignal<string>>
+  ...children: Child[]
 ): HTMLElement {
   return h(
     'div',
@@ -33,7 +35,7 @@ export function CardHeader(
 
 export function CardBody(
   props: { class?: string } = {},
-  ...children: Array<string | HTMLElement | ReadonlySignal<string>>
+  ...children: Child[]
 ): HTMLElement {
   return h(
     'div',
@@ -44,7 +46,7 @@ export function CardBody(
 
 export function CardFooter(
   props: { class?: string } = {},
-  ...children: Array<string | HTMLElement | ReadonlySignal<string>>
+  ...children: Child[]
 ): HTMLElement {
   return h(
     'div',

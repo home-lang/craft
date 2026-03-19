@@ -1,7 +1,7 @@
 import { cx } from '../styles'
 import { h } from '../component'
-import { signal, effect } from '../runtime'
-import type { Signal } from '../runtime'
+import { state, effect } from '../runtime'
+import type { State } from '../runtime'
 
 export interface RadioOption {
   value: string
@@ -12,13 +12,13 @@ export interface RadioOption {
 export interface RadioProps {
   name: string
   options: RadioOption[]
-  selected?: Signal<string>
+  selected?: State<string>
   class?: string
   onChange?: (value: string) => void
 }
 
 export function Radio(props: RadioProps): HTMLElement {
-  const selectedValue = props.selected ?? signal(props.options[0]?.value ?? '')
+  const selectedValue = props.selected ?? state(props.options[0]?.value ?? '')
 
   const group = h('div', {
     class: cx('flex flex-col gap-2', props.class),
@@ -40,13 +40,13 @@ export function Radio(props: RadioProps): HTMLElement {
       class: 'h-4 w-4 border-gray-300 text-blue-500 focus:ring-blue-500 focus:ring-2',
       disabled: opt.disabled,
       onChange: () => {
-        selectedValue.value = opt.value
+        selectedValue.set(opt.value)
         props.onChange?.(opt.value)
       },
     }) as HTMLInputElement
 
     effect(() => {
-      input.checked = selectedValue.value === opt.value
+      input.checked = selectedValue() === opt.value
     })
 
     label.appendChild(input)

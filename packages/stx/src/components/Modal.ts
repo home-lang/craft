@@ -1,10 +1,10 @@
 import { cx } from '../styles'
 import { h } from '../component'
-import { signal, effect } from '../runtime'
-import type { ReadonlySignal, Signal } from '../runtime'
+import { state, effect } from '../runtime'
+import type { State } from '../runtime'
 
 export interface ModalProps {
-  open?: Signal<boolean>
+  open?: State<boolean>
   class?: string
   onClose?: () => void
   closeOnBackdrop?: boolean
@@ -12,15 +12,15 @@ export interface ModalProps {
 
 export function Modal(
   props: ModalProps = {},
-  ...children: Array<string | HTMLElement | ReadonlySignal<string>>
+  ...children: Array<string | HTMLElement>
 ): HTMLElement {
-  const isOpen = props.open ?? signal(false)
+  const isOpen = props.open ?? state(false)
 
   const backdrop = h('div', {
     class: 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 transition-opacity',
     onClick: (e: Event) => {
       if (props.closeOnBackdrop !== false && e.target === backdrop) {
-        isOpen.value = false
+        isOpen.set(false)
         props.onClose?.()
       }
     },
@@ -43,7 +43,7 @@ export function Modal(
     {
       class: 'absolute top-3 right-3 p-1 rounded-md text-gray-400 hover:text-gray-600 transition-colors',
       onClick: () => {
-        isOpen.value = false
+        isOpen.set(false)
         props.onClose?.()
       },
     },
@@ -55,7 +55,7 @@ export function Modal(
 
   // Reactively show/hide
   effect(() => {
-    backdrop.style.display = isOpen.value ? 'flex' : 'none'
+    backdrop.style.display = isOpen() ? 'flex' : 'none'
   })
 
   return backdrop

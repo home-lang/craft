@@ -1,5 +1,5 @@
-import { signal, effect } from '../runtime'
-import type { Signal } from '../runtime'
+import { state } from '../runtime'
+import type { State } from '../runtime'
 
 interface CraftBridge {
   [key: string]: unknown
@@ -14,15 +14,21 @@ declare global {
 /**
  * Access the Craft bridge API via signals.
  * Waits for the bridge to become available.
+ *
+ * @example
+ * const { craft, isReady } = useCraft()
+ * if (isReady()) {
+ *   craft()?.someApi()
+ * }
  */
-export function useCraft(): { craft: Signal<CraftBridge | null>; isReady: Signal<boolean> } {
-  const craft = signal<CraftBridge | null>(null)
-  const isReady = signal(false)
+export function useCraft(): { craft: State<CraftBridge | null>; isReady: State<boolean> } {
+  const craft = state<CraftBridge | null>(null)
+  const isReady = state(false)
 
   const check = () => {
     if (typeof window !== 'undefined' && window.craft) {
-      craft.value = window.craft
-      isReady.value = true
+      craft.set(window.craft)
+      isReady.set(true)
       return true
     }
     return false

@@ -1,7 +1,7 @@
 import { cx } from '../styles'
 import { h } from '../component'
-import { signal, effect } from '../runtime'
-import type { Signal } from '../runtime'
+import { state, effect } from '../runtime'
+import type { State } from '../runtime'
 
 export interface TabItem {
   id: string
@@ -11,13 +11,13 @@ export interface TabItem {
 
 export interface TabsProps {
   items: TabItem[]
-  active?: Signal<string>
+  active?: State<string>
   class?: string
   onChange?: (id: string) => void
 }
 
 export function Tabs(props: TabsProps): HTMLElement {
-  const activeId = props.active ?? signal(props.items[0]?.id ?? '')
+  const activeId = props.active ?? state(props.items[0]?.id ?? '')
 
   const container = h('div', { class: cx('w-full', props.class) })
 
@@ -34,13 +34,13 @@ export function Tabs(props: TabsProps): HTMLElement {
       class: 'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px',
       role: 'tab',
       onClick: () => {
-        activeId.value = item.id
+        activeId.set(item.id)
         props.onChange?.(item.id)
       },
     }, item.label)
 
     effect(() => {
-      if (activeId.value === item.id) {
+      if (activeId() === item.id) {
         tabBtn.className = 'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px text-blue-600 border-blue-600'
       }
       else {
@@ -54,7 +54,7 @@ export function Tabs(props: TabsProps): HTMLElement {
   // Reactive content
   effect(() => {
     contentArea.innerHTML = ''
-    const activeItem = props.items.find(item => item.id === activeId.value)
+    const activeItem = props.items.find(item => item.id === activeId())
     if (activeItem) {
       const content = activeItem.content()
       if (typeof content === 'string') {
