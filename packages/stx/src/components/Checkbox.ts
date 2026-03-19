@@ -40,7 +40,7 @@ export function Checkbox(props: CheckboxProps = {}): HTMLElement {
   wrapper.appendChild(input)
 
   if (props.label) {
-    wrapper.appendChild(h('span', { class: 'text-sm text-gray-700' }, props.label))
+    wrapper.appendChild(h('span', { class: 'text-sm text-gray-700 dark:text-gray-300' }, props.label))
   }
 
   return wrapper

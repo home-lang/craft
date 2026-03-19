@@ -3,7 +3,10 @@
  * A cross-platform shopping app built with Craft
  */
 
-import { db, window, Platform, haptics } from '@craft-native/craft'
+import { state, derived, effect, mount, h, batch } from '@craft-native/stx'
+import { Card, Badge, Button, Input } from '@craft-native/stx/components'
+import { usePlatform, useHaptics } from '@craft-native/stx/composables'
+import { db, window as craftWindow } from '@craft-native/craft'
 
 // Types
 interface Product {
@@ -21,23 +24,26 @@ interface CartItem {
   quantity: number
 }
 
-// State
-let products: Product[] = []
-let cart: CartItem[] = []
-let currentView: 'home' | 'cart' | 'product' = 'home'
-let selectedProductId: string | null = null
+// Reactive State
+const products = state<Product[]>([])
+const cart = state<CartItem[]>([])
+const currentView = state<'home' | 'cart' | 'product'>('home')
+const selectedProductId = state<string | null>(null)
 
-// Initialize
-async function init(): Promise<void> {
-  await initDatabase()
-  await loadProducts()
+// Composables
+const platform = usePlatform()
+const haptics = useHaptics()
 
-  window.setTitle('{{appName}}')
-  window.setSize(400, 800)
+// Derived
+const cartCount = derived(() => cart().length)
+const cartTotal = derived(() =>
+  cart().reduce((sum, item) => sum + (item.product.price * item.quantity), 0),
+)
+const selectedProduct = derived(() =>
+  products().find(p => p.id === selectedProductId()),
+)
 
-  render()
-}
-
+// Database
 async function initDatabase(): Promise<void> {
   await db.execute(`
     CREATE TABLE IF NOT EXISTS cart (
@@ -49,146 +55,159 @@ async function initDatabase(): Promise<void> {
 
 async function loadProducts(): Promise<void> {
   // Sample products - replace with API call
-  products = [
+  products.set([
     { id: '1', name: 'Product 1', description: 'Description', price: 29.99, image: '', category: 'Category', inStock: true },
     { id: '2', name: 'Product 2', description: 'Description', price: 49.99, image: '', category: 'Category', inStock: true },
     { id: '3', name: 'Product 3', description: 'Description', price: 19.99, image: '', category: 'Category', inStock: false },
-  ]
+  ])
 }
 
 // Cart functions
 function addToCart(productId: string): void {
-  const product = products.find(p => p.id === productId)
+  const product = products().find(p => p.id === productId)
   if (!product) return
 
-  const existingItem = cart.find(item => item.product.id === productId)
+  const currentCart = cart()
+  const existingItem = currentCart.find(item => item.product.id === productId)
+
   if (existingItem) {
-    existingItem.quantity++
-  }
-else {
-    cart.push({ product, quantity: 1 })
+    cart.set(currentCart.map(item =>
+      item.product.id === productId
+        ? { ...item, quantity: item.quantity + 1 }
+        : item,
+    ))
+  } else {
+    cart.set([...currentCart, { product, quantity: 1 }])
   }
 
-  if (Platform.OS === 'ios' || Platform.OS === 'android') {
+  if (platform.os === 'ios' || platform.os === 'android') {
     haptics.notification('success')
   }
-
-  render()
 }
 
 function removeFromCart(productId: string): void {
-  cart = cart.filter(item => item.product.id !== productId)
-  render()
-}
-
-function getCartTotal(): number {
-  return cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0)
+  cart.set(cart().filter(item => item.product.id !== productId))
 }
 
 // Navigation
-function navigate(view: typeof currentView, productId?: string): void {
-  currentView = view
-  selectedProductId = productId || null
-  render()
+function navigate(view: 'home' | 'cart' | 'product', productId?: string): void {
+  batch(() => {
+    currentView.set(view)
+    selectedProductId.set(productId || null)
+  })
 }
 
-// Render
-function render(): void {
-  const app = document.getElementById('app')
-  if (!app) return
+// Views
+function renderProductCard(product: Product) {
+  return Card({},
+    h('div', { class: 'product-card', onClick: () => navigate('product', product.id) },
+      h('div', { class: 'product-image' }),
+      h('h3', {}, product.name),
+      h('p', { class: 'price' }, `$${product.price.toFixed(2)}`),
+      Button({
+        onClick: (e: Event) => { e.stopPropagation(); addToCart(product.id) },
+        disabled: !product.inStock,
+      }, product.inStock ? 'Add to Cart' : 'Out of Stock'),
+    ),
+  )
+}
 
-  let content = ''
-  switch (currentView) {
+function HomeView() {
+  return h('div', { class: 'products-grid' },
+    ...products().map(product => renderProductCard(product)),
+  )
+}
+
+function CartView() {
+  const items = cart()
+
+  if (items.length === 0) {
+    return h('div', { class: 'empty-state' },
+      h('p', {}, 'Your cart is empty'),
+    )
+  }
+
+  return h('div', { class: 'cart' },
+    ...items.map(item =>
+      Card({},
+        h('div', { class: 'cart-item' },
+          h('span', {}, `${item.product.name} x${item.quantity}`),
+          h('span', {}, `$${(item.product.price * item.quantity).toFixed(2)}`),
+          Button({ onClick: () => removeFromCart(item.product.id) }, 'Remove'),
+        ),
+      ),
+    ),
+    h('div', { class: 'cart-total' },
+      h('strong', {}, `Total: $${cartTotal().toFixed(2)}`),
+    ),
+    Button({ class: 'checkout-btn' }, 'Checkout'),
+  )
+}
+
+function ProductDetailView() {
+  const product = selectedProduct()
+  if (!product) return h('p', {}, 'Product not found')
+
+  return h('div', { class: 'product-detail' },
+    Button({ onClick: () => navigate('home') }, '\u2190 Back'),
+    h('div', { class: 'product-image large' }),
+    h('h2', {}, product.name),
+    h('p', {}, product.description),
+    h('p', { class: 'price' }, `$${product.price.toFixed(2)}`),
+    Button({
+      onClick: () => addToCart(product.id),
+      disabled: !product.inStock,
+    }, product.inStock ? 'Add to Cart' : 'Out of Stock'),
+  )
+}
+
+function App() {
+  const view = currentView()
+
+  let content: ReturnType<typeof h>
+  switch (view) {
     case 'home':
-      content = renderHome()
+      content = HomeView()
       break
     case 'cart':
-      content = renderCart()
+      content = CartView()
       break
     case 'product':
-      content = renderProduct()
+      content = ProductDetailView()
       break
   }
 
-  app.innerHTML = `
-    <div class="app">
-      <header class="header">
-        <h1>{{appName}}</h1>
-        <button class="cart-btn" onclick="navigate('cart')">
-          🛒 ${cart.length}
-        </button>
-      </header>
-      <main>${content}</main>
-      <nav class="bottom-nav">
-        <button onclick="navigate('home')" class="${currentView === 'home' ? 'active' : ''}">Home</button>
-        <button onclick="navigate('cart')" class="${currentView === 'cart' ? 'active' : ''}">Cart</button>
-      </nav>
-    </div>
-  `
+  return h('div', { class: 'app' },
+    h('header', { class: 'header' },
+      h('h1', {}, '{{appName}}'),
+      Button({ class: 'cart-btn', onClick: () => navigate('cart') },
+        '\uD83D\uDED2 ',
+        Badge({}, String(cartCount())),
+      ),
+    ),
+    h('main', {}, content),
+    h('nav', { class: 'bottom-nav' },
+      Button({
+        onClick: () => navigate('home'),
+        class: view === 'home' ? 'active' : '',
+      }, 'Home'),
+      Button({
+        onClick: () => navigate('cart'),
+        class: view === 'cart' ? 'active' : '',
+      }, 'Cart'),
+    ),
+  )
 }
 
-function renderHome(): string {
-  return `
-    <div class="products-grid">
-      ${products.map(product => `
-        <div class="product-card" onclick="navigate('product', '${product.id}')">
-          <div class="product-image"></div>
-          <h3>${product.name}</h3>
-          <p class="price">$${product.price.toFixed(2)}</p>
-          <button onclick="event.stopPropagation(); addToCart('${product.id}')"
-                  ${!product.inStock ? 'disabled' : ''}>
-            ${product.inStock ? 'Add to Cart' : 'Out of Stock'}
-          </button>
-        </div>
-      `).join('')}
-    </div>
-  `
+// Initialize and mount
+async function init(): Promise<void> {
+  await initDatabase()
+  await loadProducts()
+
+  craftWindow.setTitle('{{appName}}')
+  craftWindow.setSize(400, 800)
+
+  mount(App, '#app')
 }
 
-function renderCart(): string {
-  if (cart.length === 0) {
-    return `<div class="empty-state"><p>Your cart is empty</p></div>`
-  }
-
-  return `
-    <div class="cart">
-      ${cart.map(item => `
-        <div class="cart-item">
-          <span>${item.product.name} x${item.quantity}</span>
-          <span>$${(item.product.price * item.quantity).toFixed(2)}</span>
-          <button onclick="removeFromCart('${item.product.id}')">Remove</button>
-        </div>
-      `).join('')}
-      <div class="cart-total">
-        <strong>Total: $${getCartTotal().toFixed(2)}</strong>
-      </div>
-      <button class="checkout-btn">Checkout</button>
-    </div>
-  `
-}
-
-function renderProduct(): string {
-  const product = products.find(p => p.id === selectedProductId)
-  if (!product) return '<p>Product not found</p>'
-
-  return `
-    <div class="product-detail">
-      <button onclick="navigate('home')">← Back</button>
-      <div class="product-image large"></div>
-      <h2>${product.name}</h2>
-      <p>${product.description}</p>
-      <p class="price">$${product.price.toFixed(2)}</p>
-      <button onclick="addToCart('${product.id}')" ${!product.inStock ? 'disabled' : ''}>
-        ${product.inStock ? 'Add to Cart' : 'Out of Stock'}
-      </button>
-    </div>
-  `
-}
-
-// Expose functions globally
-(window as any).navigate = navigate
-;(window as any).addToCart = addToCart
-;(window as any).removeFromCart = removeFromCart
-
-// Start app
 init()

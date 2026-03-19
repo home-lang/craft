@@ -30,7 +30,7 @@ export function Modal(
     'div',
     {
       class: cx(
-        'relative z-50 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl',
+        'relative z-50 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800',
         props.class,
       ),
       role: 'dialog',
@@ -41,7 +41,7 @@ export function Modal(
   const closeBtn = h(
     'button',
     {
-      class: 'absolute top-3 right-3 p-1 rounded-md text-gray-400 hover:text-gray-600 transition-colors',
+      class: 'absolute top-3 right-3 p-1 rounded-md text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors',
       onClick: () => {
         isOpen.set(false)
         props.onClose?.()

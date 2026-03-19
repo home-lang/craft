@@ -6,24 +6,28 @@
   "description": "STX component library for Craft — signals, composables, and crosswind-styled UI primitives",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./components": {
-      "import": "./dist/components/index.js",
-      "types": "./dist/components/index.d.ts"
+      "types": "./dist/components/index.d.ts",
+      "import": "./dist/components/index.js"
     },
     "./composables": {
-      "import": "./dist/composables/index.js",
-      "types": "./dist/composables/index.d.ts"
+      "types": "./dist/composables/index.d.ts",
+      "import": "./dist/composables/index.js"
     },
     "./directives": {
-      "import": "./dist/directives/index.js",
-      "types": "./dist/directives/index.d.ts"
+      "types": "./dist/directives/index.d.ts",
+      "import": "./dist/directives/index.js"
     },
     "./styles": {
-      "import": "./dist/styles.js",
-      "types": "./dist/styles.d.ts"
+      "types": "./dist/styles.d.ts",
+      "import": "./dist/styles.js"
+    },
+    "./compiler": {
+      "types": "./dist/compiler/index.d.ts",
+      "import": "./dist/compiler/index.js"
     },
     "./crosswind.css": "./dist/crosswind.css"
   },

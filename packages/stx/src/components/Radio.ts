@@ -50,7 +50,7 @@ export function Radio(props: RadioProps): HTMLElement {
     })
 
     label.appendChild(input)
-    label.appendChild(h('span', { class: 'text-sm text-gray-700' }, opt.label))
+    label.appendChild(h('span', { class: 'text-sm text-gray-700 dark:text-gray-300' }, opt.label))
     group.appendChild(label)
   }
 

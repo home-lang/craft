@@ -11,8 +11,8 @@ export function Divider(props: DividerProps = {}): HTMLElement {
 
   const className = cx(
     isVertical
-      ? 'w-px h-full bg-gray-200'
-      : 'h-px w-full bg-gray-200',
+      ? 'w-px h-full bg-gray-200 dark:bg-gray-700'
+      : 'h-px w-full bg-gray-200 dark:bg-gray-700',
     props.class,
   )
 

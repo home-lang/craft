@@ -22,7 +22,7 @@ export function Tooltip(
 
   const tooltip = h('div', {
     class: cx(
-      'absolute z-50 px-2 py-1 text-xs text-white bg-gray-900 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity',
+      'absolute z-50 px-2 py-1 text-xs text-white bg-gray-900 rounded shadow-lg whitespace-nowrap opacity-0 pointer-events-none transition-opacity dark:bg-gray-100 dark:text-gray-900',
       positionClasses[props.position ?? 'top'],
       props.class,
     ),

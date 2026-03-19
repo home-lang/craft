@@ -108,6 +108,7 @@ function createMinimalTemplate(projectPath: string, projectName: string): void {
     },
     dependencies: {
       '@craft-native/craft': 'workspace:*',
+      '@craft-native/stx': 'workspace:*',
     },
     devDependencies: {
       '@types/bun': 'latest',
@@ -214,6 +215,7 @@ function createFullFeaturedTemplate(projectPath: string, projectName: string): v
     },
     dependencies: {
       '@craft-native/craft': 'workspace:*',
+      '@craft-native/stx': 'workspace:*',
     },
     devDependencies: {
       '@types/bun': 'latest',
@@ -389,6 +391,7 @@ function createTodoAppTemplate(projectPath: string, projectName: string): void {
     },
     dependencies: {
       '@craft-native/craft': 'workspace:*',
+      '@craft-native/stx': 'workspace:*',
     },
     devDependencies: {
       '@types/bun': 'latest',

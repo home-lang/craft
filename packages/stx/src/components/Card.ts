@@ -14,7 +14,7 @@ export function Card(
   ...children: Child[]
 ): HTMLElement {
   const className = cx(
-    'rounded-lg border border-gray-200 bg-white shadow-sm',
+    'rounded-lg border border-gray-200 bg-white shadow-sm dark:bg-gray-800 dark:border-gray-700',
     props.padding !== false && 'p-6',
     props.class,
   )
@@ -28,7 +28,7 @@ export function CardHeader(
 ): HTMLElement {
   return h(
     'div',
-    { class: cx('border-b border-gray-200 px-6 py-4', props.class) },
+    { class: cx('border-b border-gray-200 dark:border-gray-700 px-6 py-4', props.class) },
     ...children,
   )
 }
@@ -50,7 +50,7 @@ export function CardFooter(
 ): HTMLElement {
   return h(
     'div',
-    { class: cx('border-t border-gray-200 px-6 py-4', props.class) },
+    { class: cx('border-t border-gray-200 dark:border-gray-700 px-6 py-4', props.class) },
     ...children,
   )
 }

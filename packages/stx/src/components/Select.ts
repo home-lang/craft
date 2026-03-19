@@ -25,7 +25,7 @@ const sizeClasses: Record<string, string> = {
 
 export function Select(props: SelectProps): HTMLElement {
   const className = cx(
-    'w-full appearance-none rounded-md border border-gray-300 bg-white text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed',
+    'w-full appearance-none rounded-md border border-gray-300 bg-white text-gray-900 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600',
     sizeClasses[props.size ?? 'md'],
     props.class,
   )

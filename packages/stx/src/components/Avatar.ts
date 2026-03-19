@@ -10,7 +10,7 @@ export interface AvatarProps {
 }
 
 export const avatarVariants = variants({
-  base: 'inline-flex items-center justify-center rounded-full bg-gray-200 text-gray-600 font-medium overflow-hidden flex-shrink-0',
+  base: 'inline-flex items-center justify-center rounded-full bg-gray-200 text-gray-600 font-medium overflow-hidden flex-shrink-0 dark:bg-gray-700 dark:text-gray-300',
   variants: {
     size: {
       sm: 'h-8 w-8 text-xs',

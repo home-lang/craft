@@ -1,3 +1,4 @@
+/* eslint-disable ts/no-top-level-await */
 /**
  * Build script for @craft-native/stx
  */
@@ -15,6 +16,7 @@ await Bun.build({
     './src/composables/index.ts',
     './src/directives/index.ts',
     './src/styles.ts',
+    './src/compiler/index.ts',
   ],
   outdir: './dist',
   target: 'browser',

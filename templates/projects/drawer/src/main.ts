@@ -2,7 +2,9 @@
  * {{APP_NAME}} - Drawer Navigation Template
  */
 
-import { isMobile, haptics } from '@craft-native/craft'
+import { state, effect, mount, h } from '@craft-native/stx'
+import { Card, Toggle, Badge } from '@craft-native/stx/components'
+import { usePlatform, useHaptics } from '@craft-native/stx/composables'
 
 interface MenuItem {
   id: string
@@ -41,366 +43,341 @@ const menuSections: MenuSection[] = [
   }
 ]
 
-let activePage = 'home'
-let isDrawerOpen = false
+const { isMobile } = usePlatform()
+const { impact, selection } = useHaptics()
 
-function renderIcon(path: string): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">${path}</svg>`
+// Reactive state
+const activePage = state('home')
+const isDrawerOpen = state(false)
+const notificationsOn = state(true)
+const darkModeOn = state(false)
+const autoSyncOn = state(true)
+
+function renderIcon(path: string) {
+  return h('svg', {
+    xmlns: 'http://www.w3.org/2000/svg',
+    fill: 'none',
+    viewBox: '0 0 24 24',
+    stroke: 'currentColor',
+    'stroke-width': '2',
+    innerHTML: path
+  })
 }
 
 function toggleDrawer(): void {
-  isDrawerOpen = !isDrawerOpen
-
+  isDrawerOpen.update(v => !v)
   if (isMobile()) {
-    haptics.impact('light')
+    impact('light')
   }
-
-  document.querySelector('.drawer')?.classList.toggle('open', isDrawerOpen)
-  document.querySelector('.drawer-overlay')?.classList.toggle('open', isDrawerOpen)
-  document.body.style.overflow = isDrawerOpen ? 'hidden' : ''
 }
 
 function closeDrawer(): void {
-  if (!isDrawerOpen) return
-  isDrawerOpen = false
-  document.querySelector('.drawer')?.classList.remove('open')
-  document.querySelector('.drawer-overlay')?.classList.remove('open')
-  document.body.style.overflow = ''
+  if (!isDrawerOpen()) return
+  isDrawerOpen.set(false)
 }
 
 function navigateTo(pageId: string): void {
-  if (activePage === pageId) {
+  if (activePage() === pageId) {
     closeDrawer()
     return
   }
 
-  activePage = pageId
+  activePage.set(pageId)
 
   if (isMobile()) {
-    haptics.selection()
-  }
-
-  // Update drawer items
-  document.querySelectorAll('.drawer-item').forEach(item => {
-    item.classList.toggle('active', item.getAttribute('data-page') === pageId)
-  })
-
-  // Update pages
-  document.querySelectorAll('.page').forEach(page => {
-    page.classList.toggle('active', page.id === `page-${pageId}`)
-  })
-
-  // Update header title
-  const menuItem = menuSections.flatMap(s => s.items).find(item => item.id === pageId)
-  const headerTitle = document.querySelector('.header h1')
-  if (headerTitle && menuItem) {
-    headerTitle.textContent = menuItem.label
+    selection()
   }
 
   closeDrawer()
 }
 
-function renderHomePage(): string {
-  return `
-    <div class="card">
-      <h3>Welcome to {{APP_NAME}}</h3>
-      <p>This is a drawer navigation template built with Craft. Tap the menu icon to open the navigation drawer.</p>
-    </div>
-    <div class="card">
-      <h3>Recent Items</h3>
-      <div class="list-item">
-        <div class="list-item-icon">📄</div>
-        <div class="list-item-content">
-          <div class="list-item-title">Project Proposal</div>
-          <div class="list-item-subtitle">Modified 2 hours ago</div>
-        </div>
-        <span class="list-item-action">→</span>
-      </div>
-      <div class="list-item">
-        <div class="list-item-icon">📊</div>
-        <div class="list-item-content">
-          <div class="list-item-title">Q4 Report</div>
-          <div class="list-item-subtitle">Modified yesterday</div>
-        </div>
-        <span class="list-item-action">→</span>
-      </div>
-      <div class="list-item">
-        <div class="list-item-icon">📝</div>
-        <div class="list-item-content">
-          <div class="list-item-title">Meeting Notes</div>
-          <div class="list-item-subtitle">Modified 3 days ago</div>
-        </div>
-        <span class="list-item-action">→</span>
-      </div>
-    </div>
-  `
+// Page content builders
+
+function buildListItem(icon: string, title: string, subtitle: string, action?: string) {
+  return h('div', { class: 'list-item' },
+    h('div', { class: 'list-item-icon', '@text': icon }),
+    h('div', { class: 'list-item-content' },
+      h('div', { class: 'list-item-title', '@text': title }),
+      h('div', { class: 'list-item-subtitle', '@text': subtitle })
+    ),
+    ...(action ? [h('span', { class: 'list-item-action', '@text': action })] : [])
+  )
 }
 
-function renderInboxPage(): string {
-  return `
-    <div class="card">
-      <div class="list-item">
-        <div class="list-item-icon">👤</div>
-        <div class="list-item-content">
-          <div class="list-item-title">New message from Alex</div>
-          <div class="list-item-subtitle">Hey! Just wanted to check in about the project...</div>
-        </div>
-      </div>
-      <div class="list-item">
-        <div class="list-item-icon">🔔</div>
-        <div class="list-item-content">
-          <div class="list-item-title">System notification</div>
-          <div class="list-item-subtitle">Your backup completed successfully</div>
-        </div>
-      </div>
-      <div class="list-item">
-        <div class="list-item-icon">📅</div>
-        <div class="list-item-content">
-          <div class="list-item-title">Meeting reminder</div>
-          <div class="list-item-subtitle">Team standup in 30 minutes</div>
-        </div>
-      </div>
-    </div>
-  `
+function buildHomePage() {
+  return h('div', { class: 'page', '@show': () => activePage() === 'home' },
+    Card({},
+      h('h3', { '@text': 'Welcome to {{APP_NAME}}' }),
+      h('p', { '@text': 'This is a drawer navigation template built with Craft. Tap the menu icon to open the navigation drawer.' })
+    ),
+    Card({},
+      h('h3', { '@text': 'Recent Items' }),
+      buildListItem('\u{1F4C4}', 'Project Proposal', 'Modified 2 hours ago', '\u2192'),
+      buildListItem('\u{1F4CA}', 'Q4 Report', 'Modified yesterday', '\u2192'),
+      buildListItem('\u{1F4DD}', 'Meeting Notes', 'Modified 3 days ago', '\u2192')
+    )
+  )
 }
 
-function renderStarredPage(): string {
-  return `
-    <div class="empty-state">
-      <div class="empty-state-icon">⭐</div>
-      <div class="empty-state-title">No starred items</div>
-      <div class="empty-state-text">Items you star will appear here for quick access.</div>
-    </div>
-  `
+function buildInboxPage() {
+  return h('div', { class: 'page', '@show': () => activePage() === 'inbox' },
+    Card({},
+      buildListItem('\u{1F464}', 'New message from Alex', 'Hey! Just wanted to check in about the project...'),
+      buildListItem('\u{1F514}', 'System notification', 'Your backup completed successfully'),
+      buildListItem('\u{1F4C5}', 'Meeting reminder', 'Team standup in 30 minutes')
+    )
+  )
 }
 
-function renderArchivePage(): string {
-  return `
-    <div class="empty-state">
-      <div class="empty-state-icon">📦</div>
-      <div class="empty-state-title">Archive is empty</div>
-      <div class="empty-state-text">Archived items will be stored here.</div>
-    </div>
-  `
+function buildEmptyState(icon: string, title: string, text: string) {
+  return h('div', { class: 'empty-state' },
+    h('div', { class: 'empty-state-icon', '@text': icon }),
+    h('div', { class: 'empty-state-title', '@text': title }),
+    h('div', { class: 'empty-state-text', '@text': text })
+  )
 }
 
-function renderLabelPage(label: string): string {
-  return `
-    <div class="empty-state">
-      <div class="empty-state-icon">🏷️</div>
-      <div class="empty-state-title">No ${label} items</div>
-      <div class="empty-state-text">Items labeled as ${label} will appear here.</div>
-    </div>
-  `
+function buildStarredPage() {
+  return h('div', { class: 'page', '@show': () => activePage() === 'starred' },
+    buildEmptyState('\u2B50', 'No starred items', 'Items you star will appear here for quick access.')
+  )
 }
 
-function renderSettingsPage(): string {
-  return `
-    <div class="settings-list">
-      <div class="settings-item">
-        <span class="settings-item-label">Notifications</span>
-        <div class="toggle on" data-setting="notifications"></div>
-      </div>
-      <div class="settings-item">
-        <span class="settings-item-label">Dark Mode</span>
-        <div class="toggle" data-setting="darkmode"></div>
-      </div>
-      <div class="settings-item">
-        <span class="settings-item-label">Auto-sync</span>
-        <div class="toggle on" data-setting="autosync"></div>
-      </div>
-    </div>
-    <div class="settings-list">
-      <div class="settings-item">
-        <span class="settings-item-label">Account</span>
-        <span class="settings-item-value">user@example.com →</span>
-      </div>
-      <div class="settings-item">
-        <span class="settings-item-label">Storage</span>
-        <span class="settings-item-value">2.4 GB used →</span>
-      </div>
-      <div class="settings-item">
-        <span class="settings-item-label">Privacy</span>
-        <span class="settings-item-value">→</span>
-      </div>
-    </div>
-  `
+function buildArchivePage() {
+  return h('div', { class: 'page', '@show': () => activePage() === 'archive' },
+    buildEmptyState('\u{1F4E6}', 'Archive is empty', 'Archived items will be stored here.')
+  )
 }
 
-function renderHelpPage(): string {
-  return `
-    <div class="card">
-      <h3>Getting Started</h3>
-      <p>This template demonstrates drawer navigation, commonly used in mobile apps. Swipe from the left edge or tap the menu button to open the drawer.</p>
-    </div>
-    <div class="card">
-      <h3>Contact Support</h3>
-      <p>Have questions or feedback? We'd love to hear from you.</p>
-      <div class="list-item">
-        <div class="list-item-icon">📧</div>
-        <div class="list-item-content">
-          <div class="list-item-title">Email Support</div>
-          <div class="list-item-subtitle">support@example.com</div>
-        </div>
-      </div>
-      <div class="list-item">
-        <div class="list-item-icon">💬</div>
-        <div class="list-item-content">
-          <div class="list-item-title">Live Chat</div>
-          <div class="list-item-subtitle">Available 9am - 5pm EST</div>
-        </div>
-      </div>
-    </div>
-  `
+function buildLabelPage(id: string, label: string) {
+  return h('div', { class: 'page', '@show': () => activePage() === id },
+    buildEmptyState('\u{1F3F7}\uFE0F', `No ${label} items`, `Items labeled as ${label} will appear here.`)
+  )
 }
 
-function getPageContent(pageId: string): string {
-  switch (pageId) {
-    case 'home': return renderHomePage()
-    case 'inbox': return renderInboxPage()
-    case 'starred': return renderStarredPage()
-    case 'archive': return renderArchivePage()
-    case 'personal': return renderLabelPage('Personal')
-    case 'work': return renderLabelPage('Work')
-    case 'projects': return renderLabelPage('Projects')
-    case 'settings': return renderSettingsPage()
-    case 'help': return renderHelpPage()
-    default: return ''
-  }
+function buildSettingsPage() {
+  return h('div', { class: 'page', '@show': () => activePage() === 'settings' },
+    h('div', { class: 'settings-list' },
+      h('div', { class: 'settings-item' },
+        h('span', { class: 'settings-item-label', '@text': 'Notifications' }),
+        Toggle({
+          value: notificationsOn,
+          onChange: () => {
+            notificationsOn.update(v => !v)
+            if (isMobile()) impact('light')
+          }
+        })
+      ),
+      h('div', { class: 'settings-item' },
+        h('span', { class: 'settings-item-label', '@text': 'Dark Mode' }),
+        Toggle({
+          value: darkModeOn,
+          onChange: () => {
+            darkModeOn.update(v => !v)
+            if (isMobile()) impact('light')
+          }
+        })
+      ),
+      h('div', { class: 'settings-item' },
+        h('span', { class: 'settings-item-label', '@text': 'Auto-sync' }),
+        Toggle({
+          value: autoSyncOn,
+          onChange: () => {
+            autoSyncOn.update(v => !v)
+            if (isMobile()) impact('light')
+          }
+        })
+      )
+    ),
+    h('div', { class: 'settings-list' },
+      h('div', { class: 'settings-item' },
+        h('span', { class: 'settings-item-label', '@text': 'Account' }),
+        h('span', { class: 'settings-item-value', '@text': 'user@example.com \u2192' })
+      ),
+      h('div', { class: 'settings-item' },
+        h('span', { class: 'settings-item-label', '@text': 'Storage' }),
+        h('span', { class: 'settings-item-value', '@text': '2.4 GB used \u2192' })
+      ),
+      h('div', { class: 'settings-item' },
+        h('span', { class: 'settings-item-label', '@text': 'Privacy' }),
+        h('span', { class: 'settings-item-value', '@text': '\u2192' })
+      )
+    )
+  )
 }
 
-function init(): void {
-  const app = document.getElementById('app')!
+function buildHelpPage() {
+  return h('div', { class: 'page', '@show': () => activePage() === 'help' },
+    Card({},
+      h('h3', { '@text': 'Getting Started' }),
+      h('p', { '@text': 'This template demonstrates drawer navigation, commonly used in mobile apps. Swipe from the left edge or tap the menu button to open the drawer.' })
+    ),
+    Card({},
+      h('h3', { '@text': 'Contact Support' }),
+      h('p', { '@text': 'Have questions or feedback? We\'d love to hear from you.' }),
+      buildListItem('\u{1F4E7}', 'Email Support', 'support@example.com'),
+      buildListItem('\u{1F4AC}', 'Live Chat', 'Available 9am - 5pm EST')
+    )
+  )
+}
 
-  // Get all page IDs
-  const allPages = menuSections.flatMap(s => s.items).map(item => item.id)
+function buildDrawerItem(item: MenuItem) {
+  return h('button', {
+    class: 'drawer-item',
+    '@class': () => activePage() === item.id ? 'active' : '',
+    onClick: () => navigateTo(item.id)
+  },
+    renderIcon(item.icon),
+    h('span', { class: 'drawer-item-label', '@text': item.label }),
+    ...(item.badge
+      ? [Badge({ '@text': item.badge, class: 'drawer-item-badge' })]
+      : [])
+  )
+}
 
-  app.innerHTML = `
-    <div class="drawer-overlay"></div>
+function buildDrawerSection(section: MenuSection, index: number) {
+  return h('div', {},
+    ...(index > 0 ? [h('div', { class: 'drawer-divider' })] : []),
+    h('div', { class: 'drawer-section' },
+      ...(section.title
+        ? [h('div', { class: 'drawer-section-title', '@text': section.title })]
+        : []),
+      ...section.items.map(item => buildDrawerItem(item))
+    )
+  )
+}
 
-    <aside class="drawer">
-      <div class="drawer-header">
-        <div class="drawer-header-avatar">👤</div>
-        <div class="drawer-header-title">User Name</div>
-        <div class="drawer-header-subtitle">user@example.com</div>
-      </div>
+function buildApp() {
+  return h('div', {},
+    // Drawer overlay
+    h('div', {
+      class: 'drawer-overlay',
+      '@class': () => isDrawerOpen() ? 'open' : '',
+      onClick: closeDrawer
+    }),
 
-      <nav class="drawer-content">
-        ${menuSections.map((section, index) => `
-          ${index > 0 ? '<div class="drawer-divider"></div>' : ''}
-          <div class="drawer-section">
-            ${section.title ? `<div class="drawer-section-title">${section.title}</div>` : ''}
-            ${section.items.map(item => `
-              <button class="drawer-item ${item.id === activePage ? 'active' : ''}" data-page="${item.id}">
-                ${renderIcon(item.icon)}
-                <span class="drawer-item-label">${item.label}</span>
-                ${item.badge ? `<span class="drawer-item-badge">${item.badge}</span>` : ''}
-              </button>
-            `).join('')}
-          </div>
-        `).join('')}
-      </nav>
+    // Drawer sidebar
+    h('aside', {
+      class: 'drawer',
+      '@class': () => isDrawerOpen() ? 'open' : ''
+    },
+      h('div', { class: 'drawer-header' },
+        h('div', { class: 'drawer-header-avatar', '@text': '\u{1F464}' }),
+        h('div', { class: 'drawer-header-title', '@text': 'User Name' }),
+        h('div', { class: 'drawer-header-subtitle', '@text': 'user@example.com' })
+      ),
+      h('nav', { class: 'drawer-content' },
+        ...menuSections.map((section, index) => buildDrawerSection(section, index))
+      ),
+      h('div', { class: 'drawer-footer' },
+        h('div', { class: 'drawer-footer-version', '@text': '{{APP_NAME}} v1.0.0' })
+      )
+    ),
 
-      <div class="drawer-footer">
-        <div class="drawer-footer-version">{{APP_NAME}} v1.0.0</div>
-      </div>
-    </aside>
+    // Header
+    h('header', { class: 'header' },
+      h('button', {
+        class: 'header-menu-btn',
+        'aria-label': 'Open menu',
+        onClick: toggleDrawer
+      },
+        h('svg', {
+          xmlns: 'http://www.w3.org/2000/svg',
+          fill: 'none',
+          viewBox: '0 0 24 24',
+          stroke: 'currentColor',
+          'stroke-width': '2',
+          innerHTML: '<path d="M4 6h16M4 12h16M4 18h16"/>'
+        })
+      ),
+      h('h1', {
+        '@text': () => {
+          const menuItem = menuSections.flatMap(s => s.items).find(item => item.id === activePage())
+          return menuItem ? menuItem.label : 'Home'
+        }
+      }),
+      h('button', {
+        class: 'header-action',
+        'aria-label': 'Search'
+      },
+        h('svg', {
+          xmlns: 'http://www.w3.org/2000/svg',
+          fill: 'none',
+          viewBox: '0 0 24 24',
+          stroke: 'currentColor',
+          'stroke-width': '2',
+          innerHTML: '<path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>'
+        })
+      )
+    ),
 
-    <header class="header">
-      <button class="header-menu-btn" aria-label="Open menu">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
-      </button>
-      <h1>Home</h1>
-      <button class="header-action" aria-label="Search">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-        </svg>
-      </button>
-    </header>
+    // Main content with pages
+    h('main', { class: 'content' },
+      buildHomePage(),
+      buildInboxPage(),
+      buildStarredPage(),
+      buildArchivePage(),
+      buildLabelPage('personal', 'Personal'),
+      buildLabelPage('work', 'Work'),
+      buildLabelPage('projects', 'Projects'),
+      buildSettingsPage(),
+      buildHelpPage()
+    ),
 
-    <main class="content">
-      ${allPages.map(pageId => `
-        <div id="page-${pageId}" class="page ${pageId === activePage ? 'active' : ''}">
-          ${getPageContent(pageId)}
-        </div>
-      `).join('')}
-    </main>
-
-    <button class="fab" aria-label="Add new">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path d="M12 4v16m8-8H4"/>
-      </svg>
-    </button>
-  `
-
-  // Event listeners
-  document.querySelector('.header-menu-btn')?.addEventListener('click', toggleDrawer)
-  document.querySelector('.drawer-overlay')?.addEventListener('click', closeDrawer)
-
-  document.querySelectorAll('.drawer-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const pageId = item.getAttribute('data-page')
-      if (pageId) navigateTo(pageId)
-    })
-  })
-
-  // Toggle switches
-  document.querySelectorAll('.toggle').forEach(toggle => {
-    toggle.addEventListener('click', () => {
-      toggle.classList.toggle('on')
-      if (isMobile()) {
-        haptics.impact('light')
+    // FAB
+    h('button', {
+      class: 'fab',
+      'aria-label': 'Add new',
+      onClick: () => {
+        if (isMobile()) impact('medium')
+        alert('Add new item')
       }
-    })
-  })
-
-  // FAB
-  document.querySelector('.fab')?.addEventListener('click', () => {
-    if (isMobile()) {
-      haptics.impact('medium')
-    }
-    alert('Add new item')
-  })
-
-  // Touch gesture for opening drawer (swipe from left edge)
-  let touchStartX = 0
-  let touchStartY = 0
-
-  document.addEventListener('touchstart', (e) => {
-    touchStartX = e.touches[0].clientX
-    touchStartY = e.touches[0].clientY
-  }, { passive: true })
-
-  document.addEventListener('touchend', (e) => {
-    const touchEndX = e.changedTouches[0].clientX
-    const touchEndY = e.changedTouches[0].clientY
-    const deltaX = touchEndX - touchStartX
-    const deltaY = Math.abs(touchEndY - touchStartY)
-
-    // Open drawer: swipe right from left edge
-    if (touchStartX < 30 && deltaX > 50 && deltaY < 50 && !isDrawerOpen) {
-      toggleDrawer()
-    }
-    // Close drawer: swipe left when open
-    else if (isDrawerOpen && deltaX < -50 && deltaY < 50) {
-      closeDrawer()
-    }
-  }, { passive: true })
-
-  // Keyboard shortcuts
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && isDrawerOpen) {
-      closeDrawer()
-    }
-  })
+    },
+      h('svg', {
+        xmlns: 'http://www.w3.org/2000/svg',
+        fill: 'none',
+        viewBox: '0 0 24 24',
+        stroke: 'currentColor',
+        'stroke-width': '2',
+        innerHTML: '<path d="M12 4v16m8-8H4"/>'
+      })
+    )
+  )
 }
 
-// Start app
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init)
-}
-else {
-  init()
-}
+// Body overflow side effect
+effect(() => {
+  document.body.style.overflow = isDrawerOpen() ? 'hidden' : ''
+})
+
+// Touch gesture for opening/closing drawer (global concern)
+let touchStartX = 0
+let touchStartY = 0
+
+document.addEventListener('touchstart', (e) => {
+  touchStartX = e.touches[0].clientX
+  touchStartY = e.touches[0].clientY
+}, { passive: true })
+
+document.addEventListener('touchend', (e) => {
+  const touchEndX = e.changedTouches[0].clientX
+  const touchEndY = e.changedTouches[0].clientY
+  const deltaX = touchEndX - touchStartX
+  const deltaY = Math.abs(touchEndY - touchStartY)
+
+  if (touchStartX < 30 && deltaX > 50 && deltaY < 50 && !isDrawerOpen()) {
+    toggleDrawer()
+  } else if (isDrawerOpen() && deltaX < -50 && deltaY < 50) {
+    closeDrawer()
+  }
+}, { passive: true })
+
+// Keyboard shortcuts (global concern)
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && isDrawerOpen()) {
+    closeDrawer()
+  }
+})
+
+// Mount the app
+mount(buildApp(), '#app')

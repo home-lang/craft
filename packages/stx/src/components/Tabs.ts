@@ -23,7 +23,7 @@ export function Tabs(props: TabsProps): HTMLElement {
 
   // Tab buttons
   const tabList = h('div', {
-    class: 'flex border-b border-gray-200',
+    class: 'flex border-b border-gray-200 dark:border-gray-700',
     role: 'tablist',
   })
 
