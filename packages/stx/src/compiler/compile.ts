@@ -297,9 +297,8 @@ export function compile(source: string, options: CompileOptions = {}): string {
   const scopeId = hasScoped ? generateScopeId(filename) : undefined
 
   // Composition API available on window.stx (auto-imported)
-  // No explicit import needed for defineProps/defineEmits/withDefaults
   parts.push(`// Auto-imported from window.stx`)
-  parts.push(`const { defineProps, defineEmits, withDefaults, defineExpose, state, derived, effect, onMount, onDestroy, onUpdate, h, mount, provide, inject } = window.stx || {};`)
+  parts.push(`const { defineProps, defineEmits, withDefaults, defineExpose, state, derived, effect, batch, untrack, peek, isSignal, isDerived, onMount, onDestroy, onUpdate, onMounted, onUnmounted, onUpdated, onBeforeMount, onBeforeUpdate, onBeforeUnmount, h, mount, provide, inject, nextTick, useRef, navigate } = window.stx || {};`)
   parts.push(``)
 
   // Server script (only in SSR mode)
@@ -313,8 +312,6 @@ export function compile(source: string, options: CompileOptions = {}): string {
   let clientCode = ''
   if (descriptor.scriptClient) {
     clientCode = transpileTS(descriptor.scriptClient.content, descriptor.scriptClient.lang)
-    parts.push(`// --- client ---`)
-    parts.push(clientCode)
   }
 
   // Template -> render function
@@ -332,21 +329,39 @@ export function compile(source: string, options: CompileOptions = {}): string {
     parts.push(``)
 
     if (needsAutoMount) {
-      // Auto-wrap: generate mount call
+      // Scope isolation: wrap script declarations and render in the same
+      // stx.mount() IIFE so all declarations share a scope. This matches
+      // how stx evaluates expressions via new Function(...Object.keys(scope), expr).
       parts.push(`// Auto-bound by stx compiler`)
-      parts.push(`export default function __stx_render() {`)
-      parts.push(`  return ${renderCode};`)
-      parts.push(`}`)
-      parts.push(``)
       parts.push(`if (typeof document !== 'undefined') {`)
-      parts.push(`  mount(__stx_render, '#app');`)
+      parts.push(`  stx.mount(() => {`)
+      if (clientCode) {
+        // Indent client code inside the mount scope
+        for (const line of clientCode.split('\n')) {
+          parts.push(`    ${line}`)
+        }
+      }
+      parts.push(``)
+      parts.push(`    return ${renderCode};`)
+      parts.push(`  }, '#app');`)
       parts.push(`}`)
     }
     else {
+      // No auto-binding — emit script and render separately
+      if (clientCode) {
+        parts.push(`// --- client ---`)
+        parts.push(clientCode)
+        parts.push(``)
+      }
       parts.push(`export default function render() {`)
       parts.push(`  return ${renderCode};`)
       parts.push(`}`)
     }
+  }
+  else if (clientCode) {
+    // No template, just client script
+    parts.push(`// --- client ---`)
+    parts.push(clientCode)
   }
 
   // Scoped styles (data-v-stx-{hash})

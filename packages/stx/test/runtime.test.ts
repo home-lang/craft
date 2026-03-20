@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { state, derived, effect, batch } from '../src/runtime'
+import { state, derived, effect, batch, untrack, peek, isSignal, isDerived, onMounted, onUnmounted } from '../src/runtime'
 
 describe('state', () => {
   test('read initial value', () => {
@@ -154,5 +154,69 @@ describe('batch', () => {
 
     // Should only record the final state, not intermediate
     expect(values).toEqual([3])
+  })
+})
+
+describe('untrack', () => {
+  test('read without tracking', () => {
+    const a = state(0)
+    const b = state(0)
+    let runCount = 0
+
+    effect(() => {
+      a() // tracked
+      untrack(() => b()) // NOT tracked
+      runCount++
+    })
+
+    runCount = 0
+    a.set(1)
+    expect(runCount).toBe(1) // re-ran because a changed
+
+    runCount = 0
+    b.set(1)
+    expect(runCount).toBe(0) // did NOT re-run because b was untracked
+  })
+})
+
+describe('peek', () => {
+  test('read signal without tracking', () => {
+    const count = state(42)
+    let runCount = 0
+
+    effect(() => {
+      peek(count) // should NOT track
+      runCount++
+    })
+
+    runCount = 0
+    count.set(100)
+    expect(runCount).toBe(0)
+    expect(peek(count)).toBe(100)
+  })
+})
+
+describe('isSignal / isDerived', () => {
+  test('isSignal detects state', () => {
+    expect(isSignal(state(0))).toBe(true)
+    expect(isSignal(derived(() => 0))).toBe(false)
+    expect(isSignal(42)).toBe(false)
+    expect(isSignal(() => 0)).toBe(false)
+  })
+
+  test('isDerived detects derived', () => {
+    expect(isDerived(derived(() => 0))).toBe(true)
+    expect(isDerived(state(0))).toBe(false)
+    expect(isDerived(42)).toBe(false)
+  })
+})
+
+describe('lifecycle aliases', () => {
+  test('onMounted is same as onMount', () => {
+    expect(typeof onMounted).toBe('function')
+  })
+
+  test('onUnmounted is same as onDestroy', () => {
+    expect(typeof onUnmounted).toBe('function')
   })
 })

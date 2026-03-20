@@ -12,7 +12,8 @@
  */
 
 // Core reactivity
-export { state, derived, effect, batch, onMount, onDestroy, onUpdate, nextTick } from './runtime'
+export { state, derived, effect, batch, untrack, peek, isSignal, isDerived } from './runtime'
+export { onMount, onDestroy, onUpdate, onMounted, onUnmounted, onUpdated, onBeforeMount, onBeforeUpdate, onBeforeUnmount, nextTick } from './runtime'
 export type { State, Derived } from './runtime'
 
 // Composition API

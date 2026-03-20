@@ -267,3 +267,66 @@ export function nextTick(): Promise<void> {
     requestAnimationFrame(() => resolve())
   })
 }
+
+// Vue-style lifecycle aliases
+export const onMounted = onMount
+export const onUnmounted = onDestroy
+export const onUpdated = onUpdate
+export const onBeforeMount = onMount
+export const onBeforeUpdate = onUpdate
+export const onBeforeUnmount = onDestroy
+
+// ============================================================================
+// Utility Primitives
+// ============================================================================
+
+/**
+ * Run a function without tracking signal dependencies.
+ *
+ * @example
+ * effect(() => {
+ *   const a = count()           // tracked
+ *   const b = untrack(() => other())  // NOT tracked
+ * })
+ */
+export function untrack<T>(fn: () => T): T {
+  const prev = currentEffect
+  currentEffect = null
+  try {
+    return fn()
+  }
+  finally {
+    currentEffect = prev
+  }
+}
+
+/**
+ * Read a signal's value without tracking (inline version).
+ *
+ * @example
+ * effect(() => {
+ *   console.log(peek(count))  // reads count but doesn't track it
+ * })
+ */
+export function peek<T>(signal: State<T> | Derived<T>): T {
+  return untrack(() => signal())
+}
+
+/**
+ * Check if a value is a State signal.
+ */
+export function isSignal(value: unknown): value is State<unknown> {
+  return typeof value === 'function'
+    && 'set' in (value as object)
+    && 'update' in (value as object)
+    && 'subscribe' in (value as object)
+}
+
+/**
+ * Check if a value is a Derived signal.
+ */
+export function isDerived(value: unknown): value is Derived<unknown> {
+  return typeof value === 'function'
+    && 'subscribe' in (value as object)
+    && !('set' in (value as object))
+}

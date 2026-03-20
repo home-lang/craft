@@ -109,7 +109,8 @@ const msg = state('hello')
     const output = compile(source)
     // Bun.Transpiler may normalize quotes
     expect(output).toMatch(/const msg = state\(["']hello["']\)/)
-    expect(output).toContain('function')
+    // Auto-bound into stx.mount() scope
+    expect(output).toContain('stx.mount(')
   })
 
   test('include server script only in SSR mode', () => {
@@ -159,7 +160,7 @@ const name = 'world'
     const output = compile(source)
     // Auto-binding should detect count and name are used in template
     expect(output).toContain('Auto-bound by stx compiler')
-    expect(output).toContain("mount(__stx_render, '#app')")
+    expect(output).toContain('stx.mount(')
   })
 
   test('no auto-binding when mount() is explicit', () => {
