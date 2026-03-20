@@ -1,5 +1,5 @@
 /**
- * STX Client-Side Router (v2)
+ * STX Client-Side Router
  *
  * - Fragment-based SPA navigation via X-STX-Fragment header
  * - View Transitions API with CSS fallback

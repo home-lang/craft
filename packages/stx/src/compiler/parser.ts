@@ -1,9 +1,9 @@
 /**
- * STX SFC Parser (v2)
+ * STX SFC Parser
  *
  * Parses .stx files into a descriptor with template, script, and style blocks.
  *
- * v2 changes:
+ * Features:
  * - Scripts are TypeScript by default (no lang="ts" needed)
  * - <script> = client TS, <script server> = server TS, <script js> = plain JS
  * - Tracks script language for Bun.Transpiler routing
@@ -42,7 +42,7 @@ function parseAttrs(raw: string | undefined): Record<string, string | true> {
 }
 
 function resolveScriptLang(attrs: Record<string, string | true>): 'ts' | 'js' {
-  // v2: TypeScript by default. Opt out with <script js> or <script lang="js">
+  // TypeScript by default. Opt out with <script js> or <script lang="js">
   if (attrs.js === true) return 'js'
   if (attrs.lang === 'js' || attrs.lang === 'javascript') return 'js'
   return 'ts'

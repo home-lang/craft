@@ -1,5 +1,5 @@
 /**
- * STX Bun Plugin (v2)
+ * STX Bun Plugin
  *
  * Registers .stx file handling with Bun's bundler.
  * Also handles app.stx shell detection.

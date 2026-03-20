@@ -1,9 +1,9 @@
 /**
- * STX SFC Compiler (v2)
+ * STX SFC Compiler
  *
  * Transforms a parsed SFC descriptor into executable JavaScript.
  *
- * v2 features:
+ * Features:
  * - TypeScript-first: scripts transpiled via Bun.Transpiler
  * - Auto-binding: scans template refs, auto-wraps stx.mount() if needed
  * - Scoped styles: data-v-stx-{hash} attribute selector (deterministic from file path)
@@ -20,7 +20,7 @@ export interface CompileOptions {
 }
 
 // ============================================================================
-// Template reference scanning (Phase 2: Auto-binding)
+// Template reference scanning (Auto-binding)
 // ============================================================================
 
 /**
@@ -78,7 +78,7 @@ function hasExplicitMount(script: string): boolean {
 }
 
 // ============================================================================
-// TypeScript transpilation (Phase 1)
+// TypeScript transpilation
 // ============================================================================
 
 /**
@@ -101,7 +101,7 @@ function transpileTS(code: string, _lang: 'ts' | 'js'): string {
 }
 
 // ============================================================================
-// Scoped styles (Phase 3a)
+// Scoped styles
 // ============================================================================
 
 /**
@@ -296,7 +296,7 @@ export function compile(source: string, options: CompileOptions = {}): string {
   const hasScoped = descriptor.styles.some(s => s.attrs.scoped === true)
   const scopeId = hasScoped ? generateScopeId(filename) : undefined
 
-  // v2: Composition API available on window.stx (auto-imported)
+  // Composition API available on window.stx (auto-imported)
   // No explicit import needed for defineProps/defineEmits/withDefaults
   parts.push(`// Auto-imported from window.stx`)
   parts.push(`const { defineProps, defineEmits, withDefaults, defineExpose, state, derived, effect, onMount, onDestroy, onUpdate, h, mount, provide, inject } = window.stx || {};`)
@@ -321,7 +321,7 @@ export function compile(source: string, options: CompileOptions = {}): string {
   if (descriptor.template) {
     const renderCode = compileTemplate(descriptor.template.content, scopeId)
 
-    // v2 Auto-binding: check if script needs auto-wrapping
+    // Auto-binding: check if script needs auto-wrapping
     const templateRefs = scanTemplateRefs(descriptor.template.content)
     const scriptDecls = clientCode ? scanScriptDeclarations(clientCode) : new Set<string>()
     const needsAutoMount = templateRefs.size > 0
@@ -349,7 +349,7 @@ export function compile(source: string, options: CompileOptions = {}): string {
     }
   }
 
-  // Scoped styles (v2: data-v-stx-{hash})
+  // Scoped styles (data-v-stx-{hash})
   for (const style of descriptor.styles) {
     const isScoped = style.attrs.scoped === true
     const cssStr = isScoped && scopeId ? scopeCSS(style.content, scopeId) : style.content

@@ -10,7 +10,7 @@ describe('parser', () => {
     expect(desc.template!.content).toBe('<div>Hello</div>')
   })
 
-  test('parse bare script as client TS (v2 default)', () => {
+  test('parse bare script as client TS by default', () => {
     const source = `<script>const x: number = 1</script>`
     const desc = parse(source)
     expect(desc.scriptClient).not.toBeNull()
@@ -124,7 +124,7 @@ const msg = state('hello')
     expect(ssrOutput).toContain('const x = 1')
   })
 
-  test('v2: scoped styles use data-v-stx- prefix', () => {
+  test('scoped styles use data-v-stx- prefix', () => {
     const source = `
 <template><div>hi</div></template>
 <style scoped>div { color: red; }</style>
@@ -134,7 +134,7 @@ const msg = state('hello')
     expect(output).toContain('data-stx-scope')
   })
 
-  test('v2: composition API auto-imported from window.stx', () => {
+  test('composition API auto-imported from window.stx', () => {
     const source = `<template><div>hi</div></template>`
     const output = compile(source)
     expect(output).toContain('window.stx')
@@ -143,7 +143,7 @@ const msg = state('hello')
     expect(output).toContain('withDefaults')
   })
 
-  test('v2: auto-binding when script decls match template refs', () => {
+  test('auto-binding when script decls match template refs', () => {
     const source = `
 <script>
 const count = state(0)
@@ -162,7 +162,7 @@ const name = 'world'
     expect(output).toContain("mount(__stx_render, '#app')")
   })
 
-  test('v2: no auto-binding when mount() is explicit', () => {
+  test('no auto-binding when mount() is explicit', () => {
     const source = `
 <script>
 const count = state(0)
@@ -174,7 +174,7 @@ mount(render, '#app')
     expect(output).not.toContain('Auto-bound')
   })
 
-  test('v2: no auto-binding when no template refs match', () => {
+  test('no auto-binding when no template refs match', () => {
     const source = `
 <script>
 const x = 1
@@ -186,7 +186,7 @@ const x = 1
     expect(output).toContain('export default function render()')
   })
 
-  test('v2: scope ID is deterministic from filename', () => {
+  test('scope ID is deterministic from filename', () => {
     const source = `
 <template><div>hi</div></template>
 <style scoped>div { color: red; }</style>
@@ -201,7 +201,7 @@ const x = 1
     expect(output1).not.toBe(output3)
   })
 
-  test('v2: scope attribute injected into template root', () => {
+  test('scope attribute injected into template root', () => {
     const source = `
 <template><div class="foo">hi</div></template>
 <style scoped>div { color: red; }</style>

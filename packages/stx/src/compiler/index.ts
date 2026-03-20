@@ -1,16 +1,16 @@
 /**
- * STX SFC Compiler (v2)
+ * STX SFC Compiler
  *
  * Compiles .stx single-file components into JavaScript.
  *
- * v2 format:
+ * Format:
  *   <script>         — Client TS (default)
  *   <script server>  — SSR-only, stripped from client output
  *   <script js>      — Client JS (opt out of TS)
  *   <template>       — HTML with {{ }}, :bind, @event, @model, @if, @for
  *   <style scoped>   — Scoped CSS with data-v-stx-{hash}
  *
- * v2 features:
+ * Features:
  *   - TypeScript by default (Bun.Transpiler)
  *   - Auto-binding (template refs matched to script declarations)
  *   - Composition API on window.stx (auto-imported)

@@ -1,5 +1,5 @@
 /**
- * App Shell (v2 Phase 3c)
+ * STX App Shell
  *
  * Supports app.stx as a layout shell with <slot /> for page content.
  * - Direct requests get full shell + page pre-rendered
