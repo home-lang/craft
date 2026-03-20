@@ -389,6 +389,13 @@ export interface AppConfig {
    * Path to Craft binary (auto-detected if not provided)
    */
   craftPath?: string
+
+  /**
+   * Suppress all non-error output from the native binary.
+   * When true, the binary runs with --quiet and stdio is piped.
+   * @default false
+   */
+  quiet?: boolean
 }
 
 

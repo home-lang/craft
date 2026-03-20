@@ -23,6 +23,7 @@ pub const WindowOptions = struct {
     native_sidebar: bool = false,
     sidebar_width: u32 = 220,
     sidebar_config: ?[]const u8 = null,
+    quiet: bool = false,
     benchmark: bool = false,
 };
 
@@ -134,6 +135,8 @@ pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !Wind
             i += 1;
             if (i >= args.len) return CliError.MissingValue;
             options.sidebar_width = std.fmt.parseInt(u32, args[i], 10) catch return CliError.InvalidNumber;
+        } else if (std.mem.eql(u8, arg, "--quiet") or std.mem.eql(u8, arg, "-q")) {
+            options.quiet = true;
         } else if (std.mem.eql(u8, arg, "--benchmark")) {
             options.benchmark = true;
         } else if (std.mem.eql(u8, arg, "--sidebar-config")) {

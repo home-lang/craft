@@ -40,7 +40,7 @@ pub fn main(init: std.process.Init) !void {
     if (options.native_sidebar and options.url != null) {
         // Create window with native macOS sidebar loading a URL
         const url = options.url.?;
-        if (!options.benchmark) {
+        if (!options.benchmark and !options.quiet) {
             std.debug.print("\n⚡ Creating window with native macOS sidebar (URL mode)\n", .{});
             std.debug.print("   Title: {s}\n", .{options.title});
             std.debug.print("   URL: {s}\n", .{url});
@@ -77,7 +77,7 @@ pub fn main(init: std.process.Init) !void {
     } else if (options.native_sidebar and options.html != null) {
         // Create window with native macOS sidebar (inline HTML mode)
         const html = options.html.?;
-        if (!options.benchmark) {
+        if (!options.benchmark and !options.quiet) {
             std.debug.print("\n⚡ Creating window with native macOS sidebar (HTML mode)\n", .{});
             std.debug.print("   Title: {s}\n", .{options.title});
             std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
@@ -112,7 +112,7 @@ pub fn main(init: std.process.Init) !void {
         );
     } else if (options.url) |url| {
         // Load URL directly (no iframe!)
-        if (!options.benchmark) {
+        if (!options.benchmark and !options.quiet) {
             std.debug.print("\n⚡ Loading URL in native window: {s}\n", .{url});
             std.debug.print("   Title: {s}\n", .{options.title});
             std.debug.print("   Size: {d}x{d}\n", .{ options.width, options.height });
@@ -150,7 +150,7 @@ pub fn main(init: std.process.Init) !void {
         );
     } else if (options.html) |html| {
         // Load HTML content
-        if (!options.benchmark) {
+        if (!options.benchmark and !options.quiet) {
             std.debug.print("\n⚡ Loading HTML content in native window\n", .{});
             std.debug.print("   Title: {s}\n", .{options.title});
             std.debug.print("   Size: {d}x{d}\n\n", .{ options.width, options.height });
@@ -179,7 +179,7 @@ pub fn main(init: std.process.Init) !void {
         );
     } else {
         // Show default demo app
-        if (!options.benchmark) {
+        if (!options.benchmark and !options.quiet) {
             std.debug.print("\n⚡ Launching Craft demo app\n", .{});
             std.debug.print("   Run with --help to see available options\n\n", .{});
         }

@@ -39,7 +39,6 @@
   "files": [
     "bin",
     "dist",
-    "native",
     "README.md",
     "LICENSE.md"
   ],

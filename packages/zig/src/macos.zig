@@ -1036,18 +1036,11 @@ fn sidebarSelectionDidChange(
     if (comptime builtin.mode == .Debug)
         std.debug.print("[NativeSidebar] Selection changed: section={s}, item={s}\n", .{ section.id, child.id });
 
-    // Navigate to URL if item has one
-    if (sidebar_webview != null and child.url != null) {
-        const url_str = createNSString(child.url.?);
-        const NSURL = getClass("NSURL");
-        const nsurl = msgSend1(NSURL, "URLWithString:", url_str);
-        const request = msgSend1(getClass("NSURLRequest"), "requestWithURL:", nsurl);
-        _ = msgSend1(sidebar_webview, "loadRequest:", request);
-        if (comptime builtin.mode == .Debug)
-            std.debug.print("[NativeSidebar] Navigating to: {s}\n", .{child.url.?});
-    } else if (sidebar_webview != null) {
-        // Send event to WebView if no URL (legacy behavior)
-        var js_buf: [1024]u8 = undefined;
+    // Always dispatch sidebar selection via JavaScript handler for SPA navigation.
+    // The handler in the web app decides how to load the page (lazy fetch, etc.)
+    // instead of doing a full page navigation that would break the SPA shell.
+    if (sidebar_webview != null) {
+        var js_buf: [2048]u8 = undefined;
         const js = std.fmt.bufPrint(&js_buf,
             \\if (window.craft && window.craft._sidebarSelectHandler) {{
             \\  window.craft._sidebarSelectHandler({{
@@ -1060,6 +1053,9 @@ fn sidebarSelectionDidChange(
 
         const js_str = createNSString(js);
         _ = msgSend2(sidebar_webview, "evaluateJavaScript:completionHandler:", js_str, @as(?*anyopaque, null));
+
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[NativeSidebar] Selection: section={s}, item={s}\n", .{ section.id, child.id });
     }
 }
 

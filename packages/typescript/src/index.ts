@@ -187,7 +187,7 @@ export class CraftApp {
     const craftPath = await this.findCraftBinary()
 
     this.process = spawn(craftPath, args, {
-      stdio: 'inherit',
+      stdio: this.config.quiet ? 'ignore' : 'inherit',
     })
 
     return new Promise((resolve, reject) => {
@@ -315,6 +315,9 @@ export class CraftApp {
       if (window?.sidebarConfig)
         args.push('--sidebar-config', JSON.stringify(window.sidebarConfig))
     }
+
+    if (this.config.quiet)
+      args.push('--quiet')
 
     return args
   }
