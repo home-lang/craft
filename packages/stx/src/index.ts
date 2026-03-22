@@ -54,6 +54,13 @@ export type { KeepAliveOptions } from './keepAlive'
 export { hydrateIsland, hydrateByStrategy, hydrateAll, isHydrated, onHydrated, removeIsland, getIslandIds } from './hydration'
 export type { HydrationStrategy, HydrationOptions } from './hydration'
 
+// Virtual Scrolling
+export { createVirtualList, createVirtualGrid } from './virtualScroll'
+export type { VirtualListOptions, VirtualGridOptions, VirtualListInstance } from './virtualScroll'
+
+// Testing Utilities
+export { render, fireEvent, waitFor, waitForElement, flushPromises, cleanup, toContainText, toHaveClass, toHaveAttribute, toBeVisible } from './testing'
+
 // Router
 export { createRouter, navigate, getCurrentRoute, StxLink, loadShell, injectPage } from './router'
 export type { Route, RouterOptions, StxLinkProps } from './router'
