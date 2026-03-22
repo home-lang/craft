@@ -32,6 +32,12 @@ export * from './composables'
 // Directives
 export * from './directives'
 
+// Store
+export { defineStore } from './store'
+
+// Form
+export { defineForm, v } from './form'
+
 // Router
 export { createRouter, navigate, getCurrentRoute, StxLink, loadShell, injectPage } from './router'
 export type { Route, RouterOptions, StxLinkProps } from './router'
