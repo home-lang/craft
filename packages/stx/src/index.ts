@@ -50,6 +50,10 @@ export type { ErrorBoundaryOptions, ErrorBoundaryInstance } from './errorBoundar
 export { createKeepAlive } from './keepAlive'
 export type { KeepAliveOptions } from './keepAlive'
 
+// Partial Hydration (Islands)
+export { hydrateIsland, hydrateByStrategy, hydrateAll, isHydrated, onHydrated, removeIsland, getIslandIds } from './hydration'
+export type { HydrationStrategy, HydrationOptions } from './hydration'
+
 // Router
 export { createRouter, navigate, getCurrentRoute, StxLink, loadShell, injectPage } from './router'
 export type { Route, RouterOptions, StxLinkProps } from './router'
