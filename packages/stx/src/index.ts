@@ -38,6 +38,18 @@ export { defineStore } from './store'
 // Form
 export { defineForm, v } from './form'
 
+// Transitions
+export { transition, STXTransition } from './transitions'
+export type { TransitionOptions } from './transitions'
+
+// Error Boundaries
+export { createErrorBoundary, withErrorBoundary } from './errorBoundary'
+export type { ErrorBoundaryOptions, ErrorBoundaryInstance } from './errorBoundary'
+
+// Keep-Alive
+export { createKeepAlive } from './keepAlive'
+export type { KeepAliveOptions } from './keepAlive'
+
 // Router
 export { createRouter, navigate, getCurrentRoute, StxLink, loadShell, injectPage } from './router'
 export type { Route, RouterOptions, StxLinkProps } from './router'
