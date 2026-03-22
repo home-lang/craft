@@ -170,6 +170,11 @@ export interface SidebarItem {
   children?: SidebarItem[]
 
   /**
+   * URL or path associated with this item
+   */
+  url?: string
+
+  /**
    * Custom data to pass to event handlers
    */
   data?: Record<string, unknown>

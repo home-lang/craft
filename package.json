@@ -46,7 +46,7 @@
   },
   "devDependencies": {
     "@cwcss/crosswind": "^0.1.6",
-    "better-dx": "^0.2.6"
+    "better-dx": "^0.2.7"
   },
   "git-hooks": {
     "pre-commit": {
