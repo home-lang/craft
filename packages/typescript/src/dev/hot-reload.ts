@@ -370,7 +370,7 @@ else {
       }
 else {
         // Link tag - add cache buster
-        existing.href = `${existing.href.split('?')[0]}?t=${message.timestamp}`;
+        existing.href = \`\${existing.href.split('?')[0]}?t=\${message.timestamp}\`;
       }
     }
 else if (message.content) {
