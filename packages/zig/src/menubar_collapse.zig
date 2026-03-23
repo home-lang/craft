@@ -6,25 +6,26 @@ const log = logging.menu;
 
 /// Menu Bar Collapse/Hide System — with optional always-hidden section
 ///
-///   Position 1 (rightmost, created in earlyInit): ‹ — the chevron/separator
-///   Position 2 (created by tray.zig):             ☕️ — the app's tray icon (untouched)
-///   Position 3 (optional, always-hidden):         | — always-hidden separator
+///   Two permanent items + optional always-hidden separator:
+///
+///   1. btnExpandCollapse (rightmost, created in earlyInit): ‹/› — toggle button, ALWAYS visible
+///   2. tray icon (created by tray.zig):                     ☕️ — the app's icon, ALWAYS visible
+///   3. btnSeparate (created in init, after tray):           ·  — the width-changer, to LEFT of tray
+///   4. btnAlwaysHidden (optional):                          ·  — always-hidden separator
 ///
 ///   On collapse:
-///     1. The ‹ item expands to 10000px, pushing ☕️ and other items off-screen
-///        (its button goes off-screen too — that's unavoidable)
-///     2. A NEW temporary › item is created — it becomes the new rightmost item,
-///        so it appears to the RIGHT of the expanded item and stays visible
+///     btnSeparate.length = COLLAPSE_WIDTH — pushes everything to its LEFT off-screen
+///     btnExpandCollapse shows › (it stays visible because it's to the RIGHT of separator)
+///     ☕️ also stays visible (to the RIGHT of separator)
 ///
 ///   On expand:
-///     1. The temporary › item is removed
-///     2. The original item shrinks back, ‹ reappears
-///     3. If always-hidden is enabled, its separator stays expanded — items to
-///        its left remain off-screen even when the main section is visible
+///     btnSeparate.length = SEPARATOR_LENGTH (normal)
+///     btnExpandCollapse shows ‹
+///     If always-hidden enabled, btnAlwaysHidden stays expanded
 ///
-///   Normal:            [always-hidden items] [|] [sometimes-hidden items] [☕️] [‹]
-///   Collapsed:                                                                  [›]
-///   Expanded (always): [|expanded...........] [sometimes-hidden items] [☕️] [‹]
+///   Normal:            [always-hidden items] [·] [sometimes-hidden items] [·] [☕️] [‹]
+///   Collapsed:                               [· expanded ............... ] [☕️] [›]
+///   Expanded (always): [· expanded .........] [sometimes-hidden items] [·] [☕️] [‹]
 
 // ============================================================================
 // Objective-C runtime
@@ -115,54 +116,57 @@ var early_initialized: bool = false;
 var is_initialized: bool = false;
 var is_collapsed: bool = false;
 
-// The permanent ‹ item — expands to push items off-screen
-var chevron_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
-var item_constraint: objc.id = if (builtin.target.os.tag == .macos) null else null;
+// The toggle button (rightmost) — shows ‹ or ›, ALWAYS visible, never changes width
+// Matches Hidden's btnExpandCollapse
+var expand_collapse_btn: objc.id = if (builtin.target.os.tag == .macos) null else null;
 
-// Temporary › item — created when collapsed, removed when expanded
-var expand_indicator: objc.id = if (builtin.target.os.tag == .macos) null else null;
+// The separator (created after tray, to LEFT of tray icon) — THIS expands to hide items
+// Matches Hidden's btnSeparate
+var separator_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
+var separator_constraint: objc.id = if (builtin.target.os.tag == .macos) null else null;
 
 var saved_tray_menu: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var click_target: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var class_registered: bool = false;
 
-// Always-hidden section — a second separator that stays expanded even when main section is visible
+// Always-hidden section — matches Hidden's btnAlwaysHidden
 var always_hidden_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var always_hidden_constraint: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var always_hidden_enabled: bool = false;
-var always_hidden_active: bool = false; // currently expanded
+var always_hidden_active: bool = false;
 
-var separator_hidden: bool = false; // when true, chevron text is hidden (transparent separator)
+var separator_hidden: bool = false;
 
 var auto_collapse_delay: u32 = 0;
 var auto_collapse_timer_active: bool = false;
 var last_expand_ns: ?u64 = null;
 
-// Debounce: prevent rapid clicks from causing state corruption (matches Hidden's isToggle pattern)
+// Debounce: matches Hidden's isToggle with 0.3s cooldown
 var toggle_debounce_active: bool = false;
 var toggle_debounce_ns: ?u64 = null;
-const DEBOUNCE_INTERVAL_NS: u64 = 300_000_000; // 0.3 seconds in nanoseconds
+const DEBOUNCE_INTERVAL_NS: u64 = 300_000_000;
 
 const LENGTH_VARIABLE: f64 = -1.0;
+const SEPARATOR_LENGTH: f64 = 20.0; // matches Hidden's btnHiddenLength
 const COLLAPSE_WIDTH: f64 = 10_000.0;
 
-const CHEVRON_COLLAPSE = "\xE2\x80\xB9"; // ‹ (items visible, click to hide)
-const CHEVRON_EXPAND = "\xE2\x80\xBA"; // › (items hidden, click to show)
-const ALWAYS_HIDDEN_SEP = "\xC2\xB7"; // · (always-hidden separator)
+const CHEVRON_COLLAPSE = "\xE2\x80\xB9"; // ‹
+const CHEVRON_EXPAND = "\xE2\x80\xBA"; // ›
+const SEPARATOR_DOT = "\xC2\xB7"; // ·
 
 // ============================================================================
 // Public API
 // ============================================================================
 
 /// Called from tray.zig BEFORE the tray item is created.
+/// Creates the expand/collapse toggle button (rightmost, always visible).
 pub fn earlyInit() void {
     if (builtin.target.os.tag != .macos) return;
     if (early_initialized) return;
 
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] earlyInit — creating chevron (pos1)...\n", .{});
+        std.debug.print("[Menubar] earlyInit — creating toggle button (rightmost)...\n", .{});
 
-    // Register ObjC click handler class
     if (!class_registered) {
         const NSObject = getClass("NSObject");
         const className: [*:0]const u8 = "CraftMenubarCollapseTarget";
@@ -189,36 +193,30 @@ pub fn earlyInit() void {
         class_registered = true;
     }
 
-    // === Create the chevron/separator item (position 1, rightmost) ===
-    chevron_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", LENGTH_VARIABLE);
-    _ = msgSend0(chevron_item, "retain");
+    // Create the toggle button (rightmost, NEVER changes width)
+    expand_collapse_btn = msgSend1(getSystemStatusBar(), "statusItemWithLength:", LENGTH_VARIABLE);
+    _ = msgSend0(expand_collapse_btn, "retain");
+    msgSendVoid1(expand_collapse_btn, "setAutosaveName:", createNSString("barista_expandcollapse"));
 
-    // Set autosaveName so macOS remembers position across restarts (like Hidden)
-    msgSendVoid1(chevron_item, "setAutosaveName:", createNSString("barista_chevron"));
-
-    const btn = msgSend0(chevron_item, "button");
+    const btn = msgSend0(expand_collapse_btn, "button");
     if (btn != null) {
-        msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_COLLAPSE)); // ‹
+        msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_COLLAPSE));
         msgSendVoid1(btn, "setTarget:", click_target);
         msgSendVoid1(btn, "setAction:", objc.sel_registerName("toggleClicked:"));
     }
 
-    // Find and cache the width constraint for expansion
-    findConstraintForItem(chevron_item);
-
     early_initialized = true;
 
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] earlyInit done (constraint={s})\n", .{if (item_constraint != null) "found" else "NOT found"});
+        std.debug.print("[Menubar] earlyInit done — toggle button created\n", .{});
 }
 
-/// Called after tray is created.
+/// Called after tray is created. Creates the separator (the width-changer).
 pub fn init() void {
     if (builtin.target.os.tag != .macos) return;
     if (is_initialized) return;
     if (!early_initialized) earlyInit();
 
-    // Save the tray's context menu for right-click on the chevron
     const macos = @import("macos.zig");
     if (macos.getGlobalTrayHandle()) |tray_handle| {
         const statusItem: objc.id = @ptrFromInt(@intFromPtr(tray_handle));
@@ -229,11 +227,34 @@ pub fn init() void {
         }
     }
 
+    // Create the separator (to LEFT of tray icon — THIS does the width expansion)
+    separator_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", SEPARATOR_LENGTH);
+    _ = msgSend0(separator_item, "retain");
+    msgSendVoid1(separator_item, "setAutosaveName:", createNSString("barista_separate"));
+
+    const sep_btn = msgSend0(separator_item, "button");
+    if (sep_btn != null) {
+        if (separator_hidden) {
+            msgSendVoid1(sep_btn, "setTitle:", createNSString(""));
+        } else {
+            msgSendVoid1(sep_btn, "setTitle:", createNSString(SEPARATOR_DOT));
+        }
+        msgSendVoid1(sep_btn, "setTarget:", click_target);
+        msgSendVoid1(sep_btn, "setAction:", objc.sel_registerName("toggleClicked:"));
+    }
+
+    // Right-click on separator shows context menu (like Hidden)
+    if (saved_tray_menu != null) {
+        msgSendVoid1(separator_item, "setMenu:", saved_tray_menu);
+    }
+
+    findConstraintForItem(separator_item, &separator_constraint);
+
     is_initialized = true;
     is_collapsed = false;
 
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] Ready\n", .{});
+        std.debug.print("[Menubar] Ready — separator created (constraint={s})\n", .{if (separator_constraint != null) "found" else "NOT found"});
 }
 
 pub fn collapse() void {
@@ -243,33 +264,28 @@ pub fn collapse() void {
         if (!is_initialized) return;
     }
     if (is_collapsed) return;
-    if (chevron_item == null) return;
+    if (separator_item == null) return;
 
-    // 1. Expand the ‹ item to 10000px — pushes everything to its LEFT off-screen
-    //    (the ‹ button goes off-screen too, that's expected)
-    msgSendVoid1(chevron_item, "setLength:", COLLAPSE_WIDTH);
-
-    if (item_constraint != null) {
-        msgSendVoid1(item_constraint, "setActive:", @as(c_int, 1));
+    // Expand separator to push everything to its LEFT off-screen.
+    // Toggle button + tray icon (to the RIGHT) stay visible.
+    msgSendVoid1(separator_item, "setLength:", COLLAPSE_WIDTH);
+    if (separator_constraint != null) {
+        msgSendVoid1(separator_constraint, "setActive:", @as(c_int, 1));
     }
 
-    // 2. Create a NEW temporary › item — it becomes the new rightmost item,
-    //    appearing to the RIGHT of the expanded item, so it stays visible
-    expand_indicator = msgSend1(getSystemStatusBar(), "statusItemWithLength:", LENGTH_VARIABLE);
-    _ = msgSend0(expand_indicator, "retain");
-
-    const ind_btn = msgSend0(expand_indicator, "button");
-    if (ind_btn != null) {
-        msgSendVoid1(ind_btn, "setTitle:", createNSString(CHEVRON_EXPAND)); // ›
-        msgSendVoid1(ind_btn, "setTarget:", click_target);
-        msgSendVoid1(ind_btn, "setAction:", objc.sel_registerName("toggleClicked:"));
+    // Show › on the toggle button
+    if (expand_collapse_btn != null) {
+        const btn = msgSend0(expand_collapse_btn, "button");
+        if (btn != null) {
+            msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_EXPAND));
+        }
     }
 
     is_collapsed = true;
     auto_collapse_timer_active = false;
 
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] Collapsed — ‹ expanded, › indicator created\n", .{});
+        std.debug.print("[Menubar] Collapsed — separator expanded, button shows ›\n", .{});
     notifyJS();
 }
 
@@ -280,47 +296,47 @@ pub fn expand() void {
         if (!is_initialized) return;
     }
     if (!is_collapsed) return;
-    if (chevron_item == null) return;
+    if (separator_item == null) return;
 
-    // 1. Remove the temporary › indicator
-    if (expand_indicator != null) {
-        msgSendVoid1(getSystemStatusBar(), "removeStatusItem:", expand_indicator);
-        _ = msgSend0(expand_indicator, "release");
-        expand_indicator = null;
+    // Shrink separator back to normal
+    msgSendVoid1(separator_item, "setLength:", SEPARATOR_LENGTH);
+    if (separator_constraint != null) {
+        msgSendVoid1(separator_constraint, "setActive:", @as(c_int, 0));
     }
 
-    // 2. Shrink the original ‹ item back
-    msgSendVoid1(chevron_item, "setLength:", LENGTH_VARIABLE);
-
-    if (item_constraint != null) {
-        msgSendVoid1(item_constraint, "setActive:", @as(c_int, 0));
-    }
-
-    // 3. If always-hidden is enabled, ensure its separator stays expanded
-    //    to keep always-hidden items off-screen
+    // Keep always-hidden items off-screen
     if (always_hidden_enabled and always_hidden_item != null and !always_hidden_active) {
         activateAlwaysHidden();
     }
 
-    // 4. Restore chevron text (respect separator_hidden setting)
-    const btn = msgSend0(chevron_item, "button");
-    if (btn != null) {
-        if (separator_hidden) {
-            msgSendVoid1(btn, "setTitle:", createNSString(""));
-        } else {
+    // Show ‹ on the toggle button
+    if (expand_collapse_btn != null) {
+        const btn = msgSend0(expand_collapse_btn, "button");
+        if (btn != null) {
             msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_COLLAPSE));
         }
     }
 
-    is_collapsed = false;
+    // Restore separator text
+    if (separator_item != null) {
+        const sep_btn = msgSend0(separator_item, "button");
+        if (sep_btn != null) {
+            if (separator_hidden) {
+                msgSendVoid1(sep_btn, "setTitle:", createNSString(""));
+            } else {
+                msgSendVoid1(sep_btn, "setTitle:", createNSString(SEPARATOR_DOT));
+            }
+        }
+    }
 
+    is_collapsed = false;
     last_expand_ns = nanoTimestamp();
     if (auto_collapse_delay > 0) {
         auto_collapse_timer_active = true;
     }
 
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] Expanded — › indicator removed, ‹ restored\n", .{});
+        std.debug.print("[Menubar] Expanded — separator shrunk, button shows ‹\n", .{});
     notifyJS();
 }
 
@@ -334,7 +350,6 @@ pub fn toggle() void {
 }
 
 pub fn cleanup() void {
-    // Deactivate always-hidden first so expand() doesn't re-activate it
     if (always_hidden_active) deactivateAlwaysHidden();
     always_hidden_enabled = false;
     if (is_collapsed) expand();
@@ -359,7 +374,6 @@ pub fn setAutoCollapse(delay_seconds: u32) void {
 }
 
 pub fn checkAutoCollapse() void {
-    // Clear debounce if interval has passed (piggyback on the poll cycle)
     if (toggle_debounce_active) {
         if (toggle_debounce_ns) |start| {
             if (nanoTimestamp()) |now| {
@@ -387,9 +401,6 @@ pub fn checkAutoCollapse() void {
 // Always-Hidden Section
 // ============================================================================
 
-/// Enable the always-hidden section. Creates a second separator item to the left
-/// of the tray icon. Items dragged to the left of this separator stay hidden
-/// even when the main section is expanded.
 pub fn enableAlwaysHidden() void {
     if (builtin.target.os.tag != .macos) return;
     if (always_hidden_enabled) return;
@@ -398,31 +409,24 @@ pub fn enableAlwaysHidden() void {
         if (!is_initialized) return;
     }
 
-    // Create the always-hidden separator — it goes to the LEFT of existing items
-    always_hidden_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", LENGTH_VARIABLE);
+    always_hidden_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", SEPARATOR_LENGTH);
     _ = msgSend0(always_hidden_item, "retain");
-
-    // Set autosaveName so macOS remembers position across restarts (like Hidden)
     msgSendVoid1(always_hidden_item, "setAutosaveName:", createNSString("barista_always_hidden"));
 
     const btn = msgSend0(always_hidden_item, "button");
     if (btn != null) {
-        // If separators are hidden, don't show the · text either
         if (separator_hidden) {
             msgSendVoid1(btn, "setTitle:", createNSString(""));
         } else {
-            msgSendVoid1(btn, "setTitle:", createNSString(ALWAYS_HIDDEN_SEP)); // ·
+            msgSendVoid1(btn, "setTitle:", createNSString(SEPARATOR_DOT));
         }
-        // Click on always-hidden separator also toggles main collapse
         msgSendVoid1(btn, "setTarget:", click_target);
         msgSendVoid1(btn, "setAction:", objc.sel_registerName("toggleClicked:"));
     }
 
-    findConstraintForAlwaysHidden(always_hidden_item);
-
+    findConstraintForItem(always_hidden_item, &always_hidden_constraint);
     always_hidden_enabled = true;
 
-    // If not currently collapsed, activate the always-hidden separator
     if (!is_collapsed) {
         activateAlwaysHidden();
     }
@@ -432,7 +436,6 @@ pub fn enableAlwaysHidden() void {
     notifyJS();
 }
 
-/// Disable the always-hidden section. Removes the second separator.
 pub fn disableAlwaysHidden() void {
     if (builtin.target.os.tag != .macos) return;
     if (!always_hidden_enabled) return;
@@ -444,7 +447,6 @@ pub fn disableAlwaysHidden() void {
         _ = msgSend0(always_hidden_item, "release");
         always_hidden_item = null;
     }
-
     if (always_hidden_constraint != null) {
         _ = msgSend0(always_hidden_constraint, "release");
         always_hidden_constraint = null;
@@ -465,39 +467,31 @@ pub fn isAlwaysHiddenEnabled() bool {
 // Separator Visibility
 // ============================================================================
 
-/// Hide or show ALL separator text. When hidden, separators are
-/// still functional (clickable) but visually transparent.
-/// Matches Hidden's "areSeparatorsHidden" behavior.
 pub fn setSeparatorHidden(hidden: bool) void {
     if (builtin.target.os.tag != .macos) return;
     separator_hidden = hidden;
 
-    // Update chevron text
-    if (chevron_item != null and !is_collapsed) {
-        const btn = msgSend0(chevron_item, "button");
-        if (btn != null) {
+    if (separator_item != null and !is_collapsed) {
+        const sep_btn = msgSend0(separator_item, "button");
+        if (sep_btn != null) {
             if (hidden) {
-                msgSendVoid1(btn, "setTitle:", createNSString(""));
+                msgSendVoid1(sep_btn, "setTitle:", createNSString(""));
             } else {
-                msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_COLLAPSE));
+                msgSendVoid1(sep_btn, "setTitle:", createNSString(SEPARATOR_DOT));
             }
         }
     }
 
-    // Also update always-hidden separator text (both must match, like Hidden)
     if (always_hidden_item != null and always_hidden_enabled) {
         const ah_btn = msgSend0(always_hidden_item, "button");
         if (ah_btn != null) {
             if (hidden) {
                 msgSendVoid1(ah_btn, "setTitle:", createNSString(""));
             } else {
-                msgSendVoid1(ah_btn, "setTitle:", createNSString(ALWAYS_HIDDEN_SEP));
+                msgSendVoid1(ah_btn, "setTitle:", createNSString(SEPARATOR_DOT));
             }
         }
     }
-
-    if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] Separator hidden={}\n", .{hidden});
 }
 
 pub fn isSeparatorHidden() bool {
@@ -505,7 +499,7 @@ pub fn isSeparatorHidden() bool {
 }
 
 // ============================================================================
-// Internal helpers — always-hidden
+// Internal helpers
 // ============================================================================
 
 fn activateAlwaysHidden() void {
@@ -519,59 +513,12 @@ fn activateAlwaysHidden() void {
 
 fn deactivateAlwaysHidden() void {
     if (always_hidden_item == null) return;
-    msgSendVoid1(always_hidden_item, "setLength:", LENGTH_VARIABLE);
+    msgSendVoid1(always_hidden_item, "setLength:", SEPARATOR_LENGTH);
     if (always_hidden_constraint != null) {
         msgSendVoid1(always_hidden_constraint, "setActive:", @as(c_int, 0));
     }
     always_hidden_active = false;
 }
-
-fn findConstraintForAlwaysHidden(item: objc.id) void {
-    if (item == null) return;
-
-    const button = msgSend0(item, "button");
-    if (button == null) return;
-
-    const superview = msgSend0(button, "superview");
-    const window = msgSend0(button, "window");
-    if (window == null) return;
-
-    const contentView = msgSend0(window, "contentView");
-    if (contentView == null) return;
-
-    const constraints = msgSend0(contentView, "constraints");
-    if (constraints == null) return;
-
-    const count: usize = @intFromPtr(msgSend0(constraints, "count"));
-
-    var i: usize = 0;
-    while (i < count) : (i += 1) {
-        const constraint = msgSend1(constraints, "objectAtIndex:", i);
-        const secondItem = msgSend0(constraint, "secondItem");
-
-        if (secondItem == superview and superview != null) {
-            always_hidden_constraint = constraint;
-            _ = msgSend0(always_hidden_constraint, "retain");
-            return;
-        }
-    }
-
-    i = 0;
-    while (i < count) : (i += 1) {
-        const constraint = msgSend1(constraints, "objectAtIndex:", i);
-        const firstItem = msgSend0(constraint, "firstItem");
-
-        if (firstItem == superview and superview != null) {
-            always_hidden_constraint = constraint;
-            _ = msgSend0(always_hidden_constraint, "retain");
-            return;
-        }
-    }
-}
-
-// ============================================================================
-// Internal helpers — time
-// ============================================================================
 
 fn nanoTimestamp() ?u64 {
     const c = @cImport(@cInclude("time.h"));
@@ -580,11 +527,7 @@ fn nanoTimestamp() ?u64 {
     return @as(u64, @intCast(ts.tv_sec)) * 1_000_000_000 + @as(u64, @intCast(ts.tv_nsec));
 }
 
-// ============================================================================
-// Internal helpers
-// ============================================================================
-
-fn findConstraintForItem(item: objc.id) void {
+fn findConstraintForItem(item: objc.id, out_constraint: *objc.id) void {
     if (item == null) return;
 
     const button = msgSend0(item, "button");
@@ -602,19 +545,13 @@ fn findConstraintForItem(item: objc.id) void {
 
     const count: usize = @intFromPtr(msgSend0(constraints, "count"));
 
-    if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] Constraints: {} on contentView\n", .{count});
-
     var i: usize = 0;
     while (i < count) : (i += 1) {
         const constraint = msgSend1(constraints, "objectAtIndex:", i);
         const secondItem = msgSend0(constraint, "secondItem");
-
         if (secondItem == superview and superview != null) {
-            item_constraint = constraint;
-            _ = msgSend0(item_constraint, "retain");
-            if (comptime builtin.mode == .Debug)
-                std.debug.print("[Menubar] Constraint MATCH idx={}\n", .{i});
+            out_constraint.* = constraint;
+            _ = msgSend0(out_constraint.*, "retain");
             return;
         }
     }
@@ -623,27 +560,19 @@ fn findConstraintForItem(item: objc.id) void {
     while (i < count) : (i += 1) {
         const constraint = msgSend1(constraints, "objectAtIndex:", i);
         const firstItem = msgSend0(constraint, "firstItem");
-
         if (firstItem == superview and superview != null) {
-            item_constraint = constraint;
-            _ = msgSend0(item_constraint, "retain");
-            if (comptime builtin.mode == .Debug)
-                std.debug.print("[Menubar] Constraint MATCH (fallback) idx={}\n", .{i});
+            out_constraint.* = constraint;
+            _ = msgSend0(out_constraint.*, "retain");
             return;
         }
     }
-
-    if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] WARNING: No constraint found\n", .{});
 }
 
 fn showTrayMenu(view: objc.id) void {
     if (saved_tray_menu == null) return;
-
     const NSApp = msgSend0(getClass("NSApplication"), "sharedApplication");
     const event = msgSend0(NSApp, "currentEvent");
     if (event == null) return;
-
     msgSendVoid3(getClass("NSMenu"), "popUpContextMenu:withEvent:forView:", saved_tray_menu, event, view);
 }
 
@@ -660,13 +589,12 @@ fn notifyJS() void {
 
 fn toggleClicked(_: objc.id, _: objc.SEL, sender: objc.id) callconv(.c) void {
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[Menubar] Chevron clicked\n", .{});
+        std.debug.print("[Menubar] Toggle clicked\n", .{});
 
     const NSApp = msgSend0(getClass("NSApplication"), "sharedApplication");
     const event = msgSend0(NSApp, "currentEvent");
     if (event != null) {
         const eventType = msgSendUsize(event, "type");
-        // Right-click → show context menu
         if (eventType == 3 or eventType == 4) {
             if (sender != null) {
                 showTrayMenu(sender);
@@ -675,7 +603,7 @@ fn toggleClicked(_: objc.id, _: objc.SEL, sender: objc.id) callconv(.c) void {
         }
     }
 
-    // Debounce: prevent rapid clicks from corrupting state (matches Hidden's isToggle)
+    // Debounce rapid clicks (matches Hidden's isToggle)
     if (toggle_debounce_active) {
         if (toggle_debounce_ns) |start| {
             if (nanoTimestamp()) |now| {
