@@ -25,7 +25,7 @@ pub const TableViewDataSource = struct {
 
         pub fn init(allocator: std.mem.Allocator) DataStore {
             return .{
-                .files = .{},
+                .files = .{ .items = &.{}, .capacity = 0 },
                 .allocator = allocator,
             };
         }

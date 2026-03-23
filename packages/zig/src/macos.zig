@@ -1801,7 +1801,7 @@ fn generateSidebarHtml(sidebar_config: ?[]const u8) []const u8 {
     _ = sidebar_config; // TODO: Parse and use config for dynamic content
 
     // For now, return a simple sidebar HTML that matches the app's theme
-    return 
+    return
     \\<!DOCTYPE html>
     \\<html>
     \\<head>
@@ -2799,7 +2799,7 @@ pub fn getGlobalWebView() ?objc.id {
 
 /// Generate the minimal Craft JavaScript bridge (core only, no tray/menubar/polling)
 fn getCraftBridgeScriptMinimal() []const u8 {
-    return 
+    return
     \\ (function() {
     \\   window.craft = window.craft || {};
     \\   window.__craftBridgePending = {};
@@ -2843,7 +2843,7 @@ fn getCraftBridgeScriptMinimal() []const u8 {
 
 /// Generate the full Craft JavaScript bridge (includes tray, menubar, polling)
 fn getCraftBridgeScriptFull() []const u8 {
-    return 
+    return
     \\ (function() {
     \\   window.craft = window.craft || {};
     \\   window.__craftBridgePending = {};
@@ -3101,7 +3101,7 @@ pub fn tryEvalJS(js_code: []const u8) !void {
 /// Handle incoming messages from JavaScript bridge
 /// Convert a JSON Value to string
 fn jsonValueToString(allocator: std.mem.Allocator, value: std.json.Value) ![]const u8 {
-    var buf: std.ArrayListUnmanaged(u8) = .{};
+    var buf: std.ArrayListUnmanaged(u8) = .{ .items = &.{}, .capacity = 0 };
     errdefer buf.deinit(allocator);
 
     switch (value) {

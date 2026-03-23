@@ -1,12 +1,24 @@
 const std = @import("std");
 
-/// Blocking mutex built on std.Thread.Mutex.
-/// Provides lock()/unlock() semantics via spin-wait on tryLock().
+/// Blocking mutex that works across Zig versions.
+/// Uses std.Thread.Mutex if available, otherwise falls back to std.atomic.Mutex.
 pub const Mutex = struct {
-    inner: std.Thread.Mutex = .{},
+    inner: InnerMutex = inner_init,
+
+    const has_thread_mutex = @hasDecl(std.Thread, "Mutex");
+
+    const InnerMutex = if (has_thread_mutex) std.Thread.Mutex else std.atomic.Mutex;
+
+    const inner_init: InnerMutex = if (has_thread_mutex) .{} else .unlocked;
 
     pub fn lock(self: *Mutex) void {
-        self.inner.lock();
+        if (has_thread_mutex) {
+            self.inner.lock();
+        } else {
+            while (!self.inner.tryLock()) {
+                std.atomic.spinLoopHint();
+            }
+        }
     }
 
     pub fn unlock(self: *Mutex) void {

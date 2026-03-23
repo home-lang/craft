@@ -31,12 +31,7 @@ jobs:
       - name: Build for Apple Silicon
         working-directory: packages/zig
         run: |
-          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-macos
-
-      - name: Build for Intel
-        working-directory: packages/zig
-        run: |
-          zig build -Doptimize=ReleaseSafe -Dtarget=x86_64-macos
+          zig build -Doptimize=ReleaseSafe
 
       - name: Import signing certificate
         if: env.APPLE_CERTIFICATE_BASE64 != ''

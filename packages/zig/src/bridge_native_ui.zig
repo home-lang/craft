@@ -324,7 +324,7 @@ pub const NativeUIBridge = struct {
         const items_json = section_data.get("items").?.array;
 
         // Build items array
-        var items: std.ArrayList(NativeSidebar.SidebarItem) = .{};
+        var items: std.ArrayList(NativeSidebar.SidebarItem) = .{ .items = &.{}, .capacity = 0 };
         defer items.deinit(self.allocator);
 
         for (items_json.items) |item_json| {
@@ -439,7 +439,7 @@ pub const NativeUIBridge = struct {
 
         const browser = self.file_browsers.get(browser_id) orelse return error.BrowserNotFound;
 
-        var files: std.ArrayList(NativeFileBrowser.FileItem) = .{};
+        var files: std.ArrayList(NativeFileBrowser.FileItem) = .{ .items = &.{}, .capacity = 0 };
         defer files.deinit(self.allocator);
 
         for (files_json.items) |file_json| {
@@ -601,7 +601,7 @@ pub const NativeUIBridge = struct {
 
         // Parse menu items
         const items_json = root.get("items").?.array;
-        var items: std.ArrayList(context_menu.MenuItem) = .{};
+        var items: std.ArrayList(context_menu.MenuItem) = .{ .items = &.{}, .capacity = 0 };
         defer items.deinit(self.allocator);
 
         for (items_json.items) |item_json| {
@@ -620,7 +620,7 @@ pub const NativeUIBridge = struct {
             if (item_type == .submenu) {
                 if (item_obj.get("submenu")) |submenu_json| {
                     if (submenu_json == .array) {
-                        var submenu_list: std.ArrayList(context_menu.MenuItem) = .{};
+                        var submenu_list: std.ArrayList(context_menu.MenuItem) = .{ .items = &.{}, .capacity = 0 };
                         for (submenu_json.array.items) |sub_item_json| {
                             if (sub_item_json == .object) {
                                 const sub_obj = sub_item_json.object;

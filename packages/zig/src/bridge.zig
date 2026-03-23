@@ -36,7 +36,7 @@ pub const Bridge = struct {
     /// Generate JavaScript code to inject into the WebView
     pub fn generateInjectionScript(self: *Self) ![]const u8 {
         _ = self;
-        return 
+        return
         \\window.craft = {
         \\    // Send a message to Zig
         \\    send: function(name, data) {

@@ -22,7 +22,7 @@ pub const QuickLookCallbackData = struct {
     pub fn init(allocator: std.mem.Allocator) !*QuickLookCallbackData {
         const data = try allocator.create(QuickLookCallbackData);
         data.* = .{
-            .preview_items = .{},
+            .preview_items = .{ .items = &.{}, .capacity = 0 },
             .current_index = 0,
             .allocator = allocator,
         };

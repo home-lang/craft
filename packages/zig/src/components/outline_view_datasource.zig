@@ -30,7 +30,7 @@ pub const OutlineViewDataSource = struct {
 
         pub fn init(allocator: std.mem.Allocator) DataStore {
             return .{
-                .sections = .{},
+                .sections = .{ .items = &.{}, .capacity = 0 },
                 .allocator = allocator,
             };
         }
