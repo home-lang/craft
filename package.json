@@ -14,7 +14,6 @@
     "build:core": "cd packages/zig && zig build -Doptimize=ReleaseSafe",
     "build:debug": "cd packages/zig && zig build",
     "build:sdk": "cd packages/typescript && bun run build",
-    "build:stx": "cd packages/stx && bun run build",
     "build:ios": "cd packages/ios && bun run build",
     "build:android": "cd packages/android && bun run build",
     "build:react": "cd packages/react && bun run build",
@@ -22,8 +21,8 @@
     "build:svelte": "cd packages/svelte && bun run build",
     "build:desktop": "bun run build:core",
     "build:mobile": "bun run build:ios && bun run build:android",
-    "build:web": "bun run build:sdk && bun run build:stx && bun run build:react && bun run build:vue && bun run build:svelte",
-    "build:all": "bun run build:core && bun run build:sdk && bun run build:stx && bun run build:ios && bun run build:android && bun run build:react && bun run build:vue && bun run build:svelte",
+    "build:web": "bun run build:sdk && bun run build:react && bun run build:vue && bun run build:svelte",
+    "build:all": "bun run build:core && bun run build:sdk && bun run build:ios && bun run build:android && bun run build:react && bun run build:vue && bun run build:svelte",
     "build:check": "bun scripts/verify-builds.ts",
     "test": "cd packages/zig && zig build test",
     "test:sdk": "cd packages/typescript && bun test",
@@ -45,7 +44,6 @@
     "release": "bun --bun run changelog:generate && bunx --bun bumpx prompt --recursive"
   },
   "devDependencies": {
-    "@cwcss/crosswind": "^0.1.6",
     "better-dx": "^0.2.7"
   },
   "git-hooks": {

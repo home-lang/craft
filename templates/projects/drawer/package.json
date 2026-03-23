@@ -13,8 +13,7 @@
     "android": "craft android build && craft android open"
   },
   "dependencies": {
-    "@craft-native/craft": "workspace:*",
-    "@craft-native/stx": "workspace:*"
+    "@craft-native/craft": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.3.0"

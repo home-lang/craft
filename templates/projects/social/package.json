@@ -11,8 +11,7 @@
     "build:all": "craft build --platform ios,android,macos,windows"
   },
   "dependencies": {
-    "@craft-native/craft": "workspace:*",
-    "@craft-native/stx": "workspace:*"
+    "@craft-native/ts": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

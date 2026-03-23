@@ -21,9 +21,6 @@ const targets: BuildTarget[] = [
   // TypeScript SDK
   { name: 'ts-craft SDK', path: 'packages/typescript/dist/index.js', platform: 'web' },
 
-  // STX component library
-  { name: 'stx components', path: 'packages/stx/dist/index.js', platform: 'web' },
-
   // Mobile builders
   { name: 'iOS builder', path: 'packages/ios/dist/index.js', platform: 'mobile' },
   { name: 'Android builder', path: 'packages/android/dist/index.js', platform: 'mobile' },
