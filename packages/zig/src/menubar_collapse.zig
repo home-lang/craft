@@ -4,10 +4,11 @@ const logging = @import("logging.zig");
 
 const log = logging.menu;
 
-/// Menu Bar Collapse/Hide System — single visible chevron, dynamic expand indicator
+/// Menu Bar Collapse/Hide System — with optional always-hidden section
 ///
 ///   Position 1 (rightmost, created in earlyInit): ‹ — the chevron/separator
 ///   Position 2 (created by tray.zig):             ☕️ — the app's tray icon (untouched)
+///   Position 3 (optional, always-hidden):         | — always-hidden separator
 ///
 ///   On collapse:
 ///     1. The ‹ item expands to 10000px, pushing ☕️ and other items off-screen
@@ -18,9 +19,12 @@ const log = logging.menu;
 ///   On expand:
 ///     1. The temporary › item is removed
 ///     2. The original item shrinks back, ‹ reappears
+///     3. If always-hidden is enabled, its separator stays expanded — items to
+///        its left remain off-screen even when the main section is visible
 ///
-///   Normal:    [other apps] [☕️] [‹]
-///   Collapsed:                   [›]  (← temporary item, original ‹ is expanded behind it)
+///   Normal:            [always-hidden items] [|] [sometimes-hidden items] [☕️] [‹]
+///   Collapsed:                                                                  [›]
+///   Expanded (always): [|expanded...........] [sometimes-hidden items] [☕️] [‹]
 
 // ============================================================================
 // Objective-C runtime
@@ -122,6 +126,14 @@ var saved_tray_menu: objc.id = if (builtin.target.os.tag == .macos) null else nu
 var click_target: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var class_registered: bool = false;
 
+// Always-hidden section — a second separator that stays expanded even when main section is visible
+var always_hidden_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
+var always_hidden_constraint: objc.id = if (builtin.target.os.tag == .macos) null else null;
+var always_hidden_enabled: bool = false;
+var always_hidden_active: bool = false; // currently expanded
+
+var separator_hidden: bool = false; // when true, chevron text is hidden (transparent separator)
+
 var auto_collapse_delay: u32 = 0;
 var auto_collapse_timer_active: bool = false;
 var last_expand_ns: ?u64 = null;
@@ -131,6 +143,7 @@ const COLLAPSE_WIDTH: f64 = 10_000.0;
 
 const CHEVRON_COLLAPSE = "\xE2\x80\xB9"; // ‹ (items visible, click to hide)
 const CHEVRON_EXPAND = "\xE2\x80\xBA"; // › (items hidden, click to show)
+const ALWAYS_HIDDEN_SEP = "\xC2\xB7"; // · (always-hidden separator)
 
 // ============================================================================
 // Public API
@@ -275,6 +288,22 @@ pub fn expand() void {
         msgSendVoid1(item_constraint, "setActive:", @as(c_int, 0));
     }
 
+    // 3. If always-hidden is enabled, ensure its separator stays expanded
+    //    to keep always-hidden items off-screen
+    if (always_hidden_enabled and always_hidden_item != null and !always_hidden_active) {
+        activateAlwaysHidden();
+    }
+
+    // 4. Restore chevron text (respect separator_hidden setting)
+    const btn = msgSend0(chevron_item, "button");
+    if (btn != null) {
+        if (separator_hidden) {
+            msgSendVoid1(btn, "setTitle:", createNSString(""));
+        } else {
+            msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_COLLAPSE));
+        }
+    }
+
     is_collapsed = false;
 
     last_expand_ns = nanoTimestamp();
@@ -297,6 +326,9 @@ pub fn toggle() void {
 }
 
 pub fn cleanup() void {
+    // Deactivate always-hidden first so expand() doesn't re-activate it
+    if (always_hidden_active) deactivateAlwaysHidden();
+    always_hidden_enabled = false;
     if (is_collapsed) expand();
 }
 
@@ -331,6 +363,175 @@ pub fn checkAutoCollapse() void {
         collapse();
     }
 }
+
+// ============================================================================
+// Always-Hidden Section
+// ============================================================================
+
+/// Enable the always-hidden section. Creates a second separator item to the left
+/// of the tray icon. Items dragged to the left of this separator stay hidden
+/// even when the main section is expanded.
+pub fn enableAlwaysHidden() void {
+    if (builtin.target.os.tag != .macos) return;
+    if (always_hidden_enabled) return;
+    if (!is_initialized) {
+        init();
+        if (!is_initialized) return;
+    }
+
+    // Create the always-hidden separator — it goes to the LEFT of existing items
+    always_hidden_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", LENGTH_VARIABLE);
+    _ = msgSend0(always_hidden_item, "retain");
+
+    const btn = msgSend0(always_hidden_item, "button");
+    if (btn != null) {
+        msgSendVoid1(btn, "setTitle:", createNSString(ALWAYS_HIDDEN_SEP)); // ·
+        // Click on always-hidden separator also toggles main collapse
+        msgSendVoid1(btn, "setTarget:", click_target);
+        msgSendVoid1(btn, "setAction:", objc.sel_registerName("toggleClicked:"));
+    }
+
+    findConstraintForAlwaysHidden(always_hidden_item);
+
+    always_hidden_enabled = true;
+
+    // If not currently collapsed, activate the always-hidden separator
+    if (!is_collapsed) {
+        activateAlwaysHidden();
+    }
+
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Menubar] Always-hidden section enabled\n", .{});
+    notifyJS();
+}
+
+/// Disable the always-hidden section. Removes the second separator.
+pub fn disableAlwaysHidden() void {
+    if (builtin.target.os.tag != .macos) return;
+    if (!always_hidden_enabled) return;
+
+    if (always_hidden_active) deactivateAlwaysHidden();
+
+    if (always_hidden_item != null) {
+        msgSendVoid1(getSystemStatusBar(), "removeStatusItem:", always_hidden_item);
+        _ = msgSend0(always_hidden_item, "release");
+        always_hidden_item = null;
+    }
+
+    if (always_hidden_constraint != null) {
+        _ = msgSend0(always_hidden_constraint, "release");
+        always_hidden_constraint = null;
+    }
+
+    always_hidden_enabled = false;
+
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Menubar] Always-hidden section disabled\n", .{});
+    notifyJS();
+}
+
+pub fn isAlwaysHiddenEnabled() bool {
+    return always_hidden_enabled;
+}
+
+// ============================================================================
+// Separator Visibility
+// ============================================================================
+
+/// Hide or show the chevron separator text. When hidden, the separator is
+/// still functional (clickable) but visually transparent.
+pub fn setSeparatorHidden(hidden: bool) void {
+    if (builtin.target.os.tag != .macos) return;
+    separator_hidden = hidden;
+
+    if (chevron_item == null) return;
+    if (is_collapsed) return; // don't modify while collapsed
+
+    const btn = msgSend0(chevron_item, "button");
+    if (btn != null) {
+        if (hidden) {
+            msgSendVoid1(btn, "setTitle:", createNSString("")); // invisible but clickable
+        } else {
+            msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_COLLAPSE)); // ‹
+        }
+    }
+
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Menubar] Separator hidden={}\n", .{hidden});
+}
+
+pub fn isSeparatorHidden() bool {
+    return separator_hidden;
+}
+
+// ============================================================================
+// Internal helpers — always-hidden
+// ============================================================================
+
+fn activateAlwaysHidden() void {
+    if (always_hidden_item == null) return;
+    msgSendVoid1(always_hidden_item, "setLength:", COLLAPSE_WIDTH);
+    if (always_hidden_constraint != null) {
+        msgSendVoid1(always_hidden_constraint, "setActive:", @as(c_int, 1));
+    }
+    always_hidden_active = true;
+}
+
+fn deactivateAlwaysHidden() void {
+    if (always_hidden_item == null) return;
+    msgSendVoid1(always_hidden_item, "setLength:", LENGTH_VARIABLE);
+    if (always_hidden_constraint != null) {
+        msgSendVoid1(always_hidden_constraint, "setActive:", @as(c_int, 0));
+    }
+    always_hidden_active = false;
+}
+
+fn findConstraintForAlwaysHidden(item: objc.id) void {
+    if (item == null) return;
+
+    const button = msgSend0(item, "button");
+    if (button == null) return;
+
+    const superview = msgSend0(button, "superview");
+    const window = msgSend0(button, "window");
+    if (window == null) return;
+
+    const contentView = msgSend0(window, "contentView");
+    if (contentView == null) return;
+
+    const constraints = msgSend0(contentView, "constraints");
+    if (constraints == null) return;
+
+    const count: usize = @intFromPtr(msgSend0(constraints, "count"));
+
+    var i: usize = 0;
+    while (i < count) : (i += 1) {
+        const constraint = msgSend1(constraints, "objectAtIndex:", i);
+        const secondItem = msgSend0(constraint, "secondItem");
+
+        if (secondItem == superview and superview != null) {
+            always_hidden_constraint = constraint;
+            _ = msgSend0(always_hidden_constraint, "retain");
+            return;
+        }
+    }
+
+    i = 0;
+    while (i < count) : (i += 1) {
+        const constraint = msgSend1(constraints, "objectAtIndex:", i);
+        const firstItem = msgSend0(constraint, "firstItem");
+
+        if (firstItem == superview and superview != null) {
+            always_hidden_constraint = constraint;
+            _ = msgSend0(always_hidden_constraint, "retain");
+            return;
+        }
+    }
+}
+
+// ============================================================================
+// Internal helpers — time
+// ============================================================================
 
 fn nanoTimestamp() ?u64 {
     const c = @cImport(@cInclude("time.h"));
@@ -408,9 +609,11 @@ fn showTrayMenu(view: objc.id) void {
 
 fn notifyJS() void {
     const macos = @import("macos.zig");
-    var buf: [160]u8 = undefined;
-    const js = std.fmt.bufPrint(&buf, "window.dispatchEvent(new CustomEvent('craft:menubar:stateChange',{{detail:{{collapsed:{s}}}}}));", .{
+    var buf: [320]u8 = undefined;
+    const js = std.fmt.bufPrint(&buf, "window.dispatchEvent(new CustomEvent('craft:menubar:stateChange',{{detail:{{collapsed:{s},alwaysHiddenEnabled:{s},separatorHidden:{s}}}}}));", .{
         if (is_collapsed) "true" else "false",
+        if (always_hidden_enabled) "true" else "false",
+        if (separator_hidden) "true" else "false",
     }) catch return;
     macos.tryEvalJS(js) catch {};
 }

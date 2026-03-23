@@ -2904,6 +2904,9 @@ fn getCraftBridgeScriptFull() []const u8 {
     \\       });
     \\     },
     \\     setAutoCollapse: function(s) { return _m('menubarCollapse','setAutoCollapse',String(s)); },
+    \\     enableAlwaysHidden: function() { return _m('menubarCollapse','enableAlwaysHidden'); },
+    \\     disableAlwaysHidden: function() { return _m('menubarCollapse','disableAlwaysHidden'); },
+    \\     setSeparatorHidden: function(h) { return _m('menubarCollapse','setSeparatorHidden',h?'true':'false'); },
     \\     onStateChange: function(cb) {
     \\       var h = function(e) { cb(e.detail||{}); };
     \\       window.addEventListener('craft:menubar:stateChange',h);
