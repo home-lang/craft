@@ -1,4 +1,33 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.5...v0.0.6)
+
+### 🐛 Bug Fixes
+
+- update zig source for 0.16.0-dev.2962+ compatibility ([861307e](https://github.com/home-lang/craft/commit/861307e)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.6 ([c155d12](https://github.com/home-lang/craft/commit/c155d12)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([9afde30](https://github.com/home-lang/craft/commit/9afde30)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.5...HEAD)
+
+### 🐛 Bug Fixes
+
+- update zig source for 0.16.0-dev.2962+ compatibility ([861307e](https://github.com/home-lang/craft/commit/861307e)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- wip ([9afde30](https://github.com/home-lang/craft/commit/9afde30)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.4...v0.0.5)
 
 ### 🚀 Features
