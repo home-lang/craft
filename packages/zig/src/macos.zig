@@ -2923,7 +2923,7 @@ fn getCraftBridgeScriptFull() []const u8 {
     \\     if (a && a.length > 0) window.dispatchEvent(new CustomEvent('craft:tray:menuAction',{detail:{action:a}}));
     \\   };
     \\   setInterval(function() { try { window.webkit.messageHandlers.craft.postMessage({t:'tray',a:'pollActions',d:''}); } catch(e) {} }, 100);
-    \\   setInterval(function() { try { window.webkit.messageHandlers.craft.postMessage({t:'menubarCollapse',a:'poll',d:''}); } catch(e) {} }, 2000);
+    \\   setInterval(function() { try { window.webkit.messageHandlers.craft.postMessage({t:'menubarCollapse',a:'poll',d:''}); } catch(e) {} }, 1000);
     \\ })();
     ;
 }

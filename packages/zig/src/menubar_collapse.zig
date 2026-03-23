@@ -138,6 +138,11 @@ var auto_collapse_delay: u32 = 0;
 var auto_collapse_timer_active: bool = false;
 var last_expand_ns: ?u64 = null;
 
+// Debounce: prevent rapid clicks from causing state corruption (matches Hidden's isToggle pattern)
+var toggle_debounce_active: bool = false;
+var toggle_debounce_ns: ?u64 = null;
+const DEBOUNCE_INTERVAL_NS: u64 = 300_000_000; // 0.3 seconds in nanoseconds
+
 const LENGTH_VARIABLE: f64 = -1.0;
 const COLLAPSE_WIDTH: f64 = 10_000.0;
 
@@ -187,6 +192,9 @@ pub fn earlyInit() void {
     // === Create the chevron/separator item (position 1, rightmost) ===
     chevron_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", LENGTH_VARIABLE);
     _ = msgSend0(chevron_item, "retain");
+
+    // Set autosaveName so macOS remembers position across restarts (like Hidden)
+    msgSendVoid1(chevron_item, "setAutosaveName:", createNSString("barista_chevron"));
 
     const btn = msgSend0(chevron_item, "button");
     if (btn != null) {
@@ -351,6 +359,17 @@ pub fn setAutoCollapse(delay_seconds: u32) void {
 }
 
 pub fn checkAutoCollapse() void {
+    // Clear debounce if interval has passed (piggyback on the poll cycle)
+    if (toggle_debounce_active) {
+        if (toggle_debounce_ns) |start| {
+            if (nanoTimestamp()) |now| {
+                if (now - start >= DEBOUNCE_INTERVAL_NS) {
+                    toggle_debounce_active = false;
+                }
+            }
+        }
+    }
+
     if (!auto_collapse_timer_active or auto_collapse_delay == 0 or is_collapsed) {
         if (is_collapsed) auto_collapse_timer_active = false;
         return;
@@ -383,9 +402,17 @@ pub fn enableAlwaysHidden() void {
     always_hidden_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", LENGTH_VARIABLE);
     _ = msgSend0(always_hidden_item, "retain");
 
+    // Set autosaveName so macOS remembers position across restarts (like Hidden)
+    msgSendVoid1(always_hidden_item, "setAutosaveName:", createNSString("barista_always_hidden"));
+
     const btn = msgSend0(always_hidden_item, "button");
     if (btn != null) {
-        msgSendVoid1(btn, "setTitle:", createNSString(ALWAYS_HIDDEN_SEP)); // ·
+        // If separators are hidden, don't show the · text either
+        if (separator_hidden) {
+            msgSendVoid1(btn, "setTitle:", createNSString(""));
+        } else {
+            msgSendVoid1(btn, "setTitle:", createNSString(ALWAYS_HIDDEN_SEP)); // ·
+        }
         // Click on always-hidden separator also toggles main collapse
         msgSendVoid1(btn, "setTarget:", click_target);
         msgSendVoid1(btn, "setAction:", objc.sel_registerName("toggleClicked:"));
@@ -438,21 +465,34 @@ pub fn isAlwaysHiddenEnabled() bool {
 // Separator Visibility
 // ============================================================================
 
-/// Hide or show the chevron separator text. When hidden, the separator is
+/// Hide or show ALL separator text. When hidden, separators are
 /// still functional (clickable) but visually transparent.
+/// Matches Hidden's "areSeparatorsHidden" behavior.
 pub fn setSeparatorHidden(hidden: bool) void {
     if (builtin.target.os.tag != .macos) return;
     separator_hidden = hidden;
 
-    if (chevron_item == null) return;
-    if (is_collapsed) return; // don't modify while collapsed
+    // Update chevron text
+    if (chevron_item != null and !is_collapsed) {
+        const btn = msgSend0(chevron_item, "button");
+        if (btn != null) {
+            if (hidden) {
+                msgSendVoid1(btn, "setTitle:", createNSString(""));
+            } else {
+                msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_COLLAPSE));
+            }
+        }
+    }
 
-    const btn = msgSend0(chevron_item, "button");
-    if (btn != null) {
-        if (hidden) {
-            msgSendVoid1(btn, "setTitle:", createNSString("")); // invisible but clickable
-        } else {
-            msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_COLLAPSE)); // ‹
+    // Also update always-hidden separator text (both must match, like Hidden)
+    if (always_hidden_item != null and always_hidden_enabled) {
+        const ah_btn = msgSend0(always_hidden_item, "button");
+        if (ah_btn != null) {
+            if (hidden) {
+                msgSendVoid1(ah_btn, "setTitle:", createNSString(""));
+            } else {
+                msgSendVoid1(ah_btn, "setTitle:", createNSString(ALWAYS_HIDDEN_SEP));
+            }
         }
     }
 
@@ -634,6 +674,17 @@ fn toggleClicked(_: objc.id, _: objc.SEL, sender: objc.id) callconv(.c) void {
             return;
         }
     }
+
+    // Debounce: prevent rapid clicks from corrupting state (matches Hidden's isToggle)
+    if (toggle_debounce_active) {
+        if (toggle_debounce_ns) |start| {
+            if (nanoTimestamp()) |now| {
+                if (now - start < DEBOUNCE_INTERVAL_NS) return;
+            }
+        }
+    }
+    toggle_debounce_active = true;
+    toggle_debounce_ns = nanoTimestamp();
 
     toggle();
 }
