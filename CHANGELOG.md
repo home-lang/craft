@@ -1,4 +1,113 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.4...v0.0.5)
+
+### 🚀 Features
+
+- add virtual scrolling and testing utilities ([4a186d8](https://github.com/home-lang/craft/commit/4a186d8)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add partial hydration (islands architecture) ([8c8ef10](https://github.com/home-lang/craft/commit/8c8ef10)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add transitions, error boundaries, and keep-alive ([ffd1ca2](https://github.com/home-lang/craft/commit/ffd1ca2)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add stores, form validation, and browser composables ([aa431da](https://github.com/home-lang/craft/commit/aa431da)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- scope isolation fix, new primitives, composables, expanded auto-imports ([65651b2](https://github.com/home-lang/craft/commit/65651b2)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add client-side router, StxLink component, and app shell support ([fed7282](https://github.com/home-lang/craft/commit/fed7282)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- align SFC compiler with stx v2 syntax migration ([f41901c](https://github.com/home-lang/craft/commit/f41901c)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- dark mode, SFC compiler, tests, template migrations, create-craft update ([3528be9](https://github.com/home-lang/craft/commit/3528be9)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add crosswind CSS and migrate templates to stx ([2e3b666](https://github.com/home-lang/craft/commit/2e3b666)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add stx component library and unified cross-platform build system ([934e30c](https://github.com/home-lang/craft/commit/934e30c)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### 🐛 Bug Fixes
+
+- resolve typecheck error in hot-reload ([c482985](https://github.com/home-lang/craft/commit/c482985)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- replace hardcoded CSS with crosswind JIT generation ([10464f6](https://github.com/home-lang/craft/commit/10464f6)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- split release into pantry + npm jobs, use domain names in deps ([02b38df](https://github.com/home-lang/craft/commit/02b38df)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### ♻️ Code Refactoring
+
+- remove stx package from craft repo ([e529d45](https://github.com/home-lang/craft/commit/e529d45)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- align stx runtime with stx syntax migration ([3dc4daf](https://github.com/home-lang/craft/commit/3dc4daf)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.5 ([9ddf318](https://github.com/home-lang/craft/commit/9ddf318)) _(by Chris <chrisbreuer93@gmail.com>)_
+- update zig to 0.16.0-dev.2962+08416b44f ([84d1cd9](https://github.com/home-lang/craft/commit/84d1cd9)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([836e2f6](https://github.com/home-lang/craft/commit/836e2f6)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([aac723a](https://github.com/home-lang/craft/commit/aac723a)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([e64c035](https://github.com/home-lang/craft/commit/e64c035)) _(by Chris <chrisbreuer93@gmail.com>)_
+- repo cleanup and modernization ([ca2f1dc](https://github.com/home-lang/craft/commit/ca2f1dc)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([9abafdd](https://github.com/home-lang/craft/commit/9abafdd)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add git-hooks config ([531917c](https://github.com/home-lang/craft/commit/531917c)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- remove version-specific language from stx compiler and tests ([22eecc0](https://github.com/home-lang/craft/commit/22eecc0)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([a3a8bd6](https://github.com/home-lang/craft/commit/a3a8bd6)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([5a59295](https://github.com/home-lang/craft/commit/5a59295)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([d5bf643](https://github.com/home-lang/craft/commit/d5bf643)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([42cfe6a](https://github.com/home-lang/craft/commit/42cfe6a)) _(by Chris <chrisbreuer93@gmail.com>)_
+- fix remaining lint warning ([ed9120c](https://github.com/home-lang/craft/commit/ed9120c)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- fix lint warnings ([b4af828](https://github.com/home-lang/craft/commit/b4af828)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([e732101](https://github.com/home-lang/craft/commit/e732101)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([9387129](https://github.com/home-lang/craft/commit/9387129)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([f58f74b](https://github.com/home-lang/craft/commit/f58f74b)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([98783e0](https://github.com/home-lang/craft/commit/98783e0)) _(by Chris <chrisbreuer93@gmail.com>)_
+- fix lint warnings ([35da09e](https://github.com/home-lang/craft/commit/35da09e)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- fix lint warnings ([3c74dea](https://github.com/home-lang/craft/commit/3c74dea)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _glennmichael123 <gtorregosa@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.4...HEAD)
+
+### 🚀 Features
+
+- add virtual scrolling and testing utilities ([4a186d8](https://github.com/home-lang/craft/commit/4a186d8)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add partial hydration (islands architecture) ([8c8ef10](https://github.com/home-lang/craft/commit/8c8ef10)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add transitions, error boundaries, and keep-alive ([ffd1ca2](https://github.com/home-lang/craft/commit/ffd1ca2)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add stores, form validation, and browser composables ([aa431da](https://github.com/home-lang/craft/commit/aa431da)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- scope isolation fix, new primitives, composables, expanded auto-imports ([65651b2](https://github.com/home-lang/craft/commit/65651b2)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add client-side router, StxLink component, and app shell support ([fed7282](https://github.com/home-lang/craft/commit/fed7282)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- align SFC compiler with stx v2 syntax migration ([f41901c](https://github.com/home-lang/craft/commit/f41901c)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- dark mode, SFC compiler, tests, template migrations, create-craft update ([3528be9](https://github.com/home-lang/craft/commit/3528be9)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add crosswind CSS and migrate templates to stx ([2e3b666](https://github.com/home-lang/craft/commit/2e3b666)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add stx component library and unified cross-platform build system ([934e30c](https://github.com/home-lang/craft/commit/934e30c)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### 🐛 Bug Fixes
+
+- resolve typecheck error in hot-reload ([c482985](https://github.com/home-lang/craft/commit/c482985)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- replace hardcoded CSS with crosswind JIT generation ([10464f6](https://github.com/home-lang/craft/commit/10464f6)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- split release into pantry + npm jobs, use domain names in deps ([02b38df](https://github.com/home-lang/craft/commit/02b38df)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### ♻️ Code Refactoring
+
+- remove stx package from craft repo ([e529d45](https://github.com/home-lang/craft/commit/e529d45)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- align stx runtime with stx syntax migration ([3dc4daf](https://github.com/home-lang/craft/commit/3dc4daf)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### 🧹 Chores
+
+- update zig to 0.16.0-dev.2962+08416b44f ([84d1cd9](https://github.com/home-lang/craft/commit/84d1cd9)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([836e2f6](https://github.com/home-lang/craft/commit/836e2f6)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([aac723a](https://github.com/home-lang/craft/commit/aac723a)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([e64c035](https://github.com/home-lang/craft/commit/e64c035)) _(by Chris <chrisbreuer93@gmail.com>)_
+- repo cleanup and modernization ([ca2f1dc](https://github.com/home-lang/craft/commit/ca2f1dc)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([9abafdd](https://github.com/home-lang/craft/commit/9abafdd)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- add git-hooks config ([531917c](https://github.com/home-lang/craft/commit/531917c)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- remove version-specific language from stx compiler and tests ([22eecc0](https://github.com/home-lang/craft/commit/22eecc0)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([a3a8bd6](https://github.com/home-lang/craft/commit/a3a8bd6)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([5a59295](https://github.com/home-lang/craft/commit/5a59295)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([d5bf643](https://github.com/home-lang/craft/commit/d5bf643)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([42cfe6a](https://github.com/home-lang/craft/commit/42cfe6a)) _(by Chris <chrisbreuer93@gmail.com>)_
+- fix remaining lint warning ([ed9120c](https://github.com/home-lang/craft/commit/ed9120c)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- fix lint warnings ([b4af828](https://github.com/home-lang/craft/commit/b4af828)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([e732101](https://github.com/home-lang/craft/commit/e732101)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([9387129](https://github.com/home-lang/craft/commit/9387129)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([f58f74b](https://github.com/home-lang/craft/commit/f58f74b)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([98783e0](https://github.com/home-lang/craft/commit/98783e0)) _(by Chris <chrisbreuer93@gmail.com>)_
+- fix lint warnings ([35da09e](https://github.com/home-lang/craft/commit/35da09e)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- fix lint warnings ([3c74dea](https://github.com/home-lang/craft/commit/3c74dea)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _glennmichael123 <gtorregosa@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.3...v0.0.4)
 
 ### 🧹 Chores
