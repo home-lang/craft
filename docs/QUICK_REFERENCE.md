@@ -91,7 +91,7 @@ craft http://localhost:3000 \
 ## 📦 TypeScript Usage
 
 ```typescript
-import { createApp, type CraftBridgeAPI } from '@stacksjs/ts-craft'
+import { createApp, type CraftBridgeAPI } from '@stacksjs/@craft-native/ts'
 
 const app = createApp({
   url: 'http://localhost:3000',

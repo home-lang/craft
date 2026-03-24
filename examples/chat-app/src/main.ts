@@ -3,7 +3,7 @@
  * Features: WebSocket messaging, rooms, typing indicators, read receipts, push notifications
  */
 
-import { db, window, Platform, haptics, notifications } from 'ts-craft'
+import { db, window, Platform, haptics, notifications } from '@craft-native/ts'
 
 // Types
 interface User {

@@ -21,10 +21,10 @@ This package contains the Zig source code for Craft, providing:
 **You don't need to touch this package!** Use the TypeScript SDK instead:
 
 ```bash
-bun add ts-craft
+bun add @craft-native/ts
 ```
 
-See [ts-craft documentation](../ts-craft/README.md) for the TypeScript API.
+See [@craft-native/ts documentation](../@craft-native/ts/README.md) for the TypeScript API.
 
 ## For Advanced Users (Zig Development)
 

@@ -5,7 +5,7 @@ Store sensitive data in the device's secure enclave (iOS Keychain / Android Keys
 ## Import
 
 ```typescript
-import { secureStorage } from '@stacksjs/ts-craft'
+import { secureStorage } from '@stacksjs/@craft-native/ts'
 ```
 
 ## Methods
@@ -122,7 +122,7 @@ await secureStorage.clear()
 ## Example Usage
 
 ```typescript
-import { secureStorage, biometrics } from '@stacksjs/ts-craft'
+import { secureStorage, biometrics } from '@stacksjs/@craft-native/ts'
 
 // Authentication token management
 class AuthStorage {

@@ -103,7 +103,7 @@ craft/
 
 ## Package Info
 
-- **Name**: `ts-craft`
+- **Name**: `@craft-native/ts`
 - **Version**: `0.1.0`
 - **Zig Version**: `0.15.1`
 - **License**: MIT

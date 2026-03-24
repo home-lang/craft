@@ -9,6 +9,6 @@ export * from './timer'
 
 // Framework bindings are exported separately to avoid requiring all dependencies
 // Import them directly:
-// - import { useCraft, useWindow, useTray, useNotification } from 'ts-craft/utils/react'
-// - import { useCraft, useWindow, useTray, CraftPlugin } from 'ts-craft/utils/vue'
-// - import { craftStore, windowStore, trayStore, shortcut, fileDrop } from 'ts-craft/utils/svelte'
+// - import { useCraft, useWindow, useTray, useNotification } from '@craft-native/ts/utils/react'
+// - import { useCraft, useWindow, useTray, CraftPlugin } from '@craft-native/ts/utils/vue'
+// - import { craftStore, windowStore, trayStore, shortcut, fileDrop } from '@craft-native/ts/utils/svelte'

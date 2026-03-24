@@ -2,7 +2,7 @@
  * {{APP_NAME}} - Dashboard Template
  */
 
-import { getPlatform, isDesktop } from 'ts-craft'
+import { getPlatform, isDesktop } from '@craft-native/ts'
 
 interface NavItem {
   id: string

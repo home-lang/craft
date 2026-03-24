@@ -13,7 +13,7 @@ import {
   craftTheme,
   craftMobile,
   shortcut
-} from 'ts-craft/svelte'
+} from '@craft-native/ts/svelte'
 ```
 
 ## Stores
@@ -24,7 +24,7 @@ Core Craft store with initialization state.
 
 ```svelte
 <script>
-  import { craft } from 'ts-craft/svelte'
+  import { craft } from '@craft-native/ts/svelte'
 </script>
 
 {#if $craft.error}
@@ -51,7 +51,7 @@ Window control store.
 
 ```svelte
 <script>
-  import { craftWindow } from 'ts-craft/svelte'
+  import { craftWindow } from '@craft-native/ts/svelte'
 
   function toggleFullscreen() {
     craftWindow.setFullscreen(!$craftWindow.isFullscreen)
@@ -101,7 +101,7 @@ System tray store.
 
 ```svelte
 <script>
-  import { craftTray } from 'ts-craft/svelte'
+  import { craftTray } from '@craft-native/ts/svelte'
   import { onMount } from 'svelte'
 
   onMount(() => {
@@ -134,7 +134,7 @@ Notification store.
 
 ```svelte
 <script>
-  import { craftNotification } from 'ts-craft/svelte'
+  import { craftNotification } from '@craft-native/ts/svelte'
 
   async function notify() {
     if (!$craftNotification.hasPermission) {
@@ -173,7 +173,7 @@ Theme store.
 
 ```svelte
 <script>
-  import { craftTheme } from 'ts-craft/svelte'
+  import { craftTheme } from '@craft-native/ts/svelte'
 </script>
 
 <div class:dark={$craftTheme.isDark}>
@@ -210,7 +210,7 @@ Mobile-specific store.
 
 ```svelte
 <script>
-  import { craftMobile } from 'ts-craft/svelte'
+  import { craftMobile } from '@craft-native/ts/svelte'
 
   async function handleTap() {
     await $craftMobile.haptics.impact('light')
@@ -248,7 +248,7 @@ Action for keyboard shortcuts.
 
 ```svelte
 <script>
-  import { shortcut } from 'ts-craft/svelte'
+  import { shortcut } from '@craft-native/ts/svelte'
 
   let count = 0
 
@@ -292,7 +292,7 @@ Action for keyboard shortcuts.
     craftTheme,
     craftNotification,
     shortcut
-  } from 'ts-craft/svelte'
+  } from '@craft-native/ts/svelte'
 
   let count = 0
 
@@ -391,7 +391,7 @@ For SvelteKit apps, initialize Craft in the root layout:
 ```svelte
 <!-- +layout.svelte -->
 <script>
-  import { craft } from 'ts-craft/svelte'
+  import { craft } from '@craft-native/ts/svelte'
   import { browser } from '$app/environment'
   import { onMount } from 'svelte'
 

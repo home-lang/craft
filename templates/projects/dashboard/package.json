@@ -12,7 +12,7 @@
     "build:linux": "craft build --platform linux --release"
   },
   "dependencies": {
-    "ts-craft": "workspace:*"
+    "@craft-native/ts": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.3.0"

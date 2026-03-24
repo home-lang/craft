@@ -1,5 +1,5 @@
 {
-  "name": "ts-craft-examples",
+  "name": "craft-examples",
   "version": "0.0.9",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "dashboard": "bun run dashboard.ts"
   },
   "dependencies": {
-    "ts-craft": "workspace:*"
+    "@craft-native/ts": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest"

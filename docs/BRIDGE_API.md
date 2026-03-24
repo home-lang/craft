@@ -55,7 +55,7 @@ craft http://localhost:3000 --system-tray --hide-dock-icon
 ### TypeScript Integration
 
 ```typescript
-import { createApp } from '@stacksjs/ts-craft'
+import { createApp } from '@stacksjs/@craft-native/ts'
 
 const app = createApp({
   url: 'http://localhost:3000',
@@ -277,7 +277,7 @@ declare global {
 Import types:
 
 ```typescript
-import type { CraftBridgeAPI, TrayClickEvent, MenuItem } from '@stacksjs/ts-craft'
+import type { CraftBridgeAPI, TrayClickEvent, MenuItem } from '@stacksjs/@craft-native/ts'
 ```
 
 ## Examples
@@ -448,13 +448,13 @@ Common issues:
 Ensure you have the latest type definitions:
 
 ```bash
-bun add ts-craft@latest
+bun add @craft-native/ts@latest
 ```
 
 Or manually import types:
 
 ```typescript
-/// <reference types="@stacksjs/ts-craft" />
+/// <reference types="@stacksjs/@craft-native/ts" />
 ```
 
 ## Contributing

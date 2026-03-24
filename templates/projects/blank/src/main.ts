@@ -2,7 +2,7 @@
  * {{APP_NAME}} - Built with Craft
  */
 
-import { getPlatform, isDesktop, isMobile } from 'ts-craft'
+import { getPlatform, isDesktop, isMobile } from '@craft-native/ts'
 
 // Initialize app
 function init() {

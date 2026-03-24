@@ -63,7 +63,7 @@ setTimeout(async () => {
 ### Monitor Memory Usage
 
 ```typescript
-import { getMemoryUsage } from '@stacksjs/ts-craft'
+import { getMemoryUsage } from '@stacksjs/@craft-native/ts'
 
 setInterval(() => {
   const memory = getMemoryUsage()
@@ -199,7 +199,7 @@ window.emit('items-update', items)
 ### Debounce High-Frequency Events
 
 ```typescript
-import { debounce } from 'ts-craft/utils'
+import { debounce } from '@craft-native/ts/utils'
 
 // Debounce search input
 const debouncedSearch = debounce((query) => {
@@ -229,8 +229,8 @@ setInterval(() => {
 
 ```typescript
 // Import only what you need
-import { show } from '@stacksjs/ts-craft' // Good
-import * as craft from '@stacksjs/ts-craft' // Bad - imports everything
+import { show } from '@stacksjs/@craft-native/ts' // Good
+import * as craft from '@stacksjs/@craft-native/ts' // Bad - imports everything
 ```
 
 ### Code Splitting
@@ -280,7 +280,7 @@ export default {
 
 ```typescript
 // Identify performance-critical code
-import { benchmark } from 'ts-craft/perf'
+import { benchmark } from '@craft-native/ts/perf'
 
 benchmark('computation', () => {
   // If this is slow, consider native implementation
@@ -317,7 +317,7 @@ pub fn processParallel(items: []Item) void {
 ### Built-in Profiler
 
 ```typescript
-import { profiler } from 'ts-craft/perf'
+import { profiler } from '@craft-native/ts/perf'
 
 // Start profiling
 profiler.start()
@@ -364,7 +364,7 @@ perf report
 ### Micro-benchmarks
 
 ```typescript
-import { bench } from 'ts-craft/perf'
+import { bench } from '@craft-native/ts/perf'
 
 bench('string concatenation', () => {
   const str = 'hello' + ' ' + 'world'
@@ -382,7 +382,7 @@ bench('template literal', () => {
 ### Application Benchmarks
 
 ```typescript
-import { benchmark } from 'ts-craft/perf'
+import { benchmark } from '@craft-native/ts/perf'
 
 const results = await benchmark({
   'startup time': async () => {

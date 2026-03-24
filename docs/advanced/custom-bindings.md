@@ -16,7 +16,7 @@ Custom bindings enable:
 ### Register Custom Handler
 
 ```typescript
-import { createApp } from '@stacksjs/ts-craft'
+import { createApp } from '@stacksjs/@craft-native/ts'
 
 const app = await createApp(html, options)
 
@@ -56,7 +56,7 @@ my-plugin/
 
 ```typescript
 // craft.plugin.ts
-import type { CraftPlugin } from '@stacksjs/ts-craft'
+import type { CraftPlugin } from '@stacksjs/@craft-native/ts'
 
 export default {
   name: 'my-plugin',
@@ -140,7 +140,7 @@ pub fn build(b: *std.Build) void {
 
 ```typescript
 // src/index.ts
-import { loadNativeLibrary } from '@stacksjs/ts-craft'
+import { loadNativeLibrary } from '@stacksjs/@craft-native/ts'
 
 const lib = loadNativeLibrary('./libmy-plugin')
 
@@ -193,7 +193,7 @@ export const getString = lib.symbols.getString
 
 ```typescript
 // src/macos.ts
-import { platform } from '@stacksjs/ts-craft'
+import { platform } from '@stacksjs/@craft-native/ts'
 
 if (platform === 'darwin') {
   // macOS-specific implementation
@@ -213,7 +213,7 @@ if (platform === 'darwin') {
 
 ```typescript
 // src/windows.ts
-import { platform } from '@stacksjs/ts-craft'
+import { platform } from '@stacksjs/@craft-native/ts'
 
 if (platform === 'win32') {
   const winLib = loadNativeLibrary('./libwin-bridge')
@@ -232,7 +232,7 @@ if (platform === 'win32') {
 
 ```typescript
 // src/platform-features.ts
-import { platform } from '@stacksjs/ts-craft'
+import { platform } from '@stacksjs/@craft-native/ts'
 
 export interface PlatformFeatures {
   showBadge(text: string): void
@@ -279,7 +279,7 @@ pub fn monitorSomething() void {
 
 ```typescript
 // In TypeScript
-import { on } from '@stacksjs/ts-craft'
+import { on } from '@stacksjs/@craft-native/ts'
 
 on('sensor:reading', (data) => {
   console.log(`Sensor value: ${data.value} at ${data.timestamp}`)
@@ -291,7 +291,7 @@ on('sensor:reading', (data) => {
 ### Handling Native Memory
 
 ```typescript
-import { NativePointer } from '@stacksjs/ts-craft'
+import { NativePointer } from '@stacksjs/@craft-native/ts'
 
 // Allocate native memory
 const buffer = NativePointer.allocate(1024)
@@ -309,7 +309,7 @@ finally {
 ### Automatic Cleanup
 
 ```typescript
-import { using } from '@stacksjs/ts-craft'
+import { using } from '@stacksjs/@craft-native/ts'
 
 // Automatically freed when scope exits
 await using(NativePointer.allocate(1024), async (buffer) => {
@@ -390,7 +390,7 @@ describe('Native Bindings', () => {
 ### Integration Tests
 
 ```typescript
-import { createTestApp } from 'ts-craft/testing'
+import { createTestApp } from '@craft-native/ts/testing'
 
 test('custom handler works', async () => {
   const app = await createTestApp()
@@ -417,7 +417,7 @@ test('custom handler works', async () => {
     "native/"
   ],
   "peerDependencies": {
-    "@stacksjs/ts-craft": "^1.0.0"
+    "@stacksjs/@craft-native/ts": "^1.0.0"
   }
 }
 ```

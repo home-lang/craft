@@ -5,7 +5,7 @@ Headwind provides Tailwind CSS-style utilities for styling Craft applications. I
 ## Import
 
 ```typescript
-import { tw, cx, variants, style } from '@stacksjs/ts-craft'
+import { tw, cx, variants, style } from '@stacksjs/@craft-native/ts'
 ```
 
 ## tw - Template Literal Styling
@@ -295,7 +295,7 @@ ease-{linear, in, out, in-out}
 ## Example Usage
 
 ```typescript
-import { tw, cx, variants, style } from '@stacksjs/ts-craft'
+import { tw, cx, variants, style } from '@stacksjs/@craft-native/ts'
 
 // Navigation component
 const nav = variants({

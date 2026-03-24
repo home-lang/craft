@@ -5,7 +5,7 @@ Access device information and capabilities.
 ## Import
 
 ```typescript
-import { device } from '@stacksjs/ts-craft'
+import { device } from '@stacksjs/@craft-native/ts'
 ```
 
 ## Methods
@@ -123,7 +123,7 @@ console.log(locale.timezone)        // 'America/New_York'
 ## Example Usage
 
 ```typescript
-import { device, Platform } from '@stacksjs/ts-craft'
+import { device, Platform } from '@stacksjs/@craft-native/ts'
 
 // Adaptive UI based on device
 async function setupUI() {

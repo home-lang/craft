@@ -107,7 +107,7 @@ function createMinimalTemplate(projectPath: string, projectName: string): void {
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
     dependencies: {
-      'ts-craft': 'workspace:*',
+      '@craft-native/ts': 'workspace:*',
 
     },
     devDependencies: {
@@ -124,7 +124,7 @@ function createMinimalTemplate(projectPath: string, projectName: string): void {
   mkdirSync(join(projectPath, 'src'))
 
   // Create src/index.ts
-  const indexTs = `import { show } from 'ts-craft'
+  const indexTs = `import { show } from '@craft-native/ts'
 
 const html = \`
 <!DOCTYPE html>
@@ -214,7 +214,7 @@ function createFullFeaturedTemplate(projectPath: string, projectName: string): v
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
     dependencies: {
-      'ts-craft': 'workspace:*',
+      '@craft-native/ts': 'workspace:*',
 
     },
     devDependencies: {
@@ -231,7 +231,7 @@ function createFullFeaturedTemplate(projectPath: string, projectName: string): v
   mkdirSync(join(projectPath, 'src'))
 
   // Create src/index.ts
-  const indexTs = `import { show } from 'ts-craft'
+  const indexTs = `import { show } from '@craft-native/ts'
 
 const html = \`
 <!DOCTYPE html>
@@ -390,7 +390,7 @@ function createTodoAppTemplate(projectPath: string, projectName: string): void {
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
     dependencies: {
-      'ts-craft': 'workspace:*',
+      '@craft-native/ts': 'workspace:*',
 
     },
     devDependencies: {
@@ -407,7 +407,7 @@ function createTodoAppTemplate(projectPath: string, projectName: string): void {
   mkdirSync(join(projectPath, 'src'))
 
   // Create src/index.ts with full todo app
-  const indexTs = `import { show } from 'ts-craft'
+  const indexTs = `import { show } from '@craft-native/ts'
 
 const html = \`
 <!DOCTYPE html>

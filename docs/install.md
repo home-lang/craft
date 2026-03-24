@@ -9,25 +9,25 @@ The easiest way to use Craft is through the TypeScript SDK:
 ### Bun (Recommended)
 
 ```bash
-bun add ts-craft
+bun add @craft-native/ts
 ```
 
 ### npm
 
 ```bash
-npm install ts-craft
+npm install @craft-native/ts
 ```
 
 ### pnpm
 
 ```bash
-pnpm add ts-craft
+pnpm add @craft-native/ts
 ```
 
 ### Yarn
 
 ```bash
-yarn add ts-craft
+yarn add @craft-native/ts
 ```
 
 ## Quick Start with create-craft
@@ -66,10 +66,10 @@ Install globally for CLI usage:
 
 ```bash
 # Bun
-bun add -g ts-craft
+bun add -g @craft-native/ts
 
 # npm
-npm install -g ts-craft
+npm install -g @craft-native/ts
 ```
 
 Then use the CLI:

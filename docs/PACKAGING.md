@@ -7,7 +7,7 @@ Craft provides comprehensive packaging tools to create installers for your appli
 ### Using the API
 
 ```typescript
-import { packageApp } from '@stacksjs/ts-craft'
+import { packageApp } from '@stacksjs/@craft-native/ts'
 
 const results = await packageApp({
   name: 'My App',
@@ -21,7 +21,7 @@ const results = await packageApp({
 
 ```bash
 # Install CLI globally
-bun add -g ts-craft
+bun add -g @craft-native/ts
 
 # Package your app
 craft-package --name "My App" --version "1.0.0" --binary ./build/myapp
@@ -44,7 +44,7 @@ craft-package --name "My App" --version "1.0.0" --binary ./build/myapp
 ### Complete Example
 
 ```typescript
-import { packageApp } from '@stacksjs/ts-craft'
+import { packageApp } from '@stacksjs/@craft-native/ts'
 import { join } from 'path'
 
 async function buildInstallers() {
@@ -118,7 +118,7 @@ buildInstallers()
 For quick packaging of the current platform:
 
 ```typescript
-import { pack } from '@stacksjs/ts-craft'
+import { pack } from '@stacksjs/@craft-native/ts'
 
 const results = await pack({
   name: 'My App',

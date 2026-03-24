@@ -2,7 +2,7 @@
 
 ## About
 
-A lightweight, high-performance cross-platform application framework built with Zig. It creates native desktop apps (macOS, Linux, Windows), mobile apps (iOS, Android), and menubar/system tray apps using web technologies, with a ~297KB binary and ~168ms startup time. It includes 35 native UI components, advanced GPU rendering (Vulkan/Metal/Direct3D), WebSocket support, a JavaScript bridge, system integration (notifications, clipboard, file dialogs), and a TypeScript SDK (`ts-craft`) for building apps without writing Zig directly.
+A lightweight, high-performance cross-platform application framework built with Zig. It creates native desktop apps (macOS, Linux, Windows), mobile apps (iOS, Android), and menubar/system tray apps using web technologies, with a ~297KB binary and ~168ms startup time. It includes 35 native UI components, advanced GPU rendering (Vulkan/Metal/Direct3D), WebSocket support, a JavaScript bridge, system integration (notifications, clipboard, file dialogs), and a TypeScript SDK (`@craft-native/ts`) for building apps without writing Zig directly.
 
 ## Linting
 
