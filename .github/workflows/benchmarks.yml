@@ -1,4 +1,4 @@
-name: Benchmark Tracking
+name: Benchmark
 
 on:
   push:
@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   benchmarks:
-    name: Run Benchmarks
+    name: run
     runs-on: ubuntu-latest
 
     steps:

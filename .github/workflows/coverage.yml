@@ -12,7 +12,6 @@ concurrency:
 
 jobs:
   typescript-coverage:
-    name: TypeScript SDK Coverage
     runs-on: ubuntu-latest
 
     steps:

@@ -1,4 +1,4 @@
-name: SBOM Generation
+name: SBOM
 
 on:
   push:
@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  generate-sbom:
-    name: Generate Software Bill of Materials
+  generate:
+    # name: Generate Software Bill of Materials
     runs-on: ubuntu-latest
 
     steps:

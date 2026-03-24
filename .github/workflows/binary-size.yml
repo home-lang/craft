@@ -1,4 +1,4 @@
-name: Binary Size Tracking
+name: Binary Size
 
 on:
   push:
@@ -17,8 +17,7 @@ env:
   WARN_BINARY_SIZE: 1572864
 
 jobs:
-  track-size:
-    name: Track Binary Size
+  track:
     runs-on: ubuntu-latest
 
     steps:
