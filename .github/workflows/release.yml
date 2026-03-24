@@ -7,9 +7,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  pantry:
-    name: pantry
-    runs-on: ubuntu-latest
+  build:
+    name: Build (${{ matrix.platform.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - { os: macos-15, name: darwin-arm64, deps: '' }
+          - { os: ubuntu-latest, name: linux-x86-64, deps: 'sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev' }
+    runs-on: ${{ matrix.platform.os }}
     permissions:
       contents: write
       id-token: write
@@ -23,7 +29,8 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Install System Dependencies
-        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+        if: matrix.platform.deps != ''
+        run: ${{ matrix.platform.deps }}
 
       - name: Install Dependencies
         run: bun install
@@ -35,30 +42,26 @@ jobs:
         id: version
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
-      - name: Stage Binary for Publish
+      - name: Publish binary to Pantry Registry
         run: |
-          mkdir -p .publish/bin
-          cp packages/zig/zig-out/bin/craft .publish/bin/craft
-          cat > .publish/package.json << PACKAGE
-          {
-            "name": "craft",
-            "domain": "craft-native.org",
-            "version": "${{ steps.version.outputs.version }}",
-            "description": "Build desktop apps with web languages, powered by Zig",
-            "license": "MIT",
-            "bin": { "craft": "./bin/craft" },
-            "files": ["bin"]
-          }
-          PACKAGE
-
-      - name: Publish to Pantry Registry
-        working-directory: .publish
-        run: pantry publish --access public
+          pantry publish:binary \
+            --domain craft-native.org \
+            --version ${{ steps.version.outputs.version }} \
+            --binary packages/zig/zig-out/bin/craft \
+            --platform ${{ matrix.platform.name }}
         env:
-          PANTRY_REGISTRY_TOKEN: ${{ secrets.PANTRY_TOKEN }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: craft-${{ matrix.platform.name }}
+          path: packages/zig/zig-out/bin/craft
 
   npm:
     name: npm
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -87,7 +90,7 @@ jobs:
 
   notify:
     name: discord-notification
-    needs: [pantry, npm]
+    needs: [build, npm]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -95,13 +98,13 @@ jobs:
       - uses: ./.github/actions/discord-notify
         if: hashFiles('.github/actions/discord-notify/action.yml') != ''
         with:
-          title: "Release — ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'Published' || 'Failed' }}"
+          title: "Release — ${{ needs.build.result == 'success' && needs.npm.result == 'success' && 'Published' || 'Failed' }}"
           description: "Tag: ${{ github.ref_name }}"
-          status: ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'success' || 'failure' }}
+          status: ${{ needs.build.result == 'success' && needs.npm.result == 'success' && 'success' || 'failure' }}
           fields: |
             [
               {"name": "Tag", "value": "${{ github.ref_name }}", "inline": true},
-              {"name": "Pantry", "value": "${{ needs.pantry.result }}", "inline": true},
+              {"name": "Build", "value": "${{ needs.build.result }}", "inline": true},
               {"name": "npm", "value": "${{ needs.npm.result }}", "inline": true}
             ]
           webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
