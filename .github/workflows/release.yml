@@ -6,6 +6,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
+env:
+  S3_BUCKET: pantry-registry
+  AWS_REGION: us-east-1
+
 jobs:
   build:
     name: Build (${{ matrix.platform.name }})
@@ -42,16 +46,80 @@ jobs:
         id: version
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
-      - name: Publish binary to Pantry Registry
-        run: |
-          pantry publish:binary \
-            --domain craft-native.org \
-            --version ${{ steps.version.outputs.version }} \
-            --binary packages/zig/zig-out/bin/craft \
-            --platform ${{ matrix.platform.name }}
+      - name: Package and upload to S3
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PLATFORM="${{ matrix.platform.name }}"
+          DOMAIN="craft-native.org"
+          SLUG="craft-native.org"
+          BINARY="packages/zig/zig-out/bin/craft"
+
+          echo "Publishing $DOMAIN v$VERSION for $PLATFORM"
+          ls -la "$BINARY"
+          file "$BINARY"
+
+          # Create tarball with bin/ structure (like other pantry packages)
+          STAGING=$(mktemp -d)
+          mkdir -p "$STAGING/bin"
+          cp "$BINARY" "$STAGING/bin/craft"
+          chmod +x "$STAGING/bin/craft"
+          TARBALL="${SLUG}-${VERSION}.tar.gz"
+          tar -czf "/tmp/$TARBALL" -C "$STAGING" .
+          SHA256=$(shasum -a 256 "/tmp/$TARBALL" | cut -d' ' -f1)
+
+          echo "Tarball: $TARBALL ($(du -h /tmp/$TARBALL | cut -f1))"
+          echo "SHA256: $SHA256"
+
+          # Upload tarball
+          S3_KEY="binaries/${DOMAIN}/${VERSION}/${PLATFORM}/${TARBALL}"
+          aws s3 cp "/tmp/$TARBALL" "s3://$S3_BUCKET/$S3_KEY" --region $AWS_REGION
+
+          # Upload checksum
+          echo "$SHA256" > "/tmp/${TARBALL}.sha256"
+          aws s3 cp "/tmp/${TARBALL}.sha256" "s3://$S3_BUCKET/${S3_KEY}.sha256" --region $AWS_REGION
+
+          echo "Uploaded: s3://$S3_BUCKET/$S3_KEY"
+
+      - name: Update metadata.json
+        if: matrix.platform.name == 'darwin-arm64'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DOMAIN="craft-native.org"
+
+          # Create/update metadata.json
+          METADATA=$(cat <<METAJSON
+          {
+            "name": "$DOMAIN",
+            "latestVersion": "$VERSION",
+            "versions": {
+              "$VERSION": {
+                "platforms": {
+                  "darwin-arm64": {
+                    "tarball": "binaries/$DOMAIN/$VERSION/darwin-arm64/$DOMAIN-$VERSION.tar.gz",
+                    "uploadedAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+                  },
+                  "linux-x86-64": {
+                    "tarball": "binaries/$DOMAIN/$VERSION/linux-x86-64/$DOMAIN-$VERSION.tar.gz",
+                    "uploadedAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+                  }
+                }
+              }
+            },
+            "updatedAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+          }
+          METAJSON
+          )
+
+          echo "$METADATA" | aws s3 cp - "s3://$S3_BUCKET/binaries/$DOMAIN/metadata.json" \
+            --content-type application/json --region $AWS_REGION
+
+          echo "Updated metadata: s3://$S3_BUCKET/binaries/$DOMAIN/metadata.json"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
