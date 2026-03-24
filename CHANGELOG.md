@@ -1,4 +1,30 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.6...v0.0.7)
+
+### 🚀 Features
+
+- publish craft binary via pantry publish ([ab86762](https://github.com/home-lang/craft/commit/ab86762)) _(by Chris <chrisbreuer93@gmail.com>)_
+- publish native binary to pantry S3 registry on release ([56bc4b5](https://github.com/home-lang/craft/commit/56bc4b5)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.7 ([cf5e2f0](https://github.com/home-lang/craft/commit/cf5e2f0)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.6...HEAD)
+
+### 🚀 Features
+
+- publish craft binary via pantry publish ([ab86762](https://github.com/home-lang/craft/commit/ab86762)) _(by Chris <chrisbreuer93@gmail.com>)_
+- publish native binary to pantry S3 registry on release ([56bc4b5](https://github.com/home-lang/craft/commit/56bc4b5)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.5...v0.0.6)
 
 ### 🐛 Bug Fixes
