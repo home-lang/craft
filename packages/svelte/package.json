@@ -1,6 +1,6 @@
 {
   "name": "@craft-native/svelte",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "private": true,
   "description": "Svelte bindings for Craft framework",
   "svelte": "src/index.ts",

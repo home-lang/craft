@@ -1,4 +1,42 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.13...v0.0.14)
+
+### 🚀 Features
+
+- build and publish platform-specific binaries ([20beeef](https://github.com/home-lang/craft/commit/20beeef)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🐛 Bug Fixes
+
+- inject version from package.json into Zig binary ([31deb16](https://github.com/home-lang/craft/commit/31deb16)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use AWS CLI for S3 upload instead of pantry publish:binary ([5193e86](https://github.com/home-lang/craft/commit/5193e86)) _(by Chris <chrisbreuer93@gmail.com>)_
+- rename all @craft-native/ts references to @craft-native/craft ([b21c48d](https://github.com/home-lang/craft/commit/b21c48d)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- fix broken imports in ecommerce and social templates ([693d81d](https://github.com/home-lang/craft/commit/693d81d)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- pass iOS Simulator SDK sysroot for cross-compilation ([b3e381b](https://github.com/home-lang/craft/commit/b3e381b)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.14 ([be032f7](https://github.com/home-lang/craft/commit/be032f7)) _(by Chris <chrisbreuer93@gmail.com>)_
+- update lockfile ([1fd9ee9](https://github.com/home-lang/craft/commit/1fd9ee9)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _glennmichael123 <gtorregosa@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/main...HEAD)
+
+### 🐛 Bug Fixes
+
+- inject version from package.json into Zig binary ([31deb16](https://github.com/home-lang/craft/commit/31deb16)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- update lockfile ([1fd9ee9](https://github.com/home-lang/craft/commit/1fd9ee9)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.12...v0.0.13)
 
 ### 🧹 Chores

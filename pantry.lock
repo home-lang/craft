@@ -36,7 +36,7 @@
       "name": "craft-examples",
       "version": "0.0.13",
       "dependencies": {
-        "@craft-native/ts": "workspace:*"
+        "@craft-native/craft": "workspace:*"
       },
       "devDependencies": {
         "@types/bun": "latest"
@@ -68,7 +68,7 @@
       }
     },
     "packages/typescript": {
-      "name": "@craft-native/ts",
+      "name": "@craft-native/craft",
       "version": "0.0.13",
       "dependencies": {
         "archiver": "^7.0.1"
@@ -301,12 +301,12 @@
       },
       "optionalPeers": ["@edge-runtime/vm", "@types/node", "@vitest/browser", "@vitest/ui", "happy-dom", "jsdom"]
     },
-    "vue@3.6.0-alpha.1": {
+    "vue@3.5.30": {
       "name": "vue",
-      "version": "3.6.0-alpha.1",
+      "version": "3.5.30",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/vue/-/vue-3.6.0-alpha.1.tgz",
-      "integrity": "sha512-DZjYvysI4pp2o+y/Qeswe+8rWe/eYY13NLB9Bei2Ba5ecz+G1n3Uch2LI7IBa1favAqX8fZ4GJ5+XPBbPWwwxQ==",
+      "resolved": "https://registry.npmjs.org/vue/-/vue-3.5.30.tgz",
+      "integrity": "sha512-hTHLc6VNZyzzEH/l7PFGjpcTvUgiaPK5mdLkbjrTeWSRcEfxFrv56g/XckIYlE9ckuobsdwqd5mk2g1sBkMewg==",
       "dependencies": {
         "@vue/compiler-dom": "3.6.0-alpha.1",
         "@vue/compiler-sfc": "3.6.0-alpha.1",
