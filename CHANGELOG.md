@@ -1,4 +1,29 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.7...v0.0.8)
+
+### 🧹 Chores
+
+- release v0.0.8 ([10f2c63](https://github.com/home-lang/craft/commit/10f2c63)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([f9cf542](https://github.com/home-lang/craft/commit/f9cf542)) _(by Chris <chrisbreuer93@gmail.com>)_
+- minor action adjustments ([fb5e0bf](https://github.com/home-lang/craft/commit/fb5e0bf)) _(by Chris <chrisbreuer93@gmail.com>)_
+- minor adjustments ([ad7893a](https://github.com/home-lang/craft/commit/ad7893a)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.7...HEAD)
+
+### 🧹 Chores
+
+- wip ([f9cf542](https://github.com/home-lang/craft/commit/f9cf542)) _(by Chris <chrisbreuer93@gmail.com>)_
+- minor action adjustments ([fb5e0bf](https://github.com/home-lang/craft/commit/fb5e0bf)) _(by Chris <chrisbreuer93@gmail.com>)_
+- minor adjustments ([ad7893a](https://github.com/home-lang/craft/commit/ad7893a)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.6...v0.0.7)
 
 ### 🚀 Features
