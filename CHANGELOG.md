@@ -1,4 +1,38 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.14...v0.0.15)
+
+### 🐛 Bug Fixes
+
+- move GitHub Release to pantry job, use PAT token ([843df80](https://github.com/home-lang/craft/commit/843df80)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### ♻️ Code Refactoring
+
+- consolidate signed release into release.yml ([31d55fc](https://github.com/home-lang/craft/commit/31d55fc)) _(by Chris <chrisbreuer93@gmail.com>)_
+- rename release jobs to pantry and npm ([ade5493](https://github.com/home-lang/craft/commit/ade5493)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.15 ([618677b](https://github.com/home-lang/craft/commit/618677b)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.14...HEAD)
+
+### 🐛 Bug Fixes
+
+- move GitHub Release to pantry job, use PAT token ([843df80](https://github.com/home-lang/craft/commit/843df80)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### ♻️ Code Refactoring
+
+- consolidate signed release into release.yml ([31d55fc](https://github.com/home-lang/craft/commit/31d55fc)) _(by Chris <chrisbreuer93@gmail.com>)_
+- rename release jobs to pantry and npm ([ade5493](https://github.com/home-lang/craft/commit/ade5493)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.13...v0.0.14)
 
 ### 🚀 Features
