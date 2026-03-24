@@ -75,7 +75,8 @@ jobs:
         working-directory: packages/zig
         run: |
           # Build for iOS simulator (arm64)
-          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-ios-simulator
+          IOS_SIM_SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
+          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-ios-simulator --sysroot "$IOS_SIM_SDK"
 
       - name: Run iOS unit tests
         working-directory: packages/zig
