@@ -74,9 +74,9 @@ jobs:
       - name: Build iOS library
         working-directory: packages/zig
         run: |
-          # Build for iOS simulator (arm64)
-          IOS_SIM_SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
-          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-ios-simulator --sysroot "$IOS_SIM_SDK"
+          # Build iOS simulator static libraries using dedicated build step
+          # (not the default target which builds macOS executables)
+          zig build build-ios-simulator -Doptimize=ReleaseSafe --sysroot "$(xcrun --sdk iphonesimulator --show-sdk-path)"
 
       - name: Run iOS unit tests
         working-directory: packages/zig

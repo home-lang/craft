@@ -46,6 +46,31 @@ jobs:
         id: version
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
+      # ── Cross-compile additional targets ─────────────────────────
+      - name: Cross-compile darwin-x64
+        if: runner.os == 'macOS'
+        working-directory: packages/zig
+        run: |
+          zig build -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.version }} -Dtarget=x86_64-macos --sysroot "$(xcrun --show-sdk-path)"
+          mkdir -p zig-out/cross/darwin-x64
+          cp zig-out/bin/craft zig-out/cross/darwin-x64/craft
+
+      - name: Restore native binary after cross-compile
+        if: runner.os == 'macOS'
+        run: bun run build:core
+
+      - name: Cross-compile windows-x64
+        if: runner.os == 'Linux'
+        working-directory: packages/zig
+        run: |
+          zig build -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.version }} -Dtarget=x86_64-windows
+          mkdir -p zig-out/cross/windows-x64
+          cp zig-out/bin/craft.exe zig-out/cross/windows-x64/craft.exe
+
+      - name: Restore native binary after cross-compile
+        if: runner.os == 'Linux'
+        run: bun run build:core
+
       # ── macOS Code Signing & Notarization ──────────────────────────
       - name: Import signing certificate
         if: runner.os == 'macOS' && env.APPLE_CERTIFICATE_BASE64 != ''
@@ -151,19 +176,35 @@ jobs:
           }
           METAJSON
 
-      # ── Package & Upload Artifact ────────────────────────────────
-      - name: Package binary
+      # ── Package & Upload Artifacts ───────────────────────────────
+      - name: Package binaries
         run: |
           mkdir -p dist
+
+          # Package native binary
           PLATFORM="${{ matrix.platform.name }}"
           case "$PLATFORM" in
             darwin-arm64)  ZIP_NAME="craft-darwin-arm64.zip" ;;
             linux-x86-64)  ZIP_NAME="craft-linux-x64.zip" ;;
           esac
           (cd packages/zig/zig-out/bin && zip -r "../../../../dist/$ZIP_NAME" craft)
-          echo "Packaged: $ZIP_NAME ($(du -h dist/$ZIP_NAME | cut -f1))"
+          echo "Packaged native: $ZIP_NAME"
 
-      - name: Upload artifact
+          # Package cross-compiled binaries
+          if [ -d packages/zig/zig-out/cross/darwin-x64 ]; then
+            (cd packages/zig/zig-out/cross/darwin-x64 && zip -r "../../../../../dist/craft-darwin-x64.zip" craft)
+            echo "Packaged cross: craft-darwin-x64.zip"
+          fi
+
+          if [ -d packages/zig/zig-out/cross/windows-x64 ]; then
+            (cd packages/zig/zig-out/cross/windows-x64 && zip -r "../../../../../dist/craft-windows-x64.zip" craft.exe)
+            echo "Packaged cross: craft-windows-x64.zip"
+          fi
+
+          echo "All packaged files:"
+          ls -la dist/
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: craft-${{ matrix.platform.name }}
@@ -191,6 +232,7 @@ jobs:
       - name: Generate checksums
         run: |
           cd dist
+          echo "Release artifacts:"
           ls -la
           sha256sum *.zip > checksums.sha256
           cat checksums.sha256
@@ -199,8 +241,7 @@ jobs:
         uses: stacksjs/action-releaser@v1.2.9
         with:
           files: |
-            dist/craft-darwin-arm64.zip
-            dist/craft-linux-x64.zip
+            dist/*.zip
             dist/checksums.sha256
           token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
         env:
