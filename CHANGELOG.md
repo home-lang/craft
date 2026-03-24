@@ -1,4 +1,25 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.9...v0.0.10)
+
+### 🧹 Chores
+
+- release v0.0.10 ([4edd950](https://github.com/home-lang/craft/commit/4edd950)) _(by Chris <chrisbreuer93@gmail.com>)_
+- rename ([e098db0](https://github.com/home-lang/craft/commit/e098db0)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.9...HEAD)
+
+### 🧹 Chores
+
+- rename ([e098db0](https://github.com/home-lang/craft/commit/e098db0)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.8...v0.0.9)
 
 ### 🐛 Bug Fixes
