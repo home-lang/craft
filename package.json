@@ -8,9 +8,6 @@
   "bin": {
     "craft": "./bin/craft"
   },
-  "files": [
-    "bin"
-  ],
   "workspaces": [
     "packages/*",
     "benchmarks"
