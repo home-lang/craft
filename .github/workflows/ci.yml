@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   zig-core:
-    name: Zig Core Build
+    # name: Zig Core Build
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -59,7 +59,7 @@ jobs:
           size packages/zig/zig-out/bin/craft || true
 
   typescript-sdk:
-    name: TypeScript SDK Tests
+    # name: TypeScript SDK Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -90,7 +90,6 @@ jobs:
         run: bun run typecheck
 
   lint:
-    name: Code Formatting
     runs-on: ubuntu-latest
 
     steps:
@@ -106,7 +105,7 @@ jobs:
         run: zig fmt --check src/ build.zig
 
   integration:
-    name: Integration Tests
+    # name: Integration Tests
     runs-on: ubuntu-latest
     needs: [zig-core, typescript-sdk]
 
