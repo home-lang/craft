@@ -31,12 +31,28 @@ jobs:
       - name: Build Native Binary
         run: bun run build:core
 
+      - name: Extract Version
+        id: version
+        run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
+
       - name: Stage Binary for Publish
         run: |
-          mkdir -p bin
-          cp packages/zig/zig-out/bin/craft bin/craft
+          mkdir -p .publish/bin
+          cp packages/zig/zig-out/bin/craft .publish/bin/craft
+          cat > .publish/package.json << PACKAGE
+          {
+            "name": "craft",
+            "domain": "craft-native.org",
+            "version": "${{ steps.version.outputs.version }}",
+            "description": "Build desktop apps with web languages, powered by Zig",
+            "license": "MIT",
+            "bin": { "craft": "./bin/craft" },
+            "files": ["bin"]
+          }
+          PACKAGE
 
       - name: Publish to Pantry Registry
+        working-directory: .publish
         run: pantry publish --access public
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
