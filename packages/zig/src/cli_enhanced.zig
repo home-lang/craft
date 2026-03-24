@@ -782,13 +782,15 @@ fn printVersion() void {
         else => "Unknown",
     };
 
+    const build_opts = @import("build_options");
+    const version = if (@hasDecl(build_opts, "version")) build_opts.version else "0.0.0";
     std.debug.print(
-        \\craft version 1.3.0
-        \\Built with Zig 0.15.1
+        \\craft version {s}
+        \\Built with Zig 0.16.0
         \\Platform: {s}
         \\
         \\
-    , .{platform_name});
+    , .{ version, platform_name });
 }
 
 // Tests

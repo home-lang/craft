@@ -194,7 +194,9 @@ pub const BuiltInHandlers = struct {
 
         var obj = std.json.ObjectMap.init(allocator);
         try obj.put("platform", .{ .string = platform_str });
-        try obj.put("version", .{ .string = "1.3.0" });
+        const build_opts = @import("build_options");
+        const ver = if (@hasDecl(build_opts, "version")) build_opts.version else "0.0.0";
+        try obj.put("version", .{ .string = ver });
 
         return std.json.Value{ .object = obj };
     }

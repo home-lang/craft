@@ -55,6 +55,13 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run-demo", "Run the demo app");
     run_step.dependOn(&run_cmd.step);
 
+    // Version from -Dversion= flag or default
+    const version_option = b.option([]const u8, "version", "Version string (from package.json)") orelse "0.0.0";
+
+    // Create build options module for version
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "version", version_option);
+
     // Main CLI executable - full-featured command-line interface
     const craft_exe = b.addExecutable(.{
         .name = "craft",
@@ -69,6 +76,7 @@ pub fn build(b: *std.Build) void {
             .error_tracing = if (optimize != .Debug) false else null,
             .imports = &.{
                 .{ .name = "craft", .module = craft_module },
+                .{ .name = "build_options", .module = build_options.createModule() },
             },
         }),
     });
