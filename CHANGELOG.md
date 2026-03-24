@@ -1,4 +1,14 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.12...v0.0.13)
+
+### 🧹 Chores
+
+- release v0.0.13 ([43df471](https://github.com/home-lang/craft/commit/43df471)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.11...v0.0.12)
 
 ### 🐛 Bug Fixes
