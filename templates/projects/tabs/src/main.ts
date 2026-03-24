@@ -2,7 +2,7 @@
  * {{APP_NAME}} - Tab-based Navigation Template
  */
 
-import { isMobile, haptics } from '@craft-native/craft'
+import { isMobile, haptics } from 'ts-craft'
 
 interface Tab {
   id: string

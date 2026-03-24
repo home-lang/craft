@@ -14,7 +14,7 @@ import {
   getPlatform,
   isMobile,
   isDesktop
-} from '@craft-native/craft'
+} from 'ts-craft'
 import { haptics } from 'ts-craft/api/mobile'
 
 // ============================================================================

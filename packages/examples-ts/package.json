@@ -11,7 +11,7 @@
     "dashboard": "bun run dashboard.ts"
   },
   "dependencies": {
-    "@craft-native/craft": "workspace:*"
+    "ts-craft": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest"

@@ -1,4 +1,4 @@
-import type { CraftConfig } from '@craft-native/craft'
+import type { CraftConfig } from 'ts-craft'
 
 export default {
   name: 'Music Player',

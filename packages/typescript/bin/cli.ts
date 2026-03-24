@@ -768,7 +768,7 @@ else {
             build: 'craft build'
           },
           dependencies: {
-            '@craft-native/craft': 'workspace:*'
+            'ts-craft': 'workspace:*'
           }
         }, null, 2)))
       }
@@ -784,7 +784,7 @@ else {
       }
 
       // Create craft.config.ts
-      const configContent = `import type { CraftConfig } from '@craft-native/craft'
+      const configContent = `import type { CraftConfig } from 'ts-craft'
 
 export default {
   name: '${name}',
@@ -844,7 +844,7 @@ export default {
           'ios:open': 'craft ios open',
         },
         devDependencies: {
-          '@craft-native/craft': '*',
+          'ts-craft': '*',
         },
       }
       writeFileSync(`${name}/package.json`, JSON.stringify(packageJson, null, 2))

@@ -9,7 +9,7 @@
  * - Background services
  */
 
-import { createApp } from '@craft-native/craft'
+import { createApp } from 'ts-craft'
 
 // Minimal HTML just for the JavaScript runtime
 // The actual UI is the native menu

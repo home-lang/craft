@@ -3,7 +3,7 @@
  * The simplest possible desktop app
  */
 
-import { show } from '@craft-native/craft'
+import { show } from 'ts-craft'
 
 const html = `
 <!DOCTYPE html>

@@ -3,7 +3,7 @@
  * Features: Audio playback, playlists, queue, visualizer, media controls
  */
 
-import { fs, db, window, Platform, haptics } from '@craft-native/craft'
+import { fs, db, window, Platform, haptics } from 'ts-craft'
 
 // Types
 interface Track {
