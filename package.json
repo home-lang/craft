@@ -5,6 +5,12 @@
   "description": "Build desktop apps with web languages, powered by Zig",
   "author": "Chris Breuer <chris@stacksjs.org>",
   "license": "MIT",
+  "bin": {
+    "craft": "./bin/craft"
+  },
+  "files": [
+    "bin"
+  ],
   "workspaces": [
     "packages/*",
     "benchmarks"

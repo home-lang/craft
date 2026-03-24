@@ -7,15 +7,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  binary:
-    name: Build & Publish Binary (${{ matrix.platform.name }})
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - { os: macos-15, name: darwin-arm64 }
-          - { os: ubuntu-latest, name: linux-x86-64 }
-    runs-on: ${{ matrix.platform.os }}
+  pantry:
+    name: pantry
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       id-token: write
@@ -34,12 +28,13 @@ jobs:
       - name: Build Native Binary
         run: bun run build:core
 
-      - name: Extract Version
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Stage Binary for Publish
+        run: |
+          mkdir -p bin
+          cp packages/zig/zig-out/bin/craft bin/craft
 
-      - name: Publish Binary to Pantry Registry
-        run: pantry publish:binary --domain craft-native.org --version ${{ steps.version.outputs.version }} --binary ./packages/zig/zig-out/bin/craft --platform ${{ matrix.platform.name }}
+      - name: Publish to Pantry Registry
+        run: pantry publish --access public
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -74,7 +69,7 @@ jobs:
 
   notify:
     name: discord-notification
-    needs: [binary, npm]
+    needs: [pantry, npm]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -82,13 +77,13 @@ jobs:
       - uses: ./.github/actions/discord-notify
         if: hashFiles('.github/actions/discord-notify/action.yml') != ''
         with:
-          title: "Release — ${{ needs.binary.result == 'success' && needs.npm.result == 'success' && 'Published' || 'Failed' }}"
+          title: "Release — ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'Published' || 'Failed' }}"
           description: "Tag: ${{ github.ref_name }}"
-          status: ${{ needs.binary.result == 'success' && needs.npm.result == 'success' && 'success' || 'failure' }}
+          status: ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'success' || 'failure' }}
           fields: |
             [
               {"name": "Tag", "value": "${{ github.ref_name }}", "inline": true},
-              {"name": "Binary", "value": "${{ needs.binary.result }}", "inline": true},
+              {"name": "Pantry", "value": "${{ needs.pantry.result }}", "inline": true},
               {"name": "npm", "value": "${{ needs.npm.result }}", "inline": true}
             ]
           webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
