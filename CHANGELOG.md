@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.15...v0.0.16)
+
+### 🐛 Bug Fixes
+
+- iOS build uses dedicated build steps instead of default target ([a206b89](https://github.com/home-lang/craft/commit/a206b89)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.16 ([0d6fb97](https://github.com/home-lang/craft/commit/0d6fb97)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.15...HEAD)
+
+### 🐛 Bug Fixes
+
+- iOS build uses dedicated build steps instead of default target ([a206b89](https://github.com/home-lang/craft/commit/a206b89)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.14...v0.0.15)
 
 ### 🐛 Bug Fixes
