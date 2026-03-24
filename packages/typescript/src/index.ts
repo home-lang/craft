@@ -214,7 +214,7 @@ export class CraftApp {
         else {
           errorMessage.push(
             'For troubleshooting, visit:',
-            '  https://github.com/stacksjs/craft/issues',
+            '  https://github.com/home-lang/craft/issues',
           )
         }
 

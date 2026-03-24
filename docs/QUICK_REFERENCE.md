@@ -190,4 +190,4 @@ See `packages/typescript/examples/` for working demos:
 
 ## 🤝 Contributing
 
-Found a bug or want a feature? Open an issue on [GitHub](https://github.com/stacksjs/craft/issues).
+Found a bug or want a feature? Open an issue on [GitHub](https://github.com/home-lang/craft/issues).

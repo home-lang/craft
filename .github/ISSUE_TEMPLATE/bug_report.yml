@@ -16,9 +16,9 @@ body:
       label: Prerequisites
       description: Please check the following before submitting
       options:
-        - label: I have searched the [existing issues](https://github.com/stacksjs/craft/issues) and this bug has not been reported
+        - label: I have searched the [existing issues](https://github.com/home-lang/craft/issues) and this bug has not been reported
           required: true
-        - label: I have read the [documentation](https://github.com/stacksjs/craft/tree/main/docs)
+        - label: I have read the [documentation](https://github.com/home-lang/craft/tree/main/docs)
           required: true
 
   - type: textarea

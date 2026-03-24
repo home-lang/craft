@@ -459,7 +459,7 @@ Or manually import types:
 
 ## Contributing
 
-Found a bug or have a feature request? Please open an issue on [GitHub](https://github.com/stacksjs/craft/issues).
+Found a bug or have a feature request? Please open an issue on [GitHub](https://github.com/home-lang/craft/issues).
 
 ## License
 

@@ -28,8 +28,8 @@ export default {
       {
         text: 'Links',
         items: [
-          { text: 'GitHub', link: 'https://github.com/stacksjs/craft' },
-          { text: 'Changelog', link: 'https://github.com/stacksjs/craft/releases' },
+          { text: 'GitHub', link: 'https://github.com/home-lang/craft' },
+          { text: 'Changelog', link: 'https://github.com/home-lang/craft/releases' },
           { text: 'Contributing', link: 'https://github.com/stacksjs/contributing' },
         ],
       },
@@ -66,12 +66,12 @@ export default {
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/stacksjs/craft' },
+      { icon: 'github', link: 'https://github.com/home-lang/craft' },
       { icon: 'discord', link: 'https://discord.gg/stacksjs' },
     ],
 
     editLink: {
-      pattern: 'https://github.com/stacksjs/craft/edit/main/docs/:path',
+      pattern: 'https://github.com/home-lang/craft/edit/main/docs/:path',
       text: 'Edit this page on GitHub',
     },
 

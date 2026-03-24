@@ -388,7 +388,7 @@ See [benchmarks](../../benchmarks) for detailed performance comparisons.
 
 ```bash
 # Clone the monorepo
-git clone https://github.com/stacksjs/craft
+git clone https://github.com/home-lang/craft
 cd craft
 
 # Install dependencies
@@ -415,7 +415,7 @@ MIT © [Chris Breuer](https://github.com/chrisbbreuer)
 
 ## Links
 
-- [Documentation](https://github.com/stacksjs/craft#readme)
+- [Documentation](https://github.com/home-lang/craft#readme)
 - [Examples](../examples-ts)
 - [Benchmarks](../../benchmarks)
-- [Issues](https://github.com/stacksjs/craft/issues)
+- [Issues](https://github.com/home-lang/craft/issues)

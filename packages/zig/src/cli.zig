@@ -219,7 +219,7 @@ fn printHelp() void {
         \\  craft http://localhost:3000 --system-tray --light
         \\  craft http://localhost:3000 --native-sidebar --sidebar-width 250
         \\
-        \\For more information, visit: https://github.com/stacksjs/craft
+        \\For more information, visit: https://github.com/home-lang/craft
         \\
         \\
     , .{});

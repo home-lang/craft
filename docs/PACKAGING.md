@@ -478,4 +478,4 @@ See full type definitions in `src/package.ts`.
 
 ---
 
-For questions or issues, visit: https://github.com/stacksjs/craft/issues
+For questions or issues, visit: https://github.com/home-lang/craft/issues

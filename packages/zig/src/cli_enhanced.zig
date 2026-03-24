@@ -767,7 +767,7 @@ fn printHelp() void {
         \\  craft build --verbose
         \\  craft package --platform all
         \\
-        \\For more information, visit: https://github.com/stacksjs/craft
+        \\For more information, visit: https://github.com/home-lang/craft
         \\
         \\
     , .{});

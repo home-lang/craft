@@ -183,8 +183,8 @@ bun run build
 
 ## Learn More
 
-- [Craft Documentation](https://github.com/stacksjs/craft)
-- [TypeScript SDK](https://github.com/stacksjs/craft/tree/main/packages/typescript)
+- [Craft Documentation](https://github.com/home-lang/craft)
+- [TypeScript SDK](https://github.com/home-lang/craft/tree/main/packages/typescript)
 `
 
   writeFileSync(join(projectPath, 'README.md'), readme)
@@ -359,8 +359,8 @@ bun run build
 
 ## Learn More
 
-- [Craft Documentation](https://github.com/stacksjs/craft)
-- [TypeScript SDK](https://github.com/stacksjs/craft/tree/main/packages/typescript)
+- [Craft Documentation](https://github.com/home-lang/craft)
+- [TypeScript SDK](https://github.com/home-lang/craft/tree/main/packages/typescript)
 `
 
   writeFileSync(join(projectPath, 'README.md'), readme)
@@ -629,8 +629,8 @@ bun run build
 
 ## Learn More
 
-- [Craft Documentation](https://github.com/stacksjs/craft)
-- [TypeScript SDK](https://github.com/stacksjs/craft/tree/main/packages/typescript)
+- [Craft Documentation](https://github.com/home-lang/craft)
+- [TypeScript SDK](https://github.com/home-lang/craft/tree/main/packages/typescript)
 `
 
   writeFileSync(join(projectPath, 'README.md'), readme)

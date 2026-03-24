@@ -1062,7 +1062,7 @@ Work Session: 25 minutes
 Break Duration: 5 minutes
 
 Built with ❤️ using Craft Framework
-https://github.com/stacksjs/craft\`;
+https://github.com/home-lang/craft\`;
 
       if (window.craft?.window) {
         // Show alert dialog

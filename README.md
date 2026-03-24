@@ -344,7 +344,7 @@ bun add -g @craft-native/ts
 
 ```bash
 # Clone the repository
-git clone https://github.com/stacksjs/craft.git
+git clone https://github.com/home-lang/craft.git
 cd craft
 
 # Install Zig 0.15.1
@@ -967,7 +967,7 @@ Craft is **1351x** smaller than Electron, **2.4x** faster to start, and uses **4
 - 📘 [Getting Started](GETTING_STARTED.md) - Detailed guide
 - ✨ [Features](FEATURES.md) - Complete feature list
 - 🤝 [Contributing](CONTRIBUTING.md) - Contribution guide
-- 📋 [Changelog](https://github.com/stacksjs/craft/releases) - Release history
+- 📋 [Changelog](https://github.com/home-lang/craft/releases) - Release history
 
 ## Contributing
 
@@ -977,7 +977,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for deta
 
 For help, discussion about best practices, or any other conversation:
 
-- 💬 [Discussions on GitHub](https://github.com/stacksjs/craft/discussions)
+- 💬 [Discussions on GitHub](https://github.com/home-lang/craft/discussions)
 - 💭 [Join the Stacks Discord Server](https://discord.gg/stacksjs)
 
 ## Postcardware
@@ -1002,5 +1002,5 @@ Made with 💙
 <!-- Badges -->
 [npm-version-src]: https://img.shields.io/npm/v/@craft-native/ts?style=flat-square
 [npm-version-href]: https://npmjs.com/package/@craft-native/ts
-[github-actions-src]: https://img.shields.io/github/actions/workflow/status/stacksjs/craft/ci.yml?style=flat-square&branch=main
-[github-actions-href]: https://github.com/stacksjs/craft/actions?query=workflow%3Aci
+[github-actions-src]: https://img.shields.io/github/actions/workflow/status/home-lang/craft/ci.yml?style=flat-square&branch=main
+[github-actions-href]: https://github.com/home-lang/craft/actions?query=workflow%3Aci

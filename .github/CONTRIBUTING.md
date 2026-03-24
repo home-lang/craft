@@ -33,7 +33,7 @@ sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/stacksjs/craft.git
+git clone https://github.com/home-lang/craft.git
 cd craft
 ```
 
@@ -228,8 +228,8 @@ Releases are automated through GitHub Actions:
 
 ## Getting Help
 
-- **Questions**: Open a [Discussion](https://github.com/stacksjs/craft/discussions)
-- **Bugs**: Open an [Issue](https://github.com/stacksjs/craft/issues)
+- **Questions**: Open a [Discussion](https://github.com/home-lang/craft/discussions)
+- **Bugs**: Open an [Issue](https://github.com/home-lang/craft/issues)
 - **Chat**: Join our community channels
 
 ## License

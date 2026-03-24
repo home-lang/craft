@@ -10,7 +10,7 @@ hero:
       link: /intro
     - theme: alt
       text: View on GitHub
-      link: https://github.com/stacksjs/craft
+      link: https://github.com/home-lang/craft
 features:
   - icon: "🚀"
     title: Blazing Fast

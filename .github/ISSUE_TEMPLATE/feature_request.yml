@@ -16,9 +16,9 @@ body:
       label: Prerequisites
       description: Please check the following before submitting
       options:
-        - label: I have searched the [existing issues](https://github.com/stacksjs/craft/issues) and this feature has not been requested
+        - label: I have searched the [existing issues](https://github.com/home-lang/craft/issues) and this feature has not been requested
           required: true
-        - label: I have checked the [roadmap](https://github.com/stacksjs/craft/blob/main/TODO.md) and this is not already planned
+        - label: I have checked the [roadmap](https://github.com/home-lang/craft/blob/main/TODO.md) and this is not already planned
           required: true
 
   - type: dropdown

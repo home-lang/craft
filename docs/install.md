@@ -124,7 +124,7 @@ For advanced use cases, you can build Craft from source:
 
 ```bash
 # Clone the repository
-git clone https://github.com/stacksjs/craft.git
+git clone https://github.com/home-lang/craft.git
 cd craft
 
 # Install Zig (macOS)
