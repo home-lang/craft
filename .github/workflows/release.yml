@@ -151,17 +151,57 @@ jobs:
           }
           METAJSON
 
+      # ── Package & Upload Artifact ────────────────────────────────
+      - name: Package binary
+        run: |
+          mkdir -p dist
+          PLATFORM="${{ matrix.platform.name }}"
+          case "$PLATFORM" in
+            darwin-arm64)  ZIP_NAME="craft-darwin-arm64.zip" ;;
+            linux-x86-64)  ZIP_NAME="craft-linux-x64.zip" ;;
+          esac
+          (cd packages/zig/zig-out/bin && zip -r "../../../../dist/$ZIP_NAME" craft)
+          echo "Packaged: $ZIP_NAME ($(du -h dist/$ZIP_NAME | cut -f1))"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: craft-${{ matrix.platform.name }}
-          path: packages/zig/zig-out/bin/craft
+          path: dist/*.zip
 
-      # ── GitHub Release (once, from darwin job) ─────────────────────
+  # ── GitHub Release with binaries & changelog ───────────────────
+  release:
+    name: GitHub Release
+    needs: pantry
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          ls -la
+          sha256sum *.zip > checksums.sha256
+          cat checksums.sha256
+
       - name: Create GitHub Release
-        if: matrix.platform.name == 'darwin-arm64'
         uses: stacksjs/action-releaser@v1.2.9
         with:
+          files: |
+            dist/craft-darwin-arm64.zip
+            dist/craft-linux-x64.zip
+            dist/checksums.sha256
           token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
@@ -192,7 +232,7 @@ jobs:
 
   notify:
     name: discord-notification
-    needs: [pantry, npm]
+    needs: [release, npm]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -200,14 +240,16 @@ jobs:
       - uses: ./.github/actions/discord-notify
         if: hashFiles('.github/actions/discord-notify/action.yml') != ''
         with:
-          title: "Release — ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'Published' || 'Failed' }}"
-          description: "Tag: ${{ github.ref_name }}"
-          status: ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'success' || 'failure' }}
+          title: "Release ${{ github.ref_name }} — ${{ needs.release.result == 'success' && needs.npm.result == 'success' && 'Published' || (needs.release.result == 'cancelled' || needs.npm.result == 'cancelled') && 'Cancelled' || 'Failed' }}"
+          description: "craft ${{ github.ref_name }} has been released"
+          status: ${{ needs.release.result == 'success' && needs.npm.result == 'success' && 'success' || (needs.release.result == 'cancelled' || needs.npm.result == 'cancelled') && 'warning' || 'failure' }}
           fields: |
             [
-              {"name": "Tag", "value": "${{ github.ref_name }}", "inline": true},
-              {"name": "Pantry", "value": "${{ needs.pantry.result }}", "inline": true},
-              {"name": "npm", "value": "${{ needs.npm.result }}", "inline": true}
+              {"name": "Tag", "value": "`${{ github.ref_name }}`", "inline": true},
+              {"name": "Actor", "value": "${{ github.actor }}", "inline": true},
+              {"name": "Binaries", "value": "${{ needs.release.result == 'success' && '✅ Published' || '❌ Failed' }}", "inline": true},
+              {"name": "npm Packages", "value": "${{ needs.npm.result == 'success' && '✅ Published' || '❌ Failed' }}", "inline": true},
+              {"name": "Release", "value": "[View on GitHub](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})", "inline": true}
             ]
           webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
         continue-on-error: true
