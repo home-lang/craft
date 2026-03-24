@@ -46,6 +46,51 @@ jobs:
         id: version
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
+      # ── macOS Code Signing & Notarization ──────────────────────────
+      - name: Import signing certificate
+        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE_BASE64 != ''
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm certificate.p12
+
+      - name: Sign macOS binary
+        if: runner.os == 'macOS' && env.APPLE_SIGNING_IDENTITY != ''
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" \
+            --entitlements scripts/entitlements.plist \
+            packages/zig/zig-out/bin/craft
+          codesign --verify --deep --strict packages/zig/zig-out/bin/craft
+          echo "Binary signed successfully"
+
+      - name: Notarize macOS binary
+        if: runner.os == 'macOS' && env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != ''
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd packages/zig/zig-out/bin
+          zip -r craft.zip craft
+          xcrun notarytool submit craft.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait || echo "Notarization skipped (may not have credentials)"
+          xcrun stapler staple craft || true
+          rm craft.zip
+
+      # ── Publish to Pantry S3 Registry ──────────────────────────────
       - name: Publish to Pantry Registry
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -60,7 +105,6 @@ jobs:
           ls -la "$BINARY"
           file "$BINARY"
 
-          # Create tarball with bin/ structure
           STAGING=$(mktemp -d)
           mkdir -p "$STAGING/bin"
           cp "$BINARY" "$STAGING/bin/craft"
@@ -69,16 +113,12 @@ jobs:
           tar -czf "/tmp/$TARBALL" -C "$STAGING" .
           SHA256=$(shasum -a 256 "/tmp/$TARBALL" | cut -d' ' -f1)
 
-          echo "Tarball: $TARBALL ($(du -h /tmp/$TARBALL | cut -f1))"
-          echo "SHA256: $SHA256"
+          echo "Tarball: $TARBALL ($(du -h /tmp/$TARBALL | cut -f1)), SHA256: $SHA256"
 
-          # Upload tarball + checksum
           S3_KEY="binaries/${DOMAIN}/${VERSION}/${PLATFORM}/${TARBALL}"
           aws s3 cp "/tmp/$TARBALL" "s3://$S3_BUCKET/$S3_KEY" --region $AWS_REGION
           echo "$SHA256" > "/tmp/${TARBALL}.sha256"
           aws s3 cp "/tmp/${TARBALL}.sha256" "s3://$S3_BUCKET/${S3_KEY}.sha256" --region $AWS_REGION
-
-          echo "Uploaded: s3://$S3_BUCKET/$S3_KEY"
 
       - name: Update metadata
         if: matrix.platform.name == 'darwin-arm64'
@@ -117,6 +157,7 @@ jobs:
           name: craft-${{ matrix.platform.name }}
           path: packages/zig/zig-out/bin/craft
 
+      # ── GitHub Release (once, from darwin job) ─────────────────────
       - name: Create GitHub Release
         if: matrix.platform.name == 'darwin-arm64'
         uses: stacksjs/action-releaser@v1.2.9
