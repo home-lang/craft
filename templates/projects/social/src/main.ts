@@ -3,7 +3,7 @@
  * A cross-platform social app built with Craft
  */
 
-import { db, window, Platform, haptics, share } from '@craft-native/ts'
+import { db, win, isMobile, haptics, share } from '@craft-native/craft'
 
 // Types
 interface Post {
@@ -35,8 +35,8 @@ async function init(): Promise<void> {
   await initDatabase()
   loadMockData()
 
-  window.setTitle('{{appName}}')
-  window.setSize(400, 800)
+  win.setTitle('{{appName}}')
+  win.setSize(400, 800)
 
   render()
 }
@@ -74,7 +74,7 @@ function toggleLike(postId: string): void {
     post.isLiked = !post.isLiked
     post.likes += post.isLiked ? 1 : -1
 
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
+    if (isMobile()) {
       haptics.impact('light')
     }
 
@@ -107,7 +107,7 @@ async function createPost(content: string): Promise<void> {
   posts.unshift(post)
   await db.execute('INSERT INTO posts (id, content, createdAt) VALUES (?, ?, ?)', [post.id, post.content, post.createdAt])
 
-  if (Platform.OS === 'ios' || Platform.OS === 'android') {
+  if (isMobile()) {
     haptics.notification('success')
   }
 

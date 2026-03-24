@@ -3,7 +3,7 @@
  * A cross-platform shopping app built with Craft
  */
 
-import { db, window, Platform, haptics } from '@craft-native/ts'
+import { db, win, isMobile, haptics } from '@craft-native/craft'
 
 // Types
 interface Product {
@@ -32,8 +32,8 @@ async function init(): Promise<void> {
   await initDatabase()
   await loadProducts()
 
-  window.setTitle('{{appName}}')
-  window.setSize(400, 800)
+  win.setTitle('{{appName}}')
+  win.setSize(400, 800)
 
   render()
 }
@@ -69,7 +69,7 @@ else {
     cart.push({ product, quantity: 1 })
   }
 
-  if (Platform.OS === 'ios' || Platform.OS === 'android') {
+  if (isMobile()) {
     haptics.notification('success')
   }
 
