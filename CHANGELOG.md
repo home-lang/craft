@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.11...v0.0.12)
+
+### 🐛 Bug Fixes
+
+- use PANTRY_TOKEN for registry upload instead of AWS credentials ([cbe24bc](https://github.com/home-lang/craft/commit/cbe24bc)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.12 ([82d4be4](https://github.com/home-lang/craft/commit/82d4be4)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.11...HEAD)
+
+### 🐛 Bug Fixes
+
+- use PANTRY_TOKEN for registry upload instead of AWS credentials ([cbe24bc](https://github.com/home-lang/craft/commit/cbe24bc)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.10...v0.0.11)
 
 ### 🧹 Chores
