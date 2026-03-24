@@ -1,4 +1,27 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.10...v0.0.11)
+
+### 🧹 Chores
+
+- release v0.0.11 ([81eaad4](https://github.com/home-lang/craft/commit/81eaad4)) _(by Chris <chrisbreuer93@gmail.com>)_
+- get craft bins to work ([55fdcd4](https://github.com/home-lang/craft/commit/55fdcd4)) _(by Chris <chrisbreuer93@gmail.com>)_
+- update org name ([94aa0eb](https://github.com/home-lang/craft/commit/94aa0eb)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.10...HEAD)
+
+### 🧹 Chores
+
+- get craft bins to work ([55fdcd4](https://github.com/home-lang/craft/commit/55fdcd4)) _(by Chris <chrisbreuer93@gmail.com>)_
+- update org name ([94aa0eb](https://github.com/home-lang/craft/commit/94aa0eb)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.9...v0.0.10)
 
 ### 🧹 Chores
