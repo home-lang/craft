@@ -1,4 +1,35 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.8...v0.0.9)
+
+### 🐛 Bug Fixes
+
+- install GTK3 and WebKit2GTK before building on Linux CI ([fd2e63f](https://github.com/home-lang/craft/commit/fd2e63f)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.9 ([21d4688](https://github.com/home-lang/craft/commit/21d4688)) _(by Chris <chrisbreuer93@gmail.com>)_
+- update lockfile ([4289a2e](https://github.com/home-lang/craft/commit/4289a2e)) _(by Chris <chrisbreuer93@gmail.com>)_
+- rename package ([2704f3c](https://github.com/home-lang/craft/commit/2704f3c)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.8...HEAD)
+
+### 🐛 Bug Fixes
+
+- install GTK3 and WebKit2GTK before building on Linux CI ([fd2e63f](https://github.com/home-lang/craft/commit/fd2e63f)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- update lockfile ([4289a2e](https://github.com/home-lang/craft/commit/4289a2e)) _(by Chris <chrisbreuer93@gmail.com>)_
+- rename package ([2704f3c](https://github.com/home-lang/craft/commit/2704f3c)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.7...v0.0.8)
 
 ### 🧹 Chores
