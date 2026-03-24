@@ -9,7 +9,7 @@ Helper utilities to make building Craft apps easier and cleaner.
 Simplified audio management with Web Audio API.
 
 ```typescript
-import { AudioManager } from '@stacksjs/@craft-native/ts'
+import { AudioManager } from '@craft-native/craft'
 
 const audio = new AudioManager()
 
@@ -42,7 +42,7 @@ audio.stopBackgroundNoise() // Stop all background audio
 Type-safe localStorage abstraction.
 
 ```typescript
-import { Storage } from '@stacksjs/@craft-native/ts'
+import { Storage } from '@craft-native/craft'
 
 interface Settings {
   theme: 'light' | 'dark'
@@ -80,7 +80,7 @@ storage.clear()
 Simple interval-based timer with callbacks.
 
 ```typescript
-import { Timer } from '@stacksjs/@craft-native/ts'
+import { Timer } from '@craft-native/craft'
 
 const timer = new Timer(
   60,  // 60 seconds
@@ -147,7 +147,7 @@ let interval = setInterval(() => {
 
 **After utilities (~200 lines):**
 ```typescript
-import { AudioManager, Storage, Timer } from '@stacksjs/@craft-native/ts'
+import { AudioManager, Storage, Timer } from '@craft-native/craft'
 
 const audio = new AudioManager()
 const storage = new Storage('settings', defaults)
@@ -173,10 +173,10 @@ See `examples/pomodoro-clean.ts` for a complete example.
 
 ```bash
 # Install Craft
-bun add @craft-native/ts
+bun add @craft-native/craft
 
 # Use utilities
-import { AudioManager, Storage, Timer } from '@stacksjs/@craft-native/ts'
+import { AudioManager, Storage, Timer } from '@craft-native/craft'
 ```
 
 All utilities are automatically exported from the main package!

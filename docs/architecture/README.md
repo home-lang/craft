@@ -20,7 +20,7 @@ Craft is a cross-platform application framework that enables building native des
 ```mermaid
 graph TB
     subgraph "Developer Layer"
-        TS[TypeScript SDK<br/>@craft-native/ts]
+        TS[TypeScript SDK<br/>@craft-native/craft]
         CLI[CLI<br/>create-craft]
         Examples[Examples]
     end

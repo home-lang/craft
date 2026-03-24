@@ -7,7 +7,7 @@ This guide covers the basics of building applications with Craft.
 ### Basic Application
 
 ```typescript
-import { show } from '@stacksjs/@craft-native/ts'
+import { show } from '@craft-native/craft'
 
 const html = `
 <!DOCTYPE html>
@@ -37,7 +37,7 @@ await show(html, {
 ### Loading from File
 
 ```typescript
-import { show } from '@stacksjs/@craft-native/ts'
+import { show } from '@craft-native/craft'
 
 // Load HTML from a file
 await show({ file: './index.html' }, {
@@ -50,7 +50,7 @@ await show({ file: './index.html' }, {
 ### Loading from URL
 
 ```typescript
-import { show } from '@stacksjs/@craft-native/ts'
+import { show } from '@craft-native/craft'
 
 // Load from URL
 await show({ url: 'http://localhost:3000' }, {
@@ -239,7 +239,7 @@ await show(html, {
 
 ```typescript
 // In your TypeScript
-import { createApp } from '@stacksjs/@craft-native/ts'
+import { createApp } from '@craft-native/craft'
 
 const app = await createApp(html, options)
 
@@ -286,7 +286,7 @@ app.handle('get-user', async (userId) => {
 ### Static Assets
 
 ```typescript
-import { show, resolveAsset } from '@stacksjs/@craft-native/ts'
+import { show, resolveAsset } from '@craft-native/craft'
 
 const iconPath = resolveAsset('./assets/icon.png')
 
@@ -313,7 +313,7 @@ export default {
 ### Creating Multiple Windows
 
 ```typescript
-import { createApp, createWindow } from '@stacksjs/@craft-native/ts'
+import { createApp, createWindow } from '@craft-native/craft'
 
 const app = await createApp()
 
@@ -385,7 +385,7 @@ await show(html, {
 ### Console Output
 
 ```typescript
-import { createApp } from '@stacksjs/@craft-native/ts'
+import { createApp } from '@craft-native/craft'
 
 const app = await createApp(html, {
   verbose: true, // Log debug information
@@ -399,7 +399,7 @@ const app = await createApp(html, {
 ### Simple Notes App
 
 ```typescript
-import { show } from '@stacksjs/@craft-native/ts'
+import { show } from '@craft-native/craft'
 
 const html = `
 <!DOCTYPE html>

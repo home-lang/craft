@@ -56,7 +56,7 @@ Build native Android apps with web technologies using Craft.
 The Android support is built into the main `craft` CLI:
 
 ```bash
-bun add @craft-native/ts
+bun add @craft-native/craft
 ```
 
 ## Quick Start

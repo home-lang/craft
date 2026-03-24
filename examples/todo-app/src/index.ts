@@ -14,8 +14,8 @@ import {
   getPlatform,
   isMobile,
   isDesktop
-} from '@craft-native/ts'
-import { haptics } from '@craft-native/ts/api/mobile'
+} from '@craft-native/craft'
+import { haptics } from '@craft-native/craft/api/mobile'
 
 // ============================================================================
 // Types

@@ -1,6 +1,6 @@
 /**
  * Craft Native Bridge TypeScript Definitions
- * @package @craft-native/ts
+ * @package @craft-native/craft
  */
 
 declare global {

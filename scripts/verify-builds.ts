@@ -19,7 +19,7 @@ const targets: BuildTarget[] = [
   { name: 'craft binary', path: 'packages/zig/zig-out/bin/craft', platform: 'desktop' },
 
   // TypeScript SDK
-  { name: '@craft-native/ts SDK', path: 'packages/typescript/dist/index.js', platform: 'web' },
+  { name: '@craft-native/craft SDK', path: 'packages/typescript/dist/index.js', platform: 'web' },
 
   // Mobile builders
   { name: 'iOS builder', path: 'packages/ios/dist/index.js', platform: 'mobile' },

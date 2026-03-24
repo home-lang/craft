@@ -2,7 +2,7 @@
  * {{APP_NAME}} - Drawer Navigation Template
  */
 
-import { isMobile, haptics } from '@craft-native/ts'
+import { isMobile, haptics } from '@craft-native/craft'
 
 interface MenuItem {
   id: string

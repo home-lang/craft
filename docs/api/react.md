@@ -13,7 +13,7 @@ import {
   useShortcut,
   useTheme,
   useMobile
-} from '@craft-native/ts/react'
+} from '@craft-native/craft/react'
 ```
 
 ## Hooks
@@ -312,7 +312,7 @@ import {
   useTheme,
   useShortcut,
   useNotification
-} from '@craft-native/ts/react'
+} from '@craft-native/craft/react'
 
 function App() {
   const { isReady } = useCraft()

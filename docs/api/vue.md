@@ -13,7 +13,7 @@ import {
   useShortcut,
   useTheme,
   useMobile
-} from '@craft-native/ts/vue'
+} from '@craft-native/craft/vue'
 ```
 
 ## Composables
@@ -24,7 +24,7 @@ Access the core Craft instance and initialization state.
 
 ```vue
 <script setup lang="ts">
-import { useCraft } from '@craft-native/ts/vue'
+import { useCraft } from '@craft-native/craft/vue'
 
 const { craft, isReady, error } = useCraft()
 </script>
@@ -51,7 +51,7 @@ Control the application window.
 
 ```vue
 <script setup lang="ts">
-import { useWindow } from '@craft-native/ts/vue'
+import { useWindow } from '@craft-native/craft/vue'
 
 const {
   title,
@@ -96,7 +96,7 @@ Manage the system tray icon.
 
 ```vue
 <script setup lang="ts">
-import { useTray } from '@craft-native/ts/vue'
+import { useTray } from '@craft-native/craft/vue'
 
 const { setTooltip, setIcon } = useTray({
   icon: '/assets/tray-icon.png',
@@ -127,7 +127,7 @@ Show desktop notifications.
 
 ```vue
 <script setup lang="ts">
-import { useNotification } from '@craft-native/ts/vue'
+import { useNotification } from '@craft-native/craft/vue'
 
 const { show, hasPermission, requestPermission } = useNotification()
 
@@ -158,7 +158,7 @@ Register global keyboard shortcuts.
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useShortcut } from '@craft-native/ts/vue'
+import { useShortcut } from '@craft-native/craft/vue'
 
 const searchOpen = ref(false)
 const content = ref('')
@@ -189,7 +189,7 @@ Access and control the application theme.
 
 ```vue
 <script setup lang="ts">
-import { useTheme } from '@craft-native/ts/vue'
+import { useTheme } from '@craft-native/craft/vue'
 
 const { theme, setTheme, isDark, systemTheme } = useTheme()
 </script>
@@ -213,7 +213,7 @@ Access mobile-specific APIs.
 
 ```vue
 <script setup lang="ts">
-import { useMobile } from '@craft-native/ts/vue'
+import { useMobile } from '@craft-native/craft/vue'
 
 const { platform, haptics, biometrics, safeAreaInsets } = useMobile()
 
@@ -258,7 +258,7 @@ import {
   useTheme,
   useShortcut,
   useNotification
-} from '@craft-native/ts/vue'
+} from '@craft-native/craft/vue'
 
 const { isReady } = useCraft()
 const { title, setTitle } = useWindow()
@@ -344,7 +344,7 @@ For larger applications, you can provide the Craft instance to all components:
 <!-- App.vue -->
 <script setup lang="ts">
 import { provide } from 'vue'
-import { useCraft } from '@craft-native/ts/vue'
+import { useCraft } from '@craft-native/craft/vue'
 
 const craft = useCraft()
 provide('craft', craft)

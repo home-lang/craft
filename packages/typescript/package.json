@@ -1,5 +1,5 @@
 {
-  "name": "@craft-native/ts",
+  "name": "@craft-native/craft",
   "version": "0.0.13",
   "type": "module",
   "description": "Build desktop apps with web languages - TypeScript SDK for Craft",

@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
 
 **Craft (Headwind):**
 ```typescript
-import { tw } from '@stacksjs/@craft-native/ts'
+import { tw } from '@craft-native/craft'
 
 const containerClass = tw`flex flex-1 bg-white p-4`
 const titleClass = tw`text-2xl font-bold`
@@ -100,7 +100,7 @@ const titleClass = tw`text-2xl font-bold`
 
 **Craft (Compatible API):**
 ```typescript
-import { StyleSheet } from '@stacksjs/@craft-native/ts'
+import { StyleSheet } from '@craft-native/craft'
 
 const styles = StyleSheet.create({
   container: {
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
 
 **Craft:**
 ```typescript
-import { Platform } from '@stacksjs/@craft-native/ts'
+import { Platform } from '@craft-native/craft'
 
 if (Platform.OS === 'ios') {
   // iOS specific
@@ -161,7 +161,7 @@ Animated.timing(fadeAnim, {
 
 **Craft:**
 ```typescript
-import { Animated } from '@stacksjs/@craft-native/ts'
+import { Animated } from '@craft-native/craft'
 
 const fadeAnim = new Animated.Value(0)
 
@@ -184,7 +184,7 @@ const token = await AsyncStorage.getItem('token')
 
 **Craft:**
 ```typescript
-import { secureStorage } from '@stacksjs/@craft-native/ts'
+import { secureStorage } from '@craft-native/craft'
 
 await secureStorage.set('token', 'value')
 const token = await secureStorage.get('token')
@@ -202,7 +202,7 @@ Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
 **Craft:**
 ```typescript
-import { haptics } from '@stacksjs/@craft-native/ts'
+import { haptics } from '@craft-native/craft'
 
 await haptics.impact('light')
 await haptics.notification('success')
@@ -221,7 +221,7 @@ const result = await LocalAuthentication.authenticateAsync({
 
 **Craft:**
 ```typescript
-import { biometrics } from '@stacksjs/@craft-native/ts'
+import { biometrics } from '@craft-native/craft'
 
 const result = await biometrics.authenticate({
   reason: 'Authenticate'
@@ -239,7 +239,7 @@ const { status } = await Camera.requestCameraPermissionsAsync()
 
 **Craft:**
 ```typescript
-import { camera, permissions } from '@stacksjs/@craft-native/ts'
+import { camera, permissions } from '@craft-native/craft'
 
 await permissions.request('camera')
 const photo = await camera.takePhoto()
@@ -256,7 +256,7 @@ const { coords } = await Location.getCurrentPositionAsync()
 
 **Craft:**
 ```typescript
-import { location } from '@stacksjs/@craft-native/ts'
+import { location } from '@craft-native/craft'
 
 const position = await location.getCurrentPosition()
 ```
@@ -341,7 +341,7 @@ function MyComponent() {
 
 **After:**
 ```jsx
-import { tw } from '@stacksjs/@craft-native/ts'
+import { tw } from '@craft-native/craft'
 
 function MyComponent() {
   return (
@@ -361,7 +361,7 @@ Convert StyleSheet to CSS or Headwind:
 
 ```typescript
 // Using Headwind (Tailwind-style)
-import { tw, cx } from '@stacksjs/@craft-native/ts'
+import { tw, cx } from '@craft-native/craft'
 
 const styles = {
   container: tw`flex flex-1 bg-white p-4`,
@@ -381,7 +381,7 @@ import * as Haptics from 'expo-haptics'
 import * as LocalAuthentication from 'expo-local-authentication'
 
 // After
-import { secureStorage, haptics, biometrics } from '@stacksjs/@craft-native/ts'
+import { secureStorage, haptics, biometrics } from '@craft-native/craft'
 ```
 
 ### 6. Update Navigation
@@ -413,7 +413,7 @@ import {
   StyleSheet,
   Platform,
   Animated
-} from '@craft-native/ts/components'
+} from '@craft-native/craft/components'
 
 // Use exactly like React Native
 function App() {
@@ -452,7 +452,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 
 **Craft:**
 ```jsx
-import { device } from '@stacksjs/@craft-native/ts'
+import { device } from '@craft-native/craft'
 
 function SafeArea({ children }) {
   const [insets, setInsets] = useState({ top: 0, bottom: 0 })
@@ -504,7 +504,7 @@ Replace with Craft components or HTML:
 <p> instead of <Text>
 
 // Or use compatible components
-import { View, Text } from '@craft-native/ts/components'
+import { View, Text } from '@craft-native/craft/components'
 ```
 
 ### Native modules not available
@@ -512,10 +512,10 @@ import { View, Text } from '@craft-native/ts/components'
 Replace with Craft APIs or web alternatives:
 ```typescript
 // Expo Camera → Craft camera
-import { camera } from '@stacksjs/@craft-native/ts'
+import { camera } from '@craft-native/craft'
 
 // Native SQLite → Craft db
-import { db } from '@stacksjs/@craft-native/ts'
+import { db } from '@craft-native/craft'
 ```
 
 ### Layout differences

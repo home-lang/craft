@@ -9,7 +9,7 @@
  * - Monospace metadata
  */
 
-import { createApp } from '@craft-native/ts'
+import { createApp } from '@craft-native/craft'
 
 const html = `
 <!DOCTYPE html>

@@ -32,14 +32,14 @@ The easiest way to build Craft apps is with TypeScript:
 
 ```bash
 # Install the TypeScript SDK
-bun add @craft-native/ts
+bun add @craft-native/craft
 
 # Create your app
 ```
 
 ```typescript
 // app.ts
-import { show } from '@stacksjs/@craft-native/ts'
+import { show } from '@craft-native/craft'
 
 const html = `
 <!DOCTYPE html>
@@ -94,7 +94,7 @@ bun run dev
 Full control over window appearance and behavior:
 
 ```typescript
-import { show } from '@stacksjs/@craft-native/ts'
+import { show } from '@craft-native/craft'
 
 await show(html, {
   title: 'My App',
@@ -150,7 +150,7 @@ app.on('greet', (data) => {
 Build native system tray/menubar apps:
 
 ```typescript
-import { createMenubar } from '@stacksjs/@craft-native/ts'
+import { createMenubar } from '@craft-native/craft'
 
 const menubar = await createMenubar({
   icon: './icon.png',

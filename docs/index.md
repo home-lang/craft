@@ -49,14 +49,14 @@ features:
 
 ```bash
 # Install the TypeScript SDK
-bun add @craft-native/ts
+bun add @craft-native/craft
 
 # Or scaffold a new project
 bun create craft my-app
 ```
 
 ```typescript
-import { show } from '@stacksjs/@craft-native/ts'
+import { show } from '@craft-native/craft'
 
 await show(`
   <h1>Hello from Craft!</h1>

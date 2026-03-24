@@ -5,7 +5,7 @@ The Process API provides methods for spawning processes, executing commands, and
 ## Import
 
 ```typescript
-import { process } from '@stacksjs/@craft-native/ts'
+import { process } from '@craft-native/craft'
 ```
 
 ## Methods
@@ -193,7 +193,7 @@ child.stdin.end()
 ## Example Usage
 
 ```typescript
-import { process } from '@stacksjs/@craft-native/ts'
+import { process } from '@craft-native/craft'
 
 // Run a build script
 async function runBuild() {

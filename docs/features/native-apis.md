@@ -17,7 +17,7 @@ Native APIs include:
 ### Show Notification
 
 ```typescript
-import { showNotification } from '@stacksjs/@craft-native/ts'
+import { showNotification } from '@craft-native/craft'
 
 await showNotification({
   title: 'Download Complete',
@@ -65,7 +65,7 @@ notification.on('click', () => {
 ### Read/Write Text
 
 ```typescript
-import { clipboard } from '@stacksjs/@craft-native/ts'
+import { clipboard } from '@craft-native/craft'
 
 // Write text
 await clipboard.writeText('Hello, World!')
@@ -124,7 +124,7 @@ clipboard.on('change', async () => {
 ### Open File Dialog
 
 ```typescript
-import { dialog } from '@stacksjs/@craft-native/ts'
+import { dialog } from '@craft-native/craft'
 
 const result = await dialog.showOpenDialog({
   title: 'Open Document',
@@ -209,7 +209,7 @@ if (result.response === 0) {
 ### OS Information
 
 ```typescript
-import { system } from '@stacksjs/@craft-native/ts'
+import { system } from '@craft-native/craft'
 
 const os = await system.getOsInfo()
 console.log(os)
@@ -273,7 +273,7 @@ disks.forEach((disk) => {
 ### Open URL
 
 ```typescript
-import { shell } from '@stacksjs/@craft-native/ts'
+import { shell } from '@craft-native/craft'
 
 // Open in default browser
 await shell.openExternal('https://example.com')
@@ -314,7 +314,7 @@ await shell.trashItem('/path/to/file.txt')
 ### Prevent Sleep
 
 ```typescript
-import { power } from '@stacksjs/@craft-native/ts'
+import { power } from '@craft-native/craft'
 
 // Prevent system from sleeping
 const id = await power.preventSleep('Processing files')
@@ -352,7 +352,7 @@ power.on('low-battery', () => {
 ### Get Screens
 
 ```typescript
-import { screen } from '@stacksjs/@craft-native/ts'
+import { screen } from '@craft-native/craft'
 
 const screens = await screen.getAllDisplays()
 screens.forEach((display) => {
@@ -378,7 +378,7 @@ const display = await screen.getDisplayNearestPoint(100, 200)
 ### Register URL Scheme
 
 ```typescript
-import { app } from '@stacksjs/@craft-native/ts'
+import { app } from '@craft-native/craft'
 
 // Register custom URL scheme (craft://...)
 app.setAsDefaultProtocolClient('craft')
@@ -413,7 +413,7 @@ app.on('open-url', (url) => {
 ### Get App Info
 
 ```typescript
-import { app } from '@stacksjs/@craft-native/ts'
+import { app } from '@craft-native/craft'
 
 console.log(app.getName()) // "My App"
 console.log(app.getVersion()) // "1.0.0"
@@ -471,7 +471,7 @@ catch (error) {
 ### Platform Detection
 
 ```typescript
-import { platform } from '@stacksjs/@craft-native/ts'
+import { platform } from '@craft-native/craft'
 
 if (platform === 'darwin') {
   // macOS-specific code

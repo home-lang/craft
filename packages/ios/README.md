@@ -57,7 +57,7 @@ Build native iOS apps with web technologies using Craft.
 The iOS support is built into the main `craft` CLI:
 
 ```bash
-bun add @craft-native/ts
+bun add @craft-native/craft
 ```
 
 ## Quick Start

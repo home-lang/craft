@@ -5,7 +5,7 @@ The File System API provides methods for reading, writing, and managing files an
 ## Import
 
 ```typescript
-import { fs } from '@stacksjs/@craft-native/ts'
+import { fs } from '@craft-native/craft'
 ```
 
 ## Methods

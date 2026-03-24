@@ -11,7 +11,7 @@
     "build:android": "craft build --platform android"
   },
   "dependencies": {
-    "@craft-native/ts": "workspace:*"
+    "@craft-native/craft": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.3.0"

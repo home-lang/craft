@@ -19,7 +19,7 @@
     "verbatimModuleSyntax": true,
     "skipDefaultLibCheck": true,
     "paths": {
-      "@craft-native/ts": ["./packages/typescript/src/index.ts"]
+      "@craft-native/craft": ["./packages/typescript/src/index.ts"]
     },
     "skipLibCheck": true
   }

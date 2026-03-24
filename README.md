@@ -287,12 +287,12 @@ Build desktop apps with TypeScript - zero dependencies, just pure Node.js APIs:
 
 ```bash
 # Install the TypeScript SDK
-bun add @craft-native/ts
+bun add @craft-native/craft
 ```
 
 ```typescript
 // app.ts
-import { show } from '@stacksjs/@craft-native/ts'
+import { show } from '@craft-native/craft'
 
 const html = `
 <!DOCTYPE html>
@@ -326,7 +326,7 @@ await show(html, { title: 'My App', width: 800, height: 600 })
 bun run app.ts
 ```
 
-**See [TypeScript SDK Documentation](./packages/@craft-native/ts/README.md) for the full API.**
+**See [TypeScript SDK Documentation](./packages/@craft-native/craft/README.md) for the full API.**
 
 ### Zig (Advanced)
 
@@ -334,10 +334,10 @@ For advanced use cases where you need maximum performance and control:
 
 ```bash
 # Install via npm
-npm install -g @craft-native/ts
+npm install -g @craft-native/craft
 
 # Or with Bun
-bun add -g @craft-native/ts
+bun add -g @craft-native/craft
 ```
 
 ### Build from Source
@@ -1000,7 +1000,7 @@ The MIT License (MIT). Please see [LICENSE](LICENSE.md) for more information.
 Made with 💙
 
 <!-- Badges -->
-[npm-version-src]: https://img.shields.io/npm/v/@craft-native/ts?style=flat-square
-[npm-version-href]: https://npmjs.com/package/@craft-native/ts
+[npm-version-src]: https://img.shields.io/npm/v/@craft-native/craft?style=flat-square
+[npm-version-href]: https://npmjs.com/package/@craft-native/craft
 [github-actions-src]: https://img.shields.io/github/actions/workflow/status/home-lang/craft/ci.yml?style=flat-square&branch=main
 [github-actions-href]: https://github.com/home-lang/craft/actions?query=workflow%3Aci

@@ -83,7 +83,7 @@ test = "bun test"
 
 ```typescript
 // craft.config.ts
-import type { CraftConfig } from '@stacksjs/@craft-native/ts'
+import type { CraftConfig } from '@craft-native/craft'
 
 export default {
   // Package metadata

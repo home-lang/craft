@@ -56,7 +56,7 @@ win.close()
 
 **Craft:**
 ```typescript
-import { window } from '@stacksjs/@craft-native/ts'
+import { window } from '@craft-native/craft'
 
 // Configuration in craft.config.ts
 window: {
@@ -89,7 +89,7 @@ const content = await window.electron.invoke('read-file', '/path/to/file')
 
 **Craft:**
 ```typescript
-import { fs } from '@stacksjs/@craft-native/ts'
+import { fs } from '@craft-native/craft'
 
 // No IPC setup needed - direct API
 const content = await fs.readFile('/path/to/file')
@@ -111,7 +111,7 @@ tray.setContextMenu(Menu.buildFromTemplate([
 
 **Craft:**
 ```typescript
-import { tray } from '@stacksjs/@craft-native/ts'
+import { tray } from '@craft-native/craft'
 
 await tray.create({
   icon: 'icon.png',
@@ -141,7 +141,7 @@ new Notification({
 
 **Craft:**
 ```typescript
-import { notification } from '@stacksjs/@craft-native/ts'
+import { notification } from '@craft-native/craft'
 
 await notification.show({
   title: 'Hello',
@@ -166,7 +166,7 @@ ipcMain.handle('fs:write', async (e, path, data) => {
 
 **Craft:**
 ```typescript
-import { fs } from '@stacksjs/@craft-native/ts'
+import { fs } from '@craft-native/craft'
 
 // Direct access - no IPC needed
 const content = await fs.readFile('/path/to/file')
@@ -187,7 +187,7 @@ const result = await dialog.showOpenDialog({
 
 **Craft:**
 ```typescript
-import { dialog } from '@stacksjs/@craft-native/ts'
+import { dialog } from '@craft-native/craft'
 
 const result = await dialog.open({
   multiple: false,
@@ -208,7 +208,7 @@ globalShortcut.register('CommandOrControl+S', () => {
 
 **Craft:**
 ```typescript
-import { shortcuts } from '@stacksjs/@craft-native/ts'
+import { shortcuts } from '@craft-native/craft'
 
 shortcuts.register('mod+s', () => {
   saveDocument()
@@ -236,7 +236,7 @@ app.on('window-all-closed', () => {
 // Your app code runs when ready
 
 // For custom lifecycle handling:
-import { lifecycle } from '@stacksjs/@craft-native/ts'
+import { lifecycle } from '@craft-native/craft'
 
 lifecycle.on('willQuit', () => {
   // Cleanup
@@ -265,7 +265,7 @@ Replace `package.json` scripts and create `craft.config.ts`:
 
 ```typescript
 // craft.config.ts
-import type { CraftAppConfig } from '@stacksjs/@craft-native/ts'
+import type { CraftAppConfig } from '@craft-native/craft'
 
 const config: CraftAppConfig = {
   name: 'My App',
@@ -294,7 +294,7 @@ Find and replace all `ipcRenderer.invoke()` calls:
 const data = await window.electron.invoke('read-file', path)
 
 // After (Craft)
-import { fs } from '@stacksjs/@craft-native/ts'
+import { fs } from '@craft-native/craft'
 const data = await fs.readFile(path)
 ```
 
@@ -305,7 +305,7 @@ const data = await fs.readFile(path)
 const { contextBridge, ipcRenderer } = require('electron')
 
 // After (Craft)
-import { fs, db, http, window, notification } from '@stacksjs/@craft-native/ts'
+import { fs, db, http, window, notification } from '@craft-native/craft'
 ```
 
 ### 6. Remove Electron-Specific Code
@@ -343,8 +343,8 @@ function App() {
 
 **Craft:**
 ```jsx
-import { useCraft } from '@craft-native/ts/react'
-import { db } from '@stacksjs/@craft-native/ts'
+import { useCraft } from '@craft-native/craft/react'
+import { db } from '@craft-native/craft'
 
 function App() {
   const { isReady } = useCraft()
@@ -367,7 +367,7 @@ const isDev = !app.isPackaged
 
 **Craft:**
 ```typescript
-import { Platform } from '@stacksjs/@craft-native/ts'
+import { Platform } from '@craft-native/craft'
 
 const isDev = Platform.isDev
 ```
@@ -385,9 +385,9 @@ Craft doesn't include Node.js. Native functionality is provided by the Craft API
 **If you need npm packages:**
 - Most browser-compatible packages work
 - Replace Node-specific packages with Craft APIs
-- `fs` → `@craft-native/ts` fs API
-- `sqlite3` → `@craft-native/ts` db API
-- `node-fetch` → `@craft-native/ts` http API
+- `fs` → `@craft-native/craft` fs API
+- `sqlite3` → `@craft-native/craft` db API
+- `node-fetch` → `@craft-native/craft` http API
 
 ### No contextBridge
 
@@ -403,7 +403,7 @@ Your app will be much smaller. Consider removing unused dependencies that were o
 
 You're trying to use Node.js fs module. Use Craft's fs API:
 ```typescript
-import { fs } from '@stacksjs/@craft-native/ts'
+import { fs } from '@craft-native/craft'
 ```
 
 ### "require is not defined"

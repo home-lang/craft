@@ -3,7 +3,7 @@
  * Demonstrates: SQLite, keyboard shortcuts, dark mode, mobile support
  */
 
-import { db, window, Platform, haptics } from '@craft-native/ts'
+import { db, window, Platform, haptics } from '@craft-native/craft'
 
 interface Note {
   id: number

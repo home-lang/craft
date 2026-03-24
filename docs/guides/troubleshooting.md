@@ -68,13 +68,13 @@ ls -la index.html
 
 **Solution:**
 ```bash
-# Make sure @craft-native/ts is installed
-bun add @craft-native/ts
+# Make sure @craft-native/craft is installed
+bun add @craft-native/craft
 
 # Check tsconfig.json includes the types
 {
   "compilerOptions": {
-    "types": ["@stacksjs/@craft-native/ts"]
+    "types": ["@craft-native/craft"]
   }
 }
 ```
@@ -130,7 +130,7 @@ window: {
 **Solution:**
 1. Ensure Craft is initialized:
 ```typescript
-import { isReady } from '@stacksjs/@craft-native/ts'
+import { isReady } from '@craft-native/craft'
 
 // Wait for Craft to initialize
 await isReady()
@@ -234,7 +234,7 @@ ios: {
 
 **Solution:**
 ```typescript
-import { device } from '@stacksjs/@craft-native/ts'
+import { device } from '@craft-native/craft'
 
 const { safeAreaInsets } = await device.getScreenInfo()
 
@@ -260,10 +260,10 @@ body {
 2. Defer non-critical loading:
 ```typescript
 // Load immediately
-import { window } from '@stacksjs/@craft-native/ts'
+import { window } from '@craft-native/craft'
 
 // Load when needed
-const { db } = await import('@stacksjs/@craft-native/ts')
+const { db } = await import('@craft-native/craft')
 ```
 
 3. Use code splitting in bundler
@@ -311,7 +311,7 @@ Animated.timing(value, {
 
 Craft hasn't finished loading. Wait for ready state:
 ```typescript
-import { isReady } from '@stacksjs/@craft-native/ts'
+import { isReady } from '@craft-native/craft'
 await isReady()
 ```
 
