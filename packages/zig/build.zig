@@ -1116,7 +1116,6 @@ pub fn build(b: *std.Build) void {
     ios_device_lib.root_module.linkFramework("UIKit", .{});
     ios_device_lib.root_module.linkFramework("WebKit", .{});
     ios_device_lib.root_module.linkFramework("Foundation", .{});
-    ios_device_lib.root_module.link_libc = true;
 
     const ios_device_install = b.addInstallArtifact(ios_device_lib, .{});
     build_ios.dependOn(&ios_device_install.step);
@@ -1144,7 +1143,6 @@ pub fn build(b: *std.Build) void {
     ios_sim_arm64_lib.root_module.linkFramework("UIKit", .{});
     ios_sim_arm64_lib.root_module.linkFramework("WebKit", .{});
     ios_sim_arm64_lib.root_module.linkFramework("Foundation", .{});
-    ios_sim_arm64_lib.root_module.link_libc = true;
 
     const ios_sim_arm64_install = b.addInstallArtifact(ios_sim_arm64_lib, .{});
     build_ios_simulator.dependOn(&ios_sim_arm64_install.step);

@@ -67,10 +67,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pods-
 
-      - name: Build Zig iOS library
+      - name: Build iOS library
         working-directory: packages/zig
         run: |
-          zig build -Dtarget=aarch64-ios || echo "iOS target not fully implemented"
+          # Build iOS static libraries using dedicated build steps
+          # (not the default target which builds macOS executables)
+          zig build build-ios -Doptimize=ReleaseSafe --sysroot "$(xcrun --sdk iphoneos --show-sdk-path)" || echo "iOS device build not yet available"
+          zig build build-ios-simulator -Doptimize=ReleaseSafe --sysroot "$(xcrun --sdk iphonesimulator --show-sdk-path)" || echo "iOS simulator build not yet available"
 
       - name: Generate iOS project
         run: |
