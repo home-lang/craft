@@ -27,7 +27,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.16.0-dev.2962+08416b44f
+          version: 0.16.0-dev.2471+e9eadee00
 
       - name: Verify Zig installation
         run: zig version
@@ -109,7 +109,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.16.0-dev.2962+08416b44f
+          version: 0.16.0-dev.2471+e9eadee00
 
       - name: Check Zig formatting
         working-directory: packages/zig
@@ -126,7 +126,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.16.0-dev.2962+08416b44f
+          version: 0.16.0-dev.2471+e9eadee00
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2

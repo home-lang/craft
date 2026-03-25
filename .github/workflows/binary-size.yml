@@ -28,7 +28,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.16.0-dev.2962+08416b44f
+          version: 0.16.0-dev.2471+e9eadee00
 
       - name: Install Linux dependencies
         run: |
