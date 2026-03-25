@@ -96,11 +96,11 @@ export class CodeSigner {
         signature: identity,
       }
     }
-catch (error: any) {
+catch (error) {
       return {
         success: false,
         path,
-        errors: [error.message || 'Signing failed'],
+        errors: [error instanceof Error ? error.message : 'Signing failed'],
       }
     }
   }
@@ -140,7 +140,7 @@ catch (error: any) {
         signature: certificate,
       }
     }
-catch (error: any) {
+catch (error) {
       // Try osslsigncode as fallback (cross-platform)
       try {
         const args = [
@@ -168,11 +168,11 @@ catch (error: any) {
           signature: certificate,
         }
       }
-catch (fallbackError: any) {
+catch (fallbackError) {
         return {
           success: false,
           path,
-          errors: [error.message || 'Signing failed', fallbackError.message],
+          errors: [error instanceof Error ? error.message : 'Signing failed', fallbackError instanceof Error ? fallbackError.message : String(fallbackError)],
         }
       }
     }
@@ -194,11 +194,11 @@ catch (fallbackError: any) {
         signature: signatureFile,
       }
     }
-catch (error: any) {
+catch (error) {
       return {
         success: false,
         path,
-        errors: [error.message || 'GPG signing failed'],
+        errors: [error instanceof Error ? error.message : 'GPG signing failed'],
       }
     }
   }
@@ -313,8 +313,8 @@ else {
         return { success: false, error: stdout }
       }
     }
-catch (error: any) {
-      return { success: false, error: error.message }
+catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
 finally {
       // Clean up temporary zip
@@ -341,8 +341,8 @@ finally {
 
       return { status, message: stdout }
     }
-catch (error: any) {
-      return { status: 'error', message: error.message }
+catch (error) {
+      return { status: 'error', message: error instanceof Error ? error.message : String(error) }
     }
   }
 
@@ -359,8 +359,8 @@ catch (error: any) {
       `)
       return stdout
     }
-catch (error: any) {
-      return error.message
+catch (error) {
+      return error instanceof Error ? error.message : String(error)
     }
   }
 }

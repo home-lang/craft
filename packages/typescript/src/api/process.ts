@@ -19,20 +19,19 @@ export type Platform = 'darwin' | 'macos' | 'win32' | 'windows' | 'linux' | 'ios
  * Get current platform
  */
 export function getPlatform(): Platform {
-  // Check window.craft first for mobile platforms
-  if (typeof window !== 'undefined' && window.craft) {
-    const info = (window.craft as any)._platform
-    if (info === 'ios' || info === 'android') {
-      return info
-    }
+  // Prefer native bridge platform info (most reliable)
+  if (typeof globalThis !== 'undefined') {
+    const w = globalThis as any
+    if (w.craft?._platform) return w.craft._platform
+    if (w.__CRAFT_PLATFORM__) return w.__CRAFT_PLATFORM__
   }
 
-  // Node.js/Bun
+  // Fall back to Node.js process.platform
   if (typeof process !== 'undefined' && process.platform) {
     return process.platform as Platform
   }
 
-  // Browser detection fallback
+  // Last resort: user-agent sniffing (unreliable)
   if (typeof navigator !== 'undefined') {
     const ua = navigator.userAgent.toLowerCase()
     if (ua.includes('mac')) return 'darwin'

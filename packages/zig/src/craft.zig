@@ -9,6 +9,9 @@ const std = @import("std");
 // Core
 // ============================================
 
+/// Thread-safe global state management
+pub const global_state = @import("global_state.zig");
+
 /// Application lifecycle and configuration
 pub const app = struct {
     pub const Config = @import("config.zig").Config;

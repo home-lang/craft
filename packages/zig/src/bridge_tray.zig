@@ -153,13 +153,13 @@ pub const TrayBridge = struct {
             log.debug("Polling found action: {s}", .{action});
 
             // Call the JavaScript global function to deliver the action
-            const macos = @import("macos.zig");
+            const bridge = @import("bridge.zig");
             var buf: [256]u8 = undefined;
             const js = try std.fmt.bufPrint(&buf,
                 \\if(window.__craftDeliverAction)window.__craftDeliverAction('{s}');
             , .{action});
 
-            macos.tryEvalJS(js) catch |err| {
+            bridge.evalJS(js) catch |err| {
                 log.debug("Failed to deliver action: {}", .{err});
             };
         }

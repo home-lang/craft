@@ -2,7 +2,20 @@
  * Craft Mobile Bridge - TypeScript Example
  *
  * This example demonstrates how to use the Craft mobile bridges
- * with full TypeScript type safety.
+ * with full TypeScript type safety. These APIs are injected by the
+ * native iOS/Android runtime as `window.craft` and are only available
+ * when running inside a Craft mobile app (not in the desktop SDK).
+ *
+ * NOTE: Some features shown here require specific platform capabilities:
+ * - AR (craft.ar): iOS only, requires A9+ chip and ARKit support
+ * - ML (craft.ml): iOS (Core ML/Vision) and Android (ML Kit) only
+ * - Deep Links (craft.deepLinks): Requires URL scheme or universal links setup
+ * - Auth Persistence (craft.authPersistence): iOS/Android biometric session caching
+ * - OTA Updates (craft.ota): Requires server-side update infrastructure
+ * - Widgets (craft.widget): iOS 14+ (WidgetKit) / Android (AppWidgetProvider)
+ *
+ * These APIs are NOT part of the desktop TypeScript SDK (@craft-native/craft).
+ * For desktop APIs, see the main SDK exports in src/index.ts.
  *
  * Usage:
  * 1. Copy this file to your web content directory
@@ -20,7 +33,7 @@
  * Wait for Craft to be ready before using any APIs
  */
 function initializeApp(): void {
-  window.addEventListener('craftReady', (event: CustomEvent<CraftReadyDetail>) => {
+  window.addEventListener('craftReady', (event: CraftReadyEvent) => {
     console.log('Craft is ready!');
     console.log('Platform:', event.detail.platform);
     console.log('Capabilities:', event.detail.capabilities);
@@ -48,31 +61,31 @@ function setupEventListeners(): void {
     });
   }
 
-  // App state changes
-  window.addEventListener('craftAppState', (event: CustomEvent<{ state: 'active' | 'inactive' | 'background' }>) => {
-    console.log('App state changed:', event.detail.state);
+  // App state changes (using bridge method API)
+  craft.onAppStateChange((state: 'active' | 'inactive' | 'background') => {
+    console.log('App state changed:', state);
 
-    if (event.detail.state === 'background') {
+    if (state === 'background') {
       // Save state, pause operations
       saveAppState();
     }
-else if (event.detail.state === 'active') {
+else if (state === 'active') {
       // Restore state, resume operations
       restoreAppState();
     }
   });
 
-  // Network status changes
-  window.addEventListener('craftNetworkChange', (event: CustomEvent<NetworkStatus>) => {
-    console.log('Network status:', event.detail);
-    updateUIForNetwork(event.detail);
+  // Network status changes (using bridge method API)
+  craft.onNetworkChange((status: NetworkStatus) => {
+    console.log('Network status:', status);
+    updateUIForNetwork(status);
   });
 
-  // Error handling
-  window.addEventListener('craftError', (event: CustomEvent<CraftErrorDetail>) => {
+  // Error handling (craftError is a custom event fired by the bridge)
+  window.addEventListener('craftError', ((event: CraftErrorEvent) => {
     console.error('Craft error:', event.detail.code, event.detail.message);
-    reportError(event.detail);
-  });
+    reportError(event.detail as CraftErrorDetail);
+  }) as EventListener);
 }
 
 /**
@@ -84,7 +97,7 @@ async function initializeFeatures(): Promise<void> {
 
   // Get device info
   const deviceInfo = craft.getDeviceInfo();
-  console.log('Device:', deviceInfo.model, 'OS:', deviceInfo.osVersion);
+  console.log('Device:', deviceInfo.model, 'OS:', deviceInfo.systemVersion);
 
   // Check initial deep link
   if (craft.deepLinks) {
@@ -101,6 +114,8 @@ async function initializeFeatures(): Promise<void> {
 
 /**
  * Example: Camera and image handling
+ * NOTE: ML features (craft.ml) require iOS (Core ML/Vision) or Android (ML Kit).
+ * They are not available on desktop platforms.
  */
 async function captureAndProcessImage(): Promise<void> {
   try {
@@ -110,7 +125,7 @@ async function captureAndProcessImage(): Promise<void> {
     if (imageBase64) {
       console.log('Image captured, size:', imageBase64.length);
 
-      // Use ML to classify the image
+      // Use ML to classify the image (mobile only)
       if (craft.ml) {
         const classifications = await craft.ml.classifyImage(imageBase64);
         console.log('Classifications:', classifications);
@@ -128,14 +143,16 @@ catch (error) {
 
 /**
  * Example: Biometric authentication with persistence
+ * NOTE: Auth persistence (craft.authPersistence) caches biometric sessions
+ * for a specified duration. Available on iOS (Face ID/Touch ID) and Android (BiometricPrompt).
  */
 async function authenticateUser(): Promise<boolean> {
   try {
-    // Check if we have a valid auth session
+    // Check if we have a valid auth session (mobile only)
     if (craft.authPersistence) {
       const session = await craft.authPersistence.check();
-      if (session.valid) {
-        console.log('Auth session still valid');
+      if (session.isValid) {
+        console.log('Auth session still valid, expires in', session.remainingSeconds, 'seconds');
         return true;
       }
     }
@@ -170,7 +187,7 @@ async function secureStorageExample(): Promise<void> {
     console.log('Retrieved token:', token ? 'exists' : 'not found');
 
     // Delete when done
-    await craft.secureStore.delete('auth_token');
+    await craft.secureStore.remove('auth_token');
   }
 catch (error) {
     console.error('Secure storage error:', error);
@@ -279,7 +296,6 @@ async function notificationExample(): Promise<void> {
       title: 'Reminder',
       body: 'Don\'t forget your meeting!',
       badge: 1,
-      sound: true,
       delay: 60000 // 1 minute from now
     });
     console.log('Scheduled notification:', notificationId);
@@ -311,7 +327,7 @@ async function purchaseExample(): Promise<void> {
       console.log(`Selected: ${selectedProduct.title} - ${selectedProduct.price}`);
 
       // Initiate purchase
-      const purchaseResult = await craft.purchase(selectedProduct.productId);
+      const purchaseResult = await craft.purchase(selectedProduct.id);
       console.log('Purchase result:', purchaseResult);
     }
 
@@ -326,6 +342,8 @@ catch (error) {
 
 /**
  * Example: OTA Updates
+ * NOTE: OTA updates (craft.ota) require server-side infrastructure.
+ * Available on iOS and Android only. Not available on desktop platforms.
  */
 async function checkForUpdates(): Promise<void> {
   if (!craft.ota) return;
@@ -349,7 +367,7 @@ async function checkForUpdates(): Promise<void> {
 
     // Check for updates
     const update = await craft.ota.checkForUpdate();
-    if (update.available) {
+    if (update && update.available) {
       console.log(`Update available: v${update.version}`);
       console.log('Release notes:', update.releaseNotes);
 
@@ -372,7 +390,7 @@ catch (error) {
 /**
  * Example: Performance profiling
  */
-function profilePerformance(): void {
+async function profilePerformance(): Promise<void> {
   // Start profiling
   craft.startProfiling();
 
@@ -380,16 +398,20 @@ function profilePerformance(): void {
   performHeavyOperations();
 
   // Stop and get report
-  const report = craft.stopProfiling();
-  console.log('Profiling Report:');
-  console.log('- Total calls:', report.totalCalls);
-  console.log('- Total time:', report.totalTime, 'ms');
-  console.log('- Average time:', report.averageTime, 'ms');
-  console.log('- Calls by method:', report.callsByMethod);
+  const report = await craft.stopProfiling();
+  if (report) {
+    console.log('Profiling Report:');
+    console.log('- Bridge calls:', report.bridgeCalls);
+    console.log('- Duration:', report.duration, 'ms');
+    console.log('- Average call time:', report.avgCallTime, 'ms');
+    console.log('- Call timings:', report.callTimings);
+  }
 }
 
 /**
  * Example: AR features (iOS)
+ * NOTE: AR requires an iOS device with A9+ chip and ARKit support.
+ * This bridge is not available on Android or desktop platforms.
  */
 async function arExample(): Promise<void> {
   if (!craft.ar) {
@@ -402,9 +424,9 @@ async function arExample(): Promise<void> {
     await craft.ar.start({ planeDetection: true });
 
     // Listen for plane detection
-    window.addEventListener('craftARPlane', (event: CustomEvent<ARPlaneEvent>) => {
+    window.addEventListener('craftARPlane', ((event: CraftARPlaneEvent) => {
       console.log('Plane detected:', event.detail.type, event.detail.id);
-    });
+    }) as EventListener);
 
     // Place a 3D object
     const objectId = await craft.ar.placeObject('box', { x: 0, y: 0, z: -1 });
@@ -424,6 +446,8 @@ catch (error) {
 
 /**
  * Example: Widget updates
+ * NOTE: Widgets require iOS 14+ (WidgetKit) or Android (AppWidgetProvider).
+ * Not available on desktop platforms.
  */
 async function updateWidget(): Promise<void> {
   if (!craft.widget) return;
@@ -476,7 +500,7 @@ function restoreAppState(): void {
 }
 
 function updateUIForNetwork(status: NetworkStatus): void {
-  if (!status.connected) {
+  if (!status.isConnected) {
     console.log('No network connection');
   }
 else {

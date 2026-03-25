@@ -970,7 +970,9 @@ pub const QuickStorage = struct {
         if (prefs.getBool(key)) |launched| {
             return !launched;
         }
-        prefs.setBool(key, true) catch {};
+        prefs.setBool(key, true) catch |err| {
+            std.log.warn("failed to persist first launch flag: {}", .{err});
+        };
         return true;
     }
 
@@ -978,7 +980,9 @@ pub const QuickStorage = struct {
     pub fn getLaunchCount(prefs: *PreferencesManager) i64 {
         const key = "app_launch_count";
         const count = prefs.getIntOr(key, 0) + 1;
-        prefs.setInt(key, count) catch {};
+        prefs.setInt(key, count) catch |err| {
+            std.log.warn("failed to persist launch count: {}", .{err});
+        };
         return count;
     }
 

@@ -118,41 +118,37 @@ pub const EventEmitter = struct {
     }
 };
 
-// Global event emitter
-var global_emitter: ?EventEmitter = null;
+const global_state = @import("global_state.zig");
 
 pub fn initGlobalEmitter(allocator: std.mem.Allocator) void {
-    global_emitter = EventEmitter.init(allocator);
+    global_state.instance.initEmitter(allocator);
 }
 
 pub fn deinitGlobalEmitter() void {
-    if (global_emitter) |*emitter| {
-        emitter.deinit();
-        global_emitter = null;
-    }
+    global_state.instance.deinitEmitter();
 }
 
 pub fn on(event_name: []const u8, callback: EventCallback) !void {
-    if (global_emitter) |*emitter| {
+    if (global_state.instance.getEmitter()) |emitter| {
         try emitter.on(event_name, callback);
     }
 }
 
 pub fn off(event_name: []const u8, callback: EventCallback) bool {
-    if (global_emitter) |*emitter| {
+    if (global_state.instance.getEmitter()) |emitter| {
         return emitter.off(event_name, callback);
     }
     return false;
 }
 
 pub fn emit(event: Event) void {
-    if (global_emitter) |*emitter| {
+    if (global_state.instance.getEmitter()) |emitter| {
         emitter.emit(event);
     }
 }
 
 pub fn once(event_name: []const u8, callback: EventCallback) !void {
-    if (global_emitter) |*emitter| {
+    if (global_state.instance.getEmitter()) |emitter| {
         try emitter.once(event_name, callback);
     }
 }

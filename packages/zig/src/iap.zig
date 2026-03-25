@@ -1154,7 +1154,7 @@ test "IAPManager subscription status" {
 
     var tx = try manager.simulatePurchase("monthly_sub", .purchased);
     tx.expiration_time = IAPManager.getCurrentTimeMs() + (30 * 24 * 60 * 60 * 1000); // 30 days
-    manager.purchases.put("monthly_sub", tx) catch unreachable;
+    try manager.purchases.put("monthly_sub", tx);
 
     try std.testing.expect(manager.isSubscriptionActive("monthly_sub"));
 }
@@ -1253,7 +1253,7 @@ test "QuickPurchase hasActiveSubscription" {
 
     var tx = try manager.simulatePurchase("sub_monthly", .purchased);
     tx.expiration_time = IAPManager.getCurrentTimeMs() + (30 * 24 * 60 * 60 * 1000);
-    manager.purchases.put("sub_monthly", tx) catch unreachable;
+    try manager.purchases.put("sub_monthly", tx);
 
     try std.testing.expect(QuickPurchase.hasActiveSubscription(&manager, &[_][]const u8{"sub_monthly"}));
 }

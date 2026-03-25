@@ -1018,7 +1018,9 @@ pub const StatusNotifierItem = struct {
             SNI_INTERFACE,
             "NewStatus",
             c.g_variant_new("(s)", status),
-        ) catch {};
+        ) catch |err| {
+            std.log.warn("DBus: failed to emit NewStatus signal: {}", .{err});
+        };
     }
 
     pub fn setTitle(self: *Self, title: [*:0]const u8) void {
@@ -1029,7 +1031,9 @@ pub const StatusNotifierItem = struct {
             SNI_INTERFACE,
             "NewTitle",
             null,
-        ) catch {};
+        ) catch |err| {
+            std.log.warn("DBus: failed to emit NewTitle signal: {}", .{err});
+        };
     }
 
     pub fn setIconName(self: *Self, icon_name: [*:0]const u8) void {
@@ -1040,7 +1044,9 @@ pub const StatusNotifierItem = struct {
             SNI_INTERFACE,
             "NewIcon",
             null,
-        ) catch {};
+        ) catch |err| {
+            std.log.warn("DBus: failed to emit NewIcon signal: {}", .{err});
+        };
     }
 
     pub fn setTooltip(self: *Self, title: [*:0]const u8, body: [*:0]const u8) void {
@@ -1052,7 +1058,9 @@ pub const StatusNotifierItem = struct {
             SNI_INTERFACE,
             "NewToolTip",
             null,
-        ) catch {};
+        ) catch |err| {
+            std.log.warn("DBus: failed to emit NewToolTip signal: {}", .{err});
+        };
     }
 
     pub fn setOnActivate(self: *Self, callback: *const fn (?*anyopaque) void, user_data: ?*anyopaque) void {

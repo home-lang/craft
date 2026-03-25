@@ -16,6 +16,7 @@ pub const LPARAM = isize;
 pub const LRESULT = isize;
 pub const DWORD = c_ulong;
 pub const BOOL = c_int;
+pub const HRESULT = c_long;
 
 pub const WNDCLASSEXW = extern struct {
     cbSize: UINT,
@@ -51,7 +52,20 @@ pub const RECT = extern struct {
     bottom: c_long,
 };
 
+// COM base type
+pub const GUID = extern struct {
+    Data1: c_ulong,
+    Data2: c_ushort,
+    Data3: c_ushort,
+    Data4: [8]u8,
+};
+
+pub const EventRegistrationToken = extern struct {
+    value: i64,
+};
+
 // Constants
+pub const S_OK: HRESULT = 0;
 pub const WS_OVERLAPPEDWINDOW: DWORD = 0x00CF0000;
 pub const WS_VISIBLE: DWORD = 0x10000000;
 pub const WS_POPUP: DWORD = 0x80000000;
@@ -64,8 +78,10 @@ pub const SW_HIDE: c_int = 0;
 pub const SW_MAXIMIZE: c_int = 3;
 pub const SW_MINIMIZE: c_int = 6;
 pub const WM_DESTROY: UINT = 0x0002;
+pub const WM_SIZE: UINT = 0x0005;
 pub const WM_CLOSE: UINT = 0x0010;
 pub const PM_REMOVE: UINT = 0x0001;
+pub const GWLP_USERDATA: c_int = -21;
 
 // Win32 API functions
 pub extern "user32" fn RegisterClassExW(*const WNDCLASSEXW) callconv(.c) u16;
@@ -95,18 +111,211 @@ pub extern "user32" fn DestroyWindow(hWnd: HWND) callconv(.c) BOOL;
 pub extern "user32" fn SetWindowTextW(hWnd: HWND, lpString: LPCWSTR) callconv(.c) BOOL;
 pub extern "user32" fn SetWindowPos(hWnd: HWND, hWndInsertAfter: ?HWND, X: c_int, Y: c_int, cx: c_int, cy: c_int, uFlags: UINT) callconv(.c) BOOL;
 pub extern "user32" fn LoadCursorW(hInstance: ?HINSTANCE, lpCursorName: LPCWSTR) callconv(.c) ?*anyopaque;
+pub extern "user32" fn GetClientRect(hWnd: HWND, lpRect: *RECT) callconv(.c) BOOL;
+pub extern "user32" fn SetWindowLongPtrW(hWnd: HWND, nIndex: c_int, dwNewLong: isize) callconv(.c) isize;
+pub extern "user32" fn GetWindowLongPtrW(hWnd: HWND, nIndex: c_int) callconv(.c) isize;
 pub extern "kernel32" fn GetModuleHandleW(lpModuleName: ?LPCWSTR) callconv(.c) ?HINSTANCE;
+pub extern "kernel32" fn Sleep(dwMilliseconds: DWORD) callconv(.c) void;
 
-// WebView2 bindings (simplified)
-pub const ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler = opaque {};
-pub const ICoreWebView2CreateCoreWebView2ControllerCompletedHandler = opaque {};
-pub const ICoreWebView2Environment = opaque {};
-pub const ICoreWebView2Controller = opaque {};
-pub const ICoreWebView2 = opaque {};
-pub const ICoreWebView2Settings = opaque {};
-pub const ICoreWebView2ExecuteScriptCompletedHandler = opaque {};
-pub const ICoreWebView2PermissionRequestedEventArgs = opaque {};
-pub const ICoreWebView2PermissionRequestedEventHandler = opaque {};
+// ============================================================================
+// WebView2 COM vtable interfaces
+// ============================================================================
+//
+// WebView2 uses COM (Component Object Model). Each interface is accessed
+// through a pointer to a vtable of function pointers. The layout matches
+// the C ABI produced by the WebView2 SDK headers:
+//   struct ICoreWebView2Foo {
+//       ICoreWebView2FooVtbl* lpVtbl;
+//   };
+//
+// In Zig we model this as a struct whose first (and only) field is a pointer
+// to an extern struct full of function pointers.
+// ============================================================================
+
+// -- IUnknown base (shared by every COM interface) ---------------------------
+
+pub const IUnknownVtbl = extern struct {
+    QueryInterface: *const fn (*anyopaque, *const GUID, *?*anyopaque) callconv(.c) HRESULT,
+    AddRef: *const fn (*anyopaque) callconv(.c) c_ulong,
+    Release: *const fn (*anyopaque) callconv(.c) c_ulong,
+};
+
+// -- ICoreWebView2Environment ------------------------------------------------
+
+pub const ICoreWebView2EnvironmentVtbl = extern struct {
+    // IUnknown
+    QueryInterface: *const fn (*ICoreWebView2Environment, *const GUID, *?*anyopaque) callconv(.c) HRESULT,
+    AddRef: *const fn (*ICoreWebView2Environment) callconv(.c) c_ulong,
+    Release: *const fn (*ICoreWebView2Environment) callconv(.c) c_ulong,
+    // ICoreWebView2Environment
+    CreateCoreWebView2Controller: *const fn (*ICoreWebView2Environment, HWND, *ICoreWebView2CreateCoreWebView2ControllerCompletedHandler) callconv(.c) HRESULT,
+};
+
+pub const ICoreWebView2Environment = extern struct {
+    lpVtbl: *ICoreWebView2EnvironmentVtbl,
+};
+
+// -- ICoreWebView2Controller -------------------------------------------------
+
+pub const ICoreWebView2ControllerVtbl = extern struct {
+    // IUnknown
+    QueryInterface: *const fn (*ICoreWebView2Controller, *const GUID, *?*anyopaque) callconv(.c) HRESULT,
+    AddRef: *const fn (*ICoreWebView2Controller) callconv(.c) c_ulong,
+    Release: *const fn (*ICoreWebView2Controller) callconv(.c) c_ulong,
+    // ICoreWebView2Controller
+    get_IsVisible: *const fn (*ICoreWebView2Controller, *BOOL) callconv(.c) HRESULT,
+    put_IsVisible: *const fn (*ICoreWebView2Controller, BOOL) callconv(.c) HRESULT,
+    get_Bounds: *const fn (*ICoreWebView2Controller, *RECT) callconv(.c) HRESULT,
+    put_Bounds: *const fn (*ICoreWebView2Controller, RECT) callconv(.c) HRESULT,
+    get_ZoomFactor: *const fn (*ICoreWebView2Controller, *f64) callconv(.c) HRESULT,
+    put_ZoomFactor: *const fn (*ICoreWebView2Controller, f64) callconv(.c) HRESULT,
+    add_ZoomFactorChanged: *const fn (*ICoreWebView2Controller, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_ZoomFactorChanged: *const fn (*ICoreWebView2Controller, EventRegistrationToken) callconv(.c) HRESULT,
+    SetBoundsAndZoomFactor: *const fn (*ICoreWebView2Controller, RECT, f64) callconv(.c) HRESULT,
+    MoveFocus: *const fn (*ICoreWebView2Controller, c_int) callconv(.c) HRESULT,
+    add_MoveFocusRequested: *const fn (*ICoreWebView2Controller, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_MoveFocusRequested: *const fn (*ICoreWebView2Controller, EventRegistrationToken) callconv(.c) HRESULT,
+    add_GotFocus: *const fn (*ICoreWebView2Controller, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_GotFocus: *const fn (*ICoreWebView2Controller, EventRegistrationToken) callconv(.c) HRESULT,
+    add_LostFocus: *const fn (*ICoreWebView2Controller, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_LostFocus: *const fn (*ICoreWebView2Controller, EventRegistrationToken) callconv(.c) HRESULT,
+    add_AcceleratorKeyPressed: *const fn (*ICoreWebView2Controller, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_AcceleratorKeyPressed: *const fn (*ICoreWebView2Controller, EventRegistrationToken) callconv(.c) HRESULT,
+    get_ParentWindow: *const fn (*ICoreWebView2Controller, *HWND) callconv(.c) HRESULT,
+    put_ParentWindow: *const fn (*ICoreWebView2Controller, HWND) callconv(.c) HRESULT,
+    NotifyParentWindowPositionChanged: *const fn (*ICoreWebView2Controller) callconv(.c) HRESULT,
+    Close: *const fn (*ICoreWebView2Controller) callconv(.c) HRESULT,
+    get_CoreWebView2: *const fn (*ICoreWebView2Controller, **ICoreWebView2) callconv(.c) HRESULT,
+};
+
+pub const ICoreWebView2Controller = extern struct {
+    lpVtbl: *ICoreWebView2ControllerVtbl,
+};
+
+// -- ICoreWebView2 -----------------------------------------------------------
+
+pub const ICoreWebView2Vtbl = extern struct {
+    // IUnknown
+    QueryInterface: *const fn (*ICoreWebView2, *const GUID, *?*anyopaque) callconv(.c) HRESULT,
+    AddRef: *const fn (*ICoreWebView2) callconv(.c) c_ulong,
+    Release: *const fn (*ICoreWebView2) callconv(.c) c_ulong,
+    // ICoreWebView2 – only the methods we need, padded with placeholders for
+    // the ones we skip so vtable offsets stay correct.
+    get_Settings: *const fn (*ICoreWebView2, **ICoreWebView2Settings) callconv(.c) HRESULT,
+    get_Source: *const fn (*ICoreWebView2, *LPWSTR) callconv(.c) HRESULT,
+    Navigate: *const fn (*ICoreWebView2, LPCWSTR) callconv(.c) HRESULT,
+    NavigateToString: *const fn (*ICoreWebView2, LPCWSTR) callconv(.c) HRESULT,
+    add_NavigationStarting: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_NavigationStarting: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    add_ContentLoading: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_ContentLoading: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    add_SourceChanged: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_SourceChanged: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    add_HistoryChanged: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_HistoryChanged: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    add_NavigationCompleted: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_NavigationCompleted: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    add_FrameNavigationStarting: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_FrameNavigationStarting: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    add_FrameNavigationCompleted: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_FrameNavigationCompleted: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    add_ScriptDialogOpening: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_ScriptDialogOpening: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    add_PermissionRequested: *const fn (*ICoreWebView2, *ICoreWebView2PermissionRequestedEventHandler, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_PermissionRequested: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    add_ProcessFailed: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_ProcessFailed: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    AddScriptToExecuteOnDocumentCreated: *const fn (*ICoreWebView2, LPCWSTR, ?*anyopaque) callconv(.c) HRESULT,
+    RemoveScriptToExecuteOnDocumentCreated: *const fn (*ICoreWebView2, LPCWSTR) callconv(.c) HRESULT,
+    ExecuteScript: *const fn (*ICoreWebView2, LPCWSTR, ?*ICoreWebView2ExecuteScriptCompletedHandler) callconv(.c) HRESULT,
+    CapturePreview: *const fn (*ICoreWebView2, c_int, *anyopaque, *anyopaque) callconv(.c) HRESULT,
+    Reload: *const fn (*ICoreWebView2) callconv(.c) HRESULT,
+    PostWebMessageAsJson: *const fn (*ICoreWebView2, LPCWSTR) callconv(.c) HRESULT,
+    PostWebMessageAsString: *const fn (*ICoreWebView2, LPCWSTR) callconv(.c) HRESULT,
+    add_WebMessageReceived: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_WebMessageReceived: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    CallDevToolsProtocolMethod: *const fn (*ICoreWebView2, LPCWSTR, LPCWSTR, *anyopaque) callconv(.c) HRESULT,
+    get_BrowserProcessId: *const fn (*ICoreWebView2, *c_ulong) callconv(.c) HRESULT,
+    get_CanGoBack: *const fn (*ICoreWebView2, *BOOL) callconv(.c) HRESULT,
+    get_CanGoForward: *const fn (*ICoreWebView2, *BOOL) callconv(.c) HRESULT,
+    GoBack: *const fn (*ICoreWebView2) callconv(.c) HRESULT,
+    GoForward: *const fn (*ICoreWebView2) callconv(.c) HRESULT,
+    GetDevToolsProtocolEventReceiver: *const fn (*ICoreWebView2, LPCWSTR, *?*anyopaque) callconv(.c) HRESULT,
+    Stop: *const fn (*ICoreWebView2) callconv(.c) HRESULT,
+    add_NewWindowRequested: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_NewWindowRequested: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    add_DocumentTitleChanged: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_DocumentTitleChanged: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    get_DocumentTitle: *const fn (*ICoreWebView2, *LPWSTR) callconv(.c) HRESULT,
+    AddHostObjectToScript: *const fn (*ICoreWebView2, LPCWSTR, *anyopaque) callconv(.c) HRESULT,
+    RemoveHostObjectFromScript: *const fn (*ICoreWebView2, LPCWSTR) callconv(.c) HRESULT,
+    OpenDevToolsWindow: *const fn (*ICoreWebView2) callconv(.c) HRESULT,
+    add_ContainsFullScreenElementChanged: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_ContainsFullScreenElementChanged: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    get_ContainsFullScreenElement: *const fn (*ICoreWebView2, *BOOL) callconv(.c) HRESULT,
+    add_WebResourceRequested: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_WebResourceRequested: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+    AddWebResourceRequestedFilter: *const fn (*ICoreWebView2, LPCWSTR, c_int) callconv(.c) HRESULT,
+    RemoveWebResourceRequestedFilter: *const fn (*ICoreWebView2, LPCWSTR, c_int) callconv(.c) HRESULT,
+    add_WindowCloseRequested: *const fn (*ICoreWebView2, *anyopaque, *EventRegistrationToken) callconv(.c) HRESULT,
+    remove_WindowCloseRequested: *const fn (*ICoreWebView2, EventRegistrationToken) callconv(.c) HRESULT,
+};
+
+pub const ICoreWebView2 = extern struct {
+    lpVtbl: *ICoreWebView2Vtbl,
+};
+
+// -- ICoreWebView2Settings ---------------------------------------------------
+
+pub const ICoreWebView2SettingsVtbl = extern struct {
+    // IUnknown
+    QueryInterface: *const fn (*ICoreWebView2Settings, *const GUID, *?*anyopaque) callconv(.c) HRESULT,
+    AddRef: *const fn (*ICoreWebView2Settings) callconv(.c) c_ulong,
+    Release: *const fn (*ICoreWebView2Settings) callconv(.c) c_ulong,
+    // ICoreWebView2Settings
+    get_IsScriptEnabled: *const fn (*ICoreWebView2Settings, *BOOL) callconv(.c) HRESULT,
+    put_IsScriptEnabled: *const fn (*ICoreWebView2Settings, BOOL) callconv(.c) HRESULT,
+    get_IsWebMessageEnabled: *const fn (*ICoreWebView2Settings, *BOOL) callconv(.c) HRESULT,
+    put_IsWebMessageEnabled: *const fn (*ICoreWebView2Settings, BOOL) callconv(.c) HRESULT,
+    get_AreDefaultScriptDialogsEnabled: *const fn (*ICoreWebView2Settings, *BOOL) callconv(.c) HRESULT,
+    put_AreDefaultScriptDialogsEnabled: *const fn (*ICoreWebView2Settings, BOOL) callconv(.c) HRESULT,
+    get_IsStatusBarEnabled: *const fn (*ICoreWebView2Settings, *BOOL) callconv(.c) HRESULT,
+    put_IsStatusBarEnabled: *const fn (*ICoreWebView2Settings, BOOL) callconv(.c) HRESULT,
+    get_AreDevToolsEnabled: *const fn (*ICoreWebView2Settings, *BOOL) callconv(.c) HRESULT,
+    put_AreDevToolsEnabled: *const fn (*ICoreWebView2Settings, BOOL) callconv(.c) HRESULT,
+    get_AreDefaultContextMenusEnabled: *const fn (*ICoreWebView2Settings, *BOOL) callconv(.c) HRESULT,
+    put_AreDefaultContextMenusEnabled: *const fn (*ICoreWebView2Settings, BOOL) callconv(.c) HRESULT,
+    get_AreHostObjectsAllowed: *const fn (*ICoreWebView2Settings, *BOOL) callconv(.c) HRESULT,
+    put_AreHostObjectsAllowed: *const fn (*ICoreWebView2Settings, BOOL) callconv(.c) HRESULT,
+    get_IsZoomControlEnabled: *const fn (*ICoreWebView2Settings, *BOOL) callconv(.c) HRESULT,
+    put_IsZoomControlEnabled: *const fn (*ICoreWebView2Settings, BOOL) callconv(.c) HRESULT,
+    get_IsBuiltInErrorPageEnabled: *const fn (*ICoreWebView2Settings, *BOOL) callconv(.c) HRESULT,
+    put_IsBuiltInErrorPageEnabled: *const fn (*ICoreWebView2Settings, BOOL) callconv(.c) HRESULT,
+};
+
+pub const ICoreWebView2Settings = extern struct {
+    lpVtbl: *ICoreWebView2SettingsVtbl,
+};
+
+// -- ICoreWebView2PermissionRequestedEventArgs -------------------------------
+
+pub const ICoreWebView2PermissionRequestedEventArgsVtbl = extern struct {
+    // IUnknown
+    QueryInterface: *const fn (*ICoreWebView2PermissionRequestedEventArgs, *const GUID, *?*anyopaque) callconv(.c) HRESULT,
+    AddRef: *const fn (*ICoreWebView2PermissionRequestedEventArgs) callconv(.c) c_ulong,
+    Release: *const fn (*ICoreWebView2PermissionRequestedEventArgs) callconv(.c) c_ulong,
+    // ICoreWebView2PermissionRequestedEventArgs
+    get_Uri: *const fn (*ICoreWebView2PermissionRequestedEventArgs, *LPWSTR) callconv(.c) HRESULT,
+    get_PermissionKind: *const fn (*ICoreWebView2PermissionRequestedEventArgs, *COREWEBVIEW2_PERMISSION_KIND) callconv(.c) HRESULT,
+    get_IsUserInitiated: *const fn (*ICoreWebView2PermissionRequestedEventArgs, *BOOL) callconv(.c) HRESULT,
+    get_State: *const fn (*ICoreWebView2PermissionRequestedEventArgs, *COREWEBVIEW2_PERMISSION_STATE) callconv(.c) HRESULT,
+    put_State: *const fn (*ICoreWebView2PermissionRequestedEventArgs, COREWEBVIEW2_PERMISSION_STATE) callconv(.c) HRESULT,
+    GetDeferral: *const fn (*ICoreWebView2PermissionRequestedEventArgs, *?*anyopaque) callconv(.c) HRESULT,
+};
+
+pub const ICoreWebView2PermissionRequestedEventArgs = extern struct {
+    lpVtbl: *ICoreWebView2PermissionRequestedEventArgsVtbl,
+};
 
 // Permission types for WebView2
 pub const COREWEBVIEW2_PERMISSION_KIND = enum(c_int) {
@@ -125,17 +334,338 @@ pub const COREWEBVIEW2_PERMISSION_STATE = enum(c_int) {
     DENY = 2,
 };
 
+// ============================================================================
+// COM callback handler implementations
+// ============================================================================
+//
+// WebView2 initialization is asynchronous. We create small COM objects whose
+// vtables point to our Zig functions so the runtime can call us back.
+//
+// Each handler struct has:
+//   - A vtable pointer (first field, required by COM ABI)
+//   - A reference count
+//   - Pointers back to the shared WebView2InitContext so callbacks can store
+//     results and signal completion
+// ============================================================================
+
+/// Shared mutable state used during async WebView2 initialization.
+const WebView2InitContext = struct {
+    hwnd: HWND,
+    controller: ?*ICoreWebView2Controller = null,
+    webview: ?*ICoreWebView2 = null,
+    init_done: bool = false,
+    init_failed: bool = false,
+    dev_tools: bool = true,
+};
+
+// -- Environment completed handler -------------------------------------------
+
+const EnvironmentCompletedHandler = extern struct {
+    lpVtbl: *const EnvironmentCompletedHandlerVtbl,
+    ref_count: c_ulong,
+    ctx: *WebView2InitContext,
+
+    const EnvironmentCompletedHandlerVtbl = extern struct {
+        QueryInterface: *const fn (*EnvironmentCompletedHandler, *const GUID, *?*anyopaque) callconv(.c) HRESULT,
+        AddRef: *const fn (*EnvironmentCompletedHandler) callconv(.c) c_ulong,
+        Release: *const fn (*EnvironmentCompletedHandler) callconv(.c) c_ulong,
+        Invoke: *const fn (*EnvironmentCompletedHandler, HRESULT, ?*ICoreWebView2Environment) callconv(.c) HRESULT,
+    };
+
+    const vtbl_instance = EnvironmentCompletedHandlerVtbl{
+        .QueryInterface = &envQueryInterface,
+        .AddRef = &envAddRef,
+        .Release = &envRelease,
+        .Invoke = &envInvoke,
+    };
+
+    fn envQueryInterface(self: *EnvironmentCompletedHandler, _: *const GUID, ppv: *?*anyopaque) callconv(.c) HRESULT {
+        ppv.* = @ptrCast(self);
+        _ = envAddRef(self);
+        return S_OK;
+    }
+
+    fn envAddRef(self: *EnvironmentCompletedHandler) callconv(.c) c_ulong {
+        self.ref_count += 1;
+        return self.ref_count;
+    }
+
+    fn envRelease(self: *EnvironmentCompletedHandler) callconv(.c) c_ulong {
+        if (self.ref_count > 0) self.ref_count -= 1;
+        return self.ref_count;
+    }
+
+    fn envInvoke(self: *EnvironmentCompletedHandler, hr: HRESULT, env: ?*ICoreWebView2Environment) callconv(.c) HRESULT {
+        if (hr != S_OK) {
+            std.debug.print("[WebView2] Environment creation failed: 0x{x}\n", .{@as(u32, @bitCast(hr))});
+            self.ctx.init_failed = true;
+            return hr;
+        }
+        const environment = env orelse {
+            std.debug.print("[WebView2] Environment creation returned null\n", .{});
+            self.ctx.init_failed = true;
+            return -1; // E_FAIL
+        };
+
+        // Create the controller handler (stack-allocated; the COM call will
+        // invoke it synchronously from the message pump before we return).
+        var ctrl_handler = ControllerCompletedHandler{
+            .lpVtbl = &ControllerCompletedHandler.vtbl_instance,
+            .ref_count = 1,
+            .ctx = self.ctx,
+        };
+
+        const result = environment.lpVtbl.CreateCoreWebView2Controller(
+            environment,
+            self.ctx.hwnd,
+            @ptrCast(&ctrl_handler),
+        );
+        if (result != S_OK) {
+            std.debug.print("[WebView2] CreateCoreWebView2Controller call failed: 0x{x}\n", .{@as(u32, @bitCast(result))});
+            self.ctx.init_failed = true;
+        }
+        return result;
+    }
+};
+
+// ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler is used by the
+// extern CreateCoreWebView2EnvironmentWithOptions. We redefine it here as
+// a concrete type alias so the extern declaration is satisfied.
+pub const ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler = EnvironmentCompletedHandler;
+
+// -- Controller completed handler --------------------------------------------
+
+const ControllerCompletedHandler = extern struct {
+    lpVtbl: *const ControllerCompletedHandlerVtbl,
+    ref_count: c_ulong,
+    ctx: *WebView2InitContext,
+
+    const ControllerCompletedHandlerVtbl = extern struct {
+        QueryInterface: *const fn (*ControllerCompletedHandler, *const GUID, *?*anyopaque) callconv(.c) HRESULT,
+        AddRef: *const fn (*ControllerCompletedHandler) callconv(.c) c_ulong,
+        Release: *const fn (*ControllerCompletedHandler) callconv(.c) c_ulong,
+        Invoke: *const fn (*ControllerCompletedHandler, HRESULT, ?*ICoreWebView2Controller) callconv(.c) HRESULT,
+    };
+
+    const vtbl_instance = ControllerCompletedHandlerVtbl{
+        .QueryInterface = &ctrlQueryInterface,
+        .AddRef = &ctrlAddRef,
+        .Release = &ctrlRelease,
+        .Invoke = &ctrlInvoke,
+    };
+
+    fn ctrlQueryInterface(self: *ControllerCompletedHandler, _: *const GUID, ppv: *?*anyopaque) callconv(.c) HRESULT {
+        ppv.* = @ptrCast(self);
+        _ = ctrlAddRef(self);
+        return S_OK;
+    }
+
+    fn ctrlAddRef(self: *ControllerCompletedHandler) callconv(.c) c_ulong {
+        self.ref_count += 1;
+        return self.ref_count;
+    }
+
+    fn ctrlRelease(self: *ControllerCompletedHandler) callconv(.c) c_ulong {
+        if (self.ref_count > 0) self.ref_count -= 1;
+        return self.ref_count;
+    }
+
+    fn ctrlInvoke(self: *ControllerCompletedHandler, hr: HRESULT, ctrl: ?*ICoreWebView2Controller) callconv(.c) HRESULT {
+        if (hr != S_OK) {
+            std.debug.print("[WebView2] Controller creation failed: 0x{x}\n", .{@as(u32, @bitCast(hr))});
+            self.ctx.init_failed = true;
+            return hr;
+        }
+
+        const controller = ctrl orelse {
+            std.debug.print("[WebView2] Controller creation returned null\n", .{});
+            self.ctx.init_failed = true;
+            return -1;
+        };
+
+        // Get the ICoreWebView2 from the controller
+        var webview: *ICoreWebView2 = undefined;
+        var get_hr = controller.lpVtbl.get_CoreWebView2(controller, &webview);
+        if (get_hr != S_OK) {
+            std.debug.print("[WebView2] get_CoreWebView2 failed: 0x{x}\n", .{@as(u32, @bitCast(get_hr))});
+            self.ctx.init_failed = true;
+            return get_hr;
+        }
+
+        // Configure settings
+        var settings: *ICoreWebView2Settings = undefined;
+        get_hr = webview.lpVtbl.get_Settings(webview, &settings);
+        if (get_hr == S_OK) {
+            _ = settings.lpVtbl.put_IsScriptEnabled(settings, 1);
+            _ = settings.lpVtbl.put_IsWebMessageEnabled(settings, 1);
+            _ = settings.lpVtbl.put_AreDefaultContextMenusEnabled(settings, 1);
+            _ = settings.lpVtbl.put_AreDevToolsEnabled(settings, if (self.ctx.dev_tools) @as(BOOL, 1) else @as(BOOL, 0));
+            _ = settings.lpVtbl.put_IsStatusBarEnabled(settings, 0);
+            _ = settings.lpVtbl.put_IsZoomControlEnabled(settings, 0);
+        }
+
+        // Size the webview to fill the client area
+        var bounds: RECT = undefined;
+        _ = GetClientRect(self.ctx.hwnd, &bounds);
+        _ = controller.lpVtbl.put_Bounds(controller, bounds);
+        _ = controller.lpVtbl.put_IsVisible(controller, 1);
+
+        // Register permission handler for camera/microphone
+        var perm_handler = PermissionRequestedHandler{
+            .lpVtbl = &PermissionRequestedHandler.vtbl_instance,
+            .ref_count = 1,
+        };
+        var perm_token: EventRegistrationToken = .{ .value = 0 };
+        _ = webview.lpVtbl.add_PermissionRequested(webview, @ptrCast(&perm_handler), &perm_token);
+
+        // Store results
+        self.ctx.controller = controller;
+        self.ctx.webview = webview;
+        self.ctx.init_done = true;
+
+        std.debug.print("[WebView2] Initialization complete\n", .{});
+        return S_OK;
+    }
+};
+
+pub const ICoreWebView2CreateCoreWebView2ControllerCompletedHandler = ControllerCompletedHandler;
+
+// -- Permission requested event handler --------------------------------------
+
+const PermissionRequestedHandler = extern struct {
+    lpVtbl: *const PermissionRequestedHandlerVtbl,
+    ref_count: c_ulong,
+
+    const PermissionRequestedHandlerVtbl = extern struct {
+        QueryInterface: *const fn (*PermissionRequestedHandler, *const GUID, *?*anyopaque) callconv(.c) HRESULT,
+        AddRef: *const fn (*PermissionRequestedHandler) callconv(.c) c_ulong,
+        Release: *const fn (*PermissionRequestedHandler) callconv(.c) c_ulong,
+        Invoke: *const fn (*PermissionRequestedHandler, *ICoreWebView2, *ICoreWebView2PermissionRequestedEventArgs) callconv(.c) HRESULT,
+    };
+
+    const vtbl_instance = PermissionRequestedHandlerVtbl{
+        .QueryInterface = &permQueryInterface,
+        .AddRef = &permAddRef,
+        .Release = &permRelease,
+        .Invoke = &permInvoke,
+    };
+
+    fn permQueryInterface(self: *PermissionRequestedHandler, _: *const GUID, ppv: *?*anyopaque) callconv(.c) HRESULT {
+        ppv.* = @ptrCast(self);
+        _ = permAddRef(self);
+        return S_OK;
+    }
+
+    fn permAddRef(self: *PermissionRequestedHandler) callconv(.c) c_ulong {
+        self.ref_count += 1;
+        return self.ref_count;
+    }
+
+    fn permRelease(self: *PermissionRequestedHandler) callconv(.c) c_ulong {
+        if (self.ref_count > 0) self.ref_count -= 1;
+        return self.ref_count;
+    }
+
+    fn permInvoke(_: *PermissionRequestedHandler, _: *ICoreWebView2, args: *ICoreWebView2PermissionRequestedEventArgs) callconv(.c) HRESULT {
+        var kind: COREWEBVIEW2_PERMISSION_KIND = .UNKNOWN_PERMISSION;
+        _ = args.lpVtbl.get_PermissionKind(args, &kind);
+
+        // Auto-allow camera and microphone access
+        if (kind == .CAMERA or kind == .MICROPHONE) {
+            _ = args.lpVtbl.put_State(args, .ALLOW);
+            std.debug.print("[Media] Auto-allowed permission: {}\n", .{kind});
+        }
+        return S_OK;
+    }
+};
+
+pub const ICoreWebView2PermissionRequestedEventHandler = PermissionRequestedHandler;
+
+// -- ExecuteScript completed handler (fire-and-forget) -----------------------
+
+const ExecuteScriptCompletedHandler = extern struct {
+    lpVtbl: *const ExecuteScriptCompletedHandlerVtbl,
+    ref_count: c_ulong,
+
+    const ExecuteScriptCompletedHandlerVtbl = extern struct {
+        QueryInterface: *const fn (*ExecuteScriptCompletedHandler, *const GUID, *?*anyopaque) callconv(.c) HRESULT,
+        AddRef: *const fn (*ExecuteScriptCompletedHandler) callconv(.c) c_ulong,
+        Release: *const fn (*ExecuteScriptCompletedHandler) callconv(.c) c_ulong,
+        Invoke: *const fn (*ExecuteScriptCompletedHandler, HRESULT, LPCWSTR) callconv(.c) HRESULT,
+    };
+
+    const vtbl_instance = ExecuteScriptCompletedHandlerVtbl{
+        .QueryInterface = &esQueryInterface,
+        .AddRef = &esAddRef,
+        .Release = &esRelease,
+        .Invoke = &esInvoke,
+    };
+
+    fn esQueryInterface(self: *ExecuteScriptCompletedHandler, _: *const GUID, ppv: *?*anyopaque) callconv(.c) HRESULT {
+        ppv.* = @ptrCast(self);
+        _ = esAddRef(self);
+        return S_OK;
+    }
+
+    fn esAddRef(self: *ExecuteScriptCompletedHandler) callconv(.c) c_ulong {
+        self.ref_count += 1;
+        return self.ref_count;
+    }
+
+    fn esRelease(self: *ExecuteScriptCompletedHandler) callconv(.c) c_ulong {
+        if (self.ref_count > 0) self.ref_count -= 1;
+        return self.ref_count;
+    }
+
+    fn esInvoke(_: *ExecuteScriptCompletedHandler, hr: HRESULT, _: LPCWSTR) callconv(.c) HRESULT {
+        if (hr != S_OK) {
+            std.debug.print("[WebView2] ExecuteScript completed with error: 0x{x}\n", .{@as(u32, @bitCast(hr))});
+        }
+        return S_OK;
+    }
+};
+
+pub const ICoreWebView2ExecuteScriptCompletedHandler = ExecuteScriptCompletedHandler;
+
+// ============================================================================
+// WebView2Loader extern
+// ============================================================================
+
 pub extern "WebView2Loader" fn CreateCoreWebView2EnvironmentWithOptions(
     browserExecutableFolder: ?LPCWSTR,
     userDataFolder: ?LPCWSTR,
     options: ?*anyopaque,
-    environmentCreatedHandler: ?*ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler,
-) callconv(.c) c_long;
+    environmentCreatedHandler: *ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler,
+) callconv(.c) HRESULT;
 
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/// Convert a UTF-8 slice to a stack-allocated null-terminated UTF-16 buffer.
+fn utf8ToUtf16Z(comptime max_len: usize, input: []const u8) ![max_len]u16 {
+    var buf: [max_len]u16 = undefined;
+    const len = try std.unicode.utf8ToUtf16Le(&buf, input);
+    if (len >= max_len) return error.StringTooLong;
+    buf[len] = 0;
+    return buf;
+}
+
+fn succeeded(hr: HRESULT) bool {
+    return hr >= 0;
+}
+
+// ============================================================================
 // Application state
+// ============================================================================
+
 var app_running = false;
 var window_class_registered = false;
 const CLASS_NAME: [:0]const u16 = &[_:0]u16{ 'Z', 'y', 't', 'e', 'W', 'i', 'n', 'd', 'o', 'w' };
+
+// Global pointer so WindowProc can access the active window for WM_SIZE.
+// For multi-window support this would need a map keyed by HWND.
+var g_active_window: ?*Window = null;
 
 pub const WindowStyle = struct {
     frameless: bool = false,
@@ -223,37 +753,74 @@ pub const Window = struct {
             null,
         ) orelse return error.WindowCreationFailed;
 
-        // Initialize WebView2 (simplified - actual implementation would be async)
-        // For now, we'll return without WebView2 initialization
+        // ----------------------------------------------------------------
+        // Async WebView2 initialization
+        // ----------------------------------------------------------------
         //
-        // When WebView2 is properly initialized, camera/microphone permissions
-        // should be handled via the PermissionRequested event:
-        //
-        // 1. Call webview->add_PermissionRequested(handler, &token) to register handler
-        // 2. In the handler, check args->get_PermissionKind(&kind)
-        // 3. If kind is CAMERA (2) or MICROPHONE (1), call args->put_State(ALLOW)
-        //
-        // Example handler implementation:
-        // fn onPermissionRequested(sender: *ICoreWebView2, args: *ICoreWebView2PermissionRequestedEventArgs) HRESULT {
-        //     var kind: COREWEBVIEW2_PERMISSION_KIND = undefined;
-        //     _ = args.get_PermissionKind(&kind);
-        //     if (kind == .CAMERA or kind == .MICROPHONE) {
-        //         _ = args.put_State(.ALLOW);
-        //     }
-        //     return 0; // S_OK
-        // }
+        // CreateCoreWebView2EnvironmentWithOptions is asynchronous: it
+        // returns immediately and delivers the result via a COM callback
+        // handler. The callback is dispatched through the Win32 message
+        // pump, so we spin a local message loop until init_done or
+        // init_failed is set by our handler chain.
+        // ----------------------------------------------------------------
+
+        var init_ctx = WebView2InitContext{
+            .hwnd = hwnd,
+            .dev_tools = options.dev_tools,
+        };
+
+        var env_handler = EnvironmentCompletedHandler{
+            .lpVtbl = &EnvironmentCompletedHandler.vtbl_instance,
+            .ref_count = 1,
+            .ctx = &init_ctx,
+        };
+
+        const create_hr = CreateCoreWebView2EnvironmentWithOptions(
+            null, // default browser executable
+            null, // default user data folder
+            null, // no special options
+            &env_handler,
+        );
+
+        if (!succeeded(create_hr)) {
+            std.debug.print("[WebView2] CreateCoreWebView2EnvironmentWithOptions failed: 0x{x}\n", .{@as(u32, @bitCast(create_hr))});
+            return error.WebView2InitFailed;
+        }
+
+        // Pump messages until the async chain finishes
+        var msg: MSG = undefined;
+        while (!init_ctx.init_done and !init_ctx.init_failed) {
+            if (PeekMessageW(&msg, null, 0, 0, PM_REMOVE) != 0) {
+                _ = TranslateMessage(&msg);
+                _ = DispatchMessageW(&msg);
+            } else {
+                // Yield CPU while waiting for the async callback
+                Sleep(1);
+            }
+        }
+
+        if (init_ctx.init_failed) {
+            std.debug.print("[WebView2] Initialization failed\n", .{});
+            return error.WebView2InitFailed;
+        }
+
         std.debug.print("[Media] Windows WebView2 configured for camera/microphone access\n", .{});
 
-        return Window{
+        var window = Window{
             .hwnd = hwnd,
-            .controller = null,
-            .webview = null,
+            .controller = init_ctx.controller,
+            .webview = init_ctx.webview,
             .title = options.title,
             .width = options.width,
             .height = options.height,
             .x = x,
             .y = y,
         };
+
+        // Store a global reference for WindowProc to use on WM_SIZE
+        g_active_window = &window;
+
+        return window;
     }
 
     pub fn show(self: *Window) void {
@@ -266,6 +833,12 @@ pub const Window = struct {
     }
 
     pub fn close(self: *Window) void {
+        if (self.controller) |ctrl| {
+            _ = ctrl.lpVtbl.Close(ctrl);
+        }
+        self.controller = null;
+        self.webview = null;
+        g_active_window = null;
         _ = DestroyWindow(self.hwnd);
     }
 
@@ -273,33 +846,51 @@ pub const Window = struct {
         _ = SetWindowPos(self.hwnd, null, 0, 0, @intCast(width), @intCast(height), 0x0002); // SWP_NOMOVE
         self.width = width;
         self.height = height;
+        self.resizeWebView();
     }
 
-    pub fn setPosition(self: *Window, x: i32, y: i32) void {
-        _ = SetWindowPos(self.hwnd, null, @intCast(x), @intCast(y), 0, 0, 0x0001); // SWP_NOSIZE
-        self.x = x;
-        self.y = y;
+    pub fn setPosition(self: *Window, x_pos: i32, y_pos: i32) void {
+        _ = SetWindowPos(self.hwnd, null, @intCast(x_pos), @intCast(y_pos), 0, 0, 0x0001); // SWP_NOSIZE
+        self.x = x_pos;
+        self.y = y_pos;
     }
 
     pub fn setTitle(self: *Window, title: []const u8) void {
-        var title_wide: [256]u16 = undefined;
-        const title_len = std.unicode.utf8ToUtf16Le(&title_wide, title) catch return;
-        title_wide[title_len] = 0;
-        _ = SetWindowTextW(self.hwnd, &title_wide);
+        var title_wide_buf: [256]u16 = undefined;
+        const len = std.unicode.utf8ToUtf16Le(&title_wide_buf, title) catch return;
+        title_wide_buf[len] = 0;
+        _ = SetWindowTextW(self.hwnd, &title_wide_buf);
         self.title = title;
     }
 
     pub fn loadURL(self: *Window, url: []const u8) !void {
-        _ = self;
-        _ = url;
-        // Would use WebView2->Navigate()
-        // This requires async WebView2 initialization
+        const webview = self.webview orelse return error.WebView2NotInitialized;
+        var url_wide = try utf8ToUtf16Z(4096, url);
+        const url_ptr: LPCWSTR = @ptrCast(&url_wide);
+        const hr = webview.lpVtbl.Navigate(webview, url_ptr);
+        if (!succeeded(hr)) {
+            std.debug.print("[WebView2] Navigate failed: 0x{x}\n", .{@as(u32, @bitCast(hr))});
+            return error.NavigationFailed;
+        }
     }
 
     pub fn loadHTML(self: *Window, html: []const u8) !void {
-        _ = self;
-        _ = html;
-        // Would use WebView2->NavigateToString()
+        const webview = self.webview orelse return error.WebView2NotInitialized;
+        // NavigateToString needs null-terminated UTF-16.
+        // For large HTML we allocate on the heap.
+        const wide_len = html.len + 1; // rough upper bound for ASCII-heavy content
+        const buf = try std.heap.page_allocator.alloc(u16, wide_len);
+        defer std.heap.page_allocator.free(buf);
+
+        const encoded = std.unicode.utf8ToUtf16Le(buf, html) catch return error.EncodingFailed;
+        buf[encoded] = 0;
+        const html_ptr: LPCWSTR = @ptrCast(buf.ptr);
+
+        const hr = webview.lpVtbl.NavigateToString(webview, html_ptr);
+        if (!succeeded(hr)) {
+            std.debug.print("[WebView2] NavigateToString failed: 0x{x}\n", .{@as(u32, @bitCast(hr))});
+            return error.NavigationFailed;
+        }
     }
 
     pub fn maximize(self: *Window) void {
@@ -319,16 +910,33 @@ pub const Window = struct {
     }
 
     pub fn executeJavaScript(self: *Window, script: []const u8) !void {
-        _ = self;
-        _ = script;
-        // Would use webview->ExecuteScript()
-        // Requires proper WebView2 initialization and COM interfaces
+        const webview = self.webview orelse return error.WebView2NotInitialized;
+        var script_wide = try utf8ToUtf16Z(16384, script);
+        const script_ptr: LPCWSTR = @ptrCast(&script_wide);
+
+        // Use a fire-and-forget completed handler
+        var handler = ExecuteScriptCompletedHandler{
+            .lpVtbl = &ExecuteScriptCompletedHandler.vtbl_instance,
+            .ref_count = 1,
+        };
+
+        const hr = webview.lpVtbl.ExecuteScript(webview, script_ptr, &handler);
+        if (!succeeded(hr)) {
+            std.debug.print("[WebView2] ExecuteScript failed: 0x{x}\n", .{@as(u32, @bitCast(hr))});
+            return error.ScriptExecutionFailed;
+        }
     }
 
     pub fn injectScript(self: *Window, script: []const u8) !void {
-        _ = self;
-        _ = script;
-        // Would use webview->AddScriptToExecuteOnDocumentCreated()
+        const webview = self.webview orelse return error.WebView2NotInitialized;
+        var script_wide = try utf8ToUtf16Z(16384, script);
+        const script_ptr: LPCWSTR = @ptrCast(&script_wide);
+
+        const hr = webview.lpVtbl.AddScriptToExecuteOnDocumentCreated(webview, script_ptr, null);
+        if (!succeeded(hr)) {
+            std.debug.print("[WebView2] AddScriptToExecuteOnDocumentCreated failed: 0x{x}\n", .{@as(u32, @bitCast(hr))});
+            return error.ScriptInjectionFailed;
+        }
     }
 
     pub fn enableGPUAcceleration(self: *Window, enable: bool) !void {
@@ -339,13 +947,30 @@ pub const Window = struct {
     }
 
     pub fn openDevTools(self: *Window) void {
-        _ = self;
-        // Would use webview->OpenDevToolsWindow()
+        const webview = self.webview orelse return;
+        _ = webview.lpVtbl.OpenDevToolsWindow(webview);
+    }
+
+    // Resize the WebView2 control to match the current client area
+    fn resizeWebView(self: *Window) void {
+        const controller = self.controller orelse return;
+        var bounds: RECT = undefined;
+        _ = GetClientRect(self.hwnd, &bounds);
+        _ = controller.lpVtbl.put_Bounds(controller, bounds);
     }
 };
 
 fn WindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.c) LRESULT {
     switch (msg) {
+        WM_SIZE => {
+            // Resize the WebView2 control to fill the window
+            if (g_active_window) |win| {
+                if (win.hwnd == hwnd) {
+                    win.resizeWebView();
+                }
+            }
+            return 0;
+        },
         WM_DESTROY, WM_CLOSE => {
             PostQuitMessage(0);
             return 0;
@@ -371,6 +996,16 @@ pub const App = struct {
         PostQuitMessage(0);
     }
 };
+
+/// Evaluate JavaScript in the current webview (cross-platform bridge helper).
+/// Uses the active window's WebView2 instance.
+pub fn evalJS(script: []const u8) !void {
+    if (g_active_window) |win| {
+        try win.executeJavaScript(script);
+    } else {
+        return error.NoWebView;
+    }
+}
 
 // Legacy API compatibility
 pub fn createWindow(title: []const u8, width: u32, height: u32, html: []const u8) !*anyopaque {

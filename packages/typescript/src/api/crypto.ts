@@ -174,11 +174,12 @@ function bufferToHex(buffer: ArrayBuffer): string {
  */
 function bufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
-  let binary = ''
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i])
+  const chunks: string[] = []
+  const chunkSize = 8192
+  for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+    chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)))
   }
-  return btoa(binary)
+  return btoa(chunks.join(''))
 }
 
 /**

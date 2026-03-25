@@ -6,9 +6,12 @@
 
 import { CLI } from '@stacksjs/clapp'
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
+
+// Read the current version from the package's own package.json (which stays in sync via bumpx --recursive)
+const craftVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version
 
 const cli = new CLI('create-craft')
 
@@ -107,7 +110,7 @@ function createMinimalTemplate(projectPath: string, projectName: string): void {
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
     dependencies: {
-      '@craft-native/craft': 'workspace:*',
+      '@craft-native/craft': `^${craftVersion}`,
 
     },
     devDependencies: {
@@ -214,7 +217,7 @@ function createFullFeaturedTemplate(projectPath: string, projectName: string): v
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
     dependencies: {
-      '@craft-native/craft': 'workspace:*',
+      '@craft-native/craft': `^${craftVersion}`,
 
     },
     devDependencies: {
@@ -390,7 +393,7 @@ function createTodoAppTemplate(projectPath: string, projectName: string): void {
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
     dependencies: {
-      '@craft-native/craft': 'workspace:*',
+      '@craft-native/craft': `^${craftVersion}`,
 
     },
     devDependencies: {

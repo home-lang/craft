@@ -280,7 +280,9 @@ pub const Marketplace = struct {
     pub fn uninstall(self: *Marketplace, plugin_id: []const u8) !void {
         if (self.installed_plugins.fetchRemove(plugin_id)) |kv| {
             // Delete plugin files
-            io_context.cwd().deleteTree(io_context.get(), kv.value.install_path) catch {};
+            io_context.cwd().deleteTree(io_context.get(), kv.value.install_path) catch |err| {
+                std.log.warn("failed to delete plugin files during uninstall: {}", .{err});
+            };
             self.allocator.free(kv.value.install_path);
         } else {
             return error.PluginNotInstalled;

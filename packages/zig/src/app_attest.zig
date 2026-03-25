@@ -923,14 +923,18 @@ pub const AppAttestController = struct {
     }
 
     fn emitEvent(self: *AppAttestController, event: AttestationEvent, allocator: Allocator) void {
-        self.event_history.append(allocator, event) catch {};
+        self.event_history.append(allocator, event) catch |err| {
+            std.log.debug("failed to append attestation event to history: {}", .{err});
+        };
         if (self.event_callback) |callback| {
             callback(event);
         }
     }
 
     fn recordResult(self: *AppAttestController, result: AttestationResult, allocator: Allocator) void {
-        self.result_history.append(allocator, result) catch {};
+        self.result_history.append(allocator, result) catch |err| {
+            std.log.debug("failed to append attestation result to history: {}", .{err});
+        };
     }
 
     pub fn isSupported(self: *const AppAttestController) bool {

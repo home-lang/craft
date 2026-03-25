@@ -186,14 +186,21 @@ fn logInternal(
     const io = io_context.get();
     switch (config.target) {
         .stderr => {
-            std.Io.File.stderr().writeStreamingAll(io, buf[0..pos]) catch {};
+            std.Io.File.stderr().writeStreamingAll(io, buf[0..pos]) catch |write_err| {
+                // Cannot use logging here to avoid recursion; use debug print as fallback
+                std.debug.print("logging: stderr write failed: {}\n", .{write_err});
+            };
         },
         .stdout => {
-            std.Io.File.stdout().writeStreamingAll(io, buf[0..pos]) catch {};
+            std.Io.File.stdout().writeStreamingAll(io, buf[0..pos]) catch |write_err| {
+                std.debug.print("logging: stdout write failed: {}\n", .{write_err});
+            };
         },
         .file => {
             if (global_file) |f| {
-                f.writeStreamingAll(io_context.get(), buf[0..pos]) catch {};
+                f.writeStreamingAll(io_context.get(), buf[0..pos]) catch |write_err| {
+                    std.debug.print("logging: file write failed: {}\n", .{write_err});
+                };
             }
         },
         .callback => {

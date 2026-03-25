@@ -27,6 +27,25 @@
 import type { CraftFileSystemAPI } from '../types'
 
 /**
+ * Validate a file path to prevent directory traversal attacks.
+ * Blocks paths containing ".." segments that could escape the intended directory.
+ */
+function validatePath(path: string): void {
+  // Normalize the path to resolve relative segments
+  const normalized = path.replace(/\\/g, '/')
+
+  // Block explicit traversal patterns
+  if (normalized.includes('/../') || normalized.startsWith('../') || normalized.endsWith('/..') || normalized === '..') {
+    throw new Error(`Path traversal detected: "${path}" contains ".." segments`)
+  }
+
+  // Block null bytes (can truncate paths in C APIs)
+  if (path.includes('\0')) {
+    throw new Error(`Invalid path: contains null byte`)
+  }
+}
+
+/**
  * File system API implementation.
  * Uses the native Craft bridge for file operations when running in a Craft app,
  * with automatic fallback to Node.js APIs when running in a Node environment.
@@ -59,6 +78,7 @@ export const fs: CraftFileSystemAPI = {
    * ```
    */
   async readFile(path: string): Promise<string> {
+    validatePath(path)
     if (typeof window !== 'undefined' && (window as any).craft?.fs) {
       return (window as any).craft.fs.readFile(path)
     }
@@ -86,6 +106,7 @@ export const fs: CraftFileSystemAPI = {
    * ```
    */
   async writeFile(path: string, content: string): Promise<void> {
+    validatePath(path)
     if (typeof window !== 'undefined' && (window as any).craft?.fs) {
       return (window as any).craft.fs.writeFile(path, content)
     }
@@ -218,6 +239,7 @@ catch {
  * ```
  */
 export async function readBinaryFile(path: string): Promise<Uint8Array> {
+  validatePath(path)
   if (typeof window !== 'undefined' && window.craft) {
     // Bridge call to read binary file
     const response = await (window.craft as any).bridge?.call('fs.readBinaryFile', { path })
@@ -250,6 +272,7 @@ export async function readBinaryFile(path: string): Promise<Uint8Array> {
  * ```
  */
 export async function writeBinaryFile(path: string, data: Uint8Array): Promise<void> {
+  validatePath(path)
   if (typeof window !== 'undefined' && window.craft) {
     // Bridge call to write binary file
     await (window.craft as any).bridge?.call('fs.writeBinaryFile', { path, data: Array.from(data) })
@@ -302,6 +325,7 @@ export interface FileStats {
  * ```
  */
 export async function stat(path: string): Promise<FileStats> {
+  validatePath(path)
   if (typeof window !== 'undefined' && window.craft) {
     const response = await (window.craft as any).bridge?.call('fs.stat', { path })
     return {
@@ -343,6 +367,8 @@ export async function stat(path: string): Promise<FileStats> {
  * ```
  */
 export async function copy(src: string, dest: string): Promise<void> {
+  validatePath(src)
+  validatePath(dest)
   if (typeof window !== 'undefined' && window.craft) {
     await (window.craft as any).bridge?.call('fs.copy', { src, dest })
     return
@@ -370,6 +396,8 @@ export async function copy(src: string, dest: string): Promise<void> {
  * ```
  */
 export async function move(src: string, dest: string): Promise<void> {
+  validatePath(src)
+  validatePath(dest)
   if (typeof window !== 'undefined' && window.craft) {
     await (window.craft as any).bridge?.call('fs.move', { src, dest })
     return
@@ -405,6 +433,7 @@ export async function move(src: string, dest: string): Promise<void> {
  * ```
  */
 export function watch(path: string, callback: (event: string, filename: string) => void): () => void {
+  validatePath(path)
   if (typeof window !== 'undefined' && window.craft) {
     // Bridge-based watch
     const watchId = Math.random().toString(36).slice(2)

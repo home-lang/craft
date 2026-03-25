@@ -75,8 +75,6 @@ pub const NetworkBridge = struct {
             std.debug.print("[NetworkBridge] isConnected\n", .{});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             // Simple check: try to resolve a hostname
             // In a full implementation, use SCNetworkReachability
             // For now, assume connected if we can get to this code
@@ -85,7 +83,10 @@ pub const NetworkBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','isConnected',{});", .{ callback_id, connected }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for isConnected callback: {}", .{err});
+            };
         }
     }
 
@@ -129,7 +130,10 @@ pub const NetworkBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getConnectionType','{s}');", .{ callback_id, conn_type }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getConnectionType callback: {}", .{err});
+            };
         }
     }
 
@@ -174,7 +178,10 @@ pub const NetworkBridge = struct {
             var buf: [512]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getWiFiSSID','{s}');", .{ callback_id, ssid }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getWiFiSSID callback: {}", .{err});
+            };
         }
     }
 
@@ -214,7 +221,10 @@ pub const NetworkBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getWiFiSignalStrength',{d});", .{ callback_id, rssi }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getWiFiSignalStrength callback: {}", .{err});
+            };
         }
     }
 
@@ -270,7 +280,10 @@ pub const NetworkBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getIPAddress','{s}');", .{ callback_id, ip_addr }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getIPAddress callback: {}", .{err});
+            };
         }
     }
 
@@ -315,7 +328,10 @@ pub const NetworkBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getMACAddress','{s}');", .{ callback_id, mac_addr }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getMACAddress callback: {}", .{err});
+            };
         }
     }
 
@@ -336,14 +352,15 @@ pub const NetworkBridge = struct {
             std.debug.print("[NetworkBridge] getNetworkInterfaces\n", .{});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             // Return basic interface info
             // Full implementation would use getifaddrs
             var buf: [1024]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getNetworkInterfaces',[{{name:'en0',type:'wifi'}},{{name:'en1',type:'ethernet'}}]);", .{callback_id}) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getNetworkInterfaces callback: {}", .{err});
+            };
         }
     }
 
@@ -364,8 +381,6 @@ pub const NetworkBridge = struct {
             std.debug.print("[NetworkBridge] isVPNConnected\n", .{});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             // Check for utun interfaces which indicate VPN
             // Simplified - full implementation would check NEVPNManager
             const vpn_connected = false;
@@ -373,7 +388,10 @@ pub const NetworkBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','isVPNConnected',{});", .{ callback_id, vpn_connected }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for isVPNConnected callback: {}", .{err});
+            };
         }
     }
 
@@ -394,14 +412,15 @@ pub const NetworkBridge = struct {
             std.debug.print("[NetworkBridge] getProxySettings\n", .{});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             // Return null for no proxy
             // Full implementation would use SCDynamicStoreCopyProxies
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getProxySettings',null);", .{callback_id}) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getProxySettings callback: {}", .{err});
+            };
         }
     }
 

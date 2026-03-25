@@ -288,7 +288,9 @@ pub const LifecycleManager = struct {
     pub fn beginBackgroundTask(self: *Self, task_name: []const u8) BackgroundTaskId {
         const task_id = self.next_task_id;
         self.next_task_id += 1;
-        self.active_background_tasks.put(self.allocator, task_id, task_name) catch {};
+        self.active_background_tasks.put(self.allocator, task_id, task_name) catch |err| {
+            std.log.warn("failed to track background task '{s}': {}", .{ task_name, err });
+        };
         return task_id;
     }
 

@@ -92,7 +92,18 @@ pub const TouchBarBridge = struct {
     /// Set all touch bar items at once
     /// JSON: {"items": [{"id": "play", "type": "button", "label": "Play", "icon": "play.fill"}]}
     fn setItems(self: *Self, data: []const u8) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            // Touch Bar is macOS-only hardware
+            const bridge = @import("bridge.zig");
+            var not_supported_buf: [128]u8 = undefined;
+            const not_supported_js = std.fmt.bufPrint(&not_supported_buf,
+                \\if(window.__craftTouchBarError)window.__craftTouchBarError('PLATFORM_NOT_SUPPORTED','Touch Bar is only available on macOS');
+            , .{}) catch return;
+            bridge.evalJS(not_supported_js) catch |err| {
+                std.log.debug("JS eval failed for Touch Bar not-supported callback: {}", .{err});
+            };
+            return;
+        }
 
         // Clear existing items first
         self.clearItems();
@@ -304,7 +315,18 @@ pub const TouchBarBridge = struct {
     /// Enable/disable an item
     /// JSON: {"id": "save", "enabled": false}
     fn setItemEnabled(_: *Self, data: []const u8) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            // Touch Bar is macOS-only hardware
+            const bridge = @import("bridge.zig");
+            var not_supported_buf: [128]u8 = undefined;
+            const not_supported_js = std.fmt.bufPrint(&not_supported_buf,
+                \\if(window.__craftTouchBarError)window.__craftTouchBarError('PLATFORM_NOT_SUPPORTED','Touch Bar is only available on macOS');
+            , .{}) catch return;
+            bridge.evalJS(not_supported_js) catch |err| {
+                std.log.debug("JS eval failed for Touch Bar not-supported callback: {}", .{err});
+            };
+            return;
+        }
 
         var id: []const u8 = "";
         if (std.mem.indexOf(u8, data, "\"id\":\"")) |idx| {
@@ -372,7 +394,18 @@ pub const TouchBarBridge = struct {
 
     /// Show the touch bar
     fn show(_: *Self) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            // Touch Bar is macOS-only hardware
+            const bridge = @import("bridge.zig");
+            var not_supported_buf: [128]u8 = undefined;
+            const not_supported_js = std.fmt.bufPrint(&not_supported_buf,
+                \\if(window.__craftTouchBarError)window.__craftTouchBarError('PLATFORM_NOT_SUPPORTED','Touch Bar is only available on macOS');
+            , .{}) catch return;
+            bridge.evalJS(not_supported_js) catch |err| {
+                std.log.debug("JS eval failed for Touch Bar not-supported callback: {}", .{err});
+            };
+            return;
+        }
 
         const macos = @import("macos.zig");
 
@@ -387,7 +420,18 @@ pub const TouchBarBridge = struct {
     /// Hide the touch bar
     fn hide(self: *Self) !void {
         _ = self;
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            // Touch Bar is macOS-only hardware
+            const bridge = @import("bridge.zig");
+            var not_supported_buf: [128]u8 = undefined;
+            const not_supported_js = std.fmt.bufPrint(&not_supported_buf,
+                \\if(window.__craftTouchBarError)window.__craftTouchBarError('PLATFORM_NOT_SUPPORTED','Touch Bar is only available on macOS');
+            , .{}) catch return;
+            bridge.evalJS(not_supported_js) catch |err| {
+                std.log.debug("JS eval failed for Touch Bar not-supported callback: {}", .{err});
+            };
+            return;
+        }
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[TouchBarBridge] Touch bar hidden\n", .{});
@@ -395,7 +439,18 @@ pub const TouchBarBridge = struct {
 
     /// Rebuild the touch bar with current items
     fn rebuildTouchBar(self: *Self) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            // Touch Bar is macOS-only hardware
+            const bridge = @import("bridge.zig");
+            var not_supported_buf: [128]u8 = undefined;
+            const not_supported_js = std.fmt.bufPrint(&not_supported_buf,
+                \\if(window.__craftTouchBarError)window.__craftTouchBarError('PLATFORM_NOT_SUPPORTED','Touch Bar is only available on macOS');
+            , .{}) catch return;
+            bridge.evalJS(not_supported_js) catch |err| {
+                std.log.debug("JS eval failed for Touch Bar not-supported callback: {}", .{err});
+            };
+            return;
+        }
 
         const macos = @import("macos.zig");
 
@@ -457,7 +512,7 @@ pub const TouchBarBridge = struct {
     /// Create a native touch bar item
     fn createTouchBarItem(self: *Self, item: TouchBarItem, identifier: ?*anyopaque) ?*anyopaque {
         _ = self;
-        if (builtin.os.tag != .macos) return null;
+        if (comptime builtin.os.tag != .macos) return null;
 
         const macos = @import("macos.zig");
 
@@ -593,16 +648,29 @@ pub const TouchBarBridge = struct {
     /// Trigger callback for touch bar item
     fn triggerCallback(self: *Self, item_id: []const u8) void {
         _ = self;
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            // Touch Bar is macOS-only hardware
+            const bridge = @import("bridge.zig");
+            var not_supported_buf: [128]u8 = undefined;
+            const not_supported_js = std.fmt.bufPrint(&not_supported_buf,
+                \\if(window.__craftTouchBarError)window.__craftTouchBarError('PLATFORM_NOT_SUPPORTED','Touch Bar is only available on macOS');
+            , .{}) catch return;
+            bridge.evalJS(not_supported_js) catch |err| {
+                std.log.debug("JS eval failed for Touch Bar not-supported callback: {}", .{err});
+            };
+            return;
+        }
 
-        const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
         var buf: [256]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftTouchBarCallback)window.__craftTouchBarCallback('{s}');
         , .{item_id}) catch return;
 
-        macos.tryEvalJS(js) catch {};
+        bridge.evalJS(js) catch |err| {
+            std.log.debug("JS eval failed for Touch Bar callback: {}", .{err});
+        };
     }
 
     pub fn deinit(self: *Self) void {

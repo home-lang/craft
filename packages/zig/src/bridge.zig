@@ -1,6 +1,26 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+/// Evaluate JavaScript in the webview, cross-platform.
+/// Dispatches to the correct platform's webview JS evaluation function.
+pub fn evalJS(script: []const u8) !void {
+    switch (comptime builtin.os.tag) {
+        .macos => {
+            const macos = @import("macos.zig");
+            try macos.tryEvalJS(script);
+        },
+        .linux => {
+            const linux = @import("linux.zig");
+            try linux.evalJS(script);
+        },
+        .windows => {
+            const windows = @import("windows.zig");
+            try windows.evalJS(script);
+        },
+        else => return error.UnsupportedPlatform,
+    }
+}
+
 /// JavaScript bridge for Zig <-> Web communication
 /// Allows JavaScript to call Zig functions and Zig to evaluate JavaScript
 pub const MessageHandler = *const fn (message: []const u8) anyerror![]const u8;

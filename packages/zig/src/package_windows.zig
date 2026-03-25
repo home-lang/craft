@@ -259,7 +259,9 @@ pub fn createPortableZIP(
     d.createDir(io, temp_dir, .default_dir) catch |err| {
         if (err != error.PathAlreadyExists) return err;
     };
-    defer d.deleteTree(io, temp_dir) catch {};
+    defer d.deleteTree(io, temp_dir) catch |err| {
+        std.log.debug("temp dir cleanup failed: {}", .{err});
+    };
 
     // Copy binary to temp directory
     const dest_binary = try std.fmt.allocPrint(allocator, "{s}/{s}.exe", .{ temp_dir, app_name });

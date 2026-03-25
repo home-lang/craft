@@ -40,8 +40,10 @@ pub const MenubarCollapseBridge = struct {
                 if (ah_enabled) "true" else "false",
                 if (sep_hidden) "true" else "false",
             }) catch return;
-            const macos = @import("macos.zig");
-            macos.tryEvalJS(js) catch {};
+            const bridge = @import("bridge.zig");
+            bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for menubar status callback: {}", .{err});
+            };
         } else if (std.mem.eql(u8, action, "setAutoCollapse")) {
             // Parse delay from data (seconds as string)
             if (data.len > 0) {

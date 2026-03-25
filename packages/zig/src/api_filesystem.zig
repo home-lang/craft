@@ -236,7 +236,9 @@ test "File operations" {
 
     // Write test file
     try fs.writeFile("test_file.txt", "Hello, World!", "utf8");
-    defer io_context.cwd().deleteFile(io_context.get(), "test_file.txt") catch {};
+    defer io_context.cwd().deleteFile(io_context.get(), "test_file.txt") catch |err| {
+        std.log.debug("test file cleanup failed: {}", .{err});
+    };
 
     // Read test file
     const content = try fs.readFile("test_file.txt", "utf8");

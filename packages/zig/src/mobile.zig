@@ -252,7 +252,9 @@ pub const NativeObjectManager = struct {
         // Clean up any remaining tracked objects
         var it = self.tracked_objects.iterator();
         while (it.next()) |entry| {
-            self.releaseObject(entry.key_ptr.*) catch {};
+            self.releaseObject(entry.key_ptr.*) catch |err| {
+                std.log.debug("mobile object cleanup failed: {}", .{err});
+            };
         }
         self.tracked_objects.deinit();
     }
@@ -503,7 +505,9 @@ pub const iOS = struct {
 
         // Remove from memory tracking
         if (getGlobalObjectManager()) |manager| {
-            manager.releaseObject(addr) catch {};
+            manager.releaseObject(addr) catch |err| {
+                std.log.debug("failed to release mobile object from tracking: {}", .{err});
+            };
         }
 
         // Remove all associated objects

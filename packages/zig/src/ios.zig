@@ -161,7 +161,9 @@ pub const CraftAppDelegate = struct {
 
         // Dispatch ready event to JavaScript
         if (self.js_bridge) |bridge_ptr| {
-            bridge_ptr.sendEvent("ready", "{}") catch {};
+            bridge_ptr.sendEvent("ready", "{}") catch |err| {
+                std.log.warn("failed to send ready event to JS bridge: {}", .{err});
+            };
         }
 
         // Call launch callback
@@ -580,7 +582,9 @@ pub const JSBridge = struct {
         };
 
         // Register built-in handlers
-        bridge.registerBuiltinHandlers() catch {};
+        bridge.registerBuiltinHandlers() catch |err| {
+            std.log.warn("failed to register iOS built-in JS handlers: {}", .{err});
+        };
 
         return bridge;
     }
@@ -621,7 +625,9 @@ pub const JSBridge = struct {
             handler(params, self, callback_id);
         } else {
             // Unknown method - send error response
-            self.sendError(callback_id, "Unknown method") catch {};
+            self.sendError(callback_id, "Unknown method") catch |err| {
+                std.log.debug("failed to send unknown method error to JS: {}", .{err});
+            };
         }
     }
 
@@ -723,7 +729,9 @@ pub const JSBridge = struct {
             \\{"os": "ios", "version": "17.0", "device": "iPhone", "native": true}
         ;
 
-        bridge.sendResponse(callback_id, response) catch {};
+        bridge.sendResponse(callback_id, response) catch |err| {
+            std.log.debug("failed to send getPlatform response: {}", .{err});
+        };
     }
 
     fn handleShowAlert(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
@@ -735,7 +743,9 @@ pub const JSBridge = struct {
         // Show native alert
         mobile.iOS.showAlert(message, true);
 
-        bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
+        bridge.sendResponse(callback_id, "{ \"success\": true }") catch |err| {
+            std.log.debug("failed to send showAlert response: {}", .{err});
+        };
     }
 
     fn handleHaptic(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
@@ -754,7 +764,9 @@ pub const JSBridge = struct {
 
         mobile.iOS.triggerHaptic(haptic_type);
 
-        bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
+        bridge.sendResponse(callback_id, "{ \"success\": true }") catch |err| {
+            std.log.debug("failed to send haptic response: {}", .{err});
+        };
     }
 
     fn handleSetClipboard(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
@@ -762,7 +774,9 @@ pub const JSBridge = struct {
 
         mobile.iOS.setClipboard(text);
 
-        bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
+        bridge.sendResponse(callback_id, "{ \"success\": true }") catch |err| {
+            std.log.debug("failed to send setClipboard response: {}", .{err});
+        };
     }
 
     fn handleGetClipboard(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
@@ -773,7 +787,9 @@ pub const JSBridge = struct {
         var buf: [1024]u8 = undefined;
         const response = std.fmt.bufPrint(&buf, "{{ \"text\": \"{s}\" }}", .{text}) catch "{}";
 
-        bridge.sendResponse(callback_id, response) catch {};
+        bridge.sendResponse(callback_id, response) catch |err| {
+            std.log.debug("failed to send getClipboard response: {}", .{err});
+        };
     }
 
     fn handleGetNetworkStatus(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
@@ -782,7 +798,9 @@ pub const JSBridge = struct {
         // For now, assume connected - real implementation would check reachability
         const response = "{ \"connected\": true, \"type\": \"wifi\" }";
 
-        bridge.sendResponse(callback_id, response) catch {};
+        bridge.sendResponse(callback_id, response) catch |err| {
+            std.log.debug("failed to send getNetworkStatus response: {}", .{err});
+        };
     }
 
     fn handleGetSafeArea(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
@@ -796,9 +814,13 @@ pub const JSBridge = struct {
                 \\{{ "top": {d}, "bottom": {d}, "left": {d}, "right": {d} }}
             , .{ insets.top, insets.bottom, insets.left, insets.right }) catch "{}";
 
-            bridge.sendResponse(callback_id, response) catch {};
+            bridge.sendResponse(callback_id, response) catch |err| {
+                std.log.debug("failed to send getSafeArea response: {}", .{err});
+            };
         } else {
-            bridge.sendResponse(callback_id, "{ \"top\": 0, \"bottom\": 0, \"left\": 0, \"right\": 0 }") catch {};
+            bridge.sendResponse(callback_id, "{ \"top\": 0, \"bottom\": 0, \"left\": 0, \"right\": 0 }") catch |err| {
+                std.log.debug("failed to send getSafeArea fallback response: {}", .{err});
+            };
         }
     }
 
@@ -807,7 +829,9 @@ pub const JSBridge = struct {
 
         mobile.iOS.openURL(url);
 
-        bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
+        bridge.sendResponse(callback_id, "{ \"success\": true }") catch |err| {
+            std.log.debug("failed to send openURL response: {}", .{err});
+        };
     }
 
     fn handleShare(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
@@ -815,7 +839,9 @@ pub const JSBridge = struct {
 
         mobile.iOS.share(text);
 
-        bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
+        bridge.sendResponse(callback_id, "{ \"success\": true }") catch |err| {
+            std.log.debug("failed to send share response: {}", .{err});
+        };
     }
 };
 

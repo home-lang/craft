@@ -95,7 +95,10 @@ pub const PowerBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftPowerCallback)window.__craftPowerCallback('{s}','getBatteryLevel',{d});", .{ callback_id, level }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getBatteryLevel callback: {}", .{err});
+            };
         }
     }
 
@@ -115,8 +118,6 @@ pub const PowerBridge = struct {
         log.debug("isCharging", .{});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             // Desktop Macs are always "charging" (plugged in)
             // For MacBooks, would need IOPSCopyPowerSourcesInfo
             const charging = false;
@@ -124,7 +125,10 @@ pub const PowerBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftPowerCallback)window.__craftPowerCallback('{s}','isCharging',{});", .{ callback_id, charging }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for isCharging callback: {}", .{err});
+            };
         }
     }
 
@@ -144,8 +148,6 @@ pub const PowerBridge = struct {
         log.debug("isPluggedIn", .{});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             // For desktop Macs, always true
             // For MacBooks, would need IOPSCopyPowerSourcesInfo
             const plugged_in = true;
@@ -153,7 +155,10 @@ pub const PowerBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftPowerCallback)window.__craftPowerCallback('{s}','isPluggedIn',{});", .{ callback_id, plugged_in }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for isPluggedIn callback: {}", .{err});
+            };
         }
     }
 
@@ -173,8 +178,6 @@ pub const PowerBridge = struct {
         log.debug("getBatteryState", .{});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             // Default to "noBattery" for desktop Macs
             // Full implementation would use IOPSCopyPowerSourcesInfo
             const state = "noBattery";
@@ -182,7 +185,10 @@ pub const PowerBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftPowerCallback)window.__craftPowerCallback('{s}','getBatteryState','{s}');", .{ callback_id, state }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getBatteryState callback: {}", .{err});
+            };
         }
     }
 
@@ -202,15 +208,16 @@ pub const PowerBridge = struct {
         log.debug("getTimeRemaining", .{});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             // Return -1 for desktop Macs or when not applicable
             const remaining: i32 = -1;
 
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftPowerCallback)window.__craftPowerCallback('{s}','getTimeRemaining',{d});", .{ callback_id, remaining }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getTimeRemaining callback: {}", .{err});
+            };
         }
     }
 
@@ -287,7 +294,10 @@ pub const PowerBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftPowerCallback)window.__craftPowerCallback('{s}','isLowPowerMode',{});", .{ callback_id, low_power }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for isLowPowerMode callback: {}", .{err});
+            };
         }
     }
 
@@ -326,7 +336,10 @@ pub const PowerBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftPowerCallback)window.__craftPowerCallback('{s}','getThermalState','{s}');", .{ callback_id, state_str }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getThermalState callback: {}", .{err});
+            };
         }
     }
 
@@ -358,7 +371,10 @@ pub const PowerBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftPowerCallback)window.__craftPowerCallback('{s}','getUptimeSeconds',{d});", .{ callback_id, uptime_int }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getUptimeSeconds callback: {}", .{err});
+            };
         }
     }
 

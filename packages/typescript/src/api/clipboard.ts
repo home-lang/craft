@@ -232,8 +232,14 @@ export async function write(data: ClipboardData): Promise<void> {
  */
 export async function read(): Promise<ClipboardData> {
   const [text, html] = await Promise.all([
-    readText().catch(() => undefined),
-    readHTML().catch(() => undefined),
+    readText().catch((err) => {
+      console.debug('[Craft Clipboard] readText failed:', err)
+      return undefined
+    }),
+    readHTML().catch((err) => {
+      console.debug('[Craft Clipboard] readHTML failed:', err)
+      return undefined
+    }),
   ])
 
   return {

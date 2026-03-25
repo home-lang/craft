@@ -169,7 +169,9 @@ pub const MacOSPackager = struct {
         d.createDir(io, temp_dmg_dir, .default_dir) catch |err| {
             if (err != error.PathAlreadyExists) return err;
         };
-        defer d.deleteTree(io, temp_dmg_dir) catch {};
+        defer d.deleteTree(io, temp_dmg_dir) catch |err| {
+            std.log.debug("temp DMG dir cleanup failed: {}", .{err});
+        };
 
         // Copy app bundle to temp directory
         const dest_app = try std.fmt.allocPrint(self.allocator, "{s}/{s}.app", .{ temp_dmg_dir, self.app_name });
@@ -285,7 +287,9 @@ pub const MacOSPackager = struct {
 
         var zip_proc = std.process.Child.init(&[_][]const u8{ "sh", "-c", zip_cmd }, self.allocator);
         _ = try zip_proc.spawnAndWait();
-        defer io_context.cwd().deleteFile(io_context.get(), zip_path) catch {};
+        defer io_context.cwd().deleteFile(io_context.get(), zip_path) catch |err| {
+            std.log.debug("notarization zip cleanup failed: {}", .{err});
+        };
 
         // Submit for notarization
         const notarize_cmd = try std.fmt.allocPrint(

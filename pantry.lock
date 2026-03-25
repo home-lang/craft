@@ -10,7 +10,7 @@
     },
     "benchmarks": {
       "name": "craft-benchmarks",
-      "version": "0.0.18",
+      "version": "0.0.20",
       "dependencies": {
         "mitata": "^1.0.10"
       },
@@ -20,11 +20,11 @@
     },
     "packages/android": {
       "name": "@craft-native/android",
-      "version": "0.0.18"
+      "version": "0.0.20"
     },
     "packages/create-craft": {
       "name": "create-craft",
-      "version": "0.0.18",
+      "version": "0.0.20",
       "dependencies": {
         "@stacksjs/clapp": "^0.2.0"
       },
@@ -34,7 +34,7 @@
     },
     "packages/examples-ts": {
       "name": "craft-examples",
-      "version": "0.0.18",
+      "version": "0.0.20",
       "dependencies": {
         "@craft-native/craft": "workspace:*"
       },
@@ -44,11 +44,11 @@
     },
     "packages/ios": {
       "name": "@craft-native/ios",
-      "version": "0.0.18"
+      "version": "0.0.20"
     },
     "packages/react": {
       "name": "@craft-native/react",
-      "version": "0.0.18",
+      "version": "0.0.20",
       "devDependencies": {
         "@types/react": "^18.2.0",
         "react": "^18.2.0",
@@ -59,7 +59,7 @@
     },
     "packages/svelte": {
       "name": "@craft-native/svelte",
-      "version": "0.0.18",
+      "version": "0.0.20",
       "devDependencies": {
         "svelte": "^4.0.0",
         "tsup": "^8.0.0",
@@ -69,7 +69,7 @@
     },
     "packages/typescript": {
       "name": "@craft-native/craft",
-      "version": "0.0.18",
+      "version": "0.0.20",
       "dependencies": {
         "archiver": "^7.0.1"
       },
@@ -83,7 +83,7 @@
     },
     "packages/vue": {
       "name": "@craft-native/vue",
-      "version": "0.0.18",
+      "version": "0.0.20",
       "devDependencies": {
         "tsup": "^8.0.0",
         "typescript": "^5.3.0",
@@ -301,12 +301,12 @@
       },
       "optionalPeers": ["@edge-runtime/vm", "@types/node", "@vitest/browser", "@vitest/ui", "happy-dom", "jsdom"]
     },
-    "vue@3.5.30": {
+    "vue@3.5.31": {
       "name": "vue",
-      "version": "3.5.30",
+      "version": "3.5.31",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/vue/-/vue-3.5.30.tgz",
-      "integrity": "sha512-hTHLc6VNZyzzEH/l7PFGjpcTvUgiaPK5mdLkbjrTeWSRcEfxFrv56g/XckIYlE9ckuobsdwqd5mk2g1sBkMewg==",
+      "resolved": "https://registry.npmjs.org/vue/-/vue-3.5.31.tgz",
+      "integrity": "sha512-iV/sU9SzOlmA/0tygSmjkEN6Jbs3nPoIPFhCMLD2STrjgOU8DX7ZtzMhg4ahVwf5Rp9KoFzcXeB1ZrVbLBp5/Q==",
       "dependencies": {
         "@vue/compiler-dom": "3.6.0-alpha.1",
         "@vue/compiler-sfc": "3.6.0-alpha.1",

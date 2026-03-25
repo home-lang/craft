@@ -58,54 +58,102 @@ pub const ShellBridge = struct {
         const bridge_err: BridgeError = switch (err) {
             BridgeError.MissingData => BridgeError.MissingData,
             BridgeError.InvalidJSON => BridgeError.InvalidJSON,
+            BridgeError.UnsafeCommand => BridgeError.UnsafeCommand,
             else => BridgeError.NativeCallFailed,
         };
         bridge_error.sendErrorToJS(self.allocator, action, bridge_err);
     }
 
+    /// Shell argument tuple for cross-platform support.
+    const ShellArgs = struct { argv: [3][]const u8 };
+
+    /// Return the platform-appropriate shell invocation for a command string.
+    fn getShellArgs(command: []const u8) ShellArgs {
+        return switch (builtin.os.tag) {
+            .windows => .{ .argv = .{ "cmd.exe", "/c", command } },
+            else => .{ .argv = .{ "/bin/sh", "-c", command } },
+        };
+    }
+
+    /// Validate a command string for dangerous shell metacharacters.
+    /// Returns error.UnsafeCommand if the command contains injection patterns.
+    fn validateCommand(command: []const u8) BridgeError!void {
+        const dangerous_patterns = [_][]const u8{
+            "$(", "`", // Command substitution
+            "&&", "||", // Command chaining
+            ">>", // Append redirect
+            "; ", // Command separator (space after to allow paths like /usr/bin;)
+        };
+        for (dangerous_patterns) |pattern| {
+            if (std.mem.indexOf(u8, command, pattern) != null) {
+                std.log.warn("bridge_shell: blocked unsafe command containing '{s}': {s}", .{ pattern, command });
+                return BridgeError.UnsafeCommand;
+            }
+        }
+    }
+
+    /// Validate that a URL has a safe scheme (http, https, or file).
+    fn validateUrl(url: []const u8) BridgeError!void {
+        const valid_schemes = [_][]const u8{ "http://", "https://", "file://" };
+        for (valid_schemes) |scheme| {
+            if (url.len >= scheme.len and std.mem.eql(u8, url[0..scheme.len], scheme)) {
+                return; // valid scheme found
+            }
+        }
+        std.log.warn("bridge_shell: blocked URL with invalid scheme: {s}", .{url});
+        return BridgeError.UnsafeCommand;
+    }
+
+    /// Validate that a path does not contain shell metacharacters.
+    fn validatePath(path: []const u8) BridgeError!void {
+        const dangerous_patterns = [_][]const u8{
+            "$(", "`", // Command substitution
+            "&&", "||", // Command chaining
+            ">>", // Append redirect
+            "; ", // Command separator
+        };
+        for (dangerous_patterns) |pattern| {
+            if (std.mem.indexOf(u8, path, pattern) != null) {
+                std.log.warn("bridge_shell: blocked unsafe path containing '{s}': {s}", .{ pattern, path });
+                return BridgeError.UnsafeCommand;
+            }
+        }
+    }
+
     /// Execute command and wait for result
     /// JSON: {"command": "ls -la", "cwd": "/path", "callbackId": "cb1"}
     fn exec(self: *Self, data: []const u8) !void {
-        var command: []const u8 = "";
-        var cwd: []const u8 = "";
-        var callback_id: []const u8 = "";
+        const ExecParams = struct {
+            command: []const u8 = "",
+            cwd: []const u8 = "",
+            callbackId: []const u8 = "",
+        };
 
-        // Parse command
-        if (std.mem.indexOf(u8, data, "\"command\":\"")) |idx| {
-            const start = idx + 11;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                command = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(ExecParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const params = parsed.value;
 
-        // Parse cwd
-        if (std.mem.indexOf(u8, data, "\"cwd\":\"")) |idx| {
-            const start = idx + 7;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                cwd = data[start..end];
-            }
-        }
-
-        // Parse callbackId
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const command = params.command;
+        const cwd = params.cwd;
+        const callback_id = params.callbackId;
 
         if (command.len == 0) return BridgeError.MissingData;
+
+        try validateCommand(command);
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[ShellBridge] exec: {s}\n", .{command});
 
-        // Build argv array directly
-        const argv = [_][]const u8{ "/bin/sh", "-c", command };
+        // Build argv array using cross-platform shell args
+        const shell = getShellArgs(command);
         const io = io_context.get();
 
         // Create child process using Zig 0.16 API
         var child = std.process.spawn(io, .{
-            .argv = &argv,
+            .argv = &shell.argv,
             .cwd = if (cwd.len > 0) .{ .path = cwd } else .inherit,
             .stdout = .pipe,
             .stderr = .pipe,
@@ -149,43 +197,37 @@ pub const ShellBridge = struct {
     /// Spawn a process without waiting
     /// JSON: {"id": "proc1", "command": "long-running-cmd", "cwd": "/path"}
     fn spawn(self: *Self, data: []const u8) !void {
-        var id: []const u8 = "";
-        var command: []const u8 = "";
-        var cwd: []const u8 = "";
+        const SpawnParams = struct {
+            id: []const u8 = "",
+            command: []const u8 = "",
+            cwd: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"id\":\"")) |idx| {
-            const start = idx + 6;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                id = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(SpawnParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const params = parsed.value;
 
-        if (std.mem.indexOf(u8, data, "\"command\":\"")) |idx| {
-            const start = idx + 11;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                command = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"cwd\":\"")) |idx| {
-            const start = idx + 7;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                cwd = data[start..end];
-            }
-        }
+        const id = params.id;
+        const command = params.command;
+        const cwd = params.cwd;
 
         if (id.len == 0 or command.len == 0) return BridgeError.MissingData;
+
+        try validateCommand(command);
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[ShellBridge] spawn: {s} -> {s}\n", .{ id, command });
 
-        // Build argv array directly
-        const argv = [_][]const u8{ "/bin/sh", "-c", command };
+        // Build argv array using cross-platform shell args
+        const shell = getShellArgs(command);
         const io = io_context.get();
 
         // Create child process using Zig 0.16 API
         const child = std.process.spawn(io, .{
-            .argv = &argv,
+            .argv = &shell.argv,
             .cwd = if (cwd.len > 0) .{ .path = cwd } else .inherit,
             .stdout = .inherit,
             .stderr = .inherit,
@@ -208,14 +250,16 @@ pub const ShellBridge = struct {
     /// Kill a spawned process
     /// JSON: {"id": "proc1"}
     fn kill(self: *Self, data: []const u8) !void {
-        var id: []const u8 = "";
+        const KillParams = struct {
+            id: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"id\":\"")) |idx| {
-            const start = idx + 6;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                id = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(KillParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const id = parsed.value.id;
 
         if (id.len == 0) return BridgeError.MissingData;
 
@@ -236,109 +280,162 @@ pub const ShellBridge = struct {
     /// Open URL in default browser
     /// JSON: {"url": "https://example.com"}
     fn openUrl(self: *Self, data: []const u8) !void {
-        _ = self;
-        var url: []const u8 = "";
+        const OpenUrlParams = struct {
+            url: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"url\":\"")) |idx| {
-            const start = idx + 7;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                url = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(OpenUrlParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const url = parsed.value.url;
 
         if (url.len == 0) return BridgeError.MissingData;
+
+        try validateUrl(url);
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[ShellBridge] openUrl: {s}\n", .{url});
 
-        if (builtin.os.tag == .macos) {
+        if (comptime builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             // [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:url]]
             const NSWorkspace = macos.getClass("NSWorkspace");
             const workspace = macos.msgSend0(NSWorkspace, "sharedWorkspace");
 
+            const url_z = self.allocator.dupeZ(u8, url) catch return;
+            defer self.allocator.free(url_z);
             const NSString = macos.getClass("NSString");
             const url_str = macos.msgSend1(
                 NSString,
                 "stringWithUTF8String:",
-                @as([*c]const u8, @ptrCast(url.ptr)),
+                url_z.ptr,
             );
 
             const NSURL = macos.getClass("NSURL");
             const nsurl = macos.msgSend1(NSURL, "URLWithString:", url_str);
 
             _ = macos.msgSend1(workspace, "openURL:", nsurl);
+        } else if (comptime builtin.os.tag == .linux) {
+            // Linux: use xdg-open
+            const argv = [_][]const u8{ "xdg-open", url };
+            var child = std.process.Child.init(&argv, self.allocator);
+            child.stdout_behavior = .Ignore;
+            child.stderr_behavior = .Ignore;
+            child.spawn() catch return;
+            _ = child.wait() catch |err| {
+                std.log.debug("child process wait failed: {}", .{err});
+            };
+        } else if (comptime builtin.os.tag == .windows) {
+            // Windows: use start command
+            const argv = [_][]const u8{ "cmd", "/c", "start", url };
+            var child = std.process.Child.init(&argv, self.allocator);
+            child.stdout_behavior = .Ignore;
+            child.stderr_behavior = .Ignore;
+            child.spawn() catch return;
+            _ = child.wait() catch |err| {
+                std.log.debug("child process wait failed: {}", .{err});
+            };
         }
     }
 
     /// Open file/folder with default app
     /// JSON: {"path": "/path/to/file"}
     fn openPath(self: *Self, data: []const u8) !void {
-        _ = self;
-        var path: []const u8 = "";
+        const PathParams = struct {
+            path: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(PathParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const path = parsed.value.path;
 
         if (path.len == 0) return BridgeError.MissingData;
+
+        try validatePath(path);
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[ShellBridge] openPath: {s}\n", .{path});
 
-        if (builtin.os.tag == .macos) {
+        if (comptime builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSWorkspace = macos.getClass("NSWorkspace");
             const workspace = macos.msgSend0(NSWorkspace, "sharedWorkspace");
 
+            const path_z = self.allocator.dupeZ(u8, path) catch return;
+            defer self.allocator.free(path_z);
             const NSString = macos.getClass("NSString");
             const path_str = macos.msgSend1(
                 NSString,
                 "stringWithUTF8String:",
-                @as([*c]const u8, @ptrCast(path.ptr)),
+                path_z.ptr,
             );
 
             const NSURL = macos.getClass("NSURL");
             const file_url = macos.msgSend1(NSURL, "fileURLWithPath:", path_str);
 
             _ = macos.msgSend1(workspace, "openURL:", file_url);
+        } else if (comptime builtin.os.tag == .linux) {
+            const argv = [_][]const u8{ "xdg-open", path };
+            var child = std.process.Child.init(&argv, self.allocator);
+            child.stdout_behavior = .Ignore;
+            child.stderr_behavior = .Ignore;
+            child.spawn() catch return;
+            _ = child.wait() catch |err| {
+                std.log.debug("child process wait failed: {}", .{err});
+            };
+        } else if (comptime builtin.os.tag == .windows) {
+            const argv = [_][]const u8{ "cmd", "/c", "start", "", path };
+            var child = std.process.Child.init(&argv, self.allocator);
+            child.stdout_behavior = .Ignore;
+            child.stderr_behavior = .Ignore;
+            child.spawn() catch return;
+            _ = child.wait() catch |err| {
+                std.log.debug("child process wait failed: {}", .{err});
+            };
         }
     }
 
-    /// Show file in Finder
+    /// Show file in file manager
     /// JSON: {"path": "/path/to/file"}
     fn showInFinder(self: *Self, data: []const u8) !void {
-        _ = self;
-        var path: []const u8 = "";
+        const PathParams = struct {
+            path: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(PathParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const path = parsed.value.path;
 
         if (path.len == 0) return BridgeError.MissingData;
+
+        try validatePath(path);
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[ShellBridge] showInFinder: {s}\n", .{path});
 
-        if (builtin.os.tag == .macos) {
+        if (comptime builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
 
             const NSWorkspace = macos.getClass("NSWorkspace");
             const workspace = macos.msgSend0(NSWorkspace, "sharedWorkspace");
 
+            const path_z = self.allocator.dupeZ(u8, path) catch return;
+            defer self.allocator.free(path_z);
             const NSString = macos.getClass("NSString");
             const path_str = macos.msgSend1(
                 NSString,
                 "stringWithUTF8String:",
-                @as([*c]const u8, @ptrCast(path.ptr)),
+                path_z.ptr,
             );
 
             const NSURL = macos.getClass("NSURL");
@@ -346,70 +443,81 @@ pub const ShellBridge = struct {
 
             // selectFile:inFileViewerRootedAtPath: - selects file and reveals in Finder
             _ = macos.msgSend1(workspace, "activateFileViewerSelectingURLs:", file_url);
+        } else if (comptime builtin.os.tag == .linux) {
+            // Linux: use dbus or xdg-open on the parent directory
+            // nautilus/dolphin/thunar have different "reveal" APIs, so open parent dir
+            const argv = [_][]const u8{ "xdg-open", path };
+            var child = std.process.Child.init(&argv, self.allocator);
+            child.stdout_behavior = .Ignore;
+            child.stderr_behavior = .Ignore;
+            child.spawn() catch return;
+            _ = child.wait() catch |err| {
+                std.log.debug("child process wait failed: {}", .{err});
+            };
+        } else if (comptime builtin.os.tag == .windows) {
+            // Windows: explorer /select,path
+            const argv = [_][]const u8{ "explorer", "/select,", path };
+            var child = std.process.Child.init(&argv, self.allocator);
+            child.stdout_behavior = .Ignore;
+            child.stderr_behavior = .Ignore;
+            child.spawn() catch return;
+            _ = child.wait() catch |err| {
+                std.log.debug("child process wait failed: {}", .{err});
+            };
         }
     }
 
     /// Get environment variable
     /// JSON: {"name": "PATH", "callbackId": "cb1"}
     fn getEnv(self: *Self, data: []const u8) !void {
-        _ = self;
-        var name: []const u8 = "";
-        var callback_id: []const u8 = "";
+        const GetEnvParams = struct {
+            name: []const u8 = "",
+            callbackId: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"name\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                name = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(GetEnvParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const name = parsed.value.name;
+        const callback_id = parsed.value.callbackId;
 
         if (name.len == 0) return BridgeError.MissingData;
 
-        if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
+        // Cross-platform: use C getenv with null-terminated string
+        var name_buf: [256]u8 = undefined;
+        if (name.len >= name_buf.len) return BridgeError.MissingData;
+        @memcpy(name_buf[0..name.len], name);
+        name_buf[name.len] = 0;
+        const value = if (std.c.getenv(@ptrCast(name_buf[0..name.len :0]))) |v| std.mem.span(v) else "";
 
-            // Use getenv via C library - need null-terminated string
-            var name_buf: [256]u8 = undefined;
-            if (name.len >= name_buf.len) return BridgeError.MissingData;
-            @memcpy(name_buf[0..name.len], name);
-            name_buf[name.len] = 0;
-            const value = if (std.c.getenv(@ptrCast(name_buf[0..name.len :0]))) |v| std.mem.span(v) else "";
+        const bridge = @import("bridge.zig");
+        var buf: [4096]u8 = undefined;
+        const js = std.fmt.bufPrint(&buf,
+            \\if(window.__craftShellCallback)window.__craftShellCallback('{s}','getEnv','{s}');
+        , .{ callback_id, value }) catch return;
 
-            var buf: [4096]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf,
-                \\if(window.__craftShellCallback)window.__craftShellCallback('{s}','getEnv','{s}');
-            , .{ callback_id, value }) catch return;
-
-            macos.tryEvalJS(js) catch {};
-        }
+        bridge.evalJS(js) catch |eval_err| {
+            std.log.debug("JS eval failed for getEnv callback: {}", .{eval_err});
+        };
     }
 
     /// Set environment variable (for child processes)
     /// JSON: {"name": "MY_VAR", "value": "my_value"}
-    fn setEnv(_: *Self, data: []const u8) !void {
-        var name: []const u8 = "";
-        var value: []const u8 = "";
+    fn setEnv(self: *Self, data: []const u8) !void {
+        const SetEnvParams = struct {
+            name: []const u8 = "",
+            value: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"name\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                name = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"value\":\"")) |idx| {
-            const start = idx + 9;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                value = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(SetEnvParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const name = parsed.value.name;
+        const value = parsed.value.value;
 
         if (name.len == 0) return BridgeError.MissingData;
 
@@ -422,9 +530,7 @@ pub const ShellBridge = struct {
 
     /// Send shell result callback
     fn sendShellResult(_: *Self, callback_id: []const u8, action: []const u8, exit_code: i32, stdout: []const u8, stderr: []const u8) void {
-        if (builtin.os.tag != .macos) return;
-
-        const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
         // Escape stdout and stderr for JS
         var buf: [65536]u8 = undefined;
@@ -513,28 +619,28 @@ pub const ShellBridge = struct {
         @memcpy(buf[pos .. pos + suffix.len], suffix);
         pos += suffix.len;
 
-        macos.tryEvalJS(buf[0..pos]) catch {};
+        bridge.evalJS(buf[0..pos]) catch |eval_err| {
+            std.log.debug("JS eval failed for shell result callback: {}", .{eval_err});
+        };
     }
 
     /// Send spawn success callback
     fn sendSpawnSuccess(_: *Self, id: []const u8) void {
-        if (builtin.os.tag != .macos) return;
-
-        const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
         var buf: [256]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftShellCallback)window.__craftShellCallback('','spawn',{{id:'{s}',started:true}});
         , .{id}) catch return;
 
-        macos.tryEvalJS(js) catch {};
+        bridge.evalJS(js) catch |eval_err| {
+            std.log.debug("JS eval failed for spawn success callback: {}", .{eval_err});
+        };
     }
 
     /// Send shell error callback
     fn sendShellError(_: *Self, callback_id: []const u8, action: []const u8, command: []const u8, err: anyerror) void {
-        if (builtin.os.tag != .macos) return;
-
-        const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
         const err_msg = switch (err) {
             error.FileNotFound => "Command not found",
@@ -547,14 +653,27 @@ pub const ShellBridge = struct {
             \\if(window.__craftShellError)window.__craftShellError('{s}','{s}','{s}','{s}');
         , .{ callback_id, action, command, err_msg }) catch return;
 
-        macos.tryEvalJS(js) catch {};
+        bridge.evalJS(js) catch |eval_err| {
+            std.log.debug("JS eval failed for shell error callback: {}", .{eval_err});
+        };
     }
 
     pub fn deinit(self: *Self) void {
         var it = self.processes.iterator();
         while (it.next()) |entry| {
             if (entry.value_ptr.child) |*child| {
+                // Close stdout/stderr pipes before killing to avoid fd leaks
+                if (child.stdout) |*stdout| {
+                    stdout.close();
+                    child.stdout = null;
+                }
+                if (child.stderr) |*stderr| {
+                    stderr.close();
+                    child.stderr = null;
+                }
                 child.kill(io_context.get());
+                // Wait to reap the process and prevent zombies
+                _ = child.wait(io_context.get()) catch {};
             }
             self.allocator.free(entry.value_ptr.id);
         }
@@ -562,13 +681,12 @@ pub const ShellBridge = struct {
     }
 };
 
-/// Global shell bridge instance
-var global_shell_bridge: ?*ShellBridge = null;
+const global_state = @import("global_state.zig");
 
 pub fn getGlobalShellBridge() ?*ShellBridge {
-    return global_shell_bridge;
+    return global_state.instance.getShellBridge();
 }
 
 pub fn setGlobalShellBridge(bridge: *ShellBridge) void {
-    global_shell_bridge = bridge;
+    global_state.instance.setShellBridge(bridge);
 }

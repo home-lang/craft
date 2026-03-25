@@ -159,9 +159,10 @@ pub const StatePreservation = struct {
 pub const MobileReloadConfig = struct {
     enabled: bool = true,
     port: u16 = 3456,
-    host: []const u8 = "0.0.0.0", // Listen on all interfaces for mobile access
+    host: []const u8 = "127.0.0.1", // Bind to localhost only for security
     broadcast: bool = true, // Broadcast to all connected clients
     platform: enum { ios, android, both } = .both,
+    dev_token: ?[]const u8 = null, // If null, a random token is generated at server start
 };
 
 /// WebSocket client connection
@@ -212,15 +213,42 @@ pub const ReloadServer = struct {
     clients: std.ArrayList(*WebSocketClient),
     next_client_id: u64 = 1,
     accept_thread: ?std.Thread = null,
+    active_token: [32]u8 = undefined, // Hex-encoded random token (16 bytes = 32 hex chars)
+    active_token_len: usize = 0,
 
     const Self = @This();
+    const token_bytes = 16; // 16 random bytes = 32 hex characters
 
     pub fn init(allocator: std.mem.Allocator, config: MobileReloadConfig) Self {
-        return .{
+        var server = Self{
             .allocator = allocator,
             .config = config,
             .clients = .{},
         };
+
+        if (config.dev_token) |token| {
+            // Use configured token
+            const copy_len = @min(token.len, server.active_token.len);
+            @memcpy(server.active_token[0..copy_len], token[0..copy_len]);
+            server.active_token_len = copy_len;
+        } else {
+            // Generate a random token
+            var random_bytes: [token_bytes]u8 = undefined;
+            std.crypto.random.bytes(&random_bytes);
+            const hex_chars = "0123456789abcdef";
+            for (random_bytes, 0..) |byte, i| {
+                server.active_token[i * 2] = hex_chars[byte >> 4];
+                server.active_token[i * 2 + 1] = hex_chars[byte & 0x0f];
+            }
+            server.active_token_len = token_bytes * 2;
+        }
+
+        return server;
+    }
+
+    /// Get the active dev token as a slice
+    pub fn getToken(self: *const Self) []const u8 {
+        return self.active_token[0..self.active_token_len];
     }
 
     pub fn deinit(self: *Self) void {
@@ -245,6 +273,7 @@ pub const ReloadServer = struct {
         });
 
         log.info("Hot reload server started on {s}:{d}", .{ self.config.host, self.config.port });
+        log.info("Hot reload dev token: {s}", .{self.getToken()});
 
         // Start accept thread
         self.accept_thread = try std.Thread.spawn(.{}, acceptLoop, .{self});
@@ -277,6 +306,52 @@ pub const ReloadServer = struct {
 
         const request = buf[0..bytes_read];
 
+        // Validate dev token before completing the handshake.
+        // Accept token via Sec-WebSocket-Protocol header or ?token= query parameter.
+        if (self.active_token_len > 0) {
+            const token = self.getToken();
+            var token_valid = false;
+
+            // Check Sec-WebSocket-Protocol header for the token
+            const proto_header = "Sec-WebSocket-Protocol: ";
+            if (std.mem.indexOf(u8, request, proto_header)) |proto_start| {
+                const proto_value_start = proto_start + proto_header.len;
+                if (std.mem.indexOfPos(u8, request, proto_value_start, "\r\n")) |proto_end| {
+                    const proto_value = request[proto_value_start..proto_end];
+                    if (std.mem.eql(u8, proto_value, token)) {
+                        token_valid = true;
+                    }
+                }
+            }
+
+            // Check query parameter ?token=xxx in the request URI
+            if (!token_valid) {
+                // Extract request line (first line: "GET /path?token=xxx HTTP/1.1")
+                if (std.mem.indexOf(u8, request, "?token=")) |qstart| {
+                    const token_start = qstart + 7; // len of "?token="
+                    // Token ends at space, &, or \r
+                    var token_end = token_start;
+                    while (token_end < bytes_read and request[token_end] != ' ' and request[token_end] != '&' and request[token_end] != '\r') {
+                        token_end += 1;
+                    }
+                    const req_token = request[token_start..token_end];
+                    if (std.mem.eql(u8, req_token, token)) {
+                        token_valid = true;
+                    }
+                }
+            }
+
+            if (!token_valid) {
+                // Reject connection with 403 Forbidden
+                const reject_response = "HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n";
+                _ = stream.write(reject_response) catch |err| {
+                    std.log.debug("failed to write WebSocket reject response: {}", .{err});
+                };
+                log.warn("WebSocket connection rejected: invalid or missing dev token", .{});
+                return error.InvalidWebSocketRequest;
+            }
+        }
+
         // Extract Sec-WebSocket-Key
         const key_header = "Sec-WebSocket-Key: ";
         const key_start = std.mem.indexOf(u8, request, key_header) orelse return error.InvalidWebSocketRequest;
@@ -292,15 +367,30 @@ pub const ReloadServer = struct {
 
         const accept_key = std.base64.standard.Encoder.encode(&[_]u8{0} ** 28, &hash);
 
+        // Check if client sent a Sec-WebSocket-Protocol header (echo it back to confirm)
+        const proto_header_check = "Sec-WebSocket-Protocol: ";
+        const has_protocol = std.mem.indexOf(u8, request, proto_header_check) != null;
+
         // Send WebSocket handshake response
-        const response = std.fmt.allocPrint(self.allocator,
-            \\HTTP/1.1 101 Switching Protocols\r
-            \\Upgrade: websocket\r
-            \\Connection: Upgrade\r
-            \\Sec-WebSocket-Accept: {s}\r
-            \\\r
-            \\
-        , .{accept_key}) catch return error.OutOfMemory;
+        const response = if (has_protocol)
+            std.fmt.allocPrint(self.allocator,
+                \\HTTP/1.1 101 Switching Protocols\r
+                \\Upgrade: websocket\r
+                \\Connection: Upgrade\r
+                \\Sec-WebSocket-Accept: {s}\r
+                \\Sec-WebSocket-Protocol: {s}\r
+                \\\r
+                \\
+            , .{ accept_key, self.getToken() }) catch return error.OutOfMemory
+        else
+            std.fmt.allocPrint(self.allocator,
+                \\HTTP/1.1 101 Switching Protocols\r
+                \\Upgrade: websocket\r
+                \\Connection: Upgrade\r
+                \\Sec-WebSocket-Accept: {s}\r
+                \\\r
+                \\
+            , .{accept_key}) catch return error.OutOfMemory;
         defer self.allocator.free(response);
 
         _ = try stream.write(response);
@@ -349,7 +439,9 @@ pub const ReloadServer = struct {
         for (self.clients.items, 0..) |client, i| {
             client.send(message) catch |err| {
                 log.warn("Failed to send to client {d}: {}", .{ client.id, err });
-                disconnected.append(self.allocator, i) catch {};
+                disconnected.append(self.allocator, i) catch |alloc_err| {
+                    std.log.warn("failed to track disconnected client: {}", .{alloc_err});
+                };
             };
         }
 
@@ -377,16 +469,30 @@ pub const ReloadServer = struct {
     pub fn getClientCount(self: *const Self) usize {
         return self.clients.items.len;
     }
+
+    /// Returns the client_script with the dev token placeholder replaced.
+    /// Caller owns the returned memory.
+    pub fn getClientScript(self: *const Self, allocator: std.mem.Allocator) ![]const u8 {
+        return std.mem.replaceOwned(u8, allocator, client_script, "__CRAFT_DEV_TOKEN__", self.getToken());
+    }
+
+    /// Returns the mobile_client_script with the dev token placeholder replaced.
+    /// Caller owns the returned memory.
+    pub fn getMobileClientScript(self: *const Self, allocator: std.mem.Allocator) ![]const u8 {
+        return std.mem.replaceOwned(u8, allocator, mobile_client_script, "__CRAFT_DEV_TOKEN__", self.getToken());
+    }
 };
 
 /// Mobile-specific hot reload script (works for iOS and Android WebViews)
+/// The __CRAFT_DEV_TOKEN__ placeholder must be replaced with the actual token at injection time.
 pub const mobile_client_script =
     \\<script>
     \\(function() {
     \\  // Auto-detect dev server URL from current location or use localhost
     \\  const WS_HOST = window.location.hostname || 'localhost';
     \\  const WS_PORT = 3456;
-    \\  const WS_URL = `ws://${WS_HOST}:${WS_PORT}/_craft_reload`;
+    \\  const DEV_TOKEN = '__CRAFT_DEV_TOKEN__';
+    \\  const WS_URL = `ws://${WS_HOST}:${WS_PORT}/_craft_reload` + (DEV_TOKEN ? `?token=${DEV_TOKEN}` : '');
     \\  const STATE_KEY = 'craft_hotreload_state';
     \\  let ws = null;
     \\  let reconnectAttempts = 0;
@@ -554,10 +660,12 @@ pub const mobile_client_script =
 ;
 
 // Client-side hot reload script with state preservation
+// The __CRAFT_DEV_TOKEN__ placeholder must be replaced with the actual token at injection time.
 pub const client_script =
     \\<script>
     \\(function() {
-    \\  const WS_URL = 'ws://localhost:3456/_craft_reload';
+    \\  const DEV_TOKEN = '__CRAFT_DEV_TOKEN__';
+    \\  const WS_URL = 'ws://localhost:3456/_craft_reload' + (DEV_TOKEN ? `?token=${DEV_TOKEN}` : '');
     \\  const STATE_KEY = 'craft_hotreload_state';
     \\  let ws = null;
     \\  let reconnectAttempts = 0;

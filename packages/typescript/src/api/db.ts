@@ -181,6 +181,11 @@ catch (error) {
  * ```
  */
 export async function openDatabase(name: string): Promise<Database> {
+  // Block directory traversal in database names
+  const normalized = name.replace(/\\/g, '/')
+  if (normalized.includes('/../') || normalized.startsWith('../') || normalized.endsWith('/..') || normalized === '..' || name.includes('\0')) {
+    throw new Error(`Invalid database name: "${name}" contains path traversal or invalid characters`)
+  }
   return new Database(name)
 }
 
@@ -566,7 +571,8 @@ export class KeyValueStore {
       try {
         return JSON.parse(row.value) as T
       }
-catch {
+catch (err) {
+        console.debug('[Craft DB] Failed to parse stored value for key, returning raw:', err)
         return row.value as unknown as T
       }
     }

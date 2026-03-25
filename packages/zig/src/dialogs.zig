@@ -384,17 +384,19 @@ fn showMacFileDialog(options: FileDialogOptions) !?DialogResult {
     }
 
     // Set title
-    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    defer std.heap.c_allocator.free(title_z);
     const NSString = macos.getClass("NSString");
     const str_alloc = macos.msgSend0(NSString, "alloc");
-    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr);
+    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_z.ptr);
     _ = macos.msgSend1(panel, "setTitle:", ns_title);
 
     // Set default path if provided
     if (options.default_path) |path| {
-        const path_cstr = @as([*:0]const u8, @ptrCast(path.ptr));
+        const path_z = std.heap.c_allocator.dupeZ(u8, path) catch return null;
+        defer std.heap.c_allocator.free(path_z);
         const str_alloc2 = macos.msgSend0(NSString, "alloc");
-        const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_cstr);
+        const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_z.ptr);
         const NSURL = macos.getClass("NSURL");
         const url = macos.msgSend1(NSURL, "fileURLWithPath:", ns_path);
         _ = macos.msgSend1(panel, "setDirectoryURL:", url);
@@ -472,9 +474,10 @@ fn showMacFileSaveDialog(options: FileDialogOptions) !?DialogResult {
 
     // Set title
     const NSString = macos.getClass("NSString");
-    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    defer std.heap.c_allocator.free(title_z);
     const str_alloc = macos.msgSend0(NSString, "alloc");
-    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr);
+    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_z.ptr);
     _ = macos.msgSend1(panel, "setTitle:", ns_title);
 
     // Allow creating directories
@@ -489,17 +492,19 @@ fn showMacFileSaveDialog(options: FileDialogOptions) !?DialogResult {
 
     // Set default path/filename if provided
     if (options.default_path) |path| {
-        const path_cstr = @as([*:0]const u8, @ptrCast(path.ptr));
+        const path_z = std.heap.c_allocator.dupeZ(u8, path) catch return null;
+        defer std.heap.c_allocator.free(path_z);
         const str_alloc2 = macos.msgSend0(NSString, "alloc");
-        const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_cstr);
+        const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_z.ptr);
         _ = macos.msgSend1(panel, "setNameFieldStringValue:", ns_path);
     }
 
     // Set default extension if provided
     if (options.default_extension) |ext| {
-        const ext_cstr = @as([*:0]const u8, @ptrCast(ext.ptr));
+        const ext_z = std.heap.c_allocator.dupeZ(u8, ext) catch return null;
+        defer std.heap.c_allocator.free(ext_z);
         const str_alloc3 = macos.msgSend0(NSString, "alloc");
-        const ns_ext = macos.msgSend1(str_alloc3, "initWithUTF8String:", ext_cstr);
+        const ns_ext = macos.msgSend1(str_alloc3, "initWithUTF8String:", ext_z.ptr);
 
         const NSMutableArray = macos.getClass("NSMutableArray");
         const allowed_types = macos.msgSend0(NSMutableArray, "array");
@@ -549,16 +554,18 @@ fn showMacDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
 
     // Set title
     const NSString = macos.getClass("NSString");
-    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    defer std.heap.c_allocator.free(title_z);
     const str_alloc = macos.msgSend0(NSString, "alloc");
-    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr);
+    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_z.ptr);
     _ = macos.msgSend1(panel, "setTitle:", ns_title);
 
     // Set default path if provided
     if (options.default_path) |path| {
-        const path_cstr = @as([*:0]const u8, @ptrCast(path.ptr));
+        const path_z = std.heap.c_allocator.dupeZ(u8, path) catch return null;
+        defer std.heap.c_allocator.free(path_z);
         const str_alloc2 = macos.msgSend0(NSString, "alloc");
-        const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_cstr);
+        const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_z.ptr);
         const NSURL = macos.getClass("NSURL");
         const url = macos.msgSend1(NSURL, "fileURLWithPath:", ns_path);
         _ = macos.msgSend1(panel, "setDirectoryURL:", url);
@@ -593,15 +600,17 @@ fn showMacMessageDialog(options: MessageDialogOptions) !DialogResult {
     const NSString = macos.getClass("NSString");
 
     // Set title (messageText)
-    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const title_z = try std.heap.c_allocator.dupeZ(u8, options.title);
+    defer std.heap.c_allocator.free(title_z);
     const str_alloc1 = macos.msgSend0(NSString, "alloc");
-    const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_cstr);
+    const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_z.ptr);
     _ = macos.msgSend1(alert, "setMessageText:", ns_title);
 
     // Set message (informativeText)
-    const msg_cstr = @as([*:0]const u8, @ptrCast(options.message.ptr));
+    const msg_z = try std.heap.c_allocator.dupeZ(u8, options.message);
+    defer std.heap.c_allocator.free(msg_z);
     const str_alloc2 = macos.msgSend0(NSString, "alloc");
-    const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_cstr);
+    const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_z.ptr);
     _ = macos.msgSend1(alert, "setInformativeText:", ns_msg);
 
     // Set alert style based on type
@@ -691,15 +700,17 @@ fn showMacConfirmDialog(options: ConfirmDialogOptions) !DialogResult {
     const NSString = macos.getClass("NSString");
 
     // Set title
-    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const title_z = try std.heap.c_allocator.dupeZ(u8, options.title);
+    defer std.heap.c_allocator.free(title_z);
     const str_alloc1 = macos.msgSend0(NSString, "alloc");
-    const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_cstr);
+    const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_z.ptr);
     _ = macos.msgSend1(alert, "setMessageText:", ns_title);
 
     // Set message
-    const msg_cstr = @as([*:0]const u8, @ptrCast(options.message.ptr));
+    const msg_z = try std.heap.c_allocator.dupeZ(u8, options.message);
+    defer std.heap.c_allocator.free(msg_z);
     const str_alloc2 = macos.msgSend0(NSString, "alloc");
-    const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_cstr);
+    const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_z.ptr);
     _ = macos.msgSend1(alert, "setInformativeText:", ns_msg);
 
     // Set destructive style if requested
@@ -708,15 +719,17 @@ fn showMacConfirmDialog(options: ConfirmDialogOptions) !DialogResult {
     }
 
     // Add confirm button
-    const confirm_cstr = @as([*:0]const u8, @ptrCast(options.confirm_text.ptr));
+    const confirm_z = try std.heap.c_allocator.dupeZ(u8, options.confirm_text);
+    defer std.heap.c_allocator.free(confirm_z);
     const str_alloc3 = macos.msgSend0(NSString, "alloc");
-    const ns_confirm = macos.msgSend1(str_alloc3, "initWithUTF8String:", confirm_cstr);
+    const ns_confirm = macos.msgSend1(str_alloc3, "initWithUTF8String:", confirm_z.ptr);
     _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_confirm);
 
     // Add cancel button
-    const cancel_cstr = @as([*:0]const u8, @ptrCast(options.cancel_text.ptr));
+    const cancel_z = try std.heap.c_allocator.dupeZ(u8, options.cancel_text);
+    defer std.heap.c_allocator.free(cancel_z);
     const str_alloc4 = macos.msgSend0(NSString, "alloc");
-    const ns_cancel = macos.msgSend1(str_alloc4, "initWithUTF8String:", cancel_cstr);
+    const ns_cancel = macos.msgSend1(str_alloc4, "initWithUTF8String:", cancel_z.ptr);
     _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_cancel);
 
     // Run modal
@@ -738,15 +751,17 @@ fn showMacInputDialog(allocator: std.mem.Allocator, options: InputDialogOptions)
     const NSString = macos.getClass("NSString");
 
     // Set title
-    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const title_z = try allocator.dupeZ(u8, options.title);
+    defer allocator.free(title_z);
     const str_alloc1 = macos.msgSend0(NSString, "alloc");
-    const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_cstr);
+    const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_z.ptr);
     _ = macos.msgSend1(alert, "setMessageText:", ns_title);
 
     // Set message
-    const msg_cstr = @as([*:0]const u8, @ptrCast(options.message.ptr));
+    const msg_z = try allocator.dupeZ(u8, options.message);
+    defer allocator.free(msg_z);
     const str_alloc2 = macos.msgSend0(NSString, "alloc");
-    const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_cstr);
+    const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_z.ptr);
     _ = macos.msgSend1(alert, "setInformativeText:", ns_msg);
 
     // Create NSTextField for input
@@ -758,16 +773,18 @@ fn showMacInputDialog(allocator: std.mem.Allocator, options: InputDialogOptions)
     _ = NSValue; // Would need to set frame properly
 
     // Set default value
-    const default_cstr = @as([*:0]const u8, @ptrCast(options.default_value.ptr));
+    const default_z = try allocator.dupeZ(u8, options.default_value);
+    defer allocator.free(default_z);
     const str_alloc3 = macos.msgSend0(NSString, "alloc");
-    const ns_default = macos.msgSend1(str_alloc3, "initWithUTF8String:", default_cstr);
+    const ns_default = macos.msgSend1(str_alloc3, "initWithUTF8String:", default_z.ptr);
     _ = macos.msgSend1(input_field, "setStringValue:", ns_default);
 
     // Set placeholder if provided
     if (options.placeholder) |placeholder| {
-        const placeholder_cstr = @as([*:0]const u8, @ptrCast(placeholder.ptr));
+        const placeholder_z = try allocator.dupeZ(u8, placeholder);
+        defer allocator.free(placeholder_z);
         const str_alloc4 = macos.msgSend0(NSString, "alloc");
-        const ns_placeholder = macos.msgSend1(str_alloc4, "initWithUTF8String:", placeholder_cstr);
+        const ns_placeholder = macos.msgSend1(str_alloc4, "initWithUTF8String:", placeholder_z.ptr);
         _ = macos.msgSend1(input_field, "setPlaceholderString:", ns_placeholder);
     }
 
@@ -812,9 +829,10 @@ fn showMacColorDialog(options: ColorDialogOptions) !?DialogResult {
 
     // Set title (NSColorPanel doesn't have direct title setting, but we can set window title)
     const NSString = macos.getClass("NSString");
-    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    defer std.heap.c_allocator.free(title_z);
     const str_alloc = macos.msgSend0(NSString, "alloc");
-    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr);
+    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_z.ptr);
     _ = macos.msgSend1(panel, "setTitle:", ns_title);
 
     // Set default color
@@ -851,9 +869,10 @@ fn showMacFontDialog(allocator: std.mem.Allocator, options: FontDialogOptions) !
 
     // Set title
     const NSString = macos.getClass("NSString");
-    const title_cstr = @as([*:0]const u8, @ptrCast(options.title.ptr));
+    const title_z = try allocator.dupeZ(u8, options.title);
+    defer allocator.free(title_z);
     const str_alloc = macos.msgSend0(NSString, "alloc");
-    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr);
+    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_z.ptr);
     _ = macos.msgSend1(panel, "setTitle:", ns_title);
 
     // Set default font if provided
@@ -861,9 +880,10 @@ fn showMacFontDialog(allocator: std.mem.Allocator, options: FontDialogOptions) !
         const NSFontManager = macos.getClass("NSFontManager");
         const font_manager = macos.msgSend0(NSFontManager, "sharedFontManager");
 
-        const family_cstr = @as([*:0]const u8, @ptrCast(default_font.family.ptr));
+        const family_z = try allocator.dupeZ(u8, default_font.family);
+        defer allocator.free(family_z);
         const str_alloc2 = macos.msgSend0(NSString, "alloc");
-        const ns_family = macos.msgSend1(str_alloc2, "initWithUTF8String:", family_cstr);
+        const ns_family = macos.msgSend1(str_alloc2, "initWithUTF8String:", family_z.ptr);
 
         // Create font with family and size
         const NSFont = macos.getClass("NSFont");
@@ -1236,6 +1256,15 @@ fn showWindowsFileDialog(options: FileDialogOptions) !?DialogResult {
     var file_buf: [4096]u8 = undefined;
     @memset(&file_buf, 0);
 
+    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    defer std.heap.c_allocator.free(title_z);
+
+    const initial_dir_z = if (options.default_path) |p|
+        std.heap.c_allocator.dupeZ(u8, p) catch return null
+    else
+        null;
+    defer if (initial_dir_z) |z| std.heap.c_allocator.free(z);
+
     var ofn: windows.OPENFILENAMEA = .{
         .lStructSize = @sizeOf(windows.OPENFILENAMEA),
         .hwndOwner = null,
@@ -1248,8 +1277,8 @@ fn showWindowsFileDialog(options: FileDialogOptions) !?DialogResult {
         .nMaxFile = file_buf.len,
         .lpstrFileTitle = null,
         .nMaxFileTitle = 0,
-        .lpstrInitialDir = if (options.default_path) |p| @ptrCast(p.ptr) else null,
-        .lpstrTitle = @ptrCast(options.title.ptr),
+        .lpstrInitialDir = if (initial_dir_z) |z| z.ptr else null,
+        .lpstrTitle = title_z.ptr,
         .Flags = windows.OFN_PATHMUSTEXIST | windows.OFN_FILEMUSTEXIST | windows.OFN_EXPLORER,
         .nFileOffset = 0,
         .nFileExtension = 0,
@@ -1314,6 +1343,15 @@ fn showWindowsFileSaveDialog(options: FileDialogOptions) !?DialogResult {
         @memcpy(file_buf[0..len], path[0..len]);
     }
 
+    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    defer std.heap.c_allocator.free(title_z);
+
+    const def_ext_z = if (options.default_extension) |ext|
+        std.heap.c_allocator.dupeZ(u8, ext) catch return null
+    else
+        null;
+    defer if (def_ext_z) |z| std.heap.c_allocator.free(z);
+
     var ofn: windows.OPENFILENAMEA = .{
         .lStructSize = @sizeOf(windows.OPENFILENAMEA),
         .hwndOwner = null,
@@ -1327,11 +1365,11 @@ fn showWindowsFileSaveDialog(options: FileDialogOptions) !?DialogResult {
         .lpstrFileTitle = null,
         .nMaxFileTitle = 0,
         .lpstrInitialDir = null,
-        .lpstrTitle = @ptrCast(options.title.ptr),
+        .lpstrTitle = title_z.ptr,
         .Flags = windows.OFN_OVERWRITEPROMPT | windows.OFN_PATHMUSTEXIST | windows.OFN_EXPLORER,
         .nFileOffset = 0,
         .nFileExtension = 0,
-        .lpstrDefExt = if (options.default_extension) |ext| @ptrCast(ext.ptr) else null,
+        .lpstrDefExt = if (def_ext_z) |z| z.ptr else null,
         .lCustData = 0,
         .lpfnHook = null,
         .lpTemplateName = null,
@@ -1370,11 +1408,14 @@ fn showWindowsDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
     var display_name: [260]u8 = undefined;
     var path_buf: [260]u8 = undefined;
 
+    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    defer std.heap.c_allocator.free(title_z);
+
     var bi: windows.BROWSEINFOA = .{
         .hwndOwner = null,
         .pidlRoot = null,
         .pszDisplayName = &display_name,
-        .lpszTitle = @ptrCast(options.title.ptr),
+        .lpszTitle = title_z.ptr,
         .ulFlags = windows.BIF_RETURNONLYFSDIRS | windows.BIF_NEWDIALOGSTYLE,
         .lpfn = null,
         .lParam = 0,

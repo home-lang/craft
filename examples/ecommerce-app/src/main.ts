@@ -3,7 +3,11 @@
  * Features: Product catalog, cart, checkout, orders, wishlist, search, reviews
  */
 
-import { db, http, window, Platform, haptics, secureStorage } from '@craft-native/craft'
+// TODO: 'window' is not exported from @craft-native/craft; use 'win' (alias for windowManager) instead
+// TODO: 'Platform' (value) is excluded from @craft-native/craft top-level export due to name conflict with Platform type;
+//       import from '@craft-native/craft/components' or use getPlatform() from the API
+import { db, http, win as window, haptics, secureStorage } from '@craft-native/craft'
+import { Platform } from '@craft-native/craft/components'
 
 // Types
 interface Product {

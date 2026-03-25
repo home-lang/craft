@@ -179,7 +179,9 @@ pub const CraftActivity = struct {
 
         // Send ready event
         if (self.js_bridge) |bridge_ptr| {
-            bridge_ptr.sendEvent("ready", "{}") catch {};
+            bridge_ptr.sendEvent("ready", "{}") catch |err| {
+                std.log.warn("failed to send ready event to Android JS bridge: {}", .{err});
+            };
         }
     }
 
@@ -213,7 +215,9 @@ pub const JSBridge = struct {
         };
 
         // Register built-in handlers
-        bridge.registerBuiltinHandlers() catch {};
+        bridge.registerBuiltinHandlers() catch |err| {
+            std.log.warn("failed to register Android built-in JS handlers: {}", .{err});
+        };
 
         return bridge;
     }
@@ -247,7 +251,9 @@ pub const JSBridge = struct {
         if (self.handlers.get(method)) |handler| {
             handler(params, self, callback_id);
         } else {
-            self.sendError(callback_id, "Unknown method") catch {};
+            self.sendError(callback_id, "Unknown method") catch |err| {
+                std.log.warn("failed to send unknown method error to Android JS: {}", .{err});
+            };
         }
     }
 
@@ -329,53 +335,69 @@ pub const JSBridge = struct {
         const response =
             \\{"os": "android", "version": "14", "device": "Android", "native": true}
         ;
-        bridge.sendResponse(callback_id, response) catch {};
+        bridge.sendResponse(callback_id, response) catch |err| {
+            std.log.debug("failed to send getPlatform response: {}", .{err});
+        };
     }
 
     fn handleShowToast(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
         const message = bridge.extractJsonString(params, "message") orelse "Toast";
         _ = message;
         // Would call Toast.makeText via JNI
-        bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
+        bridge.sendResponse(callback_id, "{ \"success\": true }") catch |err| {
+            std.log.debug("failed to send showToast response: {}", .{err});
+        };
     }
 
     fn handleVibrate(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
         _ = params;
         // Would call Vibrator.vibrate via JNI
-        bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
+        bridge.sendResponse(callback_id, "{ \"success\": true }") catch |err| {
+            std.log.debug("failed to send vibrate response: {}", .{err});
+        };
     }
 
     fn handleSetClipboard(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
         const text = bridge.extractJsonString(params, "text") orelse "";
         _ = text;
         // Would call ClipboardManager.setPrimaryClip via JNI
-        bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
+        bridge.sendResponse(callback_id, "{ \"success\": true }") catch |err| {
+            std.log.debug("failed to send setClipboard response: {}", .{err});
+        };
     }
 
     fn handleGetClipboard(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
         _ = params;
         // Would call ClipboardManager.getPrimaryClip via JNI
-        bridge.sendResponse(callback_id, "{ \"text\": \"\" }") catch {};
+        bridge.sendResponse(callback_id, "{ \"text\": \"\" }") catch |err| {
+            std.log.debug("failed to send getClipboard response: {}", .{err});
+        };
     }
 
     fn handleShare(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
         const text = bridge.extractJsonString(params, "text") orelse "";
         _ = text;
         // Would start Intent.ACTION_SEND via JNI
-        bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
+        bridge.sendResponse(callback_id, "{ \"success\": true }") catch |err| {
+            std.log.debug("failed to send share response: {}", .{err});
+        };
     }
 
     fn handleOpenURL(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
         const url = bridge.extractJsonString(params, "url") orelse "";
         _ = url;
         // Would start Intent.ACTION_VIEW via JNI
-        bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
+        bridge.sendResponse(callback_id, "{ \"success\": true }") catch |err| {
+            std.log.debug("failed to send openURL response: {}", .{err});
+        };
     }
 
     fn handleGetNetworkStatus(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
         _ = params;
         // Would check ConnectivityManager via JNI
-        bridge.sendResponse(callback_id, "{ \"connected\": true, \"type\": \"wifi\" }") catch {};
+        bridge.sendResponse(callback_id, "{ \"connected\": true, \"type\": \"wifi\" }") catch |err| {
+            std.log.debug("failed to send getNetworkStatus response: {}", .{err});
+        };
     }
 
     fn handleShowAlert(params: []const u8, bridge: *JSBridge, callback_id: []const u8) void {
@@ -384,7 +406,9 @@ pub const JSBridge = struct {
         _ = title;
         _ = message;
         // Would show AlertDialog via JNI
-        bridge.sendResponse(callback_id, "{ \"success\": true }") catch {};
+        bridge.sendResponse(callback_id, "{ \"success\": true }") catch |err| {
+            std.log.debug("failed to send showAlert response: {}", .{err});
+        };
     }
 };
 

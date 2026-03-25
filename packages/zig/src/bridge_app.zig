@@ -15,7 +15,9 @@ pub const AppBridge = struct {
 
     /// Handle app-related messages from JavaScript
     pub fn handleMessage(self: *Self, action: []const u8) !void {
-        self.handleMessageWithData(action, null) catch {};
+        self.handleMessageWithData(action, null) catch |err| {
+            std.log.warn("app bridge message handling failed for '{s}': {}", .{ action, err });
+        };
     }
 
     pub fn handleMessageWithData(self: *Self, action: []const u8, data: ?[]const u8) !void {

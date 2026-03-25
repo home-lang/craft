@@ -151,7 +151,7 @@ pub const ShortcutsBridge = struct {
 
     /// Setup global event monitor
     fn setupGlobalMonitor(self: *Self) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) return;
 
         const macos = @import("macos.zig");
 
@@ -169,7 +169,8 @@ pub const ShortcutsBridge = struct {
         _ = event_mask;
 
         // Store reference to self for callback
-        global_shortcuts_bridge = self;
+        const global_state = @import("global_state.zig");
+        global_state.instance.setShortcutsBridge(self);
 
         log.debug("Global monitor setup (polling mode)", .{});
     }
@@ -201,16 +202,14 @@ pub const ShortcutsBridge = struct {
     fn triggerCallback(self: *Self, shortcut_id: []const u8, callback_id: []const u8) void {
         _ = self;
 
-        if (builtin.os.tag != .macos) return;
-
-        const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
         var buf: [512]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftShortcutCallback)window.__craftShortcutCallback('{s}','{s}');
         , .{ shortcut_id, callback_id }) catch return;
 
-        macos.tryEvalJS(js) catch |err| {
+        bridge.evalJS(js) catch |err| {
             log.debug("Failed to trigger callback: {}", .{err});
         };
     }
@@ -297,22 +296,20 @@ pub const ShortcutsBridge = struct {
 
         const registered = self.shortcuts.contains(id);
 
-        if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-            var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf,
-                \\if(window.__craftShortcutRegistered)window.__craftShortcutRegistered('{s}',{});
-            , .{ id, registered }) catch return;
+        const bridge = @import("bridge.zig");
+        var buf: [256]u8 = undefined;
+        const js = std.fmt.bufPrint(&buf,
+            \\if(window.__craftShortcutRegistered)window.__craftShortcutRegistered('{s}',{});
+        , .{ id, registered }) catch return;
 
-            macos.tryEvalJS(js) catch {};
-        }
+        bridge.evalJS(js) catch |err| {
+            std.log.debug("JS eval failed for shortcut registered callback: {}", .{err});
+        };
     }
 
     /// List all registered shortcuts
     fn listShortcuts(self: *Self) !void {
-        if (builtin.os.tag != .macos) return;
-
-        const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
         var buf: [2048]u8 = undefined;
         var pos: usize = 0;
@@ -345,7 +342,9 @@ pub const ShortcutsBridge = struct {
             \\if(window.__craftShortcutList)window.__craftShortcutList({s});
         , .{buf[0..pos]}) catch return;
 
-        macos.tryEvalJS(js) catch {};
+        bridge.evalJS(js) catch |err| {
+            std.log.debug("JS eval failed for shortcut list callback: {}", .{err});
+        };
     }
 
     pub fn deinit(self: *Self) void {
@@ -356,12 +355,10 @@ pub const ShortcutsBridge = struct {
             self.allocator.free(entry.value_ptr.callback_id);
         }
         self.shortcuts.deinit();
-        global_shortcuts_bridge = null;
+        const global_state = @import("global_state.zig");
+        global_state.instance.setShortcutsBridge(null);
     }
 };
-
-/// Global reference for event callbacks
-var global_shortcuts_bridge: ?*ShortcutsBridge = null;
 
 /// Convert keycode to key name
 fn keycodeToName(keycode: u16) []const u8 {
@@ -440,7 +437,8 @@ fn keycodeToName(keycode: u16) []const u8 {
 
 /// Public function for external event handling
 pub fn handleGlobalKeyEvent(keycode: u16, flags: c_ulong) void {
-    if (global_shortcuts_bridge) |bridge| {
+    const global_state = @import("global_state.zig");
+    if (global_state.instance.getShortcutsBridge()) |bridge| {
         bridge.checkKeyEvent(keycode, flags);
     }
 }

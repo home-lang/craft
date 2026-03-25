@@ -330,6 +330,7 @@ else {
   const socket = new WebSocket('ws://localhost:${this.config.port}');
   const modules = new Map();
   const hotState = new Map();
+  let reloadTimer = null;
 
   socket.onopen = () => {
     console.log('[HMR] Connected');
@@ -347,7 +348,11 @@ else {
         break;
       case 'full-reload':
         console.log('[HMR] Full reload:', message.reason);
-        location.reload();
+        if (!reloadTimer) {
+          reloadTimer = setTimeout(() => {
+            location.reload();
+          }, 100); // Debounce 100ms to batch rapid changes
+        }
         break;
       case 'connected':
         console.log('[HMR] Client ID:', message.clientId);

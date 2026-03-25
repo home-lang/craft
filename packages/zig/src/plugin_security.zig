@@ -482,7 +482,9 @@ pub const Sandbox = struct {
         const size = mem.len;
         self.allocator.free(mem);
         self.plugin.releaseMemory(size);
-        self.monitor.takeMemorySnapshot() catch {};
+        self.monitor.takeMemorySnapshot() catch |err| {
+            std.log.debug("memory snapshot after sandbox free failed: {}", .{err});
+        };
     }
 };
 

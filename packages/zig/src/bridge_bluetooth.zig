@@ -88,7 +88,10 @@ pub const BluetoothBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','isAvailable',{});", .{ callback_id, available }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for bluetooth isAvailable callback: {}", .{err});
+            };
         }
     }
 
@@ -125,7 +128,10 @@ pub const BluetoothBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','isEnabled',{});", .{ callback_id, enabled }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for bluetooth isEnabled callback: {}", .{err});
+            };
         }
     }
 
@@ -166,7 +172,10 @@ pub const BluetoothBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','getPowerState','{s}');", .{ callback_id, state }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for bluetooth getPowerState callback: {}", .{err});
+            };
         }
     }
 
@@ -251,7 +260,10 @@ pub const BluetoothBridge = struct {
             var buf: [4500]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','getConnectedDevices',{s});", .{ callback_id, result_buf[0..result_pos] }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for bluetooth getConnectedDevices callback: {}", .{err});
+            };
         }
     }
 
@@ -331,7 +343,10 @@ pub const BluetoothBridge = struct {
             var buf: [4500]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','getPairedDevices',{s});", .{ callback_id, result_buf[0..result_pos] }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for bluetooth getPairedDevices callback: {}", .{err});
+            };
         }
     }
 
@@ -343,8 +358,6 @@ pub const BluetoothBridge = struct {
         log.debug("startDiscovery", .{});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             // Note: Full implementation would use IOBluetoothDeviceInquiry
             // This requires setting up a delegate for callbacks
             self.is_scanning = true;
@@ -353,7 +366,10 @@ pub const BluetoothBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('','startDiscovery',{{started:true}});", .{}) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for bluetooth startDiscovery callback: {}", .{err});
+            };
         }
     }
 
@@ -365,14 +381,15 @@ pub const BluetoothBridge = struct {
         log.debug("stopDiscovery", .{});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             self.is_scanning = false;
 
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('','stopDiscovery',{{stopped:true}});", .{}) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for bluetooth stopDiscovery callback: {}", .{err});
+            };
         }
     }
 
@@ -391,12 +408,13 @@ pub const BluetoothBridge = struct {
         log.debug("isDiscovering", .{});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','isDiscovering',{});", .{ callback_id, self.is_scanning }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for bluetooth isDiscovering callback: {}", .{err});
+            };
         }
     }
 
@@ -418,8 +436,6 @@ pub const BluetoothBridge = struct {
         log.debug("connectDevice: {s}", .{address});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             // Note: Connecting to arbitrary devices requires IOBluetoothDevice APIs
             // This is a placeholder - full implementation would use:
             // [IOBluetoothDevice deviceWithAddressString:] then openConnection
@@ -427,7 +443,10 @@ pub const BluetoothBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('','connectDevice',{{address:'{s}',status:'pending'}});", .{address}) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for bluetooth connectDevice callback: {}", .{err});
+            };
         }
     }
 
@@ -449,12 +468,13 @@ pub const BluetoothBridge = struct {
         log.debug("disconnectDevice: {s}", .{address});
 
         if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
-
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('','disconnectDevice',{{address:'{s}',status:'disconnected'}});", .{address}) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for bluetooth disconnectDevice callback: {}", .{err});
+            };
         }
     }
 

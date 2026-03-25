@@ -285,7 +285,9 @@ pub const PersistentQueue = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.save() catch {};
+        self.save() catch |err| {
+            std.log.warn("message queue save during cleanup failed: {}", .{err});
+        };
         self.allocator.free(self.storage_path);
         self.queue.deinit();
     }

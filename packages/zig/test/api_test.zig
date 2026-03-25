@@ -10,10 +10,33 @@ test "Version - structure" {
     try testing.expectEqual(@as(u32, 0), version.patch);
 }
 
-test "Version - current_version" {
+test "Version - current_version matches package.json" {
+    // Version is now set to 0.0.20 matching package.json
     try testing.expectEqual(@as(u32, 0), api.current_version.major);
     try testing.expectEqual(@as(u32, 0), api.current_version.minor);
-    try testing.expectEqual(@as(u32, 1), api.current_version.patch);
+    try testing.expectEqual(@as(u32, 20), api.current_version.patch);
+}
+
+test "Version - parse comptime" {
+    // Version.parse is comptime-only — use comptime blocks to test
+    comptime {
+        const v = api.Version.parse("1.2.3");
+        if (v.major != 1 or v.minor != 2 or v.patch != 3) @compileError("bad parse");
+    }
+}
+
+test "Version - parse zero comptime" {
+    comptime {
+        const v = api.Version.parse("0.0.0");
+        if (v.major != 0 or v.minor != 0 or v.patch != 0) @compileError("bad parse");
+    }
+}
+
+test "Version - parse large numbers comptime" {
+    comptime {
+        const v = api.Version.parse("10.20.30");
+        if (v.major != 10 or v.minor != 20 or v.patch != 30) @compileError("bad parse");
+    }
 }
 
 test "WindowOptions - with defaults" {

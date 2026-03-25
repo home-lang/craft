@@ -316,7 +316,9 @@ test "filesystem read/write" {
 
     // Write file
     try fs.writeFile(test_path, content);
-    defer io_context.cwd().deleteFile(io_context.get(), test_path) catch {};
+    defer io_context.cwd().deleteFile(io_context.get(), test_path) catch |err| {
+        std.log.debug("test cleanup: failed to delete test file: {}", .{err});
+    };
 
     // Read file
     const read_content = try fs.readFile(test_path);
@@ -332,7 +334,9 @@ test "filesystem exists" {
 
     const test_path = "test_exists.txt";
     try fs.writeFile(test_path, "test");
-    defer io_context.cwd().deleteFile(io_context.get(), test_path) catch {};
+    defer io_context.cwd().deleteFile(io_context.get(), test_path) catch |err| {
+        std.log.debug("test cleanup: failed to delete test file: {}", .{err});
+    };
 
     try std.testing.expect(fs.exists(test_path));
     try std.testing.expect(!fs.exists("nonexistent.txt"));

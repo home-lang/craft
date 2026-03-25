@@ -345,7 +345,7 @@ export class SecureStorage {
     let encrypted = cipher.update(data, 'utf8', 'hex')
     encrypted += cipher.final('hex')
 
-    const authTag = (cipher as any).getAuthTag()
+    const authTag = 'getAuthTag' in cipher ? (cipher as { getAuthTag(): Buffer }).getAuthTag() : Buffer.alloc(0)
 
     return JSON.stringify({
       iv: iv.toString('hex'),
@@ -366,7 +366,9 @@ export class SecureStorage {
       Buffer.from(iv, 'hex')
     )
 
-    ;(decipher as any).setAuthTag(Buffer.from(tag, 'hex'))
+    if ('setAuthTag' in decipher) {
+      (decipher as { setAuthTag(tag: Buffer): void }).setAuthTag(Buffer.from(tag, 'hex'))
+    }
 
     let decrypted = decipher.update(data, 'hex', 'utf8')
     decrypted += decipher.final('utf8')

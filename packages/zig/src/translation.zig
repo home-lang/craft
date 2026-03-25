@@ -777,13 +777,17 @@ pub const OfflineTranslationService = struct {
         // Simulate starting a new download
         const model_size: u64 = 50 * 1024 * 1024; // 50MB
         const progress = DownloadProgress.init(language_pair, model_size);
-        self.active_downloads.append(allocator, progress) catch {};
+        self.active_downloads.append(allocator, progress) catch |err| {
+            std.log.warn("failed to track download progress: {}", .{err});
+        };
 
         return progress;
     }
 
     pub fn addDownloadedModel(self: *OfflineTranslationService, model: TranslationModel, allocator: Allocator) void {
-        self.downloaded_models.append(allocator, model) catch {};
+        self.downloaded_models.append(allocator, model) catch |err| {
+            std.log.warn("failed to add downloaded model: {}", .{err});
+        };
     }
 
     pub fn getDownloadedModels(self: *const OfflineTranslationService) []const TranslationModel {
@@ -954,14 +958,18 @@ pub const TranslationController = struct {
     }
 
     fn emitEvent(self: *TranslationController, event: TranslationEvent, allocator: Allocator) void {
-        self.event_history.append(allocator, event) catch {};
+        self.event_history.append(allocator, event) catch |err| {
+            std.log.debug("failed to record translation event: {}", .{err});
+        };
         if (self.event_callback) |callback| {
             callback(event);
         }
     }
 
     fn recordResult(self: *TranslationController, result: TranslationResult, allocator: Allocator) void {
-        self.translation_history.append(allocator, result) catch {};
+        self.translation_history.append(allocator, result) catch |err| {
+            std.log.debug("failed to record translation result: {}", .{err});
+        };
     }
 
     pub fn translate(self: *TranslationController, request: TranslationRequest, allocator: Allocator) TranslationResult {
@@ -1052,7 +1060,9 @@ pub const TranslationController = struct {
     }
 
     pub fn addSupportedPair(self: *TranslationController, language_pair: LanguagePair, allocator: Allocator) void {
-        self.supported_pairs.append(allocator, language_pair) catch {};
+        self.supported_pairs.append(allocator, language_pair) catch |err| {
+            std.log.warn("failed to add supported language pair: {}", .{err});
+        };
     }
 
     pub fn getDownloadedModels(self: *const TranslationController) []const TranslationModel {

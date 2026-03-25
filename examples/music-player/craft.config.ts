@@ -1,4 +1,5 @@
-import type { CraftConfig } from '@craft-native/craft'
+// TODO: CraftConfig is not exported from @craft-native/craft; use CraftAppConfig instead
+import type { CraftAppConfig } from '@craft-native/craft'
 
 export default {
   name: 'Music Player',
@@ -27,4 +28,4 @@ export default {
     minify: true,
     sourcemap: true,
   },
-} satisfies CraftConfig
+} satisfies CraftAppConfig

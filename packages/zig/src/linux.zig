@@ -40,6 +40,17 @@ pub extern "c" fn webkit_settings_set_enable_media_capabilities(settings: *anyop
 pub extern "c" fn webkit_permission_request_allow(request: *anyopaque) void;
 pub extern "c" fn webkit_permission_request_deny(request: *anyopaque) void;
 
+// Permission request type checking via GObject type system
+pub extern "c" fn g_type_check_instance_is_a(instance: *anyopaque, iface_type: c_ulong) c_int;
+pub extern "c" fn webkit_user_media_permission_is_for_audio_device(request: *anyopaque) c_int;
+pub extern "c" fn webkit_user_media_permission_is_for_video_device(request: *anyopaque) c_int;
+
+// GObject type getters for permission request types
+pub extern "c" fn webkit_user_media_permission_request_get_type() c_ulong;
+pub extern "c" fn webkit_geolocation_permission_request_get_type() c_ulong;
+pub extern "c" fn webkit_notification_permission_request_get_type() c_ulong;
+pub extern "c" fn webkit_clipboard_permission_request_get_type() c_ulong;
+
 // JavaScript execution
 pub extern "c" fn webkit_web_view_run_javascript(
     webview: *anyopaque,
@@ -77,16 +88,160 @@ pub extern "c" fn g_signal_connect_data(
     connect_flags: c_int,
 ) c_ulong;
 
-/// Permission request signal handler - auto-grants camera/microphone permissions
+/// Permission policy configuration - secure by default (deny all sensitive permissions)
+pub const PermissionPolicy = struct {
+    allow_camera: bool = false,
+    allow_microphone: bool = false,
+    allow_geolocation: bool = false,
+    allow_notifications: bool = true,
+    allow_clipboard: bool = true,
+};
+
+var permission_policy: PermissionPolicy = .{};
+
+pub fn setPermissionPolicy(policy: PermissionPolicy) void {
+    permission_policy = policy;
+}
+
+/// Permission request signal handler - checks permission type and respects policy
 fn onPermissionRequest(webview: *anyopaque, request: *anyopaque, user_data: ?*anyopaque) callconv(.c) c_int {
     _ = webview;
     _ = user_data;
-    // Auto-grant all permission requests (camera, microphone, geolocation, etc.)
-    // In a production app, you might want to check the type and prompt the user
-    webkit_permission_request_allow(request);
-    std.debug.print("[Media] Permission request granted\n", .{});
-    // Return TRUE (1) to indicate we handled the signal
+
+    // Check if this is a user media (camera/microphone) permission request
+    const user_media_type = webkit_user_media_permission_request_get_type();
+    if (g_type_check_instance_is_a(request, user_media_type) != 0) {
+        const is_audio = webkit_user_media_permission_is_for_audio_device(request) != 0;
+        const is_video = webkit_user_media_permission_is_for_video_device(request) != 0;
+
+        if (is_video and is_audio) {
+            // Request for both camera and microphone
+            if (permission_policy.allow_camera and permission_policy.allow_microphone) {
+                std.debug.print("[Permission] Allowed: camera + microphone\n", .{});
+                webkit_permission_request_allow(request);
+            } else {
+                std.debug.print("[Permission] Denied: camera + microphone (camera={}, mic={})\n", .{ permission_policy.allow_camera, permission_policy.allow_microphone });
+                webkit_permission_request_deny(request);
+            }
+        } else if (is_video) {
+            if (permission_policy.allow_camera) {
+                std.debug.print("[Permission] Allowed: camera\n", .{});
+                webkit_permission_request_allow(request);
+            } else {
+                std.debug.print("[Permission] Denied: camera\n", .{});
+                webkit_permission_request_deny(request);
+            }
+        } else if (is_audio) {
+            if (permission_policy.allow_microphone) {
+                std.debug.print("[Permission] Allowed: microphone\n", .{});
+                webkit_permission_request_allow(request);
+            } else {
+                std.debug.print("[Permission] Denied: microphone\n", .{});
+                webkit_permission_request_deny(request);
+            }
+        } else {
+            std.debug.print("[Permission] Denied: unknown media device\n", .{});
+            webkit_permission_request_deny(request);
+        }
+        return 1;
+    }
+
+    // Check if this is a geolocation permission request
+    const geolocation_type = webkit_geolocation_permission_request_get_type();
+    if (g_type_check_instance_is_a(request, geolocation_type) != 0) {
+        if (permission_policy.allow_geolocation) {
+            std.debug.print("[Permission] Allowed: geolocation\n", .{});
+            webkit_permission_request_allow(request);
+        } else {
+            std.debug.print("[Permission] Denied: geolocation\n", .{});
+            webkit_permission_request_deny(request);
+        }
+        return 1;
+    }
+
+    // Check if this is a notification permission request
+    const notification_type = webkit_notification_permission_request_get_type();
+    if (g_type_check_instance_is_a(request, notification_type) != 0) {
+        if (permission_policy.allow_notifications) {
+            std.debug.print("[Permission] Allowed: notifications\n", .{});
+            webkit_permission_request_allow(request);
+        } else {
+            std.debug.print("[Permission] Denied: notifications\n", .{});
+            webkit_permission_request_deny(request);
+        }
+        return 1;
+    }
+
+    // Check if this is a clipboard permission request
+    const clipboard_type = webkit_clipboard_permission_request_get_type();
+    if (g_type_check_instance_is_a(request, clipboard_type) != 0) {
+        if (permission_policy.allow_clipboard) {
+            std.debug.print("[Permission] Allowed: clipboard\n", .{});
+            webkit_permission_request_allow(request);
+        } else {
+            std.debug.print("[Permission] Denied: clipboard\n", .{});
+            webkit_permission_request_deny(request);
+        }
+        return 1;
+    }
+
+    // Deny unknown permission types (secure by default)
+    std.debug.print("[Permission] Denied: unknown permission type\n", .{});
+    webkit_permission_request_deny(request);
     return 1;
+}
+
+// Multi-window registry
+pub const WindowEntry = struct {
+    id: u32,
+    gtk_window: *anyopaque,
+    webview: *anyopaque,
+};
+
+var window_registry: [32]?WindowEntry = [_]?WindowEntry{null} ** 32;
+var window_count: u32 = 0;
+var next_window_id: u32 = 1;
+
+pub fn getWindowById(id: u32) ?WindowEntry {
+    for (window_registry) |entry| {
+        if (entry) |e| {
+            if (e.id == id) return e;
+        }
+    }
+    return null;
+}
+
+pub fn getWindowCount() u32 {
+    return window_count;
+}
+
+fn registerWindow(gtk_window: *anyopaque, webview: *anyopaque) ?u32 {
+    for (&window_registry) |*slot| {
+        if (slot.* == null) {
+            const id = next_window_id;
+            next_window_id += 1;
+            slot.* = WindowEntry{
+                .id = id,
+                .gtk_window = gtk_window,
+                .webview = webview,
+            };
+            window_count += 1;
+            return id;
+        }
+    }
+    return null; // registry full
+}
+
+fn unregisterWindow(id: u32) void {
+    for (&window_registry) |*slot| {
+        if (slot.*) |e| {
+            if (e.id == id) {
+                slot.* = null;
+                window_count -= 1;
+                break;
+            }
+        }
+    }
 }
 
 // Application state
@@ -106,9 +261,16 @@ pub const WindowStyle = struct {
     dark_mode: ?bool = null,
     enable_hot_reload: bool = false,
     dev_tools: bool = true,
+    // Permission policy fields
+    allow_camera: bool = false,
+    allow_microphone: bool = false,
+    allow_geolocation: bool = false,
+    allow_notifications: bool = true,
+    allow_clipboard: bool = true,
 };
 
 pub const Window = struct {
+    id: u32,
     gtk_window: *anyopaque,
     webview: *anyopaque,
     title: []const u8,
@@ -141,7 +303,16 @@ pub const Window = struct {
         webkit_settings_set_enable_mediasource(settings, 1);
         webkit_settings_set_enable_media_capabilities(settings, 1);
 
-        // Connect permission-request signal to auto-grant camera/microphone permissions
+        // Configure permission policy from window options
+        setPermissionPolicy(.{
+            .allow_camera = options.allow_camera,
+            .allow_microphone = options.allow_microphone,
+            .allow_geolocation = options.allow_geolocation,
+            .allow_notifications = options.allow_notifications,
+            .allow_clipboard = options.allow_clipboard,
+        });
+
+        // Connect permission-request signal with policy-based handler
         _ = g_signal_connect_data(
             webview,
             "permission-request",
@@ -150,7 +321,13 @@ pub const Window = struct {
             null,
             0,
         );
-        std.debug.print("[Media] Linux WebView configured for camera/microphone access\n", .{});
+        std.debug.print("[Permission] Linux WebView configured (camera={}, mic={}, geo={}, notify={}, clip={})\n", .{
+            options.allow_camera,
+            options.allow_microphone,
+            options.allow_geolocation,
+            options.allow_notifications,
+            options.allow_clipboard,
+        });
 
         // Set window properties
         const title_z = try std.heap.c_allocator.dupeZ(u8, options.title);
@@ -182,7 +359,11 @@ pub const Window = struct {
         // Add WebView to window
         gtk_container_add(window, webview);
 
+        // Register window in the multi-window registry
+        const window_id = registerWindow(window, webview) orelse return error.TooManyWindows;
+
         return Window{
+            .id = window_id,
             .gtk_window = window,
             .webview = webview,
             .title = options.title,
@@ -203,6 +384,24 @@ pub const Window = struct {
     }
 
     pub fn close(self: *Window) void {
+        // Remove from window registry
+        unregisterWindow(self.id);
+
+        // Update current_window if this was the active one
+        if (current_window == self.gtk_window) {
+            current_window = null;
+            // Set current_window to the most recently registered window, if any
+            var latest_id: u32 = 0;
+            for (window_registry) |entry| {
+                if (entry) |e| {
+                    if (e.id > latest_id) {
+                        latest_id = e.id;
+                        current_window = e.gtk_window;
+                    }
+                }
+            }
+        }
+
         gtk_window_close(self.gtk_window);
     }
 
@@ -290,6 +489,30 @@ pub const App = struct {
     }
 };
 
+/// Evaluate JavaScript in the current webview (cross-platform bridge helper).
+/// Uses the most recently registered window's webview from the window registry.
+pub fn evalJS(script: []const u8) !void {
+    // Find the most recently registered window's webview
+    var latest_id: u32 = 0;
+    var latest_webview: ?*anyopaque = null;
+    for (window_registry) |entry| {
+        if (entry) |e| {
+            if (e.id > latest_id) {
+                latest_id = e.id;
+                latest_webview = e.webview;
+            }
+        }
+    }
+
+    if (latest_webview) |webview| {
+        const script_z = std.heap.c_allocator.dupeZ(u8, script) catch return error.OutOfMemory;
+        defer std.heap.c_allocator.free(script_z);
+        webkit_web_view_run_javascript(webview, script_z, null, null, null);
+    } else {
+        return error.NoWebView;
+    }
+}
+
 // Legacy API compatibility
 pub fn createWindow(title: []const u8, width: u32, height: u32, html: []const u8) !*anyopaque {
     var window = try Window.create(.{
@@ -315,6 +538,11 @@ pub fn createWindowWithURL(title: []const u8, width: u32, height: u32, url: []co
         .fullscreen = style.fullscreen,
         .dark_mode = style.dark_mode,
         .dev_tools = style.dev_tools,
+        .allow_camera = style.allow_camera,
+        .allow_microphone = style.allow_microphone,
+        .allow_geolocation = style.allow_geolocation,
+        .allow_notifications = style.allow_notifications,
+        .allow_clipboard = style.allow_clipboard,
     });
     try window.loadURL(url);
     window.show();
@@ -343,14 +571,14 @@ pub fn showNotification(title: []const u8, message: []const u8) !void {
     _ = notify_notification_show(notification, null);
 }
 
-// Clipboard using GDK
-pub extern "c" fn gdk_display_get_default() *anyopaque;
-pub extern "c" fn gdk_display_get_clipboard(display: *anyopaque) *anyopaque;
+// Clipboard using GDK (works on both X11 and Wayland)
+pub extern "c" fn gdk_display_get_default() ?*anyopaque;
+pub extern "c" fn gdk_display_get_clipboard(display: *anyopaque) ?*anyopaque;
 pub extern "c" fn gdk_clipboard_set_text(clipboard: *anyopaque, text: [*:0]const u8) void;
 pub extern "c" fn gdk_clipboard_read_text_async(
     clipboard: *anyopaque,
     cancellable: ?*anyopaque,
-    callback: *const fn (*anyopaque, *anyopaque, ?*anyopaque) callconv(.c) void,
+    callback: ?*const fn (*anyopaque, *anyopaque, ?*anyopaque) callconv(.c) void,
     user_data: ?*anyopaque,
 ) void;
 
@@ -358,8 +586,8 @@ pub fn setClipboard(text: []const u8) !void {
     const text_z = try std.heap.c_allocator.dupeZ(u8, text);
     defer std.heap.c_allocator.free(text_z);
 
-    const display = gdk_display_get_default();
-    const clipboard = gdk_display_get_clipboard(display);
+    const display = gdk_display_get_default() orelse return error.NoDisplay;
+    const clipboard = gdk_display_get_clipboard(display) orelse return error.NoClipboard;
     gdk_clipboard_set_text(clipboard, text_z);
 }
 
@@ -372,7 +600,10 @@ pub extern "c" fn gdk_clipboard_read_text_finish(
 
 pub extern "c" fn g_free(mem: ?*anyopaque) void;
 
-// Synchronous clipboard read using xclip/xsel fallback for reliability
+// Clipboard read: tries xclip first, then xsel as fallback.
+// Note: GDK clipboard read is async-only (gdk_clipboard_read_text_async),
+// so we use subprocess tools for synchronous reads. The write path uses
+// GDK directly since gdk_clipboard_set_text is synchronous.
 pub fn getClipboard(allocator: std.mem.Allocator) ![]u8 {
     // Try using xclip first (most common on Linux)
     {
@@ -393,11 +624,19 @@ pub fn getClipboard(allocator: std.mem.Allocator) ![]u8 {
 
         if (child.stdout) |stdout| {
             const result = stdout.reader().readAllAlloc(allocator, 1024 * 1024) catch {
-                _ = child.wait() catch {};
+                _ = child.wait() catch |err| {
+                    std.log.debug("xclip wait failed during clipboard read: {}", .{err});
+                };
                 return try allocator.dupe(u8, "");
             };
-            _ = child.wait() catch {};
-            return result;
+            _ = child.wait() catch |err| {
+                std.log.debug("xclip wait failed after clipboard read: {}", .{err});
+            };
+            if (result.len > 0) {
+                std.debug.print("[Clipboard] Read via xclip\n", .{});
+                return result;
+            }
+            allocator.free(result);
         }
     }
 
@@ -419,11 +658,19 @@ pub fn getClipboard(allocator: std.mem.Allocator) ![]u8 {
 
         if (child.stdout) |stdout| {
             const result = stdout.reader().readAllAlloc(allocator, 1024 * 1024) catch {
-                _ = child.wait() catch {};
+                _ = child.wait() catch |err| {
+                    std.log.debug("xsel wait failed during clipboard read: {}", .{err});
+                };
                 return try allocator.dupe(u8, "");
             };
-            _ = child.wait() catch {};
-            return result;
+            _ = child.wait() catch |err| {
+                std.log.debug("xsel wait failed after clipboard read: {}", .{err});
+            };
+            if (result.len > 0) {
+                std.debug.print("[Clipboard] Read via xsel\n", .{});
+                return result;
+            }
+            allocator.free(result);
         }
     }
 

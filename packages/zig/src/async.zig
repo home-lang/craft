@@ -181,7 +181,9 @@ pub const StreamWriter = struct {
     }
 
     pub fn deinit(self: *StreamWriter) void {
-        self.flush() catch {};
+        self.flush() catch |err| {
+            std.log.debug("stream writer flush during cleanup failed: {}", .{err});
+        };
         self.buffer.deinit(self.allocator);
     }
 

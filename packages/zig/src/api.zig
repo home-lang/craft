@@ -15,13 +15,50 @@ pub const Version = struct {
         // Minor version must be >= for forward compatibility
         return self.major == other.major and self.minor >= other.minor;
     }
+
+    /// Parse a "major.minor.patch" version string at comptime.
+    pub fn parse(comptime version_str: []const u8) Version {
+        comptime {
+            var major: u32 = 0;
+            var minor: u32 = 0;
+            var patch: u32 = 0;
+            var field: u32 = 0;
+            for (version_str) |c| {
+                if (c == '.') {
+                    field += 1;
+                } else if (c >= '0' and c <= '9') {
+                    const digit: u32 = c - '0';
+                    switch (field) {
+                        0 => major = major * 10 + digit,
+                        1 => minor = minor * 10 + digit,
+                        2 => patch = patch * 10 + digit,
+                        else => @compileError("Invalid version string: too many dots"),
+                    }
+                } else {
+                    @compileError("Invalid version string: unexpected character");
+                }
+            }
+            return .{ .major = major, .minor = minor, .patch = patch };
+        }
+    }
 };
 
-pub const current_version = Version{
-    .major = 0,
-    .minor = 0,
-    .patch = 1,
-};
+/// Version is set at runtime via setVersion() from the executable's build_options,
+/// or defaults to 0.0.0 if not explicitly initialized.
+var runtime_version: Version = .{ .major = 0, .minor = 0, .patch = 0 };
+var version_initialized: bool = false;
+
+pub fn setVersion(comptime ver_str: []const u8) void {
+    runtime_version = Version.parse(ver_str);
+    version_initialized = true;
+}
+
+pub fn currentVersion() Version {
+    return runtime_version;
+}
+
+/// For backwards compatibility
+pub const current_version = Version{ .major = 0, .minor = 0, .patch = 20 };
 
 /// Stable Window API
 pub const Window = struct {
@@ -123,6 +160,12 @@ pub const WindowOptions = struct {
     dark_mode: ?bool = null,
     dev_tools: bool = true,
     titlebar_hidden: bool = false,
+    // Permission policy (secure by default - sensitive permissions denied)
+    allow_camera: bool = false,
+    allow_microphone: bool = false,
+    allow_geolocation: bool = false,
+    allow_notifications: bool = true,
+    allow_clipboard: bool = true,
 };
 
 /// Stable Application API
@@ -346,10 +389,10 @@ pub fn Result(comptime T: type, comptime E: type) type {
             return self == .err;
         }
 
-        pub fn unwrap(self: @This()) T {
+        pub fn unwrap(self: @This()) !T {
             return switch (self) {
                 .ok => |val| val,
-                .err => @panic("Called unwrap on error value"),
+                .err => error.UnwrapFailed,
             };
         }
 
@@ -360,13 +403,13 @@ pub fn Result(comptime T: type, comptime E: type) type {
             };
         }
 
-        pub fn expect(self: @This(), msg: []const u8) T {
+        pub fn expect(self: @This(), msg: []const u8) !T {
             return switch (self) {
                 .ok => |val| val,
                 .err => |e| {
                     if (comptime @import("builtin").mode == .Debug)
                         std.debug.print("Expected ok value: {s}. Got error: {}\n", .{ msg, e });
-                    @panic("expect() failed");
+                    return error.ExpectFailed;
                 },
             };
         }

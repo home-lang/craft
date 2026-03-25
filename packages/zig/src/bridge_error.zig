@@ -31,6 +31,8 @@ pub const BridgeError = error{
     PermissionDenied,
     /// Operation timed out
     Timeout,
+    /// Command contains unsafe shell metacharacters
+    UnsafeCommand,
 };
 
 /// Result type for bridge operations that return data
@@ -144,6 +146,7 @@ pub fn errorCodeString(err: BridgeError) []const u8 {
         BridgeError.NotFound => "NOT_FOUND",
         BridgeError.PermissionDenied => "PERMISSION_DENIED",
         BridgeError.Timeout => "TIMEOUT",
+        BridgeError.UnsafeCommand => "UNSAFE_COMMAND",
     };
 }
 
@@ -164,6 +167,7 @@ pub fn errorMessage(err: BridgeError) []const u8 {
         BridgeError.NotFound => "Resource not found",
         BridgeError.PermissionDenied => "Permission denied",
         BridgeError.Timeout => "Operation timed out",
+        BridgeError.UnsafeCommand => "Command contains unsafe shell metacharacters",
     };
 }
 
@@ -177,22 +181,20 @@ pub fn sendErrorToJS(allocator: std.mem.Allocator, action: []const u8, err: Brid
     };
     defer allocator.free(json);
 
-    if (builtin.os.tag == .macos) {
-        const macos = @import("macos.zig");
+    const bridge = @import("bridge.zig");
 
-        // Build JavaScript to call error handler
-        var js_buf: [1024]u8 = undefined;
-        const js = std.fmt.bufPrint(&js_buf, "if(window.__craftBridgeError)window.__craftBridgeError({s});", .{json}) catch {
-            if (comptime builtin.mode == .Debug)
-                std.debug.print("[BridgeError] Failed to format JS\n", .{});
-            return;
-        };
+    // Build JavaScript to call error handler
+    var js_buf: [1024]u8 = undefined;
+    const js = std.fmt.bufPrint(&js_buf, "if(window.__craftBridgeError)window.__craftBridgeError({s});", .{json}) catch {
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[BridgeError] Failed to format JS\n", .{});
+        return;
+    };
 
-        macos.tryEvalJS(js) catch |eval_err| {
-            if (comptime builtin.mode == .Debug)
-                std.debug.print("[BridgeError] Failed to send error to JS: {}\n", .{eval_err});
-        };
-    }
+    bridge.evalJS(js) catch |eval_err| {
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[BridgeError] Failed to send error to JS: {}\n", .{eval_err});
+    };
 
     // Always log to console
     if (comptime builtin.mode == .Debug)
@@ -201,28 +203,28 @@ pub fn sendErrorToJS(allocator: std.mem.Allocator, action: []const u8, err: Brid
 
 /// Send success result to JavaScript
 pub fn sendResultToJS(allocator: std.mem.Allocator, action: []const u8, result_json: []const u8) void {
-    if (builtin.os.tag == .macos) {
-        const macos = @import("macos.zig");
+    const bridge = @import("bridge.zig");
 
-        // Build JavaScript to call result handler
-        const js_template = "if(window.__craftBridgeResult)window.__craftBridgeResult('{s}',{s});";
-        const js_len = js_template.len + action.len + result_json.len;
+    // Build JavaScript to call result handler
+    const js_template = "if(window.__craftBridgeResult)window.__craftBridgeResult('{s}',{s});";
+    const js_len = js_template.len + action.len + result_json.len;
 
-        const js_buf = allocator.alloc(u8, js_len) catch {
-            if (comptime builtin.mode == .Debug)
-                std.debug.print("[BridgeResult] Failed to allocate JS buffer\n", .{});
-            return;
-        };
-        defer allocator.free(js_buf);
+    const js_buf = allocator.alloc(u8, js_len) catch {
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[BridgeResult] Failed to allocate JS buffer\n", .{});
+        return;
+    };
+    defer allocator.free(js_buf);
 
-        const js = std.fmt.bufPrint(js_buf, js_template, .{ action, result_json }) catch {
-            if (comptime builtin.mode == .Debug)
-                std.debug.print("[BridgeResult] Failed to format JS\n", .{});
-            return;
-        };
+    const js = std.fmt.bufPrint(js_buf, js_template, .{ action, result_json }) catch {
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[BridgeResult] Failed to format JS\n", .{});
+        return;
+    };
 
-        macos.tryEvalJS(js) catch {};
-    }
+    bridge.evalJS(js) catch |err| {
+        std.log.warn("failed to send error to JS: {}", .{err});
+    };
 }
 
 /// Helper to validate required handle

@@ -95,7 +95,9 @@ pub const AllocationTracker = struct {
             .timestamp = std.time.milliTimestamp(),
             .stack_trace = null,
             .type_name = type_name,
-        }) catch {};
+        }) catch |err| {
+            std.log.debug("memory allocation tracking failed: {}", .{err});
+        };
 
         self.total_allocated += size;
         self.allocation_count += 1;
@@ -215,7 +217,9 @@ pub const DynamicClassBuilder = struct {
         // Add dealloc if specified
         if (self.dealloc_impl) |dealloc| {
             const sel_dealloc = objc.sel_registerName("dealloc");
-            self.addMethod(sel_dealloc, @ptrCast(dealloc), "v@:") catch {};
+            self.addMethod(sel_dealloc, @ptrCast(dealloc), "v@:") catch |err| {
+                std.log.warn("failed to add dealloc method to ObjC class: {}", .{err});
+            };
         }
 
         const objc_registerClassPair = @extern(*const fn (objc.Class) callconv(.c) void, .{

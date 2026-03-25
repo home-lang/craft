@@ -438,7 +438,9 @@ pub const ShareManager = struct {
         self.history.append(self.allocator, .{
             .items = types_buf[0..types_count],
             .result = result,
-        }) catch {};
+        }) catch |err| {
+            std.log.debug("failed to append share history entry: {}", .{err});
+        };
 
         // Notify delegate
         if (self.delegate) |delegate| {

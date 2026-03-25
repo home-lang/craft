@@ -119,7 +119,9 @@ pub fn JsonBuilder(comptime max_fields: usize) type {
 
         pub fn init(allocator: std.mem.Allocator) Self {
             var buffer: std.ArrayListUnmanaged(u8) = .{};
-            buffer.append(allocator, '{') catch {};
+            buffer.append(allocator, '{') catch |err| {
+                std.log.warn("JSON builder init failed: {}", .{err});
+            };
             return .{
                 .allocator = allocator,
                 .buffer = buffer,

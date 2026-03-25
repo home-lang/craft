@@ -306,7 +306,9 @@ pub const App = struct {
             },
             else => {
                 for (self.windows.items) |window| {
-                    window.show() catch {};
+                    window.show() catch |err| {
+                        std.log.warn("failed to show window: {}", .{err});
+                    };
                 }
             },
         }

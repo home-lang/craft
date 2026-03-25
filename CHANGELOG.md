@@ -1,4 +1,14 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.20...v0.0.21)
+
+### 🧹 Chores
+
+- release v0.0.21 ([3538421](https://github.com/home-lang/craft/commit/3538421)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.19...v0.0.20)
 
 ### 🚀 Features

@@ -8,7 +8,15 @@ pub fn build(b: *std.Build) void {
     // to avoid Zig bug where --sysroot breaks @cImport (ziglang/zig#22704, #25010)
     const macos_sdk = b.option([]const u8, "macos-sdk", "macOS SDK path for cross-compilation");
 
-    // Create the craft module
+    // Version from -Dversion= flag or default
+    const version_option = b.option([]const u8, "version", "Version string (from package.json)") orelse "0.0.0";
+
+    // Create build options module for version
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "version", version_option);
+
+    // Create the craft module (library module — does not own build_options;
+    // each executable supplies build_options directly so there is no duplicate)
     const craft_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
     });
@@ -28,26 +36,7 @@ pub fn build(b: *std.Build) void {
 
     // Add system libraries based on platform
     const target_os = target.result.os.tag;
-    switch (target_os) {
-        .macos => {
-            exe.root_module.linkFramework("Cocoa", .{});
-            exe.root_module.linkFramework("WebKit", .{});
-            applySdkPaths(b, exe.root_module, macos_sdk);
-        },
-        .linux => {
-            exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
-            exe.root_module.linkSystemLibrary("webkit2gtk-4.1", .{});
-        },
-        .windows => {
-            exe.root_module.linkSystemLibrary("ole32", .{});
-            exe.root_module.linkSystemLibrary("user32", .{});
-            exe.root_module.linkSystemLibrary("gdi32", .{});
-            exe.root_module.linkSystemLibrary("shell32", .{});
-        },
-        else => {},
-    }
-
-    exe.root_module.link_libc = true;
+    linkPlatformLibraries(b, exe.root_module, target_os, macos_sdk);
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
@@ -59,13 +48,6 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run-demo", "Run the demo app");
     run_step.dependOn(&run_cmd.step);
-
-    // Version from -Dversion= flag or default
-    const version_option = b.option([]const u8, "version", "Version string (from package.json)") orelse "0.0.0";
-
-    // Create build options module for version
-    const build_options = b.addOptions();
-    build_options.addOption([]const u8, "version", version_option);
 
     // Main CLI executable - full-featured command-line interface
     const craft_exe = b.addExecutable(.{
@@ -86,26 +68,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    switch (target_os) {
-        .macos => {
-            craft_exe.root_module.linkFramework("Cocoa", .{});
-            craft_exe.root_module.linkFramework("WebKit", .{});
-            applySdkPaths(b, craft_exe.root_module, macos_sdk);
-        },
-        .linux => {
-            craft_exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
-            craft_exe.root_module.linkSystemLibrary("webkit2gtk-4.1", .{});
-        },
-        .windows => {
-            craft_exe.root_module.linkSystemLibrary("ole32", .{});
-            craft_exe.root_module.linkSystemLibrary("user32", .{});
-            craft_exe.root_module.linkSystemLibrary("gdi32", .{});
-            craft_exe.root_module.linkSystemLibrary("shell32", .{});
-        },
-        else => {},
-    }
-
-    craft_exe.root_module.link_libc = true;
+    linkPlatformLibraries(b, craft_exe.root_module, target_os, macos_sdk);
     b.installArtifact(craft_exe);
 
     const run_craft_cmd = b.addRunArtifact(craft_exe);
@@ -124,29 +87,14 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
+            .imports = &.{
+                .{ .name = "build_options", .module = build_options.createModule() },
+            },
         }),
     });
 
     // Link platform libraries for tests (needed for ObjC symbols etc.)
-    switch (target_os) {
-        .macos => {
-            lib_unit_tests.root_module.linkFramework("Cocoa", .{});
-            lib_unit_tests.root_module.linkFramework("WebKit", .{});
-            applySdkPaths(b, lib_unit_tests.root_module, macos_sdk);
-        },
-        .linux => {
-            lib_unit_tests.root_module.linkSystemLibrary("gtk+-3.0", .{});
-            lib_unit_tests.root_module.linkSystemLibrary("webkit2gtk-4.1", .{});
-        },
-        .windows => {
-            lib_unit_tests.root_module.linkSystemLibrary("ole32", .{});
-            lib_unit_tests.root_module.linkSystemLibrary("user32", .{});
-            lib_unit_tests.root_module.linkSystemLibrary("gdi32", .{});
-            lib_unit_tests.root_module.linkSystemLibrary("shell32", .{});
-        },
-        else => {},
-    }
-    lib_unit_tests.root_module.link_libc = true;
+    linkPlatformLibraries(b, lib_unit_tests.root_module, target_os, macos_sdk);
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
@@ -251,6 +199,11 @@ pub fn build(b: *std.Build) void {
 
     const tray_module = b.createModule(.{
         .root_source_file = b.path("src/tray.zig"),
+    });
+
+    // Note: database_module available for imports that need SQLite access
+    _ = b.createModule(.{
+        .root_source_file = b.path("src/database.zig"),
     });
 
     const api_tests = b.addTest(.{
@@ -788,6 +741,16 @@ pub fn build(b: *std.Build) void {
     }
     system_tray_benchmark.root_module.link_libc = true;
 
+    const database_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/database.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    database_tests.root_module.linkSystemLibrary("sqlite3", .{});
+    database_tests.root_module.link_libc = true;
+
     const run_api_tests = b.addRunArtifact(api_tests);
     const run_mobile_tests = b.addRunArtifact(mobile_tests);
     const run_menubar_tests = b.addRunArtifact(menubar_tests);
@@ -833,6 +796,7 @@ pub fn build(b: *std.Build) void {
     const run_benchmark_tests = b.addRunArtifact(benchmark_tests);
     const run_system_tray_tests = b.addRunArtifact(system_tray_tests);
     const run_system_tray_benchmark = b.addRunArtifact(system_tray_benchmark);
+    const run_database_tests = b.addRunArtifact(database_tests);
 
     const test_step = b.step("test", "Run all unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
@@ -881,6 +845,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_benchmark_tests.step);
     test_step.dependOn(&run_system_tray_tests.step);
     test_step.dependOn(&run_system_tray_benchmark.step);
+    test_step.dependOn(&run_database_tests.step);
 
     // Individual test steps
     const test_api_step = b.step("test:api", "Run API tests");
@@ -1012,6 +977,9 @@ pub fn build(b: *std.Build) void {
     const test_benchmark_step = b.step("test:benchmark", "Run Benchmark tests");
     test_benchmark_step.dependOn(&run_benchmark_tests.step);
 
+    const test_database_step = b.step("test:database", "Run Database tests");
+    test_database_step.dependOn(&run_database_tests.step);
+
     // Cross-compilation helpers
     const build_linux = b.step("build-linux", "Build for Linux");
     const build_windows = b.step("build-windows", "Build for Windows");
@@ -1036,9 +1004,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    linux_exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
-    linux_exe.root_module.linkSystemLibrary("webkit2gtk-4.1", .{});
-    linux_exe.root_module.link_libc = true;
+    linkPlatformLibraries(b, linux_exe.root_module, .linux, null);
 
     const linux_install = b.addInstallArtifact(linux_exe, .{});
     build_linux.dependOn(&linux_install.step);
@@ -1062,11 +1028,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    windows_exe.root_module.linkSystemLibrary("ole32", .{});
-    windows_exe.root_module.linkSystemLibrary("user32", .{});
-    windows_exe.root_module.linkSystemLibrary("gdi32", .{});
-    windows_exe.root_module.linkSystemLibrary("shell32", .{});
-    windows_exe.root_module.link_libc = true;
+    linkPlatformLibraries(b, windows_exe.root_module, .windows, null);
 
     const windows_install = b.addInstallArtifact(windows_exe, .{});
     build_windows.dependOn(&windows_install.step);
@@ -1089,9 +1051,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    macos_exe.root_module.linkFramework("Cocoa", .{});
-    macos_exe.root_module.linkFramework("WebKit", .{});
-    macos_exe.root_module.link_libc = true;
+    linkPlatformLibraries(b, macos_exe.root_module, .macos, macos_sdk);
 
     const macos_install = b.addInstallArtifact(macos_exe, .{});
     build_macos.dependOn(&macos_install.step);
@@ -1435,6 +1395,32 @@ pub fn build(b: *std.Build) void {
 
     // Add Android tests to the main test step
     test_step.dependOn(&run_android_tests.step);
+}
+
+/// Link platform-specific system libraries for a build module.
+/// Centralizes the per-OS library linking that is shared across exe, craft_exe,
+/// lib_unit_tests, and cross-compilation targets.
+fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: std.Target.Os.Tag, sdk_path: ?[]const u8) void {
+    switch (target_os) {
+        .macos => {
+            module.linkFramework("Cocoa", .{});
+            module.linkFramework("WebKit", .{});
+            applySdkPaths(b, module, sdk_path);
+        },
+        .linux => {
+            module.linkSystemLibrary("gtk+-3.0", .{});
+            module.linkSystemLibrary("webkit2gtk-4.1", .{});
+        },
+        .windows => {
+            module.linkSystemLibrary("ole32", .{});
+            module.linkSystemLibrary("user32", .{});
+            module.linkSystemLibrary("gdi32", .{});
+            module.linkSystemLibrary("shell32", .{});
+        },
+        else => {},
+    }
+    module.linkSystemLibrary("sqlite3", .{});
+    module.link_libc = true;
 }
 
 /// Add macOS SDK search paths for cross-compilation.

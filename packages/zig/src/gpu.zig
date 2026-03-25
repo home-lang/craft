@@ -1,5 +1,21 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const io_context = @import("io_context.zig");
+
+const macos = if (builtin.os.tag == .macos) @import("macos.zig") else struct {};
+
+/// Metal helpers – only resolved on macOS.
+const metal = if (builtin.os.tag == .macos) struct {
+    extern "Metal" fn MTLCreateSystemDefaultDevice() ?*anyopaque;
+
+    fn createDevice() ?*anyopaque {
+        return MTLCreateSystemDefaultDevice();
+    }
+} else struct {
+    fn createDevice() ?*anyopaque {
+        return null;
+    }
+};
 
 /// GPU Acceleration Module
 /// Provides hardware-accelerated rendering capabilities
@@ -41,29 +57,50 @@ pub const GPU = struct {
     config: GPUConfig,
     info: ?GPUInfo,
     allocator: std.mem.Allocator,
+    /// Cached Metal device handle (macOS only)
+    metal_device: ?*anyopaque = null,
+    /// Frame-rate tracking state
+    last_frame_time: ?std.Io.Timestamp = null,
+    frame_count: u32 = 0,
+    current_fps: f64 = 0.0,
 
     pub fn init(allocator: std.mem.Allocator, config: GPUConfig) !GPU {
         return GPU{
             .config = config,
             .info = null,
             .allocator = allocator,
+            .metal_device = null,
+            .last_frame_time = null,
+            .frame_count = 0,
+            .current_fps = 0.0,
         };
     }
 
     pub fn deinit(self: *GPU) void {
-        _ = self;
+        // Release the Metal device if we acquired one
+        if (builtin.os.tag == .macos) {
+            if (self.metal_device) |dev| {
+                macos.msgSendVoid0(dev, "release");
+                self.metal_device = null;
+            }
+        }
+    }
+
+    /// Get (or lazily create) the Metal device handle. macOS only.
+    fn getMetalDevice(self: *GPU) ?*anyopaque {
+        if (builtin.os.tag != .macos) return null;
+        if (self.metal_device) |dev| return dev;
+        self.metal_device = metal.createDevice();
+        return self.metal_device;
     }
 
     /// Detect and select optimal GPU backend
     pub fn detectBackend(self: *GPU) !GPUBackend {
-        const builtin = @import("builtin");
-        const target = builtin.target;
-
         if (self.config.backend != .auto) {
             return self.config.backend;
         }
 
-        return switch (target.os.tag) {
+        return switch (builtin.os.tag) {
             .macos => .metal,
             .linux => .vulkan,
             .windows => .vulkan,
@@ -75,8 +112,7 @@ pub const GPU = struct {
     pub fn queryInfo(self: *GPU) !GPUInfo {
         const backend = try self.detectBackend();
 
-        const builtin = @import("builtin");
-        return switch (builtin.target.os.tag) {
+        return switch (builtin.os.tag) {
             .macos => try self.queryMetal(),
             .linux => try self.queryVulkan(),
             .windows => try self.queryVulkan(),
@@ -92,36 +128,216 @@ pub const GPU = struct {
     }
 
     fn queryMetal(self: *GPU) !GPUInfo {
-        _ = self;
-        // Query Metal GPU info via macOS APIs
-        return GPUInfo{
-            .vendor = "Apple",
-            .renderer = "Metal",
-            .version = "3.0",
-            .backend = .metal,
-            .memory_mb = 8192,
-            .discrete = false,
+        if (builtin.os.tag != .macos) {
+            return GPUInfo{
+                .vendor = "Unknown",
+                .renderer = "Software",
+                .version = "0.0",
+                .backend = .software,
+                .memory_mb = 0,
+                .discrete = false,
+            };
+        }
+
+        const device = self.getMetalDevice() orelse {
+            return GPUInfo{
+                .vendor = "Unknown",
+                .renderer = "Metal (no device)",
+                .version = "0.0",
+                .backend = .metal,
+                .memory_mb = 0,
+                .discrete = false,
+            };
         };
+
+        // Query device name via [MTLDevice name] -> NSString
+        var renderer: []const u8 = "Metal GPU";
+        const name_nsstring = macos.msgSend0(device, "name");
+        if (name_nsstring) |ns| {
+            const cstr = macos.msgSend0(ns, "UTF8String");
+            if (cstr) |c| {
+                renderer = std.mem.span(@as([*:0]const u8, @ptrCast(c)));
+            }
+        }
+
+        // Determine vendor from device name
+        var vendor: []const u8 = "Apple";
+        if (std.mem.indexOf(u8, renderer, "AMD") != null or std.mem.indexOf(u8, renderer, "Radeon") != null) {
+            vendor = "AMD";
+        } else if (std.mem.indexOf(u8, renderer, "Intel") != null) {
+            vendor = "Intel";
+        } else if (std.mem.indexOf(u8, renderer, "NVIDIA") != null or std.mem.indexOf(u8, renderer, "GeForce") != null) {
+            vendor = "NVIDIA";
+        }
+
+        // Query recommended max working set size for VRAM estimate (returns u64 bytes)
+        const mem_send = @as(
+            *const fn (*anyopaque, macos.objc.SEL) callconv(.c) u64,
+            @ptrCast(&macos.objc.objc_msgSend),
+        );
+        const max_working_set = mem_send(device, macos.sel("recommendedMaxWorkingSetSize"));
+        const memory_mb: usize = @intCast(max_working_set / (1024 * 1024));
+
+        // isLowPower returns YES for integrated GPUs, so discrete = !isLowPower
+        const is_low_power = macos.msgSendBool(device, "isLowPower");
+
+        self.info = GPUInfo{
+            .vendor = vendor,
+            .renderer = renderer,
+            .version = "Metal",
+            .backend = .metal,
+            .memory_mb = memory_mb,
+            .discrete = !is_low_power,
+        };
+        return self.info.?;
     }
 
     fn queryVulkan(self: *GPU) !GPUInfo {
-        _ = self;
-        // Query Vulkan GPU info
-        return GPUInfo{
-            .vendor = "AMD/NVIDIA/Intel",
+        // On Linux, try to read basic GPU info from sysfs as a lightweight approach.
+        // This avoids the complexity of dlopen-ing libvulkan at runtime while still
+        // returning real hardware info on most desktop Linux systems.
+        if (builtin.os.tag == .linux) {
+            return self.queryLinuxSysfs();
+        }
+
+        // Windows / other: return generic Vulkan info as fallback
+        self.info = GPUInfo{
+            .vendor = "Unknown",
             .renderer = "Vulkan",
-            .version = "1.3",
+            .version = "1.0",
             .backend = .vulkan,
-            .memory_mb = 4096,
-            .discrete = true,
+            .memory_mb = 0,
+            .discrete = false,
+        };
+        return self.info.?;
+    }
+
+    // Static buffers for sysfs reads so returned slices remain valid.
+    var sysfs_vendor_buf: [256]u8 = undefined;
+    var sysfs_label_buf: [256]u8 = undefined;
+
+    /// Best-effort GPU info from Linux sysfs (works without Vulkan runtime).
+    fn queryLinuxSysfs(self: *GPU) !GPUInfo {
+        var vendor: []const u8 = "Unknown";
+        var renderer: []const u8 = "GPU";
+        var memory_mb: usize = 0;
+        var discrete = false;
+
+        // Read PCI vendor from /sys/class/drm/card0/device/vendor
+        if (readSysfsLineInto("/sys/class/drm/card0/device/vendor", &sysfs_vendor_buf)) |vendor_line| {
+            vendor = mapPciVendor(vendor_line);
+        }
+
+        // Read device name from /sys/class/drm/card0/device/label or use vendor
+        if (readSysfsLineInto("/sys/class/drm/card0/device/label", &sysfs_label_buf)) |label| {
+            renderer = label;
+        } else {
+            renderer = vendor;
+        }
+
+        // Read VRAM size from /sys/class/drm/card0/device/mem_info_vram_total (AMD)
+        if (readSysfsU64("/sys/class/drm/card0/device/mem_info_vram_total")) |vram_bytes| {
+            memory_mb = @intCast(vram_bytes / (1024 * 1024));
+            discrete = memory_mb > 512; // Heuristic: >512 MB VRAM implies discrete
+        }
+
+        self.info = GPUInfo{
+            .vendor = vendor,
+            .renderer = renderer,
+            .version = "sysfs",
+            .backend = .vulkan,
+            .memory_mb = memory_mb,
+            .discrete = discrete,
+        };
+        return self.info.?;
+    }
+
+    /// Read bytes from a sysfs path and trim trailing whitespace.
+    /// Returns a trimmed slice into `dest`, or null on any failure.
+    fn readSysfsLineInto(comptime path: [*:0]const u8, dest: []u8) ?[]const u8 {
+        return readSysfsRaw(path, dest);
+    }
+
+    /// Read a u64 integer from a sysfs path (e.g. memory sizes in bytes).
+    fn readSysfsU64(comptime path: [*:0]const u8) ?u64 {
+        var buf: [64]u8 = undefined;
+        const line = readSysfsRaw(path, &buf) orelse return null;
+        return std.fmt.parseInt(u64, line, 0) catch return null;
+    }
+
+    /// Low-level sysfs reader. Returns trimmed content or null.
+    fn readSysfsRaw(comptime path: [*:0]const u8, dest: []u8) ?[]const u8 {
+        if (builtin.os.tag != .linux) return null;
+        const c = @cImport({
+            @cInclude("fcntl.h");
+            @cInclude("unistd.h");
+        });
+        const fd = c.open(path, c.O_RDONLY);
+        if (fd < 0) return null;
+        defer _ = c.close(fd);
+        const ret = c.read(fd, dest.ptr, dest.len);
+        if (ret <= 0) return null;
+        const n: usize = @intCast(ret);
+        var end = n;
+        while (end > 0 and (dest[end - 1] == '\n' or dest[end - 1] == '\r' or dest[end - 1] == ' ')) {
+            end -= 1;
+        }
+        if (end == 0) return null;
+        return dest[0..end];
+    }
+
+    /// Map a PCI vendor ID string (e.g. "0x10de") to a human-readable name.
+    fn mapPciVendor(vendor_str: []const u8) []const u8 {
+        const id = std.fmt.parseInt(u32, vendor_str, 0) catch return "Unknown";
+        return switch (id) {
+            0x1002 => "AMD",
+            0x10de => "NVIDIA",
+            0x8086 => "Intel",
+            0x1a03 => "ASPEED",
+            0x1234 => "QEMU",
+            else => "Unknown",
         };
     }
 
-    /// Enable GPU acceleration for window
+    /// Enable GPU acceleration for a window.
+    /// On macOS, configures the WKWebView's preferences to enable GPU-accelerated
+    /// rendering.  On Linux, delegates to the window's enableGPUAcceleration method.
+    /// `window` should be a platform Window (or pointer to one).
     pub fn enableForWindow(self: *GPU, window: anytype) !void {
         _ = self;
-        _ = window;
-        // Platform-specific GPU acceleration setup
+        const RawType = @TypeOf(window);
+        // Unwrap a single pointer level so @hasField / @hasDecl work on the struct.
+        const Window = switch (@typeInfo(RawType)) {
+            .pointer => |p| p.child,
+            else => RawType,
+        };
+
+        if (builtin.os.tag == .macos) {
+            // Expect window to expose a webview field (objc id)
+            if (@hasField(Window, "webview")) {
+                const webview = window.webview;
+                if (webview) |wv| {
+                    // Get configuration -> preferences and enable accelerated drawing
+                    const config_obj = macos.msgSend0(wv, "configuration");
+                    if (config_obj) |cfg| {
+                        const prefs = macos.msgSend0(cfg, "preferences");
+                        if (prefs) |p| {
+                            // _acceleratedDrawingEnabled is a private but widely-used
+                            // WKPreferences property that enables GPU compositing.
+                            _ = macos.msgSend1Bool(p, "_setAcceleratedDrawingEnabled:", true);
+                        }
+                    }
+                    // Ensure the view uses a CALayer for GPU compositing
+                    _ = macos.msgSend1Bool(wv, "setWantsLayer:", true);
+                }
+            }
+        } else if (builtin.os.tag == .linux) {
+            // Linux windows expose enableGPUAcceleration directly
+            if (@hasDecl(Window, "enableGPUAcceleration")) {
+                window.enableGPUAcceleration(true);
+            }
+        }
+        // Windows: WebView2 enables hardware acceleration by default; no-op.
     }
 
     /// Set power preference
@@ -139,10 +355,32 @@ pub const GPU = struct {
         self.config.max_fps = fps;
     }
 
-    /// Get current FPS
+    /// Get current FPS.
+    /// Call this once per frame. It measures wall-clock time between calls and
+    /// returns a smoothed frames-per-second value.  The first call returns 0.
     pub fn getCurrentFPS(self: *GPU) f64 {
-        _ = self;
-        return 60.0; // Would track actual FPS
+        const now_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+
+        if (self.last_frame_time) |last| {
+            self.frame_count += 1;
+            const elapsed = last.durationTo(now_ts);
+            const elapsed_ns = @as(u64, @intCast(elapsed.nanoseconds));
+
+            // Update FPS once per second (or when enough frames accumulate)
+            if (elapsed_ns >= 1_000_000_000) {
+                const elapsed_sec: f64 = @as(f64, @floatFromInt(elapsed_ns)) / 1_000_000_000.0;
+                self.current_fps = @as(f64, @floatFromInt(self.frame_count)) / elapsed_sec;
+                self.frame_count = 0;
+                self.last_frame_time = now_ts;
+            }
+        } else {
+            // First call -- just record the timestamp
+            self.last_frame_time = now_ts;
+            self.frame_count = 0;
+            self.current_fps = 0.0;
+        }
+
+        return self.current_fps;
     }
 
     /// Check if GPU acceleration is available
@@ -151,10 +389,29 @@ pub const GPU = struct {
         return backend != .software;
     }
 
-    /// Get GPU memory usage in MB
+    /// Get GPU memory usage in MB.
+    /// On macOS, queries the Metal device's currentAllocatedSize.
+    /// On Linux, reads from sysfs (AMD) when available.
+    /// Returns 0 when the information cannot be determined.
     pub fn getMemoryUsage(self: *GPU) !usize {
-        _ = self;
-        return 0; // Would query actual GPU memory usage
+        if (builtin.os.tag == .macos) {
+            const device = self.getMetalDevice() orelse return 0;
+            // currentAllocatedSize returns NSUInteger (bytes)
+            const size_send = @as(
+                *const fn (*anyopaque, macos.objc.SEL) callconv(.c) u64,
+                @ptrCast(&macos.objc.objc_msgSend),
+            );
+            const bytes = size_send(device, macos.sel("currentAllocatedSize"));
+            return @intCast(bytes / (1024 * 1024));
+        }
+
+        if (builtin.os.tag == .linux) {
+            if (readSysfsU64("/sys/class/drm/card0/device/mem_info_vram_used")) |used_bytes| {
+                return @intCast(used_bytes / (1024 * 1024));
+            }
+        }
+
+        return 0;
     }
 };
 

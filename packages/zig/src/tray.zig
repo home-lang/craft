@@ -185,7 +185,9 @@ pub const SystemTray = struct {
         while (self.animation_running) {
             // Update to next frame
             const frame = self.animation_frames[self.animation_index];
-            self.setTitle(frame) catch {};
+            self.setTitle(frame) catch |err| {
+                std.log.debug("tray animation frame update failed: {}", .{err});
+            };
 
             // Advance to next frame
             self.animation_index = (self.animation_index + 1) % self.animation_frames.len;

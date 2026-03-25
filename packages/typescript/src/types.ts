@@ -1,3 +1,56 @@
+/**
+ * Craft Platform Support Matrix
+ *
+ * This file defines types for the desktop TypeScript SDK (@craft-native/craft).
+ * For mobile bridge types (window.craft injected at runtime), see types/craft.d.ts.
+ *
+ * Feature              | macOS | Linux | Windows | iOS | Android
+ * ---------------------|-------|-------|---------|-----|--------
+ * Window Management    |   ✓   |   ✓   |    ✓    |  -  |    -
+ * System Tray          |   ✓   |   ✓   |    ✓    |  -  |    -
+ * Native Sidebar       |   ✓   |   -   |    -    |  -  |    -
+ * Touch Bar            |   ✓   |   -   |    -    |  -  |    -
+ * Toolbar              |   ✓   |   ✓   |    ✓    |  -  |    -
+ * File System          |   ✓   |   ✓   |    ✓    |  ✓  |    ✓
+ * Database (SQLite)    |   ✓   |   ✓   |    ✓    |  ✓  |    ✓
+ * HTTP Client          |   ✓   |   ✓   |    ✓    |  ✓  |    ✓
+ * Crypto               |   ✓   |   ✓   |    ✓    |  ✓  |    ✓
+ * Notifications        |   ✓   |   ✓   |    ✓    |  ✓  |    ✓
+ * Clipboard            |   ✓   |   ✓   |    ✓    |  ✓  |    ✓
+ * Dialogs (File/Alert) |   ✓   |   ✓   |    ✓    |  -  |    -
+ * App Lifecycle        |   ✓   |   ✓   |    ✓    |  ✓  |    ✓
+ * Keyboard Shortcuts   |   ✓   |   ✓   |    ✓    |  -  |    -
+ * Process/Exec         |   ✓   |   ✓   |    ✓    |  -  |    -
+ * Hot Reload           |   ✓   |   ✓   |    ✓    |  ✓  |    ✓
+ * Camera/Microphone    |   ✓   |   ✓   |    ✓    |  ✓  |    ✓
+ * GPU Acceleration     |   ✓   |   ✓   |    ✓    |  -  |    -
+ * Stage Manager        |   ✓   |   -   |    -    |  -  |    -
+ * Handoff/Continuity   |   ✓   |   -   |    -    |  -  |    -
+ * Spotlight            |   ✓   |   -   |    -    |  -  |    -
+ * Jump List            |   -   |   -   |    ✓    |  -  |    -
+ * Taskbar Progress     |   -   |   -   |    ✓    |  -  |    -
+ * Windows Hello        |   -   |   -   |    ✓    |  -  |    -
+ * Toast Notifications  |   -   |   -   |    ✓    |  -  |    -
+ * Biometrics           |   -   |   -   |    -    |  ✓  |    ✓
+ * Haptic Feedback      |   -   |   -   |    -    |  ✓  |    ✓
+ * Secure Storage       |   -   |   -   |    -    |  ✓  |    ✓
+ * Location             |   -   |   -   |    -    |  ✓  |    ✓
+ * Share Sheet          |   -   |   -   |    -    |  ✓  |    ✓
+ * CarPlay              |   -   |   -   |    -    |  ✓  |    -
+ * Live Activities      |   -   |   -   |    -    |  ✓  |    -
+ * SharePlay            |   -   |   -   |    -    |  ✓  |    -
+ * StoreKit (IAP)       |   -   |   -   |    -    |  ✓  |    -
+ * Material You         |   -   |   -   |    -    |  -  |    ✓
+ * Play Billing (IAP)   |   -   |   -   |    -    |  -  |    ✓
+ * Work Manager         |   -   |   -   |    -    |  -  |    ✓
+ * Predictive Back      |   -   |   -   |    -    |  -  |    ✓
+ *
+ * Mobile-only bridge APIs (window.craft, defined in types/craft.d.ts):
+ *   AR (ARKit/ARCore), ML (Core ML/ML Kit), Deep Links, OTA Updates,
+ *   Widgets, Auth Persistence, Contacts, Calendar, Health/Fitness,
+ *   Watch Connectivity, Siri/Assistant, Background Tasks, PDF Viewer
+ */
+
 export interface WindowOptions {
   /**
    * Window title
@@ -900,8 +953,12 @@ export interface CraftMobileAPI {
 }
 
 /**
- * Complete Craft Bridge API (available as window.craft in WebView)
- * Unified across desktop and mobile platforms
+ * Craft Desktop Bridge API (available as window.craft in desktop WebView)
+ *
+ * This interface covers the desktop platforms (macOS, Linux, Windows).
+ * For the mobile bridge API (iOS/Android), see types/craft.d.ts which
+ * defines the CraftBridge interface with additional mobile-only features
+ * such as AR, ML, deep links, OTA updates, widgets, and auth persistence.
  */
 export interface CraftBridgeAPI {
   /**

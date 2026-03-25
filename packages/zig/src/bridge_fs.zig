@@ -332,21 +332,21 @@ pub const FSBridge = struct {
         // In Zig 0.16, mtime type changed - use 0 as placeholder
         const mtime: i64 = 0;
 
-        if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
-            var buf: [512]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf,
-                \\if(window.__craftFSCallback)window.__craftFSCallback('{s}','stat',{{
-                \\"isDirectory":{},
-                \\"isFile":{},
-                \\"size":{d},
-                \\"mtime":{d}
-                \\}});
-            , .{ callback_id, is_dir, is_file, size, mtime }) catch return;
+        var buf: [512]u8 = undefined;
+        const js = std.fmt.bufPrint(&buf,
+            \\if(window.__craftFSCallback)window.__craftFSCallback('{s}','stat',{{
+            \\"isDirectory":{},
+            \\"isFile":{},
+            \\"size":{d},
+            \\"mtime":{d}
+            \\}});
+        , .{ callback_id, is_dir, is_file, size, mtime }) catch return;
 
-            macos.tryEvalJS(js) catch {};
-        }
+        bridge.evalJS(js) catch |err| {
+            std.log.debug("JS eval failed for stat callback: {}", .{err});
+        };
     }
 
     /// Read directory contents
@@ -405,16 +405,16 @@ pub const FSBridge = struct {
         buf[pos] = ']';
         pos += 1;
 
-        if (builtin.os.tag == .macos) {
-            const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
-            var js_buf: [8500]u8 = undefined;
-            const js = std.fmt.bufPrint(&js_buf,
-                \\if(window.__craftFSCallback)window.__craftFSCallback('{s}','readDir',{s});
-            , .{ callback_id, buf[0..pos] }) catch return;
+        var js_buf: [8500]u8 = undefined;
+        const js = std.fmt.bufPrint(&js_buf,
+            \\if(window.__craftFSCallback)window.__craftFSCallback('{s}','readDir',{s});
+        , .{ callback_id, buf[0..pos] }) catch return;
 
-            macos.tryEvalJS(js) catch {};
-        }
+        bridge.evalJS(js) catch |err| {
+            std.log.debug("JS eval failed for readDir callback: {}", .{err});
+        };
     }
 
     /// Create directory
@@ -654,27 +654,46 @@ pub const FSBridge = struct {
     /// Get home directory
     fn getHomeDir(self: *Self) !void {
         _ = self;
-        if (builtin.os.tag != .macos) return;
+        const bridge = @import("bridge.zig");
 
-        const macos = @import("macos.zig");
+        if (comptime builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
 
-        // Get home directory using NSHomeDirectory
-        const NSHomeDirectory = macos.getClass("NSFileManager");
-        const fm = macos.msgSend0(NSHomeDirectory, "defaultManager");
-        const home_url = macos.msgSend0(fm, "homeDirectoryForCurrentUser");
-        const home_path = macos.msgSend0(home_url, "path");
+            // Get home directory using NSFileManager
+            const NSHomeDirectory = macos.getClass("NSFileManager");
+            const fm = macos.msgSend0(NSHomeDirectory, "defaultManager");
+            const home_url = macos.msgSend0(fm, "homeDirectoryForCurrentUser");
+            const home_path = macos.msgSend0(home_url, "path");
 
-        if (home_path) |path_obj| {
-            const cstr = macos.msgSend0(path_obj, "UTF8String");
-            if (cstr) |c| {
-                const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(c)));
+            if (home_path) |path_obj| {
+                const cstr = macos.msgSend0(path_obj, "UTF8String");
+                if (cstr) |c| {
+                    const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(c)));
 
+                    var buf: [512]u8 = undefined;
+                    const js = std.fmt.bufPrint(&buf,
+                        \\if(window.__craftFSCallback)window.__craftFSCallback('','getHomeDir','{s}');
+                    , .{path_str}) catch return;
+
+                    bridge.evalJS(js) catch |err| {
+                        std.log.debug("JS eval failed for getHomeDir callback: {}", .{err});
+                    };
+                }
+            }
+        } else {
+            // Cross-platform: use HOME env var (Linux/Windows)
+            const home = std.posix.getenv("HOME") orelse
+                if (comptime builtin.os.tag == .windows) std.posix.getenv("USERPROFILE") orelse "" else "";
+
+            if (home.len > 0) {
                 var buf: [512]u8 = undefined;
                 const js = std.fmt.bufPrint(&buf,
                     \\if(window.__craftFSCallback)window.__craftFSCallback('','getHomeDir','{s}');
-                , .{path_str}) catch return;
+                , .{home}) catch return;
 
-                macos.tryEvalJS(js) catch {};
+                bridge.evalJS(js) catch |err| {
+                    std.log.debug("JS eval failed for getHomeDir callback: {}", .{err});
+                };
             }
         }
     }
@@ -682,98 +701,153 @@ pub const FSBridge = struct {
     /// Get temp directory
     fn getTempDir(self: *Self) !void {
         _ = self;
-        if (builtin.os.tag != .macos) return;
+        const bridge = @import("bridge.zig");
 
-        const macos = @import("macos.zig");
+        if (comptime builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
 
-        const NSFileManager = macos.getClass("NSFileManager");
-        const fm = macos.msgSend0(NSFileManager, "defaultManager");
-        const temp_url = macos.msgSend0(fm, "temporaryDirectory");
-        const temp_path = macos.msgSend0(temp_url, "path");
+            const NSFileManager = macos.getClass("NSFileManager");
+            const fm = macos.msgSend0(NSFileManager, "defaultManager");
+            const temp_url = macos.msgSend0(fm, "temporaryDirectory");
+            const temp_path = macos.msgSend0(temp_url, "path");
 
-        if (temp_path) |path_obj| {
-            const cstr = macos.msgSend0(path_obj, "UTF8String");
-            if (cstr) |c| {
-                const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(c)));
+            if (temp_path) |path_obj| {
+                const cstr = macos.msgSend0(path_obj, "UTF8String");
+                if (cstr) |c| {
+                    const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(c)));
 
-                var buf: [512]u8 = undefined;
-                const js = std.fmt.bufPrint(&buf,
-                    \\if(window.__craftFSCallback)window.__craftFSCallback('','getTempDir','{s}');
-                , .{path_str}) catch return;
+                    var buf: [512]u8 = undefined;
+                    const js = std.fmt.bufPrint(&buf,
+                        \\if(window.__craftFSCallback)window.__craftFSCallback('','getTempDir','{s}');
+                    , .{path_str}) catch return;
 
-                macos.tryEvalJS(js) catch {};
+                    bridge.evalJS(js) catch |err| {
+                        std.log.debug("JS eval failed for getTempDir callback: {}", .{err});
+                    };
+                }
             }
+        } else {
+            // Cross-platform: use TMPDIR or /tmp
+            const tmp = std.posix.getenv("TMPDIR") orelse
+                if (comptime builtin.os.tag == .windows) std.posix.getenv("TEMP") orelse "C:\\Temp" else "/tmp";
+
+            var buf: [512]u8 = undefined;
+            const js = std.fmt.bufPrint(&buf,
+                \\if(window.__craftFSCallback)window.__craftFSCallback('','getTempDir','{s}');
+            , .{tmp}) catch return;
+
+            bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getTempDir callback: {}", .{err});
+            };
         }
     }
 
     /// Get app data directory (Application Support)
     fn getAppDataDir(self: *Self) !void {
         _ = self;
-        if (builtin.os.tag != .macos) return;
+        const bridge = @import("bridge.zig");
 
-        const macos = @import("macos.zig");
+        if (comptime builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
 
-        // NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES)
-        const NSFileManager = macos.getClass("NSFileManager");
-        const fm = macos.msgSend0(NSFileManager, "defaultManager");
+            // NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, YES)
+            const NSFileManager = macos.getClass("NSFileManager");
+            const fm = macos.msgSend0(NSFileManager, "defaultManager");
 
-        // Use URLsForDirectory:inDomains:
-        // NSApplicationSupportDirectory = 14, NSUserDomainMask = 1
-        const urls = macos.msgSend2(fm, "URLsForDirectory:inDomains:", @as(c_ulong, 14), @as(c_ulong, 1));
-        if (urls) |url_array| {
-            const first_url = macos.msgSend1(url_array, "firstObject", @as(?*anyopaque, null));
-            if (first_url) |url| {
-                const path_obj = macos.msgSend0(url, "path");
-                if (path_obj) |p| {
-                    const cstr = macos.msgSend0(p, "UTF8String");
-                    if (cstr) |c| {
-                        const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(c)));
+            // Use URLsForDirectory:inDomains:
+            // NSApplicationSupportDirectory = 14, NSUserDomainMask = 1
+            const urls = macos.msgSend2(fm, "URLsForDirectory:inDomains:", @as(c_ulong, 14), @as(c_ulong, 1));
+            if (urls) |url_array| {
+                const first_url = macos.msgSend1(url_array, "firstObject", @as(?*anyopaque, null));
+                if (first_url) |url| {
+                    const path_obj = macos.msgSend0(url, "path");
+                    if (path_obj) |p| {
+                        const cstr = macos.msgSend0(p, "UTF8String");
+                        if (cstr) |c| {
+                            const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(c)));
 
-                        var buf: [512]u8 = undefined;
-                        const js = std.fmt.bufPrint(&buf,
-                            \\if(window.__craftFSCallback)window.__craftFSCallback('','getAppDataDir','{s}');
-                        , .{path_str}) catch return;
+                            var buf: [512]u8 = undefined;
+                            const js = std.fmt.bufPrint(&buf,
+                                \\if(window.__craftFSCallback)window.__craftFSCallback('','getAppDataDir','{s}');
+                            , .{path_str}) catch return;
 
-                        macos.tryEvalJS(js) catch {};
+                            bridge.evalJS(js) catch |err| {
+                                std.log.debug("JS eval failed for getAppDataDir callback: {}", .{err});
+                            };
+                        }
                     }
                 }
+            }
+        } else if (comptime builtin.os.tag == .linux) {
+            // XDG Base Directory: ~/.local/share or $XDG_DATA_HOME
+            const app_data = std.posix.getenv("XDG_DATA_HOME") orelse "";
+            var path_buf: [512]u8 = undefined;
+            const app_data_path = if (app_data.len > 0)
+                app_data
+            else blk: {
+                const home = std.posix.getenv("HOME") orelse "";
+                if (home.len == 0) break :blk "";
+                break :blk std.fmt.bufPrint(&path_buf, "{s}/.local/share", .{home}) catch "";
+            };
+
+            if (app_data_path.len > 0) {
+                var buf: [512]u8 = undefined;
+                const js = std.fmt.bufPrint(&buf,
+                    \\if(window.__craftFSCallback)window.__craftFSCallback('','getAppDataDir','{s}');
+                , .{app_data_path}) catch return;
+
+                bridge.evalJS(js) catch |err| {
+                    std.log.debug("JS eval failed for getAppDataDir callback: {}", .{err});
+                };
+            }
+        } else if (comptime builtin.os.tag == .windows) {
+            // Windows: %APPDATA%
+            const app_data = std.posix.getenv("APPDATA") orelse "";
+
+            if (app_data.len > 0) {
+                var buf: [512]u8 = undefined;
+                const js = std.fmt.bufPrint(&buf,
+                    \\if(window.__craftFSCallback)window.__craftFSCallback('','getAppDataDir','{s}');
+                , .{app_data}) catch return;
+
+                bridge.evalJS(js) catch |err| {
+                    std.log.debug("JS eval failed for getAppDataDir callback: {}", .{err});
+                };
             }
         }
     }
 
     /// Send success callback
     fn sendFSSuccess(_: *Self, callback_id: []const u8, action: []const u8) void {
-        if (builtin.os.tag != .macos) return;
-
-        const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
         var buf: [256]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftFSCallback)window.__craftFSCallback('{s}','{s}',{{success:true}});
         , .{ callback_id, action }) catch return;
 
-        macos.tryEvalJS(js) catch {};
+        bridge.evalJS(js) catch |err| {
+            std.log.debug("JS eval failed for FS success callback: {}", .{err});
+        };
     }
 
     /// Send boolean result callback
     fn sendFSBool(_: *Self, callback_id: []const u8, action: []const u8, value: bool) void {
-        if (builtin.os.tag != .macos) return;
-
-        const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
         var buf: [256]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftFSCallback)window.__craftFSCallback('{s}','{s}',{});
         , .{ callback_id, action, value }) catch return;
 
-        macos.tryEvalJS(js) catch {};
+        bridge.evalJS(js) catch |err| {
+            std.log.debug("JS eval failed for FS bool callback: {}", .{err});
+        };
     }
 
     /// Send file content result (base64 encoded for safety)
     fn sendFSResult(_: *Self, callback_id: []const u8, action: []const u8, content: []const u8) void {
-        if (builtin.os.tag != .macos) return;
-
-        const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
         // For text content, escape and send directly
         // In production, would want to base64 encode binary files
@@ -830,14 +904,14 @@ pub const FSBridge = struct {
         @memcpy(buf[pos .. pos + suffix.len], suffix);
         pos += suffix.len;
 
-        macos.tryEvalJS(buf[0..pos]) catch {};
+        bridge.evalJS(buf[0..pos]) catch |eval_err| {
+            std.log.debug("JS eval failed for FS result callback: {}", .{eval_err});
+        };
     }
 
     /// Send error callback
     fn sendFSError(_: *Self, callback_id: []const u8, action: []const u8, path: []const u8, err: anyerror) void {
-        if (builtin.os.tag != .macos) return;
-
-        const macos = @import("macos.zig");
+        const bridge = @import("bridge.zig");
 
         const err_msg = switch (err) {
             error.FileNotFound => "File not found",
@@ -853,7 +927,9 @@ pub const FSBridge = struct {
             \\if(window.__craftFSError)window.__craftFSError('{s}','{s}','{s}','{s}');
         , .{ callback_id, action, path, err_msg }) catch return;
 
-        macos.tryEvalJS(js) catch {};
+        bridge.evalJS(js) catch |eval_err| {
+            std.log.debug("JS eval failed for FS error callback: {}", .{eval_err});
+        };
     }
 
     pub fn deinit(self: *Self) void {
@@ -867,13 +943,12 @@ pub const FSBridge = struct {
     }
 };
 
-/// Global FS bridge instance
-var global_fs_bridge: ?*FSBridge = null;
+const global_state = @import("global_state.zig");
 
 pub fn getGlobalFSBridge() ?*FSBridge {
-    return global_fs_bridge;
+    return global_state.instance.getFsBridge();
 }
 
 pub fn setGlobalFSBridge(bridge: *FSBridge) void {
-    global_fs_bridge = bridge;
+    global_state.instance.setFsBridge(bridge);
 }

@@ -35,10 +35,14 @@ pub const IntegrationTestContext = struct {
         // Clean up temp files
         if (self.temp_dir) |*dir| {
             for (self.temp_files.items) |file_path| {
-                dir.deleteFile(io, file_path) catch {};
+                dir.deleteFile(io, file_path) catch |err| {
+                    std.log.debug("test temp file cleanup failed: {}", .{err});
+                };
                 self.allocator.free(file_path);
             }
-            io_context.cwd().deleteTree(io, "temp_test") catch {};
+            io_context.cwd().deleteTree(io, "temp_test") catch |err| {
+                std.log.debug("test temp dir cleanup failed: {}", .{err});
+            };
             dir.close(io);
         }
 
@@ -269,7 +273,9 @@ pub const FSTestHelper = struct {
         // Clean up test directory
         const io = io_context.get();
         const cwd = io_context.cwd();
-        cwd.deleteTree(io, self.test_root) catch {};
+        cwd.deleteTree(io, self.test_root) catch |err| {
+            std.log.debug("test root dir cleanup failed: {}", .{err});
+        };
         self.allocator.free(self.test_root);
     }
 

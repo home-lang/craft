@@ -372,7 +372,9 @@ pub const ListView = struct {
                 }
                 self.selected_indices.clearRetainingCapacity();
                 if (mode == .single) {
-                    self.selected_indices.append(self.component.allocator, first) catch {};
+                    self.selected_indices.append(self.component.allocator, first) catch |err| {
+                        std.log.debug("list view selection tracking failed: {}", .{err});
+                    };
                 }
             }
             if (mode == .none) {

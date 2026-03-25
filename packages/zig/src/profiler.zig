@@ -75,8 +75,12 @@ pub const Profiler = struct {
     }
 
     pub fn measure(self: *Self, comptime name: []const u8, comptime func: anytype, args: anytype) MeasureReturnType(@TypeOf(func)) {
-        self.start(name) catch {};
-        defer self.end(name) catch {};
+        self.start(name) catch |err| {
+            std.log.debug("profiler start failed for '{s}': {}", .{ name, err });
+        };
+        defer self.end(name) catch |err| {
+            std.log.debug("profiler end failed for '{s}': {}", .{ name, err });
+        };
         return @call(.auto, func, args);
     }
 

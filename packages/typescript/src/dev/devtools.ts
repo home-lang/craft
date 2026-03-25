@@ -210,9 +210,11 @@ else {
         this.send(ws, { id, result: {} })
         break
 
-      case 'Runtime.evaluate':
+      case 'Runtime.evaluate': {
         try {
-          const result = eval(params.expression)
+          // Sandboxed evaluation - no access to local scope
+          const sandboxedEval = new Function('return (' + params.expression + ')')
+          const result = sandboxedEval()
           this.send(ws, {
             id,
             result: {
@@ -224,18 +226,28 @@ else {
             },
           })
         }
-catch (e: any) {
+        catch (evalError: unknown) {
           this.send(ws, {
             id,
             result: {
+              result: {
+                type: 'object',
+                subtype: 'error',
+                description: evalError instanceof Error ? evalError.message : String(evalError),
+              },
               exceptionDetails: {
-                text: e.message,
-                exception: { type: 'object', className: 'Error', description: e.stack },
+                text: evalError instanceof Error ? evalError.message : String(evalError),
+                exception: {
+                  type: 'object',
+                  className: 'Error',
+                  description: evalError instanceof Error ? evalError.stack : String(evalError),
+                },
               },
             },
           })
         }
         break
+      }
 
       case 'Console.enable':
         this.send(ws, { id, result: {} })
@@ -565,18 +577,27 @@ else if (msg.method === 'Network.responseReceived') {
       };
     });
 
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
     function render() {
       const content = document.getElementById('content');
       if (activeTab === 'console') {
         content.innerHTML = logs.map(l =>
-          '<div class="log ' + l.level + '">' + l.text + '</div>'
+          '<div class="log ' + esc(l.level) + '">' + esc(l.text) + '</div>'
         ).join('');
       }
 else if (activeTab === 'network') {
         content.innerHTML = requests.map(r =>
           '<div class="request">' +
-          '<div class="request-url">' + r.request.method + ' ' + r.request.url + '</div>' +
-          '<div class="request-status status-' + r.status + '">' + r.status + '</div>' +
+          '<div class="request-url">' + esc(r.request.method) + ' ' + esc(r.request.url) + '</div>' +
+          '<div class="request-status status-' + esc(r.status) + '">' + esc(r.status) + '</div>' +
           '</div>'
         ).join('');
       }
@@ -596,6 +617,15 @@ else {
 </html>
 `
   }
+}
+
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
 }
 
 // Create global devtools instance for easy access

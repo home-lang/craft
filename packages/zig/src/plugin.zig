@@ -260,7 +260,9 @@ pub const Plugin = struct {
         if (self.wasm_module) |module| {
             // Call cleanup function if exists
             if (module.getExport("plugin_deinit")) |_| {
-                _ = module.call("plugin_deinit", &.{}) catch {};
+                _ = module.call("plugin_deinit", &.{}) catch |err| {
+                    std.log.debug("plugin_deinit call failed during unload: {}", .{err});
+                };
             }
             module.deinit();
             self.wasm_module = null;

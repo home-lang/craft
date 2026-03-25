@@ -101,7 +101,10 @@ pub const SystemBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getAppearance','{s}');", .{ callback_id, appearance_str }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getAppearance callback: {}", .{err});
+            };
         }
     }
 
@@ -138,7 +141,10 @@ pub const SystemBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getAccentColor',{{r:{d:.3},g:{d:.3},b:{d:.3}}});", .{ callback_id, r, g, b }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getAccentColor callback: {}", .{err});
+            };
         }
     }
 
@@ -173,7 +179,10 @@ pub const SystemBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getHighlightColor',{{r:{d:.3},g:{d:.3},b:{d:.3}}});", .{ callback_id, r, g, b }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getHighlightColor callback: {}", .{err});
+            };
         }
     }
 
@@ -207,7 +216,10 @@ pub const SystemBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getLanguage','{s}');", .{ callback_id, lang_str }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getLanguage callback: {}", .{err});
+            };
         }
     }
 
@@ -240,7 +252,10 @@ pub const SystemBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getLocale','{s}');", .{ callback_id, locale_str }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getLocale callback: {}", .{err});
+            };
         }
     }
 
@@ -273,7 +288,10 @@ pub const SystemBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getTimezone','{s}');", .{ callback_id, tz_str }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getTimezone callback: {}", .{err});
+            };
         }
     }
 
@@ -314,7 +332,10 @@ pub const SystemBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','is24HourTime',{});", .{ callback_id, is_24h }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for is24HourTime callback: {}", .{err});
+            };
         }
     }
 
@@ -345,7 +366,10 @@ pub const SystemBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getReduceMotion',{});", .{ callback_id, reduce_motion }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getReduceMotion callback: {}", .{err});
+            };
         }
     }
 
@@ -375,7 +399,10 @@ pub const SystemBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getReduceTransparency',{});", .{ callback_id, reduce_transparency }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getReduceTransparency callback: {}", .{err});
+            };
         }
     }
 
@@ -405,7 +432,10 @@ pub const SystemBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getIncreaseContrast',{});", .{ callback_id, increase_contrast }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getIncreaseContrast callback: {}", .{err});
+            };
         }
     }
 
@@ -477,7 +507,10 @@ pub const SystemBridge = struct {
             var buf: [512]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getSystemVersion','{s}');", .{ callback_id, ver_str }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getSystemVersion callback: {}", .{err});
+            };
         }
     }
 
@@ -510,7 +543,10 @@ pub const SystemBridge = struct {
             var buf: [512]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getHostname','{s}');", .{ callback_id, host_str }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getHostname callback: {}", .{err});
+            };
         }
     }
 
@@ -543,7 +579,10 @@ pub const SystemBridge = struct {
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getUsername','{s}');", .{ callback_id, user_str }) catch return;
 
-            macos.tryEvalJS(js) catch {};
+            const cross_bridge = @import("bridge.zig");
+            cross_bridge.evalJS(js) catch |err| {
+                std.log.debug("JS eval failed for getUsername callback: {}", .{err});
+            };
         }
     }
 

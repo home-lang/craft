@@ -660,12 +660,16 @@ pub const TokenStore = struct {
         const access_key = std.fmt.bufPrint(&buf, "{s}_access_token", .{self.prefix}) catch {
             return KeychainError.InvalidData;
         };
-        self.keychain.deletePassword(access_key) catch {};
+        self.keychain.deletePassword(access_key) catch |err| {
+            std.log.debug("failed to delete access token during clearTokens: {}", .{err});
+        };
 
         const refresh_key = std.fmt.bufPrint(&buf, "{s}_refresh_token", .{self.prefix}) catch {
             return KeychainError.InvalidData;
         };
-        self.keychain.deletePassword(refresh_key) catch {};
+        self.keychain.deletePassword(refresh_key) catch |err| {
+            std.log.debug("failed to delete refresh token during clearTokens: {}", .{err});
+        };
     }
 };
 
@@ -724,12 +728,16 @@ pub const CredentialStore = struct {
         const user_key = std.fmt.bufPrint(&buf, "{s}_username", .{self.service}) catch {
             return KeychainError.InvalidData;
         };
-        self.keychain.deletePassword(user_key) catch {};
+        self.keychain.deletePassword(user_key) catch |err| {
+            std.log.debug("failed to delete username during clearCredentials: {}", .{err});
+        };
 
         const pass_key = std.fmt.bufPrint(&buf, "{s}_password", .{self.service}) catch {
             return KeychainError.InvalidData;
         };
-        self.keychain.deletePassword(pass_key) catch {};
+        self.keychain.deletePassword(pass_key) catch |err| {
+            std.log.debug("failed to delete password during clearCredentials: {}", .{err});
+        };
     }
 
     /// Check if credentials are stored

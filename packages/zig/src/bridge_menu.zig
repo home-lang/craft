@@ -87,7 +87,10 @@ pub const MenuBridge = struct {
     /// Set the application menu bar
     /// JSON: {"menus": [{"label": "File", "items": [{"id": "new", "label": "New", "shortcut": "cmd+n"}]}]}
     fn setAppMenu(self: *Self, data: []const u8) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            log.debug("menu: not supported on this platform", .{});
+            return;
+        }
 
         const macos = @import("macos.zig");
 
@@ -171,7 +174,7 @@ pub const MenuBridge = struct {
 
     /// Create a menu with items from JSON
     fn createMenuWithItems(self: *Self, title: []const u8, items_data: []const u8) !?*anyopaque {
-        if (builtin.os.tag != .macos) return null;
+        if (comptime builtin.os.tag != .macos) return null;
 
         const macos = @import("macos.zig");
 
@@ -255,7 +258,7 @@ pub const MenuBridge = struct {
 
     /// Create a single menu item with optional icon
     fn createMenuItem(self: *Self, id: []const u8, label: []const u8, shortcut: []const u8, icon_name: ?[]const u8) !?*anyopaque {
-        if (builtin.os.tag != .macos) return null;
+        if (comptime builtin.os.tag != .macos) return null;
 
         const macos = @import("macos.zig");
 
@@ -339,7 +342,10 @@ pub const MenuBridge = struct {
     /// Set the dock menu (right-click on dock icon)
     /// JSON: {"items": [{"id": "show", "label": "Show Window"}, {"separator": true}, {"id": "quit", "label": "Quit"}]}
     fn setDockMenu(self: *Self, data: []const u8) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            log.debug("menu: not supported on this platform", .{});
+            return;
+        }
 
         log.debug("setDockMenu", .{});
 
@@ -366,7 +372,10 @@ pub const MenuBridge = struct {
 
     /// Enable a menu item
     fn enableMenuItem(self: *Self, data: []const u8) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            log.debug("menu: not supported on this platform", .{});
+            return;
+        }
         _ = self;
 
         var item_id: []const u8 = "";
@@ -387,7 +396,10 @@ pub const MenuBridge = struct {
 
     /// Disable a menu item
     fn disableMenuItem(self: *Self, data: []const u8) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            log.debug("menu: not supported on this platform", .{});
+            return;
+        }
         _ = self;
 
         var item_id: []const u8 = "";
@@ -408,7 +420,10 @@ pub const MenuBridge = struct {
 
     /// Check (add checkmark to) a menu item
     fn checkMenuItem(self: *Self, data: []const u8) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            log.debug("menu: not supported on this platform", .{});
+            return;
+        }
         _ = self;
 
         var item_id: []const u8 = "";
@@ -429,7 +444,10 @@ pub const MenuBridge = struct {
 
     /// Uncheck a menu item
     fn uncheckMenuItem(self: *Self, data: []const u8) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            log.debug("menu: not supported on this platform", .{});
+            return;
+        }
         _ = self;
 
         var item_id: []const u8 = "";
@@ -450,7 +468,10 @@ pub const MenuBridge = struct {
 
     /// Update menu item label
     fn setMenuItemLabel(self: *Self, data: []const u8) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            log.debug("menu: not supported on this platform", .{});
+            return;
+        }
 
         var item_id: []const u8 = "";
         var new_label: []const u8 = "";
@@ -483,7 +504,10 @@ pub const MenuBridge = struct {
 
     /// Clear the dock menu
     fn clearDockMenu(self: *Self) !void {
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) {
+            log.debug("menu: not supported on this platform", .{});
+            return;
+        }
 
         log.debug("clearDockMenu", .{});
 
@@ -516,7 +540,7 @@ pub fn getDockMenu() ?*anyopaque {
 
 /// Implementation of addMenuItem (platform-specific)
 fn addMenuItemImpl(self: *MenuBridge, data: []const u8) !void {
-    if (builtin.os.tag == .macos) {
+    if (comptime builtin.os.tag == .macos) {
         const macos = @import("macos.zig");
 
         // Parse menuId (target menu)
@@ -622,7 +646,7 @@ fn addMenuItemImpl(self: *MenuBridge, data: []const u8) !void {
 /// Implementation of removeMenuItem (platform-specific)
 fn removeMenuItemImpl(self: *MenuBridge, data: []const u8) void {
     _ = &self;
-    if (builtin.os.tag == .macos) {
+    if (comptime builtin.os.tag == .macos) {
         const macos = @import("macos.zig");
 
         // Parse itemId to remove
@@ -659,7 +683,7 @@ fn removeMenuItemImpl(self: *MenuBridge, data: []const u8) void {
 
 /// Find submenu by title (case-insensitive search)
 fn findSubmenuByTitle(menu: *anyopaque, title: []const u8) ?*anyopaque {
-    if (builtin.os.tag != .macos) return null;
+    if (comptime builtin.os.tag != .macos) return null;
 
     const macos = @import("macos.zig");
 
@@ -710,7 +734,7 @@ fn findSubmenuByTitle(menu: *anyopaque, title: []const u8) ?*anyopaque {
 
 /// Find menu item by ID (searches app menu and dock menu)
 fn findMenuItemById(item_id: []const u8) ?*anyopaque {
-    if (builtin.os.tag != .macos) return null;
+    if (comptime builtin.os.tag != .macos) return null;
 
     const macos = @import("macos.zig");
 
@@ -736,7 +760,7 @@ fn findMenuItemById(item_id: []const u8) ?*anyopaque {
 
 /// Recursively search menu for item with ID
 fn searchMenuForItem(menu: *anyopaque, item_id: []const u8) ?*anyopaque {
-    if (builtin.os.tag != .macos) return null;
+    if (comptime builtin.os.tag != .macos) return null;
 
     const macos = @import("macos.zig");
 
@@ -774,9 +798,7 @@ fn searchMenuForItem(menu: *anyopaque, item_id: []const u8) ?*anyopaque {
 
 /// Handle menu item click - called from app delegate
 pub fn handleMenuItemClick(item_id: []const u8) void {
-    if (builtin.os.tag != .macos) return;
-
-    const macos = @import("macos.zig");
+    const bridge = @import("bridge.zig");
 
     log.debug("Menu item clicked: {s}", .{item_id});
 
@@ -785,7 +807,7 @@ pub fn handleMenuItemClick(item_id: []const u8) void {
         \\if(window.__craftMenuCallback)window.__craftMenuCallback('{s}');
     , .{item_id}) catch return;
 
-    macos.tryEvalJS(js) catch |err| {
+    bridge.evalJS(js) catch |err| {
         log.err("Failed to trigger callback: {}", .{err});
     };
 }

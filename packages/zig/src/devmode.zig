@@ -173,34 +173,30 @@ pub const DevMode = struct {
     }
 };
 
-// Global dev mode instance
-var global_devmode: ?DevMode = null;
+const global_state = @import("global_state.zig");
 
 pub fn initGlobalDevMode(allocator: std.mem.Allocator) void {
-    global_devmode = DevMode.init(allocator);
+    global_state.instance.initDevMode(allocator);
 }
 
 pub fn getGlobalDevMode() ?*DevMode {
-    if (global_devmode) |*dm| {
-        return dm;
-    }
-    return null;
+    return global_state.instance.getDevMode();
 }
 
 pub fn enable() void {
-    if (global_devmode) |*dm| {
+    if (global_state.instance.getDevMode()) |dm| {
         dm.enable();
     }
 }
 
 pub fn disable() void {
-    if (global_devmode) |*dm| {
+    if (global_state.instance.getDevMode()) |dm| {
         dm.disable();
     }
 }
 
 pub fn isEnabled() bool {
-    if (global_devmode) |dm| {
+    if (global_state.instance.getDevMode()) |dm| {
         return dm.enabled;
     }
     return false;

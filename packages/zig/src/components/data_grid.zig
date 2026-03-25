@@ -288,7 +288,9 @@ pub const DataGrid = struct {
             // Keep only the first selected row
             const first = self.selected_rows.items[0];
             self.selected_rows.clearRetainingCapacity();
-            self.selected_rows.append(self.component.allocator, first) catch {};
+            self.selected_rows.append(self.component.allocator, first) catch |err| {
+                std.log.debug("data grid row selection tracking failed: {}", .{err});
+            };
         }
     }
 

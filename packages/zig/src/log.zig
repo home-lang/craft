@@ -162,6 +162,6 @@ fn getTimestamp() []const u8 {
     const minutes = @mod(@divFloor(total_seconds, 60), 60);
     const hours = @mod(@divFloor(total_seconds, 3600), 24);
 
-    _ = std.fmt.bufPrint(&Static.buf, "{d:0>2}:{d:0>2}:{d:0>2}", .{ hours, minutes, seconds }) catch unreachable;
+    _ = std.fmt.bufPrint(&Static.buf, "{d:0>2}:{d:0>2}:{d:0>2}", .{ hours, minutes, seconds }) catch return "00:00:00";
     return &Static.buf;
 }

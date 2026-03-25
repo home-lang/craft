@@ -387,27 +387,40 @@ else {
 }
 
 // ============================================================================
+// HTML Escaping
+// ============================================================================
+
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+// ============================================================================
 // HTML Generation
 // ============================================================================
 
 function generateHTML(config: SidebarConfig): string {
   const renderItem = (item: SidebarItem): string => `
-    <div class='craft-sidebar-item${item.selected ? ' selected' : ''}' data-id='${item.id}'>
+    <div class='craft-sidebar-item${item.selected ? ' selected' : ''}' data-id='${escapeHtml(item.id)}'>
       ${item.icon ? `<span class='craft-sidebar-item-icon'>${getIcon(item.icon, item.tintColor)}</span>` : ''}
-      <span class='craft-sidebar-item-label'>${item.label}</span>
-      ${item.badge !== undefined ? `<span class='craft-sidebar-item-badge'>${item.badge}</span>` : ''}
+      <span class='craft-sidebar-item-label'>${escapeHtml(item.label)}</span>
+      ${item.badge !== undefined ? `<span class='craft-sidebar-item-badge'>${escapeHtml(String(item.badge))}</span>` : ''}
     </div>
   `
 
   const renderSection = (section: SidebarSection): string => `
-    <div class='craft-sidebar-section' data-section='${section.id}'>
+    <div class='craft-sidebar-section' data-section='${escapeHtml(section.id)}'>
       ${section.title ? `
-        <div class='craft-sidebar-section-header${section.collapsed ? ' collapsed' : ''}' data-section-toggle='${section.id}'>
+        <div class='craft-sidebar-section-header${section.collapsed ? ' collapsed' : ''}' data-section-toggle='${escapeHtml(section.id)}'>
           ${section.collapsible !== false ? `<svg class="craft-sidebar-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>` : ''}
-          ${section.title}
+          ${escapeHtml(section.title)}
         </div>
       ` : ''}
-      <div class='craft-sidebar-section-items${section.collapsed ? ' collapsed' : ''}' data-section-items='${section.id}'>
+      <div class='craft-sidebar-section-items${section.collapsed ? ' collapsed' : ''}' data-section-items='${escapeHtml(section.id)}'>
         ${section.items.map(renderItem).join('')}
       </div>
     </div>
@@ -417,13 +430,13 @@ function generateHTML(config: SidebarConfig): string {
     <aside class='craft-sidebar'>
       ${config.headerTitle ? `
         <div class='craft-sidebar-header'>
-          <div class='craft-sidebar-header-title'>${config.headerTitle}</div>
-          ${config.headerSubtitle ? `<div class="craft-sidebar-header-subtitle">${config.headerSubtitle}</div>` : ''}
+          <div class='craft-sidebar-header-title'>${escapeHtml(config.headerTitle)}</div>
+          ${config.headerSubtitle ? `<div class="craft-sidebar-header-subtitle">${escapeHtml(config.headerSubtitle)}</div>` : ''}
         </div>
       ` : ''}
       ${config.showSearch ? `
         <div class='craft-sidebar-search'>
-          <input type='text' placeholder='${config.searchPlaceholder || 'Search'}' data-sidebar-search>
+          <input type='text' placeholder='${escapeHtml(config.searchPlaceholder || 'Search')}' data-sidebar-search>
         </div>
       ` : ''}
       <div class='craft-sidebar-content'>
@@ -436,7 +449,7 @@ function generateHTML(config: SidebarConfig): string {
 
 // Simple icon helper - returns SVG for common icons
 function getIcon(name: string, tintColor?: string): string {
-  const color = tintColor || 'currentColor'
+  const color = escapeHtml(tintColor || 'currentColor')
   const icons: Record<string, string> = {
     folder: `<svg viewBox='0 0 24 24' fill='${color}'><path d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'/></svg>`,
     file: `<svg viewBox='0 0 24 24' fill='none' stroke='${color}' stroke-width='2'><path d='M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'/><polyline points='13 2 13 9 20 9'/></svg>`,

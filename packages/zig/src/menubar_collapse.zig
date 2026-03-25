@@ -584,7 +584,9 @@ fn notifyJS() void {
         if (always_hidden_enabled) "true" else "false",
         if (separator_hidden) "true" else "false",
     }) catch return;
-    macos.tryEvalJS(js) catch {};
+    macos.tryEvalJS(js) catch |err| {
+        std.log.debug("JS eval failed for menubar collapse state callback: {}", .{err});
+    };
 }
 
 fn toggleClicked(_: objc.id, _: objc.SEL, sender: objc.id) callconv(.c) void {

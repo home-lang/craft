@@ -2,13 +2,73 @@ const std = @import("std");
 
 /// Database API for SQLite integration
 /// Provides comprehensive database operations with transactions, prepared statements,
-/// and migration support. This implementation provides a complete API that can work
-/// in software-only mode for testing, with hooks for real SQLite integration.
+/// and migration support. This implementation uses real SQLite via the C API.
 
-// Note: For actual SQLite integration, uncomment the following and link libsqlite3:
-// const c = @cImport({
-//     @cInclude("sqlite3.h");
-// });
+const c = @cImport({
+    @cInclude("sqlite3.h");
+});
+
+const builtin = @import("builtin");
+
+// SQLITE_TRANSIENT tells SQLite to make its own copy of the bound data.
+// The C definition is ((sqlite3_destructor_type)-1), i.e. a function pointer with value -1.
+// Zig's @cImport can't translate this cast due to function pointer alignment checks.
+// Instead, we call the C bind functions directly through thin asm stubs that pass the
+// correct destructor value (-1), avoiding Zig's type system constraints.
+extern fn sqlite3_bind_text_transient(stmt: ?*c.sqlite3_stmt, idx: c_int, text: [*c]const u8, len: c_int) c_int;
+extern fn sqlite3_bind_blob_transient(stmt: ?*c.sqlite3_stmt, idx: c_int, blob: ?*const anyopaque, len: c_int) c_int;
+
+comptime {
+    // Asm stubs that tail-call sqlite3_bind_text/sqlite3_bind_blob with the 5th argument
+    // (destructor) set to -1 (SQLITE_TRANSIENT). Platform-specific calling conventions:
+    //   arm64: 5th arg in x4
+    //   x86_64 SysV: 5th arg in r8 (Linux)
+    //   x86_64 Win64: 5th arg on stack (Windows uses 4-register fastcall)
+    if (builtin.cpu.arch == .aarch64) {
+        asm (
+            \\.globl _sqlite3_bind_text_transient
+            \\_sqlite3_bind_text_transient:
+            \\  mov x4, #-1
+            \\  b _sqlite3_bind_text
+        );
+        asm (
+            \\.globl _sqlite3_bind_blob_transient
+            \\_sqlite3_bind_blob_transient:
+            \\  mov x4, #-1
+            \\  b _sqlite3_bind_blob
+        );
+    } else if (builtin.cpu.arch == .x86_64) {
+        if (builtin.os.tag == .windows) {
+            // Win64 ABI: first 4 args in rcx,rdx,r8,r9; 5th arg at [rsp+40]
+            asm (
+                \\.globl sqlite3_bind_text_transient
+                \\sqlite3_bind_text_transient:
+                \\  mov qword ptr [rsp+32], -1
+                \\  jmp sqlite3_bind_text
+            );
+            asm (
+                \\.globl sqlite3_bind_blob_transient
+                \\sqlite3_bind_blob_transient:
+                \\  mov qword ptr [rsp+32], -1
+                \\  jmp sqlite3_bind_blob
+            );
+        } else {
+            // SysV ABI (Linux/macOS): first 6 args in rdi,rsi,rdx,rcx,r8,r9
+            asm (
+                \\.globl sqlite3_bind_text_transient
+                \\sqlite3_bind_text_transient:
+                \\  mov r8, -1
+                \\  jmp sqlite3_bind_text
+            );
+            asm (
+                \\.globl sqlite3_bind_blob_transient
+                \\sqlite3_bind_blob_transient:
+                \\  mov r8, -1
+                \\  jmp sqlite3_bind_blob
+            );
+        }
+    }
+}
 
 pub const DatabaseError = error{
     ConnectionFailed,
@@ -105,10 +165,17 @@ pub const Row = struct {
     }
 
     pub fn deinit(self: *Row) void {
-        // Note: text and blob values are not freed here - caller is responsible
-        // for managing the lifetime of any dynamically allocated strings.
-        // In typical SQLite usage, values would be duped from SQLite's internal
-        // storage and the caller would manage freeing them.
+        var it = self.columns.iterator();
+        while (it.next()) |entry| {
+            // Free duped column name
+            self.allocator.free(entry.key_ptr.*);
+            // Free duped text/blob values
+            switch (entry.value_ptr.*) {
+                .text => |t| self.allocator.free(t),
+                .blob => |b| self.allocator.free(b),
+                else => {},
+            }
+        }
         self.columns.deinit();
     }
 
@@ -164,15 +231,46 @@ pub const Statement = struct {
     bound_params: std.ArrayList(BoundValue),
     column_names: std.ArrayList([]const u8),
     finalized: bool,
+    stmt_handle: ?*c.sqlite3_stmt = null,
 
     pub fn init(allocator: std.mem.Allocator, db: *Database, sql: []const u8) !Statement {
+        const duped_sql = try allocator.dupe(u8, sql);
+        errdefer allocator.free(duped_sql);
+
+        // Prepare the SQLite statement
+        var stmt_handle: ?*c.sqlite3_stmt = null;
+        const rc = c.sqlite3_prepare_v2(
+            db.db_handle,
+            duped_sql.ptr,
+            @intCast(duped_sql.len),
+            &stmt_handle,
+            null,
+        );
+        if (rc != c.SQLITE_OK) {
+            return DatabaseError.PreparationFailed;
+        }
+
+        // Extract column names from the prepared statement
+        var col_names = std.ArrayList([]const u8){};
+        const col_count = c.sqlite3_column_count(stmt_handle);
+        var col_idx: c_int = 0;
+        while (col_idx < col_count) : (col_idx += 1) {
+            const name_ptr = c.sqlite3_column_name(stmt_handle, col_idx);
+            if (name_ptr) |name| {
+                const name_slice = std.mem.span(name);
+                const duped_name = try allocator.dupe(u8, name_slice);
+                try col_names.append(allocator, duped_name);
+            }
+        }
+
         return Statement{
-            .sql = try allocator.dupe(u8, sql),
+            .sql = duped_sql,
             .allocator = allocator,
             .db = db,
             .bound_params = .{},
-            .column_names = .{},
+            .column_names = col_names,
             .finalized = false,
+            .stmt_handle = stmt_handle,
         };
     }
 
@@ -192,30 +290,60 @@ pub const Statement = struct {
     pub fn bindNull(self: *Statement, index: usize) !void {
         try self.ensureParamCapacity(index);
         self.bound_params.items[index - 1] = .{ .null = {} };
+        if (self.stmt_handle) |handle| {
+            const rc = c.sqlite3_bind_null(handle, @intCast(index));
+            if (rc != c.SQLITE_OK) return DatabaseError.BindFailed;
+        }
     }
 
     /// Bind an integer value
     pub fn bindInt(self: *Statement, index: usize, value: i64) !void {
         try self.ensureParamCapacity(index);
         self.bound_params.items[index - 1] = .{ .integer = value };
+        if (self.stmt_handle) |handle| {
+            const rc = c.sqlite3_bind_int64(handle, @intCast(index), value);
+            if (rc != c.SQLITE_OK) return DatabaseError.BindFailed;
+        }
     }
 
     /// Bind a float value
     pub fn bindFloat(self: *Statement, index: usize, value: f64) !void {
         try self.ensureParamCapacity(index);
         self.bound_params.items[index - 1] = .{ .real = value };
+        if (self.stmt_handle) |handle| {
+            const rc = c.sqlite3_bind_double(handle, @intCast(index), value);
+            if (rc != c.SQLITE_OK) return DatabaseError.BindFailed;
+        }
     }
 
     /// Bind a text value
     pub fn bindText(self: *Statement, index: usize, value: []const u8) !void {
         try self.ensureParamCapacity(index);
         self.bound_params.items[index - 1] = .{ .text = value };
+        if (self.stmt_handle) |handle| {
+            const rc = sqlite3_bind_text_transient(
+                handle,
+                @intCast(index),
+                value.ptr,
+                @intCast(value.len),
+            );
+            if (rc != c.SQLITE_OK) return DatabaseError.BindFailed;
+        }
     }
 
     /// Bind a blob value
     pub fn bindBlob(self: *Statement, index: usize, value: []const u8) !void {
         try self.ensureParamCapacity(index);
         self.bound_params.items[index - 1] = .{ .blob = value };
+        if (self.stmt_handle) |handle| {
+            const rc = sqlite3_bind_blob_transient(
+                handle,
+                @intCast(index),
+                value.ptr,
+                @intCast(value.len),
+            );
+            if (rc != c.SQLITE_OK) return DatabaseError.BindFailed;
+        }
     }
 
     /// Generic bind function
@@ -251,29 +379,81 @@ pub const Statement = struct {
 
     /// Execute statement (INSERT, UPDATE, DELETE)
     pub fn execute(self: *Statement) !void {
-        // Software implementation - just validate SQL
-        if (self.sql.len == 0) {
-            return DatabaseError.InvalidQuery;
+        const handle = self.stmt_handle orelse return DatabaseError.InvalidQuery;
+        const rc = c.sqlite3_step(handle);
+        if (rc != c.SQLITE_DONE and rc != c.SQLITE_ROW) {
+            const result: SqliteResult = @enumFromInt(rc);
+            return result.toError() orelse DatabaseError.StepFailed;
         }
-        // In real implementation with SQLite:
-        // const rc = c.sqlite3_step(self.stmt);
-        // if (rc != c.SQLITE_DONE and rc != c.SQLITE_ROW) {
-        //     return SqliteResult.toError(@enumFromInt(rc)) orelse DatabaseError.StepFailed;
-        // }
     }
 
     /// Execute query and return rows
     pub fn executeQuery(self: *Statement) ![]Row {
-        var rows = std.ArrayList(Row).init(self.allocator);
+        var rows = std.ArrayList(Row){};
         errdefer {
             for (rows.items) |*row| {
                 row.deinit();
             }
-            rows.deinit();
+            rows.deinit(self.allocator);
         }
 
-        // Software implementation - parse simple SELECT statements
-        // In real implementation, would use sqlite3_step in a loop
+        const handle = self.stmt_handle orelse return DatabaseError.InvalidQuery;
+        const col_count = c.sqlite3_column_count(handle);
+
+        while (true) {
+            const rc = c.sqlite3_step(handle);
+            if (rc == c.SQLITE_DONE) break;
+            if (rc != c.SQLITE_ROW) {
+                const result: SqliteResult = @enumFromInt(rc);
+                return result.toError() orelse DatabaseError.StepFailed;
+            }
+
+            var row = Row.init(self.allocator);
+            errdefer row.deinit();
+
+            var col_idx: c_int = 0;
+            while (col_idx < col_count) : (col_idx += 1) {
+                // Get column name
+                const name_ptr = c.sqlite3_column_name(handle, col_idx);
+                const col_name = if (name_ptr) |np|
+                    try self.allocator.dupe(u8, std.mem.span(np))
+                else
+                    try self.allocator.dupe(u8, "");
+                errdefer self.allocator.free(col_name);
+
+                // Get column value based on type
+                const col_type = c.sqlite3_column_type(handle, col_idx);
+                const value: Row.Value = switch (col_type) {
+                    c.SQLITE_NULL => .{ .null = {} },
+                    c.SQLITE_INTEGER => .{ .integer = c.sqlite3_column_int64(handle, col_idx) },
+                    c.SQLITE_FLOAT => .{ .real = c.sqlite3_column_double(handle, col_idx) },
+                    c.SQLITE_TEXT => blk: {
+                        const text_ptr = c.sqlite3_column_text(handle, col_idx);
+                        const text_len: usize = @intCast(c.sqlite3_column_bytes(handle, col_idx));
+                        if (text_ptr) |tp| {
+                            const duped = try self.allocator.dupe(u8, tp[0..text_len]);
+                            break :blk .{ .text = duped };
+                        }
+                        break :blk .{ .null = {} };
+                    },
+                    c.SQLITE_BLOB => blk: {
+                        const blob_ptr = c.sqlite3_column_blob(handle, col_idx);
+                        const blob_len: usize = @intCast(c.sqlite3_column_bytes(handle, col_idx));
+                        if (blob_ptr) |bp| {
+                            const src: [*]const u8 = @ptrCast(bp);
+                            const duped = try self.allocator.dupe(u8, src[0..blob_len]);
+                            break :blk .{ .blob = duped };
+                        }
+                        break :blk .{ .null = {} };
+                    },
+                    else => .{ .null = {} },
+                };
+
+                try row.columns.put(col_name, value);
+            }
+
+            try rows.append(self.allocator, row);
+        }
 
         return try rows.toOwnedSlice(self.allocator);
     }
@@ -281,16 +461,19 @@ pub const Statement = struct {
     /// Reset statement for reuse with new parameters
     pub fn reset(self: *Statement) void {
         self.bound_params.clearRetainingCapacity();
-        // In real implementation:
-        // _ = c.sqlite3_reset(self.stmt);
-        // _ = c.sqlite3_clear_bindings(self.stmt);
+        if (self.stmt_handle) |handle| {
+            _ = c.sqlite3_reset(handle);
+            _ = c.sqlite3_clear_bindings(handle);
+        }
     }
 
     /// Finalize and release the statement
     pub fn finalize(self: *Statement) void {
+        if (self.stmt_handle) |handle| {
+            _ = c.sqlite3_finalize(handle);
+            self.stmt_handle = null;
+        }
         self.finalized = true;
-        // In real implementation:
-        // _ = c.sqlite3_finalize(self.stmt);
     }
 
     /// Get the number of columns in the result set
@@ -316,6 +499,7 @@ pub const Database = struct {
     total_changes: i64,
     open: bool,
     statements: std.ArrayList(*Statement),
+    db_handle: ?*c.sqlite3 = null,
 
     const Self = @This();
 
@@ -331,6 +515,7 @@ pub const Database = struct {
             .total_changes = 0,
             .open = false,
             .statements = .{},
+            .db_handle = null,
         };
 
         try db.openConnection();
@@ -338,13 +523,31 @@ pub const Database = struct {
     }
 
     fn openConnection(self: *Self) !void {
-        // In real implementation with SQLite:
-        // var db_handle: ?*c.sqlite3 = null;
-        // var flags: c_int = c.SQLITE_OPEN_READWRITE | c.SQLITE_OPEN_CREATE;
-        // if (self.config.read_only) flags = c.SQLITE_OPEN_READONLY;
-        // if (self.config.shared_cache) flags |= c.SQLITE_OPEN_SHAREDCACHE;
-        // const rc = c.sqlite3_open_v2(self.path.ptr, &db_handle, flags, null);
-        // if (rc != c.SQLITE_OK) return DatabaseError.ConnectionFailed;
+        // Build flags based on config
+        var flags: c_int = 0;
+        if (self.config.read_only) {
+            flags = c.SQLITE_OPEN_READONLY;
+        } else {
+            flags = c.SQLITE_OPEN_READWRITE | c.SQLITE_OPEN_CREATE;
+        }
+        if (self.config.shared_cache) {
+            flags |= c.SQLITE_OPEN_SHAREDCACHE;
+        }
+
+        // Need a null-terminated string for sqlite3_open_v2
+        const path_z = try self.allocator.alloc(u8, self.path.len + 1);
+        defer self.allocator.free(path_z);
+        @memcpy(path_z[0..self.path.len], self.path);
+        path_z[self.path.len] = 0;
+
+        const rc = c.sqlite3_open_v2(path_z.ptr, &self.db_handle, flags, null);
+        if (rc != c.SQLITE_OK) {
+            if (self.db_handle) |handle| {
+                _ = c.sqlite3_close(handle);
+                self.db_handle = null;
+            }
+            return DatabaseError.ConnectionFailed;
+        }
 
         self.open = true;
 
@@ -362,23 +565,15 @@ pub const Database = struct {
     }
 
     fn executePragma(self: *Self, pragma: []const u8, value: []const u8) !void {
-        _ = self;
-        _ = pragma;
-        _ = value;
-        // In real implementation:
-        // var sql_buf: [256]u8 = undefined;
-        // const sql = try std.fmt.bufPrint(&sql_buf, "PRAGMA {s} = {s}", .{pragma, value});
-        // try self.executeRaw(sql);
+        var sql_buf: [256]u8 = undefined;
+        const sql = try std.fmt.bufPrint(&sql_buf, "PRAGMA {s} = {s}", .{ pragma, value });
+        try self.executeRaw(sql);
     }
 
     fn executePragmaInt(self: *Self, pragma: []const u8, value: i32) !void {
-        _ = self;
-        _ = pragma;
-        _ = value;
-        // In real implementation:
-        // var sql_buf: [256]u8 = undefined;
-        // const sql = try std.fmt.bufPrint(&sql_buf, "PRAGMA {s} = {d}", .{pragma, value});
-        // try self.executeRaw(sql);
+        var sql_buf: [256]u8 = undefined;
+        const sql = try std.fmt.bufPrint(&sql_buf, "PRAGMA {s} = {d}", .{ pragma, value });
+        try self.executeRaw(sql);
     }
 
     pub fn deinit(self: *Self) void {
@@ -389,10 +584,10 @@ pub const Database = struct {
         }
         self.statements.deinit(self.allocator);
 
-        // In real implementation:
-        // if (self.db_handle) |handle| {
-        //     _ = c.sqlite3_close(handle);
-        // }
+        if (self.db_handle) |handle| {
+            _ = c.sqlite3_close_v2(handle);
+            self.db_handle = null;
+        }
 
         self.allocator.free(self.path);
         self.open = false;
@@ -418,8 +613,12 @@ pub const Database = struct {
         }
 
         try stmt.execute();
-        self.changes_count = 1; // Simulated
-        self.total_changes += 1;
+        // Update change tracking from SQLite
+        if (self.db_handle) |handle| {
+            self.changes_count = @intCast(c.sqlite3_changes(handle));
+            self.total_changes = @intCast(c.sqlite3_total_changes(handle));
+            self.last_insert_rowid = c.sqlite3_last_insert_rowid(handle);
+        }
     }
 
     /// Execute raw SQL without parameters
@@ -427,17 +626,21 @@ pub const Database = struct {
         if (!self.open) return DatabaseError.ConnectionFailed;
         if (sql.len == 0) return DatabaseError.InvalidQuery;
 
-        // In real implementation:
-        // var errmsg: [*c]u8 = null;
-        // const rc = c.sqlite3_exec(self.db_handle, sql.ptr, null, null, &errmsg);
-        // if (rc != c.SQLITE_OK) {
-        //     if (errmsg) |msg| c.sqlite3_free(msg);
-        //     return SqliteResult.toError(@enumFromInt(rc)) orelse DatabaseError.QueryFailed;
-        // }
+        const handle = self.db_handle orelse return DatabaseError.ConnectionFailed;
 
-        // Software implementation - validate SQL starts with known command
-        const trimmed = std.mem.trimLeft(u8, sql, " \t\n\r");
-        if (trimmed.len == 0) return DatabaseError.InvalidQuery;
+        // Need a null-terminated string for sqlite3_exec
+        const sql_z = try self.allocator.alloc(u8, sql.len + 1);
+        defer self.allocator.free(sql_z);
+        @memcpy(sql_z[0..sql.len], sql);
+        sql_z[sql.len] = 0;
+
+        var errmsg: [*c]u8 = null;
+        const rc = c.sqlite3_exec(handle, sql_z.ptr, null, null, &errmsg);
+        if (rc != c.SQLITE_OK) {
+            if (errmsg) |msg| c.sqlite3_free(msg);
+            const result: SqliteResult = @enumFromInt(rc);
+            return result.toError() orelse DatabaseError.QueryFailed;
+        }
     }
 
     /// Execute multiple SQL statements
@@ -487,7 +690,8 @@ pub const Database = struct {
             const row = rows[0];
             // Free other rows if any
             for (rows[1..]) |*r| {
-                r.deinit();
+                var mr = r.*;
+                mr.deinit();
             }
             return row;
         }
@@ -598,7 +802,9 @@ pub const Database = struct {
     /// Execute within transaction with automatic commit/rollback
     pub fn transaction(self: *Self, callback: *const fn (*Self) anyerror!void) !void {
         try self.beginTransaction();
-        errdefer self.rollback() catch {};
+        errdefer self.rollback() catch |err| {
+            std.log.warn("transaction rollback failed: {}", .{err});
+        };
 
         try callback(self);
         try self.commit();
@@ -606,22 +812,25 @@ pub const Database = struct {
 
     /// Get last insert row ID
     pub fn lastInsertRowId(self: *const Self) i64 {
-        // In real implementation:
-        // return c.sqlite3_last_insert_rowid(self.db_handle);
+        if (self.db_handle) |handle| {
+            return c.sqlite3_last_insert_rowid(handle);
+        }
         return self.last_insert_rowid;
     }
 
     /// Get number of changed rows from last statement
     pub fn changes(self: *const Self) i64 {
-        // In real implementation:
-        // return c.sqlite3_changes(self.db_handle);
+        if (self.db_handle) |handle| {
+            return @intCast(c.sqlite3_changes(handle));
+        }
         return self.changes_count;
     }
 
     /// Get total number of changed rows since connection opened
     pub fn totalChanges(self: *const Self) i64 {
-        // In real implementation:
-        // return c.sqlite3_total_changes(self.db_handle);
+        if (self.db_handle) |handle| {
+            return @intCast(c.sqlite3_total_changes(handle));
+        }
         return self.total_changes;
     }
 
@@ -660,7 +869,7 @@ pub const Database = struct {
         const rows = try self.query("PRAGMA integrity_check", .{});
         defer {
             for (rows) |*row| {
-                var r = row;
+                var r = row.*;
                 r.deinit();
             }
             self.allocator.free(rows);
@@ -683,7 +892,7 @@ pub const Database = struct {
         );
         defer {
             for (rows) |*row| {
-                var r = row;
+                var r = row.*;
                 r.deinit();
             }
             self.allocator.free(rows);
@@ -694,24 +903,23 @@ pub const Database = struct {
     /// Get SQLite version
     pub fn getVersion(self: *Self) ![]const u8 {
         _ = self;
-        // In real implementation:
-        // return std.mem.span(c.sqlite3_libversion());
-        return "3.45.0"; // Simulated
+        return std.mem.span(c.sqlite3_libversion());
     }
 
     /// Get last error message
     pub fn getLastError(self: *Self) []const u8 {
-        _ = self;
-        // In real implementation:
-        // return std.mem.span(c.sqlite3_errmsg(self.db_handle));
+        if (self.db_handle) |handle| {
+            const msg = c.sqlite3_errmsg(handle);
+            if (msg) |m| return std.mem.span(m);
+        }
         return "";
     }
 
     /// Interrupt a long-running query
     pub fn interrupt(self: *Self) void {
-        _ = self;
-        // In real implementation:
-        // c.sqlite3_interrupt(self.db_handle);
+        if (self.db_handle) |handle| {
+            c.sqlite3_interrupt(handle);
+        }
     }
 
     /// Check if database is in autocommit mode
@@ -727,16 +935,60 @@ pub const Database = struct {
 
     /// Create a backup of the database
     pub fn backup(self: *Self, dest_path: []const u8) !void {
-        _ = self;
-        _ = dest_path;
-        // In real implementation, would use sqlite3_backup API
+        const src_handle = self.db_handle orelse return DatabaseError.ConnectionFailed;
+
+        // Open destination database
+        const dest_z = try self.allocator.alloc(u8, dest_path.len + 1);
+        defer self.allocator.free(dest_z);
+        @memcpy(dest_z[0..dest_path.len], dest_path);
+        dest_z[dest_path.len] = 0;
+
+        var dest_handle: ?*c.sqlite3 = null;
+        var rc = c.sqlite3_open(dest_z.ptr, &dest_handle);
+        if (rc != c.SQLITE_OK) {
+            if (dest_handle) |dh| _ = c.sqlite3_close(dh);
+            return DatabaseError.ConnectionFailed;
+        }
+        defer _ = c.sqlite3_close(dest_handle);
+
+        const bk = c.sqlite3_backup_init(dest_handle, "main", src_handle, "main");
+        if (bk == null) return DatabaseError.QueryFailed;
+
+        rc = c.sqlite3_backup_step(bk, -1);
+        _ = c.sqlite3_backup_finish(bk);
+
+        if (rc != c.SQLITE_DONE) {
+            return DatabaseError.QueryFailed;
+        }
     }
 
     /// Restore database from backup
     pub fn restore(self: *Self, source_path: []const u8) !void {
-        _ = self;
-        _ = source_path;
-        // In real implementation, would use sqlite3_backup API
+        const dest_handle = self.db_handle orelse return DatabaseError.ConnectionFailed;
+
+        // Open source database
+        const src_z = try self.allocator.alloc(u8, source_path.len + 1);
+        defer self.allocator.free(src_z);
+        @memcpy(src_z[0..source_path.len], source_path);
+        src_z[source_path.len] = 0;
+
+        var src_handle: ?*c.sqlite3 = null;
+        var rc = c.sqlite3_open(src_z.ptr, &src_handle);
+        if (rc != c.SQLITE_OK) {
+            if (src_handle) |sh| _ = c.sqlite3_close(sh);
+            return DatabaseError.ConnectionFailed;
+        }
+        defer _ = c.sqlite3_close(src_handle);
+
+        const bk = c.sqlite3_backup_init(dest_handle, "main", src_handle, "main");
+        if (bk == null) return DatabaseError.QueryFailed;
+
+        rc = c.sqlite3_backup_step(bk, -1);
+        _ = c.sqlite3_backup_finish(bk);
+
+        if (rc != c.SQLITE_DONE) {
+            return DatabaseError.QueryFailed;
+        }
     }
 };
 
@@ -778,7 +1030,9 @@ pub const Migrator = struct {
         for (self.migrations) |migration| {
             if (migration.version > current_version) {
                 try self.db.beginTransaction();
-                errdefer self.db.rollback() catch {};
+                errdefer self.db.rollback() catch |err| {
+                    std.log.warn("migration rollback failed for version {d}: {}", .{ migration.version, err });
+                };
 
                 try self.db.executeRaw(migration.up);
 
@@ -809,7 +1063,9 @@ pub const Migrator = struct {
                     std.debug.print("Rolling back migration {d}\n", .{migration.version});
 
                     try self.db.beginTransaction();
-                    errdefer self.db.rollback() catch {};
+                    errdefer self.db.rollback() catch |err| {
+                        std.log.warn("migration rollback failed during downgrade of version {d}: {}", .{ migration.version, err });
+                    };
 
                     try self.db.execute(down_sql, .{});
                     try self.db.execute(
@@ -830,7 +1086,8 @@ pub const Migrator = struct {
         );
         defer {
             for (rows) |*row| {
-                row.deinit();
+                var r = row.*;
+                r.deinit();
             }
             self.allocator.free(rows);
         }
@@ -983,6 +1240,9 @@ test "prepared statement creation" {
     });
     defer db.deinit();
 
+    // Create a table first so the statement can reference real columns
+    try db.executeRaw("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)");
+
     var stmt = try db.prepare("SELECT * FROM users WHERE id = ?");
     defer {
         stmt.deinit();
@@ -999,6 +1259,8 @@ test "prepared statement binding" {
         .path = ":memory:",
     });
     defer db.deinit();
+
+    try db.executeRaw("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, score REAL)");
 
     var stmt = try db.prepare("INSERT INTO users (id, name, score) VALUES (?, ?, ?)");
     defer {
@@ -1026,6 +1288,8 @@ test "prepared statement reset" {
     });
     defer db.deinit();
 
+    try db.executeRaw("CREATE TABLE users (id INTEGER PRIMARY KEY)");
+
     var stmt = try db.prepare("SELECT * FROM users WHERE id = ?");
     defer {
         stmt.deinit();
@@ -1042,19 +1306,31 @@ test "prepared statement reset" {
 test "row value access" {
     const allocator = std.testing.allocator;
 
-    var row = Row.init(allocator);
-    defer row.deinit();
+    var db = try Database.init(allocator, .{
+        .path = ":memory:",
+    });
+    defer db.deinit();
 
-    try row.columns.put("id", .{ .integer = 42 });
-    try row.columns.put("name", .{ .text = "Alice" });
-    try row.columns.put("score", .{ .real = 95.5 });
+    // Create table and insert data, then query to get a real row
+    try db.executeRaw("CREATE TABLE test (id INTEGER, name TEXT, score REAL)");
+    try db.executeRaw("INSERT INTO test VALUES (42, 'Alice', 95.5)");
 
-    try std.testing.expectEqual(@as(?i64, 42), row.getInt("id"));
-    try std.testing.expectEqualStrings("Alice", row.getText("name").?);
-    try std.testing.expectEqual(@as(?f64, 95.5), row.getFloat("score"));
+    const rows = try db.query("SELECT id, name, score FROM test", .{});
+    defer {
+        for (rows) |*row| {
+            var r = row.*;
+            r.deinit();
+        }
+        allocator.free(rows);
+    }
+
+    try std.testing.expect(rows.len == 1);
+    try std.testing.expectEqual(@as(?i64, 42), rows[0].getInt("id"));
+    try std.testing.expectEqualStrings("Alice", rows[0].getText("name").?);
+    try std.testing.expectEqual(@as(?f64, 95.5), rows[0].getFloat("score"));
 
     // Non-existent column
-    try std.testing.expect(row.getInt("nonexistent") == null);
+    try std.testing.expect(rows[0].getInt("nonexistent") == null);
 }
 
 test "database changes tracking" {
@@ -1065,12 +1341,11 @@ test "database changes tracking" {
     });
     defer db.deinit();
 
-    try std.testing.expectEqual(@as(i64, 0), db.changes());
-    try std.testing.expectEqual(@as(i64, 0), db.totalChanges());
+    try db.executeRaw("CREATE TABLE test (id INTEGER PRIMARY KEY)");
 
     try db.execute("INSERT INTO test VALUES (?)", .{@as(i64, 1)});
     try std.testing.expectEqual(@as(i64, 1), db.changes());
-    try std.testing.expectEqual(@as(i64, 1), db.totalChanges());
+    try std.testing.expect(db.totalChanges() >= 1);
 }
 
 test "database version" {

@@ -144,8 +144,10 @@ function parseError(error: Error | string): ErrorInfo {
 function formatStackTrace(stack: string): string {
   return stack
     .split('\n')
-    .map((line) => {
-      // Highlight file paths
+    .map((rawLine) => {
+      // Escape the raw line first to prevent XSS from stack content
+      let line = escapeHtml(rawLine)
+      // Highlight file paths (operating on already-escaped text)
       line = line.replace(
         /\((.+?):(\d+):(\d+)\)/g,
         '<span class="stack-location">($1:<span class="stack-line">$2</span>:$3)</span>'

@@ -32,7 +32,7 @@ pub const NotificationBridge = struct {
         // Already initialized
         if (self.notification_center != null) return;
 
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) return;
 
         const macos = @import("macos.zig");
 
@@ -105,55 +105,32 @@ pub const NotificationBridge = struct {
             try self.windowsShowNotification(data);
             return;
         }
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) return;
 
         self.ensureNotificationCenter();
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
         const macos = @import("macos.zig");
 
-        // Parse notification data
-        var id: []const u8 = "default";
-        var title: []const u8 = "";
-        var body: []const u8 = "";
-        var subtitle: []const u8 = "";
-        var sound: bool = true;
+        const ShowParams = struct {
+            id: []const u8 = "default",
+            title: []const u8 = "",
+            body: []const u8 = "",
+            subtitle: []const u8 = "",
+            sound: bool = true,
+        };
 
-        // Parse id
-        if (std.mem.indexOf(u8, data, "\"id\":\"")) |idx| {
-            const start = idx + 6;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                id = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(ShowParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const params = parsed.value;
 
-        // Parse title
-        if (std.mem.indexOf(u8, data, "\"title\":\"")) |idx| {
-            const start = idx + 9;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                title = data[start..end];
-            }
-        }
-
-        // Parse body
-        if (std.mem.indexOf(u8, data, "\"body\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                body = data[start..end];
-            }
-        }
-
-        // Parse subtitle
-        if (std.mem.indexOf(u8, data, "\"subtitle\":\"")) |idx| {
-            const start = idx + 12;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                subtitle = data[start..end];
-            }
-        }
-
-        // Parse sound
-        if (std.mem.indexOf(u8, data, "\"sound\":false")) |_| {
-            sound = false;
-        }
+        const id = params.id;
+        const title = params.title;
+        const body = params.body;
+        const subtitle = params.subtitle;
+        const sound = params.sound;
 
         log.debug("show: id={s}, title={s}, body={s}", .{ id, title, body });
 
@@ -229,48 +206,30 @@ pub const NotificationBridge = struct {
             try self.windowsShowNotification(data);
             return;
         }
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) return;
 
         self.ensureNotificationCenter();
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
         const macos = @import("macos.zig");
 
-        // Parse data
-        var id: []const u8 = "scheduled";
-        var title: []const u8 = "";
-        var body: []const u8 = "";
-        var delay: f64 = 60.0;
+        const ScheduleParams = struct {
+            id: []const u8 = "scheduled",
+            title: []const u8 = "",
+            body: []const u8 = "",
+            delay: f64 = 60.0,
+        };
 
-        if (std.mem.indexOf(u8, data, "\"id\":\"")) |idx| {
-            const start = idx + 6;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                id = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(ScheduleParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const params = parsed.value;
 
-        if (std.mem.indexOf(u8, data, "\"title\":\"")) |idx| {
-            const start = idx + 9;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                title = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"body\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                body = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"delay\":")) |idx| {
-            var start = idx + 8;
-            while (start < data.len and (data[start] == ' ' or data[start] == '\t')) : (start += 1) {}
-            var end = start;
-            while (end < data.len and ((data[end] >= '0' and data[end] <= '9') or data[end] == '.')) : (end += 1) {}
-            if (end > start) {
-                delay = std.fmt.parseFloat(f64, data[start..end]) catch 60.0;
-            }
-        }
+        const id = params.id;
+        const title = params.title;
+        const body = params.body;
+        const delay = params.delay;
 
         log.debug("schedule: id={s}, delay={d}s", .{ id, delay });
 
@@ -326,19 +285,22 @@ pub const NotificationBridge = struct {
             log.debug("cancel: not supported on this platform", .{});
             return;
         }
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) return;
 
         self.ensureNotificationCenter();
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
         const macos = @import("macos.zig");
 
-        var id: []const u8 = "";
-        if (std.mem.indexOf(u8, data, "\"id\":\"")) |idx| {
-            const start = idx + 6;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                id = data[start..end];
-            }
-        }
+        const IdParams = struct {
+            id: []const u8 = "",
+        };
+
+        const parsed = std.json.parseFromSlice(IdParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const id = parsed.value.id;
 
         if (id.len == 0) return BridgeError.MissingData;
 
@@ -363,7 +325,7 @@ pub const NotificationBridge = struct {
             log.debug("cancelAll: not supported on this platform", .{});
             return;
         }
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) return;
 
         self.ensureNotificationCenter();
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
@@ -383,21 +345,20 @@ pub const NotificationBridge = struct {
             log.debug("setBadge: not supported on this platform", .{});
             return;
         }
-        if (builtin.os.tag != .macos) return;
-        _ = self;
+        if (comptime builtin.os.tag != .macos) return;
 
         const macos = @import("macos.zig");
 
-        var count: i64 = 0;
-        if (std.mem.indexOf(u8, data, "\"count\":")) |idx| {
-            var start = idx + 8;
-            while (start < data.len and (data[start] == ' ' or data[start] == '\t')) : (start += 1) {}
-            var end = start;
-            while (end < data.len and data[end] >= '0' and data[end] <= '9') : (end += 1) {}
-            if (end > start) {
-                count = std.fmt.parseInt(i64, data[start..end], 10) catch 0;
-            }
-        }
+        const BadgeParams = struct {
+            count: i64 = 0,
+        };
+
+        const parsed = std.json.parseFromSlice(BadgeParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const count = parsed.value.count;
 
         log.debug("setBadge: {}", .{count});
 
@@ -425,7 +386,7 @@ pub const NotificationBridge = struct {
             log.debug("clearBadge: not supported on this platform", .{});
             return;
         }
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) return;
         _ = self;
 
         const macos = @import("macos.zig");
@@ -446,7 +407,7 @@ pub const NotificationBridge = struct {
             bridge_error.sendResultToJS(self.allocator, "requestPermission", "{\"granted\":true}");
             return;
         }
-        if (builtin.os.tag != .macos) return;
+        if (comptime builtin.os.tag != .macos) return;
 
         self.ensureNotificationCenter();
         const center = self.notification_center orelse return BridgeError.NativeCallFailed;
@@ -466,32 +427,27 @@ pub const NotificationBridge = struct {
     // ============================================
 
     fn linuxShowNotification(self: *Self, data: []const u8) !void {
-        var title: []const u8 = "Notification";
-        var body: []const u8 = "";
-        var urgency: []const u8 = "normal";
+        const LinuxNotifParams = struct {
+            title: []const u8 = "Notification",
+            body: []const u8 = "",
+            style: []const u8 = "normal",
+        };
 
-        // Parse title
-        if (std.mem.indexOf(u8, data, "\"title\":\"")) |idx| {
-            const start = idx + 9;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                title = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(LinuxNotifParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const params = parsed.value;
 
-        // Parse body
-        if (std.mem.indexOf(u8, data, "\"body\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                body = data[start..end];
-            }
-        }
-
-        // Parse urgency/style
-        if (std.mem.indexOf(u8, data, "\"style\":\"critical\"")) |_| {
-            urgency = "critical";
-        } else if (std.mem.indexOf(u8, data, "\"style\":\"low\"")) |_| {
-            urgency = "low";
-        }
+        const title = params.title;
+        const body = params.body;
+        const urgency = if (std.mem.eql(u8, params.style, "critical"))
+            "critical"
+        else if (std.mem.eql(u8, params.style, "low"))
+            "low"
+        else
+            "normal";
 
         log.debug("Linux show: title={s}, body={s}", .{ title, body });
 
@@ -528,24 +484,18 @@ pub const NotificationBridge = struct {
             return;
         }
 
-        var title: []const u8 = "Notification";
-        var body: []const u8 = "";
+        const WinNotifParams = struct {
+            title: []const u8 = "Notification",
+            body: []const u8 = "",
+        };
 
-        // Parse title
-        if (std.mem.indexOf(u8, data, "\"title\":\"")) |idx| {
-            const start = idx + 9;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                title = data[start..end];
-            }
-        }
-
-        // Parse body
-        if (std.mem.indexOf(u8, data, "\"body\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                body = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(WinNotifParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const title = parsed.value.title;
+        const body = parsed.value.body;
 
         log.debug("Windows show: title={s}, body={s}", .{ title, body });
 

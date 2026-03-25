@@ -1796,12 +1796,8 @@ pub fn createWindowWithSidebar(
     return window;
 }
 
-/// Generate HTML for the web-based sidebar
-fn generateSidebarHtml(sidebar_config: ?[]const u8) []const u8 {
-    _ = sidebar_config; // TODO: Parse and use config for dynamic content
-
-    // For now, return a simple sidebar HTML that matches the app's theme
-    return
+/// Default fallback sidebar HTML (used when no config is provided or on parse error)
+const default_sidebar_html =
     \\<!DOCTYPE html>
     \\<html>
     \\<head>
@@ -1882,7 +1878,431 @@ fn generateSidebarHtml(sidebar_config: ?[]const u8) []const u8 {
     \\</div>
     \\</body>
     \\</html>
-    ;
+;
+
+/// Escape a string for safe inclusion in HTML content.
+/// Replaces &, <, >, ", and ' with their HTML entity equivalents.
+fn appendHtmlEscaped(list: *std.ArrayList(u8), allocator: std.mem.Allocator, input: []const u8) !void {
+    for (input) |c| {
+        switch (c) {
+            '&' => try list.appendSlice(allocator, "&amp;"),
+            '<' => try list.appendSlice(allocator, "&lt;"),
+            '>' => try list.appendSlice(allocator, "&gt;"),
+            '"' => try list.appendSlice(allocator, "&quot;"),
+            '\'' => try list.appendSlice(allocator, "&#39;"),
+            else => try list.append(allocator, c),
+        }
+    }
+}
+
+/// Map well-known SF Symbol names to emoji fallbacks for web rendering.
+/// Returns null if no known mapping exists (caller should use a generic fallback).
+fn sfSymbolToEmoji(icon: []const u8) ?[]const u8 {
+    const mappings = [_]struct { name: []const u8, emoji: []const u8 }{
+        .{ .name = "house", .emoji = "\xF0\x9F\x8F\xA0" },
+        .{ .name = "house.fill", .emoji = "\xF0\x9F\x8F\xA0" },
+        .{ .name = "folder", .emoji = "\xF0\x9F\x93\x81" },
+        .{ .name = "folder.fill", .emoji = "\xF0\x9F\x93\x81" },
+        .{ .name = "doc", .emoji = "\xF0\x9F\x93\x84" },
+        .{ .name = "doc.fill", .emoji = "\xF0\x9F\x93\x84" },
+        .{ .name = "star", .emoji = "\xE2\xAD\x90" },
+        .{ .name = "star.fill", .emoji = "\xE2\xAD\x90" },
+        .{ .name = "heart", .emoji = "\xE2\x9D\xA4\xEF\xB8\x8F" },
+        .{ .name = "heart.fill", .emoji = "\xE2\x9D\xA4\xEF\xB8\x8F" },
+        .{ .name = "gear", .emoji = "\xE2\x9A\x99\xEF\xB8\x8F" },
+        .{ .name = "gearshape", .emoji = "\xE2\x9A\x99\xEF\xB8\x8F" },
+        .{ .name = "gearshape.fill", .emoji = "\xE2\x9A\x99\xEF\xB8\x8F" },
+        .{ .name = "magnifyingglass", .emoji = "\xF0\x9F\x94\x8D" },
+        .{ .name = "bell", .emoji = "\xF0\x9F\x94\x94" },
+        .{ .name = "bell.fill", .emoji = "\xF0\x9F\x94\x94" },
+        .{ .name = "envelope", .emoji = "\xE2\x9C\x89\xEF\xB8\x8F" },
+        .{ .name = "envelope.fill", .emoji = "\xE2\x9C\x89\xEF\xB8\x8F" },
+        .{ .name = "paperplane", .emoji = "\xF0\x9F\x93\xA8" },
+        .{ .name = "paperplane.fill", .emoji = "\xF0\x9F\x93\xA8" },
+        .{ .name = "trash", .emoji = "\xF0\x9F\x97\x91\xEF\xB8\x8F" },
+        .{ .name = "trash.fill", .emoji = "\xF0\x9F\x97\x91\xEF\xB8\x8F" },
+        .{ .name = "tray", .emoji = "\xF0\x9F\x93\xA5" },
+        .{ .name = "tray.fill", .emoji = "\xF0\x9F\x93\xA5" },
+        .{ .name = "person", .emoji = "\xF0\x9F\x91\xA4" },
+        .{ .name = "person.fill", .emoji = "\xF0\x9F\x91\xA4" },
+        .{ .name = "person.2", .emoji = "\xF0\x9F\x91\xA5" },
+        .{ .name = "person.2.fill", .emoji = "\xF0\x9F\x91\xA5" },
+        .{ .name = "message", .emoji = "\xF0\x9F\x92\xAC" },
+        .{ .name = "message.fill", .emoji = "\xF0\x9F\x92\xAC" },
+        .{ .name = "bubble.left", .emoji = "\xF0\x9F\x92\xAC" },
+        .{ .name = "bubble.left.fill", .emoji = "\xF0\x9F\x92\xAC" },
+        .{ .name = "photo", .emoji = "\xF0\x9F\x96\xBC\xEF\xB8\x8F" },
+        .{ .name = "photo.fill", .emoji = "\xF0\x9F\x96\xBC\xEF\xB8\x8F" },
+        .{ .name = "music.note", .emoji = "\xF0\x9F\x8E\xB5" },
+        .{ .name = "film", .emoji = "\xF0\x9F\x8E\xAC" },
+        .{ .name = "book", .emoji = "\xF0\x9F\x93\x96" },
+        .{ .name = "book.fill", .emoji = "\xF0\x9F\x93\x96" },
+        .{ .name = "bookmark", .emoji = "\xF0\x9F\x94\x96" },
+        .{ .name = "bookmark.fill", .emoji = "\xF0\x9F\x94\x96" },
+        .{ .name = "tag", .emoji = "\xF0\x9F\x8F\xB7\xEF\xB8\x8F" },
+        .{ .name = "tag.fill", .emoji = "\xF0\x9F\x8F\xB7\xEF\xB8\x8F" },
+        .{ .name = "clock", .emoji = "\xF0\x9F\x95\x90" },
+        .{ .name = "clock.fill", .emoji = "\xF0\x9F\x95\x90" },
+        .{ .name = "calendar", .emoji = "\xF0\x9F\x93\x85" },
+        .{ .name = "mappin", .emoji = "\xF0\x9F\x93\x8D" },
+        .{ .name = "map", .emoji = "\xF0\x9F\x97\xBA\xEF\xB8\x8F" },
+        .{ .name = "link", .emoji = "\xF0\x9F\x94\x97" },
+        .{ .name = "pin", .emoji = "\xF0\x9F\x93\x8C" },
+        .{ .name = "pin.fill", .emoji = "\xF0\x9F\x93\x8C" },
+        .{ .name = "bolt", .emoji = "\xE2\x9A\xA1" },
+        .{ .name = "bolt.fill", .emoji = "\xE2\x9A\xA1" },
+        .{ .name = "circle.fill", .emoji = "\xE2\x97\x8F" },
+        .{ .name = "arrow.down.circle", .emoji = "\xE2\xAC\x87\xEF\xB8\x8F" },
+        .{ .name = "arrow.down.circle.fill", .emoji = "\xE2\xAC\x87\xEF\xB8\x8F" },
+        .{ .name = "icloud", .emoji = "\xE2\x98\x81\xEF\xB8\x8F" },
+        .{ .name = "externaldrive.fill.badge.icloud", .emoji = "\xE2\x98\x81\xEF\xB8\x8F" },
+        .{ .name = "number", .emoji = "#" },
+    };
+    for (mappings) |entry| {
+        if (std.mem.eql(u8, icon, entry.name)) return entry.emoji;
+    }
+    return null;
+}
+
+/// Generate HTML for the web-based sidebar.
+/// If sidebar_config is provided (as a JSON string), parse it and generate dynamic HTML.
+/// Falls back to default_sidebar_html on null config or parse errors.
+fn generateSidebarHtml(allocator: std.mem.Allocator, sidebar_config: ?[]const u8) ![]const u8 {
+    const config_json = sidebar_config orelse return default_sidebar_html;
+
+    // Parse the JSON config
+    const parsed = std.json.parseFromSlice(std.json.Value, allocator, config_json, .{}) catch |err| {
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[SidebarHTML] JSON parse error: {}, falling back to default\n", .{err});
+        return default_sidebar_html;
+    };
+    defer parsed.deinit();
+    const root = parsed.value;
+
+    // Root must be an object with a "sections" array
+    const root_obj = switch (root) {
+        .object => |obj| obj,
+        else => return default_sidebar_html,
+    };
+
+    const sections_val = root_obj.get("sections") orelse return default_sidebar_html;
+    const sections_array = switch (sections_val) {
+        .array => |arr| arr,
+        else => return default_sidebar_html,
+    };
+
+    // Extract optional style configuration
+    const style_obj = if (root_obj.get("style")) |s| switch (s) {
+        .object => |obj| obj,
+        else => null,
+    } else null;
+
+    const bg_color = if (style_obj) |s| if (s.get("backgroundColor")) |v| switch (v) {
+        .string => |str| str,
+        else => null,
+    } else null else null;
+    const text_color = if (style_obj) |s| if (s.get("textColor")) |v| switch (v) {
+        .string => |str| str,
+        else => null,
+    } else null else null;
+    const accent_color = if (style_obj) |s| if (s.get("accentColor")) |v| switch (v) {
+        .string => |str| str,
+        else => null,
+    } else null else null;
+    const hover_color = if (style_obj) |s| if (s.get("hoverColor")) |v| switch (v) {
+        .string => |str| str,
+        else => null,
+    } else null else null;
+
+    // Extract optional header
+    const header_obj = if (root_obj.get("header")) |h| switch (h) {
+        .object => |obj| obj,
+        else => null,
+    } else null;
+
+    // Build the HTML dynamically using ArrayList
+    var html = std.ArrayList(u8).init(allocator);
+    errdefer html.deinit(allocator);
+
+    // HTML preamble and CSS
+    try html.appendSlice(allocator, "<!DOCTYPE html>\n<html>\n<head>\n<meta charset=\"UTF-8\">\n<style>\n");
+    try html.appendSlice(allocator, "* { margin: 0; padding: 0; box-sizing: border-box; }\n");
+
+    // Body style - use config colors or sensible defaults
+    try html.appendSlice(allocator, "body {\n");
+    try html.appendSlice(allocator, "  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;\n");
+    try html.appendSlice(allocator, "  background: ");
+    if (bg_color) |bg| {
+        try appendHtmlEscaped(&html, allocator, bg);
+    } else {
+        try html.appendSlice(allocator, "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)");
+    }
+    try html.appendSlice(allocator, ";\n  color: ");
+    if (text_color) |tc| {
+        try appendHtmlEscaped(&html, allocator, tc);
+    } else {
+        try html.appendSlice(allocator, "#fff");
+    }
+    try html.appendSlice(allocator, ";\n  height: 100vh;\n  overflow-y: auto;\n  padding: 60px 12px 12px 12px;\n  -webkit-user-select: none;\n  user-select: none;\n}\n");
+
+    // Section styles
+    try html.appendSlice(allocator, ".section { margin-bottom: 24px; }\n");
+    try html.appendSlice(allocator, ".section-title {\n  font-size: 11px;\n  font-weight: 600;\n  color: ");
+    if (text_color) |tc| {
+        try appendHtmlEscaped(&html, allocator, tc);
+        // Approximate reduced opacity by appending hex alpha if it looks like a hex color
+        if (tc.len > 0 and tc[0] == '#') {
+            try html.appendSlice(allocator, "80");
+        }
+    } else {
+        try html.appendSlice(allocator, "rgba(255,255,255,0.5)");
+    }
+    try html.appendSlice(allocator, ";\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  padding: 0 8px 8px 8px;\n}\n");
+
+    // Item styles
+    try html.appendSlice(allocator, ".item {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n  padding: 8px 12px;\n  border-radius: 8px;\n  cursor: pointer;\n  font-size: 13px;\n  color: ");
+    if (text_color) |tc| {
+        try appendHtmlEscaped(&html, allocator, tc);
+    } else {
+        try html.appendSlice(allocator, "rgba(255,255,255,0.85)");
+    }
+    try html.appendSlice(allocator, ";\n  transition: background 0.15s ease;\n}\n");
+
+    // Hover style
+    try html.appendSlice(allocator, ".item:hover { background: ");
+    if (hover_color) |hc| {
+        try appendHtmlEscaped(&html, allocator, hc);
+    } else {
+        try html.appendSlice(allocator, "rgba(255,255,255,0.08)");
+    }
+    try html.appendSlice(allocator, "; }\n");
+
+    // Selected style
+    try html.appendSlice(allocator, ".item.selected { background: ");
+    if (accent_color) |ac| {
+        try appendHtmlEscaped(&html, allocator, ac);
+        if (ac.len > 0 and ac[0] == '#') {
+            try html.appendSlice(allocator, "40");
+        }
+    } else {
+        try html.appendSlice(allocator, "rgba(139, 92, 246, 0.25)");
+    }
+    try html.appendSlice(allocator, "; }\n");
+
+    // Disabled style
+    try html.appendSlice(allocator, ".item.disabled { opacity: 0.4; pointer-events: none; }\n");
+
+    // Icon style
+    try html.appendSlice(allocator, ".item-icon {\n  width: 20px;\n  height: 20px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 14px;\n}\n");
+
+    // Badge style
+    try html.appendSlice(allocator, ".badge {\n  margin-left: auto;\n  background: ");
+    if (accent_color) |ac| {
+        try appendHtmlEscaped(&html, allocator, ac);
+        if (ac.len > 0 and ac[0] == '#') {
+            try html.appendSlice(allocator, "99");
+        }
+    } else {
+        try html.appendSlice(allocator, "rgba(139, 92, 246, 0.6)");
+    }
+    try html.appendSlice(allocator, ";\n  padding: 2px 8px;\n  border-radius: 10px;\n  font-size: 11px;\n  font-weight: 500;\n}\n");
+
+    // Header styles
+    try html.appendSlice(allocator, ".sidebar-header { padding: 0 8px 16px 8px; }\n");
+    try html.appendSlice(allocator, ".sidebar-header-title { font-size: 15px; font-weight: 700; }\n");
+    try html.appendSlice(allocator, ".sidebar-header-subtitle { font-size: 12px; opacity: 0.6; margin-top: 2px; }\n");
+
+    try html.appendSlice(allocator, "</style>\n</head>\n<body>\n");
+
+    // Render optional header
+    if (header_obj) |hdr| {
+        try html.appendSlice(allocator, "<div class=\"sidebar-header\">\n");
+        if (hdr.get("title")) |t| {
+            switch (t) {
+                .string => |str| {
+                    try html.appendSlice(allocator, "  <div class=\"sidebar-header-title\">");
+                    try appendHtmlEscaped(&html, allocator, str);
+                    try html.appendSlice(allocator, "</div>\n");
+                },
+                else => {},
+            }
+        }
+        if (hdr.get("subtitle")) |t| {
+            switch (t) {
+                .string => |str| {
+                    try html.appendSlice(allocator, "  <div class=\"sidebar-header-subtitle\">");
+                    try appendHtmlEscaped(&html, allocator, str);
+                    try html.appendSlice(allocator, "</div>\n");
+                },
+                else => {},
+            }
+        }
+        try html.appendSlice(allocator, "</div>\n");
+    }
+
+    // Render each section
+    for (sections_array.items) |section_val| {
+        const section_obj = switch (section_val) {
+            .object => |obj| obj,
+            else => continue,
+        };
+
+        const section_title = if (section_obj.get("title")) |v| switch (v) {
+            .string => |s| s,
+            else => "Section",
+        } else "Section";
+
+        try html.appendSlice(allocator, "<div class=\"section\">\n");
+        try html.appendSlice(allocator, "  <div class=\"section-title\">");
+        try appendHtmlEscaped(&html, allocator, section_title);
+        try html.appendSlice(allocator, "</div>\n");
+
+        // Get items array
+        const items_val = section_obj.get("items") orelse {
+            try html.appendSlice(allocator, "</div>\n");
+            continue;
+        };
+        const items_array = switch (items_val) {
+            .array => |arr| arr,
+            else => {
+                try html.appendSlice(allocator, "</div>\n");
+                continue;
+            },
+        };
+
+        // Render each item
+        for (items_array.items) |item_val| {
+            const item_obj = switch (item_val) {
+                .object => |obj| obj,
+                else => continue,
+            };
+
+            const item_id = if (item_obj.get("id")) |v| switch (v) {
+                .string => |s| s,
+                else => "item",
+            } else "item";
+
+            const item_label = if (item_obj.get("label")) |v| switch (v) {
+                .string => |s| s,
+                else => "Item",
+            } else "Item";
+
+            const item_icon: ?[]const u8 = if (item_obj.get("icon")) |v| switch (v) {
+                .string => |s| s,
+                else => null,
+            } else null;
+
+            const item_badge: ?[]const u8 = if (item_obj.get("badge")) |v| switch (v) {
+                .string => |s| s,
+                .integer => |n| std.fmt.allocPrint(allocator, "{d}", .{n}) catch null,
+                else => null,
+            } else null;
+
+            const item_selected: bool = if (item_obj.get("selected")) |v| switch (v) {
+                .bool => |b| b,
+                else => false,
+            } else false;
+
+            const item_disabled: bool = if (item_obj.get("disabled")) |v| switch (v) {
+                .bool => |b| b,
+                else => false,
+            } else false;
+
+            const item_tint: ?[]const u8 = if (item_obj.get("tintColor")) |v| switch (v) {
+                .string => |s| s,
+                else => null,
+            } else null;
+
+            // Build item element with CSS classes and data attribute
+            try html.appendSlice(allocator, "  <div class=\"item");
+            if (item_selected) try html.appendSlice(allocator, " selected");
+            if (item_disabled) try html.appendSlice(allocator, " disabled");
+            try html.appendSlice(allocator, "\" data-id=\"");
+            try appendHtmlEscaped(&html, allocator, item_id);
+            try html.appendSlice(allocator, "\" onclick=\"handleSidebarClick(this)\">");
+
+            // Icon span - apply tint color if provided, map SF Symbol to emoji
+            try html.appendSlice(allocator, "<span class=\"item-icon\"");
+            if (item_tint) |tint| {
+                try html.appendSlice(allocator, " style=\"color:");
+                try appendHtmlEscaped(&html, allocator, tint);
+                try html.appendSlice(allocator, "\"");
+            }
+            try html.appendSlice(allocator, ">");
+
+            if (item_icon) |icon| {
+                if (sfSymbolToEmoji(icon)) |emoji| {
+                    try html.appendSlice(allocator, emoji);
+                } else {
+                    // Check if icon is already an emoji (contains non-ASCII bytes)
+                    var has_non_ascii = false;
+                    for (icon) |c| {
+                        if (c > 127) {
+                            has_non_ascii = true;
+                            break;
+                        }
+                    }
+                    if (has_non_ascii) {
+                        // Likely an emoji, use directly
+                        try appendHtmlEscaped(&html, allocator, icon);
+                    } else if (icon.len <= 2) {
+                        // Short text like "#" or "@", use as-is
+                        try appendHtmlEscaped(&html, allocator, icon);
+                    } else {
+                        // Unknown SF Symbol name, use generic document icon
+                        try html.appendSlice(allocator, "\xF0\x9F\x93\x84");
+                    }
+                }
+            } else {
+                // No icon specified, use generic document icon
+                try html.appendSlice(allocator, "\xF0\x9F\x93\x84");
+            }
+
+            try html.appendSlice(allocator, "</span>");
+
+            // Label text
+            try appendHtmlEscaped(&html, allocator, item_label);
+
+            // Badge (optional)
+            if (item_badge) |badge| {
+                try html.appendSlice(allocator, "<span class=\"badge\">");
+                try appendHtmlEscaped(&html, allocator, badge);
+                try html.appendSlice(allocator, "</span>");
+            }
+
+            try html.appendSlice(allocator, "</div>\n");
+        }
+
+        try html.appendSlice(allocator, "</div>\n");
+    }
+
+    // Click handler JavaScript - sends sidebar_select messages to the native bridge
+    try html.appendSlice(allocator,
+        \\<script>
+        \\function handleSidebarClick(el) {
+        \\  var id = el.getAttribute('data-id');
+        \\  document.querySelectorAll('.item.selected').forEach(function(item) {
+        \\    item.classList.remove('selected');
+        \\  });
+        \\  el.classList.add('selected');
+        \\  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.craftBridge) {
+        \\    window.webkit.messageHandlers.craftBridge.postMessage(JSON.stringify({
+        \\      type: 'sidebar_select',
+        \\      id: id,
+        \\      label: el.textContent.trim()
+        \\    }));
+        \\  }
+        \\}
+        \\</script>
+        \\
+    );
+
+    try html.appendSlice(allocator, "</body>\n</html>");
+
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[SidebarHTML] Generated dynamic sidebar HTML ({d} bytes) from config\n", .{html.items.len});
+
+    return try html.toOwnedSlice(allocator);
 }
 
 // ============================================================================
@@ -2386,7 +2806,11 @@ fn msgSend1Rect(target: anytype, selector: [*:0]const u8, rect: NSRect) objc.id 
 pub fn createNSString(str: []const u8) objc.id {
     const NSString = getClass("NSString");
     const str_alloc = msgSend0(NSString, "alloc");
-    const cstr = std.heap.c_allocator.dupeZ(u8, str) catch unreachable;
+    const cstr = std.heap.c_allocator.dupeZ(u8, str) catch |err| {
+        std.log.warn("createNSString: failed to allocate null-terminated string: {}", .{err});
+        // Return an empty NSString as fallback
+        return msgSend1(str_alloc, "initWithUTF8String:", @as([*:0]const u8, ""));
+    };
     defer std.heap.c_allocator.free(cstr);
     return msgSend1(str_alloc, "initWithUTF8String:", cstr.ptr);
 }
@@ -4085,7 +4509,9 @@ pub const ScreenRecorder = struct {
 
     pub fn deinit(self: *ScreenRecorder) void {
         if (self.recording) {
-            _ = self.stopRecording() catch {};
+            _ = self.stopRecording() catch |err| {
+                std.log.debug("screen recording stop during cleanup failed: {}", .{err});
+            };
         }
         self.allocator.free(self.output_path);
     }

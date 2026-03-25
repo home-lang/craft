@@ -5,6 +5,27 @@
 
 import { EventEmitter } from 'events'
 
+/**
+ * Bridge error codes returned by the native layer.
+ * Used in BridgeMessage.error.code field.
+ */
+export const BridgeErrorCodes = {
+  /** Generic/unknown error */
+  UNKNOWN: -1,
+  /** Operation timed out waiting for native response */
+  TIMEOUT: -2,
+  /** Offline queue full, cannot enqueue more requests */
+  QUEUE_FULL: -3,
+  /** Binary transfer not enabled */
+  BINARY_DISABLED: -4,
+  /** Expected binary response but got non-binary */
+  EXPECTED_BINARY: -5,
+  /** Bridge destroyed while requests were pending */
+  BRIDGE_DESTROYED: -6,
+} as const
+
+export type BridgeErrorCode = typeof BridgeErrorCodes[keyof typeof BridgeErrorCodes]
+
 // Types
 export interface BridgeMessage<T = unknown> {
   id: string
@@ -81,7 +102,8 @@ export class NativeBridge extends EventEmitter {
     try {
       data = 'detail' in event ? event.detail : typeof event.data === 'string' ? JSON.parse(event.data) : event.data
     }
-catch {
+catch (err) {
+      console.warn('[Craft Bridge] Failed to parse message:', err)
       return
     }
 
@@ -144,18 +166,18 @@ else {
   /**
    * Send a request to native and wait for response
    */
-  async request<T = unknown, R = unknown>(method: string, params?: T): Promise<R> {
-    return this.requestWithRetry(method, params, this.config.retries)
+  async request<T = unknown, R = unknown>(method: string, params?: T, options?: { timeout?: number }): Promise<R> {
+    return this.requestWithRetry(method, params, this.config.retries, options?.timeout)
   }
 
-  private async requestWithRetry<T, R>(method: string, params: T | undefined, retriesLeft: number): Promise<R> {
+  private async requestWithRetry<T, R>(method: string, params: T | undefined, retriesLeft: number, timeout?: number): Promise<R> {
     try {
-      return await this.sendRequest<T, R>(method, params)
+      return await this.sendRequest<T, R>(method, params, timeout)
     }
 catch (error) {
       if (retriesLeft > 0 && this.isRetryableError(error)) {
         await this.delay(this.config.retryDelay)
-        return this.requestWithRetry(method, params, retriesLeft - 1)
+        return this.requestWithRetry(method, params, retriesLeft - 1, timeout)
       }
       throw error
     }
@@ -164,12 +186,13 @@ catch (error) {
   private isRetryableError(error: unknown): boolean {
     if (error instanceof BridgeError) {
       // Network errors, timeouts are retryable
-      return error.code === -1 || error.code === -2
+      return error.code === BridgeErrorCodes.UNKNOWN || error.code === BridgeErrorCodes.TIMEOUT
     }
     return false
   }
 
-  private async sendRequest<T, R>(method: string, params?: T): Promise<R> {
+  private async sendRequest<T, R>(method: string, params?: T, timeout?: number): Promise<R> {
+    const effectiveTimeout = timeout ?? this.config.timeout
     const message: BridgeMessage<T> = {
       id: generateMessageId(),
       type: 'request',
@@ -179,7 +202,7 @@ catch (error) {
 
     if (!this.connected && this.config.enableOfflineQueue) {
       if (this.offlineQueue.length >= this.config.queueSize) {
-        throw new BridgeError('Offline queue full', -3)
+        throw new BridgeError('Offline queue full', BridgeErrorCodes.QUEUE_FULL)
       }
       this.offlineQueue.push(message)
       // Return a promise that will be resolved when connected
@@ -189,22 +212,22 @@ catch (error) {
           reject,
           timeout: setTimeout(() => {
             this.pendingRequests.delete(message.id)
-            reject(new BridgeError('Request timeout', -1))
-          }, this.config.timeout),
+            reject(new BridgeError('Request timeout', BridgeErrorCodes.UNKNOWN))
+          }, effectiveTimeout),
         })
       })
     }
 
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
+      const timer = setTimeout(() => {
         this.pendingRequests.delete(message.id)
-        reject(new BridgeError('Request timeout', -1))
-      }, this.config.timeout)
+        reject(new BridgeError('Request timeout', BridgeErrorCodes.UNKNOWN))
+      }, effectiveTimeout)
 
       this.pendingRequests.set(message.id, {
         resolve: resolve as (value: unknown) => void,
         reject,
-        timeout,
+        timeout: timer,
       })
 
       this.send(message)
@@ -277,7 +300,7 @@ catch (error) {
    */
   async sendBinary(method: string, data: ArrayBuffer | Uint8Array): Promise<void> {
     if (!this.config.enableBinaryTransfer) {
-      throw new BridgeError('Binary transfer not enabled', -4)
+      throw new BridgeError('Binary transfer not enabled', BridgeErrorCodes.BINARY_DISABLED)
     }
 
     const base64 = this.arrayBufferToBase64(data instanceof ArrayBuffer ? new Uint8Array(data) : data)
@@ -289,14 +312,14 @@ catch (error) {
    */
   async receiveBinary(method: string, params?: unknown): Promise<ArrayBuffer> {
     if (!this.config.enableBinaryTransfer) {
-      throw new BridgeError('Binary transfer not enabled', -4)
+      throw new BridgeError('Binary transfer not enabled', BridgeErrorCodes.BINARY_DISABLED)
     }
 
     const result = await this.request<unknown, { _binary: boolean; data: string }>(method, params)
     if (result._binary) {
       return this.base64ToArrayBuffer(result.data)
     }
-    throw new BridgeError('Expected binary response', -5)
+    throw new BridgeError('Expected binary response', BridgeErrorCodes.EXPECTED_BINARY)
   }
 
   /**
@@ -411,11 +434,12 @@ else if (!connected && wasConnected) {
   }
 
   private arrayBufferToBase64(buffer: Uint8Array): string {
-    let binary = ''
-    for (let i = 0; i < buffer.byteLength; i++) {
-      binary += String.fromCharCode(buffer[i])
+    const chunks: string[] = []
+    const chunkSize = 8192
+    for (let i = 0; i < buffer.byteLength; i += chunkSize) {
+      chunks.push(String.fromCharCode(...buffer.subarray(i, i + chunkSize)))
     }
-    return btoa(binary)
+    return btoa(chunks.join(''))
   }
 
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
@@ -435,7 +459,7 @@ else if (!connected && wasConnected) {
     // Clear all pending requests
     for (const [id, pending] of this.pendingRequests) {
       clearTimeout(pending.timeout)
-      pending.reject(new BridgeError('Bridge destroyed', -6))
+      pending.reject(new BridgeError('Bridge destroyed', BridgeErrorCodes.BRIDGE_DESTROYED))
     }
     this.pendingRequests.clear()
     this.streams.clear()
@@ -740,6 +764,7 @@ export function getComponents(): NativeComponentBridge {
 const bridgeCore: {
   NativeBridge: typeof NativeBridge
   BridgeError: typeof BridgeError
+  BridgeErrorCodes: typeof BridgeErrorCodes
   createTypedBridge: typeof createTypedBridge
   NativeMenus: typeof NativeMenus
   NativeDialogs: typeof NativeDialogs
@@ -752,6 +777,7 @@ const bridgeCore: {
 } = {
   NativeBridge: NativeBridge,
   BridgeError: BridgeError,
+  BridgeErrorCodes: BridgeErrorCodes,
   createTypedBridge: createTypedBridge,
   NativeMenus: NativeMenus,
   NativeDialogs: NativeDialogs,

@@ -119,14 +119,13 @@ pub const MarketplaceBridge = struct {
     /// Check if Pantry marketplace is available
     /// JSON: {"callbackId": "cb1"}
     fn isAvailable(self: *Self, data: []const u8) !void {
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const CallbackParams = struct { callbackId: []const u8 = "" };
+        const parsed = std.json.parseFromSlice(CallbackParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const callback_id = parsed.value.callbackId;
 
         const available = self.pantry_path != null;
 
@@ -136,14 +135,13 @@ pub const MarketplaceBridge = struct {
     /// Get Pantry version
     /// JSON: {"callbackId": "cb1"}
     fn getVersion(self: *Self, data: []const u8) !void {
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const CallbackParams = struct { callbackId: []const u8 = "" };
+        const parsed = std.json.parseFromSlice(CallbackParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const callback_id = parsed.value.callbackId;
 
         if (self.pantry_path == null) {
             self.sendResult(callback_id, "getVersion", "\"not installed\"");
@@ -182,22 +180,18 @@ pub const MarketplaceBridge = struct {
     /// Search packages in the marketplace
     /// JSON: {"query": "ui-components", "callbackId": "cb1"}
     fn search(self: *Self, data: []const u8) !void {
-        var query: []const u8 = "";
-        var callback_id: []const u8 = "";
+        const SearchParams = struct {
+            query: []const u8 = "",
+            callbackId: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"query\":\"")) |idx| {
-            const start = idx + 9;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                query = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(SearchParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const query = parsed.value.query;
+        const callback_id = parsed.value.callbackId;
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[MarketplaceBridge] search: {s}\n", .{query});
@@ -237,30 +231,20 @@ pub const MarketplaceBridge = struct {
     /// Install a package
     /// JSON: {"name": "package-name", "version": "1.0.0", "callbackId": "cb1"}
     fn install(self: *Self, data: []const u8) !void {
-        var name: []const u8 = "";
-        var version: []const u8 = "";
-        var callback_id: []const u8 = "";
+        const InstallParams = struct {
+            name: []const u8 = "",
+            version: []const u8 = "",
+            callbackId: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"name\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                name = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"version\":\"")) |idx| {
-            const start = idx + 11;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                version = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(InstallParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const name = parsed.value.name;
+        const version = parsed.value.version;
+        const callback_id = parsed.value.callbackId;
 
         if (name.len == 0) {
             self.sendError(callback_id, "install", "Package name required");
@@ -313,22 +297,18 @@ pub const MarketplaceBridge = struct {
     /// Uninstall a package
     /// JSON: {"name": "package-name", "callbackId": "cb1"}
     fn uninstall(self: *Self, data: []const u8) !void {
-        var name: []const u8 = "";
-        var callback_id: []const u8 = "";
+        const UninstallParams = struct {
+            name: []const u8 = "",
+            callbackId: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"name\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                name = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(UninstallParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const name = parsed.value.name;
+        const callback_id = parsed.value.callbackId;
 
         if (name.len == 0) {
             self.sendError(callback_id, "uninstall", "Package name required");
@@ -367,22 +347,18 @@ pub const MarketplaceBridge = struct {
     /// Update packages
     /// JSON: {"name": "package-name", "callbackId": "cb1"} or {"callbackId": "cb1"} for all
     fn update(self: *Self, data: []const u8) !void {
-        var name: []const u8 = "";
-        var callback_id: []const u8 = "";
+        const UpdateParams = struct {
+            name: []const u8 = "",
+            callbackId: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"name\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                name = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(UpdateParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const name = parsed.value.name;
+        const callback_id = parsed.value.callbackId;
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[MarketplaceBridge] update: {s}\n", .{if (name.len > 0) name else "all"});
@@ -422,14 +398,13 @@ pub const MarketplaceBridge = struct {
     /// List installed packages
     /// JSON: {"callbackId": "cb1"}
     fn list(self: *Self, data: []const u8) !void {
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const ListParams = struct { callbackId: []const u8 = "" };
+        const parsed = std.json.parseFromSlice(ListParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const callback_id = parsed.value.callbackId;
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[MarketplaceBridge] list\n", .{});
@@ -466,22 +441,18 @@ pub const MarketplaceBridge = struct {
     /// Get package info
     /// JSON: {"name": "package-name", "callbackId": "cb1"}
     fn info(self: *Self, data: []const u8) !void {
-        var name: []const u8 = "";
-        var callback_id: []const u8 = "";
+        const InfoParams = struct {
+            name: []const u8 = "",
+            callbackId: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"name\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                name = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(InfoParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const name = parsed.value.name;
+        const callback_id = parsed.value.callbackId;
 
         if (name.len == 0) {
             self.sendError(callback_id, "info", "Package name required");
@@ -523,14 +494,13 @@ pub const MarketplaceBridge = struct {
     /// Login to marketplace
     /// JSON: {"callbackId": "cb1"}
     fn login(self: *Self, data: []const u8) !void {
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const LoginParams = struct { callbackId: []const u8 = "" };
+        const parsed = std.json.parseFromSlice(LoginParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const callback_id = parsed.value.callbackId;
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[MarketplaceBridge] login\n", .{});
@@ -565,14 +535,13 @@ pub const MarketplaceBridge = struct {
     /// Logout from marketplace
     /// JSON: {"callbackId": "cb1"}
     fn logout(self: *Self, data: []const u8) !void {
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const LogoutParams = struct { callbackId: []const u8 = "" };
+        const parsed = std.json.parseFromSlice(LogoutParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const callback_id = parsed.value.callbackId;
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[MarketplaceBridge] logout\n", .{});
@@ -606,22 +575,18 @@ pub const MarketplaceBridge = struct {
     /// Publish a package to marketplace
     /// JSON: {"path": "/path/to/package", "callbackId": "cb1"}
     fn publish(self: *Self, data: []const u8) !void {
-        var path: []const u8 = ".";
-        var callback_id: []const u8 = "";
+        const PublishParams = struct {
+            path: []const u8 = ".",
+            callbackId: []const u8 = "",
+        };
 
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const parsed = std.json.parseFromSlice(PublishParams, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+        const path = parsed.value.path;
+        const callback_id = parsed.value.callbackId;
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[MarketplaceBridge] publish: {s}\n", .{path});
@@ -660,24 +625,24 @@ pub const MarketplaceBridge = struct {
 
     // Helper functions for sending results to JavaScript
 
-    fn sendResult(_: *Self, callback_id: []const u8, action: []const u8, result: []const u8) void {
-        if (builtin.os.tag != .macos) return;
+    fn sendResult(self: *Self, callback_id: []const u8, action: []const u8, result: []const u8) void {
+        const cross_bridge = @import("bridge.zig");
 
-        const macos = @import("macos.zig");
+        const buf = self.allocator.alloc(u8, 8192) catch return;
+        defer self.allocator.free(buf);
+        const js = std.fmt.bufPrint(buf, "if(window.__craftMarketplaceCallback)window.__craftMarketplaceCallback('{s}','{s}',{s});", .{ callback_id, action, result }) catch return;
 
-        var buf: [8192]u8 = undefined;
-        const js = std.fmt.bufPrint(&buf, "if(window.__craftMarketplaceCallback)window.__craftMarketplaceCallback('{s}','{s}',{s});", .{ callback_id, action, result }) catch return;
-
-        macos.tryEvalJS(js) catch {};
+        cross_bridge.evalJS(js) catch |err| {
+            std.log.debug("JS eval failed for marketplace callback: {}", .{err});
+        };
     }
 
     fn sendResultEscaped(self: *Self, callback_id: []const u8, action: []const u8, content: []const u8) void {
-        if (builtin.os.tag != .macos) return;
-
-        const macos = @import("macos.zig");
+        const cross_bridge = @import("bridge.zig");
 
         // Escape for JavaScript string
-        var buf: [65536]u8 = undefined;
+        const buf = self.allocator.alloc(u8, 65536) catch return;
+        defer self.allocator.free(buf);
         var pos: usize = 0;
 
         const prefix = std.fmt.bufPrint(buf[pos..], "if(window.__craftMarketplaceCallback)window.__craftMarketplaceCallback('{s}','{s}','", .{ callback_id, action }) catch return;
@@ -723,23 +688,24 @@ pub const MarketplaceBridge = struct {
             }
         }
 
-        _ = self;
         const suffix = "');";
         @memcpy(buf[pos .. pos + suffix.len], suffix);
         pos += suffix.len;
 
-        macos.tryEvalJS(buf[0..pos]) catch {};
+        cross_bridge.evalJS(buf[0..pos]) catch |err| {
+            std.log.debug("JS eval failed for marketplace escaped callback: {}", .{err});
+        };
     }
 
     fn sendError(_: *Self, callback_id: []const u8, action: []const u8, message: []const u8) void {
-        if (builtin.os.tag != .macos) return;
-
-        const macos = @import("macos.zig");
+        const cross_bridge = @import("bridge.zig");
 
         var buf: [512]u8 = undefined;
         const js = std.fmt.bufPrint(&buf, "if(window.__craftMarketplaceError)window.__craftMarketplaceError('{s}','{s}','{s}');", .{ callback_id, action, message }) catch return;
 
-        macos.tryEvalJS(js) catch {};
+        cross_bridge.evalJS(js) catch |err| {
+            std.log.debug("JS eval failed for marketplace error callback: {}", .{err});
+        };
     }
 
     pub fn deinit(self: *Self) void {

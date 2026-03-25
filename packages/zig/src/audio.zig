@@ -262,7 +262,9 @@ pub const AudioPlayer = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.stop() catch {};
+        self.stop() catch |err| {
+            std.log.debug("audio stop during cleanup failed: {}", .{err});
+        };
         if (self.current_file) |file| {
             self.allocator.free(file);
         }
@@ -629,8 +631,12 @@ pub const SystemSoundPlayer = struct {
                 std.heap.c_allocator,
             );
             paplay_child.spawn() catch return AudioError.DeviceNotAvailable;
+            // Wait for the process to prevent zombie
+            _ = paplay_child.wait() catch {};
             return;
         };
+        // Wait for canberra-gtk-play to prevent zombie
+        _ = canberra_child.wait() catch {};
     }
 
     fn playWindowsSound(self: *Self, name: []const u8) AudioError!void {
@@ -904,26 +910,42 @@ pub const AudioManager = struct {
 
     /// Play a UI click sound with haptic
     pub fn playClick(self: *Self) void {
-        self.system_sounds.play(.click) catch {};
-        self.haptics.trigger(.selection_changed) catch {};
+        self.system_sounds.play(.click) catch |err| {
+            std.log.debug("click sound playback failed: {}", .{err});
+        };
+        self.haptics.trigger(.selection_changed) catch |err| {
+            std.log.debug("click haptic feedback failed: {}", .{err});
+        };
     }
 
     /// Play success feedback (sound + haptic)
     pub fn playSuccess(self: *Self) void {
-        self.system_sounds.success() catch {};
-        self.haptics.notificationFeedback(.success) catch {};
+        self.system_sounds.success() catch |err| {
+            std.log.debug("success sound playback failed: {}", .{err});
+        };
+        self.haptics.notificationFeedback(.success) catch |err| {
+            std.log.debug("success haptic feedback failed: {}", .{err});
+        };
     }
 
     /// Play error feedback (sound + haptic)
     pub fn playErrorFeedback(self: *Self) void {
-        self.system_sounds.playError() catch {};
-        self.haptics.notificationFeedback(.error_feedback) catch {};
+        self.system_sounds.playError() catch |err| {
+            std.log.debug("error sound playback failed: {}", .{err});
+        };
+        self.haptics.notificationFeedback(.error_feedback) catch |err| {
+            std.log.debug("error haptic feedback failed: {}", .{err});
+        };
     }
 
     /// Play warning feedback (sound + haptic)
     pub fn playWarning(self: *Self) void {
-        self.system_sounds.play(.warning) catch {};
-        self.haptics.notificationFeedback(.warning) catch {};
+        self.system_sounds.play(.warning) catch |err| {
+            std.log.debug("warning sound playback failed: {}", .{err});
+        };
+        self.haptics.notificationFeedback(.warning) catch |err| {
+            std.log.debug("warning haptic feedback failed: {}", .{err});
+        };
     }
 };
 

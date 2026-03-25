@@ -30,14 +30,14 @@ pub const MobileHotReloadServer = struct {
     }
 
     pub fn start(self: *MobileHotReloadServer) !void {
-        const address = try std.net.Address.parseIp("0.0.0.0", self.port);
+        const address = try std.net.Address.parseIp("127.0.0.1", self.port);
         var server = try address.listen(.{
             .reuse_address = true,
         });
         defer server.deinit();
 
         self.running = true;
-        std.debug.print("Mobile hot reload server listening on port {d}\n", .{self.port});
+        std.debug.print("Mobile hot reload server listening on 127.0.0.1:{d}\n", .{self.port});
 
         while (self.running) {
             const connection = try server.accept();

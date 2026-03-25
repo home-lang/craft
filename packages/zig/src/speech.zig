@@ -722,7 +722,9 @@ pub const SpeechSynthesizer = struct {
         }
 
         if (self.utterance_queue.items.len > 0) {
-            self.skipToNext() catch {};
+            self.skipToNext() catch |err| {
+                std.log.debug("speech skip to next utterance failed: {}", .{err});
+            };
         } else {
             self.state = .idle;
         }
