@@ -1,4 +1,40 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.16...v0.0.17)
+
+### 🚀 Features
+
+- build all platform binaries matching pantry's release matrix ([92f22c9](https://github.com/home-lang/craft/commit/92f22c9)) _(by Chris <chrisbreuer93@gmail.com>)_
+- attach platform binaries and checksums to GitHub releases ([725ae5a](https://github.com/home-lang/craft/commit/725ae5a)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🐛 Bug Fixes
+
+- correct SBOM vulnerability-scan job dependency name ([e1549e4](https://github.com/home-lang/craft/commit/e1549e4)) _(by Chris <chrisbreuer93@gmail.com>)_
+- iOS simulator build and add cross-compiled release binaries ([025c080](https://github.com/home-lang/craft/commit/025c080)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.17 ([990533d](https://github.com/home-lang/craft/commit/990533d)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.16...HEAD)
+
+### 🚀 Features
+
+- build all platform binaries matching pantry's release matrix ([92f22c9](https://github.com/home-lang/craft/commit/92f22c9)) _(by Chris <chrisbreuer93@gmail.com>)_
+- attach platform binaries and checksums to GitHub releases ([725ae5a](https://github.com/home-lang/craft/commit/725ae5a)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🐛 Bug Fixes
+
+- correct SBOM vulnerability-scan job dependency name ([e1549e4](https://github.com/home-lang/craft/commit/e1549e4)) _(by Chris <chrisbreuer93@gmail.com>)_
+- iOS simulator build and add cross-compiled release binaries ([025c080](https://github.com/home-lang/craft/commit/025c080)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.15...v0.0.16)
 
 ### 🐛 Bug Fixes
