@@ -75,27 +75,23 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           mkdir -p zig-out/cross
 
-          echo "::group::Cross-compile windows-x64"
-          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=x86_64-windows
-          mkdir -p zig-out/cross/windows-x64 && cp zig-out/bin/craft.exe zig-out/cross/windows-x64/craft.exe
-          echo "::endgroup::"
-
-          echo "::group::Cross-compile linux-arm64"
-          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=aarch64-linux || echo "⚠️ linux-arm64 cross-compile skipped (missing system libraries)"
-          if [ -f zig-out/bin/craft ]; then
-            mkdir -p zig-out/cross/linux-arm64 && cp zig-out/bin/craft zig-out/cross/linux-arm64/craft
-          fi
-          echo "::endgroup::"
-
-          echo "::group::Cross-compile freebsd-x64"
-          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=x86_64-freebsd
-          mkdir -p zig-out/cross/freebsd-x64 && cp zig-out/bin/craft zig-out/cross/freebsd-x64/craft
-          echo "::endgroup::"
-
-          echo "::group::Cross-compile freebsd-arm64"
-          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=aarch64-freebsd
-          mkdir -p zig-out/cross/freebsd-arm64 && cp zig-out/bin/craft zig-out/cross/freebsd-arm64/craft
-          echo "::endgroup::"
+          # Cross-compile targets that may lack platform-specific system libraries
+          # (WebView2Loader for Windows, gtk/webkit for arm64 Linux, etc.)
+          for target_spec in \
+            "x86_64-windows:windows-x64:craft.exe" \
+            "aarch64-linux:linux-arm64:craft" \
+            "x86_64-freebsd:freebsd-x64:craft" \
+            "aarch64-freebsd:freebsd-arm64:craft"; do
+            IFS=: read -r zig_target dir_name bin_name <<< "$target_spec"
+            echo "::group::Cross-compile $dir_name"
+            if zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget="$zig_target"; then
+              mkdir -p "zig-out/cross/$dir_name" && cp "zig-out/bin/$bin_name" "zig-out/cross/$dir_name/$bin_name"
+              echo "Built $dir_name"
+            else
+              echo "::warning::$dir_name cross-compile skipped (missing system libraries)"
+            fi
+            echo "::endgroup::"
+          done
 
           # Restore native linux-x64 binary
           zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
