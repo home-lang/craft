@@ -39,37 +39,61 @@ jobs:
       - name: Install Dependencies
         run: bun install
 
-      - name: Build Native Binary
-        run: bun run build:core
-
       - name: Extract Version
         id: version
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
-      # ── Cross-compile additional targets ─────────────────────────
-      - name: Cross-compile darwin-x64
+      - name: Build Native Binary
+        run: bun run build:core
+
+      # ── Cross-compile all targets ────────────────────────────────
+      - name: Cross-compile additional targets (macOS)
         if: runner.os == 'macOS'
         working-directory: packages/zig
         run: |
-          zig build -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.version }} -Dtarget=x86_64-macos --sysroot "$(xcrun --show-sdk-path)"
-          mkdir -p zig-out/cross/darwin-x64
-          cp zig-out/bin/craft zig-out/cross/darwin-x64/craft
+          VERSION="${{ steps.version.outputs.version }}"
+          SYSROOT="$(xcrun --show-sdk-path)"
+          mkdir -p zig-out/cross
 
-      - name: Restore native binary after cross-compile
-        if: runner.os == 'macOS'
-        run: bun run build:core
+          echo "::group::Cross-compile darwin-x64"
+          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=x86_64-macos --sysroot "$SYSROOT"
+          mkdir -p zig-out/cross/darwin-x64 && cp zig-out/bin/craft zig-out/cross/darwin-x64/craft
+          echo "::endgroup::"
 
-      - name: Cross-compile windows-x64
+          # Restore native ARM64 binary
+          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
+
+      - name: Cross-compile additional targets (Linux)
         if: runner.os == 'Linux'
         working-directory: packages/zig
         run: |
-          zig build -Doptimize=ReleaseSafe -Dversion=${{ steps.version.outputs.version }} -Dtarget=x86_64-windows
-          mkdir -p zig-out/cross/windows-x64
-          cp zig-out/bin/craft.exe zig-out/cross/windows-x64/craft.exe
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p zig-out/cross
 
-      - name: Restore native binary after cross-compile
-        if: runner.os == 'Linux'
-        run: bun run build:core
+          echo "::group::Cross-compile windows-x64"
+          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=x86_64-windows
+          mkdir -p zig-out/cross/windows-x64 && cp zig-out/bin/craft.exe zig-out/cross/windows-x64/craft.exe
+          echo "::endgroup::"
+
+          echo "::group::Cross-compile linux-arm64"
+          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=aarch64-linux || echo "⚠️ linux-arm64 cross-compile skipped (missing system libraries)"
+          if [ -f zig-out/bin/craft ]; then
+            mkdir -p zig-out/cross/linux-arm64 && cp zig-out/bin/craft zig-out/cross/linux-arm64/craft
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Cross-compile freebsd-x64"
+          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=x86_64-freebsd
+          mkdir -p zig-out/cross/freebsd-x64 && cp zig-out/bin/craft zig-out/cross/freebsd-x64/craft
+          echo "::endgroup::"
+
+          echo "::group::Cross-compile freebsd-arm64"
+          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=aarch64-freebsd
+          mkdir -p zig-out/cross/freebsd-arm64 && cp zig-out/bin/craft zig-out/cross/freebsd-arm64/craft
+          echo "::endgroup::"
+
+          # Restore native linux-x64 binary
+          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
 
       # ── macOS Code Signing & Notarization ──────────────────────────
       - name: Import signing certificate
@@ -184,24 +208,27 @@ jobs:
           # Package native binary
           PLATFORM="${{ matrix.platform.name }}"
           case "$PLATFORM" in
-            darwin-arm64)  ZIP_NAME="craft-darwin-arm64.zip" ;;
-            linux-x86-64)  ZIP_NAME="craft-linux-x64.zip" ;;
+            darwin-arm64)  ZIP_NAME="craft-darwin-arm64.zip" ; BIN="craft" ;;
+            linux-x86-64)  ZIP_NAME="craft-linux-x64.zip" ; BIN="craft" ;;
           esac
-          (cd packages/zig/zig-out/bin && zip -r "../../../../dist/$ZIP_NAME" craft)
-          echo "Packaged native: $ZIP_NAME"
+          (cd packages/zig/zig-out/bin && zip -r "../../../../dist/$ZIP_NAME" "$BIN")
 
           # Package cross-compiled binaries
-          if [ -d packages/zig/zig-out/cross/darwin-x64 ]; then
-            (cd packages/zig/zig-out/cross/darwin-x64 && zip -r "../../../../../dist/craft-darwin-x64.zip" craft)
-            echo "Packaged cross: craft-darwin-x64.zip"
-          fi
+          for target_dir in packages/zig/zig-out/cross/*/; do
+            [ -d "$target_dir" ] || continue
+            target=$(basename "$target_dir")
+            case "$target" in
+              darwin-x64)     name="craft-darwin-x64.zip" ; bin="craft" ;;
+              windows-x64)    name="craft-windows-x64.zip" ; bin="craft.exe" ;;
+              linux-arm64)    name="craft-linux-arm64.zip" ; bin="craft" ;;
+              freebsd-x64)    name="craft-freebsd-x64.zip" ; bin="craft" ;;
+              freebsd-arm64)  name="craft-freebsd-arm64.zip" ; bin="craft" ;;
+              *) continue ;;
+            esac
+            (cd "$target_dir" && zip -r "$(pwd)/../../../../../dist/$name" "$bin")
+          done
 
-          if [ -d packages/zig/zig-out/cross/windows-x64 ]; then
-            (cd packages/zig/zig-out/cross/windows-x64 && zip -r "../../../../../dist/craft-windows-x64.zip" craft.exe)
-            echo "Packaged cross: craft-windows-x64.zip"
-          fi
-
-          echo "All packaged files:"
+          echo "Packaged files:"
           ls -la dist/
 
       - name: Upload artifacts
