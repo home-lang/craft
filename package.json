@@ -44,7 +44,8 @@
     "dev": "cd packages/typescript && bun run dev",
     "changelog": "bunx logsmith --verbose",
     "changelog:generate": "bunx logsmith --output CHANGELOG.md",
-    "release": "bun --bun run changelog:generate && bunx --bun bumpx prompt --recursive"
+    "release": "bun --bun run changelog:generate && bunx --bun bumpx prompt --recursive",
+    "release:patch": "bun --bun run changelog:generate && bunx --bun bumpx patch --recursive --yes"
   },
   "devDependencies": {
     "better-dx": "^0.2.7"
