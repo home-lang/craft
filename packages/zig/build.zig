@@ -4,6 +4,10 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    // macOS SDK path for cross-compilation — use -Dmacos-sdk instead of --sysroot
+    // to avoid Zig bug where --sysroot breaks @cImport (ziglang/zig#22704, #25010)
+    const macos_sdk = b.option([]const u8, "macos-sdk", "macOS SDK path for cross-compilation");
+
     // Create the craft module
     const craft_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
@@ -28,7 +32,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             exe.root_module.linkFramework("Cocoa", .{});
             exe.root_module.linkFramework("WebKit", .{});
-            applySysrootPaths(b, exe.root_module);
+            applySdkPaths(b, exe.root_module, macos_sdk);
         },
         .linux => {
             exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -86,7 +90,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             craft_exe.root_module.linkFramework("Cocoa", .{});
             craft_exe.root_module.linkFramework("WebKit", .{});
-            applySysrootPaths(b, craft_exe.root_module);
+            applySdkPaths(b, craft_exe.root_module, macos_sdk);
         },
         .linux => {
             craft_exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -128,7 +132,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             lib_unit_tests.root_module.linkFramework("Cocoa", .{});
             lib_unit_tests.root_module.linkFramework("WebKit", .{});
-            applySysrootPaths(b, lib_unit_tests.root_module);
+            applySdkPaths(b, lib_unit_tests.root_module, macos_sdk);
         },
         .linux => {
             lib_unit_tests.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -320,7 +324,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             system_tests.root_module.linkFramework("Cocoa", .{});
             system_tests.root_module.linkFramework("WebKit", .{});
-            applySysrootPaths(b, system_tests.root_module);
+            applySdkPaths(b, system_tests.root_module, macos_sdk);
         },
         .linux => {
             system_tests.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -751,7 +755,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             system_tray_tests.root_module.linkFramework("Cocoa", .{});
             system_tray_tests.root_module.linkFramework("WebKit", .{});
-            applySysrootPaths(b, system_tray_tests.root_module);
+            applySdkPaths(b, system_tray_tests.root_module, macos_sdk);
         },
         .linux => {
             system_tray_tests.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -775,7 +779,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             system_tray_benchmark.root_module.linkFramework("Cocoa", .{});
             system_tray_benchmark.root_module.linkFramework("WebKit", .{});
-            applySysrootPaths(b, system_tray_benchmark.root_module);
+            applySdkPaths(b, system_tray_benchmark.root_module, macos_sdk);
         },
         .linux => {
             system_tray_benchmark.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -1433,12 +1437,18 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_android_tests.step);
 }
 
-/// Workaround for Zig not propagating --sysroot to framework search paths
-/// during cross-compilation (ziglang/zig#22704, ziglang/zig#25010).
-/// Only adds framework paths — sysroot auto-prepends to -L and -isystem already.
-fn applySysrootPaths(builder: *std.Build, module: *std.Build.Module) void {
-    const sysroot = builder.sysroot orelse return;
+/// Add macOS SDK search paths for cross-compilation.
+/// Uses -Dmacos-sdk instead of --sysroot to avoid Zig bugs where --sysroot
+/// breaks @cImport and auto-prepends inconsistently (ziglang/zig#22704, #25010).
+fn applySdkPaths(builder: *std.Build, module: *std.Build.Module, sdk_path: ?[]const u8) void {
+    const sdk = sdk_path orelse return;
     module.addSystemFrameworkPath(.{
-        .cwd_relative = builder.pathJoin(&.{ sysroot, "System/Library/Frameworks" }),
+        .cwd_relative = builder.pathJoin(&.{ sdk, "System/Library/Frameworks" }),
+    });
+    module.addSystemIncludePath(.{
+        .cwd_relative = builder.pathJoin(&.{ sdk, "usr/include" }),
+    });
+    module.addLibraryPath(.{
+        .cwd_relative = builder.pathJoin(&.{ sdk, "usr/lib" }),
     });
 }

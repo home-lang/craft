@@ -57,11 +57,11 @@ jobs:
         working-directory: packages/zig
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          SYSROOT="$(xcrun --show-sdk-path)"
+          SDK_PATH="$(xcrun --show-sdk-path)"
           mkdir -p zig-out/cross
 
           echo "::group::Cross-compile darwin-x64"
-          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=x86_64-macos --sysroot "$SYSROOT"
+          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=x86_64-macos -Dmacos-sdk="$SDK_PATH"
           mkdir -p zig-out/cross/darwin-x64 && cp zig-out/bin/craft zig-out/cross/darwin-x64/craft
           echo "::endgroup::"
 
