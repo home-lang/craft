@@ -120,13 +120,13 @@ export fn craft_ios_get_delegate() callconv(.c) ?*ios.CraftAppDelegate {
 /// Trigger haptic feedback
 export fn craft_ios_haptic(haptic_type: c_int) callconv(.c) void {
     const h_type: mobile.iOS.HapticType = switch (haptic_type) {
-        0 => .light,
-        1 => .medium,
-        2 => .heavy,
-        3 => .success,
-        4 => .warning,
-        5 => .error_haptic,
-        else => .light,
+        0 => .impact_light,
+        1 => .impact_medium,
+        2 => .impact_heavy,
+        3 => .notification_success,
+        4 => .notification_warning,
+        5 => .notification_error,
+        else => .selection,
     };
     mobile.iOS.triggerHaptic(h_type);
 }
@@ -135,24 +135,6 @@ export fn craft_ios_haptic(haptic_type: c_int) callconv(.c) void {
 export fn craft_ios_show_alert(message: [*]const u8, len: usize) callconv(.c) void {
     const msg = message[0..len];
     mobile.iOS.showAlert(msg, true);
-}
-
-/// Set clipboard text
-export fn craft_ios_set_clipboard(text: [*]const u8, len: usize) callconv(.c) void {
-    const txt = text[0..len];
-    mobile.iOS.setClipboard(txt);
-}
-
-/// Open URL in Safari
-export fn craft_ios_open_url(url: [*]const u8, len: usize) callconv(.c) void {
-    const url_str = url[0..len];
-    mobile.iOS.openURL(url_str);
-}
-
-/// Share text via share sheet
-export fn craft_ios_share(text: [*]const u8, len: usize) callconv(.c) void {
-    const txt = text[0..len];
-    mobile.iOS.share(txt);
 }
 
 // ============================================================================

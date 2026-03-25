@@ -123,7 +123,7 @@ pub const CraftAppDelegate = struct {
     /// Start the iOS application
     /// This should be called from main() and will not return until the app terminates
     pub fn run(self: *Self) !void {
-        if (!@import("builtin").target.isDarwin()) {
+        if (!@import("builtin").target.os.tag.isDarwin()) {
             return error.UnsupportedPlatform;
         }
 
@@ -415,7 +415,7 @@ pub const CraftAppDelegate = struct {
 
     /// Load HTML string into webview
     fn loadHTMLString(self: *Self, html: []const u8) !void {
-        if (!@import("builtin").target.isDarwin()) {
+        if (!@import("builtin").target.os.tag.isDarwin()) {
             return error.UnsupportedPlatform;
         }
 
@@ -440,7 +440,7 @@ pub const CraftAppDelegate = struct {
 
     /// Load file URL into webview
     fn loadFileURL(self: *Self, path: []const u8) !void {
-        if (!@import("builtin").target.isDarwin()) {
+        if (!@import("builtin").target.os.tag.isDarwin()) {
             return error.UnsupportedPlatform;
         }
 

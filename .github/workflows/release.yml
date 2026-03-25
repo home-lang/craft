@@ -32,6 +32,11 @@ jobs:
       - name: Setup Pantry
         uses: home-lang/pantry/packages/action@main
 
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.2962+08416b44f
+
       - name: Install System Dependencies
         if: matrix.platform.deps != ''
         run: ${{ matrix.platform.deps }}

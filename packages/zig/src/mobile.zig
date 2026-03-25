@@ -283,7 +283,7 @@ pub const NativeObjectManager = struct {
             const platform = Platform.current();
             switch (platform) {
                 .ios => {
-                    if (@import("builtin").target.isDarwin()) {
+                    if (@import("builtin").target.os.tag.isDarwin()) {
                         // Remove associated objects before releasing
                         objc.objc_removeAssociatedObjects(entry.value.ptr);
                     }
@@ -435,7 +435,7 @@ pub const iOS = struct {
 
     /// Create iOS WebView
     pub fn createWebView(allocator: std.mem.Allocator, config: WebViewConfig) !*WKWebView {
-        if (!@import("builtin").target.isDarwin()) {
+        if (!@import("builtin").target.os.tag.isDarwin()) {
             return error.UnsupportedPlatform;
         }
 
@@ -487,7 +487,7 @@ pub const iOS = struct {
 
     /// Cleanup/dealloc WebView
     pub fn destroyWebView(webview: *WKWebView) void {
-        if (!@import("builtin").target.isDarwin()) {
+        if (!@import("builtin").target.os.tag.isDarwin()) {
             return;
         }
 
@@ -516,7 +516,7 @@ pub const iOS = struct {
 
     /// Load URL in WebView
     pub fn loadURL(webview: *WKWebView, url: []const u8) !void {
-        if (!@import("builtin").target.isDarwin()) {
+        if (!@import("builtin").target.os.tag.isDarwin()) {
             return error.UnsupportedPlatform;
         }
 
@@ -661,7 +661,7 @@ pub const iOS = struct {
 
     /// Check current permission status
     pub fn checkPermissionStatus(permission: Permission) !PermissionStatus {
-        if (!@import("builtin").target.isDarwin()) {
+        if (!@import("builtin").target.os.tag.isDarwin()) {
             return error.UnsupportedPlatform;
         }
 
@@ -791,7 +791,7 @@ pub const iOS = struct {
     }
 
     pub fn requestPermission(permission: Permission, callback: *const fn (bool) void) !void {
-        if (!@import("builtin").target.isDarwin()) {
+        if (!@import("builtin").target.os.tag.isDarwin()) {
             return error.UnsupportedPlatform;
         }
 
@@ -891,7 +891,7 @@ pub const iOS = struct {
     };
 
     pub fn triggerHaptic(haptic_type: HapticType) void {
-        if (!@import("builtin").target.isDarwin()) {
+        if (!@import("builtin").target.os.tag.isDarwin()) {
             return;
         }
 
@@ -966,7 +966,7 @@ pub const iOS = struct {
     /// Show iOS Alert/Toast
     /// Uses UIAlertController for simple toast-like alerts
     pub fn showAlert(message: []const u8, duration_short: bool) void {
-        if (!@import("builtin").target.isDarwin()) {
+        if (!@import("builtin").target.os.tag.isDarwin()) {
             return;
         }
 
