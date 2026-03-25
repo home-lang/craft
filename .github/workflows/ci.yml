@@ -12,6 +12,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+# Zig version pinned here — update pantry.jsonc to match when changing
+env:
+  ZIG_VERSION: 0.16.0-dev.2984+cb7d2b056
+
 jobs:
   zig-core:
     strategy:
@@ -25,6 +29,11 @@ jobs:
 
       - name: Setup Pantry
         uses: home-lang/pantry/packages/action@main
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
 
       - name: Verify Zig installation
         run: zig version
@@ -100,8 +109,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Pantry
-        uses: home-lang/pantry/packages/action@main
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
 
       - name: Check Zig formatting
         working-directory: packages/zig
@@ -116,6 +127,11 @@ jobs:
 
       - name: Setup Pantry
         uses: home-lang/pantry/packages/action@main
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ env.ZIG_VERSION }}
 
       - name: Install dependencies
         run: bun install

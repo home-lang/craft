@@ -33,7 +33,17 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.2984+cb7d2b056
+
+      - name: Setup Zig
         uses: home-lang/pantry/packages/action@main
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.2984+cb7d2b056
 
       - name: Install System Dependencies
         if: matrix.platform.deps != ''
@@ -265,6 +275,11 @@ jobs:
 
       - name: Create GitHub Release
         uses: home-lang/pantry/packages/action@main
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.2984+cb7d2b056
         with:
           install: 'false'
           release: 'true'
@@ -291,6 +306,11 @@ jobs:
 
       - name: Setup Pantry
         uses: home-lang/pantry/packages/action@main
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.2984+cb7d2b056
 
       - name: Install Dependencies
         run: bun install

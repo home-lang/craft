@@ -34,6 +34,11 @@ jobs:
       - name: Setup Zig
         uses: home-lang/pantry/packages/action@main
 
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.2984+cb7d2b056
+
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -140,6 +145,11 @@ jobs:
 
       - name: Setup Zig
         uses: home-lang/pantry/packages/action@main
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.2984+cb7d2b056
 
       - name: Setup Java
         uses: actions/setup-java@v4
