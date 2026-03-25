@@ -1,4 +1,32 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.18...v0.0.19)
+
+### 🐛 Bug Fixes
+
+- use -Dmacos-sdk instead of --sysroot for cross-compilation ([f94ccd5](https://github.com/home-lang/craft/commit/f94ccd5)) _(by Chris <chrisbreuer93@gmail.com>)_
+- only add framework paths from sysroot, not include/lib ([fcea9f2](https://github.com/home-lang/craft/commit/fcea9f2)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add sysroot framework search paths for zig cross-compilation ([dc3d85c](https://github.com/home-lang/craft/commit/dc3d85c)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.19 ([ab21916](https://github.com/home-lang/craft/commit/ab21916)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.18...HEAD)
+
+### 🐛 Bug Fixes
+
+- use -Dmacos-sdk instead of --sysroot for cross-compilation ([f94ccd5](https://github.com/home-lang/craft/commit/f94ccd5)) _(by Chris <chrisbreuer93@gmail.com>)_
+- only add framework paths from sysroot, not include/lib ([fcea9f2](https://github.com/home-lang/craft/commit/fcea9f2)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add sysroot framework search paths for zig cross-compilation ([dc3d85c](https://github.com/home-lang/craft/commit/dc3d85c)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.17...v0.0.18)
 
 ### 🐛 Bug Fixes
