@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.21...v0.0.22)
+
+### 🐛 Bug Fixes
+
+- only link sqlite3 on macOS/Linux, not cross-compile targets ([0a18e05](https://github.com/home-lang/craft/commit/0a18e05)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.22 ([692ec39](https://github.com/home-lang/craft/commit/692ec39)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.21...HEAD)
+
+### 🐛 Bug Fixes
+
+- only link sqlite3 on macOS/Linux, not cross-compile targets ([0a18e05](https://github.com/home-lang/craft/commit/0a18e05)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.20...v0.0.21)
 
 ### 🧹 Chores

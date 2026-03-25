@@ -4,8 +4,8 @@ const io_context = @import("io_context.zig");
 
 pub const ProfileEntry = struct {
     name: []const u8,
-    start_time: ?std.Io.Timestamp,
-    end_time: ?std.Io.Timestamp,
+    start_time: ?std.Io.Clock.Timestamp,
+    end_time: ?std.Io.Clock.Timestamp,
     duration_ms: f64,
     memory_before: usize,
     memory_after: usize,
@@ -13,7 +13,7 @@ pub const ProfileEntry = struct {
 
 pub const Profiler = struct {
     entries: std.ArrayList(ProfileEntry),
-    active_profiles: std.StringHashMap(std.Io.Timestamp),
+    active_profiles: std.StringHashMap(std.Io.Clock.Timestamp),
     memory_tracker: ?*memory.TrackingAllocator,
     allocator: std.mem.Allocator,
     enabled: bool = true,
@@ -23,7 +23,7 @@ pub const Profiler = struct {
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .entries = .{},
-            .active_profiles = std.StringHashMap(std.Io.Timestamp).init(allocator),
+            .active_profiles = std.StringHashMap(std.Io.Clock.Timestamp).init(allocator),
             .memory_tracker = null,
             .allocator = allocator,
         };
@@ -41,14 +41,14 @@ pub const Profiler = struct {
     pub fn start(self: *Self, name: []const u8) !void {
         if (!self.enabled) return;
 
-        const start_time = std.Io.Timestamp.now(io_context.get(), .awake);
+        const start_time = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return;
         try self.active_profiles.put(name, start_time);
     }
 
     pub fn end(self: *Self, name: []const u8) !void {
         if (!self.enabled) return;
 
-        const end_time = std.Io.Timestamp.now(io_context.get(), .awake);
+        const end_time = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return;
         const start_time = self.active_profiles.get(name) orelse return;
         _ = self.active_profiles.remove(name);
 

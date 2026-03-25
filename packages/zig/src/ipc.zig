@@ -1,6 +1,5 @@
 const std = @import("std");
 const compat_mutex = @import("compat_mutex.zig");
-const io_context = @import("io_context.zig");
 
 /// Advanced Inter-Process Communication Module
 /// Provides structured message passing between processes
@@ -69,12 +68,9 @@ pub const IPC = struct {
 
     /// Get current timestamp (Unix epoch in seconds)
     fn currentTimestamp() i64 {
-        const timestamp = std.Io.Timestamp.now(io_context.get(), .awake);
-        // Convert from monotonic clock to approximate timestamp
-        // Note: This is a simple implementation; for actual wall clock time,
-        // use posix.clock_gettime with CLOCK_REALTIME
-        _ = timestamp;
-        return 0; // Placeholder - monotonic time isn't wall clock time
+        // Use std.time for wall clock, avoiding the Io.Clock API
+        // which requires an Io context and is meant for monotonic timing
+        return std.time.timestamp();
     }
 
     /// Send a message to a channel

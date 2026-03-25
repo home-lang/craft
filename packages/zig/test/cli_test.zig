@@ -17,7 +17,7 @@ test "WindowOptions - default values" {
     try testing.expect(!options.always_on_top);
     try testing.expect(options.resizable);
     try testing.expect(!options.fullscreen);
-    try testing.expect(options.dev_tools);
+    try testing.expect(!options.dev_tools); // CLI defaults to false; enable via --dev-tools flag
     try testing.expect(options.dark_mode == null);
     try testing.expect(!options.hot_reload);
     try testing.expect(!options.system_tray);

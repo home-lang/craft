@@ -95,9 +95,9 @@ pub const Benchmark = struct {
         // Actual benchmark
         i = 0;
         while (i < self.iterations) : (i += 1) {
-            const start_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+            const start_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch continue;
             _ = try @call(.auto, func, args);
-            const end_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+            const end_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch continue;
             const elapsed = start_ts.durationTo(end_ts);
             try self.times.append(self.allocator, @as(u64, @intCast(elapsed.nanoseconds)));
         }
