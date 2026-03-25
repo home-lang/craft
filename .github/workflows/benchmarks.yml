@@ -21,9 +21,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Zig
-        uses: mlugg/setup-zig@v2
-        with:
-          version: 0.16.0-dev.2471+e9eadee00
+        uses: home-lang/pantry/packages/action@main
 
       - name: Install Linux dependencies
         run: |
