@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.19...v0.0.20)
+
+### 🚀 Features
+
+- use pantry action for GitHub releases, add release:patch script ([d58ca31](https://github.com/home-lang/craft/commit/d58ca31)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.20 ([b01861d](https://github.com/home-lang/craft/commit/b01861d)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.19...HEAD)
+
+### 🚀 Features
+
+- use pantry action for GitHub releases, add release:patch script ([d58ca31](https://github.com/home-lang/craft/commit/d58ca31)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.18...v0.0.19)
 
 ### 🐛 Bug Fixes
