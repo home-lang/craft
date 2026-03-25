@@ -1435,15 +1435,10 @@ pub fn build(b: *std.Build) void {
 
 /// Workaround for Zig not propagating --sysroot to framework search paths
 /// during cross-compilation (ziglang/zig#22704, ziglang/zig#25010).
+/// Only adds framework paths — sysroot auto-prepends to -L and -isystem already.
 fn applySysrootPaths(builder: *std.Build, module: *std.Build.Module) void {
     const sysroot = builder.sysroot orelse return;
     module.addSystemFrameworkPath(.{
         .cwd_relative = builder.pathJoin(&.{ sysroot, "System/Library/Frameworks" }),
-    });
-    module.addSystemIncludePath(.{
-        .cwd_relative = builder.pathJoin(&.{ sysroot, "usr/include" }),
-    });
-    module.addLibraryPath(.{
-        .cwd_relative = builder.pathJoin(&.{ sysroot, "usr/lib" }),
     });
 }
