@@ -1,4 +1,41 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.17...v0.0.18)
+
+### 🐛 Bug Fixes
+
+- resolve release and mobile E2E CI failures ([201d5fa](https://github.com/home-lang/craft/commit/201d5fa)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### ♻️ Code Refactoring
+
+- merge code coverage into CI workflow ([747f03b](https://github.com/home-lang/craft/commit/747f03b)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.18 ([8d56679](https://github.com/home-lang/craft/commit/8d56679)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([d6c8bd8](https://github.com/home-lang/craft/commit/d6c8bd8)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.17...HEAD)
+
+### 🐛 Bug Fixes
+
+- resolve release and mobile E2E CI failures ([201d5fa](https://github.com/home-lang/craft/commit/201d5fa)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### ♻️ Code Refactoring
+
+- merge code coverage into CI workflow ([747f03b](https://github.com/home-lang/craft/commit/747f03b)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- wip ([d6c8bd8](https://github.com/home-lang/craft/commit/d6c8bd8)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.16...v0.0.17)
 
 ### 🚀 Features
