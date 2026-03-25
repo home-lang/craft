@@ -249,7 +249,7 @@ jobs:
 
   vulnerability-scan:
     name: SBOM Vulnerability Scan
-    needs: generate-sbom
+    needs: generate
     runs-on: ubuntu-latest
 
     steps:
