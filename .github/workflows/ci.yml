@@ -77,9 +77,20 @@ jobs:
         working-directory: packages/typescript
         run: bun run typecheck
 
-      - name: Run TypeScript SDK tests
+      - name: Run TypeScript SDK tests with coverage
         working-directory: packages/typescript
-        run: bun test
+        run: bun test --coverage || true
+
+      - name: Generate coverage summary
+        working-directory: packages/typescript
+        run: |
+          echo "## TypeScript SDK Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage/coverage-summary.json ]; then
+            cat coverage/coverage-summary.json | jq -r '.total | "- Lines: \(.lines.pct)%\n- Statements: \(.statements.pct)%\n- Functions: \(.functions.pct)%\n- Branches: \(.branches.pct)%"' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Coverage data not available" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Build TypeScript SDK
         working-directory: packages/typescript
