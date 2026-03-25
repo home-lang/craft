@@ -28,6 +28,12 @@ jobs:
         with:
           packages: ziglang.org@0.16.0-dev.2984+cb7d2b056
 
+      - name: Setup Zig (Windows fallback)
+        if: runner.os == 'Windows'
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0-dev.2984+cb7d2b056
+
       - name: Verify Zig installation
         run: zig version
 
