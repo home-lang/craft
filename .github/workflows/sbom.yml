@@ -248,7 +248,7 @@ jobs:
           output-file: sbom/github-sbom.json
 
   vulnerability-scan:
-    name: SBOM Vulnerability Scan
+    # name: SBOM Vulnerability Scan
     needs: generate
     runs-on: ubuntu-latest
 

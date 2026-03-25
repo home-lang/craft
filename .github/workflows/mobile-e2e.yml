@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   ios-simulator:
-    name: iOS Simulator Tests
+    # name: iOS Simulator Tests
     runs-on: macos-14  # M1 runner for better iOS simulator performance
 
     steps:
@@ -134,7 +134,7 @@ jobs:
           echo "- Status: Completed" >> $GITHUB_STEP_SUMMARY
 
   android-emulator:
-    name: Android Emulator Tests
+    # name: Android Emulator Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -226,7 +226,7 @@ jobs:
           echo "- Status: Completed" >> $GITHUB_STEP_SUMMARY
 
   mobile-summary:
-    name: Mobile Test Summary
+    # name: Mobile Test Summary
     needs: [ios-simulator, android-emulator]
     runs-on: ubuntu-latest
     if: always()
