@@ -178,6 +178,9 @@ pub fn build(b: *std.Build) void {
 
     const cli_module = b.createModule(.{
         .root_source_file = b.path("src/cli.zig"),
+        .imports = &.{
+            .{ .name = "build_options", .module = build_options.createModule() },
+        },
     });
 
     const config_module = b.createModule(.{
@@ -260,6 +263,8 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    // GPU module needs ObjC runtime + Metal framework on macOS
+    linkPlatformLibraries(b, gpu_tests.root_module, target_os, macos_sdk);
 
     const system_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -1419,7 +1424,10 @@ fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: st
         },
         else => {},
     }
-    module.linkSystemLibrary("sqlite3", .{});
+    // sqlite3 is available as a system library on macOS and Linux only
+    if (target_os == .macos or target_os == .linux) {
+        module.linkSystemLibrary("sqlite3", .{});
+    }
     module.link_libc = true;
 }
 
