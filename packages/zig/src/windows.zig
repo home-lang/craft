@@ -628,15 +628,31 @@ const ExecuteScriptCompletedHandler = extern struct {
 pub const ICoreWebView2ExecuteScriptCompletedHandler = ExecuteScriptCompletedHandler;
 
 // ============================================================================
-// WebView2Loader extern
+// WebView2Loader — loaded dynamically at runtime to avoid link-time dependency
 // ============================================================================
 
-pub extern "WebView2Loader" fn CreateCoreWebView2EnvironmentWithOptions(
+pub extern "kernel32" fn LoadLibraryW(lpLibFileName: LPCWSTR) callconv(.c) ?*anyopaque;
+pub extern "kernel32" fn GetProcAddress(hModule: *anyopaque, lpProcName: [*:0]const u8) callconv(.c) ?*anyopaque;
+
+const CreateCoreWebView2EnvironmentWithOptionsFn = *const fn (
     browserExecutableFolder: ?LPCWSTR,
     userDataFolder: ?LPCWSTR,
     options: ?*anyopaque,
     environmentCreatedHandler: *ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler,
 ) callconv(.c) HRESULT;
+
+var webview2_create_fn: ?CreateCoreWebView2EnvironmentWithOptionsFn = null;
+
+/// Dynamically load WebView2Loader.dll and resolve CreateCoreWebView2EnvironmentWithOptions.
+/// Returns null if WebView2 runtime is not installed.
+fn loadWebView2() ?CreateCoreWebView2EnvironmentWithOptionsFn {
+    if (webview2_create_fn) |f| return f;
+    const dll_name: [:0]const u16 = &[_:0]u16{ 'W', 'e', 'b', 'V', 'i', 'e', 'w', '2', 'L', 'o', 'a', 'd', 'e', 'r', '.', 'd', 'l', 'l' };
+    const dll = LoadLibraryW(dll_name.ptr) orelse return null;
+    const proc = GetProcAddress(dll, "CreateCoreWebView2EnvironmentWithOptions") orelse return null;
+    webview2_create_fn = @ptrCast(proc);
+    return webview2_create_fn;
+}
 
 // ============================================================================
 // Helpers
@@ -775,7 +791,12 @@ pub const Window = struct {
             .ctx = &init_ctx,
         };
 
-        const create_hr = CreateCoreWebView2EnvironmentWithOptions(
+        const createEnv = loadWebView2() orelse {
+            std.debug.print("[WebView2] WebView2Loader.dll not found — WebView2 runtime not installed\n", .{});
+            return error.WebView2InitFailed;
+        };
+
+        const create_hr = createEnv(
             null, // default browser executable
             null, // default user data folder
             null, // no special options

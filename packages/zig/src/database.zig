@@ -2,8 +2,9 @@ const std = @import("std");
 
 /// Database API for SQLite integration
 /// Provides comprehensive database operations with transactions, prepared statements,
-/// and migration support. This implementation uses real SQLite via the C API.
-
+/// and migration support. Uses real SQLite on all platforms — the vendored
+/// amalgamation (vendor/sqlite/sqlite3.c) is compiled by Zig's C compiler,
+/// so no system SQLite dependency is required.
 const c = @cImport({
     @cInclude("sqlite3.h");
 });

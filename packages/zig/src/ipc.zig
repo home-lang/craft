@@ -66,10 +66,14 @@ pub const IPC = struct {
         }
     }
 
-    /// Get current timestamp (monotonic nanoseconds, used for ordering)
+    /// Get current timestamp (monotonic counter, used for message ordering)
     fn currentTimestamp() i64 {
-        const ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return 0;
-        return @intCast(@as(i64, @truncate(ts.raw.nanoseconds)));
+        // Simple monotonic counter — sufficient for message ordering
+        const S = struct {
+            var counter: i64 = 0;
+        };
+        S.counter += 1;
+        return S.counter;
     }
 
     /// Send a message to a channel

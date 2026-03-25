@@ -4,7 +4,6 @@ const global_state = @import("global_state.zig");
 /// Global Io context for the Craft framework.
 /// Initialized once at program startup via init(), then accessible everywhere via get().
 /// Thread-safe access is provided through global_state.
-
 /// Initialize the global Io context. Must be called once at startup from main().
 pub fn init(io: std.Io) void {
     global_state.instance.setIo(io);

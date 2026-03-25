@@ -3223,7 +3223,7 @@ pub fn getGlobalWebView() ?objc.id {
 
 /// Generate the minimal Craft JavaScript bridge (core only, no tray/menubar/polling)
 fn getCraftBridgeScriptMinimal() []const u8 {
-    return
+    return 
     \\ (function() {
     \\   window.craft = window.craft || {};
     \\   window.__craftBridgePending = {};
@@ -3267,7 +3267,7 @@ fn getCraftBridgeScriptMinimal() []const u8 {
 
 /// Generate the full Craft JavaScript bridge (includes tray, menubar, polling)
 fn getCraftBridgeScriptFull() []const u8 {
-    return
+    return 
     \\ (function() {
     \\   window.craft = window.craft || {};
     \\   window.__craftBridgePending = {};

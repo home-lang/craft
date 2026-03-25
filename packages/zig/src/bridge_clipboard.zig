@@ -485,7 +485,7 @@ pub const ClipboardBridge = struct {
 
         // Try GDK clipboard first (works on both X11 and Wayland)
         if (self.linuxGdkReadText()) |gdk_text| {
-            defer linux.g_free(@constCast(@ptrCast(gdk_text.ptr)));
+            defer linux.g_free(@ptrCast(@constCast(gdk_text.ptr)));
             const text_str = std.mem.span(gdk_text);
 
             if (text_str.len > 0) {

@@ -20,6 +20,8 @@ pub fn build(b: *std.Build) void {
     const craft_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
     });
+    // Add vendored SQLite header path so @cImport("sqlite3.h") resolves in database.zig
+    craft_module.addIncludePath(b.path("vendor/sqlite"));
 
     // Demo executable - simple hardcoded example
     const exe = b.addExecutable(.{
@@ -1424,10 +1426,13 @@ fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: st
         },
         else => {},
     }
-    // sqlite3 is available as a system library on macOS and Linux only
-    if (target_os == .macos or target_os == .linux) {
-        module.linkSystemLibrary("sqlite3", .{});
-    }
+    // Compile vendored SQLite amalgamation — works on all platforms without
+    // requiring a system sqlite3 installation.
+    module.addCSourceFile(.{
+        .file = b.path("vendor/sqlite/sqlite3.c"),
+        .flags = &.{ "-DSQLITE_THREADSAFE=1", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_ENABLE_JSON1" },
+    });
+    module.addIncludePath(b.path("vendor/sqlite"));
     module.link_libc = true;
 }
 
