@@ -28,6 +28,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             exe.root_module.linkFramework("Cocoa", .{});
             exe.root_module.linkFramework("WebKit", .{});
+            applySysrootPaths(b, exe.root_module);
         },
         .linux => {
             exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -85,6 +86,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             craft_exe.root_module.linkFramework("Cocoa", .{});
             craft_exe.root_module.linkFramework("WebKit", .{});
+            applySysrootPaths(b, craft_exe.root_module);
         },
         .linux => {
             craft_exe.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -126,6 +128,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             lib_unit_tests.root_module.linkFramework("Cocoa", .{});
             lib_unit_tests.root_module.linkFramework("WebKit", .{});
+            applySysrootPaths(b, lib_unit_tests.root_module);
         },
         .linux => {
             lib_unit_tests.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -317,6 +320,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             system_tests.root_module.linkFramework("Cocoa", .{});
             system_tests.root_module.linkFramework("WebKit", .{});
+            applySysrootPaths(b, system_tests.root_module);
         },
         .linux => {
             system_tests.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -747,6 +751,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             system_tray_tests.root_module.linkFramework("Cocoa", .{});
             system_tray_tests.root_module.linkFramework("WebKit", .{});
+            applySysrootPaths(b, system_tray_tests.root_module);
         },
         .linux => {
             system_tray_tests.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -770,6 +775,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             system_tray_benchmark.root_module.linkFramework("Cocoa", .{});
             system_tray_benchmark.root_module.linkFramework("WebKit", .{});
+            applySysrootPaths(b, system_tray_benchmark.root_module);
         },
         .linux => {
             system_tray_benchmark.root_module.linkSystemLibrary("gtk+-3.0", .{});
@@ -1425,4 +1431,19 @@ pub fn build(b: *std.Build) void {
 
     // Add Android tests to the main test step
     test_step.dependOn(&run_android_tests.step);
+}
+
+/// Workaround for Zig not propagating --sysroot to framework search paths
+/// during cross-compilation (ziglang/zig#22704, ziglang/zig#25010).
+fn applySysrootPaths(builder: *std.Build, module: *std.Build.Module) void {
+    const sysroot = builder.sysroot orelse return;
+    module.addSystemFrameworkPath(.{
+        .cwd_relative = builder.pathJoin(&.{ sysroot, "System/Library/Frameworks" }),
+    });
+    module.addSystemIncludePath(.{
+        .cwd_relative = builder.pathJoin(&.{ sysroot, "usr/include" }),
+    });
+    module.addLibraryPath(.{
+        .cwd_relative = builder.pathJoin(&.{ sysroot, "usr/lib" }),
+    });
 }
