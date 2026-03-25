@@ -143,7 +143,7 @@ const WindowsTrayImpl = if (builtin.os.tag == .windows) struct {
         try tray.setTooltip(title);
 
         // Add to system tray
-        if (Shell_NotifyIconW(NIM_ADD, &tray.notify_data) == windows.FALSE) {
+        if (Shell_NotifyIconW(NIM_ADD, &tray.notify_data) == .FALSE) {
             return error.FailedToCreateTray;
         }
 
