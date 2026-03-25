@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.22...v0.0.23)
+
+### 🐛 Bug Fixes
+
+- gracefully skip cross-compile targets missing system libraries ([b4805bf](https://github.com/home-lang/craft/commit/b4805bf)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.23 ([d0ec498](https://github.com/home-lang/craft/commit/d0ec498)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.22...HEAD)
+
+### 🐛 Bug Fixes
+
+- gracefully skip cross-compile targets missing system libraries ([b4805bf](https://github.com/home-lang/craft/commit/b4805bf)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.21...v0.0.22)
 
 ### 🐛 Bug Fixes

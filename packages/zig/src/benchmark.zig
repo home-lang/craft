@@ -99,7 +99,7 @@ pub const Benchmark = struct {
             _ = try @call(.auto, func, args);
             const end_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch continue;
             const elapsed = start_ts.durationTo(end_ts);
-            try self.times.append(self.allocator, @as(u64, @intCast(elapsed.nanoseconds)));
+            try self.times.append(self.allocator, @as(u64, @intCast(elapsed.raw.nanoseconds)));
         }
 
         return self.calculateResult();

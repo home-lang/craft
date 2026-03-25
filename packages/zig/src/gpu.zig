@@ -60,7 +60,7 @@ pub const GPU = struct {
     /// Cached Metal device handle (macOS only)
     metal_device: ?*anyopaque = null,
     /// Frame-rate tracking state
-    last_frame_time: ?std.Io.Timestamp = null,
+    last_frame_time: ?std.Io.Clock.Timestamp = null,
     frame_count: u32 = 0,
     current_fps: f64 = 0.0,
 
@@ -359,12 +359,12 @@ pub const GPU = struct {
     /// Call this once per frame. It measures wall-clock time between calls and
     /// returns a smoothed frames-per-second value.  The first call returns 0.
     pub fn getCurrentFPS(self: *GPU) f64 {
-        const now_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+        const now_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return self.current_fps;
 
         if (self.last_frame_time) |last| {
             self.frame_count += 1;
             const elapsed = last.durationTo(now_ts);
-            const elapsed_ns = @as(u64, @intCast(elapsed.nanoseconds));
+            const elapsed_ns = @as(u64, @intCast(elapsed.raw.nanoseconds));
 
             // Update FPS once per second (or when enough frames accumulate)
             if (elapsed_ns >= 1_000_000_000) {
@@ -419,29 +419,29 @@ pub const GPU = struct {
 pub const FrameLimiter = struct {
     target_fps: u32,
     frame_time_ns: u64,
-    start_ts: ?std.Io.Timestamp,
+    start_ts: ?std.Io.Clock.Timestamp,
 
     pub fn init(target_fps: u32) FrameLimiter {
         const frame_time: u64 = 1_000_000_000 / target_fps;
         return FrameLimiter{
             .target_fps = target_fps,
             .frame_time_ns = frame_time,
-            .start_ts = std.Io.Timestamp.now(io_context.get(), .awake),
+            .start_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch null,
         };
     }
 
     pub fn limit(self: *FrameLimiter) void {
         if (self.start_ts) |start| {
-            const end_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+            const end_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return;
             const elapsed = start.durationTo(end_ts);
-            const elapsed_ns = @as(u64, @intCast(elapsed.nanoseconds));
+            const elapsed_ns = @as(u64, @intCast(elapsed.raw.nanoseconds));
 
             if (elapsed_ns < self.frame_time_ns) {
                 const sleep_ns = self.frame_time_ns - elapsed_ns;
                 std.posix.nanosleep(0, sleep_ns);
             }
 
-            self.start_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+            self.start_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch null;
         }
     }
 
@@ -1471,7 +1471,7 @@ pub const Effect = enum {
 pub const GPUProfiler = struct {
     queries: std.ArrayList(Query),
     allocator: std.mem.Allocator,
-    active_start_ts: ?std.Io.Timestamp,
+    active_start_ts: ?std.Io.Clock.Timestamp,
     active_query_name: ?[]const u8,
 
     pub const Query = struct {
@@ -1494,15 +1494,15 @@ pub const GPUProfiler = struct {
 
     pub fn beginQuery(self: *GPUProfiler, name: []const u8) !void {
         self.active_query_name = name;
-        self.active_start_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+        self.active_start_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch null;
     }
 
     pub fn endQuery(self: *GPUProfiler) !void {
         if (self.active_start_ts) |start_ts| {
             if (self.active_query_name) |name| {
-                const end_ts = std.Io.Timestamp.now(io_context.get(), .awake);
+                const end_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return;
                 const elapsed = start_ts.durationTo(end_ts);
-                const duration = @as(u64, @intCast(elapsed.nanoseconds));
+                const duration = @as(u64, @intCast(elapsed.raw.nanoseconds));
                 try self.queries.append(self.allocator, .{
                     .name = name,
                     .duration_ns = duration,

@@ -66,11 +66,10 @@ pub const IPC = struct {
         }
     }
 
-    /// Get current timestamp (Unix epoch in seconds)
+    /// Get current timestamp (monotonic nanoseconds, used for ordering)
     fn currentTimestamp() i64 {
-        // Use std.time for wall clock, avoiding the Io.Clock API
-        // which requires an Io context and is meant for monotonic timing
-        return std.time.timestamp();
+        const ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return 0;
+        return @intCast(@as(i64, @truncate(ts.raw.nanoseconds)));
     }
 
     /// Send a message to a channel

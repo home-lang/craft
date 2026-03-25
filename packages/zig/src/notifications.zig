@@ -491,7 +491,10 @@ pub const NotificationManager = struct {
         }
 
         // Platform-specific scheduling
-        if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
+        // Skip platform calls in test binaries (no app bundle/GUI available)
+        if (comptime @import("builtin").is_test) {
+            // In test mode, just store the notification without platform dispatch
+        } else if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
             try self.scheduleDarwin(notification);
         } else if (comptime builtin.os.tag == .linux) {
             try self.scheduleLinux(notification);

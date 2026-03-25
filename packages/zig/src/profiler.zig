@@ -53,7 +53,7 @@ pub const Profiler = struct {
         _ = self.active_profiles.remove(name);
 
         const duration = start_time.durationTo(end_time);
-        const elapsed_ns = @as(u64, @intCast(duration.nanoseconds));
+        const elapsed_ns = @as(u64, @intCast(duration.raw.nanoseconds));
         const duration_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
 
         const memory_before: usize = 0;
