@@ -1,4 +1,45 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.24...v0.0.25)
+
+### 🐛 Bug Fixes
+
+- sidebar navigation uses window.navigate() instead of _sidebarSelectHandler ([01a4ddf](https://github.com/home-lang/craft/commit/01a4ddf)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- enable Cmd+Q to quit desktop windows ([b3ced0a](https://github.com/home-lang/craft/commit/b3ced0a)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### 🤖 Continuous Integration
+
+- retrigger with pantry bun fix ([be0734d](https://github.com/home-lang/craft/commit/be0734d)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.25 ([b6e488b](https://github.com/home-lang/craft/commit/b6e488b)) _(by Chris <chrisbreuer93@gmail.com>)_
+- update lockfile ([f2a6bb7](https://github.com/home-lang/craft/commit/f2a6bb7)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _glennmichael123 <gtorregosa@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.24...HEAD)
+
+### 🐛 Bug Fixes
+
+- sidebar navigation uses window.navigate() instead of _sidebarSelectHandler ([01a4ddf](https://github.com/home-lang/craft/commit/01a4ddf)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- enable Cmd+Q to quit desktop windows ([b3ced0a](https://github.com/home-lang/craft/commit/b3ced0a)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### 🤖 Continuous Integration
+
+- retrigger with pantry bun fix ([be0734d](https://github.com/home-lang/craft/commit/be0734d)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- update lockfile ([f2a6bb7](https://github.com/home-lang/craft/commit/f2a6bb7)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _glennmichael123 <gtorregosa@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.23...v0.0.24)
 
 ### 🐛 Bug Fixes
