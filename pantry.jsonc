@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "bun.sh": "latest",
     "ziglang.org": "0.16.0-dev.2984+cb7d2b056"
   }
 }
