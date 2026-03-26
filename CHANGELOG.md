@@ -1,4 +1,89 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.23...v0.0.24)
+
+### 🐛 Bug Fixes
+
+- simplify release workflow — pantry handles packaging & release ([f763338](https://github.com/home-lang/craft/commit/f763338)) _(by Chris <chrisbreuer93@gmail.com>)_
+- let pantry read versions from pantry.jsonc, use pantry publish ([39c4532](https://github.com/home-lang/craft/commit/39c4532)) _(by Chris <chrisbreuer93@gmail.com>)_
+- remove pinned pantry version, use latest ([56822e1](https://github.com/home-lang/craft/commit/56822e1)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry v0.9.15 with TS installer SDK ([a0247e3](https://github.com/home-lang/craft/commit/a0247e3)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry v0.9.14 ([607a5e6](https://github.com/home-lang/craft/commit/607a5e6)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry v0.9.12 with Windows zig PATH fix ([5e532a9](https://github.com/home-lang/craft/commit/5e532a9)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry v0.9.11 exclusively — no mlugg fallback ([6fd258b](https://github.com/home-lang/craft/commit/6fd258b)) _(by Chris <chrisbreuer93@gmail.com>)_
+- pin pantry v0.9.10 to bypass stale toolcache ([6d7425c](https://github.com/home-lang/craft/commit/6d7425c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add bun.sh to pantry.jsonc system deps ([dbad386](https://github.com/home-lang/craft/commit/dbad386)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add setup-bun for typescript-sdk job ([eff2d95](https://github.com/home-lang/craft/commit/eff2d95)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add mlugg/setup-zig as Windows fallback ([46c1799](https://github.com/home-lang/craft/commit/46c1799)) _(by Chris <chrisbreuer93@gmail.com>)_
+- pass zig version explicitly to pantry action packages input ([3ae17a4](https://github.com/home-lang/craft/commit/3ae17a4)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry exclusively for Zig setup, remove mlugg/setup-zig ([4125f61](https://github.com/home-lang/craft/commit/4125f61)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use .FALSE enum for BOOL comparison in windows_tray ([289a527](https://github.com/home-lang/craft/commit/289a527)) _(by Chris <chrisbreuer93@gmail.com>)_
+- windows_tray BOOL comparison for zig 0.16.0-dev.2984 ([160db7f](https://github.com/home-lang/craft/commit/160db7f)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry for bun + mlugg/setup-zig for zig in CI ([a53981c](https://github.com/home-lang/craft/commit/a53981c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry for Zig setup in CI, update to zig 0.16.0-dev.2984 ([ca46fcc](https://github.com/home-lang/craft/commit/ca46fcc)) _(by Chris <chrisbreuer93@gmail.com>)_
+- align CI Zig version with local (0.16.0-dev.2471) ([cec5ce7](https://github.com/home-lang/craft/commit/cec5ce7)) _(by Chris <chrisbreuer93@gmail.com>)_
+- vendor SQLite amalgamation, fix Windows build, fix all tests ([6f209d5](https://github.com/home-lang/craft/commit/6f209d5)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🤖 Continuous Integration
+
+- retrigger with pantry v0.9.10 ([d7a8116](https://github.com/home-lang/craft/commit/d7a8116)) _(by Chris <chrisbreuer93@gmail.com>)_
+- retrigger with pantry v0.9.9 (zig direct download fix) ([b9c9317](https://github.com/home-lang/craft/commit/b9c9317)) _(by Chris <chrisbreuer93@gmail.com>)_
+- retrigger with updated pantry action ([ff55e25](https://github.com/home-lang/craft/commit/ff55e25)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.24 ([4f5a907](https://github.com/home-lang/craft/commit/4f5a907)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([0ed4818](https://github.com/home-lang/craft/commit/0ed4818)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 📄 Miscellaneous
+
+- Revert "fix: add setup-bun for typescript-sdk job" ([7aa3593](https://github.com/home-lang/craft/commit/7aa3593)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.23...HEAD)
+
+### 🐛 Bug Fixes
+
+- simplify release workflow — pantry handles packaging & release ([f763338](https://github.com/home-lang/craft/commit/f763338)) _(by Chris <chrisbreuer93@gmail.com>)_
+- let pantry read versions from pantry.jsonc, use pantry publish ([39c4532](https://github.com/home-lang/craft/commit/39c4532)) _(by Chris <chrisbreuer93@gmail.com>)_
+- remove pinned pantry version, use latest ([56822e1](https://github.com/home-lang/craft/commit/56822e1)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry v0.9.15 with TS installer SDK ([a0247e3](https://github.com/home-lang/craft/commit/a0247e3)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry v0.9.14 ([607a5e6](https://github.com/home-lang/craft/commit/607a5e6)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry v0.9.12 with Windows zig PATH fix ([5e532a9](https://github.com/home-lang/craft/commit/5e532a9)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry v0.9.11 exclusively — no mlugg fallback ([6fd258b](https://github.com/home-lang/craft/commit/6fd258b)) _(by Chris <chrisbreuer93@gmail.com>)_
+- pin pantry v0.9.10 to bypass stale toolcache ([6d7425c](https://github.com/home-lang/craft/commit/6d7425c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add bun.sh to pantry.jsonc system deps ([dbad386](https://github.com/home-lang/craft/commit/dbad386)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add setup-bun for typescript-sdk job ([eff2d95](https://github.com/home-lang/craft/commit/eff2d95)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add mlugg/setup-zig as Windows fallback ([46c1799](https://github.com/home-lang/craft/commit/46c1799)) _(by Chris <chrisbreuer93@gmail.com>)_
+- pass zig version explicitly to pantry action packages input ([3ae17a4](https://github.com/home-lang/craft/commit/3ae17a4)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry exclusively for Zig setup, remove mlugg/setup-zig ([4125f61](https://github.com/home-lang/craft/commit/4125f61)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use .FALSE enum for BOOL comparison in windows_tray ([289a527](https://github.com/home-lang/craft/commit/289a527)) _(by Chris <chrisbreuer93@gmail.com>)_
+- windows_tray BOOL comparison for zig 0.16.0-dev.2984 ([160db7f](https://github.com/home-lang/craft/commit/160db7f)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry for bun + mlugg/setup-zig for zig in CI ([a53981c](https://github.com/home-lang/craft/commit/a53981c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- use pantry for Zig setup in CI, update to zig 0.16.0-dev.2984 ([ca46fcc](https://github.com/home-lang/craft/commit/ca46fcc)) _(by Chris <chrisbreuer93@gmail.com>)_
+- align CI Zig version with local (0.16.0-dev.2471) ([cec5ce7](https://github.com/home-lang/craft/commit/cec5ce7)) _(by Chris <chrisbreuer93@gmail.com>)_
+- vendor SQLite amalgamation, fix Windows build, fix all tests ([6f209d5](https://github.com/home-lang/craft/commit/6f209d5)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🤖 Continuous Integration
+
+- retrigger with pantry v0.9.10 ([d7a8116](https://github.com/home-lang/craft/commit/d7a8116)) _(by Chris <chrisbreuer93@gmail.com>)_
+- retrigger with pantry v0.9.9 (zig direct download fix) ([b9c9317](https://github.com/home-lang/craft/commit/b9c9317)) _(by Chris <chrisbreuer93@gmail.com>)_
+- retrigger with updated pantry action ([ff55e25](https://github.com/home-lang/craft/commit/ff55e25)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- wip ([0ed4818](https://github.com/home-lang/craft/commit/0ed4818)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 📄 Miscellaneous
+
+- Revert "fix: add setup-bun for typescript-sdk job" ([7aa3593](https://github.com/home-lang/craft/commit/7aa3593)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.22...v0.0.23)
 
 ### 🐛 Bug Fixes
