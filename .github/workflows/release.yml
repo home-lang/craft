@@ -131,90 +131,18 @@ jobs:
           xcrun stapler staple craft || true
           rm craft.zip
 
-      # ── Publish to Pantry Registry ──────────────────────────────
-      - name: Publish to Pantry Registry
+      # ── Publish & Release ──────────────────────────────
+      # Pantry action handles everything:
+      # 1. Publishes to pantry registry (zig package)
+      # 2. Auto-packages binaries from zig-out/ into platform-named zips
+      # 3. Creates/updates GitHub release with all artifacts + changelog
+      - name: Publish & Release
         uses: home-lang/pantry/packages/action@main
         with:
+          install: 'false'
           publish: 'zig'
           token: ${{ secrets.PANTRY_TOKEN }}
           release: 'true'
-          release-files: |
-            packages/zig/zig-out/bin/craft
-          release-changelog: CHANGELOG.md
-
-      # Metadata is handled automatically by the pantry publish action above
-
-      # ── Package & Upload Artifacts ───────────────────────────────
-      - name: Package binaries
-        run: |
-          mkdir -p dist
-
-          # Package native binary
-          PLATFORM="${{ matrix.platform.name }}"
-          case "$PLATFORM" in
-            darwin-arm64)  ZIP_NAME="craft-darwin-arm64.zip" ; BIN="craft" ;;
-            linux-x86-64)  ZIP_NAME="craft-linux-x64.zip" ; BIN="craft" ;;
-          esac
-          (cd packages/zig/zig-out/bin && zip -r "../../../../dist/$ZIP_NAME" "$BIN")
-
-          # Package cross-compiled binaries
-          for target_dir in packages/zig/zig-out/cross/*/; do
-            [ -d "$target_dir" ] || continue
-            target=$(basename "$target_dir")
-            case "$target" in
-              darwin-x64)     name="craft-darwin-x64.zip" ; bin="craft" ;;
-              windows-x64)    name="craft-windows-x64.zip" ; bin="craft.exe" ;;
-              linux-arm64)    name="craft-linux-arm64.zip" ; bin="craft" ;;
-              freebsd-x64)    name="craft-freebsd-x64.zip" ; bin="craft" ;;
-              freebsd-arm64)  name="craft-freebsd-arm64.zip" ; bin="craft" ;;
-              *) continue ;;
-            esac
-            (cd "$target_dir" && zip -r "$(pwd)/../../../../../dist/$name" "$bin")
-          done
-
-          echo "Packaged files:"
-          ls -la dist/
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: craft-${{ matrix.platform.name }}
-          path: dist/*.zip
-
-  # ── GitHub Release with binaries & changelog ───────────────────
-  github:
-    name: github
-    needs: pantry
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
-      - name: Generate checksums
-        run: |
-          cd dist
-          echo "Release artifacts:"
-          ls -la
-          sha256sum *.zip > checksums.sha256
-          cat checksums.sha256
-
-      - name: Create GitHub Release
-        uses: home-lang/pantry/packages/action@main        with:
-          install: 'false'
-          release: 'true'
-          release-files: |
-            dist/*.zip
-            dist/checksums.sha256
           release-changelog: CHANGELOG.md
           release-token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
         env:
@@ -222,7 +150,7 @@ jobs:
 
   npm:
     name: npm
-    needs: pantry
+    needs: [pantry]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -245,7 +173,7 @@ jobs:
 
   notify:
     name: discord-notification
-    needs: [github, npm]
+    needs: [pantry, npm]
     if: always()
     runs-on: ubuntu-latest
     steps:
