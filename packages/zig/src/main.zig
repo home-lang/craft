@@ -190,8 +190,9 @@ pub const App = struct {
         switch (builtin.os.tag) {
             .macos => {
                 if (builtin.os.tag == .macos) {
-                    // Use regular init for now - will be configured based on system tray
                     macos.initAppWithoutLaunching();
+                    // Create application menu with standard shortcuts (Cmd+Q, Cmd+H)
+                    macos.createApplicationMenu();
                 }
             },
             else => {},
