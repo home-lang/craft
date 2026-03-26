@@ -25,8 +25,6 @@ jobs:
 
       - name: Setup Pantry
         uses: home-lang/pantry/packages/action@main
-        with:
-          packages: ziglang.org@0.16.0-dev.2984+cb7d2b056
 
       - name: Verify Zig installation
         run: zig version
@@ -104,8 +102,6 @@ jobs:
 
       - name: Setup Pantry
         uses: home-lang/pantry/packages/action@main
-        with:
-          packages: ziglang.org@0.16.0-dev.2984+cb7d2b056
 
       - name: Check Zig formatting
         working-directory: packages/zig
@@ -120,8 +116,6 @@ jobs:
 
       - name: Setup Pantry
         uses: home-lang/pantry/packages/action@main
-        with:
-          packages: ziglang.org@0.16.0-dev.2984+cb7d2b056
 
       - name: Install dependencies
         run: bun install

@@ -6,10 +6,6 @@ on:
       - 'v*'
   workflow_dispatch:
 
-env:
-  S3_BUCKET: pantry-registry
-  AWS_REGION: us-east-1
-
 jobs:
   pantry:
     name: pantry (${{ matrix.platform.name }})
@@ -31,8 +27,7 @@ jobs:
 
       - name: Setup Pantry
         uses: home-lang/pantry/packages/action@main
-      - name: Setup Zig
-        uses: home-lang/pantry/packages/action@main
+
       - name: Install System Dependencies
         if: matrix.platform.deps != ''
         run: ${{ matrix.platform.deps }}
@@ -136,66 +131,18 @@ jobs:
           xcrun stapler staple craft || true
           rm craft.zip
 
-      # ── Publish to Pantry S3 Registry ──────────────────────────────
+      # ── Publish to Pantry Registry ──────────────────────────────
       - name: Publish to Pantry Registry
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          PLATFORM="${{ matrix.platform.name }}"
-          DOMAIN="craft-native.org"
-          BINARY="packages/zig/zig-out/bin/craft"
+        uses: home-lang/pantry/packages/action@main
+        with:
+          publish: 'zig'
+          token: ${{ secrets.PANTRY_TOKEN }}
+          release: 'true'
+          release-files: |
+            packages/zig/zig-out/bin/craft
+          release-changelog: CHANGELOG.md
 
-          echo "Publishing $DOMAIN v$VERSION for $PLATFORM"
-          ls -la "$BINARY"
-          file "$BINARY"
-
-          STAGING=$(mktemp -d)
-          mkdir -p "$STAGING/bin"
-          cp "$BINARY" "$STAGING/bin/craft"
-          chmod +x "$STAGING/bin/craft"
-          TARBALL="${DOMAIN}-${VERSION}.tar.gz"
-          tar -czf "/tmp/$TARBALL" -C "$STAGING" .
-          SHA256=$(shasum -a 256 "/tmp/$TARBALL" | cut -d' ' -f1)
-
-          echo "Tarball: $TARBALL ($(du -h /tmp/$TARBALL | cut -f1)), SHA256: $SHA256"
-
-          S3_KEY="binaries/${DOMAIN}/${VERSION}/${PLATFORM}/${TARBALL}"
-          aws s3 cp "/tmp/$TARBALL" "s3://$S3_BUCKET/$S3_KEY" --region $AWS_REGION
-          echo "$SHA256" > "/tmp/${TARBALL}.sha256"
-          aws s3 cp "/tmp/${TARBALL}.sha256" "s3://$S3_BUCKET/${S3_KEY}.sha256" --region $AWS_REGION
-
-      - name: Update metadata
-        if: matrix.platform.name == 'darwin-arm64'
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          DOMAIN="craft-native.org"
-
-          cat <<METAJSON | aws s3 cp - "s3://$S3_BUCKET/binaries/$DOMAIN/metadata.json" --content-type application/json --region $AWS_REGION
-          {
-            "name": "$DOMAIN",
-            "latestVersion": "$VERSION",
-            "versions": {
-              "$VERSION": {
-                "platforms": {
-                  "darwin-arm64": {
-                    "tarball": "binaries/$DOMAIN/$VERSION/darwin-arm64/$DOMAIN-$VERSION.tar.gz",
-                    "uploadedAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
-                  },
-                  "linux-x86-64": {
-                    "tarball": "binaries/$DOMAIN/$VERSION/linux-x86-64/$DOMAIN-$VERSION.tar.gz",
-                    "uploadedAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
-                  }
-                }
-              }
-            },
-            "updatedAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
-          }
-          METAJSON
+      # Metadata is handled automatically by the pantry publish action above
 
       # ── Package & Upload Artifacts ───────────────────────────────
       - name: Package binaries
