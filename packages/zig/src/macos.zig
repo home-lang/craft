@@ -1036,26 +1036,24 @@ fn sidebarSelectionDidChange(
     if (comptime builtin.mode == .Debug)
         std.debug.print("[NativeSidebar] Selection changed: section={s}, item={s}\n", .{ section.id, child.id });
 
-    // Always dispatch sidebar selection via JavaScript handler for SPA navigation.
-    // The handler in the web app decides how to load the page (lazy fetch, etc.)
-    // instead of doing a full page navigation that would break the SPA shell.
+    // Navigate via window.navigate() for SPA routing, or fall back to location.href.
+    // If the item has a URL, use it directly. Otherwise construct from section/item IDs.
     if (sidebar_webview != null) {
         var js_buf: [2048]u8 = undefined;
-        const js = std.fmt.bufPrint(&js_buf,
-            \\if (window.craft && window.craft._sidebarSelectHandler) {{
-            \\  window.craft._sidebarSelectHandler({{
-            \\    itemId: "{s}",
-            \\    sectionId: "{s}",
-            \\    item: {{ id: "{s}", label: "{s}", icon: "{s}" }}
-            \\  }});
-            \\}}
-        , .{ child.id, section.id, child.id, child.label, child.icon }) catch return;
+        const js = if (child.url) |url|
+            std.fmt.bufPrint(&js_buf,
+                \\typeof window.navigate === 'function' ? window.navigate('{s}') : (window.location.href = '{s}')
+            , .{ url, url }) catch return
+        else
+            std.fmt.bufPrint(&js_buf,
+                \\typeof window.navigate === 'function' ? window.navigate('/{s}/{s}') : (window.location.href = '/{s}/{s}')
+            , .{ section.id, child.id, section.id, child.id }) catch return;
 
         const js_str = createNSString(js);
         _ = msgSend2(sidebar_webview, "evaluateJavaScript:completionHandler:", js_str, @as(?*anyopaque, null));
 
         if (comptime builtin.mode == .Debug)
-            std.debug.print("[NativeSidebar] Selection: section={s}, item={s}\n", .{ section.id, child.id });
+            std.debug.print("[NativeSidebar] Navigate: section={s}, item={s}\n", .{ section.id, child.id });
     }
 }
 
