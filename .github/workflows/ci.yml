@@ -140,3 +140,28 @@ jobs:
       - name: Verify create-craft
         working-directory: packages/create-craft
         run: bun run typecheck
+
+  publish-commit:
+    needs: [zig-core, typescript-sdk, lint, integration]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Pantry
+        uses: home-lang/pantry/packages/action@main
+
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Build TypeScript SDK
+        working-directory: packages/typescript
+        run: bun run build
+
+      - name: Publish Commit
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: pantry publish:commit './packages/typescript'
+        env:
+          PANTRY_REGISTRY_TOKEN: ${{ secrets.PANTRY_TOKEN }}
