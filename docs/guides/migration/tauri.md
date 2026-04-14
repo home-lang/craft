@@ -5,12 +5,14 @@ This guide helps you migrate your Tauri application to Craft, covering the key d
 ## Overview
 
 Both Tauri and Craft share similar philosophies:
+
 - Native performance with web technologies
 - Small binary sizes
 - System-level APIs through native code
 - Cross-platform support
 
 However, Craft offers some advantages:
+
 - **Unified Zig codebase** - Single native layer for all platforms
 - **TypeScript-first** - Full TypeScript SDK without Rust knowledge
 - **Simpler architecture** - No IPC complexity, direct native calls
@@ -19,6 +21,7 @@ However, Craft offers some advantages:
 ## Project Structure Comparison
 
 ### Tauri Structure
+
 ```
 my-tauri-app/
 ├── src/                    # Web frontend
@@ -31,6 +34,7 @@ my-tauri-app/
 ```
 
 ### Craft Structure
+
 ```
 my-craft-app/
 ├── src/                    # Web frontend
@@ -42,6 +46,7 @@ my-craft-app/
 ## Configuration Migration
 
 ### Tauri (tauri.conf.json)
+
 ```json
 {
   "build": {
@@ -67,6 +72,7 @@ my-craft-app/
 ```
 
 ### Craft (craft.config.ts)
+
 ```typescript
 import { defineConfig } from '@craft-native/craft';
 
@@ -96,9 +102,10 @@ export default defineConfig({
 ## Command Migration
 
 ### Tauri Commands
+
 ```rust
 // src-tauri/src/main.rs
-#[tauri::command]
+# [tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}!", name)
 }
@@ -119,6 +126,7 @@ const greeting = await invoke('greet', { name: 'World' });
 ```
 
 ### Craft Equivalent
+
 ```typescript
 // src/main.ts
 import { bridge } from '@craft-native/craft';
@@ -328,6 +336,7 @@ console.log(output.stdout);
 ## Event System
 
 ### Tauri Events
+
 ```typescript
 import { listen, emit } from '@tauri-apps/api/event';
 
@@ -341,6 +350,7 @@ await emit('my-event', { data: 'value' });
 ```
 
 ### Craft Events
+
 ```typescript
 import { events } from '@craft-native/craft';
 
@@ -356,9 +366,11 @@ events.emit('my-event', { data: 'value' });
 ## Plugins
 
 ### Tauri Plugins
+
 Tauri uses Rust plugins that require Cargo dependencies and Rust code.
 
 ### Craft Plugins
+
 Craft uses TypeScript/JavaScript plugins:
 
 ```typescript
@@ -378,6 +390,7 @@ export default defineConfig({
 ## Building and Packaging
 
 ### Tauri
+
 ```bash
 # Development
 npm run tauri dev
@@ -387,6 +400,7 @@ npm run tauri build
 ```
 
 ### Craft
+
 ```bash
 # Development
 craft dev
@@ -494,9 +508,11 @@ export default defineConfig({
 ## Common Issues
 
 ### CORS Issues
+
 Both Tauri and Craft run web content in a native webview, so CORS restrictions don't apply to HTTP requests made through the native APIs.
 
 ### Path Handling
+
 Craft uses web-standard paths. For platform-specific paths, use the path utilities:
 ```typescript
 import { path } from '@craft-native/craft';
@@ -506,6 +522,7 @@ const homeDir = await path.homeDir();
 ```
 
 ### Binary Size
+
 Craft typically produces smaller binaries than Tauri due to the optimized Zig runtime.
 
 ## Getting Help

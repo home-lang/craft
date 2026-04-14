@@ -9,6 +9,7 @@ This directory contains example applications demonstrating various features of C
 A comprehensive example showing how to build a system tray application with Craft.
 
 **Features:**
+
 - System tray icon
 - Background operation
 - Desktop notifications
@@ -22,6 +23,7 @@ bun run examples/system-tray-app.ts
 ```
 
 **What it demonstrates:**
+
 - Creating a system tray application
 - Managing window visibility
 - Sending notifications
@@ -31,11 +33,12 @@ bun run examples/system-tray-app.ts
 
 ---
 
-### 2. Pomodoro Timer (`pomodoro.ts`) ⭐ NEW!
+### 2. Pomodoro Timer (`pomodoro.ts`) ⭐ NEW
 
 A minimal, fully functional Pomodoro timer with live menubar updates.
 
 **Features:**
+
 - **Live timer in menubar** - Shows countdown in window title (visible in menubar)
 - 25-minute work sessions (🍅 emoji)
 - 5-minute breaks (☕ emoji)
@@ -53,12 +56,14 @@ bun examples/pomodoro.ts
 ```
 
 **Menubar Display:**
+
 - Before starting: `🍅 25:00`
 - While running: `🍅 24:32`
 - When paused: `🍅 15:45 (Paused)`
 - During break: `☕ 5:00`
 
 **Keyboard Shortcuts:**
+
 - `Space`: Start/Pause timer
 - `R`: Reset current session
 - `S`: Skip to next session
@@ -71,6 +76,7 @@ bun examples/pomodoro.ts
 A more feature-rich Pomodoro timer with progress visualization.
 
 **Features:**
+
 - 25-minute work sessions
 - 5-minute breaks
 - Session tracking and statistics
@@ -85,12 +91,14 @@ bun run examples/menubar-timer.ts
 ```
 
 **Keyboard Shortcuts:**
+
 - `Space`: Start/Pause timer
 - `R`: Reset current session
 - `S`: Skip to next session
 - `ESC`: Hide window (app stays in menubar)
 
 **What it demonstrates:**
+
 - Building a productivity tool
 - State persistence with localStorage
 - Timer and interval management
@@ -148,12 +156,14 @@ When you enable `systemTray: true`, your app will:
 ### Prerequisites
 
 1. **Build the Craft core** (if not already built):
+
    ```bash
    cd packages/zig
    zig build
    ```
 
 2. **Install Bun** (if not already installed):
+
    ```bash
    curl -fsSL https://bun.sh/install | bash
    ```
@@ -175,7 +185,7 @@ bun run examples/menubar-timer.ts
 Here's a minimal example to get started:
 
 ```typescript
-#!/usr/bin/env bun
+# !/usr/bin/env bun
 import { createApp } from '@craft-native/craft'
 
 const html = `
@@ -224,11 +234,13 @@ bun run my-tray-app.ts
 1. **Keep the window small** - Tray apps typically have compact UIs (300-600px wide)
 
 2. **Use dark mode** - Many users expect menubar apps to match system appearance
+
    ```typescript
    window: { darkMode: true }
    ```
 
 3. **Support keyboard shortcuts** - Add ESC to hide window
+
    ```javascript
    document.addEventListener('keydown', (e) => {
      if (e.key === 'Escape') {
@@ -239,6 +251,7 @@ bun run my-tray-app.ts
    ```
 
 4. **Add notifications** - Alert users when background tasks complete
+
    ```javascript
    function notify(title, body) {
      // Will trigger native notification
@@ -247,6 +260,7 @@ bun run my-tray-app.ts
    ```
 
 5. **Persist state** - Use localStorage for settings and data
+
    ```javascript
    localStorage.setItem('myData', JSON.stringify(data))
    const saved = JSON.parse(localStorage.getItem('myData'))
@@ -255,6 +269,7 @@ bun run my-tray-app.ts
 ## Troubleshooting
 
 ### Binary not found
+
 ```bash
 ❌ Craft binary not found
 ```
@@ -265,6 +280,7 @@ zig build
 ```
 
 ### Permission denied
+
 ```bash
 ❌ Permission denied
 ```
@@ -274,6 +290,7 @@ chmod +x packages/zig/zig-out/bin/craft
 ```
 
 ### Window doesn't appear
+
 - Check console for errors
 - Verify HTML content is valid
 - Try without `systemTray: true` first to debug

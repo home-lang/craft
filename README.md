@@ -611,7 +611,7 @@ pub fn main() !void {
     });
 
     // Create mesh
-    const vertices = [_]f32{ /* vertex data */ };
+    const vertices = [_]f32{ /_ vertex data _/ };
     var mesh = try gpu.Mesh.init(allocator, &vertices, null);
     defer mesh.deinit();
 
@@ -686,13 +686,13 @@ craft-http = { git = "https://github.com/user/craft-http.git" }
 craft-database = { version = "^1.2.0" }
 
 [workspaces]
-packages = ["packages/*", "apps/*"]
+packages = ["packages/_", "apps/_"]
 
 [scripts]
 dev = "zig build run"
 test = "zig build test"
 build = "zig build -Doptimize=ReleaseFast"
-format = "find src -name '*.zig' -exec zig fmt {} +"
+format = "find src -name '_.zig' -exec zig fmt {} +"
 ```
 
 #### JSON Configuration (`craft.json` or `package.jsonc`)
@@ -712,14 +712,14 @@ format = "find src -name '*.zig' -exec zig fmt {} +"
   },
 
   "workspaces": {
-    "packages": ["packages/*", "apps/*"]
+    "packages": ["packages/_", "apps/_"]
   },
 
   "scripts": {
     "dev": "zig build run",
     "test": "zig build test",
     "build": "zig build -Doptimize=ReleaseFast",
-    "format": "find src -name '*.zig' -exec zig fmt {} +"
+    "format": "find src -name '_.zig' -exec zig fmt {} +"
   }
 }
 ```
@@ -948,7 +948,7 @@ Benchmarked on Apple M3 Pro with Hello World apps. See [`benchmarks/`](./benchma
 
 _*Electrobun binary is 131 KB but distributable is 60.12 MB_
 
-Craft is **1351x** smaller than Electron, **2.4x** faster to start, and uses **4.3x** less memory.
+Craft is **1351x**smaller than Electron,**2.4x**faster to start, and uses**4.3x** less memory.
 
 ## Platform Support
 

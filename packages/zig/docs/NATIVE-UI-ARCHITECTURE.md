@@ -28,8 +28,8 @@ The Craft Native UI system provides native macOS AppKit components accessible fr
 │                                                               │ │
 │  NativeUIBridge                                               │ │
 │  ├── sidebars: StringHashMap(*NativeSidebar)                  │ │
-│  ├── file_browsers: StringHashMap(*NativeFileBrowser)         │ │
-│  └── split_views: StringHashMap(*NativeSplitView)             │ │
+│  ├── file*browsers: StringHashMap(*NativeFileBrowser)         │ │
+│  └── split*views: StringHashMap(*NativeSplitView)             │ │
 │                            │                                   │ │
 │                            ▼                                   │ │
 │  handleMessage(action, data) ─────────────────────────────────┤ │
@@ -44,13 +44,13 @@ The Craft Native UI system provides native macOS AppKit components accessible fr
 │                    Native Components (Zig)                    │ │
 │                                                               │ │
 │  NativeSidebar                    NativeFileBrowser           │ │
-│  ├── scroll_view (NSScrollView)   ├── scroll_view             │ │
-│  ├── outline_view (NSOutlineView) ├── table_view (NSTableView)│ │
-│  ├── data_source                  ├── data_source             │ │
+│  ├── scroll*view (NSScrollView)   ├── scroll*view             │ │
+│  ├── outline*view (NSOutlineView) ├── table*view (NSTableView)│ │
+│  ├── data*source                  ├── data*source             │ │
 │  └── delegate                     └── delegate                │ │
 │                                                               │ │
 │  OutlineViewDataSource            TableViewDataSource         │ │
-│  ├── objc_class (dynamic)         ├── objc_class (dynamic)    │ │
+│  ├── objc*class (dynamic)         ├── objc*class (dynamic)    │ │
 │  ├── instance                     ├── instance                │ │
 │  └── DataStore                    └── DataStore               │ │
 │      └── sections[]                   └── files[]             │ │
@@ -76,21 +76,21 @@ The Craft Native UI system provides native macOS AppKit components accessible fr
 ```
 NativeSidebar
 ├── allocator: std.mem.Allocator
-├── scroll_view: NSScrollView
+├── scroll*view: NSScrollView
 │   └── documentView: NSOutlineView
-├── outline_view: NSOutlineView
+├── outline*view: NSOutlineView
 │   ├── dataSource → OutlineViewDataSource.instance
 │   └── delegate → OutlineViewDelegate.instance
-├── data_source: OutlineViewDataSource
-│   ├── objc_class: Class (CraftOutlineViewDataSource)
+├── data*source: OutlineViewDataSource
+│   ├── objc*class: Class (CraftOutlineViewDataSource)
 │   ├── instance: id
 │   └── data: *DataStore
 │       └── sections: ArrayList(Section)
 │           └── items: ArrayList(Item)
 └── delegate: OutlineViewDelegate
-    ├── objc_class: Class (CraftOutlineViewDelegate)
+    ├── objc*class: Class (CraftOutlineViewDelegate)
     ├── instance: id
-    └── callback_data: *CallbackData
+    └── callback*data: *CallbackData
 ```
 
 ### NativeFileBrowser
@@ -98,21 +98,21 @@ NativeSidebar
 ```
 NativeFileBrowser
 ├── allocator: std.mem.Allocator
-├── scroll_view: NSScrollView
+├── scroll*view: NSScrollView
 │   └── documentView: NSTableView
-├── table_view: NSTableView
+├── table*view: NSTableView
 │   ├── columns: [name, dateModified, size, kind]
 │   ├── dataSource → TableViewDataSource.instance
 │   └── delegate → TableViewDelegate.instance
-├── data_source: TableViewDataSource
-│   ├── objc_class: Class (CraftTableViewDataSource)
+├── data*source: TableViewDataSource
+│   ├── objc*class: Class (CraftTableViewDataSource)
 │   ├── instance: id
 │   └── data: *DataStore
 │       └── files: ArrayList(FileItem)
 └── delegate: TableViewDelegate
-    ├── objc_class: Class (CraftTableViewDelegate)
+    ├── objc*class: Class (CraftTableViewDelegate)
     ├── instance: id
-    └── callback_data: *CallbackData
+    └── callback*data: *CallbackData
 ```
 
 ## Dynamic Objective-C Classes
@@ -121,21 +121,23 @@ The native components create Objective-C classes at runtime using the ObjC runti
 
 ```zig
 // Create class
-var objc_class = objc.objc_allocateClassPair(NSObject, "CraftOutlineViewDataSource", 0);
+var objc*class = objc.objc*allocateClassPair(NSObject, "CraftOutlineViewDataSource", 0);
 
 // Add methods
-_ = objc.class_addMethod(
-    objc_class,
+
+* = objc.class*addMethod(
+
+    objc*class,
     sel("outlineView:numberOfChildrenOfItem:"),
     @ptrCast(&outlineViewNumberOfChildrenOfItem),
     "l@:@@"  // return type and argument encoding
 );
 
 // Register class
-objc.objc_registerClassPair(objc_class);
+objc.objc*registerClassPair(objc*class);
 
 // Create instance
-const instance = msgSend0(msgSend0(objc_class, "alloc"), "init");
+const instance = msgSend0(msgSend0(objc*class, "alloc"), "init");
 ```
 
 ### Method Implementations
@@ -145,10 +147,10 @@ Each data source and delegate method is implemented as an exported Zig function:
 ```zig
 export fn outlineViewNumberOfChildrenOfItem(
     self: objc.id,      // The ObjC instance
-    _: objc.SEL,        // The selector (unused)
-    _: objc.id,         // outlineView
+    *: objc.SEL,        // The selector (unused)
+    *: objc.id,         // outlineView
     item: objc.id,      // The item (nil for root)
-) callconv(.c) c_long {
+) callconv(.c) c*long {
     // Get Zig data from associated object
     const data = getDataStore(self) orelse return 0;
 
@@ -173,19 +175,23 @@ export fn outlineViewNumberOfChildrenOfItem(
 ```zig
 pub fn deinit(self: *NativeSidebar) void {
     // Release Objective-C instances
-    if (self.scroll_view != null) {
-        _ = msgSend0(self.scroll_view, "release");
+    if (self.scroll*view != null) {
+
+        * = msgSend0(self.scroll*view, "release");
+
     }
-    if (self.outline_view != null) {
-        _ = msgSend0(self.outline_view, "release");
+    if (self.outline*view != null) {
+
+        * = msgSend0(self.outline*view, "release");
+
     }
 
     // Clean up data source and delegate
-    self.data_source.deinit();
+    self.data*source.deinit();
     self.delegate.deinit();
 
     // Free Zig allocations
-    self.allocator.destroy(self.data_source);
+    self.allocator.destroy(self.data*source);
     self.allocator.destroy(self.delegate);
 }
 ```
@@ -196,17 +202,17 @@ Zig data pointers are stored in ObjC instances using associated objects:
 
 ```zig
 // Store pointer
-const data_value = msgSend1(NSValue, "valueWithPointer:", @ptrFromInt(data_ptr));
-objc.objc_setAssociatedObject(
+const data*value = msgSend1(NSValue, "valueWithPointer:", @ptrFromInt(data*ptr));
+objc.objc*setAssociatedObject(
     instance,
     @ptrFromInt(0x1234),  // Unique key
-    data_value,
-    OBJC_ASSOCIATION_RETAIN
+    data*value,
+    OBJC*ASSOCIATION*RETAIN
 );
 
 // Retrieve pointer
 fn getDataStore(instance: objc.id) ?*DataStore {
-    const associated = objc.objc_getAssociatedObject(instance, @ptrFromInt(0x1234));
+    const associated = objc.objc*getAssociatedObject(instance, @ptrFromInt(0x1234));
     if (associated == null) return null;
 
     const ptr = msgSend0(associated, "pointerValue");
@@ -219,49 +225,65 @@ fn getDataStore(instance: objc.id) ?*DataStore {
 ### Creation
 
 ```
+
 1. JavaScript: nativeUI.createSidebar({ id: 'main' })
 2. Bridge receives: { type: 'nativeUI', action: 'createSidebar', data: { id: 'main' } }
 3. NativeUIBridge.createSidebar():
+
    a. Parse JSON
    b. Create NativeSidebar.init()
+
       - Create NSScrollView
       - Create NSOutlineView
       - Create OutlineViewDataSource (dynamic ObjC class)
       - Create OutlineViewDelegate (dynamic ObjC class)
       - Connect data source and delegate
+
    c. Store in sidebars hashmap
    d. Add to window via NSSplitViewController
+
 4. Return Sidebar instance to JavaScript
+
 ```
 
 ### Data Update
 
 ```
+
 1. JavaScript: sidebar.addSection({ id: 'nav', items: [...] })
 2. Bridge receives: { type: 'nativeUI', action: 'addSidebarSection', data: {...} }
 3. NativeUIBridge.addSidebarSection():
+
    a. Parse JSON
    b. Find sidebar by ID
    c. Append section to DataStore.sections
-   d. Call outline_view.reloadData()
+   d. Call outline*view.reloadData()
+
 4. NSOutlineView queries data source for new data
 5. Delegate creates cell views with SF Symbol icons
+
 ```
 
 ### Destruction
 
 ```
+
 1. JavaScript: sidebar.destroy()
 2. Bridge receives: { type: 'nativeUI', action: 'destroyComponent', data: { id: 'main', type: 'sidebar' } }
 3. NativeUIBridge.destroyComponent():
+
    a. Find and remove from hashmap
    b. Call sidebar.deinit()
+
       - Release NSScrollView
       - Release NSOutlineView
       - Destroy data source (release ObjC instance, free DataStore)
       - Destroy delegate (release ObjC instance, free CallbackData)
+
    c. Free hashmap key string
+
 4. Component removed from view hierarchy
+
 ```
 
 ## Thread Safety
@@ -282,11 +304,11 @@ pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
 1. **Empty data**: Return empty collections, don't crash
 2. **Malformed JSON**: Log error, return early
 3. **Missing components**: Log warning, no-op
-4. **Destroyed bridge**: Check `is_destroyed` flag
+4. **Destroyed bridge**: Check `is*destroyed` flag
 
 ```zig
 pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-    if (self.is_destroyed) {
+    if (self.is*destroyed) {
         std.debug.print("WARNING: Message after bridge destroyed\n", .{});
         return;
     }
@@ -328,9 +350,9 @@ pub fn createSFSymbol(name: [*:0]const u8, config: SymbolConfiguration) ?objc.id
     );
 
     // Apply configuration (size, weight)
-    if (config.point_size != 17.0) {
-        const symbol_config = createSymbolConfiguration(config);
-        return macos.msgSend1(image, "imageWithSymbolConfiguration:", symbol_config);
+    if (config.point*size != 17.0) {
+        const symbol*config = createSymbolConfiguration(config);
+        return macos.msgSend1(image, "imageWithSymbolConfiguration:", symbol*config);
     }
 
     return image;
@@ -358,10 +380,10 @@ Rapid updates are debounced to prevent excessive redraws:
 ```zig
 fn shouldDebounceReload(self: *Self) bool {
     const now = std.time.milliTimestamp();
-    if (now - self.last_reload_time < RELOAD_DEBOUNCE_MS) {
+    if (now - self.last*reload*time < RELOAD*DEBOUNCE*MS) {
         return true;
     }
-    self.last_reload_time = now;
+    self.last*reload*time = now;
     return false;
 }
 ```

@@ -21,10 +21,12 @@ This roadmap outlines the steps to make Craft production-ready for converting we
 ## Phase 1: Desktop Stabilization (Week 1)
 
 ### 1.1 Fix WindowBuilder API Inconsistencies
+
 - [ ] Standardize field names (`resizable` vs `is_resizable`)
 - [ ] Ensure all options work correctly
 
 ### 1.2 Verify Core Functionality
+
 - [ ] Window creation and lifecycle
 - [ ] JavaScript bridge communication
 - [ ] Native dialogs (file open/save, alerts)
@@ -32,6 +34,7 @@ This roadmap outlines the steps to make Craft production-ready for converting we
 - [ ] System tray
 
 ### 1.3 Test Desktop Platforms
+
 - [ ] macOS: Full test on Apple Silicon + Intel
 - [ ] Linux: Test on Ubuntu 22.04+
 - [ ] Windows: Test on Windows 10/11
@@ -41,6 +44,7 @@ This roadmap outlines the steps to make Craft production-ready for converting we
 ## Phase 2: iOS Core Implementation (Weeks 2-4)
 
 ### 2.1 iOS App Structure
+
 - [ ] Implement `CraftAppDelegate` (UIApplicationDelegate)
 - [ ] Implement `CraftViewController` (UIViewController)
 - [ ] Handle app lifecycle (foreground/background/terminate)
@@ -48,12 +52,14 @@ This roadmap outlines the steps to make Craft production-ready for converting we
 - [ ] Screen orientation handling
 
 ### 2.2 WKWebView Integration
+
 - [ ] Create and configure WKWebView
 - [ ] Load HTML content (bundled or URL)
 - [ ] Handle navigation events
 - [ ] Configure preferences (JavaScript, media playback)
 
 ### 2.3 JavaScript Bridge (iOS)
+
 - [ ] Implement `WKScriptMessageHandler` for JS→Native
 - [ ] Implement `evaluateJavaScript` for Native→JS
 - [ ] Bridge native APIs:
@@ -64,6 +70,7 @@ This roadmap outlines the steps to make Craft production-ready for converting we
   - Keyboard handling
 
 ### 2.4 iOS Build System
+
 - [ ] Create Xcode project template
 - [ ] Configure Info.plist
 - [ ] Add required capabilities
@@ -75,6 +82,7 @@ This roadmap outlines the steps to make Craft production-ready for converting we
 ## Phase 3: iOS Native Features (Weeks 5-6)
 
 ### 3.1 Permissions
+
 - [ ] Camera access
 - [ ] Microphone access
 - [ ] Photo library
@@ -82,12 +90,14 @@ This roadmap outlines the steps to make Craft production-ready for converting we
 - [ ] Notifications
 
 ### 3.2 Native Dialogs
+
 - [ ] Alert dialogs
 - [ ] Action sheets
 - [ ] Share sheet
 - [ ] Document picker
 
 ### 3.3 Device Features
+
 - [ ] Safe area handling
 - [ ] Dark mode detection
 - [ ] Device orientation
@@ -98,17 +108,20 @@ This roadmap outlines the steps to make Craft production-ready for converting we
 ## Phase 4: Production Polish (Week 7)
 
 ### 4.1 App Store Preparation
+
 - [ ] App icon generation (all sizes)
 - [ ] Launch screen/storyboard
 - [ ] Privacy descriptions (Info.plist)
 - [ ] App Store screenshots
 
 ### 4.2 Performance
+
 - [ ] Optimize WebView loading
 - [ ] Memory management
 - [ ] Background task handling
 
 ### 4.3 Testing
+
 - [ ] Unit tests for native bridge
 - [ ] UI tests for critical flows
 - [ ] Device testing matrix (iPhone SE → iPhone 15 Pro Max)
@@ -267,7 +280,7 @@ entry = "index.html"
 | iOS Core | 3 weeks | Working iOS app with WebView |
 | iOS Features | 2 weeks | Full native integration |
 | App Store Ready | 1 week | Submission-ready package |
-| **Total** | **7 weeks** | Desktop + iOS apps |
+| **Total**|**7 weeks** | Desktop + iOS apps |
 
 ---
 
@@ -283,4 +296,4 @@ Before proceeding, please clarify:
 
 ---
 
-*Document created: 2025-12-10*
+_Document created: 2025-12-10_

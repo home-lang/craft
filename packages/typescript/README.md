@@ -319,15 +319,18 @@ const html = renderOrbStackSidebar(orbstackDemoData)
 See the [examples directory](../examples-ts) for more:
 
 ### Basic Apps
+
 - **minimal.ts** - Simplest possible app
 - **hello-world.ts** - Modern styled app
 - **todo-app.ts** - Interactive todo list
 
 ### Menubar Apps
+
 - **menubar-timer.ts** - Pomodoro timer with popup window
 - **menubar-only.ts** - System monitor (no window, tray icon only)
 
 ### Sidebar Apps
+
 - **file-browser.ts** - Finder-like app with Tahoe sidebar
 - **arc-browser.ts** - Browser with Arc-style vertical tabs
 - **orbstack-containers.ts** - Container manager with OrbStack style
@@ -354,14 +357,14 @@ bun run packages/examples-ts/sidebar-showcase.ts
 
 | Metric | Craft | Electron | Advantage |
 |--------|------|----------|-----------|
-| **Startup Time** | 50ms | 230ms | **4.5x faster** |
-| **Idle Memory** | 14 KB | 68 MB | **4857x less** |
-| **Binary Size** | 3 MB | 135 MB | **45x smaller** |
-| **IPC Throughput** | 2.89 µs | 2.16 ms | **748x faster** |
+| **Startup Time**| 50ms | 230ms |**4.5x faster** |
+| **Idle Memory**| 14 KB | 68 MB |**4857x less** |
+| **Binary Size**| 3 MB | 135 MB |**45x smaller** |
+| **IPC Throughput**| 2.89 µs | 2.16 ms |**748x faster** |
 
 See [benchmarks](../../benchmarks) for detailed performance comparisons.
 
-## Why Craft?
+## Why Craft
 
 ### vs Electron
 

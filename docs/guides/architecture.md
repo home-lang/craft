@@ -84,6 +84,7 @@ Craft uses the platform's native WebView:
 | Android | Android WebView |
 
 Benefits of native WebView:
+
 - **Smaller app size** - No bundled browser
 - **System updates** - WebView updated by OS
 - **Native feel** - Matches platform behavior

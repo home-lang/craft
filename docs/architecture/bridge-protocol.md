@@ -120,9 +120,9 @@ graph LR
 
 ```mermaid
 graph LR
-    JS[JavaScript] --> WK[webkit_web_view_run_javascript]
+    JS[JavaScript] --> WK[webkit*web*view*run*javascript]
     WK --> ZIG[Zig Handler via GTK signal]
-    ZIG --> WK2[webkit_web_view_run_javascript]
+    ZIG --> WK2[webkit*web*view*run*javascript]
     WK2 --> JS
 ```
 
@@ -312,6 +312,6 @@ test "bridge handles clipboard getText" {
 
 ## Further Reading
 
-- [BRIDGE_API.md](../BRIDGE_API.md) - Full API reference
-- [QUICK_REFERENCE.md](../QUICK_REFERENCE.md) - Quick reference guide
-- [js_bridge.zig](../../packages/zig/src/js_bridge.zig) - Implementation
+- [BRIDGE*API.md](../BRIDGE*API.md) - Full API reference
+- [QUICK*REFERENCE.md](../QUICK*REFERENCE.md) - Quick reference guide
+- [js*bridge.zig](../../packages/zig/src/js*bridge.zig) - Implementation

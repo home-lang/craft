@@ -293,7 +293,7 @@ export default {
 # .github/workflows/build.yml
 name: Build
 
-on: [push, pull_request]
+on: [push, pull*request]
 
 jobs:
   build:
@@ -304,17 +304,21 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+
       - uses: actions/checkout@v4
 
       - uses: oven-sh/setup-bun@v1
 
       - name: Install dependencies
+
         run: bun install
 
       - name: Build
+
         run: bun run build
 
       - name: Upload artifacts
+
         uses: actions/upload-artifact@v3
         with:
           name: build-${{ matrix.os }}
@@ -386,7 +390,7 @@ android.navigationBar.setColor('#ffffff') // Navigation bar
 
 // Permissions
 await android.requestPermission('CAMERA')
-await android.requestPermission('READ_EXTERNAL_STORAGE')
+await android.requestPermission('READ*EXTERNAL_STORAGE')
 ```
 
 ## Best Practices

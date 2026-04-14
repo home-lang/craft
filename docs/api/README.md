@@ -33,6 +33,7 @@ Complete API reference for the Craft framework.
 ## Platform-Specific APIs
 
 ### iOS
+
 - [CarPlay API](./ios/carplay.md)
 - [App Clips API](./ios/app-clips.md)
 - [Live Activities API](./ios/live-activities.md)
@@ -40,18 +41,21 @@ Complete API reference for the Craft framework.
 - [StoreKit API](./ios/storekit.md)
 
 ### Android
+
 - [Material You API](./android/material-you.md)
 - [Photo Picker API](./android/photo-picker.md)
 - [Work Manager API](./android/work-manager.md)
 - [Widgets API](./android/widgets.md)
 
 ### macOS
+
 - [Touch Bar API](./macos/touch-bar.md)
 - [Desktop Widgets API](./macos/widgets.md)
 - [Stage Manager API](./macos/stage-manager.md)
 - [Handoff API](./macos/handoff.md)
 
 ### Windows
+
 - [Jump Lists API](./windows/jump-lists.md)
 - [Taskbar API](./windows/taskbar.md)
 - [Toast Notifications API](./windows/toast.md)

@@ -160,7 +160,7 @@ function updateProgress(percent) {
 
 ## 🐛 Troubleshooting
 
-### Bridge not available?
+### Bridge not available
 
 ```javascript
 if (!window.craft) {
@@ -186,6 +186,7 @@ See [BRIDGE_API.md](./BRIDGE_API.md) for complete API reference.
 ## 🎨 Examples
 
 See `packages/typescript/examples/` for working demos:
+
 - `pomodoro-timer.html` - Complete Pomodoro timer app
 
 ## 🤝 Contributing

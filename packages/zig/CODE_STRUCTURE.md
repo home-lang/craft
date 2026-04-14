@@ -17,45 +17,48 @@ src/
 
 ## Module Categories
 
-### Bridge Modules (`bridge_*.zig`)
+### Bridge Modules (`bridge**.zig`)
+
 Handle communication between JavaScript/TypeScript and native Zig code.
 
 | Module | Description |
 |--------|-------------|
 | `bridge.zig` | Core bridge implementation |
-| `bridge_api.zig` | API bridge interface |
-| `bridge_app.zig` | Application lifecycle bridge |
-| `bridge_async.zig` | Async operation bridge |
-| `bridge_bluetooth.zig` | Bluetooth functionality |
-| `bridge_clipboard.zig` | Clipboard operations |
-| `bridge_dialog.zig` | Native dialogs |
-| `bridge_fs.zig` | File system operations |
-| `bridge_menu.zig` | Menu management |
-| `bridge_network.zig` | Network operations |
-| `bridge_notification.zig` | Notifications |
-| `bridge_power.zig` | Power/battery info |
-| `bridge_shell.zig` | Shell command execution |
-| `bridge_shortcuts.zig` | Keyboard shortcuts |
-| `bridge_system.zig` | System information |
-| `bridge_touchbar.zig` | macOS Touch Bar |
-| `bridge_tray.zig` | System tray |
-| `bridge_types.zig` | Shared bridge types |
-| `bridge_updater.zig` | App updates |
-| `bridge_window.zig` | Window management |
+| `bridge*api.zig` | API bridge interface |
+| `bridge*app.zig` | Application lifecycle bridge |
+| `bridge*async.zig` | Async operation bridge |
+| `bridge*bluetooth.zig` | Bluetooth functionality |
+| `bridge*clipboard.zig` | Clipboard operations |
+| `bridge*dialog.zig` | Native dialogs |
+| `bridge*fs.zig` | File system operations |
+| `bridge*menu.zig` | Menu management |
+| `bridge*network.zig` | Network operations |
+| `bridge*notification.zig` | Notifications |
+| `bridge*power.zig` | Power/battery info |
+| `bridge*shell.zig` | Shell command execution |
+| `bridge*shortcuts.zig` | Keyboard shortcuts |
+| `bridge*system.zig` | System information |
+| `bridge*touchbar.zig` | macOS Touch Bar |
+| `bridge*tray.zig` | System tray |
+| `bridge*types.zig` | Shared bridge types |
+| `bridge*updater.zig` | App updates |
+| `bridge*window.zig` | Window management |
 
-### API Modules (`api_*.zig`)
+### API Modules (`api**.zig`)
+
 High-level APIs exposed to applications.
 
 | Module | Description |
 |--------|-------------|
 | `api.zig` | Main API entry point |
-| `api_crypto.zig` | Cryptographic operations |
-| `api_database.zig` | Database operations |
-| `api_filesystem.zig` | File system API |
-| `api_http.zig` | HTTP client |
-| `api_process.zig` | Process management |
+| `api*crypto.zig` | Cryptographic operations |
+| `api*database.zig` | Database operations |
+| `api*filesystem.zig` | File system API |
+| `api*http.zig` | HTTP client |
+| `api*process.zig` | Process management |
 
 ### Platform Modules
+
 Platform-specific implementations.
 
 | Module | Description |
@@ -67,6 +70,7 @@ Platform-specific implementations.
 | `windows.zig` | Windows platform support |
 
 ### Feature Modules
+
 Individual feature implementations.
 
 | Module | Description |
@@ -84,32 +88,34 @@ Individual feature implementations.
 | `network.zig` | Network utilities |
 
 ### Plugin System
+
 Plugin architecture and sandboxing.
 
 | Module | Description |
 |--------|-------------|
 | `plugin.zig` | Unified plugin system |
-| `plugin_security.zig` | Permission and sandbox management |
+| `plugin*security.zig` | Permission and sandbox management |
 | `wasm.zig` | WebAssembly runtime |
 
 ### UI Components (`components/`)
+
 Native UI component implementations.
 
 | Component | Description |
 |-----------|-------------|
 | `button.zig` | Button component |
 | `checkbox.zig` | Checkbox component |
-| `color_picker.zig` | Color picker |
+| `color*picker.zig` | Color picker |
 | `dropdown.zig` | Dropdown select |
 | `label.zig` | Text label |
-| `list_view.zig` | List view |
-| `progress_bar.zig` | Progress indicator |
-| `radio_button.zig` | Radio button |
+| `list*view.zig` | List view |
+| `progress*bar.zig` | Progress indicator |
+| `radio*button.zig` | Radio button |
 | `slider.zig` | Slider control |
-| `status_bar.zig` | Status bar |
+| `status*bar.zig` | Status bar |
 | `switch.zig` | Toggle switch |
-| `tab_view.zig` | Tab container |
-| `text_input.zig` | Text input field |
+| `tab*view.zig` | Tab container |
+| `text*input.zig` | Text input field |
 | `toolbar.zig` | Toolbar |
 
 ### Core Infrastructure
@@ -129,6 +135,7 @@ Native UI component implementations.
 ## Import Patterns
 
 ### Importing from main.zig
+
 ```zig
 const craft = @import("main.zig");
 const Window = craft.Window;
@@ -136,6 +143,7 @@ const Notifications = craft.Notifications;
 ```
 
 ### Importing specific modules
+
 ```zig
 const audio = @import("audio.zig");
 const camera = @import("camera.zig");
@@ -143,6 +151,7 @@ const i18n = @import("i18n.zig");
 ```
 
 ### Importing platform-specific code
+
 ```zig
 const builtin = @import("builtin");
 const platform = switch (builtin.os.tag) {
@@ -156,6 +165,7 @@ const platform = switch (builtin.os.tag) {
 ## Build System
 
 The `build.zig` file configures:
+
 - Library compilation for all platforms
 - Test execution
 - Documentation generation
@@ -164,6 +174,7 @@ The `build.zig` file configures:
 ## Testing
 
 Tests are located in:
+
 - `test/` - Standalone test files
 - `src/tests/` - Integration tests
 - Inline tests in source files (run with `zig test <file>`)
@@ -176,6 +187,7 @@ zig build test
 ## TypeScript Integration
 
 TypeScript type definitions are in:
+
 - `types/craft-bridge.d.ts` - Bridge API types
 
 These are manually maintained to match the Zig bridge implementations.

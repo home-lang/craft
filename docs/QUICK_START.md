@@ -52,16 +52,19 @@ $ ls -lh zig-out/bin/
 To get actual webview rendering working, we need to implement platform-specific bindings:
 
 ### macOS (Objective-C/Swift)
+
 - Use `objc` library to interface with Cocoa
 - Create `WKWebView` instances
 - Implement event loop with `NSApplication`
 
 ### Linux (C/GTK)
+
 - Link to GTK3 and WebKit2GTK
 - Create webview widgets
 - Implement GTK main loop
 
 ### Windows (C++)
+
 - Interface with WebView2 COM API
 - Create WebView2 instances
 - Implement Windows message loop

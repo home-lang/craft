@@ -220,6 +220,7 @@ function Editor() {
 | handler | `(event: KeyboardEvent) => void` | Callback function |
 
 **Shortcut syntax:**
+
 - `mod` - Command on macOS, Ctrl on Windows/Linux
 - `ctrl`, `alt`, `shift`, `meta` - Modifier keys
 - `+` - Combine keys (e.g., 'ctrl+shift+s')

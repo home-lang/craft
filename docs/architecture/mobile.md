@@ -217,11 +217,11 @@ graph TB
 
     subgraph "Permission Types"
         CAM[CAMERA]
-        MIC[RECORD_AUDIO]
-        LOC[ACCESS_FINE_LOCATION]
-        STO[READ_EXTERNAL_STORAGE]
-        CON[READ_CONTACTS]
-        NOT[POST_NOTIFICATIONS]
+        MIC[RECORD*AUDIO]
+        LOC[ACCESS*FINE*LOCATION]
+        STO[READ*EXTERNAL*STORAGE]
+        CON[READ*CONTACTS]
+        NOT[POST*NOTIFICATIONS]
     end
 
     MAN --> CHK
@@ -243,7 +243,7 @@ pub const Permission = enum {
     camera,
     microphone,
     location,
-    location_always,
+    location*always,
     photos,
     contacts,
     notifications,
@@ -253,7 +253,7 @@ pub const Permission = enum {
 };
 
 pub const PermissionStatus = enum {
-    not_determined,
+    not*determined,
     restricted,
     denied,
     authorized,
@@ -379,7 +379,7 @@ graph LR
     subgraph "iOS Build Targets"
         DEV[aarch64-ios<br/>Device]
         SIM[aarch64-ios-simulator<br/>M1 Simulator]
-        SIMX[x86_64-ios-simulator<br/>Intel Simulator]
+        SIMX[x86*64-ios-simulator<br/>Intel Simulator]
     end
 ```
 
@@ -390,7 +390,7 @@ graph LR
     subgraph "Android Build Targets"
         ARM64[aarch64-linux-android<br/>arm64-v8a]
         ARM[armv7a-linux-androideabi<br/>armeabi-v7a]
-        X64[x86_64-linux-android<br/>x86_64]
+        X64[x86*64-linux-android<br/>x86*64]
         X86[i686-linux-android<br/>x86]
     end
 ```
@@ -425,7 +425,7 @@ MyApp/
 │   │   │   └── MainActivity.java
 │   │   ├── jniLibs/
 │   │   │   ├── arm64-v8a/
-│   │   │   └── x86_64/
+│   │   │   └── x86*64/
 │   │   ├── res/
 │   │   └── AndroidManifest.xml
 │   └── src/main/assets/
@@ -438,6 +438,6 @@ MyApp/
 ## Further Reading
 
 - [mobile.zig](../../packages/zig/src/mobile.zig) - Mobile implementation
-- [PLATFORM_SUPPORT.md](../../packages/zig/PLATFORM_SUPPORT.md) - Platform feature matrix
-- [ios_template.zig](../../packages/zig/src/ios_template.zig) - iOS project template
-- [android_template.zig](../../packages/zig/src/android_template.zig) - Android project template
+- [PLATFORM*SUPPORT.md](../../packages/zig/PLATFORM*SUPPORT.md) - Platform feature matrix
+- [ios*template.zig](../../packages/zig/src/ios*template.zig) - iOS project template
+- [android*template.zig](../../packages/zig/src/android_template.zig) - Android project template

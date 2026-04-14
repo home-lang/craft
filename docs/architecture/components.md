@@ -410,12 +410,12 @@ graph TB
 
 | Component | ARIA Role | macOS | GTK | Windows |
 |-----------|-----------|-------|-----|---------|
-| Button | button | AXButton | GTK_ROLE_BUTTON | UIA_ButtonControlTypeId |
-| Checkbox | checkbox | AXCheckBox | GTK_ROLE_CHECK_BOX | UIA_CheckBoxControlTypeId |
-| TextInput | textbox | AXTextField | GTK_ROLE_ENTRY | UIA_EditControlTypeId |
-| Slider | slider | AXSlider | GTK_ROLE_SLIDER | UIA_SliderControlTypeId |
-| Tabs | tablist | AXTabGroup | GTK_ROLE_TAB_GROUP | UIA_TabControlTypeId |
-| Modal | dialog | AXSheet | GTK_ROLE_DIALOG | UIA_WindowControlTypeId |
+| Button | button | AXButton | GTK*ROLE*BUTTON | UIA*ButtonControlTypeId |
+| Checkbox | checkbox | AXCheckBox | GTK*ROLE*CHECK*BOX | UIA*CheckBoxControlTypeId |
+| TextInput | textbox | AXTextField | GTK*ROLE*ENTRY | UIA*EditControlTypeId |
+| Slider | slider | AXSlider | GTK*ROLE*SLIDER | UIA*SliderControlTypeId |
+| Tabs | tablist | AXTabGroup | GTK*ROLE*TAB*GROUP | UIA*TabControlTypeId |
+| Modal | dialog | AXSheet | GTK*ROLE*DIALOG | UIA*WindowControlTypeId |
 
 ## Component Implementation Pattern
 
@@ -423,20 +423,20 @@ graph TB
 pub const Button = struct {
     base: BaseComponent,
     props: ButtonProps,
-    native_handle: ?*anyopaque,
+    native*handle: ?*anyopaque,
 
     pub fn create(allocator: Allocator, props: ButtonProps) !*Button {
         const self = try allocator.create(Button);
         self.* = .{
             .base = BaseComponent.init(allocator),
             .props = props,
-            .native_handle = null,
+            .native*handle = null,
         };
         return self;
     }
 
     pub fn mount(self: *Button, parent: *anyopaque) !void {
-        self.native_handle = switch (builtin.os.tag) {
+        self.native*handle = switch (builtin.os.tag) {
             .macos => try self.createNSButton(parent),
             .linux => try self.createGtkButton(parent),
             .windows => try self.createWin32Button(parent),
@@ -445,15 +445,15 @@ pub const Button = struct {
         self.base.state = .mounted;
     }
 
-    pub fn update(self: *Button, new_props: ButtonProps) !void {
-        if (!std.mem.eql(u8, self.props.label, new_props.label)) {
-            try self.setLabel(new_props.label);
+    pub fn update(self: *Button, new*props: ButtonProps) !void {
+        if (!std.mem.eql(u8, self.props.label, new*props.label)) {
+            try self.setLabel(new*props.label);
         }
-        self.props = new_props;
+        self.props = new*props;
     }
 
     pub fn unmount(self: *Button) void {
-        if (self.native_handle) |handle| {
+        if (self.native*handle) |handle| {
             self.destroyNativeWidget(handle);
             self.native_handle = null;
         }

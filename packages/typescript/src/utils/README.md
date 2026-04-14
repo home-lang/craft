@@ -32,6 +32,7 @@ audio.stopBackgroundNoise() // Stop all background audio
 ```
 
 **Features:**
+
 - Procedurally generated realistic ambient sounds
 - No external audio files required
 - Adjustable volume control
@@ -70,6 +71,7 @@ storage.clear()
 ```
 
 **Features:**
+
 - TypeScript type safety
 - Automatic defaults
 - Partial updates
@@ -109,6 +111,7 @@ Timer.formatTime(90)  // Returns "1:30"
 ```
 
 **Features:**
+
 - Simple callback-based API
 - Automatic cleanup
 - State tracking

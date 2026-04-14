@@ -30,7 +30,7 @@ A guide to migrating your React Native application to Craft.
 </div>
 ```
 
-### Why Migrate?
+### Why Migrate
 
 1. **Desktop support** - Full macOS, Windows, Linux support
 2. **Web technologies** - Use any CSS framework, HTML5 features
@@ -521,6 +521,7 @@ import { db } from '@craft-native/craft'
 ### Layout differences
 
 WebView uses CSS flexbox. Key differences:
+
 - `flexDirection` defaults to `row` (not `column`)
 - Use `display: flex` explicitly
 - Dimensions in `px` not unitless

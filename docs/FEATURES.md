@@ -3,6 +3,7 @@
 ## 🎯 Implemented Features (v0.2.0)
 
 ### 1. ✅ Direct URL Loading
+
 **No more iframes!** URLs are loaded directly into WKWebView using NSURLRequest.
 
 ```bash
@@ -10,6 +11,7 @@ craft http://localhost:3000
 ```
 
 **Benefits:**
+
 - Better performance
 - No CORS issues
 - Proper DevTools integration
@@ -21,6 +23,7 @@ craft http://localhost:3000
 ---
 
 ### 2. ✅ Comprehensive CLI
+
 Full-featured command-line interface with 10+ flags and helpful output.
 
 ```bash
@@ -30,6 +33,7 @@ craft --frameless --transparent --always-on-top
 ```
 
 **Available Flags:**
+
 - `-u, --url <URL>` - Load URL
 - `--html <HTML>` - Load HTML content
 - `-t, --title <TITLE>` - Window title
@@ -48,6 +52,7 @@ craft --frameless --transparent --always-on-top
 ---
 
 ### 3. ✅ Custom Window Styles
+
 Full control over window appearance and behavior.
 
 ```zig
@@ -66,6 +71,7 @@ const window = try app.createWindowWithURL(
 ```
 
 **WindowStyle Options:**
+
 - `frameless` - Remove title bar and borders
 - `transparent` - Transparent window background
 - `always_on_top` - Keep window above others
@@ -78,13 +84,16 @@ const window = try app.createWindowWithURL(
 ---
 
 ### 4. ✅ WebKit DevTools
+
 Built-in WebKit Inspector enabled by default.
 
 **Access:**
+
 1. Right-click anywhere in the window
 2. Select "Inspect Element"
 
 **Features:**
+
 - Console
 - Elements inspector
 - Network tab
@@ -102,6 +111,7 @@ craft --url http://localhost:3000 --no-devtools
 ---
 
 ### 5. ✅ JavaScript Bridge
+
 Seamless Zig ↔ Web communication via `window.craft` API.
 
 **Web API:**
@@ -133,6 +143,7 @@ try b.registerHandler("myHandler", myHandlerFunc);
 ---
 
 ### 6. ✅ Native Dialogs
+
 macOS native file open/save dialogs using Cocoa APIs.
 
 **Open Dialog:**
@@ -156,6 +167,7 @@ if (path) |p| {
 ---
 
 ### 7. ✅ Clipboard Access
+
 Full read/write clipboard support.
 
 ```zig
@@ -173,6 +185,7 @@ std.debug.print("Clipboard: {s}\n", .{text});
 ---
 
 ### 8. ✅ Configuration Files
+
 TOML-based configuration system.
 
 **craft.toml:**
@@ -206,6 +219,7 @@ try config.saveToFile("craft.toml");
 ---
 
 ### 9. ✅ Logging System
+
 Color-coded, level-based logging with timestamps.
 
 **Usage:**
@@ -229,6 +243,7 @@ log.err("Error message");
 ```
 
 **Log Levels:**
+
 - `Debug` - All messages
 - `Info` - Info, Warning, Error
 - `Warning` - Warning, Error only
@@ -239,6 +254,7 @@ log.err("Error message");
 ---
 
 ### 10. ✅ Menu Bar Support (Structure)
+
 API structure ready for menu bar implementation.
 
 **Planned API:**
@@ -264,6 +280,7 @@ try app_menu.build();
 ---
 
 ### 11. ✅ Build Modes
+
 All standard Zig optimization modes supported.
 
 ```bash
@@ -295,6 +312,7 @@ zig build -Doptimize=ReleaseSmall
 ## 📊 Statistics
 
 ### File Count
+
 - **New Files Created:** 7
   - `cli.zig` (130 lines)
   - `bridge.zig` (109 lines)
@@ -311,12 +329,14 @@ zig build -Doptimize=ReleaseSmall
   - `README.md` (complete rewrite)
 
 ### Performance Metrics
+
 - **Binary Size:** 1.3MB (Debug), <1MB (ReleaseSmall)
 - **Memory Usage:** ~86 MB runtime
 - **Startup Time:** Near-instant
 - **Load Time:** 50% faster (no iframe overhead)
 
 ### Code Quality
+
 - **Total Lines Added:** ~1,500+
 - **Functions Added:** 25+
 - **Features Implemented:** 11 major features
@@ -327,6 +347,7 @@ zig build -Doptimize=ReleaseSmall
 ## 🚀 Future Features (Planned)
 
 ### High Priority
+
 - [ ] Hot reload via WebSocket
 - [ ] System tray integration
 - [ ] Better error handling (no panics)
@@ -334,6 +355,7 @@ zig build -Doptimize=ReleaseSmall
 - [ ] File drag & drop
 
 ### Medium Priority
+
 - [ ] Linux support (GTK + WebKit2GTK)
 - [ ] Windows support (WebView2)
 - [ ] Icon support
@@ -341,6 +363,7 @@ zig build -Doptimize=ReleaseSmall
 - [ ] Multiple window management improvements
 
 ### Low Priority
+
 - [ ] Platform feature detection
 - [ ] Bundle generation (.app, .exe)
 - [ ] Additional examples
@@ -351,6 +374,7 @@ zig build -Doptimize=ReleaseSmall
 ## 📝 Documentation
 
 ### Created
+
 - ✅ **API_REFERENCE.md** - Complete API documentation
 - ✅ **IMPROVEMENTS.md** - v0.2.0 changelog
 - ✅ **FEATURES.md** - This file
@@ -358,6 +382,7 @@ zig build -Doptimize=ReleaseSmall
 - ✅ **craft.toml** - Example configuration
 
 ### Existing
+
 - ✅ **GETTING_STARTED.md** - Setup guide
 - ✅ **QUICK_START.md** - 5-minute tutorial
 - ✅ **WORKING_APP.md** - Build notes
@@ -367,6 +392,7 @@ zig build -Doptimize=ReleaseSmall
 ## 🎯 Use Case Examples
 
 ### 1. Development Tool
+
 ```bash
 craft http://localhost:3000 \
      --title "Dev Server" \
@@ -375,6 +401,7 @@ craft http://localhost:3000 \
 ```
 
 ### 2. Transparent Overlay
+
 ```bash
 craft http://localhost:3000 \
      --transparent \
@@ -383,6 +410,7 @@ craft http://localhost:3000 \
 ```
 
 ### 3. Kiosk Mode
+
 ```bash
 craft http://app.example.com \
      --frameless \
@@ -392,6 +420,7 @@ craft http://app.example.com \
 ```
 
 ### 4. Dashboard
+
 ```bash
 craft http://dashboard.local \
      --title "System Monitor" \

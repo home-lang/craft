@@ -1,6 +1,7 @@
 # Craft Native UI - Video Tutorial Script
 
 ## Overview
+
 **Duration:** ~10-15 minutes
 **Target Audience:** Developers familiar with JavaScript who want to build native macOS apps
 **Goal:** Demonstrate how to create a Finder-like file browser using Craft's native UI components
@@ -33,10 +34,12 @@ components - not HTML or CSS, but real AppKit views like NSOutlineView
 and NSTableView.
 
 By the end, you'll have a working app with:
+
 - A sidebar with collapsible sections
 - A file browser with sortable columns
 - Keyboard shortcuts including spacebar for Quick Look
 - And it all integrates seamlessly with JavaScript."
+
 ```
 
 ---
@@ -129,6 +132,7 @@ Notice how it uses SF Symbols for icons - these are the same icons
 you see in Finder and other Apple apps.
 
 The sidebar automatically handles:
+
 - Keyboard navigation with arrow keys
 - Proper selection highlighting
 - Collapsible section headers
@@ -198,6 +202,7 @@ browser.onDoubleClick((fileId) => {
 [Run the app]
 
 "Now we have a file browser with proper columns. You can:
+
 - Click column headers to sort
 - Resize columns by dragging
 - Use arrow keys to navigate

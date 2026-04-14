@@ -5,6 +5,7 @@ The native Zig implementation of Craft - a high-performance framework for buildi
 ## Overview
 
 This package contains the Zig source code for Craft, providing:
+
 - **Native window management** - Cross-platform window creation and management
 - **WebView integration** - WKWebView (macOS), WebKit2GTK (Linux), WebView2 (Windows)
 - **GPU-accelerated rendering** - Hardware-accelerated graphics pipeline
@@ -96,6 +97,7 @@ zig build build-ios-all
 ```
 
 Output libraries are in `zig-out/lib/`:
+
 - `libcraft-ios.a` - iOS device
 - `libcraft-ios-simulator-arm64.a` - iOS Simulator (Apple Silicon)
 - `libcraft-ios-simulator-x64.a` - iOS Simulator (Intel)
@@ -117,6 +119,7 @@ zig build run-android
 ```
 
 Output libraries are in `zig-out/lib/`:
+
 - `libcraft-android-arm64.a` - Android device (arm64)
 - `libcraft-android-x86_64.a` - Android emulator (x86_64)
 
@@ -125,11 +128,13 @@ Output libraries are in `zig-out/lib/`:
 ### 🎨 UI Components (35 total)
 
 **Core Components:**
+
 - Button, TextInput, Checkbox, Radio
 - Dropdown, Tabs, Modal, ProgressBar
 - Toast, Tooltip, Slider, ColorPicker
 
 **Advanced Components:**
+
 - Chart (line, bar, pie charts)
 - DataGrid (sortable, filterable tables)
 - TreeView (hierarchical data)
@@ -141,6 +146,7 @@ Output libraries are in `zig-out/lib/`:
 ### 🔧 Developer Experience
 
 **Hot Reload with State Preservation:**
+
 - Automatic file watching
 - Preserves scroll position across reloads
 - Maintains form data and input states
@@ -148,6 +154,7 @@ Output libraries are in `zig-out/lib/`:
 - Custom state persistence via `window.__ZYTE_STATE__`
 
 **Enhanced Error Messages:**
+
 - Color-coded error output
 - Stack traces with source context
 - Actionable suggestions for common errors
@@ -155,6 +162,7 @@ Output libraries are in `zig-out/lib/`:
 - Integration with error context system
 
 **Dev Tools:**
+
 - Real-time FPS monitoring
 - Memory usage tracking
 - Event listener counting
@@ -164,6 +172,7 @@ Output libraries are in `zig-out/lib/`:
 ### ⚡ Performance
 
 **Benchmarking Suite:**
+
 - Component rendering benchmarks
 - Memory allocation tracking
 - Statistical analysis (mean, median, std dev)
@@ -171,6 +180,7 @@ Output libraries are in `zig-out/lib/`:
 - Comparison framework for optimizations
 
 **Performance Utilities:**
+
 - Object pooling
 - Memory caching with LRU eviction
 - Lazy loading
@@ -181,6 +191,7 @@ Output libraries are in `zig-out/lib/`:
 ### ♿ Accessibility
 
 **ARIA Support:**
+
 - 40+ semantic roles
 - Complete state management (checked, disabled, selected, etc.)
 - Live regions for screen readers
@@ -188,6 +199,7 @@ Output libraries are in `zig-out/lib/`:
 - Focus management with trap support
 
 **WCAG 2.1 AAA Compliance:**
+
 - Contrast ratio checker
 - Screen reader announcements
 - Keyboard shortcut system
@@ -197,6 +209,7 @@ Output libraries are in `zig-out/lib/`:
 ### 🛡️ Error Handling
 
 **Error Context System:**
+
 - 40+ categorized error codes (1000-1999 range)
 - Stack trace capture
 - Error metadata and cause chaining
@@ -372,7 +385,7 @@ fn onBackPressed() bool {
     return false; // Return true to consume the event
 }
 
-fn handleCustomAction(params: []const u8, bridge: *android.JSBridge, callback_id: []const u8) void {
+fn handleCustomAction(params: []const u8, bridge: _android.JSBridge, callback_id: []const u8) void {
     _ = params;
     bridge.sendResponse(callback_id, "{ \"status\": \"ok\" }") catch {};
 }
@@ -472,7 +485,7 @@ pub fn main() !void {
     // Open file dialog with filters
     const filters = [_]craft.FileFilter{
         craft.FileFilter.create("Text Files", &[_][]const u8{ "txt", "md", "json" }),
-        craft.FileFilter.create("All Files", &[_][]const u8{"*"}),
+        craft.FileFilter.create("All Files", &[_][]const u8{"_"}),
     };
 
     if (try craft.Dialog.showFileOpen(allocator, .{
@@ -675,6 +688,7 @@ fn onReload() void {
 ```
 
 **State Preservation:** Hot reload automatically preserves:
+
 - Scroll position
 - Form data
 - Focus state
@@ -794,8 +808,8 @@ pub fn main() !void {
 
     <script>
         // Custom state that persists across hot reloads
-        window.__ZYTE_STATE__ = {
-            count: (window.__ZYTE_STATE__?.count || 0) + 1,
+        window.__ZYTE_STATE** = {
+            count: (window.**ZYTE_STATE**?.count || 0) + 1,
             lastUpdate: new Date().toISOString()
         };
 
@@ -804,7 +818,7 @@ pub fn main() !void {
             console.log('State restored:', event.detail);
         });
 
-        console.log('Page loads:', window.__ZYTE_STATE__.count);
+        console.log('Page loads:', window.**ZYTE_STATE__.count);
     </script>
 </body>
 </html>

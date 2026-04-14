@@ -75,17 +75,20 @@ The server returns a JSON manifest:
 ### Self-Hosted
 
 1. Create an update manifest endpoint:
+
    ```
    GET https://your-server.com/api/updates/check
    Query: platform=ios|android, currentVersion=1.0.0, appVersion=1.0.0
    ```
 
 2. Host bundle files:
+
    ```
    https://your-server.com/bundles/{version}.zip
    ```
 
 3. Configure in your app:
+
    ```typescript
    craft.ota.configure({
      updateUrl: 'https://your-server.com/api/updates/check',
@@ -97,6 +100,7 @@ The server returns a JSON manifest:
 ### Bundle Structure
 
 The bundle zip should contain:
+
 - `index.html` - Main entry point
 - `assets/` - CSS, JS, images
 - `manifest.json` - Bundle metadata
@@ -111,11 +115,13 @@ The bundle zip should contain:
 ## Platform Specifics
 
 ### iOS
+
 - Bundles stored in Library/Application Support/craft-updates/
 - Atomic swap using file system operations
 - WKWebView loadFileURL for local bundles
 
 ### Android
+
 - Bundles stored in internal storage
 - Atomic extraction using temp directories
 - WebView loadUrl with file:// protocol

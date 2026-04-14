@@ -216,6 +216,7 @@ splitView.destroy();
 The native UI uses Apple's SF Symbols for icons. Here are commonly used symbols:
 
 ### Navigation
+
 - `house` - Home
 - `folder` - Folder
 - `doc` - Document
@@ -223,6 +224,7 @@ The native UI uses Apple's SF Symbols for icons. Here are commonly used symbols:
 - `magnifyingglass` - Search
 
 ### Files
+
 - `doc.text` - Text document
 - `doc.richtext` - Rich text/PDF
 - `photo` - Image
@@ -231,6 +233,7 @@ The native UI uses Apple's SF Symbols for icons. Here are commonly used symbols:
 - `doc.zipper` - Archive
 
 ### Actions
+
 - `plus` - Add
 - `minus` - Remove
 - `trash` - Delete
@@ -238,12 +241,14 @@ The native UI uses Apple's SF Symbols for icons. Here are commonly used symbols:
 - `checkmark` - Done
 
 ### Communication
+
 - `envelope` - Email
 - `message` - Message
 - `phone` - Phone
 - `video` - Video call
 
 ### System
+
 - `icloud` - iCloud
 - `network` - Network
 - `externaldrive` - External drive
@@ -251,6 +256,7 @@ The native UI uses Apple's SF Symbols for icons. Here are commonly used symbols:
 - `clock` - Recent/Time
 
 ### Status
+
 - `circle.fill` - Filled circle (for tags)
 - `checkmark.circle` - Success
 - `xmark.circle` - Error
@@ -360,6 +366,7 @@ if (!window.webkit?.messageHandlers?.craft) {
 | Selection | <1ms | <1ms | <1ms |
 
 Recommendations:
+
 - Up to 1,000 files: Load all at once
 - 1,000-5,000 files: Load in batches of 500
 - 5,000+ files: Consider pagination or virtualization

@@ -41,7 +41,7 @@ bun --version
 **Solution:**
 ```bash
 # WebView2 is included with Windows 11
-# For Windows 10, install from:
+# For Windows 10, install from
 # https://developer.microsoft.com/microsoft-edge/webview2/
 ```
 
@@ -52,12 +52,15 @@ bun --version
 **Symptom:** Build fails saying it can't find `index.html` or entry file
 
 **Solution:**
+
 1. Check `craft.config.ts` has correct `entry` path:
+
 ```typescript
 entry: './index.html'  // Relative to project root
 ```
 
 2. Verify the file exists:
+
 ```bash
 ls -la index.html
 ```
@@ -88,10 +91,10 @@ bun add @craft-native/craft
 # Ensure Zig is properly installed with all targets
 zig targets | grep -i "your-target"
 
-# For Windows from macOS/Linux:
+# For Windows from macOS/Linux
 craft build --platform windows
 
-# For macOS from other platforms:
+# For macOS from other platforms
 # Requires macOS SDK - use CI/CD or actual Mac
 ```
 
@@ -102,9 +105,11 @@ craft build --platform windows
 **Symptom:** App starts but no window appears
 
 **Solution:**
+
 1. Check for JavaScript errors in console
 2. Verify `index.html` loads correctly
 3. Check window configuration:
+
 ```typescript
 window: {
   width: 800,   // Must be > 0
@@ -118,6 +123,7 @@ window: {
 **Symptom:** Changes don't appear without restart
 
 **Solution:**
+
 1. Ensure dev server is running: `bun run dev`
 2. Check for JavaScript errors blocking reload
 3. Force refresh: Cmd+R (macOS) or Ctrl+R (Windows/Linux)
@@ -128,7 +134,9 @@ window: {
 **Symptom:** Craft APIs return errors or undefined
 
 **Solution:**
+
 1. Ensure Craft is initialized:
+
 ```typescript
 import { isReady } from '@craft-native/craft'
 
@@ -140,6 +148,7 @@ await fs.readFile('/path')
 ```
 
 2. Check you're in a Craft environment:
+
 ```typescript
 if (typeof window.craft === 'undefined') {
   console.error('Not running in Craft')
@@ -151,7 +160,9 @@ if (typeof window.craft === 'undefined') {
 **Symptom:** File or system operations fail with permission error
 
 **Solution:**
+
 1. Check entitlements (macOS):
+
 ```typescript
 macos: {
   entitlements: {
@@ -161,6 +172,7 @@ macos: {
 ```
 
 2. Request permissions at runtime (mobile):
+
 ```typescript
 const granted = await permissions.request('camera')
 if (!granted) {
@@ -175,8 +187,10 @@ if (!granted) {
 **Symptom:** `craft build --platform ios` fails
 
 **Solution:**
+
 1. Ensure Xcode is installed with iOS SDK
 2. Check signing configuration:
+
 ```typescript
 ios: {
   bundleId: 'com.yourcompany.app',
@@ -185,6 +199,7 @@ ios: {
 ```
 
 3. Open in Xcode for detailed errors:
+
 ```bash
 open ios/MyApp.xcworkspace
 ```
@@ -194,14 +209,17 @@ open ios/MyApp.xcworkspace
 **Symptom:** `craft build --platform android` fails
 
 **Solution:**
+
 1. Ensure Android SDK is installed
 2. Set ANDROID_HOME:
+
 ```bash
 export ANDROID_HOME=$HOME/Library/Android/sdk
 export PATH=$PATH:$ANDROID_HOME/platform-tools
 ```
 
 3. Accept SDK licenses:
+
 ```bash
 $ANDROID_HOME/tools/bin/sdkmanager --licenses
 ```
@@ -211,13 +229,16 @@ $ANDROID_HOME/tools/bin/sdkmanager --licenses
 **Symptom:** Face ID / Touch ID / fingerprint fails
 
 **Solution:**
+
 1. Check device supports biometrics:
+
 ```typescript
 const available = await biometrics.isAvailable()
 console.log('Biometrics available:', available)
 ```
 
 2. Add required permission strings:
+
 ```typescript
 ios: {
   permissions: {
@@ -256,8 +277,10 @@ body {
 **Symptom:** App takes long to launch
 
 **Solution:**
+
 1. Minimize initial JavaScript bundle
 2. Defer non-critical loading:
+
 ```typescript
 // Load immediately
 import { window } from '@craft-native/craft'
@@ -273,8 +296,10 @@ const { db } = await import('@craft-native/craft')
 **Symptom:** App uses excessive memory
 
 **Solution:**
+
 1. Profile with platform tools (Instruments, DevTools)
 2. Clear unused data:
+
 ```typescript
 // Clear event listeners
 element.removeEventListener('click', handler)
@@ -290,8 +315,10 @@ clearInterval(intervalId)
 **Symptom:** Animations are choppy
 
 **Solution:**
+
 1. Use CSS transforms instead of layout properties
 2. Add `will-change` hints:
+
 ```css
 .animated {
   will-change: transform, opacity;
@@ -299,6 +326,7 @@ clearInterval(intervalId)
 ```
 
 3. Use native animations on mobile:
+
 ```typescript
 Animated.timing(value, {
   useNativeDriver: true  // Offload to native
@@ -346,7 +374,7 @@ const db = await database.open('app.db')
 If you're still stuck:
 
 1. **Check documentation**: Review API docs for the feature
-2. **Search issues**: https://github.com/aspect/craft/issues
+2. **Search issues**: <https://github.com/aspect/craft/issues>
 3. **Create issue**: Include:
    - Craft version
    - Platform and OS version

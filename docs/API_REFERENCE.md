@@ -30,15 +30,19 @@ defer app.deinit();
 #### Methods
 
 ##### `init(allocator: std.mem.Allocator) App`
+
 Create a new application instance.
 
 ##### `deinit(self: *App) void`
+
 Clean up and free all resources.
 
 ##### `createWindow(title, width, height, html) !*Window`
+
 Create a window with HTML content.
 
 **Parameters:**
+
 - `title: []const u8` - Window title
 - `width: u32` - Window width in pixels
 - `height: u32` - Window height in pixels
@@ -52,9 +56,11 @@ const window = try app.createWindow("My App", 800, 600, "<h1>Hello!</h1>");
 ```
 
 ##### `createWindowWithURL(title, width, height, url, style) !*Window`
+
 Create a window that loads a URL directly (no iframe).
 
 **Parameters:**
+
 - `title: []const u8` - Window title
 - `width: u32` - Window width in pixels
 - `height: u32` - Window height in pixels
@@ -73,13 +79,14 @@ const window = try app.createWindowWithURL(
     .{
         .frameless = true,
         .transparent = false,
-        .always_on_top = false,
+        .always*on*top = false,
         .resizable = true,
     },
 );
 ```
 
 ##### `run() !void`
+
 Start the application event loop. This blocks until all windows are closed.
 
 **Example:**
@@ -99,7 +106,7 @@ Configure window appearance and behavior.
 pub const WindowStyle = struct {
     frameless: bool = false,        // Remove title bar and borders
     transparent: bool = false,       // Make window background transparent
-    always_on_top: bool = false,    // Keep window above others
+    always*on*top: bool = false,    // Keep window above others
     resizable: bool = true,         // Allow window resizing
     closable: bool = true,          // Show close button
     miniaturizable: bool = true,    // Show minimize button
@@ -112,7 +119,7 @@ pub const WindowStyle = struct {
 const style = WindowStyle{
     .frameless = true,
     .transparent = true,
-    .always_on_top = true,
+    .always*on*top = true,
     .resizable = false,
 };
 ```
@@ -124,6 +131,7 @@ const style = WindowStyle{
 ### DevTools
 
 WebKit Developer Tools are enabled by default. Users can access them by:
+
 1. Right-clicking anywhere in the window
 2. Selecting "Inspect Element"
 
@@ -135,7 +143,7 @@ craft --url http://localhost:3000 --no-devtools
 Or in configuration:
 ```toml
 [webview]
-dev_tools = false
+dev*tools = false
 ```
 
 ---
@@ -149,9 +157,11 @@ The `window.craft` API is automatically injected into every page.
 #### Available Methods
 
 ##### `craft.send(name, data)`
+
 Send a message to Zig.
 
 **Parameters:**
+
 - `name: string` - Handler name
 - `data: any` - Data to send (will be JSON serialized)
 
@@ -164,6 +174,7 @@ console.log('Response from Zig:', result);
 ```
 
 ##### `craft.notify(message)`
+
 Show a notification (convenience wrapper).
 
 **Example:**
@@ -172,6 +183,7 @@ await window.craft.notify('Hello from JavaScript!');
 ```
 
 ##### `craft.readFile(path)`
+
 Read a file from the filesystem.
 
 **Example:**
@@ -180,6 +192,7 @@ const content = await window.craft.readFile('/path/to/file.txt');
 ```
 
 ##### `craft.writeFile(path, content)`
+
 Write a file to the filesystem.
 
 **Example:**
@@ -188,6 +201,7 @@ await window.craft.writeFile('/path/to/file.txt', 'Hello, World!');
 ```
 
 ##### `craft.getClipboard()`
+
 Get clipboard contents.
 
 **Example:**
@@ -196,6 +210,7 @@ const text = await window.craft.getClipboard();
 ```
 
 ##### `craft.setClipboard(text)`
+
 Set clipboard contents.
 
 **Example:**
@@ -204,6 +219,7 @@ await window.craft.setClipboard('Copied text!');
 ```
 
 ##### `craft.openDialog(options)`
+
 Open a native file dialog.
 
 **Example:**
@@ -217,6 +233,7 @@ const path = await window.craft.openDialog({
 #### Events
 
 ##### `craft:ready`
+
 Fired when the Craft API is ready.
 
 **Example:**
@@ -252,8 +269,9 @@ if (path) |p| {
 ```
 
 **Parameters:**
+
 - `title: []const u8` - Dialog title
-- `allow_multiple: bool` - Allow multiple file selection
+- `allow*multiple: bool` - Allow multiple file selection
 
 **Returns:** `?[]const u8` - Selected file path or null if canceled
 
@@ -267,8 +285,9 @@ if (path) |p| {
 ```
 
 **Parameters:**
+
 - `title: []const u8` - Dialog title
-- `default_name: ?[]const u8` - Default file name
+- `default*name: ?[]const u8` - Default file name
 
 **Returns:** `?[]const u8` - Selected file path or null if canceled
 
@@ -299,9 +318,9 @@ std.debug.print("Clipboard: {s}\n", .{text});
 ### Loading Configuration
 
 ```zig
-const config_mod = @import("config.zig");
+const config*mod = @import("config.zig");
 
-const config = try config_mod.Config.loadFromFile(allocator, "craft.toml");
+const config = try config*mod.Config.loadFromFile(allocator, "craft.toml");
 ```
 
 ### Configuration Format
@@ -314,17 +333,17 @@ height = 800
 resizable = true
 frameless = false
 transparent = false
-always_on_top = false
+always*on*top = false
 
 [webview]
-dev_tools = true
-user_agent = "MyApp/1.0"
+dev*tools = true
+user*agent = "MyApp/1.0"
 ```
 
 ### Saving Configuration
 
 ```zig
-const config = config_mod.Config{
+const config = config*mod.Config{
     .window = .{
         .title = "My App",
         .width = 1200,
@@ -465,6 +484,7 @@ zig build -Doptimize=ReleaseSmall
 | System Tray | ❌ | ❌ | ❌ |
 
 Legend:
+
 - ✅ Implemented and working
 - 🚧 API ready, implementation pending
 - ❌ Not yet implemented
@@ -483,6 +503,7 @@ const window = app.createWindow("Title", 800, 600, html) catch |err| {
 ```
 
 Common errors:
+
 - `error.UnsupportedPlatform` - Feature not available on this OS
 - `error.NoWindows` - No windows created before `run()`
 - `error.HandlerNotFound` - JavaScript bridge handler not registered

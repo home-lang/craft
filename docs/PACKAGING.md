@@ -57,10 +57,10 @@ async function buildInstallers() {
     homepage: 'https://github.com/yourname/pomodoro',
 
     // Binary path (your built Craft app)
-    binaryPath: join(__dirname, 'build/pomodoro'),
+    binaryPath: join(**dirname, 'build/pomodoro'),
 
     // Output directory for installers
-    outDir: join(__dirname, 'dist'),
+    outDir: join(**dirname, 'dist'),
 
     // Bundle ID (macOS/iOS)
     bundleId: 'com.example.pomodoro',
@@ -201,12 +201,14 @@ craft-package --config package.json
 ### macOS
 
 **DMG (Disk Image)**
+
 - Provides drag-and-drop installation
 - Users drag app to Applications folder
 - No admin password required
 - Most user-friendly format
 
 **PKG (Package)**
+
 - Traditional installer format
 - Can run scripts during installation
 - Better for system-level installations
@@ -233,13 +235,15 @@ macos: {
 ### Windows
 
 **MSI (Windows Installer)**
+
 - Professional installer experience
-- Requires WiX Toolset: https://wixtoolset.org/
+- Requires WiX Toolset: <https://wixtoolset.org/>
 - Supports uninstallation
 - Can add to PATH automatically
 - May require admin privileges
 
 **ZIP (Portable)**
+
 - No installation required
 - Extract and run
 - Great for portable apps
@@ -257,18 +261,21 @@ windows: {
 ### Linux
 
 **DEB (Debian/Ubuntu)**
+
 - For Debian-based distros
 - Managed by APT
 - Handles dependencies automatically
 - Example: `sudo dpkg -i myapp_1.0.0_amd64.deb`
 
 **RPM (Fedora/RedHat)**
+
 - For RPM-based distros
 - Managed by DNF/YUM
 - Handles dependencies automatically
 - Example: `sudo rpm -i myapp-1.0.0-1.x86_64.rpm`
 
 **AppImage (Universal)**
+
 - Works on all Linux distros
 - No installation needed
 - Single executable file
@@ -319,6 +326,7 @@ jobs:
   build-macos:
     runs-on: macos-latest
     steps:
+
       - uses: actions/checkout@v3
       - run: bun install
       - run: bun run build
@@ -327,6 +335,7 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
+
       - uses: actions/checkout@v3
       - run: bun install
       - run: bun run build
@@ -335,10 +344,12 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
+
       - uses: actions/checkout@v3
       - run: bun install
       - run: bun run build
       - run: craft-package --config package.json --platforms linux
+
 ```
 
 ## Icon Requirements
@@ -376,15 +387,18 @@ convert icon.png -define icon:auto-resize=256,128,96,64,48,32,16 icon.ico
 Once you have your installers:
 
 ### macOS
+
 - **DMG**: Upload to website or GitHub releases
 - **PKG**: Upload to website or distribute via MDM
 - **Mac App Store**: Use App Store Connect
 
 ### Windows
+
 - **MSI**: Upload to website or GitHub releases
 - **Microsoft Store**: Use Partner Center
 
 ### Linux
+
 - **DEB**: Host on APT repository or provide direct download
 - **RPM**: Host on YUM/DNF repository or provide direct download
 - **AppImage**: Upload to website or GitHub releases
@@ -397,13 +411,15 @@ Craft includes built-in auto-update support (see [AUTO_UPDATES.md](./AUTO_UPDATE
 ## Troubleshooting
 
 ### "Binary not found"
+
 Make sure you build your Craft app first:
 ```bash
 zig build -Doptimize=ReleaseSafe
 ```
 
 ### "WiX Toolset not found" (Windows MSI)
-Install WiX Toolset from https://wixtoolset.org/
+
+Install WiX Toolset from <https://wixtoolset.org/>
 
 Use ZIP format as fallback:
 ```typescript
@@ -411,12 +427,14 @@ windows: { zip: true }
 ```
 
 ### "dpkg-deb not found" (Linux DEB)
+
 Install on macOS:
 ```bash
 brew install dpkg
 ```
 
 ### "Code signing failed" (macOS)
+
 List available identities:
 ```bash
 security find-identity -v -p codesigning
@@ -427,6 +445,7 @@ Use the full identity string in your config.
 ## Examples
 
 See complete examples in the `/examples` directory:
+
 - `examples/package-app.ts` - Full packaging example
 - `examples/package-pomodoro.ts` - Pomodoro timer packaging
 
@@ -478,4 +497,4 @@ See full type definitions in `src/package.ts`.
 
 ---
 
-For questions or issues, visit: https://github.com/home-lang/craft/issues
+For questions or issues, visit: <https://github.com/home-lang/craft/issues>

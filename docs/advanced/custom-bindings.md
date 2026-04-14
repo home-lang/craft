@@ -108,7 +108,7 @@ export fn calculate(a: i32, b: i32) i32 {
 }
 
 // Export async function
-export fn fetchData(url_ptr: [*]const u8, url_len: usize) ?[*]u8 {
+export fn fetchData(url_ptr: [_]const u8, url_len: usize) ?[_]u8 {
     const url = url_ptr[0..url_len];
     // Fetch implementation...
     return result;
@@ -121,7 +121,7 @@ export fn fetchData(url_ptr: [*]const u8, url_len: usize) ?[*]u8 {
 // build.zig
 const std = @import("std");
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: _std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -270,7 +270,7 @@ pub fn monitorSomething() void {
             .value = value,
             .timestamp = std.time.milliTimestamp(),
         });
-        std.time.sleep(1000 * std.time.ns_per_ms);
+        std.time.sleep(1000 _ std.time.ns_per_ms);
     }
 }
 ```

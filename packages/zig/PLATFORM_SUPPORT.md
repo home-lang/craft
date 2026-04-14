@@ -125,6 +125,7 @@ const sel = macos.sel("windowWithContentRect:styleMask:backing:defer:");
 ```
 
 **Frameworks Used:**
+
 - AppKit (windows, menus, dialogs)
 - Foundation (strings, collections)
 - AVFoundation (audio, camera)
@@ -145,6 +146,7 @@ const hr = windows.CoCreateInstance(...);
 ```
 
 **APIs Used:**
+
 - Win32 (windows, dialogs, clipboard)
 - WinRT (notifications, Bluetooth)
 - COM (shell, file dialogs)
@@ -164,6 +166,7 @@ const display = linux.getDisplay();
 ```
 
 **Libraries Used:**
+
 - GTK3/GTK4 (dialogs, native UI)
 - libnotify (notifications)
 - bluez/D-Bus (Bluetooth)
@@ -183,6 +186,7 @@ ios.showAlert(title, message);
 ```
 
 **Frameworks Used:**
+
 - UIKit (UI components)
 - AVFoundation (audio, camera)
 - CoreBluetooth (Bluetooth)
@@ -200,6 +204,7 @@ const cls = jni.findClass("android/widget/Toast");
 ```
 
 **APIs Used:**
+
 - JNI (Java interop)
 - Android SDK classes
 - CameraX (camera)

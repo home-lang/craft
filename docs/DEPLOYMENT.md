@@ -86,7 +86,7 @@ cp zig-out/bin/my-app MyApp.app/Contents/MacOS/
 # Create Info.plist
 cat > MyApp.app/Contents/Info.plist << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" 
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -255,7 +255,7 @@ Example `entitlements.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" 
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -316,26 +316,32 @@ name: Build and Release
 on:
   push:
     tags:
+
       - 'v*'
 
 jobs:
   build-macos:
     runs-on: macos-latest
     steps:
+
       - uses: actions/checkout@v3
-      
+
       - name: Install Zig
+
         run: |
           brew install zig
-      
+
       - name: Build
+
         run: zig build -Doptimize=ReleaseFast
-      
+
       - name: Create DMG
+
         run: |
-          # DMG creation steps
-      
+# DMG creation steps
+
       - name: Upload artifact
+
         uses: actions/upload-artifact@v3
         with:
           name: myapp-macos
@@ -344,20 +350,25 @@ jobs:
   build-linux:
     runs-on: ubuntu-latest
     steps:
+
       - uses: actions/checkout@v3
-      
+
       - name: Install Zig
+
         run: |
-          # Install Zig on Linux
-      
+# Install Zig on Linux
+
       - name: Build
+
         run: zig build -Doptimize=ReleaseFast
-      
+
       - name: Create AppImage
+
         run: |
-          # AppImage creation steps
-      
+# AppImage creation steps
+
       - name: Upload artifact
+
         uses: actions/upload-artifact@v3
         with:
           name: myapp-linux
@@ -415,7 +426,7 @@ const crash_reporter = @import("crash_reporter.zig");
 pub fn main() !void {
     crash_reporter.enable();
     defer crash_reporter.flush();
-    
+
     // Your app code
 }
 ```

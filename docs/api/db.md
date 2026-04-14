@@ -123,7 +123,7 @@ await database.transaction(async (tx) => {
   )
 
   await tx.execute(
-    'INSERT INTO profiles (user_id, bio) VALUES (?, ?)',
+    'INSERT INTO profiles (user*id, bio) VALUES (?, ?)',
     [1, 'Hello, world!']
   )
 })
@@ -171,7 +171,7 @@ await database.execute(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     completed INTEGER DEFAULT 0,
-    createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+    createdAt TEXT DEFAULT CURRENT*TIMESTAMP
   )
 `)
 

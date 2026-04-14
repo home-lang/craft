@@ -5,41 +5,49 @@ Build native Android apps with web technologies using Craft.
 ## Features
 
 ### Core
+
 - **WebView** - Native Android WebView with full JavaScript support
 - **Dark Mode** - Native dark/light theme support
 
 ### Input & Feedback
+
 - **Native Speech Recognition** - Android SpeechRecognizer
 - **Haptic Feedback** - Vibration patterns for different feedback types
 - **Audio Recording** - MediaRecorder with compressed output
 - **Video Recording** - Camera video capture
 
 ### Device Access
+
 - **Camera & Gallery** - Take photos or pick from gallery
 - **Barcode/QR Scanner** - ML Kit barcode scanning
 - **File Picker** - Document picker for any file type
 - **File Download** - DownloadManager integration
 
 ### Sensors & Location
+
 - **Geolocation** - GPS and network location via FusedLocationProvider
 - **Motion Sensors** - Accelerometer & gyroscope via SensorManager
 - **NFC** - Read NFC tags via NfcAdapter
 
 ### Communication
+
 - **Share Sheet** - Native Android sharing
 - **Clipboard** - Read and write to system clipboard
 - **Push Notifications** - Firebase Cloud Messaging ready
 
 ### Security & Auth
+
 - **Biometric Auth** - Fingerprint / Face unlock
 - **Social Auth** - Google Sign In
 - **Secure Storage** - EncryptedSharedPreferences
 
 ### Data & Storage
+
 - **Local Database** - SQLite with full SQL support
 - **Bluetooth LE** - BluetoothLeScanner
 
 ### System
+
 - **Device Info** - Device model, OS version, screen info
 - **Network Status** - Connection type monitoring (WiFi/Cellular)
 - **App Badge** - Notification badge count
@@ -240,9 +248,9 @@ const token = await window.craft.registerPush();
 console.log('Push token:', token);
 
 // Secure storage (encrypted)
-await window.craft.secureStore.set('api_key', 'secret123');
-const apiKey = await window.craft.secureStore.get('api_key');
-await window.craft.secureStore.remove('api_key');
+await window.craft.secureStore.set('api*key', 'secret123');
+const apiKey = await window.craft.secureStore.get('api*key');
+await window.craft.secureStore.remove('api*key');
 
 // Geolocation
 const position = await window.craft.getCurrentPosition();
@@ -342,10 +350,10 @@ await window.craft.cancelNotification('reminder-1');
 await window.craft.cancelAllNotifications();
 
 // In-App Purchase (Google Play Billing)
-const products = await window.craft.getProducts(['product_id_1', 'product_id_2']);
+const products = await window.craft.getProducts(['product*id*1', 'product*id*2']);
 console.log(products); // [{productId, title, description, price}]
 
-const purchaseResult = await window.craft.purchase('product_id_1');
+const purchaseResult = await window.craft.purchase('product*id*1');
 console.log(purchaseResult); // {purchaseToken, productId, ...}
 
 await window.craft.restorePurchases();
@@ -393,10 +401,10 @@ window.craft.shortcuts.onShortcut((shortcut) => {
 await window.craft.shortcuts.clear();
 
 // Shared Preferences (cross-app data with named groups)
-await window.craft.sharedKeychain.set('user_token', 'abc123', 'mygroup'); // group optional
-const result = await window.craft.sharedKeychain.get('user_token', 'mygroup');
+await window.craft.sharedKeychain.set('user*token', 'abc123', 'mygroup'); // group optional
+const result = await window.craft.sharedKeychain.get('user*token', 'mygroup');
 console.log(result.value); // 'abc123'
-await window.craft.sharedKeychain.remove('user_token');
+await window.craft.sharedKeychain.remove('user*token');
 
 // Local Auth Persistence (skip re-auth for a duration)
 await window.craft.authPersistence.enable(300); // 5 minutes
@@ -437,7 +445,7 @@ await window.craft.widget.update({
   title: 'My App',
   subtitle: 'Latest update',
   value: '42',
-  icon: 'ic_star' // Android drawable name
+  icon: 'ic*star' // Android drawable name
 });
 
 // Reload all widgets
@@ -447,10 +455,10 @@ await window.craft.widget.reload();
 
 // Note: App Actions are defined in shortcuts.xml, not dynamically
 // This stores action handlers for incoming intents
-await window.craft.siri.register('Open my app', 'open_app');
+await window.craft.siri.register('Open my app', 'open*app');
 
 // Remove a voice action
-await window.craft.siri.remove('open_app');
+await window.craft.siri.remove('open*app');
 
 // Listen for voice assistant invocations
 window.craft.siri.onInvoke((detail) => {
@@ -517,18 +525,18 @@ Add to your AndroidManifest.xml as needed:
 
 ```xml
 <!-- Speech Recognition -->
-<uses-permission android:name="android.permission.RECORD_AUDIO" />
+<uses-permission android:name="android.permission.RECORD*AUDIO" />
 
 <!-- Camera -->
 <uses-permission android:name="android.permission.CAMERA" />
-<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.WRITE*EXTERNAL*STORAGE" />
 
 <!-- Location -->
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS*FINE*LOCATION" />
+<uses-permission android:name="android.permission.ACCESS*COARSE*LOCATION" />
 
 <!-- Biometric -->
-<uses-permission android:name="android.permission.USE_BIOMETRIC" />
+<uses-permission android:name="android.permission.USE*BIOMETRIC" />
 
 <!-- Vibration -->
 <uses-permission android:name="android.permission.VIBRATE" />
@@ -539,23 +547,23 @@ Add to your AndroidManifest.xml as needed:
 
 <!-- Bluetooth -->
 <uses-permission android:name="android.permission.BLUETOOTH" />
-<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
-<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+<uses-permission android:name="android.permission.BLUETOOTH*ADMIN" />
+<uses-permission android:name="android.permission.BLUETOOTH*SCAN" />
+<uses-permission android:name="android.permission.BLUETOOTH*CONNECT" />
 
 <!-- Fitness (Google Fit) -->
-<uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+<uses-permission android:name="android.permission.ACTIVITY*RECOGNITION" />
 
 <!-- Contacts -->
-<uses-permission android:name="android.permission.READ_CONTACTS" />
-<uses-permission android:name="android.permission.WRITE_CONTACTS" />
+<uses-permission android:name="android.permission.READ*CONTACTS" />
+<uses-permission android:name="android.permission.WRITE*CONTACTS" />
 
 <!-- Calendar -->
-<uses-permission android:name="android.permission.READ_CALENDAR" />
-<uses-permission android:name="android.permission.WRITE_CALENDAR" />
+<uses-permission android:name="android.permission.READ*CALENDAR" />
+<uses-permission android:name="android.permission.WRITE*CALENDAR" />
 
 <!-- Notifications (Android 13+) -->
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+<uses-permission android:name="android.permission.POST*NOTIFICATIONS" />
 ```
 
 ## Development Mode
@@ -584,6 +592,7 @@ craft publish --android
 ```
 
 This will:
+
 1. Build a release AAB (Android App Bundle)
 2. Output path for manual upload to Play Console
 

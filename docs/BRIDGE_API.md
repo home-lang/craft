@@ -287,6 +287,7 @@ import type { CraftBridgeAPI, TrayClickEvent, MenuItem } from '@craft-native/cra
 See the complete example in `packages/typescript/examples/pomodoro-timer.html`
 
 Key features:
+
 - Updates tray title with countdown
 - Click tray to toggle window
 - Shows window when timer completes
@@ -395,6 +396,7 @@ async function onComplete() {
 ## Best Practices
 
 1. **Always check for bridge availability:**
+
    ```javascript
    if (window.craft) {
      // Safe to use
@@ -402,6 +404,7 @@ async function onComplete() {
    ```
 
 2. **Handle errors gracefully:**
+
    ```javascript
    try {
      await window.craft.tray.setTitle('Title');
@@ -415,6 +418,7 @@ async function onComplete() {
    - Use emoji for visual indicators: 🍅 ✓ ⏸️ ▶️
 
 4. **Unregister event listeners:**
+
    ```javascript
    const unregister = window.craft.tray.onClick(handler);
    // When done:

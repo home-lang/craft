@@ -51,6 +51,7 @@ zig build -Doptimize=ReleaseFast
 ### Features
 
 All 67 features fully supported:
+
 - ✅ Native window management
 - ✅ WKWebView with full JavaScript bridge
 - ✅ System tray integration
@@ -66,6 +67,7 @@ All 67 features fully supported:
 ### Deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md#macos-deployment) for:
+
 - Code signing
 - Notarization
 - DMG creation
@@ -135,6 +137,7 @@ zig build -Doptimize=ReleaseFast
 ### Features
 
 All 67 features fully supported:
+
 - ✅ GTK4 native windows
 - ✅ WebKit2GTK web rendering
 - ✅ libnotify notifications
@@ -157,6 +160,7 @@ All 67 features fully supported:
 ### Deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md#linux-deployment) for:
+
 - AppImage creation
 - .deb package creation
 - .rpm package creation
@@ -178,25 +182,27 @@ See [DEPLOYMENT.md](DEPLOYMENT.md#linux-deployment) for:
 #### Prerequisites
 
 1. **Install WebView2 Runtime**
-   - Download from: https://developer.microsoft.com/en-us/microsoft-edge/webview2/
+   - Download from: <https://developer.microsoft.com/en-us/microsoft-edge/webview2/>
    - Or install via: `winget install Microsoft.EdgeWebView2Runtime`
 
 2. **Install Zig**
+
    ```powershell
-   # Using winget
+# Using winget
    winget install -e --id ziglang.zig
 
-   # Or download manually
-   # https://ziglang.org/download/
+# Or download manually
+# https://ziglang.org/download/
    ```
 
 3. **Install Build Tools**
    - **Option A**: Visual Studio 2022 (Community Edition)
      - Select "Desktop development with C++"
    - **Option B**: MinGW-w64
+
      ```powershell
      winget install -e --id Msys2.Msys2
-     # Then in MSYS2: pacman -S mingw-w64-x86_64-gcc
+# Then in MSYS2: pacman -S mingw-w64-x86_64-gcc
      ```
 
 #### Building
@@ -229,6 +235,7 @@ zig build -Doptimize=ReleaseFast
 ### Features
 
 All 67 features fully supported:
+
 - ✅ Win32 native windows
 - ✅ WebView2 (Edge Chromium) rendering
 - ✅ Windows Toast notifications
@@ -251,6 +258,7 @@ All 67 features fully supported:
 ### Deployment
 
 See [DEPLOYMENT.md](DEPLOYMENT.md#windows-deployment) for:
+
 - WebView2 bundling
 - NSIS installer creation
 - MSI package creation
@@ -491,6 +499,6 @@ MIT - See [LICENSE](../LICENSE) for details.
 
 ## Support
 
-- **Issues**: https://github.com/stacksjs/stx/issues
-- **Discussions**: https://github.com/stacksjs/stx/discussions
-- **Discord**: https://discord.gg/stacks
+- **Issues**: <https://github.com/stacksjs/stx/issues>
+- **Discussions**: <https://github.com/stacksjs/stx/discussions>
+- **Discord**: <https://discord.gg/stacks>

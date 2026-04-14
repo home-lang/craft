@@ -132,6 +132,7 @@ const isOpen = window.isDevToolsOpen()
 ### DevTools Shortcuts
 
 In development mode, use standard shortcuts:
+
 - **macOS**: Cmd + Option + I
 - **Windows/Linux**: Ctrl + Shift + I
 
@@ -414,6 +415,7 @@ const window = await createWindow({ url: 'http://localhost:3000' }, {
 ### State Preservation
 
 Hot reload preserves:
+
 - Scroll position
 - Form input values
 - Focus state

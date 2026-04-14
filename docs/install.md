@@ -224,7 +224,7 @@ sudo apt-get install libwebkit2gtk-4.1-dev
 ### Windows: WebView2 not available
 
 Download and install WebView2 Runtime from Microsoft:
-https://developer.microsoft.com/en-us/microsoft-edge/webview2/
+<https://developer.microsoft.com/en-us/microsoft-edge/webview2/>
 
 ### macOS: Permission issues
 
@@ -232,7 +232,7 @@ If you see permission errors when running:
 
 ```bash
 # Allow in System Preferences > Security & Privacy
-# Or run:
+# Or run
 xattr -cr /path/to/craft
 ```
 

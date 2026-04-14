@@ -127,7 +127,7 @@ export default {
   dev: {
     port: 3000,
     hotReload: true,
-    watch: ['./src/**/*'],
+    watch: ['./src/**/_'],
   },
 } satisfies CraftConfig
 ```
@@ -271,7 +271,7 @@ version = "0.1.0"
 packages = [
     "packages/core",
     "packages/ui",
-    "apps/*"
+    "apps/_"
 ]
 
 [scripts]

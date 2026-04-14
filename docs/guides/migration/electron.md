@@ -15,6 +15,7 @@ A guide to migrating your Electron application to Craft.
 ## Project Structure
 
 ### Electron
+
 ```
 electron-app/
 ├── main.js           # Main process
@@ -26,6 +27,7 @@ electron-app/
 ```
 
 ### Craft
+
 ```
 craft-app/
 ├── craft.config.ts   # Configuration
@@ -311,6 +313,7 @@ import { fs, db, http, window, notification } from '@craft-native/craft'
 ### 6. Remove Electron-Specific Code
 
 Remove:
+
 - `main.js` / main process
 - `preload.js`
 - `contextBridge` usage
@@ -383,6 +386,7 @@ Craft doesn't have separate processes. All code runs in the WebView context with
 Craft doesn't include Node.js. Native functionality is provided by the Craft APIs instead.
 
 **If you need npm packages:**
+
 - Most browser-compatible packages work
 - Replace Node-specific packages with Craft APIs
 - `fs` → `@craft-native/craft` fs API

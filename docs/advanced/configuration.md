@@ -454,14 +454,14 @@ const config: CraftConfig = {
 ```bash
 craft config --print
 
-# Output:
+# Output
 # {
-#   "name": "my-app",
-#   "window": {
-#     "width": 1200,
-#     "height": 800,
-#     ...
-#   }
+# "name": "my-app"
+# "window": {
+# "width": 1200
+# "height": 800
+#
+# }
 # }
 ```
 
@@ -470,8 +470,8 @@ craft config --print
 ```bash
 craft config --validate
 
-# Output:
-# Configuration is valid.
+# Output
+# Configuration is valid
 ```
 
 ### Show Configuration Sources
@@ -479,7 +479,7 @@ craft config --validate
 ```bash
 craft config --sources
 
-# Output:
+# Output
 # window.width: 1200 (from: craft.toml)
 # window.title: "My App" (from: environment variable CRAFT_WINDOW_TITLE)
 # webview.devTools: true (from: command line --devtools)

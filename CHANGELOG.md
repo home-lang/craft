@@ -1,4 +1,5 @@
 # Changelog
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.24...v0.0.25)
 
 ### 🐛 Bug Fixes

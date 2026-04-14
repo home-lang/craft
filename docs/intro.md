@@ -2,7 +2,7 @@
 
 Craft is a lightweight, high-performance cross-platform application framework. Build native desktop apps using web technologies with a ~297KB binary and blazing fast startup times.
 
-## What is Craft?
+## What is Craft
 
 Craft enables you to create native desktop applications using HTML, CSS, and JavaScript, powered by a high-performance Zig runtime. Think of it as a modern, lightweight alternative to Electron.
 

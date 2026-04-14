@@ -5,42 +5,50 @@ Build native iOS apps with web technologies using Craft.
 ## Features
 
 ### Core
+
 - **WKWebView** - Native iOS WebView with full JavaScript support
 - **Safe Areas** - Automatic handling of notch and home indicator
 - **Dark Mode** - Native dark/light theme support
 
 ### Input & Feedback
+
 - **Native Speech Recognition** - iOS SFSpeechRecognizer (works offline!)
 - **Haptic Feedback** - UIImpactFeedbackGenerator, UINotificationFeedbackGenerator
 - **Audio Recording** - AVAudioRecorder with compressed output
 - **Video Recording** - UIImagePickerController video capture
 
 ### Device Access
+
 - **Camera & Gallery** - Take photos or pick from gallery
 - **Barcode/QR Scanner** - VisionKit DataScanner (iOS 16+)
 - **File Picker** - UIDocumentPickerViewController
 - **File Download** - Download and save files to device
 
 ### Sensors & Location
+
 - **Geolocation** - GPS and network location via CLLocationManager
 - **Motion Sensors** - Accelerometer & gyroscope via CoreMotion
 - **NFC** - Read NFC tags via CoreNFC
 
 ### Communication
+
 - **Share Sheet** - Native UIActivityViewController
 - **Clipboard** - Read and write to system clipboard
 - **Push Notifications** - APNs integration
 
 ### Security & Auth
+
 - **Biometric Auth** - Face ID / Touch ID
 - **Social Auth** - Apple Sign In
 - **Secure Storage** - Keychain integration
 
 ### Data & Storage
+
 - **Local Database** - SQLite with full SQL support
 - **Bluetooth LE** - CoreBluetooth scanning
 
 ### System
+
 - **Device Info** - Device model, OS version, screen info
 - **Network Status** - Connection type monitoring (WiFi/Cellular)
 - **App Badge** - Notification badge count
@@ -88,6 +96,7 @@ craft ios open
 ### 4. Run on Device
 
 In Xcode:
+
 1. Select your Team in Signing & Capabilities
 2. Connect your iPhone
 3. Select your device
@@ -241,9 +250,9 @@ const token = await window.craft.registerPush();
 console.log('Push token:', token);
 
 // Secure storage (Keychain)
-await window.craft.secureStore.set('api_key', 'secret123');
-const apiKey = await window.craft.secureStore.get('api_key');
-await window.craft.secureStore.remove('api_key');
+await window.craft.secureStore.set('api*key', 'secret123');
+const apiKey = await window.craft.secureStore.get('api*key');
+await window.craft.secureStore.remove('api*key');
 
 // Geolocation
 const position = await window.craft.getCurrentPosition();
@@ -346,10 +355,10 @@ await window.craft.cancelAllNotifications();
 const pending = await window.craft.getPendingNotifications();
 
 // In-App Purchase
-const products = await window.craft.getProducts(['product_id_1', 'product_id_2']);
+const products = await window.craft.getProducts(['product*id*1', 'product*id*2']);
 console.log(products); // [{id, title, description, price, priceLocale}]
 
-const purchaseResult = await window.craft.purchase('product_id_1');
+const purchaseResult = await window.craft.purchase('product*id*1');
 console.log(purchaseResult); // {transactionId, productId, ...}
 
 await window.craft.restorePurchases();
@@ -397,10 +406,10 @@ window.craft.shortcuts.onShortcut((shortcut) => {
 await window.craft.shortcuts.clear();
 
 // Keychain Sharing (cross-app data with access groups)
-await window.craft.sharedKeychain.set('user_token', 'abc123', 'com.example.shared'); // group optional
-const result = await window.craft.sharedKeychain.get('user_token', 'com.example.shared');
+await window.craft.sharedKeychain.set('user*token', 'abc123', 'com.example.shared'); // group optional
+const result = await window.craft.sharedKeychain.get('user*token', 'com.example.shared');
 console.log(result.value); // 'abc123'
-await window.craft.sharedKeychain.remove('user_token');
+await window.craft.sharedKeychain.remove('user*token');
 
 // Local Auth Persistence (skip re-auth for a duration)
 await window.craft.authPersistence.enable(300); // 5 minutes
@@ -466,10 +475,10 @@ await window.craft.widget.reload();
 // ==================== Siri Shortcuts ====================
 
 // Register a Siri shortcut
-await window.craft.siri.register('Open my app', 'open_app');
+await window.craft.siri.register('Open my app', 'open*app');
 
 // Remove a Siri shortcut
-await window.craft.siri.remove('open_app');
+await window.craft.siri.remove('open*app');
 
 // Listen for Siri shortcut invocations
 window.craft.siri.onInvoke((detail) => {
@@ -601,6 +610,7 @@ craft publish --ios
 ```
 
 This will:
+
 1. Build a release archive
 2. Output path for manual upload to App Store Connect
 

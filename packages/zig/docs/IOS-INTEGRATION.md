@@ -18,6 +18,7 @@ zig build build-ios-all
 ```
 
 The output libraries will be in `zig-out/lib/`:
+
 - `libcraft-ios.a` - iOS device library
 - `libcraft-ios-simulator-arm64.a` - iOS Simulator (Apple Silicon)
 - `libcraft-ios-simulator-x64.a` - iOS Simulator (Intel)
@@ -39,11 +40,11 @@ The output libraries will be in `zig-out/lib/`:
 
 ```objc
 // main.m
-#import <UIKit/UIKit.h>
+# import <UIKit/UIKit.h>
 
 // Craft iOS exports
 extern int craft_ios_init(void);
-extern void craft_ios_set_html(const char* html, size_t len);
+extern void craft_ios_set_html(const char_ html, size_t len);
 extern int craft_ios_run(void);
 extern void craft_ios_deinit(void);
 
@@ -52,14 +53,15 @@ extern void craft_ios_deinit(void);
 
 @implementation CraftAppDelegate
 
-- (BOOL)application:(UIApplication *)application
-    didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+- (BOOL)application:(UIApplication _)application
+
+    didFinishLaunchingWithOptions:(NSDictionary _)launchOptions {
 
     // Initialize Craft
     craft_ios_init();
 
     // Set your HTML content
-    const char* html = "<html><body><h1>Hello from Craft!</h1></body></html>";
+    const char_ html = "<html><body><h1>Hello from Craft!</h1></body></html>";
     craft_ios_set_html(html, strlen(html));
 
     // Run the app (this creates the window and webview)
@@ -68,13 +70,14 @@ extern void craft_ios_deinit(void);
     return YES;
 }
 
-- (void)applicationWillTerminate:(UIApplication *)application {
+- (void)applicationWillTerminate:(UIApplication _)application {
+
     craft_ios_deinit();
 }
 
 @end
 
-int main(int argc, char * argv[]) {
+int main(int argc, char _ argv[]) {
     @autoreleasepool {
         return UIApplicationMain(argc, argv, nil, NSStringFromClass([CraftAppDelegate class]));
     }
@@ -270,14 +273,17 @@ const result = await craft.invoke('myCustomMethod', { foo: 'bar' });
 ## Troubleshooting
 
 ### Library not found
+
 - Verify the library path in "Library Search Paths"
 - Ensure you built for the correct architecture (device vs simulator)
 
 ### Undefined symbols
+
 - Add all required frameworks (UIKit, WebKit, Foundation)
 - Link libc in your build settings
 
 ### JavaScript bridge not working
+
 - Ensure your HTML is loaded correctly
 - Check Safari Web Inspector for console errors
 - Verify the craft.invoke() promise is being awaited
@@ -285,5 +291,6 @@ const result = await craft.invoke('myCustomMethod', { foo: 'bar' });
 ## Example Project
 
 See the `examples/web_to_native/` directory for a complete example:
+
 - `main.zig` - Zig entry point with platform detection
 - `app.html` - Sample web app with native feature buttons
