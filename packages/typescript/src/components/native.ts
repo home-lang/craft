@@ -6,6 +6,14 @@
 
 import { getBridge } from '../bridge/core'
 
+// Monotonically increasing counter ensures IDs stay unique even when multiple
+// components are created in the same millisecond — `Date.now()` alone collides.
+let _componentIdCounter = 0
+function nextComponentId(prefix: string): string {
+  _componentIdCounter++
+  return `${prefix}_${Date.now()}_${_componentIdCounter}`
+}
+
 // ============================================================================
 // Base Types
 // ============================================================================
@@ -86,7 +94,7 @@ export interface SplitViewConfig extends ComponentProps {
  * Create a native split view
  */
 export async function createSplitView(config: SplitViewConfig = {}): Promise<SplitViewInstance> {
-  const id = config.id || `splitview_${Date.now()}`
+  const id = config.id || nextComponentId('splitview')
   await callNative('component.createSplitView', { id, config })
   return new SplitViewInstance(id, config)
 }
@@ -233,7 +241,7 @@ export interface FileBrowserSelection {
  * Create a native file browser
  */
 export async function createFileBrowser(config: FileBrowserConfig = {}): Promise<FileBrowserInstance> {
-  const id = config.id || `filebrowser_${Date.now()}`
+  const id = config.id || nextComponentId('filebrowser')
   await callNative('component.createFileBrowser', { id, config })
   return new FileBrowserInstance(id, config)
 }
@@ -418,7 +426,7 @@ export interface OutlineViewConfig extends ComponentProps {
  * Create a native outline view (tree view)
  */
 export async function createOutlineView(config: OutlineViewConfig = {}): Promise<OutlineViewInstance> {
-  const id = config.id || `outlineview_${Date.now()}`
+  const id = config.id || nextComponentId('outlineview')
   await callNative('component.createOutlineView', { id, config })
   return new OutlineViewInstance(id, config)
 }
@@ -623,7 +631,7 @@ export interface TableViewConfig extends ComponentProps {
  * Create a native table view
  */
 export async function createTableView(config: TableViewConfig = {}): Promise<TableViewInstance> {
-  const id = config.id || `tableview_${Date.now()}`
+  const id = config.id || nextComponentId('tableview')
   await callNative('component.createTableView', { id, config })
   return new TableViewInstance(id, config)
 }
@@ -910,7 +918,7 @@ export interface ProgressConfig extends ComponentProps {
  * Create a progress indicator
  */
 export async function createProgress(config: ProgressConfig = {}): Promise<ProgressInstance> {
-  const id = config.id || `progress_${Date.now()}`
+  const id = config.id || nextComponentId('progress')
   await callNative('component.createProgress', { id, config })
   return new ProgressInstance(id, config)
 }

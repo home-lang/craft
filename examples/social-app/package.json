@@ -1,6 +1,7 @@
 {
   "name": "craft-social-app",
   "version": "1.0.0",
+  "type": "module",
   "description": "A cross-platform social media client built with Craft",
   "main": "src/main.ts",
   "scripts": {

@@ -3,8 +3,9 @@
  * JSON-based structured logging with filtering and remote reporting
  */
 
-import { writeFileSync, appendFileSync, existsSync, mkdirSync } from 'fs'
+import { writeFileSync, appendFileSync, existsSync, mkdirSync, readFileSync } from 'fs'
 import { join, dirname } from 'path'
+import { hostname as osHostname } from 'os'
 
 // Types
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
@@ -267,7 +268,7 @@ export class Logger {
     // Rename current file
     const rotatedPath = this.config.filePath.replace(/\.log$/, `.${this.fileIndex}.log`)
     if (existsSync(this.config.filePath)) {
-      const content = require('fs').readFileSync(this.config.filePath)
+      const content = readFileSync(this.config.filePath)
       writeFileSync(rotatedPath, content)
       writeFileSync(this.config.filePath, '')
     }
@@ -392,7 +393,7 @@ export const enrichers = {
     ...entry,
     context: {
       ...entry.context,
-      hostname: require('os').hostname(),
+      hostname: osHostname(),
     },
   }),
 

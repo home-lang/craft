@@ -97,6 +97,7 @@ export interface SidebarSearchEvent {
 function getDefaults(platform: Platform): Partial<SidebarConfig> {
   switch (platform) {
     case 'macos':
+    case 'darwin':
       return {
         width: 220,
         platform: {
@@ -109,6 +110,7 @@ function getDefaults(platform: Platform): Partial<SidebarConfig> {
         }
       }
     case 'windows':
+    case 'win32':
       return {
         width: 200,
         platform: {
@@ -268,7 +270,7 @@ function generateCSS(config: SidebarConfig, platform: Platform): string {
   // Platform-specific styles
   let platformStyles = ''
 
-  if (platform === 'macos') {
+  if (platform === 'macos' || platform === 'darwin') {
     const macConfig = config.platform?.macos
     platformStyles = `
       :root {
@@ -307,7 +309,7 @@ function generateCSS(config: SidebarConfig, platform: Platform): string {
       }
     `
   }
-else if (platform === 'windows') {
+else if (platform === 'windows' || platform === 'win32') {
     const winConfig = config.platform?.windows
     platformStyles = `
       :root {
@@ -640,6 +642,8 @@ export function createSidebar(config: SidebarConfig = {}): Sidebar {
 
 /** Create a file-browser style sidebar (Finder/Explorer) */
 export function createFileSidebar(sections?: SidebarSection[]): Sidebar {
+  const p = getPlatform()
+  const isMac = p === 'macos' || p === 'darwin'
   const defaultSections: SidebarSection[] = [
     {
       id: 'favorites',
@@ -654,10 +658,10 @@ export function createFileSidebar(sections?: SidebarSection[]): Sidebar {
     },
     {
       id: 'cloud',
-      title: getPlatform() === 'macos' ? 'iCloud' : 'Cloud',
+      title: isMac ? 'iCloud' : 'Cloud',
       collapsible: true,
       items: [
-        { id: 'cloud-drive', label: getPlatform() === 'macos' ? 'iCloud Drive' : 'Cloud Storage', icon: 'cloud' }
+        { id: 'cloud-drive', label: isMac ? 'iCloud Drive' : 'Cloud Storage', icon: 'cloud' }
       ]
     },
     {
@@ -665,7 +669,7 @@ export function createFileSidebar(sections?: SidebarSection[]): Sidebar {
       title: 'Locations',
       collapsible: true,
       items: [
-        { id: 'this-pc', label: getPlatform() === 'macos' ? 'This Mac' : 'This PC', icon: 'computer' },
+        { id: 'this-pc', label: isMac ? 'This Mac' : 'This PC', icon: 'computer' },
         { id: 'network', label: 'Network', icon: 'globe' }
       ]
     }

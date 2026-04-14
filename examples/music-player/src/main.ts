@@ -3,9 +3,9 @@
  * Features: Audio playback, playlists, queue, visualizer, media controls
  */
 
-// TODO: 'window' is not exported from @craft-native/craft; use 'win' (alias for windowManager) instead
-// TODO: 'Platform' (value) is excluded from @craft-native/craft top-level export due to name conflict with Platform type;
-//       import from '@craft-native/craft/components' or use getPlatform() from the API
+// NOTE: Use `win` alias (for windowManager) instead of `window`. `Platform` (value)
+// is exported from '@craft-native/craft/components' to avoid a conflict with the
+// Platform type at the top level.
 import { fs, db, win as window, haptics } from '@craft-native/craft'
 import { Platform } from '@craft-native/craft/components'
 

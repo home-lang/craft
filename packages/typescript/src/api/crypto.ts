@@ -201,12 +201,14 @@ export function uuid(): string {
   if (typeof globalThis.crypto !== 'undefined' && 'randomUUID' in globalThis.crypto) {
     return globalThis.crypto.randomUUID()
   }
-  // Fallback implementation
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    const v = c === 'x' ? r : (r & 0x3) | 0x8
-    return v.toString(16)
-  })
+  // Fallback using crypto.getRandomValues for security
+  const bytes = new Uint8Array(16)
+  ;(globalThis.crypto as Crypto).getRandomValues(bytes)
+  // Set version (4) and variant (RFC 4122)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
 }
 
 /**
@@ -214,10 +216,20 @@ export function uuid(): string {
  */
 export async function randomString(length: number, charset?: string): Promise<string> {
   const chars = charset || 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  const bytes = await crypto.randomBytes(length)
+  // Use rejection sampling to avoid modulo bias
+  const maxValid = 256 - (256 % chars.length)
+  let bytes = await crypto.randomBytes(length * 2)
   let result = ''
-  for (let i = 0; i < length; i++) {
-    result += chars[bytes[i] % chars.length]
+  let i = 0
+  while (result.length < length) {
+    if (i >= bytes.length) {
+      bytes = await crypto.randomBytes(length * 2)
+      i = 0
+    }
+    if (bytes[i] < maxValid) {
+      result += chars[bytes[i] % chars.length]
+    }
+    i++
   }
   return result
 }
@@ -259,13 +271,11 @@ export async function hmac(
  * Compare two strings in constant time (timing-safe)
  */
 export function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false
-  }
-
-  let result = 0
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  // Always compare full length to avoid leaking length information via timing
+  const maxLen = Math.max(a.length, b.length)
+  let result = a.length ^ b.length
+  for (let i = 0; i < maxLen; i++) {
+    result |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0)
   }
   return result === 0
 }
@@ -274,7 +284,8 @@ export function timingSafeEqual(a: string, b: string): boolean {
  * Generate password hash (using PBKDF2)
  */
 export async function hashPassword(password: string, salt?: string): Promise<{ hash: string; salt: string }> {
-  const actualSalt = salt || bufferToBase64((await crypto.randomBytes(16)).buffer as ArrayBuffer)
+  const saltBytes = await crypto.randomBytes(16)
+  const actualSalt = salt || bufferToBase64(new Uint8Array(saltBytes).buffer as ArrayBuffer)
 
   if (typeof globalThis.crypto !== 'undefined') {
     const encoder = new TextEncoder()
@@ -289,7 +300,7 @@ export async function hashPassword(password: string, salt?: string): Promise<{ h
     const derivedBits = await globalThis.crypto.subtle.deriveBits(
       {
         name: 'PBKDF2',
-        salt: base64ToBuffer(actualSalt).buffer as ArrayBuffer,
+        salt: new Uint8Array(base64ToBuffer(actualSalt)).buffer as ArrayBuffer,
         iterations: 100000,
         hash: 'SHA-256'
       },

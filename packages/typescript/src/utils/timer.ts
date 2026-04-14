@@ -83,11 +83,13 @@ export class Timer {
   }
 
   /**
-   * Format time as MM:SS
+   * Format time as MM:SS. Negative values are clamped to zero since the
+   * timer should never display "negative time remaining" in a UI.
    */
   static formatTime(seconds: number): string {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
+    const clamped = Math.max(0, Math.floor(seconds))
+    const mins = Math.floor(clamped / 60)
+    const secs = clamped % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 }

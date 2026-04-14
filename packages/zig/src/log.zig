@@ -92,9 +92,13 @@ pub fn log(
     var output_buf: [4096]u8 = undefined;
     var output_len: usize = 0;
 
+    // Each call owns its own timestamp buffer — safe for concurrent logging.
+    var ts_buf: [8]u8 = undefined;
+    const timestamp = formatTimestamp(&ts_buf);
+
     if (current_config.json_output) {
         // JSON output
-        const result = std.fmt.bufPrint(&output_buf, "{{\"timestamp\":\"{s}\",\"level\":\"{s}\",\"message\":\"{s}\"}}\n", .{ getTimestamp(), level.toString(), message }) catch return;
+        const result = std.fmt.bufPrint(&output_buf, "{{\"timestamp\":\"{s}\",\"level\":\"{s}\",\"message\":\"{s}\"}}\n", .{ timestamp, level.toString(), message }) catch return;
         output_len = result.len;
     } else {
         // Standard output
@@ -102,10 +106,10 @@ pub fn log(
         const dim = "\x1B[2m";
 
         if (current_config.enable_timestamps and current_config.enable_colors) {
-            const result = std.fmt.bufPrint(&output_buf, "{s}[{s}]{s} {s}{s}{s} {s}\n", .{ dim, getTimestamp(), reset, level.color(), level.toString(), reset, message }) catch return;
+            const result = std.fmt.bufPrint(&output_buf, "{s}[{s}]{s} {s}{s}{s} {s}\n", .{ dim, timestamp, reset, level.color(), level.toString(), reset, message }) catch return;
             output_len = result.len;
         } else if (current_config.enable_timestamps) {
-            const result = std.fmt.bufPrint(&output_buf, "[{s}] {s} {s}\n", .{ getTimestamp(), level.toString(), message }) catch return;
+            const result = std.fmt.bufPrint(&output_buf, "[{s}] {s} {s}\n", .{ timestamp, level.toString(), message }) catch return;
             output_len = result.len;
         } else if (current_config.enable_colors) {
             const result = std.fmt.bufPrint(&output_buf, "{s}{s}{s} {s}\n", .{ level.color(), level.toString(), reset, message }) catch return;
@@ -147,21 +151,23 @@ pub fn fatal(comptime format: []const u8, args: anytype) void {
     log(.Fatal, format, args);
 }
 
-fn getTimestamp() []const u8 {
-    // Simple timestamp - hours:minutes:seconds
-    // Note: Using static buffer - not thread-safe but acceptable for logging
-    const Static = struct {
-        var buf: [8]u8 = undefined;
-    };
-
-    // Use C clock_gettime for wall clock time
+/// Format a HH:MM:SS timestamp into caller-provided buffer.
+/// Caller owns the buffer; returning a slice into it avoids the previous
+/// thread-unsafe shared static buffer that could be corrupted under concurrent logging.
+fn formatTimestamp(buf: *[8]u8) []const u8 {
     var ts: std.c.timespec = undefined;
-    if (std.c.clock_gettime(.REALTIME, &ts) != 0) return "00:00:00";
+    if (std.c.clock_gettime(.REALTIME, &ts) != 0) {
+        @memcpy(buf, "00:00:00");
+        return buf[0..];
+    }
     const total_seconds: u64 = @intCast(ts.sec);
     const seconds = @mod(total_seconds, 60);
     const minutes = @mod(@divFloor(total_seconds, 60), 60);
     const hours = @mod(@divFloor(total_seconds, 3600), 24);
 
-    _ = std.fmt.bufPrint(&Static.buf, "{d:0>2}:{d:0>2}:{d:0>2}", .{ hours, minutes, seconds }) catch return "00:00:00";
-    return &Static.buf;
+    const slice = std.fmt.bufPrint(buf, "{d:0>2}:{d:0>2}:{d:0>2}", .{ hours, minutes, seconds }) catch {
+        @memcpy(buf, "00:00:00");
+        return buf[0..];
+    };
+    return slice;
 }

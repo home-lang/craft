@@ -147,9 +147,13 @@ export class HttpClient {
       const contentType = response.headers.get('content-type')
 
       if (contentType?.includes('application/json')) {
-        data = await response.json()
-      }
-else if (contentType?.includes('text/')) {
+        try {
+          data = await response.json()
+        } catch {
+          // Response body was not valid JSON despite content-type header
+          data = await response.text() as unknown as T
+        }
+      } else if (contentType?.includes('text/')) {
         data = await response.text() as unknown as T
       }
 
@@ -160,8 +164,7 @@ else if (contentType?.includes('text/')) {
         headers: Object.fromEntries(response.headers.entries()),
         ok: response.ok
       }
-    }
-catch (error) {
+    } catch (error) {
       clearTimeout(timeoutId)
       if (error instanceof Error && error.name === 'AbortError') {
         throw new HttpError('Request timeout', 0, 'TIMEOUT')
@@ -321,6 +324,7 @@ catch {
    * Disconnect from WebSocket server
    */
   disconnect(): void {
+    this.maxReconnectAttempts = 0 // Prevent reconnect on intentional disconnect
     if (this.ws) {
       this.ws.close()
       this.ws = null

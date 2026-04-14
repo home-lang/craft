@@ -1,4 +1,3 @@
-// TODO: CraftConfig is not exported from @craft-native/craft; use CraftAppConfig instead
 import type { CraftAppConfig } from '@craft-native/craft'
 
 export default {

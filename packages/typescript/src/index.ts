@@ -159,8 +159,8 @@ export class CraftApp {
         transparent: false,
         alwaysOnTop: false,
         fullscreen: false,
-        hotReload: process.env.NODE_ENV === 'development',
-        devTools: process.env.NODE_ENV === 'development',
+        hotReload: typeof process !== 'undefined' && process.env.NODE_ENV === 'development',
+        devTools: typeof process !== 'undefined' && process.env.NODE_ENV === 'development',
         systemTray: false,
         ...config.window,
       },
@@ -370,7 +370,7 @@ export async function show(html: string, options?: WindowOptions): Promise<void>
  */
 export async function loadURL(url: string, options?: WindowOptions): Promise<void> {
   const app = new CraftApp({ url, window: options })
-  return app.loadURL(url)
+  return app.show()
 }
 
 // Export types explicitly, excluding names already exported by './api'

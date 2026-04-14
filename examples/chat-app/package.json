@@ -1,6 +1,7 @@
 {
   "name": "craft-chat-app",
   "version": "1.0.0",
+  "type": "module",
   "description": "A real-time chat application built with Craft",
   "main": "src/main.ts",
   "scripts": {

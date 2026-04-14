@@ -390,8 +390,8 @@ else {
           return {
             functionName: match[1],
             url: match[2],
-            lineNumber: parseInt(match[3]),
-            columnNumber: parseInt(match[4]),
+            lineNumber: parseInt(match[3], 10),
+            columnNumber: parseInt(match[4], 10),
           }
         }
         return { functionName: line.trim(), url: '', lineNumber: 0, columnNumber: 0 }
@@ -477,7 +477,9 @@ else {
    * Take memory snapshot
    */
   takeMemorySnapshot(): MemoryInfo {
-    const memUsage = process.memoryUsage()
+    const memUsage = typeof process !== 'undefined' && process.memoryUsage
+      ? process.memoryUsage()
+      : { heapUsed: 0, heapTotal: 0, external: 0 }
 
     const info: MemoryInfo = {
       usedJSHeapSize: memUsage.heapUsed,

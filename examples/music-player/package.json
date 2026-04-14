@@ -1,6 +1,7 @@
 {
   "name": "craft-music-player",
   "version": "1.0.0",
+  "type": "module",
   "description": "A cross-platform music player built with Craft",
   "main": "src/main.ts",
   "scripts": {

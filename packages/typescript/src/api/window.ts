@@ -179,6 +179,7 @@ export class Window {
   private _id: string
   private _listeners: Map<string, Set<Function>> = new Map()
   private _closed: boolean = false
+  private _domListeners: Array<{ type: string; handler: EventListener }> = []
 
   constructor(id: string) {
     this._id = id
@@ -208,12 +209,24 @@ export class Window {
       ]
 
       eventTypes.forEach(type => {
-        window.addEventListener(`craft:window:${type}` as any, (event: CustomEvent) => {
+        const handler = ((event: CustomEvent) => {
           if (event.detail?.windowId === this._id || !event.detail?.windowId) {
             this._emit(type, event.detail?.data)
           }
-        })
+        }) as EventListener
+        const eventName = `craft:window:${type}`
+        window.addEventListener(eventName, handler)
+        this._domListeners.push({ type: eventName, handler })
       })
+    }
+  }
+
+  private _cleanupEventListeners(): void {
+    if (typeof window !== 'undefined') {
+      for (const { type, handler } of this._domListeners) {
+        window.removeEventListener(type, handler)
+      }
+      this._domListeners = []
     }
   }
 
@@ -329,6 +342,7 @@ export class Window {
   async close(): Promise<void> {
     await this._call('close')
     this._closed = true
+    this._cleanupEventListeners()
   }
 
   /**
@@ -337,6 +351,7 @@ export class Window {
   async destroy(): Promise<void> {
     await this._call('destroy')
     this._closed = true
+    this._cleanupEventListeners()
   }
 
   /**

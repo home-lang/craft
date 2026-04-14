@@ -29,6 +29,16 @@
 import type { CraftDatabaseAPI } from '../types'
 
 /**
+ * Validate table name to prevent SQL injection.
+ * Only allows alphanumeric characters and underscores.
+ */
+function validateTableName(name: string): void {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+    throw new Error(`Invalid table name: "${name}". Table names must contain only letters, numbers, and underscores.`)
+  }
+}
+
+/**
  * Low-level database API implementation.
  * Uses native SQLite through the Craft bridge.
  * For most use cases, prefer the {@link Database} class or {@link KeyValueStore}.
@@ -391,14 +401,13 @@ else {
    * ```
    */
   async transaction<T>(fn: () => Promise<T>): Promise<T> {
-    await db.beginTransaction()
+    await this.execute('BEGIN TRANSACTION')
     try {
       const result = await fn()
-      await db.commit()
+      await this.execute('COMMIT')
       return result
-    }
-catch (error) {
-      await db.rollback()
+    } catch (error) {
+      await this.execute('ROLLBACK')
       throw error
     }
   }
@@ -422,6 +431,7 @@ catch (error) {
    * ```
    */
   async createTable(tableName: string, columns: TableColumn[]): Promise<void> {
+    validateTableName(tableName)
     const columnDefs = columns.map(col => {
       let def = `${col.name} ${col.type}`
       if (col.primaryKey) def += ' PRIMARY KEY'
@@ -447,6 +457,7 @@ catch (error) {
    * @param tableName - Name of the table to drop
    */
   async dropTable(tableName: string): Promise<void> {
+    validateTableName(tableName)
     await this.execute(`DROP TABLE IF EXISTS ${tableName}`)
   }
 
@@ -457,6 +468,7 @@ catch (error) {
    * @returns Promise resolving to true if table exists
    */
   async tableExists(tableName: string): Promise<boolean> {
+    validateTableName(tableName)
     const result = await this.query<{ name: string }>(
       `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
       [tableName]

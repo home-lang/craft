@@ -212,7 +212,7 @@ catch (error) {
           reject,
           timeout: setTimeout(() => {
             this.pendingRequests.delete(message.id)
-            reject(new BridgeError('Request timeout', BridgeErrorCodes.UNKNOWN))
+            reject(new BridgeError('Request timeout', BridgeErrorCodes.TIMEOUT))
           }, effectiveTimeout),
         })
       })
@@ -221,7 +221,7 @@ catch (error) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingRequests.delete(message.id)
-        reject(new BridgeError('Request timeout', BridgeErrorCodes.UNKNOWN))
+        reject(new BridgeError('Request timeout', BridgeErrorCodes.TIMEOUT))
       }, effectiveTimeout)
 
       this.pendingRequests.set(message.id, {
@@ -260,19 +260,30 @@ catch (error) {
       streamId,
     }
 
-    let dataCallback: (data: T) => void = () => {}
-    let endCallback: () => void = () => {}
-    let errorCallback: (error: Error) => void = () => {}
+    // Buffer events received before the consumer registers callbacks, so we
+    // don't silently drop them (previous implementation used no-op stubs).
+    const pendingData: T[] = []
+    let ended = false
+    let pendingError: Error | undefined
+    let dataCallback: ((data: T) => void) | null = null
+    let endCallback: (() => void) | null = null
+    let errorCallback: ((error: Error) => void) | null = null
 
     const controller: StreamController<T> = {
       onData: (cb) => {
         dataCallback = cb
+        // Flush any buffered events
+        while (pendingData.length > 0) {
+          cb(pendingData.shift() as T)
+        }
       },
       onEnd: (cb) => {
         endCallback = cb
+        if (ended) cb()
       },
       onError: (cb) => {
         errorCallback = cb
+        if (pendingError) cb(pendingError)
       },
       cancel: () => {
         this.streams.delete(streamId)
@@ -286,9 +297,18 @@ catch (error) {
     }
 
     this.streams.set(streamId, {
-      onData: (data) => dataCallback(data as T),
-      onEnd: endCallback,
-      onError: errorCallback,
+      onData: (data) => {
+        if (dataCallback) dataCallback(data as T)
+        else pendingData.push(data as T)
+      },
+      onEnd: () => {
+        ended = true
+        if (endCallback) endCallback()
+      },
+      onError: (error) => {
+        pendingError = error
+        if (errorCallback) errorCallback(error)
+      },
     })
 
     this.send(message)
@@ -361,11 +381,14 @@ else if (!this.batchTimer) {
     const batch = this.batchBuffer
     this.batchBuffer = []
 
+    // Match the shape used by `batch()` above so the native side has a single
+    // batch envelope format to parse. Previously `{ messages }` and `{ requests }`
+    // diverged and the buffered path silently broke on the native side.
     this.send({
       id: generateMessageId(),
       type: 'request',
       method: '_batch',
-      params: { messages: batch },
+      params: { requests: batch },
     })
   }
 
@@ -457,7 +480,7 @@ else if (!connected && wasConnected) {
    */
   destroy(): void {
     // Clear all pending requests
-    for (const [id, pending] of this.pendingRequests) {
+    for (const [, pending] of this.pendingRequests) {
       clearTimeout(pending.timeout)
       pending.reject(new BridgeError('Bridge destroyed', BridgeErrorCodes.BRIDGE_DESTROYED))
     }
@@ -775,18 +798,18 @@ const bridgeCore: {
   getDialogs: typeof getDialogs
   getComponents: typeof getComponents
 } = {
-  NativeBridge: NativeBridge,
-  BridgeError: BridgeError,
-  BridgeErrorCodes: BridgeErrorCodes,
-  createTypedBridge: createTypedBridge,
-  NativeMenus: NativeMenus,
-  NativeDialogs: NativeDialogs,
-  NativeComponentBridge: NativeComponentBridge,
-  getBridge: getBridge,
-  createBridge: createBridge,
-  getMenus: getMenus,
-  getDialogs: getDialogs,
-  getComponents: getComponents,
+  NativeBridge,
+  BridgeError,
+  BridgeErrorCodes,
+  createTypedBridge,
+  NativeMenus,
+  NativeDialogs,
+  NativeComponentBridge,
+  getBridge,
+  createBridge,
+  getMenus,
+  getDialogs,
+  getComponents,
 }
 
 export default bridgeCore

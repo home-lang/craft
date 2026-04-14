@@ -49,7 +49,7 @@ export function getPlatform(): Platform {
  */
 export function isDesktop(): boolean {
   const platform = getPlatform()
-  return platform === 'darwin' || platform === 'win32' || platform === 'linux'
+  return platform === 'darwin' || platform === 'macos' || platform === 'win32' || platform === 'windows' || platform === 'linux'
 }
 
 /**
@@ -364,15 +364,17 @@ export async function open(target: string): Promise<void> {
     return
   }
 
-  // Node.js fallback using platform-specific commands
+  // Node.js fallback using child_process.execFile (safe from shell injection)
   const platform = getPlatform()
   let command: string
 
   switch (platform) {
     case 'darwin':
+    case 'macos':
       command = 'open'
       break
     case 'win32':
+    case 'windows':
       command = 'start'
       break
     case 'linux':
@@ -382,7 +384,9 @@ export async function open(target: string): Promise<void> {
       throw new Error(`Unsupported platform: ${platform}`)
   }
 
-  await exec(`${command} "${target}"`)
+  const { execFile } = await import('node:child_process')
+  const { promisify } = await import('node:util')
+  await promisify(execFile)(command, [target])
 }
 
 const processApi: {
@@ -401,20 +405,20 @@ const processApi: {
   argv: typeof argv
   open: typeof open
 } = {
-  env: env,
-  getPlatform: getPlatform,
-  isDesktop: isDesktop,
-  isMobile: isMobile,
-  isCraft: isCraft,
-  getSystemInfo: getSystemInfo,
-  exec: exec,
-  spawn: spawn,
-  cwd: cwd,
-  homeDir: homeDir,
-  tempDir: tempDir,
-  exit: exit,
-  argv: argv,
-  open: open
+  env,
+  getPlatform,
+  isDesktop,
+  isMobile,
+  isCraft,
+  getSystemInfo,
+  exec,
+  spawn,
+  cwd,
+  homeDir,
+  tempDir,
+  exit,
+  argv,
+  open,
 }
 
 export default processApi

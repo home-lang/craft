@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "build": "bun run build:core && bun run build:sdk",
-    "build:core": "cd packages/zig && zig build -Doptimize=ReleaseSafe -Dversion=$(jq -r .version ../../package.json)",
+    "build:core": "cd packages/zig && zig build -Doptimize=ReleaseSafe -Dversion=$(bun -e \"console.log(require('../../package.json').version)\")",
     "build:debug": "cd packages/zig && zig build",
     "build:sdk": "cd packages/typescript && bun run build",
     "build:ios": "cd packages/ios && bun run build",

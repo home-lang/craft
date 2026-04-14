@@ -3,7 +3,7 @@
  * CSP, CORS, certificate pinning, secure storage, and input validation
  */
 
-import { createHash, randomBytes, createCipheriv, createDecipheriv } from 'crypto'
+import { createCipheriv, createDecipheriv, createHash, pbkdf2Sync, randomBytes } from 'crypto'
 
 // Types
 export interface CSPDirectives {
@@ -311,24 +311,27 @@ export class CertificatePinner {
 
 // Secure Storage
 export class SecureStorage {
-  private config: Required<SecureStorageConfig>
+  private config: Required<Omit<SecureStorageConfig, 'salt'>> & { salt: Buffer }
   private key: Buffer
 
-  constructor(masterPassword: string, config: SecureStorageConfig = {}) {
+  constructor(masterPassword: string, config: SecureStorageConfig & { salt?: Buffer } = {}) {
+    // Salt must be provided by the caller and stored persistently alongside the
+    // ciphertext. Using a hardcoded salt defeats the purpose of PBKDF2.
+    const salt = config.salt ?? randomBytes(32)
     this.config = {
       algorithm: 'aes-256-gcm',
       keyLength: 32,
       ivLength: 16,
-      saltLength: 32,
+      saltLength: salt.length,
       iterations: 100000,
+      salt,
       ...config,
     }
 
-    // Derive key from password
-    const salt = Buffer.alloc(this.config.saltLength, 'craft-secure-salt')
-    this.key = require('crypto').pbkdf2Sync(
+    // Derive key from password using the provided (or freshly-generated) salt
+    this.key = pbkdf2Sync(
       masterPassword,
-      salt,
+      this.config.salt,
       this.config.iterations,
       this.config.keyLength,
       'sha512'
@@ -381,6 +384,15 @@ export class SecureStorage {
    */
   hash(data: string): string {
     return createHash('sha256').update(data + this.key.toString('hex')).digest('hex')
+  }
+
+  /**
+   * Get the salt used for key derivation.
+   * Callers MUST persist this salt alongside ciphertext so that the same key
+   * can be re-derived on the next run.
+   */
+  getSalt(): Buffer {
+    return Buffer.from(this.config.salt)
   }
 }
 
@@ -448,10 +460,17 @@ catch {
   },
 
   /**
-   * Validate no script tags (basic XSS prevention)
+   * Validate no script tags (basic XSS prevention).
+   * Catches full/partial script tags and javascript: URLs. For full XSS
+   * protection always prefer contextual escaping (escapeHtml) and a strict CSP.
    */
   noScript: (value: string): boolean => {
-    return !/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi.test(value)
+    // Any <script, whether complete or partial — attackers don't need a closing tag
+    if (/<\s*script\b/i.test(value)) return false
+    // javascript:, data:, vbscript: and event handlers are common XSS vectors
+    if (/\b(?:javascript|vbscript|data)\s*:/i.test(value)) return false
+    if (/\son\w+\s*=/i.test(value)) return false
+    return true
   },
 
   /**
@@ -534,12 +553,25 @@ export class RateLimiter {
 
     // Check limit
     if (timestamps.length >= this.maxRequests) {
+      // Persist pruned list so stale timestamps don't accumulate on rejected
+      // keys, but still signal rejection to the caller.
+      this.requests.set(key, timestamps)
       return false
     }
 
     // Add current request
     timestamps.push(now)
     this.requests.set(key, timestamps)
+
+    // Periodically garbage-collect keys whose windows have fully elapsed.
+    // Without this, inactive keys would leak memory indefinitely.
+    if (this.requests.size > 1024 && Math.random() < 0.01) {
+      for (const [k, ts] of this.requests) {
+        const pruned = ts.filter((t) => t > windowStart)
+        if (pruned.length === 0) this.requests.delete(k)
+        else if (pruned.length !== ts.length) this.requests.set(k, pruned)
+      }
+    }
 
     return true
   }

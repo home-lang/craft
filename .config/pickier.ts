@@ -2,7 +2,8 @@ import type { PickierConfig } from 'pickier'
 
 const config: PickierConfig = {
   verbose: false,
-  ignores: [    '**/node_modules/**',
+  ignores: [
+    '**/node_modules/**',
     '**/dist/**',
     '**/build/**',
     '**/bin/**',

@@ -360,7 +360,7 @@ function parseClass(cls: string): Record<string, string | number> | null {
   const colorMatch = cls.match(/^(bg|text|border)-(\w+)-(\d{2,3})$/)
   if (colorMatch) {
     const [, property, color, shade] = colorMatch
-    const colorValue = getColor(color, parseInt(shade))
+    const colorValue = getColor(color, parseInt(shade, 10))
     if (colorValue) {
       const propMap: Record<string, string> = {
         bg: 'backgroundColor',
@@ -380,7 +380,7 @@ function parseClass(cls: string): Record<string, string | number> | null {
 
   // Opacity
   const opacityMatch = cls.match(/^opacity-(\d+)$/)
-  if (opacityMatch) return { opacity: parseInt(opacityMatch[1]) / 100 }
+  if (opacityMatch) return { opacity: parseInt(opacityMatch[1], 10) / 100 }
 
   // Position
   if (cls === 'relative') return { position: 'relative' }

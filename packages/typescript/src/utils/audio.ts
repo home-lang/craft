@@ -48,6 +48,12 @@ export class AudioManager {
 
       oscillator.start(now)
       oscillator.stop(now + duration)
+
+      // Close the context once playback finishes so repeated calls don't leak
+      // one AudioContext per tone. Browsers cap contexts at ~6 per tab.
+      oscillator.onended = () => {
+        audioContext.close().catch(() => { /* ignore close errors */ })
+      }
     }
     catch (e) {
       console.error('Failed to play tone:', e)

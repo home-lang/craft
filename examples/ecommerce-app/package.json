@@ -1,6 +1,7 @@
 {
   "name": "craft-ecommerce-app",
   "version": "1.0.0",
+  "type": "module",
   "description": "A cross-platform e-commerce app built with Craft",
   "main": "src/main.ts",
   "scripts": {

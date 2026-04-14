@@ -27,6 +27,16 @@
 import type { CraftFileSystemAPI } from '../types'
 
 /**
+ * Get the native Craft file system bridge, or null if not in Craft environment.
+ */
+function getCraftFs(): CraftFileSystemAPI | null {
+  if (typeof window !== 'undefined' && (window as any).craft?.fs) {
+    return (window as any).craft.fs
+  }
+  return null
+}
+
+/**
  * Validate a file path to prevent directory traversal attacks.
  * Blocks paths containing ".." segments that could escape the intended directory.
  */
@@ -79,9 +89,8 @@ export const fs: CraftFileSystemAPI = {
    */
   async readFile(path: string): Promise<string> {
     validatePath(path)
-    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
-      return (window as any).craft.fs.readFile(path)
-    }
+    const native = getCraftFs()
+    if (native) return native.readFile(path)
     // Node.js fallback
     const { readFile } = await import('node:fs/promises')
     return readFile(path, 'utf-8')
@@ -107,9 +116,8 @@ export const fs: CraftFileSystemAPI = {
    */
   async writeFile(path: string, content: string): Promise<void> {
     validatePath(path)
-    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
-      return (window as any).craft.fs.writeFile(path, content)
-    }
+    const native = getCraftFs()
+    if (native) return native.writeFile(path, content)
     // Node.js fallback
     const { writeFile } = await import('node:fs/promises')
     return writeFile(path, content, 'utf-8')
@@ -133,9 +141,9 @@ export const fs: CraftFileSystemAPI = {
    * ```
    */
   async readDir(path: string): Promise<string[]> {
-    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
-      return (window as any).craft.fs.readDir(path)
-    }
+    validatePath(path)
+    const native = getCraftFs()
+    if (native) return native.readDir(path)
     // Node.js fallback
     const { readdir } = await import('node:fs/promises')
     return readdir(path)
@@ -155,9 +163,9 @@ export const fs: CraftFileSystemAPI = {
    * ```
    */
   async mkdir(path: string): Promise<void> {
-    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
-      return (window as any).craft.fs.mkdir(path)
-    }
+    validatePath(path)
+    const native = getCraftFs()
+    if (native) return native.mkdir(path)
     // Node.js fallback
     const { mkdir } = await import('node:fs/promises')
     await mkdir(path, { recursive: true })
@@ -180,9 +188,9 @@ export const fs: CraftFileSystemAPI = {
    * ```
    */
   async remove(path: string): Promise<void> {
-    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
-      return (window as any).craft.fs.remove(path)
-    }
+    validatePath(path)
+    const native = getCraftFs()
+    if (native) return native.remove(path)
     // Node.js fallback
     const { rm } = await import('node:fs/promises')
     return rm(path, { recursive: true, force: true })
@@ -205,9 +213,9 @@ else {
    * ```
    */
   async exists(path: string): Promise<boolean> {
-    if (typeof window !== 'undefined' && (window as any).craft?.fs) {
-      return (window as any).craft.fs.exists(path)
-    }
+    validatePath(path)
+    const native = getCraftFs()
+    if (native) return native.exists(path)
     // Node.js fallback
     const { access } = await import('node:fs/promises')
     try {
@@ -435,8 +443,11 @@ export async function move(src: string, dest: string): Promise<void> {
 export function watch(path: string, callback: (event: string, filename: string) => void): () => void {
   validatePath(path)
   if (typeof window !== 'undefined' && window.craft) {
-    // Bridge-based watch
-    const watchId = Math.random().toString(36).slice(2)
+    // Bridge-based watch. Use crypto.randomUUID when available for collision
+    // resistance — Math.random can repeat if called in tight loops.
+    const watchId = typeof globalThis.crypto !== 'undefined' && 'randomUUID' in globalThis.crypto
+      ? (globalThis.crypto as Crypto).randomUUID()
+      : `${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
     ;(window.craft as any).bridge?.call('fs.watch', { path, watchId })
 
     const handler = (event: CustomEvent) => {
@@ -453,12 +464,13 @@ export function watch(path: string, callback: (event: string, filename: string) 
   }
 
   // Node.js fallback
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const nodeFs = require('node:fs') as { watch: (path: string, callback: (event: string, filename: string) => void) => { close: () => void } }
-  const watcher = nodeFs.watch(path, (event: string, filename: string) => {
-    callback(event, filename)
+  let watcher: { close: () => void } | null = null
+  import('node:fs').then((nodeFs) => {
+    watcher = nodeFs.watch(path, (event: string, filename: string | null) => {
+      if (filename) callback(event, filename)
+    })
   })
-  return () => watcher.close()
+  return () => watcher?.close()
 }
 
 export default fs

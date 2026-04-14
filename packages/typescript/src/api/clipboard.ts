@@ -264,16 +264,16 @@ export const clipboard: {
   write: typeof write
   read: typeof read
 } = {
-  writeText: writeText,
-  readText: readText,
-  writeHTML: writeHTML,
-  readHTML: readHTML,
-  clear: clear,
-  hasText: hasText,
-  hasHTML: hasHTML,
-  hasImage: hasImage,
-  write: write,
-  read: read,
+  writeText,
+  readText,
+  writeHTML,
+  readHTML,
+  clear,
+  hasText,
+  hasHTML,
+  hasImage,
+  write,
+  read,
 }
 
 export default clipboard

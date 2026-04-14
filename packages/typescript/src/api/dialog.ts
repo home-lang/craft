@@ -271,13 +271,21 @@ export async function showConfirm(options: ConfirmOptions | string): Promise<boo
  */
 export async function showPrompt(title: string, defaultValue?: string): Promise<string | null> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
+    return new Promise<string | null>((resolve, reject) => {
+      const w = window as any
+      const action = 'showPrompt'
+      w.__craftBridgePending = w.__craftBridgePending || {}
+      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
+      w.__craftBridgePending[action].push({ resolve, reject })
+
+      w.webkit.messageHandlers.craft.postMessage({
         type: 'dialog',
-        action: 'showPrompt',
+        action,
         data: { title, defaultValue }
       })
-      resolve(null)
+    }).then((payload: any) => {
+      if (payload && typeof payload.value === 'string') return payload.value
+      return null
     })
   }
 
@@ -297,12 +305,12 @@ export const dialog: {
   showConfirm: typeof showConfirm
   showPrompt: typeof showPrompt
 } = {
-  openFile: openFile,
-  openFolder: openFolder,
-  saveFile: saveFile,
-  showAlert: showAlert,
-  showConfirm: showConfirm,
-  showPrompt: showPrompt,
+  openFile,
+  openFolder,
+  saveFile,
+  showAlert,
+  showConfirm,
+  showPrompt,
 }
 
 export default dialog

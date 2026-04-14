@@ -3,7 +3,7 @@
  * Hot module replacement and live reload for development
  */
 
-import { existsSync, readFileSync, watch, statSync } from 'fs'
+import { existsSync, readFileSync, watch } from 'fs'
 import { join, extname, relative } from 'path'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
@@ -497,7 +497,7 @@ else if (pattern.test(filePath)) {
   }
 
   private generateClientId(): string {
-    return Math.random().toString(36).substr(2, 9)
+    return Math.random().toString(36).substring(2, 11)
   }
 
   /**
@@ -522,11 +522,13 @@ else if (pattern.test(filePath)) {
  * Create HMR client code for injection
  */
 export function createHmrClient(serverUrl: string): string {
+  // Sanitize URL to prevent script injection
+  const sanitized = serverUrl.replace(/['"<>&]/g, '')
   return `
 <script>
   (function() {
     const script = document.createElement('script');
-    script.src = '${serverUrl}/hmr-runtime.js';
+    script.src = '${sanitized}/hmr-runtime.js';
     document.head.appendChild(script);
   })();
 </script>

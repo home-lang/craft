@@ -180,11 +180,37 @@ pub fn createArena(backing_allocator: std.mem.Allocator) !MemoryPool {
     return MemoryPool.init(backing_allocator);
 }
 
-/// Helper function to create a temp allocator with a stack buffer
-/// Note: The returned struct contains both buffer and allocator - caller must keep both alive
-pub fn createTempAllocator(comptime size: usize) struct { buffer: [size]u8, temp: TempAllocator } {
-    return .{
-        .buffer = undefined,
-        .temp = undefined,
+/// The returned struct combines a stack buffer with a TempAllocator that
+/// borrows from it. Previously both fields were `undefined`, so any use of
+/// the allocator was undefined behavior. Callers must copy the returned
+/// struct into a variable so the buffer stays live while the allocator is used.
+pub fn TempAllocatorWithBuffer(comptime size: usize) type {
+    return struct {
+        buffer: [size]u8 = [_]u8{0} ** size,
+        temp: TempAllocator,
+
+        const Self = @This();
+
+        pub fn init() Self {
+            var self: Self = .{
+                .buffer = [_]u8{0} ** size,
+                .temp = undefined,
+            };
+            self.temp = TempAllocator.init(&self.buffer);
+            return self;
+        }
+
+        pub fn allocator(self: *Self) std.mem.Allocator {
+            return self.temp.getAllocator();
+        }
+
+        pub fn reset(self: *Self) void {
+            self.temp.reset();
+        }
     };
+}
+
+/// Legacy shim retained for ABI compatibility. Prefer `TempAllocatorWithBuffer`.
+pub fn createTempAllocator(comptime size: usize) TempAllocatorWithBuffer(size) {
+    return TempAllocatorWithBuffer(size).init();
 }

@@ -65,8 +65,9 @@ jobs:
           # Boot the simulator
           xcrun simctl boot "$DEVICE_ID" || true
 
-          # Wait for boot
-          sleep 10
+          # Wait for simulator to finish booting. `bootstatus -b` blocks until
+          # the device reaches a Booted state, eliminating the flaky fixed sleep.
+          xcrun simctl bootstatus "$DEVICE_ID" -b
 
       - name: Build iOS library
         working-directory: packages/zig

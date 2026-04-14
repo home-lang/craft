@@ -4,7 +4,7 @@
  * Generates native Android apps from web content using WebView.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { $ } from 'bun'
 
@@ -290,13 +290,13 @@ export async function build(options: BuildOptions): Promise<void> {
       mkdirSync(assetsDir, { recursive: true })
     }
 
-    if (existsSync(htmlPath)) {
+    if (existsSync(htmlPath) && statSync(htmlPath).isFile()) {
       const html = readFileSync(htmlPath, 'utf-8')
       writeFileSync(join(assetsDir, 'index.html'), html)
       console.log(`   Copied: ${htmlPath} → assets/index.html`)
     }
 else {
-      throw new Error(`HTML path not found: ${htmlPath}`)
+      throw new Error(`HTML file not found or is a directory: ${htmlPath}`)
     }
   }
 

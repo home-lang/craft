@@ -3,6 +3,10 @@
  * Simple localStorage abstraction with type safety
  */
 
+function hasLocalStorage(): boolean {
+  return typeof globalThis !== 'undefined' && typeof (globalThis as any).localStorage !== 'undefined'
+}
+
 export class Storage<T> {
   constructor(private key: string, private defaults: T) {}
 
@@ -10,6 +14,7 @@ export class Storage<T> {
    * Load data from localStorage
    */
   load(): T {
+    if (!hasLocalStorage()) return this.defaults
     try {
       const saved = localStorage.getItem(this.key)
       if (saved) {
@@ -26,6 +31,7 @@ export class Storage<T> {
    * Save data to localStorage
    */
   save(data: T): void {
+    if (!hasLocalStorage()) return
     try {
       localStorage.setItem(this.key, JSON.stringify(data))
     }
@@ -46,6 +52,7 @@ export class Storage<T> {
    * Clear data from localStorage
    */
   clear(): void {
+    if (!hasLocalStorage()) return
     try {
       localStorage.removeItem(this.key)
     }

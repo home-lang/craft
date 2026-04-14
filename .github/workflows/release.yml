@@ -181,14 +181,14 @@ jobs:
       - uses: ./.github/actions/discord-notify
         if: hashFiles('.github/actions/discord-notify/action.yml') != ''
         with:
-          title: "Release ${{ github.ref_name }} — ${{ needs.github.result == 'success' && needs.npm.result == 'success' && 'Published' || (needs.github.result == 'cancelled' || needs.npm.result == 'cancelled') && 'Cancelled' || 'Failed' }}"
+          title: "Release ${{ github.ref_name }} — ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'Published' || (needs.pantry.result == 'cancelled' || needs.npm.result == 'cancelled') && 'Cancelled' || 'Failed' }}"
           description: "craft ${{ github.ref_name }} has been released"
-          status: ${{ needs.github.result == 'success' && needs.npm.result == 'success' && 'success' || (needs.github.result == 'cancelled' || needs.npm.result == 'cancelled') && 'warning' || 'failure' }}
+          status: ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'success' || (needs.pantry.result == 'cancelled' || needs.npm.result == 'cancelled') && 'warning' || 'failure' }}
           fields: |
             [
               {"name": "Tag", "value": "`${{ github.ref_name }}`", "inline": true},
               {"name": "Actor", "value": "${{ github.actor }}", "inline": true},
-              {"name": "Binaries", "value": "${{ needs.github.result == 'success' && '✅ Published' || '❌ Failed' }}", "inline": true},
+              {"name": "Binaries", "value": "${{ needs.pantry.result == 'success' && '✅ Published' || '❌ Failed' }}", "inline": true},
               {"name": "npm Packages", "value": "${{ needs.npm.result == 'success' && '✅ Published' || '❌ Failed' }}", "inline": true},
               {"name": "Release", "value": "[View on GitHub](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})", "inline": true}
             ]

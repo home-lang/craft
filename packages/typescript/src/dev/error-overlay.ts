@@ -117,8 +117,8 @@ function parseError(error: Error | string): ErrorInfo {
     const match = stack.match(/at .+ \((.+):(\d+):(\d+)\)/)
     if (match) {
       source = match[1]
-      line = parseInt(match[2])
-      column = parseInt(match[3])
+      line = parseInt(match[2], 10)
+      column = parseInt(match[3], 10)
     }
   }
 

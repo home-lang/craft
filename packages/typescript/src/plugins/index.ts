@@ -3,9 +3,9 @@
  * Manage, install, and run plugins for extending Craft functionality
  */
 
-import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, renameSync } from 'fs'
 import { join } from 'path'
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 
 // Types
 export interface Plugin {
@@ -152,7 +152,7 @@ else {
     // Extract package
     const tarPath = join(pluginDir, 'package.tgz')
     writeFileSync(tarPath, Buffer.from(packageData))
-    execSync(`tar -xzf package.tgz`, { cwd: pluginDir })
+    execFileSync('tar', ['-xzf', 'package.tgz'], { cwd: pluginDir })
     rmSync(tarPath)
 
     // Load plugin manifest
@@ -175,7 +175,7 @@ else {
 
     const tarPath = join(tempDir, 'package.tgz')
     writeFileSync(tarPath, Buffer.from(packageData))
-    execSync(`tar -xzf package.tgz`, { cwd: tempDir })
+    execFileSync('tar', ['-xzf', 'package.tgz'], { cwd: tempDir })
 
     const pluginManifest: Plugin = JSON.parse(
       readFileSync(join(tempDir, 'craft-plugin.json'), 'utf-8')
@@ -186,7 +186,7 @@ else {
     if (existsSync(pluginDir)) {
       rmSync(pluginDir, { recursive: true })
     }
-    execSync(`mv "${tempDir}" "${pluginDir}"`)
+    renameSync(tempDir, pluginDir)
 
     return pluginManifest
   }
@@ -197,7 +197,11 @@ else {
       rmSync(tempDir, { recursive: true })
     }
 
-    execSync(`git clone --depth 1 "${url}" "${tempDir}"`)
+    // Validate URL scheme to prevent git option injection (e.g. --upload-pack)
+    if (!/^(?:https?|git|ssh):\/\//i.test(url)) {
+      throw new Error(`Unsupported git URL scheme for plugin install: ${url}`)
+    }
+    execFileSync('git', ['clone', '--depth', '1', '--', url, tempDir])
 
     const pluginManifest: Plugin = JSON.parse(
       readFileSync(join(tempDir, 'craft-plugin.json'), 'utf-8')
@@ -211,7 +215,7 @@ else {
     if (existsSync(pluginDir)) {
       rmSync(pluginDir, { recursive: true })
     }
-    execSync(`mv "${tempDir}" "${pluginDir}"`)
+    renameSync(tempDir, pluginDir)
 
     return pluginManifest
   }

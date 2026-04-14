@@ -3,9 +3,9 @@
  * Automatic updates with delta/differential update support
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, createWriteStream, unlinkSync, statSync, createReadStream } from 'fs'
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'fs'
 import { join, basename, dirname } from 'path'
-import { execSync, spawn } from 'child_process'
+import { execFileSync, spawn } from 'child_process'
 import { createHash } from 'crypto'
 import { pipeline } from 'stream/promises'
 import { EventEmitter } from 'events'
@@ -187,7 +187,7 @@ catch (error) {
         throw new Error(`Download failed: HTTP ${response.status}`)
       }
 
-      const contentLength = parseInt(response.headers.get('content-length') || '0')
+      const contentLength = parseInt(response.headers.get('content-length') || '0', 10)
       const total = contentLength || expectedSize
 
       let downloaded = 0
@@ -316,45 +316,52 @@ catch (error) {
       const tempDir = join(dirname(downloadPath), 'extracted')
       mkdirSync(tempDir, { recursive: true })
 
-      execSync(`unzip -o "${downloadPath}" -d "${tempDir}"`)
+      execFileSync('unzip', ['-o', downloadPath, '-d', tempDir])
 
       // Find the .app in extracted contents
-      const extractedApp = execSync(`find "${tempDir}" -name "*.app" -type d | head -1`)
+      const extractedApp = execFileSync('find', [tempDir, '-name', '*.app', '-type', 'd'])
         .toString()
+        .split('\n')[0]
         .trim()
 
       if (extractedApp) {
         // Replace current app
-        execSync(`rm -rf "${appPath}"`)
-        execSync(`mv "${extractedApp}" "${appPath}"`)
+        const { rmSync, renameSync } = await import('fs')
+        rmSync(appPath, { recursive: true, force: true })
+        renameSync(extractedApp, appPath)
       }
 
       // Clean up
-      execSync(`rm -rf "${tempDir}"`)
+      const { rmSync } = await import('fs')
+      rmSync(tempDir, { recursive: true, force: true })
     }
 else if (downloadPath.endsWith('.dmg')) {
       // Mount DMG
-      const mountOutput = execSync(`hdiutil attach "${downloadPath}" -nobrowse`).toString()
+      const mountOutput = execFileSync('hdiutil', ['attach', downloadPath, '-nobrowse']).toString()
       const mountPoint = mountOutput.match(/\/Volumes\/[^\n]+/)?.[0]
 
       if (mountPoint) {
         // Find and copy the app
-        const dmgApp = execSync(`find "${mountPoint}" -name "*.app" -type d | head -1`)
+        const dmgApp = execFileSync('find', [mountPoint, '-name', '*.app', '-type', 'd'])
           .toString()
+          .split('\n')[0]
           .trim()
 
         if (dmgApp) {
-          execSync(`rm -rf "${appPath}"`)
-          execSync(`cp -R "${dmgApp}" "${appPath}"`)
+          const { rmSync, cpSync } = await import('fs')
+          rmSync(appPath, { recursive: true, force: true })
+          cpSync(dmgApp, appPath, { recursive: true })
         }
 
         // Unmount
-        execSync(`hdiutil detach "${mountPoint}"`)
+        execFileSync('hdiutil', ['detach', mountPoint])
       }
     }
 else if (downloadPath.endsWith('.pkg')) {
-      // Install package
-      execSync(`sudo installer -pkg "${downloadPath}" -target /`)
+      // Install package. `installer` requires root, which we delegate to sudo —
+      // this will prompt the user via their sudo configuration (TouchID on macOS).
+      // Callers should verify the package signature before calling this method.
+      execFileSync('sudo', ['installer', '-pkg', downloadPath, '-target', '/'])
     }
   }
 
@@ -376,9 +383,16 @@ else if (downloadPath.endsWith('.msi')) {
       })
     }
 else if (downloadPath.endsWith('.zip')) {
-      // Extract and replace
+      // Extract and replace. Use -File to run a script block with safe args.
       const appDir = dirname(this.config.appPath)
-      execSync(`powershell -command "Expand-Archive -Force '${downloadPath}' '${appDir}'"`)
+      execFileSync('powershell', [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        'Expand-Archive -Force -Path $env:CRAFT_UPDATE_SRC -DestinationPath $env:CRAFT_UPDATE_DST',
+      ], {
+        env: { ...process.env, CRAFT_UPDATE_SRC: downloadPath, CRAFT_UPDATE_DST: appDir },
+      })
     }
   }
 
@@ -387,18 +401,19 @@ else if (downloadPath.endsWith('.zip')) {
 
     if (downloadPath.endsWith('.AppImage')) {
       // Replace AppImage
-      execSync(`chmod +x "${downloadPath}"`)
-      execSync(`mv "${downloadPath}" "${this.config.appPath}"`)
+      execFileSync('chmod', ['+x', downloadPath])
+      const { renameSync } = await import('fs')
+      renameSync(downloadPath, this.config.appPath)
     }
 else if (downloadPath.endsWith('.deb')) {
-      execSync(`sudo dpkg -i "${downloadPath}"`)
+      execFileSync('sudo', ['dpkg', '-i', downloadPath])
     }
 else if (downloadPath.endsWith('.rpm')) {
-      execSync(`sudo rpm -U "${downloadPath}"`)
+      execFileSync('sudo', ['rpm', '-U', downloadPath])
     }
 else if (downloadPath.endsWith('.tar.gz')) {
       const appDir = dirname(this.config.appPath)
-      execSync(`tar -xzf "${downloadPath}" -C "${appDir}"`)
+      execFileSync('tar', ['-xzf', downloadPath, '-C', appDir])
     }
   }
 
@@ -460,9 +475,15 @@ else if (downloadPath.endsWith('.tar.gz')) {
   }
 
   private async verifySignature(_filePath: string, _signature: string): Promise<boolean> {
-    // In production, verify against public key
-    // For now, just return true
-    return true
+    // Signature verification MUST be implemented before shipping updates. We
+    // throw here instead of silently returning true so that the lack of
+    // verification is impossible to ignore in production. Configure a public
+    // key via the updater config and call into a native verifier.
+    throw new Error(
+      'Updater.verifySignature is not implemented. ' +
+      'Refusing to install unsigned update. ' +
+      'Configure a public key and implement signature verification.'
+    )
   }
 
   /**
@@ -492,7 +513,7 @@ export class DeltaGenerator {
   ): Promise<{ size: number; sha256: string }> {
     // Use bsdiff for binary delta
     try {
-      execSync(`bsdiff "${oldPath}" "${newPath}" "${outputPath}"`)
+      execFileSync('bsdiff', [oldPath, newPath, outputPath])
 
       const stats = statSync(outputPath)
       const hash = await DeltaGenerator.computeHash(outputPath)
@@ -504,7 +525,7 @@ export class DeltaGenerator {
     }
 catch {
       // Fall back to xdelta3
-      execSync(`xdelta3 -e -s "${oldPath}" "${newPath}" "${outputPath}"`)
+      execFileSync('xdelta3', ['-e', '-s', oldPath, newPath, outputPath])
 
       const stats = statSync(outputPath)
       const hash = await DeltaGenerator.computeHash(outputPath)
@@ -521,10 +542,10 @@ catch {
    */
   static async apply(basePath: string, deltaPath: string, outputPath: string): Promise<void> {
     try {
-      execSync(`bspatch "${basePath}" "${outputPath}" "${deltaPath}"`)
+      execFileSync('bspatch', [basePath, outputPath, deltaPath])
     }
 catch {
-      execSync(`xdelta3 -d -s "${basePath}" "${deltaPath}" "${outputPath}"`)
+      execFileSync('xdelta3', ['-d', '-s', basePath, deltaPath, outputPath])
     }
   }
 
@@ -567,7 +588,7 @@ export function generateUpdateManifest(options: {
     if (!info) continue
 
     const stats = statSync(info.path)
-    const hash = execSync(`sha256sum "${info.path}" | cut -d' ' -f1`).toString().trim()
+    const hash = createHash('sha256').update(readFileSync(info.path)).digest('hex')
 
     manifest.platforms[platform] = {
       url: info.url,
@@ -580,7 +601,7 @@ export function generateUpdateManifest(options: {
     const platformDeltas = options.deltas?.filter((d) => d.platform === platform) || []
     for (const delta of platformDeltas) {
       const deltaStats = statSync(delta.path)
-      const deltaHash = execSync(`sha256sum "${delta.path}" | cut -d' ' -f1`).toString().trim()
+      const deltaHash = createHash('sha256').update(readFileSync(delta.path)).digest('hex')
 
       manifest.platforms[platform].delta!.push({
         fromVersion: delta.fromVersion,

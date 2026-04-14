@@ -800,7 +800,7 @@ class AnimatedValue {
   }
 
   removeListener(id: string): void {
-    const index = parseInt(id)
+    const index = parseInt(id, 10)
     if (index >= 0 && index < this._listeners.length) {
       this._listeners.splice(index, 1)
     }

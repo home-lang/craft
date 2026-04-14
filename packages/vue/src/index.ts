@@ -171,17 +171,21 @@ finally {
 export function useCraftEvent(event: string, callback: (...args: any[]) => void) {
   const { craft, isReady } = useCraft();
 
+  const unsubscribe = () => {
+    if (craft.value) {
+      craft.value.off(event, callback);
+    }
+  };
+
   watch(isReady, (ready) => {
     if (ready && craft.value) {
       craft.value.on(event, callback);
     }
   }, { immediate: true });
 
-  onUnmounted(() => {
-    if (craft.value) {
-      craft.value.off(event, callback);
-    }
-  });
+  onUnmounted(unsubscribe);
+
+  return { unsubscribe };
 }
 
 /**
