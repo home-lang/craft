@@ -11,7 +11,11 @@ pub const BridgeAPI = struct {
 
     const Self = @This();
 
-    pub const MessageHandler = *const fn (data: []const u8) void;
+    // Handlers return the response payload (or an empty string). Previously
+    // this was typed `void` but `handleMessage` tried to `return handler(data)`
+    // as a `[]const u8`, which is a type mismatch that would fail to compile
+    // on first use. Typing it correctly here restores the intended protocol.
+    pub const MessageHandler = *const fn (data: []const u8) []const u8;
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{

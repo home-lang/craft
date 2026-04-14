@@ -7,6 +7,8 @@ pub const Cache = struct {
     entries: std.StringHashMap(CacheEntry),
     max_size: usize,
     current_size: usize,
+    hits: u64,
+    misses: u64,
     allocator: std.mem.Allocator,
 
     const CacheEntry = struct {
@@ -21,6 +23,8 @@ pub const Cache = struct {
             .entries = std.StringHashMap(CacheEntry).init(allocator),
             .max_size = max_size,
             .current_size = 0,
+            .hits = 0,
+            .misses = 0,
             .allocator = allocator,
         };
     }
@@ -37,20 +41,39 @@ pub const Cache = struct {
         if (self.entries.getPtr(key)) |entry| {
             entry.access_count += 1;
             entry.timestamp = std.time.milliTimestamp();
+            self.hits += 1;
             return entry.data;
         }
+        self.misses += 1;
         return null;
     }
 
     pub fn put(self: *Cache, key: []const u8, data: []const u8) !void {
         const size = data.len;
 
-        // Evict if necessary
+        // Reject items that can never fit; otherwise the eviction loop below
+        // would empty the cache and then fail anyway.
+        if (size > self.max_size) return error.EntryTooLarge;
+
+        // If the key already exists, free the old entry first so we don't
+        // leak its buffer when the `put` below overwrites it.
+        if (self.entries.fetchRemove(key)) |kv| {
+            self.allocator.free(kv.value.data);
+            self.current_size -= kv.value.size;
+        }
+
+        // Evict if necessary. Bounded by the current entry count so a bug in
+        // `evictLRU` (e.g. failing to remove anything) can't spin forever.
+        var evict_budget: usize = self.entries.count() + 1;
         while (self.current_size + size > self.max_size and self.entries.count() > 0) {
+            if (evict_budget == 0) return error.EvictionFailed;
+            evict_budget -= 1;
             try self.evictLRU();
         }
 
         const owned_data = try self.allocator.dupe(u8, data);
+        errdefer self.allocator.free(owned_data);
+
         const entry = CacheEntry{
             .data = owned_data,
             .timestamp = std.time.milliTimestamp(),
@@ -95,15 +118,13 @@ pub const Cache = struct {
         }
     }
 
+    /// Return hit rate as `hits / (hits + misses)`. Previously this returned
+    /// `entries / total_accesses` which is not a hit rate at all — with one
+    /// entry accessed twice it would return 0.5 regardless of miss count.
     pub fn getHitRate(self: Cache) f64 {
-        var total_accesses: usize = 0;
-        var iter = self.entries.valueIterator();
-        while (iter.next()) |entry| {
-            total_accesses += entry.access_count;
-        }
-
-        if (total_accesses == 0) return 0.0;
-        return @as(f64, @floatFromInt(self.entries.count())) / @as(f64, @floatFromInt(total_accesses));
+        const total = self.hits + self.misses;
+        if (total == 0) return 0.0;
+        return @as(f64, @floatFromInt(self.hits)) / @as(f64, @floatFromInt(total));
     }
 };
 
@@ -173,6 +194,10 @@ pub const ObjectPool = struct {
                 return;
             }
         }
+        // Releasing an object that was never acquired (or was already
+        // released) is a programming bug — surface it instead of silently
+        // swallowing the call, which used to leak the caller's pointer.
+        return error.ObjectNotInPool;
     }
 
     pub fn availableCount(self: ObjectPool) usize {

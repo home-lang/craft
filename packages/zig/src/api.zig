@@ -168,20 +168,29 @@ pub const WindowOptions = struct {
     allow_clipboard: bool = true,
 };
 
-/// Stable Application API
+/// Stable Application API.
+///
+/// Windows are stored as heap-allocated pointers rather than by value because
+/// callers hold `*Window` across many calls. A previous version used
+/// `ArrayList(Window)` and returned `&self.windows.items[last]`, but any
+/// subsequent append could reallocate the backing buffer and silently
+/// invalidate every caller-held pointer (use-after-free).
 pub const App = struct {
     allocator: std.mem.Allocator,
-    windows: std.ArrayList(Window),
+    windows: std.ArrayList(*Window),
     running: bool = false,
 
     pub fn init(allocator: std.mem.Allocator) App {
         return .{
             .allocator = allocator,
-            .windows = std.ArrayList(Window).init(allocator),
+            .windows = std.ArrayList(*Window).init(allocator),
         };
     }
 
     pub fn deinit(self: *App) void {
+        for (self.windows.items) |w| {
+            self.allocator.destroy(w);
+        }
         self.windows.deinit();
     }
 
@@ -227,7 +236,9 @@ pub const App = struct {
             else => return error.UnsupportedPlatform,
         };
 
-        const window = Window{
+        const window_ptr = try self.allocator.create(Window);
+        errdefer self.allocator.destroy(window_ptr);
+        window_ptr.* = Window{
             .handle = handle,
             .title = title,
             .width = width,
@@ -235,9 +246,8 @@ pub const App = struct {
             .x = options.x orelse 0,
             .y = options.y orelse 0,
         };
-        try self.windows.append(window);
-
-        return &self.windows.items[self.windows.items.len - 1];
+        try self.windows.append(window_ptr);
+        return window_ptr;
     }
 
     /// Create a window with URL content
@@ -263,7 +273,9 @@ pub const App = struct {
             else => return error.UnsupportedPlatform,
         };
 
-        const window = Window{
+        const window_ptr = try self.allocator.create(Window);
+        errdefer self.allocator.destroy(window_ptr);
+        window_ptr.* = Window{
             .handle = handle,
             .title = title,
             .width = width,
@@ -271,9 +283,8 @@ pub const App = struct {
             .x = options.x orelse 0,
             .y = options.y orelse 0,
         };
-        try self.windows.append(window);
-
-        return &self.windows.items[self.windows.items.len - 1];
+        try self.windows.append(window_ptr);
+        return window_ptr;
     }
 
     /// Run the application event loop

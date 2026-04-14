@@ -22,9 +22,9 @@ pub const FileSystem = struct {
         _ = try file.readPositional(io, &.{contents}, 0);
 
         if (std.mem.eql(u8, encoding, "utf8")) {
-            // Validate UTF-8
+            // `errdefer` above will free `contents` when we return the error;
+            // do NOT free manually here or we'd double-free.
             if (!std.unicode.utf8ValidateSlice(contents)) {
-                self.allocator.free(contents);
                 return error.InvalidUtf8;
             }
         }
@@ -146,12 +146,20 @@ pub const FileSystem = struct {
     /// Watch directory for changes
     pub fn watch(self: *FileSystem, path: []const u8, callback: *const fn (event: WatchEvent) void) !*DirectoryWatcher {
         const watcher = try self.allocator.create(DirectoryWatcher);
+        errdefer self.allocator.destroy(watcher);
+
+        const path_copy = try self.allocator.dupe(u8, path);
+        errdefer self.allocator.free(path_copy);
+
         watcher.* = DirectoryWatcher{
             .allocator = self.allocator,
-            .path = try self.allocator.dupe(u8, path),
+            .path = path_copy,
             .callback = callback,
             .running = false,
         };
+
+        // If thread spawn fails below, the two errdefers above reclaim the
+        // struct and duped path. Previously a spawn failure leaked both.
         try watcher.start();
         return watcher;
     }

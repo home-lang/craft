@@ -222,9 +222,11 @@ pub const ErrorContext = struct {
     pub fn deinit(self: *ErrorContext) void {
         self.stack_trace.deinit(self.allocator);
         self.metadata.deinit();
+        // `cause.deinit()` already calls `allocator.destroy(cause)` at the end
+        // of its own body. Calling `destroy` again here was a double-free
+        // that corrupted the heap whenever an error had a chained cause.
         if (self.cause) |cause| {
             cause.deinit();
-            self.allocator.destroy(cause);
         }
         self.allocator.destroy(self);
     }
@@ -423,11 +425,12 @@ test "error context with metadata" {
 test "error context with cause" {
     const allocator = std.testing.allocator;
 
-    const cause = try ErrorContext.init(allocator, .connection_timeout, "Connection timed out");
+    // Wire ctx first so if `cause` init fails there is nothing to clean up.
     const ctx = try ErrorContext.init(allocator, .network_unreachable, "Network error");
-    defer ctx.deinit();
-
+    errdefer ctx.deinit();
+    const cause = try ErrorContext.init(allocator, .connection_timeout, "Connection timed out");
     _ = ctx.setCause(cause);
+    defer ctx.deinit(); // walks through `cause` once set
 
     try std.testing.expect(ctx.cause != null);
     try std.testing.expect(ctx.cause.?.code == .connection_timeout);

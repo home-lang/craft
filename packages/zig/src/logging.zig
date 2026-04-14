@@ -144,9 +144,12 @@ fn logInternal(
         }
     }
 
-    // Color start
+    // Color start. Use memcpy via slice assignment so a long prefix can't run
+    // off the end of `buf` — previously this blindly wrote `color.len` bytes
+    // with no `pos + color.len <= buf.len` check.
     if (config.colored and config.target != .file) {
         const color = level.asColor();
+        if (pos + color.len > buf.len) return;
         @memcpy(buf[pos .. pos + color.len], color);
         pos += color.len;
     }
@@ -158,6 +161,7 @@ fn logInternal(
     // Color reset
     if (config.colored and config.target != .file) {
         const reset = "\x1b[0m";
+        if (pos + reset.len > buf.len) return;
         @memcpy(buf[pos .. pos + reset.len], reset);
         pos += reset.len;
     }
@@ -178,7 +182,9 @@ fn logInternal(
         pos += src_str.len;
     }
 
-    // Newline
+    // Newline — bail out if we're already at the edge rather than writing
+    // one byte past the buffer.
+    if (pos >= buf.len) return;
     buf[pos] = '\n';
     pos += 1;
 

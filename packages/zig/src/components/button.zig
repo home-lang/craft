@@ -50,8 +50,12 @@ pub const Button = struct {
     /// Usage: const button = try Button.init(allocator, .{});
     pub fn init(allocator: std.mem.Allocator, options: Options) !*Button {
         const button = try allocator.create(Button);
+        // If `Component.init` below fails, the outer `button` allocation would
+        // leak without this errdefer.
+        errdefer allocator.destroy(button);
+        const component = try Component.init(allocator, "button", options.props);
         button.* = Button{
-            .component = try Component.init(allocator, "button", options.props),
+            .component = component,
             .allocator = allocator,
             .text = options.label,
             .variant = options.variant,

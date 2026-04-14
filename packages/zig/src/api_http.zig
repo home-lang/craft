@@ -49,14 +49,28 @@ pub const HttpClient = struct {
         // Read response
         const body_reader = req.reader();
         const body = try body_reader.readAllAlloc(self.allocator, 10 * 1024 * 1024); // 10MB max
+        errdefer self.allocator.free(body);
 
-        // Extract response headers into a StringHashMap
+        // Extract response headers into a StringHashMap. On any failure
+        // below, free every key/value we already duped — previously those
+        // allocations would leak if `put` failed mid-loop.
         var response_headers = std.StringHashMap([]const u8).init(self.allocator);
+        errdefer {
+            var it = response_headers.iterator();
+            while (it.next()) |e| {
+                self.allocator.free(e.key_ptr.*);
+                self.allocator.free(e.value_ptr.*);
+            }
+            response_headers.deinit();
+        }
+
         var header_it = req.response.headers.iterator();
         var have_headers = false;
         while (header_it.next()) |header| {
             const key = try self.allocator.dupe(u8, header.name);
+            errdefer self.allocator.free(key);
             const value = try self.allocator.dupe(u8, header.value);
+            errdefer self.allocator.free(value);
             try response_headers.put(key, value);
             have_headers = true;
         }
@@ -97,8 +111,12 @@ pub const HttpClient = struct {
 
         const stat = try file.stat(io);
         const file_contents = try self.allocator.alloc(u8, stat.size);
-        _ = try file.readPositional(io, &.{file_contents}, 0);
+        // Defer immediately so an error in the following `readPositional` or
+        // `callback` does not leak the allocation. The previous ordering
+        // placed `defer` after `readPositional`, which would leak on read
+        // failure.
         defer self.allocator.free(file_contents);
+        _ = try file.readPositional(io, &.{file_contents}, 0);
 
         if (progress_callback) |callback| {
             callback(file_contents.len, file_contents.len);

@@ -117,11 +117,14 @@ pub fn JsonBuilder(comptime max_fields: usize) type {
 
         const Self = @This();
 
-        pub fn init(allocator: std.mem.Allocator) Self {
+        /// Initialize a JSON object builder. Returns an error on allocation
+        /// failure instead of silently continuing with an empty buffer (the
+        /// previous behavior would produce invalid JSON like `"key":"value"}`
+        /// with no opening brace).
+        pub fn init(allocator: std.mem.Allocator) !Self {
             var buffer: std.ArrayListUnmanaged(u8) = .{};
-            buffer.append(allocator, '{') catch |err| {
-                std.log.warn("JSON builder init failed: {}", .{err});
-            };
+            errdefer buffer.deinit(allocator);
+            try buffer.append(allocator, '{');
             return .{
                 .allocator = allocator,
                 .buffer = buffer,
@@ -173,8 +176,11 @@ pub fn JsonBuilder(comptime max_fields: usize) type {
             try self.buffer.appendSlice(self.allocator, key);
             try self.buffer.appendSlice(self.allocator, "\":");
 
+            // 32 bytes fits the largest u64/i64 decimal + sign. Propagate the
+            // error on overflow instead of silently truncating the field and
+            // leaving a dangling `"key":` with no value in the output.
             var num_buf: [32]u8 = undefined;
-            const num_str = std.fmt.bufPrint(&num_buf, "{}", .{value}) catch return;
+            const num_str = try std.fmt.bufPrint(&num_buf, "{}", .{value});
             try self.buffer.appendSlice(self.allocator, num_str);
             self.field_count += 1;
         }

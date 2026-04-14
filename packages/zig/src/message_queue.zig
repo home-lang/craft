@@ -131,7 +131,10 @@ pub const MessageQueue = struct {
         // Sort by priority (descending)
         std.mem.sort(QueuedMessage, self.messages.items, {}, comparePriority);
 
-        std.debug.print("Enqueued message {d} with priority {s}\n", .{ id, @tagName(priority) });
+        // Previously logged every enqueue via std.debug.print, which flooded
+        // stderr on any queue-heavy workload. Left as a debug-level log that
+        // consumers can opt into through the log config.
+        std.log.debug("enqueued message {d} priority={s}", .{ id, @tagName(priority) });
 
         return id;
     }
@@ -158,7 +161,7 @@ pub const MessageQueue = struct {
                 msg.last_attempt_at = std.time.milliTimestamp();
 
                 const result = self.messages.orderedRemove(i);
-                std.debug.print("Dequeued message {d} (attempt {d})\n", .{ result.id, result.attempts });
+                std.log.debug("dequeued message {d} (attempt {d})", .{ result.id, result.attempts });
                 return result;
             }
         }
@@ -176,7 +179,7 @@ pub const MessageQueue = struct {
                 msg.status = .Delivered;
                 var removed = self.messages.orderedRemove(i);
                 removed.deinit();
-                std.debug.print("Message {d} delivered\n", .{id});
+                std.log.debug("message {d} delivered", .{id});
                 return;
             }
         }
@@ -195,7 +198,7 @@ pub const MessageQueue = struct {
             retry_msg.status = .Retrying;
             try self.messages.append(retry_msg);
 
-            std.debug.print("Message {d} failed, retrying (attempt {d}/{d})\n", .{
+            std.log.warn("message {d} failed, retrying (attempt {d}/{d})", .{
                 message.id,
                 message.attempts,
                 self.retry_strategy.max_attempts,
@@ -206,7 +209,7 @@ pub const MessageQueue = struct {
             failed_msg.status = .Failed;
             failed_msg.deinit();
 
-            std.debug.print("Message {d} failed permanently after {d} attempts\n", .{
+            std.log.err("message {d} failed permanently after {d} attempts", .{
                 message.id,
                 message.attempts,
             });
@@ -239,7 +242,7 @@ pub const MessageQueue = struct {
             if (self.delivery_callback) |callback| {
                 var msg = message;
                 callback(&msg) catch |err| {
-                    std.debug.print("Delivery failed: {any}\n", .{err});
+                    std.log.warn("message delivery failed: {}", .{err});
                     try self.markFailed(msg);
                     continue;
                 };
@@ -303,7 +306,7 @@ pub const PersistentQueue = struct {
         };
         defer file.close(io);
 
-        std.debug.print("Loaded queue from {s}\n", .{self.storage_path});
+        std.log.debug("loaded queue from {s}", .{self.storage_path});
     }
 
     pub fn save(self: *Self) !void {
@@ -312,7 +315,7 @@ pub const PersistentQueue = struct {
         const file = try io_context.cwd().createFile(io, self.storage_path, .{});
         defer file.close(io);
 
-        std.debug.print("Saved queue to {s}\n", .{self.storage_path});
+        std.log.debug("saved queue to {s}", .{self.storage_path});
     }
 };
 

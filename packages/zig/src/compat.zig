@@ -15,13 +15,16 @@ const c = @cImport({
     @cInclude("time.h");
 });
 
-/// Returns seconds since Unix epoch (replacement for std.time.timestamp)
+/// Returns seconds since Unix epoch (replacement for std.time.timestamp).
+/// Returns 0 if the system clock can't be read, so callers never observe the
+/// undefined bytes that the previous implementation would propagate when
+/// `clock_gettime` failed.
 pub fn timestamp() i64 {
     if (comptime native_os == .windows) {
         return @as(i64, @intCast(windowsTimestamp()));
     }
     var ts: c.struct_timespec = undefined;
-    _ = c.clock_gettime(c.CLOCK_REALTIME, &ts);
+    if (c.clock_gettime(c.CLOCK_REALTIME, &ts) != 0) return 0;
     return @as(i64, @intCast(ts.tv_sec));
 }
 
@@ -31,7 +34,7 @@ pub fn milliTimestamp() i64 {
         return @as(i64, @intCast(windowsTimestamp())) * 1000;
     }
     var ts: c.struct_timespec = undefined;
-    _ = c.clock_gettime(c.CLOCK_REALTIME, &ts);
+    if (c.clock_gettime(c.CLOCK_REALTIME, &ts) != 0) return 0;
     return @as(i64, @intCast(ts.tv_sec)) * 1000 + @divTrunc(@as(i64, @intCast(ts.tv_nsec)), 1_000_000);
 }
 
@@ -41,7 +44,7 @@ pub fn nanoTimestamp() i128 {
         return @as(i128, @intCast(windowsTimestamp())) * 1_000_000_000;
     }
     var ts: c.struct_timespec = undefined;
-    _ = c.clock_gettime(c.CLOCK_MONOTONIC, &ts);
+    if (c.clock_gettime(c.CLOCK_MONOTONIC, &ts) != 0) return 0;
     return @as(i128, ts.tv_sec) * 1_000_000_000 + ts.tv_nsec;
 }
 

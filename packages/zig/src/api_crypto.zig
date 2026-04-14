@@ -85,10 +85,15 @@ pub const Crypto = struct {
         return plaintext;
     }
 
-    /// Generate key pair for X25519 key exchange
+    /// Generate key pair for X25519 key exchange.
+    /// Previously called `std.crypto.random.bytes([32]u8{})` which passes a
+    /// zero-filled buffer BY VALUE to a fill function. The buffer was never
+    /// updated and the "seed" remained all zeros — producing deterministic,
+    /// attacker-predictable keys. We now fill a mutable buffer by pointer.
     pub fn generateX25519KeyPair(self: *Crypto) !KeyPair {
         _ = self;
-        const seed = std.crypto.random.bytes([32]u8{});
+        var seed: [32]u8 = undefined;
+        std.crypto.random.bytes(&seed);
         const kp = try std.crypto.dh.X25519.KeyPair.create(seed);
 
         return KeyPair{
@@ -131,10 +136,16 @@ pub const Crypto = struct {
         return hash;
     }
 
-    /// Verify password against hash
+    /// Verify password against hash using constant-time comparison to avoid
+    /// leaking information about which byte differed. `std.mem.eql` short-
+    /// circuits on the first mismatch and is observably timing-variant.
     pub fn verifyPassword(self: *Crypto, password: []const u8, salt: [16]u8, expected_hash: [32]u8) !bool {
         const computed_hash = try self.hashPassword(password, salt);
-        return std.mem.eql(u8, &computed_hash, &expected_hash);
+        var diff: u8 = 0;
+        for (computed_hash, expected_hash) |a, b| {
+            diff |= a ^ b;
+        }
+        return diff == 0;
     }
 };
 

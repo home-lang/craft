@@ -31,17 +31,18 @@ pub const Database = struct {
         _ = self;
     }
 
-    /// Execute SQL statement with parameters
+    /// Execute SQL statement with parameters.
+    /// Returns `error.TooManyBoundParameters` if more than 32 params are
+    /// supplied — silent truncation would have produced wrong query results.
     pub fn execute(self: *Self, sql: []const u8, params: []const []const u8) !void {
-        // Convert string params to BoundValues
-        var bound_params: [32]database.BoundValue = undefined;
-        const param_count = @min(params.len, 32);
+        if (params.len > 32) return error.TooManyBoundParameters;
 
-        for (params[0..param_count], 0..) |param, i| {
+        var bound_params: [32]database.BoundValue = undefined;
+        for (params, 0..) |param, i| {
             bound_params[i] = .{ .text = param };
         }
 
-        try self.inner.executeWithParams(sql, bound_params[0..param_count]);
+        try self.inner.executeWithParams(sql, bound_params[0..params.len]);
     }
 
     /// Query and return rows
@@ -183,13 +184,14 @@ pub const Migration = struct {
     description: []const u8 = "",
 };
 
-/// Apply pending migrations to the database
+/// Apply pending migrations to the database.
+/// Uses an allocator-backed list rather than a fixed 64-slot stack buffer so
+/// large migration sets are not silently truncated.
 pub fn migrate(db: *Database, migrations: []const Migration) !void {
-    // Convert to database.zig Migration format
-    var db_migrations: [64]database.Migration = undefined;
-    const migration_count = @min(migrations.len, 64);
+    const db_migrations = try db.allocator.alloc(database.Migration, migrations.len);
+    defer db.allocator.free(db_migrations);
 
-    for (migrations[0..migration_count], 0..) |m, i| {
+    for (migrations, 0..) |m, i| {
         db_migrations[i] = .{
             .version = m.version,
             .up = m.up,
@@ -198,19 +200,19 @@ pub fn migrate(db: *Database, migrations: []const Migration) !void {
         };
     }
 
-    // Create migrator and run migrations
-    var migrator = try database.Migrator.init(db.allocator, &db.inner, db_migrations[0..migration_count]);
+    var migrator = try database.Migrator.init(db.allocator, &db.inner, db_migrations);
     defer migrator.deinit();
 
     try migrator.migrate();
 }
 
-/// Rollback the last migration
+/// Rollback the last migration.
+/// Like `migrate`, this now allocates instead of truncating at 64 migrations.
 pub fn rollbackMigration(db: *Database, migrations: []const Migration) !void {
-    var db_migrations: [64]database.Migration = undefined;
-    const migration_count = @min(migrations.len, 64);
+    const db_migrations = try db.allocator.alloc(database.Migration, migrations.len);
+    defer db.allocator.free(db_migrations);
 
-    for (migrations[0..migration_count], 0..) |m, i| {
+    for (migrations, 0..) |m, i| {
         db_migrations[i] = .{
             .version = m.version,
             .up = m.up,
@@ -219,7 +221,7 @@ pub fn rollbackMigration(db: *Database, migrations: []const Migration) !void {
         };
     }
 
-    var migrator = try database.Migrator.init(db.allocator, &db.inner, db_migrations[0..migration_count]);
+    var migrator = try database.Migrator.init(db.allocator, &db.inner, db_migrations);
     defer migrator.deinit();
 
     try migrator.rollback();

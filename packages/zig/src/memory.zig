@@ -180,24 +180,22 @@ pub fn createArena(backing_allocator: std.mem.Allocator) !MemoryPool {
     return MemoryPool.init(backing_allocator);
 }
 
-/// The returned struct combines a stack buffer with a TempAllocator that
-/// borrows from it. Previously both fields were `undefined`, so any use of
-/// the allocator was undefined behavior. Callers must copy the returned
-/// struct into a variable so the buffer stays live while the allocator is used.
+/// Self-contained stack-allocator wrapper. Must be initialized via `init()`
+/// on a variable (not a temporary return value) because `temp` holds a
+/// pointer into `buffer` — returning this by value from a function would
+/// leave `temp` pointing at a dead stack buffer.
 pub fn TempAllocatorWithBuffer(comptime size: usize) type {
     return struct {
-        buffer: [size]u8 = [_]u8{0} ** size,
-        temp: TempAllocator,
+        buffer: [size]u8 = undefined,
+        temp: TempAllocator = undefined,
 
         const Self = @This();
 
-        pub fn init() Self {
-            var self: Self = .{
-                .buffer = [_]u8{0} ** size,
-                .temp = undefined,
-            };
+        /// Initialize in-place on a variable whose address is stable:
+        ///   var ta: TempAllocatorWithBuffer(4096) = undefined;
+        ///   ta.init();
+        pub fn init(self: *Self) void {
             self.temp = TempAllocator.init(&self.buffer);
-            return self;
         }
 
         pub fn allocator(self: *Self) std.mem.Allocator {
@@ -210,7 +208,9 @@ pub fn TempAllocatorWithBuffer(comptime size: usize) type {
     };
 }
 
-/// Legacy shim retained for ABI compatibility. Prefer `TempAllocatorWithBuffer`.
-pub fn createTempAllocator(comptime size: usize) TempAllocatorWithBuffer(size) {
-    return TempAllocatorWithBuffer(size).init();
+/// DEPRECATED: Previously returned a struct with `undefined` fields, giving
+/// callers uninitialized memory. The function now takes a pointer to stable
+/// storage. Prefer `TempAllocatorWithBuffer(size).init(&ta)` directly.
+pub fn initTempAllocator(comptime size: usize, self: *TempAllocatorWithBuffer(size)) void {
+    self.init();
 }

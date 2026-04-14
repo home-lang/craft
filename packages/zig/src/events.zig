@@ -92,6 +92,15 @@ pub const EventEmitter = struct {
         }
     }
 
+    /// Register a one-shot callback.
+    ///
+    /// KNOWN LIMITATION: Zig function-pointer callbacks have no user-data
+    /// slot, so this implementation uses module-level static storage. That
+    /// means only the most recently registered `once` subscription is
+    /// tracked — concurrent or back-to-back `once` calls will behave as if
+    /// the earlier ones are regular `on` subscriptions that never auto-remove.
+    /// For reliable one-shot semantics, subscribe with `on` and unsubscribe
+    /// manually inside the handler.
     pub fn once(self: *Self, event_name: []const u8, callback: EventCallback) !void {
         const wrapper = struct {
             var emitter: ?*EventEmitter = null;

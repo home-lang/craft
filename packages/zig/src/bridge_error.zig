@@ -76,58 +76,50 @@ pub const ErrorContext = struct {
         };
     }
 
-    /// Format error as JSON for sending to JavaScript
+    /// Format error as JSON for sending to JavaScript.
+    /// Builds into a dynamic ArrayList so long action/message strings can't
+    /// overflow the previously fixed 1024-byte stack buffer. Escapes both
+    /// `"` and `\` plus control bytes that would produce invalid JSON.
     pub fn toJSON(self: ErrorContext, allocator: std.mem.Allocator) ![]u8 {
-        // Use a fixed buffer for the JSON output
-        var buf: [1024]u8 = undefined;
-        var pos: usize = 0;
+        var out: std.ArrayListUnmanaged(u8) = .{};
+        errdefer out.deinit(allocator);
 
-        // Build JSON manually
-        const prefix = "{\"error\":true,\"code\":\"";
-        @memcpy(buf[pos..][0..prefix.len], prefix);
-        pos += prefix.len;
+        try out.appendSlice(allocator, "{\"error\":true,\"code\":\"");
+        try out.appendSlice(allocator, errorCodeString(self.err));
+        try out.appendSlice(allocator, "\",\"action\":\"");
+        try appendJsonEscaped(allocator, &out, self.action);
+        try out.appendSlice(allocator, "\",\"message\":\"");
+        try appendJsonEscaped(allocator, &out, self.message);
+        try out.appendSlice(allocator, "\"}");
 
-        const code = errorCodeString(self.err);
-        @memcpy(buf[pos..][0..code.len], code);
-        pos += code.len;
-
-        const action_prefix = "\",\"action\":\"";
-        @memcpy(buf[pos..][0..action_prefix.len], action_prefix);
-        pos += action_prefix.len;
-
-        @memcpy(buf[pos..][0..self.action.len], self.action);
-        pos += self.action.len;
-
-        const msg_prefix = "\",\"message\":\"";
-        @memcpy(buf[pos..][0..msg_prefix.len], msg_prefix);
-        pos += msg_prefix.len;
-
-        // Simple message copy (no escaping for simplicity)
-        for (self.message) |c| {
-            if (c == '"') {
-                buf[pos] = '\\';
-                pos += 1;
-                buf[pos] = '"';
-            } else if (c == '\\') {
-                buf[pos] = '\\';
-                pos += 1;
-                buf[pos] = '\\';
-            } else {
-                buf[pos] = c;
-            }
-            pos += 1;
-        }
-
-        const suffix = "\"}";
-        @memcpy(buf[pos..][0..suffix.len], suffix);
-        pos += suffix.len;
-
-        // Copy to allocated buffer
-        const result = try allocator.alloc(u8, pos);
-        @memcpy(result, buf[0..pos]);
-        return result;
+        return out.toOwnedSlice(allocator);
     }
 };
+
+/// Append `s` to `out` with JSON-string escaping for `"`, `\`, and control
+/// characters below 0x20. Exported at module scope so other bridge modules
+/// can reuse the same escaping rules.
+pub fn appendJsonEscaped(
+    allocator: std.mem.Allocator,
+    out: *std.ArrayListUnmanaged(u8),
+    s: []const u8,
+) !void {
+    for (s) |c| {
+        switch (c) {
+            '"' => try out.appendSlice(allocator, "\\\""),
+            '\\' => try out.appendSlice(allocator, "\\\\"),
+            '\n' => try out.appendSlice(allocator, "\\n"),
+            '\r' => try out.appendSlice(allocator, "\\r"),
+            '\t' => try out.appendSlice(allocator, "\\t"),
+            0x00...0x08, 0x0B, 0x0C, 0x0E...0x1F => {
+                var hex_buf: [6]u8 = undefined;
+                const hex = try std.fmt.bufPrint(&hex_buf, "\\u{x:0>4}", .{c});
+                try out.appendSlice(allocator, hex);
+            },
+            else => try out.append(allocator, c),
+        }
+    }
+}
 
 /// Convert BridgeError to string code for JavaScript
 pub fn errorCodeString(err: BridgeError) []const u8 {
@@ -183,13 +175,18 @@ pub fn sendErrorToJS(allocator: std.mem.Allocator, action: []const u8, err: Brid
 
     const bridge = @import("bridge.zig");
 
-    // Build JavaScript to call error handler
-    var js_buf: [1024]u8 = undefined;
-    const js = std.fmt.bufPrint(&js_buf, "if(window.__craftBridgeError)window.__craftBridgeError({s});", .{json}) catch {
+    // Allocate the JS string so long action/message strings (which the new
+    // `toJSON` will faithfully include) can't overflow a fixed stack buffer.
+    const js = std.fmt.allocPrint(
+        allocator,
+        "if(window.__craftBridgeError)window.__craftBridgeError({s});",
+        .{json},
+    ) catch {
         if (comptime builtin.mode == .Debug)
             std.debug.print("[BridgeError] Failed to format JS\n", .{});
         return;
     };
+    defer allocator.free(js);
 
     bridge.evalJS(js) catch |eval_err| {
         if (comptime builtin.mode == .Debug)

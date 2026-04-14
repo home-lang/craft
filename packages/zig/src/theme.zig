@@ -235,6 +235,14 @@ pub const ThemeManager = struct {
 
     pub fn init(allocator: std.mem.Allocator) !ThemeManager {
         var themes = std.StringHashMap(Theme).init(allocator);
+        // If any of the puts or the later alloc fails, free the map and the
+        // Theme values already inside. Previously this would leak the map and
+        // both themes on the first error.
+        errdefer {
+            var it = themes.valueIterator();
+            while (it.next()) |t| t.deinit();
+            themes.deinit();
+        }
 
         // Add default themes
         const light = Theme.init(allocator, "light", .light);
@@ -244,6 +252,7 @@ pub const ThemeManager = struct {
         try themes.put("dark", dark);
 
         const current = try allocator.create(Theme);
+        errdefer allocator.destroy(current);
         current.* = light;
 
         return ThemeManager{

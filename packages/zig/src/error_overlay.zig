@@ -1,5 +1,22 @@
 const std = @import("std");
 
+/// HTML-escape a string so it can be safely embedded in the error overlay
+/// template. Build errors can contain attacker-influenced content (filenames
+/// from a malicious checkout, message strings from user code, etc.), so this
+/// must be applied to every field before it lands in the output HTML.
+fn writeEscapedHtml(writer: anytype, s: []const u8) !void {
+    for (s) |c| {
+        switch (c) {
+            '&' => try writer.writeAll("&amp;"),
+            '<' => try writer.writeAll("&lt;"),
+            '>' => try writer.writeAll("&gt;"),
+            '"' => try writer.writeAll("&quot;"),
+            '\'' => try writer.writeAll("&#x27;"),
+            else => try writer.writeByte(c),
+        }
+    }
+}
+
 /// Error overlay for visual error display in development mode
 /// Shows errors with stack traces and actionable suggestions
 pub const ErrorSeverity = enum {
@@ -75,18 +92,28 @@ pub const ErrorOverlay = struct {
     }
 
     pub fn addError(self: *Self, error_info: ErrorInfo) !void {
+        // Take ownership of the passed-in ErrorInfo (its fields were allocated
+        // with the caller's allocator). We must deinit it here if we refuse
+        // the error, otherwise its `message`/`file`/etc. allocations leak.
         if (!self.enabled) {
             var err = error_info;
             err.deinit();
             return;
         }
 
-        // Limit number of errors
+        // Limit number of errors (drop oldest)
         if (self.errors.items.len >= self.max_errors) {
             var oldest = self.errors.orderedRemove(0);
             oldest.deinit();
         }
 
+        // Append first, then render — append can fail (OOM), so we don't want
+        // to render a partial state. Use errdefer so the passed-in ErrorInfo
+        // is cleaned up if the append fails.
+        errdefer {
+            var err = error_info;
+            err.deinit();
+        }
         try self.errors.append(error_info);
         try self.render();
     }
@@ -193,10 +220,13 @@ pub const ErrorOverlay = struct {
 
         for (self.errors.items) |*err| {
             try writer.writeAll("  <div class=\"error-item\">\n");
-            try writer.print("    <div class=\"error-message\">{s}</div>\n", .{err.message});
+            try writer.writeAll("    <div class=\"error-message\">");
+            try writeEscapedHtml(writer, err.message);
+            try writer.writeAll("</div>\n");
 
             if (err.file) |file| {
-                try writer.print("    <div class=\"error-location\">{s}", .{file});
+                try writer.writeAll("    <div class=\"error-location\">");
+                try writeEscapedHtml(writer, file);
                 if (err.line) |line| {
                     try writer.print(":{d}", .{line});
                     if (err.column) |column| {
@@ -207,11 +237,15 @@ pub const ErrorOverlay = struct {
             }
 
             if (err.stack_trace) |st| {
-                try writer.print("    <div class=\"error-stack\">{s}</div>\n", .{st});
+                try writer.writeAll("    <div class=\"error-stack\">");
+                try writeEscapedHtml(writer, st);
+                try writer.writeAll("</div>\n");
             }
 
             if (err.suggestion) |sug| {
-                try writer.print("    <div class=\"error-suggestion\">💡 {s}</div>\n", .{sug});
+                try writer.writeAll("    <div class=\"error-suggestion\">💡 ");
+                try writeEscapedHtml(writer, sug);
+                try writer.writeAll("</div>\n");
             }
 
             try writer.writeAll("  </div>\n");
@@ -291,7 +325,7 @@ test "error overlay HTML generation" {
     var overlay = ErrorOverlay.init(allocator, 10);
     defer overlay.deinit();
 
-    var error_info = try ErrorInfo.init(allocator, "Syntax error", .Error);
+    const error_info = try ErrorInfo.init(allocator, "Syntax error", .Error);
     try overlay.addError(error_info);
 
     const html = try overlay.generateHTML();
@@ -307,13 +341,13 @@ test "error overlay max errors" {
     var overlay = ErrorOverlay.init(allocator, 2);
     defer overlay.deinit();
 
-    var err1 = try ErrorInfo.init(allocator, "Error 1", .Error);
+    const err1 = try ErrorInfo.init(allocator, "Error 1", .Error);
     try overlay.addError(err1);
 
-    var err2 = try ErrorInfo.init(allocator, "Error 2", .Error);
+    const err2 = try ErrorInfo.init(allocator, "Error 2", .Error);
     try overlay.addError(err2);
 
-    var err3 = try ErrorInfo.init(allocator, "Error 3", .Error);
+    const err3 = try ErrorInfo.init(allocator, "Error 3", .Error);
     try overlay.addError(err3);
 
     // Should only keep last 2 errors

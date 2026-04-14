@@ -24,16 +24,21 @@ pub const MessageHandler = *const fn (Message) void;
 pub const IPC = struct {
     channels: std.StringHashMap(std.ArrayList(MessageHandler)),
     pending_requests: std.AutoHashMap(u64, MessageHandler),
-    next_id: u64,
+    next_id: std.atomic.Value(u64),
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) IPC {
         return IPC{
             .channels = std.StringHashMap(std.ArrayList(MessageHandler)).init(allocator),
             .pending_requests = std.AutoHashMap(u64, MessageHandler).init(allocator),
-            .next_id = 1,
+            .next_id = std.atomic.Value(u64).init(1),
             .allocator = allocator,
         };
+    }
+
+    /// Atomically reserve the next message id. Safe for concurrent callers.
+    fn allocId(self: *IPC) u64 {
+        return self.next_id.fetchAdd(1, .monotonic);
     }
 
     pub fn deinit(self: *IPC) void {
@@ -66,27 +71,27 @@ pub const IPC = struct {
         }
     }
 
-    /// Get current timestamp (monotonic counter, used for message ordering)
+    /// Get current timestamp using a thread-safe atomic counter. Previously
+    /// used a non-atomic static counter that could drop increments and break
+    /// message ordering under concurrent `send`/`request` calls.
     fn currentTimestamp() i64 {
-        // Simple monotonic counter — sufficient for message ordering
         const S = struct {
-            var counter: i64 = 0;
+            var counter: std.atomic.Value(i64) = std.atomic.Value(i64).init(0);
         };
-        S.counter += 1;
-        return S.counter;
+        return S.counter.fetchAdd(1, .monotonic) + 1;
     }
 
     /// Send a message to a channel
     pub fn send(self: *IPC, channel: []const u8, data: []const u8) !void {
+        const id = self.allocId();
         const msg = Message{
-            .id = self.next_id,
+            .id = id,
             .type = .event,
             .channel = channel,
             .data = data,
             .timestamp = currentTimestamp(),
             .sender = null,
         };
-        self.next_id += 1;
 
         if (self.channels.get(channel)) |handlers| {
             for (handlers.items) |handler| {
@@ -97,8 +102,7 @@ pub const IPC = struct {
 
     /// Send request and wait for response
     pub fn request(self: *IPC, channel: []const u8, data: []const u8, handler: MessageHandler) !u64 {
-        const id = self.next_id;
-        self.next_id += 1;
+        const id = self.allocId();
 
         try self.pending_requests.put(id, handler);
 
