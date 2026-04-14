@@ -405,9 +405,9 @@ const html = `
   <aside class="sidebar">
     <div class="window-controls">
       <div class="traffic-lights">
-        <div class="traffic-light close"></div>
-        <div class="traffic-light minimize"></div>
-        <div class="traffic-light maximize"></div>
+        <div class="close traffic-light"></div>
+        <div class="minimize traffic-light"></div>
+        <div class="maximize traffic-light"></div>
       </div>
     </div>
 
@@ -423,7 +423,7 @@ const html = `
           <span class="chevron">▼</span>
         </div>
         <div class="tabs">
-          <div class="tab selected" onclick="selectTab(this)">
+          <div class="selected tab" onclick="selectTab(this)">
             <span class="favicon" style="background: #ea4335; color: white;">G</span>
             <span class="title">Gmail</span>
             <span class="close" onclick="closeTab(event)">×</span>
@@ -488,10 +488,10 @@ const html = `
 
     <div class="spaces">
       <div class="space-selector">
-        <div class="space purple selected" onclick="selectSpace(this)"></div>
-        <div class="space blue" onclick="selectSpace(this)"></div>
-        <div class="space green" onclick="selectSpace(this)"></div>
-        <div class="space orange" onclick="selectSpace(this)"></div>
+        <div class="selected purple space" onclick="selectSpace(this)"></div>
+        <div class="blue space" onclick="selectSpace(this)"></div>
+        <div class="green space" onclick="selectSpace(this)"></div>
+        <div class="orange space" onclick="selectSpace(this)"></div>
       </div>
     </div>
   </aside>
@@ -499,8 +499,8 @@ const html = `
   <main class="main">
     <div class="url-bar">
       <div class="nav-buttons">
-        <div class="nav-btn disabled">←</div>
-        <div class="nav-btn disabled">→</div>
+        <div class="disabled nav-btn">←</div>
+        <div class="disabled nav-btn">→</div>
         <div class="nav-btn">↻</div>
       </div>
       <div class="url-input">

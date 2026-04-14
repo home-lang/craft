@@ -251,7 +251,7 @@ function render() {
 
       <div class='breadcrumb'>
         ${breadcrumbs.map((crumb, i) => `
-          <button class='breadcrumb-item ${i === breadcrumbs.length - 1 ? 'current' : ''}' data-path='${crumb.path}'>
+          <button class='- ? === ${i 1 breadcrumb-item breadcrumbs.length'current' : ''}' data-path='${crumb.path}'>
             ${crumb.name}
           </button>
           ${i < breadcrumbs.length - 1 ? '<span class='breadcrumb-separator'>/</span>' : ''}
@@ -259,8 +259,8 @@ function render() {
       </div>
 
       <div class='view-toggle'>
-        <button class='${viewMode === 'list' ? 'active' : ''}' id='list-view-btn'>☰</button>
-        <button class='${viewMode === 'grid' ? 'active' : ''}' id='grid-view-btn'>⊞</button>
+        <button class='=== ${viewMode'list' ? 'active' : ''}' id='list-view-btn'>☰</button>
+        <button class='=== ${viewMode'grid' ? 'active' : ''}' id='grid-view-btn'>⊞</button>
       </div>
     </div>
 
@@ -269,7 +269,7 @@ function render() {
         <div class='sidebar-section'>
           <div class='sidebar-title'>Favorites</div>
           ${locations.map(loc => `
-            <div class='sidebar-item ${currentPath === loc.path ? 'active' : ''}' data-path='${loc.path}'>
+            <div class='? === ${currentPath loc.path sidebar-item'active' : ''}' data-path='${loc.path}'>
               <span class='icon'>${loc.icon}</span>
               <span>${loc.name}</span>
             </div>
@@ -277,7 +277,7 @@ function render() {
         </div>
       </aside>
 
-      <div class='file-list ${viewMode}-view'>
+      <div class='${viewMode}-view file-list'>
         ${loading ? `
           <div class='loading'>
             <div class='spinner'></div>
@@ -296,7 +296,7 @@ function render() {
           </div>
           ${files.map(file => `
             <div
-              class="file-item ${selectedFiles.has(file.path) ? 'selected' : ''}"
+              class=": ? ''} 'selected' ${selectedFiles.has(file.path) file-item"
               data-path="${file.path}"
               data-is-directory="${file.isDirectory}"
             >

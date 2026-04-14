@@ -306,7 +306,7 @@ const html = `<!DOCTYPE html>
           Favorites
         </div>
         <div class="section-items" id="favorites">
-          <div class="item selected" data-id="home" onclick="selectItem(this)">
+          <div class="selected item" data-id="home" onclick="selectItem(this)">
             <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
             <span class="item-label">Home</span>
           </div>
@@ -342,11 +342,11 @@ const html = `<!DOCTYPE html>
 
       <!-- Tags -->
       <div class="section">
-        <div class="section-header collapsed" onclick="toggleSection('tags')">
+        <div class="collapsed section-header" onclick="toggleSection('tags')">
           <svg class="section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
           Tags
         </div>
-        <div class="section-items collapsed" id="tags">
+        <div class="collapsed section-items" id="tags">
           <div class="item" data-id="tag-red" onclick="selectItem(this)">
             <div class="tag-dot" style="background:#ef4444"></div>
             <span class="item-label">Important</span>

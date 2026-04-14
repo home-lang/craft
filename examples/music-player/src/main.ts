@@ -649,7 +649,7 @@ function renderApp(tracks: Track[]): void {
         <div class="sidebar-section">
           <h3>Library</h3>
           <nav>
-            <a href="#" class="nav-item active" data-view="all">All Songs</a>
+            <a href="#" class="active nav-item" data-view="all">All Songs</a>
             <a href="#" class="nav-item" data-view="artists">Artists</a>
             <a href="#" class="nav-item" data-view="albums">Albums</a>
           </nav>
@@ -702,7 +702,7 @@ function renderApp(tracks: Track[]): void {
         </div>
       </footer>
 
-      <div id="visualizer-modal" class="modal hidden">
+      <div id="visualizer-modal" class="hidden modal">
         <div class="modal-content">
           <canvas id="visualizer" width="800" height="300"></canvas>
           <button id="close-visualizer" class="btn-secondary">Close</button>

@@ -302,7 +302,7 @@ const html = `
       }
 else {
         modeEl.textContent = 'Break Time';
-        modeEl.className = 'mode break';
+        modeEl.className = 'break mode';
       }
 
       // Update system tray/menubar title

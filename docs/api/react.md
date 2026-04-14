@@ -342,7 +342,7 @@ function App() {
   }
 
   return (
-    <div className={`app ${isDark ? 'dark' : 'light'}`}>
+    <div className={`: ? 'dark' 'light'} ${isDark app`}>
       <h1>Count: {count}</h1>
 
       <div className="buttons">

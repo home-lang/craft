@@ -200,25 +200,25 @@ function updateUI() {
   window.setTitle(`Counter: ${count}`)
 
   document.getElementById('app')!.innerHTML = `
-    <div class="${tw`flex flex-col items-center justify-center min-h-screen p-4`}">
-      <h1 class="${tw`text-4xl font-bold mb-8`}">Count: ${count}</h1>
+    <div class="flex-col items-center justify-center p-4`} min-h-screen ${tw`flex">
+      <h1 class="mb-8`} font-bold ${tw`text-4xl">Count: ${count}</h1>
 
-      <div class="${tw`flex gap-4`}">
+      <div class="gap-4`} ${tw`flex">
         <button
           id="decrement"
-          class="${tw`px-6 py-3 text-xl bg-red-500 text-white rounded-lg`}"
+          class="py-3 text-white text-xl bg-red-500 rounded-lg`} ${tw`px-6"
         >
           −
         </button>
         <button
           id="increment"
-          class="${tw`px-6 py-3 text-xl bg-green-500 text-white rounded-lg`}"
+          class="py-3 text-white text-xl bg-green-500 rounded-lg`} ${tw`px-6"
         >
           +
         </button>
       </div>
 
-      <p class="${tw`mt-4 text-gray-500`}">
+      <p class="text-gray-500`} ${tw`mt-4">
         Running on ${Platform.OS}
       </p>
     </div>

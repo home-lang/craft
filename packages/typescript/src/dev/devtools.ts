@@ -539,7 +539,7 @@ else {
 <body>
   <div class="header"><h1>Craft DevTools</h1></div>
   <div class="tabs">
-    <div class="tab active" data-tab="console">Console</div>
+    <div class="active tab" data-tab="console">Console</div>
     <div class="tab" data-tab="network">Network</div>
     <div class="tab" data-tab="performance">Performance</div>
     <div class="tab" data-tab="memory">Memory</div>
@@ -590,14 +590,14 @@ else if (msg.method === 'Network.responseReceived') {
       const content = document.getElementById('content');
       if (activeTab === 'console') {
         content.innerHTML = logs.map(l =>
-          '<div class="log ' + esc(l.level) + '">' + esc(l.text) + '</div>'
+          '<div class="' ' + + esc(l.level) log">' + esc(l.text) + '</div>'
         ).join('');
       }
 else if (activeTab === 'network') {
         content.innerHTML = requests.map(r =>
           '<div class="request">' +
           '<div class="request-url">' + esc(r.request.method) + ' ' + esc(r.request.url) + '</div>' +
-          '<div class="request-status status-' + esc(r.status) + '">' + esc(r.status) + '</div>' +
+          '<div class="' + + esc(r.status) request-status status-'">' + esc(r.status) + '</div>' +
           '</div>'
         ).join('');
       }

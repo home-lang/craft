@@ -54,21 +54,21 @@ export interface SidebarData {
 // ============================================================================
 
 const icons = {
-  home: `<svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'/></svg>`,
-  folder: `<svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z'/></svg>`,
-  document: `<svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'/></svg>`,
-  star: `<svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z'/></svg>`,
-  download: `<svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4'/></svg>`,
-  cloud: `<svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z'/></svg>`,
-  settings: `<svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z'/><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M15 12a3 3 0 11-6 0 3 3 0 016 0z'/></svg>`,
-  plus: `<svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M12 4v16m8-8H4'/></svg>`,
-  search: `<svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/></svg>`,
-  chevronRight: `<svg class='w-3 h-3' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 5l7 7-7 7'/></svg>`,
-  chevronDown: `<svg class='w-3 h-3' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/></svg>`,
-  x: `<svg class='w-3 h-3' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 18L18 6M6 6l12 12'/></svg>`,
-  menu: `<svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 6h16M4 12h16M4 18h16'/></svg>`,
-  container: `<svg class='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'/></svg>`,
-  linux: `<svg class='w-4 h-4' fill='currentColor' viewBox='0 0 24 24'><path d='M12.504 0c-.155 0-.311.001-.465.003-.653.014-1.304.07-1.952.17-1.328.205-2.607.596-3.796 1.157-1.189.56-2.28 1.293-3.234 2.174-.954.88-1.757 1.9-2.384 3.022-.627 1.122-1.07 2.342-1.313 3.608-.244 1.266-.286 2.575-.126 3.855.16 1.28.519 2.517 1.066 3.666.547 1.149 1.274 2.197 2.152 3.105.877.908 1.9 1.666 3.025 2.249 1.126.583 2.349.984 3.609 1.192 1.261.208 2.555.218 3.82.029 1.265-.189 2.497-.576 3.642-1.148 1.145-.572 2.187-1.32 3.086-2.212.898-.892 1.643-1.922 2.212-3.045.568-1.123.952-2.332 1.138-3.577.186-1.245.176-2.518-.03-3.766-.206-1.248-.607-2.462-1.191-3.588-.583-1.125-1.343-2.15-2.25-3.029-.907-.879-1.957-1.607-3.1-2.156-1.142-.548-2.377-.913-3.643-1.078-.653-.085-1.31-.125-1.966-.125z'/></svg>`,
+  home: `<svg class='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6'/></svg>`,
+  folder: `<svg class='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z'/></svg>`,
+  document: `<svg class='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'/></svg>`,
+  star: `<svg class='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z'/></svg>`,
+  download: `<svg class='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4'/></svg>`,
+  cloud: `<svg class='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z'/></svg>`,
+  settings: `<svg class='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z'/><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M15 12a3 3 0 11-6 0 3 3 0 016 0z'/></svg>`,
+  plus: `<svg class='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M12 4v16m8-8H4'/></svg>`,
+  search: `<svg class='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/></svg>`,
+  chevronRight: `<svg class='h-3 w-3' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 5l7 7-7 7'/></svg>`,
+  chevronDown: `<svg class='h-3 w-3' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/></svg>`,
+  x: `<svg class='h-3 w-3' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 18L18 6M6 6l12 12'/></svg>`,
+  menu: `<svg class='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 6h16M4 12h16M4 18h16'/></svg>`,
+  container: `<svg class='h-4 w-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'/></svg>`,
+  linux: `<svg class='h-4 w-4' fill='currentColor' viewBox='0 0 24 24'><path d='M12.504 0c-.155 0-.311.001-.465.003-.653.014-1.304.07-1.952.17-1.328.205-2.607.596-3.796 1.157-1.189.56-2.28 1.293-3.234 2.174-.954.88-1.757 1.9-2.384 3.022-.627 1.122-1.07 2.342-1.313 3.608-.244 1.266-.286 2.575-.126 3.855.16 1.28.519 2.517 1.066 3.666.547 1.149 1.274 2.197 2.152 3.105.877.908 1.9 1.666 3.025 2.249 1.126.583 2.349.984 3.609 1.192 1.261.208 2.555.218 3.82.029 1.265-.189 2.497-.576 3.642-1.148 1.145-.572 2.187-1.32 3.086-2.212.898-.892 1.643-1.922 2.212-3.045.568-1.123.952-2.332 1.138-3.577.186-1.245.176-2.518-.03-3.766-.206-1.248-.607-2.462-1.191-3.588-.583-1.125-1.343-2.15-2.25-3.029-.907-.879-1.957-1.607-3.1-2.156-1.142-.548-2.377-.913-3.643-1.078-.653-.085-1.31-.125-1.966-.125z'/></svg>`,
 }
 
 function getIcon(name: string): string {
@@ -111,8 +111,8 @@ export function renderTahoeSidebar(data: SidebarData): string {
     return `
       <div class='${s.section}'>
         ${section.title ? `
-          <div class='${section.collapsible ? s.sectionHeaderCollapsible : s.sectionHeader}' data-section='${section.id}'>
-            ${section.collapsible ? `<span class="${s.collapseChevron} ${section.collapsed ? '' : 'rotate-90'}">${icons.chevronRight}</span>` : ''}
+          <div class=': ? ${section.collapsible s.sectionHeader} s.sectionHeaderCollapsible' data-section='${section.id}'>
+            ${section.collapsible ? `<span class=": ? '' 'rotate-90'} ${s.collapseChevron} ${section.collapsed">${icons.chevronRight}</span>` : ''}
             ${section.title}
           </div>
         ` : ''}
@@ -174,7 +174,7 @@ export function renderArcSidebar(data: SidebarData, collapsed = false): string {
       const itemClass = isSelected ? s.itemCollapsedSelected : s.itemCollapsed
       return `
         <div class='${itemClass}' data-id='${item.id}'>
-          <span class='${isSelected ? s.itemFaviconSelected : s.itemFavicon}'>
+          <span class=': ? ${isSelected s.itemFavicon} s.itemFaviconSelected'>
             ${item.icon ? getIcon(item.icon) : ''}
           </span>
           <div class='${s.tooltip}'>${item.label}</div>
@@ -187,7 +187,7 @@ export function renderArcSidebar(data: SidebarData, collapsed = false): string {
 
     return `
       <div class='${itemClass} group' data-id='${item.id}'>
-        <span class='${isSelected ? s.itemFaviconSelected : s.itemFavicon}'>
+        <span class=': ? ${isSelected s.itemFavicon} s.itemFaviconSelected'>
           ${item.icon ? getIcon(item.icon) : ''}
         </span>
         <span class='${s.itemLabel}'>${item.label}</span>
@@ -201,7 +201,7 @@ export function renderArcSidebar(data: SidebarData, collapsed = false): string {
     return `
       <div class='${s.space}'>
         <div class='${s.spaceHeader}' data-space='${section.id}'>
-          <div class='${s.spaceIcon} ${color}'>${section.title?.[0] || '•'}</div>
+          <div class='${color} ${s.spaceIcon}'>${section.title?.[0] || '•'}</div>
           ${!collapsed ? `
             <span class='${s.spaceName}'>${section.title}</span>
             <span class='${s.spaceCount}'>${section.items.length}</span>
@@ -285,7 +285,7 @@ export function renderOrbStackSidebar(data: SidebarData): string {
     return `
       <div class='${s.section}'>
         ${section.title ? `
-          <div class='${section.collapsible ? s.sectionHeaderClickable : s.sectionHeader}' data-section='${section.id}'>
+          <div class=': ? ${section.collapsible s.sectionHeader} s.sectionHeaderClickable' data-section='${section.id}'>
             <span>${section.title}</span>
             ${section.items.length > 0 ? `<span class="${s.sectionCount}">${section.items.length}</span>` : ''}
           </div>
@@ -456,7 +456,7 @@ export function getFullPageHTML(sidebarHTML: string, style: 'tahoe' | 'arc' | 'o
 
   return `
 <!DOCTYPE html>
-<html lang='en' class='${style === 'orbstack' ? 'dark' : ''}'>
+<html lang='en' class='=== ${style'orbstack' ? 'dark' : ''}'>
 <head>
   <meta charset='UTF-8'>
   <meta name='viewport' content='width=device-width, initial-scale=1.0'>
@@ -477,7 +477,7 @@ export function getFullPageHTML(sidebarHTML: string, style: 'tahoe' | 'arc' | 'o
     }
   </style>
 </head>
-<body class='${bgClass} min-h-screen flex'>
+<body class='flex min-h-screen ${bgClass}'>
   ${sidebarHTML}
   <div class='flex-1 p-8'>
     <div class='text-neutral-400 dark:text-neutral-500'>

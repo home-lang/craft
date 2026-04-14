@@ -103,7 +103,7 @@ const html = `<!DOCTYPE html>
   </div>
 
   <div class="log" id="log">
-    <div class="log-entry info">Waiting for tests...</div>
+    <div class="info log-entry">Waiting for tests...</div>
   </div>
 
   <script>

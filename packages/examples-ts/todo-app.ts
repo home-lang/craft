@@ -223,7 +223,7 @@ const html = `
       }
 else {
         list.innerHTML = todos.map(todo => \`
-          <li class="todo-item \${todo.completed ? 'completed' : ''}">
+          <li class=": ? ''} 'completed' \${todo.completed todo-item">
             <input
               type="checkbox"
               class="todo-checkbox"

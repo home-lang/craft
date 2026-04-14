@@ -576,20 +576,20 @@ function renderBottomNav(store: SocialStore): string {
 
   return `
     <nav class='bottom-nav'>
-      <button class='nav-item ${view === 'feed' ? 'active' : ''}' data-nav='feed'>
+      <button class='=== ${view nav-item'feed' ? 'active' : ''}' data-nav='feed'>
         <span class='nav-icon'>🏠</span>
       </button>
-      <button class='nav-item ${view === 'search' ? 'active' : ''}' data-nav='search'>
+      <button class='=== ${view nav-item'search' ? 'active' : ''}' data-nav='search'>
         <span class='nav-icon'>🔍</span>
       </button>
-      <button class='nav-item ${view === 'create' ? 'active' : ''}' data-nav='create'>
-        <span class='nav-icon create-icon'>+</span>
+      <button class='=== ${view nav-item'create' ? 'active' : ''}' data-nav='create'>
+        <span class='create-icon nav-icon'>+</span>
       </button>
-      <button class='nav-item ${view === 'notifications' ? 'active' : ''}' data-nav='notifications'>
+      <button class='=== ${view nav-item'notifications' ? 'active' : ''}' data-nav='notifications'>
         <span class='nav-icon'>🔔</span>
         ${unreadCount > 0 ? `<span class='badge'>${unreadCount}</span>` : ''}
       </button>
-      <button class='nav-item ${view === 'profile' ? 'active' : ''}' data-nav='profile'>
+      <button class='=== ${view nav-item'profile' ? 'active' : ''}' data-nav='profile'>
         <span class='nav-icon'>👤</span>
       </button>
     </nav>
@@ -604,14 +604,14 @@ function renderFeed(store: SocialStore): string {
     <div class='feed-view'>
       ${stories.length > 0 ? `
         <div class='stories-container'>
-          <div class='story add-story'>
-            <div class='story-avatar add'>+</div>
+          <div class='add-story story'>
+            <div class='add story-avatar'>+</div>
             <span class='story-name'>Add Story</span>
           </div>
           ${stories.map((story) => {
             const user = store.getUser(story.userId)
             return `
-              <div class="story ${story.viewed ? 'viewed' : ''}" data-story-id="${story.id}">
+              <div class=": ? ''} 'viewed' ${story.viewed story" data-story-id="${story.id}">
                 <div class="story-avatar">${user?.displayName.charAt(0) || '?'}</div>
                 <span class="story-name">${user?.username || 'Unknown'}</span>
               </div>
@@ -649,14 +649,14 @@ function renderPost(post: Post, store: SocialStore): string {
       <div class='post-content' data-view-post='${post.id}'>
         <p>${formatContent(post.content)}</p>
         ${post.images.length > 0 ? `
-          <div class='post-images ${post.images.length > 1 ? 'grid' : ''}'>
+          <div class='? > ${post.images.length 1 post-images'grid' : ''}'>
             ${post.images.map(() => `<div class="post-image"></div>`).join('')}
           </div>
         ` : ''}
       </div>
 
       <footer class='post-actions'>
-        <button class='action-btn ${post.isLiked ? 'liked' : ''}' data-like='${post.id}'>
+        <button class='? ${post.isLiked action-btn'liked' : ''}' data-like='${post.id}'>
           <span>${post.isLiked ? '❤️' : '🤍'}</span>
           <span>${formatNumber(post.likes)}</span>
         </button>
@@ -668,7 +668,7 @@ function renderPost(post: Post, store: SocialStore): string {
           <span>🔄</span>
           <span>${formatNumber(post.shares)}</span>
         </button>
-        <button class='action-btn ${post.isBookmarked ? 'bookmarked' : ''}' data-bookmark='${post.id}'>
+        <button class='? ${post.isBookmarked action-btn'bookmarked' : ''}' data-bookmark='${post.id}'>
           <span>${post.isBookmarked ? '🔖' : '📑'}</span>
         </button>
       </footer>
@@ -747,7 +747,7 @@ function renderUserCard(user: User, store: SocialStore): string {
         <span class='follower-count'>${formatNumber(user.followers)} followers</span>
       </div>
       ${!isCurrentUser ? `
-        <button class='follow-btn ${user.isFollowing ? 'following' : ''}' data-follow='${user.id}'>
+        <button class='? ${user.isFollowing follow-btn'following' : ''}' data-follow='${user.id}'>
           ${user.isFollowing ? 'Following' : 'Follow'}
         </button>
       ` : ''}
@@ -807,7 +807,7 @@ function renderNotifications(store: SocialStore): string {
           }
 
           return `
-            <div class='notification ${notif.read ? '' : 'unread'}' data-notif-post='${notif.postId || ''}'>
+            <div class='? ${notif.read notification'' : 'unread'}' data-notif-post='${notif.postId || ''}'>
               <div class='notif-icon'>${icons[notif.type]}</div>
               <div class='avatar'>${user?.displayName.charAt(0) || '?'}</div>
               <div class='notif-content'>
@@ -856,14 +856,14 @@ function renderProfile(store: SocialStore, user: User): string {
         ${isCurrentUser ? `
           <button class='edit-profile-btn'>Edit Profile</button>
         ` : `
-          <button class='follow-btn large ${user.isFollowing ? 'following' : ''}' data-follow='${user.id}'>
+          <button class='? ${user.isFollowing follow-btn large'following' : ''}' data-follow='${user.id}'>
             ${user.isFollowing ? 'Following' : 'Follow'}
           </button>
         `}
       </div>
 
       <div class='profile-tabs'>
-        <button class='tab active'>Posts</button>
+        <button class='active tab'>Posts</button>
         <button class='tab'>Media</button>
         <button class='tab'>Likes</button>
       </div>

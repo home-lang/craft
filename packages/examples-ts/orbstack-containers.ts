@@ -366,13 +366,13 @@ const html = `
           <span>Machines</span>
           <span class="count">3</span>
         </div>
-        <div class="item selected" onclick="selectItem(this, 'ubuntu')">
-          <span class="status running"></span>
+        <div class="selected item" onclick="selectItem(this, 'ubuntu')">
+          <span class="running status"></span>
           <span class="name">ubuntu</span>
           <span class="meta">arm64</span>
         </div>
         <div class="item" onclick="selectItem(this, 'debian')">
-          <span class="status running"></span>
+          <span class="running status"></span>
           <span class="name">debian</span>
           <span class="meta">arm64</span>
         </div>
@@ -389,12 +389,12 @@ const html = `
           <span class="count">6</span>
         </div>
         <div class="item" onclick="selectItem(this, 'postgres-dev')">
-          <span class="status running"></span>
+          <span class="running status"></span>
           <span class="name">postgres-dev</span>
           <span class="meta">5432</span>
         </div>
         <div class="item" onclick="selectItem(this, 'redis-cache')">
-          <span class="status running"></span>
+          <span class="running status"></span>
           <span class="name">redis-cache</span>
           <span class="meta">6379</span>
         </div>
@@ -404,7 +404,7 @@ const html = `
           <span class="meta">80</span>
         </div>
         <div class="item" onclick="selectItem(this, 'api-server')">
-          <span class="status running"></span>
+          <span class="running status"></span>
           <span class="name">api-server</span>
           <span class="meta">3000</span>
         </div>
@@ -414,7 +414,7 @@ const html = `
           <span class="meta">27017</span>
         </div>
         <div class="item" onclick="selectItem(this, 'worker-1')">
-          <span class="status error"></span>
+          <span class="error status"></span>
           <span class="name">worker-1</span>
           <span class="meta">err</span>
         </div>
@@ -426,7 +426,7 @@ const html = `
           <span class="count">1</span>
         </div>
         <div class="item" onclick="selectItem(this, 'minikube')">
-          <span class="status running"></span>
+          <span class="running status"></span>
           <span class="name">minikube</span>
           <span class="meta">k8s</span>
         </div>
@@ -459,7 +459,7 @@ const html = `
       <div class="info-grid">
         <div class="info-card">
           <div class="label">CPU Usage</div>
-          <div class="value green" id="cpu">12%</div>
+          <div class="green value" id="cpu">12%</div>
         </div>
         <div class="info-card">
           <div class="label">Memory</div>
@@ -480,7 +480,7 @@ const html = `
         <div class="logs" id="logs">
           <div class="log-line"><span class="log-time">12:34:56</span><span class="log-msg success">Container started successfully</span></div>
           <div class="log-line"><span class="log-time">12:34:57</span><span class="log-msg">Mounting volumes...</span></div>
-          <div class="log-line"><span class="log-time">12:34:58</span><span class="log-msg info">Network configured: 172.17.0.2</span></div>
+          <div class="log-line"><span class="log-time">12:34:58</span><span class="info log-msg">Network configured: 172.17.0.2</span></div>
           <div class="log-line"><span class="log-time">12:35:01</span><span class="log-msg">Starting services...</span></div>
           <div class="log-line"><span class="log-time">12:35:02</span><span class="log-msg success">All services healthy</span></div>
           <div class="log-line"><span class="log-time">12:35:10</span><span class="log-msg">Accepting connections on port 22</span></div>

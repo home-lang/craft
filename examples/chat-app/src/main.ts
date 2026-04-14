@@ -555,7 +555,7 @@ function renderRoomsList(store: ChatStore): string {
   return rooms
     .map(
       (room) => `
-    <div class="room-item ${room.id === activeRoomId ? 'active' : ''}" data-room-id="${room.id}">
+    <div class=": ? ''} 'active' === ${room.id activeRoomId room-item" data-room-id="${room.id}">
       <div class="room-avatar">${room.name.charAt(0).toUpperCase()}</div>
       <div class="room-info">
         <div class="room-name">${room.name}</div>
@@ -626,7 +626,7 @@ function renderMessages(messages: Message[], store: ChatStore): string {
 
       return `
         ${dateDivider}
-        <div class="message ${isOwn ? 'own' : ''}" data-message-id="${message.id}">
+        <div class=": ? ''} 'own' ${isOwn message" data-message-id="${message.id}">
           ${!isOwn ? `<div class="message-avatar">${user?.username?.charAt(0) || '?'}</div>` : ''}
           <div class="message-content">
             ${!isOwn ? `<div class="message-sender">${user?.username || 'Unknown'}</div>` : ''}

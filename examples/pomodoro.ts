@@ -785,7 +785,7 @@ else {
       }
 else {
         modeEl.textContent = 'Break Time';
-        modeEl.className = 'mode-indicator break';
+        modeEl.className = 'break mode-indicator';
       }
 
       // Update button text

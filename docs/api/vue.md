@@ -195,7 +195,7 @@ const { theme, setTheme, isDark, systemTheme } = useTheme()
 </script>
 
 <template>
-  <div :class="{ dark: isDark }">
+  <div :class="{ } isDark dark:">
     <select :value="theme" @change="setTheme($event.target.value)">
       <option value="system">System ({{ systemTheme }})</option>
       <option value="light">Light</option>

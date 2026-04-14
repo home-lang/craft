@@ -405,7 +405,7 @@ function escapeHtml(unsafe: string): string {
 
 function generateHTML(config: SidebarConfig): string {
   const renderItem = (item: SidebarItem): string => `
-    <div class='craft-sidebar-item${item.selected ? ' selected' : ''}' data-id='${escapeHtml(item.id)}'>
+    <div class='? craft-sidebar-item${item.selected' selected' : ''}' data-id='${escapeHtml(item.id)}'>
       ${item.icon ? `<span class='craft-sidebar-item-icon'>${getIcon(item.icon, item.tintColor)}</span>` : ''}
       <span class='craft-sidebar-item-label'>${escapeHtml(item.label)}</span>
       ${item.badge !== undefined ? `<span class='craft-sidebar-item-badge'>${escapeHtml(String(item.badge))}</span>` : ''}
@@ -415,12 +415,12 @@ function generateHTML(config: SidebarConfig): string {
   const renderSection = (section: SidebarSection): string => `
     <div class='craft-sidebar-section' data-section='${escapeHtml(section.id)}'>
       ${section.title ? `
-        <div class='craft-sidebar-section-header${section.collapsed ? ' collapsed' : ''}' data-section-toggle='${escapeHtml(section.id)}'>
+        <div class='? craft-sidebar-section-header${section.collapsed' collapsed' : ''}' data-section-toggle='${escapeHtml(section.id)}'>
           ${section.collapsible !== false ? `<svg class="craft-sidebar-section-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>` : ''}
           ${escapeHtml(section.title)}
         </div>
       ` : ''}
-      <div class='craft-sidebar-section-items${section.collapsed ? ' collapsed' : ''}' data-section-items='${escapeHtml(section.id)}'>
+      <div class='? craft-sidebar-section-items${section.collapsed' collapsed' : ''}' data-section-items='${escapeHtml(section.id)}'>
         ${section.items.map(renderItem).join('')}
       </div>
     </div>

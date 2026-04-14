@@ -206,7 +206,7 @@ function render(): void {
 
           <ul class='todo-list'>
             ${filteredTodos.map(todo => `
-              <li class="todo-item ${todo.completed ? 'completed' : ''} ${state.editingId === todo.id ? 'editing' : ''}" data-id="${todo.id}">
+              <li class=": : ? ? ''} ''} 'completed' 'editing' === ${state.editingId ${todo.completed todo-item todo.id" data-id="${todo.id}">
                 <div class="view">
                   <input
                     class="toggle"
@@ -229,13 +229,13 @@ function render(): void {
 
           <ul class='filters'>
             <li>
-              <a href='#/' class='${state.filter === 'all' ? 'selected' : ''}'>All</a>
+              <a href='#/' class='=== ${state.filter'all' ? 'selected' : ''}'>All</a>
             </li>
             <li>
-              <a href='#/active' class='${state.filter === 'active' ? 'selected' : ''}'>Active</a>
+              <a href='#/active' class='=== ${state.filter'active' ? 'selected' : ''}'>Active</a>
             </li>
             <li>
-              <a href='#/completed' class='${state.filter === 'completed' ? 'selected' : ''}'>Completed</a>
+              <a href='#/completed' class='=== ${state.filter'completed' ? 'selected' : ''}'>Completed</a>
             </li>
           </ul>
 

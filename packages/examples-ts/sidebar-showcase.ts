@@ -399,7 +399,7 @@ const html = `
         <div class="tahoe-sidebar">
           <div class="tahoe-section">
             <div class="tahoe-section-header">Favorites</div>
-            <div class="tahoe-item selected" data-style="tahoe">
+            <div class="selected tahoe-item" data-style="tahoe">
               <span class="icon">🖥️</span>
               <span>Desktop</span>
             </div>
@@ -466,7 +466,7 @@ const html = `
               <span class="chevron">▼</span>
             </div>
             <div class="arc-items">
-              <div class="arc-item selected" data-style="arc">
+              <div class="selected arc-item" data-style="arc">
                 <span class="icon" style="background: #ea4335;">G</span>
                 <span>Gmail</span>
                 <span class="close">×</span>
@@ -532,7 +532,7 @@ const html = `
               <span>Machines</span>
               <span class="count">3</span>
             </div>
-            <div class="orbstack-item selected" data-style="orbstack">
+            <div class="selected orbstack-item" data-style="orbstack">
               <span class="status"></span>
               <span>ubuntu</span>
               <span class="meta">arm64</span>
