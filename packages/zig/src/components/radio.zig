@@ -13,8 +13,10 @@ pub const RadioButton = struct {
 
     pub fn init(allocator: std.mem.Allocator, label: []const u8, value: []const u8, props: ComponentProps) !*RadioButton {
         const radio = try allocator.create(RadioButton);
+        errdefer allocator.destroy(radio);
+        const component = try Component.init(allocator, "radio", props);
         radio.* = RadioButton{
-            .component = try Component.init(allocator, "radio", props),
+            .component = component,
             .label = label,
             .value = value,
             .selected = false,

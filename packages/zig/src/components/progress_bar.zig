@@ -24,8 +24,10 @@ pub const ProgressBar = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*ProgressBar {
         const progress = try allocator.create(ProgressBar);
+        errdefer allocator.destroy(progress);
+        const component = try Component.init(allocator, "progress_bar", props);
         progress.* = ProgressBar{
-            .component = try Component.init(allocator, "progress_bar", props),
+            .component = component,
             .value = 0.0,
             .max = 100.0,
             .indeterminate = false,

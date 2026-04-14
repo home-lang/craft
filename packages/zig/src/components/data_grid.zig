@@ -67,8 +67,12 @@ pub const DataGrid = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*DataGrid {
         const grid = try allocator.create(DataGrid);
+        // Without this errdefer, a failure inside `Component.init` below
+        // leaked the outer `grid` allocation.
+        errdefer allocator.destroy(grid);
+        const component = try Component.init(allocator, "data_grid", props);
         grid.* = DataGrid{
-            .component = try Component.init(allocator, "data_grid", props),
+            .component = component,
             .columns = .{},
             .rows = .{},
             .selected_rows = .{},

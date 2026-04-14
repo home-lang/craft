@@ -25,8 +25,10 @@ pub const Dropdown = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*Dropdown {
         const dropdown = try allocator.create(Dropdown);
+        errdefer allocator.destroy(dropdown);
+        const component = try Component.init(allocator, "dropdown", props);
         dropdown.* = Dropdown{
-            .component = try Component.init(allocator, "dropdown", props),
+            .component = component,
             .options = .{},
             .selected_index = null,
             .open = false,

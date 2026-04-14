@@ -17,8 +17,10 @@ pub const Modal = struct {
 
     pub fn init(allocator: std.mem.Allocator, content: *Component, props: ComponentProps) !*Modal {
         const modal = try allocator.create(Modal);
+        errdefer allocator.destroy(modal);
+        const component = try Component.init(allocator, "modal", props);
         modal.* = Modal{
-            .component = try Component.init(allocator, "modal", props),
+            .component = component,
             .title = null,
             .content = content,
             .footer = null,

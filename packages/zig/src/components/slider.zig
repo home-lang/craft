@@ -27,8 +27,10 @@ pub const Slider = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*Slider {
         const slider = try allocator.create(Slider);
+        errdefer allocator.destroy(slider);
+        const component = try Component.init(allocator, "slider", props);
         slider.* = Slider{
-            .component = try Component.init(allocator, "slider", props),
+            .component = component,
             .value = 0.0,
             .min = 0.0,
             .max = 100.0,

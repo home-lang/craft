@@ -14,8 +14,10 @@ pub const TextInput = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*TextInput {
         const input = try allocator.create(TextInput);
+        errdefer allocator.destroy(input);
+        const component = try Component.init(allocator, "text_input", props);
         input.* = TextInput{
-            .component = try Component.init(allocator, "text_input", props),
+            .component = component,
             .value = "",
             .placeholder = null,
             .max_length = null,

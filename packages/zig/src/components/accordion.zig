@@ -25,8 +25,10 @@ pub const Accordion = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps, config: Config) !*Accordion {
         const accordion = try allocator.create(Accordion);
+        errdefer allocator.destroy(accordion);
+        const component = try Component.init(allocator, "accordion", props);
         accordion.* = Accordion{
-            .component = try Component.init(allocator, "accordion", props),
+            .component = component,
             .sections = .{},
             .allow_multiple = config.allow_multiple,
             .on_section_change = null,

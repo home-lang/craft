@@ -43,8 +43,10 @@ pub const Toast = struct {
 
     pub fn init(allocator: std.mem.Allocator, message: []const u8, props: ComponentProps) !*Toast {
         const toast = try allocator.create(Toast);
+        errdefer allocator.destroy(toast);
+        const component = try Component.init(allocator, "toast", props);
         toast.* = Toast{
-            .component = try Component.init(allocator, "toast", props),
+            .component = component,
             .message = message,
             .title = null,
             .type = .info,

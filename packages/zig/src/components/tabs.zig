@@ -19,8 +19,10 @@ pub const Tabs = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*Tabs {
         const tabs = try allocator.create(Tabs);
+        errdefer allocator.destroy(tabs);
+        const component = try Component.init(allocator, "tabs", props);
         tabs.* = Tabs{
-            .component = try Component.init(allocator, "tabs", props),
+            .component = component,
             .tabs = .{},
             .active_index = 0,
             .on_tab_change = null,

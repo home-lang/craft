@@ -13,8 +13,10 @@ pub const Checkbox = struct {
 
     pub fn init(allocator: std.mem.Allocator, label: []const u8, props: ComponentProps) !*Checkbox {
         const checkbox = try allocator.create(Checkbox);
+        errdefer allocator.destroy(checkbox);
+        const component = try Component.init(allocator, "checkbox", props);
         checkbox.* = Checkbox{
-            .component = try Component.init(allocator, "checkbox", props),
+            .component = component,
             .label = label,
             .checked = false,
             .indeterminate = false,

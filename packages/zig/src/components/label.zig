@@ -21,8 +21,10 @@ pub const Label = struct {
 
     pub fn init(allocator: std.mem.Allocator, text: []const u8, props: ComponentProps) !*Label {
         const label = try allocator.create(Label);
+        errdefer allocator.destroy(label);
+        const component = try Component.init(allocator, "label", props);
         label.* = Label{
-            .component = try Component.init(allocator, "label", props),
+            .component = component,
             .text = text,
             .for_id = null,
             .text_align = .left,

@@ -50,8 +50,10 @@ pub const Stepper = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps, config: Config) !*Stepper {
         const stepper = try allocator.create(Stepper);
+        errdefer allocator.destroy(stepper);
+        const component = try Component.init(allocator, "stepper", props);
         stepper.* = Stepper{
-            .component = try Component.init(allocator, "stepper", props),
+            .component = component,
             .steps = .{},
             .current_step = config.initial_step,
             .orientation = config.orientation,

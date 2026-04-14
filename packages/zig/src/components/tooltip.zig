@@ -49,8 +49,10 @@ pub const Tooltip = struct {
 
     pub fn init(allocator: std.mem.Allocator, text: []const u8, props: ComponentProps) !*Tooltip {
         const tooltip = try allocator.create(Tooltip);
+        errdefer allocator.destroy(tooltip);
+        const component = try Component.init(allocator, "tooltip", props);
         tooltip.* = Tooltip{
-            .component = try Component.init(allocator, "tooltip", props),
+            .component = component,
             .text = text,
             .target = null,
             .position = .top,

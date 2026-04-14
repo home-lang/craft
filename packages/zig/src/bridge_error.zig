@@ -278,3 +278,38 @@ test "requireData returns data when present" {
     const result = try requireData(data);
     try testing.expectEqualStrings("test data", result);
 }
+
+test "ErrorContext.toJSON escapes quotes, backslashes, and control bytes" {
+    const testing = std.testing;
+    const allocator = testing.allocator;
+
+    const ctx = ErrorContext.init(
+        BridgeError.InvalidJSON,
+        "parse",
+        "broken: \"quote\" \\slash\n\tnewline\x01ctrl",
+    );
+    const json = try ctx.toJSON(allocator);
+    defer allocator.free(json);
+
+    // Quotes, backslashes, \n, \t escaped. Control bytes go via \uXXXX.
+    try testing.expect(std.mem.indexOf(u8, json, "\\\"quote\\\"") != null);
+    try testing.expect(std.mem.indexOf(u8, json, "\\\\slash") != null);
+    try testing.expect(std.mem.indexOf(u8, json, "\\n\\tnewline") != null);
+    try testing.expect(std.mem.indexOf(u8, json, "\\u0001ctrl") != null);
+}
+
+test "ErrorContext.toJSON handles long messages without overflow" {
+    const testing = std.testing;
+    const allocator = testing.allocator;
+
+    // Build a 4096-byte message; old code had a 1024-byte stack buffer that
+    // would have overflowed. New code grows dynamically.
+    var long_msg_buf: [4096]u8 = undefined;
+    @memset(&long_msg_buf, 'a');
+
+    const ctx = ErrorContext.init(BridgeError.InvalidJSON, "parse", &long_msg_buf);
+    const json = try ctx.toJSON(allocator);
+    defer allocator.free(json);
+
+    try testing.expect(json.len > 4096);
+}
