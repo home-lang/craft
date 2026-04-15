@@ -593,8 +593,6 @@ pub const SystemSoundPlayer = struct {
 
     // Platform implementations
     fn playMacOSSound(self: *Self, name: []const u8) AudioError!void {
-        _ = self;
-
         // Use NSSound to play system sound
         const macos = @import("macos.zig");
 
@@ -602,9 +600,11 @@ pub const SystemSoundPlayer = struct {
         const NSSound = macos.getClass("NSSound");
         if (NSSound == null) return AudioError.DeviceNotAvailable;
 
-        // Create NSString for sound name
-        const name_cstr = std.heap.c_allocator.dupeZ(u8, name) catch return AudioError.InitializationFailed;
-        defer std.heap.c_allocator.free(name_cstr);
+        // Use the struct's allocator consistently instead of
+        // `std.heap.c_allocator`, which diverged from how every other bridge
+        // allocates and made cleanup semantics inconsistent.
+        const name_cstr = self.allocator.dupeZ(u8, name) catch return AudioError.InitializationFailed;
+        defer self.allocator.free(name_cstr);
 
         const NSString = macos.getClass("NSString");
         const str_alloc = macos.msgSend0(NSString, "alloc");
@@ -620,36 +620,35 @@ pub const SystemSoundPlayer = struct {
     }
 
     fn playLinuxSound(self: *Self, name: []const u8) AudioError!void {
-        _ = self;
+        // Use canberra-gtk-play for freedesktop sound theme.
+        // Moved off the legacy `std.process.Child.init` API onto
+        // `std.process.spawn(io, …)` used by every other bridge.
+        const io_context = @import("io_context.zig");
+        const io = io_context.get();
 
-        // Use canberra-gtk-play for freedesktop sound theme
-        // This is the standard way to play event sounds on Linux
-        const name_z = std.heap.c_allocator.dupeZ(u8, name) catch return AudioError.InitializationFailed;
-        defer std.heap.c_allocator.free(name_z);
+        const name_z = self.allocator.dupeZ(u8, name) catch return AudioError.InitializationFailed;
+        defer self.allocator.free(name_z);
 
-        // Try canberra-gtk-play first (most compatible)
-        var canberra_child = std.process.Child.init(
-            &[_][]const u8{ "canberra-gtk-play", "-i", name_z },
-            std.heap.c_allocator,
-        );
-        canberra_child.spawn() catch {
-            // Fall back to paplay with a system sound file
-            var paplay_child = std.process.Child.init(
-                &[_][]const u8{ "paplay", "/usr/share/sounds/freedesktop/stereo/bell.oga" },
-                std.heap.c_allocator,
-            );
-            paplay_child.spawn() catch return AudioError.DeviceNotAvailable;
-            // Wait for the process to prevent zombie
-            _ = paplay_child.wait() catch {};
+        var canberra = std.process.spawn(io, .{
+            .argv = &[_][]const u8{ "canberra-gtk-play", "-i", name_z },
+            .stdout = .ignore,
+            .stderr = .ignore,
+            .stdin = .ignore,
+        }) catch {
+            // Fall back to paplay with a system sound file.
+            var paplay = std.process.spawn(io, .{
+                .argv = &[_][]const u8{ "paplay", "/usr/share/sounds/freedesktop/stereo/bell.oga" },
+                .stdout = .ignore,
+                .stderr = .ignore,
+                .stdin = .ignore,
+            }) catch return AudioError.DeviceNotAvailable;
+            _ = paplay.wait(io) catch {};
             return;
         };
-        // Wait for canberra-gtk-play to prevent zombie
-        _ = canberra_child.wait() catch {};
+        _ = canberra.wait(io) catch {};
     }
 
     fn playWindowsSound(self: *Self, name: []const u8) AudioError!void {
-        _ = self;
-
         // Windows sound playback using PlaySound
         // We'll use the system sound registry names
         if (builtin.os.tag != .windows) return AudioError.DeviceNotAvailable;
@@ -663,16 +662,22 @@ pub const SystemSoundPlayer = struct {
         };
 
         const SND_ALIAS: u32 = 0x00010000;
-        const SND_ASYNC: u32 = 0x0001;
+        const SND_SYNC: u32 = 0x0000;
         const SND_NODEFAULT: u32 = 0x0002;
 
-        const name_z = std.heap.c_allocator.dupeZ(u8, name) catch return AudioError.InitializationFailed;
-        defer std.heap.c_allocator.free(name_z);
+        const name_z = self.allocator.dupeZ(u8, name) catch return AudioError.InitializationFailed;
+        defer self.allocator.free(name_z);
 
-        const result = windows.PlaySoundA(name_z.ptr, null, SND_ALIAS | SND_ASYNC | SND_NODEFAULT);
+        // NOTE: use `SND_SYNC` rather than `SND_ASYNC`. With `SND_ALIAS`
+        // today PlaySound copies the alias string internally, so freeing
+        // `name_z` immediately is safe — but an earlier version used
+        // `SND_ASYNC` and the same `defer free`, which would race if the
+        // API ever changed to read the buffer lazily (e.g. `SND_FILENAME`).
+        // Staying synchronous keeps the contract simple and local.
+        const result = windows.PlaySoundA(name_z.ptr, null, SND_ALIAS | SND_SYNC | SND_NODEFAULT);
         if (result == 0) {
             // Try playing as a system default
-            _ = windows.PlaySoundA("SystemDefault", null, SND_ALIAS | SND_ASYNC);
+            _ = windows.PlaySoundA("SystemDefault", null, SND_ALIAS | SND_SYNC);
         }
     }
 };
