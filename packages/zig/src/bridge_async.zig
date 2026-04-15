@@ -191,10 +191,13 @@ pub const AsyncChannel = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
 
+        // Free map-owned keys as well as values. Previously keys leaked on
+        // deinit — the strings were duped into the map but never released.
         var it = self.pending.iterator();
         while (it.next()) |entry| {
             entry.value_ptr.*.promise.deinit();
             self.allocator.destroy(entry.value_ptr.*);
+            self.allocator.free(entry.key_ptr.*);
         }
         self.pending.deinit();
     }
@@ -217,13 +220,18 @@ pub const AsyncChannel = struct {
 
         // Create pending request
         const pending = try self.allocator.create(PendingRequest);
+        // If anything below fails, free the struct we just allocated.
+        errdefer self.allocator.destroy(pending);
         pending.* = PendingRequest{
             .id = id,
             .promise = Promise.init(self.allocator),
         };
 
+        // Map owns its key — previously this was `defer free(id_str)`, which
+        // meant the map kept a dangling key slice and any subsequent lookup
+        // could match against freed memory.
         const id_str = try std.fmt.allocPrint(self.allocator, "{d}", .{id});
-        defer self.allocator.free(id_str);
+        errdefer self.allocator.free(id_str);
 
         self.mutex.lock();
         defer self.mutex.unlock();
@@ -240,14 +248,16 @@ pub const AsyncChannel = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
 
-        if (self.pending.get(id_str)) |pending| {
+        // Use `fetchRemove` so we can free the map's owned key string.
+        // Previously `remove` was called but the allocated key leaked
+        // every time a response arrived.
+        if (self.pending.fetchRemove(id_str)) |kv| {
             if (msg.header.type == .Response) {
-                try pending.promise.resolve(msg.payload);
+                try kv.value.promise.resolve(msg.payload);
             } else if (msg.header.type == .Error) {
-                pending.promise.reject(BridgeError.InvalidMessage);
+                kv.value.promise.reject(BridgeError.InvalidMessage);
             }
-
-            _ = self.pending.remove(id_str);
+            self.allocator.free(kv.key);
         }
     }
 

@@ -175,8 +175,16 @@ pub const NetworkBridge = struct {
                 }
             }
 
-            var buf: [512]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getWiFiSSID','{s}');", .{ callback_id, ssid }) catch return;
+            // SSID is attacker-controlled (anyone can name a WiFi network).
+            // Escape before injecting into JS to block injection via crafted
+            // network names.
+            var cb_buf: [128]u8 = undefined;
+            var ssid_buf: [256]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+            const ssid_esc = bridge_error.escapeJsSingleQuoted(&ssid_buf, ssid) catch return;
+
+            var buf: [768]u8 = undefined;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getWiFiSSID','{s}');", .{ cb_esc, ssid_esc }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {

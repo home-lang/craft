@@ -28,9 +28,17 @@ pub const CDP = struct {
 
     pub fn start(self: *CDP) !void {
         const address = try std.net.Address.parseIp("127.0.0.1", self.port);
+        // If `listen` fails after `init`, we still need to release the
+        // server's internal state — previously the listener leaked on the
+        // failure path. Also log via std.log so the startup message respects
+        // the configured log level.
         self.server = std.net.StreamServer.init(.{});
+        errdefer {
+            if (self.server) |*s| s.deinit();
+            self.server = null;
+        }
         try self.server.?.listen(address);
-        std.debug.print("DevTools listening on http://127.0.0.1:{}\n", .{self.port});
+        std.log.info("DevTools listening on http://127.0.0.1:{}", .{self.port});
     }
 
     pub fn stop(self: *CDP) void {
@@ -57,12 +65,15 @@ pub const CDP = struct {
 
     pub fn enableDomain(self: *CDP, domain: []const u8) !void {
         _ = self;
-        std.debug.print("CDP: Enabling domain: {s}\n", .{domain});
+        // Was `std.debug.print` on every call — noisy under CDP workloads
+        // that toggle many domains. Route through the log facility so the
+        // user can disable it by raising the log level.
+        std.log.debug("CDP: enabling domain {s}", .{domain});
     }
 
     pub fn disableDomain(self: *CDP, domain: []const u8) !void {
         _ = self;
-        std.debug.print("CDP: Disabling domain: {s}\n", .{domain});
+        std.log.debug("CDP: disabling domain {s}", .{domain});
     }
 };
 
@@ -71,6 +82,10 @@ pub const NetworkInspector = struct {
     requests: std.ArrayList(NetworkRequest),
     allocator: std.mem.Allocator,
     enabled: bool = true,
+    /// Monotonic request-id counter. Previously IDs were `items.len + 1`,
+    /// which reused IDs whenever `clear()` was called and caused
+    /// `recordResponse` to update the wrong (new) entry.
+    next_request_id: u64 = 1,
 
     pub const NetworkRequest = struct {
         id: u64,
@@ -113,7 +128,8 @@ pub const NetworkInspector = struct {
     pub fn recordRequest(self: *NetworkInspector, url: []const u8, method: []const u8) !u64 {
         if (!self.enabled) return 0;
 
-        const id = @as(u64, @intCast(self.requests.items.len + 1));
+        const id = self.next_request_id;
+        self.next_request_id += 1;
         try self.requests.append(.{
             .id = id,
             .url = url,
@@ -249,17 +265,24 @@ pub const MemoryInspector = struct {
         });
     }
 
-    pub fn detectLeaks(self: *const MemoryInspector) []const Allocation {
-        var leaks = std.ArrayList(Allocation).init(self.allocator);
-        defer leaks.deinit();
+    /// Returns a freshly-allocated slice of all unfreed allocations.
+    /// Caller must `allocator.free()` the returned slice.
+    ///
+    /// Previously this returned `leaks.items` immediately after
+    /// `defer leaks.deinit()` fired — a use-after-free: callers would read
+    /// from already-freed memory. The function now transfers ownership to
+    /// the caller via `toOwnedSlice`.
+    pub fn detectLeaks(self: *const MemoryInspector) ![]const Allocation {
+        var leaks: std.ArrayList(Allocation) = .{};
+        errdefer leaks.deinit(self.allocator);
 
         for (self.allocations.items) |alloc| {
             if (!alloc.freed) {
-                leaks.append(alloc) catch continue;
+                try leaks.append(self.allocator, alloc);
             }
         }
 
-        return leaks.items;
+        return leaks.toOwnedSlice(self.allocator);
     }
 
     pub fn getSnapshots(self: *const MemoryInspector) []const MemorySnapshot {

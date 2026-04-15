@@ -87,8 +87,10 @@ pub const Toolbar = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps, config: Config) !*Toolbar {
         const toolbar = try allocator.create(Toolbar);
+        errdefer allocator.destroy(toolbar);
+        const component = try Component.init(allocator, "toolbar", props);
         toolbar.* = Toolbar{
-            .component = try Component.init(allocator, "toolbar", props),
+            .component = component,
             .items = .{},
             .orientation = config.orientation,
             .on_item_click = null,

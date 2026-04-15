@@ -95,8 +95,10 @@ pub const TreeView = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*TreeView {
         const tree = try allocator.create(TreeView);
+        errdefer allocator.destroy(tree);
+        const component = try Component.init(allocator, "tree_view", props);
         tree.* = TreeView{
-            .component = try Component.init(allocator, "tree_view", props),
+            .component = component,
             .root = null,
             .selected_node = null,
             .on_select = null,

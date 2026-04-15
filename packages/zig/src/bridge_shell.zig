@@ -64,6 +64,44 @@ pub const ShellBridge = struct {
         bridge_error.sendErrorToJS(self.allocator, action, bridge_err);
     }
 
+    /// Fire-and-forget spawn used by `openUrl` / `openPath` / `showInFinder`
+    /// on Linux and Windows. Ignores all stdio so we don't need to drain
+    /// anything. Consolidates the legacy `Child.init + spawn()` call sites
+    /// onto the same Zig-0.16 API that `exec`/`spawn` already use.
+    fn fireAndForget(self: *Self, argv: []const []const u8) void {
+        _ = self;
+        const io = io_context.get();
+        var child = std.process.spawn(io, .{
+            .argv = argv,
+            .stdout = .ignore,
+            .stderr = .ignore,
+            .stdin = .ignore,
+        }) catch return;
+        _ = child.wait(io) catch |err| {
+            std.log.debug("child process wait failed: {}", .{err});
+        };
+    }
+
+    /// Drain all bytes from `file` into `out`, growing the buffer as needed.
+    /// Returns when the pipe hits EOF. Previously we read once into a
+    /// fixed-size buffer and silently truncated output larger than 64KB.
+    fn drainInto(
+        io: anytype,
+        file: anytype,
+        out: *std.ArrayListUnmanaged(u8),
+        allocator: std.mem.Allocator,
+    ) !void {
+        var chunk: [8192]u8 = undefined;
+        while (true) {
+            const n = file.readStreaming(io, &.{&chunk}) catch |err| switch (err) {
+                error.EndOfStream => break,
+                else => return err,
+            };
+            if (n == 0) break;
+            try out.appendSlice(allocator, chunk[0..n]);
+        }
+    }
+
     /// Shell argument tuple for cross-platform support.
     const ShellArgs = struct { argv: [3][]const u8 };
 
@@ -77,17 +115,29 @@ pub const ShellBridge = struct {
 
     /// Validate a command string for dangerous shell metacharacters.
     /// Returns error.UnsafeCommand if the command contains injection patterns.
+    ///
+    /// Previously used `"; "` (with a trailing space) as the command-separator
+    /// check, which let attackers bypass the filter with a simple `;attack`.
+    /// Now all of `;`, `|`, `&`, `>`, `<`, and `\n` are blocked — any of them
+    /// is sufficient for command chaining or redirection via `sh -c`.
     fn validateCommand(command: []const u8) BridgeError!void {
-        const dangerous_patterns = [_][]const u8{
-            "$(", "`", // Command substitution
-            "&&", "||", // Command chaining
-            ">>", // Append redirect
-            "; ", // Command separator (space after to allow paths like /usr/bin;)
-        };
-        for (dangerous_patterns) |pattern| {
+        // Multi-byte dangerous patterns (command substitution only).
+        const multi_patterns = [_][]const u8{ "$(", "`" };
+        for (multi_patterns) |pattern| {
             if (std.mem.indexOf(u8, command, pattern) != null) {
                 std.log.warn("bridge_shell: blocked unsafe command containing '{s}': {s}", .{ pattern, command });
                 return BridgeError.UnsafeCommand;
+            }
+        }
+        // Single-byte metacharacters that can chain commands or redirect IO.
+        // We reject if any appear unescaped in the command.
+        for (command) |c| {
+            switch (c) {
+                ';', '|', '&', '>', '<', '\n' => {
+                    std.log.warn("bridge_shell: blocked unsafe command metacharacter '{c}': {s}", .{ c, command });
+                    return BridgeError.UnsafeCommand;
+                },
+                else => {},
             }
         }
     }
@@ -104,18 +154,24 @@ pub const ShellBridge = struct {
         return BridgeError.UnsafeCommand;
     }
 
-    /// Validate that a path does not contain shell metacharacters.
+    /// Validate that a path does not contain shell metacharacters. Same
+    /// hardening as `validateCommand`: the previous `"; "` check let `;attack`
+    /// slip through because it required a trailing space.
     fn validatePath(path: []const u8) BridgeError!void {
-        const dangerous_patterns = [_][]const u8{
-            "$(", "`", // Command substitution
-            "&&", "||", // Command chaining
-            ">>", // Append redirect
-            "; ", // Command separator
-        };
-        for (dangerous_patterns) |pattern| {
+        const multi_patterns = [_][]const u8{ "$(", "`" };
+        for (multi_patterns) |pattern| {
             if (std.mem.indexOf(u8, path, pattern) != null) {
                 std.log.warn("bridge_shell: blocked unsafe path containing '{s}': {s}", .{ pattern, path });
                 return BridgeError.UnsafeCommand;
+            }
+        }
+        for (path) |c| {
+            switch (c) {
+                ';', '|', '&', '>', '<', '\n' => {
+                    std.log.warn("bridge_shell: blocked unsafe path metacharacter '{c}': {s}", .{ c, path });
+                    return BridgeError.UnsafeCommand;
+                },
+                else => {},
             }
         }
     }
@@ -163,27 +219,29 @@ pub const ShellBridge = struct {
             return;
         };
 
-        // Wait for completion first
+        // Drain stdout/stderr BEFORE waiting. A child that writes more than
+        // the pipe buffer (~64KB on macOS/Linux) blocks on its next write
+        // until a reader drains it — so `wait()` before reading would
+        // deadlock on any non-trivial command output.
+        var stdout_list = std.ArrayListUnmanaged(u8){};
+        defer stdout_list.deinit(self.allocator);
+        var stderr_list = std.ArrayListUnmanaged(u8){};
+        defer stderr_list.deinit(self.allocator);
+
+        if (child.stdout) |stdout_file| {
+            drainInto(io, stdout_file, &stdout_list, self.allocator) catch {};
+        }
+        if (child.stderr) |stderr_file| {
+            drainInto(io, stderr_file, &stderr_list, self.allocator) catch {};
+        }
+
         const term = child.wait(io) catch |err| {
             self.sendShellError(callback_id, "exec", command, err);
             return;
         };
 
-        // Read stdout (simplified - just read what we can with a fixed buffer)
-        var stdout_buf: [65536]u8 = undefined;
-        var stdout_len: usize = 0;
-        if (child.stdout) |stdout_file| {
-            stdout_len = stdout_file.readStreaming(io, &.{&stdout_buf}) catch 0;
-        }
-        const stdout = stdout_buf[0..stdout_len];
-
-        // Read stderr
-        var stderr_buf: [8192]u8 = undefined;
-        var stderr_len: usize = 0;
-        if (child.stderr) |stderr_file| {
-            stderr_len = stderr_file.readStreaming(io, &.{&stderr_buf}) catch 0;
-        }
-        const stderr = stderr_buf[0..stderr_len];
+        const stdout = stdout_list.items;
+        const stderr = stderr_list.items;
 
         const exit_code: i32 = switch (term) {
             .exited => |code| @intCast(code),
@@ -266,9 +324,21 @@ pub const ShellBridge = struct {
         if (comptime builtin.mode == .Debug)
             std.debug.print("[ShellBridge] kill: {s}\n", .{id});
 
+        // Mirror the cleanup order from `deinit`: close any open pipes
+        // (prevents fd leaks), signal the process, then reap it with `wait`
+        // so we don't leave zombies behind.
         if (self.processes.getPtr(id)) |entry| {
             if (entry.child) |*child| {
+                if (child.stdout) |*stdout| {
+                    stdout.close();
+                    child.stdout = null;
+                }
+                if (child.stderr) |*stderr| {
+                    stderr.close();
+                    child.stderr = null;
+                }
                 child.kill(io_context.get());
+                _ = child.wait(io_context.get()) catch {};
             }
         }
 
@@ -320,24 +390,23 @@ pub const ShellBridge = struct {
             _ = macos.msgSend1(workspace, "openURL:", nsurl);
         } else if (comptime builtin.os.tag == .linux) {
             // Linux: use xdg-open
+            // Use the same Zig-0.16 `std.process.spawn` API as exec/spawn —
+            // previously these branches used the legacy `Child.init + spawn()`
+            // shape which doesn't compile alongside the new API.
             const argv = [_][]const u8{ "xdg-open", url };
-            var child = std.process.Child.init(&argv, self.allocator);
-            child.stdout_behavior = .Ignore;
-            child.stderr_behavior = .Ignore;
-            child.spawn() catch return;
-            _ = child.wait() catch |err| {
+            const io = io_context.get();
+            var child = std.process.spawn(io, .{
+                .argv = &argv,
+                .stdout = .ignore,
+                .stderr = .ignore,
+                .stdin = .ignore,
+            }) catch return;
+            _ = child.wait(io) catch |err| {
                 std.log.debug("child process wait failed: {}", .{err});
             };
         } else if (comptime builtin.os.tag == .windows) {
-            // Windows: use start command
             const argv = [_][]const u8{ "cmd", "/c", "start", url };
-            var child = std.process.Child.init(&argv, self.allocator);
-            child.stdout_behavior = .Ignore;
-            child.stderr_behavior = .Ignore;
-            child.spawn() catch return;
-            _ = child.wait() catch |err| {
-                std.log.debug("child process wait failed: {}", .{err});
-            };
+            self.fireAndForget(&argv);
         }
     }
 
@@ -383,22 +452,15 @@ pub const ShellBridge = struct {
             _ = macos.msgSend1(workspace, "openURL:", file_url);
         } else if (comptime builtin.os.tag == .linux) {
             const argv = [_][]const u8{ "xdg-open", path };
-            var child = std.process.Child.init(&argv, self.allocator);
-            child.stdout_behavior = .Ignore;
-            child.stderr_behavior = .Ignore;
-            child.spawn() catch return;
-            _ = child.wait() catch |err| {
-                std.log.debug("child process wait failed: {}", .{err});
-            };
+            self.fireAndForget(&argv);
         } else if (comptime builtin.os.tag == .windows) {
+            // `cmd /c start "" <path>` — the empty `""` is `start`'s title
+            // argument, needed so that `start` doesn't treat a quoted path as
+            // a window title. `validatePath` already rejects `&`, `|`, `;`,
+            // `<`, `>` and newline, so the remaining characters are safe to
+            // pass via cmd's argv.
             const argv = [_][]const u8{ "cmd", "/c", "start", "", path };
-            var child = std.process.Child.init(&argv, self.allocator);
-            child.stdout_behavior = .Ignore;
-            child.stderr_behavior = .Ignore;
-            child.spawn() catch return;
-            _ = child.wait() catch |err| {
-                std.log.debug("child process wait failed: {}", .{err});
-            };
+            self.fireAndForget(&argv);
         }
     }
 
@@ -447,23 +509,11 @@ pub const ShellBridge = struct {
             // Linux: use dbus or xdg-open on the parent directory
             // nautilus/dolphin/thunar have different "reveal" APIs, so open parent dir
             const argv = [_][]const u8{ "xdg-open", path };
-            var child = std.process.Child.init(&argv, self.allocator);
-            child.stdout_behavior = .Ignore;
-            child.stderr_behavior = .Ignore;
-            child.spawn() catch return;
-            _ = child.wait() catch |err| {
-                std.log.debug("child process wait failed: {}", .{err});
-            };
+            self.fireAndForget(&argv);
         } else if (comptime builtin.os.tag == .windows) {
             // Windows: explorer /select,path
             const argv = [_][]const u8{ "explorer", "/select,", path };
-            var child = std.process.Child.init(&argv, self.allocator);
-            child.stdout_behavior = .Ignore;
-            child.stderr_behavior = .Ignore;
-            child.spawn() catch return;
-            _ = child.wait() catch |err| {
-                std.log.debug("child process wait failed: {}", .{err});
-            };
+            self.fireAndForget(&argv);
         }
     }
 
@@ -485,18 +535,29 @@ pub const ShellBridge = struct {
 
         if (name.len == 0) return BridgeError.MissingData;
 
-        // Cross-platform: use C getenv with null-terminated string
+        // Cross-platform: use C getenv with a null-terminated name. If the
+        // name doesn't fit, surface a clear error instead of reusing
+        // `MissingData` (which callers interpret as "no `name` provided").
         var name_buf: [256]u8 = undefined;
-        if (name.len >= name_buf.len) return BridgeError.MissingData;
+        if (name.len >= name_buf.len) return BridgeError.InvalidParameter;
         @memcpy(name_buf[0..name.len], name);
         name_buf[name.len] = 0;
         const value = if (std.c.getenv(@ptrCast(name_buf[0..name.len :0]))) |v| std.mem.span(v) else "";
 
+        // Escape both the callback id and the env value. Env vars can
+        // contain arbitrary bytes (including `'` and `\`), so inlining them
+        // with `{s}` used to break the JS string literal and let a crafted
+        // env variable execute attacker-controlled code in the webview.
+        var cb_buf: [128]u8 = undefined;
+        var val_buf: [4096]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+        const val_esc = bridge_error.escapeJsSingleQuoted(&val_buf, value) catch return;
+
         const bridge = @import("bridge.zig");
-        var buf: [4096]u8 = undefined;
+        var buf: [4600]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftShellCallback)window.__craftShellCallback('{s}','getEnv','{s}');
-        , .{ callback_id, value }) catch return;
+        , .{ cb_esc, val_esc }) catch return;
 
         bridge.evalJS(js) catch |eval_err| {
             std.log.debug("JS eval failed for getEnv callback: {}", .{eval_err});
@@ -528,9 +589,18 @@ pub const ShellBridge = struct {
         // For now, just log the intent - actual setenv would need more work
     }
 
-    /// Send shell result callback
+    /// Send shell result callback. Escapes every identifier before embedding
+    /// it into the generated JS. The stdout/stderr payloads are still
+    /// handled by the per-byte loops below; only the prefix IDs were
+    /// missing escaping, which meant a crafted callback id or action could
+    /// break out of the JS string literal and execute arbitrary code.
     fn sendShellResult(_: *Self, callback_id: []const u8, action: []const u8, exit_code: i32, stdout: []const u8, stderr: []const u8) void {
         const bridge = @import("bridge.zig");
+
+        var cb_buf: [128]u8 = undefined;
+        var act_buf: [64]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+        const act_esc = bridge_error.escapeJsSingleQuoted(&act_buf, action) catch return;
 
         // Escape stdout and stderr for JS
         var buf: [65536]u8 = undefined;
@@ -538,7 +608,7 @@ pub const ShellBridge = struct {
 
         const prefix = std.fmt.bufPrint(buf[pos..],
             \\if(window.__craftShellCallback)window.__craftShellCallback('{s}','{s}',{{exitCode:{d},stdout:'
-        , .{ callback_id, action, exit_code }) catch return;
+        , .{ cb_esc, act_esc, exit_code }) catch return;
         pos += prefix.len;
 
         // Escape stdout
@@ -628,17 +698,26 @@ pub const ShellBridge = struct {
     fn sendSpawnSuccess(_: *Self, id: []const u8) void {
         const bridge = @import("bridge.zig");
 
+        // Escape the spawned process id — it's derived from caller input
+        // (e.g. a user-supplied label), so embedding unescaped could let an
+        // attacker-controlled label inject JS.
+        var id_buf: [128]u8 = undefined;
+        const id_esc = bridge_error.escapeJsSingleQuoted(&id_buf, id) catch return;
+
         var buf: [256]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftShellCallback)window.__craftShellCallback('','spawn',{{id:'{s}',started:true}});
-        , .{id}) catch return;
+        , .{id_esc}) catch return;
 
         bridge.evalJS(js) catch |eval_err| {
             std.log.debug("JS eval failed for spawn success callback: {}", .{eval_err});
         };
     }
 
-    /// Send shell error callback
+    /// Send shell error callback. Escapes every user-influenced field — the
+    /// command in particular is caller-supplied and often contains quotes
+    /// or backslashes that previously would have broken the JS string
+    /// literal and allowed injection.
     fn sendShellError(_: *Self, callback_id: []const u8, action: []const u8, command: []const u8, err: anyerror) void {
         const bridge = @import("bridge.zig");
 
@@ -648,10 +727,17 @@ pub const ShellBridge = struct {
             else => "Execution failed",
         };
 
-        var buf: [512]u8 = undefined;
+        var cb_buf: [128]u8 = undefined;
+        var act_buf: [64]u8 = undefined;
+        var cmd_buf: [512]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+        const act_esc = bridge_error.escapeJsSingleQuoted(&act_buf, action) catch return;
+        const cmd_esc = bridge_error.escapeJsSingleQuoted(&cmd_buf, command) catch return;
+
+        var buf: [1024]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftShellError)window.__craftShellError('{s}','{s}','{s}','{s}');
-        , .{ callback_id, action, command, err_msg }) catch return;
+        , .{ cb_esc, act_esc, cmd_esc, err_msg }) catch return;
 
         bridge.evalJS(js) catch |eval_err| {
             std.log.debug("JS eval failed for shell error callback: {}", .{eval_err});

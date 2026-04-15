@@ -628,9 +628,18 @@ pub const MarketplaceBridge = struct {
     fn sendResult(self: *Self, callback_id: []const u8, action: []const u8, result: []const u8) void {
         const cross_bridge = @import("bridge.zig");
 
+        // `result` is already a JS value (object/string literal) assembled
+        // by the caller, so it's NOT wrapped in quotes here. `callback_id`
+        // and `action` ARE embedded as quoted string literals and must be
+        // escaped to prevent JS injection.
+        var cb_buf: [128]u8 = undefined;
+        var act_buf: [64]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+        const act_esc = bridge_error.escapeJsSingleQuoted(&act_buf, action) catch return;
+
         const buf = self.allocator.alloc(u8, 8192) catch return;
         defer self.allocator.free(buf);
-        const js = std.fmt.bufPrint(buf, "if(window.__craftMarketplaceCallback)window.__craftMarketplaceCallback('{s}','{s}',{s});", .{ callback_id, action, result }) catch return;
+        const js = std.fmt.bufPrint(buf, "if(window.__craftMarketplaceCallback)window.__craftMarketplaceCallback('{s}','{s}',{s});", .{ cb_esc, act_esc, result }) catch return;
 
         cross_bridge.evalJS(js) catch |err| {
             std.log.debug("JS eval failed for marketplace callback: {}", .{err});
@@ -640,12 +649,21 @@ pub const MarketplaceBridge = struct {
     fn sendResultEscaped(self: *Self, callback_id: []const u8, action: []const u8, content: []const u8) void {
         const cross_bridge = @import("bridge.zig");
 
+        // Escape callback_id and action. The existing per-byte escaping
+        // loop below only covers the `content` payload; the prefix was
+        // previously injected unescaped and could be abused by callers
+        // supplying a crafted callback id or action name.
+        var cb_buf: [128]u8 = undefined;
+        var act_buf: [64]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+        const act_esc = bridge_error.escapeJsSingleQuoted(&act_buf, action) catch return;
+
         // Escape for JavaScript string
         const buf = self.allocator.alloc(u8, 65536) catch return;
         defer self.allocator.free(buf);
         var pos: usize = 0;
 
-        const prefix = std.fmt.bufPrint(buf[pos..], "if(window.__craftMarketplaceCallback)window.__craftMarketplaceCallback('{s}','{s}','", .{ callback_id, action }) catch return;
+        const prefix = std.fmt.bufPrint(buf[pos..], "if(window.__craftMarketplaceCallback)window.__craftMarketplaceCallback('{s}','{s}','", .{ cb_esc, act_esc }) catch return;
         pos += prefix.len;
 
         for (content) |c| {
@@ -700,8 +718,17 @@ pub const MarketplaceBridge = struct {
     fn sendError(_: *Self, callback_id: []const u8, action: []const u8, message: []const u8) void {
         const cross_bridge = @import("bridge.zig");
 
-        var buf: [512]u8 = undefined;
-        const js = std.fmt.bufPrint(&buf, "if(window.__craftMarketplaceError)window.__craftMarketplaceError('{s}','{s}','{s}');", .{ callback_id, action, message }) catch return;
+        // Escape each field before embedding in the JS string literal to
+        // prevent JS injection via attacker-controlled package names etc.
+        var cb_buf: [128]u8 = undefined;
+        var act_buf: [64]u8 = undefined;
+        var msg_buf: [256]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+        const act_esc = bridge_error.escapeJsSingleQuoted(&act_buf, action) catch return;
+        const msg_esc = bridge_error.escapeJsSingleQuoted(&msg_buf, message) catch return;
+
+        var buf: [1024]u8 = undefined;
+        const js = std.fmt.bufPrint(&buf, "if(window.__craftMarketplaceError)window.__craftMarketplaceError('{s}','{s}','{s}');", .{ cb_esc, act_esc, msg_esc }) catch return;
 
         cross_bridge.evalJS(js) catch |err| {
             std.log.debug("JS eval failed for marketplace error callback: {}", .{err});

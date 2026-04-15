@@ -220,8 +220,73 @@ pub fn sendResultToJS(allocator: std.mem.Allocator, action: []const u8, result_j
     };
 
     bridge.evalJS(js) catch |err| {
-        std.log.warn("failed to send error to JS: {}", .{err});
+        // Was misleadingly logged as "failed to send error to JS" — this
+        // function delivers success results, not errors.
+        std.log.warn("failed to send bridge result to JS for '{s}': {}", .{ action, err });
     };
+}
+
+/// Escape `s` for embedding inside a JSON string (i.e. between double
+/// quotes in a JSON payload). Writes to `out` and returns the written
+/// slice, or `error.BufferTooSmall` if the buffer is too small. Use this
+/// for attacker-controlled bytes like Bluetooth device names or filenames
+/// before interpolating them into a JSON literal — the previous approach
+/// of embedding such strings with `{s}` produced broken or injectable JSON
+/// whenever the input contained `"`, `\`, or control bytes.
+pub fn escapeJsonString(out: []u8, s: []const u8) ![]const u8 {
+    var pos: usize = 0;
+    for (s) |c| {
+        const repl: []const u8 = switch (c) {
+            '"' => "\\\"",
+            '\\' => "\\\\",
+            '\n' => "\\n",
+            '\r' => "\\r",
+            '\t' => "\\t",
+            0x08 => "\\b",
+            0x0C => "\\f",
+            0x00...0x07, 0x0B, 0x0E...0x1F => blk: {
+                // JSON requires \uXXXX for control bytes not covered above.
+                var hex: [6]u8 = undefined;
+                const slice = std.fmt.bufPrint(&hex, "\\u{x:0>4}", .{c}) catch return error.BufferTooSmall;
+                if (pos + slice.len > out.len) return error.BufferTooSmall;
+                @memcpy(out[pos..][0..slice.len], slice);
+                pos += slice.len;
+                break :blk "";
+            },
+            else => &[_]u8{c},
+        };
+        if (repl.len == 0) continue;
+        if (pos + repl.len > out.len) return error.BufferTooSmall;
+        @memcpy(out[pos..][0..repl.len], repl);
+        pos += repl.len;
+    }
+    return out[0..pos];
+}
+
+/// Escape `s` for embedding inside a single-quoted JavaScript string literal.
+/// Writes to `out` and returns the written slice, or `error.BufferTooSmall`
+/// if `out` can't hold the escaped form. Callers that need to pass
+/// user-controlled strings into generated JS should use this helper — prior
+/// to its introduction every bridge module rolled its own escaping inline
+/// (and several forgot to escape at all, creating JS-injection vectors).
+pub fn escapeJsSingleQuoted(out: []u8, s: []const u8) ![]const u8 {
+    var pos: usize = 0;
+    for (s) |c| {
+        const repl: []const u8 = switch (c) {
+            '\\' => "\\\\",
+            '\'' => "\\'",
+            '\n' => "\\n",
+            '\r' => "\\r",
+            // Escaping `<` keeps the string from prematurely closing an
+            // inline `</script>` if the JS is ever rendered into HTML.
+            '<' => "\\x3c",
+            else => &[_]u8{c},
+        };
+        if (pos + repl.len > out.len) return error.BufferTooSmall;
+        @memcpy(out[pos..][0..repl.len], repl);
+        pos += repl.len;
+    }
+    return out[0..pos];
 }
 
 /// Helper to validate required handle
@@ -277,6 +342,32 @@ test "requireData returns data when present" {
     const data = "test data";
     const result = try requireData(data);
     try testing.expectEqualStrings("test data", result);
+}
+
+test "escapeJsSingleQuoted handles quotes, backslashes, newlines, and <" {
+    const testing = std.testing;
+    var buf: [256]u8 = undefined;
+    const got = try escapeJsSingleQuoted(&buf, "a'b\\c\nd</script>");
+    try testing.expectEqualStrings("a\\'b\\\\c\\nd\\x3c/script>", got);
+}
+
+test "escapeJsSingleQuoted returns BufferTooSmall when output buffer is full" {
+    const testing = std.testing;
+    var buf: [3]u8 = undefined;
+    try testing.expectError(error.BufferTooSmall, escapeJsSingleQuoted(&buf, "abcd"));
+}
+
+test "escapeJsonString handles quotes, backslashes, control bytes" {
+    const testing = std.testing;
+    var buf: [256]u8 = undefined;
+    const got = try escapeJsonString(&buf, "a\"b\\c\n\x01\x08\x0c");
+    try testing.expectEqualStrings("a\\\"b\\\\c\\n\\u0001\\b\\f", got);
+}
+
+test "escapeJsonString BufferTooSmall" {
+    const testing = std.testing;
+    var buf: [3]u8 = undefined;
+    try testing.expectError(error.BufferTooSmall, escapeJsonString(&buf, "abcd"));
 }
 
 test "ErrorContext.toJSON escapes quotes, backslashes, and control bytes" {

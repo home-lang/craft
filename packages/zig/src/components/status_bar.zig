@@ -56,8 +56,10 @@ pub const StatusBar = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps, config: Config) !*StatusBar {
         const status_bar = try allocator.create(StatusBar);
+        errdefer allocator.destroy(status_bar);
+        const component = try Component.init(allocator, "statusbar", props);
         status_bar.* = StatusBar{
-            .component = try Component.init(allocator, "statusbar", props),
+            .component = component,
             .sections = .{},
             .on_section_click = null,
             .separator_style = config.separator_style,

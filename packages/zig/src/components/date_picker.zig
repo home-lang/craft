@@ -85,8 +85,10 @@ pub const DatePicker = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*DatePicker {
         const picker = try allocator.create(DatePicker);
+        errdefer allocator.destroy(picker);
+        const component = try Component.init(allocator, "date_picker", props);
         picker.* = DatePicker{
-            .component = try Component.init(allocator, "date_picker", props),
+            .component = component,
             .selected_date = null,
             .min_date = null,
             .max_date = null,

@@ -82,8 +82,10 @@ pub const TimePicker = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps, config: Config) !*TimePicker {
         const picker = try allocator.create(TimePicker);
+        errdefer allocator.destroy(picker);
+        const component = try Component.init(allocator, "timepicker", props);
         picker.* = TimePicker{
-            .component = try Component.init(allocator, "timepicker", props),
+            .component = component,
             .hour = config.initial_hour,
             .minute = config.initial_minute,
             .second = config.initial_second,

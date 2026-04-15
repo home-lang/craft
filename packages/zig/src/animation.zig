@@ -171,7 +171,10 @@ pub const Animation = struct {
         const elapsed_ns: u64 = @intCast(elapsed_duration.raw.nanoseconds);
         self.elapsed_ms = elapsed_ns / std.time.ns_per_ms;
 
-        if (self.elapsed_ms >= self.duration_ms) {
+        // A 0ms animation or a completed animation resolves to `end_value`.
+        // Previously this would also reach the division below and produce
+        // NaN/inf for a zero-duration animation before the early-return fired.
+        if (self.duration_ms == 0 or self.elapsed_ms >= self.duration_ms) {
             self.state = .completed;
             if (self.on_complete) |callback| {
                 callback();
@@ -193,6 +196,8 @@ pub const Animation = struct {
     pub fn getCurrentValue(self: Animation) f32 {
         if (self.state == .completed) return self.end_value;
         if (self.state != .running) return self.start_value;
+        // Guard against division by zero for zero-duration animations.
+        if (self.duration_ms == 0) return self.end_value;
 
         const start_instant = self.start_time orelse return self.start_value;
         const now = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return self.start_value;
@@ -248,6 +253,10 @@ pub const KeyframeAnimation = struct {
 
     pub fn update(self: *KeyframeAnimation) f32 {
         if (self.state != .running) return 0.0;
+        // A keyframe animation with no keyframes or zero duration has no
+        // meaningful output — previously these cases would index into an
+        // empty slice or divide by zero.
+        if (self.keyframes.len == 0) return 0.0;
 
         const start_instant = self.start_time orelse return 0.0;
         const now = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return 0.0;
@@ -255,7 +264,7 @@ pub const KeyframeAnimation = struct {
         const elapsed_ns: u64 = @intCast(elapsed_duration.raw.nanoseconds);
         self.elapsed_ms = elapsed_ns / std.time.ns_per_ms;
 
-        if (self.elapsed_ms >= self.duration_ms) {
+        if (self.duration_ms == 0 or self.elapsed_ms >= self.duration_ms) {
             self.state = .completed;
             return self.keyframes[self.keyframes.len - 1].value;
         }
@@ -314,6 +323,15 @@ pub const SpringAnimation = struct {
 
     pub fn update(self: *SpringAnimation, dt: f32) f32 {
         if (self.state != .running) return self.position;
+        // Guard against mass == 0, which would produce infinity/NaN and
+        // smear garbage through `position`/`velocity` on every subsequent
+        // frame. Treat a zero-mass spring as "already settled".
+        if (self.mass == 0.0) {
+            self.position = self.target;
+            self.velocity = 0.0;
+            self.state = .completed;
+            return self.position;
+        }
 
         const spring_force = -self.stiffness * (self.position - self.target);
         const damping_force = -self.damping * self.velocity;

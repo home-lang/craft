@@ -30,8 +30,10 @@ pub const CodeEditor = struct {
 
     pub fn init(allocator: std.mem.Allocator, language: []const u8, props: ComponentProps) !*CodeEditor {
         const editor = try allocator.create(CodeEditor);
+        errdefer allocator.destroy(editor);
+        const component = try Component.init(allocator, "code_editor", props);
         editor.* = CodeEditor{
-            .component = try Component.init(allocator, "code_editor", props),
+            .component = component,
             .content = "",
             .language = language,
             .theme = .dark,

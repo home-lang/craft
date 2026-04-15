@@ -212,8 +212,13 @@ pub const App = struct {
         }
     }
 
+    // All `create*` helpers below used to leak the newly-allocated struct
+    // if the subsequent `show()`/`append()` failed. Each now uses errdefer
+    // to destroy the allocation on the error path.
+
     pub fn createSystemTray(self: *Self, title: []const u8) !*SystemTray {
         const sys_tray = try self.allocator.create(SystemTray);
+        errdefer self.allocator.destroy(sys_tray);
         sys_tray.* = SystemTray.init(self.allocator, title);
         try sys_tray.show();
         self.system_tray = sys_tray;
@@ -227,6 +232,7 @@ pub const App = struct {
     /// Create an additional system tray (for multiple tray icons)
     pub fn createAdditionalTray(self: *Self, title: []const u8) !*SystemTray {
         const sys_tray = try self.allocator.create(SystemTray);
+        errdefer self.allocator.destroy(sys_tray);
         sys_tray.* = SystemTray.init(self.allocator, title);
         try sys_tray.show();
 
@@ -238,6 +244,7 @@ pub const App = struct {
 
     pub fn createWindow(self: *Self, title: []const u8, width: u32, height: u32, html: []const u8) !*Window {
         const window = try self.allocator.create(Window);
+        errdefer self.allocator.destroy(window);
         window.* = Window.init(title, width, height, html);
         try self.windows.append(self.allocator, window);
         return window;
@@ -247,6 +254,7 @@ pub const App = struct {
         if (builtin.os.tag == .macos) {
             const native_window = try macos.createWindowWithHTML(title, width, height, html, style);
             const window = try self.allocator.create(Window);
+            errdefer self.allocator.destroy(window);
             window.* = Window.init(title, width, height, html);
             window.native_handle = @ptrCast(native_window);
             try self.windows.append(self.allocator, window);
@@ -260,6 +268,7 @@ pub const App = struct {
         if (builtin.os.tag == .macos) {
             const native_window = try macos.createWindowWithURL(title, width, height, url, style);
             const window = try self.allocator.create(Window);
+            errdefer self.allocator.destroy(window);
             window.* = Window.init(title, width, height, "");
             window.native_handle = @ptrCast(native_window);
             try self.windows.append(self.allocator, window);
@@ -274,6 +283,7 @@ pub const App = struct {
         if (builtin.os.tag == .macos) {
             const native_window = try macos.createWindowWithSidebar(title, width, height, html, sidebar_width, sidebar_config, style);
             const window = try self.allocator.create(Window);
+            errdefer self.allocator.destroy(window);
             window.* = Window.init(title, width, height, html);
             window.native_handle = @ptrCast(native_window);
             try self.windows.append(self.allocator, window);
@@ -288,6 +298,7 @@ pub const App = struct {
         if (builtin.os.tag == .macos) {
             const native_window = try macos.createWindowWithSidebarURL(title, width, height, url, sidebar_width, sidebar_config, style);
             const window = try self.allocator.create(Window);
+            errdefer self.allocator.destroy(window);
             window.* = Window.init(title, width, height, url);
             window.native_handle = @ptrCast(native_window);
             try self.windows.append(self.allocator, window);

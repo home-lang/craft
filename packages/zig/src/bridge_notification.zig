@@ -368,12 +368,16 @@ pub const NotificationBridge = struct {
         const dock_tile = macos.msgSend0(app, "dockTile");
 
         if (count > 0) {
+            // Use bufPrintZ to produce a guaranteed null-terminated slice.
+            // The previous version cast a non-null-terminated bufPrint slice
+            // to `[*:0]const u8`, which is undefined behavior — the ObjC
+            // `initWithUTF8String:` implementation reads until it finds a
+            // zero byte, potentially overrunning into adjacent stack.
             var buf: [32]u8 = undefined;
-            const count_str = std.fmt.bufPrint(&buf, "{}", .{count}) catch "0";
-            const count_cstr = @as([*:0]const u8, @ptrCast(count_str.ptr));
+            const count_str = std.fmt.bufPrintZ(&buf, "{}", .{count}) catch "0";
 
             const NSString = macos.getClass("NSString");
-            const ns_count = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", count_cstr);
+            const ns_count = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", count_str.ptr);
             _ = macos.msgSend1(dock_tile, "setBadgeLabel:", ns_count);
         } else {
             _ = macos.msgSend1(dock_tile, "setBadgeLabel:", @as(?*anyopaque, null));

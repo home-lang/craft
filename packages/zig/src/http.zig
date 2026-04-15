@@ -198,16 +198,20 @@ pub const ContentType = struct {
     pub const pdf = "application/pdf";
 
     pub fn fromExtension(ext: []const u8) []const u8 {
-        if (std.mem.eql(u8, ext, ".json")) return json;
-        if (std.mem.eql(u8, ext, ".xml")) return xml;
-        if (std.mem.eql(u8, ext, ".html")) return html;
-        if (std.mem.eql(u8, ext, ".htm")) return html;
-        if (std.mem.eql(u8, ext, ".txt")) return text;
-        if (std.mem.eql(u8, ext, ".png")) return png;
-        if (std.mem.eql(u8, ext, ".jpg")) return jpeg;
-        if (std.mem.eql(u8, ext, ".jpeg")) return jpeg;
-        if (std.mem.eql(u8, ext, ".gif")) return gif;
-        if (std.mem.eql(u8, ext, ".pdf")) return pdf;
+        // Case-insensitive match so `.PNG`, `.Html`, etc. resolve correctly.
+        // Previously only lowercase matched, and any uppercase extension
+        // fell through to `application/octet-stream`, which downstream
+        // readers would then refuse to render as the intended type.
+        if (std.ascii.eqlIgnoreCase(ext, ".json")) return json;
+        if (std.ascii.eqlIgnoreCase(ext, ".xml")) return xml;
+        if (std.ascii.eqlIgnoreCase(ext, ".html")) return html;
+        if (std.ascii.eqlIgnoreCase(ext, ".htm")) return html;
+        if (std.ascii.eqlIgnoreCase(ext, ".txt")) return text;
+        if (std.ascii.eqlIgnoreCase(ext, ".png")) return png;
+        if (std.ascii.eqlIgnoreCase(ext, ".jpg")) return jpeg;
+        if (std.ascii.eqlIgnoreCase(ext, ".jpeg")) return jpeg;
+        if (std.ascii.eqlIgnoreCase(ext, ".gif")) return gif;
+        if (std.ascii.eqlIgnoreCase(ext, ".pdf")) return pdf;
         return octet_stream;
     }
 };
@@ -234,8 +238,19 @@ pub const Headers = struct {
         try self.map.put(self.allocator, key, value);
     }
 
+    /// Case-insensitive header lookup per RFC 7230. The backing hashmap is
+    /// case-sensitive, so we iterate and compare with `eqlIgnoreCase`.
+    /// Previously callers worked around this by trying two common casings,
+    /// which missed anything exotic like `CONTENT-TYPE`.
     pub fn get(self: *const Self, key: []const u8) ?[]const u8 {
-        return self.map.get(key);
+        if (self.map.get(key)) |v| return v;
+        var it = self.map.iterator();
+        while (it.next()) |entry| {
+            if (std.ascii.eqlIgnoreCase(entry.key_ptr.*, key)) {
+                return entry.value_ptr.*;
+            }
+        }
+        return null;
     }
 
     pub fn remove(self: *Self, key: []const u8) void {
@@ -293,6 +308,9 @@ pub const Response = struct {
         if (self.body.len > 0) {
             self.allocator.free(self.body);
         }
+        if (self.url.len > 0) {
+            self.allocator.free(self.url);
+        }
     }
 
     pub fn isSuccess(self: *const Self) bool {
@@ -345,15 +363,11 @@ pub const FormField = union(enum) {
     },
 };
 
-/// Get current timestamp in nanoseconds for seeding PRNG
+/// Get current timestamp in nanoseconds for seeding PRNG.
 fn getCurrentNanos() u64 {
     var ts: std.c.timespec = undefined;
     if (std.c.clock_gettime(.REALTIME, &ts) == 0) {
-        if (comptime builtin.os.tag == .macos or builtin.os.tag.isDarwin()) {
-            return @as(u64, @intCast(ts.sec)) *% 1_000_000_000 +% @as(u64, @intCast(ts.nsec));
-        } else {
-            return @as(u64, @intCast(ts.sec)) *% 1_000_000_000 +% @as(u64, @intCast(ts.nsec));
-        }
+        return @as(u64, @intCast(ts.sec)) *% 1_000_000_000 +% @as(u64, @intCast(ts.nsec));
     }
     return 12345;
 }
@@ -500,6 +514,14 @@ pub const UrlUtils = struct {
         if (std.mem.indexOf(u8, remaining, "/")) |path_start| {
             result.path = remaining[path_start..];
             remaining = remaining[0..path_start];
+        }
+
+        // Strip userinfo (`user:pass@host`) before searching for a port.
+        // Previously the port parser grabbed the `:` between user and pass
+        // and tried to parse `pass@host` as a port number, yielding
+        // `host = "user"` and `port = null`.
+        if (std.mem.lastIndexOfScalar(u8, remaining, '@')) |at_idx| {
+            remaining = remaining[at_idx + 1 ..];
         }
 
         // Parse host and port
@@ -724,15 +746,17 @@ pub const HttpClient = struct {
             }
         }
 
-        // Build full URL
+        // Build full URL. The combined string must outlive this stack frame
+        // because it's stored in `response.url`, so allocate on the heap and
+        // hand ownership to the Response (freed in Response.deinit alongside
+        // the body). Using a stack buffer here was a use-after-return.
         const full_url = if (self.base_url) |base| blk: {
             if (std.mem.startsWith(u8, url, "http://") or std.mem.startsWith(u8, url, "https://")) {
-                break :blk url;
+                break :blk try self.allocator.dupe(u8, url);
             }
-            var buf: [2048]u8 = undefined;
-            const len = (std.fmt.bufPrint(&buf, "{s}{s}", .{ base, url }) catch return HttpError.InvalidURL).len;
-            break :blk buf[0..len];
-        } else url;
+            break :blk try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ base, url });
+        } else try self.allocator.dupe(u8, url);
+        errdefer self.allocator.free(full_url);
 
         // Create mock response for now (real implementation would use std.http.Client)
         var headers = Headers.init(self.allocator);

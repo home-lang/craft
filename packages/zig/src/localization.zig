@@ -47,31 +47,40 @@ pub const Locale = struct {
         return fbs.getWritten();
     }
 
+    /// Parse a locale string like "en", "en-US", "zh-Hans-CN", or "en_US"
+    /// (the POSIX form, which uses `_` instead of `-`). Returns a Locale
+    /// with slices pointing into `locale_str`, so the caller must keep
+    /// `locale_str` alive for the Locale's lifetime.
     pub fn parse(locale_str: []const u8) Locale {
-        var parts = std.mem.splitScalar(u8, locale_str, '-');
-        const language = parts.next() orelse locale_str;
-        const second = parts.next();
-        const third = parts.next();
+        // Accept `-` OR `_` as the separator. `detectFromEnv` used to build
+        // a stack-local copy just to rewrite `_` to `-`, and then returned
+        // a Locale whose slices pointed into that dead stack buffer. By
+        // making parse treat both separators identically we let callers
+        // pass the env var's borrowed slice directly — no copy needed.
+        const sep_idx = std.mem.indexOfAny(u8, locale_str, "-_");
 
-        // Determine if second part is script (4 chars) or region (2 chars)
-        if (second) |s| {
-            if (s.len == 4) {
-                // Script (e.g., "Hans")
-                return .{
-                    .language = language,
-                    .script = s,
-                    .region = third,
-                };
-            } else {
-                // Region (e.g., "US")
-                return .{
-                    .language = language,
-                    .region = s,
-                };
-            }
+        if (sep_idx == null) return .{ .language = locale_str };
+
+        const language = locale_str[0..sep_idx.?];
+        const rest = locale_str[sep_idx.? + 1 ..];
+
+        const sep2 = std.mem.indexOfAny(u8, rest, "-_");
+        const second = if (sep2) |i| rest[0..i] else rest;
+        const third: ?[]const u8 = if (sep2) |i| rest[i + 1 ..] else null;
+
+        if (second.len == 4) {
+            // Script (e.g. "Hans")
+            return .{
+                .language = language,
+                .script = second,
+                .region = third,
+            };
         }
-
-        return .{ .language = language };
+        // Region (e.g. "US")
+        return .{
+            .language = language,
+            .region = second,
+        };
     }
 
     pub fn isRTL(self: Locale) bool {
@@ -279,9 +288,13 @@ pub const Localization = struct {
             .date_formats = .{},
         };
 
-        // Set up default number formats
+        // Populate defaults. If the second setup fails, release everything
+        // the first one put in the map — previously a partial init on OOM
+        // leaked every entry already added to `number_formats`.
         try self.setupDefaultNumberFormats();
+        errdefer self.number_formats.deinit(self.allocator);
         try self.setupDefaultDateFormats();
+        errdefer self.date_formats.deinit(self.allocator);
 
         // Try to detect system locale
         self.current_locale = self.detectSystemLocale() orelse self.fallback_locale;
@@ -367,7 +380,7 @@ pub const Localization = struct {
     /// Detect system locale
     pub fn detectSystemLocale(self: *Self) ?Locale {
         _ = self;
-        if (builtin.os.tag == .macos or builtin.target.os.tag == .ios) {
+        if (builtin.os.tag == .macos or builtin.os.tag == .ios) {
             return detectMacOSLocale();
         } else if (builtin.os.tag == .linux) {
             return detectLinuxLocale();
@@ -393,26 +406,20 @@ pub const Localization = struct {
     }
 
     fn detectFromEnv() ?Locale {
-        // Check common locale environment variables
+        // Check common locale environment variables. We slice directly into
+        // the env var's backing memory, which stays live for the process
+        // lifetime — the previous implementation built a stack-local copy
+        // and returned a Locale whose slices pointed into that dead buffer.
         const env_vars = [_][]const u8{ "LC_ALL", "LC_MESSAGES", "LANG" };
         for (env_vars) |env_var| {
             if (std.posix.getenv(env_var)) |value| {
-                // Parse locale string (e.g., "en_US.UTF-8")
+                // Strip `.UTF-8`, `.ISO-8859-1`, etc. — the codepage suffix
+                // isn't part of the locale identifier.
                 const dot_pos = std.mem.indexOf(u8, value, ".");
-                const locale_end = dot_pos orelse value.len;
-
-                // Replace underscore with hyphen
-                var buf: [10]u8 = undefined;
-                var len: usize = 0;
-                for (value[0..locale_end]) |c| {
-                    if (len >= buf.len) break;
-                    buf[len] = if (c == '_') '-' else c;
-                    len += 1;
-                }
-
-                if (len > 0) {
-                    return Locale.parse(buf[0..len]);
-                }
+                const locale_slice = value[0 .. dot_pos orelse value.len];
+                if (locale_slice.len == 0) continue;
+                // `parse` now accepts `_` directly so this slice works as-is.
+                return Locale.parse(locale_slice);
             }
         }
         return null;
@@ -438,31 +445,29 @@ pub const Localization = struct {
         return self.current_locale.isRTL();
     }
 
-    /// Load translations for a locale
+    /// Load translations for a locale.
+    ///
+    /// Mutates the stored inner hashmap in place via `getOrPut`. The previous
+    /// implementation did `get()` (which returns a *copy* of the value), added
+    /// entries to the copy, then `put()` the copy back — leaking the
+    /// previously stored hashmap's backing storage on every call.
     pub fn loadTranslations(self: *Self, locale: []const u8, translations_list: []const struct { key: []const u8, value: TranslationEntry }) !void {
-        var locale_translations = self.translations.get(locale) orelse blk: {
-            const new_map = std.StringHashMapUnmanaged(TranslationEntry){};
-            try self.translations.put(self.allocator, locale, new_map);
-            break :blk self.translations.getPtr(locale).?.*;
-        };
-
-        for (translations_list) |entry| {
-            try locale_translations.put(self.allocator, entry.key, entry.value);
+        const gop = try self.translations.getOrPut(self.allocator, locale);
+        if (!gop.found_existing) {
+            gop.value_ptr.* = .{};
         }
-
-        try self.translations.put(self.allocator, locale, locale_translations);
+        for (translations_list) |entry| {
+            try gop.value_ptr.put(self.allocator, entry.key, entry.value);
+        }
     }
 
-    /// Add a single translation
+    /// Add a single translation (same in-place pattern as `loadTranslations`).
     pub fn addTranslation(self: *Self, locale: []const u8, key: []const u8, entry: TranslationEntry) !void {
-        var locale_translations = self.translations.get(locale) orelse blk: {
-            const new_map = std.StringHashMapUnmanaged(TranslationEntry){};
-            try self.translations.put(self.allocator, locale, new_map);
-            break :blk self.translations.getPtr(locale).?.*;
-        };
-
-        try locale_translations.put(self.allocator, key, entry);
-        try self.translations.put(self.allocator, locale, locale_translations);
+        const gop = try self.translations.getOrPut(self.allocator, locale);
+        if (!gop.found_existing) {
+            gop.value_ptr.* = .{};
+        }
+        try gop.value_ptr.put(self.allocator, key, entry);
     }
 
     /// Translate a key (shorthand for translate)
@@ -822,6 +827,17 @@ test "Locale parsing" {
     const simple = Locale.parse("fr");
     try std.testing.expectEqualStrings("fr", simple.language);
     try std.testing.expect(simple.region == null);
+}
+
+test "Locale parsing accepts POSIX underscore form" {
+    const en_us = Locale.parse("en_US");
+    try std.testing.expectEqualStrings("en", en_us.language);
+    try std.testing.expectEqualStrings("US", en_us.region.?);
+
+    const zh_hans = Locale.parse("zh_Hans_CN");
+    try std.testing.expectEqualStrings("zh", zh_hans.language);
+    try std.testing.expectEqualStrings("Hans", zh_hans.script.?);
+    try std.testing.expectEqualStrings("CN", zh_hans.region.?);
 }
 
 test "Locale RTL detection" {

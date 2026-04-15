@@ -198,16 +198,23 @@ pub const ShortcutsBridge = struct {
         }
     }
 
-    /// Trigger JavaScript callback for shortcut
+    /// Trigger JavaScript callback for shortcut.
+    /// Escapes both IDs before embedding them in the JS literal so a value
+    /// containing `'` / `\` / newline cannot break out and inject code.
     fn triggerCallback(self: *Self, shortcut_id: []const u8, callback_id: []const u8) void {
         _ = self;
 
         const bridge = @import("bridge.zig");
 
+        var sid_buf: [128]u8 = undefined;
+        var cb_buf: [128]u8 = undefined;
+        const sid_esc = bridge_error.escapeJsSingleQuoted(&sid_buf, shortcut_id) catch return;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
         var buf: [512]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftShortcutCallback)window.__craftShortcutCallback('{s}','{s}');
-        , .{ shortcut_id, callback_id }) catch return;
+        , .{ sid_esc, cb_esc }) catch return;
 
         bridge.evalJS(js) catch |err| {
             log.debug("Failed to trigger callback: {}", .{err});
@@ -297,10 +304,13 @@ pub const ShortcutsBridge = struct {
         const registered = self.shortcuts.contains(id);
 
         const bridge = @import("bridge.zig");
+        var id_buf: [128]u8 = undefined;
+        const id_esc = bridge_error.escapeJsSingleQuoted(&id_buf, id) catch return;
+
         var buf: [256]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftShortcutRegistered)window.__craftShortcutRegistered('{s}',{});
-        , .{ id, registered }) catch return;
+        , .{ id_esc, registered }) catch return;
 
         bridge.evalJS(js) catch |err| {
             std.log.debug("JS eval failed for shortcut registered callback: {}", .{err});

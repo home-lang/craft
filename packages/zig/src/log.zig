@@ -42,6 +42,13 @@ var current_config: LogConfig = .{};
 var log_file: ?std.Io.File = null;
 
 pub fn init(config: LogConfig) !void {
+    // Close any previously opened log file. Previously, calling `init` twice
+    // would overwrite `log_file` and silently leak the old file handle.
+    if (log_file) |f| {
+        f.close(io_context.get());
+        log_file = null;
+    }
+
     current_config = config;
 
     if (config.output_file) |path| {
@@ -97,8 +104,35 @@ pub fn log(
     const timestamp = formatTimestamp(&ts_buf);
 
     if (current_config.json_output) {
-        // JSON output
-        const result = std.fmt.bufPrint(&output_buf, "{{\"timestamp\":\"{s}\",\"level\":\"{s}\",\"message\":\"{s}\"}}\n", .{ timestamp, level.toString(), message }) catch return;
+        // JSON output — escape the message so that quotes, newlines, and
+        // backslashes don't produce invalid JSON. Previously a message like
+        // `foo "bar"\nbaz` would corrupt every log consumer parsing the stream.
+        var esc_buf: [4096]u8 = undefined;
+        var esc_len: usize = 0;
+        for (message) |c| {
+            const esc: []const u8 = switch (c) {
+                '"' => "\\\"",
+                '\\' => "\\\\",
+                '\n' => "\\n",
+                '\r' => "\\r",
+                '\t' => "\\t",
+                0x00...0x08, 0x0B, 0x0C, 0x0E...0x1F => blk: {
+                    var hex: [6]u8 = undefined;
+                    const slice = std.fmt.bufPrint(&hex, "\\u{x:0>4}", .{c}) catch break :blk "";
+                    if (esc_len + slice.len > esc_buf.len) break :blk "";
+                    @memcpy(esc_buf[esc_len..][0..slice.len], slice);
+                    esc_len += slice.len;
+                    break :blk "";
+                },
+                else => &[_]u8{c},
+            };
+            if (esc.len == 0) continue;
+            if (esc_len + esc.len > esc_buf.len) break;
+            @memcpy(esc_buf[esc_len..][0..esc.len], esc);
+            esc_len += esc.len;
+        }
+
+        const result = std.fmt.bufPrint(&output_buf, "{{\"timestamp\":\"{s}\",\"level\":\"{s}\",\"message\":\"{s}\"}}\n", .{ timestamp, level.toString(), esc_buf[0..esc_len] }) catch return;
         output_len = result.len;
     } else {
         // Standard output

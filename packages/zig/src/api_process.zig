@@ -68,17 +68,22 @@ pub const Process = struct {
         process.stderr_behavior = .Pipe;
 
         try process.spawn();
+        // If anything below fails, reap the child (no zombies) and free any
+        // buffer we've already allocated — the old code leaked stdout if
+        // stderr reading or `process.wait()` returned an error.
+        errdefer _ = process.kill() catch {};
 
-        // Read stdout and stderr
         const stdout = if (process.stdout) |stdout_pipe|
             try stdout_pipe.reader().readAllAlloc(self.allocator, 10 * 1024 * 1024)
         else
             try self.allocator.dupe(u8, "");
+        errdefer self.allocator.free(stdout);
 
         const stderr = if (process.stderr) |stderr_pipe|
             try stderr_pipe.reader().readAllAlloc(self.allocator, 10 * 1024 * 1024)
         else
             try self.allocator.dupe(u8, "");
+        errdefer self.allocator.free(stderr);
 
         const term = try process.wait();
 

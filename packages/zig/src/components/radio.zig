@@ -81,8 +81,10 @@ pub const RadioGroup = struct {
 
     pub fn init(allocator: std.mem.Allocator, name: []const u8, props: ComponentProps) !*RadioGroup {
         const group = try allocator.create(RadioGroup);
+        errdefer allocator.destroy(group);
+        const component = try Component.init(allocator, "radio-group", props);
         group.* = RadioGroup{
-            .component = try Component.init(allocator, "radio-group", props),
+            .component = component,
             .name = name,
             .buttons = .{},
             .selected_value = null,
@@ -111,6 +113,9 @@ pub const RadioGroup = struct {
     /// Create and add a new radio button
     pub fn addOption(self: *RadioGroup, label: []const u8, value: []const u8) !*RadioButton {
         const button = try RadioButton.init(self.allocator, label, value, .{});
+        // Clean up the button if adding it to the group fails. Previously the
+        // newly-created RadioButton leaked on append failure.
+        errdefer button.deinit();
         try self.addButton(button);
         return button;
     }

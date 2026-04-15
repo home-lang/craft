@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
 const io_context = @import("io_context.zig");
+const json_utils = @import("json_utils.zig");
 
 const BridgeError = bridge_error.BridgeError;
 
@@ -86,24 +87,11 @@ pub const FSBridge = struct {
     /// Read file contents
     /// JSON: {"path": "/path/to/file", "encoding": "utf8", "callbackId": "cb1"}
     fn readFile(self: *Self, data: []const u8) !void {
-        var path: []const u8 = "";
-        var callback_id: []const u8 = "";
-
-        // Parse path
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
-
-        // Parse callbackId
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        // Use the shared JSON helper — it handles `\"` inside string values.
+        // Previously each bridge field was parsed by `indexOfPos(..., "\"")`
+        // which truncated at the first backslash-escaped quote.
+        const path = json_utils.getString(data, "path") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
 
         if (path.len == 0) return BridgeError.MissingData;
 
@@ -135,42 +123,19 @@ pub const FSBridge = struct {
             self.sendFSError(callback_id, "readFile", path, err);
             return;
         };
-        _ = bytes_read;
 
-        // Send result to JavaScript (escape content for JS string)
-        self.sendFSResult(callback_id, "readFile", content);
+        // Only send the bytes we actually read. Previously we sent the full
+        // `content` allocation, so any short read would leak uninitialized
+        // memory past the file's end into the webview.
+        self.sendFSResult(callback_id, "readFile", content[0..bytes_read]);
     }
 
     /// Write file contents
     /// JSON: {"path": "/path/to/file", "content": "data", "callbackId": "cb1"}
     fn writeFile(self: *Self, data: []const u8) !void {
-        var path: []const u8 = "";
-        var content: []const u8 = "";
-        var callback_id: []const u8 = "";
-
-        // Parse path
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
-
-        // Parse content
-        if (std.mem.indexOf(u8, data, "\"content\":\"")) |idx| {
-            const start = idx + 11;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                content = data[start..end];
-            }
-        }
-
-        // Parse callbackId
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const path = json_utils.getString(data, "path") orelse "";
+        const content = json_utils.getString(data, "content") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
 
         if (path.len == 0) return BridgeError.MissingData;
 
@@ -195,30 +160,9 @@ pub const FSBridge = struct {
     /// Append to file
     /// JSON: {"path": "/path/to/file", "content": "data", "callbackId": "cb1"}
     fn appendFile(self: *Self, data: []const u8) !void {
-        var path: []const u8 = "";
-        var content: []const u8 = "";
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"content\":\"")) |idx| {
-            const start = idx + 11;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                content = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const path = json_utils.getString(data, "path") orelse "";
+        const content = json_utils.getString(data, "content") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
 
         if (path.len == 0) return BridgeError.MissingData;
 
@@ -231,7 +175,14 @@ pub const FSBridge = struct {
         };
         defer file.close(io_context.get());
 
-        file.writeStreamingAll(io_context.get(), content) catch |err| {
+        // Seek to end before writing so `appendFile` actually appends.
+        // Previously `writeStreamingAll` started at offset 0 and overwrote
+        // the existing file prefix — a silent data-loss bug.
+        const file_stat = file.stat(io_context.get()) catch |err| {
+            self.sendFSError(callback_id, "appendFile", path, err);
+            return;
+        };
+        file.writePositional(io_context.get(), &.{content}, file_stat.size) catch |err| {
             self.sendFSError(callback_id, "appendFile", path, err);
             return;
         };
@@ -242,22 +193,8 @@ pub const FSBridge = struct {
     /// Delete file
     /// JSON: {"path": "/path/to/file", "callbackId": "cb1"}
     fn deleteFile(self: *Self, data: []const u8) !void {
-        var path: []const u8 = "";
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const path = json_utils.getString(data, "path") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
 
         if (path.len == 0) return BridgeError.MissingData;
 
@@ -275,26 +212,23 @@ pub const FSBridge = struct {
     /// Check if path exists
     /// JSON: {"path": "/path/to/check", "callbackId": "cb1"}
     fn exists(self: *Self, data: []const u8) !void {
-        var path: []const u8 = "";
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const path = json_utils.getString(data, "path") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        const file_exists = if (std.Io.Dir.cwd().access(io_context.get(), path, .{})) |_| true else |_| false;
+        // Only treat `FileNotFound` as "does not exist". Previously ANY error
+        // (permissions, IO, etc.) was reported as non-existent, which mis-led
+        // callers that were actually being rejected by the OS.
+        const file_exists = if (std.Io.Dir.cwd().access(io_context.get(), path, .{}))
+            true
+        else |err| switch (err) {
+            error.FileNotFound => false,
+            else => {
+                self.sendFSError(callback_id, "exists", path, err);
+                return;
+            },
+        };
 
         self.sendFSBool(callback_id, "exists", file_exists);
     }
@@ -302,22 +236,8 @@ pub const FSBridge = struct {
     /// Get file stats
     /// JSON: {"path": "/path/to/file", "callbackId": "cb1"}
     fn stat(self: *Self, data: []const u8) !void {
-        var path: []const u8 = "";
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const path = json_utils.getString(data, "path") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
 
         if (path.len == 0) return BridgeError.MissingData;
 
@@ -334,6 +254,10 @@ pub const FSBridge = struct {
 
         const bridge = @import("bridge.zig");
 
+        // Escape the user-supplied callback_id before embedding in the JS.
+        var cb_buf: [128]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
         var buf: [512]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftFSCallback)window.__craftFSCallback('{s}','stat',{{
@@ -342,7 +266,7 @@ pub const FSBridge = struct {
             \\"size":{d},
             \\"mtime":{d}
             \\}});
-        , .{ callback_id, is_dir, is_file, size, mtime }) catch return;
+        , .{ cb_esc, is_dir, is_file, size, mtime }) catch return;
 
         bridge.evalJS(js) catch |err| {
             std.log.debug("JS eval failed for stat callback: {}", .{err});
@@ -352,22 +276,8 @@ pub const FSBridge = struct {
     /// Read directory contents
     /// JSON: {"path": "/path/to/dir", "callbackId": "cb1"}
     fn readDir(self: *Self, data: []const u8) !void {
-        var path: []const u8 = "";
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const path = json_utils.getString(data, "path") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
 
         if (path.len == 0) return BridgeError.MissingData;
 
@@ -380,9 +290,12 @@ pub const FSBridge = struct {
         };
         defer dir.close(io_context.get());
 
-        // Build JSON array of entries
+        // Build JSON array of entries. Filenames are escaped inline so that
+        // names containing `"`, `\`, or control bytes don't produce invalid
+        // JSON the webview then fails to parse.
         var buf: [8192]u8 = undefined;
         var pos: usize = 0;
+        if (pos + 1 > buf.len) return;
         buf[pos] = '[';
         pos += 1;
 
@@ -390,27 +303,75 @@ pub const FSBridge = struct {
         var iter = dir.iterate();
         while (iter.next(io_context.get()) catch null) |entry| {
             if (!first) {
+                if (pos + 1 > buf.len) break;
                 buf[pos] = ',';
                 pos += 1;
             }
             first = false;
 
             const is_dir = entry.kind == .directory;
-            const item = std.fmt.bufPrint(buf[pos..],
-                \\{{"name":"{s}","isDirectory":{}}}
-            , .{ entry.name, is_dir }) catch break;
-            pos += item.len;
+            // Emit the `{"name":"` prefix, then the escaped filename, then
+            // the closing `","isDirectory":…}` suffix — all with bounds
+            // checks so a long name aborts the entry rather than overflowing.
+            const prefix = "{\"name\":\"";
+            if (pos + prefix.len > buf.len) break;
+            @memcpy(buf[pos..][0..prefix.len], prefix);
+            pos += prefix.len;
+
+            var name_overflowed = false;
+            for (entry.name) |c| {
+                const esc: []const u8 = switch (c) {
+                    '"' => "\\\"",
+                    '\\' => "\\\\",
+                    '\n' => "\\n",
+                    '\r' => "\\r",
+                    '\t' => "\\t",
+                    else => blk: {
+                        if (c < 0x20) {
+                            // Control byte → \u00XX
+                            var hex_tmp: [6]u8 = undefined;
+                            const hex_slice = std.fmt.bufPrint(&hex_tmp, "\\u{x:0>4}", .{c}) catch {
+                                name_overflowed = true;
+                                break :blk "";
+                            };
+                            // Write the formatted bytes through the block.
+                            if (pos + hex_slice.len > buf.len) { name_overflowed = true; break :blk ""; }
+                            @memcpy(buf[pos..][0..hex_slice.len], hex_slice);
+                            pos += hex_slice.len;
+                            break :blk "";
+                        }
+                        break :blk &[_]u8{c};
+                    },
+                };
+                if (esc.len == 0) {
+                    if (name_overflowed) break;
+                    continue;
+                }
+                if (pos + esc.len > buf.len) { name_overflowed = true; break; }
+                @memcpy(buf[pos..][0..esc.len], esc);
+                pos += esc.len;
+            }
+            if (name_overflowed) break;
+
+            const suffix = if (is_dir) "\",\"isDirectory\":true}" else "\",\"isDirectory\":false}";
+            if (pos + suffix.len > buf.len) break;
+            @memcpy(buf[pos..][0..suffix.len], suffix);
+            pos += suffix.len;
         }
 
+        if (pos + 1 > buf.len) return;
         buf[pos] = ']';
         pos += 1;
 
         const bridge = @import("bridge.zig");
 
+        var cb_buf: [128]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
         var js_buf: [8500]u8 = undefined;
         const js = std.fmt.bufPrint(&js_buf,
             \\if(window.__craftFSCallback)window.__craftFSCallback('{s}','readDir',{s});
-        , .{ callback_id, buf[0..pos] }) catch return;
+        , .{ cb_esc, buf[0..pos] }) catch return;
 
         bridge.evalJS(js) catch |err| {
             std.log.debug("JS eval failed for readDir callback: {}", .{err});
@@ -420,23 +381,9 @@ pub const FSBridge = struct {
     /// Create directory
     /// JSON: {"path": "/path/to/dir", "recursive": true, "callbackId": "cb1"}
     fn mkdir(self: *Self, data: []const u8) !void {
-        var path: []const u8 = "";
-        var callback_id: []const u8 = "";
-        const recursive = std.mem.indexOf(u8, data, "\"recursive\":true") != null;
-
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const path = json_utils.getString(data, "path") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
+        const recursive = json_utils.getBool(data, "recursive") orelse false;
 
         if (path.len == 0) return BridgeError.MissingData;
 
@@ -461,22 +408,8 @@ pub const FSBridge = struct {
     /// Remove directory
     /// JSON: {"path": "/path/to/dir", "callbackId": "cb1"}
     fn rmdir(self: *Self, data: []const u8) !void {
-        var path: []const u8 = "";
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const path = json_utils.getString(data, "path") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
 
         if (path.len == 0) return BridgeError.MissingData;
 
@@ -494,30 +427,9 @@ pub const FSBridge = struct {
     /// Copy file
     /// JSON: {"src": "/path/from", "dest": "/path/to", "callbackId": "cb1"}
     fn copy(self: *Self, data: []const u8) !void {
-        var src: []const u8 = "";
-        var dest: []const u8 = "";
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"src\":\"")) |idx| {
-            const start = idx + 7;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                src = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"dest\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                dest = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const src = json_utils.getString(data, "src") orelse "";
+        const dest = json_utils.getString(data, "dest") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
 
         if (src.len == 0 or dest.len == 0) return BridgeError.MissingData;
 
@@ -537,30 +449,9 @@ pub const FSBridge = struct {
     /// Move/rename file
     /// JSON: {"src": "/path/from", "dest": "/path/to", "callbackId": "cb1"}
     fn move(self: *Self, data: []const u8) !void {
-        var src: []const u8 = "";
-        var dest: []const u8 = "";
-        var callback_id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"src\":\"")) |idx| {
-            const start = idx + 7;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                src = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"dest\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                dest = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const src = json_utils.getString(data, "src") orelse "";
+        const dest = json_utils.getString(data, "dest") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
 
         if (src.len == 0 or dest.len == 0) return BridgeError.MissingData;
 
@@ -579,41 +470,26 @@ pub const FSBridge = struct {
     /// Watch a file or directory for changes
     /// JSON: {"id": "watch1", "path": "/path/to/watch", "recursive": false, "callbackId": "cb1"}
     fn watch(self: *Self, data: []const u8) !void {
-        var id: []const u8 = "";
-        var path: []const u8 = "";
-        var callback_id: []const u8 = "";
-        const recursive = std.mem.indexOf(u8, data, "\"recursive\":true") != null;
-
-        if (std.mem.indexOf(u8, data, "\"id\":\"")) |idx| {
-            const start = idx + 6;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                id = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"path\":\"")) |idx| {
-            const start = idx + 8;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                path = data[start..end];
-            }
-        }
-
-        if (std.mem.indexOf(u8, data, "\"callbackId\":\"")) |idx| {
-            const start = idx + 14;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                callback_id = data[start..end];
-            }
-        }
+        const id = json_utils.getString(data, "id") orelse "";
+        const path = json_utils.getString(data, "path") orelse "";
+        const callback_id = json_utils.getString(data, "callbackId") orelse "";
+        const recursive = json_utils.getBool(data, "recursive") orelse false;
 
         if (id.len == 0 or path.len == 0) return BridgeError.MissingData;
 
         if (comptime builtin.mode == .Debug)
             std.debug.print("[FSBridge] watch: {s} -> {s} (recursive={})\n", .{ id, path, recursive });
 
-        // Store watcher entry
+        // Store watcher entry. Each dupe has its own errdefer so an OOM
+        // partway through doesn't leak the earlier allocations. Previously
+        // a failing `path_owned`/`callback_owned`/`put` would leak every
+        // buffer allocated so far.
         const id_owned = try self.allocator.dupe(u8, id);
+        errdefer self.allocator.free(id_owned);
         const path_owned = try self.allocator.dupe(u8, path);
+        errdefer self.allocator.free(path_owned);
         const callback_owned = try self.allocator.dupe(u8, callback_id);
+        errdefer self.allocator.free(callback_owned);
 
         try self.watchers.put(id_owned, WatchEntry{
             .id = id_owned,
@@ -630,14 +506,7 @@ pub const FSBridge = struct {
     /// Stop watching
     /// JSON: {"id": "watch1"}
     fn unwatch(self: *Self, data: []const u8) !void {
-        var id: []const u8 = "";
-
-        if (std.mem.indexOf(u8, data, "\"id\":\"")) |idx| {
-            const start = idx + 6;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                id = data[start..end];
-            }
-        }
+        const id = json_utils.getString(data, "id") orelse "";
 
         if (id.len == 0) return BridgeError.MissingData;
 
@@ -670,10 +539,16 @@ pub const FSBridge = struct {
                 if (cstr) |c| {
                     const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(c)));
 
-                    var buf: [512]u8 = undefined;
+                    // Escape — a username containing `'` (possible on macOS)
+                    // would otherwise close the JS string literal and allow
+                    // injection via `/Users/evil';alert(1)//`.
+                    var path_buf: [1024]u8 = undefined;
+                    const path_esc = bridge_error.escapeJsSingleQuoted(&path_buf, path_str) catch return;
+
+                    var buf: [1280]u8 = undefined;
                     const js = std.fmt.bufPrint(&buf,
                         \\if(window.__craftFSCallback)window.__craftFSCallback('','getHomeDir','{s}');
-                    , .{path_str}) catch return;
+                    , .{path_esc}) catch return;
 
                     bridge.evalJS(js) catch |err| {
                         std.log.debug("JS eval failed for getHomeDir callback: {}", .{err});
@@ -686,10 +561,14 @@ pub const FSBridge = struct {
                 if (comptime builtin.os.tag == .windows) std.posix.getenv("USERPROFILE") orelse "" else "";
 
             if (home.len > 0) {
-                var buf: [512]u8 = undefined;
+                // Same escape as above — env vars can contain any bytes.
+                var path_buf: [1024]u8 = undefined;
+                const home_esc = bridge_error.escapeJsSingleQuoted(&path_buf, home) catch return;
+
+                var buf: [1280]u8 = undefined;
                 const js = std.fmt.bufPrint(&buf,
                     \\if(window.__craftFSCallback)window.__craftFSCallback('','getHomeDir','{s}');
-                , .{home}) catch return;
+                , .{home_esc}) catch return;
 
                 bridge.evalJS(js) catch |err| {
                     std.log.debug("JS eval failed for getHomeDir callback: {}", .{err});
@@ -716,10 +595,14 @@ pub const FSBridge = struct {
                 if (cstr) |c| {
                     const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(c)));
 
-                    var buf: [512]u8 = undefined;
+                    // Escape path before injecting into JS string literal.
+                    var path_buf: [1024]u8 = undefined;
+                    const path_esc = bridge_error.escapeJsSingleQuoted(&path_buf, path_str) catch return;
+
+                    var buf: [1280]u8 = undefined;
                     const js = std.fmt.bufPrint(&buf,
                         \\if(window.__craftFSCallback)window.__craftFSCallback('','getTempDir','{s}');
-                    , .{path_str}) catch return;
+                    , .{path_esc}) catch return;
 
                     bridge.evalJS(js) catch |err| {
                         std.log.debug("JS eval failed for getTempDir callback: {}", .{err});
@@ -731,10 +614,15 @@ pub const FSBridge = struct {
             const tmp = std.posix.getenv("TMPDIR") orelse
                 if (comptime builtin.os.tag == .windows) std.posix.getenv("TEMP") orelse "C:\\Temp" else "/tmp";
 
-            var buf: [512]u8 = undefined;
+            // Windows default uses a backslash which Zig reads as a JS escape
+            // in the string literal — escape before embedding.
+            var path_buf: [1024]u8 = undefined;
+            const tmp_esc = bridge_error.escapeJsSingleQuoted(&path_buf, tmp) catch return;
+
+            var buf: [1280]u8 = undefined;
             const js = std.fmt.bufPrint(&buf,
                 \\if(window.__craftFSCallback)window.__craftFSCallback('','getTempDir','{s}');
-            , .{tmp}) catch return;
+            , .{tmp_esc}) catch return;
 
             bridge.evalJS(js) catch |err| {
                 std.log.debug("JS eval failed for getTempDir callback: {}", .{err});
@@ -766,10 +654,13 @@ pub const FSBridge = struct {
                         if (cstr) |c| {
                             const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(c)));
 
-                            var buf: [512]u8 = undefined;
+                            var esc_buf: [1024]u8 = undefined;
+                            const path_esc = bridge_error.escapeJsSingleQuoted(&esc_buf, path_str) catch return;
+
+                            var buf: [1280]u8 = undefined;
                             const js = std.fmt.bufPrint(&buf,
                                 \\if(window.__craftFSCallback)window.__craftFSCallback('','getAppDataDir','{s}');
-                            , .{path_str}) catch return;
+                            , .{path_esc}) catch return;
 
                             bridge.evalJS(js) catch |err| {
                                 std.log.debug("JS eval failed for getAppDataDir callback: {}", .{err});
@@ -791,24 +682,31 @@ pub const FSBridge = struct {
             };
 
             if (app_data_path.len > 0) {
-                var buf: [512]u8 = undefined;
+                var esc_buf: [1024]u8 = undefined;
+                const path_esc = bridge_error.escapeJsSingleQuoted(&esc_buf, app_data_path) catch return;
+
+                var buf: [1280]u8 = undefined;
                 const js = std.fmt.bufPrint(&buf,
                     \\if(window.__craftFSCallback)window.__craftFSCallback('','getAppDataDir','{s}');
-                , .{app_data_path}) catch return;
+                , .{path_esc}) catch return;
 
                 bridge.evalJS(js) catch |err| {
                     std.log.debug("JS eval failed for getAppDataDir callback: {}", .{err});
                 };
             }
         } else if (comptime builtin.os.tag == .windows) {
-            // Windows: %APPDATA%
+            // Windows: %APPDATA% contains backslashes which are JS escapes —
+            // must be escaped before embedding in the string literal.
             const app_data = std.posix.getenv("APPDATA") orelse "";
 
             if (app_data.len > 0) {
-                var buf: [512]u8 = undefined;
+                var esc_buf: [1024]u8 = undefined;
+                const path_esc = bridge_error.escapeJsSingleQuoted(&esc_buf, app_data) catch return;
+
+                var buf: [1280]u8 = undefined;
                 const js = std.fmt.bufPrint(&buf,
                     \\if(window.__craftFSCallback)window.__craftFSCallback('','getAppDataDir','{s}');
-                , .{app_data}) catch return;
+                , .{path_esc}) catch return;
 
                 bridge.evalJS(js) catch |err| {
                     std.log.debug("JS eval failed for getAppDataDir callback: {}", .{err});
@@ -821,10 +719,16 @@ pub const FSBridge = struct {
     fn sendFSSuccess(_: *Self, callback_id: []const u8, action: []const u8) void {
         const bridge = @import("bridge.zig");
 
-        var buf: [256]u8 = undefined;
+        // Escape callback_id/action — see `sendFSError` for rationale.
+        var cb_buf: [128]u8 = undefined;
+        var act_buf: [64]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+        const act_esc = bridge_error.escapeJsSingleQuoted(&act_buf, action) catch return;
+
+        var buf: [512]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftFSCallback)window.__craftFSCallback('{s}','{s}',{{success:true}});
-        , .{ callback_id, action }) catch return;
+        , .{ cb_esc, act_esc }) catch return;
 
         bridge.evalJS(js) catch |err| {
             std.log.debug("JS eval failed for FS success callback: {}", .{err});
@@ -835,10 +739,15 @@ pub const FSBridge = struct {
     fn sendFSBool(_: *Self, callback_id: []const u8, action: []const u8, value: bool) void {
         const bridge = @import("bridge.zig");
 
-        var buf: [256]u8 = undefined;
+        var cb_buf: [128]u8 = undefined;
+        var act_buf: [64]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+        const act_esc = bridge_error.escapeJsSingleQuoted(&act_buf, action) catch return;
+
+        var buf: [512]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftFSCallback)window.__craftFSCallback('{s}','{s}',{});
-        , .{ callback_id, action, value }) catch return;
+        , .{ cb_esc, act_esc, value }) catch return;
 
         bridge.evalJS(js) catch |err| {
             std.log.debug("JS eval failed for FS bool callback: {}", .{err});
@@ -854,9 +763,17 @@ pub const FSBridge = struct {
         var buf: [65536]u8 = undefined;
         var pos: usize = 0;
 
+        // Escape callback_id and action before placing them in the JS
+        // prefix — previously only the content payload was escaped, which
+        // left the prefix vulnerable to injection via crafted IDs.
+        var cb_buf: [128]u8 = undefined;
+        var act_buf: [64]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+        const act_esc = bridge_error.escapeJsSingleQuoted(&act_buf, action) catch return;
+
         const prefix = std.fmt.bufPrint(buf[pos..],
             \\if(window.__craftFSCallback)window.__craftFSCallback('{s}','{s}','
-        , .{ callback_id, action }) catch return;
+        , .{ cb_esc, act_esc }) catch return;
         pos += prefix.len;
 
         // Escape content for JS string
@@ -922,10 +839,22 @@ pub const FSBridge = struct {
             else => "Operation failed",
         };
 
-        var buf: [512]u8 = undefined;
+        // Escape every field before embedding in the JS call. Without this,
+        // filenames or callback IDs containing `'` / `\` / `\n` would break
+        // the string literal and inject arbitrary JS into the webview.
+        var cb_buf: [128]u8 = undefined;
+        var act_buf: [64]u8 = undefined;
+        var path_buf: [256]u8 = undefined;
+        var msg_buf: [128]u8 = undefined;
+        const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+        const act_esc = bridge_error.escapeJsSingleQuoted(&act_buf, action) catch return;
+        const path_esc = bridge_error.escapeJsSingleQuoted(&path_buf, path) catch return;
+        const msg_esc = bridge_error.escapeJsSingleQuoted(&msg_buf, err_msg) catch return;
+
+        var buf: [1024]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftFSError)window.__craftFSError('{s}','{s}','{s}','{s}');
-        , .{ callback_id, action, path, err_msg }) catch return;
+        , .{ cb_esc, act_esc, path_esc, msg_esc }) catch return;
 
         bridge.evalJS(js) catch |eval_err| {
             std.log.debug("JS eval failed for FS error callback: {}", .{eval_err});
@@ -945,6 +874,13 @@ pub const FSBridge = struct {
 
 const global_state = @import("global_state.zig");
 
+/// Global accessors for the singleton FS bridge.
+///
+/// NOTE: these are **not** safe against concurrent mutation — swapping the
+/// bridge while another thread is mid-call races with the reader. In practice
+/// the bridge is installed once at startup (from the main thread) before any
+/// worker submits FS messages; if you need to replace it at runtime, guard
+/// the mutation with a higher-level lock.
 pub fn getGlobalFSBridge() ?*FSBridge {
     return global_state.instance.getFsBridge();
 }

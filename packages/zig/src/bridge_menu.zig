@@ -84,6 +84,26 @@ pub const MenuBridge = struct {
         bridge_error.sendErrorToJS(self.allocator, action, bridge_err);
     }
 
+    /// Shape parsed from JSON: a single item in an items array.
+    const ParsedItem = struct {
+        id: ?[]const u8 = null,
+        label: ?[]const u8 = null,
+        shortcut: ?[]const u8 = null,
+        icon: ?[]const u8 = null,
+        separator: ?bool = null,
+    };
+
+    /// Shape parsed from JSON: a top-level menu (bar / dock root).
+    const ParsedMenu = struct {
+        label: ?[]const u8 = null,
+        items: ?[]const ParsedItem = null,
+    };
+
+    /// Shape parsed from JSON for `setAppMenu`.
+    const ParsedAppMenu = struct {
+        menus: ?[]const ParsedMenu = null,
+    };
+
     /// Set the application menu bar
     /// JSON: {"menus": [{"label": "File", "items": [{"id": "new", "label": "New", "shortcut": "cmd+n"}]}]}
     fn setAppMenu(self: *Self, data: []const u8) !void {
@@ -96,84 +116,56 @@ pub const MenuBridge = struct {
 
         log.debug("setAppMenu", .{});
 
-        // Get NSApplication
+        // Parse the whole structure with std.json. Previously we walked the
+        // JSON by hand with arbitrary byte-window heuristics (e.g. "is the
+        // label within 100 bytes of the id?"), which misattributed fields in
+        // pretty-printed payloads and silently dropped long labels.
+        const parsed = std.json.parseFromSlice(ParsedAppMenu, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+
         const NSApplication = macos.getClass("NSApplication");
         const app = macos.msgSend0(NSApplication, "sharedApplication");
 
-        // Create main menu bar
         const NSMenu = macos.getClass("NSMenu");
         const main_menu = macos.msgSend0(macos.msgSend0(NSMenu, "alloc"), "init");
 
-        // Parse menu structure - look for each menu in "menus" array
-        var pos: usize = 0;
         var menu_count: usize = 0;
+        const menus = parsed.value.menus orelse &[_]ParsedMenu{};
+        for (menus) |menu_def| {
+            const menu_label = menu_def.label orelse continue;
+            const items = menu_def.items orelse &[_]ParsedItem{};
 
-        while (std.mem.indexOfPos(u8, data, pos, "\"label\":\"")) |label_idx| {
-            const start = label_idx + 9;
-            if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-                const menu_label = data[start..end];
+            const menu = try self.createMenuFromItems(menu_label, items);
+            if (menu) |m| {
+                const menu_item = macos.msgSend0(macos.msgSend0(macos.getClass("NSMenuItem"), "alloc"), "init");
 
-                // Find items for this menu
-                if (std.mem.indexOfPos(u8, data, end, "\"items\":")) |items_idx| {
-                    // Find the end of items array
-                    var bracket_count: i32 = 0;
-                    var items_start: usize = items_idx + 8;
-                    var items_end: usize = items_start;
+                const label_cstr = try self.allocator.dupeZ(u8, menu_label);
+                defer self.allocator.free(label_cstr);
+                const NSString = macos.getClass("NSString");
+                const ns_label = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", label_cstr.ptr);
+                _ = macos.msgSend1(menu_item, "setTitle:", ns_label);
+                _ = macos.msgSend1(m, "setTitle:", ns_label);
 
-                    // Skip whitespace
-                    while (items_start < data.len and (data[items_start] == ' ' or data[items_start] == '\n')) : (items_start += 1) {}
-
-                    if (items_start < data.len and data[items_start] == '[') {
-                        bracket_count = 1;
-                        items_end = items_start + 1;
-
-                        while (items_end < data.len and bracket_count > 0) : (items_end += 1) {
-                            if (data[items_end] == '[') bracket_count += 1;
-                            if (data[items_end] == ']') bracket_count -= 1;
-                        }
-
-                        const items_data = data[items_start..items_end];
-
-                        // Create menu with items
-                        const menu = try self.createMenuWithItems(menu_label, items_data);
-                        if (menu) |m| {
-                            // Create menu item for menu bar
-                            const menu_item = macos.msgSend0(macos.msgSend0(macos.getClass("NSMenuItem"), "alloc"), "init");
-
-                            const label_cstr = try self.allocator.dupeZ(u8, menu_label);
-                            defer self.allocator.free(label_cstr);
-                            const NSString = macos.getClass("NSString");
-                            const ns_label = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", label_cstr.ptr);
-                            _ = macos.msgSend1(menu_item, "setTitle:", ns_label);
-                            _ = macos.msgSend1(m, "setTitle:", ns_label);
-
-                            // Set submenu
-                            _ = macos.msgSend1(menu_item, "setSubmenu:", m);
-
-                            // Add to main menu
-                            _ = macos.msgSend1(main_menu, "addItem:", menu_item);
-                            menu_count += 1;
-                        }
-
-                        pos = items_end;
-                    } else {
-                        pos = end + 1;
-                    }
-                } else {
-                    pos = end + 1;
-                }
-            } else break;
+                _ = macos.msgSend1(menu_item, "setSubmenu:", m);
+                _ = macos.msgSend1(main_menu, "addItem:", menu_item);
+                menu_count += 1;
+            }
         }
 
-        // Set as app main menu
         _ = macos.msgSend1(app, "setMainMenu:", main_menu);
         self.app_menu = main_menu;
 
         log.debug("Created app menu with {} menus", .{menu_count});
     }
 
-    /// Create a menu with items from JSON
-    fn createMenuWithItems(self: *Self, title: []const u8, items_data: []const u8) !?*anyopaque {
+    /// Build an NSMenu from a pre-parsed items slice. The old byte-walking
+    /// variant (`createMenuWithItems`) is kept as a thin wrapper so existing
+    /// call sites (`setDockMenu`, `createMenu`) keep working without a wider
+    /// refactor — it now re-parses its input JSON through the typed helpers.
+    fn createMenuFromItems(self: *Self, title: []const u8, items: []const ParsedItem) !?*anyopaque {
         if (comptime builtin.os.tag != .macos) return null;
 
         const macos = @import("macos.zig");
@@ -181,79 +173,58 @@ pub const MenuBridge = struct {
         const NSMenu = macos.getClass("NSMenu");
         const menu = macos.msgSend0(macos.msgSend0(NSMenu, "alloc"), "init");
 
-        // Set title
         const title_cstr = try self.allocator.dupeZ(u8, title);
         defer self.allocator.free(title_cstr);
         const NSString = macos.getClass("NSString");
         const ns_title = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", title_cstr.ptr);
         _ = macos.msgSend1(menu, "setTitle:", ns_title);
 
-        // Parse items
-        var pos: usize = 0;
-        while (pos < items_data.len) {
-            // Check for separator
-            if (std.mem.indexOfPos(u8, items_data, pos, "\"separator\":true")) |sep_idx| {
-                if (sep_idx < pos + 50) {
-                    const sep_item = macos.msgSend0(macos.getClass("NSMenuItem"), "separatorItem");
-                    _ = macos.msgSend1(menu, "addItem:", sep_item);
-                    pos = sep_idx + 16;
-                    continue;
-                }
+        for (items) |it| {
+            if (it.separator orelse false) {
+                const sep_item = macos.msgSend0(macos.getClass("NSMenuItem"), "separatorItem");
+                _ = macos.msgSend1(menu, "addItem:", sep_item);
+                continue;
             }
 
-            // Look for item id
-            if (std.mem.indexOfPos(u8, items_data, pos, "\"id\":\"")) |id_idx| {
-                const id_start = id_idx + 6;
-                if (std.mem.indexOfPos(u8, items_data, id_start, "\"")) |id_end| {
-                    const item_id = items_data[id_start..id_end];
-
-                    // Look for label
-                    var item_label: []const u8 = item_id;
-                    if (std.mem.indexOfPos(u8, items_data, id_end, "\"label\":\"")) |label_idx| {
-                        if (label_idx < id_end + 100) {
-                            const label_start = label_idx + 9;
-                            if (std.mem.indexOfPos(u8, items_data, label_start, "\"")) |label_end| {
-                                item_label = items_data[label_start..label_end];
-                            }
-                        }
-                    }
-
-                    // Look for shortcut
-                    var shortcut: []const u8 = "";
-                    if (std.mem.indexOfPos(u8, items_data, id_end, "\"shortcut\":\"")) |sc_idx| {
-                        if (sc_idx < id_end + 150) {
-                            const sc_start = sc_idx + 12;
-                            if (std.mem.indexOfPos(u8, items_data, sc_start, "\"")) |sc_end| {
-                                shortcut = items_data[sc_start..sc_end];
-                            }
-                        }
-                    }
-
-                    // Look for icon
-                    var icon_name: ?[]const u8 = null;
-                    if (std.mem.indexOfPos(u8, items_data, id_end, "\"icon\":\"")) |icon_idx| {
-                        if (icon_idx < id_end + 200) {
-                            const icon_start = icon_idx + 8;
-                            if (std.mem.indexOfPos(u8, items_data, icon_start, "\"")) |icon_end| {
-                                icon_name = items_data[icon_start..icon_end];
-                            }
-                        }
-                    }
-
-                    // Create menu item
-                    const item = try self.createMenuItem(item_id, item_label, shortcut, icon_name);
-                    if (item) |i| {
-                        _ = macos.msgSend1(menu, "addItem:", i);
-                    }
-
-                    pos = id_end + 1;
-                } else break;
-            } else {
-                pos += 1;
+            const id = it.id orelse continue;
+            const label = it.label orelse id;
+            const shortcut = it.shortcut orelse "";
+            const item = try self.createMenuItem(id, label, shortcut, it.icon);
+            if (item) |i| {
+                _ = macos.msgSend1(menu, "addItem:", i);
             }
         }
 
         return menu;
+    }
+
+    /// Legacy JSON-blob variant, retained for callers that pass raw JSON
+    /// (e.g. `setDockMenu`). Decodes into the same typed schema rather than
+    /// walking the bytes by hand.
+    fn createMenuWithItems(self: *Self, title: []const u8, items_data: []const u8) !?*anyopaque {
+        if (comptime builtin.os.tag != .macos) return null;
+
+        // Accept either a bare array or an object with an `items` array so
+        // dock menus (`{"items":[...]}`) and raw arrays both work.
+        const Wrapped = struct { items: ?[]const ParsedItem = null };
+        if (std.json.parseFromSlice(Wrapped, self.allocator, items_data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        })) |parsed| {
+            defer parsed.deinit();
+            const items = parsed.value.items orelse &[_]ParsedItem{};
+            return try self.createMenuFromItems(title, items);
+        } else |_| {}
+
+        if (std.json.parseFromSlice([]const ParsedItem, self.allocator, items_data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        })) |parsed| {
+            defer parsed.deinit();
+            return try self.createMenuFromItems(title, parsed.value);
+        } else |_| {}
+
+        return null;
     }
 
     /// Create a single menu item with optional icon
@@ -268,29 +239,31 @@ pub const MenuBridge = struct {
         const NSString = macos.getClass("NSString");
         const ns_label = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", label_cstr.ptr);
 
-        // Parse shortcut
+        // Parse shortcut by splitting on `+` and matching each token exactly.
+        // Using `indexOf(shortcut, "cmd")` instead would accept spurious
+        // substrings like "ccmd" or "salt", and it can't distinguish a
+        // modifier name from the key name.
         var key_equiv: []const u8 = "";
         var modifier_mask: c_ulong = 0;
 
         if (shortcut.len > 0) {
-            if (std.mem.indexOf(u8, shortcut, "cmd")) |_| {
-                modifier_mask |= (1 << 20); // NSEventModifierFlagCommand
-            }
-            if (std.mem.indexOf(u8, shortcut, "ctrl")) |_| {
-                modifier_mask |= (1 << 18); // NSEventModifierFlagControl
-            }
-            if (std.mem.indexOf(u8, shortcut, "alt") != null or std.mem.indexOf(u8, shortcut, "opt") != null) {
-                modifier_mask |= (1 << 19); // NSEventModifierFlagOption
-            }
-            if (std.mem.indexOf(u8, shortcut, "shift")) |_| {
-                modifier_mask |= (1 << 17); // NSEventModifierFlagShift
-            }
-
-            // Get the key (last part after +)
-            if (std.mem.lastIndexOf(u8, shortcut, "+")) |plus_idx| {
-                key_equiv = shortcut[plus_idx + 1 ..];
-            } else {
-                key_equiv = shortcut;
+            var it = std.mem.splitScalar(u8, shortcut, '+');
+            while (it.next()) |tok| {
+                // The token after the last `+` is the key; everything else is
+                // a modifier (cmd/ctrl/alt/opt/shift, case-insensitive).
+                if (it.peek() == null) {
+                    key_equiv = tok;
+                    break;
+                }
+                if (std.ascii.eqlIgnoreCase(tok, "cmd")) {
+                    modifier_mask |= (1 << 20);
+                } else if (std.ascii.eqlIgnoreCase(tok, "ctrl")) {
+                    modifier_mask |= (1 << 18);
+                } else if (std.ascii.eqlIgnoreCase(tok, "alt") or std.ascii.eqlIgnoreCase(tok, "opt")) {
+                    modifier_mask |= (1 << 19);
+                } else if (std.ascii.eqlIgnoreCase(tok, "shift")) {
+                    modifier_mask |= (1 << 17);
+                }
             }
         }
 
@@ -687,8 +660,13 @@ fn findSubmenuByTitle(menu: *anyopaque, title: []const u8) ?*anyopaque {
 
     const macos = @import("macos.zig");
 
+    // `numberOfItems` returns NSInteger (signed). Read it as isize so a
+    // negative return (or pointer value) doesn't wrap to a huge usize and
+    // loop the menu iteration effectively forever.
     const count_ptr = macos.msgSend0(menu, "numberOfItems");
-    const count = @as(usize, @intFromPtr(count_ptr));
+    const count_signed: isize = @bitCast(@intFromPtr(count_ptr));
+    if (count_signed <= 0) return null;
+    const count: usize = @intCast(count_signed);
 
     var i: usize = 0;
     while (i < count) : (i += 1) {
@@ -765,7 +743,9 @@ fn searchMenuForItem(menu: *anyopaque, item_id: []const u8) ?*anyopaque {
     const macos = @import("macos.zig");
 
     const count_ptr = macos.msgSend0(menu, "numberOfItems");
-    const count = @as(usize, @intFromPtr(count_ptr));
+    const count_signed: isize = @bitCast(@intFromPtr(count_ptr));
+    if (count_signed <= 0) return null;
+    const count: usize = @intCast(count_signed);
 
     var i: usize = 0;
     while (i < count) : (i += 1) {
@@ -796,16 +776,38 @@ fn searchMenuForItem(menu: *anyopaque, item_id: []const u8) ?*anyopaque {
     return null;
 }
 
-/// Handle menu item click - called from app delegate
+/// Handle menu item click - called from app delegate.
+/// Escapes `item_id` before injecting it into JS so that a menu id containing
+/// `'`, `\`, or newline cannot break out of the string literal and execute
+/// attacker-controlled code. Previously this was a JS-injection vector.
 pub fn handleMenuItemClick(item_id: []const u8) void {
     const bridge = @import("bridge.zig");
 
     log.debug("Menu item clicked: {s}", .{item_id});
 
+    // Escape `item_id` into a caller-owned buffer. We reserve half of the
+    // 512-byte JS buffer for the escaped identifier and bail out cleanly if
+    // the escaped form doesn't fit rather than smuggling truncated JS.
+    var esc_buf: [240]u8 = undefined;
+    var esc_len: usize = 0;
+    for (item_id) |c| {
+        const repl: []const u8 = switch (c) {
+            '\\' => "\\\\",
+            '\'' => "\\'",
+            '\n' => "\\n",
+            '\r' => "\\r",
+            '<' => "\\x3c",
+            else => &[_]u8{c},
+        };
+        if (esc_len + repl.len > esc_buf.len) return;
+        @memcpy(esc_buf[esc_len..][0..repl.len], repl);
+        esc_len += repl.len;
+    }
+
     var buf: [512]u8 = undefined;
     const js = std.fmt.bufPrint(&buf,
         \\if(window.__craftMenuCallback)window.__craftMenuCallback('{s}');
-    , .{item_id}) catch return;
+    , .{esc_buf[0..esc_len]}) catch return;
 
     bridge.evalJS(js) catch |err| {
         log.err("Failed to trigger callback: {}", .{err});

@@ -437,9 +437,17 @@ fn showMacFileDialog(options: FileDialogOptions) !?DialogResult {
         if (count == 0) return null;
 
         if (options.multi_select and count > 1) {
-            // Return multiple paths
-            var paths: [32][]const u8 = undefined;
+            // Return multiple paths.
+            //
+            // Previously the paths array was stack-allocated and the
+            // function returned `paths[0..path_count]` — a slice into a
+            // dead stack frame. Any caller reading the slice after return
+            // got garbage. We now allocate on the heap so the slice stays
+            // valid until the caller frees it. NOTE: each path string itself
+            // is still backed by the NSString's internal buffer; callers
+            // should copy them before the enclosing NSOpenPanel dealloc's.
             const path_count = @min(count, 32);
+            const paths = std.heap.c_allocator.alloc([]const u8, path_count) catch return null;
 
             var i: usize = 0;
             while (i < path_count) : (i += 1) {
@@ -449,7 +457,7 @@ fn showMacFileDialog(options: FileDialogOptions) !?DialogResult {
                 paths[i] = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
             }
 
-            return DialogResult{ .file_paths = paths[0..path_count] };
+            return DialogResult{ .file_paths = paths };
         } else {
             // Return single path
             const url = macos.msgSend1(urls, "objectAtIndex:", @as(c_ulong, 0));

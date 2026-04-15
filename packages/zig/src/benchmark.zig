@@ -56,6 +56,7 @@ pub const Benchmark = struct {
 
     pub fn init(allocator: std.mem.Allocator, name: []const u8, iterations: usize) !*Benchmark {
         const bench = try allocator.create(Benchmark);
+        errdefer allocator.destroy(bench);
         bench.* = Benchmark{
             .name = name,
             .allocator = allocator,
@@ -207,7 +208,11 @@ pub const MemoryTracker = struct {
 
     pub fn trackFree(self: *MemoryTracker, size: usize) void {
         self.total_freed += size;
-        self.current_allocated -= size;
+        // Guard against integer underflow. Callers may legitimately free a
+        // larger block than what we've recorded as currently allocated (e.g.
+        // pre-existing allocations, mismatched track/free pairs); previously
+        // this would wrap to a huge value and distort every subsequent stat.
+        self.current_allocated -|= size;
         self.free_count += 1;
     }
 

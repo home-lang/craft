@@ -219,8 +219,13 @@ pub const Plugin = struct {
             manifest.author,
             policy,
         );
+        // If the `create(Plugin)` below fails, we must free the
+        // security_plugin we just allocated — previously it leaked on that
+        // error path.
+        errdefer security_plugin.deinit();
 
         const plugin = try allocator.create(Plugin);
+        errdefer allocator.destroy(plugin);
         plugin.* = Plugin{
             .manifest = manifest,
             .security_plugin = security_plugin,

@@ -83,6 +83,9 @@ pub const DatabaseError = error{
     BindFailed,
     StepFailed,
     OutOfMemory,
+    /// Caller passed a 0-based index to a bind function. SQLite parameter
+    /// indexes are 1-based and passing 0 would underflow internally.
+    InvalidParameterIndex,
 };
 
 /// SQLite result codes
@@ -250,9 +253,19 @@ pub const Statement = struct {
         if (rc != c.SQLITE_OK) {
             return DatabaseError.PreparationFailed;
         }
+        // If column-name extraction fails below, release the SQLite statement
+        // before propagating the error. Previously the handle leaked.
+        errdefer _ = c.sqlite3_finalize(stmt_handle);
 
-        // Extract column names from the prepared statement
+        // Extract column names from the prepared statement. Each dupe is
+        // guarded individually so an OOM halfway through doesn't leak the
+        // names appended so far.
         var col_names = std.ArrayList([]const u8){};
+        errdefer {
+            for (col_names.items) |name| allocator.free(name);
+            col_names.deinit(allocator);
+        }
+
         const col_count = c.sqlite3_column_count(stmt_handle);
         var col_idx: c_int = 0;
         while (col_idx < col_count) : (col_idx += 1) {
@@ -260,7 +273,10 @@ pub const Statement = struct {
             if (name_ptr) |name| {
                 const name_slice = std.mem.span(name);
                 const duped_name = try allocator.dupe(u8, name_slice);
-                try col_names.append(allocator, duped_name);
+                col_names.append(allocator, duped_name) catch |err| {
+                    allocator.free(duped_name);
+                    return err;
+                };
             }
         }
 
@@ -373,6 +389,9 @@ pub const Statement = struct {
     }
 
     fn ensureParamCapacity(self: *Statement, index: usize) !void {
+        // SQLite parameter indexes are 1-based. Callers passing 0 would
+        // otherwise underflow when we do `index - 1` in the bind functions.
+        if (index == 0) return DatabaseError.InvalidParameterIndex;
         while (self.bound_params.items.len < index) {
             try self.bound_params.append(self.allocator, .{ .null = {} });
         }
@@ -535,11 +554,10 @@ pub const Database = struct {
             flags |= c.SQLITE_OPEN_SHAREDCACHE;
         }
 
-        // Need a null-terminated string for sqlite3_open_v2
-        const path_z = try self.allocator.alloc(u8, self.path.len + 1);
+        // Need a null-terminated string for sqlite3_open_v2. `dupeZ` allocates
+        // with the trailing zero in one step (and bails atomically on OOM).
+        const path_z = try self.allocator.dupeZ(u8, self.path);
         defer self.allocator.free(path_z);
-        @memcpy(path_z[0..self.path.len], self.path);
-        path_z[self.path.len] = 0;
 
         const rc = c.sqlite3_open_v2(path_z.ptr, &self.db_handle, flags, null);
         if (rc != c.SQLITE_OK) {
@@ -615,6 +633,36 @@ pub const Database = struct {
 
         try stmt.execute();
         // Update change tracking from SQLite
+        if (self.db_handle) |handle| {
+            self.changes_count = @intCast(c.sqlite3_changes(handle));
+            self.total_changes = @intCast(c.sqlite3_total_changes(handle));
+            self.last_insert_rowid = c.sqlite3_last_insert_rowid(handle);
+        }
+    }
+
+    /// Execute SQL statement with a runtime slice of bound values.
+    /// This is the runtime sibling of `execute`, which requires a comptime
+    /// tuple. `api_database.zig` has been calling this method for releases —
+    /// the missing declaration meant that file failed to compile the first
+    /// time someone actually linked it into a test.
+    pub fn executeWithParams(self: *Self, sql: []const u8, params: []const BoundValue) !void {
+        var stmt = try self.prepare(sql);
+        defer {
+            stmt.deinit();
+            self.allocator.destroy(stmt);
+        }
+
+        for (params, 0..) |p, i| {
+            switch (p) {
+                .null => try stmt.bindNull(i + 1),
+                .integer => |v| try stmt.bindInt(i + 1, v),
+                .real => |v| try stmt.bindFloat(i + 1, v),
+                .text => |v| try stmt.bindText(i + 1, v),
+                .blob => |v| try stmt.bindBlob(i + 1, v),
+            }
+        }
+
+        try stmt.execute();
         if (self.db_handle) |handle| {
             self.changes_count = @intCast(c.sqlite3_changes(handle));
             self.total_changes = @intCast(c.sqlite3_total_changes(handle));
@@ -751,6 +799,9 @@ pub const Database = struct {
         }
         try self.executeRaw("BEGIN IMMEDIATE TRANSACTION");
         self.in_transaction = true;
+        // Also reset depth so any later nested `beginTransaction` starts
+        // from sp_1, matching the behavior of the plain `beginTransaction`.
+        self.transaction_depth = 0;
     }
 
     /// Begin exclusive transaction (acquires exclusive lock)
@@ -760,6 +811,7 @@ pub const Database = struct {
         }
         try self.executeRaw("BEGIN EXCLUSIVE TRANSACTION");
         self.in_transaction = true;
+        self.transaction_depth = 0;
     }
 
     /// Commit transaction
@@ -788,10 +840,19 @@ pub const Database = struct {
         }
 
         if (self.transaction_depth > 0) {
-            // Rollback to savepoint for nested transaction
-            var buf: [64]u8 = undefined;
-            const rollback_sp = try std.fmt.bufPrint(&buf, "ROLLBACK TO SAVEPOINT sp_{d}", .{self.transaction_depth});
-            try self.executeRaw(rollback_sp);
+            // SQLite's `ROLLBACK TO SAVEPOINT x` reverts statements but does
+            // NOT release the savepoint; subsequent `RELEASE SAVEPOINT x` is
+            // still required, otherwise the savepoint stays on the stack and
+            // further nesting would collide with it. We issue both and only
+            // then decrement the depth counter.
+            var rb_buf: [64]u8 = undefined;
+            const rb_sql = try std.fmt.bufPrint(&rb_buf, "ROLLBACK TO SAVEPOINT sp_{d}", .{self.transaction_depth});
+            try self.executeRaw(rb_sql);
+
+            var rel_buf: [64]u8 = undefined;
+            const rel_sql = try std.fmt.bufPrint(&rel_buf, "RELEASE SAVEPOINT sp_{d}", .{self.transaction_depth});
+            try self.executeRaw(rel_sql);
+
             self.transaction_depth -= 1;
             return;
         }
@@ -998,6 +1059,10 @@ pub const Migration = struct {
     version: u32,
     up: []const u8,
     down: ?[]const u8 = null,
+    /// Human-readable description of the migration. `api_database.zig`
+    /// populates this when adapting its public `Migration` type — without
+    /// this field present, that translation layer fails to compile.
+    description: []const u8 = "",
 };
 
 pub const Migrator = struct {
@@ -1061,7 +1126,7 @@ pub const Migrator = struct {
 
             if (migration.version > target_version and migration.version <= current_version) {
                 if (migration.down) |down_sql| {
-                    std.debug.print("Rolling back migration {d}\n", .{migration.version});
+                    std.log.info("rolling back migration {d}", .{migration.version});
 
                     try self.db.beginTransaction();
                     errdefer self.db.rollback() catch |err| {

@@ -41,14 +41,24 @@ pub const Profiler = struct {
     pub fn start(self: *Self, name: []const u8) !void {
         if (!self.enabled) return;
 
-        const start_time = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return;
+        // Previously swallowed clock errors with `catch return;` which made
+        // profiling silently fail — downstream `end()` calls would then find
+        // no matching entry and also silently no-op. Log at warn level so
+        // the profiling drop-out is at least visible to the developer.
+        const start_time = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch |err| {
+            std.log.warn("profiler: failed to read start clock for '{s}': {}", .{ name, err });
+            return;
+        };
         try self.active_profiles.put(name, start_time);
     }
 
     pub fn end(self: *Self, name: []const u8) !void {
         if (!self.enabled) return;
 
-        const end_time = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return;
+        const end_time = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch |err| {
+            std.log.warn("profiler: failed to read end clock for '{s}': {}", .{ name, err });
+            return;
+        };
         const start_time = self.active_profiles.get(name) orelse return;
         _ = self.active_profiles.remove(name);
 

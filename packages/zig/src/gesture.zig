@@ -1141,9 +1141,14 @@ pub const GestureManager = struct {
         self.edge_swipe_recognizers.deinit(self.allocator);
     }
 
+    // All `add*Recognizer` helpers used to leak the freshly-created
+    // recognizer if appending it to the list failed (OOM). Each one now
+    // uses errdefer to release the allocation on the error path.
+
     /// Add a tap recognizer
     pub fn addTapRecognizer(self: *Self, required_taps: u32, callback: GestureCallback) !*TapRecognizer {
         const recognizer = try self.allocator.create(TapRecognizer);
+        errdefer self.allocator.destroy(recognizer);
         recognizer.* = TapRecognizer.init(required_taps, self.config);
         recognizer.base.setCallback(callback);
         try self.tap_recognizers.append(self.allocator, recognizer);
@@ -1153,6 +1158,7 @@ pub const GestureManager = struct {
     /// Add a long press recognizer
     pub fn addLongPressRecognizer(self: *Self, callback: GestureCallback) !*LongPressRecognizer {
         const recognizer = try self.allocator.create(LongPressRecognizer);
+        errdefer self.allocator.destroy(recognizer);
         recognizer.* = LongPressRecognizer.init(self.config);
         recognizer.base.setCallback(callback);
         try self.long_press_recognizers.append(self.allocator, recognizer);
@@ -1162,6 +1168,7 @@ pub const GestureManager = struct {
     /// Add a swipe recognizer
     pub fn addSwipeRecognizer(self: *Self, directions: []const SwipeDirection, callback: GestureCallback) !*SwipeRecognizer {
         const recognizer = try self.allocator.create(SwipeRecognizer);
+        errdefer self.allocator.destroy(recognizer);
         recognizer.* = SwipeRecognizer.init(directions, self.config);
         recognizer.base.setCallback(callback);
         try self.swipe_recognizers.append(self.allocator, recognizer);
@@ -1171,6 +1178,7 @@ pub const GestureManager = struct {
     /// Add a pinch recognizer
     pub fn addPinchRecognizer(self: *Self, callback: GestureCallback) !*PinchRecognizer {
         const recognizer = try self.allocator.create(PinchRecognizer);
+        errdefer self.allocator.destroy(recognizer);
         recognizer.* = PinchRecognizer.init(self.config);
         recognizer.base.setCallback(callback);
         try self.pinch_recognizers.append(self.allocator, recognizer);
@@ -1180,6 +1188,7 @@ pub const GestureManager = struct {
     /// Add a rotation recognizer
     pub fn addRotationRecognizer(self: *Self, callback: GestureCallback) !*RotationRecognizer {
         const recognizer = try self.allocator.create(RotationRecognizer);
+        errdefer self.allocator.destroy(recognizer);
         recognizer.* = RotationRecognizer.init(self.config);
         recognizer.base.setCallback(callback);
         try self.rotation_recognizers.append(self.allocator, recognizer);
@@ -1189,6 +1198,7 @@ pub const GestureManager = struct {
     /// Add a pan recognizer
     pub fn addPanRecognizer(self: *Self, min_touches: u32, max_touches: u32, callback: GestureCallback) !*PanRecognizer {
         const recognizer = try self.allocator.create(PanRecognizer);
+        errdefer self.allocator.destroy(recognizer);
         recognizer.* = PanRecognizer.init(min_touches, max_touches, self.config);
         recognizer.base.setCallback(callback);
         try self.pan_recognizers.append(self.allocator, recognizer);
@@ -1198,6 +1208,7 @@ pub const GestureManager = struct {
     /// Add an edge swipe recognizer
     pub fn addEdgeSwipeRecognizer(self: *Self, edge: EdgeSwipeRecognizer.Edge, callback: GestureCallback) !*EdgeSwipeRecognizer {
         const recognizer = try self.allocator.create(EdgeSwipeRecognizer);
+        errdefer self.allocator.destroy(recognizer);
         recognizer.* = EdgeSwipeRecognizer.init(edge, self.config);
         recognizer.base.setCallback(callback);
         try self.edge_swipe_recognizers.append(self.allocator, recognizer);

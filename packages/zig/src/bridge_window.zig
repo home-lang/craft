@@ -311,25 +311,21 @@ pub const WindowBridge = struct {
         const handle = try self.requireWindowHandle();
         const json_data = data orelse return BridgeError.MissingData;
 
-        // Extract title from {"title": "..."}
-        if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
-            const start = idx + 9;
-            if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                const title = json_data[start..end];
+        // Use the shared getString helper, which correctly respects backslash
+        // escapes — the old inline parser used indexOfPos for the closing
+        // quote and would truncate at the first `\"` inside the title.
+        const json_utils = @import("json_utils.zig");
+        const title = json_utils.getString(json_data, "title") orelse return BridgeError.InvalidJSON;
 
-                if (builtin.os.tag == .macos) {
-                    const macos = @import("macos.zig");
-                    const title_cstr = try self.allocator.dupeZ(u8, title);
-                    defer self.allocator.free(title_cstr);
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            const title_cstr = try self.allocator.dupeZ(u8, title);
+            defer self.allocator.free(title_cstr);
 
-                    const NSString = macos.getClass("NSString");
-                    const str_alloc = macos.msgSend0(NSString, "alloc");
-                    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr.ptr);
-                    _ = macos.msgSend1(handle, "setTitle:", ns_title);
-                }
-            }
-        } else {
-            return BridgeError.InvalidJSON;
+            const NSString = macos.getClass("NSString");
+            const str_alloc = macos.msgSend0(NSString, "alloc");
+            const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr.ptr);
+            _ = macos.msgSend1(handle, "setTitle:", ns_title);
         }
     }
 

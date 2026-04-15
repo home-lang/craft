@@ -8,7 +8,10 @@ pub const JsonError = error{
     InvalidType,
 };
 
-/// Parse a string value from JSON data
+/// Parse a string value from JSON data. Scans for the closing quote while
+/// respecting backslash escapes so values containing `\"` are not truncated.
+/// Previously this used `indexOfPos(..., "\"")` which would stop at the first
+/// `"` even when it was escaped, returning the value up to the escape.
 pub fn getString(data: []const u8, key: []const u8) ?[]const u8 {
     // Build pattern: "key":"
     var pattern_buf: [128]u8 = undefined;
@@ -16,8 +19,14 @@ pub fn getString(data: []const u8, key: []const u8) ?[]const u8 {
 
     if (std.mem.indexOf(u8, data, pattern)) |idx| {
         const start = idx + pattern.len;
-        if (std.mem.indexOfPos(u8, data, start, "\"")) |end| {
-            return data[start..end];
+        var i = start;
+        while (i < data.len) : (i += 1) {
+            if (data[i] == '\\') {
+                // Skip the escape and the escaped character (e.g. \" or \\).
+                i += 1;
+                continue;
+            }
+            if (data[i] == '"') return data[start..i];
         }
     }
     return null;
@@ -44,7 +53,10 @@ pub fn getInt(comptime T: type, data: []const u8, key: []const u8) ?T {
     return null;
 }
 
-/// Parse a float value from JSON data
+/// Parse a float value from JSON data. Accepts the full JSON number grammar,
+/// including scientific notation (`1.5e-3`, `2E10`) — the previous version
+/// only consumed digits and a dot, so any valid number with an exponent was
+/// parsed as the integer part up to the `e`.
 pub fn getFloat(comptime T: type, data: []const u8, key: []const u8) ?T {
     var pattern_buf: [128]u8 = undefined;
     const pattern = std.fmt.bufPrint(&pattern_buf, "\"{s}\":", .{key}) catch return null;
@@ -55,6 +67,12 @@ pub fn getFloat(comptime T: type, data: []const u8, key: []const u8) ?T {
         var end = start;
         if (end < data.len and data[end] == '-') end += 1;
         while (end < data.len and ((data[end] >= '0' and data[end] <= '9') or data[end] == '.')) : (end += 1) {}
+        // Optional exponent: e|E [+|-] digits
+        if (end < data.len and (data[end] == 'e' or data[end] == 'E')) {
+            end += 1;
+            if (end < data.len and (data[end] == '+' or data[end] == '-')) end += 1;
+            while (end < data.len and data[end] >= '0' and data[end] <= '9') : (end += 1) {}
+        }
         if (end > start) {
             return std.fmt.parseFloat(T, data[start..end]) catch null;
         }
@@ -62,13 +80,17 @@ pub fn getFloat(comptime T: type, data: []const u8, key: []const u8) ?T {
     return null;
 }
 
-/// Parse a boolean value from JSON data
+/// Parse a boolean value from JSON data. Uses separate buffers for the two
+/// patterns so we don't alias — the previous version re-used a single buffer,
+/// which made the `true_pattern` slice point at stale bytes once we reformatted
+/// the false pattern into the same storage.
 pub fn getBool(data: []const u8, key: []const u8) ?bool {
-    var pattern_buf: [128]u8 = undefined;
-    const true_pattern = std.fmt.bufPrint(&pattern_buf, "\"{s}\":true", .{key}) catch return null;
+    var true_buf: [128]u8 = undefined;
+    const true_pattern = std.fmt.bufPrint(&true_buf, "\"{s}\":true", .{key}) catch return null;
     if (std.mem.indexOf(u8, data, true_pattern) != null) return true;
 
-    const false_pattern = std.fmt.bufPrint(&pattern_buf, "\"{s}\":false", .{key}) catch return null;
+    var false_buf: [128]u8 = undefined;
+    const false_pattern = std.fmt.bufPrint(&false_buf, "\"{s}\":false", .{key}) catch return null;
     if (std.mem.indexOf(u8, data, false_pattern) != null) return false;
 
     return null;
@@ -154,7 +176,6 @@ pub fn JsonBuilder(comptime max_fields: usize) type {
 
             try self.buffer.append(self.allocator, '"');
             self.field_count += 1;
-            _ = max_fields;
         }
 
         pub fn addBool(self: *Self, key: []const u8, value: bool) !void {
@@ -202,6 +223,13 @@ test "getString" {
     try std.testing.expectEqualStrings("Hello", getString(data, "title").?);
     try std.testing.expectEqualStrings("World", getString(data, "body").?);
     try std.testing.expect(getString(data, "missing") == null);
+}
+
+test "getString respects escaped quotes" {
+    const data = "{\"msg\":\"hello \\\"world\\\"\",\"next\":\"ok\"}";
+    const msg = getString(data, "msg").?;
+    try std.testing.expectEqualStrings("hello \\\"world\\\"", msg);
+    try std.testing.expectEqualStrings("ok", getString(data, "next").?);
 }
 
 test "getInt" {

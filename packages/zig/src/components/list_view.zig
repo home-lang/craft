@@ -44,8 +44,10 @@ pub const ListView = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps, config: Config) !*ListView {
         const list_view = try allocator.create(ListView);
+        errdefer allocator.destroy(list_view);
+        const component = try Component.init(allocator, "listview", props);
         list_view.* = ListView{
-            .component = try Component.init(allocator, "listview", props),
+            .component = component,
             .items = .{},
             .selected_indices = .{},
             .selection_mode = config.selection_mode,

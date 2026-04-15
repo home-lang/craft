@@ -133,8 +133,10 @@ pub const ColorPicker = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*ColorPicker {
         const picker = try allocator.create(ColorPicker);
+        errdefer allocator.destroy(picker);
+        const component = try Component.init(allocator, "color_picker", props);
         picker.* = ColorPicker{
-            .component = try Component.init(allocator, "color_picker", props),
+            .component = component,
             .color = Color.fromRGB(0, 0, 0),
             .format = .hex,
             .show_alpha = false,

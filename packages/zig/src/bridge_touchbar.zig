@@ -663,10 +663,15 @@ pub const TouchBarBridge = struct {
 
         const bridge = @import("bridge.zig");
 
+        // Escape `item_id` before embedding — caller-supplied Touch Bar item
+        // identifiers could otherwise close the JS string literal.
+        var id_buf: [128]u8 = undefined;
+        const id_esc = bridge_error.escapeJsSingleQuoted(&id_buf, item_id) catch return;
+
         var buf: [256]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftTouchBarCallback)window.__craftTouchBarCallback('{s}');
-        , .{item_id}) catch return;
+        , .{id_esc}) catch return;
 
         bridge.evalJS(js) catch |err| {
             std.log.debug("JS eval failed for Touch Bar callback: {}", .{err});

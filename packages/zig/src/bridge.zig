@@ -53,60 +53,47 @@ pub const Bridge = struct {
         return try handler(message);
     }
 
-    /// Generate JavaScript code to inject into the WebView
+    /// Generate JavaScript code to inject into the WebView. Platform is
+    /// substituted at comptime so `window.craft.platform` reflects the actual
+    /// target — previously it was hardcoded to `'macos'` on every platform.
     pub fn generateInjectionScript(self: *Self) ![]const u8 {
         _ = self;
-        return
-        \\window.craft = {
-        \\    // Send a message to Zig
-        \\    send: function(name, data) {
-        \\        return new Promise((resolve, reject) => {
-        \\            const message = JSON.stringify({ name: name, data: data });
-        \\            window.webkit.messageHandlers.craft.postMessage(message)
-        \\                .then(resolve)
-        \\                .catch(reject);
-        \\        });
-        \\    },
-        \\
-        \\    // Convenience methods
-        \\    notify: function(message) {
-        \\        return this.send('notify', { message: message });
-        \\    },
-        \\
-        \\    readFile: function(path) {
-        \\        return this.send('readFile', { path: path });
-        \\    },
-        \\
-        \\    writeFile: function(path, content) {
-        \\        return this.send('writeFile', { path: path, content: content });
-        \\    },
-        \\
-        \\    openDialog: function(options) {
-        \\        return this.send('openDialog', options);
-        \\    },
-        \\
-        \\    getClipboard: function() {
-        \\        return this.send('getClipboard', {});
-        \\    },
-        \\
-        \\    setClipboard: function(text) {
-        \\        return this.send('setClipboard', { text: text });
-        \\    },
-        \\
-        \\    // Platform info
-        \\    platform: 'macos',
-        \\    version: '0.2.0'
-        \\};
-        \\
-        \\// Emit ready event
-        \\window.dispatchEvent(new CustomEvent('craft:ready'));
-        ;
+        const platform = comptime switch (builtin.os.tag) {
+            .macos => "macos",
+            .linux => "linux",
+            .windows => "windows",
+            .ios => "ios",
+            else => "unknown",
+        };
+        // Keep the allocator-free behavior that the previous implementation
+        // relied on by returning a comptime-concatenated string literal.
+        return "window.craft = {\n" ++
+            "    send: function(name, data) {\n" ++
+            "        return new Promise((resolve, reject) => {\n" ++
+            "            const message = JSON.stringify({ name: name, data: data });\n" ++
+            "            window.webkit.messageHandlers.craft.postMessage(message)\n" ++
+            "                .then(resolve)\n" ++
+            "                .catch(reject);\n" ++
+            "        });\n" ++
+            "    },\n" ++
+            "    notify: function(message) { return this.send('notify', { message: message }); },\n" ++
+            "    readFile: function(path) { return this.send('readFile', { path: path }); },\n" ++
+            "    writeFile: function(path, content) { return this.send('writeFile', { path: path, content: content }); },\n" ++
+            "    openDialog: function(options) { return this.send('openDialog', options); },\n" ++
+            "    getClipboard: function() { return this.send('getClipboard', {}); },\n" ++
+            "    setClipboard: function(text) { return this.send('setClipboard', { text: text }); },\n" ++
+            "    platform: '" ++ platform ++ "',\n" ++
+            "    version: '0.2.0'\n" ++
+            "};\n" ++
+            "window.dispatchEvent(new CustomEvent('craft:ready'));\n";
     }
 };
 
 // Example handler functions
 pub fn notifyHandler(message: []const u8) ![]const u8 {
-    std.debug.print("Notification from web: {s}\n", .{message});
+    // Use the log facility (respects level configuration) rather than
+    // `std.debug.print`, which would flood stderr on every notification.
+    std.log.scoped(.bridge).info("notification from web: {s}", .{message});
     return "OK";
 }
 

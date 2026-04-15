@@ -31,22 +31,44 @@ pub const Config = struct {
     window: WindowConfig = .{},
     webview: WebViewConfig = .{},
     app: AppConfig = .{},
+    /// Backing storage for any strings borrowed by `window`/`webview`/`app`.
+    /// When loaded from a file, the parsed slices point into this buffer.
+    /// Previously `loadFromFile` freed the file buffer before returning, so
+    /// every returned string field was a dangling pointer. Holding the
+    /// content here and freeing it only in `deinit` keeps those slices valid.
+    _content: ?[]u8 = null,
+    _allocator: ?std.mem.Allocator = null,
 
     const Self = @This();
+
+    /// Release the file content that backs any borrowed string slices.
+    /// Safe to call even if `loadFromFile`/`parseToml` was not used (the
+    /// struct fields default to compile-time literals).
+    pub fn deinit(self: *Self) void {
+        if (self._content) |c| {
+            if (self._allocator) |a| a.free(c);
+        }
+        self._content = null;
+        self._allocator = null;
+    }
 
     pub fn loadFromFile(allocator: std.mem.Allocator, path: []const u8) !Self {
         const io = io_context.get();
         const file = try std.Io.Dir.cwd().openFile(io, path, .{});
         defer file.close(io);
 
-        // Read file content
+        // Read file content. Ownership is transferred into the returned
+        // Config so that slices stored in config fields remain valid.
         const stat = try file.stat(io);
         const content = try allocator.alloc(u8, @intCast(stat.size));
-        defer allocator.free(content);
+        errdefer allocator.free(content);
         const iov = [_][]u8{content};
         _ = try file.readStreaming(io, &iov);
 
-        return try parseToml(allocator, content);
+        var config = try parseToml(allocator, content);
+        config._content = content;
+        config._allocator = allocator;
+        return config;
     }
 
     pub fn parseToml(allocator: std.mem.Allocator, content: []const u8) !Self {

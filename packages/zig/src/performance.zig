@@ -168,13 +168,24 @@ pub const ObjectPool = struct {
 
     pub fn acquire(self: *ObjectPool) !*anyopaque {
         if (self.available.popOrNull()) |obj| {
-            try self.in_use.append(obj);
+            // If appending to in_use fails (OOM), put the object back into
+            // `available` so we don't silently leak it — previously the obj
+            // was popped but never tracked anywhere on this failure path.
+            self.in_use.append(obj) catch |err| {
+                self.available.append(obj) catch {};
+                return err;
+            };
             return obj;
         }
 
         if (self.in_use.items.len < self.max_size) {
             const obj = try self.create_fn(self.allocator);
-            try self.in_use.append(obj);
+            // Destroy the freshly-created object if we can't track it — the
+            // old code would leak it permanently on append failure.
+            self.in_use.append(obj) catch |err| {
+                self.destroy_fn(obj, self.allocator);
+                return err;
+            };
             return obj;
         }
 
@@ -190,7 +201,13 @@ pub const ObjectPool = struct {
                     reset(obj);
                 }
 
-                try self.available.append(obj);
+                // If moving back into `available` fails (OOM), destroy the
+                // object directly so we don't leak it. The caller sees the
+                // error and knows the object is gone for good.
+                self.available.append(obj) catch |err| {
+                    self.destroy_fn(obj, self.allocator);
+                    return err;
+                };
                 return;
             }
         }
@@ -210,32 +227,39 @@ pub const ObjectPool = struct {
 };
 
 pub const LazyLoader = struct {
-    loaded: bool,
+    /// `loaded` is atomic so the double-checked-locking pattern in `load()`
+    /// is memory-safe on platforms with weak ordering (AArch64). Previously
+    /// the non-atomic read could observe the flag without observing the
+    /// side effects of `load_fn`, causing callers to proceed on
+    /// partially-initialized state.
+    loaded: std.atomic.Value(u8),
     load_fn: *const fn () anyerror!void,
     mutex: compat_mutex.Mutex,
 
     pub fn init(load_fn: *const fn () anyerror!void) LazyLoader {
         return LazyLoader{
-            .loaded = false,
+            .loaded = std.atomic.Value(u8).init(0),
             .load_fn = load_fn,
             .mutex = .{},
         };
     }
 
     pub fn load(self: *LazyLoader) !void {
-        if (self.loaded) return;
+        // Fast-path: release-store in the slow path below is paired with
+        // this acquire-load so the caller observes everything `load_fn` did.
+        if (self.loaded.load(.acquire) != 0) return;
 
         self.mutex.lock();
         defer self.mutex.unlock();
 
-        if (self.loaded) return;
+        if (self.loaded.load(.monotonic) != 0) return;
 
         try self.load_fn();
-        self.loaded = true;
+        self.loaded.store(1, .release);
     }
 
-    pub fn isLoaded(self: LazyLoader) bool {
-        return self.loaded;
+    pub fn isLoaded(self: *const LazyLoader) bool {
+        return self.loaded.load(.acquire) != 0;
     }
 };
 

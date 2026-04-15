@@ -30,8 +30,10 @@ pub const Chart = struct {
 
     pub fn init(allocator: std.mem.Allocator, chart_type: ChartType, props: ComponentProps) !*Chart {
         const chart = try allocator.create(Chart);
+        errdefer allocator.destroy(chart);
+        const component = try Component.init(allocator, "chart", props);
         chart.* = Chart{
-            .component = try Component.init(allocator, "chart", props),
+            .component = component,
             .chart_type = chart_type,
             .data = .{},
             .title = null,

@@ -27,8 +27,10 @@ pub const MediaPlayer = struct {
 
     pub fn init(allocator: std.mem.Allocator, source: []const u8, media_type: MediaType, props: ComponentProps) !*MediaPlayer {
         const player = try allocator.create(MediaPlayer);
+        errdefer allocator.destroy(player);
+        const component = try Component.init(allocator, "media_player", props);
         player.* = MediaPlayer{
-            .component = try Component.init(allocator, "media_player", props),
+            .component = component,
             .source = source,
             .media_type = media_type,
             .playing = false,

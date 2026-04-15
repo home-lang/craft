@@ -85,8 +85,15 @@ pub const BluetoothBridge = struct {
             const IOBluetoothHostController = macos.getClass("IOBluetoothHostController");
             const available = IOBluetoothHostController != null;
 
+            // Escape callback_id before embedding — a crafted id with `'`
+            // or `\` would otherwise close the JS string literal and allow
+            // injection into the webview. Every other bridge module escapes
+            // callback ids the same way.
+            var cb_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
             var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','isAvailable',{});", .{ callback_id, available }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','isAvailable',{});", .{ cb_esc, available }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -119,14 +126,20 @@ pub const BluetoothBridge = struct {
             if (IOBluetoothHostController != null) {
                 const default_controller = macos.msgSend0(IOBluetoothHostController, "defaultController");
                 if (default_controller != null) {
-                    // powerState: 0 = off, 1 = on, 2 = initializing
-                    const power_state: i32 = @intCast(@intFromPtr(macos.msgSend0(default_controller, "powerState")));
+                    // powerState: 0 = off, 1 = on, 2 = initializing.
+                    // The ObjC method returns NSInteger (signed 64-bit on
+                    // 64-bit macOS); cast through isize to avoid @intCast
+                    // safety panics on unexpected values.
+                    const power_state: isize = @bitCast(@intFromPtr(macos.msgSend0(default_controller, "powerState")));
                     enabled = power_state == 1;
                 }
             }
 
+            var cb_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
             var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','isEnabled',{});", .{ callback_id, enabled }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','isEnabled',{});", .{ cb_esc, enabled }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -159,7 +172,7 @@ pub const BluetoothBridge = struct {
             if (IOBluetoothHostController != null) {
                 const default_controller = macos.msgSend0(IOBluetoothHostController, "defaultController");
                 if (default_controller != null) {
-                    const power_state: i32 = @intCast(@intFromPtr(macos.msgSend0(default_controller, "powerState")));
+                    const power_state: isize = @bitCast(@intFromPtr(macos.msgSend0(default_controller, "powerState")));
                     state = switch (power_state) {
                         0 => "off",
                         1 => "on",
@@ -169,8 +182,11 @@ pub const BluetoothBridge = struct {
                 }
             }
 
+            var cb_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
             var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','getPowerState','{s}');", .{ callback_id, state }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','getPowerState','{s}');", .{ cb_esc, state }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -246,7 +262,16 @@ pub const BluetoothBridge = struct {
                                     }
                                 }
 
-                                const entry = std.fmt.bufPrint(result_buf[result_pos..], "{{\"name\":\"{s}\",\"address\":\"{s}\",\"connected\":true}}", .{ name, addr }) catch break;
+                                // Escape attacker-controlled device name and
+                                // address before building JSON. Previously a
+                                // device named `"; dropTable(); //` would have
+                                // produced invalid/injectable JSON.
+                                var name_esc_buf: [512]u8 = undefined;
+                                var addr_esc_buf: [128]u8 = undefined;
+                                const name_esc = bridge_error.escapeJsonString(&name_esc_buf, name) catch break;
+                                const addr_esc = bridge_error.escapeJsonString(&addr_esc_buf, addr) catch break;
+
+                                const entry = std.fmt.bufPrint(result_buf[result_pos..], "{{\"name\":\"{s}\",\"address\":\"{s}\",\"connected\":true}}", .{ name_esc, addr_esc }) catch break;
                                 result_pos += entry.len;
                             }
                         }
@@ -257,8 +282,12 @@ pub const BluetoothBridge = struct {
             result_buf[result_pos] = ']';
             result_pos += 1;
 
+            // Also escape the callback id for JS embedding.
+            var cb_esc_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_esc_buf, callback_id) catch return;
+
             var buf: [4500]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','getConnectedDevices',{s});", .{ callback_id, result_buf[0..result_pos] }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','getConnectedDevices',{s});", .{ cb_esc, result_buf[0..result_pos] }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -330,7 +359,15 @@ pub const BluetoothBridge = struct {
 
                             const is_connected = macos.msgSend0Bool(device, "isConnected");
 
-                            const entry = std.fmt.bufPrint(result_buf[result_pos..], "{{\"name\":\"{s}\",\"address\":\"{s}\",\"connected\":{}}}", .{ name, addr, is_connected }) catch break;
+                            // Escape attacker-controlled BT device strings
+                            // before embedding in JSON, same as the
+                            // connected-devices path.
+                            var name_esc_buf: [512]u8 = undefined;
+                            var addr_esc_buf: [128]u8 = undefined;
+                            const name_esc = bridge_error.escapeJsonString(&name_esc_buf, name) catch break;
+                            const addr_esc = bridge_error.escapeJsonString(&addr_esc_buf, addr) catch break;
+
+                            const entry = std.fmt.bufPrint(result_buf[result_pos..], "{{\"name\":\"{s}\",\"address\":\"{s}\",\"connected\":{}}}", .{ name_esc, addr_esc, is_connected }) catch break;
                             result_pos += entry.len;
                         }
                     }
@@ -340,8 +377,11 @@ pub const BluetoothBridge = struct {
             result_buf[result_pos] = ']';
             result_pos += 1;
 
+            var cb_esc_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_esc_buf, callback_id) catch return;
+
             var buf: [4500]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','getPairedDevices',{s});", .{ callback_id, result_buf[0..result_pos] }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','getPairedDevices',{s});", .{ cb_esc, result_buf[0..result_pos] }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -408,8 +448,11 @@ pub const BluetoothBridge = struct {
         log.debug("isDiscovering", .{});
 
         if (builtin.os.tag == .macos) {
+            var cb_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
             var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','isDiscovering',{});", .{ callback_id, self.is_scanning }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftBluetoothCallback)window.__craftBluetoothCallback('{s}','isDiscovering',{});", .{ cb_esc, self.is_scanning }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {

@@ -342,14 +342,21 @@ pub const UpdaterBridge = struct {
         };
     }
 
-    /// Send status update to JavaScript
+    /// Send status update to JavaScript. Escapes `status` and `message`
+    /// before injection so a payload containing `'`/`\`/newline can't break
+    /// out of the string literal (JS injection).
     fn sendStatus(_: *Self, status: []const u8, message: []const u8) void {
         const bridge = @import("bridge.zig");
 
-        var buf: [256]u8 = undefined;
+        var status_buf: [64]u8 = undefined;
+        var msg_buf: [256]u8 = undefined;
+        const status_esc = bridge_error.escapeJsSingleQuoted(&status_buf, status) catch return;
+        const msg_esc = bridge_error.escapeJsSingleQuoted(&msg_buf, message) catch return;
+
+        var buf: [512]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftUpdaterStatus)window.__craftUpdaterStatus('{s}','{s}');
-        , .{ status, message }) catch return;
+        , .{ status_esc, msg_esc }) catch return;
 
         bridge.evalJS(js) catch |err| {
             std.log.debug("JS eval failed for updater status callback: {}", .{err});

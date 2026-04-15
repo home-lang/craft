@@ -94,6 +94,9 @@ pub const Renderer = struct {
 
     pub fn createCanvas(self: *Renderer, width: u32, height: u32) !*Canvas {
         const canvas = try self.allocator.create(Canvas);
+        // Without this errdefer, a failure inside `Canvas.init` below leaks
+        // the outer allocation.
+        errdefer self.allocator.destroy(canvas);
         canvas.* = try Canvas.init(self.allocator, width, height);
         self.canvas = canvas;
         return canvas;

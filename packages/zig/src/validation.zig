@@ -77,15 +77,36 @@ pub const RuleResult = struct {
     message: ?[]const u8 = null,
 };
 
-/// Validation rule
+/// Validation rule.
+///
+/// `inline_usize` / `inline_f64` / `inline_bytes` live directly inside the
+/// struct so rules like `minLength`/`exactLength`/`min`/`max` no longer need
+/// to take the address of a stack-local param struct (the previous approach
+/// was use-after-return: the caller returned a `Rule` whose `.params`
+/// pointed into the dead stack frame). The `params` opaque pointer is kept
+/// for backwards compatibility with external rules that already manage
+/// their own stable storage.
 pub const Rule = struct {
     name: []const u8,
     validate: RuleFn,
     message: []const u8,
     params: ?*const anyopaque = null,
+    inline_usize: usize = 0,
+    inline_f64: f64 = 0,
+    inline_f64_b: f64 = 0,
+    /// Inline string used by `equals`, `contains`, etc. so they don't need
+    /// a separate heap allocation or external params pointer.
+    inline_bytes: []const u8 = "",
+    /// Inline list of strings used by `inList` and `notInList`. These borrow
+    /// whatever backing store the caller provided — the slice header is
+    /// copied into the Rule, the underlying array must outlive the Rule.
+    inline_list: []const []const u8 = &.{},
+    /// Bitflags used by validators with several boolean options (e.g.
+    /// `password`). Definition of each bit is up to the validator.
+    inline_flags: u32 = 0,
 
     pub fn check(self: *const Rule, value: ?[]const u8) RuleResult {
-        const result = self.validate(value, self.params);
+        const result = self.validate(value, @as(?*const anyopaque, @ptrCast(self)));
         return .{
             .is_valid = result.is_valid,
             .message = result.message orelse self.message,
@@ -180,14 +201,11 @@ pub const Rules = struct {
 
     /// Minimum length validation
     pub fn minLength(min_len: usize, message: []const u8) Rule {
-        const params = struct {
-            min_val: usize,
-        }{ .min_val = min_len };
         return .{
             .name = "minLength",
             .validate = minLengthFn,
             .message = message,
-            .params = @ptrCast(&params),
+            .inline_usize = min_len,
         };
     }
 
@@ -196,22 +214,19 @@ pub const Rules = struct {
         if (v.len == 0) return .{ .is_valid = true };
 
         if (params) |p| {
-            const min_params: *const struct { min_val: usize } = @ptrCast(@alignCast(p));
-            return .{ .is_valid = v.len >= min_params.min_val };
+            const rule: *const Rule = @ptrCast(@alignCast(p));
+            return .{ .is_valid = v.len >= rule.inline_usize };
         }
         return .{ .is_valid = true };
     }
 
     /// Maximum length validation
     pub fn maxLength(max_len: usize, message: []const u8) Rule {
-        const params = struct {
-            max_val: usize,
-        }{ .max_val = max_len };
         return .{
             .name = "maxLength",
             .validate = maxLengthFn,
             .message = message,
-            .params = @ptrCast(&params),
+            .inline_usize = max_len,
         };
     }
 
@@ -219,22 +234,19 @@ pub const Rules = struct {
         const v = value orelse return .{ .is_valid = true };
 
         if (params) |p| {
-            const max_params: *const struct { max_val: usize } = @ptrCast(@alignCast(p));
-            return .{ .is_valid = v.len <= max_params.max_val };
+            const rule: *const Rule = @ptrCast(@alignCast(p));
+            return .{ .is_valid = v.len <= rule.inline_usize };
         }
         return .{ .is_valid = true };
     }
 
     /// Exact length validation
     pub fn exactLength(length: usize, message: []const u8) Rule {
-        const params = struct {
-            length: usize,
-        }{ .length = length };
         return .{
             .name = "exactLength",
             .validate = exactLengthFn,
             .message = message,
-            .params = @ptrCast(&params),
+            .inline_usize = length,
         };
     }
 
@@ -243,8 +255,8 @@ pub const Rules = struct {
         if (v.len == 0) return .{ .is_valid = true };
 
         if (params) |p| {
-            const len_params: *const struct { length: usize } = @ptrCast(@alignCast(p));
-            return .{ .is_valid = v.len == len_params.length };
+            const rule: *const Rule = @ptrCast(@alignCast(p));
+            return .{ .is_valid = v.len == rule.inline_usize };
         }
         return .{ .is_valid = true };
     }
@@ -287,65 +299,73 @@ pub const Rules = struct {
         return .{ .is_valid = true };
     }
 
-    /// Minimum value validation (for numbers)
+    /// Minimum value validation (for numbers). Previously discarded its
+    /// parameter and accepted every parseable number as valid.
     pub fn min(min_val: f64, message: []const u8) Rule {
-        _ = min_val;
         return .{
             .name = "min",
             .validate = minFn,
             .message = message,
+            .inline_f64 = min_val,
         };
     }
 
-    fn minFn(value: ?[]const u8, _: ?*const anyopaque) RuleResult {
+    fn minFn(value: ?[]const u8, params: ?*const anyopaque) RuleResult {
         const v = value orelse return .{ .is_valid = true };
         if (v.len == 0) return .{ .is_valid = true };
 
-        _ = std.fmt.parseFloat(f64, v) catch {
-            return .{ .is_valid = false };
-        };
-        // Note: params comparison would go here
+        const n = std.fmt.parseFloat(f64, v) catch return .{ .is_valid = false };
+        if (params) |p| {
+            const rule: *const Rule = @ptrCast(@alignCast(p));
+            return .{ .is_valid = n >= rule.inline_f64 };
+        }
         return .{ .is_valid = true };
     }
 
-    /// Maximum value validation (for numbers)
+    /// Maximum value validation (for numbers). Previously accepted every
+    /// parseable number regardless of `max_val`.
     pub fn max(max_val: f64, message: []const u8) Rule {
-        _ = max_val;
         return .{
             .name = "max",
             .validate = maxFn,
             .message = message,
+            .inline_f64 = max_val,
         };
     }
 
-    fn maxFn(value: ?[]const u8, _: ?*const anyopaque) RuleResult {
+    fn maxFn(value: ?[]const u8, params: ?*const anyopaque) RuleResult {
         const v = value orelse return .{ .is_valid = true };
         if (v.len == 0) return .{ .is_valid = true };
 
-        _ = std.fmt.parseFloat(f64, v) catch {
-            return .{ .is_valid = false };
-        };
+        const n = std.fmt.parseFloat(f64, v) catch return .{ .is_valid = false };
+        if (params) |p| {
+            const rule: *const Rule = @ptrCast(@alignCast(p));
+            return .{ .is_valid = n <= rule.inline_f64 };
+        }
         return .{ .is_valid = true };
     }
 
-    /// Range validation (for numbers)
+    /// Range validation (for numbers). `inline_f64` holds `min_val`;
+    /// `inline_f64_b` holds `max_val`. Values are checked `min <= n <= max`.
     pub fn range(min_val: f64, max_val: f64, message: []const u8) Rule {
-        _ = min_val;
-        _ = max_val;
         return .{
             .name = "range",
             .validate = rangeFn,
             .message = message,
+            .inline_f64 = min_val,
+            .inline_f64_b = max_val,
         };
     }
 
-    fn rangeFn(value: ?[]const u8, _: ?*const anyopaque) RuleResult {
+    fn rangeFn(value: ?[]const u8, params: ?*const anyopaque) RuleResult {
         const v = value orelse return .{ .is_valid = true };
         if (v.len == 0) return .{ .is_valid = true };
 
-        _ = std.fmt.parseFloat(f64, v) catch {
-            return .{ .is_valid = false };
-        };
+        const n = std.fmt.parseFloat(f64, v) catch return .{ .is_valid = false };
+        if (params) |p| {
+            const rule: *const Rule = @ptrCast(@alignCast(p));
+            return .{ .is_valid = n >= rule.inline_f64 and n <= rule.inline_f64_b };
+        }
         return .{ .is_valid = true };
     }
 
@@ -675,81 +695,109 @@ pub const Rules = struct {
         return .{ .is_valid = false };
     }
 
-    /// Equals validation (must match another value)
+    /// Equals validation (must match another value). Previously discarded
+    /// the expected value, so every non-empty input passed.
     pub fn equals(expected: []const u8, message: []const u8) Rule {
-        _ = expected;
         return .{
             .name = "equals",
             .validate = equalsFn,
             .message = message,
+            .inline_bytes = expected,
         };
     }
 
-    fn equalsFn(value: ?[]const u8, _: ?*const anyopaque) RuleResult {
+    fn equalsFn(value: ?[]const u8, params: ?*const anyopaque) RuleResult {
         const v = value orelse return .{ .is_valid = true };
         if (v.len == 0) return .{ .is_valid = true };
-        // Expected value comparison would be done via params
+        if (params) |p| {
+            const rule: *const Rule = @ptrCast(@alignCast(p));
+            return .{ .is_valid = std.mem.eql(u8, v, rule.inline_bytes) };
+        }
         return .{ .is_valid = true };
     }
 
-    /// Contains substring validation
+    /// Contains substring validation. Previously always returned valid.
     pub fn contains(substring: []const u8, message: []const u8) Rule {
-        _ = substring;
         return .{
             .name = "contains",
             .validate = containsFn,
             .message = message,
+            .inline_bytes = substring,
         };
     }
 
-    fn containsFn(value: ?[]const u8, _: ?*const anyopaque) RuleResult {
+    fn containsFn(value: ?[]const u8, params: ?*const anyopaque) RuleResult {
         const v = value orelse return .{ .is_valid = true };
         if (v.len == 0) return .{ .is_valid = true };
-        // Substring check would be done via params
+        if (params) |p| {
+            const rule: *const Rule = @ptrCast(@alignCast(p));
+            if (rule.inline_bytes.len == 0) return .{ .is_valid = true };
+            return .{ .is_valid = std.mem.indexOf(u8, v, rule.inline_bytes) != null };
+        }
         return .{ .is_valid = true };
     }
 
-    /// In list validation (value must be one of allowed values)
+    /// In list validation (value must be one of allowed values). The caller
+    /// owns the list storage; the slice is borrowed, not copied.
     pub fn inList(allowed: []const []const u8, message: []const u8) Rule {
-        _ = allowed;
         return .{
             .name = "inList",
             .validate = inListFn,
             .message = message,
+            .inline_list = allowed,
         };
     }
 
-    fn inListFn(value: ?[]const u8, _: ?*const anyopaque) RuleResult {
+    fn inListFn(value: ?[]const u8, params: ?*const anyopaque) RuleResult {
         const v = value orelse return .{ .is_valid = true };
         if (v.len == 0) return .{ .is_valid = true };
-        // List check would be done via params
+        if (params) |p| {
+            const rule: *const Rule = @ptrCast(@alignCast(p));
+            for (rule.inline_list) |allowed_val| {
+                if (std.mem.eql(u8, v, allowed_val)) return .{ .is_valid = true };
+            }
+            return .{ .is_valid = false };
+        }
         return .{ .is_valid = true };
     }
 
-    /// Not in list validation (value must not be one of disallowed values)
+    /// Not in list validation (value must NOT be one of disallowed values).
     pub fn notInList(disallowed: []const []const u8, message: []const u8) Rule {
-        _ = disallowed;
         return .{
             .name = "notInList",
             .validate = notInListFn,
             .message = message,
+            .inline_list = disallowed,
         };
     }
 
-    fn notInListFn(value: ?[]const u8, _: ?*const anyopaque) RuleResult {
+    fn notInListFn(value: ?[]const u8, params: ?*const anyopaque) RuleResult {
         const v = value orelse return .{ .is_valid = true };
         if (v.len == 0) return .{ .is_valid = true };
-        // List check would be done via params
+        if (params) |p| {
+            const rule: *const Rule = @ptrCast(@alignCast(p));
+            for (rule.inline_list) |disallowed_val| {
+                if (std.mem.eql(u8, v, disallowed_val)) return .{ .is_valid = false };
+            }
+        }
         return .{ .is_valid = true };
     }
 
-    /// Password strength validation
+    /// Password strength validation. Previously discarded the `options`
+    /// argument and always enforced a hardcoded policy (8+, upper+lower+digit,
+    /// no special chars). Now encodes each option as a bit in `inline_flags`.
     pub fn password(options: PasswordOptions, message: []const u8) Rule {
-        _ = options;
+        var flags: u32 = 0;
+        if (options.require_uppercase) flags |= password_flag_upper;
+        if (options.require_lowercase) flags |= password_flag_lower;
+        if (options.require_digit) flags |= password_flag_digit;
+        if (options.require_special) flags |= password_flag_special;
         return .{
             .name = "password",
             .validate = passwordFn,
             .message = message,
+            .inline_usize = options.min_length,
+            .inline_flags = flags,
         };
     }
 
@@ -761,26 +809,41 @@ pub const Rules = struct {
         require_special: bool = false,
     };
 
-    fn passwordFn(value: ?[]const u8, _: ?*const anyopaque) RuleResult {
+    const password_flag_upper: u32 = 1 << 0;
+    const password_flag_lower: u32 = 1 << 1;
+    const password_flag_digit: u32 = 1 << 2;
+    const password_flag_special: u32 = 1 << 3;
+
+    fn passwordFn(value: ?[]const u8, params: ?*const anyopaque) RuleResult {
         const v = value orelse return .{ .is_valid = true };
         if (v.len == 0) return .{ .is_valid = true };
 
-        // Default password requirements
-        if (v.len < 8) return .{ .is_valid = false, .message = "Password must be at least 8 characters" };
+        const rule_opt: ?*const Rule = if (params) |p| @ptrCast(@alignCast(p)) else null;
+        const min_len: usize = if (rule_opt) |r| (if (r.inline_usize == 0) 8 else r.inline_usize) else 8;
+        const flags: u32 = if (rule_opt) |r| r.inline_flags else (password_flag_upper | password_flag_lower | password_flag_digit);
+
+        if (v.len < min_len) return .{ .is_valid = false, .message = "Password is too short" };
 
         var has_upper = false;
         var has_lower = false;
         var has_digit = false;
+        var has_special = false;
 
         for (v) |c| {
-            if (std.ascii.isUpper(c)) has_upper = true;
-            if (std.ascii.isLower(c)) has_lower = true;
-            if (std.ascii.isDigit(c)) has_digit = true;
+            if (std.ascii.isUpper(c)) has_upper = true
+            else if (std.ascii.isLower(c)) has_lower = true
+            else if (std.ascii.isDigit(c)) has_digit = true
+            else has_special = true;
         }
 
-        if (!has_upper) return .{ .is_valid = false, .message = "Password must contain an uppercase letter" };
-        if (!has_lower) return .{ .is_valid = false, .message = "Password must contain a lowercase letter" };
-        if (!has_digit) return .{ .is_valid = false, .message = "Password must contain a digit" };
+        if ((flags & password_flag_upper) != 0 and !has_upper)
+            return .{ .is_valid = false, .message = "Password must contain an uppercase letter" };
+        if ((flags & password_flag_lower) != 0 and !has_lower)
+            return .{ .is_valid = false, .message = "Password must contain a lowercase letter" };
+        if ((flags & password_flag_digit) != 0 and !has_digit)
+            return .{ .is_valid = false, .message = "Password must contain a digit" };
+        if ((flags & password_flag_special) != 0 and !has_special)
+            return .{ .is_valid = false, .message = "Password must contain a special character" };
 
         return .{ .is_valid = true };
     }
@@ -1335,6 +1398,60 @@ test "Rules.postalCode" {
     try std.testing.expect(!rule.check("1234").is_valid); // Too short
     try std.testing.expect(!rule.check("123456").is_valid); // Wrong length
     try std.testing.expect(!rule.check("ABCDE").is_valid); // Non-numeric
+}
+
+// Regression tests for validators that used to silently accept everything.
+test "Rules.min/max/range actually reject out-of-range numbers" {
+    const min_rule = Rules.min(10.0, "too small");
+    try std.testing.expect(min_rule.check("5").is_valid == false);
+    try std.testing.expect(min_rule.check("10").is_valid);
+    try std.testing.expect(min_rule.check("100").is_valid);
+
+    const max_rule = Rules.max(10.0, "too big");
+    try std.testing.expect(max_rule.check("5").is_valid);
+    try std.testing.expect(max_rule.check("10").is_valid);
+    try std.testing.expect(max_rule.check("100").is_valid == false);
+
+    const range_rule = Rules.range(1.0, 5.0, "out of range");
+    try std.testing.expect(range_rule.check("0").is_valid == false);
+    try std.testing.expect(range_rule.check("3").is_valid);
+    try std.testing.expect(range_rule.check("5").is_valid);
+    try std.testing.expect(range_rule.check("5.1").is_valid == false);
+}
+
+test "Rules.equals/contains/inList/notInList actually compare" {
+    const eq_rule = Rules.equals("hello", "must equal hello");
+    try std.testing.expect(eq_rule.check("hello").is_valid);
+    try std.testing.expect(eq_rule.check("world").is_valid == false);
+
+    const contains_rule = Rules.contains("cat", "must contain cat");
+    try std.testing.expect(contains_rule.check("concatenate").is_valid);
+    try std.testing.expect(contains_rule.check("dog").is_valid == false);
+
+    const allowed = [_][]const u8{ "red", "green", "blue" };
+    const in_rule = Rules.inList(&allowed, "must be a color");
+    try std.testing.expect(in_rule.check("red").is_valid);
+    try std.testing.expect(in_rule.check("purple").is_valid == false);
+
+    const blocklist = [_][]const u8{ "admin", "root" };
+    const not_in_rule = Rules.notInList(&blocklist, "reserved username");
+    try std.testing.expect(not_in_rule.check("alice").is_valid);
+    try std.testing.expect(not_in_rule.check("admin").is_valid == false);
+}
+
+test "Rules.minLength/maxLength/exactLength use the passed length" {
+    const min_len = Rules.minLength(5, "too short");
+    try std.testing.expect(min_len.check("hi").is_valid == false);
+    try std.testing.expect(min_len.check("hello").is_valid);
+
+    const max_len = Rules.maxLength(5, "too long");
+    try std.testing.expect(max_len.check("hello").is_valid);
+    try std.testing.expect(max_len.check("hello!").is_valid == false);
+
+    const exact_len = Rules.exactLength(3, "must be 3 chars");
+    try std.testing.expect(exact_len.check("abc").is_valid);
+    try std.testing.expect(exact_len.check("ab").is_valid == false);
+    try std.testing.expect(exact_len.check("abcd").is_valid == false);
 }
 
 test "FormValidator basic usage" {

@@ -43,6 +43,16 @@ fn debugPrint(comptime fmt: []const u8, args: anytype) void {
     }
 }
 
+/// Release every string inside `options` that was allocated by `parseArgs`.
+/// `title` defaults to a string literal, so only free it if it was replaced.
+fn freeOptionStrings(allocator: std.mem.Allocator, options: *WindowOptions) void {
+    if (options.url) |s| allocator.free(s);
+    if (options.html) |s| allocator.free(s);
+    if (!std.mem.eql(u8, options.title, "Craft App")) allocator.free(options.title);
+    if (options.sidebar_config) |s| allocator.free(s);
+    options.* = WindowOptions{};
+}
+
 pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !WindowOptions {
     // First pass: check for --debug flag
     for (args) |arg| {
@@ -59,6 +69,12 @@ pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !Wind
     debugPrint("\n", .{});
 
     var options = WindowOptions{};
+    // If we return an error partway through parsing, free any strings we've
+    // already duped. Previously these allocations leaked on the error path
+    // (e.g. `--width abc` triggers InvalidNumber with a duped `--title` value
+    // still held by `options`).
+    errdefer freeOptionStrings(allocator, &options);
+
     var i: usize = 1; // Skip program name
 
     while (i < args.len) : (i += 1) {

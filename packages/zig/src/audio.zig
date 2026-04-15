@@ -20,12 +20,20 @@ pub const AudioFormat = enum {
     unknown,
 
     pub fn fromExtension(ext: []const u8) AudioFormat {
-        if (std.mem.eql(u8, ext, "wav")) return .wav;
-        if (std.mem.eql(u8, ext, "mp3")) return .mp3;
-        if (std.mem.eql(u8, ext, "aac")) return .aac;
-        if (std.mem.eql(u8, ext, "ogg")) return .ogg;
-        if (std.mem.eql(u8, ext, "flac")) return .flac;
-        if (std.mem.eql(u8, ext, "m4a")) return .m4a;
+        // File extensions on Windows and case-insensitive filesystems can
+        // arrive in any case (`.MP3`, `.Wav`). The previous implementation
+        // only matched lowercase, so `AudioFormat.fromExtension("MP3")`
+        // returned `.unknown` and the caller downgraded to a raw byte stream.
+        return fromExtensionCaseInsensitive(ext);
+    }
+
+    fn fromExtensionCaseInsensitive(ext: []const u8) AudioFormat {
+        if (std.ascii.eqlIgnoreCase(ext, "wav")) return .wav;
+        if (std.ascii.eqlIgnoreCase(ext, "mp3")) return .mp3;
+        if (std.ascii.eqlIgnoreCase(ext, "aac")) return .aac;
+        if (std.ascii.eqlIgnoreCase(ext, "ogg")) return .ogg;
+        if (std.ascii.eqlIgnoreCase(ext, "flac")) return .flac;
+        if (std.ascii.eqlIgnoreCase(ext, "m4a")) return .m4a;
         return .unknown;
     }
 
@@ -1018,6 +1026,12 @@ test "AudioFormat from extension" {
     try std.testing.expectEqual(AudioFormat.mp3, AudioFormat.fromExtension("mp3"));
     try std.testing.expectEqual(AudioFormat.aac, AudioFormat.fromExtension("aac"));
     try std.testing.expectEqual(AudioFormat.unknown, AudioFormat.fromExtension("xyz"));
+}
+
+test "AudioFormat from extension is case-insensitive" {
+    try std.testing.expectEqual(AudioFormat.mp3, AudioFormat.fromExtension("MP3"));
+    try std.testing.expectEqual(AudioFormat.wav, AudioFormat.fromExtension("Wav"));
+    try std.testing.expectEqual(AudioFormat.flac, AudioFormat.fromExtension("FLAC"));
 }
 
 test "AudioFormat mime types" {

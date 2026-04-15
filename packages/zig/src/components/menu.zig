@@ -34,8 +34,10 @@ pub const Menu = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*Menu {
         const menu = try allocator.create(Menu);
+        errdefer allocator.destroy(menu);
+        const component = try Component.init(allocator, "menu", props);
         menu.* = Menu{
-            .component = try Component.init(allocator, "menu", props),
+            .component = component,
             .items = .{},
             .on_item_select = null,
             .is_open = false,
@@ -325,8 +327,10 @@ pub const MenuBar = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*MenuBar {
         const menu_bar = try allocator.create(MenuBar);
+        errdefer allocator.destroy(menu_bar);
+        const component = try Component.init(allocator, "menubar", props);
         menu_bar.* = MenuBar{
-            .component = try Component.init(allocator, "menubar", props),
+            .component = component,
             .menus = .{},
             .active_menu_index = null,
             .on_menu_open = null,

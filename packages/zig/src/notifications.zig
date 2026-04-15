@@ -524,21 +524,26 @@ pub const NotificationManager = struct {
         const content = macos.msgSend0(macos.msgSend0(UNMutableNotificationContent, "alloc"), "init");
         if (content == null) return NotificationError.OutOfMemory;
 
-        // Set title
+        // Set title.
+        //
+        // Order matters: allocate the temporary C string FIRST, then `alloc`
+        // the NSString, so that a dupeZ failure doesn't leave an un-init'd
+        // NSString reference dangling. Previously `alloc` ran before
+        // `dupeZ`, and an OOM from `dupeZ` leaked the ObjC allocation.
         const NSString = macos.getClass("NSString") orelse return NotificationError.NotSupported;
-        const title_str = macos.msgSend0(NSString, "alloc");
         const title_z = std.heap.c_allocator.dupeZ(u8, notification.title) catch
             return NotificationError.OutOfMemory;
         defer std.heap.c_allocator.free(title_z);
+        const title_str = macos.msgSend0(NSString, "alloc");
         const title_ns = macos.msgSend1(title_str, "initWithUTF8String:", title_z.ptr);
         _ = macos.msgSend1(content, "setTitle:", title_ns);
 
-        // Set body if present
+        // Set body if present (same ordering fix).
         if (notification.body) |body| {
-            const body_str = macos.msgSend0(NSString, "alloc");
             const body_z = std.heap.c_allocator.dupeZ(u8, body) catch
                 return NotificationError.OutOfMemory;
             defer std.heap.c_allocator.free(body_z);
+            const body_str = macos.msgSend0(NSString, "alloc");
             const body_ns = macos.msgSend1(body_str, "initWithUTF8String:", body_z.ptr);
             _ = macos.msgSend1(content, "setBody:", body_ns);
         }

@@ -107,15 +107,20 @@ pub const ErrorOverlay = struct {
             oldest.deinit();
         }
 
-        // Append first, then render — append can fail (OOM), so we don't want
-        // to render a partial state. Use errdefer so the passed-in ErrorInfo
-        // is cleaned up if the append fails.
-        errdefer {
-            var err = error_info;
-            err.deinit();
-        }
-        try self.errors.append(error_info);
-        try self.render();
+        // If the append itself fails, the ErrorInfo never entered the list so
+        // we own it and must deinit here. Previously we also errdefer'd
+        // cleanup across the later `render()` call, which would double-free
+        // the entry (already living in the list) if rendering failed.
+        self.errors.append(error_info) catch |err| {
+            var info = error_info;
+            info.deinit();
+            return err;
+        };
+        // render() failure is not fatal to the stored error; log but don't
+        // try to undo the append.
+        self.render() catch |err| {
+            std.log.warn("error_overlay: render failed: {}", .{err});
+        };
     }
 
     pub fn clear(self: *Self) void {

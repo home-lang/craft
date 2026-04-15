@@ -38,8 +38,10 @@ pub const Autocomplete = struct {
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*Autocomplete {
         const autocomplete = try allocator.create(Autocomplete);
+        errdefer allocator.destroy(autocomplete);
+        const component = try Component.init(allocator, "autocomplete", props);
         autocomplete.* = Autocomplete{
-            .component = try Component.init(allocator, "autocomplete", props),
+            .component = component,
             .input_value = "",
             .suggestions = .{},
             .filtered_suggestions = .{},

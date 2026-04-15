@@ -53,7 +53,10 @@ pub const FileWatcher = struct {
 
     pub fn check(self: *Self) !bool {
         var ts: std.c.timespec = undefined;
-        _ = std.c.clock_gettime(.REALTIME, &ts);
+        // Previously swallowed the clock_gettime error and used the undefined
+        // `ts` bytes as the current wall clock — the resulting `now` was
+        // unpredictable. On failure, skip this check instead.
+        if (std.c.clock_gettime(.REALTIME, &ts) != 0) return false;
         const now: i64 = @intCast(ts.sec * 1000 + @divTrunc(ts.nsec, 1_000_000));
 
         // Debounce check
@@ -397,12 +400,13 @@ pub const ReloadServer = struct {
 
         // Create client
         const client = try self.allocator.create(WebSocketClient);
+        errdefer self.allocator.destroy(client);
         var cts: std.c.timespec = undefined;
-        _ = std.c.clock_gettime(.REALTIME, &cts);
+        const connected_at: i64 = if (std.c.clock_gettime(.REALTIME, &cts) == 0) @intCast(cts.sec) else 0;
         client.* = .{
             .stream = stream,
             .platform = "unknown",
-            .connected_at = @intCast(cts.sec),
+            .connected_at = connected_at,
             .id = self.next_client_id,
         };
         self.next_client_id += 1;

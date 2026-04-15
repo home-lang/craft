@@ -206,6 +206,9 @@ pub const ErrorContext = struct {
 
     pub fn init(allocator: std.mem.Allocator, code: ErrorCode, message: []const u8) !*ErrorContext {
         const ctx = try allocator.create(ErrorContext);
+        // Without this errdefer, a future change that added a failable op
+        // between `create` and `return` would leak the struct allocation.
+        errdefer allocator.destroy(ctx);
         ctx.* = ErrorContext{
             .code = code,
             .message = message,

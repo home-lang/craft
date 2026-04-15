@@ -9,7 +9,13 @@ pub const Task = struct {
     context: *anyopaque,
     result: ?anyerror!void,
     completed: bool,
+    /// Guards `result` and `completed`. Held only for the state-update, NOT
+    /// while the user function runs — holding the lock across the callback
+    /// deadlocks any code inside it that touches the task (e.g. isComplete).
     mutex: compat_mutex.Mutex,
+    /// Set atomically by the scheduler when it spawns a thread for this task
+    /// so the event loop doesn't spawn a second thread on the next tick.
+    spawned: std.atomic.Value(bool),
 
     pub fn init(fn_ptr: *const fn (*anyopaque) anyerror!void, context: *anyopaque) Task {
         return Task{
@@ -18,14 +24,18 @@ pub const Task = struct {
             .result = null,
             .completed = false,
             .mutex = .{},
+            .spawned = std.atomic.Value(bool).init(false),
         };
     }
 
     pub fn run(self: *Task) void {
+        // Execute outside the lock so callbacks that touch the task (or any
+        // mutex the callback itself acquires) can make forward progress.
+        const res = self.fn_ptr(self.context);
+
         self.mutex.lock();
         defer self.mutex.unlock();
-
-        self.result = self.fn_ptr(self.context);
+        self.result = res;
         self.completed = true;
     }
 
@@ -72,11 +82,34 @@ pub const AsyncFile = struct {
         }
     }
 
+    /// Start an async read.
+    ///
+    /// OWNERSHIP: the returned `Task` borrows a heap-allocated `ReadContext`
+    /// via its opaque context pointer. Callers MUST invoke
+    /// `AsyncFile.freeReadContext(task)` once they've retrieved the data
+    /// (via `getReadData`) or they'll leak the context and any read buffer.
     pub fn readAsync(self: *AsyncFile) !Task {
         const context = try self.allocator.create(ReadContext);
+        errdefer self.allocator.destroy(context);
         context.* = .{ .file = self, .data = &[_]u8{} };
-
         return Task.init(readTask, @ptrCast(context));
+    }
+
+    /// Retrieve the data read by a task produced via `readAsync`. Returns
+    /// an empty slice if the task hasn't run yet or the read was empty.
+    pub fn getReadData(task: Task) []const u8 {
+        const context: *ReadContext = @ptrCast(@alignCast(task.context));
+        return context.data;
+    }
+
+    /// Free the `ReadContext` allocated by `readAsync` plus any data buffer
+    /// it owns. Call this after you've consumed `getReadData`.
+    pub fn freeReadContext(task: Task) void {
+        const context: *ReadContext = @ptrCast(@alignCast(task.context));
+        if (context.data.len > 0) {
+            context.file.allocator.free(context.data);
+        }
+        context.file.allocator.destroy(context);
     }
 
     fn readTask(ctx: *anyopaque) !void {
@@ -88,15 +121,26 @@ pub const AsyncFile = struct {
         const file_stat = try file.stat(io);
         const size = file_stat.size;
         const content = try context.file.allocator.alloc(u8, size);
-        _ = try file.readPositional(io, &.{content}, 0);
-        context.data = content;
+        errdefer context.file.allocator.free(content);
+        // Narrow to the bytes we actually read — a short read would otherwise
+        // leave uninitialised tail bytes visible through `getReadData`.
+        const bytes_read = try file.readPositional(io, &.{content}, 0);
+        context.data = content[0..bytes_read];
     }
 
+    /// Start an async write. Caller must invoke `freeWriteContext(task)`
+    /// after the task completes to release the `WriteContext` allocation.
     pub fn writeAsync(self: *AsyncFile, data: []const u8) !Task {
         const context = try self.allocator.create(WriteContext);
+        errdefer self.allocator.destroy(context);
         context.* = .{ .file = self, .data = data };
-
         return Task.init(writeTask, @ptrCast(context));
+    }
+
+    /// Free the `WriteContext` allocated by `writeAsync`.
+    pub fn freeWriteContext(task: Task) void {
+        const context: *WriteContext = @ptrCast(@alignCast(task.context));
+        context.file.allocator.destroy(context);
     }
 
     fn writeTask(ctx: *anyopaque) !void {
@@ -196,8 +240,15 @@ pub const StreamWriter = struct {
     }
 
     pub fn writeLine(self: *StreamWriter, line: []const u8) !void {
-        try self.write(line);
-        try self.write("\n");
+        // Append payload + newline as a single buffer append so an auto-flush
+        // triggered between the two writes can't split the line across flushes.
+        try self.buffer.ensureUnusedCapacity(self.allocator, line.len + 1);
+        self.buffer.appendSliceAssumeCapacity(line);
+        self.buffer.appendAssumeCapacity('\n');
+
+        if (self.buffer.items.len >= self.auto_flush_size) {
+            try self.flush();
+        }
     }
 
     pub fn flush(self: *StreamWriter) !void {
@@ -245,30 +296,37 @@ pub const Promise = struct {
 
     pub fn resolve(self: *Promise, val: []const u8) void {
         self.mutex.lock();
-        defer self.mutex.unlock();
-
-        if (self.state != .pending) return;
+        if (self.state != .pending) {
+            self.mutex.unlock();
+            return;
+        }
 
         self.state = .fulfilled;
         self.value = val;
+        // Detach the callbacks from the promise under the lock, then fire
+        // them unlocked. A callback that calls `then`/`catch_` on this same
+        // promise would otherwise deadlock on the mutex.
+        const callbacks = self.callbacks.toOwnedSlice(self.allocator) catch &[_]Callback{};
+        self.mutex.unlock();
 
-        for (self.callbacks.items) |callback| {
-            callback(val);
-        }
+        for (callbacks) |callback| callback(val);
+        if (callbacks.len > 0) self.allocator.free(callbacks);
     }
 
     pub fn reject(self: *Promise, error_val: anyerror) void {
         self.mutex.lock();
-        defer self.mutex.unlock();
-
-        if (self.state != .pending) return;
+        if (self.state != .pending) {
+            self.mutex.unlock();
+            return;
+        }
 
         self.state = .rejected;
         self.err = error_val;
+        const callbacks = self.error_callbacks.toOwnedSlice(self.allocator) catch &[_]ErrorCallback{};
+        self.mutex.unlock();
 
-        for (self.error_callbacks.items) |callback| {
-            callback(error_val);
-        }
+        for (callbacks) |callback| callback(error_val);
+        if (callbacks.len > 0) self.allocator.free(callbacks);
     }
 
     pub fn then(self: *Promise, callback: Callback) !void {
@@ -300,14 +358,14 @@ pub const Promise = struct {
 
 pub const EventLoop = struct {
     tasks: std.ArrayList(*Task),
-    running: bool,
+    running: std.atomic.Value(bool),
     mutex: compat_mutex.Mutex,
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) EventLoop {
         return EventLoop{
             .tasks = .{},
-            .running = false,
+            .running = std.atomic.Value(bool).init(false),
             .mutex = .{},
             .allocator = allocator,
         };
@@ -324,35 +382,42 @@ pub const EventLoop = struct {
     }
 
     pub fn run(self: *EventLoop) void {
-        self.running = true;
+        self.running.store(true, .release);
 
-        while (self.running) {
+        while (self.running.load(.acquire)) {
             self.mutex.lock();
 
             var i: usize = 0;
             while (i < self.tasks.items.len) {
                 const task = self.tasks.items[i];
 
-                if (!task.isComplete()) {
-                    // Spawn thread to run task
+                if (task.isComplete()) {
+                    _ = self.tasks.swapRemove(i);
+                    continue;
+                }
+
+                // Only spawn a thread the first time we see this task —
+                // previously we spawned a fresh thread on every tick, which
+                // produced hundreds of concurrent threads racing to update
+                // `completed`/`result` on the same task.
+                if (!task.spawned.swap(true, .acq_rel)) {
                     const thread = std.Thread.spawn(.{}, runTask, .{task}) catch {
+                        // Reset so a later tick can retry.
+                        task.spawned.store(false, .release);
                         i += 1;
                         continue;
                     };
                     thread.detach();
                 }
 
-                if (task.isComplete()) {
-                    _ = self.tasks.swapRemove(i);
-                } else {
-                    i += 1;
-                }
+                i += 1;
             }
 
             self.mutex.unlock();
 
-            // Small sleep to prevent busy waiting
-            std.time.sleep(1_000_000); // 1ms
+            // Small sleep to prevent busy waiting. `std.time.sleep` was
+            // removed in Zig 0.16; `std.Thread.sleep` is the replacement.
+            std.Thread.sleep(1_000_000); // 1ms
         }
     }
 
@@ -361,7 +426,7 @@ pub const EventLoop = struct {
     }
 
     pub fn stop(self: *EventLoop) void {
-        self.running = false;
+        self.running.store(false, .release);
     }
 };
 
