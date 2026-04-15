@@ -3,7 +3,11 @@ const base = @import("base.zig");
 const Component = base.Component;
 const ComponentProps = base.ComponentProps;
 
-/// RadioButton Component - A single radio button option
+/// RadioButton Component - A single radio button option.
+///
+/// `label` and `value` are duped into the button's allocator so callers
+/// don't have to keep their source buffers alive. Previously the button
+/// stored both as borrowed slices, which was a dangling-pointer hazard.
 pub const RadioButton = struct {
     component: Component,
     label: []const u8,
@@ -14,11 +18,17 @@ pub const RadioButton = struct {
     pub fn init(allocator: std.mem.Allocator, label: []const u8, value: []const u8, props: ComponentProps) !*RadioButton {
         const radio = try allocator.create(RadioButton);
         errdefer allocator.destroy(radio);
+
+        const label_dup = try allocator.dupe(u8, label);
+        errdefer allocator.free(label_dup);
+        const value_dup = try allocator.dupe(u8, value);
+        errdefer allocator.free(value_dup);
+
         const component = try Component.init(allocator, "radio", props);
         radio.* = RadioButton{
             .component = component,
-            .label = label,
-            .value = value,
+            .label = label_dup,
+            .value = value_dup,
             .selected = false,
             .group = null,
         };
@@ -26,8 +36,11 @@ pub const RadioButton = struct {
     }
 
     pub fn deinit(self: *RadioButton) void {
+        const allocator = self.component.allocator;
+        allocator.free(self.label);
+        allocator.free(self.value);
         self.component.deinit();
-        self.component.allocator.destroy(self);
+        allocator.destroy(self);
     }
 
     /// Select this radio button
@@ -54,9 +67,14 @@ pub const RadioButton = struct {
         return self.label;
     }
 
-    /// Set label
-    pub fn setLabel(self: *RadioButton, label: []const u8) void {
-        self.label = label;
+    /// Set label. Dupes the new label and frees the previous one so the
+    /// button keeps owning its storage (matches the ownership model set up
+    /// in `init`).
+    pub fn setLabel(self: *RadioButton, label: []const u8) !void {
+        const allocator = self.component.allocator;
+        const new_label = try allocator.dupe(u8, label);
+        allocator.free(self.label);
+        self.label = new_label;
     }
 
     /// Enable or disable
@@ -160,12 +178,20 @@ pub const RadioGroup = struct {
         return self.buttons.items.len;
     }
 
-    /// Clear selection
+    /// Clear selection. Fires `on_change` with an empty value so listeners
+    /// can react to the deselect (consistent with `selectButton`, which
+    /// fires on every selection change). Previously programmatic clears
+    /// silently bypassed observers.
     pub fn clearSelection(self: *RadioGroup) void {
+        const had_selection = self.selected_value != null;
         for (self.buttons.items) |button| {
             button.selected = false;
         }
         self.selected_value = null;
+
+        if (had_selection) {
+            if (self.on_change) |callback| callback("");
+        }
     }
 };
 

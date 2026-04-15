@@ -195,21 +195,25 @@ pub const TimePicker = struct {
         self.setHour(new_hour);
     }
 
-    /// Increment minute
+    /// Increment minute. Wraps modulo 60 so step values that don't divide 60
+    /// (e.g. `step=15, minute=50` → 65 → 5, not 0) preserve the offset instead
+    /// of silently snapping to the top of the hour.
     pub fn incrementMinute(self: *TimePicker) void {
-        var new_minute = self.minute + self.step_minutes;
-        if (new_minute > 59) {
-            new_minute = 0;
+        const sum: u16 = @as(u16, self.minute) + @as(u16, self.step_minutes);
+        if (sum >= 60) {
             self.incrementHour();
         }
-        self.setMinute(new_minute);
+        self.setMinute(@intCast(sum % 60));
     }
 
-    /// Decrement minute
+    /// Decrement minute. Mirror of `incrementMinute`: wraps via modular
+    /// arithmetic rather than the previous "subtract then add 60 minus step"
+    /// logic, which was off-by-one for non-divisor steps.
     pub fn decrementMinute(self: *TimePicker) void {
         if (self.minute < self.step_minutes) {
             self.decrementHour();
-            self.setMinute(60 - self.step_minutes + self.minute);
+            const wrapped: i16 = @as(i16, self.minute) - @as(i16, self.step_minutes) + 60;
+            self.setMinute(@intCast(@mod(wrapped, 60)));
         } else {
             self.setMinute(self.minute - self.step_minutes);
         }
@@ -341,10 +345,34 @@ pub const TimePicker = struct {
         }
     }
 
-    /// Set time to current system time
+    /// Set time to the current **local** wall-clock time. Previously this
+    /// returned UTC (by taking the raw epoch timestamp `% 86400`), which
+    /// showed the wrong time to users in any non-UTC timezone. It also
+    /// `@intCast`-ed a signed `i64` to `u64`, panicking on pre-1970 clocks
+    /// — now guarded with `@max(0, …)`.
     pub fn setToNow(self: *TimePicker) void {
-        const timestamp = std.time.timestamp();
-        const epoch_seconds: u64 = @intCast(timestamp);
+        const ts = @max(std.time.timestamp(), 0);
+
+        // Compute local time by adding the system timezone offset. We use
+        // `libc`'s `localtime_r`, which already handles DST and historical
+        // offsets, and fall back to UTC if it isn't available.
+        var tm: std.c.tm = undefined;
+        const t: std.c.time_t = @intCast(ts);
+        const maybe_local: ?*std.c.tm = if (@hasDecl(std.c, "localtime_r"))
+            std.c.localtime_r(&t, &tm)
+        else
+            null;
+
+        if (maybe_local) |lt| {
+            const hour: u8 = @intCast(@max(0, @min(lt.hour, 23)));
+            const minute: u8 = @intCast(@max(0, @min(lt.min, 59)));
+            const second: u8 = @intCast(@max(0, @min(lt.sec, 59)));
+            self.setTime(hour, minute, second);
+            return;
+        }
+
+        // Fallback: UTC.
+        const epoch_seconds: u64 = @intCast(ts);
         const day_seconds = @mod(epoch_seconds, 86400);
         const hour: u8 = @intCast(day_seconds / 3600);
         const minute: u8 = @intCast((day_seconds % 3600) / 60);

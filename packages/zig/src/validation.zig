@@ -151,10 +151,20 @@ pub const Rules = struct {
         if (at_pos == 0) return .{ .is_valid = false }; // @ can't be first
         if (at_pos >= v.len - 1) return .{ .is_valid = false }; // @ can't be last
 
+        // Reject multiple `@` (each half of the address must have exactly one).
+        if (std.mem.indexOfScalarPos(u8, v, at_pos + 1, '@') != null) return .{ .is_valid = false };
+
         const after_at = v[at_pos + 1 ..];
         const dot_pos = std.mem.indexOf(u8, after_at, ".") orelse return .{ .is_valid = false };
         if (dot_pos == 0) return .{ .is_valid = false }; // . can't be right after @
         if (dot_pos >= after_at.len - 1) return .{ .is_valid = false }; // . can't be last
+
+        // TLD must be at least 2 chars (RFC-compliant TLDs are 2+), and no
+        // consecutive dots are allowed anywhere. The previous version
+        // accepted `a@b..c` and `a@b.c` where `c` was a single character.
+        if (std.mem.indexOf(u8, v, "..") != null) return .{ .is_valid = false };
+        const last_dot = std.mem.lastIndexOfScalar(u8, after_at, '.').?;
+        if (after_at.len - last_dot - 1 < 2) return .{ .is_valid = false };
 
         // Check for invalid characters
         for (v) |c| {
@@ -424,12 +434,15 @@ pub const Rules = struct {
         const v = value orelse return .{ .is_valid = true };
         if (v.len == 0) return .{ .is_valid = true };
 
-        // Count digits (ignore common phone formatting characters)
+        // Count digits (ignore common phone formatting characters).
+        // `+` is only allowed as the first character (E.164 country prefix).
         var digit_count: usize = 0;
-        for (v) |c| {
+        for (v, 0..) |c, i| {
             if (std.ascii.isDigit(c)) {
                 digit_count += 1;
-            } else if (c != '+' and c != '-' and c != '(' and c != ')' and c != ' ' and c != '.') {
+            } else if (c == '+') {
+                if (i != 0) return .{ .is_valid = false };
+            } else if (c != '-' and c != '(' and c != ')' and c != ' ' and c != '.') {
                 return .{ .is_valid = false };
             }
         }
@@ -510,8 +523,11 @@ pub const Rules = struct {
         if (month < 1 or month > 12) return .{ .is_valid = false };
         if (day < 1 or day > 31) return .{ .is_valid = false };
 
-        // Basic day validation per month
-        const days_in_month = [_]u8{ 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+        // Gregorian leap-year: divisible by 4, except centuries that aren't
+        // divisible by 400. Previously February always accepted 29 days, so
+        // non-leap dates like 1900-02-29 or 2023-02-29 validated as OK.
+        const is_leap = (@mod(year, 4) == 0 and @mod(year, 100) != 0) or @mod(year, 400) == 0;
+        const days_in_month = [_]u8{ 31, if (is_leap) @as(u8, 29) else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
         if (day > days_in_month[month - 1]) return .{ .is_valid = false };
 
         return .{ .is_valid = true };
@@ -565,6 +581,10 @@ pub const Rules = struct {
         var parts: usize = 0;
         var current_num: u32 = 0;
         var digit_count: usize = 0;
+        // Reject leading zeros per-octet (`192.168.001.001` is ambiguous as
+        // octal on some parsers and confusing to humans). `leading_zero`
+        // tracks whether the octet started with a `0`.
+        var leading_zero = false;
 
         for (v) |c| {
             if (c == '.') {
@@ -572,7 +592,10 @@ pub const Rules = struct {
                 parts += 1;
                 current_num = 0;
                 digit_count = 0;
+                leading_zero = false;
             } else if (std.ascii.isDigit(c)) {
+                if (digit_count == 0 and c == '0') leading_zero = true;
+                if (leading_zero and digit_count >= 1) return .{ .is_valid = false };
                 current_num = current_num * 10 + (c - '0');
                 digit_count += 1;
                 if (digit_count > 3 or current_num > 255) return .{ .is_valid = false };

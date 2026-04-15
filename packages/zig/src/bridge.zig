@@ -38,13 +38,31 @@ pub const Bridge = struct {
         };
     }
 
+    /// Deinit frees every duped handler name so callers don't have to keep
+    /// their own tracking list. The previous implementation just dropped
+    /// the hashmap, which was safe only because handler names were being
+    /// stored by borrowed reference — and that borrowing was itself a bug
+    /// (see `registerHandler`).
     pub fn deinit(self: *Self) void {
+        var it = self.handlers.iterator();
+        while (it.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
+        }
         self.handlers.deinit();
     }
 
-    /// Register a handler for messages from JavaScript
+    /// Register a handler for messages from JavaScript. The handler `name`
+    /// is duped into the bridge's allocator so the caller can free/reuse
+    /// its source buffer. If the key already exists, the previous duped
+    /// copy is replaced and freed.
     pub fn registerHandler(self: *Self, name: []const u8, handler: MessageHandler) !void {
-        try self.handlers.put(name, handler);
+        const name_dup = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(name_dup);
+
+        if (self.handlers.fetchRemove(name)) |old| {
+            self.allocator.free(old.key);
+        }
+        try self.handlers.put(name_dup, handler);
     }
 
     /// Handle a message from JavaScript
@@ -55,7 +73,15 @@ pub const Bridge = struct {
 
     /// Generate JavaScript code to inject into the WebView. Platform is
     /// substituted at comptime so `window.craft.platform` reflects the actual
-    /// target — previously it was hardcoded to `'macos'` on every platform.
+    /// target, and the `postMessage` bridge is chosen per-platform:
+    ///
+    ///   - macOS / iOS (WKWebView): `window.webkit.messageHandlers.craft.postMessage`
+    ///   - Linux (WebKitGTK):       `window.webkit.messageHandlers.craft.postMessage`
+    ///   - Windows (WebView2):      `window.chrome.webview.postMessage`
+    ///
+    /// Previously the script was hardcoded to the WebKit path, so every
+    /// `craft.send()` on Windows crashed with `Cannot read property …
+    /// messageHandlers of undefined`.
     pub fn generateInjectionScript(self: *Self) ![]const u8 {
         _ = self;
         const platform = comptime switch (builtin.os.tag) {
@@ -65,15 +91,34 @@ pub const Bridge = struct {
             .ios => "ios",
             else => "unknown",
         };
-        // Keep the allocator-free behavior that the previous implementation
-        // relied on by returning a comptime-concatenated string literal.
+        const post_message_body = comptime switch (builtin.os.tag) {
+            .windows =>
+            \\            if (window.chrome && window.chrome.webview) {
+            \\                try { window.chrome.webview.postMessage(message); resolve(); }
+            \\                catch (e) { reject(e); }
+            \\            } else {
+            \\                reject(new Error('WebView2 postMessage bridge unavailable'));
+            \\            }
+            ,
+            .macos, .ios, .linux =>
+            \\            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.craft) {
+            \\                const r = window.webkit.messageHandlers.craft.postMessage(message);
+            \\                if (r && typeof r.then === 'function') { r.then(resolve).catch(reject); }
+            \\                else { resolve(); }
+            \\            } else {
+            \\                reject(new Error('WebKit messageHandlers.craft unavailable'));
+            \\            }
+            ,
+            else =>
+            \\            reject(new Error('no postMessage bridge available on this platform'));
+            ,
+        };
+
         return "window.craft = {\n" ++
             "    send: function(name, data) {\n" ++
             "        return new Promise((resolve, reject) => {\n" ++
             "            const message = JSON.stringify({ name: name, data: data });\n" ++
-            "            window.webkit.messageHandlers.craft.postMessage(message)\n" ++
-            "                .then(resolve)\n" ++
-            "                .catch(reject);\n" ++
+            post_message_body ++ "\n" ++
             "        });\n" ++
             "    },\n" ++
             "    notify: function(message) { return this.send('notify', { message: message }); },\n" ++

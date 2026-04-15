@@ -21,6 +21,11 @@ pub const Menu = struct {
         checkable: bool = false,
         separator: bool = false,
         submenu: ?*Menu = null,
+        /// When true, `Menu.deinit` deinits and (transitively) frees the
+        /// submenu. When false, the caller retains ownership. Previously
+        /// `deinit` always deinited submenus, forcing either leak or
+        /// double-free depending on what the caller did with the pointer.
+        owns_submenu: bool = true,
         on_click: ?*const fn () void = null,
     };
 
@@ -49,7 +54,7 @@ pub const Menu = struct {
     pub fn deinit(self: *Menu) void {
         for (self.items.items) |*item| {
             if (item.submenu) |submenu| {
-                submenu.deinit();
+                if (item.owns_submenu) submenu.deinit();
             }
         }
         self.items.deinit(self.component.allocator);
@@ -99,8 +104,12 @@ pub const Menu = struct {
         });
     }
 
-    /// Add a submenu
+    /// Add a submenu. Rejects cycles — adding a menu that is already
+    /// reachable from `self` (either because it is `self` itself, or because
+    /// it appears in any descendant) would cause `findItemRecursive`,
+    /// `close`, and `deinit` to recurse infinitely.
     pub fn addSubmenu(self: *Menu, id: []const u8, label: []const u8, submenu: *Menu) !void {
+        if (submenu == self or self.containsSubmenu(submenu)) return error.MenuCycle;
         submenu.parent_menu = self;
         try self.items.append(self.component.allocator, .{
             .id = id,
@@ -109,12 +118,23 @@ pub const Menu = struct {
         });
     }
 
+    /// Recursively checks whether `target` is reachable as a submenu of `self`.
+    fn containsSubmenu(self: *const Menu, target: *const Menu) bool {
+        for (self.items.items) |item| {
+            if (item.submenu) |sub| {
+                if (sub == target) return true;
+                if (sub.containsSubmenu(target)) return true;
+            }
+        }
+        return false;
+    }
+
     /// Remove an item by index
     pub fn removeItem(self: *Menu, index: usize) void {
         if (index < self.items.items.len) {
             const item = self.items.orderedRemove(index);
             if (item.submenu) |submenu| {
-                submenu.deinit();
+                if (item.owns_submenu) submenu.deinit();
             }
         }
     }
@@ -133,7 +153,7 @@ pub const Menu = struct {
     pub fn clearItems(self: *Menu) void {
         for (self.items.items) |*item| {
             if (item.submenu) |submenu| {
-                submenu.deinit();
+                if (item.owns_submenu) submenu.deinit();
             }
         }
         self.items.clearRetainingCapacity();
@@ -355,12 +375,14 @@ pub const MenuBar = struct {
         });
     }
 
-    /// Remove a menu by index
-    pub fn removeMenu(self: *MenuBar, index: usize) void {
-        if (index < self.menus.items.len) {
-            var entry = self.menus.orderedRemove(index);
-            entry.menu.deinit();
-        }
+    /// Remove a menu by index. Returns `error.IndexOutOfBounds` if `index`
+    /// is past the end so callers can distinguish "nothing to remove" from
+    /// success — the previous silent-ignore behavior masked real bugs in
+    /// callers tracking menu indices.
+    pub fn removeMenu(self: *MenuBar, index: usize) !void {
+        if (index >= self.menus.items.len) return error.IndexOutOfBounds;
+        var entry = self.menus.orderedRemove(index);
+        entry.menu.deinit();
     }
 
     /// Get menu count

@@ -80,8 +80,13 @@ pub const NetworkBridge = struct {
             // For now, assume connected if we can get to this code
             const connected = true;
 
+            // Escape the caller-provided callback id — a crafted value
+            // containing `'`/`\` would otherwise close the JS string literal.
+            var cb_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
             var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','isConnected',{});", .{ callback_id, connected }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','isConnected',{});", .{ cb_esc, connected }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -127,8 +132,11 @@ pub const NetworkBridge = struct {
                 }
             }
 
+            var cb_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
             var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getConnectionType','{s}');", .{ callback_id, conn_type }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getConnectionType','{s}');", .{ cb_esc, conn_type }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -220,14 +228,21 @@ pub const NetworkBridge = struct {
                 if (shared_client != null) {
                     const interface = macos.msgSend0(shared_client, "interface");
                     if (interface != null) {
-                        // rssiValue returns NSInteger
-                        rssi = @intCast(@intFromPtr(macos.msgSend0(interface, "rssiValue")));
+                        // `rssiValue` returns NSInteger (signed). Typical WiFi
+                        // RSSI is negative (e.g. -60 dBm) so `@intCast` from
+                        // the raw pointer-sized word to i32 used to panic in
+                        // safety-checked builds. Take the word as isize first.
+                        const raw: isize = @bitCast(@intFromPtr(macos.msgSend0(interface, "rssiValue")));
+                        rssi = @intCast(std.math.clamp(raw, std.math.minInt(i32), std.math.maxInt(i32)));
                     }
                 }
             }
 
+            var cb_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
             var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getWiFiSignalStrength',{d});", .{ callback_id, rssi }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getWiFiSignalStrength',{d});", .{ cb_esc, rssi }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -262,8 +277,11 @@ pub const NetworkBridge = struct {
 
             var ip_addr: []const u8 = "";
 
-            // Get first non-localhost address
-            const count: usize = @intFromPtr(macos.msgSend0(addresses, "count"));
+            // Get first non-localhost address. `count` returns NSUInteger,
+            // but `@intFromPtr` on a negative/error return wraps huge —
+            // guard through isize.
+            const raw_count: isize = @bitCast(@intFromPtr(macos.msgSend0(addresses, "count")));
+            const count: usize = if (raw_count > 0) @intCast(raw_count) else 0;
             var i: usize = 0;
             while (i < count) : (i += 1) {
                 const addr_obj = macos.msgSend1(addresses, "objectAtIndex:", i);
@@ -285,8 +303,16 @@ pub const NetworkBridge = struct {
                 }
             }
 
+            // Escape both the callback id and the IP. The IP comes from
+            // NSHost (trusted) but future implementations might pull from
+            // attacker-controlled DHCP hints, so we escape defensively.
+            var cb_buf: [128]u8 = undefined;
+            var ip_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+            const ip_esc = bridge_error.escapeJsSingleQuoted(&ip_buf, ip_addr) catch return;
+
             var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getIPAddress','{s}');", .{ callback_id, ip_addr }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getIPAddress','{s}');", .{ cb_esc, ip_esc }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -333,8 +359,13 @@ pub const NetworkBridge = struct {
                 }
             }
 
+            var cb_buf: [128]u8 = undefined;
+            var mac_buf: [64]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+            const mac_esc = bridge_error.escapeJsSingleQuoted(&mac_buf, mac_addr) catch return;
+
             var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getMACAddress','{s}');", .{ callback_id, mac_addr }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getMACAddress','{s}');", .{ cb_esc, mac_esc }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -362,8 +393,11 @@ pub const NetworkBridge = struct {
         if (builtin.os.tag == .macos) {
             // Return basic interface info
             // Full implementation would use getifaddrs
+            var cb_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
             var buf: [1024]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getNetworkInterfaces',[{{name:'en0',type:'wifi'}},{{name:'en1',type:'ethernet'}}]);", .{callback_id}) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getNetworkInterfaces',[{{name:'en0',type:'wifi'}},{{name:'en1',type:'ethernet'}}]);", .{cb_esc}) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -393,8 +427,11 @@ pub const NetworkBridge = struct {
             // Simplified - full implementation would check NEVPNManager
             const vpn_connected = false;
 
+            var cb_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
             var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','isVPNConnected',{});", .{ callback_id, vpn_connected }) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','isVPNConnected',{});", .{ cb_esc, vpn_connected }) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -422,8 +459,11 @@ pub const NetworkBridge = struct {
         if (builtin.os.tag == .macos) {
             // Return null for no proxy
             // Full implementation would use SCDynamicStoreCopyProxies
+            var cb_buf: [128]u8 = undefined;
+            const cb_esc = bridge_error.escapeJsSingleQuoted(&cb_buf, callback_id) catch return;
+
             var buf: [256]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getProxySettings',null);", .{callback_id}) catch return;
+            const js = std.fmt.bufPrint(&buf, "if(window.__craftNetworkCallback)window.__craftNetworkCallback('{s}','getProxySettings',null);", .{cb_esc}) catch return;
 
             const cross_bridge = @import("bridge.zig");
             cross_bridge.evalJS(js) catch |err| {
@@ -448,7 +488,12 @@ pub const NetworkBridge = struct {
             const workspace = macos.msgSend0(NSWorkspace, "sharedWorkspace");
 
             const NSString = macos.getClass("NSString");
-            const url_str = macos.msgSend1(NSString, "stringWithUTF8String:", @as([*c]const u8, "x-apple.systempreferences:com.apple.preference.network"));
+            // String literals are `[*:0]const u8`. Pass `.ptr` explicitly
+            // rather than relying on an implicit conversion to the legacy
+            // `[*c]const u8` shape — the previous cast compiled but was
+            // fragile against tighter comptime type checks.
+            const url_literal: [*:0]const u8 = "x-apple.systempreferences:com.apple.preference.network";
+            const url_str = macos.msgSend1(NSString, "stringWithUTF8String:", url_literal);
 
             const NSURL = macos.getClass("NSURL");
             const nsurl = macos.msgSend1(NSURL, "URLWithString:", url_str);
@@ -462,13 +507,15 @@ pub const NetworkBridge = struct {
     }
 };
 
-/// Global network bridge instance
-var global_network_bridge: ?*NetworkBridge = null;
+const global_state = @import("global_state.zig");
 
+/// Global accessors route through `global_state` for thread-safety, matching
+/// the rest of the bridges. The previous module-level `var` was read/written
+/// without any locking.
 pub fn getGlobalNetworkBridge() ?*NetworkBridge {
-    return global_network_bridge;
+    return global_state.instance.getNetworkBridge();
 }
 
 pub fn setGlobalNetworkBridge(bridge: *NetworkBridge) void {
-    global_network_bridge = bridge;
+    global_state.instance.setNetworkBridge(bridge);
 }

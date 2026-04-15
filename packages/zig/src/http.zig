@@ -330,11 +330,13 @@ pub const Response = struct {
     }
 
     pub fn contentType(self: *const Self) ?[]const u8 {
-        return self.getHeader("Content-Type") orelse self.getHeader("content-type");
+        // `Headers.get` is case-insensitive, so the previous manual two-case
+        // dance is redundant.
+        return self.getHeader("content-type");
     }
 
     pub fn contentLength(self: *const Self) ?usize {
-        const len_str = self.getHeader("Content-Length") orelse self.getHeader("content-length") orelse return null;
+        const len_str = self.getHeader("content-length") orelse return null;
         return std.fmt.parseInt(usize, len_str, 10) catch null;
     }
 };
@@ -471,6 +473,10 @@ pub const ParsedUrl = struct {
     host: []const u8,
     port: ?u16,
     path: []const u8,
+    /// RFC 3986 path parameters (everything after `;` inside the path
+    /// segment), *excluding* the leading `;`. Previously the parser dropped
+    /// these semantics silently; storing them lets callers forward them.
+    params: ?[]const u8 = null,
     query: ?[]const u8,
     fragment: ?[]const u8,
 };
@@ -510,9 +516,17 @@ pub const UrlUtils = struct {
             remaining = remaining[0..query_start];
         }
 
-        // Parse path
+        // Parse path. RFC 3986 allows `;params` inside the path segment;
+        // split them off into `result.params` so callers that care about
+        // path parameters can see them instead of them silently becoming
+        // part of the path string.
         if (std.mem.indexOf(u8, remaining, "/")) |path_start| {
-            result.path = remaining[path_start..];
+            var path_slice = remaining[path_start..];
+            if (std.mem.indexOfScalar(u8, path_slice, ';')) |semi| {
+                result.params = path_slice[semi + 1 ..];
+                path_slice = path_slice[0..semi];
+            }
+            result.path = path_slice;
             remaining = remaining[0..path_start];
         }
 

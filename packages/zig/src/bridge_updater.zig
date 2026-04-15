@@ -99,25 +99,29 @@ pub const UpdaterBridge = struct {
         defer parsed.deinit();
         const params = parsed.value;
 
-        // Set feed URL if provided
+        // Set feed URL if provided.
+        //
+        // Two bugs fixed here:
+        //   1. `url.ptr` is a plain `[]const u8` slice — not null-terminated.
+        //      Passing it to `stringWithUTF8String:` caused ObjC to read past
+        //      the slice end until it found a zero byte. Use `dupeZ`.
+        //   2. The previous order was `free(old); dupe(new)` — if `dupe`
+        //      returned `error.OutOfMemory`, `self.feed_url` still pointed at
+        //      the freed buffer. Dupe first, then free the old pointer.
         if (params.feedURL.len > 0) {
             const url = params.feedURL;
-            if (self.feed_url) |old_url| {
-                self.allocator.free(old_url);
-            }
-            self.feed_url = try self.allocator.dupe(u8, url);
+            const new_feed = try self.allocator.dupe(u8, url);
+            if (self.feed_url) |old_url| self.allocator.free(old_url);
+            self.feed_url = new_feed;
 
-            // Create NSURL
+            const url_z = try self.allocator.dupeZ(u8, url);
+            defer self.allocator.free(url_z);
+
             const NSString = macos.getClass("NSString");
-            const url_str = macos.msgSend1(
-                NSString,
-                "stringWithUTF8String:",
-                @as([*c]const u8, @ptrCast(url.ptr)),
-            );
+            const url_str = macos.msgSend1(NSString, "stringWithUTF8String:", url_z.ptr);
             const NSURL = macos.getClass("NSURL");
             const nsurl = macos.msgSend1(NSURL, "URLWithString:", url_str);
 
-            // Set feed URL on updater
             _ = macos.msgSend1(self.updater.?, "setFeedURL:", nsurl);
             log.debug("Feed URL set: {s}", .{url});
         }
@@ -266,19 +270,18 @@ pub const UpdaterBridge = struct {
         defer parsed.deinit();
         const url = parsed.value.url;
 
+        // Same dupeZ + dupe-before-free pattern as `configure`.
         if (url.len > 0) {
-            if (self.feed_url) |old_url| {
-                self.allocator.free(old_url);
-            }
-            self.feed_url = try self.allocator.dupe(u8, url);
+            const new_feed = try self.allocator.dupe(u8, url);
+            if (self.feed_url) |old_url| self.allocator.free(old_url);
+            self.feed_url = new_feed;
 
             if (self.updater) |updater| {
+                const url_z = try self.allocator.dupeZ(u8, url);
+                defer self.allocator.free(url_z);
+
                 const NSString = macos.getClass("NSString");
-                const url_str = macos.msgSend1(
-                    NSString,
-                    "stringWithUTF8String:",
-                    @as([*c]const u8, @ptrCast(url.ptr)),
-                );
+                const url_str = macos.msgSend1(NSString, "stringWithUTF8String:", url_z.ptr);
                 const NSURL = macos.getClass("NSURL");
                 const nsurl = macos.msgSend1(NSURL, "URLWithString:", url_str);
                 _ = macos.msgSend1(updater, "setFeedURL:", nsurl);
@@ -323,8 +326,15 @@ pub const UpdaterBridge = struct {
 
         const bridge = @import("bridge.zig");
 
+        // Escape the feed URL before embedding in a JSON-looking JS literal.
+        // A crafted feed URL containing `"` or `\` would otherwise break out
+        // of the string and inject into the webview.
+        var feed_buf: [1024]u8 = undefined;
+        const feed_raw = self.feed_url orelse "";
+        const feed_esc = bridge_error.escapeJsonString(&feed_buf, feed_raw) catch "";
+
         // Send current configuration
-        var buf: [512]u8 = undefined;
+        var buf: [2048]u8 = undefined;
         const js = std.fmt.bufPrint(&buf,
             \\if(window.__craftUpdaterInfo)window.__craftUpdaterInfo({{
             \\"automaticChecks":{},
@@ -334,7 +344,7 @@ pub const UpdaterBridge = struct {
         , .{
             self.automatic_checks,
             self.check_interval,
-            self.feed_url orelse "",
+            feed_esc,
         }) catch return;
 
         bridge.evalJS(js) catch |err| {
