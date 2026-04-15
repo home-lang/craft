@@ -585,8 +585,22 @@ pub const ShellBridge = struct {
         if (comptime builtin.mode == .Debug)
             std.debug.print("[ShellBridge] setEnv: {s}={s}\n", .{ name, value });
 
-        // Note: setenv in Zig requires null-terminated strings
-        // For now, just log the intent - actual setenv would need more work
+        // Previously this was a no-op that silently "succeeded" — callers
+        // believed env changes took effect, but no variable was ever set.
+        // Now we call the platform's libc `setenv`/`_putenv_s` so the value
+        // sticks for this process and any children it spawns.
+        const name_z = try self.allocator.dupeZ(u8, name);
+        defer self.allocator.free(name_z);
+        const value_z = try self.allocator.dupeZ(u8, value);
+        defer self.allocator.free(value_z);
+
+        if (comptime builtin.os.tag == .windows) {
+            const rc = std.c._putenv_s(name_z.ptr, value_z.ptr);
+            if (rc != 0) return BridgeError.NativeCallFailed;
+        } else {
+            const rc = std.c.setenv(name_z.ptr, value_z.ptr, 1);
+            if (rc != 0) return BridgeError.NativeCallFailed;
+        }
     }
 
     /// Send shell result callback. Escapes every identifier before embedding

@@ -62,16 +62,35 @@ pub const Autocomplete = struct {
     }
 
     pub fn deinit(self: *Autocomplete) void {
-        self.suggestions.deinit(self.component.allocator);
-        self.filtered_suggestions.deinit(self.component.allocator);
+        const allocator = self.component.allocator;
+        // Free owned suggestion storage (label, value, description, icon).
+        for (self.suggestions.items) |s| {
+            allocator.free(s.label);
+            allocator.free(s.value);
+            if (s.description) |d| allocator.free(d);
+            if (s.icon) |i| allocator.free(i);
+        }
+        // Free the current input buffer (see `setInput`).
+        if (self.input_value.len > 0) allocator.free(self.input_value);
+        self.suggestions.deinit(allocator);
+        self.filtered_suggestions.deinit(allocator);
         self.component.deinit();
-        self.component.allocator.destroy(self);
+        allocator.destroy(self);
     }
 
     pub fn addSuggestion(self: *Autocomplete, label: []const u8, value: []const u8) !void {
-        try self.suggestions.append(self.component.allocator, .{
-            .label = label,
-            .value = value,
+        // Dupe label/value so the component owns its storage. Previously
+        // these were borrowed, so any caller that passed a transient buffer
+        // ended up with a dangling suggestion.
+        const allocator = self.component.allocator;
+        const label_dup = try allocator.dupe(u8, label);
+        errdefer allocator.free(label_dup);
+        const value_dup = try allocator.dupe(u8, value);
+        errdefer allocator.free(value_dup);
+
+        try self.suggestions.append(allocator, .{
+            .label = label_dup,
+            .value = value_dup,
         });
     }
 
@@ -82,15 +101,32 @@ pub const Autocomplete = struct {
         description: ?[]const u8,
         icon: ?[]const u8,
     ) !void {
-        try self.suggestions.append(self.component.allocator, .{
-            .label = label,
-            .value = value,
-            .description = description,
-            .icon = icon,
+        const allocator = self.component.allocator;
+        const label_dup = try allocator.dupe(u8, label);
+        errdefer allocator.free(label_dup);
+        const value_dup = try allocator.dupe(u8, value);
+        errdefer allocator.free(value_dup);
+        const desc_dup = if (description) |d| try allocator.dupe(u8, d) else null;
+        errdefer if (desc_dup) |d| allocator.free(d);
+        const icon_dup = if (icon) |i| try allocator.dupe(u8, i) else null;
+        errdefer if (icon_dup) |i| allocator.free(i);
+
+        try self.suggestions.append(allocator, .{
+            .label = label_dup,
+            .value = value_dup,
+            .description = desc_dup,
+            .icon = icon_dup,
         });
     }
 
     pub fn clearSuggestions(self: *Autocomplete) void {
+        const allocator = self.component.allocator;
+        for (self.suggestions.items) |s| {
+            allocator.free(s.label);
+            allocator.free(s.value);
+            if (s.description) |d| allocator.free(d);
+            if (s.icon) |i| allocator.free(i);
+        }
         self.suggestions.clearRetainingCapacity();
         self.filtered_suggestions.clearRetainingCapacity();
     }
@@ -98,17 +134,20 @@ pub const Autocomplete = struct {
     pub fn setInput(self: *Autocomplete, value: []const u8) !void {
         if (self.disabled) return;
 
-        self.input_value = value;
+        const allocator = self.component.allocator;
+        const new_input = try allocator.dupe(u8, value);
+        if (self.input_value.len > 0) allocator.free(self.input_value);
+        self.input_value = new_input;
 
         if (self.on_input) |callback| {
-            callback(value);
+            callback(self.input_value);
         }
 
         // Filter suggestions
         try self.filterSuggestions();
 
         // Open dropdown if we have results and meet min_chars
-        if (value.len >= self.min_chars and self.filtered_suggestions.items.len > 0) {
+        if (self.input_value.len >= self.min_chars and self.filtered_suggestions.items.len > 0) {
             self.openDropdown();
         } else {
             self.closeDropdown();
@@ -122,9 +161,21 @@ pub const Autocomplete = struct {
             return;
         }
 
+        // Lower the needle ONCE instead of per-suggestion. The old
+        // implementation allocated a fresh lowered copy of the needle AND
+        // of every suggestion label on every call, turning a keystroke
+        // into O(N) allocator churn.
+        const allocator = self.component.allocator;
+        const needle_buf: ?[]u8 = if (self.case_sensitive)
+            null
+        else
+            std.ascii.allocLowerString(allocator, self.input_value) catch null;
+        defer if (needle_buf) |nb| allocator.free(nb);
+        const needle: []const u8 = if (needle_buf) |nb| nb else self.input_value;
+
         for (self.suggestions.items, 0..) |suggestion, i| {
-            if (self.matches(suggestion.label)) {
-                try self.filtered_suggestions.append(self.component.allocator, i);
+            if (self.matchesWith(suggestion.label, needle)) {
+                try self.filtered_suggestions.append(allocator, i);
 
                 if (self.filtered_suggestions.items.len >= self.max_suggestions) {
                     break;
@@ -133,12 +184,15 @@ pub const Autocomplete = struct {
         }
     }
 
-    fn matches(self: *const Autocomplete, text: []const u8) bool {
-        const needle = if (self.case_sensitive) self.input_value else std.ascii.allocLowerString(self.component.allocator, self.input_value) catch return false;
-        defer if (!self.case_sensitive) self.component.allocator.free(needle);
-
-        const haystack = if (self.case_sensitive) text else std.ascii.allocLowerString(self.component.allocator, text) catch return false;
-        defer if (!self.case_sensitive) self.component.allocator.free(haystack);
+    /// Match `text` against the pre-lowered (if applicable) `needle`.
+    fn matchesWith(self: *const Autocomplete, text: []const u8, needle: []const u8) bool {
+        const allocator = self.component.allocator;
+        const haystack_buf: ?[]u8 = if (self.case_sensitive)
+            null
+        else
+            std.ascii.allocLowerString(allocator, text) catch return false;
+        defer if (haystack_buf) |hb| allocator.free(hb);
+        const haystack: []const u8 = if (haystack_buf) |hb| hb else text;
 
         return switch (self.match_mode) {
             .starts_with => std.mem.startsWith(u8, haystack, needle),
@@ -162,14 +216,22 @@ pub const Autocomplete = struct {
         return n_idx == needle.len;
     }
 
-    pub fn selectSuggestion(self: *Autocomplete, index: usize) void {
+    pub fn selectSuggestion(self: *Autocomplete, index: usize) !void {
         if (index >= self.filtered_suggestions.items.len) return;
 
         const suggestion_idx = self.filtered_suggestions.items[index];
         const suggestion = &self.suggestions.items[suggestion_idx];
 
         self.selected_index = index;
-        self.input_value = suggestion.value;
+
+        // Replace `input_value` with a duped copy of the suggestion's value
+        // so we continue to own the buffer. Previously this was a direct
+        // slice assignment, which made `input_value` alias the suggestion
+        // and later caused a double-free in `deinit` / `setInput`.
+        const allocator = self.component.allocator;
+        const new_input = try allocator.dupe(u8, suggestion.value);
+        if (self.input_value.len > 0) allocator.free(self.input_value);
+        self.input_value = new_input;
 
         if (self.on_select) |callback| {
             callback(suggestion);

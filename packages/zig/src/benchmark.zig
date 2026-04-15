@@ -100,7 +100,11 @@ pub const Benchmark = struct {
             _ = try @call(.auto, func, args);
             const end_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch continue;
             const elapsed = start_ts.durationTo(end_ts);
-            try self.times.append(self.allocator, @as(u64, @intCast(elapsed.raw.nanoseconds)));
+            // Clamp to 0 so a clock slew between `start_ts` and `end_ts`
+            // (NTP adjustment, VM pause, etc.) can't produce a negative
+            // `raw.nanoseconds` and panic in `@intCast`.
+            const raw_ns = @max(elapsed.raw.nanoseconds, 0);
+            try self.times.append(self.allocator, @as(u64, @intCast(raw_ns)));
         }
 
         return self.calculateResult();
@@ -125,7 +129,15 @@ pub const Benchmark = struct {
         }
 
         const mean = total / self.times.items.len;
-        const median = self.times.items[self.times.items.len / 2];
+        // Correct median: for even-length samples we average the two
+        // middle elements. The previous code returned the upper-middle
+        // element only, biasing results upward for all even iteration
+        // counts.
+        const n = self.times.items.len;
+        const median: u64 = if (n % 2 == 1)
+            self.times.items[n / 2]
+        else
+            (self.times.items[n / 2 - 1] + self.times.items[n / 2]) / 2;
 
         // Calculate standard deviation
         var variance_sum: f64 = 0.0;

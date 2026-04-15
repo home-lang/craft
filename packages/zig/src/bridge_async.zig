@@ -1,6 +1,8 @@
 const std = @import("std");
 const compat_mutex = @import("compat_mutex.zig");
 
+const bridge_log = std.log.scoped(.bridge_async);
+
 /// Bidirectional async communication system with binary data transfer
 /// Provides Promise-based responses, streaming, and binary protocol
 pub const BridgeError = error{
@@ -135,6 +137,8 @@ pub const AsyncChannel = struct {
         result: ?[]const u8,
         err: ?anyerror,
         allocator: std.mem.Allocator,
+        mutex: compat_mutex.Mutex,
+        cond: compat_mutex.Condition,
 
         pub fn init(allocator: std.mem.Allocator) Promise {
             return Promise{
@@ -142,32 +146,47 @@ pub const AsyncChannel = struct {
                 .result = null,
                 .err = null,
                 .allocator = allocator,
+                .mutex = .{},
+                .cond = .{},
             };
         }
 
         pub fn resolve(self: *Promise, result: []const u8) !void {
-            self.result = try self.allocator.dupe(u8, result);
+            const dup = try self.allocator.dupe(u8, result);
+            self.mutex.lock();
+            defer self.mutex.unlock();
+            self.result = dup;
             self.resolved.store(true, .release);
+            self.cond.broadcast();
         }
 
         pub fn reject(self: *Promise, err: anyerror) void {
+            self.mutex.lock();
+            defer self.mutex.unlock();
             self.err = err;
             self.resolved.store(true, .release);
+            self.cond.broadcast();
         }
 
+        /// Wait for the promise to resolve. Uses the `compat_mutex.Condition`
+        /// used elsewhere in the codebase instead of the previous busy-loop
+        /// that pegged a core at ~100% CPU while polling a 1 ms sleep.
+        /// `std.time.sleep` was also removed in Zig 0.16, so this is both
+        /// a correctness and a compilation fix.
         pub fn wait(self: *Promise, timeout_ms: u64) ![]const u8 {
             const start = std.time.milliTimestamp();
+            self.mutex.lock();
+            defer self.mutex.unlock();
+
             while (!self.resolved.load(.acquire)) {
-                if (timeout_ms > 0 and std.time.milliTimestamp() - start > timeout_ms) {
-                    return BridgeError.Timeout;
+                if (timeout_ms > 0) {
+                    const elapsed = std.time.milliTimestamp() - start;
+                    if (elapsed >= @as(i64, @intCast(timeout_ms))) return BridgeError.Timeout;
                 }
-                std.time.sleep(1 * std.time.ns_per_ms);
+                self.cond.wait(&self.mutex);
             }
 
-            if (self.err) |err| {
-                return err;
-            }
-
+            if (self.err) |err| return err;
             return self.result.?;
         }
 
@@ -215,8 +234,10 @@ pub const AsyncChannel = struct {
         const encoded = try msg.encode(self.allocator);
         defer self.allocator.free(encoded);
 
-        // In real implementation, would send via IPC/WebSocket/etc
-        std.debug.print("Bridge: Sending request {d} ({d} bytes)\n", .{ id, encoded.len });
+        // Previously this used `std.debug.print`, which floods stderr on
+        // every request and can't be silenced in release. Route through the
+        // scoped log so consumers can filter it like the rest of the stack.
+        bridge_log.debug("Sending request {d} ({d} bytes)", .{ id, encoded.len });
 
         // Create pending request
         const pending = try self.allocator.create(PendingRequest);
@@ -249,15 +270,16 @@ pub const AsyncChannel = struct {
         defer self.mutex.unlock();
 
         // Use `fetchRemove` so we can free the map's owned key string.
-        // Previously `remove` was called but the allocated key leaked
-        // every time a response arrived.
+        // Free `kv.key` *before* touching `resolve`, which can itself return
+        // `error.OutOfMemory` — the previous order leaked the duped key on
+        // that failure path.
         if (self.pending.fetchRemove(id_str)) |kv| {
+            self.allocator.free(kv.key);
             if (msg.header.type == .Response) {
                 try kv.value.promise.resolve(msg.payload);
             } else if (msg.header.type == .Error) {
                 kv.value.promise.reject(BridgeError.InvalidMessage);
             }
-            self.allocator.free(kv.key);
         }
     }
 
@@ -273,7 +295,7 @@ pub const AsyncChannel = struct {
         const encoded = try msg.encode(self.allocator);
         defer self.allocator.free(encoded);
 
-        std.debug.print("Bridge: Sending binary data {d} ({d} bytes)\n", .{ id, encoded.len });
+        bridge_log.debug("Sending binary data {d} ({d} bytes)", .{ id, encoded.len });
     }
 
     /// Start streaming
@@ -288,7 +310,7 @@ pub const AsyncChannel = struct {
         const encoded = try msg.encode(self.allocator);
         defer self.allocator.free(encoded);
 
-        std.debug.print("Bridge: Starting stream {d}\n", .{id});
+        bridge_log.debug("Starting stream {d}", .{id});
         return id;
     }
 };

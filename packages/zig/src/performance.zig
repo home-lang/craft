@@ -30,9 +30,13 @@ pub const Cache = struct {
     }
 
     pub fn deinit(self: *Cache) void {
-        var iter = self.entries.valueIterator();
+        // Free the key buffers the map owns as well as the value buffers.
+        // The previous version only freed values, so every entry's duped
+        // key leaked on shutdown.
+        var iter = self.entries.iterator();
         while (iter.next()) |entry| {
-            self.allocator.free(entry.data);
+            self.allocator.free(entry.key_ptr.*);
+            self.allocator.free(entry.value_ptr.data);
         }
         self.entries.deinit();
     }
@@ -55,9 +59,11 @@ pub const Cache = struct {
         // would empty the cache and then fail anyway.
         if (size > self.max_size) return error.EntryTooLarge;
 
-        // If the key already exists, free the old entry first so we don't
-        // leak its buffer when the `put` below overwrites it.
+        // If the key already exists, free the old entry's key+value so we
+        // don't leak storage when we overwrite. Previously only the value
+        // was freed; the old duped key stayed with the map.
         if (self.entries.fetchRemove(key)) |kv| {
+            self.allocator.free(kv.key);
             self.allocator.free(kv.value.data);
             self.current_size -= kv.value.size;
         }
@@ -71,8 +77,14 @@ pub const Cache = struct {
             try self.evictLRU();
         }
 
+        // Dupe both the key and the data so the cache owns its storage and
+        // stays valid after the caller's buffers go away. Previously the
+        // key was stored by reference, and any caller that passed a
+        // transient slice produced silently-corrupt map keys.
         const owned_data = try self.allocator.dupe(u8, data);
         errdefer self.allocator.free(owned_data);
+        const owned_key = try self.allocator.dupe(u8, key);
+        errdefer self.allocator.free(owned_key);
 
         const entry = CacheEntry{
             .data = owned_data,
@@ -81,21 +93,23 @@ pub const Cache = struct {
             .size = size,
         };
 
-        try self.entries.put(key, entry);
+        try self.entries.put(owned_key, entry);
         self.current_size += size;
     }
 
     pub fn remove(self: *Cache, key: []const u8) void {
         if (self.entries.fetchRemove(key)) |kv| {
+            self.allocator.free(kv.key);
             self.allocator.free(kv.value.data);
             self.current_size -= kv.value.size;
         }
     }
 
     pub fn clear(self: *Cache) void {
-        var iter = self.entries.valueIterator();
+        var iter = self.entries.iterator();
         while (iter.next()) |entry| {
-            self.allocator.free(entry.data);
+            self.allocator.free(entry.key_ptr.*);
+            self.allocator.free(entry.value_ptr.data);
         }
         self.entries.clearRetainingCapacity();
         self.current_size = 0;
@@ -129,8 +143,11 @@ pub const Cache = struct {
 };
 
 pub const ObjectPool = struct {
-    available: std.ArrayList(*anyopaque),
-    in_use: std.ArrayList(*anyopaque),
+    // Migrated to `std.ArrayListUnmanaged` — the managed `ArrayList.init`
+    // API was removed in Zig 0.16, so the previous `.init(allocator)` and
+    // allocator-less `append`/`deinit` calls no longer compile.
+    available: std.ArrayListUnmanaged(*anyopaque),
+    in_use: std.ArrayListUnmanaged(*anyopaque),
     create_fn: *const fn (std.mem.Allocator) anyerror!*anyopaque,
     destroy_fn: *const fn (*anyopaque, std.mem.Allocator) void,
     reset_fn: ?*const fn (*anyopaque) void,
@@ -145,8 +162,8 @@ pub const ObjectPool = struct {
         reset_fn: ?*const fn (*anyopaque) void,
     ) ObjectPool {
         return ObjectPool{
-            .available = std.ArrayList(*anyopaque).init(allocator),
-            .in_use = std.ArrayList(*anyopaque).init(allocator),
+            .available = .{},
+            .in_use = .{},
             .create_fn = create_fn,
             .destroy_fn = destroy_fn,
             .reset_fn = reset_fn,
@@ -162,17 +179,18 @@ pub const ObjectPool = struct {
         for (self.in_use.items) |obj| {
             self.destroy_fn(obj, self.allocator);
         }
-        self.available.deinit();
-        self.in_use.deinit();
+        self.available.deinit(self.allocator);
+        self.in_use.deinit(self.allocator);
     }
 
     pub fn acquire(self: *ObjectPool) !*anyopaque {
-        if (self.available.popOrNull()) |obj| {
+        // `popOrNull` was renamed to `pop` (returning `?T`) in Zig 0.16.
+        if (self.available.pop()) |obj| {
             // If appending to in_use fails (OOM), put the object back into
             // `available` so we don't silently leak it — previously the obj
             // was popped but never tracked anywhere on this failure path.
-            self.in_use.append(obj) catch |err| {
-                self.available.append(obj) catch {};
+            self.in_use.append(self.allocator, obj) catch |err| {
+                self.available.append(self.allocator, obj) catch {};
                 return err;
             };
             return obj;
@@ -182,7 +200,7 @@ pub const ObjectPool = struct {
             const obj = try self.create_fn(self.allocator);
             // Destroy the freshly-created object if we can't track it — the
             // old code would leak it permanently on append failure.
-            self.in_use.append(obj) catch |err| {
+            self.in_use.append(self.allocator, obj) catch |err| {
                 self.destroy_fn(obj, self.allocator);
                 return err;
             };
@@ -204,7 +222,7 @@ pub const ObjectPool = struct {
                 // If moving back into `available` fails (OOM), destroy the
                 // object directly so we don't leak it. The caller sees the
                 // error and knows the object is gone for good.
-                self.available.append(obj) catch |err| {
+                self.available.append(self.allocator, obj) catch |err| {
                     self.destroy_fn(obj, self.allocator);
                     return err;
                 };
@@ -316,7 +334,8 @@ pub const Throttler = struct {
 };
 
 pub const BatchProcessor = struct {
-    items: std.ArrayList(*anyopaque),
+    // Migrated to `std.ArrayListUnmanaged` for Zig 0.16.
+    items: std.ArrayListUnmanaged(*anyopaque),
     batch_size: usize,
     process_fn: *const fn ([]const *anyopaque) void,
     allocator: std.mem.Allocator,
@@ -327,7 +346,7 @@ pub const BatchProcessor = struct {
         process_fn: *const fn ([]const *anyopaque) void,
     ) BatchProcessor {
         return BatchProcessor{
-            .items = std.ArrayList(*anyopaque).init(allocator),
+            .items = .{},
             .batch_size = batch_size,
             .process_fn = process_fn,
             .allocator = allocator,
@@ -336,11 +355,11 @@ pub const BatchProcessor = struct {
 
     pub fn deinit(self: *BatchProcessor) void {
         self.flush();
-        self.items.deinit();
+        self.items.deinit(self.allocator);
     }
 
     pub fn add(self: *BatchProcessor, item: *anyopaque) !void {
-        try self.items.append(item);
+        try self.items.append(self.allocator, item);
 
         if (self.items.items.len >= self.batch_size) {
             self.flush();
@@ -367,9 +386,12 @@ pub const Memoizer = struct {
     }
 
     pub fn deinit(self: *Memoizer) void {
-        var iter = self.cache.valueIterator();
-        while (iter.next()) |value| {
-            self.allocator.free(value.*);
+        // Free the map's keys as well as its values. The previous
+        // `valueIterator` loop left every duped key in the allocator.
+        var iter = self.cache.iterator();
+        while (iter.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
+            self.allocator.free(entry.value_ptr.*);
         }
         self.cache.deinit();
     }

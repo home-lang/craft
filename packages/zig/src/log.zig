@@ -1,5 +1,7 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const io_context = @import("io_context.zig");
+const compat_mutex = @import("compat_mutex.zig");
 
 pub const LogLevel = enum {
     Debug,
@@ -40,8 +42,16 @@ pub const LogConfig = struct {
 
 var current_config: LogConfig = .{};
 var log_file: ?std.Io.File = null;
+/// Guards `current_config`, `log_file`, and the final write to stderr+file
+/// so concurrent loggers don't interleave bytes or race on config updates.
+/// The previous module-level `var`s were read/written from every call site
+/// without any synchronization.
+var log_mutex: compat_mutex.Mutex = .{};
 
 pub fn init(config: LogConfig) !void {
+    log_mutex.lock();
+    defer log_mutex.unlock();
+
     // Close any previously opened log file. Previously, calling `init` twice
     // would overwrite `log_file` and silently leak the old file handle.
     if (log_file) |f| {
@@ -60,6 +70,8 @@ pub fn init(config: LogConfig) !void {
 }
 
 pub fn deinit() void {
+    log_mutex.lock();
+    defer log_mutex.unlock();
     if (log_file) |file| {
         file.close(io_context.get());
         log_file = null;
@@ -67,14 +79,27 @@ pub fn deinit() void {
 }
 
 pub fn setLevel(level: LogLevel) void {
+    log_mutex.lock();
+    defer log_mutex.unlock();
     current_config.min_level = level;
 }
 
 pub fn getLevel() LogLevel {
+    log_mutex.lock();
+    defer log_mutex.unlock();
     return current_config.min_level;
 }
 
 pub fn shouldLog(level: LogLevel) bool {
+    log_mutex.lock();
+    defer log_mutex.unlock();
+    return @intFromEnum(level) >= @intFromEnum(current_config.min_level);
+}
+
+/// Internal, lock-free variant used by `log()` while it already holds
+/// `log_mutex`. Keeping the public `shouldLog` locked means callers that
+/// call it outside `log()` still observe consistent state.
+fn shouldLogLocked(level: LogLevel) bool {
     return @intFromEnum(level) >= @intFromEnum(current_config.min_level);
 }
 
@@ -83,7 +108,15 @@ pub fn log(
     comptime format: []const u8,
     args: anytype,
 ) void {
-    if (!shouldLog(level)) return;
+    // Single lock acquisition for the whole emission path: level check,
+    // config/filter read, formatting, and the stderr+file write. This
+    // prevents stderr interleaving between threads and makes config
+    // updates atomic with emission. Previously every call touched
+    // `current_config` and `log_file` unsynchronized.
+    log_mutex.lock();
+    defer log_mutex.unlock();
+
+    if (!shouldLogLocked(level)) return;
 
     // Format message
     var msg_buf: [2048]u8 = undefined;
@@ -185,23 +218,42 @@ pub fn fatal(comptime format: []const u8, args: anytype) void {
     log(.Fatal, format, args);
 }
 
-/// Format a HH:MM:SS timestamp into caller-provided buffer.
-/// Caller owns the buffer; returning a slice into it avoids the previous
-/// thread-unsafe shared static buffer that could be corrupted under concurrent logging.
+/// Format an HH:MM:SS **local** timestamp into the caller-provided buffer.
+/// Returning a slice into the caller's buffer avoids the previous
+/// thread-unsafe shared static buffer. Uses `localtime_r` so developers
+/// reading live logs see their own wall-clock time instead of raw UTC.
+/// `ts.sec` values below zero are clamped to 0 so pre-1970 clocks (e.g.
+/// a VM booting with no RTC) can't panic in `@intCast`.
 fn formatTimestamp(buf: *[8]u8) []const u8 {
     var ts: std.c.timespec = undefined;
     if (std.c.clock_gettime(.REALTIME, &ts) != 0) {
         @memcpy(buf, "00:00:00");
         return buf[0..];
     }
-    const total_seconds: u64 = @intCast(ts.sec);
-    const seconds = @mod(total_seconds, 60);
-    const minutes = @mod(@divFloor(total_seconds, 60), 60);
-    const hours = @mod(@divFloor(total_seconds, 3600), 24);
 
-    const slice = std.fmt.bufPrint(buf, "{d:0>2}:{d:0>2}:{d:0>2}", .{ hours, minutes, seconds }) catch {
-        @memcpy(buf, "00:00:00");
-        return buf[0..];
+    const safe_sec = @max(ts.sec, 0);
+    const t: std.c.time_t = @intCast(safe_sec);
+
+    var tm: std.c.tm = undefined;
+    const slice = blk: {
+        if (@hasDecl(std.c, "localtime_r")) {
+            if (std.c.localtime_r(&t, &tm)) |lt| {
+                const hours: u8 = @intCast(@max(0, @min(lt.hour, 23)));
+                const minutes: u8 = @intCast(@max(0, @min(lt.min, 59)));
+                const seconds: u8 = @intCast(@max(0, @min(lt.sec, 59)));
+                break :blk std.fmt.bufPrint(buf, "{d:0>2}:{d:0>2}:{d:0>2}", .{ hours, minutes, seconds }) catch null;
+            }
+        }
+        // Fallback: raw UTC arithmetic.
+        const total_seconds: u64 = @intCast(safe_sec);
+        const seconds = @mod(total_seconds, 60);
+        const minutes = @mod(@divFloor(total_seconds, 60), 60);
+        const hours = @mod(@divFloor(total_seconds, 3600), 24);
+        break :blk std.fmt.bufPrint(buf, "{d:0>2}:{d:0>2}:{d:0>2}", .{ hours, minutes, seconds }) catch null;
     };
-    return slice;
+
+    return slice orelse retry: {
+        @memcpy(buf, "00:00:00");
+        break :retry buf[0..];
+    };
 }

@@ -343,6 +343,11 @@ pub const MenuBar = struct {
     pub const MenuEntry = struct {
         label: []const u8,
         menu: *Menu,
+        /// When true, `MenuBar.deinit` / `removeMenu` call `menu.deinit()`.
+        /// When false, the caller retains ownership (useful for sharing a
+        /// `Menu` between multiple bars, which the rest of this module
+        /// supports via the matching `MenuItem.owns_submenu` flag).
+        owns_menu: bool = true,
     };
 
     pub fn init(allocator: std.mem.Allocator, props: ComponentProps) !*MenuBar {
@@ -360,7 +365,7 @@ pub const MenuBar = struct {
 
     pub fn deinit(self: *MenuBar) void {
         for (self.menus.items) |entry| {
-            entry.menu.deinit();
+            if (entry.owns_menu) entry.menu.deinit();
         }
         self.menus.deinit(self.component.allocator);
         self.component.deinit();
@@ -378,11 +383,11 @@ pub const MenuBar = struct {
     /// Remove a menu by index. Returns `error.IndexOutOfBounds` if `index`
     /// is past the end so callers can distinguish "nothing to remove" from
     /// success — the previous silent-ignore behavior masked real bugs in
-    /// callers tracking menu indices.
+    /// callers tracking menu indices. Respects `owns_menu`.
     pub fn removeMenu(self: *MenuBar, index: usize) !void {
         if (index >= self.menus.items.len) return error.IndexOutOfBounds;
         var entry = self.menus.orderedRemove(index);
-        entry.menu.deinit();
+        if (entry.owns_menu) entry.menu.deinit();
     }
 
     /// Get menu count

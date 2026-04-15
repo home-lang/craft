@@ -45,33 +45,69 @@ pub const Chart = struct {
     }
 
     pub fn deinit(self: *Chart) void {
-        self.data.deinit(self.component.allocator);
+        // Free owned label storage (see `addDataPoint` and `setLabels`).
+        const allocator = self.component.allocator;
+        for (self.data.items) |point| {
+            allocator.free(point.label);
+        }
+        if (self.title) |t| allocator.free(t);
+        if (self.x_label) |l| allocator.free(l);
+        if (self.y_label) |l| allocator.free(l);
+        self.data.deinit(allocator);
         self.component.deinit();
-        self.component.allocator.destroy(self);
+        allocator.destroy(self);
     }
 
     pub fn addDataPoint(self: *Chart, label: []const u8, value: f64, color: ?[4]u8) !void {
-        try self.data.append(self.component.allocator, .{
-            .label = label,
+        // Dupe the label so the chart owns its storage — the old borrowing
+        // semantics forced every caller to keep label buffers alive for the
+        // chart's entire lifetime.
+        const allocator = self.component.allocator;
+        const label_dup = try allocator.dupe(u8, label);
+        errdefer allocator.free(label_dup);
+        try self.data.append(allocator, .{
+            .label = label_dup,
             .value = value,
             .color = color,
         });
     }
 
     pub fn removeDataPoint(self: *Chart, index: usize) void {
+        // `orderedRemove` preserves the rest of the series' order. For
+        // line / area / bar charts where order is the x-axis, the previous
+        // `swapRemove` silently scrambled the chart.
         if (index < self.data.items.len) {
-            _ = self.data.swapRemove(index);
+            const removed = self.data.orderedRemove(index);
+            self.component.allocator.free(removed.label);
         }
     }
 
     pub fn clearData(self: *Chart) void {
+        const allocator = self.component.allocator;
+        for (self.data.items) |point| allocator.free(point.label);
         self.data.clearRetainingCapacity();
     }
 
-    pub fn setLabels(self: *Chart, title: ?[]const u8, x_label: ?[]const u8, y_label: ?[]const u8) void {
-        self.title = title;
-        self.x_label = x_label;
-        self.y_label = y_label;
+    /// Set the chart's textual labels. Each label is duped so the chart
+    /// owns its storage and the caller doesn't have to keep its source
+    /// buffers alive. Previous versions stored borrowed slices.
+    pub fn setLabels(self: *Chart, title: ?[]const u8, x_label: ?[]const u8, y_label: ?[]const u8) !void {
+        const allocator = self.component.allocator;
+
+        const new_title = if (title) |t| try allocator.dupe(u8, t) else null;
+        errdefer if (new_title) |t| allocator.free(t);
+        const new_x = if (x_label) |l| try allocator.dupe(u8, l) else null;
+        errdefer if (new_x) |l| allocator.free(l);
+        const new_y = if (y_label) |l| try allocator.dupe(u8, l) else null;
+        errdefer if (new_y) |l| allocator.free(l);
+
+        if (self.title) |t| allocator.free(t);
+        if (self.x_label) |l| allocator.free(l);
+        if (self.y_label) |l| allocator.free(l);
+
+        self.title = new_title;
+        self.x_label = new_x;
+        self.y_label = new_y;
     }
 
     pub fn setLegendEnabled(self: *Chart, enabled: bool) void {

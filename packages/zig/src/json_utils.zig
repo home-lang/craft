@@ -12,6 +12,11 @@ pub const JsonError = error{
 /// respecting backslash escapes so values containing `\"` are not truncated.
 /// Previously this used `indexOfPos(..., "\"")` which would stop at the first
 /// `"` even when it was escaped, returning the value up to the escape.
+///
+/// IMPORTANT: the returned slice contains the **raw bytes between the
+/// quotes** — escape sequences like `\"`, `\\`, `\n` are NOT decoded. If you
+/// need a decoded string use `getStringDecoded` below, which allocates and
+/// returns the fully-decoded value.
 pub fn getString(data: []const u8, key: []const u8) ?[]const u8 {
     // Build pattern: "key":"
     var pattern_buf: [128]u8 = undefined;
@@ -30,6 +35,63 @@ pub fn getString(data: []const u8, key: []const u8) ?[]const u8 {
         }
     }
     return null;
+}
+
+/// Decode a JSON string value into a freshly-allocated buffer. Handles the
+/// standard escape set (`\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`) and
+/// basic `\uXXXX` Unicode escapes (surrogate pairs included). Caller owns
+/// the returned slice. Returns `null` when the key is missing; returns an
+/// error when allocation fails or the escape stream is malformed.
+pub fn getStringDecoded(allocator: std.mem.Allocator, data: []const u8, key: []const u8) !?[]u8 {
+    const raw = getString(data, key) orelse return null;
+
+    var out: std.ArrayListUnmanaged(u8) = .{};
+    errdefer out.deinit(allocator);
+
+    var i: usize = 0;
+    while (i < raw.len) {
+        const c = raw[i];
+        if (c != '\\') {
+            try out.append(allocator, c);
+            i += 1;
+            continue;
+        }
+        if (i + 1 >= raw.len) return error.InvalidEscape;
+        const next = raw[i + 1];
+        switch (next) {
+            '"', '\\', '/' => {
+                try out.append(allocator, next);
+                i += 2;
+            },
+            'b' => { try out.append(allocator, 0x08); i += 2; },
+            'f' => { try out.append(allocator, 0x0C); i += 2; },
+            'n' => { try out.append(allocator, '\n'); i += 2; },
+            'r' => { try out.append(allocator, '\r'); i += 2; },
+            't' => { try out.append(allocator, '\t'); i += 2; },
+            'u' => {
+                if (i + 6 > raw.len) return error.InvalidEscape;
+                const cp1 = std.fmt.parseInt(u16, raw[i + 2 .. i + 6], 16) catch return error.InvalidEscape;
+                i += 6;
+
+                var codepoint: u21 = cp1;
+                if (cp1 >= 0xD800 and cp1 <= 0xDBFF) {
+                    // High surrogate — expect a `\uXXXX` low surrogate.
+                    if (i + 6 > raw.len or raw[i] != '\\' or raw[i + 1] != 'u') return error.InvalidEscape;
+                    const cp2 = std.fmt.parseInt(u16, raw[i + 2 .. i + 6], 16) catch return error.InvalidEscape;
+                    if (cp2 < 0xDC00 or cp2 > 0xDFFF) return error.InvalidEscape;
+                    codepoint = @intCast(0x10000 + ((@as(u32, cp1) - 0xD800) << 10) + (@as(u32, cp2) - 0xDC00));
+                    i += 6;
+                }
+
+                var enc_buf: [4]u8 = undefined;
+                const n = std.unicode.utf8Encode(codepoint, &enc_buf) catch return error.InvalidEscape;
+                try out.appendSlice(allocator, enc_buf[0..n]);
+            },
+            else => return error.InvalidEscape,
+        }
+    }
+
+    return try out.toOwnedSlice(allocator);
 }
 
 /// Parse an integer value from JSON data

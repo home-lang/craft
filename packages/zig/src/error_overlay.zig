@@ -69,7 +69,9 @@ pub const ErrorInfo = struct {
 
 pub const ErrorOverlay = struct {
     enabled: bool,
-    errors: std.ArrayList(ErrorInfo),
+    // Zig 0.16: `std.ArrayList` is unmanaged; the old managed-list
+    // `init`/`append(item)`/`deinit()` forms no longer compile.
+    errors: std.ArrayListUnmanaged(ErrorInfo),
     max_errors: usize,
     allocator: std.mem.Allocator,
 
@@ -78,7 +80,7 @@ pub const ErrorOverlay = struct {
     pub fn init(allocator: std.mem.Allocator, max_errors: usize) ErrorOverlay {
         return ErrorOverlay{
             .enabled = true,
-            .errors = std.ArrayList(ErrorInfo).init(allocator),
+            .errors = .{},
             .max_errors = max_errors,
             .allocator = allocator,
         };
@@ -88,7 +90,7 @@ pub const ErrorOverlay = struct {
         for (self.errors.items) |*err| {
             err.deinit();
         }
-        self.errors.deinit();
+        self.errors.deinit(self.allocator);
     }
 
     pub fn addError(self: *Self, error_info: ErrorInfo) !void {
@@ -111,7 +113,7 @@ pub const ErrorOverlay = struct {
         // we own it and must deinit here. Previously we also errdefer'd
         // cleanup across the later `render()` call, which would double-free
         // the entry (already living in the list) if rendering failed.
-        self.errors.append(error_info) catch |err| {
+        self.errors.append(self.allocator, error_info) catch |err| {
             var info = error_info;
             info.deinit();
             return err;
@@ -140,8 +142,12 @@ pub const ErrorOverlay = struct {
 
     /// Generate HTML overlay
     pub fn generateHTML(self: *Self) ![]u8 {
-        var html = std.ArrayList(u8).init(self.allocator);
-        const writer = html.writer();
+        // `std.ArrayList(u8).init(allocator)` is gone in Zig 0.16. Use the
+        // unmanaged list and grab a writer that knows to pass the allocator
+        // through on every `appendSlice`.
+        var html: std.ArrayListUnmanaged(u8) = .{};
+        errdefer html.deinit(self.allocator);
+        const writer = html.writer(self.allocator);
 
         try writer.writeAll(
             \\<!DOCTYPE html>
@@ -268,7 +274,7 @@ pub const ErrorOverlay = struct {
             \\
         );
 
-        return try html.toOwnedSlice();
+        return try html.toOwnedSlice(self.allocator);
     }
 
     /// Render overlay to console

@@ -101,6 +101,11 @@ pub const Animation = struct {
     elapsed_ms: u64,
     start_time: ?std.Io.Clock.Timestamp,
     pause_time: ?std.Io.Clock.Timestamp,
+    /// Accumulated pause duration in nanoseconds, subtracted from the raw
+    /// elapsed time so `update()` sees the same progress the caller had
+    /// before pausing. Previously `unpause` computed the pause duration and
+    /// threw it away, so pausing did nothing observable.
+    paused_ns_total: u64,
     on_update: ?*const fn (f32) void,
     on_complete: ?*const fn () void,
 
@@ -114,6 +119,7 @@ pub const Animation = struct {
             .elapsed_ms = 0,
             .start_time = null,
             .pause_time = null,
+            .paused_ns_total = 0,
             .on_update = null,
             .on_complete = null,
         };
@@ -123,6 +129,7 @@ pub const Animation = struct {
         self.state = .running;
         self.start_time = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return;
         self.elapsed_ms = 0;
+        self.paused_ns_total = 0;
     }
 
     pub fn pause(self: *Animation) void {
@@ -132,20 +139,21 @@ pub const Animation = struct {
         }
     }
 
-    /// Resume a paused animation (named 'unpause' because 'resume' is a Zig keyword)
+    /// Resume a paused animation (named 'unpause' because 'resume' is a Zig
+    /// keyword). Folds the paused interval into `paused_ns_total` so the next
+    /// `update()` treats time spent paused as if it never happened.
     pub fn unpause(self: *Animation) void {
-        if (self.state == .paused) {
-            self.state = .running;
-            // Calculate pause duration and adjust start time
-            if (self.pause_time) |pt| {
-                if (self.start_time) |st| {
-                    const now = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return;
-                    const pause_duration = pt.durationTo(now);
-                    // We can't easily adjust Timestamp, so we track elapsed separately
-                    _ = st;
-                    _ = pause_duration;
-                }
+        if (self.state != .paused) return;
+        self.state = .running;
+
+        if (self.pause_time) |pt| {
+            const now = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return;
+            const duration = pt.durationTo(now);
+            const raw_ns = duration.raw.nanoseconds;
+            if (raw_ns > 0) {
+                self.paused_ns_total +|= @as(u64, @intCast(raw_ns));
             }
+            self.pause_time = null;
         }
     }
 
@@ -158,6 +166,7 @@ pub const Animation = struct {
         self.elapsed_ms = 0;
         self.start_time = null;
         self.pause_time = null;
+        self.paused_ns_total = 0;
     }
 
     pub fn update(self: *Animation) f32 {
@@ -168,7 +177,13 @@ pub const Animation = struct {
         const start_instant = self.start_time orelse return self.start_value;
         const now = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch return self.start_value;
         const elapsed_duration = start_instant.durationTo(now);
-        const elapsed_ns: u64 = @intCast(elapsed_duration.raw.nanoseconds);
+        // Clamp to 0 so a backward clock (NTP slew, resumed-from-sleep VM,
+        // etc.) can't produce a negative `raw.nanoseconds` that would panic
+        // in `@intCast`. Also subtract accumulated pause time so pausing
+        // actually freezes progress.
+        const raw_ns = @max(elapsed_duration.raw.nanoseconds, 0);
+        const raw_u64: u64 = @intCast(raw_ns);
+        const elapsed_ns: u64 = raw_u64 -| self.paused_ns_total;
         self.elapsed_ms = elapsed_ns / std.time.ns_per_ms;
 
         // A 0ms animation or a completed animation resolves to `end_value`.

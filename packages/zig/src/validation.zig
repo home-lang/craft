@@ -199,12 +199,39 @@ pub const Rules = struct {
 
         if (!has_valid_scheme) return .{ .is_valid = false };
 
-        // Check for at least one . in the domain
         const scheme_end = std.mem.indexOf(u8, v, "://").? + 3;
         if (scheme_end >= v.len) return .{ .is_valid = false };
 
+        // Isolate the authority (host[:port]) segment. The previous
+        // implementation only checked "is there a `.` after the scheme?"
+        // which let through pathological inputs like `http://./`,
+        // `http://.`, `http://a.` (trailing dot, empty TLD), and
+        // `http:///path` (empty host).
         const rest = v[scheme_end..];
-        if (std.mem.indexOf(u8, rest, ".") == null) return .{ .is_valid = false };
+        const authority_end = blk: {
+            var end: usize = rest.len;
+            if (std.mem.indexOfAny(u8, rest, "/?#")) |i| end = i;
+            break :blk end;
+        };
+        const authority = rest[0..authority_end];
+        if (authority.len == 0) return .{ .is_valid = false };
+
+        // Strip optional userinfo ("user:pass@...").
+        const host_start: usize = if (std.mem.lastIndexOfScalar(u8, authority, '@')) |at| at + 1 else 0;
+        const host_port = authority[host_start..];
+        // Strip optional :port.
+        const host = blk: {
+            if (std.mem.indexOfScalar(u8, host_port, ':')) |c| break :blk host_port[0..c];
+            break :blk host_port;
+        };
+        if (host.len == 0) return .{ .is_valid = false };
+
+        // The host must contain at least one non-`.` character and must
+        // not end with a dot.
+        var has_non_dot = false;
+        for (host) |c| if (c != '.') { has_non_dot = true; break; };
+        if (!has_non_dot) return .{ .is_valid = false };
+        if (host[host.len - 1] == '.') return .{ .is_valid = false };
 
         return .{ .is_valid = true };
     }

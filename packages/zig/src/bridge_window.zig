@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
 const logging = @import("logging.zig");
+const json_utils = @import("json_utils.zig");
 
 const BridgeError = bridge_error.BridgeError;
 const log = logging.window;
@@ -203,22 +204,14 @@ pub const WindowBridge = struct {
     fn setFullscreen(self: *Self, data: ?[]const u8) !void {
         const handle = try self.requireWindowHandle();
 
-        // Parse fullscreen boolean from data: {"fullscreen": true/false}
-        var should_be_fullscreen = true; // Default to entering fullscreen
-        if (data) |json_data| {
-            // Check for explicit false value
-            if (std.mem.indexOf(u8, json_data, "\"fullscreen\":false") != null or
-                std.mem.indexOf(u8, json_data, "\"fullscreen\": false") != null or
-                std.mem.indexOf(u8, json_data, ":false") != null)
-            {
-                should_be_fullscreen = false;
-            } else if (std.mem.indexOf(u8, json_data, "\"fullscreen\":true") != null or
-                std.mem.indexOf(u8, json_data, "\"fullscreen\": true") != null or
-                std.mem.indexOf(u8, json_data, ":true") != null)
-            {
-                should_be_fullscreen = true;
-            }
-        }
+        // Parse `{"fullscreen": true|false}`. The old implementation fell
+        // back to matching any `:false` / `:true` in the blob, which meant
+        // a payload like `{"resize":false,"fullscreen":true}` was read as
+        // `fullscreen=false` because the `:false` needle fired first.
+        const should_be_fullscreen = if (data) |json_data|
+            json_utils.getBool(json_data, "fullscreen") orelse true
+        else
+            true;
 
         log.debug("setFullscreen: {}", .{should_be_fullscreen});
 
@@ -242,31 +235,10 @@ pub const WindowBridge = struct {
         const handle = try self.requireWindowHandle();
         const json_data = data orelse return BridgeError.MissingData;
 
-        // Simple JSON parsing for {"width": N, "height": M}
-        var width: u32 = 800;
-        var height: u32 = 600;
-
-        // Skip whitespace and find digits after "width":
-        if (std.mem.indexOf(u8, json_data, "\"width\":")) |idx| {
-            var start = idx + 8;
-            // Skip whitespace
-            while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
-            var end = start;
-            while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
-            if (end > start) {
-                width = std.fmt.parseInt(u32, json_data[start..end], 10) catch 800;
-            }
-        }
-
-        if (std.mem.indexOf(u8, json_data, "\"height\":")) |idx| {
-            var start = idx + 9;
-            while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
-            var end = start;
-            while (end < json_data.len and json_data[end] >= '0' and json_data[end] <= '9') : (end += 1) {}
-            if (end > start) {
-                height = std.fmt.parseInt(u32, json_data[start..end], 10) catch 600;
-            }
-        }
+        // Use the shared JSON helper; it handles whitespace, escapes, and
+        // keeps parsing scoped to the named field.
+        const width = json_utils.getInt(u32, json_data, "width") orelse 800;
+        const height = json_utils.getInt(u32, json_data, "height") orelse 600;
 
         log.debug("setSize: {}x{}", .{ width, height });
 
@@ -280,26 +252,12 @@ pub const WindowBridge = struct {
         const handle = try self.requireWindowHandle();
         const json_data = data orelse return BridgeError.MissingData;
 
-        var x: i32 = 100;
-        var y: i32 = 100;
-
-        if (std.mem.indexOf(u8, json_data, "\"x\":")) |idx| {
-            const start = idx + 4;
-            var end = start;
-            while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '-')) : (end += 1) {}
-            if (end > start) {
-                x = std.fmt.parseInt(i32, json_data[start..end], 10) catch 100;
-            }
-        }
-
-        if (std.mem.indexOf(u8, json_data, "\"y\":")) |idx| {
-            const start = idx + 4;
-            var end = start;
-            while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '-')) : (end += 1) {}
-            if (end > start) {
-                y = std.fmt.parseInt(i32, json_data[start..end], 10) catch 100;
-            }
-        }
+        // `getInt` only accepts a leading `-` on the number itself, so
+        // payloads like `12-34` fall back to the default instead of being
+        // mis-parsed into the truncated prefix the old hand-rolled loop
+        // produced.
+        const x = json_utils.getInt(i32, json_data, "x") orelse 100;
+        const y = json_utils.getInt(i32, json_data, "y") orelse 100;
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
@@ -311,10 +269,10 @@ pub const WindowBridge = struct {
         const handle = try self.requireWindowHandle();
         const json_data = data orelse return BridgeError.MissingData;
 
-        // Use the shared getString helper, which correctly respects backslash
-        // escapes — the old inline parser used indexOfPos for the closing
-        // quote and would truncate at the first `\"` inside the title.
-        const json_utils = @import("json_utils.zig");
+        // Use the shared getString helper (imported at module scope), which
+        // correctly respects backslash escapes — the old inline parser used
+        // indexOfPos for the closing quote and would truncate at the first
+        // `\"` inside the title.
         const title = json_utils.getString(json_data, "title") orelse return BridgeError.InvalidJSON;
 
         if (builtin.os.tag == .macos) {

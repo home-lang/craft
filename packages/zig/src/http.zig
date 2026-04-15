@@ -189,29 +189,43 @@ pub const ContentType = struct {
     pub const xml = "application/xml";
     pub const html = "text/html";
     pub const text = "text/plain";
+    pub const css = "text/css";
+    pub const js = "text/javascript";
+    pub const wasm = "application/wasm";
     pub const form_urlencoded = "application/x-www-form-urlencoded";
     pub const form_multipart = "multipart/form-data";
     pub const octet_stream = "application/octet-stream";
     pub const png = "image/png";
     pub const jpeg = "image/jpeg";
     pub const gif = "image/gif";
+    pub const svg = "image/svg+xml";
+    pub const webp = "image/webp";
     pub const pdf = "application/pdf";
+    pub const zip = "application/zip";
 
     pub fn fromExtension(ext: []const u8) []const u8 {
         // Case-insensitive match so `.PNG`, `.Html`, etc. resolve correctly.
-        // Previously only lowercase matched, and any uppercase extension
-        // fell through to `application/octet-stream`, which downstream
-        // readers would then refuse to render as the intended type.
+        // Extended the old list with the other types the framework actually
+        // serves (CSS, JS, WASM, SVG, WEBP, ZIP); any uppercase or missing
+        // extension used to fall through to `octet_stream`, which many
+        // browsers refuse to render inline.
         if (std.ascii.eqlIgnoreCase(ext, ".json")) return json;
         if (std.ascii.eqlIgnoreCase(ext, ".xml")) return xml;
         if (std.ascii.eqlIgnoreCase(ext, ".html")) return html;
         if (std.ascii.eqlIgnoreCase(ext, ".htm")) return html;
         if (std.ascii.eqlIgnoreCase(ext, ".txt")) return text;
+        if (std.ascii.eqlIgnoreCase(ext, ".css")) return css;
+        if (std.ascii.eqlIgnoreCase(ext, ".js")) return js;
+        if (std.ascii.eqlIgnoreCase(ext, ".mjs")) return js;
+        if (std.ascii.eqlIgnoreCase(ext, ".wasm")) return wasm;
         if (std.ascii.eqlIgnoreCase(ext, ".png")) return png;
         if (std.ascii.eqlIgnoreCase(ext, ".jpg")) return jpeg;
         if (std.ascii.eqlIgnoreCase(ext, ".jpeg")) return jpeg;
         if (std.ascii.eqlIgnoreCase(ext, ".gif")) return gif;
+        if (std.ascii.eqlIgnoreCase(ext, ".svg")) return svg;
+        if (std.ascii.eqlIgnoreCase(ext, ".webp")) return webp;
         if (std.ascii.eqlIgnoreCase(ext, ".pdf")) return pdf;
+        if (std.ascii.eqlIgnoreCase(ext, ".zip")) return zip;
         return octet_stream;
     }
 };
@@ -416,8 +430,13 @@ pub const FormData = struct {
         } });
     }
 
-    pub fn getBoundary(self: *const Self) []const u8 {
-        return &self.boundary;
+    /// Return the 32-byte boundary as a value so callers don't hold a
+    /// pointer into a `FormData` that may be moved or deallocated later.
+    /// The previous `return &self.boundary` pointed into the struct's
+    /// inline array — fine for a heap-pinned caller, silently dangling
+    /// for anyone who moved or copied the `FormData`.
+    pub fn getBoundary(self: *const Self) [32]u8 {
+        return self.boundary;
     }
 
     pub fn build(self: *const Self, allocator: std.mem.Allocator) ![]const u8 {
@@ -845,7 +864,12 @@ pub const HttpClient = struct {
 
         var headers = Headers.init(self.allocator);
         var content_type_buf: [128]u8 = undefined;
-        const content_type = std.fmt.bufPrint(&content_type_buf, "multipart/form-data; boundary={s}", .{form_data.getBoundary()}) catch return HttpError.InvalidHeader;
+        // Materialise the boundary into a local variable so we can feed a
+        // plain `[]const u8` to the `{s}` format specifier (it only accepts
+        // slices / null-terminated pointers, not raw arrays).
+        const boundary_arr = form_data.getBoundary();
+        const boundary_slice: []const u8 = boundary_arr[0..];
+        const content_type = std.fmt.bufPrint(&content_type_buf, "multipart/form-data; boundary={s}", .{boundary_slice}) catch return HttpError.InvalidHeader;
         try headers.set("Content-Type", content_type);
 
         return self.request(url, .{

@@ -23,6 +23,14 @@ pub fn evalJS(script: []const u8) !void {
 
 /// JavaScript bridge for Zig <-> Web communication
 /// Allows JavaScript to call Zig functions and Zig to evaluate JavaScript
+///
+/// Handler ownership contract:
+///   - The returned `[]const u8` must be either a static string (e.g. "OK")
+///     or a slice allocated with the **bridge's allocator**, which the
+///     caller (e.g. `handleMessage` invoker) is responsible for freeing
+///     once it has forwarded the value to the web side. Handlers that
+///     allocate must document this expectation; leaking allocations is a
+///     real risk on the hot JS→Zig path.
 pub const MessageHandler = *const fn (message: []const u8) anyerror![]const u8;
 
 pub const Bridge = struct {
@@ -65,7 +73,12 @@ pub const Bridge = struct {
         try self.handlers.put(name_dup, handler);
     }
 
-    /// Handle a message from JavaScript
+    /// Handle a message from JavaScript.
+    ///
+    /// Returns whatever the handler produced; see the `MessageHandler` doc
+    /// for the ownership contract. The caller of `handleMessage` owns the
+    /// returned slice and must free it (if heap-allocated) once it has been
+    /// forwarded to the web side.
     pub fn handleMessage(self: *Self, name: []const u8, message: []const u8) ![]const u8 {
         const handler = self.handlers.get(name) orelse return error.HandlerNotFound;
         return try handler(message);
