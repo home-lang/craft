@@ -596,6 +596,7 @@ function renderBottomNav(store: SocialStore): string {
   `
 }
 
+// eslint-disable-next-line pickier/no-unused-vars
 function renderFeed(store: SocialStore): string {
   const stories = store.getStories()
   const posts = store.getFeed()
@@ -608,7 +609,7 @@ function renderFeed(store: SocialStore): string {
             <div class='add story-avatar'>+</div>
             <span class='story-name'>Add Story</span>
           </div>
-          ${stories.map((story) => {
+          ${stories.map((story) => { // eslint-disable-line pickier/no-unused-vars
             const user = store.getUser(story.userId)
             return `
               <div class=": ? ''} 'viewed' ${story.viewed story" data-story-id="${story.id}">

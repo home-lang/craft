@@ -621,6 +621,7 @@ function renderProductCard(product: Product, store: Store): string {
   `
 }
 
+// eslint-disable-next-line pickier/no-unused-vars
 function renderProductDetail(store: Store): string {
   const productId = store.getCurrentProductId()
   if (!productId) return '<div>Product not found</div>'

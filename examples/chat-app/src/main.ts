@@ -548,6 +548,7 @@ function renderApp(app: ChatApp): void {
   setupEventListeners(app)
 }
 
+// eslint-disable-next-line pickier/no-unused-vars
 function renderRoomsList(store: ChatStore): string {
   const rooms = store.getRooms()
   const activeRoomId = store.getActiveRoomId()
@@ -601,11 +602,13 @@ function renderChatRoom(app: ChatApp): string {
   `
 }
 
+// eslint-disable-next-line pickier/no-unused-vars
 function renderMessages(messages: Message[], store: ChatStore): string {
   const currentUser = store.getCurrentUser()
   let lastDate = ''
 
   return messages
+    // eslint-disable-next-line pickier/no-unused-vars
     .map((message) => {
       const user = store.getUser(message.userId)
       const isOwn = message.userId === currentUser?.id

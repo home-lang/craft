@@ -79,6 +79,7 @@ function getIcon(name: string): string {
 // Tahoe Template (macOS Finder)
 // ============================================================================
 
+// eslint-disable-next-line pickier/no-unused-vars
 export function renderTahoeSidebar(data: SidebarData): string {
   const s = tahoeStyles
 
@@ -107,6 +108,7 @@ export function renderTahoeSidebar(data: SidebarData): string {
     return html
   }
 
+  // eslint-disable-next-line pickier/no-unused-vars
   const renderSection = (section: SidebarSectionData): string => {
     return `
       <div class='${s.section}'>

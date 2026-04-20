@@ -2,7 +2,7 @@
 
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.24...v0.0.25)
 
-### 🐛 Bug Fixes
+## 🐛 Bug Fixes
 
 - sidebar navigation uses window.navigate() instead of _sidebarSelectHandler ([01a4ddf](https://github.com/home-lang/craft/commit/01a4ddf)) _(by glennmichael123 <gtorregosa@gmail.com>)_
 - enable Cmd+Q to quit desktop windows ([b3ced0a](https://github.com/home-lang/craft/commit/b3ced0a)) _(by glennmichael123 <gtorregosa@gmail.com>)_
