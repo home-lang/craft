@@ -1,0 +1,183 @@
+/*
+ * ts-maps demo — minimal two-pane layout.
+ * Dark by default; adapts via prefers-color-scheme.
+ */
+
+:root {
+  --bg: #0b1220;
+  --panel: #121a2b;
+  --panel-hover: #1a2440;
+  --border: #1f2a44;
+  --text: #e7ecf5;
+  --text-dim: #8b95b0;
+  --accent: #4c8bf5;
+  --accent-hover: #6fa2ff;
+  --success: #2ecc71;
+  --danger: #ff6b6b;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f5f7fb;
+    --panel: #ffffff;
+    --panel-hover: #eef2fb;
+    --border: #dde4f0;
+    --text: #1a2440;
+    --text-dim: #5b6a87;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  grid-template-rows: 100%;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.sidebar-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.sidebar-header .subtitle {
+  margin-top: 4px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.sidebar-header code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-group button {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--panel-hover);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.control-group button:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, var(--panel-hover));
+}
+
+.control-group button:active {
+  transform: translateY(1px);
+}
+
+.control-group button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.readout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+}
+
+.readout-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.readout-label {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.readout-value {
+  color: var(--text);
+}
+
+.hints {
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.hints strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.map-host {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--bg);
+}
+
+/* The MapView container fills its parent. */
+.map-host > .tsmap-craft-view {
+  position: absolute;
+  inset: 0;
+}
+
+/* Mobile: stack sidebar on top, shorter. */
+@media (max-width: 640px) {
+  #app {
+    grid-template-columns: 100%;
+    grid-template-rows: auto 1fr;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 40vh;
+  }
+}

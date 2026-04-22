@@ -1,0 +1,14 @@
+# Craft configuration for the ts-maps demo.
+# Consumed by the native `craft` binary (packages/zig) when launched with `craft dev`.
+
+[window]
+title = "ts-maps Demo"
+width = 1200
+height = 800
+resizable = true
+frameless = false
+transparent = false
+always_on_top = false
+
+[webview]
+dev_tools = true

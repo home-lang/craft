@@ -1,0 +1,23 @@
+{
+  "name": "@craft/example-ts-maps-demo",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Craft example showcasing @craft-native/ts-maps — an interactive NYC map with markers, tile toggling and a live camera readout.",
+  "private": true,
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun run serve & craft dev http://localhost:3000 --title 'ts-maps Demo' --width 1200 --height 800",
+    "serve": "bun run ./scripts/serve.ts",
+    "build": "craft build",
+    "typecheck": "bun --bun tsc --noEmit",
+    "lint": "bunx --bun pickier .",
+    "lint:fix": "bunx --bun pickier . --fix"
+  },
+  "dependencies": {
+    "@craft-native/craft": "workspace:*",
+    "@craft-native/ts-maps": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0"
+  }
+}

@@ -10,6 +10,9 @@ pub const MapProvider = enum {
     mapbox,
     openstreetmap,
     here_maps,
+    /// In-house, zero-dep interactive map library rendered via WebView.
+    /// See `@craft/ts-maps` for the TypeScript binding.
+    ts_maps,
 
     pub fn toString(self: MapProvider) []const u8 {
         return switch (self) {
@@ -18,6 +21,7 @@ pub const MapProvider = enum {
             .mapbox => "Mapbox",
             .openstreetmap => "OpenStreetMap",
             .here_maps => "HERE Maps",
+            .ts_maps => "ts-maps",
         };
     }
 
@@ -28,6 +32,29 @@ pub const MapProvider = enum {
             .mapbox => true,
             .openstreetmap => false,
             .here_maps => true,
+            // ts-maps ships an IndexedDB-backed tile cache (Phase 10 of its roadmap).
+            .ts_maps => true,
+        };
+    }
+
+    /// Whether this provider requires an API key or account to use.
+    pub fn requiresApiKey(self: MapProvider) bool {
+        return switch (self) {
+            .apple_maps => false,
+            .google_maps => true,
+            .mapbox => true,
+            .openstreetmap => false,
+            .here_maps => true,
+            // ts-maps defaults to OSM + OSRM + Nominatim — no keys needed out of the box.
+            .ts_maps => false,
+        };
+    }
+
+    /// Whether this provider renders via a WebView (vs a native map SDK).
+    pub fn isWebView(self: MapProvider) bool {
+        return switch (self) {
+            .apple_maps, .google_maps, .here_maps => false,
+            .mapbox, .openstreetmap, .ts_maps => true,
         };
     }
 };
@@ -1130,10 +1157,15 @@ pub fn isMapsAvailable() bool {
     return true; // Stub for cross-platform check
 }
 
-/// Get the default map provider for the current platform
+/// Get the default map provider for the current platform.
+/// Apple platforms get MapKit; every other platform gets ts-maps so we always
+/// have a zero-config default that works without API keys.
 pub fn defaultProvider() MapProvider {
-    // Would check platform at runtime
-    return .apple_maps;
+    const builtin = @import("builtin");
+    return switch (builtin.os.tag) {
+        .macos, .ios, .tvos, .watchos => .apple_maps,
+        else => .ts_maps,
+    };
 }
 
 // ============================================================================
@@ -1143,11 +1175,30 @@ pub fn defaultProvider() MapProvider {
 test "MapProvider toString" {
     try std.testing.expectEqualStrings("Apple Maps", MapProvider.apple_maps.toString());
     try std.testing.expectEqualStrings("Google Maps", MapProvider.google_maps.toString());
+    try std.testing.expectEqualStrings("ts-maps", MapProvider.ts_maps.toString());
 }
 
 test "MapProvider supportsOffline" {
     try std.testing.expect(MapProvider.apple_maps.supportsOffline());
     try std.testing.expect(!MapProvider.openstreetmap.supportsOffline());
+    try std.testing.expect(MapProvider.ts_maps.supportsOffline());
+}
+
+test "MapProvider requiresApiKey" {
+    try std.testing.expect(!MapProvider.apple_maps.requiresApiKey());
+    try std.testing.expect(MapProvider.google_maps.requiresApiKey());
+    try std.testing.expect(MapProvider.mapbox.requiresApiKey());
+    try std.testing.expect(!MapProvider.openstreetmap.requiresApiKey());
+    try std.testing.expect(MapProvider.here_maps.requiresApiKey());
+    try std.testing.expect(!MapProvider.ts_maps.requiresApiKey());
+}
+
+test "MapProvider isWebView" {
+    try std.testing.expect(!MapProvider.apple_maps.isWebView());
+    try std.testing.expect(!MapProvider.google_maps.isWebView());
+    try std.testing.expect(MapProvider.mapbox.isWebView());
+    try std.testing.expect(MapProvider.openstreetmap.isWebView());
+    try std.testing.expect(MapProvider.ts_maps.isWebView());
 }
 
 test "MapType properties" {
@@ -1392,7 +1443,11 @@ test "isMapsAvailable" {
     try std.testing.expect(isMapsAvailable());
 }
 
-test "defaultProvider" {
+test "defaultProvider picks per platform" {
+    const builtin = @import("builtin");
     const provider = defaultProvider();
-    try std.testing.expectEqual(MapProvider.apple_maps, provider);
+    switch (builtin.os.tag) {
+        .macos, .ios, .tvos, .watchos => try std.testing.expectEqual(MapProvider.apple_maps, provider),
+        else => try std.testing.expectEqual(MapProvider.ts_maps, provider),
+    }
 }

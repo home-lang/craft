@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>ts-maps Demo · Craft</title>
+
+  <!-- ts-maps ships its own stylesheet for tile + pane layout. -->
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/ts-maps@latest/dist/ts-maps.css"
+  />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar" class="sidebar">
+      <header class="sidebar-header">
+        <h1>ts-maps Demo</h1>
+        <p class="subtitle">Craft × <code>@craft-native/ts-maps</code></p>
+      </header>
+
+      <section class="control-group" aria-label="Camera controls">
+        <button id="btn-recenter" type="button">Recenter on NYC</button>
+        <button id="btn-fit" type="button">Fit all markers</button>
+        <button id="btn-clear" type="button">Clear user markers</button>
+        <button id="btn-tiles" type="button">Toggle satellite</button>
+      </section>
+
+      <section class="readout" aria-label="Camera readout">
+        <div class="readout-row">
+          <span class="readout-label">lat</span>
+          <span id="readout-lat" class="readout-value">—</span>
+        </div>
+        <div class="readout-row">
+          <span class="readout-label">lng</span>
+          <span id="readout-lng" class="readout-value">—</span>
+        </div>
+        <div class="readout-row">
+          <span class="readout-label">zoom</span>
+          <span id="readout-zoom" class="readout-value">—</span>
+        </div>
+        <div class="readout-row">
+          <span class="readout-label">tiles</span>
+          <span id="readout-tiles" class="readout-value">osm</span>
+        </div>
+      </section>
+
+      <section class="hints" aria-label="Usage hints">
+        <p><strong>Tap</strong> the map to drop a draggable marker.</p>
+        <p><strong>Tap</strong> a marker to see its title.</p>
+      </section>
+    </aside>
+
+    <main id="map-host" class="map-host"></main>
+  </div>
+
+  <script type="module" src="./index.ts"></script>
+</body>
+</html>

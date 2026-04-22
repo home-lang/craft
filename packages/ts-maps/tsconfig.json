@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "noEmit": true,
+    "isolatedDeclarations": false,
+    "skipLibCheck": true,
+    "types": ["bun"],
+    "paths": {
+      "@craft-native/craft": ["../typescript/src/bridge/core.ts"]
+    }
+  },
+  "include": [
+    "src",
+    "test",
+    "types/**/*.d.ts"
+  ]
+}
