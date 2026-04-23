@@ -104,7 +104,16 @@ pub const AndroidTemplate = struct {
             \\            allowFileAccess = false
             \\            allowContentAccess = false
             \\            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            \\            // Required by WebGL2 / interactive map rendering.
+            \\            loadWithOverviewMode = true
+            \\            useWideViewPort = true
+            \\            setSupportZoom(false)
+            \\            builtInZoomControls = false
+            \\            displayZoomControls = false
             \\        }}
+            \\
+            \\        // Hardware layer keeps canvas + WebGL2 on the GPU path.
+            \\        webView.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
             \\
             \\        webView.webViewClient = android.webkit.WebViewClient()
             \\        webView.webChromeClient = android.webkit.WebChromeClient()
@@ -388,6 +397,8 @@ pub const AndroidTemplate = struct {
             \\
             \\    <application
             \\        android:allowBackup="true"
+            \\        android:hardwareAccelerated="true"
+            \\        android:largeHeap="true"
             \\        android:icon="@mipmap/ic_launcher"
             \\        android:label="@string/app_name"
             \\        android:roundIcon="@mipmap/ic_launcher_round"

@@ -72,6 +72,25 @@ export {
   type TypedMapBridgeRequest,
 } from './bridge-protocol'
 
+// Sandbox-filesystem tile persistence + offline region helpers.
+export {
+  createFilesystemBackend,
+  type FilesystemBackendOptions,
+} from './FilesystemTileBackend'
+export {
+  createFilesystemTileCache,
+  saveOfflineRegionToFilesystem,
+  type FilesystemOfflineRegionOptions,
+} from './offlineRegion'
+
+// Runtime capability probe — tells the host app which renderer the
+// device can realistically drive.
+export {
+  probeCapabilities,
+  supportsAdvancedRendering,
+  type MapRendererCapabilities,
+} from './capabilities'
+
 // createMap is the underlying ts-maps factory; re-export under its original
 // name for parity with the spec which mentions `createMap` as a Craft export.
 export { createMap } from 'ts-maps'

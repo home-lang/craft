@@ -142,6 +142,18 @@ pub const IOSTemplate = struct {
             \\        configuration.allowsInlineMediaPlayback = true
             \\        configuration.mediaTypesRequiringUserActionForPlayback = []
             \\
+            \\        // Ensure WebGL2 + OffscreenCanvas are available for the
+            \\        // interactive map renderer. These are default-on on iOS 15+
+            \\        // but explicit opt-in keeps older OS builds consistent.
+            \\        let preferences = WKPreferences()
+            \\        if #available(iOS 14.0, *) {
+            \\            configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+            \\        } else {
+            \\            preferences.javaScriptEnabled = true
+            \\        }
+            \\        configuration.preferences = preferences
+            \\        configuration.preferences.setValue(true, forKey: "offlineApplicationCacheIsEnabled")
+            \\
             \\        // Add Craft message handler
             \\        configuration.userContentController.add(craftBridge, name: "craft")
             \\
