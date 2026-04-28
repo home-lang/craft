@@ -33,7 +33,7 @@ jobs:
         run: ${{ matrix.platform.deps }}
 
       - name: Install Dependencies
-        run: bun install
+        run: pantry install
 
       - name: Extract Version
         id: version
@@ -164,7 +164,7 @@ jobs:
       - name: Setup Pantry (provides Bun, Zig, etc.)
         uses: home-lang/pantry/packages/action@main
       - name: Install Dependencies
-        run: bun install
+        run: pantry install
 
       - name: Publish to npm
         run: pantry publish --npm --access public
