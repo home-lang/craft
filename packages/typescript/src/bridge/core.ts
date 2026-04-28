@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from 'events'
+import { secureUUID } from './ids'
 
 // Ambient types for native bridges injected by the host. These globals are
 // defined by WKWebView (iOS), Android WebView, Electron's contextBridge, and
@@ -50,6 +51,8 @@ export const BridgeErrorCodes = {
   BUSY: -7,
   /** Native side speaks an incompatible bridge protocol version */
   PROTOCOL_MISMATCH: -8,
+  /** Bridge transitioned from connected to disconnected with requests in flight */
+  DISCONNECTED: -9,
 } as const
 
 export type BridgeErrorCode = typeof BridgeErrorCodes[keyof typeof BridgeErrorCodes]
@@ -88,6 +91,15 @@ export interface BridgeConfig {
    * layer with tight loops. Defaults to 10_000.
    */
   maxConcurrentRequests?: number
+  /**
+   * Origin to use when the bridge falls back to `window.parent.postMessage`
+   * (i.e. Craft is running inside a host iframe rather than a native
+   * webview). Defaults to `null`, which **disables** the postMessage path
+   * entirely — `'*'` was the old default and leaks bridge traffic to any
+   * cross-origin parent. Set this to your host page's exact origin
+   * (e.g. `'https://app.example.com'`) when embedding.
+   */
+  parentOrigin?: string | null
 }
 
 export interface StreamController<T> {
@@ -97,16 +109,26 @@ export interface StreamController<T> {
   cancel(): void
 }
 
-// Message ID generator. Seed the counter from a random value so a page reload
-// can't reuse IDs that the native side may still hold for in-flight callbacks.
+// Module-level fallback counter for the rare module-scope `generateMessageId`
+// callers that exist before the per-instance prefix was introduced. Seeded
+// from a random value so a page reload can't reuse IDs that the native
+// side may still hold for in-flight callbacks.
 let messageIdCounter = Math.floor(Math.random() * 1e9)
-function generateMessageId(): string {
-  // Wrap before exceeding Number.MAX_SAFE_INTEGER (well below the practical
-  // counter ceiling, but cheap to be defensive).
+
+/**
+ * Generate a unique message ID for a request envelope.
+ *
+ * The optional `prefix` argument is a per-{@link NativeBridge} secret derived
+ * from {@link secureUUID}. Two `NativeBridge` instances in the same process
+ * (rare, but supported) must produce IDs from disjoint namespaces; without
+ * the prefix the timestamp-plus-counter pair could collide between two
+ * bridges that boot at the same millisecond.
+ */
+function generateMessageId(prefix: string = 'msg'): string {
   if (messageIdCounter >= Number.MAX_SAFE_INTEGER - 1) {
     messageIdCounter = Math.floor(Math.random() * 1e9)
   }
-  return `msg_${Date.now().toString(36)}_${(++messageIdCounter).toString(36)}`
+  return `${prefix}_${Date.now().toString(36)}_${(++messageIdCounter).toString(36)}`
 }
 
 // Native Bridge Core
@@ -119,6 +141,18 @@ export class NativeBridge extends EventEmitter {
   private batchBuffer: BridgeMessage[] = []
   private batchTimer: NodeJS.Timeout | null = null
   private destroyed = false
+  // Per-instance ID prefix so two bridges in the same process can never
+  // produce the same message ID even if they happen to construct on the
+  // same millisecond. Derived from a secure UUID's first 8 hex chars
+  // (32 bits of entropy, plenty for collision resistance across the
+  // typically-tiny number of bridges in a session).
+  private readonly idPrefix: string = `msg-${secureUUID().slice(0, 8)}`
+  // Track DOM listeners so destroy() can remove them. Without this, tests
+  // that construct/destroy NativeBridge in a loop accumulate craft-ready
+  // and message listeners and exhaust the runtime's listener cap.
+  // eslint-disable-next-line pickier/no-unused-vars
+  private boundHandleMessage: ((event: MessageEvent | CustomEvent) => void) | null = null
+  private craftReadyHandler: (() => void) | null = null
 
   constructor(config: BridgeConfig = {}) {
     super()
@@ -132,17 +166,56 @@ export class NativeBridge extends EventEmitter {
       enableOfflineQueue: true,
       enableBinaryTransfer: true,
       maxConcurrentRequests: 10000,
+      parentOrigin: null,
       ...config,
     }
     this.setupBridge()
   }
 
   private setupBridge(): void {
-    // Listen for messages from native
-    if (typeof window !== 'undefined') {
-      window.addEventListener('message', this.handleMessage.bind(this))
-      // Custom event for native bridge
-      window.addEventListener('craft-bridge-message' as any, this.handleMessage.bind(this))
+    if (typeof window === 'undefined') return
+
+    // Listen for messages from native. Bind once and store the reference so
+    // destroy() can remove the listener cleanly.
+    this.boundHandleMessage = this.handleMessage.bind(this)
+    window.addEventListener('message', this.boundHandleMessage)
+    window.addEventListener('craft-bridge-message' as any, this.boundHandleMessage)
+
+    // Auto-connect when the host fires `craft:ready`. Without this, every
+    // request sat in `offlineQueue` because nothing called setConnected().
+    // Hosts that wire up the bridge synchronously (e.g. before the
+    // injected JS dispatches craft:ready) can also detect the runtime
+    // immediately via `window.craft`.
+    if (window.craft) {
+      // The runtime is already there — flip on the next microtask so
+      // subscribers to `'connected'` have a chance to register first.
+      Promise.resolve().then(() => this.setConnected(true))
+    }
+    else {
+      this.craftReadyHandler = () => {
+        if (this.craftReadyHandler) {
+          window.removeEventListener('craft:ready' as any, this.craftReadyHandler)
+          this.craftReadyHandler = null
+        }
+        this.setConnected(true)
+      }
+      // `once: true` is also defensive — if `craft:ready` fires twice we
+      // still only flip once. The handler also self-removes on first run
+      // so we don't depend on `once` semantics that older webviews lack.
+      window.addEventListener('craft:ready' as any, this.craftReadyHandler, { once: true })
+    }
+  }
+
+  private teardownBridgeListeners(): void {
+    if (typeof window === 'undefined') return
+    if (this.boundHandleMessage) {
+      window.removeEventListener('message', this.boundHandleMessage)
+      window.removeEventListener('craft-bridge-message' as any, this.boundHandleMessage)
+      this.boundHandleMessage = null
+    }
+    if (this.craftReadyHandler) {
+      window.removeEventListener('craft:ready' as any, this.craftReadyHandler)
+      this.craftReadyHandler = null
     }
   }
 
@@ -158,6 +231,15 @@ catch (err) {
 
     if (!data || !data.id) return
 
+    // Drop responses whose id wasn't minted by THIS bridge instance. Without
+    // this guard, a third-party script that can fire `craft-bridge-message`
+    // events (anything on the same page, in dev) could resolve any
+    // outstanding request by guessing the id. Stream/event ids aren't
+    // generated by us in the same way, so they're left unrestricted.
+    if (data.type === 'response' && !this.isOwnId(data.id)) {
+      return
+    }
+
     switch (data.type) {
       case 'response':
         this.handleResponse(data)
@@ -169,6 +251,11 @@ catch (err) {
         this.handleStream(data)
         break
     }
+  }
+
+  /** True when the given id starts with this bridge's per-instance prefix. */
+  private isOwnId(id: string): boolean {
+    return typeof id === 'string' && id.startsWith(this.idPrefix + '_')
   }
 
   private handleResponse(message: BridgeMessage): void {
@@ -253,7 +340,7 @@ catch (error) {
 
     const effectiveTimeout = timeout ?? this.config.timeout
     const message: BridgeMessage<T> = {
-      id: generateMessageId(),
+      id: generateMessageId(this.idPrefix),
       type: 'request',
       method,
       params,
@@ -339,7 +426,7 @@ catch (error) {
    */
   notify<T = unknown>(method: string, params?: T): void {
     const message: BridgeMessage<T> = {
-      id: generateMessageId(),
+      id: generateMessageId(this.idPrefix),
       type: 'request',
       method,
       params,
@@ -362,9 +449,9 @@ catch (error) {
     options?: { bufferLimit?: number },
   ): StreamController<T> {
     const bufferLimit = options?.bufferLimit ?? 1000
-    const streamId = generateMessageId()
+    const streamId = generateMessageId(this.idPrefix)
     const message: BridgeMessage = {
-      id: generateMessageId(),
+      id: generateMessageId(this.idPrefix),
       type: 'request',
       method,
       params,
@@ -411,7 +498,7 @@ catch (error) {
         if (!this.streams.has(streamId)) return
         this.streams.delete(streamId)
         this.send({
-          id: generateMessageId(),
+          id: generateMessageId(this.idPrefix),
           type: 'request',
           method: '_cancelStream',
           params: { streamId },
@@ -435,6 +522,14 @@ catch (error) {
           pendingError = overflow
           if (errorCallback) errorCallback(overflow)
           this.streams.delete(streamId)
+          // Tell the native side to stop producing — without this, the
+          // peer keeps sending events into the dropped stream forever.
+          this.send({
+            id: generateMessageId(this.idPrefix),
+            type: 'request',
+            method: '_cancelStream',
+            params: { streamId },
+          })
           return
         }
         pendingData.push(data as T)
@@ -494,7 +589,7 @@ catch (error) {
    */
   addToBatch<T = unknown>(method: string, params?: T): void {
     this.batchBuffer.push({
-      id: generateMessageId(),
+      id: generateMessageId(this.idPrefix),
       type: 'request',
       method,
       params,
@@ -531,7 +626,7 @@ else if (!this.batchTimer) {
     // batch envelope format to parse. Previously `{ messages }` and `{ requests }`
     // diverged and the buffered path silently broke on the native side.
     this.send({
-      id: generateMessageId(),
+      id: generateMessageId(this.idPrefix),
       type: 'request',
       method: '_batch',
       params: { requests: batch },
@@ -539,7 +634,10 @@ else if (!this.batchTimer) {
   }
 
   /**
-   * Set connection status
+   * Set connection status. Emits `'connected'` / `'disconnected'`. On
+   * disconnect, every outstanding pending request is rejected with
+   * `BridgeErrorCodes.DISCONNECTED` immediately — previously they sat
+   * until `timeout` (default 30s) expired, hanging the calling app.
    */
   setConnected(connected: boolean): void {
     const wasConnected = this.connected
@@ -549,8 +647,15 @@ else if (!this.batchTimer) {
       this.emit('connected')
       this.flushOfflineQueue()
     }
-else if (!connected && wasConnected) {
+    else if (!connected && wasConnected) {
       this.emit('disconnected')
+      // Reject pending requests so callers can retry/back off rather than
+      // wait for the per-request timeout to fire.
+      for (const [id, pending] of this.pendingRequests) {
+        clearTimeout(pending.timeout)
+        pending.reject(new BridgeError('Bridge disconnected', BridgeErrorCodes.DISCONNECTED))
+        this.pendingRequests.delete(id)
+      }
     }
   }
 
@@ -590,9 +695,12 @@ else if (!connected && wasConnected) {
         return true
       }
 
-      // Generic postMessage
-      if (window.parent !== window) {
-        window.parent.postMessage(message, '*')
+      // Generic postMessage. Only enabled when the host explicitly opts in
+      // via `BridgeConfig.parentOrigin`; previously this used `'*'`, which
+      // broadcasts every native call to whatever cross-origin frame is
+      // hosting Craft.
+      if (window.parent !== window && this.config.parentOrigin) {
+        window.parent.postMessage(message, this.config.parentOrigin)
         return true
       }
     }
@@ -649,6 +757,7 @@ else if (!connected && wasConnected) {
       clearTimeout(this.batchTimer)
       this.batchTimer = null
     }
+    this.teardownBridgeListeners()
     this.removeAllListeners()
   }
 }

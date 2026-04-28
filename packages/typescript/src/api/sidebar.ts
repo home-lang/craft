@@ -43,6 +43,12 @@ export interface SidebarConfig {
   showSearch?: boolean
   /** Search placeholder */
   searchPlaceholder?: string
+  /**
+   * Milliseconds to debounce search input. Set to `0` for instant search.
+   * Default 80ms — fast enough to feel live, slow enough that fast typists
+   * don't fire one bridge call per keystroke.
+   */
+  searchDebounceMs?: number
   /** Header title */
   headerTitle?: string
   /** Header subtitle */
@@ -480,6 +486,12 @@ export class Sidebar {
   private element: HTMLElement | null = null
   private onSelectHandler?: (event: SidebarSelectEvent) => void
   private onSearchHandler?: (event: SidebarSearchEvent) => void
+  // Cleanup callbacks for the listeners attached by attachEventListeners.
+  // Re-rendering replaces `this.element` via `outerHTML`, but the old DOM
+  // node is reachable from event-loop callbacks until it's GC'd, so any
+  // pending click on the old node would still fire its (stale) listener.
+  // Calling these before reassigning the element prevents that.
+  private listenerCleanups: Array<() => void> = []
 
   constructor(config: SidebarConfig = {}) {
     const platform = getPlatform()
@@ -525,11 +537,26 @@ export class Sidebar {
   update(config: Partial<SidebarConfig>): void {
     this.config = { ...this.config, ...config }
     if (this.element) {
+      this.detachEventListeners()
       const { html } = this.render()
       this.element.outerHTML = html
       this.element = document.querySelector('.craft-sidebar')
       this.attachEventListeners()
     }
+  }
+
+  /** Tear down listeners and remove the sidebar from the DOM. */
+  destroy(): void {
+    this.detachEventListeners()
+    if (this.element) {
+      this.element.remove()
+      this.element = null
+    }
+  }
+
+  private detachEventListeners(): void {
+    for (const cleanup of this.listenerCleanups) cleanup()
+    this.listenerCleanups = []
   }
 
   /** Select an item programmatically */
@@ -553,9 +580,14 @@ export class Sidebar {
   private attachEventListeners(): void {
     if (!this.element) return
 
+    const track = (target: Element, type: string, handler: EventListener) => {
+      target.addEventListener(type, handler)
+      this.listenerCleanups.push(() => target.removeEventListener(type, handler))
+    }
+
     // Item clicks
     this.element.querySelectorAll('.craft-sidebar-item').forEach(item => {
-      item.addEventListener('click', () => {
+      track(item, 'click', () => {
         const itemId = item.getAttribute('data-id')
         if (!itemId) return
 
@@ -578,7 +610,7 @@ export class Sidebar {
 
     // Section toggle
     this.element.querySelectorAll('[data-section-toggle]').forEach(header => {
-      header.addEventListener('click', () => {
+      track(header, 'click', () => {
         const sectionId = header.getAttribute('data-section-toggle')
         const items = this.element?.querySelector(`[data-section-items='${sectionId}']`)
         if (items) {
@@ -588,22 +620,37 @@ export class Sidebar {
       })
     })
 
-    // Search
+    // Search. Debounced so fast typing doesn't fire one bridge call per
+    // keystroke. Filtering still runs locally on the input element so the
+    // visible UI stays responsive; only the `onSearchHandler` event is
+    // throttled.
     const searchInput = this.element.querySelector('[data-sidebar-search]') as HTMLInputElement
     if (searchInput) {
-      searchInput.addEventListener('input', () => {
+      const debounceMs = this.config.searchDebounceMs ?? 80
+      let debounceTimer: ReturnType<typeof setTimeout> | null = null
+      this.listenerCleanups.push(() => {
+        if (debounceTimer) clearTimeout(debounceTimer)
+      })
+
+      track(searchInput, 'input', () => {
         const query = searchInput.value.toLowerCase()
 
-        // Filter items
+        // Filter items immediately for snappy local feedback.
         this.element?.querySelectorAll('.craft-sidebar-item').forEach(item => {
           const label = item.querySelector('.craft-sidebar-item-label')?.textContent?.toLowerCase() || ''
           ;(item as HTMLElement).style.display = label.includes(query) ? '' : 'none'
         })
 
-        // Fire event
-        if (this.onSearchHandler) {
+        if (!this.onSearchHandler) return
+        if (debounceMs <= 0) {
           this.onSearchHandler({ query: searchInput.value })
+          return
         }
+        if (debounceTimer) clearTimeout(debounceTimer)
+        debounceTimer = setTimeout(() => {
+          debounceTimer = null
+          this.onSearchHandler?.({ query: searchInput.value })
+        }, debounceMs)
       })
     }
   }

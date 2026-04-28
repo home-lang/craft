@@ -6,6 +6,54 @@
 
 import { getBridge } from '../bridge/core'
 
+/** Default timeout for callback-style clipboard reads. */
+const CLIPBOARD_READ_TIMEOUT_MS = 5000
+
+/**
+ * Push a {resolve,reject} pair onto `window.__craftBridgePending[bucket]` and
+ * arrange for it to be cleaned up after `CLIPBOARD_READ_TIMEOUT_MS` if the
+ * native side never responds. Without this, every read that the host
+ * silently drops keeps closures alive forever.
+ */
+function pendingWithTimeout<T>(
+  bucket: string,
+  startNative: () => void,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const w = window as unknown as {
+      __craftBridgePending?: Record<string, Array<{ resolve: (v: T) => void; reject: (e: unknown) => void }>>
+    }
+    w.__craftBridgePending = w.__craftBridgePending || {}
+    const list = w.__craftBridgePending[bucket] = w.__craftBridgePending[bucket] || []
+    let settled = false
+    const wrappedResolve = (v: T) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      const idx = list.indexOf(entry)
+      if (idx >= 0) list.splice(idx, 1)
+      resolve(v)
+    }
+    const wrappedReject = (e: unknown) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      const idx = list.indexOf(entry)
+      if (idx >= 0) list.splice(idx, 1)
+      reject(e)
+    }
+    const entry = { resolve: wrappedResolve, reject: wrappedReject }
+    list.push(entry)
+    // The handle returned here is captured by the closures above so they
+    // can clearTimeout(timer) when the native side finally resolves.
+    // eslint-disable-next-line pickier/no-unused-vars
+    const timer: ReturnType<typeof setTimeout> = setTimeout(() => {
+      wrappedReject(new Error(`[clipboard] ${bucket} timed out after ${CLIPBOARD_READ_TIMEOUT_MS}ms`))
+    }, CLIPBOARD_READ_TIMEOUT_MS)
+    startNative()
+  })
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -61,17 +109,13 @@ export async function writeText(text: string): Promise<void> {
  */
 export async function readText(): Promise<string> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise<string>((resolve, reject) => {
-      const w = window as any
-      w.__craftBridgePending = w.__craftBridgePending || {}
-      w.__craftBridgePending.readText = w.__craftBridgePending.readText || []
-      w.__craftBridgePending.readText.push({ resolve, reject })
-
-      w.webkit.messageHandlers.craft.postMessage({
+    const payload = await pendingWithTimeout<{ text?: string } | undefined>('readText', () => {
+      ;(window as any).webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',
-        action: 'readText'
+        action: 'readText',
       })
-    }).then((payload: any) => (payload && typeof payload.text === 'string' ? payload.text : ''))
+    })
+    return payload && typeof payload.text === 'string' ? payload.text : ''
   }
 
   const bridge = getBridge()
@@ -104,17 +148,13 @@ export async function writeHTML(html: string): Promise<void> {
  */
 export async function readHTML(): Promise<string> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise<string>((resolve, reject) => {
-      const w = window as any
-      w.__craftBridgePending = w.__craftBridgePending || {}
-      w.__craftBridgePending.readHTML = w.__craftBridgePending.readHTML || []
-      w.__craftBridgePending.readHTML.push({ resolve, reject })
-
-      w.webkit.messageHandlers.craft.postMessage({
+    const payload = await pendingWithTimeout<{ html?: string } | undefined>('readHTML', () => {
+      ;(window as any).webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',
-        action: 'readHTML'
+        action: 'readHTML',
       })
-    }).then((payload: any) => (payload && typeof payload.html === 'string' ? payload.html : ''))
+    })
+    return payload && typeof payload.html === 'string' ? payload.html : ''
   }
 
   const bridge = getBridge()
@@ -145,17 +185,13 @@ export async function clear(): Promise<void> {
  */
 export async function hasText(): Promise<boolean> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise<boolean>((resolve, reject) => {
-      const w = window as any
-      w.__craftBridgePending = w.__craftBridgePending || {}
-      w.__craftBridgePending.hasText = w.__craftBridgePending.hasText || []
-      w.__craftBridgePending.hasText.push({ resolve, reject })
-
-      w.webkit.messageHandlers.craft.postMessage({
+    const payload = await pendingWithTimeout<{ value?: boolean } | undefined>('hasText', () => {
+      ;(window as any).webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',
-        action: 'hasText'
+        action: 'hasText',
       })
-    }).then((payload: any) => !!(payload && (payload.value === true)))
+    })
+    return !!(payload && payload.value === true)
   }
 
   const bridge = getBridge()
@@ -168,17 +204,13 @@ export async function hasText(): Promise<boolean> {
  */
 export async function hasHTML(): Promise<boolean> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise<boolean>((resolve, reject) => {
-      const w = window as any
-      w.__craftBridgePending = w.__craftBridgePending || {}
-      w.__craftBridgePending.hasHTML = w.__craftBridgePending.hasHTML || []
-      w.__craftBridgePending.hasHTML.push({ resolve, reject })
-
-      w.webkit.messageHandlers.craft.postMessage({
+    const payload = await pendingWithTimeout<{ value?: boolean } | undefined>('hasHTML', () => {
+      ;(window as any).webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',
-        action: 'hasHTML'
+        action: 'hasHTML',
       })
-    }).then((payload: any) => !!(payload && (payload.value === true)))
+    })
+    return !!(payload && payload.value === true)
   }
 
   const bridge = getBridge()
@@ -191,17 +223,13 @@ export async function hasHTML(): Promise<boolean> {
  */
 export async function hasImage(): Promise<boolean> {
   if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise<boolean>((resolve, reject) => {
-      const w = window as any
-      w.__craftBridgePending = w.__craftBridgePending || {}
-      w.__craftBridgePending.hasImage = w.__craftBridgePending.hasImage || []
-      w.__craftBridgePending.hasImage.push({ resolve, reject })
-
-      w.webkit.messageHandlers.craft.postMessage({
+    const payload = await pendingWithTimeout<{ value?: boolean } | undefined>('hasImage', () => {
+      ;(window as any).webkit.messageHandlers.craft.postMessage({
         type: 'clipboard',
-        action: 'hasImage'
+        action: 'hasImage',
       })
-    }).then((payload: any) => !!(payload && (payload.value === true)))
+    })
+    return !!(payload && payload.value === true)
   }
 
   const bridge = getBridge()

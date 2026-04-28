@@ -10,6 +10,7 @@ import {
   crypto,
   hashPassword,
   hmac,
+  LegacyCiphertextError,
   randomString,
   timingSafeEqual,
   uuid,
@@ -149,6 +150,24 @@ describe('Crypto API', () => {
       }
       // Either base64 decode or short-cipher error path can fire — both are
       // CraftCryptoError, never a raw DOMException.
+      expect(err).toBeInstanceOf(CraftCryptoError)
+    })
+
+    it('throws LegacyCiphertextError on pre-versioning payloads', async () => {
+      // Build a "legacy" payload: salt(16)+iv(12)+ciphertext+tag with no
+      // leading version byte. The decode path should detect this and bail
+      // with LegacyCiphertextError rather than returning a wrong plaintext.
+      const fakeLegacy = Buffer.alloc(1 + 16 + 12 + 32) // version=0 → legacy
+      fakeLegacy[0] = 0x00
+      const b64 = fakeLegacy.toString('base64')
+      let err: unknown
+      try {
+        await crypto.decrypt(b64, 'key')
+      }
+      catch (e) {
+        err = e
+      }
+      expect(err).toBeInstanceOf(LegacyCiphertextError)
       expect(err).toBeInstanceOf(CraftCryptoError)
     })
 

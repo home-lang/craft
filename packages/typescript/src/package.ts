@@ -5,9 +5,35 @@
  * across all platforms (macOS, Windows, Linux)
  */
 
-import { spawn } from 'child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { exec, spawn } from 'child_process'
+import {
+  chmodSync,
+  copyFileSync,
+  cpSync,
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'fs'
+import { homedir, tmpdir } from 'os'
+import { basename, join } from 'path'
+
+// `archiver` is an optional runtime dep for ZIP packaging. Imported lazily
+// inside `createZIP` so consumers that never call it don't pay the cost.
+// The package's TS types declare a callable export; the actual ESM module
+// has the function under `.default` (CJS interop). Resolve both.
+type ArchiverModule = typeof import('archiver')
+type ArchiverFn = ArchiverModule
+let archiverFn: ArchiverFn | null = null
+async function loadArchiver(): Promise<ArchiverFn> {
+  if (!archiverFn) {
+    const mod = (await import('archiver')) as unknown as ArchiverModule & { default?: ArchiverModule }
+    archiverFn = (mod.default ?? mod) as ArchiverFn
+  }
+  return archiverFn
+}
 
 export interface PackageConfig {
   /** Application name */
@@ -342,11 +368,9 @@ function createMacOSAppBundle(opts: {
     mkdirSync(join(outputPath, 'Contents', 'Resources'), { recursive: true })
 
     // Copy binary
-    const { copyFileSync } = require('fs')
     copyFileSync(binaryPath, join(outputPath, 'Contents', 'MacOS', name))
 
     // Make executable
-    const { chmodSync } = require('fs')
     chmodSync(join(outputPath, 'Contents', 'MacOS', name), 0o755)
 
     // Create Info.plist
@@ -389,6 +413,13 @@ async function createDMG(opts: {
   volumeName: string
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
   return new Promise((resolve) => {
+    // hdiutil rejects volume names containing `/`, `:`, or newlines and
+    // truncates anything past 27 chars. Surfacing the error early gives a
+    // clearer message than the cryptic exit-code-1 hdiutil returns.
+    if (!/^[^/:\n]{1,27}$/.test(opts.volumeName)) {
+      resolve({ success: false, error: `Invalid DMG volume name "${opts.volumeName}"; must be 1..27 chars without /, :, or newline` })
+      return
+    }
     const proc = spawn('hdiutil', [
       'create',
       '-volname', opts.volumeName,
@@ -423,14 +454,23 @@ async function createPKG(opts: {
   version: string
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
   return new Promise((resolve) => {
+    // pkgbuild requires reverse-DNS form for the identifier. Validate
+    // upfront so the error message is actionable rather than the cryptic
+    // pkgbuild "-identifier requires" output.
+    if (!/^[a-zA-Z0-9._-]+$/.test(opts.identifier) || !opts.identifier.includes('.')) {
+      resolve({ success: false, error: `Invalid pkg identifier "${opts.identifier}"; expected reverse-DNS like com.example.app` })
+      return
+    }
+    if (!/^[A-Za-z0-9._+-]+$/.test(opts.version)) {
+      resolve({ success: false, error: `Invalid pkg version "${opts.version}"` })
+      return
+    }
     // Create temp directory structure
-    const { mkdtempSync, cpSync, rmSync } = require('fs')
-    const { tmpdir } = require('os')
     const tempDir = mkdtempSync(join(tmpdir(), 'craft-pkg-'))
     const appsDir = join(tempDir, 'Applications')
 
     mkdirSync(appsDir, { recursive: true })
-    cpSync(opts.appBundlePath, join(appsDir, require('path').basename(opts.appBundlePath)), { recursive: true })
+    cpSync(opts.appBundlePath, join(appsDir, basename(opts.appBundlePath)), { recursive: true })
 
     const proc = spawn('pkgbuild', [
       '--root', tempDir,
@@ -470,7 +510,6 @@ async function createMSI(_opts: {
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
   // Check if WiX is available
   return new Promise((resolve) => {
-    const { exec } = require('child_process')
     exec('candle.exe -?', (error: any) => {
       if (error) {
         resolve({
@@ -498,12 +537,10 @@ async function createZIP(opts: {
   binaryPath: string
   outputPath: string
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
+  const archiverFn = await loadArchiver()
   return new Promise((resolve) => {
-    const { createWriteStream } = require('fs')
-    const archiver = require('archiver')
-
     const output = createWriteStream(opts.outputPath)
-    const archive = archiver('zip', { zlib: { level: 9 } })
+    const archive = archiverFn('zip', { zlib: { level: 9 } })
 
     let settled = false
     const settle = (r: { success: boolean; outputPath?: string; error?: string }) => {
@@ -546,10 +583,32 @@ async function createDEB(opts: {
   dependencies: string[]
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
   return new Promise((resolve) => {
-    const { mkdtempSync, rmSync, copyFileSync, chmodSync } = require('fs')
-    const { tmpdir } = require('os')
-
     try {
+      // Validate inputs that get interpolated into the DEBIAN/control file.
+      // dpkg's control file is line-oriented; newlines or `,` in fields, or
+      // `/` in the package name, corrupt the manifest.
+      const sanitizedName = opts.name.toLowerCase()
+      const safeDebName = /^[a-z0-9._+-]+$/
+      const safeVersion = /^[A-Za-z0-9._+-]+$/
+      if (!safeDebName.test(sanitizedName)) {
+        resolve({ success: false, error: `DEB package name must match ${safeDebName} (got: ${sanitizedName})` })
+        return
+      }
+      if (!safeVersion.test(opts.version)) {
+        resolve({ success: false, error: `DEB version must match ${safeVersion} (got: ${opts.version})` })
+        return
+      }
+      const cleanLine = (s: string): string => s.replace(/[\r\n]+/g, ' ').trim()
+      const description = cleanLine(opts.description)
+      const maintainer = cleanLine(opts.maintainer)
+      for (const dep of opts.dependencies) {
+        // Allow versioned constraints like `libgtk-3-0 (>= 3.22)`.
+        if (!/^[a-z0-9._+-]+(?:\s*\([^)\n,]+\))?$/i.test(dep)) {
+          resolve({ success: false, error: `Invalid DEB dependency "${dep}"` })
+          return
+        }
+      }
+
       // Create DEB package structure
       const tempDir = mkdtempSync(join(tmpdir(), 'craft-deb-'))
       const debianDir = join(tempDir, 'DEBIAN')
@@ -561,19 +620,19 @@ async function createDEB(opts: {
       mkdirSync(applicationsDir, { recursive: true })
 
       // Copy binary
-      const binaryName = opts.name.toLowerCase()
+      const binaryName = sanitizedName
       copyFileSync(opts.binaryPath, join(binDir, binaryName))
       chmodSync(join(binDir, binaryName), 0o755)
 
-      // Create control file
-      const controlContent = `Package: ${opts.name.toLowerCase()}
+      // Create control file. Every field has been sanitized above.
+      const controlContent = `Package: ${sanitizedName}
 Version: ${opts.version}
 Section: utils
 Priority: optional
 Architecture: amd64
 Depends: ${opts.dependencies.join(', ')}
-Maintainer: ${opts.maintainer}
-Description: ${opts.description || opts.name}
+Maintainer: ${maintainer}
+Description: ${description || opts.name}
 `
       writeFileSync(join(debianDir, 'control'), controlContent)
 
@@ -623,8 +682,6 @@ async function createRPM(opts: {
   requires: string[]
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
   return new Promise((resolve) => {
-    const { mkdtempSync, rmSync, copyFileSync, chmodSync } = require('fs')
-    const { tmpdir, homedir } = require('os')
 
     try {
       // Create RPM build structure
@@ -697,9 +754,8 @@ install -m 755 %{SOURCE0} %{buildroot}/usr/bin/${sanitizedName}
           // Find the built RPM and move it
           const rpmName = `${opts.name.toLowerCase()}-${opts.version}-1.x86_64.rpm`
           const builtRpmPath = join(rpmsDir, 'x86_64', rpmName)
-          const { copyFileSync: copy } = require('fs')
           try {
-            copy(builtRpmPath, opts.outputPath)
+            copyFileSync(builtRpmPath, opts.outputPath)
             resolve({ success: true, outputPath: opts.outputPath })
           }
 catch {
@@ -732,8 +788,6 @@ async function createAppImage(opts: {
   iconPath?: string
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
   return new Promise((resolve) => {
-    const { mkdtempSync, rmSync, copyFileSync, chmodSync } = require('fs')
-    const { tmpdir } = require('os')
 
     try {
       // Create AppDir structure

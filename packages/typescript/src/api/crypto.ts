@@ -9,20 +9,37 @@ import type { CraftCryptoAPI } from '../types'
  * Error type for cryptographic failures (malformed input, decode errors, etc.).
  */
 export class CraftCryptoError extends Error {
-  override readonly name = 'CraftCryptoError'
+  override readonly name: string = 'CraftCryptoError'
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options)
   }
 }
 
-// Format used by the Web Crypto / Node.js fallback paths:
+/**
+ * Thrown when {@link crypto.decrypt} is given a ciphertext produced by the
+ * pre-versioning format (no salt prefix). Apps that persisted secrets with
+ * older Craft versions should catch this and re-encrypt the cleartext with
+ * the current API.
+ */
+export class LegacyCiphertextError extends CraftCryptoError {
+  override readonly name: string = 'LegacyCiphertextError'
+  constructor() {
+    super(
+      'Ciphertext was produced by a pre-versioning Craft crypto release. '
+      + 'Re-encrypt the value with the current API to migrate to the v1 wire format.',
+    )
+  }
+}
+
+// Wire format (post-migration):
 //
-//   [salt(16) | iv(12) | ciphertext + auth-tag(16)]
+//   [version(1) | salt(16) | iv(12) | ciphertext + auth-tag(16)]
 //
-// The salt is generated per encryption and stored alongside the ciphertext so
-// the same key string produces a different derived key every time. The Web
-// Crypto API natively appends the GCM tag to the ciphertext; we mirror that on
-// the Node side to keep a single wire format.
+// The leading version byte lets us detect older payloads and refuse them
+// loudly instead of silently failing AES-GCM decryption deep in the crypto
+// stack. v1 is the salt-prefixed layout from late 2025; legacy payloads
+// have no version byte and aren't decryptable with the same code path.
+const FORMAT_VERSION = 0x01
 const SALT_LEN = 16
 const IV_LEN = 12
 const TAG_LEN = 16
@@ -95,11 +112,12 @@ export const crypto: CraftCryptoAPI = {
         )
       )
 
-      // Combine salt + IV + ciphertext (which already has the GCM tag appended)
-      const combined = new Uint8Array(salt.length + iv.length + encrypted.length)
-      combined.set(salt, 0)
-      combined.set(iv, salt.length)
-      combined.set(encrypted, salt.length + iv.length)
+      // Wire format: version(1) | salt(16) | iv(12) | ciphertext+tag
+      const combined = new Uint8Array(1 + salt.length + iv.length + encrypted.length)
+      combined[0] = FORMAT_VERSION
+      combined.set(salt, 1)
+      combined.set(iv, 1 + salt.length)
+      combined.set(encrypted, 1 + salt.length + iv.length)
 
       return bufferToBase64(combined.buffer)
     }
@@ -113,8 +131,14 @@ export const crypto: CraftCryptoAPI = {
     const ciphertext = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()])
     const tag = cipher.getAuthTag()
 
-    // Wire format: salt | iv | ciphertext | tag (tag at end matches Web Crypto)
-    return Buffer.concat([salt, iv, ciphertext, tag]).toString('base64')
+    // Wire format: version | salt | iv | ciphertext | tag
+    return Buffer.concat([
+      Buffer.from([FORMAT_VERSION]),
+      salt,
+      iv,
+      ciphertext,
+      tag,
+    ]).toString('base64')
   },
 
   /**
@@ -127,12 +151,20 @@ export const crypto: CraftCryptoAPI = {
     // Web Crypto API fallback
     if (typeof globalThis.crypto !== 'undefined') {
       const combined = base64ToBuffer(encryptedData)
-      if (combined.length <= SALT_LEN + IV_LEN + TAG_LEN) {
+      if (combined.length < 1 + SALT_LEN + IV_LEN + TAG_LEN) {
         throw new CraftCryptoError('Ciphertext too short to be valid')
       }
-      const salt = combined.slice(0, SALT_LEN)
-      const iv = combined.slice(SALT_LEN, SALT_LEN + IV_LEN)
-      const data = combined.slice(SALT_LEN + IV_LEN)
+      const version = combined[0]
+      if (version !== FORMAT_VERSION) {
+        // Legacy format had no version byte and started directly with the
+        // salt. Detect by elimination — if byte[0] could plausibly be a
+        // salt byte, we still can't tell salt-from-version apart, so we
+        // require an explicit migration.
+        throw new LegacyCiphertextError()
+      }
+      const salt = combined.slice(1, 1 + SALT_LEN)
+      const iv = combined.slice(1 + SALT_LEN, 1 + SALT_LEN + IV_LEN)
+      const data = combined.slice(1 + SALT_LEN + IV_LEN)
 
       const keyBuffer = await deriveKey(key, salt)
 
@@ -151,13 +183,16 @@ export const crypto: CraftCryptoAPI = {
     // Node.js fallback
     const nodeCrypto = await import('node:crypto')
     const buffer = Buffer.from(encryptedData, 'base64')
-    if (buffer.length <= SALT_LEN + IV_LEN + TAG_LEN) {
+    if (buffer.length < 1 + SALT_LEN + IV_LEN + TAG_LEN) {
       throw new CraftCryptoError('Ciphertext too short to be valid')
     }
-    const salt = buffer.subarray(0, SALT_LEN)
-    const iv = buffer.subarray(SALT_LEN, SALT_LEN + IV_LEN)
+    if (buffer[0] !== FORMAT_VERSION) {
+      throw new LegacyCiphertextError()
+    }
+    const salt = buffer.subarray(1, 1 + SALT_LEN)
+    const iv = buffer.subarray(1 + SALT_LEN, 1 + SALT_LEN + IV_LEN)
     const tag = buffer.subarray(buffer.length - TAG_LEN)
-    const ciphertext = buffer.subarray(SALT_LEN + IV_LEN, buffer.length - TAG_LEN)
+    const ciphertext = buffer.subarray(1 + SALT_LEN + IV_LEN, buffer.length - TAG_LEN)
 
     const derivedKey = nodeCrypto.scryptSync(key, salt, 32)
     const decipher = nodeCrypto.createDecipheriv('aes-256-gcm', derivedKey, iv)

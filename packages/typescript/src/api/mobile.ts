@@ -29,6 +29,11 @@
 
 /**
  * Device information.
+ *
+ * Optional sub-fields (`screen`, `battery`, `network`) reflect what the
+ * native side might omit — e.g. desktop hosts have no battery, headless
+ * environments have no screen. Consumers must defensively check before
+ * accessing nested properties.
  */
 export interface DeviceInfo {
   /** Platform: 'ios' | 'android' | 'macos' | 'windows' | 'linux' */
@@ -43,19 +48,19 @@ export interface DeviceInfo {
   deviceId: string
   /** Whether device is a tablet */
   isTablet: boolean
-  /** Screen dimensions */
-  screen: {
+  /** Screen dimensions (omitted by headless or desktop hosts) */
+  screen?: {
     width: number
     height: number
     scale: number
   }
-  /** Battery info */
-  battery: {
+  /** Battery info (omitted on devices without a battery) */
+  battery?: {
     level: number
     isCharging: boolean
   }
-  /** Network status */
-  network: {
+  /** Network status (omitted when the host doesn't report it) */
+  network?: {
     type: 'wifi' | 'cellular' | 'ethernet' | 'none'
     isConnected: boolean
   }

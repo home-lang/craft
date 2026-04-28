@@ -13,24 +13,98 @@ import { EventEmitter } from 'events'
  * `dest`. Tar archives can contain `../` paths or absolute paths; without
  * this check a malicious plugin could write to arbitrary filesystem
  * locations during install.
+ *
+ * We use `-tvzf` (verbose) so the listing includes type characters
+ * (`-`/`d`/`l`/`h`) and reject hardlinks and symlinks unconditionally —
+ * even a relative-looking link target can dereference outside `dest` once
+ * tar follows it during the next file write.
  */
+/**
+ * Maximum bytes accepted for a downloaded plugin tarball. A hostile manifest
+ * URL could otherwise stream gigabytes and OOM the process.
+ */
+const MAX_PLUGIN_BYTES = 50 * 1024 * 1024 // 50 MB
+
+/**
+ * Fetch a plugin tarball with a hard size cap. Throws if the server reports
+ * Content-Length larger than `MAX_PLUGIN_BYTES`, OR if the streamed body
+ * exceeds the cap (covers servers that omit Content-Length).
+ */
+async function fetchPluginPackage(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch plugin package: HTTP ${response.status}`)
+  }
+  const contentLength = Number.parseInt(response.headers.get('content-length') || '', 10)
+  if (Number.isFinite(contentLength) && contentLength > MAX_PLUGIN_BYTES) {
+    throw new Error(`Plugin package too large: ${contentLength} bytes > ${MAX_PLUGIN_BYTES}`)
+  }
+
+  if (!response.body) {
+    return response.arrayBuffer()
+  }
+  // Stream and tally so a missing/lying Content-Length can't smuggle past.
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    if (value) {
+      total += value.byteLength
+      if (total > MAX_PLUGIN_BYTES) {
+        try {
+          await reader.cancel()
+        }
+        catch {
+          // ignore — we're already aborting
+        }
+        throw new Error(`Plugin package exceeded ${MAX_PLUGIN_BYTES} bytes mid-stream`)
+      }
+      chunks.push(value)
+    }
+  }
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    out.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return out.buffer
+}
+
 function safeExtractTar(tarballPath: string, dest: string): void {
-  const listOutput = execFileSync('tar', ['-tzf', tarballPath], {
+  const listOutput = execFileSync('tar', ['-tvzf', tarballPath], {
     cwd: dest,
     encoding: 'utf8',
+    timeout: 30_000,
   })
-  const entries = listOutput.split('\n').map(s => s.trim()).filter(Boolean)
-  for (const entry of entries) {
+  for (const rawLine of listOutput.split('\n')) {
+    const line = rawLine.trim()
+    if (!line) continue
+    const typeChar = line[0]
+    // Reject symlinks (`l`) and hardlinks (`h`) outright.
+    if (typeChar === 'l' || typeChar === 'h') {
+      throw new Error(`Plugin tarball contains a ${typeChar === 'l' ? 'symlink' : 'hardlink'} (refusing to extract): ${line}`)
+    }
+    // Path is the last whitespace-delimited token; for symlink listings
+    // it'd be `target -> name`, but we already rejected those above.
+    const tokens = line.split(/\s+/)
+    const entry = tokens[tokens.length - 1]
+    if (!entry) continue
     if (isAbsolute(entry)) {
       throw new Error(`Plugin tarball contains absolute path: ${entry}`)
     }
     const normalized = normalize(entry)
-    // After normalization, any ".." segment means the entry escapes `dest`.
     if (normalized === '..' || normalized.startsWith('../') || normalized.includes('/../')) {
       throw new Error(`Plugin tarball contains traversal path: ${entry}`)
     }
   }
-  execFileSync('tar', ['-xzf', tarballPath], { cwd: dest })
+  // `--no-overwrite-dir` keeps tar from clobbering directory permissions.
+  execFileSync('tar', ['-xzf', tarballPath, '--no-overwrite-dir'], {
+    cwd: dest,
+    timeout: 60_000,
+  })
 }
 
 // Types
@@ -177,8 +251,7 @@ else {
     const pluginDir = join(this.pluginsDir, name)
     mkdirSync(pluginDir, { recursive: true })
 
-    const packageResponse = await fetch(versionInfo.url)
-    const packageData = await packageResponse.arrayBuffer()
+    const packageData = await fetchPluginPackage(versionInfo.url)
 
     // Verify checksum
     const checksum = await this.computeChecksum(packageData)
@@ -202,12 +275,7 @@ else {
   }
 
   private async installFromUrl(url: string): Promise<Plugin> {
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`Failed to fetch plugin from ${url}`)
-    }
-
-    const packageData = await response.arrayBuffer()
+    const packageData = await fetchPluginPackage(url)
     const tempDir = join(this.pluginsDir, '_temp')
     mkdirSync(tempDir, { recursive: true })
 

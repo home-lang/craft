@@ -1,6 +1,13 @@
 /**
  * React bindings for Craft
  * @module @craft-native/react
+ *
+ * Cleanup contract: every hook in this module that subscribes to a Craft
+ * event registers a `useEffect` cleanup that calls the matching `bridge.off`
+ * (or equivalent unsubscribe). React's strict-mode double-mount in dev,
+ * and unmount-then-remount cycles in production, both depend on this — if
+ * a future hook is added here, return its unsubscribe inside the
+ * `useEffect` return value or you will leak listeners across re-renders.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';

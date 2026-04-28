@@ -14,7 +14,13 @@ import { getBridge } from '../bridge/core'
 // ============================================================================
 
 /**
- * Sidebar item
+ * Sidebar item — components-flavored.
+ *
+ * NOTE: there is a separate `SidebarItem` type in `api/sidebar` with a
+ * narrower shape (only `tintColor` / `enabled` / no `contextMenu`). The
+ * top-level package exports the api version; if you reach into
+ * `@craft-native/craft/components` directly you will get *this* one.
+ * Don't rely on cross-mixing the two.
  */
 export interface SidebarItem {
   /** Unique identifier */

@@ -335,6 +335,10 @@ export class Notarizer {
         if (isApp || isDmg || isPkg) {
           console.log('Stapling ticket...')
           await execFileAsync('xcrun', ['stapler', 'staple', path])
+          // Confirm the staple actually applied — without this, a partial
+          // failure (e.g. write to read-only mount) would silently produce
+          // an unstapled binary that fails Gatekeeper offline.
+          await execFileAsync('xcrun', ['stapler', 'validate', path])
         }
         return { success: true, requestId }
       }

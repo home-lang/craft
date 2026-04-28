@@ -331,8 +331,8 @@ function safeJsonForScript(value: unknown): string {
   return JSON.stringify(value)
     .replace(/<\/(script)/gi, '<\\/$1')
     .replace(/<!--/g, '<\\!--')
-    .replace(/ /g, '\\u2028')
-    .replace(/ /g, '\\u2029')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
 }
 
 function escapeHtml(str: string): string {
@@ -348,7 +348,13 @@ function escapeHtml(str: string): string {
 export class ErrorOverlay {
   private config: ErrorOverlayConfig
   private currentError: ErrorInfo | null = null
+  // Reference of the last raw input to `show()` so we can skip parseError
+  // (a moderately expensive regex+split) when the same Error object is
+  // re-thrown many times — common during hot-reload bursts.
+  private lastRawError: Error | string | null = null
+  // eslint-disable-next-line pickier/no-unused-vars
   private errorHandler: ((event: ErrorEvent) => void) | null = null
+  // eslint-disable-next-line pickier/no-unused-vars
   private rejectionHandler: ((event: PromiseRejectionEvent) => void) | null = null
 
   constructor(config: ErrorOverlayConfig = {}) {
@@ -362,12 +368,31 @@ export class ErrorOverlay {
   }
 
   /**
-   * Show error overlay
+   * Show error overlay. If the same error is already on screen (same message
+   * and stack), skip re-rendering — otherwise hot-reload triggers two
+   * identical overlays for the same uncaught exception.
    */
   show(error: Error | string, componentStack?: string): void {
+    // Cheap reference check first: re-thrown Error objects (common in
+    // React error boundaries) reach `show()` repeatedly. Skip the regex
+    // parse when the input is identity-equal to the last one.
+    if (error === this.lastRawError && !componentStack) {
+      return
+    }
+    this.lastRawError = error
+
     const errorInfo = parseError(error)
     if (componentStack) {
       errorInfo.componentStack = componentStack
+    }
+
+    if (
+      this.currentError
+      && this.currentError.message === errorInfo.message
+      && this.currentError.stack === errorInfo.stack
+    ) {
+      // Same error still showing — do nothing.
+      return
     }
 
     this.currentError = errorInfo

@@ -8,18 +8,18 @@
 
 # Craft
 
-Craft is a lightweight, high-performance cross-platform application framework. Create native apps that work on macOS, Linux, Windows, iOS, and Android with web technologies - all with a tiny ~297KB binary and blazing fast ~168ms startup time.
+Craft is a lightweight, high-performance cross-platform application framework. Create native apps that work on macOS, Linux, Windows, iOS, and Android with web technologies — with a small Zig-built binary and a fast cold start. Reproducible numbers live in [`benchmarks/`](./benchmarks).
 
 ## Features
 
 ### 🌍 Platform Support
 
-- 🖥️ **Desktop** - macOS, Linux, Windows
-- 📱 **Mobile** - iOS _(WKWebView, UIKit)_ and Android _(WebView, Activity)_
-- 🪟 **Menubar Apps** - Native system tray/menubar integration
-- ⚡ **Native Performance** - ~168ms startup, <1% CPU idle, ~86MB memory
-- 🪶 **Tiny Binary** - ~297KB binary size _(1351x smaller than Electron)_
-- 🔧 **Zig-Powered** - Built with Zig for maximum performance
+- 🖥️ **Desktop** — macOS, Linux, Windows
+- 📱 **Mobile** — iOS _(WKWebView, UIKit)_ and Android _(WebView, Activity)_
+- 🪟 **Menubar Apps** — Native system tray/menubar integration
+- ⚡ **Native Performance** — sub-second cold start and small idle footprint; see [`benchmarks/`](./benchmarks) for the latest numbers
+- 🪶 **Compact Binary** — small enough to embed; sized in CI under `.github/workflows/binary-size.yml`
+- 🔧 **Zig-Powered** — Built with Zig for maximum performance
 
 ### 📱 Mobile Platform Support
 
@@ -925,7 +925,7 @@ src/
 ├── api.zig          # Core API with Result types, builders
 ├── mobile.zig       # iOS & Android platform support
 ├── menubar.zig      # Menubar/system tray apps
-├── components.zig   # 31 native UI components
+├── components.zig   # native UI components
 ├── gpu.zig          # Advanced GPU rendering
 ├── system.zig       # System integration (notifications, clipboard, etc.)
 ├── window.zig       # Window management

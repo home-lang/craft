@@ -33,7 +33,7 @@ test-app/
 
 # Logs
 *.log
-/docs/.bunpress
+docs/.bunpress/
 .env
 /pantry
 pantry

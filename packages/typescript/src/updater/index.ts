@@ -88,6 +88,11 @@ export class AutoUpdater extends EventEmitter {
   private updateInfo: UpdateInfo | null = null
   private downloadPath: string | null = null
   private checkTimer: NodeJS.Timeout | null = null
+  // Conditional-GET cache so repeat checks against the manifest server
+  // return 304 instead of a full body. Cleared when the URL changes.
+  private cachedEtag: string | null = null
+  private cachedLastModified: string | null = null
+  private cachedManifest: UpdateInfo | null = null
 
   constructor(config: UpdaterConfig) {
     super()
@@ -145,12 +150,37 @@ export class AutoUpdater extends EventEmitter {
       const platform = this.getPlatform()
       const url = `${this.config.updateUrl}?v=${this.config.currentVersion}&channel=${this.config.channel}&platform=${platform}`
 
-      const response = await fetch(url)
+      const headers: Record<string, string> = {}
+      if (this.cachedEtag) headers['If-None-Match'] = this.cachedEtag
+      if (this.cachedLastModified) headers['If-Modified-Since'] = this.cachedLastModified
+
+      const response = await fetch(url, { headers })
+
+      // 304 Not Modified — reuse the prior manifest. If the cached entry
+      // already announces a newer version that the user hasn't acted on
+      // yet (e.g. they dismissed the banner), re-emit `update-available`
+      // so dismissed-but-still-relevant updates resurface on the next
+      // poll instead of becoming silently invisible after the first 200.
+      if (response.status === 304 && this.cachedManifest) {
+        if (this.isNewerVersion(this.cachedManifest.version, this.config.currentVersion)) {
+          this.updateInfo = this.cachedManifest
+          this.emit('update-available', this.cachedManifest)
+          return this.cachedManifest
+        }
+        this.emit('update-not-available')
+        return null
+      }
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
 
       const updateInfo: UpdateInfo = await response.json()
+      // Capture validators for the next check. response.headers.get is
+      // case-insensitive per the Fetch spec.
+      this.cachedEtag = response.headers.get('etag') || null
+      this.cachedLastModified = response.headers.get('last-modified') || null
+      this.cachedManifest = updateInfo
 
       if (this.isNewerVersion(updateInfo.version, this.config.currentVersion)) {
         // Check minimum version requirement
@@ -259,6 +289,17 @@ catch (error) {
       if (hash !== expectedHash) {
         unlinkSync(this.downloadPath)
         throw new Error('Download verification failed: hash mismatch')
+      }
+
+      // When a public key is configured, every update MUST carry a
+      // signature — otherwise an attacker who controlled the manifest could
+      // publish unsigned updates and bypass verification entirely.
+      if (this.config.publicKeyPem && !platformUpdate.signature) {
+        unlinkSync(this.downloadPath)
+        throw new Error(
+          'Updater: publicKeyPem is configured but the manifest entry has no signature. '
+          + 'Refusing to install unsigned update.',
+        )
       }
 
       // Verify signature if available

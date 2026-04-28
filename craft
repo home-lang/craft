@@ -1,5 +1,8 @@
-# shim the zig-out bin
-export PATH="$PATH:$(pwd)/zig-out/bin"
-
-# run the cli
-./packages/zig/zig-out/bin/craft "$@"
+#!/usr/bin/env bash
+# Wrapper that runs the locally-built Craft binary regardless of the
+# caller's working directory. Use $(dirname "$0") so this works from
+# anywhere — the previous version used $(pwd) which only worked when
+# invoked from the repo root.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$SCRIPT_DIR/packages/zig/zig-out/bin/craft" "$@"

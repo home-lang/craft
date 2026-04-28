@@ -1,6 +1,10 @@
 [install]
 registry = { url = "https://registry.npmjs.org/", token = "$BUN_AUTH_TOKEN" }
 linker = "hoisted"
+
 [test]
 # Run tests sequentially to prevent interference
 concurrency = 1
+# Note: the root `bun test` will pick up vendored fixtures under `pantry/`
+# which are not part of Craft. Run `bun run test:sdk` (or `cd packages/<pkg> &&
+# bun test`) for clean results — the package.json scripts do the right thing.

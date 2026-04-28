@@ -237,7 +237,11 @@ export class Logger {
   }
 
   /**
-   * Output to console
+   * Output to console. When running inside a Craft webview we ALSO mirror
+   * the message through `window.craft.bridge.call('log.write', …)` so the
+   * native log facility (and tools like `Console.app` / `journalctl`)
+   * receives the entry — webview console output is otherwise stuck behind
+   * a devtools connection that production users don't have open.
    */
   private outputConsole(entry: LogEntry, formatted: string): void {
     const color = LEVEL_COLORS[entry.level]
@@ -253,6 +257,34 @@ export class Logger {
         break
       default:
         console.log(output)
+    }
+
+    // Best-effort native forwarding. We use the bridge's batching API so a
+    // log-heavy code path doesn't fire one bridge call per line — `addToBatch`
+    // coalesces into a single envelope on the next tick.
+    if (typeof window !== 'undefined') {
+      const w = window as unknown as {
+        craft?: {
+          bridge?: {
+            addToBatch?: (m: string, p?: unknown) => void
+            call?: (m: string, p?: unknown) => unknown
+          }
+        }
+      }
+      const bridge = w.craft?.bridge
+      if (bridge) {
+        try {
+          if (typeof bridge.addToBatch === 'function') {
+            bridge.addToBatch('log.write', { level: entry.level, message: formatted, timestamp: entry.timestamp })
+          }
+          else if (typeof bridge.call === 'function') {
+            void bridge.call('log.write', { level: entry.level, message: formatted, timestamp: entry.timestamp })
+          }
+        }
+        catch {
+          // Native logger optional; never crash the host on a log forwarding failure.
+        }
+      }
     }
   }
 
@@ -322,11 +354,15 @@ export class Logger {
   private redactSensitive(obj: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {}
     const patterns = this.config.redactPatterns ?? []
+    // `redact` is non-optional in the merged config but a consumer can
+    // still pass `redact: undefined` (or `null as any`) which would crash
+    // the `.some` call below. Guard once.
+    const redactList = this.config.redact ?? []
 
     for (const [key, value] of Object.entries(obj)) {
       const lowerKey = key.toLowerCase()
       const shouldRedact
-        = this.config.redact.some(field => lowerKey.includes(field.toLowerCase()))
+        = redactList.some(field => lowerKey.includes(field.toLowerCase()))
           || patterns.some(re => re.test(key))
 
       if (shouldRedact) {
