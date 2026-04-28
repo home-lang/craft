@@ -196,8 +196,8 @@ pub const LifecycleManager = struct {
     background_time: i64 = 0,
 
     // Callbacks
-    lifecycle_callbacks: std.ArrayListUnmanaged(LifecycleCallback) = .{},
-    state_change_callbacks: std.ArrayListUnmanaged(StateChangeCallback) = .{},
+    lifecycle_callbacks: std.ArrayListUnmanaged(LifecycleCallback) = .empty,
+    state_change_callbacks: std.ArrayListUnmanaged(StateChangeCallback) = .empty,
 
     // Background tasks
     next_task_id: BackgroundTaskId = 1,

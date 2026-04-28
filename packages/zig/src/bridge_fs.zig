@@ -200,7 +200,7 @@ pub const FSBridge = struct {
             self.sendFSError(callback_id, "appendFile", path, err);
             return;
         };
-        file.writePositional(io_context.get(), &.{content}, file_stat.size) catch |err| {
+        _ = file.writePositional(io_context.get(), &.{content}, file_stat.size) catch |err| {
             self.sendFSError(callback_id, "appendFile", path, err);
             return;
         };
@@ -883,16 +883,6 @@ pub const FSBridge = struct {
         bridge.evalJS(js) catch |eval_err| {
             std.log.debug("JS eval failed for FS error callback: {}", .{eval_err});
         };
-    }
-
-    pub fn deinit(self: *Self) void {
-        var it = self.watchers.iterator();
-        while (it.next()) |entry| {
-            self.allocator.free(entry.value_ptr.id);
-            self.allocator.free(entry.value_ptr.path);
-            self.allocator.free(entry.value_ptr.callback_id);
-        }
-        self.watchers.deinit();
     }
 };
 

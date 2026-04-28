@@ -354,7 +354,7 @@ pub const AnalyticsTracker = struct {
     screen_start_time: i64 = 0,
 
     // Event queue
-    event_queue: std.ArrayListUnmanaged(Event) = .{},
+    event_queue: std.ArrayListUnmanaged(Event) = .empty,
 
     // Metrics
     total_events: u64 = 0,

@@ -45,7 +45,7 @@ pub fn getString(data: []const u8, key: []const u8) ?[]const u8 {
 pub fn getStringDecoded(allocator: std.mem.Allocator, data: []const u8, key: []const u8) !?[]u8 {
     const raw = getString(data, key) orelse return null;
 
-    var out: std.ArrayListUnmanaged(u8) = .{};
+    var out: std.ArrayListUnmanaged(u8) = .empty;
     errdefer out.deinit(allocator);
 
     var i: usize = 0;
@@ -167,7 +167,7 @@ pub fn hasKey(data: []const u8, key: []const u8) bool {
 
 /// Escape a string for safe JSON embedding
 pub fn escapeJson(allocator: std.mem.Allocator, str: []const u8) ![]u8 {
-    var result: std.ArrayListUnmanaged(u8) = .{};
+    var result: std.ArrayListUnmanaged(u8) = .empty;
     errdefer result.deinit(allocator);
 
     for (str) |ch| {
@@ -192,8 +192,11 @@ pub fn buildJsonString(allocator: std.mem.Allocator, key: []const u8, value: []c
     return try std.fmt.allocPrint(allocator, "{{\"{s}\":\"{s}\"}}", .{ key, escaped });
 }
 
-/// Build JSON object with multiple string fields
+/// Build JSON object with multiple string fields. `max_fields` is a
+/// historical knob — the buffer grows dynamically, so it's purely a
+/// type-level tag for callers that want distinct builder types.
 pub fn JsonBuilder(comptime max_fields: usize) type {
+    _ = max_fields;
     return struct {
         allocator: std.mem.Allocator,
         buffer: std.ArrayListUnmanaged(u8),
@@ -206,7 +209,7 @@ pub fn JsonBuilder(comptime max_fields: usize) type {
         /// previous behavior would produce invalid JSON like `"key":"value"}`
         /// with no opening brace).
         pub fn init(allocator: std.mem.Allocator) !Self {
-            var buffer: std.ArrayListUnmanaged(u8) = .{};
+            var buffer: std.ArrayListUnmanaged(u8) = .empty;
             errdefer buffer.deinit(allocator);
             try buffer.append(allocator, '{');
             return .{

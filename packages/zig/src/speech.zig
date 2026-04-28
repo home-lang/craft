@@ -387,7 +387,7 @@ pub const SpeechRecognizer = struct {
     options: RecognitionOptions = .{},
     authorization_status: AuthorizationStatus = .not_determined,
     current_result: ?TranscriptionResult = null,
-    results_history: std.ArrayListUnmanaged(TranscriptionResult) = .{},
+    results_history: std.ArrayListUnmanaged(TranscriptionResult) = .empty,
     event_callback: ?*const fn (RecognitionEvent) void = null,
     error_message: ?[]const u8 = null,
     audio_level: f32 = 0.0,
@@ -546,8 +546,8 @@ pub const SpeechSynthesizer = struct {
     state: SynthesisState = .idle,
     options: SynthesisOptions = .{},
     current_utterance: ?SpeechUtterance = null,
-    utterance_queue: std.ArrayListUnmanaged(SpeechUtterance) = .{},
-    available_voices: std.ArrayListUnmanaged(Voice) = .{},
+    utterance_queue: std.ArrayListUnmanaged(SpeechUtterance) = .empty,
+    available_voices: std.ArrayListUnmanaged(Voice) = .empty,
     event_callback: ?*const fn (SynthesisEvent) void = null,
     error_message: ?[]const u8 = null,
     progress: f32 = 0.0,
@@ -589,7 +589,7 @@ pub const SpeechSynthesizer = struct {
     }
 
     pub fn getVoicesForLanguage(self: Self, language: Language) !std.ArrayListUnmanaged(Voice) {
-        var result: std.ArrayListUnmanaged(Voice) = .{};
+        var result: std.ArrayListUnmanaged(Voice) = .empty;
         for (self.available_voices.items) |voice| {
             if (voice.supportsLanguage(language)) {
                 try result.append(self.allocator, voice);

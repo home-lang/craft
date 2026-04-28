@@ -137,7 +137,7 @@ pub const PostalAddress = struct {
     is_primary: bool = false,
 
     pub fn format(self: PostalAddress, allocator: Allocator) ![]u8 {
-        var result = std.ArrayListUnmanaged(u8){};
+        var result = std.ArrayListUnmanaged(u8).empty;
         errdefer result.deinit(allocator);
 
         var first = true;
@@ -284,7 +284,7 @@ pub const Contact = struct {
 
     /// Get full name
     pub fn getFullName(self: Contact, allocator: Allocator) ![]u8 {
-        var result = std.ArrayListUnmanaged(u8){};
+        var result = std.ArrayListUnmanaged(u8).empty;
         errdefer result.deinit(allocator);
 
         var first = true;
@@ -485,9 +485,9 @@ pub const ContactStore = struct {
     allocator: Allocator,
     platform: Platform,
     authorization_status: AuthorizationStatus,
-    contacts: std.ArrayListUnmanaged(Contact) = .{},
-    groups: std.ArrayListUnmanaged(ContactGroup) = .{},
-    change_history: std.ArrayListUnmanaged(ContactChange) = .{},
+    contacts: std.ArrayListUnmanaged(Contact) = .empty,
+    groups: std.ArrayListUnmanaged(ContactGroup) = .empty,
+    change_history: std.ArrayListUnmanaged(ContactChange) = .empty,
     last_sync: ?i64,
 
     const Self = @This();
@@ -591,7 +591,7 @@ pub const ContactStore = struct {
             return ContactsError.NotAuthorized;
         }
 
-        var results = std.ArrayListUnmanaged(Contact){};
+        var results = std.ArrayListUnmanaged(Contact).empty;
         errdefer results.deinit(self.allocator);
 
         for (self.contacts.items) |contact| {
@@ -814,7 +814,7 @@ pub const ContactStore = struct {
             return ContactsError.NotAuthorized;
         }
 
-        var changes = std.ArrayListUnmanaged(ContactChange){};
+        var changes = std.ArrayListUnmanaged(ContactChange).empty;
         errdefer changes.deinit(self.allocator);
 
         for (self.change_history.items) |change| {
@@ -845,10 +845,10 @@ pub const ContactStore = struct {
 pub const ContactBuilder = struct {
     allocator: Allocator,
     contact: Contact,
-    phone_numbers: std.ArrayListUnmanaged(PhoneNumber) = .{},
-    email_addresses: std.ArrayListUnmanaged(EmailAddress) = .{},
-    postal_addresses: std.ArrayListUnmanaged(PostalAddress) = .{},
-    social_profiles: std.ArrayListUnmanaged(SocialProfile) = .{},
+    phone_numbers: std.ArrayListUnmanaged(PhoneNumber) = .empty,
+    email_addresses: std.ArrayListUnmanaged(EmailAddress) = .empty,
+    postal_addresses: std.ArrayListUnmanaged(PostalAddress) = .empty,
+    social_profiles: std.ArrayListUnmanaged(SocialProfile) = .empty,
 
     const Self = @This();
 
@@ -965,7 +965,7 @@ pub const VCardGenerator = struct {
     }
 
     pub fn generate(self: Self, contact: Contact) ![]u8 {
-        var result = std.ArrayListUnmanaged(u8){};
+        var result = std.ArrayListUnmanaged(u8).empty;
         errdefer result.deinit(self.allocator);
 
         // Begin vCard
@@ -1068,7 +1068,7 @@ pub const DuplicatePair = struct {
 };
 
 pub fn findDuplicates(allocator: Allocator, contacts: []Contact, strategy: DeduplicationStrategy) ![]DuplicatePair {
-    var duplicates = std.ArrayListUnmanaged(DuplicatePair){};
+    var duplicates = std.ArrayListUnmanaged(DuplicatePair).empty;
     errdefer duplicates.deinit(allocator);
 
     for (contacts, 0..) |contact1, i| {

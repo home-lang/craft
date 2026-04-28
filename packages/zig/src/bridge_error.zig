@@ -81,7 +81,7 @@ pub const ErrorContext = struct {
     /// overflow the previously fixed 1024-byte stack buffer. Escapes both
     /// `"` and `\` plus control bytes that would produce invalid JSON.
     pub fn toJSON(self: ErrorContext, allocator: std.mem.Allocator) ![]u8 {
-        var out: std.ArrayListUnmanaged(u8) = .{};
+        var out: std.ArrayListUnmanaged(u8) = .empty;
         errdefer out.deinit(allocator);
 
         try out.appendSlice(allocator, "{\"error\":true,\"code\":\"");

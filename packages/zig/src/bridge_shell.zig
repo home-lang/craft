@@ -5,6 +5,14 @@ const io_context = @import("io_context.zig");
 
 const BridgeError = bridge_error.BridgeError;
 
+// libc env mutators. `std.c.setenv` was removed in zig 0.17, so we
+// declare the externs ourselves; on Windows the runtime exports
+// `_putenv_s` from msvcrt instead.
+extern "c" fn setenv(name: [*:0]const u8, value: [*:0]const u8, overwrite: c_int) c_int;
+const c_setenv = setenv;
+extern "c" fn _putenv_s(name: [*:0]const u8, value: [*:0]const u8) c_int;
+const c_putenv_s = _putenv_s;
+
 /// Running process entry
 const ProcessEntry = struct {
     id: []const u8,
@@ -223,9 +231,9 @@ pub const ShellBridge = struct {
         // the pipe buffer (~64KB on macOS/Linux) blocks on its next write
         // until a reader drains it — so `wait()` before reading would
         // deadlock on any non-trivial command output.
-        var stdout_list = std.ArrayListUnmanaged(u8){};
+        var stdout_list = std.ArrayListUnmanaged(u8).empty;
         defer stdout_list.deinit(self.allocator);
-        var stderr_list = std.ArrayListUnmanaged(u8){};
+        var stderr_list = std.ArrayListUnmanaged(u8).empty;
         defer stderr_list.deinit(self.allocator);
 
         if (child.stdout) |stdout_file| {
@@ -330,11 +338,11 @@ pub const ShellBridge = struct {
         if (self.processes.getPtr(id)) |entry| {
             if (entry.child) |*child| {
                 if (child.stdout) |*stdout| {
-                    stdout.close();
+                    stdout.close(io_context.get());
                     child.stdout = null;
                 }
                 if (child.stderr) |*stderr| {
-                    stderr.close();
+                    stderr.close(io_context.get());
                     child.stderr = null;
                 }
                 child.kill(io_context.get());
@@ -595,10 +603,10 @@ pub const ShellBridge = struct {
         defer self.allocator.free(value_z);
 
         if (comptime builtin.os.tag == .windows) {
-            const rc = std.c._putenv_s(name_z.ptr, value_z.ptr);
+            const rc = c_putenv_s(name_z.ptr, value_z.ptr);
             if (rc != 0) return BridgeError.NativeCallFailed;
         } else {
-            const rc = std.c.setenv(name_z.ptr, value_z.ptr, 1);
+            const rc = c_setenv(name_z.ptr, value_z.ptr, 1);
             if (rc != 0) return BridgeError.NativeCallFailed;
         }
     }
@@ -764,11 +772,11 @@ pub const ShellBridge = struct {
             if (entry.value_ptr.child) |*child| {
                 // Close stdout/stderr pipes before killing to avoid fd leaks
                 if (child.stdout) |*stdout| {
-                    stdout.close();
+                    stdout.close(io_context.get());
                     child.stdout = null;
                 }
                 if (child.stderr) |*stderr| {
-                    stderr.close();
+                    stderr.close(io_context.get());
                     child.stderr = null;
                 }
                 child.kill(io_context.get());

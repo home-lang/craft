@@ -515,9 +515,9 @@ pub const QueryOptions = struct {
 pub const HealthStore = struct {
     allocator: Allocator,
     authorization_status: std.AutoHashMap(HealthDataType, AuthorizationStatus),
-    samples: std.ArrayListUnmanaged(HealthSample) = .{},
-    workouts: std.ArrayListUnmanaged(Workout) = .{},
-    sleep_sessions: std.ArrayListUnmanaged(SleepSession) = .{},
+    samples: std.ArrayListUnmanaged(HealthSample) = .empty,
+    workouts: std.ArrayListUnmanaged(Workout) = .empty,
+    sleep_sessions: std.ArrayListUnmanaged(SleepSession) = .empty,
     event_callback: ?*const fn (HealthEvent) void = null,
 
     const Self = @This();
@@ -573,7 +573,7 @@ pub const HealthStore = struct {
     }
 
     pub fn querySamples(self: Self, data_type: HealthDataType, options: QueryOptions) !std.ArrayListUnmanaged(HealthSample) {
-        var result: std.ArrayListUnmanaged(HealthSample) = .{};
+        var result: std.ArrayListUnmanaged(HealthSample) = .empty;
 
         for (self.samples.items) |sample| {
             if (sample.data_type != data_type) continue;

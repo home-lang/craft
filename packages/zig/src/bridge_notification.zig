@@ -470,7 +470,7 @@ pub const NotificationBridge = struct {
         //     as a notify-send flag.
         //   - Drive the child through `std.process.spawn(io, .{...})` to stay
         //     consistent with the other bridges.
-        var args: std.ArrayListUnmanaged([]const u8) = .{};
+        var args: std.ArrayListUnmanaged([]const u8) = .empty;
         defer args.deinit(self.allocator);
 
         try args.append(self.allocator, "notify-send");
@@ -573,7 +573,7 @@ pub const NotificationBridge = struct {
     /// Escape a string so it's safe to embed inside a PowerShell double-quoted
     /// literal (`"..."`). The caller owns the returned buffer.
     fn escapePsDoubleQuoted(allocator: std.mem.Allocator, s: []const u8) ![]u8 {
-        var out: std.ArrayListUnmanaged(u8) = .{};
+        var out: std.ArrayListUnmanaged(u8) = .empty;
         errdefer out.deinit(allocator);
 
         for (s) |c| {

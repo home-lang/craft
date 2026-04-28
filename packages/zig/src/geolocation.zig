@@ -389,7 +389,7 @@ pub const LocationManager = struct {
     error_callback: ?ErrorCallback = null,
 
     // Region monitoring
-    monitored_regions: std.ArrayListUnmanaged(Region) = .{},
+    monitored_regions: std.ArrayListUnmanaged(Region) = .empty,
     region_callback: ?RegionCallback = null,
 
     // Heading

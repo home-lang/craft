@@ -68,7 +68,7 @@ export fn craft_perform_drag_operation(
     extractAndPostPaths(self, draggingInfo);
 
     if (original_perform_drag_imp) |imp_ptr| {
-        const fp: PerformDragFn = @ptrCast(imp_ptr);
+        const fp: PerformDragFn = @ptrCast(@alignCast(imp_ptr));
         return fp(self, selector, draggingInfo);
     }
     // No original IMP found — accept the drop so the user's gesture
@@ -91,7 +91,7 @@ fn extractAndPostPaths(webview: objc.id, draggingInfo: objc.id) void {
     if (paths_count == 0) collectFileURLs(pasteboard, &paths_buf, &paths_count);
     if (paths_count == 0) return;
 
-    var json = std.ArrayList(u8){};
+    var json: std.ArrayListUnmanaged(u8) = .empty;
     defer json.deinit(std.heap.c_allocator);
     json.append(std.heap.c_allocator, '[') catch return;
     var i: usize = 0;
@@ -103,7 +103,7 @@ fn extractAndPostPaths(webview: objc.id, draggingInfo: objc.id) void {
     }
     json.append(std.heap.c_allocator, ']') catch return;
 
-    var script = std.ArrayList(u8){};
+    var script: std.ArrayListUnmanaged(u8) = .empty;
     defer script.deinit(std.heap.c_allocator);
     // The bridge JS defines `__craftDeliverFileDrop`. Falling through to
     // a no-op if it's missing keeps us safe on early page loads.
@@ -180,7 +180,7 @@ fn collectFileURLs(pasteboard: objc.id, out: *[64][]u8, count: *usize) void {
     }
 }
 
-fn appendJsonString(out: *std.ArrayList(u8), s: []const u8) !void {
+fn appendJsonString(out: *std.ArrayListUnmanaged(u8), s: []const u8) !void {
     for (s) |b| {
         switch (b) {
             '\\' => try out.appendSlice(std.heap.c_allocator, "\\\\"),
@@ -188,7 +188,7 @@ fn appendJsonString(out: *std.ArrayList(u8), s: []const u8) !void {
             '\n' => try out.appendSlice(std.heap.c_allocator, "\\n"),
             '\r' => try out.appendSlice(std.heap.c_allocator, "\\r"),
             '\t' => try out.appendSlice(std.heap.c_allocator, "\\t"),
-            0...0x1F => {
+            0x00...0x08, 0x0B, 0x0C, 0x0E...0x1F => {
                 var buf: [6]u8 = undefined;
                 const written = std.fmt.bufPrint(&buf, "\\u{x:0>4}", .{b}) catch continue;
                 try out.appendSlice(std.heap.c_allocator, written);

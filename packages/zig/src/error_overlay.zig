@@ -145,7 +145,7 @@ pub const ErrorOverlay = struct {
         // `std.ArrayList(u8).init(allocator)` is gone in Zig 0.16. Use the
         // unmanaged list and grab a writer that knows to pass the allocator
         // through on every `appendSlice`.
-        var html: std.ArrayListUnmanaged(u8) = .{};
+        var html: std.ArrayListUnmanaged(u8) = .empty;
         errdefer html.deinit(self.allocator);
         const writer = html.writer(self.allocator);
 

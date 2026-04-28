@@ -70,9 +70,9 @@ pub const Process = struct {
             _ = process.wait(io) catch {};
         }
 
-        var stdout_list: std.ArrayListUnmanaged(u8) = .{};
+        var stdout_list: std.ArrayListUnmanaged(u8) = .empty;
         errdefer stdout_list.deinit(self.allocator);
-        var stderr_list: std.ArrayListUnmanaged(u8) = .{};
+        var stderr_list: std.ArrayListUnmanaged(u8) = .empty;
         errdefer stderr_list.deinit(self.allocator);
 
         // Spawn a tiny drainer thread for stderr so stdout and stderr are

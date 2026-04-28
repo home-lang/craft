@@ -490,9 +490,9 @@ pub const SmartListType = enum {
 
 pub const TaskStore = struct {
     allocator: Allocator,
-    tasks: std.ArrayListUnmanaged(Task) = .{},
-    lists: std.ArrayListUnmanaged(TaskList) = .{},
-    change_history: std.ArrayListUnmanaged(TaskChange) = .{},
+    tasks: std.ArrayListUnmanaged(Task) = .empty,
+    lists: std.ArrayListUnmanaged(TaskList) = .empty,
+    change_history: std.ArrayListUnmanaged(TaskChange) = .empty,
     authorization_status: AuthorizationStatus = .not_determined,
 
     pub const TaskChange = struct {
@@ -682,7 +682,7 @@ pub const TaskStore = struct {
     }
 
     pub fn getOverdueTasks(self: Self) !std.ArrayListUnmanaged(Task) {
-        var result: std.ArrayListUnmanaged(Task) = .{};
+        var result: std.ArrayListUnmanaged(Task) = .empty;
         for (self.tasks.items) |task| {
             if (task.isOverdue()) {
                 try result.append(self.allocator, task);
@@ -692,7 +692,7 @@ pub const TaskStore = struct {
     }
 
     pub fn getTodayTasks(self: Self) !std.ArrayListUnmanaged(Task) {
-        var result: std.ArrayListUnmanaged(Task) = .{};
+        var result: std.ArrayListUnmanaged(Task) = .empty;
         for (self.tasks.items) |task| {
             if (task.isDueToday() and !task.status.isDone()) {
                 try result.append(self.allocator, task);
@@ -702,7 +702,7 @@ pub const TaskStore = struct {
     }
 
     pub fn searchTasks(self: Self, query: []const u8) !std.ArrayListUnmanaged(Task) {
-        var result: std.ArrayListUnmanaged(Task) = .{};
+        var result: std.ArrayListUnmanaged(Task) = .empty;
         const lower_query = std.ascii.lowerString(@constCast(query[0..]), query);
 
         for (self.tasks.items) |task| {
@@ -841,9 +841,9 @@ pub const ListUpdates = struct {
 pub const TaskBuilder = struct {
     allocator: Allocator,
     task: Task,
-    reminders_list: std.ArrayListUnmanaged(ReminderTrigger) = .{},
-    subtasks_list: std.ArrayListUnmanaged(Subtask) = .{},
-    tags_list: std.ArrayListUnmanaged([]const u8) = .{},
+    reminders_list: std.ArrayListUnmanaged(ReminderTrigger) = .empty,
+    subtasks_list: std.ArrayListUnmanaged(Subtask) = .empty,
+    tags_list: std.ArrayListUnmanaged([]const u8) = .empty,
 
     const Self = @This();
 
@@ -996,7 +996,7 @@ pub const VTodoGenerator = struct {
     }
 
     pub fn generate(self: Self, task: Task) ![]const u8 {
-        var buffer: std.ArrayListUnmanaged(u8) = .{};
+        var buffer: std.ArrayListUnmanaged(u8) = .empty;
         errdefer buffer.deinit(self.allocator);
 
         try buffer.appendSlice(self.allocator, "BEGIN:VTODO\r\n");

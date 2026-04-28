@@ -417,7 +417,7 @@ pub const ConnectionOptions = struct {
 pub const PeripheralService = struct {
     uuid: UUID,
     is_primary: bool = true,
-    characteristics: std.ArrayListUnmanaged(PeripheralCharacteristic) = .{},
+    characteristics: std.ArrayListUnmanaged(PeripheralCharacteristic) = .empty,
 
     const Self = @This();
 
@@ -484,8 +484,8 @@ pub const BluetoothCentral = struct {
     allocator: Allocator,
     state: BluetoothState = .unknown,
     is_scanning: bool = false,
-    discovered_devices: std.ArrayListUnmanaged(ScannedDevice) = .{},
-    connected_devices: std.ArrayListUnmanaged(ConnectedDevice) = .{},
+    discovered_devices: std.ArrayListUnmanaged(ScannedDevice) = .empty,
+    connected_devices: std.ArrayListUnmanaged(ConnectedDevice) = .empty,
     event_callback: ?*const fn (BluetoothEvent) void = null,
     scan_options: ?ScanOptions = null,
 
@@ -707,8 +707,8 @@ pub const BluetoothPeripheral = struct {
     allocator: Allocator,
     state: BluetoothState = .unknown,
     is_advertising: bool = false,
-    services: std.ArrayListUnmanaged(PeripheralService) = .{},
-    connected_centrals: std.ArrayListUnmanaged([]const u8) = .{},
+    services: std.ArrayListUnmanaged(PeripheralService) = .empty,
+    connected_centrals: std.ArrayListUnmanaged([]const u8) = .empty,
     event_callback: ?*const fn (BluetoothEvent) void = null,
     advertisement_options: ?AdvertisementOptions = null,
 

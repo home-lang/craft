@@ -532,8 +532,8 @@ pub const CalendarStore = struct {
     allocator: Allocator,
     platform: Platform,
     authorization_status: CalendarAuthorizationStatus,
-    calendars: std.ArrayListUnmanaged(Calendar) = .{},
-    events: std.ArrayListUnmanaged(CalendarEvent) = .{},
+    calendars: std.ArrayListUnmanaged(Calendar) = .empty,
+    events: std.ArrayListUnmanaged(CalendarEvent) = .empty,
     default_calendar_id: ?[]const u8,
 
     const Self = @This();
@@ -764,7 +764,7 @@ pub const CalendarStore = struct {
             return CalendarError.NotAuthorized;
         }
 
-        var results = std.ArrayListUnmanaged(CalendarEvent){};
+        var results = std.ArrayListUnmanaged(CalendarEvent).empty;
         errdefer results.deinit(self.allocator);
 
         for (self.events.items) |event| {
@@ -844,7 +844,7 @@ pub const CalendarStore = struct {
             return CalendarError.NotAuthorized;
         }
 
-        var slots = std.ArrayListUnmanaged(FreeBusySlot){};
+        var slots = std.ArrayListUnmanaged(FreeBusySlot).empty;
         errdefer slots.deinit(self.allocator);
 
         const events = try self.getEvents(start_date, end_date);
@@ -882,8 +882,8 @@ pub const CalendarStore = struct {
 pub const EventBuilder = struct {
     allocator: Allocator,
     event: CalendarEvent,
-    attendees: std.ArrayListUnmanaged(Attendee) = .{},
-    alarms: std.ArrayListUnmanaged(Alarm) = .{},
+    attendees: std.ArrayListUnmanaged(Attendee) = .empty,
+    alarms: std.ArrayListUnmanaged(Alarm) = .empty,
 
     const Self = @This();
 
@@ -974,7 +974,7 @@ pub const ICSGenerator = struct {
     }
 
     pub fn generateEvent(self: Self, event: CalendarEvent) ![]u8 {
-        var result = std.ArrayListUnmanaged(u8){};
+        var result = std.ArrayListUnmanaged(u8).empty;
         errdefer result.deinit(self.allocator);
 
         try result.appendSlice(self.allocator, "BEGIN:VCALENDAR\r\n");

@@ -650,9 +650,9 @@ pub const MediaPlayer = struct {
 pub const Playlist = struct {
     allocator: Allocator,
     name: []const u8,
-    items: std.ArrayListUnmanaged(MediaSource) = .{},
+    items: std.ArrayListUnmanaged(MediaSource) = .empty,
     current_index: ?usize = null,
-    shuffle_order: std.ArrayListUnmanaged(usize) = .{},
+    shuffle_order: std.ArrayListUnmanaged(usize) = .empty,
     is_shuffled: bool = false,
 
     const Self = @This();
