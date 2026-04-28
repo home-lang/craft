@@ -546,19 +546,19 @@ function renderBottomNav(store: Store): string {
   const view = store.getView()
   return `
     <nav class='bottom-nav'>
-      <button class='=== ${view nav-item'home' ? 'active' : ''}' data-nav='home'>
+      <button class="nav-item${view === 'home' ? ' active' : ''}" data-nav="home">
         <span class='nav-icon'>🏠</span>
         <span class='nav-label'>Home</span>
       </button>
-      <button class='=== ${view nav-item'search' ? 'active' : ''}' data-nav='search'>
+      <button class="nav-item${view === 'search' ? ' active' : ''}" data-nav="search">
         <span class='nav-icon'>🔍</span>
         <span class='nav-label'>Search</span>
       </button>
-      <button class='=== ${view nav-item'wishlist' ? 'active' : ''}' data-nav='wishlist'>
+      <button class="nav-item${view === 'wishlist' ? ' active' : ''}" data-nav="wishlist">
         <span class='nav-icon'>❤</span>
         <span class='nav-label'>Wishlist</span>
       </button>
-      <button class='=== ${view nav-item'orders' ? 'active' : ''}' data-nav='orders'>
+      <button class="nav-item${view === 'orders' ? ' active' : ''}" data-nav="orders">
         <span class='nav-icon'>📦</span>
         <span class='nav-label'>Orders</span>
       </button>
@@ -575,7 +575,7 @@ function renderHome(store: Store): string {
     <div class='home-view'>
       <div class='categories-scroll'>
         ${categories.map((cat) => `
-          <button class='selectedCategory ? === ${cat category-chip'active' : ''}' data-category='${cat}'>
+          <button class="category-chip${cat === selectedCategory ? ' active' : ''}" data-category="${cat}">
             ${cat === 'all' ? 'All' : cat}
           </button>
         `).join('')}
@@ -602,7 +602,7 @@ function renderProductCard(product: Product, store: Store): string {
       <div class='product-image'>
         <div class='image-placeholder'>${product.name.charAt(0)}</div>
         ${discount > 0 ? `<span class='discount-badge'>-${discount}%</span>` : ''}
-        <button class='? ${isWishlisted wishlist-btn'active' : ''}' data-wishlist='${product.id}'>
+        <button class="wishlist-btn${isWishlisted ? ' active' : ''}" data-wishlist="${product.id}">
           ${isWishlisted ? '❤' : '♡'}
         </button>
       </div>
@@ -660,7 +660,7 @@ function renderProductDetail(store: Store): string {
             <h3>Options</h3>
             <div class='variants-grid'>
               ${product.variants.map((v, i) => `
-                <button class=": : ? ? ''} ''} 'out-of-stock' 'selected' === ${!v.inStock ${i 0 variant-btn"
+                <button class="variant-btn${i === 0 ? ' selected' : ''}${!v.inStock ? ' out-of-stock' : ''}"
                         data-variant-id="${v.id}"
                         ${!v.inStock ? 'disabled' : ''}>
                   ${v.name}
@@ -685,7 +685,7 @@ function renderProductDetail(store: Store): string {
                   data-variant-id='${product.variants[0]?.id}'>
             Add to Cart - ${formatPrice(product.price)}
           </button>
-          <button class='? ${isWishlisted wishlist-btn-large'active' : ''}' data-wishlist='${product.id}'>
+          <button class="wishlist-btn-large${isWishlisted ? ' active' : ''}" data-wishlist="${product.id}">
             ${isWishlisted ? '❤ Saved' : '♡ Save'}
           </button>
         </div>

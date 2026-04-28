@@ -312,13 +312,27 @@ function generateOverlayHtml(error: ErrorInfo, config: ErrorOverlayConfig): stri
     document.getElementById('craft-error-overlay').remove();
   };
   document.getElementById('craft-error-copy').onclick = function() {
-    navigator.clipboard.writeText(${JSON.stringify(`${error.message}\n\n${error.stack || ''}`)});
+    navigator.clipboard.writeText(${safeJsonForScript(`${error.message}\n\n${error.stack || ''}`)});
     this.textContent = '✓ Copied!';
     setTimeout(() => this.textContent = '📋 Copy Error', 2000);
   };
   ${config.dismissOnClick ? `document.getElementById('craft-error-overlay').onclick = function(e) { if (e.target === this) this.remove(); };` : ''}
 </script>
 `
+}
+
+/**
+ * Stringify a value for safe embedding inside an inline `<script>` block.
+ * Plain `JSON.stringify` produces valid JSON but not script-safe HTML — a
+ * `</script>` substring inside the value closes the surrounding element and
+ * lets the rest of the message execute as HTML.
+ */
+function safeJsonForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/<\/(script)/gi, '<\\/$1')
+    .replace(/<!--/g, '<\\!--')
+    .replace(/ /g, '\\u2028')
+    .replace(/ /g, '\\u2029')
 }
 
 function escapeHtml(str: string): string {
@@ -334,6 +348,8 @@ function escapeHtml(str: string): string {
 export class ErrorOverlay {
   private config: ErrorOverlayConfig
   private currentError: ErrorInfo | null = null
+  private errorHandler: ((event: ErrorEvent) => void) | null = null
+  private rejectionHandler: ((event: PromiseRejectionEvent) => void) | null = null
 
   constructor(config: ErrorOverlayConfig = {}) {
     this.config = {
@@ -395,34 +411,40 @@ export class ErrorOverlay {
   }
 
   /**
-   * Install global error handlers
+   * Install global error handlers. Idempotent — calling install() twice
+   * does not register duplicate listeners. Uses addEventListener (not
+   * `window.onerror = …`) so we don't clobber other libraries' handlers.
    */
   install(): void {
     if (typeof window === 'undefined') return
+    if (this.errorHandler || this.rejectionHandler) return // already installed
 
-    // Handle uncaught errors
-    window.onerror = (message, source, line, column, error) => {
-      const errorInfo = error ? parseError(error) : parseError(String(message))
-      errorInfo.source = source || undefined
-      errorInfo.line = line || undefined
-      errorInfo.column = column || undefined
-      this.show(error || String(message))
-      return false // Don't prevent default handling
+    this.errorHandler = (event: ErrorEvent) => {
+      const err = event.error instanceof Error ? event.error : new Error(event.message)
+      this.show(err)
+    }
+    this.rejectionHandler = (event: PromiseRejectionEvent) => {
+      this.show(event.reason instanceof Error ? event.reason : new Error(String(event.reason)))
     }
 
-    // Handle unhandled promise rejections
-    window.onunhandledrejection = (event) => {
-      this.show(event.reason)
-    }
+    window.addEventListener('error', this.errorHandler)
+    window.addEventListener('unhandledrejection', this.rejectionHandler)
   }
 
   /**
-   * Uninstall global error handlers
+   * Uninstall global error handlers. Removes only the listeners we added —
+   * other libraries' handlers are left intact.
    */
   uninstall(): void {
     if (typeof window === 'undefined') return
-    window.onerror = null
-    window.onunhandledrejection = null
+    if (this.errorHandler) {
+      window.removeEventListener('error', this.errorHandler)
+      this.errorHandler = null
+    }
+    if (this.rejectionHandler) {
+      window.removeEventListener('unhandledrejection', this.rejectionHandler)
+      this.rejectionHandler = null
+    }
   }
 }
 

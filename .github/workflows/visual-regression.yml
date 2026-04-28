@@ -30,12 +30,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Zig
+      - name: Setup Pantry (provides Zig, Bun, etc.)
         uses: home-lang/pantry/packages/action@main
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
 
       - name: Cache Zig artifacts
         uses: actions/cache@v4

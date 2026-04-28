@@ -15,6 +15,32 @@ const craftVersion = JSON.parse(readFileSync(new URL('../package.json', import.m
 
 const cli = new CLI('create-craft')
 
+/**
+ * Validate a project name against npm's package-name rules so the generated
+ * package.json is always parseable by npm/bun and free of shell metacharacters
+ * that could leak into commands like `bun install <name>`.
+ *
+ * Rules (subset of validate-npm-package-name):
+ *   - 1..214 characters
+ *   - lowercase letters, digits, and `-`, `_`, `.`
+ *   - must start with letter or digit (no leading dot/underscore)
+ *   - no whitespace, slashes, or path separators
+ */
+function validateProjectName(name: string): void {
+  if (typeof name !== 'string' || name.length === 0) {
+    throw new Error('Project name must be a non-empty string')
+  }
+  if (name.length > 214) {
+    throw new Error('Project name must be 214 characters or fewer')
+  }
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(name)) {
+    throw new Error(
+      `Invalid project name "${name}". `
+      + 'Use lowercase letters, digits, dot, underscore, and dash only; must start with a letter or digit.',
+    )
+  }
+}
+
 // Default command - create a new project
 cli
   .command('[project-name]', 'Create a new Craft desktop app')
@@ -29,6 +55,14 @@ cli
       console.log('\nUsage: create-craft <project-name>')
       console.log('Example: create-craft my-app')
       process.exit(1)
+    }
+
+    try {
+      validateProjectName(projectName)
+    }
+    catch (e) {
+      console.error(`Error: ${(e as Error).message}`)
+      process.exit(2)
     }
 
     const template = options?.template || 'minimal'

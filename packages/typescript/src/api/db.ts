@@ -26,13 +26,43 @@
  * ```
  */
 
+import { EventEmitter } from 'events'
 import type { CraftDatabaseAPI } from '../types'
 
 /**
- * Validate table name to prevent SQL injection.
- * Only allows alphanumeric characters and underscores.
+ * Statements that mutate state. Read-only databases reject anything matching
+ * this pattern at the start of a statement (after stripping leading
+ * whitespace and `--` comments).
  */
-function validateTableName(name: string): void {
+const WRITE_STATEMENT_RE = /^\s*(?:--[^\n]*\n\s*)*(INSERT|UPDATE|DELETE|REPLACE|DROP|CREATE|ALTER|TRUNCATE|ATTACH|DETACH|VACUUM|REINDEX|PRAGMA)\b/i
+
+/**
+ * Global emitter for `db:execute` audit events. Subscribe to log every SQL
+ * statement that goes through the SDK. The event payload is `{ name, sql,
+ * paramsCount, readOnly }` — params themselves are not included by default
+ * to avoid leaking secrets to logs.
+ */
+export const dbAudit = new EventEmitter()
+
+/**
+ * Maximum length for SQL identifiers (table/column names). SQLite has no
+ * built-in cap but extremely long identifiers cause pathological query plans
+ * and bloat sqlite_master rows; 64 is the limit used by MySQL and is plenty
+ * for any sensible schema.
+ */
+const MAX_IDENTIFIER_LEN = 64
+
+/**
+ * Validate table name to prevent SQL injection and runaway identifiers.
+ * Only allows alphanumeric characters and underscores, with a length cap.
+ */
+export function validateTableName(name: string): void {
+  if (typeof name !== 'string' || name.length === 0) {
+    throw new Error('Invalid table name: must be a non-empty string')
+  }
+  if (name.length > MAX_IDENTIFIER_LEN) {
+    throw new Error(`Invalid table name: "${name.slice(0, 16)}…" exceeds ${MAX_IDENTIFIER_LEN} characters`)
+  }
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
     throw new Error(`Invalid table name: "${name}". Table names must contain only letters, numbers, and underscores.`)
   }
@@ -200,6 +230,20 @@ export async function openDatabase(name: string): Promise<Database> {
 }
 
 /**
+ * Open a database in read-only mode. `execute()` on the returned instance
+ * rejects DDL/DML statements (`INSERT`, `UPDATE`, `DELETE`, `DROP`, etc.).
+ * Use this for analytics / reporting code paths where there is no reason
+ * for a SQL bug to be able to mutate state.
+ */
+export async function openDatabaseReadOnly(name: string): Promise<Database> {
+  const normalized = name.replace(/\\/g, '/')
+  if (normalized.includes('/../') || normalized.startsWith('../') || normalized.endsWith('/..') || normalized === '..' || name.includes('\0')) {
+    throw new Error(`Invalid database name: "${name}" contains path traversal or invalid characters`)
+  }
+  return new Database(name, { readOnly: true })
+}
+
+/**
  * SQLite database wrapper with extended functionality.
  * Provides table management, transactions, and query helpers.
  *
@@ -238,14 +282,24 @@ export async function openDatabase(name: string): Promise<Database> {
 export class Database {
   private name: string
   private isOpen: boolean = false
+  private readOnly: boolean
 
   /**
    * Create a new Database instance.
    *
    * @param name - Database name
+   * @param options.readOnly - When true, `execute()` rejects DDL/DML
+   *   statements (anything that would mutate the schema or data).
+   *   `query()` is unaffected. Defaults to false.
    */
-  constructor(name: string) {
+  constructor(name: string, options?: { readOnly?: boolean }) {
     this.name = name
+    this.readOnly = options?.readOnly === true
+  }
+
+  /** Whether this Database refuses mutating statements. */
+  isReadOnly(): boolean {
+    return this.readOnly
   }
 
   /**
@@ -299,6 +353,20 @@ export class Database {
   async execute(sql: string, params?: unknown[]): Promise<ExecuteResult> {
     if (!this.isOpen) {
       await this.open()
+    }
+    // Emit audit event before any check so subscribers see attempts even
+    // when read-only mode rejects the statement. paramsCount is included
+    // instead of params themselves to avoid logging secrets by default.
+    dbAudit.emit('db:execute', {
+      name: this.name,
+      sql,
+      paramsCount: params?.length ?? 0,
+      readOnly: this.readOnly,
+    })
+    if (this.readOnly && WRITE_STATEMENT_RE.test(sql)) {
+      throw new Error(
+        `Database "${this.name}" is read-only; rejected mutating statement: ${sql.slice(0, 64)}`,
+      )
     }
     if (typeof window !== 'undefined' && window.craft) {
       const result = await (window.craft as any).bridge?.call('db.execute', {
@@ -433,6 +501,9 @@ else {
   async createTable(tableName: string, columns: TableColumn[]): Promise<void> {
     validateTableName(tableName)
     const columnDefs = columns.map(col => {
+      // Column names use the same identifier rules as tables (the value is
+      // injected into SQL string-literal style, so it must be safe).
+      validateTableName(col.name)
       let def = `${col.name} ${col.type}`
       if (col.primaryKey) def += ' PRIMARY KEY'
       if (col.autoIncrement) def += ' AUTOINCREMENT'

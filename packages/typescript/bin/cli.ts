@@ -41,6 +41,42 @@ async function findCraftBinary(): Promise<string> {
   return 'craft'
 }
 
+/**
+ * Coerce a CLI value to an integer in [min, max], throwing a friendly
+ * error on invalid input. Used so `--width abc` and `--width 9999999999`
+ * produce a clear message instead of a downstream crash.
+ */
+function parseIntInRange(name: string, value: unknown, min: number, max: number): number {
+  const n = typeof value === 'number' ? value : Number.parseInt(String(value), 10)
+  if (!Number.isFinite(n) || !Number.isInteger(n)) {
+    throw new Error(`--${name} must be an integer (got: ${String(value)})`)
+  }
+  if (n < min || n > max) {
+    throw new Error(`--${name} must be between ${min} and ${max} (got: ${n})`)
+  }
+  return n
+}
+
+/**
+ * Validate `--url` against URL parsing. Allows `http`, `https`, `file`, and
+ * `data:` schemes; everything else (e.g. `javascript:`) is rejected so a
+ * malicious shortcut can't bypass the SDK's own URL handling.
+ */
+function validateUrl(value: string): string {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  }
+  catch {
+    throw new Error(`--url must be a valid URL (got: ${value})`)
+  }
+  const allowed = new Set(['http:', 'https:', 'file:', 'data:'])
+  if (!allowed.has(parsed.protocol)) {
+    throw new Error(`--url uses unsupported scheme "${parsed.protocol}"; allowed: ${[...allowed].join(', ')}`)
+  }
+  return parsed.toString()
+}
+
 // Default command - launch app with URL
 cli
   .command('[url]', 'Launch a Craft desktop app')
@@ -63,36 +99,38 @@ cli
   .action(async (url?: string, options?: any) => {
     const args: string[] = []
 
-    if (url) {
-      args.push('--url', url)
-    }
+    try {
+      if (url) {
+        args.push('--url', validateUrl(url))
+      }
 
-    if (options?.title)
-      args.push('--title', options.title)
-    if (options?.width)
-      args.push('--width', String(options.width))
-    if (options?.height)
-      args.push('--height', String(options.height))
-    if (options?.x)
-      args.push('--x', String(options.x))
-    if (options?.y)
-      args.push('--y', String(options.y))
-    if (options?.frameless)
-      args.push('--frameless')
-    if (options?.transparent)
-      args.push('--transparent')
-    if (options?.alwaysOnTop)
-      args.push('--always-on-top')
-    if (options?.fullscreen)
-      args.push('--fullscreen')
-    if (options?.darkMode)
-      args.push('--dark-mode')
-    if (options?.hotReload)
-      args.push('--hot-reload')
-    if (options?.devTools)
-      args.push('--dev-tools')
-    if (options?.noResize)
-      args.push('--no-resize')
+      if (options?.title) {
+        const title = String(options.title)
+        if (title.length > 256) throw new Error('--title must be 256 chars or fewer')
+        args.push('--title', title)
+      }
+      if (options?.width !== undefined)
+        args.push('--width', String(parseIntInRange('width', options.width, 100, 10_000)))
+      if (options?.height !== undefined)
+        args.push('--height', String(parseIntInRange('height', options.height, 100, 10_000)))
+      if (options?.x !== undefined)
+        args.push('--x', String(parseIntInRange('x', options.x, -100_000, 100_000)))
+      if (options?.y !== undefined)
+        args.push('--y', String(parseIntInRange('y', options.y, -100_000, 100_000)))
+
+      if (options?.frameless) args.push('--frameless')
+      if (options?.transparent) args.push('--transparent')
+      if (options?.alwaysOnTop) args.push('--always-on-top')
+      if (options?.fullscreen) args.push('--fullscreen')
+      if (options?.darkMode) args.push('--dark-mode')
+      if (options?.hotReload) args.push('--hot-reload')
+      if (options?.devTools) args.push('--dev-tools')
+      if (options?.noResize) args.push('--no-resize')
+    }
+    catch (validationError) {
+      console.error(`Error: ${(validationError as Error).message}`)
+      process.exit(2)
+    }
 
     try {
       await runCraftBinary(args)

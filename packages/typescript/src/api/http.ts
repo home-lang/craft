@@ -125,10 +125,16 @@ export class HttpClient {
         : 'application/json'
     }
 
+    const effectiveTimeout = options.timeout || this.timeout
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), options.timeout || this.timeout)
+    const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout)
 
     try {
+      // Forward the timeout to the native bridge as well — when the request
+      // is dispatched through the Craft host, the host has no signal-aware
+      // way to short-circuit a hung socket unless we tell it the deadline.
+      // The custom property is ignored by browsers and `globalThis.fetch`,
+      // so this is a backwards-compatible hint.
       const response = await http.fetch(url, {
         method,
         headers,
@@ -137,8 +143,11 @@ export class HttpClient {
             ? options.body
             : JSON.stringify(options.body)
           : undefined,
-        signal: controller.signal
-      })
+        signal: controller.signal,
+        ...(typeof options.timeout === 'number' || typeof this.timeout === 'number'
+          ? { timeoutMs: effectiveTimeout } as { timeoutMs: number }
+          : {}),
+      } as RequestInit & { timeoutMs?: number })
 
       clearTimeout(timeoutId)
 

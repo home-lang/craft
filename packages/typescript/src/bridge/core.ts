@@ -5,6 +5,30 @@
 
 import { EventEmitter } from 'events'
 
+// Ambient types for native bridges injected by the host. These globals are
+// defined by WKWebView (iOS), Android WebView, Electron's contextBridge, and
+// the WinRT `chrome.webview` object respectively. We don't import them — they
+// just need to be known so we don't cast through `any` in the send path.
+interface WkWebKitGlobal {
+  messageHandlers?: {
+    craft?: { postMessage(message: unknown): void }
+  }
+}
+interface AndroidWebViewGlobal {
+  postMessage(message: string): void
+}
+interface CraftIPCGlobal {
+  send(channel: string, message: unknown): void
+}
+declare global {
+  // eslint-disable-next-line vars-on-top
+  interface Window {
+    webkit?: WkWebKitGlobal
+    CraftBridge?: AndroidWebViewGlobal
+    craftIPC?: CraftIPCGlobal
+  }
+}
+
 /**
  * Bridge error codes returned by the native layer.
  * Used in BridgeMessage.error.code field.
@@ -22,9 +46,20 @@ export const BridgeErrorCodes = {
   EXPECTED_BINARY: -5,
   /** Bridge destroyed while requests were pending */
   BRIDGE_DESTROYED: -6,
+  /** Bridge in-flight request limit exceeded (backpressure) */
+  BUSY: -7,
+  /** Native side speaks an incompatible bridge protocol version */
+  PROTOCOL_MISMATCH: -8,
 } as const
 
 export type BridgeErrorCode = typeof BridgeErrorCodes[keyof typeof BridgeErrorCodes]
+
+/**
+ * Bridge wire-protocol version. Bumped when the message envelope changes in a
+ * backwards-incompatible way. Native and SDK must agree, or the bridge will
+ * reject the handshake with PROTOCOL_MISMATCH.
+ */
+export const BRIDGE_PROTOCOL_VERSION = 1
 
 // Types
 export interface BridgeMessage<T = unknown> {
@@ -47,6 +82,12 @@ export interface BridgeConfig {
   batchDelay?: number
   enableOfflineQueue?: boolean
   enableBinaryTransfer?: boolean
+  /**
+   * Maximum number of in-flight requests before new requests are rejected
+   * with `BridgeErrorCodes.BUSY`. Prevents user code from DOSing the native
+   * layer with tight loops. Defaults to 10_000.
+   */
+  maxConcurrentRequests?: number
 }
 
 export interface StreamController<T> {
@@ -56,10 +97,16 @@ export interface StreamController<T> {
   cancel(): void
 }
 
-// Message ID generator
-let messageIdCounter = 0
+// Message ID generator. Seed the counter from a random value so a page reload
+// can't reuse IDs that the native side may still hold for in-flight callbacks.
+let messageIdCounter = Math.floor(Math.random() * 1e9)
 function generateMessageId(): string {
-  return `msg_${Date.now()}_${++messageIdCounter}`
+  // Wrap before exceeding Number.MAX_SAFE_INTEGER (well below the practical
+  // counter ceiling, but cheap to be defensive).
+  if (messageIdCounter >= Number.MAX_SAFE_INTEGER - 1) {
+    messageIdCounter = Math.floor(Math.random() * 1e9)
+  }
+  return `msg_${Date.now().toString(36)}_${(++messageIdCounter).toString(36)}`
 }
 
 // Native Bridge Core
@@ -71,6 +118,7 @@ export class NativeBridge extends EventEmitter {
   private streams = new Map<string, { onData: (data: unknown) => void; onEnd: () => void; onError: (error: Error) => void }>()
   private batchBuffer: BridgeMessage[] = []
   private batchTimer: NodeJS.Timeout | null = null
+  private destroyed = false
 
   constructor(config: BridgeConfig = {}) {
     super()
@@ -83,6 +131,7 @@ export class NativeBridge extends EventEmitter {
       batchDelay: 50,
       enableOfflineQueue: true,
       enableBinaryTransfer: true,
+      maxConcurrentRequests: 10000,
       ...config,
     }
     this.setupBridge()
@@ -192,6 +241,16 @@ catch (error) {
   }
 
   private async sendRequest<T, R>(method: string, params?: T, timeout?: number): Promise<R> {
+    if (this.destroyed) {
+      throw new BridgeError('Bridge destroyed', BridgeErrorCodes.BRIDGE_DESTROYED)
+    }
+    if (this.pendingRequests.size >= this.config.maxConcurrentRequests) {
+      throw new BridgeError(
+        `Bridge busy: ${this.pendingRequests.size} in-flight requests exceeds maxConcurrentRequests=${this.config.maxConcurrentRequests}`,
+        BridgeErrorCodes.BUSY
+      )
+    }
+
     const effectiveTimeout = timeout ?? this.config.timeout
     const message: BridgeMessage<T> = {
       id: generateMessageId(),
@@ -205,14 +264,19 @@ catch (error) {
         throw new BridgeError('Offline queue full', BridgeErrorCodes.QUEUE_FULL)
       }
       this.offlineQueue.push(message)
-      // Return a promise that will be resolved when connected
+      // Return a promise that will be resolved when connected. Mirror the
+      // online timeout so requests that never connect are rejected rather
+      // than leaking forever — and remove from offlineQueue too so a late
+      // reconnect doesn't deliver to a dead request.
       return new Promise((resolve, reject) => {
         this.pendingRequests.set(message.id, {
           resolve: resolve as (value: unknown) => void,
           reject,
           timeout: setTimeout(() => {
             this.pendingRequests.delete(message.id)
-            reject(new BridgeError('Request timeout', BridgeErrorCodes.TIMEOUT))
+            const idx = this.offlineQueue.findIndex(m => m.id === message.id)
+            if (idx >= 0) this.offlineQueue.splice(idx, 1)
+            reject(new BridgeError('Request timeout (offline)', BridgeErrorCodes.TIMEOUT))
           }, effectiveTimeout),
         })
       })
@@ -230,8 +294,44 @@ catch (error) {
         timeout: timer,
       })
 
-      this.send(message)
+      // Fail fast when no transport is wired (plain `bun build` / Vite dev
+      // without a Craft host). Otherwise the caller waits the full timeout
+      // for a request that was never delivered.
+      if (!this.send(message)) {
+        clearTimeout(timer)
+        this.pendingRequests.delete(message.id)
+        reject(new BridgeError(
+          'No bridge transport available — not running inside a Craft host',
+          BridgeErrorCodes.UNKNOWN,
+        ))
+      }
     })
+  }
+
+  /**
+   * Negotiate the wire-protocol version with the native layer. Throws
+   * BridgeError(PROTOCOL_MISMATCH) if the native side reports a version we
+   * don't speak.
+   *
+   * This is **opt-in** — you must call it explicitly. It assumes the host
+   * registers a `_handshake` handler; the Zig core's
+   * `Bridge.registerDefaults()` does this for you. If you're embedding Craft
+   * inside a host that hasn't wired `_handshake`, do not call this method
+   * (the timeout path will reject with TIMEOUT, which is louder than a
+   * silent mismatch but still a failure).
+   */
+  async handshake(): Promise<{ nativeVersion: number }> {
+    const result = await this.request<{ sdkVersion: number }, { version: number }>(
+      '_handshake',
+      { sdkVersion: BRIDGE_PROTOCOL_VERSION }
+    )
+    if (result?.version !== BRIDGE_PROTOCOL_VERSION) {
+      throw new BridgeError(
+        `Bridge protocol mismatch: SDK speaks v${BRIDGE_PROTOCOL_VERSION}, native speaks v${result?.version ?? 'unknown'}`,
+        BridgeErrorCodes.PROTOCOL_MISMATCH
+      )
+    }
+    return { nativeVersion: result.version }
   }
 
   /**
@@ -248,9 +348,20 @@ catch (error) {
   }
 
   /**
-   * Create a stream for receiving multiple responses
+   * Create a stream for receiving multiple responses.
+   *
+   * @param method - native method name
+   * @param params - method params
+   * @param options.bufferLimit - max events buffered before consumer registers
+   *   `onData`. Once exceeded the stream is failed with `BUFFER_OVERFLOW`
+   *   instead of growing indefinitely. Defaults to 1000.
    */
-  stream<T = unknown>(method: string, params?: unknown): StreamController<T> {
+  stream<T = unknown>(
+    method: string,
+    params?: unknown,
+    options?: { bufferLimit?: number },
+  ): StreamController<T> {
+    const bufferLimit = options?.bufferLimit ?? 1000
     const streamId = generateMessageId()
     const message: BridgeMessage = {
       id: generateMessageId(),
@@ -265,14 +376,21 @@ catch (error) {
     const pendingData: T[] = []
     let ended = false
     let pendingError: Error | undefined
+    let cancelled = false
+    // eslint-disable-next-line pickier/no-unused-vars
     let dataCallback: ((data: T) => void) | null = null
     let endCallback: (() => void) | null = null
+    // eslint-disable-next-line pickier/no-unused-vars
     let errorCallback: ((error: Error) => void) | null = null
 
     const controller: StreamController<T> = {
       onData: (cb) => {
         dataCallback = cb
-        // Flush any buffered events
+        // Flush any buffered events. Honor the `ended` and `pendingError`
+        // flags AFTER the buffer drains so consumers see the full event
+        // history before the terminal signal — otherwise a fast end can
+        // race the buffered data and the consumer thinks the stream
+        // finished empty.
         while (pendingData.length > 0) {
           cb(pendingData.shift() as T)
         }
@@ -286,6 +404,11 @@ catch (error) {
         if (pendingError) cb(pendingError)
       },
       cancel: () => {
+        // Idempotent: a second cancel() must not delete a stream that's
+        // already gone or fire a duplicate `_cancelStream` to native.
+        if (cancelled) return
+        cancelled = true
+        if (!this.streams.has(streamId)) return
         this.streams.delete(streamId)
         this.send({
           id: generateMessageId(),
@@ -298,8 +421,23 @@ catch (error) {
 
     this.streams.set(streamId, {
       onData: (data) => {
-        if (dataCallback) dataCallback(data as T)
-        else pendingData.push(data as T)
+        if (dataCallback) {
+          dataCallback(data as T)
+          return
+        }
+        if (pendingData.length >= bufferLimit) {
+          // Don't grow forever — fail the stream instead. Set pendingError
+          // so a late onError handler still sees it.
+          const overflow = new BridgeError(
+            `Stream buffer overflow: ${pendingData.length} events buffered with no consumer (limit=${bufferLimit})`,
+            BridgeErrorCodes.BUSY,
+          )
+          pendingError = overflow
+          if (errorCallback) errorCallback(overflow)
+          this.streams.delete(streamId)
+          return
+        }
+        pendingData.push(data as T)
       },
       onEnd: () => {
         ended = true
@@ -376,6 +514,14 @@ else if (!this.batchTimer) {
       this.batchTimer = null
     }
 
+    // Drop any buffered work if destroy() ran between schedule and flush — the
+    // bridge is gone, the native side won't reply, and emitting would resurrect
+    // listeners we just torn down.
+    if (this.destroyed) {
+      this.batchBuffer = []
+      return
+    }
+
     if (this.batchBuffer.length === 0) return
 
     const batch = this.batchBuffer
@@ -416,40 +562,48 @@ else if (!connected && wasConnected) {
     }
   }
 
-  private send(message: BridgeMessage): void {
+  /**
+   * Dispatch a message to whichever native transport is available. Returns
+   * `true` when the message was handed off to a transport, `false` when no
+   * transport could be found — the caller (only `sendRequest` cares) can
+   * use that to fail fast instead of waiting for the request timeout.
+   */
+  private send(message: BridgeMessage): boolean {
     const json = JSON.stringify(message)
 
-    // Try different native bridges
     if (typeof window !== 'undefined') {
       // iOS WKWebView
-      if ((window as any).webkit?.messageHandlers?.craft) {
-        ;(window as any).webkit.messageHandlers.craft.postMessage(message)
-        return
+      if (window.webkit?.messageHandlers?.craft) {
+        window.webkit.messageHandlers.craft.postMessage(message)
+        return true
       }
 
       // Android WebView
-      if ((window as any).CraftBridge) {
-        ;(window as any).CraftBridge.postMessage(json)
-        return
+      if (window.CraftBridge) {
+        window.CraftBridge.postMessage(json)
+        return true
       }
 
       // Electron IPC
-      if ((window as any).craftIPC) {
-        ;(window as any).craftIPC.send('bridge-message', message)
-        return
+      if (window.craftIPC) {
+        window.craftIPC.send('bridge-message', message)
+        return true
       }
 
       // Generic postMessage
       if (window.parent !== window) {
         window.parent.postMessage(message, '*')
-        return
+        return true
       }
     }
 
     // Node.js (for testing)
-    if (typeof process !== 'undefined' && (process as any).send) {
-      ;(process as any).send(message)
+    if (typeof process !== 'undefined' && typeof (process as { send?: (m: unknown) => void }).send === 'function') {
+      ;(process as { send: (m: unknown) => void }).send(message)
+      return true
     }
+
+    return false
   }
 
   private delay(ms: number): Promise<void> {
@@ -476,9 +630,12 @@ else if (!connected && wasConnected) {
   }
 
   /**
-   * Destroy the bridge
+   * Destroy the bridge. Idempotent.
    */
   destroy(): void {
+    if (this.destroyed) return
+    this.destroyed = true
+
     // Clear all pending requests
     for (const [, pending] of this.pendingRequests) {
       clearTimeout(pending.timeout)
@@ -487,8 +644,10 @@ else if (!connected && wasConnected) {
     this.pendingRequests.clear()
     this.streams.clear()
     this.offlineQueue = []
+    this.batchBuffer = []
     if (this.batchTimer) {
       clearTimeout(this.batchTimer)
+      this.batchTimer = null
     }
     this.removeAllListeners()
   }
@@ -760,6 +919,19 @@ export class NativeComponentBridge {
 // Global bridge instance
 let globalBridge: NativeBridge | null = null
 
+/**
+ * Get the process-wide singleton bridge, constructing it on first call.
+ *
+ * **Caveats for multi-window apps:**
+ *   - The first caller's `config` wins; later calls receive the existing
+ *     instance regardless of the config they pass.
+ *   - Calling `destroy()` on the returned bridge tears down state for
+ *     every consumer, not just the caller.
+ *
+ * If your app opens more than one window or test harness, prefer
+ * {@link createBridge} to create independent instances and pass them
+ * explicitly to the components that need them.
+ */
 export function getBridge(config?: BridgeConfig): NativeBridge {
   if (!globalBridge) {
     globalBridge = new NativeBridge(config)
@@ -767,8 +939,22 @@ export function getBridge(config?: BridgeConfig): NativeBridge {
   return globalBridge
 }
 
+/**
+ * Create an independent bridge instance. Use this in multi-window apps and
+ * tests where the singleton from {@link getBridge} would cause two callers
+ * to share state.
+ */
 export function createBridge(config?: BridgeConfig): NativeBridge {
   return new NativeBridge(config)
+}
+
+/**
+ * Reset the global bridge. Intended for tests that need to start from a
+ * known state — call `destroy()` on the previous instance first if you
+ * created any pending work.
+ */
+export function resetGlobalBridge(): void {
+  globalBridge = null
 }
 
 // Export convenience instances

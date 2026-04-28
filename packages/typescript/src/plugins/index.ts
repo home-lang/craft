@@ -4,8 +4,34 @@
  */
 
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, renameSync } from 'fs'
-import { join } from 'path'
+import { join, isAbsolute, normalize } from 'path'
 import { execFileSync } from 'child_process'
+import { EventEmitter } from 'events'
+
+/**
+ * Extract a tarball to `dest`, refusing entries that would write outside
+ * `dest`. Tar archives can contain `../` paths or absolute paths; without
+ * this check a malicious plugin could write to arbitrary filesystem
+ * locations during install.
+ */
+function safeExtractTar(tarballPath: string, dest: string): void {
+  const listOutput = execFileSync('tar', ['-tzf', tarballPath], {
+    cwd: dest,
+    encoding: 'utf8',
+  })
+  const entries = listOutput.split('\n').map(s => s.trim()).filter(Boolean)
+  for (const entry of entries) {
+    if (isAbsolute(entry)) {
+      throw new Error(`Plugin tarball contains absolute path: ${entry}`)
+    }
+    const normalized = normalize(entry)
+    // After normalization, any ".." segment means the entry escapes `dest`.
+    if (normalized === '..' || normalized.startsWith('../') || normalized.includes('/../')) {
+      throw new Error(`Plugin tarball contains traversal path: ${entry}`)
+    }
+  }
+  execFileSync('tar', ['-xzf', tarballPath], { cwd: dest })
+}
 
 // Types
 export interface Plugin {
@@ -51,13 +77,24 @@ export interface PluginRegistryEntry {
   latest: string
 }
 
+/**
+ * Events emitted by `PluginManager`.
+ *
+ *   `plugin:error` — `{ name, hookName, error }` — a plugin's hook crashed.
+ *                    Subscribe to surface failures in your own UI / logs.
+ */
+export interface PluginEvents {
+  'plugin:error': { name: string; hookName: string; error: unknown }
+}
+
 // Plugin Manager
-export class PluginManager {
+export class PluginManager extends EventEmitter {
   private pluginsDir: string
   private manifestPath: string
   private manifest: PluginManifest
 
   constructor(projectRoot: string) {
+    super()
     this.pluginsDir = join(projectRoot, '.craft', 'plugins')
     this.manifestPath = join(projectRoot, '.craft', 'plugins.json')
 
@@ -149,10 +186,11 @@ else {
       throw new Error('Plugin checksum mismatch - download may be corrupted')
     }
 
-    // Extract package
+    // Extract package (validates archive entries first so a hostile tar
+    // can't write outside pluginDir).
     const tarPath = join(pluginDir, 'package.tgz')
     writeFileSync(tarPath, Buffer.from(packageData))
-    execFileSync('tar', ['-xzf', 'package.tgz'], { cwd: pluginDir })
+    safeExtractTar(tarPath, pluginDir)
     rmSync(tarPath)
 
     // Load plugin manifest
@@ -175,7 +213,7 @@ else {
 
     const tarPath = join(tempDir, 'package.tgz')
     writeFileSync(tarPath, Buffer.from(packageData))
-    execFileSync('tar', ['-xzf', 'package.tgz'], { cwd: tempDir })
+    safeExtractTar(tarPath, tempDir)
 
     const pluginManifest: Plugin = JSON.parse(
       readFileSync(join(tempDir, 'craft-plugin.json'), 'utf-8')
@@ -355,8 +393,12 @@ else {
               await hook.default(context)
             }
           }
-catch (error) {
+          catch (error) {
             console.error(`Error running ${name} ${hookName} hook:`, error)
+            // Surface the failure so subscribers can react (e.g. show a UI
+            // toast or fail the build) — previously a crashing plugin only
+            // logged and continued silently.
+            this.emit('plugin:error', { name, hookName, error })
           }
         }
       }

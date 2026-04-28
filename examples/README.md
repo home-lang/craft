@@ -136,20 +136,20 @@ await app.show()
 When you enable `systemTray: true`, your app will:
 
 1. **Show an icon in the system tray/menubar**
-   - macOS: Top menu bar
-   - Windows: System tray (bottom-right)
-   - Linux: System tray area
+    - macOS: Top menu bar
+    - Windows: System tray (bottom-right)
+    - Linux: System tray area
 
 2. **Support window hide/show**
-   - Click tray icon to show/hide window
-   - App continues running in background
-   - Perfect for utility apps and background services
+    - Click tray icon to show/hide window
+    - App continues running in background
+    - Perfect for utility apps and background services
 
 3. **Right-click menu (coming soon)**
-   - Custom menu items
-   - Quick actions
-   - Show/hide toggle
-   - Quit option
+    - Custom menu items
+    - Quick actions
+    - Show/hide toggle
+    - Quit option
 
 ## Running the Examples
 
@@ -157,16 +157,16 @@ When you enable `systemTray: true`, your app will:
 
 1. **Build the Craft core** (if not already built):
 
-   ```bash
-   cd packages/zig
-   zig build
-   ```
+    ```bash
+    cd packages/zig
+    zig build
+    ```
 
 2. **Install Bun** (if not already installed):
 
-   ```bash
-   curl -fsSL https://bun.sh/install | bash
-   ```
+    ```bash
+    curl -fsSL https://bun.sh/install | bash
+    ```
 
 ### Running an Example
 
@@ -235,36 +235,36 @@ bun run my-tray-app.ts
 
 2. **Use dark mode** - Many users expect menubar apps to match system appearance
 
-   ```typescript
-   window: { darkMode: true }
-   ```
+    ```typescript
+    window: { darkMode: true }
+    ```
 
 3. **Support keyboard shortcuts** - Add ESC to hide window
 
-   ```javascript
-   document.addEventListener('keydown', (e) => {
-     if (e.key === 'Escape') {
-       // Hide window (in future version)
-       console.log('Hide window')
-     }
-   })
-   ```
+    ```javascript
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        // Hide window (in future version)
+        console.log('Hide window')
+      }
+    })
+    ```
 
 4. **Add notifications** - Alert users when background tasks complete
 
-   ```javascript
-   function notify(title, body) {
-     // Will trigger native notification
-     console.log(`Notification: ${title} - ${body}`)
-   }
-   ```
+    ```javascript
+    function notify(title, body) {
+      // Will trigger native notification
+      console.log(`Notification: ${title} - ${body}`)
+    }
+    ```
 
 5. **Persist state** - Use localStorage for settings and data
 
-   ```javascript
-   localStorage.setItem('myData', JSON.stringify(data))
-   const saved = JSON.parse(localStorage.getItem('myData'))
-   ```
+    ```javascript
+    localStorage.setItem('myData', JSON.stringify(data))
+    const saved = JSON.parse(localStorage.getItem('myData'))
+    ```
 
 ## Troubleshooting
 

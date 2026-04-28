@@ -141,15 +141,31 @@ else if (Array.isArray(value) && value.length > 0) {
   }
 
   /**
-   * Create relaxed CSP for development
+   * Create a relaxed CSP suitable for local development. Refuses to run when
+   * NODE_ENV is set to "production" (or CRAFT_ENV/APP_ENV are) so the relaxed
+   * preset cannot accidentally ship.
+   *
+   * Note: 'unsafe-eval' is intentionally omitted — even during development we
+   * lean on script nonces / hashes via {@link ContentSecurityPolicy.generateNonce}
+   * for inline blocks.
    */
   static development(): ContentSecurityPolicy {
+    if (typeof process !== 'undefined') {
+      const env = process.env || {}
+      const value = (env.NODE_ENV || env.CRAFT_ENV || env.APP_ENV || '').toLowerCase()
+      if (value === 'production' || value === 'prod') {
+        throw new Error(
+          '[Craft] ContentSecurityPolicy.development() cannot be used in production. '
+          + 'Call ContentSecurityPolicy.strict() instead.'
+        )
+      }
+    }
     return new ContentSecurityPolicy({
-      'default-src': ['\'self\'', '\'unsafe-inline\'', '\'unsafe-eval\''],
-      'script-src': ['\'self\'', '\'unsafe-inline\'', '\'unsafe-eval\''],
+      'default-src': ['\'self\''],
+      'script-src': ['\'self\'', '\'unsafe-inline\''],
       'style-src': ['\'self\'', '\'unsafe-inline\''],
-      'img-src': ['\'self\'', 'data:', 'blob:', '*'],
-      'connect-src': ['\'self\'', 'ws:', 'wss:', '*'],
+      'img-src': ['\'self\'', 'data:', 'blob:'],
+      'connect-src': ['\'self\'', 'ws:', 'wss:', 'http://localhost:*', 'http://127.0.0.1:*'],
     })
   }
 }

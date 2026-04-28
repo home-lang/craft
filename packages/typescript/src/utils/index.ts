@@ -4,6 +4,7 @@
  */
 
 export * from './audio'
+export * from './native'
 export * from './storage'
 export * from './timer'
 

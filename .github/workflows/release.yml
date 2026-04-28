@@ -25,10 +25,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2.2.0
-
-      - name: Setup Pantry
+      - name: Setup Pantry (provides Bun, Zig, etc.)
         uses: home-lang/pantry/packages/action@main
 
       - name: Install System Dependencies
@@ -164,10 +161,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2.2.0
-
-      - name: Setup Pantry
+      - name: Setup Pantry (provides Bun, Zig, etc.)
         uses: home-lang/pantry/packages/action@main
       - name: Install Dependencies
         run: bun install

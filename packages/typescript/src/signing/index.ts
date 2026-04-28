@@ -3,12 +3,49 @@
  * Sign and notarize applications for all platforms
  */
 
-import { execSync, exec } from 'child_process'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { execFile, spawn } from 'child_process'
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { join, basename } from 'path'
 import { promisify } from 'util'
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
+
+/**
+ * Spawn a child process with stdin piping. Used to feed secrets (notary
+ * passwords, certificate passphrases) into a tool without exposing them on
+ * the command line where `ps -ef` would see them.
+ */
+function execFileWithStdin(
+  cmd: string,
+  args: string[],
+  stdin: string,
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'] })
+    const out: Buffer[] = []
+    const err: Buffer[] = []
+    child.stdout.on('data', (b: Buffer) => out.push(b))
+    child.stderr.on('data', (b: Buffer) => err.push(b))
+    child.on('error', reject)
+    child.on('close', (code) => {
+      const stdout = Buffer.concat(out).toString('utf8')
+      const stderr = Buffer.concat(err).toString('utf8')
+      if (code === 0) resolve({ stdout, stderr })
+      else reject(Object.assign(new Error(`${cmd} exited ${code}: ${stderr}`), { stdout, stderr, code }))
+    })
+    child.stdin.end(stdin)
+  })
+}
+
+/** XML-escape a string for safe embedding in plist content. */
+function xmlEscape(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
 
 // Types
 export interface SigningConfig {
@@ -24,7 +61,20 @@ export interface SigningConfig {
 export interface NotarizationConfig {
   appleId: string
   teamId: string
-  password: string // App-specific password
+  /**
+   * App-specific password. Passing this directly puts the secret on the
+   * `xcrun notarytool` argv where `ps -ef` can read it on the build host.
+   * Prefer `keychainProfile` instead — set one up once with
+   * `xcrun notarytool store-credentials <profile>` and Apple keeps the
+   * credential in the keychain.
+   */
+  password?: string
+  /**
+   * Name of a notarytool keychain profile (created via
+   * `xcrun notarytool store-credentials`). When set, this is used instead
+   * of `--apple-id`/`--team-id`/`--password`.
+   */
+  keychainProfile?: string
   bundleId: string
 }
 
@@ -69,34 +119,35 @@ export class CodeSigner {
     const hardened = this.config.hardened !== false
 
     try {
-      // Build codesign command
-      const args = ['codesign', '--force', '--sign', `"${identity}"`]
-
-      if (hardened) {
-        args.push('--options', 'runtime')
-      }
-
+      // Build codesign argv. Each user-controlled value is its own argv slot
+      // (no shell interpolation), so identity / entitlements / path can
+      // contain quotes, spaces, or backticks safely.
+      const args = ['--force', '--sign', identity]
+      if (hardened) args.push('--options', 'runtime')
       if (entitlements && existsSync(entitlements)) {
-        args.push('--entitlements', `"${entitlements}"`)
+        args.push('--entitlements', entitlements)
       }
+      args.push('--deep', path)
 
-      args.push('--deep', `"${path}"`)
-
-      const command = args.join(' ')
       console.log(`Signing: ${basename(path)}`)
+      await execFileAsync('codesign', args)
 
-      await execAsync(command)
-
-      // Verify signature
-      const _verifyResult = await execAsync(`codesign --verify --verbose "${path}"`)
-
-      return {
-        success: true,
-        path,
-        signature: identity,
+      // Verify and surface the result instead of discarding it. codesign
+      // writes "valid on disk" / "satisfies its Designated Requirement"
+      // to stderr on success, which we treat as the success signal.
+      const verify = await execFileAsync('codesign', ['--verify', '--verbose', path])
+      const verifyOutput = `${verify.stdout}\n${verify.stderr}`
+      if (!/valid on disk|satisfies its Designated Requirement/i.test(verifyOutput)) {
+        return {
+          success: false,
+          path,
+          errors: [`codesign --verify produced unexpected output: ${verifyOutput.trim()}`],
+        }
       }
+
+      return { success: true, path, signature: identity }
     }
-catch (error) {
+    catch (error) {
       return {
         success: false,
         path,
@@ -115,86 +166,50 @@ catch (error) {
     }
 
     try {
-      // Try signtool first (Windows SDK)
-      const args = [
-        'signtool',
-        'sign',
-        '/f',
-        `"${certificate}"`,
-        password ? `/p "${password}"` : '',
-        '/t',
-        timestampServer,
-        '/fd',
-        'SHA256',
-        `"${path}"`,
-      ].filter(Boolean)
+      const args = ['sign', '/f', certificate]
+      if (password) args.push('/p', password)
+      args.push('/t', timestampServer, '/fd', 'SHA256', path)
 
-      const command = args.join(' ')
       console.log(`Signing: ${basename(path)}`)
-
-      await execAsync(command)
-
-      return {
-        success: true,
-        path,
-        signature: certificate,
-      }
+      await execFileAsync('signtool', args)
+      return { success: true, path, signature: certificate }
     }
-catch (error) {
-      // Try osslsigncode as fallback (cross-platform)
+    catch (error) {
+      // Try osslsigncode as fallback (cross-platform).
       try {
-        const args = [
-          'osslsigncode',
-          'sign',
-          '-pkcs12',
-          `"${certificate}"`,
-          password ? `-pass "${password}"` : '',
-          '-t',
-          timestampServer,
-          '-h',
-          'sha256',
-          '-in',
-          `"${path}"`,
-          '-out',
-          `"${path}.signed"`,
-        ].filter(Boolean)
+        const signedPath = `${path}.signed`
+        const args = ['sign', '-pkcs12', certificate]
+        if (password) args.push('-pass', password)
+        args.push('-t', timestampServer, '-h', 'sha256', '-in', path, '-out', signedPath)
+        await execFileAsync('osslsigncode', args)
 
-        await execAsync(args.join(' '))
-        execSync(`mv "${path}.signed" "${path}"`)
+        // Atomic rename via fs API rather than shelling out to `mv`.
+        const { rename } = await import('node:fs/promises')
+        await rename(signedPath, path)
 
-        return {
-          success: true,
-          path,
-          signature: certificate,
-        }
+        return { success: true, path, signature: certificate }
       }
-catch (fallbackError) {
+      catch (fallbackError) {
         return {
           success: false,
           path,
-          errors: [error instanceof Error ? error.message : 'Signing failed', fallbackError instanceof Error ? fallbackError.message : String(fallbackError)],
+          errors: [
+            error instanceof Error ? error.message : 'Signing failed',
+            fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+          ],
         }
       }
     }
   }
 
   private async signLinux(path: string): Promise<SigningResult> {
-    // Linux uses GPG signatures
     try {
       const signatureFile = `${path}.sig`
-
-      // Sign with GPG
-      await execAsync(`gpg --detach-sign --armor -o "${signatureFile}" "${path}"`)
-
+      await execFileAsync('gpg', ['--detach-sign', '--armor', '-o', signatureFile, path])
       console.log(`Signed: ${basename(path)} -> ${basename(signatureFile)}`)
-
-      return {
-        success: true,
-        path,
-        signature: signatureFile,
-      }
+      return { success: true, path, signature: signatureFile }
     }
-catch (error) {
+    catch (error) {
       return {
         success: false,
         path,
@@ -204,32 +219,33 @@ catch (error) {
   }
 
   /**
-   * Verify a signature
+   * Verify a signature.
    */
   async verify(path: string): Promise<boolean> {
     try {
       switch (this.config.platform) {
         case 'macos':
-          await execAsync(`codesign --verify --verbose "${path}"`)
+          await execFileAsync('codesign', ['--verify', '--verbose', path])
           return true
 
         case 'windows':
-          await execAsync(`signtool verify /pa "${path}"`)
+          await execFileAsync('signtool', ['verify', '/pa', path])
           return true
 
-        case 'linux':
+        case 'linux': {
           const sigPath = `${path}.sig`
           if (existsSync(sigPath)) {
-            await execAsync(`gpg --verify "${sigPath}" "${path}"`)
+            await execFileAsync('gpg', ['--verify', sigPath, path])
             return true
           }
           return false
+        }
 
         default:
           return false
       }
     }
-catch {
+    catch {
       return false
     }
   }
@@ -246,6 +262,34 @@ export class Notarizer {
   /**
    * Submit app for notarization
    */
+  /**
+   * Build the argv list for `xcrun notarytool`. Prefers `--keychain-profile`
+   * when configured so the password never ends up on the command line where
+   * other users on the build host can see it via `ps`.
+   */
+  private notarytoolArgs(subcommand: string, ...extra: string[]): string[] {
+    const args: string[] = ['notarytool', subcommand, ...extra]
+    if (this.config.keychainProfile) {
+      args.push('--keychain-profile', this.config.keychainProfile)
+    }
+    else {
+      if (!this.config.password) {
+        throw new Error(
+          'Notarizer: either keychainProfile or password must be configured. '
+          + 'Recommended: run `xcrun notarytool store-credentials <name>` once and '
+          + 'pass `keychainProfile: "<name>"`.'
+        )
+      }
+      args.push(
+        '--apple-id', this.config.appleId,
+        '--team-id', this.config.teamId,
+        '--password', this.config.password,
+      )
+    }
+    args.push('--output-format', 'json')
+    return args
+  }
+
   async notarize(path: string): Promise<{ success: boolean; requestId?: string; error?: string }> {
     if (!existsSync(path)) {
       return { success: false, error: `File not found: ${path}` }
@@ -261,105 +305,94 @@ export class Notarizer {
     }
 
     let submitPath = path
-
-    // If it's a .app, create a zip for submission
     if (isApp) {
       submitPath = `${path}.zip`
       console.log('Creating zip for notarization...')
-      await execAsync(`ditto -c -k --keepParent "${path}" "${submitPath}"`)
+      await execFileAsync('ditto', ['-c', '-k', '--keepParent', path, submitPath])
     }
 
     try {
       console.log('Submitting for notarization...')
 
-      // Use notarytool (macOS 12+)
-      const { stdout } = await execAsync(`
-        xcrun notarytool submit "${submitPath}" \
-          --apple-id "${this.config.appleId}" \
-          --team-id "${this.config.teamId}" \
-          --password "${this.config.password}" \
-          --wait \
-          --timeout 30m
-      `)
+      const args = this.notarytoolArgs('submit', submitPath, '--wait', '--timeout', '30m')
+      const { stdout } = await execFileAsync('xcrun', args)
 
-      // Extract request ID
-      const requestIdMatch = stdout.match(/id: ([a-f0-9-]+)/i)
-      const requestId = requestIdMatch?.[1]
+      let parsed: { id?: string; status?: string; message?: string }
+      try {
+        parsed = JSON.parse(stdout)
+      }
+      catch {
+        // notarytool occasionally writes non-JSON pre-amble; fall back to
+        // the legacy regex parse so we don't lose information.
+        parsed = { id: /id:\s*([a-f0-9-]+)/i.exec(stdout)?.[1], message: stdout }
+      }
 
-      // Check if successful
-      if (stdout.includes('status: Accepted') || stdout.includes('Successfully uploaded')) {
+      const requestId = parsed.id
+      const accepted = parsed.status === 'Accepted'
+
+      if (accepted) {
         console.log('Notarization successful!')
-
-        // Staple the notarization ticket
         if (isApp || isDmg || isPkg) {
           console.log('Stapling ticket...')
-          await execAsync(`xcrun stapler staple "${path}"`)
+          await execFileAsync('xcrun', ['stapler', 'staple', path])
         }
-
         return { success: true, requestId }
       }
-else {
-        // Get detailed log
-        if (requestId) {
-          const { stdout: logOutput } = await execAsync(`
-            xcrun notarytool log "${requestId}" \
-              --apple-id "${this.config.appleId}" \
-              --team-id "${this.config.teamId}" \
-              --password "${this.config.password}"
-          `)
-          return { success: false, requestId, error: logOutput }
-        }
 
-        return { success: false, error: stdout }
+      if (requestId) {
+        const logArgs = this.notarytoolArgs('log', requestId)
+        const { stdout: logOutput } = await execFileAsync('xcrun', logArgs)
+        return { success: false, requestId, error: logOutput }
       }
+      return { success: false, error: parsed.message ?? stdout }
     }
-catch (error) {
+    catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) }
     }
-finally {
-      // Clean up temporary zip
+    finally {
       if (isApp && existsSync(submitPath)) {
-        execSync(`rm "${submitPath}"`)
+        try {
+          unlinkSync(submitPath)
+        }
+        catch (e) {
+          console.warn(`[Notarizer] Failed to remove temporary zip ${submitPath}:`, e)
+        }
       }
     }
   }
 
   /**
-   * Check notarization status
+   * Check notarization status. Returns the parsed JSON status from notarytool.
    */
   async checkStatus(requestId: string): Promise<{ status: string; message?: string }> {
     try {
-      const { stdout } = await execAsync(`
-        xcrun notarytool info "${requestId}" \
-          --apple-id "${this.config.appleId}" \
-          --team-id "${this.config.teamId}" \
-          --password "${this.config.password}"
-      `)
-
-      const statusMatch = stdout.match(/status: (\w+)/i)
-      const status = statusMatch?.[1] || 'unknown'
-
-      return { status, message: stdout }
+      const args = this.notarytoolArgs('info', requestId)
+      const { stdout } = await execFileAsync('xcrun', args)
+      try {
+        const parsed = JSON.parse(stdout) as { status?: string; message?: string }
+        return { status: parsed.status ?? 'unknown', message: parsed.message ?? stdout }
+      }
+      catch {
+        // Pre-Xcode-13 fallback.
+        const status = /status:\s*(\w+)/i.exec(stdout)?.[1] || 'unknown'
+        return { status, message: stdout }
+      }
     }
-catch (error) {
+    catch (error) {
       return { status: 'error', message: error instanceof Error ? error.message : String(error) }
     }
   }
 
   /**
-   * Get notarization log
+   * Get notarization log.
    */
   async getLog(requestId: string): Promise<string> {
     try {
-      const { stdout } = await execAsync(`
-        xcrun notarytool log "${requestId}" \
-          --apple-id "${this.config.appleId}" \
-          --team-id "${this.config.teamId}" \
-          --password "${this.config.password}"
-      `)
+      const args = this.notarytoolArgs('log', requestId)
+      const { stdout } = await execFileAsync('xcrun', args)
       return stdout
     }
-catch (error) {
+    catch (error) {
       return error instanceof Error ? error.message : String(error)
     }
   }
@@ -449,14 +482,14 @@ export function generateEntitlements(options: {
 `
 
   for (const [key, value] of Object.entries(entitlements)) {
-    plist += `    <key>${key}</key>\n`
+    plist += `    <key>${xmlEscape(key)}</key>\n`
     if (typeof value === 'boolean') {
       plist += `    <${value}/>\n`
     }
-else if (Array.isArray(value)) {
+    else if (Array.isArray(value)) {
       plist += '    <array>\n'
       for (const item of value) {
-        plist += `        <string>${item}</string>\n`
+        plist += `        <string>${xmlEscape(item)}</string>\n`
       }
       plist += '    </array>\n'
     }

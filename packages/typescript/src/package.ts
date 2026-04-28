@@ -505,12 +505,26 @@ async function createZIP(opts: {
     const output = createWriteStream(opts.outputPath)
     const archive = archiver('zip', { zlib: { level: 9 } })
 
+    let settled = false
+    const settle = (r: { success: boolean; outputPath?: string; error?: string }) => {
+      if (settled) return
+      settled = true
+      resolve(r)
+    }
+
     output.on('close', () => {
-      resolve({ success: true, outputPath: opts.outputPath })
+      settle({ success: true, outputPath: opts.outputPath })
+    })
+
+    // Disk-write errors used to slip through unhandled — only the archiver's
+    // own error event was wired up. A truncated zip would still resolve
+    // success: true.
+    output.on('error', (err: Error) => {
+      settle({ success: false, error: `Failed to write ZIP: ${err.message}` })
     })
 
     archive.on('error', (err: Error) => {
-      resolve({ success: false, error: err.message })
+      settle({ success: false, error: err.message })
     })
 
     archive.pipe(output)
@@ -625,26 +639,52 @@ async function createRPM(opts: {
       mkdirSync(buildDir, { recursive: true })
       mkdirSync(rpmsDir, { recursive: true })
 
+      // Validate inputs that get interpolated into the .spec file. RPM spec
+      // files treat `%` as a macro prefix and parse line-by-line, so
+      // newlines or `%` in user data could inject scriptlets / corrupt the
+      // spec. Reject early with a clear message.
+      const safePackageName = /^[a-z0-9._+-]+$/i
+      const safeVersion = /^[A-Za-z0-9._+-]+$/
+      const sanitizedName = opts.name.toLowerCase()
+      if (!safePackageName.test(sanitizedName)) {
+        return resolve({ success: false, error: `RPM package name must match ${safePackageName} (got: ${sanitizedName})` })
+      }
+      if (!safeVersion.test(opts.version)) {
+        return resolve({ success: false, error: `RPM version must match ${safeVersion} (got: ${opts.version})` })
+      }
+      // Description / summary go into single-line spec headers; collapse
+      // newlines and reject `%` to prevent macro expansion.
+      const cleanLine = (s: string): string => s.replace(/[\r\n]+/g, ' ').replace(/%/g, '%%')
+      const summary = cleanLine(opts.description || opts.name)
+      const description = (opts.description || opts.name)
+        .split(/\r?\n/).map(line => line.replace(/%/g, '%%')).join('\n')
+      const requires = opts.requires.map((r) => {
+        if (!safePackageName.test(r)) {
+          throw new Error(`RPM Requires entry must match ${safePackageName} (got: ${r})`)
+        }
+        return r
+      }).join(', ')
+
       // Copy binary to sources
-      copyFileSync(opts.binaryPath, join(sourcesDir, opts.name.toLowerCase()))
+      copyFileSync(opts.binaryPath, join(sourcesDir, sanitizedName))
 
       // Create spec file
-      const specContent = `Name: ${opts.name.toLowerCase()}
+      const specContent = `Name: ${sanitizedName}
 Version: ${opts.version}
 Release: 1%{?dist}
-Summary: ${opts.description || opts.name}
+Summary: ${summary}
 License: MIT
-Requires: ${opts.requires.join(', ')}
+Requires: ${requires}
 
 %description
-${opts.description || opts.name}
+${description}
 
 %install
 mkdir -p %{buildroot}/usr/bin
-install -m 755 %{SOURCE0} %{buildroot}/usr/bin/${opts.name.toLowerCase()}
+install -m 755 %{SOURCE0} %{buildroot}/usr/bin/${sanitizedName}
 
 %files
-/usr/bin/${opts.name.toLowerCase()}
+/usr/bin/${sanitizedName}
 `
       const specPath = join(specDir, `${opts.name.toLowerCase()}.spec`)
       writeFileSync(specPath, specContent)

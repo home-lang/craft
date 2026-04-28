@@ -3,6 +3,8 @@
  * Complete Android native bridge with WebView, permissions, and platform APIs
  */
 
+import { secureId } from './ids'
+
 // Types
 export interface AndroidWebViewConfig {
   url?: string
@@ -143,7 +145,7 @@ export class AndroidWebView {
   private config: AndroidWebViewConfig
 
   constructor(config: AndroidWebViewConfig = {}) {
-    this.id = `webview_${Date.now()}_${Math.random().toString(36).slice(2)}`
+    this.id = secureId('webview')
     this.config = config
   }
 
@@ -223,7 +225,7 @@ export class AndroidWebView {
   private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).CraftBridge) {
       return new Promise((resolve, reject) => {
-        const callbackId = `cb_${Date.now()}_${Math.random().toString(36).slice(2)}`
+        const callbackId = secureId('cb')
         ;(window as any)[callbackId] = (result: string) => {
           delete (window as any)[callbackId]
           try {

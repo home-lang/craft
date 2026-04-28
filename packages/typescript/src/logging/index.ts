@@ -31,7 +31,19 @@ export interface LoggerConfig {
     batchSize?: number
     flushInterval?: number
   }
-  redact?: string[] // Fields to redact
+  /**
+   * Field names to redact in logged context. Each entry is matched
+   * case-insensitively as a substring of the key — `'password'` matches
+   * `password`, `userPassword`, and `oldPassword`. For more precise control
+   * use {@link LoggerConfig.redactPatterns} instead.
+   */
+  redact?: string[]
+  /**
+   * Regular expressions to match against context keys for redaction. These
+   * fire in addition to {@link LoggerConfig.redact}. Use this when you
+   * need to redact things like `^auth_` prefixes without redacting `author`.
+   */
+  redactPatterns?: RegExp[]
   enrichers?: Array<(entry: LogEntry) => LogEntry>
 }
 
@@ -84,7 +96,8 @@ export class Logger {
       maxFileSize: 10 * 1024 * 1024, // 10MB
       maxFiles: 5,
       remote: undefined as any,
-      redact: ['password', 'token', 'secret', 'key', 'authorization'],
+      redact: ['password', 'passwd', 'token', 'secret', 'apikey', 'api_key', 'authorization', 'cookie', 'set-cookie', 'bearer'],
+      redactPatterns: [],
       enrichers: [],
       ...config,
     }
@@ -302,21 +315,27 @@ export class Logger {
   }
 
   /**
-   * Redact sensitive fields
+   * Redact sensitive fields. A field is redacted if its name (lowercased)
+   * substring-matches one of `config.redact`, OR if its name (untouched)
+   * matches one of `config.redactPatterns`. Nested objects recurse.
    */
   private redactSensitive(obj: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {}
+    const patterns = this.config.redactPatterns ?? []
 
     for (const [key, value] of Object.entries(obj)) {
-      const shouldRedact = this.config.redact.some((field) => key.toLowerCase().includes(field.toLowerCase()))
+      const lowerKey = key.toLowerCase()
+      const shouldRedact
+        = this.config.redact.some(field => lowerKey.includes(field.toLowerCase()))
+          || patterns.some(re => re.test(key))
 
       if (shouldRedact) {
         result[key] = '[REDACTED]'
       }
-else if (typeof value === 'object' && value !== null) {
+      else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         result[key] = this.redactSensitive(value as Record<string, unknown>)
       }
-else {
+      else {
         result[key] = value
       }
     }

@@ -206,7 +206,7 @@ function render(): void {
 
           <ul class='todo-list'>
             ${filteredTodos.map(todo => `
-              <li class=": : ? ? ''} ''} 'completed' 'editing' === ${state.editingId ${todo.completed todo-item todo.id" data-id="${todo.id}">
+              <li class="todo-item${todo.completed ? ' completed' : ''}${state.editingId === todo.id ? ' editing' : ''}" data-id="${todo.id}">
                 <div class="view">
                   <input
                     class="toggle"

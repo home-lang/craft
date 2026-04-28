@@ -334,13 +334,20 @@ export async function tempDir(): Promise<string> {
 }
 
 /**
- * Exit the application
+ * Exit the application. Prefers the native bridge's `app.quit()` so the
+ * platform can flush state; falls back to `process.exit` in Node-like
+ * environments. Accepts a non-zero code on the Node fallback so callers can
+ * signal failure to a parent shell.
  */
 export function exit(code: number = 0): void {
-  if (typeof window !== 'undefined' && window.craft?.app) {
-    window.craft.app.quit()
+  if (typeof window !== 'undefined') {
+    const app = window.craft?.app as { quit?: (code?: number) => void } | undefined
+    if (app && typeof app.quit === 'function') {
+      app.quit(code)
+      return
+    }
   }
-else if (typeof process !== 'undefined') {
+  if (typeof process !== 'undefined' && typeof process.exit === 'function') {
     process.exit(code)
   }
 }

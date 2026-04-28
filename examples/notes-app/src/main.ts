@@ -185,7 +185,7 @@ function renderNotesList() {
 
   list.innerHTML = notes.map(note => `
     <div
-      class='? === ${note.id activeNoteId note-item'active' : ''}'
+      class="note-item${note.id === activeNoteId ? ' active' : ''}"
       data-id='${note.id}'
     >
       <div class='note-title'>${note.title || 'Untitled'}</div>
@@ -211,9 +211,9 @@ function render() {
   const isMobile = window.innerWidth <= 768
 
   app.innerHTML = `
-    <div class='? ${sidebarOpen sidebar-overlay'open' : ''}' id='sidebar-overlay'></div>
+    <div class="sidebar-overlay${sidebarOpen ? ' open' : ''}" id="sidebar-overlay"></div>
 
-    <aside class='? ${sidebarOpen sidebar'open' : ''}'>
+    <aside class="sidebar${sidebarOpen ? ' open' : ''}">
       <div class='sidebar-header'>
         <h1>Notes</h1>
         <button id='new-note-btn' title='New Note'>+</button>

@@ -34,6 +34,8 @@ export class LazyLoader<T> implements LazyModule<T> {
   private module: T | null = null
   private loading: Promise<T> | null = null
   private preloading = false
+  private failureCount = 0
+  private lastError: Error | null = null
 
   constructor(
     private factory: () => Promise<T>,
@@ -41,28 +43,52 @@ export class LazyLoader<T> implements LazyModule<T> {
       preloadDelay?: number
       onLoad?: (module: T) => void
       onError?: (error: Error) => void
+      /**
+       * After this many consecutive factory rejections, `load()` stops
+       * calling the factory and re-throws the last error directly. Defaults
+       * to 3 — enough to absorb transient network blips without spinning a
+       * tight retry loop on a permanently broken module.
+       */
+      maxRetries?: number
     }
   ) {}
 
   async load(): Promise<T> {
     if (this.module) return this.module
-
     if (this.loading) return this.loading
+
+    const maxRetries = this.options?.maxRetries ?? 3
+    if (this.lastError && this.failureCount >= maxRetries) {
+      throw this.lastError
+    }
 
     this.loading = this.factory()
       .then((mod) => {
         this.module = mod
         this.loading = null
+        this.failureCount = 0
+        this.lastError = null
         this.options?.onLoad?.(mod)
         return mod
       })
       .catch((error) => {
         this.loading = null
+        this.failureCount += 1
+        this.lastError = error
         this.options?.onError?.(error)
         throw error
       })
 
     return this.loading
+  }
+
+  /**
+   * Reset the failure count so {@link load} will call the factory again.
+   * Use after fixing the underlying cause (e.g. network restored).
+   */
+  reset(): void {
+    this.failureCount = 0
+    this.lastError = null
   }
 
   isLoaded(): boolean {

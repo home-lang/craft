@@ -3,6 +3,8 @@
  * Complete iOS native bridge with WebView, permissions, haptics, and platform APIs
  */
 
+import { secureId } from './ids'
+
 // Types
 export interface IOSWebViewConfig {
   url?: string
@@ -114,7 +116,7 @@ export class IOSWebView {
   private config: IOSWebViewConfig
 
   constructor(config: IOSWebViewConfig = {}) {
-    this.id = `webview_${Date.now()}_${Math.random().toString(36).slice(2)}`
+    this.id = secureId('webview')
     this.config = config
   }
 
@@ -195,7 +197,7 @@ export class IOSWebView {
     // Bridge to native via window.webkit.messageHandlers or custom bridge
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
-        const callbackId = `cb_${Date.now()}_${Math.random().toString(36).slice(2)}`
+        const callbackId = secureId('cb')
         ;(window as any)[callbackId] = (result: T, error?: string) => {
           delete (window as any)[callbackId]
           if (error) reject(new Error(error))
@@ -247,7 +249,7 @@ export class IOSPermissions {
   private async callNative<T>(method: string, params: Record<string, unknown> | object): Promise<T> {
     if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
       return new Promise((resolve, reject) => {
-        const callbackId = `cb_${Date.now()}_${Math.random().toString(36).slice(2)}`
+        const callbackId = secureId('cb')
         ;(window as any)[callbackId] = (result: T, error?: string) => {
           delete (window as any)[callbackId]
           if (error) reject(new Error(error))

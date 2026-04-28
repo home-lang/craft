@@ -113,8 +113,8 @@ export function renderTahoeSidebar(data: SidebarData): string {
     return `
       <div class='${s.section}'>
         ${section.title ? `
-          <div class=': ? ${section.collapsible s.sectionHeader} s.sectionHeaderCollapsible' data-section='${section.id}'>
-            ${section.collapsible ? `<span class=": ? '' 'rotate-90'} ${s.collapseChevron} ${section.collapsed">${icons.chevronRight}</span>` : ''}
+          <div class="${section.collapsible ? s.sectionHeaderCollapsible : s.sectionHeader}" data-section="${section.id}">
+            ${section.collapsible ? `<span class="${s.collapseChevron}${section.collapsed ? '' : ' rotate-90'}">${icons.chevronRight}</span>` : ''}
             ${section.title}
           </div>
         ` : ''}
@@ -176,7 +176,7 @@ export function renderArcSidebar(data: SidebarData, collapsed = false): string {
       const itemClass = isSelected ? s.itemCollapsedSelected : s.itemCollapsed
       return `
         <div class='${itemClass}' data-id='${item.id}'>
-          <span class=': ? ${isSelected s.itemFavicon} s.itemFaviconSelected'>
+          <span class="${isSelected ? s.itemFaviconSelected : s.itemFavicon}">
             ${item.icon ? getIcon(item.icon) : ''}
           </span>
           <div class='${s.tooltip}'>${item.label}</div>
@@ -189,7 +189,7 @@ export function renderArcSidebar(data: SidebarData, collapsed = false): string {
 
     return `
       <div class='${itemClass} group' data-id='${item.id}'>
-        <span class=': ? ${isSelected s.itemFavicon} s.itemFaviconSelected'>
+        <span class="${isSelected ? s.itemFaviconSelected : s.itemFavicon}">
           ${item.icon ? getIcon(item.icon) : ''}
         </span>
         <span class='${s.itemLabel}'>${item.label}</span>
@@ -287,7 +287,7 @@ export function renderOrbStackSidebar(data: SidebarData): string {
     return `
       <div class='${s.section}'>
         ${section.title ? `
-          <div class=': ? ${section.collapsible s.sectionHeader} s.sectionHeaderClickable' data-section='${section.id}'>
+          <div class="${section.collapsible ? s.sectionHeaderClickable : s.sectionHeader}" data-section="${section.id}">
             <span>${section.title}</span>
             ${section.items.length > 0 ? `<span class="${s.sectionCount}">${section.items.length}</span>` : ''}
           </div>
@@ -458,7 +458,7 @@ export function getFullPageHTML(sidebarHTML: string, style: 'tahoe' | 'arc' | 'o
 
   return `
 <!DOCTYPE html>
-<html lang='en' class='=== ${style'orbstack' ? 'dark' : ''}'>
+<html lang="en" class="${style === 'orbstack' ? 'dark' : ''}">
 <head>
   <meta charset='UTF-8'>
   <meta name='viewport' content='width=device-width, initial-scale=1.0'>

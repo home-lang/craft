@@ -213,7 +213,7 @@ else {
       case 'Runtime.evaluate': {
         try {
           // Sandboxed evaluation - no access to local scope
-          const sandboxedEval = new Function('return (' + params.expression + ')')
+          const sandboxedEval = new Function(`return (${params.expression})`)
           const result = sandboxedEval()
           this.send(ws, {
             id,
@@ -592,18 +592,18 @@ else if (msg.method === 'Network.responseReceived') {
       const content = document.getElementById('content');
       if (activeTab === 'console') {
         content.innerHTML = logs.map(l =>
-          '<div class="' ' + + esc(l.level) log">' + esc(l.text) + '</div>'
+          '<div class="' + esc(l.level) + ' log">' + esc(l.text) + '</div>'
         ).join('');
       }
-else if (activeTab === 'network') {
+      else if (activeTab === 'network') {
         content.innerHTML = requests.map(r =>
           '<div class="request">' +
           '<div class="request-url">' + esc(r.request.method) + ' ' + esc(r.request.url) + '</div>' +
-          '<div class="' + + esc(r.status) request-status status-'">' + esc(r.status) + '</div>' +
+          '<div class="request-status status-' + esc(String(r.status)) + '">' + esc(String(r.status)) + '</div>' +
           '</div>'
         ).join('');
       }
-else {
+      else {
         content.innerHTML = '<p>Coming soon...</p>';
       }
       content.scrollTop = content.scrollHeight;

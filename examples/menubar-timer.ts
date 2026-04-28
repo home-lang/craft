@@ -308,7 +308,7 @@ else {
       // Update system tray/menubar title
       const icon = isWorkSession ? '🍅' : '☕';
       if (window.craft && window.craft.tray) {
-        window.craft.tray.setTitle(`${icon} ${timeStr}`).catch(err => {
+        window.craft.tray.setTitle(\`\${icon} \${timeStr}\`).catch(err => {
           console.log('Tray update error:', err);
         });
       }

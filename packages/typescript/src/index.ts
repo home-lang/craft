@@ -3,10 +3,55 @@
  * TypeScript SDK powered by Bun
  */
 
-import { spawn, type ChildProcess } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { execFile, spawn, type ChildProcess } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { promisify } from 'node:util'
 import type { AppConfig, WindowOptions } from './types'
+
+const execFileAsync = promisify(execFile)
+
+/** Tracks whether we've already warned about a binary/SDK version mismatch so each process logs once. */
+let versionMismatchWarned = false
+
+/**
+ * Read the SDK's own version from `package.json`. Falls back to `'unknown'`
+ * when not running from the source tree (the import-meta.dir path may not
+ * resolve in some bundler edge cases).
+ */
+function getSdkVersion(): string {
+  try {
+    const pkgPath = join(import.meta.dir, '..', 'package.json')
+    return JSON.parse(readFileSync(pkgPath, 'utf-8')).version ?? 'unknown'
+  }
+  catch {
+    return 'unknown'
+  }
+}
+
+/**
+ * Probe the native binary for its `--version`, compare it to the SDK
+ * version, and warn (once) when they don't match. Best-effort: a binary
+ * that doesn't support `--version` is silently ignored.
+ */
+async function probeBinaryVersion(craftPath: string): Promise<void> {
+  if (versionMismatchWarned) return
+  try {
+    const { stdout } = await execFileAsync(craftPath, ['--version'], { timeout: 2000 })
+    const nativeVersion = stdout.trim().replace(/^v/, '')
+    const sdkVersion = getSdkVersion()
+    if (sdkVersion !== 'unknown' && nativeVersion && nativeVersion !== sdkVersion) {
+      versionMismatchWarned = true
+      console.warn(
+        `⚠️  Craft binary/SDK version mismatch: SDK=${sdkVersion}, native=${nativeVersion}.\n`
+        + '   This is usually fine across patch releases but may produce surprising behavior across minors.',
+      )
+    }
+  }
+  catch {
+    // Binary may not implement --version, or may be slow; don't block startup.
+  }
+}
 
 // Export packaging API
 export { packageApp, pack, type PackageConfig, type PackageResult } from './package'
@@ -16,6 +61,13 @@ export * from './utils'
 
 // Export API modules
 export * from './api'
+
+// Namespace export so consumers can also do `import { components } from '...'`
+// and reach every symbol from `./components` without name clashes against the
+// API surface. The flat (selective) re-exports below are kept for backwards
+// compatibility, but new code should prefer `components.X` to avoid surprises
+// when new exports are added on either side.
+export * as components from './components'
 
 // Export component abstractions (React Native-style primitives)
 // Use explicit exports to avoid conflicts with names from './api':
@@ -130,6 +182,9 @@ export * from './styles'
 // Export framework-specific optimizations
 export * from './optimizations'
 
+// Export auto-updater (delta/differential update support)
+export * as updater from './updater'
+
 export class CraftApp {
   private process?: ChildProcess
   private config: AppConfig
@@ -185,6 +240,11 @@ export class CraftApp {
 
     const args = this.buildArgs()
     const craftPath = await this.findCraftBinary()
+
+    // Probe the binary's reported version and warn if the SDK and native
+    // halves drift. Fire-and-forget — the warning isn't load-bearing and
+    // shouldn't gate startup.
+    void probeBinaryVersion(craftPath)
 
     this.process = spawn(craftPath, args, {
       stdio: this.config.quiet ? 'ignore' : 'inherit',

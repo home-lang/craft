@@ -17,8 +17,8 @@
  * // List directory contents
  * const files = await fs.readDir('/path/to/directory')
  *
- * // Watch for changes
- * const unwatch = watch('/path/to/watch', (event, filename) => {
+ * // Watch for changes (returns a Promise<() => void>)
+ * const unwatch = await watch('/path/to/watch', (event, filename) => {
  *   console.log(`${event}: ${filename}`)
  * })
  * ```
@@ -38,20 +38,54 @@ function getCraftFs(): CraftFileSystemAPI | null {
 
 /**
  * Validate a file path to prevent directory traversal attacks.
- * Blocks paths containing ".." segments that could escape the intended directory.
+ *
+ * Rejects:
+ *   - Any `..` segment (including after URL-decoding, since the host bridge may
+ *     percent-decode before opening the file)
+ *   - Embedded NULs (truncate filenames in C APIs)
+ *   - Empty/whitespace-only paths
+ *
+ * When a `root` is provided, additionally asserts that the resolved absolute
+ * path is contained within `root` (best-effort — symlinks are still resolved
+ * by the OS at open time).
  */
-function validatePath(path: string): void {
-  // Normalize the path to resolve relative segments
-  const normalized = path.replace(/\\/g, '/')
-
-  // Block explicit traversal patterns
-  if (normalized.includes('/../') || normalized.startsWith('../') || normalized.endsWith('/..') || normalized === '..') {
-    throw new Error(`Path traversal detected: "${path}" contains ".." segments`)
+export function validatePath(path: string, root?: string): void {
+  if (typeof path !== 'string' || path.length === 0) {
+    throw new Error('Invalid path: must be a non-empty string')
   }
 
   // Block null bytes (can truncate paths in C APIs)
   if (path.includes('\0')) {
-    throw new Error(`Invalid path: contains null byte`)
+    throw new Error('Invalid path: contains null byte')
+  }
+
+  // Decode percent-encoded sequences before splitting so an attacker can't
+  // sneak `..` past us as `%2e%2e`.
+  let decoded = path
+  try {
+    decoded = decodeURIComponent(path)
+  }
+  catch {
+    // decodeURIComponent throws on malformed sequences; treat the raw path as
+    // suspect rather than failing open.
+    throw new Error('Invalid path: malformed percent-encoding')
+  }
+
+  // Normalize backslashes to forward slashes and split on / segments.
+  const segments = decoded.replace(/\\/g, '/').split('/')
+  for (const segment of segments) {
+    if (segment === '..') {
+      throw new Error(`Path traversal detected: "${path}" contains a ".." segment`)
+    }
+  }
+
+  if (root) {
+    // Best-effort containment check (browser path-resolve is approximate).
+    const baseAbs = root.endsWith('/') ? root : `${root}/`
+    const resolved = decoded.startsWith('/') ? decoded : `${baseAbs}${decoded}`
+    if (!resolved.startsWith(baseAbs) && resolved !== root) {
+      throw new Error(`Path escapes root: "${path}" not within "${root}"`)
+    }
   }
 }
 
@@ -381,9 +415,15 @@ export async function copy(src: string, dest: string): Promise<void> {
     await (window.craft as any).bridge?.call('fs.copy', { src, dest })
     return
   }
-  // Node.js fallback
+  // Node.js fallback. dereference: false stops a symlink under `src` from
+  // tricking cp into writing files outside `dest`. verbatimSymlinks: true
+  // keeps the link itself intact instead of resolving it relative to `dest`.
   const { cp } = await import('node:fs/promises')
-  return cp(src, dest, { recursive: true })
+  return cp(src, dest, {
+    recursive: true,
+    dereference: false,
+    verbatimSymlinks: true,
+  })
 }
 
 /**
@@ -417,37 +457,36 @@ export async function move(src: string, dest: string): Promise<void> {
 
 /**
  * Watch a file or directory for changes.
- * Returns an unwatch function to stop watching.
+ * Returns a Promise that resolves with an unwatch function once the watcher
+ * is fully initialized.
+ *
+ * Important: the returned unwatch function MUST be called when the watcher is
+ * no longer needed. Forgotten watchers leak both the underlying OS handle and
+ * the JS-side event listener.
  *
  * @param path - Path to watch
  * @param callback - Function called when changes occur
- * @returns Function to stop watching
+ * @returns Promise resolving to a function that stops watching
  *
  * @example
  * ```typescript
- * // Watch for file changes
- * const stopWatching = watch('/path/to/file.txt', (event, filename) => {
+ * const stopWatching = await watch('/path/to/file.txt', (event, filename) => {
  *   console.log(`File ${filename} was ${event}`)
- *   // event is 'change' or 'rename'
  * })
  *
  * // Later, stop watching
  * stopWatching()
- *
- * // Watch a directory
- * const unwatchDir = watch('/path/to/directory', (event, filename) => {
- *   console.log(`${event}: ${filename}`)
- * })
  * ```
  */
-export function watch(path: string, callback: (event: string, filename: string) => void): () => void {
+export async function watch(
+  path: string,
+  callback: (event: string, filename: string) => void
+): Promise<() => void> {
   validatePath(path)
   if (typeof window !== 'undefined' && window.craft) {
-    // Bridge-based watch. Use crypto.randomUUID when available for collision
-    // resistance — Math.random can repeat if called in tight loops.
     const watchId = typeof globalThis.crypto !== 'undefined' && 'randomUUID' in globalThis.crypto
       ? (globalThis.crypto as Crypto).randomUUID()
-      : `${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+      : `${Date.now()}_${performance.now()}`
     ;(window.craft as any).bridge?.call('fs.watch', { path, watchId })
 
     const handler = (event: CustomEvent) => {
@@ -463,14 +502,14 @@ export function watch(path: string, callback: (event: string, filename: string) 
     }
   }
 
-  // Node.js fallback
-  let watcher: { close: () => void } | null = null
-  import('node:fs').then((nodeFs) => {
-    watcher = nodeFs.watch(path, (event: string, filename: string | null) => {
-      if (filename) callback(event, filename)
-    })
+  // Node.js fallback — await the import so the caller's `unwatch` actually
+  // closes the watcher (the previous fire-and-forget version sometimes
+  // returned a stub that did nothing).
+  const nodeFs = await import('node:fs')
+  const watcher = nodeFs.watch(path, (event: string, filename: string | null) => {
+    if (filename) callback(event, filename)
   })
-  return () => watcher?.close()
+  return () => watcher.close()
 }
 
 export default fs

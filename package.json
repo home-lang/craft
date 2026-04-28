@@ -54,7 +54,10 @@
     "pre-commit": {
       "staged-lint": {
         "*.{js,ts,json,yaml,yml,md}": "bunx --bun pickier lint --fix"
-      }
+      },
+      "scripts": [
+        "bun run typecheck"
+      ]
     },
     "commit-msg": "bunx gitlint --edit .git/COMMIT_EDITMSG"
   }

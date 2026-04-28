@@ -221,9 +221,9 @@ const html = `
         \`
         stats.textContent = 'No tasks yet'
       }
-else {
+      else {
         list.innerHTML = todos.map(todo => \`
-          <li class=": ? ''} 'completed' \${todo.completed todo-item">
+          <li class="todo-item\${todo.completed ? ' completed' : ''}">
             <input
               type="checkbox"
               class="todo-checkbox"

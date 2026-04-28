@@ -73,6 +73,16 @@ pub const Bridge = struct {
         try self.handlers.put(name_dup, handler);
     }
 
+    /// Register the protocol-required default handlers. Callers should invoke
+    /// this before any user handlers so apps that opt in to the SDK bridge's
+    /// `handshake()` flow get a sensible reply out of the box.
+    ///
+    /// Currently registers:
+    ///   - `_handshake` — replies with the protocol version constant.
+    pub fn registerDefaults(self: *Self) !void {
+        try self.registerHandler("_handshake", handshakeHandler);
+    }
+
     /// Handle a message from JavaScript.
     ///
     /// Returns whatever the handler produced; see the `MessageHandler` doc
@@ -147,12 +157,28 @@ pub const Bridge = struct {
     }
 };
 
+/// Wire-protocol version this Zig host speaks. Bumped in lockstep with the
+/// TypeScript SDK's `BRIDGE_PROTOCOL_VERSION`. The SDK calls `_handshake` on
+/// boot when it wants to verify compatibility, and rejects the bridge with
+/// `BridgeErrorCodes.PROTOCOL_MISMATCH` if the reply doesn't match.
+pub const BRIDGE_PROTOCOL_VERSION: u32 = 1;
+
 // Example handler functions
 pub fn notifyHandler(message: []const u8) ![]const u8 {
     // Use the log facility (respects level configuration) rather than
     // `std.debug.print`, which would flood stderr on every notification.
     std.log.scoped(.bridge).info("notification from web: {s}", .{message});
     return "OK";
+}
+
+/// Reply to the SDK's bridge handshake. The SDK calls `_handshake`
+/// (`packages/typescript/src/bridge/core.ts`) and expects a JSON object
+/// `{ "version": <u32> }`. Any other shape — including a missing handler —
+/// causes the SDK to throw `PROTOCOL_MISMATCH` at boot, which is why this
+/// handler is registered by default.
+pub fn handshakeHandler(message: []const u8) ![]const u8 {
+    _ = message;
+    return std.fmt.comptimePrint("{{\"version\":{d}}}", .{BRIDGE_PROTOCOL_VERSION});
 }
 
 pub fn readFileHandler(message: []const u8) ![]const u8 {

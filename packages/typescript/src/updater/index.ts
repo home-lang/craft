@@ -38,13 +38,31 @@ export interface DeltaUpdate {
 }
 
 export interface UpdaterConfig {
-  updateUrl: string // URL to check for updates
+  /**
+   * Manifest URL. Must be HTTPS in production (file:// is allowed for tests).
+   * The constructor will throw on a plain `http://` URL.
+   */
+  updateUrl: string
   currentVersion: string
   appPath: string // Path to app bundle
   autoDownload?: boolean
   autoInstall?: boolean
   channel?: 'stable' | 'beta' | 'alpha'
   checkInterval?: number // ms
+  /**
+   * PEM-encoded public key (SPKI / RFC 5280) used to verify update bundle
+   * signatures. When omitted, signed updates from the manifest are still
+   * verified by SHA-256 hash but the signature field is rejected as
+   * unverifiable (the updater refuses to install rather than fall back to
+   * "trust on first use"). For ed25519 keys, supply the standard
+   * `-----BEGIN PUBLIC KEY-----` PEM.
+   */
+  publicKeyPem?: string
+  /**
+   * Signature scheme used to sign manifest entries. Defaults to `'ed25519'`.
+   * Must match how the build pipeline produced `PlatformUpdate.signature`.
+   */
+  signatureAlgorithm?: 'ed25519' | 'rsa-sha256'
 }
 
 export interface UpdateProgress {
@@ -73,6 +91,18 @@ export class AutoUpdater extends EventEmitter {
 
   constructor(config: UpdaterConfig) {
     super()
+
+    // Refuse insecure manifest URLs at construction time so a typo can't
+    // ship an HTTP-fetched manifest (which would defeat the signature
+    // scheme by letting MITM rewrite it). file:// is allowed for tests.
+    const url = config.updateUrl
+    if (typeof url !== 'string' || url.length === 0) {
+      throw new Error('Updater: updateUrl is required')
+    }
+    if (!/^(?:https:|file:)\/\//i.test(url)) {
+      throw new Error(`Updater: updateUrl must use https:// (got: ${url})`)
+    }
+
     this.config = {
       autoDownload: true,
       autoInstall: false,
@@ -474,16 +504,53 @@ else if (downloadPath.endsWith('.tar.gz')) {
     })
   }
 
-  private async verifySignature(_filePath: string, _signature: string): Promise<boolean> {
-    // Signature verification MUST be implemented before shipping updates. We
-    // throw here instead of silently returning true so that the lack of
-    // verification is impossible to ignore in production. Configure a public
-    // key via the updater config and call into a native verifier.
-    throw new Error(
-      'Updater.verifySignature is not implemented. ' +
-      'Refusing to install unsigned update. ' +
-      'Configure a public key and implement signature verification.'
-    )
+  /**
+   * Verify a downloaded bundle against the signature published in the
+   * manifest. Returns false if the signature doesn't validate; throws when
+   * the updater is misconfigured (no key or bad PEM) so misconfiguration
+   * cannot silently pass as "valid".
+   */
+  private async verifySignature(filePath: string, signature: string): Promise<boolean> {
+    const pem = this.config.publicKeyPem
+    if (!pem) {
+      throw new Error(
+        'Updater.verifySignature: publicKeyPem is not configured. '
+        + 'Refusing to install signed update without a verification key.'
+      )
+    }
+
+    const algo = this.config.signatureAlgorithm ?? 'ed25519'
+    const { createPublicKey, verify, createVerify } = await import('node:crypto')
+
+    let publicKey: ReturnType<typeof createPublicKey>
+    try {
+      publicKey = createPublicKey({ key: pem, format: 'pem' })
+    }
+    catch (e) {
+      throw new Error(`Updater.verifySignature: invalid publicKeyPem: ${(e as Error).message}`)
+    }
+
+    // Signature is base64-encoded in the manifest.
+    let sigBytes: Buffer
+    try {
+      sigBytes = Buffer.from(signature, 'base64')
+    }
+    catch {
+      return false
+    }
+
+    const data = readFileSync(filePath)
+
+    if (algo === 'ed25519') {
+      // ed25519 uses the one-shot `verify` (no createVerify hashing step).
+      return verify(null, data, publicKey, sigBytes)
+    }
+
+    // rsa-sha256
+    const verifier = createVerify('SHA256')
+    verifier.update(data)
+    verifier.end()
+    return verifier.verify(publicKey, sigBytes)
   }
 
   /**
@@ -587,26 +654,30 @@ export function generateUpdateManifest(options: {
   for (const [platform, info] of Object.entries(options.platforms)) {
     if (!info) continue
 
-    const stats = statSync(info.path)
-    const hash = createHash('sha256').update(readFileSync(info.path)).digest('hex')
+    // Hash and stat from the same buffer so a writer can't swap the file
+    // between the size lookup and the digest. `readFileSync` opens with
+    // O_RDONLY, but on POSIX another process can still rename underneath
+    // us — copying the bytes once and deriving both metrics from that
+    // snapshot is the cheapest way to make the manifest entry consistent.
+    const bytes = readFileSync(info.path)
+    const hash = createHash('sha256').update(bytes).digest('hex')
 
     manifest.platforms[platform] = {
       url: info.url,
-      size: stats.size,
+      size: bytes.length,
       sha256: hash,
       delta: [],
     }
 
-    // Add delta updates
     const platformDeltas = options.deltas?.filter((d) => d.platform === platform) || []
     for (const delta of platformDeltas) {
-      const deltaStats = statSync(delta.path)
-      const deltaHash = createHash('sha256').update(readFileSync(delta.path)).digest('hex')
+      const deltaBytes = readFileSync(delta.path)
+      const deltaHash = createHash('sha256').update(deltaBytes).digest('hex')
 
       manifest.platforms[platform].delta!.push({
         fromVersion: delta.fromVersion,
         url: delta.url,
-        size: deltaStats.size,
+        size: deltaBytes.length,
         sha256: deltaHash,
       })
     }

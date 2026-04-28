@@ -262,14 +262,15 @@ createApp({
   <script>
     // Register sidebar selection handler
     window.craft = window.craft || {};
+    // eslint-disable-next-line pickier/no-unused-vars
     window.craft._sidebarSelectHandler = function(event) {
       console.log('Sidebar selection:', event);
 
       // Update UI
       document.getElementById('title').textContent = event.item.label;
-      document.getElementById('subtitle').textContent = `Section: ${event.sectionId}`;
-      document.getElementById('selected-item').textContent = `${event.item.label} (${event.itemId})`;
-      document.getElementById('selected-section').textContent = `From section: ${event.sectionId}`;
+      document.getElementById('subtitle').textContent = \`Section: \${event.sectionId}\`;
+      document.getElementById('selected-item').textContent = \`\${event.item.label} (\${event.itemId})\`;
+      document.getElementById('selected-section').textContent = \`From section: \${event.sectionId}\`;
     };
 
     console.log('Sidebar demo loaded');

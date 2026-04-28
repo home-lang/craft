@@ -1366,8 +1366,13 @@ export interface IOSConfig {
     accessWifi?: boolean
     nfc?: boolean
   }
-  /** Entitlements */
-  entitlements?: Record<string, any>
+  /**
+   * Custom entitlements as plist key/value pairs. Values must be one of the
+   * primitive plist types — booleans, strings, numbers, or arrays of those.
+   * Anything richer (e.g. nested dicts) needs a manual `.entitlements`
+   * file referenced via {@link AppleSigningOptions.entitlementsPath}.
+   */
+  entitlements?: Record<string, boolean | string | number | Array<string | number>>
 }
 
 /**

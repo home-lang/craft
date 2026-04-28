@@ -8,7 +8,7 @@ The Craft bridge enables web-based UI to call native functionality through a str
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    JavaScript/TypeScript                     │
 │                      (Web UI Layer)                          │
@@ -78,7 +78,7 @@ The Craft bridge enables web-based UI to call native functionality through a str
 | `i32`, `u32`, `i64`, `u64` | `number` | `123` |
 | `f32`, `f64` | `number` | `3.14` |
 | `[]const u8` | `string` | `"text"` |
-| `?T` | `T \| null` | `null` or value |
+| `?T` | <code>T &#124; null</code> | `null` or value |
 | `struct` | `interface` | `{ field: value }` |
 | `enum` | `string` | `"variant_name"` |
 | `[]T` | `T[]` | `[value, ...]` |
