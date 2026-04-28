@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { CraftApp, createApp, type AppConfig } from '../src/index'
+import { CraftApp, createApp, type AppConfig } from '../index'
 
 describe('Native Sidebar', () => {
   describe('createApp with native sidebar config', () => {

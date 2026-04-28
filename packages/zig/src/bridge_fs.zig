@@ -28,6 +28,24 @@ pub const FSBridge = struct {
         };
     }
 
+    /// Free the watcher map and every owned slice it holds. Call this when
+    /// the bridge is being torn down — without it, every restart leaks the
+    /// per-watcher allocations.
+    pub fn deinit(self: *Self) void {
+        var it = self.watchers.iterator();
+        while (it.next()) |entry| {
+            const watcher = entry.value_ptr.*;
+            self.allocator.free(watcher.id);
+            self.allocator.free(watcher.path);
+            self.allocator.free(watcher.callback_id);
+            // The hashmap key was duped from `watcher.id` at insert time;
+            // freeing `watcher.id` above already covers it. (If a future
+            // change ever duplicates the key separately, also free
+            // `entry.key_ptr.*` here.)
+        }
+        self.watchers.deinit();
+    }
+
     /// Handle file system-related messages from JavaScript
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
         self.handleMessageInternal(action, data) catch |err| {
@@ -335,7 +353,10 @@ pub const FSBridge = struct {
                                 break :blk "";
                             };
                             // Write the formatted bytes through the block.
-                            if (pos + hex_slice.len > buf.len) { name_overflowed = true; break :blk ""; }
+                            if (pos + hex_slice.len > buf.len) {
+                                name_overflowed = true;
+                                break :blk "";
+                            }
                             @memcpy(buf[pos..][0..hex_slice.len], hex_slice);
                             pos += hex_slice.len;
                             break :blk "";
@@ -347,7 +368,10 @@ pub const FSBridge = struct {
                     if (name_overflowed) break;
                     continue;
                 }
-                if (pos + esc.len > buf.len) { name_overflowed = true; break; }
+                if (pos + esc.len > buf.len) {
+                    name_overflowed = true;
+                    break;
+                }
                 @memcpy(buf[pos..][0..esc.len], esc);
                 pos += esc.len;
             }

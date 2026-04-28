@@ -63,14 +63,29 @@ pub const Bridge = struct {
     /// is duped into the bridge's allocator so the caller can free/reuse
     /// its source buffer. If the key already exists, the previous duped
     /// copy is replaced and freed.
+    ///
+    /// Re-registration is implemented as `put-then-free`: we put the new
+    /// duped key first and only free the old one after that succeeds, so
+    /// a put failure cannot leave the bridge in a half-removed state with
+    /// neither the old nor new handler present.
     pub fn registerHandler(self: *Self, name: []const u8, handler: MessageHandler) !void {
         const name_dup = try self.allocator.dupe(u8, name);
         errdefer self.allocator.free(name_dup);
 
-        if (self.handlers.fetchRemove(name)) |old| {
-            self.allocator.free(old.key);
-        }
+        // Snapshot the existing entry (if any) BEFORE we mutate the map.
+        const previous = self.handlers.getKey(name);
+
         try self.handlers.put(name_dup, handler);
+
+        if (previous) |prev_key| {
+            // The map now holds `name_dup` as the canonical key. Free the
+            // previously-duped key that was replaced. We compare pointers
+            // because two duped keys with identical bytes are still distinct
+            // allocations.
+            if (prev_key.ptr != name_dup.ptr) {
+                self.allocator.free(prev_key);
+            }
+        }
     }
 
     /// Register the protocol-required default handlers. Callers should invoke

@@ -107,9 +107,20 @@ jobs:
         if: runner.os == 'macOS' && env.APPLE_SIGNING_IDENTITY != ''
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # Default to the strict distribution entitlements; CI can opt in to
+          # the dev plist (sandbox off, library validation off) by setting
+          # CRAFT_ENTITLEMENTS=dev for local debugging — never for release.
+          ENTITLEMENTS_VARIANT: ${{ vars.CRAFT_ENTITLEMENTS || 'distribution' }}
         run: |
+          set -euo pipefail
+          ENTITLEMENTS="scripts/entitlements-${ENTITLEMENTS_VARIANT}.plist"
+          if [ ! -f "$ENTITLEMENTS" ]; then
+            echo "::error file=$ENTITLEMENTS::missing — required for hardened-runtime signing"
+            exit 1
+          fi
+          echo "Using entitlements: $ENTITLEMENTS"
           codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" \
-            --entitlements scripts/entitlements.plist \
+            --entitlements "$ENTITLEMENTS" \
             packages/zig/zig-out/bin/craft
           codesign --verify --deep --strict packages/zig/zig-out/bin/craft
           echo "Binary signed successfully"
@@ -121,14 +132,24 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          set -euo pipefail
           cd packages/zig/zig-out/bin
           zip -r craft.zip craft
+          # Submit and wait. Without `set -e` a non-zero exit was masked by
+          # the `|| echo` fallback, so a real notarization rejection looked
+          # identical to a "no credentials" skip and the unsigned binary
+          # shipped. The job-level `if:` already guards on credentials, so
+          # any failure here is a genuine error and must abort the release.
           xcrun notarytool submit craft.zip \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
-            --wait || echo "Notarization skipped (may not have credentials)"
-          xcrun stapler staple craft || true
+            --wait \
+            --timeout 30m
+          # Staple the ticket so the binary is offline-Gatekeeper-valid.
+          # Failures here mean the staple didn't apply — never silently OK.
+          xcrun stapler staple craft
+          xcrun stapler validate craft
           rm craft.zip
 
       # ── Publish & Release ──────────────────────────────

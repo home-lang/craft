@@ -1,0 +1,12 @@
+# Treat the lockfile as binary so PR review surfaces only "lockfile updated"
+# rather than 80k lines of YAML diff. Conflicts still happen (resolved by
+# regenerating the lock), but reviewers don't drown in noise.
+bun.lock binary
+
+# Same for OS-binary-ish files we ship.
+*.png binary
+*.jpg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary

@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'bun:test'
-import { CraftApp, createApp, type WindowOptions, type AppConfig } from '../src/index'
+import { CraftApp, createApp, type WindowOptions, type AppConfig } from '../index'
 
 describe('CraftApp', () => {
   describe('constructor', () => {

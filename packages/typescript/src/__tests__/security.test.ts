@@ -7,7 +7,7 @@ import { describe, expect, it } from 'bun:test'
 describe('Fix #2: eval() replaced with sandboxed Function', () => {
   it('devtools should not use raw eval', async () => {
     const devtoolsSource = await Bun.file(
-      new URL('../src/dev/devtools.ts', import.meta.url),
+      new URL('../dev/devtools.ts', import.meta.url),
     ).text()
 
     // Should NOT contain raw eval() calls (except in comments)
@@ -28,7 +28,7 @@ describe('Fix #2: eval() replaced with sandboxed Function', () => {
 describe('Fix #3: XSS prevention via escapeHtml', () => {
   it('devtools should have escapeHtml function', async () => {
     const devtoolsSource = await Bun.file(
-      new URL('../src/dev/devtools.ts', import.meta.url),
+      new URL('../dev/devtools.ts', import.meta.url),
     ).text()
 
     expect(devtoolsSource).toContain('function escapeHtml')
@@ -41,7 +41,7 @@ describe('Fix #3: XSS prevention via escapeHtml', () => {
 describe('Fix #7: Bridge core has no empty catches', () => {
   it('bridge/core.ts should log errors in catch blocks', async () => {
     const bridgeSource = await Bun.file(
-      new URL('../src/bridge/core.ts', import.meta.url),
+      new URL('../bridge/core.ts', import.meta.url),
     ).text()
 
     // Should not have empty catch blocks
@@ -53,7 +53,7 @@ describe('Fix #7: Bridge core has no empty catches', () => {
 
 describe('Fix #8: Path traversal protection in fs API', () => {
   it('fs module should have validatePath function', async () => {
-    const fsSource = await Bun.file(new URL('../src/api/fs.ts', import.meta.url)).text()
+    const fsSource = await Bun.file(new URL('../api/fs.ts', import.meta.url)).text()
 
     expect(fsSource).toContain('function validatePath')
     expect(fsSource).toContain('..')
@@ -61,7 +61,7 @@ describe('Fix #8: Path traversal protection in fs API', () => {
   })
 
   it('fs module should validate paths in read/write operations', async () => {
-    const fsSource = await Bun.file(new URL('../src/api/fs.ts', import.meta.url)).text()
+    const fsSource = await Bun.file(new URL('../api/fs.ts', import.meta.url)).text()
 
     // validatePath should be called in key functions
     expect(fsSource).toContain('validatePath(path)')
@@ -71,7 +71,7 @@ describe('Fix #8: Path traversal protection in fs API', () => {
 describe('Fix #9: No unsafe any casts in crypto', () => {
   it('security module should use type-safe auth tag access', async () => {
     const securitySource = await Bun.file(
-      new URL('../src/security/index.ts', import.meta.url),
+      new URL('../security/index.ts', import.meta.url),
     ).text()
 
     // Should NOT cast cipher/decipher to any for auth tag
@@ -87,7 +87,7 @@ describe('Fix #9: No unsafe any casts in crypto', () => {
 describe('Fix #10: No O(n^2) string concatenation', () => {
   it('hot-reload should not use string concatenation in loops', async () => {
     const hrSource = await Bun.file(
-      new URL('../src/dev/hot-reload.ts', import.meta.url),
+      new URL('../dev/hot-reload.ts', import.meta.url),
     ).text()
 
     // Should not have the O(n^2) pattern: binary += String.fromCharCode
@@ -102,7 +102,7 @@ describe('Fix #10: No O(n^2) string concatenation', () => {
 describe('Fix #11: No workspace:* in create-craft', () => {
   it('create-craft should use versioned dependencies', async () => {
     const cliSource = await Bun.file(
-      new URL('../../create-craft/bin/cli.ts', import.meta.url),
+      new URL('../../../create-craft/bin/cli.ts', import.meta.url),
     ).text()
 
     // Should NOT contain workspace:* references
@@ -114,7 +114,7 @@ describe('Fix #11: No workspace:* in create-craft', () => {
 describe('Fix #13: Platform detection prefers native bridge', () => {
   it('process module should check craft bridge before user-agent', async () => {
     const processSource = await Bun.file(
-      new URL('../src/api/process.ts', import.meta.url),
+      new URL('../api/process.ts', import.meta.url),
     ).text()
 
     // Should check craft._platform before falling back to user-agent
@@ -125,7 +125,7 @@ describe('Fix #13: Platform detection prefers native bridge', () => {
 describe('Fix #16: Clipboard errors are logged', () => {
   it('clipboard module should not silently swallow errors', async () => {
     const clipSource = await Bun.file(
-      new URL('../src/api/clipboard.ts', import.meta.url),
+      new URL('../api/clipboard.ts', import.meta.url),
     ).text()
 
     // Should not have bare `.catch(() => undefined)`

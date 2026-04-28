@@ -117,9 +117,21 @@ pub const UpdaterBridge = struct {
             const url_z = try self.allocator.dupeZ(u8, url);
             defer self.allocator.free(url_z);
 
+            // NSString / NSURL are core Foundation classes and shouldn't be
+            // missing on a supported macOS, but `getClass` returns null on
+            // failure and msgSend1 on null is undefined behavior. Bail
+            // loudly if anything's off.
             const NSString = macos.getClass("NSString");
-            const url_str = macos.msgSend1(NSString, "stringWithUTF8String:", url_z.ptr);
+            if (NSString == null) {
+                log.warn("Foundation NSString class not available; skipping feed URL", .{});
+                return;
+            }
             const NSURL = macos.getClass("NSURL");
+            if (NSURL == null) {
+                log.warn("Foundation NSURL class not available; skipping feed URL", .{});
+                return;
+            }
+            const url_str = macos.msgSend1(NSString, "stringWithUTF8String:", url_z.ptr);
             const nsurl = macos.msgSend1(NSURL, "URLWithString:", url_str);
 
             _ = macos.msgSend1(self.updater.?, "setFeedURL:", nsurl);

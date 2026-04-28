@@ -1,5 +1,15 @@
-# Craft Configuration File
-# This file demonstrates all available configuration options
+# Craft Configuration File (DEMO)
+#
+# This file is a reference for the keys recognized by the native packaging
+# pipeline (`packages/zig/src/package.zig`). The repo root copy is here as
+# documentation only — the Zig side searches the **app's** working directory
+# for craft.toml / craft.json / package.jsonc / package.json (in that order)
+# at runtime, so editing this file does not affect the workspace itself.
+#
+# For app config that runs in TypeScript (window dimensions, hot reload,
+# tray, etc.) use `craft.config.ts` and the `createApp({ ... })` builder.
+#
+# This file demonstrates all available configuration options.
 
 [window]
 # Window title

@@ -44,16 +44,26 @@ pub const IPC = struct {
     pub fn deinit(self: *IPC) void {
         var iter = self.channels.iterator();
         while (iter.next()) |entry| {
+            // The hashmap stored a duped copy of the channel name (see
+            // `on`). Free it here so deinit doesn't leak the keys.
+            self.allocator.free(entry.key_ptr.*);
             entry.value_ptr.deinit(self.allocator);
         }
         self.channels.deinit();
         self.pending_requests.deinit();
     }
 
-    /// Subscribe to a channel
+    /// Subscribe to a channel. The `channel` slice is duped so callers may
+    /// free or reuse their buffer immediately after this returns; the
+    /// previous implementation borrowed the slice and crashed on `off()` /
+    /// iteration if the caller's buffer was freed first.
     pub fn on(self: *IPC, channel: []const u8, handler: MessageHandler) !void {
         const result = try self.channels.getOrPut(channel);
         if (!result.found_existing) {
+            // First insertion — replace the borrowed key with a duped copy.
+            const owned = try self.allocator.dupe(u8, channel);
+            errdefer self.allocator.free(owned);
+            result.key_ptr.* = owned;
             result.value_ptr.* = .{};
         }
         try result.value_ptr.append(self.allocator, handler);

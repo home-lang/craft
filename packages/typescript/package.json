@@ -53,7 +53,7 @@
   },
   "scripts": {
     "build": "bun run build:lib && bun run build:types",
-    "build:lib": "bun build src/index.ts --outdir dist --format esm --target bun --external archiver --external ws && bun build src/index.ts --outdir dist --format cjs --target node --outfile index.cjs --external archiver --external ws",
+    "build:lib": "bun build src/index.ts --outdir dist --format esm --target bun --external archiver --external ws && bun build src/index.ts --outfile dist/index.cjs --format cjs --target node --external archiver --external ws",
     "build:types": "bun run tsc -p tsconfig.build.json && cp dist/index.d.ts dist/index.d.cts",
     "dev": "bun --watch src/index.ts",
     "lint": "bunx --bun pickier lint . --config ../../pickier.config.ts --max-warnings 9999",

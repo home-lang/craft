@@ -23,7 +23,9 @@ export const http: CraftHttpAPI = {
   },
 
   /**
-   * Download file with progress tracking
+   * Download file with progress tracking. The progress callback is detached
+   * (replaced with a no-op) once the underlying bridge promise settles, so
+   * a lingering native reference doesn't pin caller closures forever.
    */
   async download(
     url: string,
@@ -31,13 +33,23 @@ export const http: CraftHttpAPI = {
     onProgress?: (progress: { loaded: number; total: number }) => void
   ): Promise<void> {
     if (typeof window !== 'undefined' && window.craft?.http) {
-      return window.craft.http.download(url, destination, onProgress)
+      let active: typeof onProgress = onProgress
+      const wrapper = onProgress
+        ? (p: { loaded: number; total: number }) => active?.(p)
+        : undefined
+      try {
+        return await window.craft.http.download(url, destination, wrapper)
+      }
+      finally {
+        active = undefined // detach
+      }
     }
     throw new Error('Download API requires Craft environment')
   },
 
   /**
-   * Upload file with progress tracking
+   * Upload file with progress tracking. See `download` for the
+   * callback-detachment contract.
    */
   async upload(
     url: string,
@@ -45,7 +57,16 @@ export const http: CraftHttpAPI = {
     onProgress?: (progress: { loaded: number; total: number }) => void
   ): Promise<Response> {
     if (typeof window !== 'undefined' && window.craft?.http) {
-      return window.craft.http.upload(url, filePath, onProgress)
+      let active: typeof onProgress = onProgress
+      const wrapper = onProgress
+        ? (p: { loaded: number; total: number }) => active?.(p)
+        : undefined
+      try {
+        return await window.craft.http.upload(url, filePath, wrapper)
+      }
+      finally {
+        active = undefined
+      }
     }
     throw new Error('Upload API requires Craft environment')
   }
@@ -149,8 +170,6 @@ export class HttpClient {
           : {}),
       } as RequestInit & { timeoutMs?: number })
 
-      clearTimeout(timeoutId)
-
       // Parse response
       let data: T | undefined
       const contentType = response.headers.get('content-type')
@@ -174,11 +193,16 @@ export class HttpClient {
         ok: response.ok
       }
     } catch (error) {
-      clearTimeout(timeoutId)
       if (error instanceof Error && error.name === 'AbortError') {
         throw new HttpError('Request timeout', 0, 'TIMEOUT')
       }
       throw error
+    }
+    finally {
+      // Always clear the timer, even when fetch throws synchronously (e.g.
+      // body-stringify failure). The previous implementation cleared it in
+      // both branches of try/catch and missed the synchronous-throw path.
+      clearTimeout(timeoutId)
     }
   }
 

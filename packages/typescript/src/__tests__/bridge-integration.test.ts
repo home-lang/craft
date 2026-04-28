@@ -4,7 +4,7 @@
  */
 
 import { describe, test, expect } from 'bun:test'
-import type { CraftBridgeAPI, CraftTrayAPI, CraftWindowAPI, CraftAppAPI, MenuItem } from '../src/types'
+import type { CraftBridgeAPI, CraftTrayAPI, CraftWindowAPI, CraftAppAPI, MenuItem } from '../types'
 
 describe('Bridge Type Definitions', () => {
   test('should have correct CraftBridgeAPI structure', () => {

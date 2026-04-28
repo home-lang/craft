@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import type { WindowOptions, AppConfig, IOSConfig, AndroidConfig, MacOSConfig, WindowsConfig, LinuxConfig } from '../src/index'
+import type { WindowOptions, AppConfig, IOSConfig, AndroidConfig, MacOSConfig, WindowsConfig, LinuxConfig } from '../index'
 
 /**
  * Tests for the 17 improvements made to Craft
@@ -27,7 +27,7 @@ describe('Fix #9: API error handling', () => {
 
 describe('Fix #14: Version consistency', () => {
   it('package.json version should be valid semver', () => {
-    const version = require('../package.json').version
+    const version = require('../../package.json').version
     const parts = version.split('.')
     expect(parts.length).toBe(3)
     expect(Number.isInteger(Number(parts[0]))).toBe(true)
@@ -66,7 +66,7 @@ describe('Fix #17: Type definitions include platform matrix', () => {
 
 describe('Integration: SDK exports are complete', () => {
   it('should export core functions and classes', async () => {
-    const sdk = await import('../src/index')
+    const sdk = await import('../index')
 
     // Core exports
     expect(sdk.CraftApp).toBeDefined()
@@ -85,7 +85,7 @@ describe('Integration: SDK exports are complete', () => {
   })
 
   it('should NOT export phantom APIs', async () => {
-    const sdk = await import('../src/index') as Record<string, unknown>
+    const sdk = await import('../index') as Record<string, unknown>
 
     // These should NOT be exported (Fix #17)
     expect(sdk.ml).toBeUndefined()

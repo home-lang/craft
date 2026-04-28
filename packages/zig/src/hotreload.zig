@@ -37,6 +37,12 @@ pub const FileWatcher = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        // Free duped path keys (see addPath). Without this, every restart
+        // leaks the watch list.
+        var iter = self.watched_paths.iterator();
+        while (iter.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
+        }
         self.watched_paths.deinit();
     }
 
@@ -47,7 +53,17 @@ pub const FileWatcher = struct {
         };
 
         const mtime: i64 = @intCast(@divTrunc(stat.mtime.nanoseconds, 1_000_000_000));
-        try self.watched_paths.put(path, mtime);
+
+        // Dupe the path so the caller may free or reuse its buffer; the
+        // hashmap previously borrowed it and any iteration after the
+        // caller's slice changed read dangling memory.
+        const result = try self.watched_paths.getOrPut(path);
+        if (!result.found_existing) {
+            const owned = try self.allocator.dupe(u8, path);
+            errdefer self.allocator.free(owned);
+            result.key_ptr.* = owned;
+        }
+        result.value_ptr.* = mtime;
         log.debug("Watching: {s}", .{path});
     }
 

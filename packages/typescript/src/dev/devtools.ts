@@ -131,8 +131,14 @@ catch (e) {
   private handleHttp(req: IncomingMessage, res: ServerResponse): void {
     const url = req.url || '/'
 
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*')
+    // CORS headers. Devtools is dev-only, but `*` lets any page on the user's
+    // machine query the API. Echo the request's Origin only if it's a
+    // localhost variant — DevTools clients always run there in practice.
+    const origin = req.headers.origin || ''
+    if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+    }
+    res.setHeader('Vary', 'Origin')
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
@@ -142,59 +148,65 @@ catch (e) {
       return
     }
 
+    // Stringify once and set Content-Length so responses use a single
+    // packet instead of chunked transfer-encoding for tiny payloads.
+    const sendJson = (status: number, payload: unknown) => {
+      const body = JSON.stringify(payload)
+      res.writeHead(status, {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body).toString(),
+      })
+      res.end(body)
+    }
+    const sendHtml = (status: number, body: string) => {
+      res.writeHead(status, {
+        'Content-Type': 'text/html',
+        'Content-Length': Buffer.byteLength(body).toString(),
+      })
+      res.end(body)
+    }
+
     if (url === '/json' || url === '/json/list') {
-      // Chrome DevTools discovery endpoint
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify([
-          {
-            description: 'Craft DevTools',
-            devtoolsFrontendUrl: `devtools://devtools/bundled/inspector.html?ws=localhost:${this.config.port}`,
-            id: 'craft-devtools',
-            title: 'Craft App',
-            type: 'page',
-            url: 'craft://app',
-            webSocketDebuggerUrl: `ws://localhost:${this.config.port}`,
-          },
-        ])
-      )
+      sendJson(200, [
+        {
+          description: 'Craft DevTools',
+          devtoolsFrontendUrl: `devtools://devtools/bundled/inspector.html?ws=localhost:${this.config.port}`,
+          id: 'craft-devtools',
+          title: 'Craft App',
+          type: 'page',
+          url: 'craft://app',
+          webSocketDebuggerUrl: `ws://localhost:${this.config.port}`,
+        },
+      ])
     }
-else if (url === '/json/version') {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(
-        JSON.stringify({
-          Browser: 'Craft DevTools/1.0',
-          'Protocol-Version': '1.3',
-          'User-Agent': 'Craft',
-          'V8-Version': process.versions.v8,
-          'WebKit-Version': 'N/A',
-        })
-      )
+    else if (url === '/json/version') {
+      sendJson(200, {
+        Browser: 'Craft DevTools/1.0',
+        'Protocol-Version': '1.3',
+        'User-Agent': 'Craft',
+        'V8-Version': process.versions.v8,
+        'WebKit-Version': 'N/A',
+      })
     }
-else if (url === '/') {
-      // Dashboard
-      res.writeHead(200, { 'Content-Type': 'text/html' })
-      res.end(this.getDashboardHtml())
+    else if (url === '/') {
+      sendHtml(200, this.getDashboardHtml())
     }
-else if (url === '/api/console') {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify(this.consoleLogs))
+    else if (url === '/api/console') {
+      sendJson(200, this.consoleLogs)
     }
-else if (url === '/api/network') {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify(Array.from(this.networkRequests.values())))
+    else if (url === '/api/network') {
+      sendJson(200, Array.from(this.networkRequests.values()))
     }
-else if (url === '/api/performance') {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify(this.performanceEntries))
+    else if (url === '/api/performance') {
+      sendJson(200, this.performanceEntries)
     }
-else if (url === '/api/memory') {
-      res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify(this.memorySnapshots))
+    else if (url === '/api/memory') {
+      sendJson(200, this.memorySnapshots)
     }
-else {
-      res.writeHead(404)
-      res.end('Not found')
+    else {
+      const body = 'Not found'
+      res.writeHead(404, { 'Content-Length': Buffer.byteLength(body).toString() })
+      res.end(body)
     }
   }
 
@@ -592,14 +604,14 @@ else if (msg.method === 'Network.responseReceived') {
       const content = document.getElementById('content');
       if (activeTab === 'console') {
         content.innerHTML = logs.map(l =>
-          '<div class="' + esc(l.level) + ' log">' + esc(l.text) + '</div>'
+          '<div class="' ' + + esc(l.level) log">' + esc(l.text) + '</div>'
         ).join('');
       }
       else if (activeTab === 'network') {
         content.innerHTML = requests.map(r =>
           '<div class="request">' +
           '<div class="request-url">' + esc(r.request.method) + ' ' + esc(r.request.url) + '</div>' +
-          '<div class="request-status status-' + esc(String(r.status)) + '">' + esc(String(r.status)) + '</div>' +
+          '<div class="' + + esc(String(r.status)) request-status status-'">' + esc(String(r.status)) + '</div>' +
           '</div>'
         ).join('');
       }

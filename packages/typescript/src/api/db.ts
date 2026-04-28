@@ -42,7 +42,7 @@ const WRITE_STATEMENT_RE = /^\s*(?:--[^\n]*\n\s*)*(INSERT|UPDATE|DELETE|REPLACE|
  * paramsCount, readOnly }` — params themselves are not included by default
  * to avoid leaking secrets to logs.
  */
-export const dbAudit = new EventEmitter()
+export const dbAudit: EventEmitter = new EventEmitter()
 
 /**
  * Maximum length for SQL identifiers (table/column names). SQLite has no
@@ -474,8 +474,24 @@ else {
       const result = await fn()
       await this.execute('COMMIT')
       return result
-    } catch (error) {
-      await this.execute('ROLLBACK')
+    }
+    catch (error) {
+      // Try to roll back. If ROLLBACK itself fails (locked DB, native side
+      // dead, etc.) we can't surface BOTH errors as the thrown value, but
+      // dropping the rollback failure used to mask the real situation: the
+      // connection is left in a transactional state and the original error
+      // gives no hint why. Attach the rollback error as `.cause` so debug
+      // tooling sees both, log the secondary so it shows up in console
+      // output even if the consumer doesn't inspect causes.
+      try {
+        await this.execute('ROLLBACK')
+      }
+      catch (rollbackError) {
+        console.error('[Craft DB] ROLLBACK failed after transaction error:', rollbackError)
+        if (error instanceof Error) {
+          ;(error as { cause?: unknown }).cause = rollbackError
+        }
+      }
       throw error
     }
   }
