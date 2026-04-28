@@ -18,6 +18,7 @@ pub const objc = struct {
     pub extern "objc" fn objc_registerClassPair(cls: Class) void;
     pub extern "objc" fn sel_registerName(name: [*:0]const u8) SEL;
     pub extern "objc" fn class_addMethod(cls: Class, name: SEL, imp: IMP, types: [*:0]const u8) BOOL;
+    pub extern "objc" fn class_replaceMethod(cls: Class, name: SEL, imp: IMP, types: [*:0]const u8) IMP;
     pub extern "objc" fn class_addIvar(cls: Class, name: [*:0]const u8, size: usize, alignment: u8, types: [*:0]const u8) BOOL;
     pub extern "objc" fn object_getIvar(obj: id, ivar: Ivar) id;
     pub extern "objc" fn object_setIvar(obj: id, ivar: Ivar, value: id) void;
@@ -486,6 +487,12 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     // Create WKWebView with configuration
     const webview_alloc = msgSend0(WKWebView, "alloc");
     const webview = msgSend2(webview_alloc, "initWithFrame:configuration:", frame, config);
+
+    // Install the native file-drop hook so JS gets real filesystem paths.
+    // No-op in benchmark mode (no JS bridge to deliver to anyway).
+    if (!style.benchmark) {
+        @import("macos_file_drop.zig").install();
+    }
 
     // Set up UI delegate for camera/microphone permission handling (skip if not needed)
     if (style.dev_tools) {
@@ -3253,6 +3260,15 @@ fn getCraftBridgeScriptMinimal() []const u8 {
     \\     showDockIcon: function() { return _m('app','showDockIcon'); },
     \\     quit: function() { return _m('app','quit'); }
     \\   };
+    \\   window.__craftDeliverFileDrop = function(paths) {
+    \\     if (!Array.isArray(paths) || paths.length === 0) return;
+    \\     window.dispatchEvent(new CustomEvent('craft:fileDrop', { detail: { paths: paths } }));
+    \\   };
+    \\   window.craft.onFileDrop = function(cb) {
+    \\     var h = function(e) { cb((e.detail && e.detail.paths) || []); };
+    \\     window.addEventListener('craft:fileDrop', h);
+    \\     return function() { window.removeEventListener('craft:fileDrop', h); };
+    \\   };
     \\   function fireReady() {
     \\     window.dispatchEvent(new CustomEvent('craft:ready'));
     \\     if (typeof window.initializeCraftApp === 'function') window.initializeCraftApp();
@@ -3309,6 +3325,15 @@ fn getCraftBridgeScriptFull() []const u8 {
     \\     hideDockIcon: function() { return _m('app','hideDockIcon'); },
     \\     showDockIcon: function() { return _m('app','showDockIcon'); },
     \\     quit: function() { return _m('app','quit'); }
+    \\   };
+    \\   window.__craftDeliverFileDrop = function(paths) {
+    \\     if (!Array.isArray(paths) || paths.length === 0) return;
+    \\     window.dispatchEvent(new CustomEvent('craft:fileDrop', { detail: { paths: paths } }));
+    \\   };
+    \\   window.craft.onFileDrop = function(cb) {
+    \\     var h = function(e) { cb((e.detail && e.detail.paths) || []); };
+    \\     window.addEventListener('craft:fileDrop', h);
+    \\     return function() { window.removeEventListener('craft:fileDrop', h); };
     \\   };
     \\   window.craft.menubar = {
     \\     init: function() { return _m('menubarCollapse','init'); },
