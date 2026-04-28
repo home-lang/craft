@@ -65,7 +65,7 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Install dependencies
-        run: pantry install
+        run: bun install
 
       - name: Type check TypeScript SDK
         working-directory: packages/typescript
@@ -137,7 +137,7 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Install dependencies
-        run: pantry install
+        run: bun install
 
       - name: Install Linux dependencies
         run: |
@@ -169,7 +169,7 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Install Dependencies
-        run: pantry install
+        run: bun install
 
       - name: Build TypeScript SDK
         working-directory: packages/typescript

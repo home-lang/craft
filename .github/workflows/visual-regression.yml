@@ -42,7 +42,7 @@ jobs:
           key: visual-${{ runner.os }}-zig-master-${{ hashFiles('packages/zig/build.zig') }}
 
       - name: Install dependencies
-        run: pantry install
+        run: bun install
 
       - name: Build Craft
         working-directory: packages/zig

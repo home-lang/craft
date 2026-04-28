@@ -141,7 +141,7 @@ jobs:
         run: composer install --prefer-dist --optimize-autoloader
 
       - name: Install dependencies
-        run: pantry install
+        run: bun install
 
       - name: Configure Git
         run: |
@@ -166,7 +166,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        run: pantry install
+        run: bun install
 
       - name: Configure Git
         run: |
@@ -259,7 +259,7 @@ jobs:
         run: composer install --prefer-dist --optimize-autoloader
 
       - name: Install dependencies
-        run: pantry install
+        run: bun install
 
       - name: Configure Git
         run: |
@@ -354,7 +354,7 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        run: pantry install
+        run: bun install
 
       - name: Display dashboard configuration
         run: |
