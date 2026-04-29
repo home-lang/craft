@@ -27,11 +27,23 @@ export class AudioManager {
   }
 
   /**
-   * Play a tone sound (bell, chime, gong, gentle)
+   * Play a tone sound (bell, chime, gong, gentle).
+   *
+   * Returns a promise that resolves once playback has been scheduled (or
+   * rejects when the audio context cannot be resumed — typically because
+   * the page hasn't received a user gesture yet, which Chrome/Safari/
+   * Firefox all require for AudioContext.resume to succeed).
    */
-  playTone(type: ToneType, duration: number = 1.5): void {
+  async playTone(type: ToneType, duration: number = 1.5): Promise<void> {
+    let audioContext: AudioContext | null = null
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      // Modern browsers create AudioContexts in the `suspended` state until
+      // a user gesture has been observed. Without an explicit resume the
+      // oscillator schedules silently and the caller never hears anything.
+      if (audioContext.state === 'suspended' && typeof audioContext.resume === 'function') {
+        await audioContext.resume()
+      }
       const oscillator = audioContext.createOscillator()
       const gainNode = audioContext.createGain()
 
@@ -52,11 +64,13 @@ export class AudioManager {
       // Close the context once playback finishes so repeated calls don't leak
       // one AudioContext per tone. Browsers cap contexts at ~6 per tab.
       oscillator.onended = () => {
-        audioContext.close().catch(() => { /* ignore close errors */ })
+        audioContext!.close().catch(() => { /* ignore close errors */ })
       }
     }
     catch (e) {
       console.error('Failed to play tone:', e)
+      audioContext?.close().catch(() => { /* best effort */ })
+      throw e instanceof Error ? e : new Error(String(e))
     }
   }
 
