@@ -361,7 +361,7 @@ pub const SystemBridge = struct {
             // NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion
             const NSWorkspace = macos.getClass("NSWorkspace");
             const workspace = macos.msgSend0(NSWorkspace, "sharedWorkspace");
-            const reduce_motion = macos.msgSend0Bool(workspace, "accessibilityDisplayShouldReduceMotion");
+            const reduce_motion = macos.msgSendBool(workspace, "accessibilityDisplayShouldReduceMotion");
 
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getReduceMotion',{});", .{ callback_id, reduce_motion }) catch return;
@@ -394,7 +394,7 @@ pub const SystemBridge = struct {
 
             const NSWorkspace = macos.getClass("NSWorkspace");
             const workspace = macos.msgSend0(NSWorkspace, "sharedWorkspace");
-            const reduce_transparency = macos.msgSend0Bool(workspace, "accessibilityDisplayShouldReduceTransparency");
+            const reduce_transparency = macos.msgSendBool(workspace, "accessibilityDisplayShouldReduceTransparency");
 
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getReduceTransparency',{});", .{ callback_id, reduce_transparency }) catch return;
@@ -427,7 +427,7 @@ pub const SystemBridge = struct {
 
             const NSWorkspace = macos.getClass("NSWorkspace");
             const workspace = macos.msgSend0(NSWorkspace, "sharedWorkspace");
-            const increase_contrast = macos.msgSend0Bool(workspace, "accessibilityDisplayShouldIncreaseContrast");
+            const increase_contrast = macos.msgSendBool(workspace, "accessibilityDisplayShouldIncreaseContrast");
 
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftSystemCallback)window.__craftSystemCallback('{s}','getIncreaseContrast',{});", .{ callback_id, increase_contrast }) catch return;

@@ -124,7 +124,7 @@ pub const NetworkBridge = struct {
                 if (shared_client != null) {
                     const interface = macos.msgSend0(shared_client, "interface");
                     if (interface != null) {
-                        const power_on = macos.msgSend0Bool(interface, "powerOn");
+                        const power_on = macos.msgSendBool(interface, "powerOn");
                         if (power_on) {
                             conn_type = "wifi";
                         }

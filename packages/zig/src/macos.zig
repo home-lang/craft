@@ -3226,153 +3226,17 @@ pub fn getGlobalWebView() ?objc.id {
 // JavaScript Bridge Injection
 // ============================================================================
 
-/// Generate the minimal Craft JavaScript bridge (core only, no tray/menubar/polling)
+/// Embedded JS bridge — see `js/craft-bridge.js` for the full source.
+/// Both minimal and full builds use the same JS file; the only delta is
+/// whether tray/menubar polling is enabled, gated by a flag we prepend.
 fn getCraftBridgeScriptMinimal() []const u8 {
-    return
-    \\ (function() {
-    \\   window.craft = window.craft || {};
-    \\   window.__craftBridgePending = {};
-    \\   window.__craftBridgeResult = function(action, payload) {
-    \\     var q = (window.__craftBridgePending[action] || []);
-    \\     if (q.length > 0) { var e = q.shift(); if (e && e.resolve) e.resolve(payload || {}); }
-    \\   };
-    \\   window.__craftBridgeError = function(err) {
-    \\     var p = window.__craftBridgePending || {};
-    \\     Object.keys(p).forEach(function(k) {
-    \\       var q = p[k]; if (Array.isArray(q)) while (q.length > 0) { var e = q.shift(); if (e && e.reject) e.reject(err); }
-    \\     });
-    \\     window.__craftBridgePending = {};
-    \\   };
-    \\   function _m(t, a, d) {
-    \\     return new Promise(function(ok, no) {
-    \\       try { window.webkit.messageHandlers.craft.postMessage({t:t,a:a,d:d||''}); ok(); } catch(e) { no(e); }
-    \\     });
-    \\   }
-    \\   window.craft.window = {
-    \\     show: function() { return _m('window','show'); },
-    \\     hide: function() { return _m('window','hide'); },
-    \\     toggle: function() { return _m('window','toggle'); },
-    \\     minimize: function() { return _m('window','minimize'); },
-    \\     close: function() { return _m('window','close'); }
-    \\   };
-    \\   window.craft.app = {
-    \\     hideDockIcon: function() { return _m('app','hideDockIcon'); },
-    \\     showDockIcon: function() { return _m('app','showDockIcon'); },
-    \\     quit: function() { return _m('app','quit'); }
-    \\   };
-    \\   window.__craftDeliverFileDrop = function(paths) {
-    \\     if (!Array.isArray(paths) || paths.length === 0) return;
-    \\     window.dispatchEvent(new CustomEvent('craft:fileDrop', { detail: { paths: paths } }));
-    \\   };
-    \\   window.craft.onFileDrop = function(cb) {
-    \\     var h = function(e) { cb((e.detail && e.detail.paths) || []); };
-    \\     window.addEventListener('craft:fileDrop', h);
-    \\     return function() { window.removeEventListener('craft:fileDrop', h); };
-    \\   };
-    \\   function fireReady() {
-    \\     window.dispatchEvent(new CustomEvent('craft:ready'));
-    \\     if (typeof window.initializeCraftApp === 'function') window.initializeCraftApp();
-    \\   }
-    \\   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fireReady);
-    \\   else fireReady();
-    \\ })();
-    ;
+    return @embedFile("js/craft-bridge.js");
 }
 
-/// Generate the full Craft JavaScript bridge (includes tray, menubar, polling)
 fn getCraftBridgeScriptFull() []const u8 {
-    return
-    \\ (function() {
-    \\   window.craft = window.craft || {};
-    \\   window.__craftBridgePending = {};
-    \\   window.__craftBridgeResult = function(action, payload) {
-    \\     var q = (window.__craftBridgePending[action] || []);
-    \\     if (q.length > 0) { var e = q.shift(); if (e && e.resolve) e.resolve(payload || {}); }
-    \\   };
-    \\   window.__craftBridgeError = function(err) {
-    \\     var p = window.__craftBridgePending || {};
-    \\     Object.keys(p).forEach(function(k) {
-    \\       var q = p[k]; if (Array.isArray(q)) while (q.length > 0) { var e = q.shift(); if (e && e.reject) e.reject(err); }
-    \\     });
-    \\     window.__craftBridgePending = {};
-    \\   };
-    \\   function _m(t, a, d) {
-    \\     return new Promise(function(ok, no) {
-    \\       try { window.webkit.messageHandlers.craft.postMessage({t:t,a:a,d:d||''}); ok(); } catch(e) { no(e); }
-    \\     });
-    \\   }
-    \\   window.craft.tray = {
-    \\     setTitle: function(t) { if (t.length > 20) t = t.substring(0,20); return _m('tray','setTitle',t); },
-    \\     setTooltip: function(t) { return _m('tray','setTooltip',t); },
-    \\     setMenu: function(items) { return _m('tray','setMenu',JSON.stringify(items)); },
-    \\     onClick: function(cb) {
-    \\       var h = function(e) { cb({button:e.detail?.button||'left',timestamp:e.detail?.timestamp||Date.now(),modifiers:e.detail?.modifiers||{}}); };
-    \\       if (!window.__craft_tray_handlers) window.__craft_tray_handlers = [];
-    \\       window.__craft_tray_handlers.push(h);
-    \\       window.addEventListener('craft:tray:click', h);
-    \\       return function() { var i = window.__craft_tray_handlers.indexOf(h); if (i > -1) window.__craft_tray_handlers.splice(i,1); window.removeEventListener('craft:tray:click',h); };
-    \\     },
-    \\     onClickToggleWindow: function() { return this.onClick(function() { window.craft.window.toggle(); }); }
-    \\   };
-    \\   window.craft.window = {
-    \\     show: function() { return _m('window','show'); },
-    \\     hide: function() { return _m('window','hide'); },
-    \\     toggle: function() { return _m('window','toggle'); },
-    \\     minimize: function() { return _m('window','minimize'); },
-    \\     close: function() { return _m('window','close'); }
-    \\   };
-    \\   window.craft.app = {
-    \\     hideDockIcon: function() { return _m('app','hideDockIcon'); },
-    \\     showDockIcon: function() { return _m('app','showDockIcon'); },
-    \\     quit: function() { return _m('app','quit'); }
-    \\   };
-    \\   window.__craftDeliverFileDrop = function(paths) {
-    \\     if (!Array.isArray(paths) || paths.length === 0) return;
-    \\     window.dispatchEvent(new CustomEvent('craft:fileDrop', { detail: { paths: paths } }));
-    \\   };
-    \\   window.craft.onFileDrop = function(cb) {
-    \\     var h = function(e) { cb((e.detail && e.detail.paths) || []); };
-    \\     window.addEventListener('craft:fileDrop', h);
-    \\     return function() { window.removeEventListener('craft:fileDrop', h); };
-    \\   };
-    \\   window.craft.menubar = {
-    \\     init: function() { return _m('menubarCollapse','init'); },
-    \\     collapse: function() { return _m('menubarCollapse','collapse'); },
-    \\     expand: function() { return _m('menubarCollapse','expand'); },
-    \\     toggle: function() { return _m('menubarCollapse','toggle'); },
-    \\     getState: function() {
-    \\       return new Promise(function(ok, no) {
-    \\         try {
-    \\           var p = window.__craftBridgePending;
-    \\           if (!p['menubarCollapse:getState']) p['menubarCollapse:getState'] = [];
-    \\           p['menubarCollapse:getState'].push({resolve:ok,reject:no});
-    \\           window.webkit.messageHandlers.craft.postMessage({t:'menubarCollapse',a:'getState'});
-    \\         } catch(e) { no(e); }
-    \\       });
-    \\     },
-    \\     setAutoCollapse: function(s) { return _m('menubarCollapse','setAutoCollapse',String(s)); },
-    \\     enableAlwaysHidden: function() { return _m('menubarCollapse','enableAlwaysHidden'); },
-    \\     disableAlwaysHidden: function() { return _m('menubarCollapse','disableAlwaysHidden'); },
-    \\     setSeparatorHidden: function(h) { return _m('menubarCollapse','setSeparatorHidden',h?'true':'false'); },
-    \\     onStateChange: function(cb) {
-    \\       var h = function(e) { cb(e.detail||{}); };
-    \\       window.addEventListener('craft:menubar:stateChange',h);
-    \\       return function() { window.removeEventListener('craft:menubar:stateChange',h); };
-    \\     }
-    \\   };
-    \\   function fireReady() {
-    \\     window.dispatchEvent(new CustomEvent('craft:ready'));
-    \\     if (typeof window.initializeCraftApp === 'function') window.initializeCraftApp();
-    \\   }
-    \\   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fireReady);
-    \\   else fireReady();
-    \\   window.__craftDeliverAction = function(a) {
-    \\     if (a && a.length > 0) window.dispatchEvent(new CustomEvent('craft:tray:menuAction',{detail:{action:a}}));
-    \\   };
-    \\   setInterval(function() { try { window.webkit.messageHandlers.craft.postMessage({t:'tray',a:'pollActions',d:''}); } catch(e) {} }, 100);
-    \\   setInterval(function() { try { window.webkit.messageHandlers.craft.postMessage({t:'menubarCollapse',a:'poll',d:''}); } catch(e) {} }, 1000);
-    \\ })();
-    ;
+    // Set the polling flag *before* the bridge IIFE runs so that the
+    // setInterval calls at the bottom of craft-bridge.js know to start.
+    return "window.__craftEnableTrayPolling = true;\n" ++ @embedFile("js/craft-bridge.js");
 }
 
 fn getNativeUIScript() []const u8 {
@@ -3498,6 +3362,24 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         global_menubar_collapse_bridge = try allocator.create(MenubarCollapseBridge);
         global_menubar_collapse_bridge.?.* = MenubarCollapseBridge.init(allocator);
     }
+
+    if (global_power_bridge == null) {
+        const PowerBridge = @import("bridge_power.zig").PowerBridge;
+        global_power_bridge = try allocator.create(PowerBridge);
+        global_power_bridge.?.* = PowerBridge.init(allocator);
+    }
+
+    if (global_network_bridge == null) {
+        const NetworkBridge = @import("bridge_network.zig").NetworkBridge;
+        global_network_bridge = try allocator.create(NetworkBridge);
+        global_network_bridge.?.* = NetworkBridge.init(allocator);
+    }
+
+    // theme + dragOut + deepLink: native modules with their own state, no
+    // shared bridge struct — they install handlers directly via init().
+    @import("macos_theme.zig").install();
+    @import("macos_drag_out.zig").install();
+    @import("macos_deep_link.zig").install();
 
     // Set handles - use parameter or global
     const tray_h = tray_handle orelse global_tray_handle_for_bridge;
@@ -3724,6 +3606,16 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         if (global_menubar_collapse_bridge) |bridge| {
             try bridge.handleMessage(action, data_json_str);
         }
+    } else if (std.mem.eql(u8, msg_type, "power")) {
+        if (global_power_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "network")) {
+        if (global_network_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "dragOut")) {
+        try @import("macos_drag_out.zig").handleMessage(action, data_json_str);
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages
         if (comptime builtin.mode == .Debug) {

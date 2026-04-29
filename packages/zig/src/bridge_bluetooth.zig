@@ -234,7 +234,7 @@ pub const BluetoothBridge = struct {
                         const device = macos.msgSend1(paired_devices, "objectAtIndex:", i);
                         if (device != null) {
                             // Check if connected
-                            const is_connected = macos.msgSend0Bool(device, "isConnected");
+                            const is_connected = macos.msgSendBool(device, "isConnected");
                             if (is_connected) {
                                 if (!first) {
                                     result_buf[result_pos] = ',';
@@ -357,7 +357,7 @@ pub const BluetoothBridge = struct {
                                 }
                             }
 
-                            const is_connected = macos.msgSend0Bool(device, "isConnected");
+                            const is_connected = macos.msgSendBool(device, "isConnected");
 
                             // Escape attacker-controlled BT device strings
                             // before embedding in JSON, same as the

@@ -289,7 +289,7 @@ pub const PowerBridge = struct {
 
             const NSProcessInfo = macos.getClass("NSProcessInfo");
             const process_info = macos.msgSend0(NSProcessInfo, "processInfo");
-            const low_power = macos.msgSend0Bool(process_info, "isLowPowerModeEnabled");
+            const low_power = macos.msgSendBool(process_info, "isLowPowerModeEnabled");
 
             var buf: [256]u8 = undefined;
             const js = std.fmt.bufPrint(&buf, "if(window.__craftPowerCallback)window.__craftPowerCallback('{s}','isLowPowerMode',{});", .{ callback_id, low_power }) catch return;
