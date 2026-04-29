@@ -33,14 +33,14 @@ jobs:
         run: ${{ matrix.platform.deps }}
 
       - name: Install Dependencies
-        run: pantry install
+        run: bun install
 
       - name: Extract Version
         id: version
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
 
       - name: Build Native Binary
-        run: pantry run build:core
+        run: bun run build:core
 
       # ── Cross-compile all targets ────────────────────────────────
       - name: Cross-compile additional targets (macOS)
@@ -185,7 +185,7 @@ jobs:
       - name: Setup Pantry (provides Bun, Zig, etc.)
         uses: home-lang/pantry/packages/action@main
       - name: Install Dependencies
-        run: pantry install
+        run: bun install
 
       - name: Publish to npm
         run: pantry publish --npm --access public

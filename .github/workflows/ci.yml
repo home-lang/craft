@@ -65,15 +65,15 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Install dependencies
-        run: pantry install
+        run: bun install
 
       - name: Type check TypeScript SDK
         working-directory: packages/typescript
-        run: pantry run typecheck
+        run: bun run typecheck
 
       - name: Run TypeScript SDK tests with coverage
         working-directory: packages/typescript
-        run: pantry test --coverage
+        run: bun test --coverage
 
       - name: Generate coverage summary
         if: always()
@@ -89,7 +89,7 @@ jobs:
 
       - name: Build TypeScript SDK
         working-directory: packages/typescript
-        run: pantry run build
+        run: bun run build
 
   create-craft:
     runs-on: ubuntu-latest
@@ -101,11 +101,11 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Install dependencies
-        run: pantry install
+        run: bun install
 
       - name: Type check create-craft
         working-directory: packages/create-craft
-        run: pantry run typecheck
+        run: bun run typecheck
 
   lint:
     runs-on: ubuntu-latest
@@ -117,14 +117,14 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Install dependencies
-        run: pantry install
+        run: bun install
 
       - name: Check Zig formatting
         working-directory: packages/zig
         run: zig fmt --check src/ build.zig
 
       - name: Run pickier (lint + format check)
-        run: pantry run lint
+        run: bun run lint
 
   integration:
     runs-on: ubuntu-latest
@@ -137,7 +137,7 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Install dependencies
-        run: pantry install
+        run: bun install
 
       - name: Install Linux dependencies
         run: |
@@ -150,11 +150,11 @@ jobs:
 
       - name: Build TypeScript SDK
         working-directory: packages/typescript
-        run: pantry run build
+        run: bun run build
 
       - name: Test TypeScript SDK with binary
         working-directory: packages/typescript
-        run: pantry test
+        run: bun test
 
   publish-commit:
     needs: [zig-core, typescript-sdk, create-craft, lint, integration]
@@ -169,11 +169,11 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Install Dependencies
-        run: pantry install
+        run: bun install
 
       - name: Build TypeScript SDK
         working-directory: packages/typescript
-        run: pantry run build
+        run: bun run build
 
       - name: Publish Commit
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
