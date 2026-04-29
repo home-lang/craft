@@ -333,6 +333,11 @@ export class Database {
   private name: string
   private isOpen: boolean = false
   private readOnly: boolean
+  /** True while a `db.transaction(...)` callback is on the stack. Set
+   * before `BEGIN TRANSACTION` and cleared in the finally arm. Used to
+   * make the inevitable mistake of calling `beginTransaction()` inside
+   * `transaction()` (or vice versa) fail fast with a clear error. */
+  private _inTransactionHelper: boolean = false
 
   /**
    * Create a new Database instance.
@@ -524,30 +529,43 @@ else {
    * ```
    */
   async transaction<T>(fn: () => Promise<T>): Promise<T> {
-    await this.execute('BEGIN TRANSACTION')
-    try {
-      const result = await fn()
-      await this.execute('COMMIT')
-      return result
+    if (this._inTransactionHelper) {
+      throw new Error(
+        '[Craft DB] transaction() is already active on this connection. '
+        + 'Nested transactions are not supported — refactor inner code to take '
+        + 'an existing handle, or use SAVEPOINT directly.',
+      )
     }
-    catch (error) {
-      // Try to roll back. If ROLLBACK itself fails (locked DB, native side
-      // dead, etc.) we can't surface BOTH errors as the thrown value, but
-      // dropping the rollback failure used to mask the real situation: the
-      // connection is left in a transactional state and the original error
-      // gives no hint why. Attach the rollback error as `.cause` so debug
-      // tooling sees both, log the secondary so it shows up in console
-      // output even if the consumer doesn't inspect causes.
+    this._inTransactionHelper = true
+    try {
+      await this.execute('BEGIN TRANSACTION')
       try {
-        await this.execute('ROLLBACK')
+        const result = await fn()
+        await this.execute('COMMIT')
+        return result
       }
-      catch (rollbackError) {
-        console.error('[Craft DB] ROLLBACK failed after transaction error:', rollbackError)
-        if (error instanceof Error) {
-          ;(error as { cause?: unknown }).cause = rollbackError
+      catch (error) {
+        // Try to roll back. If ROLLBACK itself fails (locked DB, native side
+        // dead, etc.) we can't surface BOTH errors as the thrown value, but
+        // dropping the rollback failure used to mask the real situation: the
+        // connection is left in a transactional state and the original error
+        // gives no hint why. Attach the rollback error as `.cause` so debug
+        // tooling sees both, log the secondary so it shows up in console
+        // output even if the consumer doesn't inspect causes.
+        try {
+          await this.execute('ROLLBACK')
         }
+        catch (rollbackError) {
+          console.error('[Craft DB] ROLLBACK failed after transaction error:', rollbackError)
+          if (error instanceof Error) {
+            ;(error as { cause?: unknown }).cause = rollbackError
+          }
+        }
+        throw error
       }
-      throw error
+    }
+    finally {
+      this._inTransactionHelper = false
     }
   }
 

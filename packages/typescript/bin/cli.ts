@@ -7,6 +7,7 @@
 import { CLI } from '@stacksjs/clapp'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import process from 'node:process'
 import { version } from '../package.json'
 
@@ -30,14 +31,50 @@ async function runCraftBinary(args: string[]): Promise<void> {
       }
     })
 
-    proc.on('error', (error) => {
+    proc.on('error', (error: Error & { code?: string }) => {
+      // ENOENT here typically means `craft` was not on PATH and we
+      // fell through to the bare-name spawn. Surface a clearer message
+      // so users don't see "spawn craft ENOENT" with no context.
+      if (error.code === 'ENOENT') {
+        reject(new Error(
+          `Craft native binary not found. Tried local zig-out, repo paths, and PATH. `
+          + `Install via pantry (\`pkgx craft\`) or set CRAFT_BIN to an explicit path.`,
+        ))
+        return
+      }
       reject(error)
     })
   })
 }
 
+/**
+ * Locate the Craft native binary. Order:
+ *   1. `CRAFT_BIN` env var (explicit override).
+ *   2. Monorepo zig-out paths (when running from source).
+ *   3. Bare `'craft'` (PATH lookup) — final fallback for pantry installs.
+ *
+ * Mirrors `CraftApp.findCraftBinary` in src/index.ts so users get the
+ * same lookup behavior whether they go through the CLI or the SDK.
+ */
 async function findCraftBinary(): Promise<string> {
-  // Craft native binary is installed via pantry and available in PATH
+  const fromEnv = process.env.CRAFT_BIN
+  if (fromEnv) {
+    if (!existsSync(fromEnv)) {
+      throw new Error(`CRAFT_BIN points to ${fromEnv}, which does not exist`)
+    }
+    return fromEnv
+  }
+  const candidates = [
+    join(process.cwd(), 'packages/zig/zig-out/bin/craft'),
+    join(import.meta.dir, '../../zig/zig-out/bin/craft'),
+    join(process.cwd(), 'zig-out/bin/craft'),
+    join(import.meta.dir, '../../../zig-out/bin/craft'),
+  ]
+  for (const path of candidates) {
+    if (existsSync(path)) return path
+  }
+  // Final fallback to PATH. Errors will surface from `spawn('error')`
+  // with the friendlier message attached above.
   return 'craft'
 }
 

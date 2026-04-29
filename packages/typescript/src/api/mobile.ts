@@ -23,6 +23,47 @@
  * ```
  */
 
+import { secureUUID } from '../bridge/ids'
+
+/** localStorage key for the persisted web-fallback device id. */
+const WEB_DEVICE_ID_KEY = '__craft_web_device_id__'
+
+/**
+ * Internal: return a stable device id for the web fallback. Persists in
+ * localStorage so two `device.getInfo()` calls in the same session (and
+ * across reloads) report the *same* id. The previous implementation
+ * generated a fresh `Math.random` id every call, which made
+ * `deviceId`-keyed analytics impossible to tie back to a single browser.
+ */
+export function _webFallbackDeviceId(): string {
+  if (typeof globalThis !== 'undefined' && (globalThis as any).localStorage) {
+    try {
+      const ls = (globalThis as any).localStorage as Storage
+      const existing = ls.getItem(WEB_DEVICE_ID_KEY)
+      if (existing && /^web-[0-9a-f-]+$/i.test(existing)) return existing
+      const fresh = `web-${secureUUID()}`
+      ls.setItem(WEB_DEVICE_ID_KEY, fresh)
+      return fresh
+    }
+    catch {
+      // Private-browsing modes throw on localStorage.setItem; fall through.
+    }
+  }
+  // No localStorage → at least use a strong RNG. The id won't persist
+  // between calls, but it won't pretend to either.
+  return `web-${secureUUID()}`
+}
+
+/**
+ * Test-only hook to clear the cached device id.
+ */
+export function _resetWebFallbackDeviceIdForTests(): void {
+  if (typeof globalThis !== 'undefined' && (globalThis as any).localStorage) {
+    try { ((globalThis as any).localStorage as Storage).removeItem(WEB_DEVICE_ID_KEY) }
+    catch { /* ignore */ }
+  }
+}
+
 // ============================================================================
 // Device Info API
 // ============================================================================
@@ -134,7 +175,7 @@ export const device = {
       osVersion: 'unknown',
       model: 'unknown',
       manufacturer: 'unknown',
-      deviceId: `web-${Math.random().toString(36).slice(2)}`,
+      deviceId: _webFallbackDeviceId(),
       isTablet: false,
       screen: {
         width: typeof window !== 'undefined' ? window.innerWidth || 0 : 0,

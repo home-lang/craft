@@ -8,6 +8,7 @@ import { extname, join, relative, resolve } from 'path'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
 import { EventEmitter } from 'events'
+import { secureUUID } from '../bridge/ids'
 
 // Types
 export interface HotReloadConfig {
@@ -119,22 +120,39 @@ catch (e) {
   /**
    * Stop the hot reload server
    */
-  stop(): void {
-    this.wss?.close()
-    this.server?.close()
-
-    // Release the OS-level filesystem watcher; without this stop() left the
-    // inotify/FSEvents handle open forever even though the websocket and
-    // HTTP servers had been torn down.
+  /**
+   * Stop the hot-reload server and release every resource it acquired.
+   *
+   * Returns a Promise so callers that need to know when the server has
+   * actually torn down (tests, lifecycle managers) can `await stop()`.
+   * The return value is non-breaking: synchronous callers can still
+   * fire-and-forget `server.stop()`.
+   */
+  async stop(): Promise<void> {
+    // Release the OS-level filesystem watcher; without this stop() left
+    // the inotify/FSEvents handle open forever even though the
+    // websocket and HTTP servers had been torn down.
     this.watcher?.close()
     this.watcher = null
 
     for (const timer of this.debounceTimers.values()) {
       clearTimeout(timer)
     }
-
-    this.clients.clear()
     this.debounceTimers.clear()
+
+    // Close the websocket server first so no new messages arrive
+    // mid-shutdown. ws's `close()` accepts a callback that fires once
+    // every connection is gone.
+    const wssClosed = this.wss
+      ? new Promise<void>((resolve) => this.wss!.close(() => resolve()))
+      : Promise.resolve()
+
+    const httpClosed = this.server
+      ? new Promise<void>((resolve) => this.server!.close(() => resolve()))
+      : Promise.resolve()
+
+    await Promise.all([wssClosed, httpClosed])
+    this.clients.clear()
   }
 
   /**
@@ -555,7 +573,11 @@ else if (pattern.test(filePath)) {
   }
 
   private generateClientId(): string {
-    return Math.random().toString(36).substring(2, 11)
+    // secureUUID gives us 122 bits of entropy versus the 30-ish bits
+    // Math.random produced — overkill for a dev server, but the helper
+    // already exists and avoids any chance of two simultaneously-
+    // connected clients colliding on the same id.
+    return secureUUID()
   }
 
   /**

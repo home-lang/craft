@@ -156,6 +156,12 @@ export class NativeBridge extends EventEmitter {
 
   constructor(config: BridgeConfig = {}) {
     super()
+    // The default EventEmitter cap is 10. Real apps subscribe to many
+    // bridge channels (`menu.click`, `component.event`, lifecycle, …)
+    // plus internal ones; the cap fires "MaxListenersExceeded" warnings
+    // long before there's a real leak. 100 is generous-but-bounded so a
+    // genuine listener leak still surfaces.
+    this.setMaxListeners(100)
     this.config = {
       timeout: 30000,
       retries: 3,
@@ -622,6 +628,21 @@ else if (!this.batchTimer) {
     const batch = this.batchBuffer
     this.batchBuffer = []
 
+    // If we lost connection between scheduling the batch and flushing it,
+    // re-queue the messages onto the offline queue (when enabled) instead
+    // of dropping them on the floor of `send()` — otherwise the
+    // fire-and-forget `addToBatch()` path silently loses every request
+    // sent during a transient disconnect.
+    if (!this.connected) {
+      if (this.config.enableOfflineQueue) {
+        for (const msg of batch) {
+          if (this.offlineQueue.length >= this.config.queueSize) break
+          this.offlineQueue.push(msg)
+        }
+      }
+      return
+    }
+
     // Match the shape used by `batch()` above so the native side has a single
     // batch envelope format to parse. Previously `{ messages }` and `{ requests }`
     // diverged and the buffered path silently broke on the native side.
@@ -674,44 +695,84 @@ else if (!this.batchTimer) {
    * use that to fail fast instead of waiting for the request timeout.
    */
   private send(message: BridgeMessage): boolean {
-    const json = JSON.stringify(message)
-
-    if (typeof window !== 'undefined') {
-      // iOS WKWebView
-      if (window.webkit?.messageHandlers?.craft) {
-        window.webkit.messageHandlers.craft.postMessage(message)
-        return true
-      }
-
-      // Android WebView
-      if (window.CraftBridge) {
-        window.CraftBridge.postMessage(json)
-        return true
-      }
-
-      // Electron IPC
-      if (window.craftIPC) {
-        window.craftIPC.send('bridge-message', message)
-        return true
-      }
-
-      // Generic postMessage. Only enabled when the host explicitly opts in
-      // via `BridgeConfig.parentOrigin`; previously this used `'*'`, which
-      // broadcasts every native call to whatever cross-origin frame is
-      // hosting Craft.
-      if (window.parent !== window && this.config.parentOrigin) {
-        window.parent.postMessage(message, this.config.parentOrigin)
-        return true
-      }
+    let json: string
+    try {
+      json = JSON.stringify(message)
+    }
+    catch (e) {
+      // The most common cause is a circular params payload. Reject the
+      // matching pending request synchronously so the caller doesn't
+      // wait the full timeout for a message we never managed to send.
+      this.failPendingForMessage(message, new BridgeError(
+        `Failed to serialize bridge message: ${(e as Error).message}`,
+        BridgeErrorCodes.UNKNOWN,
+        { originalError: String(e) },
+      ))
+      return false
     }
 
-    // Node.js (for testing)
-    if (typeof process !== 'undefined' && typeof (process as { send?: (m: unknown) => void }).send === 'function') {
-      ;(process as { send: (m: unknown) => void }).send(message)
-      return true
-    }
+    try {
+      if (typeof window !== 'undefined') {
+        // iOS WKWebView
+        if (window.webkit?.messageHandlers?.craft) {
+          window.webkit.messageHandlers.craft.postMessage(message)
+          return true
+        }
 
-    return false
+        // Android WebView
+        if (window.CraftBridge) {
+          window.CraftBridge.postMessage(json)
+          return true
+        }
+
+        // Electron IPC
+        if (window.craftIPC) {
+          window.craftIPC.send('bridge-message', message)
+          return true
+        }
+
+        // Generic postMessage. Only enabled when the host explicitly opts in
+        // via `BridgeConfig.parentOrigin`; previously this used `'*'`, which
+        // broadcasts every native call to whatever cross-origin frame is
+        // hosting Craft.
+        if (window.parent !== window && this.config.parentOrigin) {
+          window.parent.postMessage(message, this.config.parentOrigin)
+          return true
+        }
+      }
+
+      // Node.js (for testing)
+      if (typeof process !== 'undefined' && typeof (process as { send?: (m: unknown) => void }).send === 'function') {
+        ;(process as { send: (m: unknown) => void }).send(message)
+        return true
+      }
+
+      return false
+    }
+    catch (e) {
+      // postMessage can throw DataCloneError on un-cloneable values even
+      // when JSON.stringify would have succeeded (e.g. functions, DOM
+      // nodes). Fail the matching pending entry rather than letting the
+      // exception escape into the caller's microtask.
+      this.failPendingForMessage(message, new BridgeError(
+        `Bridge transport rejected the message: ${(e as Error).message}`,
+        BridgeErrorCodes.UNKNOWN,
+      ))
+      return false
+    }
+  }
+
+  /**
+   * Reject the pending entry corresponding to `message.id` with `error`,
+   * if any. Used by `send()` when serialization or transport throws so
+   * the caller's promise rejects immediately.
+   */
+  private failPendingForMessage(message: BridgeMessage, error: BridgeError): void {
+    const pending = this.pendingRequests.get(message.id)
+    if (!pending) return
+    clearTimeout(pending.timeout)
+    this.pendingRequests.delete(message.id)
+    pending.reject(error)
   }
 
   private delay(ms: number): Promise<void> {

@@ -7,11 +7,20 @@ import type { CraftCryptoAPI } from '../types'
 
 /**
  * Error type for cryptographic failures (malformed input, decode errors, etc.).
+ *
+ * Pre-ES2022 runtimes don't support the `Error(message, { cause })`
+ * overload — `super(message, options)` ignores `options.cause` and the
+ * `.cause` property never gets attached. We assign it manually after
+ * super() so callers can rely on `error.cause` regardless of the host.
  */
 export class CraftCryptoError extends Error {
   override readonly name: string = 'CraftCryptoError'
+  override cause?: unknown
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options)
+    if (options && 'cause' in options) {
+      this.cause = options.cause
+    }
   }
 }
 

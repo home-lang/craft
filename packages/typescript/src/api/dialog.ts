@@ -7,9 +7,20 @@
 import { getBridge } from '../bridge/core'
 import { isWebKitHost, webkitRequest } from '../bridge/webkit-pending'
 
-/** Default timeout for dialog round-trips. Dialogs are user-facing and may
- * legitimately stay open for minutes, so the cap is high. */
-const DIALOG_TIMEOUT_MS = 5 * 60 * 1000
+/**
+ * Default timeout for *file-system* dialog round-trips (open/save).
+ * Dialogs are user-facing and may stay open for minutes, so the cap is
+ * high but still bounded — a forgotten dialog shouldn't pin the
+ * pending-queue closure forever.
+ */
+const FILE_DIALOG_TIMEOUT_MS = 5 * 60 * 1000
+
+/**
+ * Alert/confirm/prompt dialogs have no upper bound — they sit modal until
+ * the user clicks. Use a large but finite cap (1 hour) so a forgotten
+ * background dialog still gets garbage-collected eventually.
+ */
+const MODAL_DIALOG_TIMEOUT_MS = 60 * 60 * 1000
 
 // ============================================================================
 // Types
@@ -128,7 +139,7 @@ export async function openFile(options: OpenDialogOptions = {}): Promise<OpenDia
     const payload = await webkitRequest<{ canceled?: boolean; filePaths?: string[] } | undefined>(
       action,
       { type: 'dialog', action, data: options },
-      { timeoutMs: DIALOG_TIMEOUT_MS },
+      { timeoutMs: FILE_DIALOG_TIMEOUT_MS },
     )
     const canceled = !!(payload && payload.canceled === true)
     const filePaths = Array.isArray(payload?.filePaths) ? (payload!.filePaths as string[]) : []
@@ -149,7 +160,7 @@ export async function openFolder(options: Omit<OpenDialogOptions, 'multiple' | '
     const payload = await webkitRequest<{ canceled?: boolean; filePaths?: string[] } | undefined>(
       'openFolder',
       { type: 'dialog', action: 'openFolder', data: options },
-      { timeoutMs: DIALOG_TIMEOUT_MS },
+      { timeoutMs: FILE_DIALOG_TIMEOUT_MS },
     )
     const canceled = !!(payload && payload.canceled === true)
     const filePaths = Array.isArray(payload?.filePaths) ? (payload!.filePaths as string[]) : []
@@ -170,7 +181,7 @@ export async function saveFile(options: SaveDialogOptions = {}): Promise<SaveDia
     const payload = await webkitRequest<{ canceled?: boolean; filePath?: string } | undefined>(
       'saveFile',
       { type: 'dialog', action: 'saveFile', data: options },
-      { timeoutMs: DIALOG_TIMEOUT_MS },
+      { timeoutMs: FILE_DIALOG_TIMEOUT_MS },
     )
     const canceled = !!(payload && payload.canceled === true)
     const filePath = typeof payload?.filePath === 'string' ? payload.filePath : undefined
@@ -193,7 +204,7 @@ export async function showAlert(options: AlertOptions | string): Promise<number>
     const payload = await webkitRequest<{ buttonIndex?: number } | undefined>(
       'showAlert',
       { type: 'dialog', action: 'showAlert', data: opts },
-      { timeoutMs: DIALOG_TIMEOUT_MS },
+      { timeoutMs: MODAL_DIALOG_TIMEOUT_MS },
     )
     if (payload && typeof payload.buttonIndex === 'number') {
       return payload.buttonIndex
@@ -217,7 +228,7 @@ export async function showConfirm(options: ConfirmOptions | string): Promise<boo
     const payload = await webkitRequest<{ ok?: boolean } | undefined>(
       'showConfirm',
       { type: 'dialog', action: 'showConfirm', data: opts },
-      { timeoutMs: DIALOG_TIMEOUT_MS },
+      { timeoutMs: MODAL_DIALOG_TIMEOUT_MS },
     )
     return !!(payload && payload.ok === true)
   }
@@ -237,7 +248,7 @@ export async function showPrompt(title: string, defaultValue?: string): Promise<
     const payload = await webkitRequest<{ value?: string } | undefined>(
       'showPrompt',
       { type: 'dialog', action: 'showPrompt', data: { title, defaultValue } },
-      { timeoutMs: DIALOG_TIMEOUT_MS },
+      { timeoutMs: MODAL_DIALOG_TIMEOUT_MS },
     )
     if (payload && typeof payload.value === 'string') return payload.value
     return null

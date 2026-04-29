@@ -476,9 +476,24 @@ else if (downloadPath.endsWith('.dmg')) {
       }
     }
 else if (downloadPath.endsWith('.pkg')) {
+      // Verify the .pkg's embedded signing chain BEFORE handing it to
+      // root. `pkgutil --check-signature` exits non-zero on an unsigned
+      // or revoked package; a clean exit means the chain is trusted by
+      // the system. This is independent of the SDK's own
+      // sha256/manifest-signature check (which already ran in
+      // `installUpdate`) — both layers must hold for us to call sudo.
+      try {
+        execFileSync('pkgutil', ['--check-signature', downloadPath], { stdio: 'pipe' })
+      }
+      catch (e) {
+        throw new Error(
+          `Refusing to install ${downloadPath}: pkgutil --check-signature failed. `
+          + 'The .pkg is not signed by a trusted Apple certificate chain. '
+          + `Underlying error: ${(e as Error).message}`,
+        )
+      }
       // Install package. `installer` requires root, which we delegate to sudo —
       // this will prompt the user via their sudo configuration (TouchID on macOS).
-      // Callers should verify the package signature before calling this method.
       execFileSync('sudo', ['installer', '-pkg', downloadPath, '-target', '/'])
     }
   }

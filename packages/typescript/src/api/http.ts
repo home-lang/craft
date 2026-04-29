@@ -51,6 +51,18 @@ export function encodeRequestBody(body: unknown): EncodedBody {
   if (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) {
     return { kind: 'binary', value: body as unknown as BodyInit }
   }
+  // Node's `fetch` (undici) accepts AsyncIterable<Uint8Array> as a body
+  // for streaming uploads. Detecting Symbol.asyncIterator covers both
+  // user generators and `Readable.toWeb()` outputs without misrouting
+  // them through JSON. Browsers will still reject AsyncIterable bodies
+  // at the fetch layer, where the error is the runtime's to surface.
+  if (
+    body !== null
+    && typeof body === 'object'
+    && (body as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] !== undefined
+  ) {
+    return { kind: 'binary', value: body as unknown as BodyInit }
+  }
   // Plain object / array → JSON.
   return { kind: 'json', value: JSON.stringify(body) }
 }
@@ -221,8 +233,10 @@ export class HttpClient {
       // Forward the timeout to the native bridge as well — when the request
       // is dispatched through the Craft host, the host has no signal-aware
       // way to short-circuit a hung socket unless we tell it the deadline.
-      // The custom property is ignored by browsers and `globalThis.fetch`,
-      // so this is a backwards-compatible hint.
+      // The custom `timeoutMs` property is ignored by browsers and
+      // `globalThis.fetch` (it's not part of the WHATWG Fetch RequestInit
+      // type), so this is purely a Craft-host hint and a no-op everywhere
+      // else — no polyfill, no behavior change for non-Craft consumers.
       const response = await http.fetch(url, {
         method,
         headers,
@@ -233,19 +247,45 @@ export class HttpClient {
           : {}),
       } as RequestInit & { timeoutMs?: number })
 
-      // Parse response
-      let data: T | undefined
-      const contentType = response.headers.get('content-type')
+      // Parse response. The previous version left `data` undefined for
+      // anything that wasn't JSON or text/* and then returned `data as T`,
+      // which lied to the type system: an image response would have
+      // `data: undefined` typed as `T`. We now branch on Content-Type so
+      // every code path produces a defined value (or null when the body
+      // is genuinely empty).
+      let data: T | null
+      const contentType = response.headers.get('content-type') ?? ''
 
-      if (contentType?.includes('application/json')) {
+      if (contentType.includes('application/json')) {
         try {
-          data = await response.json()
-        } catch {
-          // Response body was not valid JSON despite content-type header
-          data = await response.text() as unknown as T
+          data = await response.json() as T
         }
-      } else if (contentType?.includes('text/')) {
-        data = await response.text() as unknown as T
+        catch {
+          // Response body was not valid JSON despite content-type header
+          data = (await response.text()) as unknown as T
+        }
+      }
+      else if (contentType.startsWith('text/')) {
+        data = (await response.text()) as unknown as T
+      }
+      else if (
+        contentType.includes('octet-stream')
+        || contentType.startsWith('image/')
+        || contentType.startsWith('audio/')
+        || contentType.startsWith('video/')
+        || contentType.startsWith('application/')
+      ) {
+        // Binary — return ArrayBuffer; callers that need a Blob/Uint8Array
+        // can wrap. The cast is honest: we genuinely produced bytes.
+        data = (await response.arrayBuffer()) as unknown as T
+      }
+      else if (response.body === null) {
+        data = null
+      }
+      else {
+        // Unknown / missing Content-Type. Default to text rather than
+        // silently producing `undefined`.
+        data = (await response.text()) as unknown as T
       }
 
       return {
@@ -253,7 +293,7 @@ export class HttpClient {
         status: response.status,
         statusText: response.statusText,
         headers: Object.fromEntries(response.headers.entries()),
-        ok: response.ok
+        ok: response.ok,
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {

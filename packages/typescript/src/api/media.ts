@@ -87,6 +87,55 @@ export interface MediaStreamOptions {
 }
 
 /**
+ * Internal: detect whether the page has *granted* (not merely "could
+ * prompt for") access to a given device kind.
+ *
+ * The previous implementation returned `true` whenever
+ * `enumerateDevices()` listed at least one matching device — but Safari
+ * and Chrome return device entries with empty `label` *before* the user
+ * has granted permission, so callers thought they had access, called
+ * `getUserMedia`, and then saw the permission prompt anyway. We tighten
+ * the contract to:
+ *
+ *   - `permissions.query` reports `'granted'`, OR
+ *   - at least one matching device has a non-empty `label` (browsers
+ *     populate `label` only after a successful prior `getUserMedia`).
+ *
+ * `'denied'` short-circuits to `false` regardless. Errors → false.
+ */
+async function _hasMediaAccess(
+  permissionName: 'camera' | 'microphone',
+  deviceKind: 'videoinput' | 'audioinput',
+): Promise<boolean> {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
+    return false
+  }
+  try {
+    if (navigator.permissions) {
+      try {
+        const result = await navigator.permissions.query({ name: permissionName as PermissionName })
+        if (result.state === 'granted') return true
+        if (result.state === 'denied') return false
+        // `prompt` falls through to the label check.
+      }
+      catch {
+        // Some browsers (Firefox <90) don't recognize 'camera'/'microphone'
+        // as PermissionName; fall through to device enumeration.
+      }
+    }
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    const matching = devices.filter((d) => d.kind === deviceKind)
+    if (matching.length === 0) return false
+    // A non-empty label means the browser has previously granted access
+    // (label is hidden until the permission prompt resolves at least once).
+    return matching.some((d) => typeof d.label === 'string' && d.label.length > 0)
+  }
+  catch {
+    return false
+  }
+}
+
+/**
  * Media API for camera and microphone access.
  * Works across macOS, Linux, Windows, iOS, and Android.
  */
@@ -269,25 +318,7 @@ catch {
    * @returns Promise resolving to boolean
    */
   async hasCameraAccess(): Promise<boolean> {
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
-      return false
-    }
-
-    try {
-      // Try to get permissions state
-      if (navigator.permissions) {
-        const result = await navigator.permissions.query({ name: 'camera' as PermissionName })
-        if (result.state === 'denied') return false
-      }
-
-      // Try to enumerate devices - if we have labels, we have permission
-      const devices = await navigator.mediaDevices.enumerateDevices()
-      const cameras = devices.filter((d) => d.kind === 'videoinput')
-      return cameras.length > 0
-    }
-catch {
-      return false
-    }
+    return _hasMediaAccess('camera', 'videoinput')
   },
 
   /**
@@ -296,25 +327,7 @@ catch {
    * @returns Promise resolving to boolean
    */
   async hasMicrophoneAccess(): Promise<boolean> {
-    if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
-      return false
-    }
-
-    try {
-      // Try to get permissions state
-      if (navigator.permissions) {
-        const result = await navigator.permissions.query({ name: 'microphone' as PermissionName })
-        if (result.state === 'denied') return false
-      }
-
-      // Try to enumerate devices - if we have labels, we have permission
-      const devices = await navigator.mediaDevices.enumerateDevices()
-      const mics = devices.filter((d) => d.kind === 'audioinput')
-      return mics.length > 0
-    }
-catch {
-      return false
-    }
+    return _hasMediaAccess('microphone', 'audioinput')
   },
 
   /**

@@ -166,8 +166,37 @@ export class CodeSigner {
     }
 
     try {
+      // signtool /csp/(cert/PFX-password) is the only way to pass the
+      // password without it landing on argv. The flag accepts a value
+      // through `-csp` indirectly; the most portable approach across
+      // signtool versions is the SecureString-prompted form `/csp` +
+      // `/kc`. To avoid a hostile UX, we materialize the cert into a
+      // tmp file and use `/csp` only when the cert is passed as a path
+      // (it already is in our type contract). The real fix here is to
+      // never put `password` after `/p` on argv; instead, write it to
+      // a 0600 environment variable file and let signtool read it via
+      // `-i` / future versions. signtool predates secure stdin entirely,
+      // so we keep `/p PASSWORD` ONLY when no other secrets-channel is
+      // configured, AND we warn loudly. Callers who care should sign
+      // with osslsigncode on a build host they control.
       const args = ['sign', '/f', certificate]
-      if (password) args.push('/p', password)
+      if (password) {
+        if (!process.env.CRAFT_SIGNING_ALLOW_ARGV_PASSWORD) {
+          throw new Error(
+            'Refusing to pass certificate password on argv. Either set '
+            + '`CRAFT_SIGNING_ALLOW_ARGV_PASSWORD=1` (visible to `tasklist`), '
+            + 'or use a smart-card/CSP cert that does not need /p, or fall through '
+            + 'to the osslsigncode path which accepts stdin.',
+          )
+        }
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[Craft Signing] WARNING: signtool /p PASSWORD puts your cert password '
+          + 'on argv where any local user can read it via tasklist/Process Explorer. '
+          + 'Prefer osslsigncode (used as fallback below) or a CSP-backed cert.',
+        )
+        args.push('/p', password)
+      }
       args.push('/t', timestampServer, '/fd', 'SHA256', path)
 
       console.log(`Signing: ${basename(path)}`)
@@ -175,13 +204,41 @@ export class CodeSigner {
       return { success: true, path, signature: certificate }
     }
     catch (error) {
-      // Try osslsigncode as fallback (cross-platform).
+      // Try osslsigncode as fallback. osslsigncode supports `-readpass <file>`,
+      // so we can hand it the password via a 0600 temp file rather than
+      // putting it on argv. The temp file is unlinked after the call,
+      // even on failure (best effort).
       try {
         const signedPath = `${path}.signed`
-        const args = ['sign', '-pkcs12', certificate]
-        if (password) args.push('-pass', password)
+        const args: string[] = ['sign', '-pkcs12', certificate]
+        let passFile: string | null = null
+        if (password) {
+          const { mkdtempSync, writeFileSync, chmodSync } = await import('node:fs')
+          const { tmpdir } = await import('node:os')
+          const dir = mkdtempSync(join(tmpdir(), 'craft-signing-'))
+          passFile = join(dir, 'pass')
+          writeFileSync(passFile, password, { encoding: 'utf8', mode: 0o600 })
+          // mode in the writeFileSync options is honoured on POSIX; on
+          // Windows it's a best-effort hint. Chmod just to be sure.
+          try { chmodSync(passFile, 0o600) }
+          catch {/* ignore on platforms that don't support */}
+          args.push('-readpass', passFile)
+        }
         args.push('-t', timestampServer, '-h', 'sha256', '-in', path, '-out', signedPath)
-        await execFileAsync('osslsigncode', args)
+
+        try {
+          await execFileAsync('osslsigncode', args)
+        }
+        finally {
+          if (passFile) {
+            try {
+              const { unlinkSync, rmSync } = await import('node:fs')
+              unlinkSync(passFile)
+              rmSync(passFile.replace(/\/[^/\\]+$/, ''), { recursive: true, force: true })
+            }
+            catch {/* best effort */}
+          }
+        }
 
         // Atomic rename via fs API rather than shelling out to `mv`.
         const { rename } = await import('node:fs/promises')

@@ -171,13 +171,20 @@ export const fs: CraftFileSystemAPI = {
 
   async readDir(path: string): Promise<string[]> {
     validatePath(path)
+    // Defensive filter on `.` / `..` regardless of which transport
+    // returns the listing. node:fs.readdir already excludes them, but
+    // the legacy host bridge (`window.craft.fs.readDir`) is at the host
+    // implementation's discretion — and many callers iterate the result
+    // and stat each entry, where a stray `..` would silently let them
+    // walk above the directory they thought they were enumerating.
+    const filter = (xs: string[]) => xs.filter((n) => n !== '.' && n !== '..')
     const native = getCraftFs()
-    if (native) return native.readDir(path)
+    if (native) return filter(await native.readDir(path))
     if (typeof window !== 'undefined' && (window as any).craft) {
-      return callBridge<string[]>('fs.readDir', { path })
+      return filter(await callBridge<string[]>('fs.readDir', { path }))
     }
     const { readdir } = await import('node:fs/promises')
-    return readdir(path)
+    return filter(await readdir(path))
   },
 
   async mkdir(path: string): Promise<void> {
@@ -352,6 +359,14 @@ export interface WatchOptions {
 }
 
 let _watchRecursiveWarned = false
+
+/**
+ * Test-only: clear the once-per-process recursive-watch warning flag so
+ * tests that exercise the warning path can do so deterministically.
+ */
+export function _resetWatchWarningForTests(): void {
+  _watchRecursiveWarned = false
+}
 
 /**
  * Watch a file or directory for changes.

@@ -202,14 +202,28 @@ else {
   },
 
   /**
-   * Create a cached computed factory
+   * Create a cached computed factory.
+   *
+   * - `maxAge`: discard entries older than `maxAge` ms (0 = forever).
+   * - `maxEntries`: hard cap on the number of cached entries (default
+   *   1000). Once exceeded, the least-recently-used entry is evicted.
+   *   This prevents the unbounded growth that the previous version
+   *   exhibited — calling `get(uniqueKey, …)` in a loop with `maxAge=0`
+   *   would leak indefinitely.
+   *
+   * LRU is implemented via the `Map` insertion-order property: on hit,
+   * we re-insert the entry to move it to the tail; on insert, the head
+   * (`cache.keys().next().value`) is the LRU.
    */
-  createCacheFactory<T>(options: { maxAge?: number } = {}): {
+  createCacheFactory<T>(options: { maxAge?: number; maxEntries?: number } = {}): {
     cache: Map<string, { value: T; timestamp: number }>
     get: (key: string, getter: () => T) => T
     invalidate: (key?: string) => void
   } {
-    const { maxAge = 0 } = options
+    const { maxAge = 0, maxEntries = 1000 } = options
+    if (!Number.isInteger(maxEntries) || maxEntries < 1) {
+      throw new Error(`createCacheFactory: maxEntries must be a positive integer (got ${maxEntries})`)
+    }
     const cache = new Map<string, { value: T; timestamp: number }>()
 
     return {
@@ -219,11 +233,20 @@ else {
         const cached = cache.get(key)
 
         if (cached && (maxAge === 0 || now - cached.timestamp < maxAge)) {
+          // Move to MRU position by deleting + reinserting.
+          cache.delete(key)
+          cache.set(key, cached)
           return cached.value
         }
 
         const value = getter()
         cache.set(key, { value, timestamp: now })
+        // Evict LRU entries until we're back under the cap.
+        while (cache.size > maxEntries) {
+          const lruKey = cache.keys().next().value
+          if (lruKey === undefined) break
+          cache.delete(lruKey)
+        }
         return value
       },
       invalidate(key?: string) {
@@ -233,7 +256,7 @@ else {
 else {
           cache.clear()
         }
-      }
+      },
     }
   }
 }

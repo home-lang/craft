@@ -541,8 +541,18 @@ export class GPUTransition {
         Object.assign(element.style, properties.to)
       })
 
-      // Cleanup after transition
+      // Cleanup after transition. The fallback timeout used to be
+      // dropped on the floor when `transitionend` won the race —
+      // resolve() is idempotent for promises so nothing observable
+      // broke, but the lingering timer fired later and called
+      // `removeEventListener` on a now-detached element. Track the
+      // handle and clear it from the winning path.
+      let timer: ReturnType<typeof setTimeout> | null = null
+      let done = false
       const cleanup = () => {
+        if (done) return
+        done = true
+        if (timer !== null) clearTimeout(timer)
         element.style.transition = ''
         element.style.willChange = ''
         element.removeEventListener('transitionend', cleanup)
@@ -551,8 +561,9 @@ export class GPUTransition {
 
       element.addEventListener('transitionend', cleanup, { once: true })
 
-      // Fallback timeout
-      setTimeout(cleanup, properties.duration + (properties.delay || 0) + 100)
+      // Fallback timeout — covers `transition` properties that never
+      // fire `transitionend` (e.g. `display: none` mid-animation).
+      timer = setTimeout(cleanup, properties.duration + (properties.delay || 0) + 100)
     })
   }
 
