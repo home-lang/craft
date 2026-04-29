@@ -3,8 +3,8 @@
  * Hot module replacement and live reload for development
  */
 
-import { existsSync, readFileSync, watch } from 'fs'
-import { join, extname, relative } from 'path'
+import { existsSync, readFileSync, watch, type FSWatcher } from 'fs'
+import { extname, join, relative, resolve } from 'path'
 import { createServer, IncomingMessage, ServerResponse } from 'http'
 import { WebSocketServer, WebSocket } from 'ws'
 import { EventEmitter } from 'events'
@@ -41,6 +41,10 @@ export class HotReloadServer extends EventEmitter {
   private fileVersions: Map<string, number> = new Map()
   private debounceTimers: Map<string, NodeJS.Timeout> = new Map()
   private stateSnapshots: Map<string, any> = new Map()
+  // Track the FSWatcher so stop() can release it. The previous version
+  // dropped the return value of fs.watch, leaving the OS handle open
+  // forever after stop().
+  private watcher: FSWatcher | null = null
 
   constructor(config: HotReloadConfig) {
     super()
@@ -119,6 +123,12 @@ catch (e) {
     this.wss?.close()
     this.server?.close()
 
+    // Release the OS-level filesystem watcher; without this stop() left the
+    // inotify/FSEvents handle open forever even though the websocket and
+    // HTTP servers had been torn down.
+    this.watcher?.close()
+    this.watcher = null
+
     for (const timer of this.debounceTimers.values()) {
       clearTimeout(timer)
     }
@@ -128,12 +138,13 @@ catch (e) {
   }
 
   /**
-   * Start watching files for changes
+   * Start watching files for changes. Stores the FSWatcher reference so
+   * stop() can release it.
    */
   private startWatching(): void {
     const watchOptions = { recursive: true }
 
-    watch(this.config.watchDir, watchOptions, (eventType, filename) => {
+    this.watcher = watch(this.config.watchDir, watchOptions, (eventType, filename) => {
       if (!filename) return
 
       const fullPath = join(this.config.watchDir, filename)
@@ -155,7 +166,7 @@ catch (e) {
         fullPath,
         setTimeout(() => {
           this.handleFileChange(fullPath, eventType as 'rename' | 'change')
-        }, 100)
+        }, 100),
       )
     })
   }
@@ -264,30 +275,77 @@ else {
   }
 
   /**
-   * Handle HTTP request (for HMR runtime)
+   * Handle HTTP request (for HMR runtime).
+   *
+   * `/hmr-module/<path>` previously joined the user-supplied path with
+   * `watchDir` and read it — letting any client on the dev port read
+   * arbitrary files via `../../etc/passwd`. We now:
+   *   - decode percent-encodes (so `..%2F` is caught),
+   *   - reject any segment containing `..` or null bytes,
+   *   - resolve the result and require it to live under `watchDir` (this
+   *     also blocks symlink escapes that resolve outside the root).
+   *
+   * Anything else returns 403 — silently 404'ing made traversal probes
+   * indistinguishable from "file not found".
    */
   private handleHttpRequest(req: IncomingMessage, res: ServerResponse): void {
     if (req.url === '/hmr-runtime.js') {
       res.writeHead(200, { 'Content-Type': 'application/javascript' })
       res.end(this.getHmrRuntime())
+      return
     }
-else if (req.url?.startsWith('/hmr-module/')) {
-      const path = req.url.replace('/hmr-module/', '')
-      const fullPath = join(this.config.watchDir, path)
-
-      if (existsSync(fullPath)) {
-        res.writeHead(200, { 'Content-Type': 'application/javascript' })
-        res.end(readFileSync(fullPath, 'utf-8'))
+    if (req.url?.startsWith('/hmr-module/')) {
+      const rawPath = req.url.replace('/hmr-module/', '').split('?')[0]
+      const safePath = this.resolveHmrModulePath(rawPath)
+      if (!safePath) {
+        res.writeHead(403, { 'Content-Type': 'text/plain' })
+        res.end('Forbidden')
+        return
       }
-else {
+      if (existsSync(safePath)) {
+        res.writeHead(200, { 'Content-Type': 'application/javascript' })
+        res.end(readFileSync(safePath, 'utf-8'))
+      }
+      else {
         res.writeHead(404)
         res.end('Not found')
       }
+      return
     }
-else {
-      res.writeHead(200, { 'Content-Type': 'text/plain' })
-      res.end('Craft HMR Server')
+    res.writeHead(200, { 'Content-Type': 'text/plain' })
+    res.end('Craft HMR Server')
+  }
+
+  /**
+   * Resolve an HMR-module URL path against `watchDir`. Returns null when
+   * the path is empty, contains traversal sequences, embeds NULs, or
+   * resolves outside the watch root. Exposed as a method so the test
+   * suite can exercise the validator directly.
+   */
+  private resolveHmrModulePath(rawPath: string): string | null {
+    if (!rawPath) return null
+    let decoded: string
+    try {
+      decoded = decodeURIComponent(rawPath)
     }
+    catch {
+      return null
+    }
+    if (decoded.includes('\0')) return null
+    // Reject `..` and absolute paths up front — even though `resolve` +
+    // containment check would catch them, failing early avoids touching
+    // the filesystem with attacker-controlled segments.
+    if (decoded.split(/[/\\]/).some(seg => seg === '..')) return null
+    if (decoded.startsWith('/') || /^[a-zA-Z]:[/\\]/.test(decoded)) return null
+
+    const watchRoot = resolve(this.config.watchDir)
+    const candidate = resolve(watchRoot, decoded)
+    // Require the resolved path to be either equal to, or directly under,
+    // the watch root.
+    if (candidate !== watchRoot && !candidate.startsWith(watchRoot + (process.platform === 'win32' ? '\\' : '/'))) {
+      return null
+    }
+    return candidate
   }
 
   /**

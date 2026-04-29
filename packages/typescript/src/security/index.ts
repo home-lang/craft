@@ -145,24 +145,29 @@ else if (Array.isArray(value) && value.length > 0) {
    * NODE_ENV is set to "production" (or CRAFT_ENV/APP_ENV are) so the relaxed
    * preset cannot accidentally ship.
    *
-   * Note: 'unsafe-eval' is intentionally omitted — even during development we
-   * lean on script nonces / hashes via {@link ContentSecurityPolicy.generateNonce}
-   * for inline blocks.
+   * `script-src` defaults to `'self' 'strict-dynamic'` (with the supplied
+   * `nonce`, if any) — `'unsafe-inline'` is no longer included by default.
+   * Pass `{ allowUnsafeInline: true }` if your dev workflow truly needs it
+   * (e.g. legacy inline `<script>` blobs in fixtures); the option name is
+   * deliberately verbose so it shows up in code review.
    */
-  static development(): ContentSecurityPolicy {
+  static development(options: { nonce?: string; allowUnsafeInline?: boolean } = {}): ContentSecurityPolicy {
     if (typeof process !== 'undefined') {
       const env = process.env || {}
       const value = (env.NODE_ENV || env.CRAFT_ENV || env.APP_ENV || '').toLowerCase()
       if (value === 'production' || value === 'prod') {
         throw new Error(
           '[Craft] ContentSecurityPolicy.development() cannot be used in production. '
-          + 'Call ContentSecurityPolicy.strict() instead.'
+          + 'Call ContentSecurityPolicy.strict() instead.',
         )
       }
     }
+    const scriptSrc: string[] = ['\'self\'', '\'strict-dynamic\'']
+    if (options.nonce) scriptSrc.push(`'nonce-${options.nonce}'`)
+    if (options.allowUnsafeInline) scriptSrc.push('\'unsafe-inline\'')
     return new ContentSecurityPolicy({
       'default-src': ['\'self\''],
-      'script-src': ['\'self\'', '\'unsafe-inline\''],
+      'script-src': scriptSrc,
       'style-src': ['\'self\'', '\'unsafe-inline\''],
       'img-src': ['\'self\'', 'data:', 'blob:'],
       'connect-src': ['\'self\'', 'ws:', 'wss:', 'http://localhost:*', 'http://127.0.0.1:*'],
@@ -236,9 +241,16 @@ export class CORSHandler {
   }
 
   private getAllowedOrigin(requestOrigin?: string): string | null {
-    const { origin } = this.config
+    const { origin, credentials } = this.config
+
+    // The CORS spec forbids `Access-Control-Allow-Origin: *` when
+    // `Access-Control-Allow-Credentials: true` — browsers reject the
+    // response. In that case we MUST echo the requesting origin back,
+    // and refuse if there is none.
+    const requireExactOrigin = credentials === true
 
     if (origin === true) {
+      if (requireExactOrigin) return requestOrigin ?? null
       return requestOrigin || '*'
     }
 
@@ -247,6 +259,9 @@ export class CORSHandler {
     }
 
     if (typeof origin === 'string') {
+      // A literal `'*'` paired with credentials is invalid per spec; refuse
+      // it here rather than emitting a header browsers will discard.
+      if (requireExactOrigin && origin === '*') return null
       return origin
     }
 
@@ -258,7 +273,10 @@ export class CORSHandler {
     }
 
     if (typeof origin === 'function') {
-      return origin(requestOrigin || '') ? requestOrigin || '*' : null
+      const allowed = origin(requestOrigin || '')
+      if (!allowed) return null
+      if (requireExactOrigin) return requestOrigin ?? null
+      return requestOrigin || '*'
     }
 
     return null
@@ -328,7 +346,8 @@ export class CertificatePinner {
 // Secure Storage
 export class SecureStorage {
   private config: Required<Omit<SecureStorageConfig, 'salt'>> & { salt: Buffer }
-  private key: Buffer
+  private key: Buffer | null
+  private destroyed = false
 
   constructor(masterPassword: string, config: SecureStorageConfig & { salt?: Buffer } = {}) {
     // Salt must be provided by the caller and stored persistently alongside the
@@ -337,9 +356,12 @@ export class SecureStorage {
     this.config = {
       algorithm: 'aes-256-gcm',
       keyLength: 32,
-      ivLength: 16,
+      // AES-GCM is specified for 96-bit (12-byte) IVs. Larger IVs are
+      // folded by GHASH and break interop with libsodium / WebCrypto;
+      // smaller IVs reduce uniqueness guarantees. Default to 12.
+      ivLength: 12,
       saltLength: salt.length,
-      iterations: 100000,
+      iterations: 600000,
       salt,
       ...config,
     }
@@ -350,8 +372,15 @@ export class SecureStorage {
       this.config.salt,
       this.config.iterations,
       this.config.keyLength,
-      'sha512'
+      'sha512',
     )
+  }
+
+  private requireKey(): Buffer {
+    if (this.destroyed || !this.key) {
+      throw new Error('SecureStorage has been destroyed; create a new instance to continue')
+    }
+    return this.key
   }
 
   /**
@@ -359,7 +388,7 @@ export class SecureStorage {
    */
   encrypt(data: string): string {
     const iv = randomBytes(this.config.ivLength)
-    const cipher = createCipheriv(this.config.algorithm, this.key, iv)
+    const cipher = createCipheriv(this.config.algorithm, this.requireKey(), iv)
 
     let encrypted = cipher.update(data, 'utf8', 'hex')
     encrypted += cipher.final('hex')
@@ -374,15 +403,23 @@ export class SecureStorage {
   }
 
   /**
-   * Decrypt data
+   * Decrypt data. Throws on malformed JSON instead of bubbling an opaque
+   * SyntaxError out of the crypto layer.
    */
   decrypt(encrypted: string): string {
-    const { iv, data, tag } = JSON.parse(encrypted)
+    let parsed: { iv: string; data: string; tag: string }
+    try {
+      parsed = JSON.parse(encrypted)
+    }
+    catch (e) {
+      throw new Error('SecureStorage.decrypt: ciphertext is not a valid JSON envelope', { cause: e })
+    }
+    const { iv, data, tag } = parsed
 
     const decipher = createDecipheriv(
       this.config.algorithm,
-      this.key,
-      Buffer.from(iv, 'hex')
+      this.requireKey(),
+      Buffer.from(iv, 'hex'),
     )
 
     if ('setAuthTag' in decipher) {
@@ -399,7 +436,7 @@ export class SecureStorage {
    * Hash data (one-way)
    */
   hash(data: string): string {
-    return createHash('sha256').update(data + this.key.toString('hex')).digest('hex')
+    return createHash('sha256').update(data + this.requireKey().toString('hex')).digest('hex')
   }
 
   /**
@@ -410,16 +447,49 @@ export class SecureStorage {
   getSalt(): Buffer {
     return Buffer.from(this.config.salt)
   }
+
+  /**
+   * Zero-fill the derived key buffer and mark the instance as destroyed.
+   * After `destroy()` further calls to `encrypt`/`decrypt`/`hash` throw.
+   *
+   * Callers that hold long-lived references should invoke this when the
+   * sensitive session ends — leaving the derived key in process memory
+   * indefinitely defeats the point of the pbkdf2 stretch in the first
+   * place.
+   */
+  destroy(): void {
+    if (this.destroyed) return
+    this.destroyed = true
+    if (this.key) {
+      this.key.fill(0)
+      this.key = null
+    }
+  }
+
+  /** Reports whether `destroy()` has been called. */
+  isDestroyed(): boolean {
+    return this.destroyed
+  }
 }
 
 // Input Validation
 export const validators = {
   /**
-   * Validate email
+   * Validate email. Best-effort regex aligned with HTML5's `<input
+   * type=email>` validator (the same pattern WHATWG specifies). Real
+   * validation should rely on sending a confirmation email — never on a
+   * client-side regex — but this catches obvious typos like `a@b.` or
+   * `@example.com`.
    */
   email: (value: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    return emailRegex.test(value)
+    if (typeof value !== 'string' || value.length === 0 || value.length > 254) return false
+    // Disallow leading/trailing dots and consecutive dots in either part.
+    const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/
+    if (!emailRegex.test(value)) return false
+    if (value.includes('..')) return false
+    const local = value.slice(0, value.lastIndexOf('@'))
+    if (local.startsWith('.') || local.endsWith('.')) return false
+    return true
   },
 
   /**
@@ -436,10 +506,13 @@ catch {
   },
 
   /**
-   * Validate UUID
+   * Validate UUID. Accepts versions 1–8 per RFC 9562 (the previous regex
+   * stopped at v5 and rejected the increasingly common v7 time-ordered
+   * UUIDs). The variant nibble must be one of `8`, `9`, `a`, `b` (RFC
+   * 4122 / 9562 layout).
    */
   uuid: (value: string): boolean => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     return uuidRegex.test(value)
   },
 
@@ -531,10 +604,17 @@ export const sanitizers = {
   },
 
   /**
-   * Remove non-printable characters
+   * Remove non-printable characters.
+   *
+   * Strips Unicode "Other" category code points (`\p{C}`) — control
+   * codes, surrogates, format chars, private-use chars — while
+   * preserving the rest of the BMP and astral plane. The previous
+   * implementation deleted everything outside ASCII printable, which
+   * silently removed accents (`é`), CJK characters (`中`), and emojis
+   * from any user input that touched the sanitizer.
    */
   removeNonPrintable: (value: string): string => {
-    return value.replace(/[^\x20-\x7E]/g, '')
+    return value.replace(/\p{C}/gu, '')
   },
 
   /**

@@ -109,26 +109,16 @@ export interface StreamController<T> {
   cancel(): void
 }
 
-// Module-level fallback counter for the rare module-scope `generateMessageId`
-// callers that exist before the per-instance prefix was introduced. Seeded
-// from a random value so a page reload can't reuse IDs that the native
-// side may still hold for in-flight callbacks.
-let messageIdCounter = Math.floor(Math.random() * 1e9)
-
 /**
- * Generate a unique message ID for a request envelope.
- *
- * The optional `prefix` argument is a per-{@link NativeBridge} secret derived
- * from {@link secureUUID}. Two `NativeBridge` instances in the same process
- * (rare, but supported) must produce IDs from disjoint namespaces; without
- * the prefix the timestamp-plus-counter pair could collide between two
- * bridges that boot at the same millisecond.
+ * Build a unique message ID. Each {@link NativeBridge} owns its own counter
+ * (`#counter`) and a per-instance secret (`prefix`) derived from
+ * {@link secureUUID}, so two bridges in the same process produce IDs from
+ * fully-disjoint namespaces — there is no longer a module-level counter
+ * that could leak state across bridges (e.g. between tests after a
+ * `resetGlobalBridge()` call).
  */
-function generateMessageId(prefix: string = 'msg'): string {
-  if (messageIdCounter >= Number.MAX_SAFE_INTEGER - 1) {
-    messageIdCounter = Math.floor(Math.random() * 1e9)
-  }
-  return `${prefix}_${Date.now().toString(36)}_${(++messageIdCounter).toString(36)}`
+function buildMessageId(prefix: string, counter: number): string {
+  return `${prefix}_${Date.now().toString(36)}_${counter.toString(36)}`
 }
 
 // Native Bridge Core
@@ -147,6 +137,16 @@ export class NativeBridge extends EventEmitter {
   // (32 bits of entropy, plenty for collision resistance across the
   // typically-tiny number of bridges in a session).
   private readonly idPrefix: string = `msg-${secureUUID().slice(0, 8)}`
+  // Per-instance message counter, seeded with a random offset so attackers
+  // can't predict outstanding ids by counting from zero.
+  private idCounter: number = Math.floor(Math.random() * 1e9)
+  private nextMessageId(): string {
+    if (this.idCounter >= Number.MAX_SAFE_INTEGER - 1) {
+      this.idCounter = Math.floor(Math.random() * 1e9)
+    }
+    this.idCounter++
+    return buildMessageId(this.idPrefix, this.idCounter)
+  }
   // Track DOM listeners so destroy() can remove them. Without this, tests
   // that construct/destroy NativeBridge in a loop accumulate craft-ready
   // and message listeners and exhaust the runtime's listener cap.
@@ -340,7 +340,7 @@ catch (error) {
 
     const effectiveTimeout = timeout ?? this.config.timeout
     const message: BridgeMessage<T> = {
-      id: generateMessageId(this.idPrefix),
+      id: this.nextMessageId(),
       type: 'request',
       method,
       params,
@@ -426,7 +426,7 @@ catch (error) {
    */
   notify<T = unknown>(method: string, params?: T): void {
     const message: BridgeMessage<T> = {
-      id: generateMessageId(this.idPrefix),
+      id: this.nextMessageId(),
       type: 'request',
       method,
       params,
@@ -449,9 +449,9 @@ catch (error) {
     options?: { bufferLimit?: number },
   ): StreamController<T> {
     const bufferLimit = options?.bufferLimit ?? 1000
-    const streamId = generateMessageId(this.idPrefix)
+    const streamId = this.nextMessageId()
     const message: BridgeMessage = {
-      id: generateMessageId(this.idPrefix),
+      id: this.nextMessageId(),
       type: 'request',
       method,
       params,
@@ -498,7 +498,7 @@ catch (error) {
         if (!this.streams.has(streamId)) return
         this.streams.delete(streamId)
         this.send({
-          id: generateMessageId(this.idPrefix),
+          id: this.nextMessageId(),
           type: 'request',
           method: '_cancelStream',
           params: { streamId },
@@ -525,7 +525,7 @@ catch (error) {
           // Tell the native side to stop producing — without this, the
           // peer keeps sending events into the dropped stream forever.
           this.send({
-            id: generateMessageId(this.idPrefix),
+            id: this.nextMessageId(),
             type: 'request',
             method: '_cancelStream',
             params: { streamId },
@@ -589,7 +589,7 @@ catch (error) {
    */
   addToBatch<T = unknown>(method: string, params?: T): void {
     this.batchBuffer.push({
-      id: generateMessageId(this.idPrefix),
+      id: this.nextMessageId(),
       type: 'request',
       method,
       params,
@@ -626,7 +626,7 @@ else if (!this.batchTimer) {
     // batch envelope format to parse. Previously `{ messages }` and `{ requests }`
     // diverged and the buffered path silently broke on the native side.
     this.send({
-      id: generateMessageId(this.idPrefix),
+      id: this.nextMessageId(),
       type: 'request',
       method: '_batch',
       params: { requests: batch },
@@ -1027,13 +1027,17 @@ export class NativeComponentBridge {
 
 // Global bridge instance
 let globalBridge: NativeBridge | null = null
+let globalBridgeConfig: BridgeConfig | null = null
 
 /**
  * Get the process-wide singleton bridge, constructing it on first call.
  *
  * **Caveats for multi-window apps:**
  *   - The first caller's `config` wins; later calls receive the existing
- *     instance regardless of the config they pass.
+ *     instance regardless of the config they pass — and we now log a
+ *     `console.warn` when a follow-up caller passes a config that differs
+ *     from the original (so silently-discarded configs are at least
+ *     visible during development).
  *   - Calling `destroy()` on the returned bridge tears down state for
  *     every consumer, not just the caller.
  *
@@ -1044,8 +1048,34 @@ let globalBridge: NativeBridge | null = null
 export function getBridge(config?: BridgeConfig): NativeBridge {
   if (!globalBridge) {
     globalBridge = new NativeBridge(config)
+    globalBridgeConfig = config ?? null
+    return globalBridge
+  }
+  if (config && globalBridgeConfig && !shallowConfigEqual(config, globalBridgeConfig)) {
+    console.warn(
+      '[Craft Bridge] getBridge() ignored a follow-up config that differs from the '
+      + 'original — the singleton was already constructed. Use createBridge() for '
+      + 'independent instances, or call resetGlobalBridge() first.',
+    )
+  }
+  else if (config && !globalBridgeConfig) {
+    console.warn(
+      '[Craft Bridge] getBridge() ignored a follow-up config — singleton already '
+      + 'exists with no recorded config. Use createBridge() for independent instances.',
+    )
   }
   return globalBridge
+}
+
+function shallowConfigEqual(a: BridgeConfig, b: BridgeConfig): boolean {
+  const keys = new Set<keyof BridgeConfig>([
+    ...(Object.keys(a) as Array<keyof BridgeConfig>),
+    ...(Object.keys(b) as Array<keyof BridgeConfig>),
+  ])
+  for (const k of keys) {
+    if (a[k] !== b[k]) return false
+  }
+  return true
 }
 
 /**
@@ -1064,6 +1094,7 @@ export function createBridge(config?: BridgeConfig): NativeBridge {
  */
 export function resetGlobalBridge(): void {
   globalBridge = null
+  globalBridgeConfig = null
 }
 
 // Export convenience instances

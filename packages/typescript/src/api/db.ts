@@ -27,7 +27,17 @@
  */
 
 import { EventEmitter } from 'events'
+import { getBridge } from '../bridge/core'
 import type { CraftDatabaseAPI } from '../types'
+
+/**
+ * Send a request through the unified `NativeBridge`. Replaces the legacy
+ * `window.craft.bridge.call(...)` hook; everything routes through one
+ * transport with consistent timeout/retry/error semantics.
+ */
+async function callBridge<T = unknown>(method: string, params?: unknown): Promise<T> {
+  return getBridge().request<unknown, T>(method, params)
+}
 
 /**
  * Statements that mutate state. Read-only databases reject anything matching
@@ -41,8 +51,13 @@ const WRITE_STATEMENT_RE = /^\s*(?:--[^\n]*\n\s*)*(INSERT|UPDATE|DELETE|REPLACE|
  * statement that goes through the SDK. The event payload is `{ name, sql,
  * paramsCount, readOnly }` — params themselves are not included by default
  * to avoid leaking secrets to logs.
+ *
+ * `setMaxListeners(0)` lifts the default 10-listener cap: analytics, the
+ * dev overlay, and tests routinely subscribe in parallel and the cap
+ * triggered spurious "MaxListenersExceeded" warnings without indicating
+ * an actual leak.
  */
-export const dbAudit: EventEmitter = new EventEmitter()
+export const dbAudit: EventEmitter = new EventEmitter().setMaxListeners(0)
 
 /**
  * Maximum length for SQL identifiers (table/column names). SQLite has no
@@ -53,19 +68,54 @@ export const dbAudit: EventEmitter = new EventEmitter()
 const MAX_IDENTIFIER_LEN = 64
 
 /**
- * Validate table name to prevent SQL injection and runaway identifiers.
- * Only allows alphanumeric characters and underscores, with a length cap.
+ * Validate a SQL identifier (table or column name) to prevent SQL injection
+ * and runaway identifiers. Only allows alphanumeric characters and
+ * underscores, with a length cap.
+ *
+ * @param name  The identifier to validate.
+ * @param kind  Human-readable label for error messages (`'table'` /
+ *              `'column'` / `'index'` …). Defaults to `'identifier'`.
  */
-export function validateTableName(name: string): void {
+export function validateIdentifier(name: string, kind: string = 'identifier'): void {
   if (typeof name !== 'string' || name.length === 0) {
-    throw new Error('Invalid table name: must be a non-empty string')
+    throw new Error(`Invalid ${kind} name: must be a non-empty string`)
   }
   if (name.length > MAX_IDENTIFIER_LEN) {
-    throw new Error(`Invalid table name: "${name.slice(0, 16)}…" exceeds ${MAX_IDENTIFIER_LEN} characters`)
+    throw new Error(`Invalid ${kind} name: "${name.slice(0, 16)}…" exceeds ${MAX_IDENTIFIER_LEN} characters`)
   }
   if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
-    throw new Error(`Invalid table name: "${name}". Table names must contain only letters, numbers, and underscores.`)
+    throw new Error(`Invalid ${kind} name: "${name}". ${kind} names must contain only letters, numbers, and underscores.`)
   }
+}
+
+/**
+ * Back-compat alias for {@link validateIdentifier} when validating a table
+ * name. Existing call sites that say `validateTableName(...)` keep working.
+ */
+export function validateTableName(name: string): void {
+  validateIdentifier(name, 'table')
+}
+
+/**
+ * Encode a SQL literal for safe inclusion in a `DEFAULT` clause. Strings
+ * have their single quotes doubled per the SQL standard. Numbers are
+ * emitted verbatim (after `Number.isFinite` check). `null`/`undefined`
+ * become `NULL`. Booleans become `0`/`1`. Anything else throws — DEFAULT
+ * with a JSON object/array would silently misencode.
+ */
+export function encodeDefaultLiteral(value: unknown): string {
+  if (value === null || value === undefined) return 'NULL'
+  if (typeof value === 'boolean') return value ? '1' : '0'
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new Error(`Invalid DEFAULT: ${value} is not a finite number`)
+    }
+    return String(value)
+  }
+  if (typeof value === 'string') {
+    return `'${value.replace(/'/g, '\'\'')}'`
+  }
+  throw new Error(`Invalid DEFAULT: ${typeof value} cannot be encoded as a SQL literal`)
 }
 
 /**
@@ -311,7 +361,7 @@ export class Database {
    */
   async open(): Promise<void> {
     if (typeof window !== 'undefined' && window.craft) {
-      await (window.craft as any).bridge?.call('db.open', { name: this.name })
+      await callBridge('db.open', { name: this.name })
       this.isOpen = true
       return
     }
@@ -326,7 +376,7 @@ export class Database {
    */
   async close(): Promise<void> {
     if (typeof window !== 'undefined' && window.craft) {
-      await (window.craft as any).bridge?.call('db.close', { name: this.name })
+      await callBridge('db.close', { name: this.name })
       this.isOpen = false
       return
     }
@@ -369,14 +419,13 @@ export class Database {
       )
     }
     if (typeof window !== 'undefined' && window.craft) {
-      const result = await (window.craft as any).bridge?.call('db.execute', {
-        name: this.name,
-        sql,
-        params: params || []
-      })
+      const result = await callBridge<{ rowsAffected: number; lastInsertId: number }>(
+        'db.execute',
+        { name: this.name, sql, params: params || [] },
+      )
       return {
         rowsAffected: result.rowsAffected,
-        lastInsertId: result.lastInsertId
+        lastInsertId: result.lastInsertId,
       }
     }
     throw new Error('Database API not available. Must run in Craft environment.')
@@ -407,10 +456,10 @@ export class Database {
       await this.open()
     }
     if (typeof window !== 'undefined' && window.craft) {
-      return (window.craft as any).bridge?.call('db.query', {
+      return callBridge<T[]>('db.query', {
         name: this.name,
         sql,
-        params: params || []
+        params: params || [],
       })
     }
     throw new Error('Database API not available. Must run in Craft environment.')
@@ -443,6 +492,12 @@ else {
   /**
    * Execute a function within a transaction.
    * Automatically commits on success, rolls back on error.
+   *
+   * NOTE: this method drives the transaction by emitting raw SQL
+   * (`BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK`). The connection-level
+   * helpers `db.beginTransaction()` / `db.commit()` / `db.rollback()` use
+   * a separate native handler. Don't mix the two on the same connection —
+   * pick one style per code path. See `docs/db-transactions.md`.
    *
    * @typeParam T - Return type of transaction function
    * @param fn - Async function containing database operations
@@ -515,21 +570,19 @@ else {
    * ```
    */
   async createTable(tableName: string, columns: TableColumn[]): Promise<void> {
-    validateTableName(tableName)
+    validateIdentifier(tableName, 'table')
     const columnDefs = columns.map(col => {
-      // Column names use the same identifier rules as tables (the value is
-      // injected into SQL string-literal style, so it must be safe).
-      validateTableName(col.name)
+      validateIdentifier(col.name, 'column')
       let def = `${col.name} ${col.type}`
       if (col.primaryKey) def += ' PRIMARY KEY'
       if (col.autoIncrement) def += ' AUTOINCREMENT'
       if (col.notNull) def += ' NOT NULL'
       if (col.unique) def += ' UNIQUE'
       if (col.default !== undefined) {
-        const defaultVal = typeof col.default === 'string'
-          ? `'${col.default}'`
-          : col.default
-        def += ` DEFAULT ${defaultVal}`
+        // encodeDefaultLiteral doubles `'` for strings, ensures finite
+        // numbers, encodes booleans/null safely. Without this a default
+        // like `O'Brien` produced malformed and injection-prone SQL.
+        def += ` DEFAULT ${encodeDefaultLiteral(col.default)}`
       }
       return def
     })
@@ -544,7 +597,7 @@ else {
    * @param tableName - Name of the table to drop
    */
   async dropTable(tableName: string): Promise<void> {
-    validateTableName(tableName)
+    validateIdentifier(tableName, 'table')
     await this.execute(`DROP TABLE IF EXISTS ${tableName}`)
   }
 
@@ -555,7 +608,7 @@ else {
    * @returns Promise resolving to true if table exists
    */
   async tableExists(tableName: string): Promise<boolean> {
-    validateTableName(tableName)
+    validateIdentifier(tableName, 'table')
     const result = await this.query<{ name: string }>(
       `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
       [tableName]

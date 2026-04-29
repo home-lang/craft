@@ -9,6 +9,13 @@ export class Timer {
   private intervalId: ReturnType<typeof setInterval> | null = null
   private timeRemaining: number = 0
   private isRunning: boolean = false
+  /** Wallclock deadline (ms epoch). Used to recompute timeRemaining each
+   * tick so the timer doesn't drift under load or tab throttling — a
+   * simple `--` counter loses minutes over hours. */
+  private endAt: number = 0
+  /** Reference to a clock for testability — overridable so tests can
+   * advance time deterministically. Defaults to `Date.now`. */
+  private static now: () => number = () => Date.now()
 
   constructor(
     private duration: number,
@@ -26,15 +33,17 @@ export class Timer {
       return
 
     this.isRunning = true
+    this.endAt = Timer.now() + this.timeRemaining * 1000
     this.intervalId = setInterval(() => {
-      this.timeRemaining--
+      const ms = Math.max(0, this.endAt - Timer.now())
+      this.timeRemaining = Math.ceil(ms / 1000)
       this.onTick(this.timeRemaining)
 
       if (this.timeRemaining <= 0) {
         this.pause()
         this.onComplete?.()
       }
-    }, 1000)
+    }, 250)
   }
 
   /**
@@ -57,6 +66,7 @@ export class Timer {
   reset(): void {
     this.pause()
     this.timeRemaining = this.duration
+    this.endAt = Timer.now() + this.duration * 1000
     this.onTick(this.timeRemaining)
   }
 
@@ -66,6 +76,9 @@ export class Timer {
   setDuration(duration: number): void {
     this.duration = duration
     this.timeRemaining = duration
+    if (this.isRunning) {
+      this.endAt = Timer.now() + duration * 1000
+    }
   }
 
   /**
@@ -91,5 +104,14 @@ export class Timer {
     const mins = Math.floor(clamped / 60)
     const secs = clamped % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  /**
+   * Override the wallclock used by `start()`/`reset()` for the lifetime
+   * of the process. Intended for tests that need to advance time
+   * deterministically. Pass `null` to restore `Date.now`.
+   */
+  static _setClockForTests(clock: (() => number) | null): void {
+    Timer.now = clock ?? (() => Date.now())
   }
 }

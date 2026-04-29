@@ -5,6 +5,11 @@
  */
 
 import { getBridge } from '../bridge/core'
+import { isWebKitHost, webkitRequest } from '../bridge/webkit-pending'
+
+/** Default timeout for dialog round-trips. Dialogs are user-facing and may
+ * legitimately stay open for minutes, so the cap is high. */
+const DIALOG_TIMEOUT_MS = 5 * 60 * 1000
 
 // ============================================================================
 // Types
@@ -119,23 +124,15 @@ export interface SaveDialogResult {
 export async function openFile(options: OpenDialogOptions = {}): Promise<OpenDialogResult> {
   const action = options.multiple ? 'openFiles' : 'openFile'
 
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise<OpenDialogResult>((resolve, reject) => {
-      const w = window as any
-      w.__craftBridgePending = w.__craftBridgePending || {}
-      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
-      w.__craftBridgePending[action].push({ resolve, reject })
-
-      w.webkit.messageHandlers.craft.postMessage({
-        type: 'dialog',
-        action,
-        data: options
-      })
-    }).then((payload: any) => {
-      const canceled = !!(payload && payload.canceled === true)
-      const filePaths = Array.isArray(payload?.filePaths) ? (payload.filePaths as string[]) : []
-      return { canceled, filePaths }
-    })
+  if (isWebKitHost()) {
+    const payload = await webkitRequest<{ canceled?: boolean; filePaths?: string[] } | undefined>(
+      action,
+      { type: 'dialog', action, data: options },
+      { timeoutMs: DIALOG_TIMEOUT_MS },
+    )
+    const canceled = !!(payload && payload.canceled === true)
+    const filePaths = Array.isArray(payload?.filePaths) ? (payload!.filePaths as string[]) : []
+    return { canceled, filePaths }
   }
 
   const bridge = getBridge()
@@ -148,24 +145,15 @@ export async function openFile(options: OpenDialogOptions = {}): Promise<OpenDia
  * @returns Selected folder path
  */
 export async function openFolder(options: Omit<OpenDialogOptions, 'multiple' | 'directory'> = {}): Promise<OpenDialogResult> {
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise<OpenDialogResult>((resolve, reject) => {
-      const w = window as any
-      const action = 'openFolder'
-      w.__craftBridgePending = w.__craftBridgePending || {}
-      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
-      w.__craftBridgePending[action].push({ resolve, reject })
-
-      w.webkit.messageHandlers.craft.postMessage({
-        type: 'dialog',
-        action,
-        data: options
-      })
-    }).then((payload: any) => {
-      const canceled = !!(payload && payload.canceled === true)
-      const filePaths = Array.isArray(payload?.filePaths) ? (payload.filePaths as string[]) : []
-      return { canceled, filePaths }
-    })
+  if (isWebKitHost()) {
+    const payload = await webkitRequest<{ canceled?: boolean; filePaths?: string[] } | undefined>(
+      'openFolder',
+      { type: 'dialog', action: 'openFolder', data: options },
+      { timeoutMs: DIALOG_TIMEOUT_MS },
+    )
+    const canceled = !!(payload && payload.canceled === true)
+    const filePaths = Array.isArray(payload?.filePaths) ? (payload!.filePaths as string[]) : []
+    return { canceled, filePaths }
   }
 
   const bridge = getBridge()
@@ -178,24 +166,15 @@ export async function openFolder(options: Omit<OpenDialogOptions, 'multiple' | '
  * @returns Selected save path
  */
 export async function saveFile(options: SaveDialogOptions = {}): Promise<SaveDialogResult> {
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise<SaveDialogResult>((resolve, reject) => {
-      const w = window as any
-      const action = 'saveFile'
-      w.__craftBridgePending = w.__craftBridgePending || {}
-      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
-      w.__craftBridgePending[action].push({ resolve, reject })
-
-      w.webkit.messageHandlers.craft.postMessage({
-        type: 'dialog',
-        action,
-        data: options
-      })
-    }).then((payload: any) => {
-      const canceled = !!(payload && payload.canceled === true)
-      const filePath = typeof payload?.filePath === 'string' ? (payload.filePath as string) : undefined
-      return { canceled, filePath }
-    })
+  if (isWebKitHost()) {
+    const payload = await webkitRequest<{ canceled?: boolean; filePath?: string } | undefined>(
+      'saveFile',
+      { type: 'dialog', action: 'saveFile', data: options },
+      { timeoutMs: DIALOG_TIMEOUT_MS },
+    )
+    const canceled = !!(payload && payload.canceled === true)
+    const filePath = typeof payload?.filePath === 'string' ? payload.filePath : undefined
+    return { canceled, filePath }
   }
 
   const bridge = getBridge()
@@ -210,25 +189,16 @@ export async function saveFile(options: SaveDialogOptions = {}): Promise<SaveDia
 export async function showAlert(options: AlertOptions | string): Promise<number> {
   const opts = typeof options === 'string' ? { title: options } : options
 
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise<number>((resolve, reject) => {
-      const w = window as any
-      const action = 'showAlert'
-      w.__craftBridgePending = w.__craftBridgePending || {}
-      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
-      w.__craftBridgePending[action].push({ resolve, reject })
-
-      w.webkit.messageHandlers.craft.postMessage({
-        type: 'dialog',
-        action,
-        data: opts
-      })
-    }).then((payload: any) => {
-      if (payload && typeof payload.buttonIndex === 'number') {
-        return payload.buttonIndex as number
-      }
-      return 0
-    })
+  if (isWebKitHost()) {
+    const payload = await webkitRequest<{ buttonIndex?: number } | undefined>(
+      'showAlert',
+      { type: 'dialog', action: 'showAlert', data: opts },
+      { timeoutMs: DIALOG_TIMEOUT_MS },
+    )
+    if (payload && typeof payload.buttonIndex === 'number') {
+      return payload.buttonIndex
+    }
+    return 0
   }
 
   const bridge = getBridge()
@@ -243,20 +213,13 @@ export async function showAlert(options: AlertOptions | string): Promise<number>
 export async function showConfirm(options: ConfirmOptions | string): Promise<boolean> {
   const opts = typeof options === 'string' ? { title: options } : options
 
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise<boolean>((resolve, reject) => {
-      const w = window as any
-      const action = 'showConfirm'
-      w.__craftBridgePending = w.__craftBridgePending || {}
-      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
-      w.__craftBridgePending[action].push({ resolve, reject })
-
-      w.webkit.messageHandlers.craft.postMessage({
-        type: 'dialog',
-        action,
-        data: opts
-      })
-    }).then((payload: any) => !!(payload && (payload.ok === true)))
+  if (isWebKitHost()) {
+    const payload = await webkitRequest<{ ok?: boolean } | undefined>(
+      'showConfirm',
+      { type: 'dialog', action: 'showConfirm', data: opts },
+      { timeoutMs: DIALOG_TIMEOUT_MS },
+    )
+    return !!(payload && payload.ok === true)
   }
 
   const bridge = getBridge()
@@ -270,23 +233,14 @@ export async function showConfirm(options: ConfirmOptions | string): Promise<boo
  * @returns User input or null if cancelled
  */
 export async function showPrompt(title: string, defaultValue?: string): Promise<string | null> {
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise<string | null>((resolve, reject) => {
-      const w = window as any
-      const action = 'showPrompt'
-      w.__craftBridgePending = w.__craftBridgePending || {}
-      w.__craftBridgePending[action] = w.__craftBridgePending[action] || []
-      w.__craftBridgePending[action].push({ resolve, reject })
-
-      w.webkit.messageHandlers.craft.postMessage({
-        type: 'dialog',
-        action,
-        data: { title, defaultValue }
-      })
-    }).then((payload: any) => {
-      if (payload && typeof payload.value === 'string') return payload.value
-      return null
-    })
+  if (isWebKitHost()) {
+    const payload = await webkitRequest<{ value?: string } | undefined>(
+      'showPrompt',
+      { type: 'dialog', action: 'showPrompt', data: { title, defaultValue } },
+      { timeoutMs: DIALOG_TIMEOUT_MS },
+    )
+    if (payload && typeof payload.value === 'string') return payload.value
+    return null
   }
 
   const bridge = getBridge()

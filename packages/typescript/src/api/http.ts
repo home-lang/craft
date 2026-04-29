@@ -7,6 +7,68 @@
 import type { CraftHttpAPI } from '../types'
 
 /**
+ * Result of {@link encodeRequestBody}. `kind` lets the caller decide
+ * whether to default a `Content-Type: application/json` header.
+ */
+type EncodedBody =
+  | { kind: 'none'; value: undefined }
+  | { kind: 'string'; value: string }
+  | { kind: 'binary'; value: BodyInit }
+  | { kind: 'form'; value: BodyInit }
+  | { kind: 'json'; value: string }
+
+/**
+ * Translate a user-supplied body into something `fetch()` knows how to
+ * send, without losing fidelity. The previous implementation collapsed
+ * everything object-shaped through `JSON.stringify`, which produced
+ * `"[object FormData]"` for FormData/URLSearchParams/Blob/Uint8Array.
+ *
+ * The mapping:
+ *   - `undefined` / `null`         → `{ kind: 'none' }`
+ *   - `string`                     → `{ kind: 'string' }` (no auto C-T)
+ *   - `ArrayBuffer` / TypedArray   → `{ kind: 'binary' }`
+ *   - `Blob` / `File`              → `{ kind: 'binary' }` (preserves type)
+ *   - `FormData`                   → `{ kind: 'form' }` (browser sets boundary)
+ *   - `URLSearchParams`            → `{ kind: 'form' }` (forces x-www-form-urlencoded)
+ *   - `ReadableStream`             → `{ kind: 'binary' }`
+ *   - everything else              → JSON.stringify
+ */
+export function encodeRequestBody(body: unknown): EncodedBody {
+  if (body === undefined || body === null) return { kind: 'none', value: undefined }
+  if (typeof body === 'string') return { kind: 'string', value: body }
+  // Binary-ish types pass through unchanged.
+  if (body instanceof ArrayBuffer) return { kind: 'binary', value: body }
+  if (ArrayBuffer.isView(body)) return { kind: 'binary', value: body as ArrayBufferView as BodyInit }
+  if (typeof Blob !== 'undefined' && body instanceof Blob) {
+    return { kind: 'binary', value: body }
+  }
+  if (typeof FormData !== 'undefined' && body instanceof FormData) {
+    return { kind: 'form', value: body }
+  }
+  if (typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams) {
+    return { kind: 'form', value: body }
+  }
+  if (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream) {
+    return { kind: 'binary', value: body as unknown as BodyInit }
+  }
+  // Plain object / array → JSON.
+  return { kind: 'json', value: JSON.stringify(body) }
+}
+
+/**
+ * Case-insensitive lookup against an HTTP header object. Returns true when
+ * any key with the same lowercased name is present. Does NOT use the
+ * `Headers` global directly because callers pass plain objects.
+ */
+export function hasHeader(headers: Record<string, string>, name: string): boolean {
+  const want = name.toLowerCase()
+  for (const k of Object.keys(headers)) {
+    if (k.toLowerCase() === want) return true
+  }
+  return false
+}
+
+/**
  * HTTP API implementation
  * Uses native HTTP client through the Craft bridge
  */
@@ -139,11 +201,16 @@ export class HttpClient {
     const url = this.buildUrl(path, options.params)
     const headers = { ...this.defaultHeaders, ...options.headers }
 
-    // Set content-type for JSON body
-    if (options.body && typeof options.body === 'object') {
-      headers['Content-Type'] = 'Content-Type' in headers
-        ? headers['Content-Type']
-        : 'application/json'
+    // Encode the body once and only set Content-Type for JSON bodies that
+    // didn't already have one. The previous version used a case-sensitive
+    // `'Content-Type' in headers` check (so a caller-supplied
+    // `'content-type'` was missed and a duplicate header appeared) and
+    // JSON.stringify'd anything object-shaped — silently turning
+    // FormData/URLSearchParams/Uint8Array/Blob into useless
+    // `"[object Foo]"` strings.
+    const encoded = encodeRequestBody(options.body)
+    if (encoded.kind === 'json' && !hasHeader(headers, 'content-type')) {
+      headers['Content-Type'] = 'application/json'
     }
 
     const effectiveTimeout = options.timeout || this.timeout
@@ -159,11 +226,7 @@ export class HttpClient {
       const response = await http.fetch(url, {
         method,
         headers,
-        body: options.body
-          ? typeof options.body === 'string'
-            ? options.body
-            : JSON.stringify(options.body)
-          : undefined,
+        body: encoded.value as BodyInit | undefined,
         signal: controller.signal,
         ...(typeof options.timeout === 'number' || typeof this.timeout === 'number'
           ? { timeoutMs: effectiveTimeout } as { timeoutMs: number }

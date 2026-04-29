@@ -165,6 +165,10 @@ export class SystemTray {
   private _listeners: Map<string, Set<Function>> = new Map()
   private _menuHandlers: Map<string, Function> = new Map()
   private _destroyed: boolean = false
+  // Tracked DOM listeners so we can remove them on destroy() — without
+  // this the listener count grew unbounded on each tray construction
+  // and multiple trays all received each others' click events.
+  private _domListeners: Array<{ type: string; handler: EventListener }> = []
 
   constructor(id: string, options: TrayOptions = {}) {
     this._id = id
@@ -186,42 +190,68 @@ export class SystemTray {
     return this._destroyed
   }
 
+  /**
+   * Filter incoming events to those addressed to this tray. The native
+   * side may attach `trayId` to `event.detail`; older hosts that don't
+   * set it fall through (we still fire — single-tray apps shouldn't
+   * regress).
+   */
+  private _isForThisTray(detail: any): boolean {
+    if (!detail) return true
+    const id = detail.trayId ?? detail.id
+    if (id === undefined || id === null) return true
+    return id === this._id
+  }
+
+  private _addDomListener(type: string, handler: EventListener): void {
+    if (typeof window === 'undefined') return
+    window.addEventListener(type, handler)
+    this._domListeners.push({ type, handler })
+  }
+
   private _setupEventListeners(): void {
     if (typeof window !== 'undefined') {
-      // Listen for tray click events
-      window.addEventListener('craft:tray:click' as any, (event: CustomEvent) => {
-        this._emit('click', event.detail)
-      })
+      this._addDomListener('craft:tray:click', ((event: CustomEvent) => {
+        if (this._isForThisTray(event.detail)) this._emit('click', event.detail)
+      }) as EventListener)
 
-      window.addEventListener('craft:tray:rightClick' as any, (event: CustomEvent) => {
-        this._emit('right-click', event.detail)
-      })
+      this._addDomListener('craft:tray:rightClick', ((event: CustomEvent) => {
+        if (this._isForThisTray(event.detail)) this._emit('right-click', event.detail)
+      }) as EventListener)
 
-      window.addEventListener('craft:tray:doubleClick' as any, (event: CustomEvent) => {
-        this._emit('double-click', event.detail)
-      })
+      this._addDomListener('craft:tray:doubleClick', ((event: CustomEvent) => {
+        if (this._isForThisTray(event.detail)) this._emit('double-click', event.detail)
+      }) as EventListener)
 
-      // Listen for menu actions
-      window.addEventListener('craft:tray:menuAction' as any, (event: CustomEvent) => {
+      this._addDomListener('craft:tray:menuAction', ((event: CustomEvent) => {
+        if (!this._isForThisTray(event.detail)) return
         const action = event.detail?.action
         this._emit('menu-click', { menuId: action, action })
 
-        // Call registered handler
         const handler = this._menuHandlers.get(action)
-        if (handler) {
-          handler()
-        }
-      })
+        if (handler) handler()
+      }) as EventListener)
 
-      // Listen for drag & drop
-      window.addEventListener('craft:tray:dropFiles' as any, (event: CustomEvent) => {
-        this._emit('drop-files', { files: event.detail?.files || [] })
-      })
+      this._addDomListener('craft:tray:dropFiles', ((event: CustomEvent) => {
+        if (this._isForThisTray(event.detail)) this._emit('drop-files', { files: event.detail?.files || [] })
+      }) as EventListener)
 
-      window.addEventListener('craft:tray:dropText' as any, (event: CustomEvent) => {
-        this._emit('drop-text', { text: event.detail?.text || '' })
-      })
+      this._addDomListener('craft:tray:dropText', ((event: CustomEvent) => {
+        if (this._isForThisTray(event.detail)) this._emit('drop-text', { text: event.detail?.text || '' })
+      }) as EventListener)
     }
+  }
+
+  /**
+   * Tear down DOM listeners. Idempotent. Always pair with `destroy()` on
+   * the manager when constructing trays in tests/long-lived processes.
+   */
+  protected _teardownDomListeners(): void {
+    if (typeof window === 'undefined') return
+    for (const { type, handler } of this._domListeners) {
+      window.removeEventListener(type, handler)
+    }
+    this._domListeners = []
   }
 
   private _emit(event: string, data?: any): void {
@@ -394,6 +424,7 @@ export class SystemTray {
     this._destroyed = true
     this._listeners.clear()
     this._menuHandlers.clear()
+    this._teardownDomListeners()
   }
 
   // ==========================================================================

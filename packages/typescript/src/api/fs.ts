@@ -24,16 +24,29 @@
  * ```
  */
 
+import { getBridge } from '../bridge/core'
 import type { CraftFileSystemAPI } from '../types'
 
 /**
- * Get the native Craft file system bridge, or null if not in Craft environment.
+ * Get the host-injected legacy file-system bridge, or null. The legacy
+ * `window.craft.fs` interface is honored when present so existing native
+ * hosts keep working — but new code paths route through the unified
+ * {@link NativeBridge} (see {@link callBridge}).
  */
 function getCraftFs(): CraftFileSystemAPI | null {
   if (typeof window !== 'undefined' && (window as any).craft?.fs) {
     return (window as any).craft.fs
   }
   return null
+}
+
+/**
+ * Send a request through the unified `NativeBridge`. This replaces the old
+ * `window.craft.bridge.call(...)` legacy hook so every API module routes
+ * through one transport with consistent timeout/retry/error semantics.
+ */
+async function callBridge<T = unknown>(method: string, params?: unknown): Promise<T> {
+  return getBridge().request<unknown, T>(method, params)
 }
 
 /**
@@ -90,6 +103,34 @@ export function validatePath(path: string, root?: string): void {
 }
 
 /**
+ * Encode a Uint8Array as base64 in chunks. Avoids `String.fromCharCode(...big)`
+ * blowing up on large buffers and produces a far more compact wire payload
+ * than `Array.from(uint8)` (which JSON-encodes ~5 bytes per byte).
+ */
+export function uint8ToBase64(bytes: Uint8Array): string {
+  const chunks: string[] = []
+  const chunkSize = 0x8000
+  for (let i = 0; i < bytes.byteLength; i += chunkSize) {
+    chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)))
+  }
+  if (typeof btoa === 'function') return btoa(chunks.join(''))
+  return Buffer.from(bytes).toString('base64')
+}
+
+/**
+ * Decode a base64 string into a Uint8Array. Mirrors {@link uint8ToBase64}.
+ */
+export function base64ToUint8(base64: string): Uint8Array {
+  if (typeof atob === 'function') {
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return bytes
+  }
+  return new Uint8Array(Buffer.from(base64, 'base64'))
+}
+
+/**
  * File system API implementation.
  * Uses the native Craft bridge for file operations when running in a Craft app,
  * with automatic fallback to Node.js APIs when running in a Node environment.
@@ -105,234 +146,121 @@ export function validatePath(path: string, root?: string): void {
  * ```
  */
 export const fs: CraftFileSystemAPI = {
-  /**
-   * Read file contents as a UTF-8 string.
-   *
-   * @param path - Absolute or relative path to the file
-   * @returns Promise resolving to the file contents as a string
-   * @throws {Error} If the file doesn't exist or cannot be read
-   *
-   * @example
-   * ```typescript
-   * const content = await fs.readFile('/Users/me/document.txt')
-   * console.log(content)
-   *
-   * // Read JSON file
-   * const data = JSON.parse(await fs.readFile('./config.json'))
-   * ```
-   */
   async readFile(path: string): Promise<string> {
     validatePath(path)
     const native = getCraftFs()
     if (native) return native.readFile(path)
-    // Node.js fallback
+    if (typeof window !== 'undefined' && (window as any).craft) {
+      return callBridge<string>('fs.readFile', { path })
+    }
     const { readFile } = await import('node:fs/promises')
     return readFile(path, 'utf-8')
   },
 
-  /**
-   * Write string content to a file.
-   * Creates the file if it doesn't exist, overwrites if it does.
-   *
-   * @param path - Absolute or relative path to the file
-   * @param content - String content to write
-   * @returns Promise that resolves when write is complete
-   * @throws {Error} If the directory doesn't exist or write fails
-   *
-   * @example
-   * ```typescript
-   * // Write text file
-   * await fs.writeFile('/path/to/file.txt', 'Hello, World!')
-   *
-   * // Write JSON
-   * await fs.writeFile('./config.json', JSON.stringify(config, null, 2))
-   * ```
-   */
   async writeFile(path: string, content: string): Promise<void> {
     validatePath(path)
     const native = getCraftFs()
     if (native) return native.writeFile(path, content)
-    // Node.js fallback
+    if (typeof window !== 'undefined' && (window as any).craft) {
+      await callBridge('fs.writeFile', { path, content })
+      return
+    }
     const { writeFile } = await import('node:fs/promises')
     return writeFile(path, content, 'utf-8')
   },
 
-  /**
-   * Read directory contents.
-   * Returns an array of file and directory names (not full paths).
-   *
-   * @param path - Absolute or relative path to the directory
-   * @returns Promise resolving to array of entry names
-   * @throws {Error} If the directory doesn't exist or cannot be read
-   *
-   * @example
-   * ```typescript
-   * const entries = await fs.readDir('/Users/me/Documents')
-   * // ['file1.txt', 'file2.pdf', 'subfolder']
-   *
-   * // Filter for specific files
-   * const txtFiles = entries.filter(name => name.endsWith('.txt'))
-   * ```
-   */
   async readDir(path: string): Promise<string[]> {
     validatePath(path)
     const native = getCraftFs()
     if (native) return native.readDir(path)
-    // Node.js fallback
+    if (typeof window !== 'undefined' && (window as any).craft) {
+      return callBridge<string[]>('fs.readDir', { path })
+    }
     const { readdir } = await import('node:fs/promises')
     return readdir(path)
   },
 
-  /**
-   * Create a directory recursively.
-   * Creates all parent directories if they don't exist.
-   *
-   * @param path - Absolute or relative path to create
-   * @returns Promise that resolves when directory is created
-   *
-   * @example
-   * ```typescript
-   * // Creates /a/b/c even if /a and /a/b don't exist
-   * await fs.mkdir('/a/b/c')
-   * ```
-   */
   async mkdir(path: string): Promise<void> {
     validatePath(path)
     const native = getCraftFs()
     if (native) return native.mkdir(path)
-    // Node.js fallback
+    if (typeof window !== 'undefined' && (window as any).craft) {
+      await callBridge('fs.mkdir', { path })
+      return
+    }
     const { mkdir } = await import('node:fs/promises')
     await mkdir(path, { recursive: true })
   },
 
-  /**
-   * Remove a file or directory.
-   * Recursively removes directories and all their contents.
-   *
-   * @param path - Absolute or relative path to remove
-   * @returns Promise that resolves when removal is complete
-   *
-   * @example
-   * ```typescript
-   * // Remove a file
-   * await fs.remove('/path/to/file.txt')
-   *
-   * // Remove a directory and all contents
-   * await fs.remove('/path/to/directory')
-   * ```
-   */
   async remove(path: string): Promise<void> {
     validatePath(path)
     const native = getCraftFs()
     if (native) return native.remove(path)
-    // Node.js fallback
+    if (typeof window !== 'undefined' && (window as any).craft) {
+      await callBridge('fs.remove', { path })
+      return
+    }
     const { rm } = await import('node:fs/promises')
     return rm(path, { recursive: true, force: true })
   },
 
-  /**
-   * Check if a path exists.
-   *
-   * @param path - Absolute or relative path to check
-   * @returns Promise resolving to true if path exists, false otherwise
-   *
-   * @example
-   * ```typescript
-   * if (await fs.exists('/config.json')) {
-   *   const config = await fs.readFile('/config.json')
-   * }
-else {
-   *   console.log('Config file not found')
-   * }
-   * ```
-   */
   async exists(path: string): Promise<boolean> {
     validatePath(path)
     const native = getCraftFs()
     if (native) return native.exists(path)
-    // Node.js fallback
+    if (typeof window !== 'undefined' && (window as any).craft) {
+      return callBridge<boolean>('fs.exists', { path })
+    }
     const { access } = await import('node:fs/promises')
     try {
       await access(path)
       return true
     }
-catch {
+    catch {
       return false
     }
-  }
+  },
 }
 
 /**
  * Read file as binary data (Uint8Array).
  * Use this for non-text files like images, PDFs, or other binary formats.
- *
- * @param path - Absolute or relative path to the file
- * @returns Promise resolving to file contents as Uint8Array
- * @throws {Error} If the file doesn't exist or cannot be read
- *
- * @example
- * ```typescript
- * // Read an image file
- * const imageData = await readBinaryFile('/path/to/image.png')
- *
- * // Convert to Blob for display
- * const blob = new Blob([imageData], { type: 'image/png' })
- * const url = URL.createObjectURL(blob)
- * ```
  */
 export async function readBinaryFile(path: string): Promise<Uint8Array> {
   validatePath(path)
-  if (typeof window !== 'undefined' && window.craft) {
-    // Bridge call to read binary file
-    const response = await (window.craft as any).bridge?.call('fs.readBinaryFile', { path })
-    return new Uint8Array(response.data)
+  if (typeof window !== 'undefined' && (window as any).craft) {
+    // Bridge response carries base64 — converts to Uint8Array on this side.
+    // The previous shape `{ data: number[] }` ate ~5x the wire bytes per
+    // byte and was JSON.stringify'd by the bridge envelope.
+    const response = await callBridge<{ data: string }>('fs.readBinaryFile', { path })
+    return base64ToUint8(response.data)
   }
-  // Node.js fallback
   const { readFile } = await import('node:fs/promises')
   return readFile(path)
 }
 
 /**
  * Write binary data to a file.
- * Use this for non-text files like images, PDFs, or other binary formats.
- *
- * @param path - Absolute or relative path to the file
- * @param data - Binary data to write
- * @returns Promise that resolves when write is complete
- * @throws {Error} If the directory doesn't exist or write fails
- *
- * @example
- * ```typescript
- * // Write image data to file
- * const imageData = new Uint8Array([...])
- * await writeBinaryFile('/path/to/output.png', imageData)
- *
- * // Download and save a file
- * const response = await fetch('https://example.com/file.pdf')
- * const data = new Uint8Array(await response.arrayBuffer())
- * await writeBinaryFile('/downloads/file.pdf', data)
- * ```
+ * Sends the bytes as base64 (with an `_binary: true` marker) so the wire
+ * payload is ~33% overhead instead of the ~5x-10x overhead of JSON-encoded
+ * `Array.from(uint8)`.
  */
 export async function writeBinaryFile(path: string, data: Uint8Array): Promise<void> {
   validatePath(path)
-  if (typeof window !== 'undefined' && window.craft) {
-    // Bridge call to write binary file
-    await (window.craft as any).bridge?.call('fs.writeBinaryFile', { path, data: Array.from(data) })
+  if (typeof window !== 'undefined' && (window as any).craft) {
+    await callBridge('fs.writeBinaryFile', {
+      path,
+      _binary: true,
+      data: uint8ToBase64(data),
+    })
     return
   }
-  // Node.js fallback
   const { writeFile } = await import('node:fs/promises')
   return writeFile(path, data)
 }
 
 /**
  * File statistics information.
- *
- * @property size - File size in bytes
- * @property isFile - True if this is a regular file
- * @property isDirectory - True if this is a directory
- * @property modifiedAt - Date when the file was last modified
- * @property createdAt - Date when the file was created
  */
 export interface FileStats {
   /** File size in bytes */
@@ -349,27 +277,17 @@ export interface FileStats {
 
 /**
  * Get file or directory statistics.
- *
- * @param path - Absolute or relative path to the file or directory
- * @returns Promise resolving to FileStats object
- * @throws {Error} If the path doesn't exist
- *
- * @example
- * ```typescript
- * const stats = await stat('/path/to/file.txt')
- *
- * console.log(`Size: ${stats.size} bytes`)
- * console.log(`Modified: ${stats.modifiedAt.toISOString()}`)
- *
- * if (stats.isDirectory) {
- *   const contents = await fs.readDir('/path/to/file.txt')
- * }
- * ```
  */
 export async function stat(path: string): Promise<FileStats> {
   validatePath(path)
-  if (typeof window !== 'undefined' && window.craft) {
-    const response = await (window.craft as any).bridge?.call('fs.stat', { path })
+  if (typeof window !== 'undefined' && (window as any).craft) {
+    const response = await callBridge<{
+      size: number
+      isFile: boolean
+      isDirectory: boolean
+      modifiedAt: number
+      createdAt: number
+    }>('fs.stat', { path })
     return {
       size: response.size,
       isFile: response.isFile,
@@ -378,7 +296,6 @@ export async function stat(path: string): Promise<FileStats> {
       createdAt: new Date(response.createdAt),
     }
   }
-  // Node.js fallback
   const { stat: nodeStat } = await import('node:fs/promises')
   const stats = await nodeStat(path)
   return {
@@ -392,27 +309,12 @@ export async function stat(path: string): Promise<FileStats> {
 
 /**
  * Copy a file or directory to a new location.
- * Recursively copies directories and all their contents.
- *
- * @param src - Source path
- * @param dest - Destination path
- * @returns Promise that resolves when copy is complete
- * @throws {Error} If source doesn't exist or copy fails
- *
- * @example
- * ```typescript
- * // Copy a file
- * await copy('/path/to/source.txt', '/path/to/dest.txt')
- *
- * // Copy a directory
- * await copy('/path/to/srcDir', '/path/to/destDir')
- * ```
  */
 export async function copy(src: string, dest: string): Promise<void> {
   validatePath(src)
   validatePath(dest)
-  if (typeof window !== 'undefined' && window.craft) {
-    await (window.craft as any).bridge?.call('fs.copy', { src, dest })
+  if (typeof window !== 'undefined' && (window as any).craft) {
+    await callBridge('fs.copy', { src, dest })
     return
   }
   // Node.js fallback. dereference: false stops a symlink under `src` from
@@ -428,66 +330,52 @@ export async function copy(src: string, dest: string): Promise<void> {
 
 /**
  * Move or rename a file or directory.
- *
- * @param src - Current path
- * @param dest - New path
- * @returns Promise that resolves when move is complete
- * @throws {Error} If source doesn't exist or move fails
- *
- * @example
- * ```typescript
- * // Rename a file
- * await move('/path/to/old-name.txt', '/path/to/new-name.txt')
- *
- * // Move to different directory
- * await move('/downloads/file.txt', '/documents/file.txt')
- * ```
  */
 export async function move(src: string, dest: string): Promise<void> {
   validatePath(src)
   validatePath(dest)
-  if (typeof window !== 'undefined' && window.craft) {
-    await (window.craft as any).bridge?.call('fs.move', { src, dest })
+  if (typeof window !== 'undefined' && (window as any).craft) {
+    await callBridge('fs.move', { src, dest })
     return
   }
-  // Node.js fallback
   const { rename } = await import('node:fs/promises')
   return rename(src, dest)
 }
 
 /**
+ * Watch options. `recursive` recurses into subdirectories — supported by
+ * the Craft bridge always, by Node.js's `fs.watch` only on macOS/Windows.
+ * Linux falls back to a non-recursive watch and logs a one-time warning.
+ */
+export interface WatchOptions {
+  recursive?: boolean
+}
+
+let _watchRecursiveWarned = false
+
+/**
  * Watch a file or directory for changes.
+ *
  * Returns a Promise that resolves with an unwatch function once the watcher
  * is fully initialized.
  *
- * Important: the returned unwatch function MUST be called when the watcher is
- * no longer needed. Forgotten watchers leak both the underlying OS handle and
- * the JS-side event listener.
- *
- * @param path - Path to watch
- * @param callback - Function called when changes occur
- * @returns Promise resolving to a function that stops watching
- *
- * @example
- * ```typescript
- * const stopWatching = await watch('/path/to/file.txt', (event, filename) => {
- *   console.log(`File ${filename} was ${event}`)
- * })
- *
- * // Later, stop watching
- * stopWatching()
- * ```
+ * Important: the returned unwatch function MUST be called when the watcher
+ * is no longer needed. Forgotten watchers leak both the underlying OS handle
+ * and the JS-side event listener.
  */
 export async function watch(
   path: string,
-  callback: (event: string, filename: string) => void
+  callback: (event: string, filename: string) => void,
+  options: WatchOptions = {},
 ): Promise<() => void> {
   validatePath(path)
-  if (typeof window !== 'undefined' && window.craft) {
+  const recursive = options.recursive ?? true
+
+  if (typeof window !== 'undefined' && (window as any).craft) {
     const watchId = typeof globalThis.crypto !== 'undefined' && 'randomUUID' in globalThis.crypto
       ? (globalThis.crypto as Crypto).randomUUID()
       : `${Date.now()}_${performance.now()}`
-    ;(window.craft as any).bridge?.call('fs.watch', { path, watchId })
+    await callBridge('fs.watch', { path, watchId, recursive })
 
     const handler = (event: CustomEvent) => {
       if (event.detail.watchId === watchId) {
@@ -498,17 +386,28 @@ export async function watch(
 
     return () => {
       window.removeEventListener('craft:fs:watch' as any, handler)
-      ;(window.craft as any).bridge?.call('fs.unwatch', { watchId })
+      void callBridge('fs.unwatch', { watchId })
     }
   }
 
-  // Node.js fallback — await the import so the caller's `unwatch` actually
-  // closes the watcher (the previous fire-and-forget version sometimes
-  // returned a stub that did nothing).
   const nodeFs = await import('node:fs')
-  const watcher = nodeFs.watch(path, (event: string, filename: string | null) => {
-    if (filename) callback(event, filename)
-  })
+  const platform = typeof process !== 'undefined' ? process.platform : ''
+  // node:fs.watch supports `recursive` on darwin/win32; on linux it's
+  // ignored. Surface a single warning so callers aren't surprised.
+  if (recursive && platform === 'linux' && !_watchRecursiveWarned) {
+    _watchRecursiveWarned = true
+    console.warn(
+      '[Craft fs.watch] recursive watching is not supported by node:fs.watch on linux; '
+      + 'only direct children of the path will fire events. Use the Craft bridge for true recursion.',
+    )
+  }
+  const watcher = nodeFs.watch(
+    path,
+    { recursive: recursive && platform !== 'linux' },
+    (event: string, filename: string | null) => {
+      if (filename) callback(event, filename)
+    },
+  )
   return () => watcher.close()
 }
 

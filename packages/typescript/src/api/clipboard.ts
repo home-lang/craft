@@ -5,54 +5,10 @@
  */
 
 import { getBridge } from '../bridge/core'
+import { isWebKitHost, postWebKit, webkitRequest } from '../bridge/webkit-pending'
 
 /** Default timeout for callback-style clipboard reads. */
 const CLIPBOARD_READ_TIMEOUT_MS = 5000
-
-/**
- * Push a {resolve,reject} pair onto `window.__craftBridgePending[bucket]` and
- * arrange for it to be cleaned up after `CLIPBOARD_READ_TIMEOUT_MS` if the
- * native side never responds. Without this, every read that the host
- * silently drops keeps closures alive forever.
- */
-function pendingWithTimeout<T>(
-  bucket: string,
-  startNative: () => void,
-): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const w = window as unknown as {
-      __craftBridgePending?: Record<string, Array<{ resolve: (v: T) => void; reject: (e: unknown) => void }>>
-    }
-    w.__craftBridgePending = w.__craftBridgePending || {}
-    const list = w.__craftBridgePending[bucket] = w.__craftBridgePending[bucket] || []
-    let settled = false
-    const wrappedResolve = (v: T) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      const idx = list.indexOf(entry)
-      if (idx >= 0) list.splice(idx, 1)
-      resolve(v)
-    }
-    const wrappedReject = (e: unknown) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      const idx = list.indexOf(entry)
-      if (idx >= 0) list.splice(idx, 1)
-      reject(e)
-    }
-    const entry = { resolve: wrappedResolve, reject: wrappedReject }
-    list.push(entry)
-    // The handle returned here is captured by the closures above so they
-    // can clearTimeout(timer) when the native side finally resolves.
-    // eslint-disable-next-line pickier/no-unused-vars
-    const timer: ReturnType<typeof setTimeout> = setTimeout(() => {
-      wrappedReject(new Error(`[clipboard] ${bucket} timed out after ${CLIPBOARD_READ_TIMEOUT_MS}ms`))
-    }, CLIPBOARD_READ_TIMEOUT_MS)
-    startNative()
-  })
-}
 
 // ============================================================================
 // Types
@@ -86,17 +42,9 @@ export interface ClipboardData {
  * @param text Text to copy
  */
 export async function writeText(text: string): Promise<void> {
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve, _reject) => {
-      const w = window as any
-      w.webkit.messageHandlers.craft.postMessage({
-        type: 'clipboard',
-        action: 'writeText',
-        data: { text }
-      })
-      // Fire-and-forget: resolve immediately on WebKit path
-      resolve()
-    })
+  if (isWebKitHost()) {
+    postWebKit({ type: 'clipboard', action: 'writeText', data: { text } })
+    return
   }
 
   const bridge = getBridge()
@@ -108,13 +56,12 @@ export async function writeText(text: string): Promise<void> {
  * @returns Clipboard text content
  */
 export async function readText(): Promise<string> {
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    const payload = await pendingWithTimeout<{ text?: string } | undefined>('readText', () => {
-      ;(window as any).webkit.messageHandlers.craft.postMessage({
-        type: 'clipboard',
-        action: 'readText',
-      })
-    })
+  if (isWebKitHost()) {
+    const payload = await webkitRequest<{ text?: string } | undefined>(
+      'readText',
+      { type: 'clipboard', action: 'readText' },
+      { timeoutMs: CLIPBOARD_READ_TIMEOUT_MS },
+    )
     return payload && typeof payload.text === 'string' ? payload.text : ''
   }
 
@@ -127,15 +74,9 @@ export async function readText(): Promise<string> {
  * @param html HTML content to copy
  */
 export async function writeHTML(html: string): Promise<void> {
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
-        type: 'clipboard',
-        action: 'writeHTML',
-        data: { html }
-      })
-      resolve()
-    })
+  if (isWebKitHost()) {
+    postWebKit({ type: 'clipboard', action: 'writeHTML', data: { html } })
+    return
   }
 
   const bridge = getBridge()
@@ -147,13 +88,12 @@ export async function writeHTML(html: string): Promise<void> {
  * @returns Clipboard HTML content
  */
 export async function readHTML(): Promise<string> {
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    const payload = await pendingWithTimeout<{ html?: string } | undefined>('readHTML', () => {
-      ;(window as any).webkit.messageHandlers.craft.postMessage({
-        type: 'clipboard',
-        action: 'readHTML',
-      })
-    })
+  if (isWebKitHost()) {
+    const payload = await webkitRequest<{ html?: string } | undefined>(
+      'readHTML',
+      { type: 'clipboard', action: 'readHTML' },
+      { timeoutMs: CLIPBOARD_READ_TIMEOUT_MS },
+    )
     return payload && typeof payload.html === 'string' ? payload.html : ''
   }
 
@@ -165,14 +105,9 @@ export async function readHTML(): Promise<string> {
  * Clear clipboard contents
  */
 export async function clear(): Promise<void> {
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    return new Promise((resolve) => {
-      (window as any).webkit.messageHandlers.craft.postMessage({
-        type: 'clipboard',
-        action: 'clear'
-      })
-      resolve()
-    })
+  if (isWebKitHost()) {
+    postWebKit({ type: 'clipboard', action: 'clear' })
+    return
   }
 
   const bridge = getBridge()
@@ -184,13 +119,12 @@ export async function clear(): Promise<void> {
  * @returns true if clipboard contains text
  */
 export async function hasText(): Promise<boolean> {
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    const payload = await pendingWithTimeout<{ value?: boolean } | undefined>('hasText', () => {
-      ;(window as any).webkit.messageHandlers.craft.postMessage({
-        type: 'clipboard',
-        action: 'hasText',
-      })
-    })
+  if (isWebKitHost()) {
+    const payload = await webkitRequest<{ value?: boolean } | undefined>(
+      'hasText',
+      { type: 'clipboard', action: 'hasText' },
+      { timeoutMs: CLIPBOARD_READ_TIMEOUT_MS },
+    )
     return !!(payload && payload.value === true)
   }
 
@@ -203,13 +137,12 @@ export async function hasText(): Promise<boolean> {
  * @returns true if clipboard contains HTML
  */
 export async function hasHTML(): Promise<boolean> {
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    const payload = await pendingWithTimeout<{ value?: boolean } | undefined>('hasHTML', () => {
-      ;(window as any).webkit.messageHandlers.craft.postMessage({
-        type: 'clipboard',
-        action: 'hasHTML',
-      })
-    })
+  if (isWebKitHost()) {
+    const payload = await webkitRequest<{ value?: boolean } | undefined>(
+      'hasHTML',
+      { type: 'clipboard', action: 'hasHTML' },
+      { timeoutMs: CLIPBOARD_READ_TIMEOUT_MS },
+    )
     return !!(payload && payload.value === true)
   }
 
@@ -222,13 +155,12 @@ export async function hasHTML(): Promise<boolean> {
  * @returns true if clipboard contains image
  */
 export async function hasImage(): Promise<boolean> {
-  if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-    const payload = await pendingWithTimeout<{ value?: boolean } | undefined>('hasImage', () => {
-      ;(window as any).webkit.messageHandlers.craft.postMessage({
-        type: 'clipboard',
-        action: 'hasImage',
-      })
-    })
+  if (isWebKitHost()) {
+    const payload = await webkitRequest<{ value?: boolean } | undefined>(
+      'hasImage',
+      { type: 'clipboard', action: 'hasImage' },
+      { timeoutMs: CLIPBOARD_READ_TIMEOUT_MS },
+    )
     return !!(payload && payload.value === true)
   }
 

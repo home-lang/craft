@@ -5,6 +5,7 @@
  */
 
 import { getBridge } from '../bridge/core'
+import { isWebKitHost, webkitRequest } from '../bridge/webkit-pending'
 
 // ============================================================================
 // Types
@@ -627,25 +628,20 @@ export class Window {
   // ==========================================================================
 
   private async _call<T = void>(action: string, data?: Record<string, any>): Promise<T> {
-    if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-      return new Promise((resolve, reject) => {
-        try {
-          (window as any).webkit.messageHandlers.craft.postMessage({
-            type: 'window',
-            action,
-            windowId: this._id,
-            data
-          })
-          // For actions that return data, we'd need to listen for a response
-          resolve(undefined as T)
-        }
-catch (error) {
-          reject(error)
-        }
+    if (isWebKitHost()) {
+      // Route via the unified WKWebView pending queue so getters actually
+      // receive their native response instead of resolving with `undefined`
+      // (the previous implementation silently broke `getTitle()`,
+      // `getSize()`, `getBounds()`, `getState()`, etc.).
+      return webkitRequest<T>(`window.${action}`, {
+        type: 'window',
+        action,
+        windowId: this._id,
+        data,
       })
     }
 
-    // Fallback to bridge
+    // Fallback to unified NativeBridge.
     const bridge = getBridge()
     return bridge.request(`window.${action}`, { windowId: this._id, ...data })
   }

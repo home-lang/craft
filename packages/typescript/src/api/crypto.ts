@@ -39,11 +39,21 @@ export class LegacyCiphertextError extends CraftCryptoError {
 // loudly instead of silently failing AES-GCM decryption deep in the crypto
 // stack. v1 is the salt-prefixed layout from late 2025; legacy payloads
 // have no version byte and aren't decryptable with the same code path.
+//
+// The KDF is PBKDF2-SHA256 in BOTH the WebCrypto and Node fallbacks so
+// ciphertext is portable across runtimes — the previous implementation
+// used scrypt in Node and PBKDF2 in the browser, which produced different
+// keys for the same password and made the ciphertext non-portable.
 const FORMAT_VERSION = 0x01
 const SALT_LEN = 16
 const IV_LEN = 12
 const TAG_LEN = 16
-const PBKDF2_ITERATIONS = 100_000
+/**
+ * PBKDF2-SHA256 iteration count for the AES-256-GCM data-encryption key.
+ * Bumped from 100k → 600k to align with OWASP's 2023+ guidance for
+ * password-stretching with PBKDF2-SHA256.
+ */
+const PBKDF2_ITERATIONS = 600_000
 
 /**
  * Crypto API implementation
@@ -57,183 +67,188 @@ export const crypto: CraftCryptoAPI = {
     if (typeof window !== 'undefined' && window.craft?.crypto) {
       return window.craft.crypto.randomBytes(size)
     }
-    // Web Crypto API fallback
-    if (typeof globalThis.crypto !== 'undefined') {
-      const bytes = new Uint8Array(size)
-      globalThis.crypto.getRandomValues(bytes)
-      return bytes
+    // Web Crypto API fallback. WebCrypto caps `getRandomValues` at 64KiB
+    // per call, so chunk for large requests.
+    if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function') {
+      const out = new Uint8Array(size)
+      const chunk = 65_536
+      for (let i = 0; i < size; i += chunk) {
+        const view = out.subarray(i, Math.min(i + chunk, size))
+        globalThis.crypto.getRandomValues(view)
+      }
+      return out
     }
     // Node.js fallback
     const { randomBytes } = await import('node:crypto')
-    return randomBytes(size)
+    return new Uint8Array(randomBytes(size))
   },
 
   /**
-   * Hash data using specified algorithm
+   * Hash data using specified algorithm.
+   *
+   * MD5 is supported only in Node — WebCrypto does not implement it. In a
+   * browser-like context (`globalThis.crypto.subtle` available, no
+   * `process` global) we throw a clear error rather than letting the
+   * caller fall through to a `node:crypto` import that crashes the page.
    */
   async hash(algorithm: 'sha256' | 'sha512' | 'md5', data: string): Promise<string> {
     if (typeof window !== 'undefined' && window.craft?.crypto) {
       return window.craft.crypto.hash(algorithm, data)
     }
-    // Web Crypto API fallback
-    if (typeof globalThis.crypto !== 'undefined' && algorithm !== 'md5') {
+    if (algorithm === 'md5') {
+      // MD5 is reachable only through Node. Detect Node by feature
+      // sniffing rather than `typeof process` (Bun and some bundlers
+      // expose `process` in browser bundles).
+      const hasNodeCrypto = typeof process !== 'undefined' && (process as { versions?: { node?: string } }).versions?.node
+      if (!hasNodeCrypto) {
+        throw new CraftCryptoError(
+          'MD5 is not available in this runtime — WebCrypto does not implement it. '
+          + 'Use sha256/sha512, or call this from Node.',
+        )
+      }
+      const { createHash } = await import('node:crypto')
+      return createHash('md5').update(data).digest('hex')
+    }
+    if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.subtle) {
       const encoder = new TextEncoder()
       const dataBuffer = encoder.encode(data)
       const hashBuffer = await globalThis.crypto.subtle.digest(
         algorithm === 'sha256' ? 'SHA-256' : 'SHA-512',
-        dataBuffer
+        dataBuffer,
       )
       return bufferToHex(hashBuffer)
     }
-    // Node.js fallback
     const { createHash } = await import('node:crypto')
     return createHash(algorithm).update(data).digest('hex')
   },
 
   /**
-   * Encrypt data with AES-256-GCM
+   * Encrypt data with AES-256-GCM. Wire format:
+   *   `[version(1) | salt(16) | iv(12) | ciphertext+tag]`
+   *
+   * The KDF is PBKDF2-SHA256 in both runtimes, so ciphertext produced in
+   * the browser decrypts in Node and vice versa.
    */
   async encrypt(data: string, key: string): Promise<string> {
     if (typeof window !== 'undefined' && window.craft?.crypto) {
       return window.craft.crypto.encrypt(data, key)
     }
-    // Web Crypto API fallback
-    if (typeof globalThis.crypto !== 'undefined') {
-      const encoder = new TextEncoder()
-      const salt = globalThis.crypto.getRandomValues(new Uint8Array(SALT_LEN))
-      const iv = globalThis.crypto.getRandomValues(new Uint8Array(IV_LEN))
-      const keyBuffer = await deriveKey(key, salt)
+    const salt = await crypto.randomBytes(SALT_LEN)
+    const iv = await crypto.randomBytes(IV_LEN)
+    const aesKey = await derivePbkdf2Key(key, salt)
+    const ciphertext = await aesGcmEncrypt(aesKey, iv, new TextEncoder().encode(data))
 
-      const encrypted = new Uint8Array(
-        await globalThis.crypto.subtle.encrypt(
-          { name: 'AES-GCM', iv },
-          keyBuffer,
-          encoder.encode(data)
-        )
-      )
-
-      // Wire format: version(1) | salt(16) | iv(12) | ciphertext+tag
-      const combined = new Uint8Array(1 + salt.length + iv.length + encrypted.length)
-      combined[0] = FORMAT_VERSION
-      combined.set(salt, 1)
-      combined.set(iv, 1 + salt.length)
-      combined.set(encrypted, 1 + salt.length + iv.length)
-
-      return bufferToBase64(combined.buffer)
-    }
-    // Node.js fallback
-    const nodeCrypto = await import('node:crypto')
-    const salt = nodeCrypto.randomBytes(SALT_LEN)
-    const iv = nodeCrypto.randomBytes(IV_LEN)
-    const derivedKey = nodeCrypto.scryptSync(key, salt, 32)
-    const cipher = nodeCrypto.createCipheriv('aes-256-gcm', derivedKey, iv)
-
-    const ciphertext = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()])
-    const tag = cipher.getAuthTag()
-
-    // Wire format: version | salt | iv | ciphertext | tag
-    return Buffer.concat([
-      Buffer.from([FORMAT_VERSION]),
-      salt,
-      iv,
-      ciphertext,
-      tag,
-    ]).toString('base64')
+    const combined = new Uint8Array(1 + salt.length + iv.length + ciphertext.length)
+    combined[0] = FORMAT_VERSION
+    combined.set(salt, 1)
+    combined.set(iv, 1 + salt.length)
+    combined.set(ciphertext, 1 + salt.length + iv.length)
+    return bufferToBase64(combined.buffer)
   },
 
   /**
-   * Decrypt data with AES-256-GCM
+   * Decrypt data with AES-256-GCM. Mirrors the wire format used by
+   * {@link crypto.encrypt}.
    */
   async decrypt(encryptedData: string, key: string): Promise<string> {
     if (typeof window !== 'undefined' && window.craft?.crypto) {
       return window.craft.crypto.decrypt(encryptedData, key)
     }
-    // Web Crypto API fallback
-    if (typeof globalThis.crypto !== 'undefined') {
-      const combined = base64ToBuffer(encryptedData)
-      if (combined.length < 1 + SALT_LEN + IV_LEN + TAG_LEN) {
-        throw new CraftCryptoError('Ciphertext too short to be valid')
-      }
-      const version = combined[0]
-      if (version !== FORMAT_VERSION) {
-        // Legacy format had no version byte and started directly with the
-        // salt. Detect by elimination — if byte[0] could plausibly be a
-        // salt byte, we still can't tell salt-from-version apart, so we
-        // require an explicit migration.
-        throw new LegacyCiphertextError()
-      }
-      const salt = combined.slice(1, 1 + SALT_LEN)
-      const iv = combined.slice(1 + SALT_LEN, 1 + SALT_LEN + IV_LEN)
-      const data = combined.slice(1 + SALT_LEN + IV_LEN)
-
-      const keyBuffer = await deriveKey(key, salt)
-
-      try {
-        const decrypted = await globalThis.crypto.subtle.decrypt(
-          { name: 'AES-GCM', iv },
-          keyBuffer,
-          data
-        )
-        return new TextDecoder().decode(decrypted)
-      }
-      catch (e) {
-        throw new CraftCryptoError('Decryption failed (wrong key or corrupted data)', { cause: e })
-      }
-    }
-    // Node.js fallback
-    const nodeCrypto = await import('node:crypto')
-    const buffer = Buffer.from(encryptedData, 'base64')
-    if (buffer.length < 1 + SALT_LEN + IV_LEN + TAG_LEN) {
+    const combined = base64ToBuffer(encryptedData)
+    if (combined.length < 1 + SALT_LEN + IV_LEN + TAG_LEN) {
       throw new CraftCryptoError('Ciphertext too short to be valid')
     }
-    if (buffer[0] !== FORMAT_VERSION) {
+    const version = combined[0]
+    if (version !== FORMAT_VERSION) {
       throw new LegacyCiphertextError()
     }
-    const salt = buffer.subarray(1, 1 + SALT_LEN)
-    const iv = buffer.subarray(1 + SALT_LEN, 1 + SALT_LEN + IV_LEN)
-    const tag = buffer.subarray(buffer.length - TAG_LEN)
-    const ciphertext = buffer.subarray(1 + SALT_LEN + IV_LEN, buffer.length - TAG_LEN)
+    const salt = combined.slice(1, 1 + SALT_LEN)
+    const iv = combined.slice(1 + SALT_LEN, 1 + SALT_LEN + IV_LEN)
+    const data = combined.slice(1 + SALT_LEN + IV_LEN)
 
-    const derivedKey = nodeCrypto.scryptSync(key, salt, 32)
-    const decipher = nodeCrypto.createDecipheriv('aes-256-gcm', derivedKey, iv)
-    decipher.setAuthTag(tag)
-
+    const aesKey = await derivePbkdf2Key(key, salt)
     try {
-      const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()])
-      return decrypted.toString('utf8')
+      const plaintext = await aesGcmDecrypt(aesKey, iv, data)
+      return new TextDecoder().decode(plaintext)
     }
     catch (e) {
       throw new CraftCryptoError('Decryption failed (wrong key or corrupted data)', { cause: e })
     }
-  }
+  },
 }
 
 /**
- * Derive encryption key from password using PBKDF2 with the supplied salt.
+ * Derive a 32-byte AES key from a password using PBKDF2-SHA256. WebCrypto
+ * is preferred when available; Node `pbkdf2Sync` is used as a fallback.
  */
-async function deriveKey(password: string, salt: BufferSource): Promise<CryptoKey> {
-  const encoder = new TextEncoder()
+async function derivePbkdf2Key(password: string, salt: Uint8Array): Promise<CryptoKey | Uint8Array> {
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.subtle) {
+    const encoder = new TextEncoder()
+    const keyMaterial = await globalThis.crypto.subtle.importKey(
+      'raw',
+      encoder.encode(password),
+      'PBKDF2',
+      false,
+      ['deriveKey'],
+    )
+    return globalThis.crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt,
+        iterations: PBKDF2_ITERATIONS,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt'],
+    )
+  }
+  const { pbkdf2Sync } = await import('node:crypto')
+  return new Uint8Array(pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, 32, 'sha256'))
+}
 
-  const keyMaterial = await globalThis.crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveKey']
-  )
+async function aesGcmEncrypt(
+  key: CryptoKey | Uint8Array,
+  iv: Uint8Array,
+  plaintext: Uint8Array,
+): Promise<Uint8Array> {
+  if (key instanceof Uint8Array) {
+    const { createCipheriv } = await import('node:crypto')
+    const cipher = createCipheriv('aes-256-gcm', key, iv)
+    const ct1 = cipher.update(plaintext)
+    const ct2 = cipher.final()
+    const tag = cipher.getAuthTag()
+    const out = new Uint8Array(ct1.length + ct2.length + tag.length)
+    out.set(ct1, 0)
+    out.set(ct2, ct1.length)
+    out.set(tag, ct1.length + ct2.length)
+    return out
+  }
+  const out = await globalThis.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext)
+  return new Uint8Array(out)
+}
 
-  return globalThis.crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt,
-      iterations: PBKDF2_ITERATIONS,
-      hash: 'SHA-256'
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  )
+async function aesGcmDecrypt(
+  key: CryptoKey | Uint8Array,
+  iv: Uint8Array,
+  ciphertextWithTag: Uint8Array,
+): Promise<Uint8Array> {
+  if (key instanceof Uint8Array) {
+    const { createDecipheriv } = await import('node:crypto')
+    const tag = ciphertextWithTag.subarray(ciphertextWithTag.length - TAG_LEN)
+    const ct = ciphertextWithTag.subarray(0, ciphertextWithTag.length - TAG_LEN)
+    const decipher = createDecipheriv('aes-256-gcm', key, iv)
+    decipher.setAuthTag(tag)
+    const pt1 = decipher.update(ct)
+    const pt2 = decipher.final()
+    const out = new Uint8Array(pt1.length + pt2.length)
+    out.set(pt1, 0)
+    out.set(pt2, pt1.length)
+    return out
+  }
+  const out = await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertextWithTag)
+  return new Uint8Array(out)
 }
 
 /**
@@ -255,7 +270,8 @@ function bufferToBase64(buffer: ArrayBuffer): string {
   for (let i = 0; i < bytes.byteLength; i += chunkSize) {
     chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)))
   }
-  return btoa(chunks.join(''))
+  if (typeof btoa !== 'undefined') return btoa(chunks.join(''))
+  return Buffer.from(bytes).toString('base64')
 }
 
 /**
@@ -263,18 +279,21 @@ function bufferToBase64(buffer: ArrayBuffer): string {
  * Throws CraftCryptoError on malformed input rather than DOMException.
  */
 function base64ToBuffer(base64: string): Uint8Array {
-  let binary: string
-  try {
-    binary = atob(base64)
+  if (typeof atob !== 'undefined') {
+    let binary: string
+    try {
+      binary = atob(base64)
+    }
+    catch (e) {
+      throw new CraftCryptoError('Invalid base64 input', { cause: e })
+    }
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    return bytes
   }
-  catch (e) {
-    throw new CraftCryptoError('Invalid base64 input', { cause: e })
-  }
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i)
-  }
-  return bytes
+  return new Uint8Array(Buffer.from(base64, 'base64'))
 }
 
 /**
@@ -295,10 +314,20 @@ export function uuid(): string {
 }
 
 /**
- * Generate a random string of specified length
+ * Generate a random string of specified length.
+ *
+ * @throws {CraftCryptoError} when `charset` is empty (would otherwise loop
+ *   forever with `Math.random` returning a value modulo 0).
  */
 export async function randomString(length: number, charset?: string): Promise<string> {
-  const chars = charset || 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const chars = charset ?? 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  if (chars.length === 0) {
+    throw new CraftCryptoError('randomString: charset cannot be empty')
+  }
+  if (!Number.isInteger(length) || length < 0) {
+    throw new CraftCryptoError('randomString: length must be a non-negative integer')
+  }
+  if (length === 0) return ''
   // Use rejection sampling to avoid modulo bias
   const maxValid = 256 - (256 % chars.length)
   let bytes = await crypto.randomBytes(length * 2)
@@ -323,25 +352,19 @@ export async function randomString(length: number, charset?: string): Promise<st
 export async function hmac(
   algorithm: 'sha256' | 'sha512',
   key: string,
-  data: string
+  data: string,
 ): Promise<string> {
-  // Web Crypto API
-  if (typeof globalThis.crypto !== 'undefined') {
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.subtle) {
     const encoder = new TextEncoder()
     const keyBuffer = await globalThis.crypto.subtle.importKey(
       'raw',
       encoder.encode(key),
       { name: 'HMAC', hash: algorithm === 'sha256' ? 'SHA-256' : 'SHA-512' },
       false,
-      ['sign']
+      ['sign'],
     )
 
-    const signature = await globalThis.crypto.subtle.sign(
-      'HMAC',
-      keyBuffer,
-      encoder.encode(data)
-    )
-
+    const signature = await globalThis.crypto.subtle.sign('HMAC', keyBuffer, encoder.encode(data))
     return bufferToHex(signature)
   }
 
@@ -351,67 +374,85 @@ export async function hmac(
 }
 
 /**
- * Compare two strings in constant time (timing-safe)
+ * Compare two strings in constant time (timing-safe).
+ *
+ * Compares the UTF-8 byte representations rather than UTF-16 code units —
+ * NFC/NFD-different but visually-identical strings still come out unequal,
+ * but at least byte-level comparison is what cryptographic protocols
+ * actually expect.
  */
 export function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder()
+  const aBytes = enc.encode(a)
+  const bBytes = enc.encode(b)
   // Always compare full length to avoid leaking length information via timing
-  const maxLen = Math.max(a.length, b.length)
-  let result = a.length ^ b.length
+  const maxLen = Math.max(aBytes.length, bBytes.length)
+  let result = aBytes.length ^ bBytes.length
   for (let i = 0; i < maxLen; i++) {
-    result |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0)
+    result |= (aBytes[i] ?? 0) ^ (bBytes[i] ?? 0)
   }
   return result === 0
 }
 
 /**
- * Generate password hash (using PBKDF2). When `salt` is omitted a random
- * 16-byte salt is generated and returned alongside the hash.
+ * Generate password hash (using PBKDF2-SHA256 with 600k iterations).
+ *
+ * Salt encoding is unified across runtimes: the salt is always returned
+ * as base64, and when supplied it is interpreted as base64 in BOTH the
+ * WebCrypto and Node code paths. The previous implementation treated the
+ * salt as base64 in WebCrypto and as a raw UTF-8 string in Node, so the
+ * same `(password, salt)` pair gave different hashes per environment and
+ * cross-environment auth was broken.
  */
 export async function hashPassword(password: string, salt?: string): Promise<{ hash: string; salt: string }> {
-  let actualSalt: string
+  let saltBytes: Uint8Array
   if (salt) {
-    actualSalt = salt
+    try {
+      saltBytes = base64ToBuffer(salt)
+    }
+    catch (e) {
+      throw new CraftCryptoError('hashPassword: salt must be base64-encoded', { cause: e })
+    }
   }
   else {
-    const saltBytes = await crypto.randomBytes(16)
-    actualSalt = bufferToBase64(new Uint8Array(saltBytes).buffer as ArrayBuffer)
+    saltBytes = await crypto.randomBytes(16)
   }
+  const actualSalt = bufferToBase64(saltBytes.buffer.slice(saltBytes.byteOffset, saltBytes.byteOffset + saltBytes.byteLength) as ArrayBuffer)
 
-  if (typeof globalThis.crypto !== 'undefined') {
+  if (typeof globalThis.crypto !== 'undefined' && globalThis.crypto.subtle) {
     const encoder = new TextEncoder()
     const keyMaterial = await globalThis.crypto.subtle.importKey(
       'raw',
       encoder.encode(password),
       'PBKDF2',
       false,
-      ['deriveBits']
+      ['deriveBits'],
     )
 
     const derivedBits = await globalThis.crypto.subtle.deriveBits(
       {
         name: 'PBKDF2',
-        salt: new Uint8Array(base64ToBuffer(actualSalt)).buffer as ArrayBuffer,
+        salt: saltBytes,
         iterations: PBKDF2_ITERATIONS,
-        hash: 'SHA-256'
+        hash: 'SHA-256',
       },
       keyMaterial,
-      256
+      256,
     )
 
     return {
       hash: bufferToBase64(derivedBits),
-      salt: actualSalt
+      salt: actualSalt,
     }
   }
 
-  // Node.js fallback
-  const nodeCrypto = await import('node:crypto')
+  const { pbkdf2 } = await import('node:crypto')
   return new Promise((resolve, reject) => {
-    nodeCrypto.pbkdf2(password, actualSalt, PBKDF2_ITERATIONS, 32, 'sha256', (err, derivedKey) => {
+    pbkdf2(password, saltBytes, PBKDF2_ITERATIONS, 32, 'sha256', (err, derivedKey) => {
       if (err) reject(err)
       else resolve({
-        hash: derivedKey.toString('base64'),
-        salt: actualSalt
+        hash: bufferToBase64(derivedKey.buffer.slice(derivedKey.byteOffset, derivedKey.byteOffset + derivedKey.byteLength) as ArrayBuffer),
+        salt: actualSalt,
       })
     })
   })

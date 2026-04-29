@@ -5,6 +5,7 @@
  */
 
 import { getBridge } from '../bridge/core'
+import { isWebKitHost, webkitRequest } from '../bridge/webkit-pending'
 
 // ============================================================================
 // Types
@@ -213,9 +214,41 @@ class AppManager {
   private _shortcuts: Map<string, ShortcutHandler> = new Map()
   private _info: AppInfo | null = null
   private _preferences: SystemPreferences | null = null
+  private _domListeners: Array<{ type: string; handler: EventListener }> = []
+  private _mediaQuery: MediaQueryList | null = null
+  private _mediaQueryHandler: ((e: MediaQueryListEvent) => void) | null = null
 
   constructor() {
     this._setupEventListeners()
+  }
+
+  private _addDomListener(type: string, handler: EventListener): void {
+    if (typeof window === 'undefined') return
+    window.addEventListener(type, handler)
+    this._domListeners.push({ type, handler })
+  }
+
+  /**
+   * Tear down DOM listeners. Intended for tests that construct/destroy
+   * the manager and for advanced multi-window setups; the singleton
+   * `appManager` is normally process-lived.
+   */
+  destroy(): void {
+    if (typeof window !== 'undefined') {
+      for (const { type, handler } of this._domListeners) {
+        window.removeEventListener(type, handler)
+      }
+      this._domListeners = []
+      if (this._mediaQuery && this._mediaQueryHandler) {
+        this._mediaQuery.removeEventListener('change', this._mediaQueryHandler)
+        this._mediaQuery = null
+        this._mediaQueryHandler = null
+      }
+    }
+    this._listeners.clear()
+    this._shortcuts.clear()
+    this._info = null
+    this._preferences = null
   }
 
   private _setupEventListeners(): void {
@@ -227,29 +260,46 @@ class AppManager {
         'accent-color-changed', 'display-added', 'display-removed',
         'display-metrics-changed', 'power-suspend', 'power-resume',
         'power-on-ac', 'power-on-battery', 'lock-screen', 'unlock-screen',
-        'user-did-become-active', 'user-did-resign-active'
+        'user-did-become-active', 'user-did-resign-active',
       ]
 
       events.forEach(event => {
-        window.addEventListener(`craft:app:${event}` as any, (e: CustomEvent) => {
+        const handler = ((e: CustomEvent) => {
+          // Invalidate caches that the event has just made stale.
+          // `_preferences` snapshots theme/accent/reduced-motion/locale,
+          // so any of these events must clear it to avoid serving stale
+          // values from `getSystemPreferences()`. `_info` snapshots
+          // immutable bundle metadata, so it's preserved.
+          if (
+            event === 'theme-changed'
+            || event === 'accent-color-changed'
+            || event === 'display-added'
+            || event === 'display-removed'
+            || event === 'display-metrics-changed'
+          ) {
+            this._preferences = null
+          }
           this._emit(event, e.detail)
-        })
+        }) as EventListener
+        this._addDomListener(`craft:app:${event}`, handler)
       })
 
       // Global shortcut events
-      window.addEventListener('craft:shortcut' as any, (e: CustomEvent) => {
+      const shortcutHandler = ((e: CustomEvent) => {
         const accelerator = e.detail?.accelerator
         const handler = this._shortcuts.get(accelerator)
-        if (handler) {
-          handler()
-        }
-      })
+        if (handler) handler()
+      }) as EventListener
+      this._addDomListener('craft:shortcut', shortcutHandler)
 
       // Theme change detection via media query
       if (window.matchMedia) {
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        this._mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+        this._mediaQueryHandler = (e: MediaQueryListEvent) => {
+          this._preferences = null
           this._emit('theme-changed', { theme: e.matches ? 'dark' : 'light' })
-        })
+        }
+        this._mediaQuery.addEventListener('change', this._mediaQueryHandler)
       }
     }
   }
@@ -647,19 +697,14 @@ class AppManager {
   // ==========================================================================
 
   private async _call<T = void>(action: string, data?: Record<string, any>): Promise<T> {
-    if (typeof window !== 'undefined' && (window as any).webkit?.messageHandlers?.craft) {
-      return new Promise((resolve, reject) => {
-        try {
-          (window as any).webkit.messageHandlers.craft.postMessage({
-            type: 'app',
-            action,
-            data
-          })
-          resolve(undefined as T)
-        }
-catch (error) {
-          reject(error)
-        }
+    if (isWebKitHost()) {
+      // Route via the unified WKWebView pending queue so getters
+      // (`getInfo`, `getDisplays`, `getBadge`, `getAppearance`, …) actually
+      // receive their native response instead of resolving with `undefined`.
+      return webkitRequest<T>(`app.${action}`, {
+        type: 'app',
+        action,
+        data,
       })
     }
 
