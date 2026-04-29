@@ -359,12 +359,13 @@ describe('R2 Item 13: readDir filtering', () => {
 })
 
 // -------------------------------------------------------------------------
-// R2 Item 14: bin/cli.ts honours CRAFT_BIN.
+// R2 Item 14: bin/cli.ts delegates to the shared pantry-aware resolver.
 // -------------------------------------------------------------------------
 describe('R2 Item 14: CLI binary lookup', () => {
-  it('source honours CRAFT_BIN and surfaces ENOENT clearly', async () => {
+  it('uses the shared resolver and emits the pantry message on ENOENT', async () => {
     const src = await Bun.file(new URL('../../bin/cli.ts', import.meta.url)).text()
-    expect(src).toContain('CRAFT_BIN')
+    expect(src).toContain('resolveCraftBinary')
+    expect(src).toContain('craftBinaryNotFoundMessage')
     expect(src).toContain("error.code === 'ENOENT'")
   })
 })

@@ -22,6 +22,13 @@ A lightweight, high-performance cross-platform application framework built with 
 - **better-dx** provides shared dev tooling as peer dependencies — do not install its peers (e.g., `typescript`, `pickier`, `bun-plugin-dtsx`) separately if `better-dx` is already in `package.json`
 - If `better-dx` is in `package.json`, ensure `bunfig.toml` includes `linker = "hoisted"`
 
+## Distribution
+
+- Craft is distributed through the **pantry registry** (`pantry install craft`). The SDK and CLI both expect `craft` to be on PATH and do not probe `zig-out` paths or any monorepo-relative locations at runtime.
+- The `release.yml` workflow publishes to pantry on every tag via `home-lang/pantry/packages/action@main` with `publish: 'zig'`.
+- Tests / monorepo dev loop: set `CRAFT_BIN=/absolute/path/to/craft` to override the PATH lookup. The SDK's `AppConfig.craftPath` field accepts the same kind of override at app-config time.
+- Adding new lookup paths or fallbacks to `binary-resolver.ts` defeats the pantry contract — don't.
+
 ## Commits
 
 - Use conventional commit messages (e.g., `fix:`, `feat:`, `chore:`)

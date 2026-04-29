@@ -7,75 +7,38 @@
 import { CLI } from '@stacksjs/clapp'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
 import process from 'node:process'
+import { craftBinaryNotFoundMessage, resolveCraftBinary } from '../src/binary-resolver'
 import { version } from '../package.json'
 
 const cli = new CLI('craft')
 
-// Helper to find and run the Craft binary
+/**
+ * Run the `craft` native binary with the given argv. Craft ships through
+ * the pantry registry, so the binary is expected to be on PATH after
+ * `pantry install craft`. The shared resolver respects an explicit
+ * `CRAFT_BIN` for tests and the monorepo dev loop; everything else
+ * delegates to PATH. ENOENT surfaces a single, pantry-pointing error.
+ */
 async function runCraftBinary(args: string[]): Promise<void> {
-  const craftPath = await findCraftBinary()
+  const craftPath = resolveCraftBinary()
 
   return new Promise((resolve, reject) => {
-    const proc = spawn(craftPath, args, {
-      stdio: 'inherit',
-    })
+    const proc = spawn(craftPath, args, { stdio: 'inherit' })
 
     proc.on('exit', (code) => {
-      if (code === 0 || code === null) {
-        resolve()
-      }
-      else {
-        reject(new Error(`Craft exited with code ${code}`))
-      }
+      if (code === 0 || code === null) resolve()
+      else reject(new Error(`Craft exited with code ${code}`))
     })
 
     proc.on('error', (error: Error & { code?: string }) => {
-      // ENOENT here typically means `craft` was not on PATH and we
-      // fell through to the bare-name spawn. Surface a clearer message
-      // so users don't see "spawn craft ENOENT" with no context.
       if (error.code === 'ENOENT') {
-        reject(new Error(
-          `Craft native binary not found. Tried local zig-out, repo paths, and PATH. `
-          + `Install via pantry (\`pkgx craft\`) or set CRAFT_BIN to an explicit path.`,
-        ))
+        reject(new Error(craftBinaryNotFoundMessage(craftPath)))
         return
       }
       reject(error)
     })
   })
-}
-
-/**
- * Locate the Craft native binary. Order:
- *   1. `CRAFT_BIN` env var (explicit override).
- *   2. Monorepo zig-out paths (when running from source).
- *   3. Bare `'craft'` (PATH lookup) — final fallback for pantry installs.
- *
- * Mirrors `CraftApp.findCraftBinary` in src/index.ts so users get the
- * same lookup behavior whether they go through the CLI or the SDK.
- */
-async function findCraftBinary(): Promise<string> {
-  const fromEnv = process.env.CRAFT_BIN
-  if (fromEnv) {
-    if (!existsSync(fromEnv)) {
-      throw new Error(`CRAFT_BIN points to ${fromEnv}, which does not exist`)
-    }
-    return fromEnv
-  }
-  const candidates = [
-    join(process.cwd(), 'packages/zig/zig-out/bin/craft'),
-    join(import.meta.dir, '../../zig/zig-out/bin/craft'),
-    join(process.cwd(), 'zig-out/bin/craft'),
-    join(import.meta.dir, '../../../zig-out/bin/craft'),
-  ]
-  for (const path of candidates) {
-    if (existsSync(path)) return path
-  }
-  // Final fallback to PATH. Errors will surface from `spawn('error')`
-  // with the friendlier message attached above.
-  return 'craft'
 }
 
 /**

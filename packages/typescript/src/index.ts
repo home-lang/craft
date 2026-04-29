@@ -4,10 +4,11 @@
  */
 
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { craftBinaryNotFoundMessage, resolveCraftBinary } from './binary-resolver'
 import type { AppConfig, WindowOptions } from './types'
 
 const execFileAsync = promisify(execFile)
@@ -281,33 +282,27 @@ export class CraftApp {
 
     return new Promise((resolve, reject) => {
       this.process?.on('error', (error: Error & { code?: string }) => {
-        const errorMessage = [
-          `❌ Failed to start Craft process: ${error.message}`,
-          '',
-        ]
-
-        // Provide platform-specific troubleshooting
+        if (error.code === 'ENOENT') {
+          // Single canonical message — we no longer probe a matrix of
+          // "we tried these locations" since pantry is the install
+          // surface of record.
+          reject(new Error(craftBinaryNotFoundMessage(craftPath)))
+          return
+        }
         if (error.code === 'EACCES') {
-          errorMessage.push(
-            'Permission denied. Try making the binary executable:',
-            `  chmod +x ${craftPath}`,
-          )
+          reject(new Error(
+            `❌ Failed to start Craft process: ${error.message}\n\n`
+            + `Permission denied on the binary at ${craftPath}.\n`
+            + 'Re-run `pantry install craft` to restore correct permissions, '
+            + `or chmod +x the file directly.`,
+          ))
+          return
         }
-        else if (error.code === 'ENOENT') {
-          errorMessage.push(
-            'Binary not found or not executable.',
-            'Ensure Craft core is built:',
-            '  bun run build:core',
-          )
-        }
-        else {
-          errorMessage.push(
-            'For troubleshooting, visit:',
-            '  https://github.com/home-lang/craft/issues',
-          )
-        }
-
-        reject(new Error(errorMessage.join('\n')))
+        reject(new Error(
+          `❌ Failed to start Craft process: ${error.message}\n\n`
+          + 'For troubleshooting, visit:\n'
+          + '  https://github.com/home-lang/craft/issues',
+        ))
       })
 
       this.process?.on('exit', (code) => {
@@ -435,42 +430,19 @@ export class CraftApp {
     return args
   }
 
+  /**
+   * Resolve the `craft` binary to spawn.
+   *
+   * Craft ships through the pantry registry (`pantry install craft`),
+   * so once pantry is set up the binary is on PATH and we just spawn
+   * `'craft'`. The two escape hatches are `config.craftPath` (per-app
+   * pin) and the `CRAFT_BIN` env var (test/dev override). Anything
+   * else is delegated to PATH lookup; the error path on the spawn
+   * itself surfaces a pantry-pointing message via
+   * {@link craftBinaryNotFoundMessage}.
+   */
   private async findCraftBinary(): Promise<string> {
-    if (this.config.craftPath) {
-      if (!existsSync(this.config.craftPath)) {
-        throw new Error(`Custom Craft binary path not found: ${this.config.craftPath}`)
-      }
-      return this.config.craftPath
-    }
-
-    // Search for the native Craft binary (not the CLI wrapper)
-    const possiblePaths = [
-      // From monorepo zig package
-      join(process.cwd(), 'packages/zig/zig-out/bin/craft'),
-      // From typescript package (when in monorepo)
-      join(import.meta.dir, '../../zig/zig-out/bin/craft'),
-      // Legacy locations
-      join(process.cwd(), 'zig-out/bin/craft'),
-      join(import.meta.dir, '../../../zig-out/bin/craft'),
-    ]
-
-    for (const path of possiblePaths) {
-      if (existsSync(path)) return path
-    }
-
-    // No binary found in any known location. In dev mode, falling back to
-    // PATH lets users iterate without rebuilding, but in production it
-    // means we hand off to whatever happens to be named `craft` on disk —
-    // which could be the SDK CLI wrapper or an unrelated tool. Refuse
-    // explicitly when not in dev mode so the failure mode is obvious.
-    if (!detectDevMode()) {
-      throw new Error(
-        'Craft native binary not found in any known location.\n'
-        + 'Searched:\n' + possiblePaths.map(p => `  - ${p}`).join('\n') + '\n'
-        + 'Set `craftPath` on AppConfig, or set CRAFT_ENV=development to allow PATH fallback.',
-      )
-    }
-    return 'craft'
+    return resolveCraftBinary(this.config.craftPath)
   }
 }
 

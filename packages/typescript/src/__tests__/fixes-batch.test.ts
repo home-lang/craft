@@ -720,9 +720,11 @@ describe('Item 30: framework hooks reach the bridge', () => {
 })
 
 // -------------------------------------------------------------------------
-// Item 32 & 34: CraftApp sidebarConfig & findCraftBinary.
+// Item 32: CraftApp sidebarConfig argv encoding.
+// (Item 34's binary-discovery contract moved to binary-resolver.test.ts
+//  once the SDK started delegating to pantry for craft installation.)
 // -------------------------------------------------------------------------
-describe('Item 32 & 34: CraftApp arg encoding and binary discovery', () => {
+describe('Item 32: CraftApp arg encoding', () => {
   it('inlines small sidebar configs onto argv', async () => {
     const { CraftApp } = await import('../index')
     const app = new (CraftApp as unknown as { new(c: any): { buildArgs(): string[] } })({
