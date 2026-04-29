@@ -8,6 +8,10 @@ const BridgeError = bridge_error.BridgeError;
 ///
 /// macOS implementation reads `[NSScreen screens]` (every connected
 /// display) and `[NSScreen mainScreen]` (the one with the menu bar).
+/// Also subscribes to `NSApplicationDidChangeScreenParametersNotification`
+/// (fired on monitor hot-plug, resolution changes, dock relocations) and
+/// re-emits as a `craft:screen:change` event so apps can re-layout.
+///
 /// Linux/Windows implementations land later — for now those return
 /// empty `{displays:[]}` so JS callers can feature-detect cleanly.
 pub const ScreenBridge = struct {
@@ -16,6 +20,7 @@ pub const ScreenBridge = struct {
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator) Self {
+        installScreenChangeObserver();
         return .{ .allocator = allocator };
     }
 
@@ -85,6 +90,53 @@ pub const ScreenBridge = struct {
         bridge_error.sendResultToJS(self.allocator, "getPrimary", json);
     }
 };
+
+// =============================================================================
+// NSApplicationDidChangeScreenParameters observer
+// =============================================================================
+
+var screen_observer_installed = false;
+var screen_observer_instance: @import("macos.zig").objc.id = null;
+
+fn installScreenChangeObserver() void {
+    if (screen_observer_installed) return;
+    if (builtin.os.tag != .macos) return;
+    const macos = @import("macos.zig");
+    const objc = macos.objc;
+
+    const NSObject = macos.getClass("NSObject");
+    const class_name = "CraftScreenObserver";
+    var cls = objc.objc_getClass(class_name);
+    if (cls == null) {
+        cls = objc.objc_allocateClassPair(NSObject, class_name, 0);
+        if (cls == null) return;
+        const imp: objc.IMP = @ptrCast(@constCast(&handleScreenChange));
+        _ = objc.class_addMethod(cls, macos.sel("onScreenChange:"), imp, "v@:@");
+        objc.objc_registerClassPair(cls);
+    }
+    screen_observer_instance = macos.msgSend0(macos.msgSend0(cls, "alloc"), "init");
+
+    const NSNotificationCenter = macos.getClass("NSNotificationCenter");
+    const center = macos.msgSend0(NSNotificationCenter, "defaultCenter");
+    const note_name = macos.createNSString("NSApplicationDidChangeScreenParametersNotification");
+
+    // -[NSNotificationCenter addObserver:selector:name:object:]
+    const Fn = *const fn (objc.id, objc.SEL, objc.id, objc.SEL, objc.id, objc.id) callconv(.c) void;
+    const f: Fn = @ptrCast(&objc.objc_msgSend);
+    f(center, macos.sel("addObserver:selector:name:object:"),
+        screen_observer_instance, macos.sel("onScreenChange:"), note_name, @as(objc.id, null));
+
+    screen_observer_installed = true;
+}
+
+export fn handleScreenChange(_: @import("macos.zig").objc.id, _: @import("macos.zig").objc.SEL, _: @import("macos.zig").objc.id) callconv(.c) void {
+    const macos = @import("macos.zig");
+    const webview = macos.getGlobalWebView() orelse return;
+    const script = "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('craft:screen:change'));";
+    const NSString = macos.getClass("NSString");
+    const js = macos.msgSend1(NSString, "stringWithUTF8String:", @as([*:0]const u8, script));
+    _ = macos.msgSend2(webview, "evaluateJavaScript:completionHandler:", js, @as(?*anyopaque, null));
+}
 
 fn appendScreenJson(buf: *std.ArrayListUnmanaged(u8), allocator: std.mem.Allocator, screen: @import("macos.zig").objc.id, idx: c_ulong) !void {
     const macos = @import("macos.zig");

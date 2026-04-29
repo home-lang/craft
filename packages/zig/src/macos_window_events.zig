@@ -87,9 +87,13 @@ export fn windowDidResize(_: objc.id, _: objc.SEL, notification: objc.id) callco
     const window = macos.msgSend0(notification, "object");
     if (@intFromPtr(window) == 0) return fire("resize", "");
     const frame = macos.msgSendRect(window, "frame");
-    var buf: [128]u8 = undefined;
-    const detail = std.fmt.bufPrint(&buf, "{{\"width\":{d},\"height\":{d}}}", .{
-        frame.size.width, frame.size.height,
+    var buf: [192]u8 = undefined;
+    // Include the window's ObjC pointer as a stable identifier so multi-
+    // window apps can correlate which window resized. The pointer value
+    // is opaque from JS but stable for the window's lifetime.
+    const wid: usize = @intFromPtr(window);
+    const detail = std.fmt.bufPrint(&buf, "{{\"id\":\"w{x}\",\"width\":{d},\"height\":{d}}}", .{
+        wid, frame.size.width, frame.size.height,
     }) catch return fire("resize", "");
     fire("resize", detail);
 }
@@ -98,9 +102,10 @@ export fn windowDidMove(_: objc.id, _: objc.SEL, notification: objc.id) callconv
     const window = macos.msgSend0(notification, "object");
     if (@intFromPtr(window) == 0) return fire("move", "");
     const frame = macos.msgSendRect(window, "frame");
-    var buf: [128]u8 = undefined;
-    const detail = std.fmt.bufPrint(&buf, "{{\"x\":{d},\"y\":{d}}}", .{
-        frame.origin.x, frame.origin.y,
+    var buf: [192]u8 = undefined;
+    const wid: usize = @intFromPtr(window);
+    const detail = std.fmt.bufPrint(&buf, "{{\"id\":\"w{x}\",\"x\":{d},\"y\":{d}}}", .{
+        wid, frame.origin.x, frame.origin.y,
     }) catch return fire("move", "");
     fire("move", detail);
 }

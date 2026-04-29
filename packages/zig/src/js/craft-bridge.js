@@ -84,14 +84,47 @@
 
   // Request-with-response. Native must call sendResultToJS(action, json)
   // exactly once for each in-flight call. The action name must match.
-  function _req(t, a, d) {
+  //
+  // Note: keyed by action only (not type+action) for compat with the
+  // existing `__craftBridgeResult(action, payload)` contract bridges
+  // have been using. Action collisions across bridges (e.g. two
+  // bridges both having `cancel`) would mix replies; in practice the
+  // action namespace is small and unique. Documented limitation.
+  //
+  // Each call is reaped after `__craftBridgeRequestTimeoutMs` (default
+  // 30s) so a misbehaving native side can't strand callers forever.
+  // Apps with legitimate long-running calls (modal dialogs) can bump
+  // this knob globally before the call.
+  const DEFAULT_TIMEOUT_MS = 30000
+  function _req(t, a, d, timeoutMs) {
     return new Promise(function (ok, no) {
       const q = (window.__craftBridgePending[a] = window.__craftBridgePending[a] || [])
-      q.push({ resolve: ok, reject: no })
+      const entry = { resolve: ok, reject: no }
+      q.push(entry)
+
+      const timeout = (typeof window.__craftBridgeRequestTimeoutMs === 'number')
+        ? window.__craftBridgeRequestTimeoutMs
+        : (typeof timeoutMs === 'number' ? timeoutMs : DEFAULT_TIMEOUT_MS)
+      const timer = (timeout > 0)
+        ? setTimeout(function () {
+            // Remove our entry (may be at any position since other
+            // calls might have arrived in the meantime) and reject.
+            // We only target our own entry, so concurrent calls for
+            // the same action stay healthy.
+            const idx = q.indexOf(entry)
+            if (idx !== -1) q.splice(idx, 1)
+            no(new Error('craft bridge timed out for ' + t + '/' + a))
+          }, timeout)
+        : null
+
+      // Wrap resolve/reject so we always clear the timer.
+      entry.resolve = function (v) { if (timer) clearTimeout(timer); ok(v) }
+      entry.reject  = function (e) { if (timer) clearTimeout(timer); no(e) }
+
       if (!_post(t, a, d)) {
-        // Couldn't post — pop our entry off and reject. Don't reject the
-        // whole queue; another _post may have succeeded for a sibling call.
-        q.pop()
+        const pi = q.indexOf(entry)
+        if (pi !== -1) q.splice(pi, 1)
+        if (timer) clearTimeout(timer)
         no(new Error('craft bridge unavailable'))
       }
     })
@@ -108,7 +141,22 @@
   function _stringify(d) {
     if (d == null) return ''
     if (typeof d === 'string') return d
-    try { return JSON.stringify(d) } catch (e) { return '' }
+    try { return JSON.stringify(d) }
+    catch (e) {
+      // Earlier we silently returned '' here, which made circular-
+      // reference bugs invisible — the bridge call would still post,
+      // native would parse `''` as empty data, and the user got a
+      // mysterious "missing data" error far from the actual cause.
+      // Surface in the console (one shot per process via the same
+      // gate as _post's warning) so devs can find it.
+      if (!window.__craftStringifyWarned) {
+        window.__craftStringifyWarned = true
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[craft] failed to JSON.stringify bridge payload:', e && e.message)
+        }
+      }
+      return ''
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -130,22 +178,51 @@
   function _wrapWith(key) { return function (v) { var o = {}; o[key] = v; return o } }
   function _passthrough(v) { return (v && typeof v === 'object') ? v : { value: v } }
 
+  // Helpers for shape adapters that need to do real work.
+  function _rgbToHex(c) {
+    if (!c || typeof c !== 'object') return ''
+    function _hex(n) {
+      var i = Math.round(Math.max(0, Math.min(1, Number(n) || 0)) * 255)
+      var s = i.toString(16)
+      return s.length < 2 ? '0' + s : s
+    }
+    return '#' + _hex(c.r) + _hex(c.g) + _hex(c.b)
+  }
+
   // Per-bridge action → wrapper map. Adding a new action without an
   // entry just delivers `{value: payload}` via _passthrough, which the
   // facade can either accept or override.
   var _wrappers = {
     fs: {
       readFile:        _wrapWith('data'),
-      readDir:         _passthrough,         // already an object {entries:[...]}
-      stat:            _passthrough,         // already an object
+      // bridge_fs.zig sends a bare `[{name,isDirectory},...]` array.
+      // Wrap into the {entries} envelope our facade expects.
+      readDir:         function (v) { return { entries: Array.isArray(v) ? v : [] } },
+      // Native shape uses `mtime` (legacy unix int); facade wants
+      // `modifiedAt` in ms. Normalize both timestamp form and field name.
+      stat:            function (v) {
+        if (!v || typeof v !== 'object') return v
+        var mt = v.mtime != null ? v.mtime : (v.modifiedAt != null ? v.modifiedAt : 0)
+        if (mt < 1e12 && mt > 0) mt = mt * 1000
+        return {
+          isFile: !!v.isFile,
+          isDirectory: !!v.isDirectory,
+          isSymlink: !!v.isSymlink,
+          size: Number(v.size) || 0,
+          modifiedAt: mt,
+        }
+      },
       exists:          _wrapWith('exists'),
       getHomeDir:      _wrapWith('path'),
       getTempDir:      _wrapWith('path'),
       getAppDataDir:   _wrapWith('path'),
     },
     system: {
-      getAccentColor:        _wrapWith('color'),
-      getHighlightColor:     _wrapWith('color'),
+      // Accent + highlight come back as `{r,g,b}` floats 0..1 from
+      // bridge_system.zig — convert to a hex string here so callers get
+      // a value they can drop into CSS without further work.
+      getAccentColor:        function (v) { return { color: _rgbToHex(v) } },
+      getHighlightColor:     function (v) { return { color: _rgbToHex(v) } },
       getLanguage:           _wrapWith('language'),
       getLocale:             _wrapWith('locale'),
       getTimezone:           _wrapWith('timezone'),
@@ -550,6 +627,7 @@
   window.craft.screen = {
     getDisplays: function () { return _req('screen', 'getDisplays').then(function (r) { return (r && r.displays) || [] }) },
     getPrimary:  function () { return _req('screen', 'getPrimary') },
+    onChange:    _evt('craft:screen:change'),
   }
 
   // -------------------------------------------------------------------------

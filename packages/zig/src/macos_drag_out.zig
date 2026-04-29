@@ -59,15 +59,22 @@ pub fn handleMessage(action: []const u8, data: []const u8) !void {
         const item = macos.msgSend1(macos.msgSend0(NSDraggingItem, "alloc"), "initWithPasteboardWriter:", url);
         if (@intFromPtr(item) == 0) continue;
 
-        // Anchor the drag preview at the click point with an arbitrary
-        // 64×64 frame; AppKit will scale the file icon into it.
+        // Pull the file's actual icon via [NSWorkspace iconForFile:].
+        // Earlier we passed nil here, which left an empty rectangle
+        // floating with the cursor — terrible UX. Now the icon shown
+        // in Finder follows the cursor during the drag.
+        const NSWorkspace = macos.getClass("NSWorkspace");
+        const ws = macos.msgSend0(NSWorkspace, "sharedWorkspace");
+        const path_ns2 = macos.createNSString(path);
+        const icon = macos.msgSend1(ws, "iconForFile:", path_ns2);
+
         const frame = macos.NSRect{
             .origin = .{ .x = 0, .y = 0 },
             .size = .{ .width = 64, .height = 64 },
         };
         const Fn = *const fn (objc.id, objc.SEL, macos.NSRect, objc.id) callconv(.c) void;
         const f: Fn = @ptrCast(&objc.objc_msgSend);
-        f(item, macos.sel("setDraggingFrame:contents:"), frame, @as(objc.id, null));
+        f(item, macos.sel("setDraggingFrame:contents:"), frame, icon);
 
         _ = macos.msgSend1(items_arr, "addObject:", item);
     }
