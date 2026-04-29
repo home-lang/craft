@@ -3263,6 +3263,11 @@ var global_bluetooth_bridge: ?*@import("bridge_bluetooth.zig").BluetoothBridge =
 var global_tray_handle_for_bridge: ?*anyopaque = null;
 var global_clipboard_bridge: ?*@import("bridge_clipboard.zig").ClipboardBridge = null;
 var global_menubar_collapse_bridge: ?*@import("bridge_menubar.zig").MenubarCollapseBridge = null;
+var global_keychain_bridge: ?*@import("bridge_keychain.zig").KeychainBridge = null;
+var global_screen_bridge: ?*@import("bridge_screen.zig").ScreenBridge = null;
+var global_autolaunch_bridge: ?*@import("bridge_autolaunch.zig").AutoLaunchBridge = null;
+var global_permissions_bridge: ?*@import("bridge_permissions.zig").PermissionsBridge = null;
+var global_printing_bridge: ?*@import("bridge_printing.zig").PrintingBridge = null;
 
 pub fn setGlobalTrayHandle(handle: *anyopaque) void {
     global_tray_handle_for_bridge = handle;
@@ -3375,6 +3380,48 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         global_network_bridge.?.* = NetworkBridge.init(allocator);
     }
 
+    if (global_system_bridge == null) {
+        const SystemBridge = @import("bridge_system.zig").SystemBridge;
+        global_system_bridge = try allocator.create(SystemBridge);
+        global_system_bridge.?.* = SystemBridge.init(allocator);
+    }
+
+    if (global_bluetooth_bridge == null) {
+        const BluetoothBridge = @import("bridge_bluetooth.zig").BluetoothBridge;
+        global_bluetooth_bridge = try allocator.create(BluetoothBridge);
+        global_bluetooth_bridge.?.* = BluetoothBridge.init(allocator);
+    }
+
+    if (global_keychain_bridge == null) {
+        const KeychainBridge = @import("bridge_keychain.zig").KeychainBridge;
+        global_keychain_bridge = try allocator.create(KeychainBridge);
+        global_keychain_bridge.?.* = KeychainBridge.init(allocator);
+    }
+
+    if (global_screen_bridge == null) {
+        const ScreenBridge = @import("bridge_screen.zig").ScreenBridge;
+        global_screen_bridge = try allocator.create(ScreenBridge);
+        global_screen_bridge.?.* = ScreenBridge.init(allocator);
+    }
+
+    if (global_autolaunch_bridge == null) {
+        const AutoLaunchBridge = @import("bridge_autolaunch.zig").AutoLaunchBridge;
+        global_autolaunch_bridge = try allocator.create(AutoLaunchBridge);
+        global_autolaunch_bridge.?.* = AutoLaunchBridge.init(allocator);
+    }
+
+    if (global_permissions_bridge == null) {
+        const PermissionsBridge = @import("bridge_permissions.zig").PermissionsBridge;
+        global_permissions_bridge = try allocator.create(PermissionsBridge);
+        global_permissions_bridge.?.* = PermissionsBridge.init(allocator);
+    }
+
+    if (global_printing_bridge == null) {
+        const PrintingBridge = @import("bridge_printing.zig").PrintingBridge;
+        global_printing_bridge = try allocator.create(PrintingBridge);
+        global_printing_bridge.?.* = PrintingBridge.init(allocator);
+    }
+
     // theme + dragOut + deepLink: native modules with their own state, no
     // shared bridge struct — they install handlers directly via init().
     @import("macos_theme.zig").install();
@@ -3410,6 +3457,12 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
             const window_id: objc.id = @ptrCast(@alignCast(handle));
             bridge.setWindow(window_id);
         }
+
+        // Install window-events delegate so JS receives focus/blur/move/
+        // resize/close. Idempotent at the class level; per-window the
+        // delegate gets attached on every call.
+        const window_id: objc.id = @ptrCast(@alignCast(handle));
+        @import("macos_window_events.zig").install(window_id);
     }
 }
 
@@ -3616,6 +3669,34 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         }
     } else if (std.mem.eql(u8, msg_type, "dragOut")) {
         try @import("macos_drag_out.zig").handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "system")) {
+        if (global_system_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "bluetooth")) {
+        if (global_bluetooth_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "keychain")) {
+        if (global_keychain_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "screen")) {
+        if (global_screen_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "autoLaunch")) {
+        if (global_autolaunch_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "permissions")) {
+        if (global_permissions_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "printing")) {
+        if (global_printing_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages
         if (comptime builtin.mode == .Debug) {

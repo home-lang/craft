@@ -99,24 +99,33 @@ pub fn handleMessage(action: []const u8, data: []const u8) !void {
 /// Pull `paths` array out of the JSON payload. Returns owned slice of
 /// owned strings — caller frees the outer slice; this fn frees individual
 /// strings as they're consumed in handleMessage above.
+///
+/// The early-return paths previously did `return &.{}` which the compiler
+/// accepted but produced a slice of an empty *anyopaque-shaped* literal,
+/// not a `[][]u8`. Use a proper typed empty slice instead.
 fn parsePaths(data: []const u8) ![][]u8 {
     const allocator = std.heap.c_allocator;
-    const parsed = std.json.parseFromSlice(std.json.Value, allocator, data, .{}) catch return &.{};
+    const empty: [][]u8 = &[_][]u8{};
+
+    const parsed = std.json.parseFromSlice(std.json.Value, allocator, data, .{}) catch return empty;
     defer parsed.deinit();
 
     const root = switch (parsed.value) {
         .object => |o| o,
-        else => return &.{},
+        else => return empty,
     };
 
-    const paths_val = root.get("paths") orelse return &.{};
+    const paths_val = root.get("paths") orelse return empty;
     const arr = switch (paths_val) {
         .array => |a| a,
-        else => return &.{},
+        else => return empty,
     };
 
     var out: std.ArrayListUnmanaged([]u8) = .empty;
     errdefer {
+        // Free anything we already duped before the error — without
+        // this, partial successes leak across errors deep in `try
+        // append` (rare but real on OOM).
         for (out.items) |p| allocator.free(p);
         out.deinit(allocator);
     }

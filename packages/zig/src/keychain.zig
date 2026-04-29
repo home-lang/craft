@@ -868,7 +868,7 @@ test "TokenStore initialization" {
     var keychain = try Keychain.init(allocator, "com.test.app");
     defer keychain.deinit();
 
-    var token_store = TokenStore.init(&keychain, "myapp");
+    const token_store = TokenStore.init(&keychain, "myapp");
     try std.testing.expectEqualStrings("myapp", token_store.prefix);
 }
 
@@ -877,7 +877,7 @@ test "CredentialStore initialization" {
     var keychain = try Keychain.init(allocator, "com.test.app");
     defer keychain.deinit();
 
-    var cred_store = CredentialStore.init(&keychain, "github");
+    const cred_store = CredentialStore.init(&keychain, "github");
     try std.testing.expectEqualStrings("github", cred_store.service);
 }
 

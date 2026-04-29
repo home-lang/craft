@@ -111,11 +111,14 @@ fn deliver() void {
     const names_arr = f(NSArray_class, macos.sel("arrayWithObjects:count:"), &arr_items, 2);
 
     const matched = macos.msgSend1(appearance, "bestMatchFromAppearancesWithNames:", names_arr);
-    var is_dark: bool = false;
-    if (@intFromPtr(matched) != 0) {
-        is_dark = macos.msgSendBool(matched, "isEqualToString:") or
-            isEqualToString(matched, "NSAppearanceNameDarkAqua");
-    }
+    // Earlier code called `msgSendBool(matched, "isEqualToString:")` —
+    // that sends the selector with NO argument, which is undefined
+    // behaviour (the implementation reads garbage off the stack). Use
+    // the typed helper that actually passes the comparison NSString.
+    const is_dark = if (@intFromPtr(matched) != 0)
+        isEqualToString(matched, "NSAppearanceNameDarkAqua")
+    else
+        false;
 
     const json = if (is_dark) "{\"appearance\":\"dark\"}" else "{\"appearance\":\"light\"}";
 

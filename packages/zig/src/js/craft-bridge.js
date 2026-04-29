@@ -59,6 +59,15 @@
       return true
     }
     catch (e) {
+      // Silent failure made debugging painful — surface the cause exactly
+      // once per session so devs see it without spamming the console for
+      // the (legitimate) every-call-on-non-Craft-host pattern.
+      if (!window.__craftBridgeWarned) {
+        window.__craftBridgeWarned = true
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[craft] bridge unavailable — running outside Craft window?', e && e.message)
+        }
+      }
       return false
     }
   }
@@ -103,6 +112,112 @@
   }
 
   // -------------------------------------------------------------------------
+  // Legacy per-bridge result channel translators.
+  //
+  // Several native bridges (fs, system, shell, power, network, bluetooth,
+  // menu) use per-bridge callback functions instead of the unified
+  // __craftBridgeResult, and they pass result payloads as bare values
+  // (booleans, strings, numbers, arrays) rather than the
+  // `{key:value}` envelope the JS facades expect. We normalize here so
+  // that facades stay uniform — every facade just calls `_req` and gets
+  // back a `{value|level|address|state|...}` envelope.
+  //
+  // The `wrap*` helpers below pick the right envelope key per action.
+  // Any unrecognised action falls back to `{value: payload}` which is
+  // safe — facades default-extract from `r.value` when no field matches.
+  // -------------------------------------------------------------------------
+
+  function _wrapWith(key) { return function (v) { var o = {}; o[key] = v; return o } }
+  function _passthrough(v) { return (v && typeof v === 'object') ? v : { value: v } }
+
+  // Per-bridge action → wrapper map. Adding a new action without an
+  // entry just delivers `{value: payload}` via _passthrough, which the
+  // facade can either accept or override.
+  var _wrappers = {
+    fs: {
+      readFile:        _wrapWith('data'),
+      readDir:         _passthrough,         // already an object {entries:[...]}
+      stat:            _passthrough,         // already an object
+      exists:          _wrapWith('exists'),
+      getHomeDir:      _wrapWith('path'),
+      getTempDir:      _wrapWith('path'),
+      getAppDataDir:   _wrapWith('path'),
+    },
+    system: {
+      getAccentColor:        _wrapWith('color'),
+      getHighlightColor:     _wrapWith('color'),
+      getLanguage:           _wrapWith('language'),
+      getLocale:             _wrapWith('locale'),
+      getTimezone:           _wrapWith('timezone'),
+      getSystemVersion:      _wrapWith('version'),
+      getHostname:           _wrapWith('hostname'),
+      getUsername:           _wrapWith('username'),
+      is24HourTime:          _wrapWith('value'),
+      getReduceMotion:       _wrapWith('value'),
+      getReduceTransparency: _wrapWith('value'),
+      getIncreaseContrast:   _wrapWith('value'),
+    },
+    shell: {
+      getEnv:                _wrapWith('value'),
+    },
+    power: {
+      isCharging:            _wrapWith('value'),
+      isPluggedIn:           _wrapWith('value'),
+      isLowPowerMode:        _wrapWith('value'),
+      getBatteryLevel:       _wrapWith('level'),
+      getBatteryState:       _wrapWith('state'),
+      getTimeRemaining:      _wrapWith('minutes'),
+      getThermalState:       _wrapWith('state'),
+      getUptimeSeconds:      _wrapWith('seconds'),
+    },
+    network: {
+      isConnected:           _wrapWith('value'),
+      getConnectionType:     _wrapWith('type'),
+      getWiFiSSID:           _wrapWith('ssid'),
+      getWiFiSignalStrength: _wrapWith('dBm'),
+      getIPAddress:          _wrapWith('address'),
+      getMACAddress:         _wrapWith('address'),
+      getNetworkInterfaces:  function (v) { return { interfaces: Array.isArray(v) ? v : [] } },
+      isVPNConnected:        _wrapWith('value'),
+      getProxySettings:      _passthrough,
+    },
+    bluetooth: {
+      isEnabled:             _wrapWith('value'),
+      isAvailable:           _wrapWith('value'),
+      isDiscovering:         _wrapWith('value'),
+      getPowerState:         _wrapWith('state'),
+      getConnectedDevices:   function (v) { return { devices: Array.isArray(v) ? v : ((v && v.devices) || []) } },
+      getPairedDevices:      function (v) { return { devices: Array.isArray(v) ? v : ((v && v.devices) || []) } },
+    },
+  }
+
+  function _legacyResult(ns, action, payload) {
+    var wrapper = (_wrappers[ns] && _wrappers[ns][action]) || _passthrough
+    var envelope
+    try { envelope = wrapper(payload) }
+    catch (e) { envelope = _passthrough(payload) }
+    if (typeof window.__craftBridgeResult === 'function') {
+      window.__craftBridgeResult(action, envelope)
+    }
+  }
+
+  window.__craftFSCallback        = function (cb, a, p) { _legacyResult('fs', a, p) }
+  window.__craftSystemCallback    = function (cb, a, p) { _legacyResult('system', a, p) }
+  window.__craftShellCallback     = function (cb, a, p) { _legacyResult('shell', a, p) }
+  window.__craftPowerCallback     = function (cb, a, p) { _legacyResult('power', a, p) }
+  window.__craftNetworkCallback   = function (cb, a, p) { _legacyResult('network', a, p) }
+  window.__craftBluetoothCallback = function (cb, a, p) { _legacyResult('bluetooth', a, p) }
+
+  // The menu callback is fundamentally different — bridge_menu.zig fires
+  // it with a single `(action_id)` arg when the user clicks a menu item.
+  // We re-emit as a `craft:menu:action` event for `craft.menu.onAction`.
+  window.__craftMenuCallback = function (id) {
+    if (typeof id === 'string' && id.length > 0) {
+      window.dispatchEvent(new CustomEvent('craft:menu:action', { detail: { id: id } }))
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // window — full surface from bridge_window.zig
   // -------------------------------------------------------------------------
   window.craft.window = {
@@ -133,13 +248,37 @@
   }
 
   // -------------------------------------------------------------------------
-  // app — process-level controls
+  // app — process-level controls + metadata
   // -------------------------------------------------------------------------
   window.craft.app = {
     hideDockIcon: function () { return _send('app', 'hideDockIcon') },
     showDockIcon: function () { return _send('app', 'showDockIcon') },
     quit:         function () { return _send('app', 'quit') },
+    // Bundle / process metadata for About panels and log paths.
+    getInfo:      function () { return _req('app', 'getInfo') },
+    notify:       function (opts) { return _send('app', 'notify', _stringify(opts || {})) },
+    setBadge:     function (n)    { return _send('app', 'setBadge', _stringify({ count: Number(n) || 0 })) },
+    bounce:       function (type) { return _send('app', 'bounce', _stringify({ type: String(type || 'informational') })) },
   }
+
+  // -------------------------------------------------------------------------
+  // window — events (focus/blur/resize/move/close, etc).
+  // The event payload arrives via __craftDeliverWindowEvent from the
+  // native NSWindowDelegate; we re-emit as `craft:window:<name>` events.
+  // -------------------------------------------------------------------------
+  window.__craftDeliverWindowEvent = function (name, detail) {
+    if (typeof name !== 'string' || name.length === 0) return
+    window.dispatchEvent(new CustomEvent('craft:window:' + name, { detail: detail || {} }))
+  }
+  // Add event subscribers as a sibling object — keeps the action API
+  // (`craft.window.show()`) and the event API distinct.
+  window.craft.window.onFocus    = _evt('craft:window:focus')
+  window.craft.window.onBlur     = _evt('craft:window:blur')
+  window.craft.window.onResize   = _evt('craft:window:resize')
+  window.craft.window.onMove     = _evt('craft:window:move')
+  window.craft.window.onClose    = _evt('craft:window:close')
+  window.craft.window.onMinimize = _evt('craft:window:minimize')
+  window.craft.window.onRestore  = _evt('craft:window:restore')
 
   // -------------------------------------------------------------------------
   // dialog — file pickers + alerts
@@ -324,8 +463,12 @@
     isCharging:        function () { return _req('power', 'isCharging').then(function (r) { return !!(r && r.value) }) },
     isPluggedIn:       function () { return _req('power', 'isPluggedIn').then(function (r) { return !!(r && r.value) }) },
     isLowPowerMode:    function () { return _req('power', 'isLowPowerMode').then(function (r) { return !!(r && r.value) }) },
-    batteryLevel:      function () { return _req('power', 'getBatteryState').then(function (r) { return (r && r.level) || 0 }) },
-    timeRemaining:     function () { return _req('power', 'getTimeRemaining').then(function (r) { return r && r.minutes }) },
+    // The native bridge has both getBatteryLevel (numeric 0..1) and
+    // getBatteryState (string like "charged"|"unplugged"). Earlier this
+    // facade called the wrong action; calling getBatteryLevel here.
+    batteryLevel:      function () { return _req('power', 'getBatteryLevel').then(function (r) { return (r && r.level != null) ? r.level : null }) },
+    batteryState:      function () { return _req('power', 'getBatteryState').then(function (r) { return (r && r.state) || 'unknown' }) },
+    timeRemaining:     function () { return _req('power', 'getTimeRemaining').then(function (r) { return (r && r.minutes != null) ? r.minutes : null }) },
     thermalState:      function () { return _req('power', 'getThermalState').then(function (r) { return (r && r.state) || 'nominal' }) },
     uptimeSeconds:     function () { return _req('power', 'getUptimeSeconds').then(function (r) { return (r && r.seconds) || 0 }) },
     preventSleep:      function (reason) { return _send('power', 'preventSleep', _stringify({ reason: String(reason || '') })) },
@@ -363,6 +506,133 @@
     getUpdateInfo:             function ()       { return _req('updater', 'getUpdateInfo') },
     onAvailable:               _evt('craft:updateAvailable'),
     onDownloaded:              _evt('craft:updateDownloaded'),
+  }
+
+  // -------------------------------------------------------------------------
+  // system — host machine info (locale, timezone, accessibility flags)
+  // -------------------------------------------------------------------------
+  window.craft.system = {
+    accentColor:      function () { return _req('system', 'getAccentColor').then(function (r) { return (r && r.color) || '' }) },
+    highlightColor:   function () { return _req('system', 'getHighlightColor').then(function (r) { return (r && r.color) || '' }) },
+    language:         function () { return _req('system', 'getLanguage').then(function (r) { return (r && r.language) || '' }) },
+    locale:           function () { return _req('system', 'getLocale').then(function (r) { return (r && r.locale) || '' }) },
+    timezone:         function () { return _req('system', 'getTimezone').then(function (r) { return (r && r.timezone) || '' }) },
+    is24HourTime:     function () { return _req('system', 'is24HourTime').then(function (r) { return !!(r && r.value) }) },
+    reduceMotion:     function () { return _req('system', 'getReduceMotion').then(function (r) { return !!(r && r.value) }) },
+    reduceTransparency:function(){ return _req('system', 'getReduceTransparency').then(function (r) { return !!(r && r.value) }) },
+    increaseContrast: function () { return _req('system', 'getIncreaseContrast').then(function (r) { return !!(r && r.value) }) },
+    systemVersion:    function () { return _req('system', 'getSystemVersion').then(function (r) { return (r && r.version) || '' }) },
+    hostname:         function () { return _req('system', 'getHostname').then(function (r) { return (r && r.hostname) || '' }) },
+    username:         function () { return _req('system', 'getUsername').then(function (r) { return (r && r.username) || '' }) },
+    openPreferences:  function () { return _send('system', 'openSystemPreferences') },
+  }
+
+  // -------------------------------------------------------------------------
+  // menu — application menubar (the macOS top-of-screen menu)
+  // -------------------------------------------------------------------------
+  window.craft.menu = {
+    set:                  function (items)             { return _send('menu', 'setApplicationMenu', _stringify(items || [])) },
+    setDock:              function (items)             { return _send('menu', 'setDockMenu', _stringify(items || [])) },
+    addItem:              function (parent, item)      { return _send('menu', 'addMenuItem', _stringify({ parent: String(parent), item: item })) },
+    removeItem:           function (id)                { return _send('menu', 'removeMenuItem', _stringify({ id: String(id) })) },
+    enableItem:           function (id)                { return _send('menu', 'enableMenuItem', _stringify({ id: String(id) })) },
+    disableItem:          function (id)                { return _send('menu', 'disableMenuItem', _stringify({ id: String(id) })) },
+    checkItem:            function (id)                { return _send('menu', 'checkMenuItem', _stringify({ id: String(id) })) },
+    uncheckItem:          function (id)                { return _send('menu', 'uncheckMenuItem', _stringify({ id: String(id) })) },
+    setItemLabel:         function (id, label)         { return _send('menu', 'setMenuItemLabel', _stringify({ id: String(id), label: String(label) })) },
+    clearDock:            function ()                  { return _send('menu', 'clearDockMenu') },
+    onAction:             _evt('craft:menu:action'),
+  }
+
+  // -------------------------------------------------------------------------
+  // screen — display info (multi-monitor)
+  // -------------------------------------------------------------------------
+  window.craft.screen = {
+    getDisplays: function () { return _req('screen', 'getDisplays').then(function (r) { return (r && r.displays) || [] }) },
+    getPrimary:  function () { return _req('screen', 'getPrimary') },
+  }
+
+  // -------------------------------------------------------------------------
+  // keychain — secure secret storage (macOS Keychain / Win Credential
+  // Manager / Linux Secret Service via DBus)
+  // -------------------------------------------------------------------------
+  window.craft.keychain = {
+    set:    function (service, account, password) {
+      return _send('keychain', 'set', _stringify({ service: String(service), account: String(account), password: String(password) }))
+    },
+    get:    function (service, account) {
+      return _req('keychain', 'get', _stringify({ service: String(service), account: String(account) }))
+        .then(function (r) { return r && r.value })
+    },
+    delete: function (service, account) {
+      return _send('keychain', 'delete', _stringify({ service: String(service), account: String(account) }))
+    },
+    has:    function (service, account) {
+      return _req('keychain', 'has', _stringify({ service: String(service), account: String(account) }))
+        .then(function (r) { return !!(r && r.value) })
+    },
+  }
+
+  // -------------------------------------------------------------------------
+  // permissions — runtime privacy gates (camera, mic, screen recording)
+  // -------------------------------------------------------------------------
+  window.craft.permissions = {
+    check:        function (name) { return _req('permissions', 'check',   _stringify({ name: String(name) })).then(function (r) { return (r && r.status) || 'undetermined' }) },
+    request:      function (name) { return _req('permissions', 'request', _stringify({ name: String(name) })).then(function (r) { return (r && r.status) || 'undetermined' }) },
+    openSettings: function (name) { return _send('permissions', 'openSettings', _stringify({ name: String(name || '') })) },
+  }
+
+  // -------------------------------------------------------------------------
+  // printing — print page / generate PDF
+  // -------------------------------------------------------------------------
+  window.craft.printing = {
+    print:      function ()       { return _req('printing', 'print') },
+    printToPDF: function (path)   { return _req('printing', 'printToPDF', _stringify({ path: String(path) })) },
+  }
+
+  // -------------------------------------------------------------------------
+  // autoLaunch — start at login (SMAppService on macOS Ventura+)
+  // -------------------------------------------------------------------------
+  window.craft.autoLaunch = {
+    enable:    function () { return _req('autoLaunch', 'enable').then(function (r) { return !!(r && r.ok) }) },
+    disable:   function () { return _req('autoLaunch', 'disable').then(function (r) { return !!(r && r.ok) }) },
+    isEnabled: function () { return _req('autoLaunch', 'isEnabled').then(function (r) { return !!(r && r.value) }) },
+  }
+
+  // -------------------------------------------------------------------------
+  // touchbar — Touch Bar items (legacy macOS hardware)
+  // -------------------------------------------------------------------------
+  window.craft.touchbar = {
+    addItem:        function (item)         { return _send('touchbar', 'addItem', _stringify(item || {})) },
+    removeItem:     function (id)           { return _send('touchbar', 'removeItem', _stringify({ id: String(id) })) },
+    updateItem:     function (id, props)    { return _send('touchbar', 'updateItem', _stringify(Object.assign({ id: String(id) }, props || {}))) },
+    setLabel:       function (id, label)    { return _send('touchbar', 'setItemLabel', _stringify({ id: String(id), label: String(label) })) },
+    setIcon:        function (id, icon)     { return _send('touchbar', 'setItemIcon', _stringify({ id: String(id), icon: String(icon) })) },
+    setEnabled:     function (id, enabled)  { return _send('touchbar', 'setItemEnabled', _stringify({ id: String(id), enabled: !!enabled })) },
+    setSliderValue: function (id, value)    { return _send('touchbar', 'setSliderValue', _stringify({ id: String(id), value: Number(value) || 0 })) },
+    clear:          function ()             { return _send('touchbar', 'clear') },
+    show:           function ()             { return _send('touchbar', 'show') },
+    hide:           function ()             { return _send('touchbar', 'hide') },
+    onAction:       _evt('craft:touchbar:action'),
+  }
+
+  // -------------------------------------------------------------------------
+  // bluetooth — discovery + pairing (delegates to bridge_bluetooth)
+  // -------------------------------------------------------------------------
+  window.craft.bluetooth = {
+    isEnabled:           function () { return _req('bluetooth', 'isEnabled').then(function (r) { return !!(r && r.value) }) },
+    powerState:          function () { return _req('bluetooth', 'getPowerState').then(function (r) { return (r && r.state) || 'unknown' }) },
+    connectedDevices:    function () { return _req('bluetooth', 'getConnectedDevices').then(function (r) { return (r && r.devices) || [] }) },
+    pairedDevices:       function () { return _req('bluetooth', 'getPairedDevices').then(function (r) { return (r && r.devices) || [] }) },
+    startDiscovery:      function ()       { return _send('bluetooth', 'startDiscovery') },
+    stopDiscovery:       function ()       { return _send('bluetooth', 'stopDiscovery') },
+    isDiscovering:       function ()       { return _req('bluetooth', 'isDiscovering').then(function (r) { return !!(r && r.value) }) },
+    connect:             function (id)     { return _send('bluetooth', 'connectDevice', _stringify({ id: String(id) })) },
+    disconnect:          function (id)     { return _send('bluetooth', 'disconnectDevice', _stringify({ id: String(id) })) },
+    openPreferences:     function ()       { return _send('bluetooth', 'openBluetoothPreferences') },
+    onDeviceFound:       _evt('craft:bluetooth:deviceFound'),
+    onDeviceConnected:   _evt('craft:bluetooth:deviceConnected'),
+    onDeviceDisconnected:_evt('craft:bluetooth:deviceDisconnected'),
   }
 
   // -------------------------------------------------------------------------
