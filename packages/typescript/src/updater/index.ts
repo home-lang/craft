@@ -82,6 +82,19 @@ export type UpdaterEvent =
   | 'before-quit-for-update'
   | 'error'
 
+/**
+ * Run `find <root> -name <pattern> -type <kind> -print0` and return the
+ * first match. Splitting on `\0` is required because macOS/Linux paths
+ * can legally contain newlines — splitting on `\n` (the previous
+ * implementation) corrupted those paths. Returns `''` when no match.
+ */
+function findFirstByName(root: string, namePattern: string, kind: 'd' | 'f'): string {
+  const out = execFileSync('find', [root, '-name', namePattern, '-type', kind, '-print0'])
+  const nullByte = String.fromCharCode(0)
+  const parts = out.toString('utf-8').split(nullByte).filter(s => s.length > 0)
+  return parts[0] ?? ''
+}
+
 // Auto Updater
 export class AutoUpdater extends EventEmitter {
   private config: UpdaterConfig
@@ -330,11 +343,49 @@ catch (error) {
   }
 
   /**
-   * Install the downloaded update
+   * Install the downloaded update.
+   *
+   * Re-verifies SHA-256 (and signature, if a public key is configured)
+   * against the manifest entry immediately before invoking the privileged
+   * installer. This is belt-and-suspenders insurance: `download()` already
+   * verifies, but `installUpdate()` is a public method, the file lives on
+   * disk between download and install, and a privileged installer
+   * touching attacker-tampered bytes is the kind of mistake that turns
+   * into a CVE.
    */
   async installUpdate(restartAfter = true): Promise<void> {
     if (!this.downloadPath || !existsSync(this.downloadPath)) {
       throw new Error('No update downloaded')
+    }
+
+    if (this.updateInfo) {
+      const platform = this.getPlatform()
+      const platformUpdate = this.updateInfo.platforms[platform]
+      if (platformUpdate) {
+        const hash = await this.computeFileHash(this.downloadPath)
+        if (hash !== platformUpdate.sha256) {
+          // Treat the local copy as compromised — drop it so a retry
+          // forces a fresh download from the manifest URL.
+          try { unlinkSync(this.downloadPath) } catch { /* best effort */ }
+          throw new Error(
+            `Updater.installUpdate: pre-install hash mismatch on ${this.downloadPath}. `
+            + 'The downloaded bundle changed between download and install — refusing to run installer.',
+          )
+        }
+        if (this.config.publicKeyPem && !platformUpdate.signature) {
+          throw new Error(
+            'Updater.installUpdate: publicKeyPem is configured but manifest has no signature. '
+            + 'Refusing to install unsigned update.',
+          )
+        }
+        if (platformUpdate.signature) {
+          const valid = await this.verifySignature(this.downloadPath, platformUpdate.signature)
+          if (!valid) {
+            try { unlinkSync(this.downloadPath) } catch { /* best effort */ }
+            throw new Error('Updater.installUpdate: invalid signature on downloaded bundle')
+          }
+        }
+      }
     }
 
     this.emit('before-quit-for-update')
@@ -389,11 +440,10 @@ catch (error) {
 
       execFileSync('unzip', ['-o', downloadPath, '-d', tempDir])
 
-      // Find the .app in extracted contents
-      const extractedApp = execFileSync('find', [tempDir, '-name', '*.app', '-type', 'd'])
-        .toString()
-        .split('\n')[0]
-        .trim()
+      // Find the .app in extracted contents. `-print0` + null-byte split
+      // is required because macOS allows newlines in path names; the
+      // previous `\n`-split parse silently truncated such paths.
+      const extractedApp = findFirstByName(tempDir, '*.app', 'd')
 
       if (extractedApp) {
         // Replace current app
@@ -413,10 +463,7 @@ else if (downloadPath.endsWith('.dmg')) {
 
       if (mountPoint) {
         // Find and copy the app
-        const dmgApp = execFileSync('find', [mountPoint, '-name', '*.app', '-type', 'd'])
-          .toString()
-          .split('\n')[0]
-          .trim()
+        const dmgApp = findFirstByName(mountPoint, '*.app', 'd')
 
         if (dmgApp) {
           const { rmSync, cpSync } = await import('fs')

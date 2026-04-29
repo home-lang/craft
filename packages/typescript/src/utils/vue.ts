@@ -19,6 +19,8 @@ import {
   type InjectionKey,
   type Ref,
 } from 'vue';
+import { app as appApi } from '../api/app';
+import { windowManager } from '../api/window';
 
 // ============================================
 // Types
@@ -113,7 +115,7 @@ function createCraftContext(): {
 
   const setDarkMode = (dark: boolean): void => {
     state.isDarkMode = dark;
-    // Would call native API
+    void appApi.setAppearance(dark ? 'dark' : 'light').catch(() => { /* host not present */ });
   };
 
   return {
@@ -154,39 +156,46 @@ function createWindowContext(): {
     if (typeof document !== 'undefined') {
       document.title = title;
     }
+    void windowManager.setTitle(title).catch(() => { /* host not present */ });
   };
 
   const setSize = (width: number, height: number): void => {
     state.width = width;
     state.height = height;
+    void windowManager.setSize(width, height).catch(() => { /* host not present */ });
   };
 
   const setPosition = (x: number, y: number): void => {
     state.x = x;
     state.y = y;
+    void windowManager.setPosition(x, y).catch(() => { /* host not present */ });
   };
 
   const minimize = (): void => {
     state.isMinimized = true;
     state.isMaximized = false;
+    void windowManager.minimize().catch(() => { /* host not present */ });
   };
 
   const maximize = (): void => {
     state.isMaximized = true;
     state.isMinimized = false;
+    void windowManager.maximize().catch(() => { /* host not present */ });
   };
 
   const restore = (): void => {
     state.isMaximized = false;
     state.isMinimized = false;
+    void windowManager.current.restore().catch(() => { /* host not present */ });
   };
 
   const close = (): void => {
-    // Would call native API
+    void windowManager.close().catch(() => { /* host not present */ });
   };
 
   const toggleFullscreen = (): void => {
     state.isFullscreen = !state.isFullscreen;
+    void windowManager.toggleFullscreen().catch(() => { /* host not present */ });
   };
 
   const show = (): void => {

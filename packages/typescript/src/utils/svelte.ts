@@ -5,6 +5,7 @@
 
 import { writable, derived, readable, get, type Writable, type Readable } from 'svelte/store';
 import { onMount, onDestroy } from 'svelte';
+import { windowManager } from '../api/window';
 
 // ============================================
 // Types
@@ -144,36 +145,46 @@ function createWindowStore(): {
       if (typeof document !== 'undefined') {
         document.title = title;
       }
+      void windowManager.setTitle(title).catch(() => { /* host not present */ });
     },
     setSize: (width: number, height: number): void => {
       update((state: WindowState) => ({ ...state, width, height }));
+      void windowManager.setSize(width, height).catch(() => { /* host not present */ });
     },
     setPosition: (x: number, y: number): void => {
       update((state: WindowState) => ({ ...state, x, y }));
+      void windowManager.setPosition(x, y).catch(() => { /* host not present */ });
     },
     minimize: (): void => {
       update((state: WindowState) => ({ ...state, isMinimized: true, isMaximized: false }));
+      void windowManager.minimize().catch(() => { /* host not present */ });
     },
     maximize: (): void => {
       update((state: WindowState) => ({ ...state, isMaximized: true, isMinimized: false }));
+      void windowManager.maximize().catch(() => { /* host not present */ });
     },
     restore: (): void => {
       update((state: WindowState) => ({ ...state, isMaximized: false, isMinimized: false }));
+      void windowManager.current.restore().catch(() => { /* host not present */ });
     },
     close: (): void => {
-      // Would call native API
+      void windowManager.close().catch(() => { /* host not present */ });
     },
     toggleFullscreen: (): void => {
       update((state: WindowState) => ({ ...state, isFullscreen: !state.isFullscreen }));
+      void windowManager.toggleFullscreen().catch(() => { /* host not present */ });
     },
     show: (): void => {
       update((state: WindowState) => ({ ...state, isVisible: true }));
+      void windowManager.show().catch(() => { /* host not present */ });
     },
     hide: (): void => {
       update((state: WindowState) => ({ ...state, isVisible: false }));
+      void windowManager.hide().catch(() => { /* host not present */ });
     },
     focus: (): void => {
       update((state: WindowState) => ({ ...state, isFocused: true }));
+      void windowManager.focus().catch(() => { /* host not present */ });
     },
   };
 }

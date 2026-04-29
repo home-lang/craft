@@ -4,7 +4,8 @@
  */
 
 import { execFile, spawn, type ChildProcess } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import type { AppConfig, WindowOptions } from './types'
@@ -185,6 +186,34 @@ export * from './optimizations'
 // Export auto-updater (delta/differential update support)
 export * as updater from './updater'
 
+/**
+ * Decide whether to enable dev defaults (hot-reload + devtools). The
+ * previous default keyed exclusively off `NODE_ENV === 'development'`,
+ * which Bun scripts and packaged CLIs almost never set; the result was
+ * that you had to opt into devtools manually even when running from
+ * source. The order of precedence is:
+ *
+ *   1. `CRAFT_ENV` env var, if set (`development`/`production` win).
+ *   2. `NODE_ENV` env var, if set.
+ *   3. Heuristic: enabled when not running inside a packaged binary
+ *      (i.e. `process.pkg` / `import.meta.main` are absent or true).
+ *      Keeps "just clone and run" working out of the box.
+ */
+function detectDevMode(): boolean {
+  if (typeof process === 'undefined') return false
+  const craftEnv = (process.env.CRAFT_ENV || '').toLowerCase()
+  if (craftEnv === 'development' || craftEnv === 'dev') return true
+  if (craftEnv === 'production' || craftEnv === 'prod') return false
+  const nodeEnv = (process.env.NODE_ENV || '').toLowerCase()
+  if (nodeEnv === 'development' || nodeEnv === 'dev') return true
+  if (nodeEnv === 'production' || nodeEnv === 'prod') return false
+  // Packaged-binary heuristic. `process.pkg` (pkg/Bun-compile),
+  // `process.isPackaged` (Electron) → not dev. Otherwise default to dev.
+  const proc = process as unknown as { pkg?: unknown; isPackaged?: boolean }
+  if (proc.pkg || proc.isPackaged) return false
+  return true
+}
+
 export class CraftApp {
   private process?: ChildProcess
   private config: AppConfig
@@ -214,8 +243,8 @@ export class CraftApp {
         transparent: false,
         alwaysOnTop: false,
         fullscreen: false,
-        hotReload: typeof process !== 'undefined' && process.env.NODE_ENV === 'development',
-        devTools: typeof process !== 'undefined' && process.env.NODE_ENV === 'development',
+        hotReload: detectDevMode(),
+        devTools: detectDevMode(),
         systemTray: false,
         ...config.window,
       },
@@ -372,8 +401,32 @@ export class CraftApp {
       args.push('--native-sidebar')
       if (window?.sidebarWidth)
         args.push('--sidebar-width', String(window.sidebarWidth))
-      if (window?.sidebarConfig)
-        args.push('--sidebar-config', JSON.stringify(window.sidebarConfig))
+      if (window?.sidebarConfig) {
+        // sidebarConfig used to be JSON-stringified onto argv directly,
+        // which (a) hits OS argv length limits on macOS/Linux, (b) breaks
+        // on cmd.exe when the config contains newlines, and (c) leaks the
+        // entire config to anyone running `ps`. Inline tiny configs that
+        // are clearly safe (≤ 4 KiB, no newlines) and spill larger ones
+        // into a temp file via `--sidebar-config-file <path>`.
+        let json: string
+        try {
+          json = JSON.stringify(window.sidebarConfig)
+        }
+        catch (e) {
+          throw new Error(`Failed to serialize sidebarConfig: ${(e as Error).message}`)
+        }
+        const inlineLimit = 4096
+        const safeForArgv = json.length <= inlineLimit && !json.includes('\n') && !json.includes('\r')
+        if (safeForArgv) {
+          args.push('--sidebar-config', json)
+        }
+        else {
+          const dir = mkdtempSync(join(tmpdir(), 'craft-sidebar-'))
+          const path = join(dir, 'sidebar-config.json')
+          writeFileSync(path, json, 'utf-8')
+          args.push('--sidebar-config-file', path)
+        }
+      }
     }
 
     if (this.config.quiet)
@@ -405,7 +458,18 @@ export class CraftApp {
       if (existsSync(path)) return path
     }
 
-    // Fall back to PATH (may resolve to CLI wrapper)
+    // No binary found in any known location. In dev mode, falling back to
+    // PATH lets users iterate without rebuilding, but in production it
+    // means we hand off to whatever happens to be named `craft` on disk —
+    // which could be the SDK CLI wrapper or an unrelated tool. Refuse
+    // explicitly when not in dev mode so the failure mode is obvious.
+    if (!detectDevMode()) {
+      throw new Error(
+        'Craft native binary not found in any known location.\n'
+        + 'Searched:\n' + possiblePaths.map(p => `  - ${p}`).join('\n') + '\n'
+        + 'Set `craftPath` on AppConfig, or set CRAFT_ENV=development to allow PATH fallback.',
+      )
+    }
     return 'craft'
   }
 }

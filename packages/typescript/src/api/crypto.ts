@@ -178,6 +178,16 @@ export const crypto: CraftCryptoAPI = {
 }
 
 /**
+ * Convert a Uint8Array into a BufferSource that satisfies WebCrypto's
+ * stricter `ArrayBufferView<ArrayBuffer>` type. The runtime value is the
+ * same; the cast is purely to keep TypeScript happy in projects that
+ * pin `lib: ["DOM"]` to the post-resizable-buffers definitions.
+ */
+function asBufferSource(bytes: Uint8Array): BufferSource {
+  return bytes as unknown as BufferSource
+}
+
+/**
  * Derive a 32-byte AES key from a password using PBKDF2-SHA256. WebCrypto
  * is preferred when available; Node `pbkdf2Sync` is used as a fallback.
  */
@@ -194,7 +204,7 @@ async function derivePbkdf2Key(password: string, salt: Uint8Array): Promise<Cryp
     return globalThis.crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
-        salt,
+        salt: asBufferSource(salt),
         iterations: PBKDF2_ITERATIONS,
         hash: 'SHA-256',
       },
@@ -225,7 +235,11 @@ async function aesGcmEncrypt(
     out.set(tag, ct1.length + ct2.length)
     return out
   }
-  const out = await globalThis.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext)
+  const out = await globalThis.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: asBufferSource(iv) },
+    key,
+    asBufferSource(plaintext),
+  )
   return new Uint8Array(out)
 }
 
@@ -247,7 +261,11 @@ async function aesGcmDecrypt(
     out.set(pt2, pt1.length)
     return out
   }
-  const out = await globalThis.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertextWithTag)
+  const out = await globalThis.crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: asBufferSource(iv) },
+    key,
+    asBufferSource(ciphertextWithTag),
+  )
   return new Uint8Array(out)
 }
 
@@ -432,7 +450,7 @@ export async function hashPassword(password: string, salt?: string): Promise<{ h
     const derivedBits = await globalThis.crypto.subtle.deriveBits(
       {
         name: 'PBKDF2',
-        salt: saltBytes,
+        salt: asBufferSource(saltBytes),
         iterations: PBKDF2_ITERATIONS,
         hash: 'SHA-256',
       },

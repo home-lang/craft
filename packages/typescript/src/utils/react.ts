@@ -11,6 +11,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
+import { app as appApi } from '../api/app';
+import { tray as trayApi } from '../api/tray';
+import { windowManager } from '../api/window';
 
 // ============================================
 // Types
@@ -127,7 +130,7 @@ export function useCraft(): CraftContext & {
 
   const setDarkMode = useCallback((dark: boolean) => {
     contextStore.setState({ isDarkMode: dark });
-    // Would also call native API
+    void appApi.setAppearance(dark ? 'dark' : 'light').catch(() => { /* host not present */ });
   }, []);
 
   return { ...context, setDarkMode };
@@ -160,56 +163,56 @@ export function useWindow(): WindowState & {
     if (typeof document !== 'undefined') {
       document.title = title;
     }
-    // Would also call native API: window.craft?.setTitle(title)
+    void windowManager.setTitle(title).catch(() => { /* host not present */ });
   }, []);
 
   const setSize = useCallback((width: number, height: number) => {
     windowStore.setState({ width, height });
-    // Would call native API
+    void windowManager.setSize(width, height).catch(() => { /* host not present */ });
   }, []);
 
   const setPosition = useCallback((x: number, y: number) => {
     windowStore.setState({ x, y });
-    // Would call native API
+    void windowManager.setPosition(x, y).catch(() => { /* host not present */ });
   }, []);
 
   const minimize = useCallback(() => {
     windowStore.setState({ isMinimized: true, isMaximized: false });
-    // Would call native API
+    void windowManager.minimize().catch(() => { /* host not present */ });
   }, []);
 
   const maximize = useCallback(() => {
     windowStore.setState({ isMaximized: true, isMinimized: false });
-    // Would call native API
+    void windowManager.maximize().catch(() => { /* host not present */ });
   }, []);
 
   const restore = useCallback(() => {
     windowStore.setState({ isMaximized: false, isMinimized: false });
-    // Would call native API
+    void windowManager.current.restore().catch(() => { /* host not present */ });
   }, []);
 
   const close = useCallback(() => {
-    // Would call native API
+    void windowManager.close().catch(() => { /* host not present */ });
   }, []);
 
   const toggleFullscreen = useCallback(() => {
     windowStore.setState((prev) => ({ ...prev, isFullscreen: !prev.isFullscreen }));
-    // Would call native API
+    void windowManager.toggleFullscreen().catch(() => { /* host not present */ });
   }, []);
 
   const show = useCallback(() => {
     windowStore.setState({ isVisible: true });
-    // Would call native API
+    void windowManager.show().catch(() => { /* host not present */ });
   }, []);
 
   const hide = useCallback(() => {
     windowStore.setState({ isVisible: false });
-    // Would call native API
+    void windowManager.hide().catch(() => { /* host not present */ });
   }, []);
 
   const focus = useCallback(() => {
     windowStore.setState({ isFocused: true });
-    // Would call native API
+    void windowManager.focus().catch(() => { /* host not present */ });
   }, []);
 
   return {
@@ -248,27 +251,27 @@ export function useTray(): TrayState & {
 
   const setIcon = useCallback((icon: string) => {
     trayStore.setState({ icon });
-    // Would call native API
+    void trayApi.setIcon(icon).catch(() => { /* host not present */ });
   }, []);
 
   const setTooltip = useCallback((tooltip: string) => {
     trayStore.setState({ tooltip });
-    // Would call native API
+    void trayApi.setTooltip(tooltip).catch(() => { /* host not present */ });
   }, []);
 
   const setMenu = useCallback((items: TrayMenuItem[]) => {
     menuRef.current = items;
-    // Would call native API
+    void trayApi.setMenu(items as never).catch(() => { /* host not present */ });
   }, []);
 
   const show = useCallback(() => {
     trayStore.setState({ isVisible: true });
-    // Would call native API
+    void trayApi.main.show().catch(() => { /* host not present */ });
   }, []);
 
   const hide = useCallback(() => {
     trayStore.setState({ isVisible: false });
-    // Would call native API
+    void trayApi.main.hide().catch(() => { /* host not present */ });
   }, []);
 
   return {
@@ -329,12 +332,16 @@ export function useNotification(): {
       });
     }
 
-    // Would also call native notification API
+    // Forward to the native notification API as well — falls through
+    // silently when not running inside a Craft host.
+    void appApi.notify({ title: options.title, body: options.body, icon: options.icon, silent: !options.sound })
+      .catch(() => { /* host not present */ });
     return id;
   }, []);
 
   const close = useCallback((id: string) => {
-    // Would call native API to close notification
+    // Native bridge does not expose a per-notification close yet — log
+    // for now so callers see we received the request.
     console.log('Close notification:', id);
   }, []);
 
