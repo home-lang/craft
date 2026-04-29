@@ -3268,6 +3268,24 @@ var global_screen_bridge: ?*@import("bridge_screen.zig").ScreenBridge = null;
 var global_autolaunch_bridge: ?*@import("bridge_autolaunch.zig").AutoLaunchBridge = null;
 var global_permissions_bridge: ?*@import("bridge_permissions.zig").PermissionsBridge = null;
 var global_printing_bridge: ?*@import("bridge_printing.zig").PrintingBridge = null;
+var global_speech_bridge: ?*@import("bridge_speech.zig").SpeechBridge = null;
+var global_crash_reporter_bridge: ?*@import("bridge_crash_reporter.zig").CrashReporterBridge = null;
+var global_iap_bridge: ?*@import("bridge_iap.zig").IAPBridge = null;
+var global_handoff_bridge: ?*@import("bridge_handoff.zig").HandoffBridge = null;
+var global_location_bridge: ?*@import("bridge_location.zig").LocationBridge = null;
+var global_screen_capture_bridge: ?*@import("bridge_screen_capture.zig").ScreenCaptureBridge = null;
+var global_local_server_bridge: ?*@import("bridge_local_server.zig").LocalServerBridge = null;
+var global_biometric_bridge: ?*@import("bridge_biometric.zig").BiometricBridge = null;
+var global_audio_bridge: ?*@import("bridge_audio.zig").AudioBridge = null;
+var global_apple_script_bridge: ?*@import("bridge_apple_script.zig").AppleScriptBridge = null;
+var global_file_associations_bridge: ?*@import("bridge_file_associations.zig").FileAssociationsBridge = null;
+var global_tags_bridge: ?*@import("bridge_tags.zig").TagsBridge = null;
+var global_pdf_bridge: ?*@import("bridge_pdf.zig").PDFBridge = null;
+var global_log_bridge: ?*@import("bridge_log.zig").LogBridge = null;
+var global_bonjour_bridge: ?*@import("bridge_bonjour.zig").BonjourBridge = null;
+var global_spotlight_bridge: ?*@import("bridge_spotlight.zig").SpotlightBridge = null;
+var global_speech_recognition_bridge: ?*@import("bridge_speech_recognition.zig").SpeechRecognitionBridge = null;
+var global_vision_bridge: ?*@import("bridge_vision.zig").VisionBridge = null;
 
 pub fn setGlobalTrayHandle(handle: *anyopaque) void {
     global_tray_handle_for_bridge = handle;
@@ -3420,6 +3438,106 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         const PrintingBridge = @import("bridge_printing.zig").PrintingBridge;
         global_printing_bridge = try allocator.create(PrintingBridge);
         global_printing_bridge.?.* = PrintingBridge.init(allocator);
+    }
+
+    if (global_speech_bridge == null) {
+        const SpeechBridge = @import("bridge_speech.zig").SpeechBridge;
+        global_speech_bridge = try allocator.create(SpeechBridge);
+        global_speech_bridge.?.* = SpeechBridge.init(allocator);
+    }
+
+    if (global_crash_reporter_bridge == null) {
+        const CrashReporterBridge = @import("bridge_crash_reporter.zig").CrashReporterBridge;
+        global_crash_reporter_bridge = try allocator.create(CrashReporterBridge);
+        global_crash_reporter_bridge.?.* = CrashReporterBridge.init(allocator);
+    }
+
+    if (global_iap_bridge == null) {
+        const IAPBridge = @import("bridge_iap.zig").IAPBridge;
+        global_iap_bridge = try allocator.create(IAPBridge);
+        global_iap_bridge.?.* = IAPBridge.init(allocator);
+    }
+
+    if (global_handoff_bridge == null) {
+        const HandoffBridge = @import("bridge_handoff.zig").HandoffBridge;
+        global_handoff_bridge = try allocator.create(HandoffBridge);
+        global_handoff_bridge.?.* = HandoffBridge.init(allocator);
+    }
+
+    if (global_location_bridge == null) {
+        const LocationBridge = @import("bridge_location.zig").LocationBridge;
+        global_location_bridge = try allocator.create(LocationBridge);
+        global_location_bridge.?.* = LocationBridge.init(allocator);
+    }
+
+    if (global_screen_capture_bridge == null) {
+        const ScreenCaptureBridge = @import("bridge_screen_capture.zig").ScreenCaptureBridge;
+        global_screen_capture_bridge = try allocator.create(ScreenCaptureBridge);
+        global_screen_capture_bridge.?.* = ScreenCaptureBridge.init(allocator);
+    }
+
+    if (global_local_server_bridge == null) {
+        const LocalServerBridge = @import("bridge_local_server.zig").LocalServerBridge;
+        global_local_server_bridge = try allocator.create(LocalServerBridge);
+        global_local_server_bridge.?.* = LocalServerBridge.init(allocator);
+    }
+
+    if (global_biometric_bridge == null) {
+        const BiometricBridge = @import("bridge_biometric.zig").BiometricBridge;
+        global_biometric_bridge = try allocator.create(BiometricBridge);
+        global_biometric_bridge.?.* = BiometricBridge.init(allocator);
+    }
+
+    if (global_audio_bridge == null) {
+        const AudioBridge = @import("bridge_audio.zig").AudioBridge;
+        global_audio_bridge = try allocator.create(AudioBridge);
+        global_audio_bridge.?.* = AudioBridge.init(allocator);
+    }
+
+    if (global_apple_script_bridge == null) {
+        const T = @import("bridge_apple_script.zig").AppleScriptBridge;
+        global_apple_script_bridge = try allocator.create(T);
+        global_apple_script_bridge.?.* = T.init(allocator);
+    }
+    if (global_file_associations_bridge == null) {
+        const T = @import("bridge_file_associations.zig").FileAssociationsBridge;
+        global_file_associations_bridge = try allocator.create(T);
+        global_file_associations_bridge.?.* = T.init(allocator);
+    }
+    if (global_tags_bridge == null) {
+        const T = @import("bridge_tags.zig").TagsBridge;
+        global_tags_bridge = try allocator.create(T);
+        global_tags_bridge.?.* = T.init(allocator);
+    }
+    if (global_pdf_bridge == null) {
+        const T = @import("bridge_pdf.zig").PDFBridge;
+        global_pdf_bridge = try allocator.create(T);
+        global_pdf_bridge.?.* = T.init(allocator);
+    }
+    if (global_log_bridge == null) {
+        const T = @import("bridge_log.zig").LogBridge;
+        global_log_bridge = try allocator.create(T);
+        global_log_bridge.?.* = T.init(allocator);
+    }
+    if (global_bonjour_bridge == null) {
+        const T = @import("bridge_bonjour.zig").BonjourBridge;
+        global_bonjour_bridge = try allocator.create(T);
+        global_bonjour_bridge.?.* = T.init(allocator);
+    }
+    if (global_spotlight_bridge == null) {
+        const T = @import("bridge_spotlight.zig").SpotlightBridge;
+        global_spotlight_bridge = try allocator.create(T);
+        global_spotlight_bridge.?.* = T.init(allocator);
+    }
+    if (global_speech_recognition_bridge == null) {
+        const T = @import("bridge_speech_recognition.zig").SpeechRecognitionBridge;
+        global_speech_recognition_bridge = try allocator.create(T);
+        global_speech_recognition_bridge.?.* = T.init(allocator);
+    }
+    if (global_vision_bridge == null) {
+        const T = @import("bridge_vision.zig").VisionBridge;
+        global_vision_bridge = try allocator.create(T);
+        global_vision_bridge.?.* = T.init(allocator);
     }
 
     // theme + dragOut + deepLink: native modules with their own state, no
@@ -3697,6 +3815,60 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         if (global_printing_bridge) |bridge| {
             try bridge.handleMessage(action, data_json_str);
         }
+    } else if (std.mem.eql(u8, msg_type, "speech")) {
+        if (global_speech_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "crashReporter")) {
+        if (global_crash_reporter_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "iap")) {
+        if (global_iap_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "handoff")) {
+        if (global_handoff_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "location")) {
+        if (global_location_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "screenCapture")) {
+        if (global_screen_capture_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "localServer")) {
+        if (global_local_server_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "biometric")) {
+        if (global_biometric_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "audio")) {
+        if (global_audio_bridge) |bridge| {
+            try bridge.handleMessage(action, data_json_str);
+        }
+    } else if (std.mem.eql(u8, msg_type, "appleScript")) {
+        if (global_apple_script_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "fileAssociations")) {
+        if (global_file_associations_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "tags")) {
+        if (global_tags_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "pdf")) {
+        if (global_pdf_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "log")) {
+        if (global_log_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "bonjour")) {
+        if (global_bonjour_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "spotlight")) {
+        if (global_spotlight_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "speechRecognition")) {
+        if (global_speech_recognition_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "vision")) {
+        if (global_vision_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages
         if (comptime builtin.mode == .Debug) {

@@ -75,39 +75,35 @@ pub const ClipboardBridge = struct {
             return;
         } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            const json_data = data.?;
+            // Replaced fragile indexOf("\"text\":\"") parse — that broke
+            // on payloads where the text contained `\"` or even just
+            // the substring `"text":"`. JSON parser handles all of that.
+            const ParseShape = struct { text: []const u8 = "" };
+            const parsed = std.json.parseFromSlice(ParseShape, self.allocator, data.?, .{
+                .ignore_unknown_fields = true,
+                .allocate = .alloc_always,
+            }) catch return;
+            defer parsed.deinit();
+            const text = parsed.value.text;
+            if (text.len == 0) return;
 
-            // Parse text
-            if (std.mem.indexOf(u8, json_data, "\"text\":\"")) |idx| {
-                const start = idx + 8;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const text = json_data[start..end];
+            const NSPasteboard = macos.getClass("NSPasteboard");
+            const pasteboard = macos.msgSend0(NSPasteboard, "generalPasteboard");
+            _ = macos.msgSend0(pasteboard, "clearContents");
 
-                    // Get general pasteboard
-                    const NSPasteboard = macos.getClass("NSPasteboard");
-                    const pasteboard = macos.msgSend0(NSPasteboard, "generalPasteboard");
+            const text_cstr = try std.heap.c_allocator.dupeZ(u8, text);
+            defer std.heap.c_allocator.free(text_cstr);
 
-                    // Clear existing content
-                    _ = macos.msgSend0(pasteboard, "clearContents");
+            const NSString = macos.getClass("NSString");
+            const str_alloc = macos.msgSend0(NSString, "alloc");
+            const ns_text = macos.msgSend1(str_alloc, "initWithUTF8String:", text_cstr.ptr);
 
-                    // Create NSString with text
-                    const text_cstr = try std.heap.c_allocator.dupeZ(u8, text);
-                    defer std.heap.c_allocator.free(text_cstr);
+            const NSArray = macos.getClass("NSArray");
+            const array = macos.msgSend1(NSArray, "arrayWithObject:", ns_text);
 
-                    const NSString = macos.getClass("NSString");
-                    const str_alloc = macos.msgSend0(NSString, "alloc");
-                    const ns_text = macos.msgSend1(str_alloc, "initWithUTF8String:", text_cstr.ptr);
+            _ = macos.msgSend1(pasteboard, "writeObjects:", array);
 
-                    // Create array with the string
-                    const NSArray = macos.getClass("NSArray");
-                    const array = macos.msgSend1(NSArray, "arrayWithObject:", ns_text);
-
-                    // Write to pasteboard
-                    _ = macos.msgSend1(pasteboard, "writeObjects:", array);
-
-                    log.debug("Wrote text to clipboard: {s}", .{text});
-                }
-            }
+            log.debug("Wrote text to clipboard: {s}", .{text});
         }
     }
 
@@ -194,37 +190,37 @@ pub const ClipboardBridge = struct {
             return;
         } else if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            const json_data = data.?;
+            // Same JSON-parser refactor as writeText — handles escaped
+            // quotes and HTML containing `"html":"` substring.
+            const ParseShape = struct { html: []const u8 = "" };
+            const parsed = std.json.parseFromSlice(ParseShape, self.allocator, data.?, .{
+                .ignore_unknown_fields = true,
+                .allocate = .alloc_always,
+            }) catch return;
+            defer parsed.deinit();
+            const html = parsed.value.html;
+            if (html.len == 0) return;
 
-            if (std.mem.indexOf(u8, json_data, "\"html\":\"")) |idx| {
-                const start = idx + 8;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const html = json_data[start..end];
+            const NSPasteboard = macos.getClass("NSPasteboard");
+            const pasteboard = macos.msgSend0(NSPasteboard, "generalPasteboard");
 
-                    const NSPasteboard = macos.getClass("NSPasteboard");
-                    const pasteboard = macos.msgSend0(NSPasteboard, "generalPasteboard");
+            _ = macos.msgSend0(pasteboard, "clearContents");
 
-                    _ = macos.msgSend0(pasteboard, "clearContents");
+            const html_cstr = try std.heap.c_allocator.dupeZ(u8, html);
+            defer std.heap.c_allocator.free(html_cstr);
 
-                    // Set HTML type
-                    const html_cstr = try std.heap.c_allocator.dupeZ(u8, html);
-                    defer std.heap.c_allocator.free(html_cstr);
+            const NSString = macos.getClass("NSString");
+            const str_alloc = macos.msgSend0(NSString, "alloc");
+            const ns_html = macos.msgSend1(str_alloc, "initWithUTF8String:", html_cstr.ptr);
 
-                    const NSString = macos.getClass("NSString");
-                    const str_alloc = macos.msgSend0(NSString, "alloc");
-                    const ns_html = macos.msgSend1(str_alloc, "initWithUTF8String:", html_cstr.ptr);
+            const type_str = "public.html";
+            const type_cstr = @as([*:0]const u8, @ptrCast(type_str.ptr));
+            const type_alloc = macos.msgSend0(NSString, "alloc");
+            const ns_type = macos.msgSend1(type_alloc, "initWithUTF8String:", type_cstr);
 
-                    // HTML pasteboard type
-                    const type_str = "public.html";
-                    const type_cstr = @as([*:0]const u8, @ptrCast(type_str.ptr));
-                    const type_alloc = macos.msgSend0(NSString, "alloc");
-                    const ns_type = macos.msgSend1(type_alloc, "initWithUTF8String:", type_cstr);
+            _ = macos.msgSend2(pasteboard, "setString:forType:", ns_html, ns_type);
 
-                    _ = macos.msgSend2(pasteboard, "setString:forType:", ns_html, ns_type);
-
-                    log.debug("Wrote HTML to clipboard", .{});
-                }
-            }
+            log.debug("Wrote HTML to clipboard", .{});
         }
     }
 

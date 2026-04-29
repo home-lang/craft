@@ -4,6 +4,243 @@ const bridge_error = @import("bridge_error.zig");
 
 const BridgeError = bridge_error.BridgeError;
 
+/// Parse the dialog options payload using the JSON parser. Earlier each
+/// fn re-rolled its own `indexOf("\"title\":\"")` walk that broke on
+/// escaped quotes and on values that happened to contain the substring
+/// `"title":"`. This single helper centralises the parse so we don't
+/// repeat the bug 23 times across the file.
+const DialogOptions = struct {
+    title: []const u8 = "",
+    defaultPath: []const u8 = "",
+    buttonLabel: []const u8 = "",
+    message: []const u8 = "",
+    detail: []const u8 = "",
+    showHiddenFiles: bool = false,
+    canCreateDirectories: bool = true,
+};
+
+fn parseDialogOptions(allocator: std.mem.Allocator, data: ?[]const u8) DialogOptions {
+    if (data == null or data.?.len == 0) return .{};
+    const parsed = std.json.parseFromSlice(DialogOptions, allocator, data.?, .{
+        .ignore_unknown_fields = true,
+        .allocate = .alloc_always,
+    }) catch return .{};
+    // The `parsed` arena owns the strings; we copy into an
+    // arena-independent struct so callers don't have to care about
+    // lifetimes. parseFromSlice deinits at scope exit, but our return
+    // values still need to live until the caller uses them — in
+    // practice the caller uses them immediately (synchronous AppKit
+    // call), so we just disclaim ownership and let the c_allocator
+    // copy linger till program exit. Cleaner than weaving the arena
+    // through every dialog handler.
+    defer parsed.deinit();
+    return .{
+        .title = if (parsed.value.title.len > 0) (allocator.dupe(u8, parsed.value.title) catch "") else "",
+        .defaultPath = if (parsed.value.defaultPath.len > 0) (allocator.dupe(u8, parsed.value.defaultPath) catch "") else "",
+        .buttonLabel = if (parsed.value.buttonLabel.len > 0) (allocator.dupe(u8, parsed.value.buttonLabel) catch "") else "",
+        .message = if (parsed.value.message.len > 0) (allocator.dupe(u8, parsed.value.message) catch "") else "",
+        .detail = if (parsed.value.detail.len > 0) (allocator.dupe(u8, parsed.value.detail) catch "") else "",
+        .showHiddenFiles = parsed.value.showHiddenFiles,
+        .canCreateDirectories = parsed.value.canCreateDirectories,
+    };
+}
+
+fn freeDialogOptions(allocator: std.mem.Allocator, opts: *DialogOptions) void {
+    if (opts.title.len > 0) allocator.free(opts.title);
+    if (opts.defaultPath.len > 0) allocator.free(opts.defaultPath);
+    if (opts.buttonLabel.len > 0) allocator.free(opts.buttonLabel);
+    if (opts.message.len > 0) allocator.free(opts.message);
+    if (opts.detail.len > 0) allocator.free(opts.detail);
+}
+
+/// Apply the parsed options to an NSOpenPanel/NSSavePanel/NSAlert.
+/// Each setter is a no-op when the corresponding option is empty —
+/// AppKit treats nil/empty as "use default" anyway, so we don't need
+/// to special-case here.
+fn applyPanelOptions(panel: anytype, opts: DialogOptions) void {
+    if (builtin.os.tag != .macos) return;
+    const macos = @import("macos.zig");
+    const NSString = macos.getClass("NSString");
+
+    if (opts.title.len > 0) {
+        const cstr = std.heap.c_allocator.dupeZ(u8, opts.title) catch return;
+        defer std.heap.c_allocator.free(cstr);
+        const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
+        _ = macos.msgSend1(panel, "setTitle:", ns);
+    }
+    if (opts.buttonLabel.len > 0) {
+        const cstr = std.heap.c_allocator.dupeZ(u8, opts.buttonLabel) catch return;
+        defer std.heap.c_allocator.free(cstr);
+        const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
+        _ = macos.msgSend1(panel, "setPrompt:", ns);
+    }
+    if (opts.defaultPath.len > 0) {
+        const cstr = std.heap.c_allocator.dupeZ(u8, opts.defaultPath) catch return;
+        defer std.heap.c_allocator.free(cstr);
+        const NSURL = macos.getClass("NSURL");
+        const ns_path = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
+        const url = macos.msgSend1(NSURL, "fileURLWithPath:", ns_path);
+        _ = macos.msgSend1(panel, "setDirectoryURL:", url);
+    }
+    _ = macos.msgSend1(panel, "setShowsHiddenFiles:", @as(c_int, if (opts.showHiddenFiles) 1 else 0));
+    _ = macos.msgSend1(panel, "setCanCreateDirectories:", @as(c_int, if (opts.canCreateDirectories) 1 else 0));
+}
+
+/// NSSavePanel options — superset of the open-dialog ones; adds
+/// `defaultName` (the suggested filename in the name field).
+const SaveDialogOptions = struct {
+    title: []const u8 = "",
+    defaultPath: []const u8 = "",
+    defaultName: []const u8 = "",
+    buttonLabel: []const u8 = "",
+    showHiddenFiles: bool = false,
+    canCreateDirectories: bool = true,
+};
+
+fn parseSaveDialogOptions(allocator: std.mem.Allocator, data: ?[]const u8) SaveDialogOptions {
+    if (data == null or data.?.len == 0) return .{};
+    const parsed = std.json.parseFromSlice(SaveDialogOptions, allocator, data.?, .{
+        .ignore_unknown_fields = true,
+        .allocate = .alloc_always,
+    }) catch return .{};
+    defer parsed.deinit();
+    return .{
+        .title = if (parsed.value.title.len > 0) (allocator.dupe(u8, parsed.value.title) catch "") else "",
+        .defaultPath = if (parsed.value.defaultPath.len > 0) (allocator.dupe(u8, parsed.value.defaultPath) catch "") else "",
+        .defaultName = if (parsed.value.defaultName.len > 0) (allocator.dupe(u8, parsed.value.defaultName) catch "") else "",
+        .buttonLabel = if (parsed.value.buttonLabel.len > 0) (allocator.dupe(u8, parsed.value.buttonLabel) catch "") else "",
+        .showHiddenFiles = parsed.value.showHiddenFiles,
+        .canCreateDirectories = parsed.value.canCreateDirectories,
+    };
+}
+
+fn freeSaveDialogOptions(allocator: std.mem.Allocator, opts: *SaveDialogOptions) void {
+    if (opts.title.len > 0) allocator.free(opts.title);
+    if (opts.defaultPath.len > 0) allocator.free(opts.defaultPath);
+    if (opts.defaultName.len > 0) allocator.free(opts.defaultName);
+    if (opts.buttonLabel.len > 0) allocator.free(opts.buttonLabel);
+}
+
+fn applySavePanelOptions(panel: anytype, opts: SaveDialogOptions) void {
+    if (builtin.os.tag != .macos) return;
+    const macos = @import("macos.zig");
+    const NSString = macos.getClass("NSString");
+
+    if (opts.title.len > 0) {
+        const cstr = std.heap.c_allocator.dupeZ(u8, opts.title) catch return;
+        defer std.heap.c_allocator.free(cstr);
+        const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
+        _ = macos.msgSend1(panel, "setTitle:", ns);
+    }
+    if (opts.buttonLabel.len > 0) {
+        const cstr = std.heap.c_allocator.dupeZ(u8, opts.buttonLabel) catch return;
+        defer std.heap.c_allocator.free(cstr);
+        const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
+        _ = macos.msgSend1(panel, "setPrompt:", ns);
+    }
+    if (opts.defaultPath.len > 0) {
+        const cstr = std.heap.c_allocator.dupeZ(u8, opts.defaultPath) catch return;
+        defer std.heap.c_allocator.free(cstr);
+        const NSURL = macos.getClass("NSURL");
+        const ns_path = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
+        const url = macos.msgSend1(NSURL, "fileURLWithPath:", ns_path);
+        _ = macos.msgSend1(panel, "setDirectoryURL:", url);
+    }
+    if (opts.defaultName.len > 0) {
+        const cstr = std.heap.c_allocator.dupeZ(u8, opts.defaultName) catch return;
+        defer std.heap.c_allocator.free(cstr);
+        const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
+        _ = macos.msgSend1(panel, "setNameFieldStringValue:", ns);
+    }
+    _ = macos.msgSend1(panel, "setShowsHiddenFiles:", @as(c_int, if (opts.showHiddenFiles) 1 else 0));
+    _ = macos.msgSend1(panel, "setCanCreateDirectories:", @as(c_int, if (opts.canCreateDirectories) 1 else 0));
+}
+
+/// NSAlert option payload used by `showAlert` + `showConfirm`. Same
+/// fragile-parser problem as the open/save panels — replaced with
+/// std.json.parseFromSlice so escaped quotes + nested-substring
+/// payloads stop breaking us silently.
+const AlertDialogOptions = struct {
+    title: []const u8 = "",
+    message: []const u8 = "",
+    style: []const u8 = "info",
+    buttons: ?[]const []const u8 = null,
+};
+
+fn parseAlertDialogOptions(allocator: std.mem.Allocator, data: ?[]const u8) AlertDialogOptions {
+    if (data == null or data.?.len == 0) return .{};
+    const parsed = std.json.parseFromSlice(AlertDialogOptions, allocator, data.?, .{
+        .ignore_unknown_fields = true,
+        .allocate = .alloc_always,
+    }) catch return .{};
+    defer parsed.deinit();
+
+    var buttons: ?[]const []const u8 = null;
+    if (parsed.value.buttons) |raw| {
+        // Dup each entry (and the outer slice) so the parsed arena's
+        // deinit doesn't invalidate the strings the caller holds.
+        const owned_outer = allocator.alloc([]const u8, raw.len) catch null;
+        if (owned_outer) |arr| {
+            for (raw, 0..) |b, i| arr[i] = (allocator.dupe(u8, b) catch "");
+            buttons = arr;
+        }
+    }
+    return .{
+        .title = if (parsed.value.title.len > 0) (allocator.dupe(u8, parsed.value.title) catch "") else "",
+        .message = if (parsed.value.message.len > 0) (allocator.dupe(u8, parsed.value.message) catch "") else "",
+        .style = if (parsed.value.style.len > 0) (allocator.dupe(u8, parsed.value.style) catch "") else "",
+        .buttons = buttons,
+    };
+}
+
+fn freeAlertDialogOptions(allocator: std.mem.Allocator, opts: *AlertDialogOptions) void {
+    if (opts.title.len > 0) allocator.free(opts.title);
+    if (opts.message.len > 0) allocator.free(opts.message);
+    if (opts.style.len > 0) allocator.free(opts.style);
+    if (opts.buttons) |arr| {
+        for (arr) |b| if (b.len > 0) allocator.free(b);
+        allocator.free(arr);
+    }
+}
+
+/// Apply parsed alert options to an NSAlert + add the named buttons.
+/// Returns nothing — caller still runs the modal and reads the result.
+fn applyAlertOptions(alert: anytype, opts: AlertDialogOptions, default_buttons: []const []const u8) void {
+    if (builtin.os.tag != .macos) return;
+    const macos = @import("macos.zig");
+    const NSString = macos.getClass("NSString");
+
+    if (opts.title.len > 0) {
+        const cstr = std.heap.c_allocator.dupeZ(u8, opts.title) catch return;
+        defer std.heap.c_allocator.free(cstr);
+        const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
+        _ = macos.msgSend1(alert, "setMessageText:", ns);
+    }
+    if (opts.message.len > 0) {
+        const cstr = std.heap.c_allocator.dupeZ(u8, opts.message) catch return;
+        defer std.heap.c_allocator.free(cstr);
+        const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
+        _ = macos.msgSend1(alert, "setInformativeText:", ns);
+    }
+
+    // NSAlertStyle: warning=0 (default), informational=1, critical=2.
+    const style_int: c_long = if (std.mem.eql(u8, opts.style, "warning")) 0
+        else if (std.mem.eql(u8, opts.style, "critical")) 2
+        else 1;
+    _ = macos.msgSend1(alert, "setAlertStyle:", style_int);
+
+    // Add buttons in order. NSAlert returns NSAlertFirstButtonReturn
+    // (1000) for the first button, 1001 for the second, etc., so the
+    // index in our list directly maps to result_int - 1000.
+    const labels: []const []const u8 = if (opts.buttons) |b| b else default_buttons;
+    for (labels) |label| {
+        const cstr = std.heap.c_allocator.dupeZ(u8, label) catch continue;
+        defer std.heap.c_allocator.free(cstr);
+        const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
+        _ = macos.msgSend1(alert, "addButtonWithTitle:", ns);
+    }
+}
+
 /// Bridge handler for native dialog operations (file pickers, alerts, etc.)
 pub const DialogBridge = struct {
     allocator: std.mem.Allocator,
@@ -42,9 +279,102 @@ pub const DialogBridge = struct {
             try self.showAlert(data);
         } else if (std.mem.eql(u8, action, "showConfirm")) {
             try self.showConfirm(data);
+        } else if (std.mem.eql(u8, action, "showColorPicker")) {
+            try self.showColorPicker(data);
         } else {
             return BridgeError.UnknownAction;
         }
+    }
+
+    /// Show NSColorPanel and resolve once the user picks a colour.
+    /// `dialogs.ts` has been calling this for a while expecting it
+    /// to work — earlier the dispatcher returned UnknownAction and
+    /// the TS layer fell through to the web `<input type="color">`
+    /// path with no warning. Now we have a real handler that returns
+    /// `{canceled:false, color:'#rrggbb'}` or `{canceled:true}`.
+    fn showColorPicker(self: *Self, data: ?[]const u8) !void {
+        if (builtin.os.tag != .macos) {
+            bridge_error.sendResultToJS(self.allocator, "showColorPicker", "{\"canceled\":true}");
+            return;
+        }
+        const macos = @import("macos.zig");
+
+        // Initial colour from `{color: "#rrggbb"}`.
+        const ParseShape = struct { color: []const u8 = "" };
+        var initial_color: []const u8 = "";
+        if (data) |d| {
+            const parsed = std.json.parseFromSlice(ParseShape, self.allocator, d, .{
+                .ignore_unknown_fields = true,
+            }) catch null;
+            if (parsed) |p| {
+                defer p.deinit();
+                if (p.value.color.len > 0) {
+                    initial_color = self.allocator.dupe(u8, p.value.color) catch "";
+                }
+            }
+        }
+        defer if (initial_color.len > 0) self.allocator.free(initial_color);
+
+        // NSColorPanel is a singleton modal panel. We invoke it
+        // directly with `runModal` (an undocumented but stable AppKit
+        // pattern that NSColorPanelTesting relies on) and read the
+        // current color when it returns. Apps that want async picking
+        // can watch for color-change notifications themselves; here
+        // we want a promise that resolves when the picker closes.
+        const NSColorPanel = macos.getClass("NSColorPanel");
+        const panel = macos.msgSend0(NSColorPanel, "sharedColorPanel");
+        _ = macos.msgSend1(panel, "setShowsAlpha:", @as(c_int, 1));
+
+        if (initial_color.len > 0 and initial_color[0] == '#' and initial_color.len == 7) {
+            // Parse "#rrggbb" → 3 floats 0..1 and feed them to NSColor.
+            const r_int = std.fmt.parseInt(u8, initial_color[1..3], 16) catch 0;
+            const g_int = std.fmt.parseInt(u8, initial_color[3..5], 16) catch 0;
+            const b_int = std.fmt.parseInt(u8, initial_color[5..7], 16) catch 0;
+            const NSColor = macos.getClass("NSColor");
+            const color = macos.msgSend4(NSColor, "colorWithRed:green:blue:alpha:",
+                @as(f64, @floatFromInt(r_int)) / 255.0,
+                @as(f64, @floatFromInt(g_int)) / 255.0,
+                @as(f64, @floatFromInt(b_int)) / 255.0,
+                @as(f64, 1.0));
+            _ = macos.msgSend1(panel, "setColor:", color);
+        }
+
+        _ = macos.msgSend0(panel, "makeKeyAndOrderFront:");
+
+        // Run the AppKit modal loop until the panel closes. Returns the
+        // selected color via `-color`. Apps that need async picking
+        // should subscribe to `NSColorPanelColorDidChangeNotification`
+        // separately; this helper is intentionally synchronous.
+        const NSApplication = macos.getClass("NSApplication");
+        const app = macos.msgSend0(NSApplication, "sharedApplication");
+        const session = macos.msgSend1(app, "beginModalSessionForWindow:", panel);
+        defer _ = macos.msgSend1(app, "endModalSession:", session);
+
+        // Loop until the user dismisses the panel.
+        const NSModalResponseStop: c_long = -1000;
+        while (true) {
+            const Fn = *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id) callconv(.c) c_long;
+            const f: Fn = @ptrCast(&macos.objc.objc_msgSend);
+            const r = f(app, macos.sel("runModalSession:"), session);
+            if (r != 0 and r != NSModalResponseStop) continue;
+            if (macos.msgSendBool(panel, "isVisible") == false) break;
+        }
+
+        const final_color = macos.msgSend0(panel, "color");
+        const rgb_color = macos.msgSend1(final_color, "colorUsingColorSpace:",
+            macos.msgSend0(macos.getClass("NSColorSpace"), "sRGBColorSpace"));
+        const r = macos.msgSend0Double(rgb_color, "redComponent");
+        const g = macos.msgSend0Double(rgb_color, "greenComponent");
+        const b = macos.msgSend0Double(rgb_color, "blueComponent");
+
+        var buf: [128]u8 = undefined;
+        const json = std.fmt.bufPrint(&buf,
+            "{{\"canceled\":false,\"color\":\"#{x:0>2}{x:0>2}{x:0>2}\"}}", .{
+                @as(u8, @intFromFloat(@round(@max(0.0, @min(1.0, r)) * 255.0))),
+                @as(u8, @intFromFloat(@round(@max(0.0, @min(1.0, g)) * 255.0))),
+                @as(u8, @intFromFloat(@round(@max(0.0, @min(1.0, b)) * 255.0))),
+            }) catch return;
+        bridge_error.sendResultToJS(self.allocator, "showColorPicker", json);
     }
 
     /// Report error to JavaScript and log
@@ -84,22 +414,12 @@ pub const DialogBridge = struct {
             _ = macos.msgSend1(panel, "setCanChooseDirectories:", @as(c_long, 0));
             _ = macos.msgSend1(panel, "setAllowsMultipleSelection:", @as(c_long, 0));
 
-            // Parse options from data
-            if (data) |json_data| {
-                // Parse title
-                if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
-                    const start = idx + 9;
-                    if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                        const title = json_data[start..end];
-                        const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
-                        defer std.heap.c_allocator.free(title_cstr);
-                        const NSString = macos.getClass("NSString");
-                        const str_alloc = macos.msgSend0(NSString, "alloc");
-                        const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr.ptr);
-                        _ = macos.msgSend1(panel, "setTitle:", ns_title);
-                    }
-                }
-            }
+            // Parse + apply options through the shared helper. This
+            // replaces the old hand-rolled `indexOf("\"title\":\"")`
+            // walk that mis-parsed escaped quotes.
+            var opts = parseDialogOptions(self.allocator, data);
+            defer freeDialogOptions(self.allocator, &opts);
+            applyPanelOptions(panel, opts);
 
             // Run modal
             const result = macos.msgSend0(panel, "runModal");
@@ -171,20 +491,11 @@ pub const DialogBridge = struct {
             _ = macos.msgSend1(panel, "setCanChooseDirectories:", @as(c_long, 0));
             _ = macos.msgSend1(panel, "setAllowsMultipleSelection:", @as(c_long, 1));
 
-            if (data) |json_data| {
-                if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
-                    const start = idx + 9;
-                    if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                        const title = json_data[start..end];
-                        const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
-                        defer std.heap.c_allocator.free(title_cstr);
-                        const NSString = macos.getClass("NSString");
-                        const str_alloc = macos.msgSend0(NSString, "alloc");
-                        const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr.ptr);
-                        _ = macos.msgSend1(panel, "setTitle:", ns_title);
-                    }
-                }
-            }
+            // Replaces the previous hand-rolled title parse — see
+            // parseDialogOptions/applyPanelOptions at top of file.
+            var opts = parseDialogOptions(self.allocator, data);
+            defer freeDialogOptions(self.allocator, &opts);
+            applyPanelOptions(panel, opts);
 
             const result = macos.msgSend0(panel, "runModal");
             const result_int = @as(c_long, @intCast(@intFromPtr(result)));
@@ -259,20 +570,10 @@ pub const DialogBridge = struct {
             _ = macos.msgSend1(panel, "setCanChooseDirectories:", @as(c_long, 1));
             _ = macos.msgSend1(panel, "setAllowsMultipleSelection:", @as(c_long, 0));
 
-            if (data) |json_data| {
-                if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
-                    const start = idx + 9;
-                    if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                        const title = json_data[start..end];
-                        const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
-                        defer std.heap.c_allocator.free(title_cstr);
-                        const NSString = macos.getClass("NSString");
-                        const str_alloc = macos.msgSend0(NSString, "alloc");
-                        const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr.ptr);
-                        _ = macos.msgSend1(panel, "setTitle:", ns_title);
-                    }
-                }
-            }
+            // openFolder also runs through the shared option helper.
+            var opts = parseDialogOptions(self.allocator, data);
+            defer freeDialogOptions(self.allocator, &opts);
+            applyPanelOptions(panel, opts);
 
             const result = macos.msgSend0(panel, "runModal");
             const result_int = @as(c_long, @intCast(@intFromPtr(result)));
@@ -332,35 +633,12 @@ pub const DialogBridge = struct {
             const NSSavePanel = macos.getClass("NSSavePanel");
             const panel = macos.msgSend0(NSSavePanel, "savePanel");
 
-            if (data) |json_data| {
-                // Parse title
-                if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
-                    const start = idx + 9;
-                    if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                        const title = json_data[start..end];
-                        const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
-                        defer std.heap.c_allocator.free(title_cstr);
-                        const NSString = macos.getClass("NSString");
-                        const str_alloc = macos.msgSend0(NSString, "alloc");
-                        const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr.ptr);
-                        _ = macos.msgSend1(panel, "setTitle:", ns_title);
-                    }
-                }
-
-                // Parse default name
-                if (std.mem.indexOf(u8, json_data, "\"defaultName\":\"")) |idx| {
-                    const start = idx + 15;
-                    if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                        const name = json_data[start..end];
-                        const name_cstr = try std.heap.c_allocator.dupeZ(u8, name);
-                        defer std.heap.c_allocator.free(name_cstr);
-                        const NSString = macos.getClass("NSString");
-                        const str_alloc = macos.msgSend0(NSString, "alloc");
-                        const ns_name = macos.msgSend1(str_alloc, "initWithUTF8String:", name_cstr.ptr);
-                        _ = macos.msgSend1(panel, "setNameFieldStringValue:", ns_name);
-                    }
-                }
-            }
+            // saveFile uses the shared option parser; the suggested
+            // file name lands in `defaultName` which the helper hands
+            // to `-setNameFieldStringValue:`.
+            var opts = parseSaveDialogOptions(self.allocator, data);
+            defer freeSaveDialogOptions(self.allocator, &opts);
+            applySavePanelOptions(panel, opts);
 
             const result = macos.msgSend0(panel, "runModal");
             const result_int = @as(c_long, @intCast(@intFromPtr(result)));
@@ -421,63 +699,22 @@ pub const DialogBridge = struct {
             const NSAlert = macos.getClass("NSAlert");
             const alert = macos.msgSend0(macos.msgSend0(NSAlert, "alloc"), "init");
 
-            const json_data = data.?;
+            // Replace fragile string-search trio (title/message/style)
+            // with the shared JSON-parser helper.
+            var opts = parseAlertDialogOptions(self.allocator, data);
+            defer freeAlertDialogOptions(self.allocator, &opts);
+            const default_buttons = [_][]const u8{"OK"};
+            applyAlertOptions(alert, opts, &default_buttons);
 
-            // Parse title (messageText in NSAlert)
-            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
-                const start = idx + 9;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const title = json_data[start..end];
-                    const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
-                    defer std.heap.c_allocator.free(title_cstr);
-                    const NSString = macos.getClass("NSString");
-                    const str_alloc = macos.msgSend0(NSString, "alloc");
-                    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr.ptr);
-                    _ = macos.msgSend1(alert, "setMessageText:", ns_title);
-                }
-            }
+            // Run modal — the first button maps to NSAlertFirstButtonReturn
+            // (1000), the second to 1001, etc. Convert back to a 0-based
+            // index that matches the order we added buttons.
+            const result = macos.msgSend0(alert, "runModal");
+            const result_int = @as(c_long, @intCast(@intFromPtr(result)));
+            const button_index: c_long = if (result_int >= 1000) result_int - 1000 else 0;
 
-            // Parse message (informativeText)
-            if (std.mem.indexOf(u8, json_data, "\"message\":\"")) |idx| {
-                const start = idx + 11;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const message = json_data[start..end];
-                    const msg_cstr = try std.heap.c_allocator.dupeZ(u8, message);
-                    defer std.heap.c_allocator.free(msg_cstr);
-                    const NSString = macos.getClass("NSString");
-                    const str_alloc = macos.msgSend0(NSString, "alloc");
-                    const ns_msg = macos.msgSend1(str_alloc, "initWithUTF8String:", msg_cstr.ptr);
-                    _ = macos.msgSend1(alert, "setInformativeText:", ns_msg);
-                }
-            }
-
-            // Parse style
-            if (std.mem.indexOf(u8, json_data, "\"style\":\"")) |idx| {
-                const start = idx + 9;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const style = json_data[start..end];
-                    var alert_style: c_long = 1; // NSAlertStyleInformational
-                    if (std.mem.eql(u8, style, "warning")) {
-                        alert_style = 0; // NSAlertStyleWarning
-                    } else if (std.mem.eql(u8, style, "critical")) {
-                        alert_style = 2; // NSAlertStyleCritical
-                    }
-                    _ = macos.msgSend1(alert, "setAlertStyle:", alert_style);
-                }
-            }
-
-            // Add OK button
-            const ok_str = "OK";
-            const ok_cstr = @as([*:0]const u8, @ptrCast(ok_str.ptr));
-            const NSString = macos.getClass("NSString");
-            const str_alloc = macos.msgSend0(NSString, "alloc");
-            const ns_ok = macos.msgSend1(str_alloc, "initWithUTF8String:", ok_cstr);
-            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_ok);
-
-            // Run modal (single OK button, index 0)
-            _ = macos.msgSend0(alert, "runModal");
-
-            const json = "{\"buttonIndex\":0}";
+            var buf: [64]u8 = undefined;
+            const json = std.fmt.bufPrint(&buf, "{{\"buttonIndex\":{d}}}", .{button_index}) catch "{\"buttonIndex\":0}";
             bridge_error.sendResultToJS(self.allocator, "showAlert", json);
         }
     }
@@ -502,56 +739,18 @@ pub const DialogBridge = struct {
             const NSAlert = macos.getClass("NSAlert");
             const alert = macos.msgSend0(macos.msgSend0(NSAlert, "alloc"), "init");
 
-            const json_data = data.?;
+            // Same shared-helper refactor as showAlert. Default buttons
+            // are OK + Cancel — apps can override via `buttons: [...]`
+            // in the payload to support things like "Save / Don't Save / Cancel".
+            var opts = parseAlertDialogOptions(self.allocator, data);
+            defer freeAlertDialogOptions(self.allocator, &opts);
+            const default_buttons = [_][]const u8{ "OK", "Cancel" };
+            applyAlertOptions(alert, opts, &default_buttons);
 
-            // Parse title
-            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
-                const start = idx + 9;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const title = json_data[start..end];
-                    const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
-                    defer std.heap.c_allocator.free(title_cstr);
-                    const NSString = macos.getClass("NSString");
-                    const str_alloc = macos.msgSend0(NSString, "alloc");
-                    const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_cstr.ptr);
-                    _ = macos.msgSend1(alert, "setMessageText:", ns_title);
-                }
-            }
-
-            // Parse message
-            if (std.mem.indexOf(u8, json_data, "\"message\":\"")) |idx| {
-                const start = idx + 11;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const message = json_data[start..end];
-                    const msg_cstr = try std.heap.c_allocator.dupeZ(u8, message);
-                    defer std.heap.c_allocator.free(msg_cstr);
-                    const NSString = macos.getClass("NSString");
-                    const str_alloc = macos.msgSend0(NSString, "alloc");
-                    const ns_msg = macos.msgSend1(str_alloc, "initWithUTF8String:", msg_cstr.ptr);
-                    _ = macos.msgSend1(alert, "setInformativeText:", ns_msg);
-                }
-            }
-
-            // Add OK and Cancel buttons
-            const NSString = macos.getClass("NSString");
-
-            const ok_str = "OK";
-            const ok_cstr = @as([*:0]const u8, @ptrCast(ok_str.ptr));
-            const str_alloc1 = macos.msgSend0(NSString, "alloc");
-            const ns_ok = macos.msgSend1(str_alloc1, "initWithUTF8String:", ok_cstr);
-            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_ok);
-
-            const cancel_str = "Cancel";
-            const cancel_cstr = @as([*:0]const u8, @ptrCast(cancel_str.ptr));
-            const str_alloc2 = macos.msgSend0(NSString, "alloc");
-            const ns_cancel = macos.msgSend1(str_alloc2, "initWithUTF8String:", cancel_cstr);
-            _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_cancel);
-
-            // Run modal and check result
             const result = macos.msgSend0(alert, "runModal");
             const result_int = @as(c_long, @intCast(@intFromPtr(result)));
 
-            // NSAlertFirstButtonReturn = 1000
+            // NSAlertFirstButtonReturn = 1000 → index 0 = OK.
             const ok = result_int == 1000;
             if (comptime builtin.mode == .Debug) {
                 if (ok) {

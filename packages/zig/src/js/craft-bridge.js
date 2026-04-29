@@ -178,6 +178,17 @@
   function _wrapWith(key) { return function (v) { var o = {}; o[key] = v; return o } }
   function _passthrough(v) { return (v && typeof v === 'object') ? v : { value: v } }
 
+  // Coerce-to-finite-non-negative-integer for window geometry knobs.
+  // NaN/Infinity/negative all collapse to the supplied default.
+  function _finite(v, fallback) {
+    var n = Math.round(Number(v))
+    return Number.isFinite(n) && n >= 0 ? n : fallback
+  }
+  function _finiteSigned(v, fallback) {
+    var n = Math.round(Number(v))
+    return Number.isFinite(n) ? n : fallback
+  }
+
   // Helpers for shape adapters that need to do real work.
   function _rgbToHex(c) {
     if (!c || typeof c !== 'object') return ''
@@ -310,11 +321,16 @@
     toggleFullscreen: function ()     { return _send('window', 'toggleFullscreen') },
     setFullscreen: function (on)      { return _send('window', 'setFullscreen', _stringify({ value: !!on })) },
     setTitle:     function (title)    { return _send('window', 'setTitle', _stringify({ title: String(title) })) },
-    setSize:      function (w, h)     { return _send('window', 'setSize', _stringify({ width: w, height: h })) },
-    setPosition:  function (x, y)     { return _send('window', 'setPosition', _stringify({ x: x, y: y })) },
-    setMinSize:   function (w, h)     { return _send('window', 'setMinSize', _stringify({ width: w, height: h })) },
-    setMaxSize:   function (w, h)     { return _send('window', 'setMaxSize', _stringify({ width: w, height: h })) },
-    setAspectRatio: function (w, h)   { return _send('window', 'setAspectRatio', _stringify({ width: w, height: h })) },
+    // Earlier these accepted NaN/Infinity — the native bridge would
+    // either silently use defaults (best case) or write garbage geometry
+    // values into AppKit (worst case, only seen in DEBUG builds). Coerce
+    // to a finite, non-negative integer at the JS boundary so app code
+    // that does math doesn't have to remember.
+    setSize:      function (w, h)     { return _send('window', 'setSize', _stringify({ width: _finite(w, 800), height: _finite(h, 600) })) },
+    setPosition:  function (x, y)     { return _send('window', 'setPosition', _stringify({ x: _finiteSigned(x, 100), y: _finiteSigned(y, 100) })) },
+    setMinSize:   function (w, h)     { return _send('window', 'setMinSize', _stringify({ width: _finite(w, 0), height: _finite(h, 0) })) },
+    setMaxSize:   function (w, h)     { return _send('window', 'setMaxSize', _stringify({ width: _finite(w, 0), height: _finite(h, 0) })) },
+    setAspectRatio: function (w, h)   { return _send('window', 'setAspectRatio', _stringify({ width: _finite(w, 1), height: _finite(h, 1) })) },
     setOpacity:   function (op)       { return _send('window', 'setOpacity', _stringify({ value: op })) },
     setAlwaysOnTop: function (on)     { return _send('window', 'setAlwaysOnTop', _stringify({ value: !!on })) },
     setResizable: function (on)       { return _send('window', 'setResizable', _stringify({ value: !!on })) },
@@ -439,6 +455,7 @@
     move:       function (from, to)         { return _send('fs', 'move', _stringify({ from: String(from), to: String(to) })) },
     watch:      function (path, callbackId) { return _send('fs', 'watch', _stringify({ path: String(path), callbackId: String(callbackId || '') })) },
     unwatch:    function (id)               { return _send('fs', 'unwatch', _stringify({ id: String(id) })) },
+    onChange:   _evt('craft:fs:change'),
     homeDir:    function ()                 { return _req('fs', 'getHomeDir').then(function (r) { return (r && r.path) || '' }) },
     tempDir:    function ()                 { return _req('fs', 'getTempDir').then(function (r) { return (r && r.path) || '' }) },
     appDataDir: function ()                 { return _req('fs', 'getAppDataDir').then(function (r) { return (r && r.path) || '' }) },
@@ -711,6 +728,247 @@
     onDeviceFound:       _evt('craft:bluetooth:deviceFound'),
     onDeviceConnected:   _evt('craft:bluetooth:deviceConnected'),
     onDeviceDisconnected:_evt('craft:bluetooth:deviceDisconnected'),
+  }
+
+  // -------------------------------------------------------------------------
+  // speech — text-to-speech via AVSpeechSynthesizer
+  // -------------------------------------------------------------------------
+  window.craft.speech = {
+    speak: function (text, opts) {
+      const o = Object.assign({ text: String(text) }, opts || {})
+      return _req('speech', 'speak', _stringify(o))
+    },
+    stop:        function () { return _send('speech', 'stop') },
+    pause:       function () { return _send('speech', 'pause') },
+    resume:      function () { return _send('speech', 'resume') },
+    isSpeaking:  function () { return _req('speech', 'isSpeaking').then(function (r) { return !!(r && r.value) }) },
+    getVoices:   function () { return _req('speech', 'getVoices').then(function (r) { return (r && r.voices) || [] }) },
+  }
+
+  // -------------------------------------------------------------------------
+  // crashReporter — capture and queue exceptions for later forwarding
+  // -------------------------------------------------------------------------
+  window.craft.crashReporter = {
+    report: function (entry) {
+      // Convenience: accept an Error or a plain object. Both get
+      // normalized to the {severity, message, source, stack} shape
+      // the native side stores.
+      const e = entry instanceof Error
+        ? { severity: 'error', message: entry.message, source: 'js', stack: entry.stack || '' }
+        : Object.assign({ severity: 'error', source: 'js', message: '', stack: '' }, entry || {})
+      return _req('crashReporter', 'report', _stringify(e))
+    },
+    flush:        function () { return _req('crashReporter', 'flush').then(function (r) { return (r && r.entries) || [] }) },
+    clear:        function () { return _send('crashReporter', 'clear') },
+    setEnabled:   function (on) { return _send('crashReporter', 'setEnabled', _stringify({ value: !!on })) },
+    setUser:      function (id) { return _send('crashReporter', 'setUser', _stringify({ id: String(id || '') })) },
+    setAppVersion:function (v)  { return _send('crashReporter', 'setAppVersion', _stringify({ version: String(v || '') })) },
+    isEnabled:    function () { return _req('crashReporter', 'isEnabled').then(function (r) { return !!(r && r.value) }) },
+    /**
+     * Auto-attach: hook `window.onerror` and `unhandledrejection` so
+     * every uncaught failure routes through `report()` automatically.
+     * Returns an `off()` to detach. Call this once early in your app's
+     * boot — after that you can lazily flush the queue on a timer.
+     */
+    attachGlobalHandlers: function () {
+      const errH = function (msg, src, line, col, err) {
+        const stack = (err && err.stack) || (msg + '\n  at ' + src + ':' + line + ':' + col)
+        return window.craft.crashReporter.report({ severity: 'error', message: String(msg), source: 'js', stack: String(stack) })
+      }
+      const rejH = function (e) {
+        const r = e && e.reason
+        const msg = r ? (r.message || String(r)) : 'unhandledrejection'
+        const stack = (r && r.stack) || ''
+        return window.craft.crashReporter.report({ severity: 'error', message: msg, source: 'js', stack: stack })
+      }
+      window.addEventListener('error', function (e) { errH(e.message, e.filename, e.lineno, e.colno, e.error) })
+      window.addEventListener('unhandledrejection', rejH)
+      return function () {
+        window.removeEventListener('error', errH)
+        window.removeEventListener('unhandledrejection', rejH)
+      }
+    },
+  }
+
+  // -------------------------------------------------------------------------
+  // iap — In-App Purchases (basic StoreKit shape)
+  // -------------------------------------------------------------------------
+  window.craft.iap = {
+    isAvailable:        function () { return _req('iap', 'isAvailable').then(function (r) { return !!(r && r.value) }) },
+    getProducts:        function (ids) { return _req('iap', 'getProducts', _stringify({ ids: Array.isArray(ids) ? ids : [String(ids)] })).then(function (r) { return (r && r.products) || [] }) },
+    purchase:           function (productId) { return _req('iap', 'purchase', _stringify({ productId: String(productId) })) },
+    restorePurchases:   function () { return _req('iap', 'restorePurchases') },
+    finishTransaction:  function (transactionId) { return _send('iap', 'finishTransaction', _stringify({ transactionId: String(transactionId) })) },
+    getReceiptData:     function () { return _req('iap', 'getReceiptData').then(function (r) { return r && r.receipt }) },
+    onPurchased:        _evt('craft:iap:purchased'),
+    onFailed:           _evt('craft:iap:failed'),
+    onRestored:         _evt('craft:iap:restored'),
+    onProductsLoaded:   _evt('craft:iap:productsLoaded'),
+  }
+
+  // -------------------------------------------------------------------------
+  // location — CoreLocation
+  // -------------------------------------------------------------------------
+  window.craft.location = {
+    requestPermission:  function (mode) { return _req('location', 'requestPermission', _stringify({ mode: String(mode || 'whenInUse') })).then(function (r) { return (r && r.status) || 'undetermined' }) },
+    getAuthorization:   function () { return _req('location', 'getAuthorization').then(function (r) { return (r && r.status) || 'undetermined' }) },
+    getCurrentLocation: function () { return _req('location', 'getCurrentLocation') },
+    startWatching:      function (opts) { return _req('location', 'startWatching', _stringify(opts || {})).then(function (r) { return !!(r && r.ok) }) },
+    stopWatching:       function () { return _send('location', 'stopWatching') },
+    onUpdate:           _evt('craft:location:update'),
+    onError:            _evt('craft:location:error'),
+    onAuthChanged:      _evt('craft:location:authChanged'),
+  }
+
+  // -------------------------------------------------------------------------
+  // screenCapture — programmatic screenshots via CGWindowList
+  // -------------------------------------------------------------------------
+  window.craft.screenCapture = {
+    captureScreen: function () { return _req('screenCapture', 'captureScreen').then(function (r) { return r && r.image }) },
+    captureWindow: function (id) { return _req('screenCapture', 'captureWindow', _stringify({ id: Number(id) })).then(function (r) { return r && r.image }) },
+    listWindows:   function () { return _req('screenCapture', 'listWindows').then(function (r) { return (r && r.windows) || [] }) },
+  }
+
+  // -------------------------------------------------------------------------
+  // localServer — minimal HTTP listener for OAuth callbacks
+  // -------------------------------------------------------------------------
+  window.craft.localServer = {
+    start:   function (port, host) { return _req('localServer', 'start', _stringify({ port: Number(port) || 0, host: String(host || '127.0.0.1') })) },
+    stop:    function () { return _send('localServer', 'stop') },
+    respond: function (opts) { return _send('localServer', 'respond', _stringify(opts || { status: 200, body: 'OK' })) },
+    onRequest: _evt('craft:localServer:request'),
+  }
+
+  // -------------------------------------------------------------------------
+  // biometric — TouchID / FaceID via LAContext
+  // -------------------------------------------------------------------------
+  window.craft.biometric = {
+    isAvailable:     function () { return _req('biometric', 'isAvailable').then(function (r) { return !!(r && r.value) }) },
+    getBiometryType: function () { return _req('biometric', 'getBiometryType').then(function (r) { return (r && r.type) || 'none' }) },
+    evaluate:        function (reason, opts) {
+      const o = Object.assign({ reason: String(reason || 'Authenticate to continue') }, opts || {})
+      return _req('biometric', 'evaluate', _stringify(o)).then(function (r) { return r || { success: false } })
+    },
+  }
+
+  // -------------------------------------------------------------------------
+  // audio — NSSound playback + AVAudioRecorder recording
+  // -------------------------------------------------------------------------
+  window.craft.audio = {
+    play:            function (path, opts) {
+      const o = Object.assign({ path: String(path) }, opts || {})
+      return _req('audio', 'play', _stringify(o)).then(function (r) { return !!(r && r.ok) })
+    },
+    playSystemSound: function (name) { return _req('audio', 'playSystemSound', _stringify({ name: String(name) })).then(function (r) { return !!(r && r.ok) }) },
+    stop:            function () { return _send('audio', 'stop') },
+    isPlaying:       function () { return _req('audio', 'isPlaying').then(function (r) { return !!(r && r.value) }) },
+    startRecording:  function (path, opts) {
+      const o = Object.assign({ path: String(path) }, opts || {})
+      return _req('audio', 'startRecording', _stringify(o)).then(function (r) { return !!(r && r.ok) })
+    },
+    stopRecording:   function () { return _send('audio', 'stopRecording') },
+    isRecording:     function () { return _req('audio', 'isRecording').then(function (r) { return !!(r && r.value) }) },
+  }
+
+  // -------------------------------------------------------------------------
+  // appleScript — NSAppleScript executor
+  // -------------------------------------------------------------------------
+  window.craft.appleScript = {
+    execute: function (source) { return _req('appleScript', 'execute', _stringify({ source: String(source) })) },
+  }
+
+  // -------------------------------------------------------------------------
+  // fileAssociations — LaunchServices default-handler controls
+  // -------------------------------------------------------------------------
+  window.craft.fileAssociations = {
+    getDefault: function (uti) { return _req('fileAssociations', 'getDefault', _stringify({ uti: String(uti) })).then(function (r) { return r && r.bundleId }) },
+    setDefault: function (uti, bundleId) { return _req('fileAssociations', 'setDefault', _stringify({ uti: String(uti), bundleId: String(bundleId) })).then(function (r) { return !!(r && r.ok) }) },
+  }
+
+  // -------------------------------------------------------------------------
+  // tags — Finder colour tags via xattr
+  // -------------------------------------------------------------------------
+  window.craft.tags = {
+    get:   function (path) { return _req('tags', 'get', _stringify({ path: String(path) })).then(function (r) { return (r && r.tags) || [] }) },
+    set:   function (path, tags) { return _req('tags', 'set', _stringify({ path: String(path), tags: Array.isArray(tags) ? tags : [String(tags)] })).then(function (r) { return !!(r && r.ok) }) },
+    clear: function (path) { return _req('tags', 'clear', _stringify({ path: String(path) })).then(function (r) { return !!(r && r.ok) }) },
+  }
+
+  // -------------------------------------------------------------------------
+  // pdf — PDFKit text extraction + page count
+  // -------------------------------------------------------------------------
+  window.craft.pdf = {
+    countPages:  function (path) { return _req('pdf', 'countPages', _stringify({ path: String(path) })).then(function (r) { return (r && r.pages) || 0 }) },
+    extractText: function (path) { return _req('pdf', 'extractText', _stringify({ path: String(path) })).then(function (r) { return (r && r.text) || '' }) },
+  }
+
+  // -------------------------------------------------------------------------
+  // log — unified system log
+  // -------------------------------------------------------------------------
+  window.craft.log = {
+    debug: function (m) { return _send('log', 'log', _stringify({ level: 'debug', message: String(m) })) },
+    info:  function (m) { return _send('log', 'log', _stringify({ level: 'info', message: String(m) })) },
+    warn:  function (m) { return _send('log', 'log', _stringify({ level: 'warn', message: String(m) })) },
+    error: function (m) { return _send('log', 'log', _stringify({ level: 'error', message: String(m) })) },
+  }
+
+  // -------------------------------------------------------------------------
+  // bonjour — service discovery (NWBrowser stub)
+  // -------------------------------------------------------------------------
+  window.craft.bonjour = {
+    browse:    function (serviceType) { return _req('bonjour', 'browse', _stringify({ type: String(serviceType) })) },
+    stop:      function () { return _send('bonjour', 'stop') },
+    onFound:   _evt('craft:bonjour:found'),
+    onLost:    _evt('craft:bonjour:lost'),
+  }
+
+  // -------------------------------------------------------------------------
+  // spotlight — CSSearchableIndex (stub)
+  // -------------------------------------------------------------------------
+  window.craft.spotlight = {
+    index:     function (items) { return _req('spotlight', 'index', _stringify({ items: items || [] })) },
+    remove:    function (ids)   { return _req('spotlight', 'remove', _stringify({ ids: ids || [] })) },
+    removeAll: function ()      { return _req('spotlight', 'removeAll') },
+  }
+
+  // -------------------------------------------------------------------------
+  // speechRecognition — SFSpeechRecognizer (stub)
+  // -------------------------------------------------------------------------
+  window.craft.speechRecognition = {
+    isAvailable: function () { return _req('speechRecognition', 'isAvailable').then(function (r) { return !!(r && r.value) }) },
+    start:       function (opts) { return _req('speechRecognition', 'start', _stringify(opts || {})) },
+    stop:        function () { return _send('speechRecognition', 'stop') },
+    onPartial:   _evt('craft:speechRecognition:partial'),
+    onFinal:     _evt('craft:speechRecognition:final'),
+  }
+
+  // -------------------------------------------------------------------------
+  // vision — OCR / face detection / barcode (stub)
+  // -------------------------------------------------------------------------
+  window.craft.vision = {
+    recognizeText:  function (path) { return _req('vision', 'recognizeText', _stringify({ path: String(path) })).then(function (r) { return (r && r.results) || [] }) },
+    detectFaces:    function (path) { return _req('vision', 'detectFaces', _stringify({ path: String(path) })).then(function (r) { return (r && r.results) || [] }) },
+    detectBarcodes: function (path) { return _req('vision', 'detectBarcodes', _stringify({ path: String(path) })).then(function (r) { return (r && r.results) || [] }) },
+  }
+
+  // -------------------------------------------------------------------------
+  // handoff — NSUserActivity broadcast across the user's Apple devices
+  // -------------------------------------------------------------------------
+  // Native side delivers incoming handoffs via __craftDeliverHandoff;
+  // re-emit as `craft:handoff:incoming` for app subscribers.
+  window.__craftDeliverHandoff = function (info) {
+    if (!info) return
+    window.dispatchEvent(new CustomEvent('craft:handoff:incoming', { detail: info }))
+  }
+  window.craft.handoff = {
+    startActivity: function (type, opts) {
+      const o = Object.assign({ type: String(type) }, opts || {})
+      return _req('handoff', 'startActivity', _stringify(o)).then(function (r) { return !!(r && r.ok) })
+    },
+    updateActivity: function (opts) { return _req('handoff', 'updateActivity', _stringify(opts || {})).then(function (r) { return !!(r && r.ok) }) },
+    stopActivity:        function () { return _send('handoff', 'stopActivity') },
+    getCurrentActivity:  function () { return _req('handoff', 'getCurrentActivity').then(function (r) { return r && r.activity }) },
+    onIncoming:          _evt('craft:handoff:incoming'),
   }
 
   // -------------------------------------------------------------------------
