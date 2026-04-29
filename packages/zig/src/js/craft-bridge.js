@@ -952,6 +952,54 @@
   }
 
   // -------------------------------------------------------------------------
+  // midi — CoreMIDI endpoint enumeration + send/receive
+  // -------------------------------------------------------------------------
+  window.craft.midi = {
+    listSources:      function () { return _req('midi', 'listSources').then(function (r) { return (r && r.endpoints) || [] }) },
+    listDestinations: function () { return _req('midi', 'listDestinations').then(function (r) { return (r && r.endpoints) || [] }) },
+    send:        function (destinationIndex, data) { return _req('midi', 'send', _stringify({ index: Number(destinationIndex), data: Array.from(data || []) })) },
+    subscribe:   function (sourceIndex) { return _req('midi', 'subscribe', _stringify({ index: Number(sourceIndex) })) },
+    unsubscribe: function (sourceIndex) { return _req('midi', 'unsubscribe', _stringify({ index: Number(sourceIndex) })) },
+    onMessage:   _evt('craft:midi:message'),
+  }
+
+  // -------------------------------------------------------------------------
+  // coreml — load + run CoreML models on-device
+  // -------------------------------------------------------------------------
+  window.craft.coreml = {
+    loadModel:   function (id, path) { return _req('coreml', 'loadModel', _stringify({ id: String(id), path: String(path) })).then(function (r) { return !!(r && r.loaded) }) },
+    unloadModel: function (id)       { return _send('coreml', 'unloadModel', _stringify({ id: String(id) })) },
+    predict:     function (id, input) { return _req('coreml', 'predict', _stringify({ id: String(id), input: input || {} })) },
+  }
+
+  // -------------------------------------------------------------------------
+  // continuityCamera — list paired iPhone cameras
+  // -------------------------------------------------------------------------
+  window.craft.continuityCamera = {
+    listCameras: function () { return _req('continuityCamera', 'listCameras').then(function (r) { return (r && r.cameras) || [] }) },
+  }
+
+  // -------------------------------------------------------------------------
+  // serviceMenu — register handlers for the macOS Services submenu
+  // -------------------------------------------------------------------------
+  window.craft.serviceMenu = {
+    register:   function (name) { return _req('serviceMenu', 'register', _stringify({ name: String(name) })) },
+    unregister: function (name) { return _send('serviceMenu', 'unregister', _stringify({ name: String(name) })) },
+    onInvoked:  _evt('craft:serviceMenu:invoked'),
+  }
+
+  // -------------------------------------------------------------------------
+  // serial — serial-port I/O (IoT / Arduino)
+  // -------------------------------------------------------------------------
+  window.craft.serial = {
+    list:  function () { return _req('serial', 'list').then(function (r) { return (r && r.ports) || [] }) },
+    open:  function (path, baud) { return _req('serial', 'open', _stringify({ path: String(path), baud: Number(baud) || 9600 })) },
+    write: function (id, data)   { return _req('serial', 'write', _stringify({ id: String(id), data: String(data) })) },
+    close: function (id)         { return _send('serial', 'close', _stringify({ id: String(id) })) },
+    onData: _evt('craft:serial:data'),
+  }
+
+  // -------------------------------------------------------------------------
   // handoff — NSUserActivity broadcast across the user's Apple devices
   // -------------------------------------------------------------------------
   // Native side delivers incoming handoffs via __craftDeliverHandoff;

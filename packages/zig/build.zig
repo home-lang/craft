@@ -1412,6 +1412,13 @@ fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: st
         .macos => {
             module.linkFramework("Cocoa", .{});
             module.linkFramework("WebKit", .{});
+            // CoreMIDI for `bridge_midi.zig` — symbols are macOS-only
+            // and don't auto-resolve via Cocoa. CoreML and Vision
+            // resolve through their own frameworks; not bundled here
+            // because the bridges call them via objc msgSend rather
+            // than direct C symbols, so the runtime resolves them
+            // when the app dynamically loads them.
+            module.linkFramework("CoreMIDI", .{});
             applySdkPaths(b, module, sdk_path);
         },
         .linux => {

@@ -3286,6 +3286,11 @@ var global_bonjour_bridge: ?*@import("bridge_bonjour.zig").BonjourBridge = null;
 var global_spotlight_bridge: ?*@import("bridge_spotlight.zig").SpotlightBridge = null;
 var global_speech_recognition_bridge: ?*@import("bridge_speech_recognition.zig").SpeechRecognitionBridge = null;
 var global_vision_bridge: ?*@import("bridge_vision.zig").VisionBridge = null;
+var global_midi_bridge: ?*@import("bridge_midi.zig").MIDIBridge = null;
+var global_coreml_bridge: ?*@import("bridge_coreml.zig").CoreMLBridge = null;
+var global_continuity_camera_bridge: ?*@import("bridge_continuity_camera.zig").ContinuityCameraBridge = null;
+var global_service_menu_bridge: ?*@import("bridge_service_menu.zig").ServiceMenuBridge = null;
+var global_serial_bridge: ?*@import("bridge_serial.zig").SerialBridge = null;
 
 pub fn setGlobalTrayHandle(handle: *anyopaque) void {
     global_tray_handle_for_bridge = handle;
@@ -3538,6 +3543,31 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         const T = @import("bridge_vision.zig").VisionBridge;
         global_vision_bridge = try allocator.create(T);
         global_vision_bridge.?.* = T.init(allocator);
+    }
+    if (global_midi_bridge == null) {
+        const T = @import("bridge_midi.zig").MIDIBridge;
+        global_midi_bridge = try allocator.create(T);
+        global_midi_bridge.?.* = T.init(allocator);
+    }
+    if (global_coreml_bridge == null) {
+        const T = @import("bridge_coreml.zig").CoreMLBridge;
+        global_coreml_bridge = try allocator.create(T);
+        global_coreml_bridge.?.* = T.init(allocator);
+    }
+    if (global_continuity_camera_bridge == null) {
+        const T = @import("bridge_continuity_camera.zig").ContinuityCameraBridge;
+        global_continuity_camera_bridge = try allocator.create(T);
+        global_continuity_camera_bridge.?.* = T.init(allocator);
+    }
+    if (global_service_menu_bridge == null) {
+        const T = @import("bridge_service_menu.zig").ServiceMenuBridge;
+        global_service_menu_bridge = try allocator.create(T);
+        global_service_menu_bridge.?.* = T.init(allocator);
+    }
+    if (global_serial_bridge == null) {
+        const T = @import("bridge_serial.zig").SerialBridge;
+        global_serial_bridge = try allocator.create(T);
+        global_serial_bridge.?.* = T.init(allocator);
     }
 
     // theme + dragOut + deepLink: native modules with their own state, no
@@ -3869,6 +3899,16 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         if (global_speech_recognition_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
     } else if (std.mem.eql(u8, msg_type, "vision")) {
         if (global_vision_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "midi")) {
+        if (global_midi_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "coreml")) {
+        if (global_coreml_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "continuityCamera")) {
+        if (global_continuity_camera_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "serviceMenu")) {
+        if (global_service_menu_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "serial")) {
+        if (global_serial_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages
         if (comptime builtin.mode == .Debug) {
