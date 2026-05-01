@@ -9,6 +9,25 @@ const log = logging.clipboard;
 // Import GTK clipboard API from linux.zig (works on both X11 and Wayland)
 const linux = if (builtin.os.tag == .linux) @import("linux.zig") else undefined;
 
+// Win32 symbols used by the Windows clipboard implementation. Declared at
+// file scope as `extern` so the file parses on every platform — Zig 0.17
+// removed `@cImport` from the build-exe path. The functions themselves
+// only resolve at link time on Windows; non-Windows builds never reach
+// them at runtime (the windowsXxx fns short-circuit via `builtin.os.tag`).
+const HANDLE = ?*anyopaque;
+const win32 = struct {
+    extern "kernel32" fn GlobalAlloc(uFlags: c_uint, dwBytes: usize) HANDLE;
+    extern "kernel32" fn GlobalLock(hMem: HANDLE) ?*anyopaque;
+    extern "kernel32" fn GlobalUnlock(hMem: HANDLE) c_int;
+    extern "user32" fn OpenClipboard(hWndNewOwner: HANDLE) c_int;
+    extern "user32" fn CloseClipboard() c_int;
+    extern "user32" fn EmptyClipboard() c_int;
+    extern "user32" fn SetClipboardData(uFormat: c_uint, hMem: HANDLE) HANDLE;
+    extern "user32" fn GetClipboardData(uFormat: c_uint) HANDLE;
+    extern "user32" fn IsClipboardFormatAvailable(format: c_uint) c_int;
+    extern "user32" fn RegisterClipboardFormatA(lpszFormat: [*:0]const u8) c_uint;
+};
+
 /// Bridge handler for clipboard operations
 pub const ClipboardBridge = struct {
     allocator: std.mem.Allocator,
@@ -822,7 +841,7 @@ pub const ClipboardBridge = struct {
     // ============================================
 
     fn windowsWriteText(self: *Self, data: ?[]const u8) !void {
-        if (builtin.os.tag != .windows) {
+        if (comptime builtin.os.tag != .windows) {
             _ = &self;
             _ = &data;
             return;
@@ -836,8 +855,8 @@ pub const ClipboardBridge = struct {
             if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
                 const text = json_data[start..end];
 
-                const kernel32 = @cImport(@cInclude("windows.h"));
-                const user32 = kernel32;
+                const kernel32 = win32;
+                const user32 = win32;
 
                 const CF_TEXT = 1;
                 const GMEM_MOVEABLE = 0x0002;
@@ -870,8 +889,8 @@ pub const ClipboardBridge = struct {
             return;
         }
 
-        const kernel32 = @cImport(@cInclude("windows.h"));
-        const user32 = kernel32;
+        const kernel32 = win32;
+                const user32 = win32;
 
         const CF_TEXT = 1;
 
@@ -921,8 +940,8 @@ pub const ClipboardBridge = struct {
             if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
                 const html = json_data[start..end];
 
-                const kernel32 = @cImport(@cInclude("windows.h"));
-                const user32 = kernel32;
+                const kernel32 = win32;
+                const user32 = win32;
 
                 // Register HTML clipboard format
                 const cf_html = user32.RegisterClipboardFormatA("HTML Format");
@@ -961,8 +980,8 @@ pub const ClipboardBridge = struct {
             return;
         }
 
-        const kernel32 = @cImport(@cInclude("windows.h"));
-        const user32 = kernel32;
+        const kernel32 = win32;
+                const user32 = win32;
 
         const cf_html = user32.RegisterClipboardFormatA("HTML Format");
 
@@ -1003,7 +1022,7 @@ pub const ClipboardBridge = struct {
             return;
         }
 
-        const user32 = @cImport(@cInclude("windows.h"));
+        const user32 = win32;
 
         if (user32.OpenClipboard(null) != 0) {
             _ = user32.EmptyClipboard();
@@ -1018,7 +1037,7 @@ pub const ClipboardBridge = struct {
             return;
         }
 
-        const user32 = @cImport(@cInclude("windows.h"));
+        const user32 = win32;
         const CF_TEXT = 1;
 
         const has_text = user32.IsClipboardFormatAvailable(CF_TEXT) != 0;
@@ -1033,7 +1052,7 @@ pub const ClipboardBridge = struct {
             return;
         }
 
-        const user32 = @cImport(@cInclude("windows.h"));
+        const user32 = win32;
         const cf_html = user32.RegisterClipboardFormatA("HTML Format");
 
         const has_html = user32.IsClipboardFormatAvailable(cf_html) != 0;
@@ -1048,7 +1067,7 @@ pub const ClipboardBridge = struct {
             return;
         }
 
-        const user32 = @cImport(@cInclude("windows.h"));
+        const user32 = win32;
         const CF_BITMAP = 2;
         const CF_DIB = 8;
 

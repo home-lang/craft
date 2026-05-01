@@ -1,23 +1,31 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-// Use @cImport for dl functions to avoid Zig 0.16 std.c.RTLD type issues
-const dl = struct {
-    const c = @cImport(@cInclude("dlfcn.h"));
+// dlopen/dlsym/dlclose wrappers. Gated to Linux because (a) this file's
+// callers are all behind `if (builtin.os.tag == .linux)` so they never run
+// on macOS, and (b) Zig 0.17 removed @cImport from the build-exe path, so
+// the bare `@cImport(@cInclude("dlfcn.h"))` form would fail at parse time
+// even though it's never referenced from a macOS build. Direct extern decls
+// avoid both issues.
+const dl = if (builtin.os.tag == .linux) struct {
+    const RTLD_LAZY: c_int = 0x00001;
+
+    extern "c" fn dlopen(path: [*:0]const u8, mode: c_int) ?*anyopaque;
+    extern "c" fn dlsym(handle: ?*anyopaque, symbol: [*:0]const u8) ?*anyopaque;
+    extern "c" fn dlclose(handle: ?*anyopaque) c_int;
 
     fn open(path: [*:0]const u8) ?*anyopaque {
-        const result = c.dlopen(path, c.RTLD_LAZY);
-        return @ptrCast(result);
+        return dlopen(path, RTLD_LAZY);
     }
 
     fn sym(handle: ?*anyopaque, symbol: [*:0]const u8) ?*anyopaque {
-        return @ptrCast(c.dlsym(handle, symbol));
+        return dlsym(handle, symbol);
     }
 
     fn close(handle: ?*anyopaque) void {
-        _ = c.dlclose(handle);
+        _ = dlclose(handle);
     }
-};
+} else struct {};
 
 // Only compile on Linux
 pub const LinuxTray = if (builtin.os.tag == .linux) LinuxTrayImpl else struct {

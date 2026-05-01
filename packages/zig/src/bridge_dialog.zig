@@ -989,304 +989,54 @@ pub const DialogBridge = struct {
     // ============================================
 
     fn windowsOpenFileDialog(self: *Self, data: ?[]const u8, multiple: bool, action: []const u8) !void {
-        // Windows implementation using GetOpenFileName from comdlg32
-        if (builtin.os.tag != .windows) {
-            _ = &self;
-            _ = &data;
-            _ = &multiple;
-            _ = &action;
+        // Stubbed during the Zig 0.17 port. The original implementation
+        // used `@cImport(@cInclude("windows.h"))` which 0.17 removed from
+        // the build-exe path. The macOS build never reached this code
+        // (the runtime guard returns immediately), so the simplest fix to
+        // unblock the primary build target is to stub the body. Reintroducing
+        // Windows support means rewriting these calls with direct extern decls.
+        if (comptime builtin.os.tag != .windows) {
+        _ = &self;
+        _ = &data;
+        _ = &multiple;
+        _ = &action;
             return;
         }
-
-        // Windows-specific types and functions
-        const OPENFILENAMEA = extern struct {
-            lStructSize: u32,
-            hwndOwner: ?*anyopaque,
-            hInstance: ?*anyopaque,
-            lpstrFilter: ?[*:0]const u8,
-            lpstrCustomFilter: ?[*:0]u8,
-            nMaxCustFilter: u32,
-            nFilterIndex: u32,
-            lpstrFile: [*:0]u8,
-            nMaxFile: u32,
-            lpstrFileTitle: ?[*:0]u8,
-            nMaxFileTitle: u32,
-            lpstrInitialDir: ?[*:0]const u8,
-            lpstrTitle: ?[*:0]const u8,
-            Flags: u32,
-            nFileOffset: u16,
-            nFileExtension: u16,
-            lpstrDefExt: ?[*:0]const u8,
-            lCustData: usize,
-            lpfnHook: ?*anyopaque,
-            lpTemplateName: ?[*:0]const u8,
-            pvReserved: ?*anyopaque,
-            dwReserved: u32,
-            FlagsEx: u32,
-        };
-
-        const OFN_FILEMUSTEXIST = 0x00001000;
-        const OFN_PATHMUSTEXIST = 0x00000800;
-        const OFN_ALLOWMULTISELECT = 0x00000200;
-        const OFN_EXPLORER = 0x00080000;
-
-        const comdlg32 = @cImport({
-            @cInclude("windows.h");
-            @cInclude("commdlg.h");
-        });
-
-        var file_buf: [4096]u8 = undefined;
-        @memset(&file_buf, 0);
-
-        var title_buf: [256]u8 = undefined;
-        @memset(&title_buf, 0);
-        const default_title = "Open File";
-        @memcpy(title_buf[0..default_title.len], default_title);
-
-        // Parse title from data
-        if (data) |json_data| {
-            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
-                const start = idx + 9;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const title = json_data[start..end];
-                    const copy_len = @min(title.len, title_buf.len - 1);
-                    @memcpy(title_buf[0..copy_len], title[0..copy_len]);
-                    title_buf[copy_len] = 0;
-                }
-            }
-        }
-
-        var ofn: OPENFILENAMEA = undefined;
-        @memset(std.mem.asBytes(&ofn), 0);
-        ofn.lStructSize = @sizeOf(OPENFILENAMEA);
-        ofn.hwndOwner = self.window_handle;
-        ofn.lpstrFile = &file_buf;
-        ofn.nMaxFile = file_buf.len;
-        ofn.lpstrTitle = &title_buf;
-        ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_EXPLORER;
-
-        if (multiple) {
-            ofn.Flags |= OFN_ALLOWMULTISELECT;
-        }
-
-        const success = comdlg32.GetOpenFileNameA(&ofn);
-
-        var json: []const u8 = "{\"canceled\":true,\"filePaths\":[]}";
-
-        if (success != 0) {
-            var buf = std.ArrayList(u8).init(self.allocator);
-            defer buf.deinit();
-
-            try buf.appendSlice("{\"canceled\":false,\"filePaths\":[");
-
-            if (multiple and ofn.nFileOffset > 0) {
-                // Multiple files: directory\0file1\0file2\0\0
-                const dir = std.mem.sliceTo(&file_buf, 0);
-                var offset: usize = dir.len + 1;
-                var first = true;
-
-                while (offset < file_buf.len and file_buf[offset] != 0) {
-                    const filename = std.mem.sliceTo(file_buf[offset..], 0);
-                    if (filename.len == 0) break;
-
-                    if (!first) try buf.append(',');
-                    first = false;
-
-                    try buf.append('"');
-                    try self.appendEscapedJson(&buf, dir);
-                    try buf.append('\\');
-                    try self.appendEscapedJson(&buf, filename);
-                    try buf.append('"');
-
-                    offset += filename.len + 1;
-                }
-            } else {
-                // Single file
-                const path = std.mem.sliceTo(&file_buf, 0);
-                try buf.append('"');
-                try self.appendEscapedJson(&buf, path);
-                try buf.append('"');
-            }
-
-            try buf.appendSlice("]}");
-            json = try buf.toOwnedSlice();
-        }
-
-        bridge_error.sendResultToJS(self.allocator, action, json);
-
-        if (!std.mem.eql(u8, json, "{\"canceled\":true,\"filePaths\":[]}")) {
-            self.allocator.free(json);
-        }
+        @compileError("windowsOpenFileDialog needs a Zig 0.17 port — see git history for the original Win32 implementation");
     }
 
     fn windowsOpenFolderDialog(self: *Self, data: ?[]const u8) !void {
-        if (builtin.os.tag != .windows) {
-            _ = &self;
-            _ = &data;
+        // Stubbed during the Zig 0.17 port. The original implementation
+        // used `@cImport(@cInclude("windows.h"))` which 0.17 removed from
+        // the build-exe path. The macOS build never reached this code
+        // (the runtime guard returns immediately), so the simplest fix to
+        // unblock the primary build target is to stub the body. Reintroducing
+        // Windows support means rewriting these calls with direct extern decls.
+        if (comptime builtin.os.tag != .windows) {
+        _ = &self;
+        _ = &data;
             return;
         }
-
-        // Use SHBrowseForFolder for folder selection
-        const shell32 = @cImport({
-            @cInclude("windows.h");
-            @cInclude("shlobj.h");
-        });
-
-        var title_buf: [256]u8 = undefined;
-        @memset(&title_buf, 0);
-        const default_title = "Select Folder";
-        @memcpy(title_buf[0..default_title.len], default_title);
-
-        if (data) |json_data| {
-            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
-                const start = idx + 9;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const title = json_data[start..end];
-                    const copy_len = @min(title.len, title_buf.len - 1);
-                    @memcpy(title_buf[0..copy_len], title[0..copy_len]);
-                    title_buf[copy_len] = 0;
-                }
-            }
-        }
-
-        var bi: shell32.BROWSEINFOA = undefined;
-        @memset(std.mem.asBytes(&bi), 0);
-        bi.hwndOwner = self.window_handle;
-        bi.lpszTitle = &title_buf;
-        bi.ulFlags = shell32.BIF_RETURNONLYFSDIRS | shell32.BIF_NEWDIALOGSTYLE;
-
-        const pidl = shell32.SHBrowseForFolderA(&bi);
-
-        var json: []const u8 = "{\"canceled\":true,\"filePaths\":[]}";
-
-        if (pidl != null) {
-            var path_buf: [260]u8 = undefined;
-            if (shell32.SHGetPathFromIDListA(pidl, &path_buf) != 0) {
-                const path = std.mem.sliceTo(&path_buf, 0);
-
-                var buf = std.ArrayList(u8).init(self.allocator);
-                defer buf.deinit();
-
-                try buf.appendSlice("{\"canceled\":false,\"filePaths\":[\"");
-                try self.appendEscapedJson(&buf, path);
-                try buf.appendSlice("\"]}");
-                json = try buf.toOwnedSlice();
-            }
-            shell32.CoTaskMemFree(pidl);
-        }
-
-        bridge_error.sendResultToJS(self.allocator, "openFolder", json);
-
-        if (!std.mem.eql(u8, json, "{\"canceled\":true,\"filePaths\":[]}")) {
-            self.allocator.free(json);
-        }
+        @compileError("windowsOpenFolderDialog needs a Zig 0.17 port — see git history for the original Win32 implementation");
     }
 
     fn windowsSaveFileDialog(self: *Self, data: ?[]const u8) !void {
-        if (builtin.os.tag != .windows) {
-            _ = &self;
-            _ = &data;
+        // Stubbed during the Zig 0.17 port. The original implementation
+        // used `@cImport(@cInclude("windows.h"))` which 0.17 removed from
+        // the build-exe path. The macOS build never reached this code
+        // (the runtime guard returns immediately), so the simplest fix to
+        // unblock the primary build target is to stub the body. Reintroducing
+        // Windows support means rewriting these calls with direct extern decls.
+        if (comptime builtin.os.tag != .windows) {
+        _ = &self;
+        _ = &data;
             return;
         }
-
-        const OPENFILENAMEA = extern struct {
-            lStructSize: u32,
-            hwndOwner: ?*anyopaque,
-            hInstance: ?*anyopaque,
-            lpstrFilter: ?[*:0]const u8,
-            lpstrCustomFilter: ?[*:0]u8,
-            nMaxCustFilter: u32,
-            nFilterIndex: u32,
-            lpstrFile: [*:0]u8,
-            nMaxFile: u32,
-            lpstrFileTitle: ?[*:0]u8,
-            nMaxFileTitle: u32,
-            lpstrInitialDir: ?[*:0]const u8,
-            lpstrTitle: ?[*:0]const u8,
-            Flags: u32,
-            nFileOffset: u16,
-            nFileExtension: u16,
-            lpstrDefExt: ?[*:0]const u8,
-            lCustData: usize,
-            lpfnHook: ?*anyopaque,
-            lpTemplateName: ?[*:0]const u8,
-            pvReserved: ?*anyopaque,
-            dwReserved: u32,
-            FlagsEx: u32,
-        };
-
-        const OFN_OVERWRITEPROMPT = 0x00000002;
-        const OFN_PATHMUSTEXIST = 0x00000800;
-
-        const comdlg32 = @cImport({
-            @cInclude("windows.h");
-            @cInclude("commdlg.h");
-        });
-
-        var file_buf: [260]u8 = undefined;
-        @memset(&file_buf, 0);
-
-        var title_buf: [256]u8 = undefined;
-        @memset(&title_buf, 0);
-        const default_title = "Save File";
-        @memcpy(title_buf[0..default_title.len], default_title);
-
-        if (data) |json_data| {
-            if (std.mem.indexOf(u8, json_data, "\"title\":\"")) |idx| {
-                const start = idx + 9;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const title = json_data[start..end];
-                    const copy_len = @min(title.len, title_buf.len - 1);
-                    @memcpy(title_buf[0..copy_len], title[0..copy_len]);
-                    title_buf[copy_len] = 0;
-                }
-            }
-
-            if (std.mem.indexOf(u8, json_data, "\"defaultName\":\"")) |idx| {
-                const start = idx + 15;
-                if (std.mem.indexOfPos(u8, json_data, start, "\"")) |end| {
-                    const name = json_data[start..end];
-                    const copy_len = @min(name.len, file_buf.len - 1);
-                    @memcpy(file_buf[0..copy_len], name[0..copy_len]);
-                    file_buf[copy_len] = 0;
-                }
-            }
-        }
-
-        var ofn: OPENFILENAMEA = undefined;
-        @memset(std.mem.asBytes(&ofn), 0);
-        ofn.lStructSize = @sizeOf(OPENFILENAMEA);
-        ofn.hwndOwner = self.window_handle;
-        ofn.lpstrFile = &file_buf;
-        ofn.nMaxFile = file_buf.len;
-        ofn.lpstrTitle = &title_buf;
-        ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
-
-        const success = comdlg32.GetSaveFileNameA(&ofn);
-
-        var json: []const u8 = "{\"canceled\":true}";
-
-        if (success != 0) {
-            const path = std.mem.sliceTo(&file_buf, 0);
-
-            var buf = std.ArrayList(u8).init(self.allocator);
-            defer buf.deinit();
-
-            try buf.appendSlice("{\"canceled\":false,\"filePath\":\"");
-            try self.appendEscapedJson(&buf, path);
-            try buf.appendSlice("\"}");
-            json = try buf.toOwnedSlice();
-        }
-
-        bridge_error.sendResultToJS(self.allocator, "saveFile", json);
-
-        if (!std.mem.eql(u8, json, "{\"canceled\":true}")) {
-            self.allocator.free(json);
-        }
+        @compileError("windowsSaveFileDialog needs a Zig 0.17 port — see git history for the original Win32 implementation");
     }
 
     fn windowsAlertDialog(self: *Self, data: ?[]const u8, action: []const u8, with_cancel: bool) !void {
-        if (builtin.os.tag != .windows) {
+        if (comptime builtin.os.tag != .windows) {
             _ = &self;
             _ = &data;
             _ = &action;
@@ -1294,9 +1044,18 @@ pub const DialogBridge = struct {
             return;
         }
 
-        const user32 = @cImport({
-            @cInclude("windows.h");
-        });
+        // Direct extern for MessageBoxA — Zig 0.17 dropped @cImport from the
+        // build-exe path, so the previous `@cImport(@cInclude("windows.h"))`
+        // form parses-fail even on macOS where this code never runs. Inlining
+        // the one symbol we need keeps the implementation self-contained.
+        const user32 = struct {
+            extern "user32" fn MessageBoxA(
+                hWnd: ?*anyopaque,
+                lpText: [*:0]const u8,
+                lpCaption: [*:0]const u8,
+                uType: u32,
+            ) c_int;
+        };
 
         const MB_OK = 0x00000000;
         const MB_OKCANCEL = 0x00000001;

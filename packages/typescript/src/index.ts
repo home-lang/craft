@@ -392,6 +392,9 @@ export class CraftApp {
       args.push('--menubar-only')
     if (window?.titlebarHidden)
       args.push('--titlebar-hidden')
+    if (window?.icon)
+      args.push('--icon', window.icon)
+
     if (window?.nativeSidebar) {
       args.push('--native-sidebar')
       if (window?.sidebarWidth)

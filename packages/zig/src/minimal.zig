@@ -293,6 +293,17 @@ pub fn main(init: std.process.Init) !void {
         std.debug.print("   System Tray: Created successfully\n", .{});
     }
 
+    // Apply the custom dock icon LAST — after the window is created (which
+    // is where `setActivationPolicy:` lands for the various window paths).
+    // `setApplicationIconImage:` only sticks once the app has a regular
+    // activation policy; setting it earlier silently no-ops, leaving the
+    // generic "exec" placeholder in the dock.
+    if (builtin.os.tag == .macos) {
+        if (options.icon) |icon_path| {
+            craft.macos.setApplicationIcon(icon_path);
+        }
+    }
+
     try app.run();
 }
 
@@ -320,6 +331,12 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
     // Initialize platform for TRAY apps - uses Accessory policy AND calls finishLaunching
     // This MUST happen BEFORE creating the status bar item (proven by working test)
     app.initPlatformForTray();
+
+    if (builtin.os.tag == .macos) {
+        if (options.icon) |icon_path| {
+            craft.macos.setApplicationIcon(icon_path);
+        }
+    }
 
     // Create system tray AFTER finishLaunching (this is the key!)
     const sys_tray = try app.createSystemTray(options.title);

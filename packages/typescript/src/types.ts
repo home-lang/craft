@@ -169,6 +169,16 @@ export interface WindowOptions {
    * Only used when nativeSidebar is true
    */
   sidebarConfig?: SidebarConfig
+
+  /**
+   * Path to a dock icon image (PNG, JPG, or ICNS).
+   * On macOS, the file is loaded with `[NSImage initWithContentsOfFile:]`
+   * and applied via `[NSApp setApplicationIconImage:]` before the first
+   * window appears. Other platforms ignore this option for now.
+   *
+   * @example "/path/to/resources/assets/images/app-icon.png"
+   */
+  icon?: string
 }
 
 // ============================================================================

@@ -58,5 +58,8 @@
     },
     "pre-push": "bun run typecheck",
     "commit-msg": "bunx gitlint --edit .git/COMMIT_EDITMSG"
+  },
+  "dependencies": {
+    "ziglang.org": "^0.17.0-dev.135+9df02121d"
   }
 }

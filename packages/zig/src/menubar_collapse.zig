@@ -521,10 +521,15 @@ fn deactivateAlwaysHidden() void {
 }
 
 fn nanoTimestamp() ?u64 {
-    const c = @cImport(@cInclude("time.h"));
-    var ts: c.struct_timespec = undefined;
-    if (c.clock_gettime(c.CLOCK_MONOTONIC, &ts) != 0) return null;
-    return @as(u64, @intCast(ts.tv_sec)) * 1_000_000_000 + @as(u64, @intCast(ts.tv_nsec));
+    // Direct libc call — Zig 0.17 stripped `std.time.nanoTimestamp` and the
+    // replacement `Io.Clock.now` requires plumbing an `Io` through this code
+    // path, which isn't worth it for a debounce timer. CLOCK_MONOTONIC stays
+    // monotonic across NTP adjustments which is what we need for diffing
+    // intervals.
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.MONOTONIC, &ts) != 0) return null;
+    const sec_ns = @as(u64, @intCast(ts.sec)) * std.time.ns_per_s;
+    return sec_ns + @as(u64, @intCast(ts.nsec));
 }
 
 fn findConstraintForItem(item: objc.id, out_constraint: *objc.id) void {

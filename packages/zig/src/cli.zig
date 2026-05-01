@@ -25,6 +25,10 @@ pub const WindowOptions = struct {
     sidebar_config: ?[]const u8 = null,
     quiet: bool = false,
     benchmark: bool = false,
+    // Path to a PNG/JPG/ICNS file used as the dock icon for the running
+    // process. NSImage decodes everything Cocoa can render, so any common
+    // raster format works; .icns is preferred for crispness across sizes.
+    icon: ?[]const u8 = null,
 };
 
 pub const CliError = error{
@@ -50,6 +54,7 @@ fn freeOptionStrings(allocator: std.mem.Allocator, options: *WindowOptions) void
     if (options.html) |s| allocator.free(s);
     if (!std.mem.eql(u8, options.title, "Craft App")) allocator.free(options.title);
     if (options.sidebar_config) |s| allocator.free(s);
+    if (options.icon) |s| allocator.free(s);
     options.* = WindowOptions{};
 }
 
@@ -159,6 +164,10 @@ pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !Wind
             i += 1;
             if (i >= args.len) return CliError.MissingValue;
             options.sidebar_config = try allocator.dupe(u8, args[i]);
+        } else if (std.mem.eql(u8, arg, "--icon")) {
+            i += 1;
+            if (i >= args.len) return CliError.MissingValue;
+            options.icon = try allocator.dupe(u8, args[i]);
         } else if (!std.mem.startsWith(u8, arg, "--")) {
             // Treat as positional URL argument
             if (options.url == null) {
@@ -215,6 +224,7 @@ fn printHelp() void {
         \\      --native-sidebar     Use native macOS sidebar (Finder-style)
         \\      --sidebar-config <J> Sidebar JSON configuration
         \\      --sidebar-width <W>  Sidebar width in pixels (default: 220)
+        \\      --icon <PATH>        Path to dock icon image (PNG/JPG/ICNS)
         \\
         \\Debugging:
         \\      --debug              Enable debug output

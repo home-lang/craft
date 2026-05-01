@@ -5132,6 +5132,25 @@ pub fn initAppWithoutLaunching() void {
     _ = app; // Just ensure app exists
 }
 
+/// Set the dock icon for the running NSApplication. `path` may point to any
+/// image format Cocoa can decode (PNG/JPG/ICNS). A non-existent or
+/// undecodable file is logged and ignored — we never want a broken icon
+/// argument to bring the app down.
+pub fn setApplicationIcon(path: []const u8) void {
+    const NSApplication = getClass("NSApplication");
+    const NSImage = getClass("NSImage");
+
+    const path_str = createNSString(path);
+    const image = msgSend1(msgSend0(NSImage, "alloc"), "initWithContentsOfFile:", path_str);
+    if (image == null) {
+        std.log.warn("setApplicationIcon: could not load image at '{s}'", .{path});
+        return;
+    }
+
+    const app = msgSend0(NSApplication, "sharedApplication");
+    msgSendVoid1(app, "setApplicationIconImage:", image);
+}
+
 /// Create a minimal application menu with standard shortcuts (CMD+H, CMD+Q, etc.)
 pub fn createApplicationMenu() void {
     const NSApplication = getClass("NSApplication");

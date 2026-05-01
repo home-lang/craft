@@ -1,6 +1,10 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const macos = if (builtin.os.tag == .macos) @import("macos.zig") else struct {};
+// Re-exported so callers in the `root` module (minimal.zig, demo.zig) can
+// reach Cocoa wrappers like `setApplicationIcon` without doing their own
+// `@import("macos.zig")` — Zig 0.17 forbids a single source file from being
+// the root of more than one module.
+pub const macos = if (builtin.os.tag == .macos) @import("macos.zig") else struct {};
 const BridgeAPI = @import("bridge_api.zig").BridgeAPI;
 const Menu = @import("menu.zig").Menu;
 
