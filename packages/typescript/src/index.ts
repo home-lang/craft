@@ -413,7 +413,15 @@ export class CraftApp {
         catch (e) {
           throw new Error(`Failed to serialize sidebarConfig: ${(e as Error).message}`)
         }
-        const inlineLimit = 4096
+        // macOS ARG_MAX is 1 MiB; Linux is 128 KiB+ on every modern kernel.
+        // The native craft binary only implements the inline `--sidebar-config`
+        // flag (it does NOT recognise `--sidebar-config-file`), so falling
+        // back to a file write makes Craft drop our config and render its
+        // built-in Finder placeholder instead. Bumping the inline ceiling
+        // to 256 KiB lets every realistic dashboard config (~10–20 KiB)
+        // round-trip; only a config with embedded newlines (which the OS
+        // chokes on for argv) drops to the file path.
+        const inlineLimit = 256 * 1024
         const safeForArgv = json.length <= inlineLimit && !json.includes('\n') && !json.includes('\r')
         if (safeForArgv) {
           args.push('--sidebar-config', json)
