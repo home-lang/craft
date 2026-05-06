@@ -29,7 +29,7 @@ jobs:
     runs-on: macos-14  # M1 runner for better iOS simulator performance
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Zig
         uses: home-lang/pantry/packages/action@main
@@ -39,7 +39,7 @@ jobs:
           xcode-version: latest-stable
 
       - name: Cache Zig artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/zig
@@ -136,7 +136,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Zig
         uses: home-lang/pantry/packages/action@main
@@ -150,7 +150,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Cache Zig artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/zig
@@ -181,7 +181,7 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: AVD cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: avd-cache
         with:
           path: |

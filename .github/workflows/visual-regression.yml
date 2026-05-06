@@ -26,7 +26,7 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -34,7 +34,7 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Cache Zig artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/zig
@@ -50,7 +50,7 @@ jobs:
           zig build -Doptimize=ReleaseSafe
 
       - name: Download baseline snapshots
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .snapshots
           key: visual-snapshots-${{ github.base_ref || 'main' }}
