@@ -5152,6 +5152,9 @@ pub fn setApplicationIcon(path: []const u8) void {
 }
 
 /// Create a minimal application menu with standard shortcuts (CMD+H, CMD+Q, etc.)
+/// plus a View menu wired into WKWebView's responder chain for Reload (Cmd+R)
+/// and Force Reload (Cmd+Shift+R). Dev consoles can be opened via right-click
+/// when `dev_tools` is enabled (the webview sets `setInspectable:YES`).
 pub fn createApplicationMenu() void {
     const NSApplication = getClass("NSApplication");
     const NSMenu = getClass("NSMenu");
@@ -5194,6 +5197,40 @@ pub fn createApplicationMenu() void {
     // Set submenu
     msgSendVoid1(app_menu_item, "setSubmenu:", app_menu);
     msgSendVoid1(main_menu, "addItem:", app_menu_item);
+
+    // ── View menu ─────────────────────────────────────────────────────
+    // Items leave target as nil so AppKit walks the responder chain. The
+    // focused WKWebView responds to `reload:` and `reloadFromOrigin:` as
+    // IBAction-style selectors (defined on WKWebView).
+    const view_menu_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
+    const view_menu_title = msgSend1(NSString, "stringWithUTF8String:", "View");
+    msgSendVoid1(view_menu_item, "setTitle:", view_menu_title);
+    const view_menu = msgSend1(msgSend0(NSMenu, "alloc"), "initWithTitle:", view_menu_title);
+
+    // Reload — Cmd+R
+    const reload_title = msgSend1(NSString, "stringWithUTF8String:", "Reload");
+    const reload_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
+    msgSendVoid1(reload_item, "setTitle:", reload_title);
+    const r_key = msgSend1(NSString, "stringWithUTF8String:", "r");
+    msgSendVoid1(reload_item, "setKeyEquivalent:", r_key);
+    msgSendVoid1(reload_item, "setAction:", sel("reload:"));
+    msgSendVoid1(view_menu, "addItem:", reload_item);
+
+    // Force Reload — Cmd+Shift+R. NSEventModifierFlagShift = 1<<17,
+    // NSEventModifierFlagCommand = 1<<20; key equivalents add Command
+    // implicitly so we only OR Shift in here.
+    const NSEventModifierFlagShift: c_ulong = 1 << 17;
+    const NSEventModifierFlagCommand: c_ulong = 1 << 20;
+    const force_reload_title = msgSend1(NSString, "stringWithUTF8String:", "Force Reload");
+    const force_reload_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
+    msgSendVoid1(force_reload_item, "setTitle:", force_reload_title);
+    msgSendVoid1(force_reload_item, "setKeyEquivalent:", r_key);
+    msgSendVoid1(force_reload_item, "setKeyEquivalentModifierMask:", NSEventModifierFlagShift | NSEventModifierFlagCommand);
+    msgSendVoid1(force_reload_item, "setAction:", sel("reloadFromOrigin:"));
+    msgSendVoid1(view_menu, "addItem:", force_reload_item);
+
+    msgSendVoid1(view_menu_item, "setSubmenu:", view_menu);
+    msgSendVoid1(main_menu, "addItem:", view_menu_item);
 
     // Set as main menu
     msgSendVoid1(app, "setMainMenu:", main_menu);
