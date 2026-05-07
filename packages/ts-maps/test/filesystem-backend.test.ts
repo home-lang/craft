@@ -23,7 +23,7 @@ afterEach(() => {
 })
 
 describe('createFilesystemBackend', () => {
-  test('round-trips a tile (data, mime, etag, timestamps)', async () => {
+  test('round-trips a tile (data, mime, timestamp)', async () => {
     const backend = createFilesystemBackend({ baseDir })
     const data = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     const now = Date.now()
@@ -32,9 +32,7 @@ describe('createFilesystemBackend', () => {
       key: 'https://example.com/tile/0/0/0.pbf',
       data,
       mime: 'application/x-protobuf',
-      etag: 'W/"abc123"',
-      updatedAt: now,
-      expiresAt: now + 60_000,
+      addedAt: now,
       bytes: data.byteLength,
     })
 
@@ -42,25 +40,22 @@ describe('createFilesystemBackend', () => {
     expect(got).toBeDefined()
     expect(got!.key).toBe('https://example.com/tile/0/0/0.pbf')
     expect(got!.mime).toBe('application/x-protobuf')
-    expect(got!.etag).toBe('W/"abc123"')
-    expect(got!.updatedAt).toBe(now)
-    expect(got!.expiresAt).toBe(now + 60_000)
+    expect(got!.addedAt).toBe(now)
     expect(got!.bytes).toBe(10)
     expect(Array.from(got!.data)).toEqual(Array.from(data))
   })
 
-  test('handles tiles with no etag and no expiry', async () => {
+  test('handles minimal tile metadata', async () => {
     const backend = createFilesystemBackend({ baseDir })
     await backend.put({
       key: 'https://example.com/a',
       data: new Uint8Array([42]),
       mime: 'image/png',
-      updatedAt: 1,
+      addedAt: 1,
       bytes: 1,
     })
     const got = await backend.get('https://example.com/a')
-    expect(got!.etag).toBeUndefined()
-    expect(got!.expiresAt).toBeUndefined()
+    expect(got!.addedAt).toBe(1)
   })
 
   test('get on a missing key returns undefined', async () => {
@@ -74,7 +69,7 @@ describe('createFilesystemBackend', () => {
       key: 'k',
       data: new Uint8Array([1]),
       mime: 'x',
-      updatedAt: 0,
+      addedAt: 0,
       bytes: 1,
     })
     expect(await backend.get('k')).toBeDefined()
@@ -95,7 +90,7 @@ describe('createFilesystemBackend', () => {
         key: `k-${i}`,
         data: new Uint8Array([i]),
         mime: 'x',
-        updatedAt: i,
+        addedAt: i,
         bytes: 1,
       })
     }
@@ -110,7 +105,7 @@ describe('createFilesystemBackend', () => {
       key: 'k',
       data: new Uint8Array([1]),
       mime: 'x',
-      updatedAt: 0,
+      addedAt: 0,
       bytes: 1,
     })
     await backend.clear()
@@ -152,7 +147,7 @@ describe('TileCache with filesystem backend', () => {
       ttlMs: 0,
     })
 
-    // Different updatedAt so the LRU ordering is deterministic.
+    // Different addedAt values so the LRU ordering is deterministic.
     for (let i = 0; i < 4; i++) {
       await cache.put(`u-${i}`, new Uint8Array([i]), 'x')
       await new Promise(r => setTimeout(r, 1))

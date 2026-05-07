@@ -109,6 +109,7 @@ export function webkitRequest<T>(
   return new Promise<T>((resolve, reject) => {
     let settled = false
     const list = (w.__craftBridgePending![bucket] = w.__craftBridgePending![bucket] || [])
+    let timer: ReturnType<typeof setTimeout>
     const entry: PendingEntry<T> = {
       resolve: (v: T) => {
         if (settled) return
@@ -128,7 +129,7 @@ export function webkitRequest<T>(
       },
     }
     list.push(entry)
-    const timer: ReturnType<typeof setTimeout> = setTimeout(() => {
+    timer = setTimeout(() => {
       entry.reject(new Error(`[WKWebView] ${bucket} timed out after ${timeoutMs}ms`))
     }, timeoutMs)
     try {

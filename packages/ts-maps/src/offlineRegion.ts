@@ -24,13 +24,19 @@
  */
 
 import type {
-  OfflineBoundsLike,
-  OfflineProgressEmitter,
   OfflineRegionResult,
   TileCacheOptions,
 } from 'ts-maps'
 import { saveOfflineRegion, TileCache } from 'ts-maps'
 import { createFilesystemBackend } from './FilesystemTileBackend'
+
+export type OfflineBoundsLike =
+  | { west: number, south: number, east: number, north: number }
+  | readonly [west: number, south: number, east: number, north: number]
+
+export interface OfflineProgressEmitter {
+  fire: (type: string, data?: Record<string, unknown>) => unknown
+}
 
 export interface FilesystemOfflineRegionOptions {
   /** Sandbox directory for tile files. Created on first write. */

@@ -216,7 +216,7 @@ export class Window {
           }
         }) as EventListener
         const eventName = `craft:window:${type}`
-        window.addEventListener(eventName, handler)
+        globalThis.window.addEventListener(eventName, handler)
         this._domListeners.push({ type: eventName, handler })
       })
     }
@@ -225,7 +225,7 @@ export class Window {
   private _cleanupEventListeners(): void {
     if (typeof window !== 'undefined') {
       for (const { type, handler } of this._domListeners) {
-        window.removeEventListener(type, handler)
+        globalThis.window.removeEventListener(type, handler)
       }
       this._domListeners = []
     }
@@ -797,8 +797,29 @@ class WindowManager {
 export const windowManager: WindowManager = new WindowManager()
 
 /**
- * Alias for convenience - access current window directly
+ * Alias for convenience - manage the current window and child windows.
  */
 export const win: WindowManager = windowManager
+
+/**
+ * Documentation-friendly alias for the window manager.
+ */
+export const window: WindowManager = windowManager
+
+/**
+ * Create a new native window.
+ */
+export function createWindow(_options?: WindowCreateOptions): Promise<Window>
+export function createWindow(_html: string, _options?: WindowCreateOptions): Promise<Window>
+export function createWindow(
+  htmlOrOptions: string | WindowCreateOptions = {},
+  options: WindowCreateOptions = {},
+): Promise<Window> {
+  const windowOptions = typeof htmlOrOptions === 'string'
+    ? { ...options, html: htmlOrOptions }
+    : htmlOrOptions
+
+  return windowManager.create(windowOptions)
+}
 
 export default windowManager

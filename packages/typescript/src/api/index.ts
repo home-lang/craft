@@ -7,6 +7,8 @@
 export {
   windowManager,
   win,
+  window,
+  createWindow,
   Window
 } from './window'
 export type {
@@ -130,7 +132,8 @@ export {
   location,
   share,
   lifecycle,
-  notifications
+  notifications,
+  notifications as notification
 } from './mobile'
 export type {
   DeviceInfo,

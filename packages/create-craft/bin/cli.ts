@@ -124,7 +124,7 @@ cli
     console.log('  todo-app       - Interactive todo list application\n')
   })
 
-cli.version('0.0.1')
+cli.version(craftVersion)
 cli.help()
 cli.parse()
 
@@ -140,6 +140,7 @@ function createMinimalTemplate(projectPath: string, projectName: string): void {
     type: 'module',
     private: true,
     scripts: {
+      doctor: 'craft --version',
       dev: 'bun run src/index.ts',
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
@@ -209,8 +210,11 @@ A minimal Craft desktop application.
 
 \`\`\`bash
 bun install
+bun run doctor
 bun run dev
 \`\`\`
+
+\`bun run doctor\` verifies that the native \`craft\` binary is available on your PATH. Install it with \`pantry install craft\` if the command is missing.
 
 ## Build
 
@@ -247,6 +251,7 @@ function createFullFeaturedTemplate(projectPath: string, projectName: string): v
     type: 'module',
     private: true,
     scripts: {
+      doctor: 'craft --version',
       dev: 'bun run src/index.ts',
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
@@ -378,8 +383,11 @@ A full-featured Craft desktop application.
 
 \`\`\`bash
 bun install
+bun run doctor
 bun run dev
 \`\`\`
+
+\`bun run doctor\` verifies that the native \`craft\` binary is available on your PATH. Install it with \`pantry install craft\` if the command is missing.
 
 ## Build
 
@@ -423,6 +431,7 @@ function createTodoAppTemplate(projectPath: string, projectName: string): void {
     type: 'module',
     private: true,
     scripts: {
+      doctor: 'craft --version',
       dev: 'bun run src/index.ts',
       build: 'bun build src/index.ts --outdir dist --target bun',
     },
@@ -649,8 +658,11 @@ An interactive todo list application built with Craft.
 
 \`\`\`bash
 bun install
+bun run doctor
 bun run dev
 \`\`\`
+
+\`bun run doctor\` verifies that the native \`craft\` binary is available on your PATH. Install it with \`pantry install craft\` if the command is missing.
 
 ## Build
 

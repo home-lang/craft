@@ -1,7 +1,7 @@
 {
   "name": "@craft-native/ts-maps",
   "version": "0.0.25",
-  "private": true,
+  "private": false,
   "type": "module",
   "description": "Craft SDK bindings for the ts-maps interactive map runtime. Provides a cross-platform MapView component backed by the MapProvider.ts_maps variant in the Zig core.",
   "author": "Chris Breuer <chris@stacksjs.org>",
@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
-    "ts-maps": "file:../../../../Libraries/ts-maps/packages/ts-maps",
-    "very-happy-dom": "file:/Users/chrisbreuer/Code/Tools/very-happy-dom"
+    "ts-maps": "^0.2.7",
+    "very-happy-dom": "^0.1.4"
   }
 }

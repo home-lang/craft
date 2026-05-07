@@ -49,10 +49,11 @@
     "LICENSE.md"
   ],
   "bin": {
+    "craft": "./bin/cli.ts",
     "craft-sdk": "./bin/cli.ts"
   },
   "scripts": {
-    "build": "bun run build:lib && bun run build:types",
+    "build": "rm -rf dist && bun run build:lib && bun run build:types",
     "build:lib": "bun build src/index.ts --outdir dist --format esm --target bun --external archiver --external ws && bun build src/index.ts --outfile dist/index.cjs --format cjs --target node --external archiver --external ws",
     "build:types": "bun run tsc -p tsconfig.build.json && cp dist/index.d.ts dist/index.d.cts",
     "dev": "bun --watch src/index.ts",

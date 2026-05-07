@@ -216,7 +216,7 @@ class AppManager {
   private _preferences: SystemPreferences | null = null
   private _domListeners: Array<{ type: string; handler: EventListener }> = []
   private _mediaQuery: MediaQueryList | null = null
-  private _mediaQueryHandler: ((e: MediaQueryListEvent) => void) | null = null
+  private _mediaQueryHandler: ((_event: MediaQueryListEvent) => void) | null = null
 
   constructor() {
     this._setupEventListeners()
