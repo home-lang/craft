@@ -5,7 +5,7 @@ Create your first Craft application in 5 minutes.
 ## Prerequisites
 
 - [Bun](https://bun.sh) v1.0 or later
-- [Zig](https://ziglang.org) 0.13.0 or later (for desktop)
+- Pantry-managed Zig 0.17 dev toolchain (for desktop)
 - macOS 12+, Windows 10+, or Linux
 
 ## Create a New Project
@@ -65,7 +65,9 @@ export default config
 Edit `src/main.ts`:
 
 ```typescript
-import { window, notification, Platform } from '@craft-native/craft'
+import { getPlatform, notification, window } from '@craft-native/craft'
+
+const platform = getPlatform()
 
 // Update window title
 window.setTitle('Hello Craft!')
@@ -74,7 +76,7 @@ window.setTitle('Hello Craft!')
 document.getElementById('app')!.innerHTML = `
   <div class="container">
     <h1>Welcome to Craft</h1>
-    <p>Running on ${Platform.OS}</p>
+    <p>Running on ${platform}</p>
     <button id="notify-btn">Send Notification</button>
   </div>
 `

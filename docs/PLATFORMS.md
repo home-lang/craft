@@ -22,13 +22,13 @@ Craft v1.0.0 provides complete platform support for macOS, Linux, and Windows wi
 ### Installation
 
 ```bash
-# Install Zig 0.15.1
-brew install zig
+# Install pantry dependencies and use Craft's pantry-aware runner
+pantry install
 
 # Clone and build
 git clone https://github.com/stacksjs/stx
 cd stx/packages/craft
-zig build
+bun run build:core
 
 # Run
 ./zig-out/bin/craft http://localhost:3000
@@ -38,13 +38,13 @@ zig build
 
 ```bash
 # Native build (current arch)
-zig build
+./scripts/with-pantry --cwd packages/zig -- zig build
 
 # Cross-compile for macOS (Apple Silicon)
-zig build build-macos
+./scripts/with-pantry --cwd packages/zig -- zig build build-macos
 
 # Create .app bundle
-zig build -Doptimize=ReleaseFast
+./scripts/with-pantry --cwd packages/zig -- zig build -Doptimize=ReleaseFast
 ./scripts/create-app-bundle.sh
 ```
 
@@ -106,16 +106,13 @@ sudo pacman -S \
     webkit2gtk-4.1 \
     base-devel
 
-# Install Zig
-wget https://ziglang.org/download/0.15.1/zig-linux-x86_64-0.15.1.tar.xz
-tar -xf zig-linux-x86_64-0.15.1.tar.xz
-sudo mv zig-linux-x86_64-0.15.1 /usr/local/zig
-export PATH=/usr/local/zig:$PATH
+# Install pantry dependencies and use Craft's pantry-aware runner
+pantry install
 
 # Clone and build
 git clone https://github.com/stacksjs/stx
 cd stx/packages/craft
-zig build
+bun run build:core
 
 # Run
 ./zig-out/bin/craft http://localhost:3000
@@ -125,13 +122,13 @@ zig build
 
 ```bash
 # Native build
-zig build
+./scripts/with-pantry --cwd packages/zig -- zig build
 
 # Cross-compile for Linux (from macOS/Windows)
-zig build build-linux
+./scripts/with-pantry --cwd packages/zig -- zig build build-linux
 
 # Release build
-zig build -Doptimize=ReleaseFast
+./scripts/with-pantry --cwd packages/zig -- zig build -Doptimize=ReleaseFast
 ```
 
 ### Features

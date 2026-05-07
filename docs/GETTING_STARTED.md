@@ -2,62 +2,39 @@
 
 ## Installation
 
-### 1. Install Zig
+### 1. Install Pantry Dependencies
 
-First, you need to install Zig. Visit [ziglang.org](https://ziglang.org/download/) or use a package manager:
-
-**macOS (Homebrew):**
+Craft uses pantry to provide the pinned Zig 0.17 dev toolchain:
 
 ```bash
-brew install zig
+pantry install
 ```
-
-**Linux (Snap):**
-
-```bash
-snap install zig --classic --beta
-```
-
-**Windows (Chocolatey):**
-
-```bash
-choco install zig
-```
-
-**Or download directly:**
-Visit <https://ziglang.org/download/> and download the binary for your platform.
 
 ### 2. Verify Installation
 
 ```bash
-zig version
-# Should show: 0.13.0 or later
+./scripts/with-pantry -- zig version
+# Should show: 0.17.0-dev
 ```
 
 ## Building Craft
 
-Navigate to the craft package directory:
+Build from the repository root:
 
 ```bash
-cd packages/craft
-```
-
-Build the library:
-
-```bash
-zig build
+bun run build:core
 ```
 
 Run tests:
 
 ```bash
-zig build test
+bun run test
 ```
 
 Run the example app:
 
 ```bash
-zig build run
+bun run run
 ```
 
 ## Creating Your First App

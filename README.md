@@ -326,7 +326,7 @@ await show(html, { title: 'My App', width: 800, height: 600 })
 bun run app.ts
 ```
 
-**See [TypeScript SDK Documentation](./packages/@craft-native/craft/README.md) for the full API.**
+**See [TypeScript SDK Documentation](./packages/typescript/README.md) for the full API.**
 
 ### Zig (Advanced)
 
@@ -347,19 +347,18 @@ bun add -g @craft-native/craft
 git clone https://github.com/home-lang/craft.git
 cd craft
 
-# Install Zig 0.15.1
-# macOS
-brew install zig
+# Install pantry dependencies, then use the repo-local pantry runner
+pantry install
 
-# Linux
-wget https://ziglang.org/download/0.15.1/zig-linux-x86_64-0.15.1.tar.xz
-tar -xf zig-linux-x86_64-0.15.1.tar.xz
+# Optional for interactive shells
+source scripts/pantry-env.sh
+craft_pantry_use
 
 # Build
-zig build
+bun run build:core
 
 # Run
-./zig-out/bin/craft http://localhost:3000
+./packages/zig/zig-out/bin/craft http://localhost:3000
 ```
 
 ### Platform-Specific Dependencies

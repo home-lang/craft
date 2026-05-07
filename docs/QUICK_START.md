@@ -2,19 +2,19 @@
 
 ## ✅ Build Status
 
-The Craft package is **fully functional** and builds successfully with Zig 0.15.1!
+The Craft package is **fully functional** and builds successfully with the pantry-managed Zig 0.17 dev toolchain.
 
 ## Commands
 
 ```bash
 # Build the project
-zig build
+bun run build:core
 
 # Run the example app
-zig build run
+bun run run
 
 # Run tests
-zig build test
+bun run test
 
 # Clean build artifacts
 rm -rf zig-cache zig-out
@@ -108,7 +108,7 @@ craft/
 
 - **Name**: `@craft-native/craft`
 - **Version**: `0.1.0`
-- **Zig Version**: `0.15.1`
+- **Zig Version**: `0.17.0-dev`
 - **License**: MIT
 
 ## Resources

@@ -101,7 +101,7 @@ body:
     attributes:
       label: Zig Version
       description: What version of Zig are you using?
-      placeholder: "e.g., 0.15.1"
+      placeholder: "e.g., 0.17.0-dev.135+9df02121d"
     validations:
       required: true
 

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export CRAFT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=scripts/pantry-env.sh
+source "$SCRIPT_DIR/pantry-env.sh"
+
+packages=("ziglang.org/v0.17.0-dev")
+cwd=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --cwd)
+      cwd="${2:-}"
+      if [ -z "$cwd" ]; then
+        printf 'with-pantry: --cwd requires a directory\n' >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    --package)
+      package="${2:-}"
+      if [ -z "$package" ]; then
+        printf 'with-pantry: --package requires <name>/<version>\n' >&2
+        exit 2
+      fi
+      packages+=("$package")
+      shift 2
+      ;;
+    --print-root)
+      craft_pantry_root
+      exit 0
+      ;;
+    --print-path)
+      craft_pantry_use "${packages[@]}"
+      printf '%s\n' "$PATH"
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      printf 'with-pantry: unknown option %s\n' "$1" >&2
+      exit 2
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [ "$#" -eq 0 ]; then
+  printf 'usage: scripts/with-pantry [--cwd DIR] [--package name/version] -- <command> [args...]\n' >&2
+  exit 2
+fi
+
+craft_pantry_use "${packages[@]}"
+
+if [ -n "$cwd" ]; then
+  repo_root="$(craft_repo_root)"
+  case "$cwd" in
+    /*) cd "$cwd" ;;
+    *) cd "$repo_root/$cwd" ;;
+  esac
+fi
+
+exec "$@"

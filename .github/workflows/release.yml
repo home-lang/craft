@@ -6,6 +6,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   pantry:
     name: pantry (${{ matrix.platform.name }})
@@ -52,12 +56,12 @@ jobs:
           mkdir -p zig-out/cross
 
           echo "::group::Cross-compile darwin-x64"
-          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=x86_64-macos -Dmacos-sdk="$SDK_PATH"
+          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=x86_64-macos -Dmacos-sdk="$SDK_PATH"
           mkdir -p zig-out/cross/darwin-x64 && cp zig-out/bin/craft zig-out/cross/darwin-x64/craft
           echo "::endgroup::"
 
           # Restore native ARM64 binary
-          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
+          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
 
       - name: Cross-compile additional targets (Linux)
         if: runner.os == 'Linux'
@@ -75,7 +79,7 @@ jobs:
             "aarch64-freebsd:freebsd-arm64:craft"; do
             IFS=: read -r zig_target dir_name bin_name <<< "$target_spec"
             echo "::group::Cross-compile $dir_name"
-            if zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget="$zig_target"; then
+            if ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget="$zig_target"; then
               mkdir -p "zig-out/cross/$dir_name" && cp "zig-out/bin/$bin_name" "zig-out/cross/$dir_name/$bin_name"
               echo "Built $dir_name"
             else
@@ -85,7 +89,7 @@ jobs:
           done
 
           # Restore native linux-x64 binary
-          zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
+          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
 
       # ── macOS Code Signing & Notarization ──────────────────────────
       - name: Import signing certificate

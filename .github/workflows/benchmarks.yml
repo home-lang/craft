@@ -10,6 +10,10 @@ concurrency:
   group: benchmarks-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   benchmarks:
     name: run
@@ -40,7 +44,7 @@ jobs:
       - name: Build benchmark executable
         working-directory: packages/zig
         run: |
-          zig build -Doptimize=ReleaseFast
+          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseFast
 
       - name: Run benchmarks
         id: bench
@@ -56,7 +60,7 @@ jobs:
             TOTAL=0
             for i in {1..5}; do
               START=$(date +%s%N)
-              timeout 2 ./zig-out/bin/craft --help 2>/dev/null || true
+              timeout 2 ./zig-out/bin/craft --help >/dev/null
               END=$(date +%s%N)
               ELAPSED=$(( (END - START) / 1000000 ))
               TOTAL=$((TOTAL + ELAPSED))
@@ -71,7 +75,7 @@ jobs:
 
           # Run Zig benchmark tests
           echo "Running benchmark tests..."
-          zig build test 2>&1 | tee benchmark-results/test-output.txt || true
+          ../../scripts/with-pantry -- zig build test 2>&1 | tee benchmark-results/test-output.txt
 
           # Extract benchmark results if available
           if grep -q "benchmark" benchmark-results/test-output.txt 2>/dev/null; then

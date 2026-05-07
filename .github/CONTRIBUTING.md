@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Craft! This document provides gui
 
 ### Prerequisites
 
-- **Zig 0.15.1**: Download from [ziglang.org](https://ziglang.org/download/)
+- **Zig 0.17 dev**: use `scripts/with-pantry -- zig ...` or source `scripts/pantry-env.sh`
 - **Bun**: Install from [bun.sh](https://bun.sh)
 
 #### Platform-specific Dependencies

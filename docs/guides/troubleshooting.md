@@ -10,15 +10,12 @@ Solutions to common issues when developing with Craft.
 
 **Solution:**
 ```bash
-# macOS (Homebrew)
-brew install zig
-
-# Linux
-# Download from https://ziglang.org/download/
+# From the Craft repository
+pantry install
 
 # Verify installation
-zig version
-# Should output: 0.13.0 or later
+./scripts/with-pantry -- zig version
+# Should output: 0.17.0-dev
 ```
 
 ### Bun not found

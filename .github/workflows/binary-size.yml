@@ -16,6 +16,10 @@ env:
   # Warning threshold (1.5MB = 1572864)
   WARN_BINARY_SIZE: 1572864
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   track:
     runs-on: ubuntu-latest
@@ -45,7 +49,7 @@ jobs:
       - name: Build release binary
         working-directory: packages/zig
         run: |
-          zig build -Doptimize=ReleaseSafe
+          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe
 
       - name: Measure binary size
         id: size
@@ -84,19 +88,19 @@ jobs:
         id: baseline
         run: |
           git fetch origin main
-          git checkout origin/main -- packages/zig 2>/dev/null || true
+          trap 'git restore --source=HEAD -- packages/zig' EXIT
+          git checkout origin/main -- packages/zig
 
           cd packages/zig
-          zig build -Doptimize=ReleaseSafe 2>/dev/null || true
+          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe
 
           if [ -f "zig-out/bin/craft" ]; then
             BASELINE=$(wc -c < "zig-out/bin/craft" | tr -d ' ')
             echo "baseline=$BASELINE" >> $GITHUB_OUTPUT
           else
-            echo "baseline=0" >> $GITHUB_OUTPUT
+            echo "::error::Baseline binary was not generated"
+            exit 1
           fi
-
-          git checkout - -- packages/zig 2>/dev/null || true
 
       - name: Calculate size difference
         if: github.event_name == 'pull_request'

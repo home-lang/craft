@@ -20,6 +20,10 @@ concurrency:
   group: visual-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   visual-tests:
     name: Visual Regression Tests
@@ -47,7 +51,7 @@ jobs:
       - name: Build Craft
         working-directory: packages/zig
         run: |
-          zig build -Doptimize=ReleaseSafe
+          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe
 
       - name: Download baseline snapshots
         uses: actions/cache@v5
@@ -69,14 +73,23 @@ jobs:
             cd packages/zig
 
             # Run UI automation tests that capture screenshots
-            zig build test 2>&1 | tee visual-test-output.txt || true
+            ../../scripts/with-pantry -- zig build test 2>&1 | tee visual-test-output.txt
 
             # Run example apps and capture screenshots
             for example in button slider checkbox tabs modal; do
               if [ -f "examples/native-ui-test.ts" ]; then
-                timeout 5 ./zig-out/bin/craft --screenshot ../.snapshots/current/${example}.png 2>/dev/null || true
+                timeout 5 ./zig-out/bin/craft --screenshot ../.snapshots/current/${example}.png
               fi
             done
+          else
+            echo "::error::Craft binary was not built"
+            exit 1
+          fi
+
+          SNAPSHOT_COUNT=$(find .snapshots/current -name '*.png' -type f | wc -l | tr -d ' ')
+          if [ "$SNAPSHOT_COUNT" -eq 0 ]; then
+            echo "::error::No visual snapshots were generated"
+            exit 1
           fi
 
       - name: Compare snapshots
@@ -199,7 +212,7 @@ jobs:
         run: |
           if [ -d ".snapshots/current" ]; then
             mkdir -p .snapshots/baseline
-            cp .snapshots/current/* .snapshots/baseline/ 2>/dev/null || true
+            find .snapshots/current -name '*.png' -type f -exec cp {} .snapshots/baseline/ \;
           fi
 
       - name: Cache baseline snapshots

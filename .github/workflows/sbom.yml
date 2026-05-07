@@ -44,16 +44,16 @@ jobs:
           mkdir -p sbom
 
           # Generate SBOM for root package
-          cyclonedx-npm --output-format json --output-file sbom/npm-sbom.json || true
+          cyclonedx-npm --output-format json --output-file sbom/npm-sbom.json
 
           # Generate SBOM for TypeScript SDK
           cd packages/typescript
-          cyclonedx-npm --output-format json --output-file ../../sbom/typescript-sdk-sbom.json || true
+          cyclonedx-npm --output-format json --output-file ../../sbom/typescript-sdk-sbom.json
           cd ../..
 
           # Generate SBOM for create-craft
           cd packages/create-craft
-          cyclonedx-npm --output-format json --output-file ../../sbom/create-craft-sbom.json || true
+          cyclonedx-npm --output-format json --output-file ../../sbom/create-craft-sbom.json
           cd ../..
 
       - name: Generate comprehensive SBOM (Syft)
@@ -83,9 +83,9 @@ jobs:
               {
                 "type": "library",
                 "name": "zig-std",
-                "version": "0.16.0-dev",
+                "version": "0.17.0-dev",
                 "description": "Zig Standard Library",
-                "purl": "pkg:zig/std@0.16.0-dev",
+                "purl": "pkg:zig/std@0.17.0-dev",
                 "licenses": [{"license": {"id": "MIT"}}]
               }
             ],

@@ -117,7 +117,7 @@ For advanced use cases, you can build Craft from source:
 
 ### Prerequisites
 
-- Zig 0.15.1 or higher
+- Pantry-managed Zig 0.17 dev toolchain
 - Git
 
 ### Build Steps
@@ -127,34 +127,29 @@ For advanced use cases, you can build Craft from source:
 git clone https://github.com/home-lang/craft.git
 cd craft
 
-# Install Zig (macOS)
-brew install zig
-
-# Install Zig (Linux)
-wget https://ziglang.org/download/0.15.1/zig-linux-x86_64-0.15.1.tar.xz
-tar -xf zig-linux-x86_64-0.15.1.tar.xz
-export PATH=$PATH:$(pwd)/zig-linux-x86_64-0.15.1
+# Install pantry dependencies and use Craft's pantry-aware runner
+pantry install
 
 # Build
-zig build
+bun run build:core
 
 # Run craft CLI
-./zig-out/bin/craft http://localhost:3000
+./packages/zig/zig-out/bin/craft http://localhost:3000
 ```
 
 ### Build Options
 
 ```bash
 # Debug build (faster compilation)
-zig build
+./scripts/with-pantry --cwd packages/zig -- zig build
 
 # Release build (optimized)
-zig build -Doptimize=ReleaseFast
+./scripts/with-pantry --cwd packages/zig -- zig build -Doptimize=ReleaseFast
 
 # Cross-compile for different platforms
-zig build -Dtarget=x86_64-linux
-zig build -Dtarget=x86_64-windows
-zig build -Dtarget=aarch64-macos
+./scripts/with-pantry --cwd packages/zig -- zig build -Dtarget=x86_64-linux
+./scripts/with-pantry --cwd packages/zig -- zig build -Dtarget=x86_64-windows
+./scripts/with-pantry --cwd packages/zig -- zig build -Dtarget=aarch64-macos
 ```
 
 ## Verification
@@ -238,11 +233,11 @@ xattr -cr /path/to/craft
 
 ### Build fails on Zig version
 
-Ensure you have Zig 0.15.1 or higher:
+Ensure you are using Craft's pantry-managed Zig 0.17 dev toolchain:
 
 ```bash
-zig version
-# Should output: 0.15.1 or higher
+./scripts/with-pantry -- zig version
+# Should output: 0.17.0-dev
 ```
 
 ## Next Steps

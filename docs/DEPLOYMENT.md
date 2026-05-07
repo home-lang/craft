@@ -326,14 +326,13 @@ jobs:
 
       - uses: actions/checkout@v3
 
-      - name: Install Zig
+      - name: Setup Pantry
 
-        run: |
-          brew install zig
+        uses: home-lang/pantry/packages/action@main
 
       - name: Build
 
-        run: zig build -Doptimize=ReleaseFast
+        run: ./scripts/with-pantry -- zig build -Doptimize=ReleaseFast
 
       - name: Create DMG
 
@@ -353,14 +352,13 @@ jobs:
 
       - uses: actions/checkout@v3
 
-      - name: Install Zig
+      - name: Setup Pantry
 
-        run: |
-# Install Zig on Linux
+        uses: home-lang/pantry/packages/action@main
 
       - name: Build
 
-        run: zig build -Doptimize=ReleaseFast
+        run: ./scripts/with-pantry -- zig build -Doptimize=ReleaseFast
 
       - name: Create AppImage
 

@@ -23,6 +23,10 @@ concurrency:
   group: mobile-e2e-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   ios-simulator:
     # name: iOS Simulator Tests
@@ -74,13 +78,14 @@ jobs:
         run: |
           # Build iOS simulator static libraries using dedicated build step
           # (not the default target which builds macOS executables)
-          zig build build-ios-simulator -Doptimize=ReleaseSafe --sysroot "$(xcrun --sdk iphonesimulator --show-sdk-path)" || echo "iOS simulator build not yet available"
+          ../../scripts/with-pantry -- zig build build-ios-simulator -Doptimize=ReleaseSafe -Dmacos-sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 
       - name: Run iOS unit tests
         working-directory: packages/zig
         run: |
           # Run mobile-specific tests
-          zig build test 2>&1 | grep -E "(mobile|ios)" || true
+          ../../scripts/with-pantry -- zig build test 2>&1 | tee ios-unit-output.txt
+          grep -E "(mobile|ios)" ios-unit-output.txt
 
       - name: Build iOS test app
         if: hashFiles('packages/ios/TestApp/TestApp.xcodeproj') != ''
@@ -166,13 +171,14 @@ jobs:
         working-directory: packages/zig
         run: |
           # Build for Android arm64
-          zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-linux-android || true
+          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-linux-android
 
       - name: Run Android unit tests
         working-directory: packages/zig
         run: |
           # Run mobile-specific tests
-          zig build test 2>&1 | grep -E "(mobile|android)" || true
+          ../../scripts/with-pantry -- zig build test 2>&1 | tee android-unit-output.txt
+          grep -E "(mobile|android)" android-unit-output.txt
 
       - name: Enable KVM
         run: |
