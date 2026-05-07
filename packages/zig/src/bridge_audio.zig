@@ -33,14 +33,7 @@ pub const AudioBridge = struct {
     }
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-        if (std.mem.eql(u8, action, "play")) try self.play(data)
-        else if (std.mem.eql(u8, action, "stop")) try self.stop()
-        else if (std.mem.eql(u8, action, "playSystemSound")) try self.playSystemSound(data)
-        else if (std.mem.eql(u8, action, "startRecording")) try self.startRecording(data)
-        else if (std.mem.eql(u8, action, "stopRecording")) try self.stopRecording()
-        else if (std.mem.eql(u8, action, "isPlaying")) try self.isPlaying()
-        else if (std.mem.eql(u8, action, "isRecording")) try self.isRecording()
-        else return BridgeError.UnknownAction;
+        if (std.mem.eql(u8, action, "play")) try self.play(data) else if (std.mem.eql(u8, action, "stop")) try self.stop() else if (std.mem.eql(u8, action, "playSystemSound")) try self.playSystemSound(data) else if (std.mem.eql(u8, action, "startRecording")) try self.startRecording(data) else if (std.mem.eql(u8, action, "stopRecording")) try self.stopRecording() else if (std.mem.eql(u8, action, "isPlaying")) try self.isPlaying() else if (std.mem.eql(u8, action, "isRecording")) try self.isRecording() else return BridgeError.UnknownAction;
     }
 
     fn play(self: *Self, data: []const u8) !void {

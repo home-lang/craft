@@ -203,7 +203,7 @@ pub const ShortcutManager = struct {
 
     pub fn init(allocator: std.mem.Allocator) ShortcutManager {
         return ShortcutManager{
-            .shortcuts = .{},
+            .shortcuts = .empty,
             .allocator = allocator,
         };
     }

@@ -234,17 +234,8 @@ fn formatTimestamp(buf: *[8]u8) []const u8 {
     const safe_sec = @max(ts.sec, 0);
     const t: std.c.time_t = @intCast(safe_sec);
 
-    var tm: std.c.tm = undefined;
+    _ = t;
     const slice = blk: {
-        if (@hasDecl(std.c, "localtime_r")) {
-            if (std.c.localtime_r(&t, &tm)) |lt| {
-                const hours: u8 = @intCast(@max(0, @min(lt.hour, 23)));
-                const minutes: u8 = @intCast(@max(0, @min(lt.min, 59)));
-                const seconds: u8 = @intCast(@max(0, @min(lt.sec, 59)));
-                break :blk std.fmt.bufPrint(buf, "{d:0>2}:{d:0>2}:{d:0>2}", .{ hours, minutes, seconds }) catch null;
-            }
-        }
-        // Fallback: raw UTC arithmetic.
         const total_seconds: u64 = @intCast(safe_sec);
         const seconds = @mod(total_seconds, 60);
         const minutes = @mod(@divFloor(total_seconds, 60), 60);

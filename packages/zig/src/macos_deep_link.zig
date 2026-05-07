@@ -128,8 +128,7 @@ fn deliver(url: []const u8) void {
 
     var script: std.ArrayListUnmanaged(u8) = .empty;
     defer script.deinit(std.heap.c_allocator);
-    script.appendSlice(std.heap.c_allocator,
-        "if (window.__craftDeliverDeepLink) window.__craftDeliverDeepLink(\"") catch return;
+    script.appendSlice(std.heap.c_allocator, "if (window.__craftDeliverDeepLink) window.__craftDeliverDeepLink(\"") catch return;
     script.appendSlice(std.heap.c_allocator, escaped.items) catch return;
     script.appendSlice(std.heap.c_allocator, "\");") catch return;
     script.append(std.heap.c_allocator, 0) catch return;

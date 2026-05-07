@@ -37,11 +37,11 @@ pub fn install(window: objc.id) void {
             if (cls == null) return;
 
             // Each delegate selector maps to a one-line emit fn below.
-            addMethod(cls, "windowDidBecomeKey:",   &windowDidBecomeKey);
-            addMethod(cls, "windowDidResignKey:",   &windowDidResignKey);
-            addMethod(cls, "windowDidResize:",      &windowDidResize);
-            addMethod(cls, "windowDidMove:",        &windowDidMove);
-            addMethod(cls, "windowWillClose:",      &windowWillClose);
+            addMethod(cls, "windowDidBecomeKey:", &windowDidBecomeKey);
+            addMethod(cls, "windowDidResignKey:", &windowDidResignKey);
+            addMethod(cls, "windowDidResize:", &windowDidResize);
+            addMethod(cls, "windowDidMove:", &windowDidMove);
+            addMethod(cls, "windowWillClose:", &windowWillClose);
             addMethod(cls, "windowDidMiniaturize:", &windowDidMiniaturize);
             addMethod(cls, "windowDidDeminiaturize:", &windowDidDeminiaturize);
 
@@ -123,8 +123,7 @@ fn fire(name: []const u8, detail_json: []const u8) void {
     var script: std.ArrayListUnmanaged(u8) = .empty;
     defer script.deinit(std.heap.c_allocator);
 
-    script.appendSlice(std.heap.c_allocator,
-        "if (window.__craftDeliverWindowEvent) window.__craftDeliverWindowEvent('") catch return;
+    script.appendSlice(std.heap.c_allocator, "if (window.__craftDeliverWindowEvent) window.__craftDeliverWindowEvent('") catch return;
     script.appendSlice(std.heap.c_allocator, name) catch return;
     script.appendSlice(std.heap.c_allocator, "',") catch return;
     if (detail_json.len > 0) {

@@ -89,7 +89,8 @@ test "SystemTray: visibility toggle" {
     // Show again
     if (builtin.target.os.tag == .macos or
         builtin.target.os.tag == .windows or
-        builtin.target.os.tag == .linux) {
+        builtin.target.os.tag == .linux)
+    {
         // Only test show on supported platforms
         // Note: show() requires platform initialization
         // This would need to be tested in integration tests
@@ -182,8 +183,8 @@ test "SystemTray: platform detection" {
 test "SystemTray: unsupported platform handling" {
     if (builtin.target.os.tag != .macos and
         builtin.target.os.tag != .windows and
-        builtin.target.os.tag != .linux) {
-
+        builtin.target.os.tag != .linux)
+    {
         const allocator = testing.allocator;
         var tray = SystemTray.init(allocator, "App");
         defer tray.deinit();
@@ -303,7 +304,8 @@ test "SystemTray: no memory leaks" {
 test "SystemTray: cleanup with platform handle" {
     if (builtin.target.os.tag != .macos and
         builtin.target.os.tag != .windows and
-        builtin.target.os.tag != .linux) {
+        builtin.target.os.tag != .linux)
+    {
         return error.SkipZigTest;
     }
 

@@ -185,7 +185,7 @@ pub const StreamReader = struct {
     }
 
     pub fn readLine(self: *StreamReader) !?[]const u8 {
-        var line: std.ArrayList(u8) = .{};
+        var line: std.ArrayList(u8) = .empty;
         defer line.deinit(self.allocator);
 
         while (true) {
@@ -218,7 +218,7 @@ pub const StreamWriter = struct {
     pub fn init(allocator: std.mem.Allocator, file: std.Io.File, auto_flush_size: usize) StreamWriter {
         return StreamWriter{
             .file = file,
-            .buffer = .{},
+            .buffer = .empty,
             .auto_flush_size = auto_flush_size,
             .allocator = allocator,
         };
@@ -282,8 +282,8 @@ pub const Promise = struct {
             .state = .pending,
             .value = null,
             .err = null,
-            .callbacks = .{},
-            .error_callbacks = .{},
+            .callbacks = .empty,
+            .error_callbacks = .empty,
             .mutex = .{},
             .allocator = allocator,
         };
@@ -364,7 +364,7 @@ pub const EventLoop = struct {
 
     pub fn init(allocator: std.mem.Allocator) EventLoop {
         return EventLoop{
-            .tasks = .{},
+            .tasks = .empty,
             .running = std.atomic.Value(bool).init(false),
             .mutex = .{},
             .allocator = allocator,
@@ -443,7 +443,7 @@ pub const Channels = struct {
 
             pub fn init(allocator: std.mem.Allocator) Self {
                 return Self{
-                    .buffer = .{},
+                    .buffer = .empty,
                     .mutex = .{},
                     .condition = .{},
                     .closed = false,

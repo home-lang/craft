@@ -224,9 +224,7 @@ fn applyAlertOptions(alert: anytype, opts: AlertDialogOptions, default_buttons: 
     }
 
     // NSAlertStyle: warning=0 (default), informational=1, critical=2.
-    const style_int: c_long = if (std.mem.eql(u8, opts.style, "warning")) 0
-        else if (std.mem.eql(u8, opts.style, "critical")) 2
-        else 1;
+    const style_int: c_long = if (std.mem.eql(u8, opts.style, "warning")) 0 else if (std.mem.eql(u8, opts.style, "critical")) 2 else 1;
     _ = macos.msgSend1(alert, "setAlertStyle:", style_int);
 
     // Add buttons in order. NSAlert returns NSAlertFirstButtonReturn
@@ -331,11 +329,7 @@ pub const DialogBridge = struct {
             const g_int = std.fmt.parseInt(u8, initial_color[3..5], 16) catch 0;
             const b_int = std.fmt.parseInt(u8, initial_color[5..7], 16) catch 0;
             const NSColor = macos.getClass("NSColor");
-            const color = macos.msgSend4(NSColor, "colorWithRed:green:blue:alpha:",
-                @as(f64, @floatFromInt(r_int)) / 255.0,
-                @as(f64, @floatFromInt(g_int)) / 255.0,
-                @as(f64, @floatFromInt(b_int)) / 255.0,
-                @as(f64, 1.0));
+            const color = macos.msgSend4(NSColor, "colorWithRed:green:blue:alpha:", @as(f64, @floatFromInt(r_int)) / 255.0, @as(f64, @floatFromInt(g_int)) / 255.0, @as(f64, @floatFromInt(b_int)) / 255.0, @as(f64, 1.0));
             _ = macos.msgSend1(panel, "setColor:", color);
         }
 
@@ -361,19 +355,17 @@ pub const DialogBridge = struct {
         }
 
         const final_color = macos.msgSend0(panel, "color");
-        const rgb_color = macos.msgSend1(final_color, "colorUsingColorSpace:",
-            macos.msgSend0(macos.getClass("NSColorSpace"), "sRGBColorSpace"));
+        const rgb_color = macos.msgSend1(final_color, "colorUsingColorSpace:", macos.msgSend0(macos.getClass("NSColorSpace"), "sRGBColorSpace"));
         const r = macos.msgSend0Double(rgb_color, "redComponent");
         const g = macos.msgSend0Double(rgb_color, "greenComponent");
         const b = macos.msgSend0Double(rgb_color, "blueComponent");
 
         var buf: [128]u8 = undefined;
-        const json = std.fmt.bufPrint(&buf,
-            "{{\"canceled\":false,\"color\":\"#{x:0>2}{x:0>2}{x:0>2}\"}}", .{
-                @as(u8, @intFromFloat(@round(@max(0.0, @min(1.0, r)) * 255.0))),
-                @as(u8, @intFromFloat(@round(@max(0.0, @min(1.0, g)) * 255.0))),
-                @as(u8, @intFromFloat(@round(@max(0.0, @min(1.0, b)) * 255.0))),
-            }) catch return;
+        const json = std.fmt.bufPrint(&buf, "{{\"canceled\":false,\"color\":\"#{x:0>2}{x:0>2}{x:0>2}\"}}", .{
+            @as(u8, @intFromFloat(@round(@max(0.0, @min(1.0, r)) * 255.0))),
+            @as(u8, @intFromFloat(@round(@max(0.0, @min(1.0, g)) * 255.0))),
+            @as(u8, @intFromFloat(@round(@max(0.0, @min(1.0, b)) * 255.0))),
+        }) catch return;
         bridge_error.sendResultToJS(self.allocator, "showColorPicker", json);
     }
 
@@ -996,10 +988,10 @@ pub const DialogBridge = struct {
         // unblock the primary build target is to stub the body. Reintroducing
         // Windows support means rewriting these calls with direct extern decls.
         if (comptime builtin.os.tag != .windows) {
-        _ = &self;
-        _ = &data;
-        _ = &multiple;
-        _ = &action;
+            _ = &self;
+            _ = &data;
+            _ = &multiple;
+            _ = &action;
             return;
         }
         @compileError("windowsOpenFileDialog needs a Zig 0.17 port — see git history for the original Win32 implementation");
@@ -1013,8 +1005,8 @@ pub const DialogBridge = struct {
         // unblock the primary build target is to stub the body. Reintroducing
         // Windows support means rewriting these calls with direct extern decls.
         if (comptime builtin.os.tag != .windows) {
-        _ = &self;
-        _ = &data;
+            _ = &self;
+            _ = &data;
             return;
         }
         @compileError("windowsOpenFolderDialog needs a Zig 0.17 port — see git history for the original Win32 implementation");
@@ -1028,8 +1020,8 @@ pub const DialogBridge = struct {
         // unblock the primary build target is to stub the body. Reintroducing
         // Windows support means rewriting these calls with direct extern decls.
         if (comptime builtin.os.tag != .windows) {
-        _ = &self;
-        _ = &data;
+            _ = &self;
+            _ = &data;
             return;
         }
         @compileError("windowsSaveFileDialog needs a Zig 0.17 port — see git history for the original Win32 implementation");

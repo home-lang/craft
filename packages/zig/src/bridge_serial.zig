@@ -50,10 +50,9 @@ pub const SerialBridge = struct {
     pub fn deinit(_: *Self) void {}
 
     pub fn handleMessage(self: *Self, action: []const u8, _: []const u8) !void {
-        if (std.mem.eql(u8, action, "list")) try self.list()
-        else if (std.mem.eql(u8, action, "open") or
-                 std.mem.eql(u8, action, "write") or
-                 std.mem.eql(u8, action, "close"))
+        if (std.mem.eql(u8, action, "list")) try self.list() else if (std.mem.eql(u8, action, "open") or
+            std.mem.eql(u8, action, "write") or
+            std.mem.eql(u8, action, "close"))
         {
             bridge_error.sendResultToJS(self.allocator, action, "{\"ok\":false,\"reason\":\"open/read/write wiring pending\"}");
         } else return BridgeError.UnknownAction;

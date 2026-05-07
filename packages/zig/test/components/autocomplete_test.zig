@@ -147,7 +147,7 @@ test "autocomplete selection" {
     autocomplete.onSelect(&handleSelect);
 
     try autocomplete.setInput("a");
-    autocomplete.selectSuggestion(0);
+    try autocomplete.selectSuggestion(0);
 
     try std.testing.expect(selected_suggestion != null);
     try std.testing.expectEqualStrings("apple", autocomplete.input_value);

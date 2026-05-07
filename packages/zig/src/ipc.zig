@@ -64,7 +64,7 @@ pub const IPC = struct {
             const owned = try self.allocator.dupe(u8, channel);
             errdefer self.allocator.free(owned);
             result.key_ptr.* = owned;
-            result.value_ptr.* = .{};
+            result.value_ptr.* = .empty;
         }
         try result.value_ptr.append(self.allocator, handler);
     }
@@ -207,7 +207,7 @@ pub const MessageQueue = struct {
 
     pub fn init(allocator: std.mem.Allocator) MessageQueue {
         return MessageQueue{
-            .messages = .{},
+            .messages = .empty,
             .mutex = compat_mutex.Mutex{},
             .allocator = allocator,
         };

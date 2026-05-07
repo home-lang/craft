@@ -48,8 +48,8 @@ pub const ListView = struct {
         const component = try Component.init(allocator, "listview", props);
         list_view.* = ListView{
             .component = component,
-            .items = .{},
-            .selected_indices = .{},
+            .items = .empty,
+            .selected_indices = .empty,
             .selection_mode = config.selection_mode,
             .on_item_click = null,
             .on_item_double_click = null,
@@ -215,7 +215,7 @@ pub const ListView = struct {
 
     /// Get selected items
     pub fn getSelectedItems(self: *const ListView, allocator: std.mem.Allocator) ![]ListItem {
-        var selected: std.ArrayList(ListItem) = .{};
+        var selected: std.ArrayList(ListItem) = .empty;
         for (self.selected_indices.items) |idx| {
             if (idx < self.items.items.len) {
                 try selected.append(allocator, self.items.items[idx]);

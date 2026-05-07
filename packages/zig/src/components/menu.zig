@@ -43,7 +43,7 @@ pub const Menu = struct {
         const component = try Component.init(allocator, "menu", props);
         menu.* = Menu{
             .component = component,
-            .items = .{},
+            .items = .empty,
             .on_item_select = null,
             .is_open = false,
             .parent_menu = null,
@@ -356,7 +356,7 @@ pub const MenuBar = struct {
         const component = try Component.init(allocator, "menubar", props);
         menu_bar.* = MenuBar{
             .component = component,
-            .menus = .{},
+            .menus = .empty,
             .active_menu_index = null,
             .on_menu_open = null,
         };

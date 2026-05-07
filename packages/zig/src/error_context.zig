@@ -214,7 +214,7 @@ pub const ErrorContext = struct {
             .message = message,
             .severity = .err,
             .timestamp = getMilliTimestamp(),
-            .stack_trace = .{},
+            .stack_trace = .empty,
             .metadata = std.StringHashMap([]const u8).init(allocator),
             .cause = null,
             .allocator = allocator,
@@ -263,7 +263,7 @@ pub const ErrorContext = struct {
     }
 
     pub fn format(self: *const ErrorContext, allocator: std.mem.Allocator) ![]const u8 {
-        var buf: std.ArrayList(u8) = .{};
+        var buf: std.ArrayList(u8) = .empty;
         errdefer buf.deinit(allocator);
 
         // Header

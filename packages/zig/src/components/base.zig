@@ -13,7 +13,7 @@ pub const Component = struct {
             .id = id,
             .handle = null,
             .props = props,
-            .children = .{},
+            .children = .empty,
             .allocator = allocator,
         };
     }

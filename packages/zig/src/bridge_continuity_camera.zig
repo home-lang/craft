@@ -30,8 +30,7 @@ pub const ContinuityCameraBridge = struct {
     pub fn deinit(_: *Self) void {}
 
     pub fn handleMessage(self: *Self, action: []const u8, _: []const u8) !void {
-        if (std.mem.eql(u8, action, "listCameras")) try self.listCameras()
-        else return BridgeError.UnknownAction;
+        if (std.mem.eql(u8, action, "listCameras")) try self.listCameras() else return BridgeError.UnknownAction;
     }
 
     fn listCameras(self: *Self) !void {

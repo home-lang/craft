@@ -145,9 +145,7 @@ pub const IAPBridge = struct {
         const product = lookupCachedProduct(parsed.value.productId);
         if (product == null) {
             var buf: [256]u8 = undefined;
-            const json = try std.fmt.bufPrint(&buf,
-                "{{\"queued\":false,\"productId\":\"{s}\",\"reason\":\"call getProducts() with this id first; product not in cache\"}}",
-                .{parsed.value.productId});
+            const json = try std.fmt.bufPrint(&buf, "{{\"queued\":false,\"productId\":\"{s}\",\"reason\":\"call getProducts() with this id first; product not in cache\"}}", .{parsed.value.productId});
             bridge_error.sendResultToJS(self.allocator, "purchase", json);
             return;
         }
@@ -160,9 +158,7 @@ pub const IAPBridge = struct {
         _ = macos.msgSend1(queue, "addPayment:", payment);
 
         var buf: [256]u8 = undefined;
-        const json = try std.fmt.bufPrint(&buf,
-            "{{\"queued\":true,\"productId\":\"{s}\"}}",
-            .{parsed.value.productId});
+        const json = try std.fmt.bufPrint(&buf, "{{\"queued\":true,\"productId\":\"{s}\"}}", .{parsed.value.productId});
         bridge_error.sendResultToJS(self.allocator, "purchase", json);
     }
 
@@ -195,9 +191,7 @@ pub const IAPBridge = struct {
         const txn = lookupCachedTransaction(parsed.value.transactionId);
         if (txn == null) {
             var buf: [256]u8 = undefined;
-            const json = try std.fmt.bufPrint(&buf,
-                "{{\"ok\":false,\"transactionId\":\"{s}\",\"reason\":\"unknown transaction\"}}",
-                .{parsed.value.transactionId});
+            const json = try std.fmt.bufPrint(&buf, "{{\"ok\":false,\"transactionId\":\"{s}\",\"reason\":\"unknown transaction\"}}", .{parsed.value.transactionId});
             bridge_error.sendResultToJS(self.allocator, "finishTransaction", json);
             return;
         }
@@ -365,8 +359,7 @@ export fn paymentQueueRestoreFinishedWithError(
 
     var script: std.ArrayListUnmanaged(u8) = .empty;
     defer script.deinit(std.heap.c_allocator);
-    script.appendSlice(std.heap.c_allocator,
-        "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('craft:iap:failed', { detail: { productId: '', message: '") catch return;
+    script.appendSlice(std.heap.c_allocator, "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('craft:iap:failed', { detail: { productId: '', message: '") catch return;
     appendEscaped(&script, msg);
     script.appendSlice(std.heap.c_allocator, "' } }));") catch return;
     script.append(std.heap.c_allocator, 0) catch return;
@@ -391,8 +384,7 @@ export fn productsRequestDidReceiveResponse(
 
     var script: std.ArrayListUnmanaged(u8) = .empty;
     defer script.deinit(std.heap.c_allocator);
-    script.appendSlice(std.heap.c_allocator,
-        "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('craft:iap:productsLoaded', { detail: { products: [") catch return;
+    script.appendSlice(std.heap.c_allocator, "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('craft:iap:productsLoaded', { detail: { products: [") catch return;
 
     var i: c_ulong = 0;
     while (i < count) : (i += 1) {
@@ -439,8 +431,7 @@ export fn requestDidFailWithError(
 
     var script: std.ArrayListUnmanaged(u8) = .empty;
     defer script.deinit(std.heap.c_allocator);
-    script.appendSlice(std.heap.c_allocator,
-        "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('craft:iap:productsLoaded', { detail: { products: [], error: '") catch return;
+    script.appendSlice(std.heap.c_allocator, "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('craft:iap:productsLoaded', { detail: { products: [], error: '") catch return;
     appendEscaped(&script, msg);
     script.appendSlice(std.heap.c_allocator, "' } }));") catch return;
     script.append(std.heap.c_allocator, 0) catch return;
@@ -498,8 +489,7 @@ fn emitTransactionEvent(txn: @import("macos.zig").objc.id, event_name: []const u
 
     var script: std.ArrayListUnmanaged(u8) = .empty;
     defer script.deinit(std.heap.c_allocator);
-    script.appendSlice(std.heap.c_allocator,
-        "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('") catch return;
+    script.appendSlice(std.heap.c_allocator, "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('") catch return;
     script.appendSlice(std.heap.c_allocator, event_name) catch return;
     script.appendSlice(std.heap.c_allocator, "', { detail: { productId: '") catch return;
     appendEscaped(&script, product_id);
@@ -546,8 +536,7 @@ fn emitFailureEvent(txn: @import("macos.zig").objc.id) void {
     defer script.deinit(std.heap.c_allocator);
     var code_buf: [32]u8 = undefined;
     const code_str = std.fmt.bufPrint(&code_buf, "{d}", .{code}) catch "0";
-    script.appendSlice(std.heap.c_allocator,
-        "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('craft:iap:failed', { detail: { productId: '") catch return;
+    script.appendSlice(std.heap.c_allocator, "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('craft:iap:failed', { detail: { productId: '") catch return;
     appendEscaped(&script, product_id);
     script.appendSlice(std.heap.c_allocator, "', code: ") catch return;
     script.appendSlice(std.heap.c_allocator, code_str) catch return;

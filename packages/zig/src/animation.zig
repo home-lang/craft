@@ -105,7 +105,7 @@ pub const Animation = struct {
     /// elapsed time so `update()` sees the same progress the caller had
     /// before pausing. Previously `unpause` computed the pause duration and
     /// threw it away, so pausing did nothing observable.
-    paused_ns_total: u64,
+    paused_ns_total: u64 = 0,
     on_update: ?*const fn (f32) void,
     on_complete: ?*const fn () void,
 

@@ -890,7 +890,7 @@ pub const ClipboardBridge = struct {
         }
 
         const kernel32 = win32;
-                const user32 = win32;
+        const user32 = win32;
 
         const CF_TEXT = 1;
 
@@ -981,7 +981,7 @@ pub const ClipboardBridge = struct {
         }
 
         const kernel32 = win32;
-                const user32 = win32;
+        const user32 = win32;
 
         const cf_html = user32.RegisterClipboardFormatA("HTML Format");
 

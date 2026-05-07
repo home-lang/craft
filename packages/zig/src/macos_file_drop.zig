@@ -107,8 +107,7 @@ fn extractAndPostPaths(webview: objc.id, draggingInfo: objc.id) void {
     defer script.deinit(std.heap.c_allocator);
     // The bridge JS defines `__craftDeliverFileDrop`. Falling through to
     // a no-op if it's missing keeps us safe on early page loads.
-    script.appendSlice(std.heap.c_allocator,
-        "if (window.__craftDeliverFileDrop) window.__craftDeliverFileDrop(") catch return;
+    script.appendSlice(std.heap.c_allocator, "if (window.__craftDeliverFileDrop) window.__craftDeliverFileDrop(") catch return;
     script.appendSlice(std.heap.c_allocator, json.items) catch return;
     script.appendSlice(std.heap.c_allocator, ");") catch return;
     script.append(std.heap.c_allocator, 0) catch return;

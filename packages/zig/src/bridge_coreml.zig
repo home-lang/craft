@@ -42,10 +42,7 @@ pub const CoreMLBridge = struct {
     }
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-        if (std.mem.eql(u8, action, "loadModel")) try self.loadModel(data)
-        else if (std.mem.eql(u8, action, "unloadModel")) try self.unloadModel(data)
-        else if (std.mem.eql(u8, action, "predict")) try self.predict(data)
-        else return BridgeError.UnknownAction;
+        if (std.mem.eql(u8, action, "loadModel")) try self.loadModel(data) else if (std.mem.eql(u8, action, "unloadModel")) try self.unloadModel(data) else if (std.mem.eql(u8, action, "predict")) try self.predict(data) else return BridgeError.UnknownAction;
     }
 
     fn loadModel(self: *Self, data: []const u8) !void {

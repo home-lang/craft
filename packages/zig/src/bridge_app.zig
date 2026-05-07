@@ -95,8 +95,7 @@ pub const AppBridge = struct {
         // debug line — JS callers got nothing back, ever. Read the
         // real bundle metadata via [NSBundle mainBundle].
         if (builtin.os.tag != .macos) {
-            bridge_error.sendResultToJS(self.allocator, "getInfo",
-                "{\"name\":\"\",\"version\":\"\",\"bundleId\":\"\",\"bundlePath\":\"\",\"executablePath\":\"\"}");
+            bridge_error.sendResultToJS(self.allocator, "getInfo", "{\"name\":\"\",\"version\":\"\",\"bundleId\":\"\",\"bundlePath\":\"\",\"executablePath\":\"\"}");
             return;
         }
         const macos = @import("macos.zig");

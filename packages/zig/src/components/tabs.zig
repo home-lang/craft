@@ -23,7 +23,7 @@ pub const Tabs = struct {
         const component = try Component.init(allocator, "tabs", props);
         tabs.* = Tabs{
             .component = component,
-            .tabs = .{},
+            .tabs = .empty,
             .active_index = 0,
             .on_tab_change = null,
         };

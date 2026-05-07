@@ -244,7 +244,7 @@ pub const Component = struct {
         return Component{
             .bounds = bounds,
             .visible = true,
-            .children = .{},
+            .children = .empty,
             .allocator = allocator,
         };
     }

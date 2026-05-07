@@ -25,9 +25,7 @@ pub const PDFBridge = struct {
     pub fn deinit(_: *Self) void {}
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-        if (std.mem.eql(u8, action, "countPages")) try self.countPages(data)
-        else if (std.mem.eql(u8, action, "extractText")) try self.extractText(data)
-        else return BridgeError.UnknownAction;
+        if (std.mem.eql(u8, action, "countPages")) try self.countPages(data) else if (std.mem.eql(u8, action, "extractText")) try self.extractText(data) else return BridgeError.UnknownAction;
     }
 
     fn countPages(self: *Self, data: []const u8) !void {

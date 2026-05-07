@@ -141,7 +141,7 @@ pub const ColorPicker = struct {
             .format = .hex,
             .show_alpha = false,
             .show_presets = true,
-            .presets = .{},
+            .presets = .empty,
             .disabled = false,
             .on_change = null,
         };

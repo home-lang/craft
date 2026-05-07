@@ -26,10 +26,7 @@ pub const BiometricBridge = struct {
     pub fn deinit(_: *Self) void {}
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-        if (std.mem.eql(u8, action, "isAvailable")) try self.isAvailable()
-        else if (std.mem.eql(u8, action, "getBiometryType")) try self.getBiometryType()
-        else if (std.mem.eql(u8, action, "evaluate")) try self.evaluate(data)
-        else return BridgeError.UnknownAction;
+        if (std.mem.eql(u8, action, "isAvailable")) try self.isAvailable() else if (std.mem.eql(u8, action, "getBiometryType")) try self.getBiometryType() else if (std.mem.eql(u8, action, "evaluate")) try self.evaluate(data) else return BridgeError.UnknownAction;
     }
 
     fn isAvailable(self: *Self) !void {

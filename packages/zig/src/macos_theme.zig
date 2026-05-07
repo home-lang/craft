@@ -123,8 +123,7 @@ fn deliver() void {
     const json = if (is_dark) "{\"appearance\":\"dark\"}" else "{\"appearance\":\"light\"}";
 
     var script_buf: [256]u8 = undefined;
-    const script = std.fmt.bufPrintZ(&script_buf,
-        "if (window.__craftDeliverTheme) window.__craftDeliverTheme({s});", .{json}) catch return;
+    const script = std.fmt.bufPrintZ(&script_buf, "if (window.__craftDeliverTheme) window.__craftDeliverTheme({s});", .{json}) catch return;
 
     if (getGlobalWebViewSafe()) |webview| {
         const NSString = macos.getClass("NSString");

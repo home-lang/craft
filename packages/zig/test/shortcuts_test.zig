@@ -422,7 +422,7 @@ test "CommonShortcuts - devTools" {
 }
 
 test "ShortcutRecorder - init" {
-    var recorder = shortcuts.ShortcutRecorder.init();
+    const recorder = shortcuts.ShortcutRecorder.init();
 
     try testing.expect(!recorder.recording);
     try testing.expect(recorder.current_key == null);

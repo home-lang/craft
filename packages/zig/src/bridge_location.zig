@@ -27,12 +27,7 @@ pub const LocationBridge = struct {
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
         ensureManager();
-        if (std.mem.eql(u8, action, "requestPermission")) try self.requestPermission(data)
-        else if (std.mem.eql(u8, action, "getAuthorization")) try self.getAuthorization()
-        else if (std.mem.eql(u8, action, "getCurrentLocation")) try self.getCurrentLocation()
-        else if (std.mem.eql(u8, action, "startWatching")) try self.startWatching(data)
-        else if (std.mem.eql(u8, action, "stopWatching")) try self.stopWatching()
-        else return BridgeError.UnknownAction;
+        if (std.mem.eql(u8, action, "requestPermission")) try self.requestPermission(data) else if (std.mem.eql(u8, action, "getAuthorization")) try self.getAuthorization() else if (std.mem.eql(u8, action, "getCurrentLocation")) try self.getCurrentLocation() else if (std.mem.eql(u8, action, "startWatching")) try self.startWatching(data) else if (std.mem.eql(u8, action, "stopWatching")) try self.stopWatching() else return BridgeError.UnknownAction;
     }
 
     fn requestPermission(self: *Self, data: []const u8) !void {
@@ -196,10 +191,8 @@ export fn didUpdateLocations(
     const speed = macos.msgSend0Double(loc, "speed");
 
     var buf: [512]u8 = undefined;
-    const detail = std.fmt.bufPrint(&buf,
-        "{{\"latitude\":{d},\"longitude\":{d},\"altitude\":{d}," ++
-        "\"horizontalAccuracy\":{d},\"verticalAccuracy\":{d},\"speed\":{d}}}",
-        .{ coord.latitude, coord.longitude, altitude, h_acc, v_acc, speed }) catch return;
+    const detail = std.fmt.bufPrint(&buf, "{{\"latitude\":{d},\"longitude\":{d},\"altitude\":{d}," ++
+        "\"horizontalAccuracy\":{d},\"verticalAccuracy\":{d},\"speed\":{d}}}", .{ coord.latitude, coord.longitude, altitude, h_acc, v_acc, speed }) catch return;
     fireEvent("craft:location:update", detail);
 }
 
@@ -266,8 +259,7 @@ fn fireEvent(name: []const u8, detail_json: []const u8) void {
 
     var script: std.ArrayListUnmanaged(u8) = .empty;
     defer script.deinit(std.heap.c_allocator);
-    script.appendSlice(std.heap.c_allocator,
-        "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('") catch return;
+    script.appendSlice(std.heap.c_allocator, "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('") catch return;
     script.appendSlice(std.heap.c_allocator, name) catch return;
     script.appendSlice(std.heap.c_allocator, "', { detail: ") catch return;
     script.appendSlice(std.heap.c_allocator, detail_json) catch return;

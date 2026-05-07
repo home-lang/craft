@@ -369,7 +369,7 @@ test "TrackingAllocator - complex allocation pattern" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
     const alloc = tracker.getAllocator();
 
-    var allocations: std.ArrayList([]u8) = .{};
+    var allocations: std.ArrayList([]u8) = .empty;
     defer {
         for (allocations.items) |item| {
             alloc.free(item);
@@ -494,7 +494,7 @@ test "TrackingAllocator - concurrent operations simulation" {
     var tracker = memory.TrackingAllocator.init(testing.allocator);
     const alloc = tracker.getAllocator();
 
-    var allocations: std.ArrayList([]u8) = .{};
+    var allocations: std.ArrayList([]u8) = .empty;
     defer allocations.deinit(testing.allocator);
 
     // Simulate interleaved allocations and frees

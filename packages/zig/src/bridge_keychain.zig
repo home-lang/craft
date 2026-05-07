@@ -62,31 +62,27 @@ pub const KeychainBridge = struct {
             var kc = try self.getKeychain(params.service);
             try kc.setPassword(params.account, params.password orelse "");
             bridge_error.sendResultToJS(self.allocator, "set", "{\"ok\":true}");
-        }
-        else if (std.mem.eql(u8, action, "get")) {
+        } else if (std.mem.eql(u8, action, "get")) {
             const params = try parsePayload(self.allocator, data);
             defer freePayload(self.allocator, params);
             var kc = try self.getKeychain(params.service);
             const got = kc.getPassword(params.account) catch null;
             try sendValueResult(self.allocator, "get", got);
             if (got) |v| self.allocator.free(v);
-        }
-        else if (std.mem.eql(u8, action, "delete")) {
+        } else if (std.mem.eql(u8, action, "delete")) {
             const params = try parsePayload(self.allocator, data);
             defer freePayload(self.allocator, params);
             var kc = try self.getKeychain(params.service);
             kc.deletePassword(params.account) catch {};
             bridge_error.sendResultToJS(self.allocator, "delete", "{\"ok\":true}");
-        }
-        else if (std.mem.eql(u8, action, "has")) {
+        } else if (std.mem.eql(u8, action, "has")) {
             const params = try parsePayload(self.allocator, data);
             defer freePayload(self.allocator, params);
             var kc = try self.getKeychain(params.service);
             const present = kc.hasPassword(params.account) catch false;
             const json = if (present) "{\"value\":true}" else "{\"value\":false}";
             bridge_error.sendResultToJS(self.allocator, "has", json);
-        }
-        else {
+        } else {
             return BridgeError.UnknownAction;
         }
     }

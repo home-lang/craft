@@ -123,8 +123,7 @@ fn installScreenChangeObserver() void {
     // -[NSNotificationCenter addObserver:selector:name:object:]
     const Fn = *const fn (objc.id, objc.SEL, objc.id, objc.SEL, objc.id, objc.id) callconv(.c) void;
     const f: Fn = @ptrCast(&objc.objc_msgSend);
-    f(center, macos.sel("addObserver:selector:name:object:"),
-        screen_observer_instance, macos.sel("onScreenChange:"), note_name, @as(objc.id, null));
+    f(center, macos.sel("addObserver:selector:name:object:"), screen_observer_instance, macos.sel("onScreenChange:"), note_name, @as(objc.id, null));
 
     screen_observer_installed = true;
 }
@@ -147,15 +146,19 @@ fn appendScreenJson(buf: *std.ArrayListUnmanaged(u8), allocator: std.mem.Allocat
     const scale = macos.msgSendFloat(screen, "backingScaleFactor");
 
     var num_buf: [256]u8 = undefined;
-    const written = try std.fmt.bufPrint(&num_buf,
-        "{{\"id\":{d},\"x\":{d},\"y\":{d},\"width\":{d},\"height\":{d}," ++
+    const written = try std.fmt.bufPrint(&num_buf, "{{\"id\":{d},\"x\":{d},\"y\":{d},\"width\":{d},\"height\":{d}," ++
         "\"workX\":{d},\"workY\":{d},\"workWidth\":{d},\"workHeight\":{d}," ++
-        "\"scaleFactor\":{d}}}",
-        .{
-            idx,
-            frame.origin.x, frame.origin.y, frame.size.width, frame.size.height,
-            visible.origin.x, visible.origin.y, visible.size.width, visible.size.height,
-            scale,
-        });
+        "\"scaleFactor\":{d}}}", .{
+        idx,
+        frame.origin.x,
+        frame.origin.y,
+        frame.size.width,
+        frame.size.height,
+        visible.origin.x,
+        visible.origin.y,
+        visible.size.width,
+        visible.size.height,
+        scale,
+    });
     try buf.appendSlice(allocator, written);
 }

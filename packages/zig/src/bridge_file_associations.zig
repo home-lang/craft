@@ -27,9 +27,7 @@ pub const FileAssociationsBridge = struct {
     pub fn deinit(_: *Self) void {}
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-        if (std.mem.eql(u8, action, "getDefault")) try self.getDefault(data)
-        else if (std.mem.eql(u8, action, "setDefault")) try self.setDefault(data)
-        else return BridgeError.UnknownAction;
+        if (std.mem.eql(u8, action, "getDefault")) try self.getDefault(data) else if (std.mem.eql(u8, action, "setDefault")) try self.setDefault(data) else return BridgeError.UnknownAction;
     }
 
     fn getDefault(self: *Self, data: []const u8) !void {

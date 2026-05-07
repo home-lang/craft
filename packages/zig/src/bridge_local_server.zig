@@ -33,10 +33,7 @@ pub const LocalServerBridge = struct {
     }
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-        if (std.mem.eql(u8, action, "start")) try self.startServer(data)
-        else if (std.mem.eql(u8, action, "stop")) try self.stopFromMessage()
-        else if (std.mem.eql(u8, action, "respond")) try self.respondToRequest(data)
-        else return BridgeError.UnknownAction;
+        if (std.mem.eql(u8, action, "start")) try self.startServer(data) else if (std.mem.eql(u8, action, "stop")) try self.stopFromMessage() else if (std.mem.eql(u8, action, "respond")) try self.respondToRequest(data) else return BridgeError.UnknownAction;
     }
 
     fn startServer(self: *Self, data: []const u8) !void {
@@ -50,9 +47,7 @@ pub const LocalServerBridge = struct {
         if (server_socket != -1) {
             // Already running. Be idempotent — return the bound port.
             var buf: [128]u8 = undefined;
-            const json = try std.fmt.bufPrint(&buf,
-                "{{\"port\":{d},\"started\":true,\"alreadyRunning\":true}}",
-                .{bound_port});
+            const json = try std.fmt.bufPrint(&buf, "{{\"port\":{d},\"started\":true,\"alreadyRunning\":true}}", .{bound_port});
             bridge_error.sendResultToJS(self.allocator, "start", json);
             return;
         }
@@ -139,9 +134,7 @@ pub const LocalServerBridge = struct {
         }
 
         var header_buf: [512]u8 = undefined;
-        const header = try std.fmt.bufPrint(&header_buf,
-            "HTTP/1.1 {d} OK\r\nContent-Type: {s}\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n",
-            .{ parsed.value.status, parsed.value.contentType, parsed.value.body.len });
+        const header = try std.fmt.bufPrint(&header_buf, "HTTP/1.1 {d} OK\r\nContent-Type: {s}\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n", .{ parsed.value.status, parsed.value.contentType, parsed.value.body.len });
         _ = send(active_client_socket, header.ptr, header.len, 0);
         _ = send(active_client_socket, parsed.value.body.ptr, parsed.value.body.len, 0);
         _ = close(active_client_socket);
@@ -252,9 +245,7 @@ fn acceptLoop(_: ?*anyopaque) callconv(.c) ?*anyopaque {
         if (active_client_socket != -1) {
             const default_body = "OK";
             var hdr: [128]u8 = undefined;
-            const hdr_text = std.fmt.bufPrint(&hdr,
-                "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n",
-                .{default_body.len}) catch "HTTP/1.1 200 OK\r\n\r\n";
+            const hdr_text = std.fmt.bufPrint(&hdr, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n", .{default_body.len}) catch "HTTP/1.1 200 OK\r\n\r\n";
             _ = send(active_client_socket, hdr_text.ptr, hdr_text.len, 0);
             _ = send(active_client_socket, default_body.ptr, default_body.len, 0);
             _ = close(active_client_socket);
@@ -271,8 +262,7 @@ fn emitRequestEvent(method: []const u8, path: []const u8) void {
 
     var script: std.ArrayListUnmanaged(u8) = .empty;
     defer script.deinit(std.heap.c_allocator);
-    script.appendSlice(std.heap.c_allocator,
-        "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('craft:localServer:request', { detail: { method: '") catch return;
+    script.appendSlice(std.heap.c_allocator, "if (window.dispatchEvent) window.dispatchEvent(new CustomEvent('craft:localServer:request', { detail: { method: '") catch return;
     appendEscaped(&script, method);
     script.appendSlice(std.heap.c_allocator, "', url: '") catch return;
     appendEscaped(&script, path);

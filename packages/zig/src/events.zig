@@ -60,7 +60,7 @@ pub const EventEmitter = struct {
     pub fn on(self: *Self, event_name: []const u8, callback: EventCallback) !void {
         const result = try self.listeners.getOrPut(event_name);
         if (!result.found_existing) {
-            result.value_ptr.* = .{};
+            result.value_ptr.* = .empty;
         }
         try result.value_ptr.append(self.allocator, callback);
     }

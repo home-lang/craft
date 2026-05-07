@@ -22,7 +22,7 @@ fn failingTaskFn(ctx: *anyopaque) !void {
 }
 
 test "Task - initialization" {
-    var task = async_mod.Task.init(testTaskFn, &test_context);
+    const task = async_mod.Task.init(testTaskFn, &test_context);
 
     try testing.expect(!task.completed);
     try testing.expectEqual(@as(?anyerror!void, null), task.result);
@@ -223,7 +223,7 @@ test "EventLoop - initialization" {
     var loop = async_mod.EventLoop.init(allocator);
     defer loop.deinit();
 
-    try testing.expect(!loop.running);
+    try testing.expect(!loop.running.load(.acquire));
     try testing.expectEqual(@as(usize, 0), loop.tasks.items.len);
 }
 
@@ -245,10 +245,10 @@ test "EventLoop - stop" {
     var loop = async_mod.EventLoop.init(allocator);
     defer loop.deinit();
 
-    loop.running = true;
+    loop.running.store(true, .release);
     loop.stop();
 
-    try testing.expect(!loop.running);
+    try testing.expect(!loop.running.load(.acquire));
 }
 
 // Channel tests

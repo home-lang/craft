@@ -229,7 +229,10 @@ pub const Rules = struct {
         // The host must contain at least one non-`.` character and must
         // not end with a dot.
         var has_non_dot = false;
-        for (host) |c| if (c != '.') { has_non_dot = true; break; };
+        for (host) |c| if (c != '.') {
+            has_non_dot = true;
+            break;
+        };
         if (!has_non_dot) return .{ .is_valid = false };
         if (host[host.len - 1] == '.') return .{ .is_valid = false };
 
@@ -880,10 +883,7 @@ pub const Rules = struct {
         var has_special = false;
 
         for (v) |c| {
-            if (std.ascii.isUpper(c)) has_upper = true
-            else if (std.ascii.isLower(c)) has_lower = true
-            else if (std.ascii.isDigit(c)) has_digit = true
-            else has_special = true;
+            if (std.ascii.isUpper(c)) has_upper = true else if (std.ascii.isLower(c)) has_lower = true else if (std.ascii.isDigit(c)) has_digit = true else has_special = true;
         }
 
         if ((flags & password_flag_upper) != 0 and !has_upper)

@@ -786,7 +786,7 @@ fn printVersion() void {
     const version = if (@hasDecl(build_opts, "version")) build_opts.version else "0.0.0";
     std.debug.print(
         \\craft version {s}
-        \\Built with Zig 0.16.0
+        \\Built with Zig 0.17.0-dev
         \\Platform: {s}
         \\
         \\

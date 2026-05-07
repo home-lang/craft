@@ -1,3 +1,4 @@
+/* eslint-disable pickier/no-unused-vars */
 // Craft JS bridge — runs at document-start in every Craft window.
 //
 // This file is the single source of truth for what `window.craft.*` looks
@@ -193,7 +194,7 @@
   function _rgbToHex(c) {
     if (!c || typeof c !== 'object') return ''
     function _hex(n) {
-      var i = Math.round(Math.max(0, Math.min(1, Number(n) || 0)) * 255)
+      const i = Math.round(Math.max(0, Math.min(1, Number(n) || 0)) * 255)
       var s = i.toString(16)
       return s.length < 2 ? '0' + s : s
     }
@@ -203,7 +204,7 @@
   // Per-bridge action → wrapper map. Adding a new action without an
   // entry just delivers `{value: payload}` via _passthrough, which the
   // facade can either accept or override.
-  var _wrappers = {
+  const _wrappers = {
     fs: {
       readFile:        _wrapWith('data'),
       // bridge_fs.zig sends a bare `[{name,isDirectory},...]` array.
@@ -280,7 +281,7 @@
   }
 
   function _legacyResult(ns, action, payload) {
-    var wrapper = (_wrappers[ns] && _wrappers[ns][action]) || _passthrough
+    const wrapper = (_wrappers[ns] && _wrappers[ns][action]) || _passthrough
     var envelope
     try { envelope = wrapper(payload) }
     catch (e) { envelope = _passthrough(payload) }

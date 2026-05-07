@@ -1,12 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
 const log_module = @import("../src/log.zig");
-const c_fs = @cImport({
-    @cInclude("unistd.h");
-    @cInclude("stdio.h");
-    @cInclude("fcntl.h");
-    @cInclude("sys/stat.h");
-});
 
 test "LogLevel - toString" {
     try testing.expectEqualStrings("DEBUG", log_module.LogLevel.Debug.toString());
@@ -143,7 +137,7 @@ test "Log - convenience functions exist" {
 
 test "Log - output to file" {
     const test_path = "/tmp/craft_log_test.log";
-    defer _ = c_fs.remove(test_path);
+    defer _ = std.c.unlink(test_path);
 
     const config = log_module.LogConfig{
         .min_level = .Info,
@@ -155,21 +149,21 @@ test "Log - output to file" {
 
     log_module.info("Test log message", .{});
 
-    // Verify file was created using C open
-    const fd = c_fs.open(test_path, c_fs.O_RDONLY);
+    const fd = std.c.open(test_path, std.c.O{ .ACCMODE = .RDONLY });
     if (fd < 0) return error.FileNotFound;
-    defer _ = c_fs.close(fd);
+    defer _ = std.c.close(fd);
 
-    var stat: c_fs.struct_stat = undefined;
-    _ = c_fs.fstat(fd, &stat);
-    const size: usize = @intCast(stat.st_size);
+    var stat: std.c.Stat = undefined;
+    _ = std.c.fstat(fd, &stat);
+    const size: usize = @intCast(stat.size);
     const content = try testing.allocator.alloc(u8, size);
     defer testing.allocator.free(content);
-    const bytes_read = c_fs.read(fd, content.ptr, size);
-    _ = bytes_read;
+    const read_result = std.c.read(fd, content.ptr, size);
+    if (read_result <= 0) return error.UnexpectedEof;
+    const bytes_read: usize = @intCast(read_result);
 
-    try testing.expect(content.len > 0);
-    try testing.expect(std.mem.indexOf(u8, content, "Test log message") != null);
+    try testing.expect(bytes_read > 0);
+    try testing.expect(std.mem.indexOf(u8, content[0..bytes_read], "Test log message") != null);
 }
 
 test "LogLevel - enum ordering" {

@@ -214,3 +214,7 @@ pub fn TempAllocatorWithBuffer(comptime size: usize) type {
 pub fn initTempAllocator(comptime size: usize, self: *TempAllocatorWithBuffer(size)) void {
     self.init();
 }
+
+pub fn createTempAllocator(comptime size: usize) TempAllocatorWithBuffer(size) {
+    return .{};
+}

@@ -63,11 +63,26 @@ pub fn getStringDecoded(allocator: std.mem.Allocator, data: []const u8, key: []c
                 try out.append(allocator, next);
                 i += 2;
             },
-            'b' => { try out.append(allocator, 0x08); i += 2; },
-            'f' => { try out.append(allocator, 0x0C); i += 2; },
-            'n' => { try out.append(allocator, '\n'); i += 2; },
-            'r' => { try out.append(allocator, '\r'); i += 2; },
-            't' => { try out.append(allocator, '\t'); i += 2; },
+            'b' => {
+                try out.append(allocator, 0x08);
+                i += 2;
+            },
+            'f' => {
+                try out.append(allocator, 0x0C);
+                i += 2;
+            },
+            'n' => {
+                try out.append(allocator, '\n');
+                i += 2;
+            },
+            'r' => {
+                try out.append(allocator, '\r');
+                i += 2;
+            },
+            't' => {
+                try out.append(allocator, '\t');
+                i += 2;
+            },
             'u' => {
                 if (i + 6 > raw.len) return error.InvalidEscape;
                 const cp1 = std.fmt.parseInt(u16, raw[i + 2 .. i + 6], 16) catch return error.InvalidEscape;

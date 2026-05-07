@@ -163,7 +163,7 @@ pub const Theme = struct {
     }
 
     pub fn toCSS(self: Theme, allocator: std.mem.Allocator) ![]const u8 {
-        var css: std.ArrayList(u8) = .{};
+        var css: std.ArrayList(u8) = .empty;
         errdefer css.deinit(allocator);
 
         try css.appendSlice(allocator, ":root {\n");
@@ -258,7 +258,7 @@ pub const ThemeManager = struct {
         return ThemeManager{
             .current_theme = current,
             .themes = themes,
-            .watchers = .{},
+            .watchers = .empty,
             .allocator = allocator,
         };
     }

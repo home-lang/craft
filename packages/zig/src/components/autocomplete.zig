@@ -43,8 +43,8 @@ pub const Autocomplete = struct {
         autocomplete.* = Autocomplete{
             .component = component,
             .input_value = "",
-            .suggestions = .{},
-            .filtered_suggestions = .{},
+            .suggestions = .empty,
+            .filtered_suggestions = .empty,
             .selected_index = null,
             .open = false,
             .disabled = false,
@@ -315,6 +315,8 @@ pub const Autocomplete = struct {
     }
 
     pub fn clear(self: *Autocomplete) void {
+        const allocator = self.component.allocator;
+        if (self.input_value.len > 0) allocator.free(self.input_value);
         self.input_value = "";
         self.filtered_suggestions.clearRetainingCapacity();
         self.closeDropdown();

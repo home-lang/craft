@@ -131,7 +131,7 @@ pub const NotificationManager = struct {
     pub fn init(allocator: std.mem.Allocator) NotificationManager {
         return NotificationManager{
             .allocator = allocator,
-            .notifications = .{},
+            .notifications = .empty,
         };
     }
 

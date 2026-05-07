@@ -22,7 +22,7 @@ pub const Profiler = struct {
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
-            .entries = .{},
+            .entries = .empty,
             .active_profiles = std.StringHashMap(std.Io.Clock.Timestamp).init(allocator),
             .memory_tracker = null,
             .allocator = allocator,
@@ -45,20 +45,14 @@ pub const Profiler = struct {
         // profiling silently fail — downstream `end()` calls would then find
         // no matching entry and also silently no-op. Log at warn level so
         // the profiling drop-out is at least visible to the developer.
-        const start_time = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch |err| {
-            std.log.warn("profiler: failed to read start clock for '{s}': {}", .{ name, err });
-            return;
-        };
+        const start_time = std.Io.Clock.Timestamp.now(io_context.get(), .awake);
         try self.active_profiles.put(name, start_time);
     }
 
     pub fn end(self: *Self, name: []const u8) !void {
         if (!self.enabled) return;
 
-        const end_time = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch |err| {
-            std.log.warn("profiler: failed to read end clock for '{s}': {}", .{ name, err });
-            return;
-        };
+        const end_time = std.Io.Clock.Timestamp.now(io_context.get(), .awake);
         const start_time = self.active_profiles.get(name) orelse return;
         _ = self.active_profiles.remove(name);
 
@@ -103,7 +97,7 @@ pub const Profiler = struct {
     }
 
     pub fn getReport(self: Self) ![]const u8 {
-        var report: std.ArrayList(u8) = .{};
+        var report: std.ArrayList(u8) = .empty;
         errdefer report.deinit(self.allocator);
 
         try report.appendSlice(self.allocator, "\n=== Performance Profile Report ===\n\n");
@@ -172,7 +166,7 @@ pub const Profiler = struct {
     }
 
     pub fn getHTMLDashboard(self: Self) ![]const u8 {
-        var html: std.ArrayList(u8) = .{};
+        var html: std.ArrayList(u8) = .empty;
         errdefer html.deinit(self.allocator);
 
         const html_header =

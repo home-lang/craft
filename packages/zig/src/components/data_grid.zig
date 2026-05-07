@@ -38,7 +38,7 @@ pub const DataGrid = struct {
         pub fn init(allocator: std.mem.Allocator, id: []const u8) Row {
             return Row{
                 .id = id,
-                .cells = .{},
+                .cells = .empty,
                 .data = null,
                 .allocator = allocator,
             };
@@ -73,9 +73,9 @@ pub const DataGrid = struct {
         const component = try Component.init(allocator, "data_grid", props);
         grid.* = DataGrid{
             .component = component,
-            .columns = .{},
-            .rows = .{},
-            .selected_rows = .{},
+            .columns = .empty,
+            .rows = .empty,
+            .selected_rows = .empty,
             .sort_column = null,
             .sort_direction = .none,
             .page_size = 10,

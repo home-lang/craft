@@ -72,20 +72,13 @@ pub const Bridge = struct {
         const name_dup = try self.allocator.dupe(u8, name);
         errdefer self.allocator.free(name_dup);
 
-        // Snapshot the existing entry (if any) BEFORE we mutate the map.
-        const previous = self.handlers.getKey(name);
+        if (self.handlers.getPtr(name)) |slot| {
+            slot.* = handler;
+            self.allocator.free(name_dup);
+            return;
+        }
 
         try self.handlers.put(name_dup, handler);
-
-        if (previous) |prev_key| {
-            // The map now holds `name_dup` as the canonical key. Free the
-            // previously-duped key that was replaced. We compare pointers
-            // because two duped keys with identical bytes are still distinct
-            // allocations.
-            if (prev_key.ptr != name_dup.ptr) {
-                self.allocator.free(prev_key);
-            }
-        }
     }
 
     /// Register the protocol-required default handlers. Callers should invoke

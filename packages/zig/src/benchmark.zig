@@ -62,7 +62,7 @@ pub const Benchmark = struct {
             .allocator = allocator,
             .iterations = iterations,
             .warmup_iterations = @min(iterations / 10, 100),
-            .times = .{},
+            .times = .empty,
             .memory_tracker = null,
         };
         return bench;
@@ -96,9 +96,9 @@ pub const Benchmark = struct {
         // Actual benchmark
         i = 0;
         while (i < self.iterations) : (i += 1) {
-            const start_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch continue;
+            const start_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake);
             _ = try @call(.auto, func, args);
-            const end_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake) catch continue;
+            const end_ts = std.Io.Clock.Timestamp.now(io_context.get(), .awake);
             const elapsed = start_ts.durationTo(end_ts);
             // Clamp to 0 so a clock slew between `start_ts` and `end_ts`
             // (NTP adjustment, VM pause, etc.) can't produce a negative
@@ -261,7 +261,7 @@ pub const BenchmarkSuite = struct {
         suite.* = BenchmarkSuite{
             .name = name,
             .allocator = allocator,
-            .results = .{},
+            .results = .empty,
         };
         return suite;
     }

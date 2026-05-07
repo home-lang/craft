@@ -1,10 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
 const config = @import("../src/config.zig");
-const c_fs = @cImport({
-    @cInclude("unistd.h");
-    @cInclude("stdio.h");
-});
 
 test "WindowConfig - default values" {
     const window = config.WindowConfig{};
@@ -205,7 +201,7 @@ test "Config - parseToml dark_mode false" {
 
 test "Config - saveToFile and loadFromFile" {
     const test_path = "/tmp/craft_test_config.toml";
-    defer _ = c_fs.remove(test_path);
+    defer _ = std.c.unlink(test_path);
 
     const original = config.Config{
         .window = .{
@@ -221,7 +217,8 @@ test "Config - saveToFile and loadFromFile" {
 
     try original.saveToFile(test_path);
 
-    const loaded = try config.Config.loadFromFile(testing.allocator, test_path);
+    var loaded = try config.Config.loadFromFile(testing.allocator, test_path);
+    defer loaded.deinit();
 
     try testing.expectEqual(original.window.width, loaded.window.width);
     try testing.expectEqual(original.window.height, loaded.window.height);

@@ -118,7 +118,7 @@ pub const Menu = struct {
     pub fn init(allocator: std.mem.Allocator) !*Menu {
         const menu = try allocator.create(Menu);
         menu.* = Menu{
-            .items = .{},
+            .items = .empty,
             .allocator = allocator,
         };
         return menu;
@@ -341,11 +341,6 @@ pub const MenubarBuilder = struct {
 /// Platform-specific implementations
 /// macOS NSStatusBar Integration
 pub const MacOS = struct {
-    const c = @cImport({
-        @cInclude("objc/runtime.h");
-        @cInclude("objc/message.h");
-    });
-
     /// Opaque handle to NSStatusItem
     pub const StatusItem = struct {
         ns_status_item: ?*anyopaque,
@@ -925,7 +920,7 @@ pub const MenubarManager = struct {
 
     pub fn init(allocator: std.mem.Allocator) MenubarManager {
         return MenubarManager{
-            .apps = .{},
+            .apps = .empty,
             .allocator = allocator,
         };
     }
@@ -1105,7 +1100,7 @@ test "window operations" {
 }
 
 test "menubar notification" {
-    var notification = MenubarNotification.init("Test Title", "Test Message");
+    const notification = MenubarNotification.init("Test Title", "Test Message");
 
     try std.testing.expectEqualStrings("Test Title", notification.title);
     try std.testing.expectEqualStrings("Test Message", notification.message);

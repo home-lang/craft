@@ -3,9 +3,8 @@ const testing = std.testing;
 const builtin = @import("builtin");
 const tray_module = @import("../src/tray.zig");
 const SystemTray = tray_module.SystemTray;
-const c_time = @cImport({ @cInclude("time.h"); });
 
-/// Zig 0.16 compatible timer
+/// Zig 0.17 compatible timer
 const Timer = struct {
     start_ns: i128,
 
@@ -20,9 +19,9 @@ const Timer = struct {
     }
 
     fn monotonic_ns() i128 {
-        var ts: c_time.struct_timespec = undefined;
-        _ = c_time.clock_gettime(c_time.CLOCK_MONOTONIC, &ts);
-        return @as(i128, ts.tv_sec) * 1_000_000_000 + ts.tv_nsec;
+        var ts: std.c.timespec = undefined;
+        _ = std.c.clock_gettime(.MONOTONIC, &ts);
+        return @as(i128, ts.sec) * 1_000_000_000 + ts.nsec;
     }
 };
 

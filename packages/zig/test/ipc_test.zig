@@ -91,7 +91,7 @@ test "IPC - initialization" {
     var instance = ipc.IPC.init(allocator);
     defer instance.deinit();
 
-    try testing.expectEqual(@as(u64, 1), instance.next_id);
+    try testing.expectEqual(@as(u64, 1), instance.next_id.load(.monotonic));
 }
 
 test "IPC - subscribe to channel" {

@@ -248,9 +248,7 @@ fn jsonValueToNSDictionary(allocator: std.mem.Allocator, value: std.json.Value) 
     json_bytes.append(allocator, 0) catch return null;
 
     const NSData = macos.getClass("NSData");
-    const data = macos.msgSend2(NSData, "dataWithBytes:length:",
-        @as([*]const u8, @ptrCast(json_bytes.items.ptr)),
-        @as(c_ulong, json_bytes.items.len - 1));
+    const data = macos.msgSend2(NSData, "dataWithBytes:length:", @as([*]const u8, @ptrCast(json_bytes.items.ptr)), @as(c_ulong, json_bytes.items.len - 1));
     if (@intFromPtr(data) == 0) return null;
 
     const NSJSONSerialization = macos.getClass("NSJSONSerialization");

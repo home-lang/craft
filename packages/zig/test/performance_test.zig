@@ -17,7 +17,7 @@ const PerformanceMetrics = struct {
 
     fn init(_: std.mem.Allocator) PerformanceMetrics {
         return .{
-            .timings = .{},
+            .timings = .empty,
         };
     }
 
@@ -89,9 +89,7 @@ const PerformanceMetrics = struct {
     };
 };
 
-/// Timer utility for precise measurements (Zig 0.16 compat)
-const c_time = @cImport({ @cInclude("time.h"); });
-
+/// Timer utility for precise measurements.
 const Timer = struct {
     start_ns: i128,
 
@@ -106,9 +104,9 @@ const Timer = struct {
     }
 
     fn monotonic_ns() i128 {
-        var ts: c_time.struct_timespec = undefined;
-        _ = c_time.clock_gettime(c_time.CLOCK_MONOTONIC, &ts);
-        return @as(i128, ts.tv_sec) * 1_000_000_000 + ts.tv_nsec;
+        var ts: std.c.timespec = undefined;
+        _ = std.c.clock_gettime(.MONOTONIC, &ts);
+        return @as(i128, ts.sec) * 1_000_000_000 + ts.nsec;
     }
 };
 
@@ -143,7 +141,7 @@ test "Performance: ArrayList append operations" {
     var metrics = PerformanceMetrics.init(testing.allocator);
     defer metrics.deinit(testing.allocator);
 
-    var list: std.ArrayList(u64) = .{};
+    var list: std.ArrayList(u64) = .empty;
     defer list.deinit(testing.allocator);
 
     var i: usize = 0;
@@ -207,7 +205,7 @@ test "Stress: Memory allocation patterns" {
     defer arena.deinit();
 
     const allocator = arena.allocator();
-    var allocations: std.ArrayList([]u8) = .{};
+    var allocations: std.ArrayList([]u8) = .empty;
     defer allocations.deinit(testing.allocator);
 
     const timer = Timer.start();
@@ -226,7 +224,7 @@ test "Stress: Memory allocation patterns" {
 
 test "Stress: Rapid ArrayList growth" {
     const iterations = 100000;
-    var list: std.ArrayList(u64) = .{};
+    var list: std.ArrayList(u64) = .empty;
     defer list.deinit(testing.allocator);
 
     const timer = Timer.start();

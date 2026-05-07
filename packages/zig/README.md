@@ -33,7 +33,7 @@ If you want to contribute to the Zig core or build custom Zig applications:
 
 ### Requirements
 
-- Zig 0.15.0 or later
+- Zig 0.17 dev through Craft's pantry helper (`../../scripts/with-pantry -- zig ...`)
 - Platform-specific dependencies (see below)
 
 ### Platform Dependencies

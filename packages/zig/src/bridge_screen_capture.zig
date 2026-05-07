@@ -35,10 +35,7 @@ pub const ScreenCaptureBridge = struct {
     pub fn deinit(_: *Self) void {}
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-        if (std.mem.eql(u8, action, "captureScreen")) try self.captureScreen()
-        else if (std.mem.eql(u8, action, "captureWindow")) try self.captureWindow(data)
-        else if (std.mem.eql(u8, action, "listWindows")) try self.listWindows()
-        else return BridgeError.UnknownAction;
+        if (std.mem.eql(u8, action, "captureScreen")) try self.captureScreen() else if (std.mem.eql(u8, action, "captureWindow")) try self.captureWindow(data) else if (std.mem.eql(u8, action, "listWindows")) try self.listWindows() else return BridgeError.UnknownAction;
     }
 
     fn captureScreen(self: *Self) !void {

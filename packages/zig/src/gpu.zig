@@ -268,16 +268,11 @@ pub const GPU = struct {
     /// Low-level sysfs reader. Returns trimmed content or null.
     fn readSysfsRaw(comptime path: [*:0]const u8, dest: []u8) ?[]const u8 {
         if (builtin.os.tag != .linux) return null;
-        const c = @cImport({
-            @cInclude("fcntl.h");
-            @cInclude("unistd.h");
-        });
-        const fd = c.open(path, c.O_RDONLY);
-        if (fd < 0) return null;
-        defer _ = c.close(fd);
-        const ret = c.read(fd, dest.ptr, dest.len);
-        if (ret <= 0) return null;
-        const n: usize = @intCast(ret);
+        const io = io_context.get();
+        const file = std.Io.Dir.cwd().openFile(io, std.mem.span(path), .{}) catch return null;
+        defer file.close(io);
+        const n = file.readPositional(io, &.{dest}, 0) catch return null;
+        if (n == 0) return null;
         var end = n;
         while (end > 0 and (dest[end - 1] == '\n' or dest[end - 1] == '\r' or dest[end - 1] == ' ')) {
             end -= 1;
@@ -1067,7 +1062,7 @@ pub const RenderTarget = struct {
         next_framebuffer_id += 1;
 
         // Create color texture
-        var color_texture = try Texture.init(allocator, width, height, format);
+        const color_texture = try Texture.init(allocator, width, height, format);
 
         // Create depth texture if not a depth format
         var depth_texture: ?Texture = null;
@@ -1481,7 +1476,7 @@ pub const GPUProfiler = struct {
 
     pub fn init(allocator: std.mem.Allocator) GPUProfiler {
         return GPUProfiler{
-            .queries = .{},
+            .queries = .empty,
             .allocator = allocator,
             .active_start_ts = null,
             .active_query_name = null,
@@ -1599,7 +1594,7 @@ pub const MultiGPU = struct {
 
     pub fn init(allocator: std.mem.Allocator) MultiGPU {
         return MultiGPU{
-            .gpus = .{},
+            .gpus = .empty,
             .primary_gpu = null,
             .allocator = allocator,
         };

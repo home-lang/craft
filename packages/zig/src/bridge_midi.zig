@@ -36,8 +36,8 @@ pub const MIDIBridge = struct {
         } else if (std.mem.eql(u8, action, "listDestinations")) {
             try self.listEndpoints("listDestinations", false);
         } else if (std.mem.eql(u8, action, "send") or
-                   std.mem.eql(u8, action, "subscribe") or
-                   std.mem.eql(u8, action, "unsubscribe"))
+            std.mem.eql(u8, action, "subscribe") or
+            std.mem.eql(u8, action, "unsubscribe"))
         {
             // The send / subscribe paths need MIDIClient + MIDIPort
             // wiring + a lock-free queue for the read callback. Surface

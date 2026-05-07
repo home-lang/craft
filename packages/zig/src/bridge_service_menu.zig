@@ -44,9 +44,7 @@ pub const ServiceMenuBridge = struct {
     }
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-        if (std.mem.eql(u8, action, "register")) try self.register(data)
-        else if (std.mem.eql(u8, action, "unregister")) try self.unregister(data)
-        else return BridgeError.UnknownAction;
+        if (std.mem.eql(u8, action, "register")) try self.register(data) else if (std.mem.eql(u8, action, "unregister")) try self.unregister(data) else return BridgeError.UnknownAction;
     }
 
     fn register(self: *Self, data: []const u8) !void {

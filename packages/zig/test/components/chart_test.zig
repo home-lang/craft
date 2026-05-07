@@ -62,7 +62,7 @@ test "chart set labels" {
     const chart = try Chart.init(allocator, .bar, props);
     defer chart.deinit();
 
-    chart.setLabels("Sales Data", "Quarter", "Revenue");
+    try chart.setLabels("Sales Data", "Quarter", "Revenue");
     try std.testing.expectEqualStrings("Sales Data", chart.title.?);
     try std.testing.expectEqualStrings("Quarter", chart.x_label.?);
     try std.testing.expectEqualStrings("Revenue", chart.y_label.?);

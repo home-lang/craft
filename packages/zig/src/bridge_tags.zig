@@ -28,10 +28,7 @@ pub const TagsBridge = struct {
     pub fn deinit(_: *Self) void {}
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-        if (std.mem.eql(u8, action, "get")) try self.getTags(data)
-        else if (std.mem.eql(u8, action, "set")) try self.setTags(data)
-        else if (std.mem.eql(u8, action, "clear")) try self.clearTags(data)
-        else return BridgeError.UnknownAction;
+        if (std.mem.eql(u8, action, "get")) try self.getTags(data) else if (std.mem.eql(u8, action, "set")) try self.setTags(data) else if (std.mem.eql(u8, action, "clear")) try self.clearTags(data) else return BridgeError.UnknownAction;
     }
 
     fn getTags(self: *Self, data: []const u8) !void {
@@ -63,14 +60,12 @@ pub const TagsBridge = struct {
 
         const macos = @import("macos.zig");
         const NSData = macos.getClass("NSData");
-        const data_obj = macos.msgSend2(NSData, "dataWithBytes:length:",
-            @as([*]const u8, buf.ptr), @as(c_ulong, @intCast(read)));
+        const data_obj = macos.msgSend2(NSData, "dataWithBytes:length:", @as([*]const u8, buf.ptr), @as(c_ulong, @intCast(read)));
 
         const NSPropertyListSerialization = macos.getClass("NSPropertyListSerialization");
         const Fn = *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, c_ulong, ?*anyopaque, ?*anyopaque) callconv(.c) macos.objc.id;
         const f: Fn = @ptrCast(&macos.objc.objc_msgSend);
-        const arr = f(NSPropertyListSerialization, macos.sel("propertyListWithData:options:format:error:"),
-            data_obj, 0, null, null);
+        const arr = f(NSPropertyListSerialization, macos.sel("propertyListWithData:options:format:error:"), data_obj, 0, null, null);
         if (@intFromPtr(arr) == 0) {
             bridge_error.sendResultToJS(self.allocator, "get", "{\"tags\":[]}");
             return;
@@ -125,9 +120,7 @@ pub const TagsBridge = struct {
         const NSPropertyListSerialization = macos.getClass("NSPropertyListSerialization");
         const Fn = *const fn (macos.objc.id, macos.objc.SEL, macos.objc.id, c_ulong, c_ulong, ?*anyopaque) callconv(.c) macos.objc.id;
         const f: Fn = @ptrCast(&macos.objc.objc_msgSend);
-        const data_obj = f(NSPropertyListSerialization,
-            macos.sel("dataWithPropertyList:format:options:error:"),
-            arr, 200, 0, null);
+        const data_obj = f(NSPropertyListSerialization, macos.sel("dataWithPropertyList:format:options:error:"), arr, 200, 0, null);
         if (@intFromPtr(data_obj) == 0) {
             bridge_error.sendResultToJS(self.allocator, "set", "{\"ok\":false}");
             return;

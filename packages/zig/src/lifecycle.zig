@@ -39,7 +39,7 @@ pub const Lifecycle = struct {
     pub fn registerHook(self: *Self, phase_name: []const u8, hook: LifecycleHook) !void {
         const result = try self.hooks.getOrPut(phase_name);
         if (!result.found_existing) {
-            result.value_ptr.* = .{};
+            result.value_ptr.* = .empty;
         }
         try result.value_ptr.append(self.allocator, hook);
     }

@@ -162,7 +162,7 @@ pub const ToastManager = struct {
 
     pub fn init(allocator: std.mem.Allocator) ToastManager {
         return ToastManager{
-            .toasts = .{},
+            .toasts = .empty,
             .allocator = allocator,
             .max_toasts = 5,
         };

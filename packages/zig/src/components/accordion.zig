@@ -29,7 +29,7 @@ pub const Accordion = struct {
         const component = try Component.init(allocator, "accordion", props);
         accordion.* = Accordion{
             .component = component,
-            .sections = .{},
+            .sections = .empty,
             .allow_multiple = config.allow_multiple,
             .on_section_change = null,
         };
@@ -184,7 +184,7 @@ pub const Accordion = struct {
 
     /// Get all expanded section indices
     pub fn getExpandedIndices(self: *const Accordion, allocator: std.mem.Allocator) ![]usize {
-        var indices: std.ArrayList(usize) = .{};
+        var indices: std.ArrayList(usize) = .empty;
         for (self.sections.items, 0..) |section, i| {
             if (section.expanded) {
                 try indices.append(allocator, i);

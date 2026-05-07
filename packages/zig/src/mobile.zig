@@ -1519,7 +1519,7 @@ pub const LifecycleManager = struct {
 
     pub fn init(allocator: std.mem.Allocator) LifecycleManager {
         return LifecycleManager{
-            .callbacks = .{},
+            .callbacks = .empty,
             .allocator = allocator,
         };
     }
@@ -1586,7 +1586,7 @@ pub const NetworkMonitor = struct {
     pub fn init(allocator: std.mem.Allocator) NetworkMonitor {
         return NetworkMonitor{
             .status = .unknown,
-            .callbacks = .{},
+            .callbacks = .empty,
             .allocator = allocator,
         };
     }
