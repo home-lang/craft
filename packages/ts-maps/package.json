@@ -46,8 +46,8 @@
     "README.md"
   ],
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --format esm --target browser && bun run build:types",
-    "build:types": "bun --bun tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build": "bun -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && bun build src/index.ts src/adapters.ts src/types.ts src/bridge-protocol.ts --outdir dist --format esm --target browser && bun run build:types",
+    "build:types": "bun --bun tsc -p tsconfig.build.json && bun scripts/finalize-types.ts",
     "lint": "bunx --bun pickier lint . --config ../../pickier.config.ts --max-warnings 9999",
     "lint:fix": "bunx --bun pickier lint . --fix --config ../../pickier.config.ts --max-warnings 9999",
     "test": "bun test",
