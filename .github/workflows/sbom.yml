@@ -33,31 +33,12 @@ jobs:
 
       - name: Install SBOM tools
         run: |
-          # Install CycloneDX for JavaScript
-          npm install -g @cyclonedx/cyclonedx-npm
-
-          # Install Syft for comprehensive SBOM
+          # Install Syft for comprehensive SBOM (works with bun.lock)
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Generate npm SBOM (CycloneDX)
-        run: |
-          mkdir -p sbom
-
-          # Generate SBOM for root package
-          cyclonedx-npm --output-format json --output-file sbom/npm-sbom.json
-
-          # Generate SBOM for TypeScript SDK
-          cd packages/typescript
-          cyclonedx-npm --output-format json --output-file ../../sbom/typescript-sdk-sbom.json
-          cd ../..
-
-          # Generate SBOM for create-craft
-          cd packages/create-craft
-          cyclonedx-npm --output-format json --output-file ../../sbom/create-craft-sbom.json
-          cd ../..
 
       - name: Generate comprehensive SBOM (Syft)
         run: |
+          mkdir -p sbom
           # Generate SBOM for entire repository
           syft . -o cyclonedx-json=sbom/full-sbom.cyclonedx.json
           syft . -o spdx-json=sbom/full-sbom.spdx.json
@@ -165,7 +146,6 @@ jobs:
             "metadata": {
               "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
               "tools": [
-                {"name": "cyclonedx-npm"},
                 {"name": "syft"}
               ],
               "component": {
