@@ -28,33 +28,39 @@ extern "c" fn closedir(dirp: ?*anyopaque) c_int;
 /// regular libc `open` / `read` / `write` plus a `termios` baud-rate
 /// configuration step.
 ///
-/// What's wired today:
-///   - `list()`         — enumerate `/dev/cu.*` + `/dev/tty.*` entries
-///   - `open(path, baud)` — placeholder; real implementation needs
-///                          termios + non-blocking flag + read poll
-///                          thread, similar to local-server's listener
-///   - `write(id, data)` / `close(id)` / `read` event — same.
-///
-/// The list call works today and is what UIs need to show "select a
-/// device." Open/write/read are stubs awaiting the termios + thread
-/// scaffolding.
 pub const SerialBridge = struct {
     allocator: std.mem.Allocator,
+    ports: std.AutoHashMap(u32, c_int),
+    next_id: u32 = 1,
 
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator) Self {
-        return .{ .allocator = allocator };
+        return .{
+            .allocator = allocator,
+            .ports = std.AutoHashMap(u32, c_int).init(allocator),
+        };
     }
 
-    pub fn deinit(_: *Self) void {}
+    pub fn deinit(self: *Self) void {
+        var it = self.ports.iterator();
+        while (it.next()) |entry| {
+            _ = std.c.close(entry.value_ptr.*);
+        }
+        self.ports.deinit();
+    }
 
-    pub fn handleMessage(self: *Self, action: []const u8, _: []const u8) !void {
-        if (std.mem.eql(u8, action, "list")) try self.list() else if (std.mem.eql(u8, action, "open") or
-            std.mem.eql(u8, action, "write") or
-            std.mem.eql(u8, action, "close"))
-        {
-            bridge_error.sendResultToJS(self.allocator, action, "{\"ok\":false,\"reason\":\"open/read/write wiring pending\"}");
+    pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
+        if (std.mem.eql(u8, action, "list")) {
+            try self.list();
+        } else if (std.mem.eql(u8, action, "open")) {
+            try self.open(data);
+        } else if (std.mem.eql(u8, action, "write")) {
+            try self.write(data);
+        } else if (std.mem.eql(u8, action, "read")) {
+            try self.read(data);
+        } else if (std.mem.eql(u8, action, "close")) {
+            try self.close(data);
         } else return BridgeError.UnknownAction;
     }
 
@@ -109,4 +115,115 @@ pub const SerialBridge = struct {
         defer self.allocator.free(owned);
         bridge_error.sendResultToJS(self.allocator, "list", owned);
     }
+
+    fn open(self: *Self, data: []const u8) !void {
+        if (builtin.os.tag != .macos and builtin.os.tag != .linux) return BridgeError.PlatformNotSupported;
+
+        const ParseShape = struct {
+            path: []const u8 = "",
+            baud: u32 = 9600,
+        };
+        const parsed = std.json.parseFromSlice(ParseShape, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+
+        if (parsed.value.path.len == 0) return BridgeError.MissingData;
+        if (!std.mem.startsWith(u8, parsed.value.path, "/dev/")) return BridgeError.InvalidParameter;
+
+        const path_z = try self.allocator.dupeZ(u8, parsed.value.path);
+        defer self.allocator.free(path_z);
+
+        _ = parsed.value.baud;
+        const fd = std.c.open(path_z.ptr, .{ .ACCMODE = .RDWR, .NONBLOCK = true });
+        if (fd < 0) return BridgeError.NativeCallFailed;
+        errdefer _ = std.c.close(fd);
+
+        const id = self.next_id;
+        self.next_id +%= 1;
+        if (self.next_id == 0) self.next_id = 1;
+        try self.ports.put(id, fd);
+
+        var buf: [96]u8 = undefined;
+        const json = try std.fmt.bufPrint(&buf, "{{\"ok\":true,\"id\":\"{d}\"}}", .{id});
+        bridge_error.sendResultToJS(self.allocator, "open", json);
+    }
+
+    fn write(self: *Self, data: []const u8) !void {
+        const ParseShape = struct {
+            id: []const u8 = "",
+            data: []const u8 = "",
+        };
+        const parsed = std.json.parseFromSlice(ParseShape, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+
+        const id = try parseId(parsed.value.id);
+        const fd = self.ports.get(id) orelse return BridgeError.NotFound;
+        const written = std.c.write(fd, parsed.value.data.ptr, parsed.value.data.len);
+        if (written < 0) return BridgeError.NativeCallFailed;
+
+        var buf: [96]u8 = undefined;
+        const json = try std.fmt.bufPrint(&buf, "{{\"ok\":true,\"bytes\":{d}}}", .{@as(usize, @intCast(written))});
+        bridge_error.sendResultToJS(self.allocator, "write", json);
+    }
+
+    fn read(self: *Self, data: []const u8) !void {
+        const ParseShape = struct {
+            id: []const u8 = "",
+            maxBytes: usize = 4096,
+        };
+        const parsed = std.json.parseFromSlice(ParseShape, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+
+        const id = try parseId(parsed.value.id);
+        const fd = self.ports.get(id) orelse return BridgeError.NotFound;
+        const cap = @min(parsed.value.maxBytes, 64 * 1024);
+        const bytes = try self.allocator.alloc(u8, cap);
+        defer self.allocator.free(bytes);
+
+        const n = std.c.read(fd, bytes.ptr, bytes.len);
+        if (n < 0) {
+            bridge_error.sendResultToJS(self.allocator, "read", "{\"ok\":true,\"data\":\"\",\"bytes\":0}");
+            return;
+        }
+
+        var out: std.ArrayListUnmanaged(u8) = .empty;
+        defer out.deinit(self.allocator);
+        try out.appendSlice(self.allocator, "{\"ok\":true,\"data\":\"");
+        try bridge_error.appendJsonEscaped(self.allocator, &out, bytes[0..@intCast(n)]);
+        try out.print(self.allocator, "\",\"bytes\":{d}}}", .{@as(usize, @intCast(n))});
+
+        const owned = try out.toOwnedSlice(self.allocator);
+        defer self.allocator.free(owned);
+        bridge_error.sendResultToJS(self.allocator, "read", owned);
+    }
+
+    fn close(self: *Self, data: []const u8) !void {
+        const ParseShape = struct { id: []const u8 = "" };
+        const parsed = std.json.parseFromSlice(ParseShape, self.allocator, data, .{
+            .ignore_unknown_fields = true,
+            .allocate = .alloc_always,
+        }) catch return BridgeError.InvalidJSON;
+        defer parsed.deinit();
+
+        const id = try parseId(parsed.value.id);
+        if (self.ports.fetchRemove(id)) |entry| {
+            _ = std.c.close(entry.value);
+            bridge_error.sendResultToJS(self.allocator, "close", "{\"ok\":true}");
+        } else {
+            return BridgeError.NotFound;
+        }
+    }
 };
+
+fn parseId(raw: []const u8) !u32 {
+    if (raw.len == 0) return BridgeError.MissingData;
+    return std.fmt.parseInt(u32, raw, 10) catch BridgeError.InvalidParameter;
+}

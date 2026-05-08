@@ -1423,6 +1423,7 @@ fn linkPlatformLibraries(b: *std.Build, module: *std.Build.Module, target_os: st
             // than direct C symbols, so the runtime resolves them
             // when the app dynamically loads them.
             module.linkFramework("CoreMIDI", .{});
+            module.linkFramework("CoreSpotlight", .{});
             applySdkPaths(b, module, sdk_path);
         },
         .linux => {

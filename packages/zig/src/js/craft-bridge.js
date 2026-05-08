@@ -924,12 +924,17 @@
   }
 
   // -------------------------------------------------------------------------
-  // spotlight — CSSearchableIndex (stub)
+  // spotlight — CSSearchableIndex
   // -------------------------------------------------------------------------
   window.craft.spotlight = {
     index:     function (items) { return _req('spotlight', 'index', _stringify({ items: items || [] })) },
+    indexItems:function (items) { return _req('spotlight', 'indexItems', _stringify({ items: items || [] })) },
     remove:    function (ids)   { return _req('spotlight', 'remove', _stringify({ ids: ids || [] })) },
+    deleteItems:function (ids)  { return _req('spotlight', 'deleteItems', _stringify({ identifiers: ids || [] })) },
+    deleteItemsInDomain:function (domainIdentifier) { return _req('spotlight', 'deleteItemsInDomain', _stringify({ domainIdentifier: String(domainIdentifier) })) },
     removeAll: function ()      { return _req('spotlight', 'removeAll') },
+    deleteAllItems:function ()  { return _req('spotlight', 'deleteAllItems') },
+    getIndexingStatus:function () { return Promise.resolve({ isIndexing: false, itemCount: 0 }) },
   }
 
   // -------------------------------------------------------------------------
@@ -996,6 +1001,7 @@
     list:  function () { return _req('serial', 'list').then(function (r) { return (r && r.ports) || [] }) },
     open:  function (path, baud) { return _req('serial', 'open', _stringify({ path: String(path), baud: Number(baud) || 9600 })) },
     write: function (id, data)   { return _req('serial', 'write', _stringify({ id: String(id), data: String(data) })) },
+    read:  function (id, maxBytes) { return _req('serial', 'read', _stringify({ id: String(id), maxBytes: Number(maxBytes) || 4096 })) },
     close: function (id)         { return _send('serial', 'close', _stringify({ id: String(id) })) },
     onData: _evt('craft:serial:data'),
   }
