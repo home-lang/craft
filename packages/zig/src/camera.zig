@@ -690,12 +690,17 @@ pub const CameraSession = struct {
     fn startPreviewLinux(self: *Self) CameraError!void {
         if (builtin.os.tag != .linux) return;
 
-        // V4L2 implementation
-        const c = @cImport({
-            @cInclude("fcntl.h");
-            @cInclude("sys/ioctl.h");
-            @cInclude("linux/videodev2.h");
-        });
+        const v4l2_capability = extern struct {
+            driver: [16]u8,
+            card: [32]u8,
+            bus_info: [32]u8,
+            version: u32,
+            capabilities: u32,
+            device_caps: u32,
+            reserved: [3]u32,
+        };
+        const VIDIOC_QUERYCAP = 0x80685600;
+        const V4L2_CAP_VIDEO_CAPTURE = 0x00000001;
 
         // Try to open default video device
         const device_path = if (self.config.device_id) |id| id else "/dev/video0";
@@ -706,14 +711,14 @@ pub const CameraSession = struct {
         if (fd < 0) return CameraError.DeviceNotFound;
 
         // Query device capabilities
-        var cap: c.v4l2_capability = undefined;
-        if (std.c.ioctl(fd, c.VIDIOC_QUERYCAP, &cap) < 0) {
+        var cap: v4l2_capability = undefined;
+        if (std.c.ioctl(fd, VIDIOC_QUERYCAP, &cap) < 0) {
             _ = std.c.close(fd);
             return CameraError.DeviceNotFound;
         }
 
         // Check if it's a video capture device
-        if ((cap.capabilities & c.V4L2_CAP_VIDEO_CAPTURE) == 0) {
+        if ((cap.capabilities & V4L2_CAP_VIDEO_CAPTURE) == 0) {
             _ = std.c.close(fd);
             return CameraError.InvalidConfiguration;
         }

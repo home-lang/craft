@@ -11,10 +11,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 const native_os = builtin.os.tag;
 
-const c = @cImport({
-    @cInclude("time.h");
-});
-
 /// Returns seconds since Unix epoch (replacement for std.time.timestamp).
 /// Returns 0 if the system clock can't be read, so callers never observe the
 /// undefined bytes that the previous implementation would propagate when
@@ -23,9 +19,9 @@ pub fn timestamp() i64 {
     if (comptime native_os == .windows) {
         return @as(i64, @intCast(windowsTimestamp()));
     }
-    var ts: c.struct_timespec = undefined;
-    if (c.clock_gettime(c.CLOCK_REALTIME, &ts) != 0) return 0;
-    return @as(i64, @intCast(ts.tv_sec));
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.REALTIME, &ts) != 0) return 0;
+    return @as(i64, @intCast(ts.sec));
 }
 
 /// Returns milliseconds since Unix epoch (replacement for std.time.milliTimestamp)
@@ -33,9 +29,9 @@ pub fn milliTimestamp() i64 {
     if (comptime native_os == .windows) {
         return @as(i64, @intCast(windowsTimestamp())) * 1000;
     }
-    var ts: c.struct_timespec = undefined;
-    if (c.clock_gettime(c.CLOCK_REALTIME, &ts) != 0) return 0;
-    return @as(i64, @intCast(ts.tv_sec)) * 1000 + @divTrunc(@as(i64, @intCast(ts.tv_nsec)), 1_000_000);
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.REALTIME, &ts) != 0) return 0;
+    return @as(i64, @intCast(ts.sec)) * 1000 + @divTrunc(@as(i64, @intCast(ts.nsec)), 1_000_000);
 }
 
 /// Returns nanoseconds (monotonic) for duration measurement
@@ -43,20 +39,16 @@ pub fn nanoTimestamp() i128 {
     if (comptime native_os == .windows) {
         return @as(i128, @intCast(windowsTimestamp())) * 1_000_000_000;
     }
-    var ts: c.struct_timespec = undefined;
-    if (c.clock_gettime(c.CLOCK_MONOTONIC, &ts) != 0) return 0;
-    return @as(i128, ts.tv_sec) * 1_000_000_000 + ts.tv_nsec;
+    var ts: std.c.timespec = undefined;
+    if (std.c.clock_gettime(.MONOTONIC, &ts) != 0) return 0;
+    return @as(i128, ts.sec) * 1_000_000_000 + ts.nsec;
 }
 
 fn windowsTimestamp() u64 {
     // Windows FILETIME epoch is Jan 1, 1601; Unix epoch is Jan 1, 1970
     // Difference is 11644473600 seconds
-    const windows_c = @cImport({
-        @cInclude("windows.h");
-    });
-    var ft: windows_c.FILETIME = undefined;
-    windows_c.GetSystemTimeAsFileTime(&ft);
-    const ticks = @as(u64, ft.dwHighDateTime) << 32 | ft.dwLowDateTime;
+    const windows = std.os.windows;
+    const ticks: u64 = @intCast(windows.ntdll.RtlGetSystemTimePrecise());
     return (ticks / 10_000_000) - 11_644_473_600;
 }
 

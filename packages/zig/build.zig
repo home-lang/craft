@@ -20,7 +20,7 @@ pub fn build(b: *std.Build) void {
     const craft_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
     });
-    // Add vendored SQLite header path so @cImport("sqlite3.h") resolves in database.zig
+    // Add vendored SQLite include path for any C compilation units.
     craft_module.addIncludePath(b.path("vendor/sqlite"));
 
     // Demo executable - simple hardcoded example
@@ -755,7 +755,11 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
-    database_tests.root_module.linkSystemLibrary("sqlite3", .{});
+    database_tests.root_module.addCSourceFile(.{
+        .file = b.path("vendor/sqlite/sqlite3.c"),
+        .flags = &.{ "-DSQLITE_THREADSAFE=1", "-DSQLITE_ENABLE_FTS5", "-DSQLITE_ENABLE_JSON1" },
+    });
+    database_tests.root_module.addIncludePath(b.path("vendor/sqlite"));
     database_tests.root_module.link_libc = true;
 
     const run_api_tests = b.addRunArtifact(api_tests);
@@ -852,9 +856,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_benchmark_tests.step);
     test_step.dependOn(&run_system_tray_tests.step);
     test_step.dependOn(&run_system_tray_benchmark.step);
-    // SQLite still depends on Zig's removed @cImport path and has a dedicated
-    // follow-up migration. Keep the explicit `test:database` target available,
-    // but do not make the default Zig 0.17 test suite fail on it.
+    test_step.dependOn(&run_database_tests.step);
 
     // Individual test steps
     const test_api_step = b.step("test:api", "Run API tests");
