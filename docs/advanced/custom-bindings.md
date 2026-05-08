@@ -426,10 +426,13 @@ test('custom handler works', async () => {
 
 ```bash
 # Build native libraries for all platforms
-npm run build:native
+bun run build:native
 
-# Package and publish
-npm publish
+# Preview the commit package publish
+pantry publish:commit --dry-run .
+
+# Publish from the current commit
+pantry publish:commit .
 ```
 
 ## Next Steps

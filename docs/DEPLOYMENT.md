@@ -332,7 +332,7 @@ jobs:
 
       - name: Build
 
-        run: ./scripts/with-pantry -- zig build -Doptimize=ReleaseFast
+        run: eval "$(pantry env)" && zig build -Doptimize=ReleaseFast
 
       - name: Create DMG
 
@@ -358,7 +358,7 @@ jobs:
 
       - name: Build
 
-        run: ./scripts/with-pantry -- zig build -Doptimize=ReleaseFast
+        run: eval "$(pantry env)" && zig build -Doptimize=ReleaseFast
 
       - name: Create AppImage
 

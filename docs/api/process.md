@@ -56,7 +56,7 @@ console.log(result.stderr)
 console.log(result.exitCode)
 
 // With options
-const result = await process.exec('npm install', {
+const result = await process.exec('bun install', {
   cwd: '/path/to/project',
   timeout: 60000
 })
@@ -197,7 +197,7 @@ import { process } from '@craft-native/craft'
 
 // Run a build script
 async function runBuild() {
-  const result = await process.exec('npm run build', {
+  const result = await process.exec('bun run build', {
     cwd: '/path/to/project'
   })
 

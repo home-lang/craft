@@ -13,7 +13,7 @@ pantry install
 ### 2. Verify Installation
 
 ```bash
-./scripts/with-pantry -- zig version
+eval "$(pantry env)" && zig version
 # Should show: 0.17.0-dev
 ```
 

@@ -1,6 +1,6 @@
 # Installation
 
-Craft can be installed via npm/bun or built from source for advanced use cases.
+Craft can be installed with Bun or built from source for advanced use cases.
 
 ## TypeScript SDK (Recommended)
 
@@ -10,24 +10,6 @@ The easiest way to use Craft is through the TypeScript SDK:
 
 ```bash
 bun add @craft-native/craft
-```
-
-### npm
-
-```bash
-npm install @craft-native/craft
-```
-
-### pnpm
-
-```bash
-pnpm add @craft-native/craft
-```
-
-### Yarn
-
-```bash
-yarn add @craft-native/craft
 ```
 
 ## Quick Start with create-craft
@@ -65,11 +47,7 @@ bun create craft my-app --template todo-app
 Install globally for CLI usage:
 
 ```bash
-# Bun
 bun add -g @craft-native/craft
-
-# npm
-npm install -g @craft-native/craft
 ```
 
 Then use the CLI:
@@ -141,15 +119,27 @@ bun run build:core
 
 ```bash
 # Debug build (faster compilation)
-./scripts/with-pantry --cwd packages/zig -- zig build
+eval "$(pantry env)"
+cd packages/zig
+zig build
 
 # Release build (optimized)
-./scripts/with-pantry --cwd packages/zig -- zig build -Doptimize=ReleaseFast
+eval "$(pantry env)"
+cd packages/zig
+zig build -Doptimize=ReleaseFast
 
 # Cross-compile for different platforms
-./scripts/with-pantry --cwd packages/zig -- zig build -Dtarget=x86_64-linux
-./scripts/with-pantry --cwd packages/zig -- zig build -Dtarget=x86_64-windows
-./scripts/with-pantry --cwd packages/zig -- zig build -Dtarget=aarch64-macos
+eval "$(pantry env)"
+cd packages/zig
+zig build -Dtarget=x86_64-linux
+zig build -Dtarget=x86_64-windows
+zig build -Dtarget=aarch64-macos
+eval "$(pantry env)"
+cd packages/zig
+zig build -Dtarget=x86_64-windows
+eval "$(pantry env)"
+cd packages/zig
+zig build -Dtarget=aarch64-macos
 ```
 
 ## Verification
@@ -236,7 +226,7 @@ xattr -cr /path/to/craft
 Ensure you are using Craft's pantry-managed Zig 0.17 dev toolchain:
 
 ```bash
-./scripts/with-pantry -- zig version
+eval "$(pantry env)" && zig version
 # Should output: 0.17.0-dev
 ```
 

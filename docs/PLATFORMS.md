@@ -38,13 +38,19 @@ bun run build:core
 
 ```bash
 # Native build (current arch)
-./scripts/with-pantry --cwd packages/zig -- zig build
+eval "$(pantry env)"
+cd packages/zig
+zig build
 
 # Cross-compile for macOS (Apple Silicon)
-./scripts/with-pantry --cwd packages/zig -- zig build build-macos
+eval "$(pantry env)"
+cd packages/zig
+zig build build-macos
 
 # Create .app bundle
-./scripts/with-pantry --cwd packages/zig -- zig build -Doptimize=ReleaseFast
+eval "$(pantry env)"
+cd packages/zig
+zig build -Doptimize=ReleaseFast
 ./scripts/create-app-bundle.sh
 ```
 
@@ -122,13 +128,19 @@ bun run build:core
 
 ```bash
 # Native build
-./scripts/with-pantry --cwd packages/zig -- zig build
+eval "$(pantry env)"
+cd packages/zig
+zig build
 
 # Cross-compile for Linux (from macOS/Windows)
-./scripts/with-pantry --cwd packages/zig -- zig build build-linux
+eval "$(pantry env)"
+cd packages/zig
+zig build build-linux
 
 # Release build
-./scripts/with-pantry --cwd packages/zig -- zig build -Doptimize=ReleaseFast
+eval "$(pantry env)"
+cd packages/zig
+zig build -Doptimize=ReleaseFast
 ```
 
 ### Features

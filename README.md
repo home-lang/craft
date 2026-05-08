@@ -333,10 +333,7 @@ bun run app.ts
 For advanced use cases where you need maximum performance and control:
 
 ```bash
-# Install via npm
-npm install -g @craft-native/craft
-
-# Or with Bun
+# Install with Bun
 bun add -g @craft-native/craft
 ```
 
@@ -347,12 +344,11 @@ bun add -g @craft-native/craft
 git clone https://github.com/home-lang/craft.git
 cd craft
 
-# Install pantry dependencies, then use the repo-local pantry runner
+# Install pantry dependencies
 pantry install
 
 # Optional for interactive shells
-source scripts/pantry-env.sh
-craft_pantry_use
+eval "$(pantry env)"
 
 # Build
 bun run build:core

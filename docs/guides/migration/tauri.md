@@ -393,10 +393,10 @@ export default defineConfig({
 
 ```bash
 # Development
-npm run tauri dev
+bun run tauri dev
 
 # Build
-npm run tauri build
+bun run tauri build
 ```
 
 ### Craft

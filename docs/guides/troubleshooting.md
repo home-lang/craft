@@ -14,7 +14,7 @@ Solutions to common issues when developing with Craft.
 pantry install
 
 # Verify installation
-./scripts/with-pantry -- zig version
+eval "$(pantry env)" && zig version
 # Should output: 0.17.0-dev
 ```
 
