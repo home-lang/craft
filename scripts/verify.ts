@@ -9,6 +9,7 @@ const commands = [
   ['cd packages/ts-maps && bun run build && bun test'],
   ['cd packages/create-craft && bun bin/cli.ts --version && bun bin/cli.ts list'],
   ['bun', 'scripts/verify-packages.ts'],
+  ['pantry', 'publish:commit', '--dry-run', './packages/typescript'],
   ['bun', 'scripts/verify-create-craft.ts'],
   ['bun', 'run', 'lint'],
 ]

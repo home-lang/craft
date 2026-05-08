@@ -44,7 +44,7 @@ jobs:
       - name: Build benchmark executable
         working-directory: packages/zig
         run: |
-          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseFast
+          eval "$(pantry env)" && zig build -Doptimize=ReleaseFast
 
       - name: Run benchmarks
         id: bench
@@ -75,7 +75,7 @@ jobs:
 
           # Run Zig benchmark tests
           echo "Running benchmark tests..."
-          ../../scripts/with-pantry -- zig build test 2>&1 | tee benchmark-results/test-output.txt
+          eval "$(pantry env)" && zig build test 2>&1 | tee benchmark-results/test-output.txt
 
           # Extract benchmark results if available
           if grep -q "benchmark" benchmark-results/test-output.txt 2>/dev/null; then

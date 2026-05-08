@@ -73,14 +73,14 @@ jobs:
         run: |
           # Build iOS static libraries using dedicated build steps
           # (not the default target which builds macOS executables)
-          ../../scripts/with-pantry -- zig build build-ios -Doptimize=ReleaseSafe -Dmacos-sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
-          ../../scripts/with-pantry -- zig build build-ios-simulator -Doptimize=ReleaseSafe -Dmacos-sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+          eval "$(pantry env)" && zig build build-ios -Doptimize=ReleaseSafe -Dmacos-sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
+          eval "$(pantry env)" && zig build build-ios-simulator -Doptimize=ReleaseSafe -Dmacos-sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 
       - name: Generate iOS project
         run: |
           mkdir -p ios-build
           # Copy iOS template
-          cp -r packages/zig/templates/ios/* ios-build/ 2>/dev/null || echo "iOS template not yet available"
+          cp -r packages/zig/templates/ios/* ios-build/
 
       - name: Install CocoaPods
         if: hashFiles('ios-build/Podfile') != ''
@@ -142,13 +142,13 @@ jobs:
       - name: Build Zig Android library
         working-directory: packages/zig
         run: |
-          ../../scripts/with-pantry -- zig build -Dtarget=aarch64-linux-android
+          eval "$(pantry env)" && zig build -Dtarget=aarch64-linux-android
 
       - name: Generate Android project
         run: |
           mkdir -p android-build
           # Copy Android template
-          cp -r packages/zig/templates/android/* android-build/ 2>/dev/null || echo "Android template not yet available"
+          cp -r packages/zig/templates/android/* android-build/
 
       - name: Build Android (Debug)
         if: hashFiles('android-build/gradlew') != ''

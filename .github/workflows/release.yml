@@ -56,12 +56,12 @@ jobs:
           mkdir -p zig-out/cross
 
           echo "::group::Cross-compile darwin-x64"
-          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=x86_64-macos -Dmacos-sdk="$SDK_PATH"
+          eval "$(pantry env)" && zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget=x86_64-macos -Dmacos-sdk="$SDK_PATH"
           mkdir -p zig-out/cross/darwin-x64 && cp zig-out/bin/craft zig-out/cross/darwin-x64/craft
           echo "::endgroup::"
 
           # Restore native ARM64 binary
-          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
+          eval "$(pantry env)" && zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
 
       - name: Cross-compile additional targets (Linux)
         if: runner.os == 'Linux'
@@ -70,8 +70,6 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           mkdir -p zig-out/cross
 
-          # Cross-compile targets that may lack platform-specific system libraries
-          # (WebView2Loader for Windows, gtk/webkit for arm64 Linux, etc.)
           for target_spec in \
             "x86_64-windows:windows-x64:craft.exe" \
             "aarch64-linux:linux-arm64:craft" \
@@ -79,17 +77,15 @@ jobs:
             "aarch64-freebsd:freebsd-arm64:craft"; do
             IFS=: read -r zig_target dir_name bin_name <<< "$target_spec"
             echo "::group::Cross-compile $dir_name"
-            if ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget="$zig_target"; then
-              mkdir -p "zig-out/cross/$dir_name" && cp "zig-out/bin/$bin_name" "zig-out/cross/$dir_name/$bin_name"
-              echo "Built $dir_name"
-            else
-              echo "::warning::$dir_name cross-compile skipped (missing system libraries)"
-            fi
+            eval "$(pantry env)"
+            zig build -Doptimize=ReleaseSafe -Dversion="$VERSION" -Dtarget="$zig_target"
+            mkdir -p "zig-out/cross/$dir_name" && cp "zig-out/bin/$bin_name" "zig-out/cross/$dir_name/$bin_name"
+            echo "Built $dir_name"
             echo "::endgroup::"
           done
 
           # Restore native linux-x64 binary
-          ../../scripts/with-pantry -- zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
+          eval "$(pantry env)" && zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
 
       # ── macOS Code Signing & Notarization ──────────────────────────
       - name: Import signing certificate
