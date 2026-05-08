@@ -96,8 +96,7 @@ jobs:
             -destination "platform=iOS Simulator,id=$DEVICE_ID" \
             -configuration Debug \
             CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            || echo "iOS test app build skipped"
+            CODE_SIGNING_REQUIRED=NO
 
       - name: Run iOS E2E tests
         if: hashFiles('packages/ios/TestApp/TestApp.xcodeproj') != ''
@@ -106,8 +105,7 @@ jobs:
           xcodebuild test-without-building \
             -scheme TestApp \
             -destination "platform=iOS Simulator,id=$DEVICE_ID" \
-            -configuration Debug \
-            || echo "iOS E2E tests skipped"
+            -configuration Debug
 
       - name: Capture iOS screenshots
         run: |
@@ -209,7 +207,12 @@ jobs:
             adb wait-for-device
             mkdir -p screenshots/android
             adb exec-out screencap -p > screenshots/android/emulator.png || true
-            if [ -d "packages/android" ]; then cd packages/android && ./gradlew test || echo "Android tests skipped"; fi
+            if [ -x "packages/android/gradlew" ]; then
+              cd packages/android
+              ./gradlew test
+            else
+              echo "Android Gradle wrapper not present; skipping project-level tests"
+            fi
 
       - name: Upload Android screenshots
         uses: actions/upload-artifact@v4

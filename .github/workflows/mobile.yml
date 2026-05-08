@@ -97,7 +97,7 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 15' \
             -configuration Debug \
             build \
-            CODE_SIGNING_ALLOWED=NO || echo "iOS build not yet configured"
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Run iOS tests
         if: hashFiles('ios-build/*.xcworkspace') != '' || hashFiles('ios-build/*.xcodeproj') != ''
@@ -108,7 +108,7 @@ jobs:
             -sdk iphonesimulator \
             -destination 'platform=iOS Simulator,name=iPhone 15' \
             test \
-            CODE_SIGNING_ALLOWED=NO || echo "iOS tests not yet configured"
+            CODE_SIGNING_ALLOWED=NO
 
   android-build:
     name: Android Build
@@ -155,13 +155,13 @@ jobs:
         working-directory: android-build
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug || echo "Android build not yet configured"
+          ./gradlew assembleDebug
 
       - name: Run Android tests
         if: hashFiles('android-build/gradlew') != ''
         working-directory: android-build
         run: |
-          ./gradlew test || echo "Android tests not yet configured"
+          ./gradlew test
 
       - name: Run Android instrumented tests
         if: hashFiles('android-build/gradlew') != ''
@@ -171,7 +171,7 @@ jobs:
           target: google_apis
           arch: x86_64
           working-directory: android-build
-          script: ./gradlew connectedAndroidTest || echo "Instrumented tests not yet configured"
+          script: ./gradlew connectedAndroidTest
 
   mobile-integration:
     name: Mobile Integration
