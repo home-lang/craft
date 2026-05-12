@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.31...v0.0.32)
+
+### 🤖 Continuous Integration
+
+- filter pantry env shell exports ([4e7cc87](https://github.com/home-lang/craft/commit/4e7cc87)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.32 ([4074c6e](https://github.com/home-lang/craft/commit/4074c6e)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.31...HEAD)
+
+### 🤖 Continuous Integration
+
+- filter pantry env shell exports ([4e7cc87](https://github.com/home-lang/craft/commit/4e7cc87)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.30...v0.0.31)
 
 ### 🐛 Bug Fixes
