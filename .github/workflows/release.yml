@@ -162,6 +162,7 @@ jobs:
         with:
           install: 'false'
           publish: 'zig'
+          package-dir: packages/zig
           token: ${{ secrets.PANTRY_TOKEN }}
           release: 'true'
           release-changelog: CHANGELOG.md
