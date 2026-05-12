@@ -15,7 +15,7 @@ pantry install
 
 # Verify installation
 eval "$(pantry env)" && zig version
-# Should output: 0.17.0-dev
+# Should output Pantry's installed stable Zig version
 ```
 
 ### Bun not found

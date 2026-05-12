@@ -2,7 +2,7 @@
 
 ## ✅ Build Status
 
-The Craft package is **fully functional** and builds successfully with the pantry-managed Zig 0.17 dev toolchain.
+The Craft package is **fully functional** and builds successfully with Pantry's current stable Zig toolchain.
 
 ## Commands
 
@@ -108,7 +108,7 @@ craft/
 
 - **Name**: `@craft-native/craft`
 - **Version**: `0.1.0`
-- **Zig Version**: `0.17.0-dev`
+- **Zig Version**: Pantry-managed stable Zig
 - **License**: MIT
 
 ## Resources

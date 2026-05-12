@@ -5,7 +5,7 @@ Create your first Craft application in 5 minutes.
 ## Prerequisites
 
 - [Bun](https://bun.sh) v1.0 or later
-- Pantry-managed Zig 0.17 dev toolchain (for desktop)
+- Pantry-managed stable Zig toolchain (for desktop)
 - macOS 12+, Windows 10+, or Linux
 
 ## Create a New Project

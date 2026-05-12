@@ -4,7 +4,7 @@
 
 ### 1. Install Pantry Dependencies
 
-Craft uses pantry to provide the pinned Zig 0.17 dev toolchain:
+Craft uses Pantry to provide the current stable Zig toolchain:
 
 ```bash
 pantry install
@@ -14,7 +14,7 @@ pantry install
 
 ```bash
 eval "$(pantry env)" && zig version
-# Should show: 0.17.0-dev
+# Should show Pantry's installed stable Zig version
 ```
 
 ## Building Craft

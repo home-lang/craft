@@ -95,7 +95,7 @@ For advanced use cases, you can build Craft from source:
 
 ### Prerequisites
 
-- Pantry-managed Zig 0.17 dev toolchain
+- Pantry-managed stable Zig toolchain
 - Git
 
 ### Build Steps
@@ -223,11 +223,11 @@ xattr -cr /path/to/craft
 
 ### Build fails on Zig version
 
-Ensure you are using Craft's pantry-managed Zig 0.17 dev toolchain:
+Ensure you are using Craft's Pantry-managed stable Zig toolchain:
 
 ```bash
 eval "$(pantry env)" && zig version
-# Should output: 0.17.0-dev
+# Should output Pantry's installed stable Zig version
 ```
 
 ## Next Steps

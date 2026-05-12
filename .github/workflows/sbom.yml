@@ -64,9 +64,9 @@ jobs:
               {
                 "type": "library",
                 "name": "zig-std",
-                "version": "0.17.0-dev",
+                "version": "stable",
                 "description": "Zig Standard Library",
-                "purl": "pkg:zig/std@0.17.0-dev",
+                "purl": "pkg:zig/std@stable",
                 "licenses": [{"license": {"id": "MIT"}}]
               }
             ],
