@@ -131,11 +131,11 @@ pub const ParameterType = enum {
 /// Intent parameter definition
 pub const IntentParameter = struct {
     /// Parameter name/key
-    name_buffer: [64]u8 = [_]u8{0} ** 64,
+    name_buffer: [64]u8 = [_]u8{0}**64,
     name_len: usize = 0,
 
     /// Display name for disambiguation
-    display_name_buffer: [128]u8 = [_]u8{0} ** 128,
+    display_name_buffer: [128]u8 = [_]u8{0}**128,
     display_name_len: usize = 0,
 
     /// Parameter type
@@ -145,11 +145,11 @@ pub const IntentParameter = struct {
     is_required: bool = false,
 
     /// Default value (as string)
-    default_value_buffer: [256]u8 = [_]u8{0} ** 256,
+    default_value_buffer: [256]u8 = [_]u8{0}**256,
     default_value_len: usize = 0,
 
     /// Prompt to ask user for this parameter
-    prompt_buffer: [256]u8 = [_]u8{0} ** 256,
+    prompt_buffer: [256]u8 = [_]u8{0}**256,
     prompt_len: usize = 0,
 
     pub fn init(name: []const u8) IntentParameter {
@@ -219,27 +219,27 @@ pub const IntentParameter = struct {
 /// Intent definition
 pub const IntentDefinition = struct {
     /// Unique intent identifier
-    id_buffer: [128]u8 = [_]u8{0} ** 128,
+    id_buffer: [128]u8 = [_]u8{0}**128,
     id_len: usize = 0,
 
     /// Human-readable title
-    title_buffer: [128]u8 = [_]u8{0} ** 128,
+    title_buffer: [128]u8 = [_]u8{0}**128,
     title_len: usize = 0,
 
     /// Description for users
-    description_buffer: [512]u8 = [_]u8{0} ** 512,
+    description_buffer: [512]u8 = [_]u8{0}**512,
     description_len: usize = 0,
 
     /// Intent category
     category: IntentCategory = .custom,
 
     /// Sample invocation phrases
-    invocation_phrases: [8][256]u8 = [_][256]u8{[_]u8{0} ** 256} ** 8,
-    invocation_phrase_lens: [8]usize = [_]usize{0} ** 8,
+    invocation_phrases: [8][256]u8 = [_][256]u8{[_]u8{0}**256}**8,
+    invocation_phrase_lens: [8]usize = [_]usize{0}**8,
     invocation_phrase_count: usize = 0,
 
     /// Parameters (max 8)
-    parameters: [8]IntentParameter = [_]IntentParameter{IntentParameter{}} ** 8,
+    parameters: [8]IntentParameter = [_]IntentParameter{IntentParameter{}}**8,
     parameter_count: usize = 0,
 
     /// Whether intent supports background execution
@@ -349,11 +349,11 @@ pub const IntentDefinition = struct {
 /// Parsed parameter value from voice input
 pub const ParameterValue = struct {
     /// Parameter name
-    name_buffer: [64]u8 = [_]u8{0} ** 64,
+    name_buffer: [64]u8 = [_]u8{0}**64,
     name_len: usize = 0,
 
     /// String value
-    string_value_buffer: [512]u8 = [_]u8{0} ** 512,
+    string_value_buffer: [512]u8 = [_]u8{0}**512,
     string_value_len: usize = 0,
 
     /// Numeric value (if applicable)
@@ -416,26 +416,26 @@ pub const ParameterValue = struct {
 /// Voice request from assistant
 pub const VoiceRequest = struct {
     /// Request ID
-    request_id_buffer: [64]u8 = [_]u8{0} ** 64,
+    request_id_buffer: [64]u8 = [_]u8{0}**64,
     request_id_len: usize = 0,
 
     /// Intent ID
-    intent_id_buffer: [128]u8 = [_]u8{0} ** 128,
+    intent_id_buffer: [128]u8 = [_]u8{0}**128,
     intent_id_len: usize = 0,
 
     /// Raw transcription
-    transcription_buffer: [1024]u8 = [_]u8{0} ** 1024,
+    transcription_buffer: [1024]u8 = [_]u8{0}**1024,
     transcription_len: usize = 0,
 
     /// Source platform
     platform: AssistantPlatform = .unknown,
 
     /// Parsed parameters (max 8)
-    parameters: [8]ParameterValue = [_]ParameterValue{ParameterValue{}} ** 8,
+    parameters: [8]ParameterValue = [_]ParameterValue{ParameterValue{}}**8,
     parameter_count: usize = 0,
 
     /// User locale
-    locale_buffer: [16]u8 = [_]u8{0} ** 16,
+    locale_buffer: [16]u8 = [_]u8{0}**16,
     locale_len: usize = 0,
 
     /// Timestamp
@@ -548,23 +548,23 @@ pub const ResponseType = enum {
 /// Visual card for response
 pub const ResponseCard = struct {
     /// Card title
-    title_buffer: [128]u8 = [_]u8{0} ** 128,
+    title_buffer: [128]u8 = [_]u8{0}**128,
     title_len: usize = 0,
 
     /// Card subtitle
-    subtitle_buffer: [256]u8 = [_]u8{0} ** 256,
+    subtitle_buffer: [256]u8 = [_]u8{0}**256,
     subtitle_len: usize = 0,
 
     /// Card body text
-    body_buffer: [1024]u8 = [_]u8{0} ** 1024,
+    body_buffer: [1024]u8 = [_]u8{0}**1024,
     body_len: usize = 0,
 
     /// Image URL
-    image_url_buffer: [512]u8 = [_]u8{0} ** 512,
+    image_url_buffer: [512]u8 = [_]u8{0}**512,
     image_url_len: usize = 0,
 
     /// Action URL (deep link)
-    action_url_buffer: [512]u8 = [_]u8{0} ** 512,
+    action_url_buffer: [512]u8 = [_]u8{0}**512,
     action_url_len: usize = 0,
 
     pub fn init(title: []const u8) ResponseCard {
@@ -626,11 +626,11 @@ pub const VoiceResponse = struct {
     response_type: ResponseType = .success,
 
     /// Spoken response text (SSML supported)
-    speech_buffer: [2048]u8 = [_]u8{0} ** 2048,
+    speech_buffer: [2048]u8 = [_]u8{0}**2048,
     speech_len: usize = 0,
 
     /// Display text (if different from speech)
-    display_text_buffer: [2048]u8 = [_]u8{0} ** 2048,
+    display_text_buffer: [2048]u8 = [_]u8{0}**2048,
     display_text_len: usize = 0,
 
     /// Visual card (optional)
@@ -640,16 +640,16 @@ pub const VoiceResponse = struct {
     keep_session_open: bool = false,
 
     /// Reprompt text if user doesn't respond
-    reprompt_buffer: [512]u8 = [_]u8{0} ** 512,
+    reprompt_buffer: [512]u8 = [_]u8{0}**512,
     reprompt_len: usize = 0,
 
     /// Disambiguation options (for needs_disambiguation)
-    disambiguation_options: [4][128]u8 = [_][128]u8{[_]u8{0} ** 128} ** 4,
-    disambiguation_option_lens: [4]usize = [_]usize{0} ** 4,
+    disambiguation_options: [4][128]u8 = [_][128]u8{[_]u8{0}**128}**4,
+    disambiguation_option_lens: [4]usize = [_]usize{0}**4,
     disambiguation_count: usize = 0,
 
     /// Custom data to pass to app
-    custom_data_buffer: [4096]u8 = [_]u8{0} ** 4096,
+    custom_data_buffer: [4096]u8 = [_]u8{0}**4096,
     custom_data_len: usize = 0,
 
     pub fn success(speech: []const u8) VoiceResponse {
@@ -754,23 +754,23 @@ pub const VoiceResponse = struct {
 /// Shortcut/routine donation for suggestions
 pub const ShortcutDonation = struct {
     /// Intent ID
-    intent_id_buffer: [128]u8 = [_]u8{0} ** 128,
+    intent_id_buffer: [128]u8 = [_]u8{0}**128,
     intent_id_len: usize = 0,
 
     /// Suggested phrase
-    phrase_buffer: [256]u8 = [_]u8{0} ** 256,
+    phrase_buffer: [256]u8 = [_]u8{0}**256,
     phrase_len: usize = 0,
 
     /// Title for shortcut
-    title_buffer: [128]u8 = [_]u8{0} ** 128,
+    title_buffer: [128]u8 = [_]u8{0}**128,
     title_len: usize = 0,
 
     /// Subtitle
-    subtitle_buffer: [256]u8 = [_]u8{0} ** 256,
+    subtitle_buffer: [256]u8 = [_]u8{0}**256,
     subtitle_len: usize = 0,
 
     /// Parameters to include
-    parameters: [8]ParameterValue = [_]ParameterValue{ParameterValue{}} ** 8,
+    parameters: [8]ParameterValue = [_]ParameterValue{ParameterValue{}}**8,
     parameter_count: usize = 0,
 
     /// When this shortcut was last used
@@ -841,12 +841,12 @@ pub const ShortcutDonation = struct {
 /// Custom vocabulary term
 pub const VocabularyTerm = struct {
     /// The term/phrase
-    term_buffer: [128]u8 = [_]u8{0} ** 128,
+    term_buffer: [128]u8 = [_]u8{0}**128,
     term_len: usize = 0,
 
     /// Alternative pronunciations
-    pronunciations: [4][128]u8 = [_][128]u8{[_]u8{0} ** 128} ** 4,
-    pronunciation_lens: [4]usize = [_]usize{0} ** 4,
+    pronunciations: [4][128]u8 = [_][128]u8{[_]u8{0}**128}**4,
+    pronunciation_lens: [4]usize = [_]usize{0}**4,
     pronunciation_count: usize = 0,
 
     /// Type of vocabulary

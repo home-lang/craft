@@ -377,12 +377,12 @@ pub const TranslationRequest = struct {
 
     pub fn init(language_pair: LanguagePair) TranslationRequest {
         return .{
-            .text = [_]u8{0} ** 4096,
+            .text = [_]u8{0}**4096,
             .text_len = 0,
             .language_pair = language_pair,
             .preserve_formatting = true,
             .detect_source_language = false,
-            .request_id = [_]u8{0} ** 64,
+            .request_id = [_]u8{0}**64,
             .request_id_len = 0,
             .created_at = getCurrentTimestamp(),
             .max_length = 4096,
@@ -453,14 +453,14 @@ pub const TranslationResult = struct {
     pub fn init(status: TranslationStatus, language_pair: LanguagePair) TranslationResult {
         return .{
             .status = status,
-            .translated_text = [_]u8{0} ** 8192,
+            .translated_text = [_]u8{0}**8192,
             .translated_text_len = 0,
             .detected_source_language = language_pair.source,
             .language_pair = language_pair,
             .confidence = 0.0,
             .processing_time_ms = 0,
             .timestamp = getCurrentTimestamp(),
-            .request_id = [_]u8{0} ** 64,
+            .request_id = [_]u8{0}**64,
             .request_id_len = 0,
         };
     }
@@ -537,7 +537,7 @@ pub const LanguageDetectionResult = struct {
         return .{
             .detected_language = detected,
             .confidence = confidence,
-            .alternatives = [_]LanguageCandidate{.{ .language = .unknown, .confidence = 0.0 }} ** 5,
+            .alternatives = [_]LanguageCandidate{.{ .language = .unknown, .confidence = 0.0 }}**5,
             .alternatives_count = 0,
             .timestamp = getCurrentTimestamp(),
         };
@@ -587,7 +587,7 @@ pub const DownloadProgress = struct {
             .progress = 0.0,
             .is_complete = false,
             .is_failed = false,
-            .error_message = [_]u8{0} ** 256,
+            .error_message = [_]u8{0}**256,
             .error_message_len = 0,
             .started_at = getCurrentTimestamp(),
             .completed_at = 0,
@@ -658,7 +658,7 @@ pub const TranslationEvent = struct {
             .event_type = event_type,
             .language_pair = language_pair,
             .timestamp = getCurrentTimestamp(),
-            .message = [_]u8{0} ** 256,
+            .message = [_]u8{0}**256,
             .message_len = 0,
         };
     }
@@ -805,7 +805,7 @@ pub const OfflineTranslationService = struct {
 
         // Simulate translation
         const source_text = request.getTextSlice();
-        var translated: [8192]u8 = [_]u8{0} ** 8192;
+        var translated: [8192]u8 = [_]u8{0}**8192;
         const prefix = "[Translated] ";
         const prefix_len = prefix.len;
         @memcpy(translated[0..prefix_len], prefix);

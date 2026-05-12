@@ -146,8 +146,8 @@ pub const Scope = struct {
 
     pub fn init() Scope {
         return .{
-            .scopes = [_][32]u8{[_]u8{0} ** 32} ** 16,
-            .scope_lens = [_]u8{0} ** 16,
+            .scopes = [_][32]u8{[_]u8{0}**32}**16,
+            .scope_lens = [_]u8{0}**16,
             .count = 0,
         };
     }
@@ -216,17 +216,17 @@ pub const OAuthConfig = struct {
     pub fn init(provider: OAuthProvider, client_id: []const u8) OAuthConfig {
         var config: OAuthConfig = .{
             .provider = provider,
-            .client_id = [_]u8{0} ** 128,
+            .client_id = [_]u8{0}**128,
             .client_id_len = 0,
-            .client_secret = [_]u8{0} ** 128,
+            .client_secret = [_]u8{0}**128,
             .client_secret_len = 0,
-            .redirect_uri = [_]u8{0} ** 256,
+            .redirect_uri = [_]u8{0}**256,
             .redirect_uri_len = 0,
             .scope = Scope.full(),
             .use_pkce = provider.supportsPKCE(),
-            .custom_auth_endpoint = [_]u8{0} ** 256,
+            .custom_auth_endpoint = [_]u8{0}**256,
             .custom_auth_len = 0,
-            .custom_token_endpoint = [_]u8{0} ** 256,
+            .custom_token_endpoint = [_]u8{0}**256,
             .custom_token_len = 0,
         };
         const len = @min(client_id.len, 128);
@@ -299,9 +299,9 @@ pub const PKCEParams = struct {
 
     pub fn init() PKCEParams {
         return .{
-            .code_verifier = [_]u8{0} ** 128,
+            .code_verifier = [_]u8{0}**128,
             .verifier_len = 0,
-            .code_challenge = [_]u8{0} ** 128,
+            .code_challenge = [_]u8{0}**128,
             .challenge_len = 0,
             .method = .s256,
         };
@@ -348,9 +348,9 @@ pub const AuthState = struct {
     pub fn init() AuthState {
         const now = getCurrentTimestamp();
         return .{
-            .state = [_]u8{0} ** 64,
+            .state = [_]u8{0}**64,
             .state_len = 0,
-            .nonce = [_]u8{0} ** 64,
+            .nonce = [_]u8{0}**64,
             .nonce_len = 0,
             .pkce = null,
             .created_at = now,
@@ -429,11 +429,11 @@ pub const OAuthTokens = struct {
 
     pub fn init() OAuthTokens {
         return .{
-            .access_token = [_]u8{0} ** 512,
+            .access_token = [_]u8{0}**512,
             .access_token_len = 0,
-            .refresh_token = [_]u8{0} ** 512,
+            .refresh_token = [_]u8{0}**512,
             .refresh_token_len = 0,
-            .id_token = [_]u8{0} ** 2048,
+            .id_token = [_]u8{0}**2048,
             .id_token_len = 0,
             .token_type = .bearer,
             .expires_in = 3600,
@@ -524,20 +524,20 @@ pub const UserInfo = struct {
 
     pub fn init() UserInfo {
         return .{
-            .subject = [_]u8{0} ** 128,
+            .subject = [_]u8{0}**128,
             .subject_len = 0,
-            .email = [_]u8{0} ** 128,
+            .email = [_]u8{0}**128,
             .email_len = 0,
             .email_verified = false,
-            .name = [_]u8{0} ** 128,
+            .name = [_]u8{0}**128,
             .name_len = 0,
-            .given_name = [_]u8{0} ** 64,
+            .given_name = [_]u8{0}**64,
             .given_name_len = 0,
-            .family_name = [_]u8{0} ** 64,
+            .family_name = [_]u8{0}**64,
             .family_name_len = 0,
-            .picture = [_]u8{0} ** 256,
+            .picture = [_]u8{0}**256,
             .picture_len = 0,
-            .locale = [_]u8{0} ** 8,
+            .locale = [_]u8{0}**8,
             .locale_len = 0,
         };
     }
@@ -795,7 +795,7 @@ pub const OAuthController = struct {
 
     pub fn init() OAuthController {
         return .{
-            .sessions = [_]?OAuthSession{null} ** 8,
+            .sessions = [_]?OAuthSession{null}**8,
             .session_count = 0,
             .default_session = null,
         };

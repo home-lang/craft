@@ -282,7 +282,7 @@ pub const BenchmarkSuite = struct {
         const header = try std.fmt.allocPrint(allocator, "Benchmark Suite: {s}\n", .{self.name});
         defer allocator.free(header);
         try buf.appendSlice(allocator, header);
-        try buf.appendSlice(allocator, "=" ** 80 ++ "\n");
+        try buf.appendSlice(allocator, "="**80 ++ "\n");
 
         for (self.results.items) |result| {
             const formatted = try result.format(allocator);
@@ -292,7 +292,7 @@ pub const BenchmarkSuite = struct {
             try buf.appendSlice(allocator, line);
         }
 
-        try buf.appendSlice(allocator, "=" ** 80 ++ "\n");
+        try buf.appendSlice(allocator, "="**80 ++ "\n");
         const footer = try std.fmt.allocPrint(allocator, "Total benchmarks: {d}\n", .{self.results.items.len});
         defer allocator.free(footer);
         try buf.appendSlice(allocator, footer);

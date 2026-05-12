@@ -180,7 +180,7 @@ pub const AttestationKey = struct {
     pub fn init(attestation_type: AttestationType) AttestationKey {
         const now = getCurrentTimestamp();
         return .{
-            .key_id = [_]u8{0} ** 64,
+            .key_id = [_]u8{0}**64,
             .key_id_len = 0,
             .attestation_type = attestation_type,
             .created_at = now,
@@ -233,11 +233,11 @@ pub const Challenge = struct {
     pub fn init() Challenge {
         const now = getCurrentTimestamp();
         return .{
-            .data = [_]u8{0} ** 256,
+            .data = [_]u8{0}**256,
             .data_len = 0,
             .created_at = now,
             .expires_at = now + 300, // 5 minutes default
-            .nonce = [_]u8{0} ** 32,
+            .nonce = [_]u8{0}**32,
         };
     }
 
@@ -295,7 +295,7 @@ pub const AttestationObject = struct {
 
     pub fn init(format: AttestationFormat) AttestationObject {
         return .{
-            .data = [_]u8{0} ** 4096,
+            .data = [_]u8{0}**4096,
             .data_len = 0,
             .format = format,
             .created_at = getCurrentTimestamp(),
@@ -335,11 +335,11 @@ pub const Assertion = struct {
 
     pub fn init() Assertion {
         return .{
-            .signature = [_]u8{0} ** 512,
+            .signature = [_]u8{0}**512,
             .signature_len = 0,
-            .authenticator_data = [_]u8{0} ** 256,
+            .authenticator_data = [_]u8{0}**256,
             .authenticator_data_len = 0,
-            .client_data_hash = [_]u8{0} ** 32,
+            .client_data_hash = [_]u8{0}**32,
             .counter = 0,
             .created_at = getCurrentTimestamp(),
         };
@@ -440,7 +440,7 @@ pub const IntegrityVerdict = struct {
             },
             .risk_level = .unknown,
             .timestamp = getCurrentTimestamp(),
-            .details = [_]u8{0} ** 512,
+            .details = [_]u8{0}**512,
             .details_len = 0,
         };
     }
@@ -513,7 +513,7 @@ pub const AttestationResult = struct {
             .assertion = null,
             .verdict = null,
             .timestamp = getCurrentTimestamp(),
-            .request_id = [_]u8{0} ** 64,
+            .request_id = [_]u8{0}**64,
             .request_id_len = 0,
         };
     }
@@ -582,9 +582,9 @@ pub const AttestationConfig = struct {
             .key_validity_days = 30,
             .require_strong_integrity = false,
             .allow_emulators = false,
-            .server_url = [_]u8{0} ** 256,
+            .server_url = [_]u8{0}**256,
             .server_url_len = 0,
-            .app_id = [_]u8{0} ** 128,
+            .app_id = [_]u8{0}**128,
             .app_id_len = 0,
         };
     }
@@ -672,7 +672,7 @@ pub const AttestationEvent = struct {
             .attestation_type = attestation_type,
             .status = .success,
             .timestamp = getCurrentTimestamp(),
-            .message = [_]u8{0} ** 256,
+            .message = [_]u8{0}**256,
             .message_len = 0,
         };
     }
@@ -774,7 +774,7 @@ pub const AppAttestService = struct {
         self.assertion_counter += 1;
 
         // Compute client data hash (simulated)
-        var hash: [32]u8 = [_]u8{0} ** 32;
+        var hash: [32]u8 = [_]u8{0}**32;
         if (client_data.len > 0) {
             const copy_len = @min(client_data.len, 32);
             @memcpy(hash[0..copy_len], client_data[0..copy_len]);
@@ -1168,7 +1168,7 @@ test "Challenge with data" {
 }
 
 test "Challenge with nonce" {
-    const nonce = [_]u8{1} ** 32;
+    const nonce = [_]u8{1}**32;
     const challenge = Challenge.init()
         .withNonce(&nonce);
     try std.testing.expectEqual(@as(u8, 1), challenge.nonce[0]);

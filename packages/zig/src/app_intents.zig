@@ -175,15 +175,15 @@ pub const ParameterType = enum {
 /// Intent parameter definition
 pub const IntentParameter = struct {
     /// Parameter identifier
-    id_buffer: [64]u8 = [_]u8{0} ** 64,
+    id_buffer: [64]u8 = [_]u8{0}**64,
     id_len: usize = 0,
 
     /// Display title
-    title_buffer: [128]u8 = [_]u8{0} ** 128,
+    title_buffer: [128]u8 = [_]u8{0}**128,
     title_len: usize = 0,
 
     /// Description
-    description_buffer: [256]u8 = [_]u8{0} ** 256,
+    description_buffer: [256]u8 = [_]u8{0}**256,
     description_len: usize = 0,
 
     /// Parameter type
@@ -193,19 +193,19 @@ pub const IntentParameter = struct {
     is_required: bool = false,
 
     /// Default value (as string)
-    default_buffer: [256]u8 = [_]u8{0} ** 256,
+    default_buffer: [256]u8 = [_]u8{0}**256,
     default_len: usize = 0,
 
     /// Placeholder text
-    placeholder_buffer: [128]u8 = [_]u8{0} ** 128,
+    placeholder_buffer: [128]u8 = [_]u8{0}**128,
     placeholder_len: usize = 0,
 
     /// Whether to request value at runtime
     request_value_dialog: bool = false,
 
     /// Input options for enums (max 8)
-    options: [8][64]u8 = [_][64]u8{[_]u8{0} ** 64} ** 8,
-    option_lens: [8]usize = [_]usize{0} ** 8,
+    options: [8][64]u8 = [_][64]u8{[_]u8{0}**64}**8,
+    option_lens: [8]usize = [_]usize{0}**8,
     option_count: usize = 0,
 
     pub fn init(id: []const u8) IntentParameter {
@@ -307,22 +307,22 @@ pub const IntentParameter = struct {
 /// App Intent definition
 pub const AppIntent = struct {
     /// Unique identifier
-    id_buffer: [128]u8 = [_]u8{0} ** 128,
+    id_buffer: [128]u8 = [_]u8{0}**128,
     id_len: usize = 0,
 
     /// Display title
-    title_buffer: [128]u8 = [_]u8{0} ** 128,
+    title_buffer: [128]u8 = [_]u8{0}**128,
     title_len: usize = 0,
 
     /// Description
-    description_buffer: [512]u8 = [_]u8{0} ** 512,
+    description_buffer: [512]u8 = [_]u8{0}**512,
     description_len: usize = 0,
 
     /// Category
     category: IntentCategory = .generic,
 
     /// Parameters (max 8)
-    parameters: [8]IntentParameter = [_]IntentParameter{IntentParameter{}} ** 8,
+    parameters: [8]IntentParameter = [_]IntentParameter{IntentParameter{}}**8,
     parameter_count: usize = 0,
 
     /// Whether intent opens the app
@@ -332,12 +332,12 @@ pub const AppIntent = struct {
     is_discoverable: bool = true,
 
     /// System image name (SF Symbol)
-    image_name_buffer: [64]u8 = [_]u8{0} ** 64,
+    image_name_buffer: [64]u8 = [_]u8{0}**64,
     image_name_len: usize = 0,
 
     /// Shortcut phrase suggestions (max 4)
-    suggested_phrases: [4][128]u8 = [_][128]u8{[_]u8{0} ** 128} ** 4,
-    suggested_phrase_lens: [4]usize = [_]usize{0} ** 4,
+    suggested_phrases: [4][128]u8 = [_][128]u8{[_]u8{0}**128}**4,
+    suggested_phrase_lens: [4]usize = [_]usize{0}**4,
     suggested_phrase_count: usize = 0,
 
     pub fn init(id: []const u8) AppIntent {
@@ -444,26 +444,26 @@ pub const AppIntent = struct {
 /// Shortcut definition
 pub const AppShortcut = struct {
     /// Associated intent ID
-    intent_id_buffer: [128]u8 = [_]u8{0} ** 128,
+    intent_id_buffer: [128]u8 = [_]u8{0}**128,
     intent_id_len: usize = 0,
 
     /// Shortcut phrase
-    phrase_buffer: [256]u8 = [_]u8{0} ** 256,
+    phrase_buffer: [256]u8 = [_]u8{0}**256,
     phrase_len: usize = 0,
 
     /// Short title for Shortcuts app
-    short_title_buffer: [64]u8 = [_]u8{0} ** 64,
+    short_title_buffer: [64]u8 = [_]u8{0}**64,
     short_title_len: usize = 0,
 
     /// System image name
-    image_name_buffer: [64]u8 = [_]u8{0} ** 64,
+    image_name_buffer: [64]u8 = [_]u8{0}**64,
     image_name_len: usize = 0,
 
     /// Pre-filled parameter values
-    parameter_values: [8][256]u8 = [_][256]u8{[_]u8{0} ** 256} ** 8,
-    parameter_value_lens: [8]usize = [_]usize{0} ** 8,
-    parameter_keys: [8][64]u8 = [_][64]u8{[_]u8{0} ** 64} ** 8,
-    parameter_key_lens: [8]usize = [_]usize{0} ** 8,
+    parameter_values: [8][256]u8 = [_][256]u8{[_]u8{0}**256}**8,
+    parameter_value_lens: [8]usize = [_]usize{0}**8,
+    parameter_keys: [8][64]u8 = [_][64]u8{[_]u8{0}**64}**8,
+    parameter_key_lens: [8]usize = [_]usize{0}**8,
     parameter_count: usize = 0,
 
     pub fn init(intent_id: []const u8) AppShortcut {
@@ -534,22 +534,22 @@ pub const AppShortcut = struct {
 /// Focus filter configuration
 pub const FocusFilter = struct {
     /// Filter identifier
-    id_buffer: [64]u8 = [_]u8{0} ** 64,
+    id_buffer: [64]u8 = [_]u8{0}**64,
     id_len: usize = 0,
 
     /// Display title
-    title_buffer: [128]u8 = [_]u8{0} ** 128,
+    title_buffer: [128]u8 = [_]u8{0}**128,
     title_len: usize = 0,
 
     /// Associated Focus mode name
-    focus_mode_buffer: [64]u8 = [_]u8{0} ** 64,
+    focus_mode_buffer: [64]u8 = [_]u8{0}**64,
     focus_mode_len: usize = 0,
 
     /// Configuration parameters
-    config_keys: [8][64]u8 = [_][64]u8{[_]u8{0} ** 64} ** 8,
-    config_key_lens: [8]usize = [_]usize{0} ** 8,
-    config_values: [8][256]u8 = [_][256]u8{[_]u8{0} ** 256} ** 8,
-    config_value_lens: [8]usize = [_]usize{0} ** 8,
+    config_keys: [8][64]u8 = [_][64]u8{[_]u8{0}**64}**8,
+    config_key_lens: [8]usize = [_]usize{0}**8,
+    config_values: [8][256]u8 = [_][256]u8{[_]u8{0}**256}**8,
+    config_value_lens: [8]usize = [_]usize{0}**8,
     config_count: usize = 0,
 
     pub fn init(id: []const u8) FocusFilter {
@@ -611,22 +611,22 @@ pub const IntentResult = struct {
     success: bool = false,
 
     /// Result value (as string)
-    value_buffer: [1024]u8 = [_]u8{0} ** 1024,
+    value_buffer: [1024]u8 = [_]u8{0}**1024,
     value_len: usize = 0,
 
     /// Error message if failed
-    error_buffer: [256]u8 = [_]u8{0} ** 256,
+    error_buffer: [256]u8 = [_]u8{0}**256,
     error_len: usize = 0,
 
     /// Dialog to show user
-    dialog_buffer: [512]u8 = [_]u8{0} ** 512,
+    dialog_buffer: [512]u8 = [_]u8{0}**512,
     dialog_len: usize = 0,
 
     /// Whether to continue in app
     needs_app_context: bool = false,
 
     /// Deep link URL if opening app
-    url_buffer: [512]u8 = [_]u8{0} ** 512,
+    url_buffer: [512]u8 = [_]u8{0}**512,
     url_len: usize = 0,
 
     pub fn ok(value: []const u8) IntentResult {
@@ -691,7 +691,7 @@ pub const IntentResult = struct {
 /// Entity query for dynamic options
 pub const EntityQuery = struct {
     /// Query string
-    query_buffer: [256]u8 = [_]u8{0} ** 256,
+    query_buffer: [256]u8 = [_]u8{0}**256,
     query_len: usize = 0,
 
     /// Suggested entities count
@@ -728,19 +728,19 @@ pub const EntityQuery = struct {
 /// App entity for parameters
 pub const AppEntity = struct {
     /// Entity ID
-    id_buffer: [128]u8 = [_]u8{0} ** 128,
+    id_buffer: [128]u8 = [_]u8{0}**128,
     id_len: usize = 0,
 
     /// Display title
-    title_buffer: [128]u8 = [_]u8{0} ** 128,
+    title_buffer: [128]u8 = [_]u8{0}**128,
     title_len: usize = 0,
 
     /// Subtitle
-    subtitle_buffer: [256]u8 = [_]u8{0} ** 256,
+    subtitle_buffer: [256]u8 = [_]u8{0}**256,
     subtitle_len: usize = 0,
 
     /// Image name
-    image_buffer: [64]u8 = [_]u8{0} ** 64,
+    image_buffer: [64]u8 = [_]u8{0}**64,
     image_len: usize = 0,
 
     pub fn init(id: []const u8) AppEntity {

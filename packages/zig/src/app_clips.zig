@@ -89,11 +89,11 @@ pub const InvocationSource = enum {
 /// Invocation context - information about how instant app was launched
 pub const InvocationContext = struct {
     /// The URL that triggered the invocation
-    url_buffer: [2048]u8 = [_]u8{0} ** 2048,
+    url_buffer: [2048]u8 = [_]u8{0}**2048,
     url_len: usize = 0,
 
     /// Query parameters from the URL
-    query_params_buffer: [4096]u8 = [_]u8{0} ** 4096,
+    query_params_buffer: [4096]u8 = [_]u8{0}**4096,
     query_params_len: usize = 0,
 
     /// Source of the invocation
@@ -104,18 +104,18 @@ pub const InvocationContext = struct {
     longitude: ?f64 = null,
 
     /// Referrer information
-    referrer_buffer: [512]u8 = [_]u8{0} ** 512,
+    referrer_buffer: [512]u8 = [_]u8{0}**512,
     referrer_len: usize = 0,
 
     /// Timestamp of invocation
     timestamp: i64 = 0,
 
     /// Campaign tracking ID
-    campaign_id_buffer: [128]u8 = [_]u8{0} ** 128,
+    campaign_id_buffer: [128]u8 = [_]u8{0}**128,
     campaign_id_len: usize = 0,
 
     /// User activity type for handoff
-    activity_type_buffer: [256]u8 = [_]u8{0} ** 256,
+    activity_type_buffer: [256]u8 = [_]u8{0}**256,
     activity_type_len: usize = 0,
 
     pub fn init() InvocationContext {
@@ -219,23 +219,23 @@ pub const ExperienceType = enum {
 /// Data to migrate when user installs full app
 pub const MigrationData = struct {
     /// User preferences
-    preferences_buffer: [4096]u8 = [_]u8{0} ** 4096,
+    preferences_buffer: [4096]u8 = [_]u8{0}**4096,
     preferences_len: usize = 0,
 
     /// User account info (if signed in)
-    account_id_buffer: [128]u8 = [_]u8{0} ** 128,
+    account_id_buffer: [128]u8 = [_]u8{0}**128,
     account_id_len: usize = 0,
 
     /// Cart/order data
-    cart_data_buffer: [8192]u8 = [_]u8{0} ** 8192,
+    cart_data_buffer: [8192]u8 = [_]u8{0}**8192,
     cart_data_len: usize = 0,
 
     /// Progress data (for games/demos)
-    progress_buffer: [4096]u8 = [_]u8{0} ** 4096,
+    progress_buffer: [4096]u8 = [_]u8{0}**4096,
     progress_len: usize = 0,
 
     /// Custom key-value data
-    custom_data_buffer: [8192]u8 = [_]u8{0} ** 8192,
+    custom_data_buffer: [8192]u8 = [_]u8{0}**8192,
     custom_data_len: usize = 0,
 
     /// Timestamp when data was created
@@ -331,11 +331,11 @@ pub const MigrationData = struct {
 /// Location trigger for suggesting instant app
 pub const LocationTrigger = struct {
     /// Trigger identifier
-    id_buffer: [64]u8 = [_]u8{0} ** 64,
+    id_buffer: [64]u8 = [_]u8{0}**64,
     id_len: usize = 0,
 
     /// Human-readable name
-    name_buffer: [128]u8 = [_]u8{0} ** 128,
+    name_buffer: [128]u8 = [_]u8{0}**128,
     name_len: usize = 0,
 
     /// Center coordinates
@@ -346,7 +346,7 @@ pub const LocationTrigger = struct {
     radius: f64 = 100,
 
     /// Associated URL to launch
-    url_buffer: [2048]u8 = [_]u8{0} ** 2048,
+    url_buffer: [2048]u8 = [_]u8{0}**2048,
     url_len: usize = 0,
 
     /// Whether trigger is active
@@ -437,19 +437,19 @@ pub const CodeConfig = struct {
     code_type: CodeType = .qr,
 
     /// Target URL
-    url_buffer: [2048]u8 = [_]u8{0} ** 2048,
+    url_buffer: [2048]u8 = [_]u8{0}**2048,
     url_len: usize = 0,
 
     /// Fallback URL for non-supporting devices
-    fallback_url_buffer: [2048]u8 = [_]u8{0} ** 2048,
+    fallback_url_buffer: [2048]u8 = [_]u8{0}**2048,
     fallback_url_len: usize = 0,
 
     /// Campaign identifier
-    campaign_buffer: [128]u8 = [_]u8{0} ** 128,
+    campaign_buffer: [128]u8 = [_]u8{0}**128,
     campaign_len: usize = 0,
 
     /// Custom metadata
-    metadata_buffer: [4096]u8 = [_]u8{0} ** 4096,
+    metadata_buffer: [4096]u8 = [_]u8{0}**4096,
     metadata_len: usize = 0,
 
     pub const CodeType = enum {
@@ -514,14 +514,14 @@ pub const SessionState = enum {
 /// Analytics event for tracking
 pub const AnalyticsEvent = struct {
     /// Event name
-    name_buffer: [128]u8 = [_]u8{0} ** 128,
+    name_buffer: [128]u8 = [_]u8{0}**128,
     name_len: usize = 0,
 
     /// Event category
     category: EventCategory = .engagement,
 
     /// Event parameters (JSON)
-    params_buffer: [4096]u8 = [_]u8{0} ** 4096,
+    params_buffer: [4096]u8 = [_]u8{0}**4096,
     params_len: usize = 0,
 
     /// Timestamp
@@ -567,7 +567,7 @@ pub const AnalyticsEvent = struct {
 /// Instant app configuration
 pub const InstantAppConfig = struct {
     /// App identifier
-    app_id_buffer: [256]u8 = [_]u8{0} ** 256,
+    app_id_buffer: [256]u8 = [_]u8{0}**256,
     app_id_len: usize = 0,
 
     /// Experience type
@@ -662,7 +662,7 @@ pub const InstantAppConfig = struct {
 /// Instant app session
 pub const InstantAppSession = struct {
     /// Session identifier
-    session_id_buffer: [64]u8 = [_]u8{0} ** 64,
+    session_id_buffer: [64]u8 = [_]u8{0}**64,
     session_id_len: usize = 0,
 
     /// Current platform
@@ -784,23 +784,23 @@ pub const InstantAppSession = struct {
 /// App Clip Card configuration (iOS)
 pub const AppClipCard = struct {
     /// Title displayed on the card
-    title_buffer: [64]u8 = [_]u8{0} ** 64,
+    title_buffer: [64]u8 = [_]u8{0}**64,
     title_len: usize = 0,
 
     /// Subtitle
-    subtitle_buffer: [128]u8 = [_]u8{0} ** 128,
+    subtitle_buffer: [128]u8 = [_]u8{0}**128,
     subtitle_len: usize = 0,
 
     /// Action button text
-    action_buffer: [32]u8 = [_]u8{0} ** 32,
+    action_buffer: [32]u8 = [_]u8{0}**32,
     action_len: usize = 0,
 
     /// Header image URL
-    image_url_buffer: [2048]u8 = [_]u8{0} ** 2048,
+    image_url_buffer: [2048]u8 = [_]u8{0}**2048,
     image_url_len: usize = 0,
 
     /// Associated URL
-    url_buffer: [2048]u8 = [_]u8{0} ** 2048,
+    url_buffer: [2048]u8 = [_]u8{0}**2048,
     url_len: usize = 0,
 
     pub fn init(title: []const u8) AppClipCard {

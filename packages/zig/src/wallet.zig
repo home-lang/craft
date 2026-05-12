@@ -231,13 +231,13 @@ pub const PaymentCard = struct {
 
     pub fn init() PaymentCard {
         return .{
-            .token = [_]u8{0} ** 64,
+            .token = [_]u8{0}**64,
             .token_len = 0,
             .network = .unknown,
-            .last_four = [_]u8{'0'} ** 4,
+            .last_four = [_]u8{'0'}**4,
             .expiry_month = 1,
             .expiry_year = 2025,
-            .cardholder_name = [_]u8{0} ** 64,
+            .cardholder_name = [_]u8{0}**64,
             .name_len = 0,
             .billing_address_id = null,
         };
@@ -257,7 +257,7 @@ pub const PaymentCard = struct {
     }
 
     pub fn maskedDisplay(self: PaymentCard) [19]u8 {
-        var display: [19]u8 = [_]u8{' '} ** 19;
+        var display: [19]u8 = [_]u8{' '}**19;
         // •••• •••• •••• 1234
         display[0] = 0xE2; // UTF-8 bullet point start (won't render correctly, use *)
         @memcpy(display[0..4], "****");
@@ -313,15 +313,15 @@ pub const Address = struct {
 
     pub fn init() Address {
         return .{
-            .line1 = [_]u8{0} ** 128,
+            .line1 = [_]u8{0}**128,
             .line1_len = 0,
-            .line2 = [_]u8{0} ** 128,
+            .line2 = [_]u8{0}**128,
             .line2_len = 0,
-            .city = [_]u8{0} ** 64,
+            .city = [_]u8{0}**64,
             .city_len = 0,
-            .state = [_]u8{0} ** 64,
+            .state = [_]u8{0}**64,
             .state_len = 0,
-            .postal_code = [_]u8{0} ** 16,
+            .postal_code = [_]u8{0}**16,
             .postal_len = 0,
             .country_code = [_]u8{ 'U', 'S' },
         };
@@ -426,13 +426,13 @@ pub const PaymentRequest = struct {
     pub fn init(amount: Money) PaymentRequest {
         return .{
             .amount = amount,
-            .merchant_id = [_]u8{0} ** 64,
+            .merchant_id = [_]u8{0}**64,
             .merchant_id_len = 0,
-            .merchant_name = [_]u8{0} ** 64,
+            .merchant_name = [_]u8{0}**64,
             .merchant_name_len = 0,
-            .order_id = [_]u8{0} ** 64,
+            .order_id = [_]u8{0}**64,
             .order_id_len = 0,
-            .description = [_]u8{0} ** 256,
+            .description = [_]u8{0}**256,
             .description_len = 0,
             .require_billing_address = true,
             .require_shipping_address = false,
@@ -502,7 +502,7 @@ pub const Transaction = struct {
     pub fn init(amount: Money, provider: WalletProvider) Transaction {
         const now = getCurrentTimestamp();
         return .{
-            .id = [_]u8{0} ** 64,
+            .id = [_]u8{0}**64,
             .id_len = 0,
             .status = .pending,
             .amount = amount,
@@ -533,8 +533,8 @@ pub const Transaction = struct {
 
     pub fn withError(self: Transaction, code: []const u8, message: []const u8) Transaction {
         var txn = self;
-        var err_code: [32]u8 = [_]u8{0} ** 32;
-        var err_msg: [128]u8 = [_]u8{0} ** 128;
+        var err_code: [32]u8 = [_]u8{0}**32;
+        var err_msg: [128]u8 = [_]u8{0}**128;
         const code_len = @min(code.len, 32);
         const msg_len = @min(message.len, 128);
         @memcpy(err_code[0..code_len], code[0..code_len]);
@@ -602,9 +602,9 @@ pub const Subscription = struct {
         const now = getCurrentTimestamp();
         const period_days: i64 = interval.toDays();
         return .{
-            .id = [_]u8{0} ** 64,
+            .id = [_]u8{0}**64,
             .id_len = 0,
-            .plan_id = [_]u8{0} ** 64,
+            .plan_id = [_]u8{0}**64,
             .plan_id_len = 0,
             .amount = amount,
             .interval = interval,
@@ -654,7 +654,7 @@ pub const WalletController = struct {
             .available_providers = 0,
             .default_provider = null,
             .saved_cards_count = 0,
-            .saved_cards = [_]PaymentCard{PaymentCard.init()} ** 8,
+            .saved_cards = [_]PaymentCard{PaymentCard.init()}**8,
             .region = [_]u8{ 'U', 'S' },
         };
     }
@@ -757,7 +757,7 @@ pub const Receipt = struct {
 
         pub fn init(name: []const u8, quantity: u16, price: Money) LineItem {
             var item: LineItem = .{
-                .name = [_]u8{0} ** 64,
+                .name = [_]u8{0}**64,
                 .name_len = 0,
                 .quantity = quantity,
                 .unit_price = price,
@@ -775,9 +775,9 @@ pub const Receipt = struct {
 
     pub fn init(transaction: Transaction) Receipt {
         var receipt: Receipt = .{
-            .transaction_id = [_]u8{0} ** 64,
+            .transaction_id = [_]u8{0}**64,
             .transaction_id_len = 0,
-            .merchant_name = [_]u8{0} ** 64,
+            .merchant_name = [_]u8{0}**64,
             .merchant_name_len = 0,
             .items = undefined,
             .item_count = 0,

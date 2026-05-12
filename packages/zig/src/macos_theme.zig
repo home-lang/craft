@@ -95,7 +95,6 @@ fn deliver() void {
     // — we ask whether the current appearance is one of the dark variants
     // and fall back to "light" otherwise. This is the API Apple intends
     // for "are we in dark mode?" queries.
-    const NSArray = macos.getClass("NSArray");
     const dark_name = macos.createNSString("NSAppearanceNameDarkAqua");
     const light_name = macos.createNSString("NSAppearanceNameAqua");
 
@@ -103,10 +102,10 @@ fn deliver() void {
     // arrayWithObjects: needs nil-terminated args, which is awkward in
     // Zig). Two-call build instead.
     var arr_items: [2]objc.id = .{ dark_name, light_name };
-    const NSArray_class = macos.getClass("NSArray");
+    const NSArray = macos.getClass("NSArray");
     const Fn = *const fn (objc.id, objc.SEL, [*]const objc.id, c_ulong) callconv(.c) objc.id;
     const f: Fn = @ptrCast(&objc.objc_msgSend);
-    const names_arr = f(NSArray_class, macos.sel("arrayWithObjects:count:"), &arr_items, 2);
+    const names_arr = f(NSArray, macos.sel("arrayWithObjects:count:"), &arr_items, 2);
 
     const matched = macos.msgSend1(appearance, "bestMatchFromAppearancesWithNames:", names_arr);
     // Earlier code called `msgSendBool(matched, "isEqualToString:")` —

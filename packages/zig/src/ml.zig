@@ -173,7 +173,7 @@ pub const TensorShape = struct {
 
     pub fn init(dimensions: []const u32) TensorShape {
         var shape = TensorShape{
-            .dims = [_]u32{0} ** 8,
+            .dims = [_]u32{0}**8,
             .rank = @intCast(@min(dimensions.len, 8)),
         };
         for (dimensions[0..shape.rank], 0..) |dim, i| {
@@ -183,24 +183,24 @@ pub const TensorShape = struct {
     }
 
     pub fn scalar() TensorShape {
-        return .{ .dims = [_]u32{0} ** 8, .rank = 0 };
+        return .{ .dims = [_]u32{0}**8, .rank = 0 };
     }
 
     pub fn vector(size: u32) TensorShape {
-        var shape = TensorShape{ .dims = [_]u32{0} ** 8, .rank = 1 };
+        var shape = TensorShape{ .dims = [_]u32{0}**8, .rank = 1 };
         shape.dims[0] = size;
         return shape;
     }
 
     pub fn matrix(rows: u32, cols: u32) TensorShape {
-        var shape = TensorShape{ .dims = [_]u32{0} ** 8, .rank = 2 };
+        var shape = TensorShape{ .dims = [_]u32{0}**8, .rank = 2 };
         shape.dims[0] = rows;
         shape.dims[1] = cols;
         return shape;
     }
 
     pub fn image(batch: u32, height: u32, width: u32, channels: u32) TensorShape {
-        var shape = TensorShape{ .dims = [_]u32{0} ** 8, .rank = 4 };
+        var shape = TensorShape{ .dims = [_]u32{0}**8, .rank = 4 };
         shape.dims[0] = batch;
         shape.dims[1] = height;
         shape.dims[2] = width;

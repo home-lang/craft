@@ -116,11 +116,11 @@ const jni = if (@import("builtin").target.os.tag == .linux) struct {
 /// Stored callbacks for Android ValueCallback (JS evaluation) and permissions
 pub const AndroidCallbackStorage = struct {
     // JavaScript evaluation callbacks - indexed by request ID
-    js_callbacks: [16]?*const fn ([]const u8) void = .{null} ** 16,
+    js_callbacks: [16]?*const fn ([]const u8) void = .{null}**16,
     js_callback_next_id: u32 = 0,
 
     // Permission callbacks - indexed by request code
-    permission_callbacks: [16]?*const fn (bool) void = .{null} ** 16,
+    permission_callbacks: [16]?*const fn (bool) void = .{null}**16,
 
     const Self = @This();
 
