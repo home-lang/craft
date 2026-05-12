@@ -98,8 +98,6 @@ fn deliver() void {
     const NSArray = macos.getClass("NSArray");
     const dark_name = macos.createNSString("NSAppearanceNameDarkAqua");
     const light_name = macos.createNSString("NSAppearanceNameAqua");
-    const names = macos.msgSend2(NSArray, "arrayWithObjects:", dark_name, @as(?*anyopaque, null));
-    _ = names;
 
     // Build a 2-element array via arrayWithObjects:count: (variadic
     // arrayWithObjects: needs nil-terminated args, which is awkward in
