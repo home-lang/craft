@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.33...v0.0.34)
+
+### 🐛 Bug Fixes
+
+- **zig**: centralize sentinel string allocation ([95a263d](https://github.com/home-lang/craft/commit/95a263d)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.34 ([ec02470](https://github.com/home-lang/craft/commit/ec02470)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.33...HEAD)
+
+### 🐛 Bug Fixes
+
+- **zig**: centralize sentinel string allocation ([95a263d](https://github.com/home-lang/craft/commit/95a263d)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.32...v0.0.33)
 
 ### 🐛 Bug Fixes
