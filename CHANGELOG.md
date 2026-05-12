@@ -1,4 +1,14 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.26...v0.0.27)
+
+### 🧹 Chores
+
+- release v0.0.27 ([0fe1af5](https://github.com/home-lang/craft/commit/0fe1af5)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.25...v0.0.26)
 
 ### 🐛 Bug Fixes

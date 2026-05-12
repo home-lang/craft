@@ -1,6 +1,6 @@
 {
   "name": "craft",
-  "version": "0.0.26",
+  "version": "0.0.27",
   "private": true,
   "description": "Build desktop apps with web languages, powered by Zig",
   "author": "Chris Breuer <chris@stacksjs.org>",
@@ -39,19 +39,19 @@
     "create": "cd packages/create-craft && bun bin/cli.ts",
     "clean": "rm -rf packages/zig/zig-cache packages/zig/zig-out && bun run clean:packages",
     "clean:packages": "rm -rf packages/*/dist packages/*/node_modules",
-    "lint": "bunx --bun pickier .",
-    "lint:fix": "bunx --bun pickier . --fix",
-    "format": "bunx --bun pickier . --format",
-    "format:fix": "bunx --bun pickier . --format --write",
+    "lint": "bun x --bun pickier .",
+    "lint:fix": "bun x --bun pickier . --fix",
+    "format": "bun x --bun pickier . --format",
+    "format:fix": "bun x --bun pickier . --format --write",
     "fmt": "eval \"$(pantry env)\" && cd packages/zig && zig fmt src/ build.zig",
     "fmt:check": "eval \"$(pantry env)\" && cd packages/zig && zig fmt --check src/ build.zig",
     "pantry:env": "pantry env",
     "zig": "eval \"$(pantry env)\" && zig",
     "dev": "cd packages/typescript && bun run dev",
-    "changelog": "bunx logsmith --verbose",
-    "changelog:generate": "bunx logsmith --output CHANGELOG.md",
-    "release": "bun --bun run changelog:generate && bunx --bun bumpx prompt --recursive",
-    "release:patch": "bun --bun run changelog:generate && bunx --bun bumpx patch --recursive --yes"
+    "changelog": "bun x logsmith --verbose",
+    "changelog:generate": "bun x logsmith --output CHANGELOG.md",
+    "release": "bun --bun run changelog:generate && bun x --bun bumpx prompt --recursive",
+    "release:patch": "bun --bun run changelog:generate && bun x --bun bumpx patch --recursive --yes"
   },
   "devDependencies": {
     "better-dx": "^0.2.7"
@@ -59,13 +59,10 @@
   "git-hooks": {
     "pre-commit": {
       "staged-lint": {
-        "*.{js,ts,json,yaml,yml,md}": "bunx --bun pickier lint --fix"
+        "*.{js,ts,json,yaml,yml,md}": "bun x --bun pickier lint --fix"
       }
     },
     "pre-push": "bun run typecheck",
-    "commit-msg": "bunx gitlint --edit .git/COMMIT_EDITMSG"
-  },
-  "dependencies": {
-    "ziglang.org": "^0.17.0-dev.135+9df02121d"
+    "commit-msg": "bun x gitlint --edit .git/COMMIT_EDITMSG"
   }
 }
