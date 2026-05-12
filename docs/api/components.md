@@ -12,7 +12,7 @@ import {
   type ViewStyle,
   type TextStyle,
   type ImageStyle
-} from '@craft-native/craft'
+} from 'craft-native'
 ```
 
 ## Platform
@@ -400,7 +400,7 @@ const flexStyle: FlexStyle = {
 ## Example Usage
 
 ```typescript
-import { Platform, StyleSheet, Animated, Easing } from '@craft-native/craft'
+import { Platform, StyleSheet, Animated, Easing } from 'craft-native'
 
 // Create styles
 const styles = StyleSheet.create({

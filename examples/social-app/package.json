@@ -12,7 +12,7 @@
     "build:macos": "craft build --platform macos"
   },
   "dependencies": {
-    "@craft-native/craft": "workspace:*"
+    "craft-native": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0"

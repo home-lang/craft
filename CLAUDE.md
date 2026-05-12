@@ -2,7 +2,7 @@
 
 ## About
 
-A lightweight, high-performance cross-platform application framework built with Zig. It creates native desktop apps (macOS, Linux, Windows), mobile apps (iOS, Android), and menubar/system tray apps using web technologies. It includes a library of native UI components, advanced GPU rendering (Vulkan/Metal/Direct3D), WebSocket support, a JavaScript bridge, system integration (notifications, clipboard, file dialogs), and a TypeScript SDK (`@craft-native/craft`) for building apps without writing Zig directly. Reproducible binary-size and startup benchmarks live in [`benchmarks/`](./benchmarks).
+A lightweight, high-performance cross-platform application framework built with Zig. It creates native desktop apps (macOS, Linux, Windows), mobile apps (iOS, Android), and menubar/system tray apps using web technologies. It includes a library of native UI components, advanced GPU rendering (Vulkan/Metal/Direct3D), WebSocket support, a JavaScript bridge, system integration (notifications, clipboard, file dialogs), and a TypeScript SDK (`craft-native`) for building apps without writing Zig directly. Reproducible binary-size and startup benchmarks live in [`benchmarks/`](./benchmarks).
 
 ## Linting
 
@@ -12,7 +12,7 @@ A lightweight, high-performance cross-platform application framework built with 
 
 ## Frontend
 
-- Use **stx** for templating — never write vanilla JS (`var`, `document.*`, `window.*`) in stx templates
+- Use **stx** for templating — never write vanilla JS (`var`, `document._`, `window._`) in stx templates
 - Use **crosswind** as the default CSS framework which enables standard Tailwind-like utility classes
 - stx `<script>` tags should only contain stx-compatible code (signals, composables, directives)
 

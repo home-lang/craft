@@ -89,7 +89,7 @@ export interface CarPlayTemplate {
  *
  * @example
  * // Set up CarPlay scene
- * carplay.onConnect((window) => {
+ * carplay.onConnect((_window) => {
  *   carplay.pushTemplate({
  *     type: 'list',
  *     title: 'My Music',
@@ -100,7 +100,7 @@ export interface CarPlayTemplate {
  *   })
  * })
  *
- * carplay.onSelectListItem((item, template) => {
+ * carplay.onSelectListItem((item, _template) => {
  *   console.log('Selected:', item.text)
  * })
  */

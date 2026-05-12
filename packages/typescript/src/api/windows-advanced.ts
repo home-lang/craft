@@ -64,7 +64,7 @@ export interface JumpListCategory {
  * ])
  *
  * // Handle jump list item click
- * jumpList.onItemClick((id, args) => {
+ * jumpList.onItemClick((id, _args) => {
  *   if (id === 'settings') openSettings()
  * })
  */
@@ -573,7 +573,7 @@ export interface WindowsWidgetContent {
  * })
  *
  * // Provide content
- * windowsWidgets.onContentRequested('weather-widget', async (context) => {
+ * windowsWidgets.onContentRequested('weather-widget', async (_context) => {
  *   const weather = await fetchWeather()
  *   return {
  *     template: weatherTemplate,

@@ -7,7 +7,7 @@
     "skipLibCheck": true,
     "types": ["bun"],
     "paths": {
-      "@craft-native/craft": ["../../packages/typescript/src/bridge/core.ts"],
+      "craft-native": ["../../packages/typescript/src/bridge/core.ts"],
       "@craft-native/ts-maps": ["../../packages/ts-maps/src/index.ts"]
     }
   },

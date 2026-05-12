@@ -14,7 +14,7 @@
  * - OTA Updates (craft.ota): Requires server-side update infrastructure
  * - Widgets (craft.widget): iOS 14+ (WidgetKit) / Android (AppWidgetProvider)
  *
- * These APIs are NOT part of the desktop TypeScript SDK (@craft-native/craft).
+ * These APIs are NOT part of the desktop TypeScript SDK (craft-native).
  * For desktop APIs, see the main SDK exports in src/index.ts.
  *
  * Usage:

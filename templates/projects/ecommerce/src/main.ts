@@ -3,7 +3,7 @@
  * A cross-platform shopping app built with Craft
  */
 
-import { db, win, isMobile, haptics } from '@craft-native/craft'
+import { db, win, isMobile, haptics } from 'craft-native'
 
 // Types
 interface Product {

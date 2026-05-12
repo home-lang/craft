@@ -74,7 +74,7 @@ my-craft-app/
 ### Craft (craft.config.ts)
 
 ```typescript
-import { defineConfig } from '@craft-native/craft';
+import { defineConfig } from 'craft-native';
 
 export default defineConfig({
   name: 'My App',
@@ -129,13 +129,13 @@ const greeting = await invoke('greet', { name: 'World' });
 
 ```typescript
 // src/main.ts
-import { bridge } from '@craft-native/craft';
+import { bridge } from 'craft-native';
 
 // Native bridge is built-in, no Rust required
 const result = await bridge.request('greet', { name: 'World' });
 
 // Or use the built-in APIs directly
-import { dialog } from '@craft-native/craft';
+import { dialog } from 'craft-native';
 await dialog.message('Hello, World!');
 ```
 
@@ -154,7 +154,7 @@ await writeTextFile('config.json', JSON.stringify(data), { dir: BaseDirectory.Ap
 
 **Craft:**
 ```typescript
-import { fs } from '@craft-native/craft';
+import { fs } from 'craft-native';
 
 const content = await fs.readFile('config.json', { encoding: 'utf-8' });
 await fs.writeFile('config.json', JSON.stringify(data));
@@ -176,7 +176,7 @@ const confirmed = await confirm('Are you sure?', { title: 'Confirm' });
 
 **Craft:**
 ```typescript
-import { dialog } from '@craft-native/craft';
+import { dialog } from 'craft-native';
 
 const files = await dialog.open({
   multiple: true,
@@ -202,7 +202,7 @@ await appWindow.setFullscreen(true);
 
 **Craft:**
 ```typescript
-import { window } from '@craft-native/craft';
+import { window } from 'craft-native';
 
 await window.setTitle('New Title');
 await window.setSize(1200, 800);
@@ -235,7 +235,7 @@ const tray = await TrayIcon.new({
 
 **Craft:**
 ```typescript
-import { tray, window } from '@craft-native/craft';
+import { tray, window } from 'craft-native';
 
 await tray.create({
   icon: 'icons/tray.png',
@@ -261,7 +261,7 @@ const response = await fetch('https://api.example.com/data', {
 
 **Craft:**
 ```typescript
-import { http } from '@craft-native/craft';
+import { http } from 'craft-native';
 
 const response = await http.fetch('https://api.example.com/data', {
   method: 'GET',
@@ -287,7 +287,7 @@ sendNotification({
 
 **Craft:**
 ```typescript
-import { notification } from '@craft-native/craft';
+import { notification } from 'craft-native';
 
 await notification.requestPermission();
 await notification.show({
@@ -308,7 +308,7 @@ const text = await readText();
 
 **Craft:**
 ```typescript
-import { clipboard } from '@craft-native/craft';
+import { clipboard } from 'craft-native';
 
 await clipboard.writeText('Hello');
 const text = await clipboard.readText();
@@ -327,7 +327,7 @@ console.log(output.stdout);
 
 **Craft:**
 ```typescript
-import { process } from '@craft-native/craft';
+import { process } from 'craft-native';
 
 const output = await process.exec('git', ['status']);
 console.log(output.stdout);
@@ -352,7 +352,7 @@ await emit('my-event', { data: 'value' });
 ### Craft Events
 
 ```typescript
-import { events } from '@craft-native/craft';
+import { events } from 'craft-native';
 
 // Listen for events
 const unsubscribe = events.on('my-event', (payload) => {
@@ -375,7 +375,7 @@ Craft uses TypeScript/JavaScript plugins:
 
 ```typescript
 // craft.config.ts
-import { defineConfig } from '@craft-native/craft';
+import { defineConfig } from 'craft-native';
 import analyticsPlugin from '@craft-native/plugin-analytics';
 
 export default defineConfig({
@@ -434,7 +434,7 @@ function useWindow() {
 
 **Craft (built-in hooks):**
 ```typescript
-import { useWindow, useCraft, useTray } from '@craft-native/craft/utils/react';
+import { useWindow, useCraft, useTray } from 'craft-native/utils/react';
 
 function App() {
   const { title, setTitle, minimize, maximize } = useWindow();
@@ -450,7 +450,7 @@ function App() {
 **Craft provides Vue composables:**
 ```vue
 <script setup>
-import { useCraft, useWindow, useTray } from '@craft-native/craft/utils/vue';
+import { useCraft, useWindow, useTray } from 'craft-native/utils/vue';
 
 const { state: craft, setDarkMode } = useCraft();
 const { state: window, setTitle, minimize } = useWindow();
@@ -463,7 +463,7 @@ const { show: showTray, setMenu } = useTray();
 **Craft provides Svelte stores and actions:**
 ```svelte
 <script>
-import { craftStore, windowStore, shortcut } from '@craft-native/craft/utils/svelte';
+import { craftStore, windowStore, shortcut } from 'craft-native/utils/svelte';
 
 $: platform = $craftStore.platform;
 $: isDark = $craftStore.isDarkMode;
@@ -498,7 +498,7 @@ export default defineConfig({
 ## Migration Checklist
 
 - [ ] Convert `tauri.conf.json` to `craft.config.ts`
-- [ ] Replace `@tauri-apps/api/*` imports with `@craft-native/craft`
+- [ ] Replace `@tauri-apps/api/*` imports with `craft-native`
 - [ ] Remove `src-tauri` directory (no Rust needed)
 - [ ] Update build scripts in `package.json`
 - [ ] Migrate custom commands to TypeScript bridge calls
@@ -515,7 +515,7 @@ Both Tauri and Craft run web content in a native webview, so CORS restrictions d
 
 Craft uses web-standard paths. For platform-specific paths, use the path utilities:
 ```typescript
-import { path } from '@craft-native/craft';
+import { path } from 'craft-native';
 
 const appDir = await path.appDir();
 const homeDir = await path.homeDir();

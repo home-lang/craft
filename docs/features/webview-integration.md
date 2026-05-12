@@ -17,7 +17,7 @@ Webview integration provides:
 ### HTML String
 
 ```typescript
-import { show } from '@craft-native/craft'
+import { show } from 'craft-native'
 
 const html = `
 <!DOCTYPE html>
@@ -235,7 +235,7 @@ const canGoForward = window.canGoForward()
 ### Register Protocol
 
 ```typescript
-import { registerProtocol } from '@craft-native/craft'
+import { registerProtocol } from 'craft-native'
 
 registerProtocol('app', async (request) => {
   const path = request.url.replace('app://', '')

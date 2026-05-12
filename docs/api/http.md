@@ -5,7 +5,7 @@ The HTTP API provides methods for making network requests with progress tracking
 ## Import
 
 ```typescript
-import { http } from '@craft-native/craft'
+import { http } from 'craft-native'
 ```
 
 ## Methods
@@ -30,6 +30,7 @@ const response = await http.fetch('https://api.example.com/users', {
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | url | `string` | Request URL |
@@ -52,6 +53,7 @@ const users = await response.json()
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | url | `string` | Request URL |
@@ -74,6 +76,7 @@ const response = await http.post(
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | url | `string` | Request URL |
@@ -103,6 +106,7 @@ await http.download(
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | url | `string` | URL to download |
@@ -132,6 +136,7 @@ await http.upload(
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | url | `string` | Upload URL |
@@ -146,7 +151,7 @@ await http.upload(
 ## Example Usage
 
 ```typescript
-import { http } from '@craft-native/craft'
+import { http } from 'craft-native'
 
 // REST API example
 async function fetchUsers() {

@@ -3,7 +3,7 @@
  * A functional todo list application showcasing interactivity
  */
 
-import { createApp } from '@craft-native/craft'
+import { createApp } from 'craft-native'
 
 const html = `
 <!DOCTYPE html>

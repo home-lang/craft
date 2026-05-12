@@ -13,7 +13,7 @@ import {
   useShortcut,
   useTheme,
   useMobile
-} from '@craft-native/craft/react'
+} from 'craft-native/react'
 ```
 
 ## Hooks
@@ -39,6 +39,7 @@ function App() {
 ```
 
 **Returns:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | craft | `Craft` | Craft instance |
@@ -78,6 +79,7 @@ function TitleBar() {
 ```
 
 **Returns:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | title | `string` | Window title |
@@ -131,6 +133,7 @@ function AppWithTray() {
 ```
 
 **Config:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | icon | `string` | Path to tray icon |
@@ -139,6 +142,7 @@ function AppWithTray() {
 | onAction | `(action: string) => void` | Menu action handler |
 
 **Returns:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | isVisible | `boolean` | Tray visibility |
@@ -177,6 +181,7 @@ function NotificationButton() {
 ```
 
 **Returns:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | show | `(options: NotificationOptions) => Promise<void>` | Show notification |
@@ -214,6 +219,7 @@ function Editor() {
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | shortcut | `string` | Key combination (e.g., 'mod+s', 'shift+alt+p') |
@@ -247,6 +253,7 @@ function ThemeToggle() {
 ```
 
 **Returns:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | theme | `'light' \| 'dark' \| 'system'` | Current theme setting |
@@ -295,6 +302,7 @@ function MobileApp() {
 ```
 
 **Returns:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | platform | `'ios' \| 'android' \| null` | Mobile platform |
@@ -313,7 +321,7 @@ import {
   useTheme,
   useShortcut,
   useNotification
-} from '@craft-native/craft/react'
+} from 'craft-native/react'
 
 function App() {
   const { isReady } = useCraft()

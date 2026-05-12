@@ -286,7 +286,7 @@ export interface WidgetConfiguration {
  * })
  *
  * // Provide timeline
- * desktopWidgets.provideTimeline('weather', async (context) => {
+ * desktopWidgets.provideTimeline('weather', async (_context) => {
  *   const weather = await fetchWeather()
  *   return {
  *     entries: [

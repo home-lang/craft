@@ -10,7 +10,7 @@
  * - Dark mode support
  */
 
-import { createApp } from '@craft-native/craft'
+import { createApp } from 'craft-native'
 
 const html = `
 <!DOCTYPE html>

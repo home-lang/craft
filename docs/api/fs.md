@@ -5,7 +5,7 @@ The File System API provides methods for reading, writing, and managing files an
 ## Import
 
 ```typescript
-import { fs } from '@craft-native/craft'
+import { fs } from 'craft-native'
 ```
 
 ## Methods
@@ -23,6 +23,7 @@ const binary = await fs.readFile('/path/to/image.png', { encoding: 'binary' })
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | path | `string` | Absolute path to the file |
@@ -45,6 +46,7 @@ await fs.writeFile('/path/to/data.bin', new Uint8Array([1, 2, 3]), {
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | path | `string` | Absolute path to the file |
@@ -68,6 +70,7 @@ const recursive = await fs.readDir('/path/to/dir', { recursive: true })
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | path | `string` | Absolute path to the directory |
@@ -88,6 +91,7 @@ await fs.mkdir('/path/to/nested/dirs', { recursive: true })
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | path | `string` | Path to create |
@@ -108,6 +112,7 @@ await fs.remove('/path/to/dir', { recursive: true })
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | path | `string` | Path to remove |
@@ -127,6 +132,7 @@ const exists = await fs.exists('/path/to/file.txt')
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | path | `string` | Path to check |
@@ -146,6 +152,7 @@ const info = await fs.stat('/path/to/file.txt')
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | path | `string` | Path to stat |
@@ -165,6 +172,7 @@ await fs.copy('/path/to/dir', '/path/to/dest-dir', { recursive: true })
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | src | `string` | Source path |
@@ -185,6 +193,7 @@ await fs.move('/path/to/old.txt', '/path/to/new.txt')
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | src | `string` | Source path |
@@ -209,6 +218,7 @@ unwatch()
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | path | `string` | Path to watch |

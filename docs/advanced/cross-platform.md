@@ -17,7 +17,7 @@ Craft supports building applications for macOS, Linux, Windows, iOS, and Android
 ### Runtime Detection
 
 ```typescript
-import { platform, arch, isDesktop, isMobile } from '@craft-native/craft'
+import { platform, arch, isDesktop, isMobile } from 'craft-native'
 
 console.log(platform) // 'darwin' | 'win32' | 'linux' | 'ios' | 'android'
 console.log(arch) // 'arm64' | 'x64'
@@ -28,7 +28,7 @@ console.log(isMobile) // true for iOS/Android
 ### Conditional Code
 
 ```typescript
-import { platform } from '@craft-native/craft'
+import { platform } from 'craft-native'
 
 if (platform === 'darwin') {
   // macOS-specific code
@@ -62,7 +62,7 @@ const platformFeatures = await import(
 ### macOS
 
 ```typescript
-import { mac } from '@craft-native/craft/platform'
+import { mac } from 'craft-native/platform'
 
 // Dock
 mac.dock.setBadge('3')
@@ -85,7 +85,7 @@ window.setVibrancy('under-window')
 ### Windows
 
 ```typescript
-import { win } from '@craft-native/craft/platform'
+import { win } from 'craft-native/platform'
 
 // Taskbar
 win.taskbar.setProgress(0.5)
@@ -112,7 +112,7 @@ win.thumbnailToolbar.setButtons([
 ### Linux
 
 ```typescript
-import { linux } from '@craft-native/craft/platform'
+import { linux } from 'craft-native/platform'
 
 // Desktop Integration
 linux.desktop.setCategory('Utility')
@@ -189,7 +189,7 @@ const window = await createWindow(html, {
 ### Path Handling
 
 ```typescript
-import { path } from '@craft-native/craft'
+import { path } from 'craft-native'
 
 // Use platform-agnostic path joining
 const configPath = path.join(app.getPath('userData'), 'config.json')
@@ -205,7 +205,7 @@ const paths = {
 ### File Dialogs
 
 ```typescript
-import { dialog } from '@craft-native/craft'
+import { dialog } from 'craft-native'
 
 const result = await dialog.showOpenDialog({
   // Platform-appropriate defaults
@@ -232,7 +232,7 @@ const result = await dialog.showOpenDialog({
 ### Platform-Aware Shortcuts
 
 ```typescript
-import { platform, shortcuts } from '@craft-native/craft'
+import { platform, shortcuts } from 'craft-native'
 
 // Use platform-appropriate modifier
 const modifier = platform === 'darwin' ? 'Cmd' : 'Ctrl'
@@ -331,17 +331,17 @@ jobs:
 
 ```typescript
 import { describe, test, expect } from 'bun:test'
-import { platform } from '@craft-native/craft'
+import { platform } from 'craft-native'
 
 describe('Platform Features', () => {
   test.skipIf(platform !== 'darwin')('macOS dock badge', async () => {
-    const { mac } = await import('@craft-native/craft/platform')
+    const { mac } = await import('craft-native/platform')
     mac.dock.setBadge('5')
     expect(mac.dock.getBadge()).toBe('5')
   })
 
   test.skipIf(platform !== 'win32')('Windows taskbar', async () => {
-    const { win } = await import('@craft-native/craft/platform')
+    const { win } = await import('craft-native/platform')
     win.taskbar.setProgress(0.5)
     expect(win.taskbar.getProgress()).toBe(0.5)
   })
@@ -366,7 +366,7 @@ docker run -v $(pwd):/app craft-linux-test
 ### iOS
 
 ```typescript
-import { ios } from '@craft-native/craft/platform'
+import { ios } from 'craft-native/platform'
 
 // iOS-specific features
 ios.haptic.feedback('impact') // Haptic feedback
@@ -381,7 +381,7 @@ await ios.requestPermission('notifications')
 ### Android
 
 ```typescript
-import { android } from '@craft-native/craft/platform'
+import { android } from 'craft-native/platform'
 
 // Android-specific features
 android.vibrate(100) // Vibration
@@ -419,7 +419,7 @@ src/
 ### Feature Detection
 
 ```typescript
-import { features } from '@craft-native/craft'
+import { features } from 'craft-native'
 
 // Check feature availability
 if (features.touchBar) {

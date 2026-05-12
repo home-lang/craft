@@ -53,7 +53,7 @@ bun run build:linux
 ### Database API
 
 ```typescript
-import { db } from '@craft-native/craft'
+import { db } from 'craft-native'
 
 const database = db.openDatabase('todos.db')
 
@@ -71,7 +71,7 @@ const todos = await database.query('SELECT * FROM todos')
 ### Mobile APIs
 
 ```typescript
-import { haptics, isMobile } from '@craft-native/craft'
+import { haptics, isMobile } from 'craft-native'
 
 if (isMobile()) {
   // Light haptic feedback when adding a todo
@@ -85,7 +85,7 @@ if (isMobile()) {
 ### Platform Detection
 
 ```typescript
-import { getPlatform, isDesktop, isMobile } from '@craft-native/craft'
+import { getPlatform, isDesktop, isMobile } from 'craft-native'
 
 console.log(getPlatform()) // 'ios', 'android', 'macos', 'windows', 'linux'
 

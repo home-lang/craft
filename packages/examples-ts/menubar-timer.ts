@@ -9,7 +9,7 @@
  * - Optional popup window
  */
 
-import { createApp } from '@craft-native/craft'
+import { createApp } from 'craft-native'
 
 // Timer state
 let seconds = 25 * 60 // 25 minutes

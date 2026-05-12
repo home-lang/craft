@@ -6,7 +6,7 @@ Configure your Craft application using `craft.config.ts`.
 
 ```typescript
 // craft.config.ts
-import type { CraftAppConfig } from '@craft-native/craft'
+import type { CraftAppConfig } from 'craft-native'
 
 const config: CraftAppConfig = {
   name: 'My App',

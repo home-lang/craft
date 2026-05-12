@@ -39,7 +39,7 @@
       "name": "craft-examples",
       "version": "0.0.26",
       "dependencies": {
-        "@craft-native/craft": "workspace:*",
+        "craft-native": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -89,7 +89,7 @@
       },
     },
     "packages/typescript": {
-      "name": "@craft-native/craft",
+      "name": "craft-native",
       "version": "0.0.26",
       "bin": {
         "craft": "./bin/cli.ts",
@@ -135,7 +135,7 @@
 
     "@craft-native/android": ["@craft-native/android@workspace:packages/android"],
 
-    "@craft-native/craft": ["@craft-native/craft@workspace:packages/typescript"],
+    "craft-native": ["craft-native@workspace:packages/typescript"],
 
     "@craft-native/ios": ["@craft-native/ios@workspace:packages/ios"],
 

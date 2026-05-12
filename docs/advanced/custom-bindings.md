@@ -16,7 +16,7 @@ Custom bindings enable:
 ### Register Custom Handler
 
 ```typescript
-import { createApp } from '@craft-native/craft'
+import { createApp } from 'craft-native'
 
 const app = await createApp(html, options)
 
@@ -56,7 +56,7 @@ my-plugin/
 
 ```typescript
 // craft.plugin.ts
-import type { CraftPlugin } from '@craft-native/craft'
+import type { CraftPlugin } from 'craft-native'
 
 export default {
   name: 'my-plugin',
@@ -140,7 +140,7 @@ pub fn build(b: _std.Build) void {
 
 ```typescript
 // src/index.ts
-import { loadNativeLibrary } from '@craft-native/craft'
+import { loadNativeLibrary } from 'craft-native'
 
 const lib = loadNativeLibrary('./libmy-plugin')
 
@@ -193,7 +193,7 @@ export const getString = lib.symbols.getString
 
 ```typescript
 // src/macos.ts
-import { platform } from '@craft-native/craft'
+import { platform } from 'craft-native'
 
 if (platform === 'darwin') {
   // macOS-specific implementation
@@ -213,7 +213,7 @@ if (platform === 'darwin') {
 
 ```typescript
 // src/windows.ts
-import { platform } from '@craft-native/craft'
+import { platform } from 'craft-native'
 
 if (platform === 'win32') {
   const winLib = loadNativeLibrary('./libwin-bridge')
@@ -232,7 +232,7 @@ if (platform === 'win32') {
 
 ```typescript
 // src/platform-features.ts
-import { platform } from '@craft-native/craft'
+import { platform } from 'craft-native'
 
 export interface PlatformFeatures {
   showBadge(text: string): void
@@ -279,7 +279,7 @@ pub fn monitorSomething() void {
 
 ```typescript
 // In TypeScript
-import { on } from '@craft-native/craft'
+import { on } from 'craft-native'
 
 on('sensor:reading', (data) => {
   console.log(`Sensor value: ${data.value} at ${data.timestamp}`)
@@ -291,7 +291,7 @@ on('sensor:reading', (data) => {
 ### Handling Native Memory
 
 ```typescript
-import { NativePointer } from '@craft-native/craft'
+import { NativePointer } from 'craft-native'
 
 // Allocate native memory
 const buffer = NativePointer.allocate(1024)
@@ -309,7 +309,7 @@ finally {
 ### Automatic Cleanup
 
 ```typescript
-import { using } from '@craft-native/craft'
+import { using } from 'craft-native'
 
 // Automatically freed when scope exits
 await using(NativePointer.allocate(1024), async (buffer) => {
@@ -390,7 +390,7 @@ describe('Native Bindings', () => {
 ### Integration Tests
 
 ```typescript
-import { createTestApp } from '@craft-native/craft/testing'
+import { createTestApp } from 'craft-native/testing'
 
 test('custom handler works', async () => {
   const app = await createTestApp()
@@ -417,7 +417,7 @@ test('custom handler works', async () => {
     "native/"
   ],
   "peerDependencies": {
-    "@craft-native/craft": "^1.0.0"
+    "craft-native": "^1.0.0"
   }
 }
 ```

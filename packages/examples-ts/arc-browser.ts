@@ -10,7 +10,7 @@
  * - Space selector at bottom
  */
 
-import { createApp } from '@craft-native/craft'
+import { createApp } from 'craft-native'
 
 const html = `
 <!DOCTYPE html>

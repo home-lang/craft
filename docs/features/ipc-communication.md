@@ -28,7 +28,7 @@ IPC in Craft supports:
 
 ```typescript
 // In your TypeScript/native code
-import { createWindow } from '@craft-native/craft'
+import { createWindow } from 'craft-native'
 
 const window = await createWindow(html, options)
 
@@ -133,7 +133,7 @@ interface IpcHandlers {
 
 ```typescript
 import type { IpcEvents, IpcHandlers } from './types'
-import { createTypedWindow } from '@craft-native/craft'
+import { createTypedWindow } from 'craft-native'
 
 const window = await createTypedWindow<IpcEvents, IpcHandlers>(html, options)
 
@@ -210,7 +210,7 @@ channel.send({ done: true })
 ### Define Shared State
 
 ```typescript
-import { createSharedState } from '@craft-native/craft'
+import { createSharedState } from 'craft-native'
 
 const state = createSharedState({
   user: null,

@@ -7,7 +7,7 @@ Craft provides comprehensive packaging tools to create installers for your appli
 ### Using the API
 
 ```typescript
-import { packageApp } from '@craft-native/craft'
+import { packageApp } from 'craft-native'
 
 const results = await packageApp({
   name: 'My App',
@@ -21,7 +21,7 @@ const results = await packageApp({
 
 ```bash
 # Install CLI globally
-bun add -g @craft-native/craft
+bun add -g craft-native
 
 # Package your app
 craft-package --name "My App" --version "1.0.0" --binary ./build/myapp
@@ -44,7 +44,7 @@ craft-package --name "My App" --version "1.0.0" --binary ./build/myapp
 ### Complete Example
 
 ```typescript
-import { packageApp } from '@craft-native/craft'
+import { packageApp } from 'craft-native'
 import { join } from 'path'
 
 async function buildInstallers() {
@@ -118,7 +118,7 @@ buildInstallers()
 For quick packaging of the current platform:
 
 ```typescript
-import { pack } from '@craft-native/craft'
+import { pack } from 'craft-native'
 
 const results = await pack({
   name: 'My App',
@@ -200,14 +200,14 @@ craft-package --config package.json
 
 ### macOS
 
-**DMG (Disk Image)**
+#### DMG (Disk Image)
 
 - Provides drag-and-drop installation
 - Users drag app to Applications folder
 - No admin password required
 - Most user-friendly format
 
-**PKG (Package)**
+#### PKG (Package)
 
 - Traditional installer format
 - Can run scripts during installation
@@ -234,7 +234,7 @@ macos: {
 
 ### Windows
 
-**MSI (Windows Installer)**
+#### MSI (Windows Installer)
 
 - Professional installer experience
 - Requires WiX Toolset: <https://wixtoolset.org/>
@@ -242,7 +242,7 @@ macos: {
 - Can add to PATH automatically
 - May require admin privileges
 
-**ZIP (Portable)**
+#### ZIP (Portable)
 
 - No installation required
 - Extract and run
@@ -260,21 +260,21 @@ windows: {
 
 ### Linux
 
-**DEB (Debian/Ubuntu)**
+#### DEB (Debian/Ubuntu)
 
 - For Debian-based distros
 - Managed by APT
 - Handles dependencies automatically
 - Example: `sudo dpkg -i myapp_1.0.0_amd64.deb`
 
-**RPM (Fedora/RedHat)**
+#### RPM (Fedora/RedHat)
 
 - For RPM-based distros
 - Managed by DNF/YUM
 - Handles dependencies automatically
 - Example: `sudo rpm -i myapp-1.0.0-1.x86_64.rpm`
 
-**AppImage (Universal)**
+#### AppImage (Universal)
 
 - Works on all Linux distros
 - No installation needed
@@ -312,7 +312,7 @@ craft-package --config package.json --platforms windows
 craft-package --config package.json --platforms linux
 ```
 
-**Option 2: CI/CD Pipeline**
+#### Option 2: CI/CD Pipeline
 
 Use GitHub Actions, GitLab CI, or similar to build on multiple platforms:
 

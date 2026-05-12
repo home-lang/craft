@@ -42,33 +42,33 @@ Craft is a lightweight, high-performance cross-platform application framework. C
 
 ### 🎨 Native Components Library (35 Total)
 
-**Input Components**
+#### Input Components
 
 - Button, TextInput, Checkbox, RadioButton
 - Slider (with snapping, labels, percentage), ColorPicker (RGB/HSL/Hex), DatePicker, TimePicker
 - Autocomplete (fuzzy search, keyboard nav)
 
-**Display Components**
+#### Display Components
 
 - Label, ImageView, ProgressBar, Spinner
 - Avatar, Badge, Chip, Card
 - Tooltip (8 positions, 6 themes), Toast (notifications)
 
-**Layout Components**
+#### Layout Components
 
 - ScrollView, SplitView, Accordion, Stepper
 - Modal, Tabs, Dropdown
 
-**Data Components**
+#### Data Components
 
 - ListView, Table, TreeView, DataGrid
 - Chart (line, bar, pie)
 
-**Navigation Components**
+#### Navigation Components
 
 - TabView, Menu, Toolbar, StatusBar
 
-**Advanced Components**
+#### Advanced Components
 
 - Rating (star ratings with half-star support)
 - CodeEditor (syntax highlighting)
@@ -78,7 +78,7 @@ Craft is a lightweight, high-performance cross-platform application framework. C
 
 Build native menubar/system tray apps with full platform support:
 
-**Features**
+#### Features
 
 - Native system tray icons
 - Custom menus with shortcuts
@@ -87,7 +87,7 @@ Build native menubar/system tray apps with full platform support:
 - Window attachment for popover-style UIs
 - Notifications integration
 
-**Platform Implementations**
+#### Platform Implementations
 
 - macOS: NSStatusBar integration
 - Linux: AppIndicator/StatusNotifier
@@ -95,7 +95,7 @@ Build native menubar/system tray apps with full platform support:
 
 ### 🎮 Advanced GPU Rendering
 
-**Rendering Pipeline**
+#### Rendering Pipeline
 
 - Multi-backend support (Vulkan, Metal, Direct3D)
 - Shader management (vertex, fragment, compute)
@@ -103,13 +103,13 @@ Build native menubar/system tray apps with full platform support:
 - Texture and render target support
 - Mesh rendering with vertex data
 
-**Effects & Post-Processing**
+#### Effects & Post-Processing
 
 - 10 built-in effects: Bloom, Blur, Sharpen, Vignette
 - Chromatic Aberration, Film Grain, Color Grading
 - Tone Mapping, Anti-Aliasing, Ambient Occlusion
 
-**Advanced Features**
+#### Advanced Features
 
 - Compute shader support
 - Ray tracing with acceleration structures
@@ -118,7 +118,7 @@ Build native menubar/system tray apps with full platform support:
 
 ### 🖥️ System Integration
 
-**Notifications**
+#### Notifications
 
 - Native OS notifications
 - Custom titles, bodies, icons
@@ -126,14 +126,14 @@ Build native menubar/system tray apps with full platform support:
 - Urgency levels (low, normal, critical)
 - Click callbacks
 
-**Clipboard**
+#### Clipboard
 
 - Text read/write
 - Image support
 - File paths
 - Watch for changes
 
-**File Dialogs**
+#### File Dialogs
 
 - Open file/multiple files
 - Save file
@@ -141,28 +141,28 @@ Build native menubar/system tray apps with full platform support:
 - Custom file type filters
 - Default paths
 
-**System Info**
+#### System Info
 
 - OS name and version
 - CPU information
 - Memory stats (total, available, used)
 - System uptime
 
-**Power Management**
+#### Power Management
 
 - Battery status and level
 - Charging state
 - Prevent/allow sleep
 - Power state monitoring
 
-**Screen Management**
+#### Screen Management
 
 - Multi-monitor support
 - Screen resolution and scaling
 - Primary screen detection
 - Screen positioning
 
-**URL Handling**
+#### URL Handling
 
 - Open URLs in default browser
 - Register custom URL schemes
@@ -287,12 +287,12 @@ Build desktop apps with TypeScript - zero dependencies, just pure Node.js APIs:
 
 ```bash
 # Install the TypeScript SDK
-bun add @craft-native/craft
+bun add craft-native
 ```
 
 ```typescript
 // app.ts
-import { show } from '@craft-native/craft'
+import { show } from 'craft-native'
 
 const html = `
 <!DOCTYPE html>
@@ -334,7 +334,7 @@ For advanced use cases where you need maximum performance and control:
 
 ```bash
 # Install with Bun
-bun add -g @craft-native/craft
+bun add -g craft-native
 ```
 
 ### Build from Source
@@ -721,7 +721,7 @@ format = "find src -name '_.zig' -exec zig fmt {} +"
 
 ### Dependency Types
 
-**Local Path Dependencies**
+#### Local Path Dependencies
 
 ```toml
 [dependencies]
@@ -736,7 +736,7 @@ my-lib = { path = "../my-lib" }
 }
 ```
 
-**Git Dependencies**
+#### Git Dependencies
 
 ```toml
 [dependencies]
@@ -751,7 +751,7 @@ awesome-lib = { git = "https://github.com/user/awesome-lib.git" }
 }
 ```
 
-**Version Dependencies (Registry)**
+#### Version Dependencies (Registry)
 
 ```toml
 [dependencies]
@@ -772,7 +772,7 @@ another-lib = "^2.0.0"
 
 Organize multiple packages in a monorepo structure:
 
-**Root Package (`craft.toml`)**
+#### Root Package (`craft.toml`)
 
 ```toml
 [package]
@@ -784,7 +784,7 @@ packages = [
     "packages/core",
     "packages/ui",
     "packages/cli",
-    "apps/*"
+    "apps/_"
 ]
 
 [scripts]
@@ -792,7 +792,7 @@ build = "zig build"
 test = "zig build test"
 ```
 
-**Package in Workspace (`packages/core/craft.toml`)**
+#### Package in Workspace (`packages/core/craft.toml`)
 
 ```toml
 [package]
@@ -840,7 +840,7 @@ pub fn main() !void {
     if (pkg.dependencies) |deps| {
         var it = deps.iterator();
         while (it.next()) |entry| {
-            std.debug.print("  - {s}\n", .{entry.key_ptr.*});
+            std.debug.print("  - {s}\n", .{entry.key_ptr._});
         }
     }
 }
@@ -848,7 +848,7 @@ pub fn main() !void {
 
 ### Example Package Configurations
 
-**Desktop Application**
+#### Desktop Application
 
 ```json
 {
@@ -872,7 +872,7 @@ pub fn main() !void {
 }
 ```
 
-**Menubar Application**
+#### Menubar Application
 
 ```toml
 [package]
@@ -890,7 +890,7 @@ dev = "zig build run"
 build = "zig build -Doptimize=ReleaseFast"
 ```
 
-**Library Package**
+#### Library Package
 
 ```json
 {
@@ -995,7 +995,7 @@ The MIT License (MIT). Please see [LICENSE](LICENSE.md) for more information.
 Made with 💙
 
 <!-- Badges -->
-[npm-version-src]: https://img.shields.io/npm/v/@craft-native/craft?style=flat-square
-[npm-version-href]: https://npmjs.com/package/@craft-native/craft
+[npm-version-src]: https://img.shields.io/npm/v/craft-native?style=flat-square
+[npm-version-href]: https://npmjs.com/package/craft-native
 [github-actions-src]: https://img.shields.io/github/actions/workflow/status/home-lang/craft/ci.yml?style=flat-square&branch=main
 [github-actions-href]: https://github.com/home-lang/craft/actions?query=workflow%3Aci

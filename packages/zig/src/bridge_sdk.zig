@@ -1,6 +1,6 @@
 //! SDK Envelope Adapter
 //!
-//! The TypeScript SDK (`@craft-native/craft`'s `bridge/core.ts`) speaks a
+//! The TypeScript SDK (`craft-native`'s `bridge/core.ts`) speaks a
 //! richer protocol than the low-level `bridge.zig` `Bridge`:
 //!
 //!   request : `{id: string, type: "request", method: string, params?: any}`

@@ -1,7 +1,7 @@
 /**
  * Craft Platform Support Matrix
  *
- * This file defines types for the desktop TypeScript SDK (@craft-native/craft).
+ * This file defines types for the desktop TypeScript SDK (craft-native).
  * For mobile bridge types (window.craft injected at runtime), see types/craft.d.ts.
  *
  * Feature              | macOS | Linux | Windows | iOS | Android

@@ -5,7 +5,7 @@ The Process API provides methods for spawning processes, executing commands, and
 ## Import
 
 ```typescript
-import { process } from '@craft-native/craft'
+import { process } from 'craft-native'
 ```
 
 ## Methods
@@ -31,6 +31,7 @@ child.on('exit', (code) => {
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | command | `string` | Command to execute |
@@ -63,6 +64,7 @@ const result = await process.exec('bun install', {
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | command | `string` | Command to execute (shell command) |
@@ -114,6 +116,7 @@ process.exit(1)  // Error
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | code | `number` | Exit code (default: 0) |
@@ -162,6 +165,7 @@ setTimeout(() => {
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | signal | `string` | Signal to send (default: 'SIGTERM') |
@@ -184,6 +188,7 @@ child.stdin.end()
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | data | `string \| Uint8Array` | Data to write |
@@ -193,7 +198,7 @@ child.stdin.end()
 ## Example Usage
 
 ```typescript
-import { process } from '@craft-native/craft'
+import { process } from 'craft-native'
 
 // Run a build script
 async function runBuild() {

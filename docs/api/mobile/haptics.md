@@ -5,7 +5,7 @@ Provide tactile feedback through device vibrations.
 ## Import
 
 ```typescript
-import { haptics } from '@craft-native/craft'
+import { haptics } from 'craft-native'
 ```
 
 ## Methods
@@ -32,6 +32,7 @@ await haptics.impact('soft')
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | style | `'light' \| 'medium' \| 'heavy' \| 'rigid' \| 'soft'` | Impact intensity |
@@ -56,6 +57,7 @@ await haptics.notification('error')
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | type | `'success' \| 'warning' \| 'error'` | Notification type |
@@ -93,6 +95,7 @@ await haptics.vibrate([0, 500])
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | pattern | `number[]` | Vibration pattern in milliseconds |
@@ -118,7 +121,7 @@ if (supported) {
 ## Example Usage
 
 ```typescript
-import { haptics } from '@craft-native/craft'
+import { haptics } from 'craft-native'
 
 // Button press feedback
 async function onButtonPress() {

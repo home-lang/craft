@@ -794,7 +794,7 @@ export interface WidgetData {
  * await widgets.requestPin('WeatherWidget')
  *
  * // Handle widget interactions
- * widgets.onInteraction((widgetId, action) => {
+ * widgets.onInteraction((_widgetId, action) => {
  *   if (action === 'refresh') {
  *     refreshWeatherData()
  *   }

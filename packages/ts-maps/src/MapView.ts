@@ -7,7 +7,7 @@
  */
 
 // Import the bridge directly from its source module rather than the craft
-// package root, so we don't pull the entire `@craft-native/craft` surface
+// package root, so we don't pull the entire `craft-native` surface
 // (including unrelated stx-templated sidebar files) through the type
 // checker. The public API of the bridge is stable, so this is fine.
 import type { NativeBridge } from '../../typescript/src/bridge/core'
@@ -42,7 +42,7 @@ import type {
 import { defaultMapCamera, defaultMapConfiguration } from './types'
 
 // Monotonic counter — same pattern as `components/native.ts` in
-// `@craft-native/craft` — so multiple map views created in the same tick
+// `craft-native` — so multiple map views created in the same tick
 // still get unique ids.
 let _mapViewIdCounter = 0
 function nextMapViewId(): string {

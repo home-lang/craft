@@ -7,7 +7,7 @@
  *
  *   ```ts
  *   import { saveOfflineRegionToFilesystem } from '@craft-native/ts-maps'
- *   import { app } from '@craft-native/craft'
+ *   import { app } from 'craft-native'
  *
  *   await saveOfflineRegionToFilesystem({
  *     baseDir: `${await app.dataDir()}/tiles`,

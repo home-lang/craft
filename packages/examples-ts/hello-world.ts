@@ -3,7 +3,7 @@
  * A slightly more advanced example with modern styling
  */
 
-import { createApp } from '@craft-native/craft'
+import { createApp } from 'craft-native'
 
 const html = `
 <!DOCTYPE html>

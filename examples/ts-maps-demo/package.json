@@ -14,7 +14,7 @@
     "lint:fix": "bunx --bun pickier . --fix"
   },
   "dependencies": {
-    "@craft-native/craft": "workspace:*",
+    "craft-native": "workspace:*",
     "@craft-native/ts-maps": "workspace:*"
   },
   "devDependencies": {

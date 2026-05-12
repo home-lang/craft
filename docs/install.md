@@ -9,7 +9,7 @@ The easiest way to use Craft is through the TypeScript SDK:
 ### Bun (Recommended)
 
 ```bash
-bun add @craft-native/craft
+bun add craft-native
 ```
 
 ## Quick Start with create-craft
@@ -47,7 +47,7 @@ bun create craft my-app --template todo-app
 Install globally for CLI usage:
 
 ```bash
-bun add -g @craft-native/craft
+bun add -g craft-native
 ```
 
 Then use the CLI:

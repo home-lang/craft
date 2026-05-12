@@ -58,7 +58,7 @@ win.close()
 
 **Craft:**
 ```typescript
-import { window } from '@craft-native/craft'
+import { window } from 'craft-native'
 
 // Configuration in craft.config.ts
 window: {
@@ -91,7 +91,7 @@ const content = await window.electron.invoke('read-file', '/path/to/file')
 
 **Craft:**
 ```typescript
-import { fs } from '@craft-native/craft'
+import { fs } from 'craft-native'
 
 // No IPC setup needed - direct API
 const content = await fs.readFile('/path/to/file')
@@ -113,7 +113,7 @@ tray.setContextMenu(Menu.buildFromTemplate([
 
 **Craft:**
 ```typescript
-import { tray } from '@craft-native/craft'
+import { tray } from 'craft-native'
 
 await tray.create({
   icon: 'icon.png',
@@ -143,7 +143,7 @@ new Notification({
 
 **Craft:**
 ```typescript
-import { notification } from '@craft-native/craft'
+import { notification } from 'craft-native'
 
 await notification.show({
   title: 'Hello',
@@ -168,7 +168,7 @@ ipcMain.handle('fs:write', async (e, path, data) => {
 
 **Craft:**
 ```typescript
-import { fs } from '@craft-native/craft'
+import { fs } from 'craft-native'
 
 // Direct access - no IPC needed
 const content = await fs.readFile('/path/to/file')
@@ -189,7 +189,7 @@ const result = await dialog.showOpenDialog({
 
 **Craft:**
 ```typescript
-import { dialog } from '@craft-native/craft'
+import { dialog } from 'craft-native'
 
 const result = await dialog.open({
   multiple: false,
@@ -210,7 +210,7 @@ globalShortcut.register('CommandOrControl+S', () => {
 
 **Craft:**
 ```typescript
-import { shortcuts } from '@craft-native/craft'
+import { shortcuts } from 'craft-native'
 
 shortcuts.register('mod+s', () => {
   saveDocument()
@@ -238,7 +238,7 @@ app.on('window-all-closed', () => {
 // Your app code runs when ready
 
 // For custom lifecycle handling:
-import { lifecycle } from '@craft-native/craft'
+import { lifecycle } from 'craft-native'
 
 lifecycle.on('willQuit', () => {
   // Cleanup
@@ -267,7 +267,7 @@ Replace `package.json` scripts and create `craft.config.ts`:
 
 ```typescript
 // craft.config.ts
-import type { CraftAppConfig } from '@craft-native/craft'
+import type { CraftAppConfig } from 'craft-native'
 
 const config: CraftAppConfig = {
   name: 'My App',
@@ -296,7 +296,7 @@ Find and replace all `ipcRenderer.invoke()` calls:
 const data = await window.electron.invoke('read-file', path)
 
 // After (Craft)
-import { fs } from '@craft-native/craft'
+import { fs } from 'craft-native'
 const data = await fs.readFile(path)
 ```
 
@@ -307,7 +307,7 @@ const data = await fs.readFile(path)
 const { contextBridge, ipcRenderer } = require('electron')
 
 // After (Craft)
-import { fs, db, http, window, notification } from '@craft-native/craft'
+import { fs, db, http, window, notification } from 'craft-native'
 ```
 
 ### 6. Remove Electron-Specific Code
@@ -346,8 +346,8 @@ function App() {
 
 **Craft:**
 ```jsx
-import { useCraft } from '@craft-native/craft/react'
-import { db } from '@craft-native/craft'
+import { useCraft } from 'craft-native/react'
+import { db } from 'craft-native'
 
 function App() {
   const { isReady } = useCraft()
@@ -370,7 +370,7 @@ const isDev = !app.isPackaged
 
 **Craft:**
 ```typescript
-import { Platform } from '@craft-native/craft'
+import { Platform } from 'craft-native'
 
 const isDev = Platform.isDev
 ```
@@ -389,9 +389,9 @@ Craft doesn't include Node.js. Native functionality is provided by the Craft API
 
 - Most browser-compatible packages work
 - Replace Node-specific packages with Craft APIs
-- `fs` → `@craft-native/craft` fs API
-- `sqlite3` → `@craft-native/craft` db API
-- `node-fetch` → `@craft-native/craft` http API
+- `fs` → `craft-native` fs API
+- `sqlite3` → `craft-native` db API
+- `node-fetch` → `craft-native` http API
 
 ### No contextBridge
 
@@ -407,7 +407,7 @@ Your app will be much smaller. Consider removing unused dependencies that were o
 
 You're trying to use Node.js fs module. Use Craft's fs API:
 ```typescript
-import { fs } from '@craft-native/craft'
+import { fs } from 'craft-native'
 ```
 
 ### "require is not defined"

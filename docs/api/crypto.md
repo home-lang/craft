@@ -5,7 +5,7 @@ The Crypto API provides cryptographic operations including hashing, encryption, 
 ## Import
 
 ```typescript
-import { crypto } from '@craft-native/craft'
+import { crypto } from 'craft-native'
 ```
 
 ## Methods
@@ -20,6 +20,7 @@ const bytes = await crypto.randomBytes(32)
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | length | `number` | Number of bytes to generate |
@@ -53,6 +54,7 @@ const hash = await crypto.hash('sha512', new Uint8Array([1, 2, 3]))
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | algorithm | `'sha256' \| 'sha384' \| 'sha512' \| 'md5'` | Hash algorithm |
@@ -76,6 +78,7 @@ const encrypted = await crypto.encrypt(key, 'Secret message')
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | key | `Uint8Array` | 32-byte encryption key |
@@ -98,6 +101,7 @@ const text = new TextDecoder().decode(decrypted)
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | key | `Uint8Array` | 32-byte encryption key |
@@ -121,6 +125,7 @@ const key = await crypto.deriveKey('user-password', salt, {
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | password | `string` | Password to derive from |
@@ -143,6 +148,7 @@ const signature = await crypto.hmac(key, 'Message to sign')
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | key | `Uint8Array` | HMAC key |
@@ -154,7 +160,7 @@ const signature = await crypto.hmac(key, 'Message to sign')
 ## Example Usage
 
 ```typescript
-import { crypto, fs } from '@craft-native/craft'
+import { crypto, fs } from 'craft-native'
 
 // Password-based encryption
 async function encryptWithPassword(data: string, password: string) {

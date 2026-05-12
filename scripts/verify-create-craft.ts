@@ -32,7 +32,7 @@ try {
     const appDir = join(tmp, appName)
     const packagePath = join(appDir, 'package.json')
     const pkg = JSON.parse(readFileSync(packagePath, 'utf-8'))
-    pkg.dependencies['@craft-native/craft'] = `file:${join(root, 'packages/typescript')}`
+    pkg.dependencies['craft-native'] = `file:${join(root, 'packages/typescript')}`
     writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`)
 
     run(['bun', 'install'], appDir)

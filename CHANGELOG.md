@@ -1,7 +1,8 @@
 # Changelog
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.28...v0.0.29)
 
-### 🧹 Chores
+## 🧹 Chores
 
 - release v0.0.29 ([a8bdb22](https://github.com/home-lang/craft/commit/a8bdb22)) _(by Chris <chrisbreuer93@gmail.com>)_
 
@@ -579,7 +580,7 @@
 
 - inject version from package.json into Zig binary ([31deb16](https://github.com/home-lang/craft/commit/31deb16)) _(by Chris <chrisbreuer93@gmail.com>)_
 - use AWS CLI for S3 upload instead of pantry publish:binary ([5193e86](https://github.com/home-lang/craft/commit/5193e86)) _(by Chris <chrisbreuer93@gmail.com>)_
-- rename all @craft-native/ts references to @craft-native/craft ([b21c48d](https://github.com/home-lang/craft/commit/b21c48d)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- rename all @craft-native/ts references to craft-native ([b21c48d](https://github.com/home-lang/craft/commit/b21c48d)) _(by glennmichael123 <gtorregosa@gmail.com>)_
 - fix broken imports in ecommerce and social templates ([693d81d](https://github.com/home-lang/craft/commit/693d81d)) _(by glennmichael123 <gtorregosa@gmail.com>)_
 - pass iOS Simulator SDK sysroot for cross-compilation ([b3e381b](https://github.com/home-lang/craft/commit/b3e381b)) _(by Chris <chrisbreuer93@gmail.com>)_
 

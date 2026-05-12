@@ -133,7 +133,7 @@
 
   function _evt(name) {
     return function (cb) {
-      const h = function (e) { cb((e && e.detail) || {}) }
+      const h = function (_e) { cb((e && e.detail) || {}) }
       window.addEventListener(name, h)
       return function () { window.removeEventListener(name, h) }
     }
@@ -290,12 +290,12 @@
     }
   }
 
-  window.__craftFSCallback        = function (cb, a, p) { _legacyResult('fs', a, p) }
-  window.__craftSystemCallback    = function (cb, a, p) { _legacyResult('system', a, p) }
-  window.__craftShellCallback     = function (cb, a, p) { _legacyResult('shell', a, p) }
-  window.__craftPowerCallback     = function (cb, a, p) { _legacyResult('power', a, p) }
-  window.__craftNetworkCallback   = function (cb, a, p) { _legacyResult('network', a, p) }
-  window.__craftBluetoothCallback = function (cb, a, p) { _legacyResult('bluetooth', a, p) }
+  window.__craftFSCallback        = function (_cb, a, p) { _legacyResult('fs', a, p) }
+  window.__craftSystemCallback    = function (_cb, a, p) { _legacyResult('system', a, p) }
+  window.__craftShellCallback     = function (_cb, a, p) { _legacyResult('shell', a, p) }
+  window.__craftPowerCallback     = function (_cb, a, p) { _legacyResult('power', a, p) }
+  window.__craftNetworkCallback   = function (_cb, a, p) { _legacyResult('network', a, p) }
+  window.__craftBluetoothCallback = function (_cb, a, p) { _legacyResult('bluetooth', a, p) }
 
   // The menu callback is fundamentally different — bridge_menu.zig fires
   // it with a single `(action_id)` arg when the user clicks a menu item.
@@ -350,7 +350,7 @@
     quit:         function () { return _send('app', 'quit') },
     // Bundle / process metadata for About panels and log paths.
     getInfo:      function () { return _req('app', 'getInfo') },
-    notify:       function (opts) { return _send('app', 'notify', _stringify(opts || {})) },
+    notify:       function (_opts) { return _send('app', 'notify', _stringify(opts || {})) },
     setBadge:     function (n)    { return _send('app', 'setBadge', _stringify({ count: Number(n) || 0 })) },
     bounce:       function (type) { return _send('app', 'bounce', _stringify({ type: String(type || 'informational') })) },
   }
@@ -391,7 +391,7 @@
       }
       return _req('dialog', 'openFile', _stringify(opts))
     },
-    showSaveDialog: function (opts)  { return _req('dialog', 'saveFile', _stringify(opts || {})) },
+    showSaveDialog: function (_opts)  { return _req('dialog', 'saveFile', _stringify(opts || {})) },
     showMessageBox: function (opts) {
       opts = opts || {}
       // showAlert is a single-button info banner. showConfirm is OK/cancel
@@ -401,8 +401,8 @@
       return _req('dialog', isConfirm ? 'showConfirm' : 'showAlert', _stringify(opts))
     },
     // Convenience helpers that match Electron-ish semantics.
-    showAlert:   function (msg, opts) { return _req('dialog', 'showAlert', _stringify(Object.assign({ message: String(msg) }, opts || {}))) },
-    showConfirm: function (msg, opts) { return _req('dialog', 'showConfirm', _stringify(Object.assign({ message: String(msg) }, opts || {}))) },
+    showAlert:   function (_msg, _opts) { return _req('dialog', 'showAlert', _stringify(Object.assign({ message: String(_msg) }, opts || {}))) },
+    showConfirm: function (_msg, _opts) { return _req('dialog', 'showConfirm', _stringify(Object.assign({ message: String(_msg) }, opts || {}))) },
   }
 
   // -------------------------------------------------------------------------
@@ -431,7 +431,7 @@
       }
       return _send('notification', 'schedule', _stringify(o))
     },
-    schedule:          function (opts) { return _send('notification', 'schedule', _stringify(opts || {})) },
+    schedule:          function (_opts) { return _send('notification', 'schedule', _stringify(opts || {})) },
     cancel:            function (id)   { return _send('notification', 'cancel', _stringify({ id: String(id) })) },
     cancelAll:         function ()     { return _send('notification', 'cancelAll') },
     setBadge:          function (n)    { return _send('notification', 'setBadge', _stringify({ count: Number(n) || 0 })) },
@@ -447,11 +447,11 @@
     writeFile:  function (path, data)       { return _send('fs', 'writeFile', _stringify({ path: String(path), data: String(data) })) },
     appendFile: function (path, data)       { return _send('fs', 'appendFile', _stringify({ path: String(path), data: String(data) })) },
     deleteFile: function (path)             { return _send('fs', 'deleteFile', _stringify({ path: String(path) })) },
-    exists:     function (path)             { return _req('fs', 'exists', _stringify({ path: String(path) })).then(function (r) { return !!(r && r.exists) }) },
+    exists:     function (_path)             { return _req('fs', 'exists', _stringify({ path: String(_path) })).then(function (r) { return !!(r && r.exists) }) },
     stat:       function (path)             { return _req('fs', 'stat', _stringify({ path: String(path) })) },
     readDir:    function (path)             { return _req('fs', 'readDir', _stringify({ path: String(path) })) },
-    mkdir:      function (path, opts)       { return _send('fs', 'mkdir', _stringify(Object.assign({ path: String(path) }, opts || {}))) },
-    rmdir:      function (path, opts)       { return _send('fs', 'rmdir', _stringify(Object.assign({ path: String(path) }, opts || {}))) },
+    mkdir:      function (_path, _opts)       { return _send('fs', 'mkdir', _stringify(Object.assign({ path: String(_path) }, opts || {}))) },
+    rmdir:      function (_path, _opts)       { return _send('fs', 'rmdir', _stringify(Object.assign({ path: String(_path) }, opts || {}))) },
     copy:       function (from, to)         { return _send('fs', 'copy', _stringify({ from: String(from), to: String(to) })) },
     move:       function (from, to)         { return _send('fs', 'move', _stringify({ from: String(from), to: String(to) })) },
     watch:      function (path, callbackId) { return _send('fs', 'watch', _stringify({ path: String(path), callbackId: String(callbackId || '') })) },
@@ -475,7 +475,7 @@
       }, opts || {})))
     },
     kill:         function (id)               { return _send('shell', 'kill', _stringify({ id: String(id) })) },
-    getEnv:       function (name)             { return _req('shell', 'getEnv', _stringify({ name: String(name) })).then(function (r) { return r && r.value }) },
+    getEnv:       function (_name)             { return _req('shell', 'getEnv', _stringify({ name: String(_name) })).then(function (r) { return r && r.value }) },
     setEnv:       function (name, value)      { return _send('shell', 'setEnv', _stringify({ name: String(name), value: String(value) })) },
   }
 
@@ -492,7 +492,7 @@
     unregisterAll:  function ()   { return _send('shortcuts', 'unregisterAll') },
     enable:         function (id) { return _send('shortcuts', 'enable', _stringify({ id: String(id) })) },
     disable:        function (id) { return _send('shortcuts', 'disable', _stringify({ id: String(id) })) },
-    isRegistered:   function (id) { return _req('shortcuts', 'isRegistered', _stringify({ id: String(id) })).then(function (r) { return !!(r && r.value) }) },
+    isRegistered:   function (_id) { return _req('shortcuts', 'isRegistered', _stringify({ id: String(_id) })).then(function (r) { return !!(r && r.value) }) },
     list:           function ()   { return _req('shortcuts', 'list').then(function (r) { return (r && r.shortcuts) || [] }) },
     on:             _evt('craft:shortcut'),
   }
@@ -673,8 +673,8 @@
   // permissions — runtime privacy gates (camera, mic, screen recording)
   // -------------------------------------------------------------------------
   window.craft.permissions = {
-    check:        function (name) { return _req('permissions', 'check',   _stringify({ name: String(name) })).then(function (r) { return (r && r.status) || 'undetermined' }) },
-    request:      function (name) { return _req('permissions', 'request', _stringify({ name: String(name) })).then(function (r) { return (r && r.status) || 'undetermined' }) },
+    check:        function (_name) { return _req('permissions', 'check',   _stringify({ name: String(_name) })).then(function (r) { return (r && r.status) || 'undetermined' }) },
+    request:      function (_name) { return _req('permissions', 'request', _stringify({ name: String(_name) })).then(function (r) { return (r && r.status) || 'undetermined' }) },
     openSettings: function (name) { return _send('permissions', 'openSettings', _stringify({ name: String(name || '') })) },
   }
 
@@ -699,9 +699,9 @@
   // touchbar — Touch Bar items (legacy macOS hardware)
   // -------------------------------------------------------------------------
   window.craft.touchbar = {
-    addItem:        function (item)         { return _send('touchbar', 'addItem', _stringify(item || {})) },
+    addItem:        function (_item)         { return _send('touchbar', 'addItem', _stringify(item || {})) },
     removeItem:     function (id)           { return _send('touchbar', 'removeItem', _stringify({ id: String(id) })) },
-    updateItem:     function (id, props)    { return _send('touchbar', 'updateItem', _stringify(Object.assign({ id: String(id) }, props || {}))) },
+    updateItem:     function (_id, _props)    { return _send('touchbar', 'updateItem', _stringify(Object.assign({ id: String(_id) }, props || {}))) },
     setLabel:       function (id, label)    { return _send('touchbar', 'setItemLabel', _stringify({ id: String(id), label: String(label) })) },
     setIcon:        function (id, icon)     { return _send('touchbar', 'setItemIcon', _stringify({ id: String(id), icon: String(icon) })) },
     setEnabled:     function (id, enabled)  { return _send('touchbar', 'setItemEnabled', _stringify({ id: String(id), enabled: !!enabled })) },
@@ -796,7 +796,7 @@
   // -------------------------------------------------------------------------
   window.craft.iap = {
     isAvailable:        function () { return _req('iap', 'isAvailable').then(function (r) { return !!(r && r.value) }) },
-    getProducts:        function (ids) { return _req('iap', 'getProducts', _stringify({ ids: Array.isArray(ids) ? ids : [String(ids)] })).then(function (r) { return (r && r.products) || [] }) },
+    getProducts:        function (_ids) { return _req('iap', 'getProducts', _stringify({ ids: Array.isArray(_ids) ? ids : [String(_ids)] })).then(function (r) { return (r && r.products) || [] }) },
     purchase:           function (productId) { return _req('iap', 'purchase', _stringify({ productId: String(productId) })) },
     restorePurchases:   function () { return _req('iap', 'restorePurchases') },
     finishTransaction:  function (transactionId) { return _send('iap', 'finishTransaction', _stringify({ transactionId: String(transactionId) })) },
@@ -811,10 +811,10 @@
   // location — CoreLocation
   // -------------------------------------------------------------------------
   window.craft.location = {
-    requestPermission:  function (mode) { return _req('location', 'requestPermission', _stringify({ mode: String(mode || 'whenInUse') })).then(function (r) { return (r && r.status) || 'undetermined' }) },
+    requestPermission:  function (_mode) { return _req('location', 'requestPermission', _stringify({ mode: String(mode || 'whenInUse') })).then(function (r) { return (r && r.status) || 'undetermined' }) },
     getAuthorization:   function () { return _req('location', 'getAuthorization').then(function (r) { return (r && r.status) || 'undetermined' }) },
     getCurrentLocation: function () { return _req('location', 'getCurrentLocation') },
-    startWatching:      function (opts) { return _req('location', 'startWatching', _stringify(opts || {})).then(function (r) { return !!(r && r.ok) }) },
+    startWatching:      function (_opts) { return _req('location', 'startWatching', _stringify(opts || {})).then(function (r) { return !!(r && r.ok) }) },
     stopWatching:       function () { return _send('location', 'stopWatching') },
     onUpdate:           _evt('craft:location:update'),
     onError:            _evt('craft:location:error'),
@@ -826,7 +826,7 @@
   // -------------------------------------------------------------------------
   window.craft.screenCapture = {
     captureScreen: function () { return _req('screenCapture', 'captureScreen').then(function (r) { return r && r.image }) },
-    captureWindow: function (id) { return _req('screenCapture', 'captureWindow', _stringify({ id: Number(id) })).then(function (r) { return r && r.image }) },
+    captureWindow: function (_id) { return _req('screenCapture', 'captureWindow', _stringify({ id: Number(_id) })).then(function (r) { return r && r.image }) },
     listWindows:   function () { return _req('screenCapture', 'listWindows').then(function (r) { return (r && r.windows) || [] }) },
   }
 
@@ -836,7 +836,7 @@
   window.craft.localServer = {
     start:   function (port, host) { return _req('localServer', 'start', _stringify({ port: Number(port) || 0, host: String(host || '127.0.0.1') })) },
     stop:    function () { return _send('localServer', 'stop') },
-    respond: function (opts) { return _send('localServer', 'respond', _stringify(opts || { status: 200, body: 'OK' })) },
+    respond: function (_opts) { return _send('localServer', 'respond', _stringify(opts || { status: 200, body: 'OK' })) },
     onRequest: _evt('craft:localServer:request'),
   }
 
@@ -848,7 +848,7 @@
     getBiometryType: function () { return _req('biometric', 'getBiometryType').then(function (r) { return (r && r.type) || 'none' }) },
     evaluate:        function (reason, opts) {
       const o = Object.assign({ reason: String(reason || 'Authenticate to continue') }, opts || {})
-      return _req('biometric', 'evaluate', _stringify(o)).then(function (r) { return r || { success: false } })
+      return _req('biometric', 'evaluate', _stringify(_o)).then(function (r) { return r || { success: false } })
     },
   }
 
@@ -860,12 +860,12 @@
       const o = Object.assign({ path: String(path) }, opts || {})
       return _req('audio', 'play', _stringify(o)).then(function (r) { return !!(r && r.ok) })
     },
-    playSystemSound: function (name) { return _req('audio', 'playSystemSound', _stringify({ name: String(name) })).then(function (r) { return !!(r && r.ok) }) },
+    playSystemSound: function (_name) { return _req('audio', 'playSystemSound', _stringify({ name: String(_name) })).then(function (r) { return !!(r && r.ok) }) },
     stop:            function () { return _send('audio', 'stop') },
     isPlaying:       function () { return _req('audio', 'isPlaying').then(function (r) { return !!(r && r.value) }) },
     startRecording:  function (path, opts) {
       const o = Object.assign({ path: String(path) }, opts || {})
-      return _req('audio', 'startRecording', _stringify(o)).then(function (r) { return !!(r && r.ok) })
+      return _req('audio', 'startRecording', _stringify(_o)).then(function (r) { return !!(r && r.ok) })
     },
     stopRecording:   function () { return _send('audio', 'stopRecording') },
     isRecording:     function () { return _req('audio', 'isRecording').then(function (r) { return !!(r && r.value) }) },
@@ -882,25 +882,25 @@
   // fileAssociations — LaunchServices default-handler controls
   // -------------------------------------------------------------------------
   window.craft.fileAssociations = {
-    getDefault: function (uti) { return _req('fileAssociations', 'getDefault', _stringify({ uti: String(uti) })).then(function (r) { return r && r.bundleId }) },
-    setDefault: function (uti, bundleId) { return _req('fileAssociations', 'setDefault', _stringify({ uti: String(uti), bundleId: String(bundleId) })).then(function (r) { return !!(r && r.ok) }) },
+    getDefault: function (_uti) { return _req('fileAssociations', 'getDefault', _stringify({ uti: String(_uti) })).then(function (r) { return r && r.bundleId }) },
+    setDefault: function (_uti, _bundleId) { return _req('fileAssociations', 'setDefault', _stringify({ uti: String(_uti), _bundleId: String(_bundleId) })).then(function (r) { return !!(r && r.ok) }) },
   }
 
   // -------------------------------------------------------------------------
   // tags — Finder colour tags via xattr
   // -------------------------------------------------------------------------
   window.craft.tags = {
-    get:   function (path) { return _req('tags', 'get', _stringify({ path: String(path) })).then(function (r) { return (r && r.tags) || [] }) },
-    set:   function (path, tags) { return _req('tags', 'set', _stringify({ path: String(path), tags: Array.isArray(tags) ? tags : [String(tags)] })).then(function (r) { return !!(r && r.ok) }) },
-    clear: function (path) { return _req('tags', 'clear', _stringify({ path: String(path) })).then(function (r) { return !!(r && r.ok) }) },
+    get:   function (_path) { return _req('tags', 'get', _stringify({ path: String(_path) })).then(function (r) { return (r && r.tags) || [] }) },
+    set:   function (_path, _tags) { return _req('tags', 'set', _stringify({ path: String(_path), _tags: Array.isArray(_tags) ? tags : [String(_tags)] })).then(function (r) { return !!(r && r.ok) }) },
+    clear: function (_path) { return _req('tags', 'clear', _stringify({ path: String(_path) })).then(function (r) { return !!(r && r.ok) }) },
   }
 
   // -------------------------------------------------------------------------
   // pdf — PDFKit text extraction + page count
   // -------------------------------------------------------------------------
   window.craft.pdf = {
-    countPages:  function (path) { return _req('pdf', 'countPages', _stringify({ path: String(path) })).then(function (r) { return (r && r.pages) || 0 }) },
-    extractText: function (path) { return _req('pdf', 'extractText', _stringify({ path: String(path) })).then(function (r) { return (r && r.text) || '' }) },
+    countPages:  function (_path) { return _req('pdf', 'countPages', _stringify({ path: String(_path) })).then(function (r) { return (r && r.pages) || 0 }) },
+    extractText: function (_path) { return _req('pdf', 'extractText', _stringify({ path: String(_path) })).then(function (r) { return (r && r.text) || '' }) },
   }
 
   // -------------------------------------------------------------------------
@@ -942,7 +942,7 @@
   // -------------------------------------------------------------------------
   window.craft.speechRecognition = {
     isAvailable: function () { return _req('speechRecognition', 'isAvailable').then(function (r) { return !!(r && r.value) }) },
-    start:       function (opts) { return _req('speechRecognition', 'start', _stringify(opts || {})) },
+    start:       function (_opts) { return _req('speechRecognition', 'start', _stringify(opts || {})) },
     stop:        function () { return _send('speechRecognition', 'stop') },
     onPartial:   _evt('craft:speechRecognition:partial'),
     onFinal:     _evt('craft:speechRecognition:final'),
@@ -952,9 +952,9 @@
   // vision — OCR / face detection / barcode (stub)
   // -------------------------------------------------------------------------
   window.craft.vision = {
-    recognizeText:  function (path) { return _req('vision', 'recognizeText', _stringify({ path: String(path) })).then(function (r) { return (r && r.results) || [] }) },
-    detectFaces:    function (path) { return _req('vision', 'detectFaces', _stringify({ path: String(path) })).then(function (r) { return (r && r.results) || [] }) },
-    detectBarcodes: function (path) { return _req('vision', 'detectBarcodes', _stringify({ path: String(path) })).then(function (r) { return (r && r.results) || [] }) },
+    recognizeText:  function (_path) { return _req('vision', 'recognizeText', _stringify({ path: String(_path) })).then(function (r) { return (r && r.results) || [] }) },
+    detectFaces:    function (_path) { return _req('vision', 'detectFaces', _stringify({ path: String(_path) })).then(function (r) { return (r && r.results) || [] }) },
+    detectBarcodes: function (_path) { return _req('vision', 'detectBarcodes', _stringify({ path: String(_path) })).then(function (r) { return (r && r.results) || [] }) },
   }
 
   // -------------------------------------------------------------------------
@@ -973,9 +973,9 @@
   // coreml — load + run CoreML models on-device
   // -------------------------------------------------------------------------
   window.craft.coreml = {
-    loadModel:   function (id, path) { return _req('coreml', 'loadModel', _stringify({ id: String(id), path: String(path) })).then(function (r) { return !!(r && r.loaded) }) },
+    loadModel:   function (_id, _path) { return _req('coreml', 'loadModel', _stringify({ id: String(_id), _path: String(_path) })).then(function (r) { return !!(r && r.loaded) }) },
     unloadModel: function (id)       { return _send('coreml', 'unloadModel', _stringify({ id: String(id) })) },
-    predict:     function (id, input) { return _req('coreml', 'predict', _stringify({ id: String(id), input: input || {} })) },
+    predict:     function (_id, _input) { return _req('coreml', 'predict', _stringify({ id: String(_id), _input: input || {} })) },
   }
 
   // -------------------------------------------------------------------------
@@ -1018,9 +1018,9 @@
   window.craft.handoff = {
     startActivity: function (type, opts) {
       const o = Object.assign({ type: String(type) }, opts || {})
-      return _req('handoff', 'startActivity', _stringify(o)).then(function (r) { return !!(r && r.ok) })
+      return _req('handoff', 'startActivity', _stringify(_o)).then(function (r) { return !!(r && r.ok) })
     },
-    updateActivity: function (opts) { return _req('handoff', 'updateActivity', _stringify(opts || {})).then(function (r) { return !!(r && r.ok) }) },
+    updateActivity: function (_opts) { return _req('handoff', 'updateActivity', _stringify(opts || {})).then(function (r) { return !!(r && r.ok) }) },
     stopActivity:        function () { return _send('handoff', 'stopActivity') },
     getCurrentActivity:  function () { return _req('handoff', 'getCurrentActivity').then(function (r) { return r && r.activity }) },
     onIncoming:          _evt('craft:handoff:incoming'),

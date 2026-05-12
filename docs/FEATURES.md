@@ -298,6 +298,7 @@ zig build -Doptimize=ReleaseSmall
 ```
 
 **Binary Size Comparison:**
+
 | Mode | Size | Safety | Performance |
 |------|------|--------|-------------|
 | Debug | ~1.5MB | ✅ | Medium |

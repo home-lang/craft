@@ -36,7 +36,7 @@
       "name": "craft-examples",
       "version": "0.0.25",
       "dependencies": {
-        "@craft-native/craft": "workspace:*"
+        "craft-native": "workspace:*"
       },
       "devDependencies": {
         "@types/bun": "latest"
@@ -68,7 +68,7 @@
       }
     },
     "packages/typescript": {
-      "name": "@craft-native/craft",
+      "name": "craft-native",
       "version": "0.0.25",
       "dependencies": {
         "archiver": "^7.0.1",

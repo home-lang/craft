@@ -6,7 +6,7 @@
  * and includes interactive elements to test hover/select states.
  */
 
-import { createApp } from '@craft-native/craft'
+import { createApp } from 'craft-native'
 
 const html = `
 <!DOCTYPE html>

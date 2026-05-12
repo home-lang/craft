@@ -4,10 +4,10 @@
  */
 
 // NOTE: Use `win` alias (for windowManager) instead of `window`. `Platform` (value)
-// is exported from '@craft-native/craft/components' to avoid a conflict with the
+// is exported from 'craft-native/components' to avoid a conflict with the
 // Platform type at the top level.
-import { db, win as window, haptics } from '@craft-native/craft'
-import { Platform } from '@craft-native/craft/components'
+import { db, win as window, haptics } from 'craft-native'
+import { Platform } from 'craft-native/components'
 
 interface Note {
   id: number

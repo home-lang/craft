@@ -5,7 +5,7 @@ The Database API provides SQLite database operations with a simple, Promise-base
 ## Import
 
 ```typescript
-import { db } from '@craft-native/craft'
+import { db } from 'craft-native'
 ```
 
 ## Methods
@@ -19,6 +19,7 @@ const database = await db.open('/path/to/database.db')
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | path | `string` | Path to the database file |
@@ -47,6 +48,7 @@ await database.execute(
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | sql | `string` | SQL statement to execute |
@@ -77,6 +79,7 @@ const user = await database.query<User>(
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | sql | `string` | SQL query |
@@ -102,6 +105,7 @@ if (user) {
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | sql | `string` | SQL query |
@@ -132,6 +136,7 @@ await database.transaction(async (tx) => {
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | callback | `(tx: Transaction) => Promise<void>` | Transaction operations |
@@ -153,7 +158,7 @@ await database.close()
 ## Example Usage
 
 ```typescript
-import { db } from '@craft-native/craft'
+import { db } from 'craft-native'
 
 interface Todo {
   id: number

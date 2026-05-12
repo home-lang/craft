@@ -13,7 +13,7 @@ import {
   craftTheme,
   craftMobile,
   shortcut
-} from '@craft-native/craft/svelte'
+} from 'craft-native/svelte'
 ```
 
 ## Stores
@@ -24,7 +24,7 @@ Core Craft store with initialization state.
 
 ```svelte
 <script>
-  import { craft } from '@craft-native/craft/svelte'
+  import { craft } from 'craft-native/svelte'
 </script>
 
 {#if $craft.error}
@@ -37,6 +37,7 @@ Core Craft store with initialization state.
 ```
 
 **Store value:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | instance | `Craft` | Craft instance |
@@ -51,7 +52,7 @@ Window control store.
 
 ```svelte
 <script>
-  import { craftWindow } from '@craft-native/craft/svelte'
+  import { craftWindow } from 'craft-native/svelte'
 
   function toggleFullscreen() {
     craftWindow.setFullscreen(!$craftWindow.isFullscreen)
@@ -75,6 +76,7 @@ Window control store.
 ```
 
 **Store value:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | title | `string` | Window title |
@@ -83,6 +85,7 @@ Window control store.
 | isVisible | `boolean` | Window visibility |
 
 **Store methods:**
+
 | Method | Description |
 |--------|-------------|
 | setTitle(title) | Set window title |
@@ -101,7 +104,7 @@ System tray store.
 
 ```svelte
 <script>
-  import { craftTray } from '@craft-native/craft/svelte'
+  import { craftTray } from 'craft-native/svelte'
   import { onMount } from 'svelte'
 
   onMount(() => {
@@ -134,7 +137,7 @@ Notification store.
 
 ```svelte
 <script>
-  import { craftNotification } from '@craft-native/craft/svelte'
+  import { craftNotification } from 'craft-native/svelte'
 
   async function notify() {
     if (!$craftNotification.hasPermission) {
@@ -155,11 +158,13 @@ Notification store.
 ```
 
 **Store value:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | hasPermission | `boolean` | Permission granted |
 
 **Store methods:**
+
 | Method | Description |
 |--------|-------------|
 | show(options) | Show notification |
@@ -173,7 +178,7 @@ Theme store.
 
 ```svelte
 <script>
-  import { craftTheme } from '@craft-native/craft/svelte'
+  import { craftTheme } from 'craft-native/svelte'
 </script>
 
 <div class:dark={$craftTheme.isDark}>
@@ -196,6 +201,7 @@ Theme store.
 ```
 
 **Store value:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | theme | `'light' \| 'dark' \| 'system'` | Current setting |
@@ -210,7 +216,7 @@ Mobile-specific store.
 
 ```svelte
 <script>
-  import { craftMobile } from '@craft-native/craft/svelte'
+  import { craftMobile } from 'craft-native/svelte'
 
   async function handleTap() {
     await $craftMobile.haptics.impact('light')
@@ -248,7 +254,7 @@ Action for keyboard shortcuts.
 
 ```svelte
 <script>
-  import { shortcut } from '@craft-native/craft/svelte'
+  import { shortcut } from 'craft-native/svelte'
 
   let count = 0
 
@@ -276,6 +282,7 @@ Action for keyboard shortcuts.
 ```
 
 **Options:**
+
 | Property | Type | Description |
 |----------|------|-------------|
 | key | `string` | Key combination |
@@ -292,7 +299,7 @@ Action for keyboard shortcuts.
     craftTheme,
     craftNotification,
     shortcut
-  } from '@craft-native/craft/svelte'
+  } from 'craft-native/svelte'
 
   let count = 0
 
@@ -391,7 +398,7 @@ For SvelteKit apps, initialize Craft in the root layout:
 ```svelte
 <!-- +layout.svelte -->
 <script>
-  import { craft } from '@craft-native/craft/svelte'
+  import { craft } from 'craft-native/svelte'
   import { browser } from '$app/environment'
   import { onMount } from 'svelte'
 

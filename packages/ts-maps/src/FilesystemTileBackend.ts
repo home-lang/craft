@@ -31,7 +31,7 @@
 
 import type { Tile, TileCacheBackend } from 'ts-maps'
 // Import the fs helpers directly from their source module rather than from
-// the `@craft-native/craft` package root, matching how `MapView` talks to
+// the `craft-native` package root, matching how `MapView` talks to
 // the bridge — keeps the type graph narrow.
 import { fs, readBinaryFile, writeBinaryFile } from '../../typescript/src/api/fs'
 

@@ -111,7 +111,7 @@ bun run examples/menubar-timer.ts
 
 ## How These Examples Work
 
-All examples use the Craft TypeScript SDK (`@craft-native/craft`) which provides a simple API to create native desktop applications:
+All examples use the Craft TypeScript SDK (`craft-native`) which provides a simple API to create native desktop applications:
 
 ```typescript
 import { createApp } from '../packages/typescript/src/index.ts'
@@ -186,7 +186,7 @@ Here's a minimal example to get started:
 
 ```typescript
 # !/usr/bin/env bun
-import { createApp } from '@craft-native/craft'
+import { createApp } from 'craft-native'
 
 const html = `
 <!DOCTYPE html>

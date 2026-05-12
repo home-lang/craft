@@ -5,7 +5,7 @@ Authenticate users using Face ID, Touch ID, or fingerprint.
 ## Import
 
 ```typescript
-import { biometrics } from '@craft-native/craft'
+import { biometrics } from 'craft-native'
 ```
 
 ## Methods
@@ -81,6 +81,7 @@ try {
 ```
 
 **Parameters:**
+
 | Name | Type | Description |
 |------|------|-------------|
 | options.reason | `string` | Reason shown to user (required on iOS) |
@@ -112,7 +113,7 @@ if (canAuth.available) {
 ## Example Usage
 
 ```typescript
-import { biometrics, secureStorage } from '@craft-native/craft'
+import { biometrics, secureStorage } from 'craft-native'
 
 // Login flow with biometrics
 async function handleLogin() {

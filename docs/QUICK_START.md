@@ -106,7 +106,7 @@ craft/
 
 ## Package Info
 
-- **Name**: `@craft-native/craft`
+- **Name**: `craft-native`
 - **Version**: `0.1.0`
 - **Zig Version**: Pantry-managed stable Zig
 - **License**: MIT

@@ -3,7 +3,7 @@
  * A cross-platform social app built with Craft
  */
 
-import { db, win, isMobile, haptics, share } from '@craft-native/craft'
+import { db, win, isMobile, haptics, share } from 'craft-native'
 
 // Types
 interface Post {
