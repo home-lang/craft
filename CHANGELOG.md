@@ -1,4 +1,154 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.25...v0.0.26)
+
+### 🐛 Bug Fixes
+
+- **native**: implement serial and spotlight bridges ([c86de40](https://github.com/home-lang/craft/commit/c86de40)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **packages**: verify publishable package outputs ([7c3b968](https://github.com/home-lang/craft/commit/7c3b968)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **zig**: finish Zig 0.17 database migration ([b4221a0](https://github.com/home-lang/craft/commit/b4221a0)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **packages**: align SDK and package builds ([eff83a9](https://github.com/home-lang/craft/commit/eff83a9)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **zig**: migrate core to Zig 0.17 dev ([1b6f285](https://github.com/home-lang/craft/commit/1b6f285)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add setup-bun step to all CI and release jobs ([4b0e0f3](https://github.com/home-lang/craft/commit/4b0e0f3)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### 🤖 Continuous Integration
+
+- **sbom**: drop cyclonedx-npm; rely on syft (works with bun.lock) ([b52244a](https://github.com/home-lang/craft/commit/b52244a)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- verify pantry builds and publishes ([afe7b95](https://github.com/home-lang/craft/commit/afe7b95)) _(by Chris <chrisbreuer93@gmail.com>)_
+- fail real mobile build and test errors ([6a4c077](https://github.com/home-lang/craft/commit/6a4c077)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add publish-commit job for TypeScript SDK ([da709e6](https://github.com/home-lang/craft/commit/da709e6)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.26 ([0d03c51](https://github.com/home-lang/craft/commit/0d03c51)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **tooling**: use pantry env directly ([0160d17](https://github.com/home-lang/craft/commit/0160d17)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **tooling**: add cross-platform verification flow ([52f7628](https://github.com/home-lang/craft/commit/52f7628)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **tooling**: resolve Zig through pantry helper ([3ad019c](https://github.com/home-lang/craft/commit/3ad019c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([7f520d3](https://github.com/home-lang/craft/commit/7f520d3)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ci**: bump actions/checkout to v6, actions/cache to v5 ([16979cc](https://github.com/home-lang/craft/commit/16979cc)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([1e6a828](https://github.com/home-lang/craft/commit/1e6a828)) _(by Chris <chrisbreuer93@gmail.com>)_
+- refresh bun.lock ([e7fa32a](https://github.com/home-lang/craft/commit/e7fa32a)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([ab2f7bb](https://github.com/home-lang/craft/commit/ab2f7bb)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([f05644c](https://github.com/home-lang/craft/commit/f05644c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([02e4117](https://github.com/home-lang/craft/commit/02e4117)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([0282a3e](https://github.com/home-lang/craft/commit/0282a3e)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([c45459f](https://github.com/home-lang/craft/commit/c45459f)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([8b33422](https://github.com/home-lang/craft/commit/8b33422)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([0ed0654](https://github.com/home-lang/craft/commit/0ed0654)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([ce657d0](https://github.com/home-lang/craft/commit/ce657d0)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([6867722](https://github.com/home-lang/craft/commit/6867722)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([a7b1f77](https://github.com/home-lang/craft/commit/a7b1f77)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([228ebfa](https://github.com/home-lang/craft/commit/228ebfa)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([6fe683c](https://github.com/home-lang/craft/commit/6fe683c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([04508da](https://github.com/home-lang/craft/commit/04508da)) _(by Chris <chrisbreuer93@gmail.com>)_
+- migrate all CI commands from bun to pantry ([4db16c6](https://github.com/home-lang/craft/commit/4db16c6)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([ee2836d](https://github.com/home-lang/craft/commit/ee2836d)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- migrate from bun install to pantry install ([daba266](https://github.com/home-lang/craft/commit/daba266)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([10f2cdb](https://github.com/home-lang/craft/commit/10f2cdb)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([7eb97e0](https://github.com/home-lang/craft/commit/7eb97e0)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([96771c3](https://github.com/home-lang/craft/commit/96771c3)) _(by Chris <chrisbreuer93@gmail.com>)_
+- fresh install to pick up pickier 0.1.21 ([042ba29](https://github.com/home-lang/craft/commit/042ba29)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- fix lint errors ([51501c7](https://github.com/home-lang/craft/commit/51501c7)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([653b4a3](https://github.com/home-lang/craft/commit/653b4a3)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([e030259](https://github.com/home-lang/craft/commit/e030259)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([1c8633d](https://github.com/home-lang/craft/commit/1c8633d)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([515fb45](https://github.com/home-lang/craft/commit/515fb45)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([8fb1517](https://github.com/home-lang/craft/commit/8fb1517)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([7abfa48](https://github.com/home-lang/craft/commit/7abfa48)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([37c3997](https://github.com/home-lang/craft/commit/37c3997)) _(by Chris <chrisbreuer93@gmail.com>)_
+- gitignore pantry directory ([80de871](https://github.com/home-lang/craft/commit/80de871)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- fix lint errors ([3dc7c18](https://github.com/home-lang/craft/commit/3dc7c18)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- auto-fix lint errors ([0910c2e](https://github.com/home-lang/craft/commit/0910c2e)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- include md in pickier lint extensions ([a52f405](https://github.com/home-lang/craft/commit/a52f405)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### ⏪ Reverts
+
+- keep staged-lint kebab + bunx gitlint shorthand ([e21ed11](https://github.com/home-lang/craft/commit/e21ed11)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- restore bun commands in CI until pantry handles npm deps ([2aa2883](https://github.com/home-lang/craft/commit/2aa2883)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- use bun install until pantry handles npm deps (home-lang/pantry#200) ([80882fc](https://github.com/home-lang/craft/commit/80882fc)) _(by glennmichael123 <gtorregosa@gmail.com>)_ ([#200](https://github.com/home-lang/craft/issues/200), [#200](https://github.com/home-lang/craft/issues/200))
+
+### merge
+
+- resolve conflicts keeping pantry commands ([f2c580b](https://github.com/home-lang/craft/commit/f2c580b)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _glennmichael123 <gtorregosa@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.25...HEAD)
+
+### 🐛 Bug Fixes
+
+- **native**: implement serial and spotlight bridges ([c86de40](https://github.com/home-lang/craft/commit/c86de40)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **packages**: verify publishable package outputs ([7c3b968](https://github.com/home-lang/craft/commit/7c3b968)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **zig**: finish Zig 0.17 database migration ([b4221a0](https://github.com/home-lang/craft/commit/b4221a0)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **packages**: align SDK and package builds ([eff83a9](https://github.com/home-lang/craft/commit/eff83a9)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **zig**: migrate core to Zig 0.17 dev ([1b6f285](https://github.com/home-lang/craft/commit/1b6f285)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add setup-bun step to all CI and release jobs ([4b0e0f3](https://github.com/home-lang/craft/commit/4b0e0f3)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### 🤖 Continuous Integration
+
+- **sbom**: drop cyclonedx-npm; rely on syft (works with bun.lock) ([b52244a](https://github.com/home-lang/craft/commit/b52244a)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- verify pantry builds and publishes ([afe7b95](https://github.com/home-lang/craft/commit/afe7b95)) _(by Chris <chrisbreuer93@gmail.com>)_
+- fail real mobile build and test errors ([6a4c077](https://github.com/home-lang/craft/commit/6a4c077)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add publish-commit job for TypeScript SDK ([da709e6](https://github.com/home-lang/craft/commit/da709e6)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- **tooling**: use pantry env directly ([0160d17](https://github.com/home-lang/craft/commit/0160d17)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **tooling**: add cross-platform verification flow ([52f7628](https://github.com/home-lang/craft/commit/52f7628)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **tooling**: resolve Zig through pantry helper ([3ad019c](https://github.com/home-lang/craft/commit/3ad019c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([7f520d3](https://github.com/home-lang/craft/commit/7f520d3)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ci**: bump actions/checkout to v6, actions/cache to v5 ([16979cc](https://github.com/home-lang/craft/commit/16979cc)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([1e6a828](https://github.com/home-lang/craft/commit/1e6a828)) _(by Chris <chrisbreuer93@gmail.com>)_
+- refresh bun.lock ([e7fa32a](https://github.com/home-lang/craft/commit/e7fa32a)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([ab2f7bb](https://github.com/home-lang/craft/commit/ab2f7bb)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([f05644c](https://github.com/home-lang/craft/commit/f05644c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([02e4117](https://github.com/home-lang/craft/commit/02e4117)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([0282a3e](https://github.com/home-lang/craft/commit/0282a3e)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([c45459f](https://github.com/home-lang/craft/commit/c45459f)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([8b33422](https://github.com/home-lang/craft/commit/8b33422)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([0ed0654](https://github.com/home-lang/craft/commit/0ed0654)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([ce657d0](https://github.com/home-lang/craft/commit/ce657d0)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([6867722](https://github.com/home-lang/craft/commit/6867722)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([a7b1f77](https://github.com/home-lang/craft/commit/a7b1f77)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([228ebfa](https://github.com/home-lang/craft/commit/228ebfa)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([6fe683c](https://github.com/home-lang/craft/commit/6fe683c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([04508da](https://github.com/home-lang/craft/commit/04508da)) _(by Chris <chrisbreuer93@gmail.com>)_
+- migrate all CI commands from bun to pantry ([4db16c6](https://github.com/home-lang/craft/commit/4db16c6)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([ee2836d](https://github.com/home-lang/craft/commit/ee2836d)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- migrate from bun install to pantry install ([daba266](https://github.com/home-lang/craft/commit/daba266)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([10f2cdb](https://github.com/home-lang/craft/commit/10f2cdb)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([7eb97e0](https://github.com/home-lang/craft/commit/7eb97e0)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([96771c3](https://github.com/home-lang/craft/commit/96771c3)) _(by Chris <chrisbreuer93@gmail.com>)_
+- fresh install to pick up pickier 0.1.21 ([042ba29](https://github.com/home-lang/craft/commit/042ba29)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- fix lint errors ([51501c7](https://github.com/home-lang/craft/commit/51501c7)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- wip ([653b4a3](https://github.com/home-lang/craft/commit/653b4a3)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([e030259](https://github.com/home-lang/craft/commit/e030259)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([1c8633d](https://github.com/home-lang/craft/commit/1c8633d)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([515fb45](https://github.com/home-lang/craft/commit/515fb45)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([8fb1517](https://github.com/home-lang/craft/commit/8fb1517)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([7abfa48](https://github.com/home-lang/craft/commit/7abfa48)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([37c3997](https://github.com/home-lang/craft/commit/37c3997)) _(by Chris <chrisbreuer93@gmail.com>)_
+- gitignore pantry directory ([80de871](https://github.com/home-lang/craft/commit/80de871)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- fix lint errors ([3dc7c18](https://github.com/home-lang/craft/commit/3dc7c18)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- auto-fix lint errors ([0910c2e](https://github.com/home-lang/craft/commit/0910c2e)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- include md in pickier lint extensions ([a52f405](https://github.com/home-lang/craft/commit/a52f405)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### ⏪ Reverts
+
+- keep staged-lint kebab + bunx gitlint shorthand ([e21ed11](https://github.com/home-lang/craft/commit/e21ed11)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- restore bun commands in CI until pantry handles npm deps ([2aa2883](https://github.com/home-lang/craft/commit/2aa2883)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- use bun install until pantry handles npm deps (home-lang/pantry#200) ([80882fc](https://github.com/home-lang/craft/commit/80882fc)) _(by glennmichael123 <gtorregosa@gmail.com>)_ ([#200](https://github.com/home-lang/craft/issues/200), [#200](https://github.com/home-lang/craft/issues/200))
+
+### merge
+
+- resolve conflicts keeping pantry commands ([f2c580b](https://github.com/home-lang/craft/commit/f2c580b)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _glennmichael123 <gtorregosa@gmail.com>_
 
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.24...v0.0.25)
 

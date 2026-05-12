@@ -40,6 +40,33 @@ describe('Native Sidebar', () => {
       expect(app).toBeInstanceOf(CraftApp)
     })
 
+    it('should normalize desktop sidebar material options into argv config', () => {
+      const app = new (CraftApp as unknown as { new(c: AppConfig): { buildArgs(): string[] } })({
+        url: 'http://localhost:3456/app',
+        window: {
+          nativeSidebar: true,
+          sidebarWidth: 260,
+          sidebarVariant: 'desktop',
+          sidebarConfig: {
+            sections: [
+              {
+                id: 'main',
+                title: 'Main',
+                items: [{ id: 'compose', label: 'Compose', icon: 'square.and.pencil', url: '/compose' }],
+              },
+            ],
+          },
+        },
+      })
+
+      const args = app.buildArgs()
+      const config = JSON.parse(args[args.indexOf('--sidebar-config') + 1])
+      expect(config.variant).toBe('desktop')
+      expect(config.material).toBe('sidebar')
+      expect(config.backgroundEffect).toBe('shimmer')
+      expect(config.allowsVibrancy).toBe(true)
+    })
+
     it('should work without sidebarConfig', () => {
       const app = createApp({
         url: 'http://localhost:3456/app',

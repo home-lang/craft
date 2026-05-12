@@ -399,7 +399,21 @@ export class CraftApp {
       args.push('--native-sidebar')
       if (window?.sidebarWidth)
         args.push('--sidebar-width', String(window.sidebarWidth))
-      if (window?.sidebarConfig) {
+      const sidebarConfig = window?.sidebarConfig
+        ? {
+            ...window.sidebarConfig,
+            variant: window.sidebarConfig.variant ?? window.sidebarVariant,
+            material: window.sidebarConfig.material ?? window.sidebarMaterial,
+            backgroundEffect: window.sidebarConfig.backgroundEffect ?? window.sidebarBackgroundEffect,
+            allowsVibrancy: window.sidebarConfig.allowsVibrancy ?? window.sidebarAllowsVibrancy,
+          }
+        : undefined
+      if (sidebarConfig?.variant === 'desktop') {
+        sidebarConfig.material = sidebarConfig.material ?? 'sidebar'
+        sidebarConfig.backgroundEffect = sidebarConfig.backgroundEffect ?? 'shimmer'
+        sidebarConfig.allowsVibrancy = sidebarConfig.allowsVibrancy ?? true
+      }
+      if (sidebarConfig) {
         // sidebarConfig used to be JSON-stringified onto argv directly,
         // which (a) hits OS argv length limits on macOS/Linux, (b) breaks
         // on cmd.exe when the config contains newlines, and (c) leaks the
@@ -408,7 +422,7 @@ export class CraftApp {
         // into a temp file via `--sidebar-config-file <path>`.
         let json: string
         try {
-          json = JSON.stringify(window.sidebarConfig)
+          json = JSON.stringify(sidebarConfig)
         }
         catch (e) {
           throw new Error(`Failed to serialize sidebarConfig: ${(e as Error).message}`)

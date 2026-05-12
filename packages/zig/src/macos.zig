@@ -802,6 +802,9 @@ var sidebar_content_webview: objc.id = null;
 var sidebar_toggle_btn: objc.id = null;
 var sidebar_collapsed: bool = false;
 var sidebar_width_stored: f64 = 240.0;
+var sidebar_uses_desktop_material: bool = false;
+var sidebar_uses_shimmer: bool = false;
+var sidebar_allows_vibrancy: bool = false;
 
 // Default demo sections (used when no config provided)
 const default_sections = [_]DynamicSidebarSection{
@@ -858,6 +861,30 @@ fn parseSidebarConfig(json: []const u8) !void {
         return err;
     };
     const root = parsed.value;
+    if (root.object.get("variant")) |v| {
+        sidebar_uses_desktop_material = switch (v) {
+            .string => |s| std.mem.eql(u8, s, "desktop"),
+            else => false,
+        };
+    } else {
+        sidebar_uses_desktop_material = false;
+    }
+    if (root.object.get("backgroundEffect")) |v| {
+        sidebar_uses_shimmer = switch (v) {
+            .string => |s| std.mem.eql(u8, s, "shimmer"),
+            else => false,
+        };
+    } else {
+        sidebar_uses_shimmer = false;
+    }
+    if (root.object.get("allowsVibrancy")) |v| {
+        sidebar_allows_vibrancy = switch (v) {
+            .bool => |b| b,
+            else => false,
+        };
+    } else {
+        sidebar_allows_vibrancy = sidebar_uses_desktop_material;
+    }
 
     // Extract sections array
     const sections_json = root.object.get("sections") orelse {
@@ -874,7 +901,7 @@ fn parseSidebarConfig(json: []const u8) !void {
 
         // Get section fields
         const id = if (section_obj.get("id")) |v| v.string else "section";
-        const title = if (section_obj.get("title")) |v| v.string else "Section";
+        const title = if (section_obj.get("title")) |v| v.string else if (section_obj.get("label")) |v| v.string else "Section";
         const collapsed = if (section_obj.get("collapsed")) |v| v.bool else false;
 
         // Parse items
@@ -895,7 +922,7 @@ fn parseSidebarConfig(json: []const u8) !void {
                     else => null,
                 } else null,
                 .tint_color = if (item_obj.get("tintColor")) |v| v.string else null,
-                .url = if (item_obj.get("url")) |v| v.string else null,
+                .url = if (item_obj.get("url")) |v| v.string else if (item_obj.get("href")) |v| v.string else null,
             };
         }
 
@@ -2501,13 +2528,16 @@ pub fn createWindowWithSidebarURL(
     const NSTableColumn = getClass("NSTableColumn");
     const NSColor = getClass("NSColor");
 
-    // Set window background to match app theme (#0f0f23 - darkest color from gradient)
+    // Set window background so translucent desktop sidebars can let the surface shimmer through.
+    const bgRed: f64 = if (sidebar_uses_desktop_material) 244.0 / 255.0 else 15.0 / 255.0;
+    const bgGreen: f64 = if (sidebar_uses_desktop_material) 244.0 / 255.0 else 15.0 / 255.0;
+    const bgBlue: f64 = if (sidebar_uses_desktop_material) 243.0 / 255.0 else 35.0 / 255.0;
     const windowBgColor = msgSend4(
         NSColor,
         "colorWithRed:green:blue:alpha:",
-        @as(f64, 15.0 / 255.0), // 0x0f
-        @as(f64, 15.0 / 255.0), // 0x0f
-        @as(f64, 35.0 / 255.0), // 0x23
+        bgRed,
+        bgGreen,
+        bgBlue,
         @as(f64, 1.0),
     );
     _ = msgSend1(window, "setBackgroundColor:", windowBgColor);
@@ -2629,14 +2659,17 @@ pub fn createWindowWithSidebarURL(
         // Don't mask to bounds so shadow can show
         _ = msgSend1(sidebarLayer, "setMasksToBounds:", @as(c_int, 0));
 
-        // Set custom background color matching app theme (#1a1a2e with slight transparency)
+        const sidebarRed: f64 = if (sidebar_uses_desktop_material) 1.0 else 26.0 / 255.0;
+        const sidebarGreen: f64 = if (sidebar_uses_desktop_material) 1.0 else 26.0 / 255.0;
+        const sidebarBlue: f64 = if (sidebar_uses_desktop_material) 1.0 else 46.0 / 255.0;
+        const sidebarAlpha: f64 = if (sidebar_uses_shimmer) 0.52 else if (sidebar_allows_vibrancy) 0.62 else 0.95;
         const customBgColor = msgSend4(
             NSColor,
             "colorWithRed:green:blue:alpha:",
-            @as(f64, 26.0 / 255.0), // 0x1a
-            @as(f64, 26.0 / 255.0), // 0x1a
-            @as(f64, 46.0 / 255.0), // 0x2e
-            @as(f64, 0.95),
+            sidebarRed,
+            sidebarGreen,
+            sidebarBlue,
+            sidebarAlpha,
         );
         const cgColor = msgSend0(customBgColor, "CGColor");
         if (cgColor != null) {
@@ -2644,8 +2677,8 @@ pub fn createWindowWithSidebarURL(
         }
 
         // Add shadow for floating effect
-        _ = msgSend1(sidebarLayer, "setShadowOpacity:", @as(f32, 0.4));
-        _ = msgSend1(sidebarLayer, "setShadowRadius:", @as(f64, 8.0));
+        _ = msgSend1(sidebarLayer, "setShadowOpacity:", if (sidebar_uses_desktop_material) @as(f32, 0.16) else @as(f32, 0.4));
+        _ = msgSend1(sidebarLayer, "setShadowRadius:", if (sidebar_uses_desktop_material) @as(f64, 20.0) else @as(f64, 8.0));
         const shadowOffset = NSSize{ .width = 0, .height = -2 };
         _ = msgSend1(sidebarLayer, "setShadowOffset:", shadowOffset);
         const shadowColor = msgSend4(NSColor, "colorWithRed:green:blue:alpha:", @as(f64, 0.0), @as(f64, 0.0), @as(f64, 0.0), @as(f64, 1.0));

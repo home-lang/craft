@@ -661,7 +661,7 @@ class WindowManager {
 
   constructor() {
     // Initialize current window if in WebView context
-    if (typeof window !== 'undefined') {
+    if (typeof globalThis.window !== 'undefined') {
       this._currentWindow = new Window('main')
       this._windows.set('main', this._currentWindow)
     }

@@ -261,7 +261,7 @@ catch (err) {
 
   /** True when the given id starts with this bridge's per-instance prefix. */
   private isOwnId(id: string): boolean {
-    return typeof id === 'string' && id.startsWith(this.idPrefix + '_')
+    return typeof id === 'string' && id.startsWith(`${this.idPrefix}_`)
   }
 
   private handleResponse(message: BridgeMessage): void {
@@ -1016,6 +1016,22 @@ export class NativeComponentBridge {
     position?: 'left' | 'right'
     collapsible?: boolean
     collapsed?: boolean
+    variant?: 'tahoe' | 'vibrancy' | 'solid' | 'transparent' | 'workspace' | 'desktop'
+    material?: 'auto' | 'sidebar' | 'hud' | 'popover' | 'content'
+    backgroundEffect?: 'none' | 'vibrancy' | 'shimmer'
+    allowsVibrancy?: boolean
+    sections?: Array<{
+      id: string
+      label?: string
+      title?: string
+      items?: Array<{
+        id: string
+        label: string
+        icon?: string
+        href?: string
+        badge?: string | number
+      }>
+    }>
   }): Promise<string> {
     const id = await this.bridge.request<typeof config, string>('component.createSidebar', config)
     this.components.set(id, { id, type: 'sidebar', props: config })

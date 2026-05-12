@@ -165,6 +165,27 @@ export interface WindowOptions {
   sidebarWidth?: number
 
   /**
+   * Native sidebar visual variant.
+   * The desktop variant enables a translucent sidebar material by default.
+   */
+  sidebarVariant?: SidebarVariant
+
+  /**
+   * Native material used for the sidebar.
+   */
+  sidebarMaterial?: SidebarMaterial
+
+  /**
+   * Native sidebar background treatment.
+   */
+  sidebarBackgroundEffect?: SidebarBackgroundEffect
+
+  /**
+   * Whether the native sidebar should allow background vibrancy.
+   */
+  sidebarAllowsVibrancy?: boolean
+
+  /**
    * Sidebar configuration (sections and items)
    * Only used when nativeSidebar is true
    */
@@ -184,6 +205,12 @@ export interface WindowOptions {
 // ============================================================================
 // Native Sidebar Configuration Types
 // ============================================================================
+
+export type SidebarVariant = 'tahoe' | 'vibrancy' | 'solid' | 'transparent' | 'workspace' | 'desktop'
+
+export type SidebarMaterial = 'auto' | 'sidebar' | 'hud' | 'popover' | 'content'
+
+export type SidebarBackgroundEffect = 'none' | 'vibrancy' | 'shimmer'
 
 /**
  * Sidebar item configuration
@@ -279,6 +306,26 @@ export interface SidebarSection {
  * Complete sidebar configuration
  */
 export interface SidebarConfig {
+  /**
+   * Visual style variant shared with STX web sidebars
+   */
+  variant?: SidebarVariant
+
+  /**
+   * Native material used for the sidebar
+   */
+  material?: SidebarMaterial
+
+  /**
+   * Native background effect
+   */
+  backgroundEffect?: SidebarBackgroundEffect
+
+  /**
+   * Let the desktop background show through the sidebar material
+   */
+  allowsVibrancy?: boolean
+
   /**
    * Sections to display in the sidebar
    */
