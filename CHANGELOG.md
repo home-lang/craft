@@ -1,4 +1,27 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.29...v0.0.30)
+
+### ♻️ Code Refactoring
+
+- **typescript**: rename sdk package to craft-native ([e1c295e](https://github.com/home-lang/craft/commit/e1c295e)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.30 ([b198bbe](https://github.com/home-lang/craft/commit/b198bbe)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.29...HEAD)
+
+### ♻️ Code Refactoring
+
+- **typescript**: rename sdk package to craft-native ([e1c295e](https://github.com/home-lang/craft/commit/e1c295e)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
 
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.28...v0.0.29)
 
