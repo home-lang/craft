@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.35...v0.0.36)
+
+### 🤖 Continuous Integration
+
+- **release**: publish zig package from workspace ([8fa0f1f](https://github.com/home-lang/craft/commit/8fa0f1f)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.36 ([a65e01f](https://github.com/home-lang/craft/commit/a65e01f)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.35...HEAD)
+
+### 🤖 Continuous Integration
+
+- **release**: publish zig package from workspace ([8fa0f1f](https://github.com/home-lang/craft/commit/8fa0f1f)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.34...v0.0.35)
 
 ### 🐛 Bug Fixes
