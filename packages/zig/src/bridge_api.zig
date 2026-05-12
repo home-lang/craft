@@ -54,7 +54,7 @@ pub const BridgeAPI = struct {
     /// Generate JavaScript injection code
     pub fn generateInjectionScript(self: *Self) ![]const u8 {
         _ = self;
-        return
+        return 
         \\(function() {
         \\  window.craft = {
         \\    tray: {
