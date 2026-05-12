@@ -73,8 +73,8 @@ jobs:
         run: |
           # Build iOS static libraries using dedicated build steps
           # (not the default target which builds macOS executables)
-          eval "$(pantry env)" && zig build build-ios -Doptimize=ReleaseSafe -Dmacos-sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
-          eval "$(pantry env)" && zig build build-ios-simulator -Doptimize=ReleaseSafe -Dmacos-sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+          eval "$(pantry env | sed -n '/^export /,$p')" && zig build build-ios -Doptimize=ReleaseSafe -Dmacos-sdk="$(xcrun --sdk iphoneos --show-sdk-path)"
+          eval "$(pantry env | sed -n '/^export /,$p')" && zig build build-ios-simulator -Doptimize=ReleaseSafe -Dmacos-sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
 
       - name: Generate iOS project
         run: |
@@ -142,7 +142,7 @@ jobs:
       - name: Build Zig Android library
         working-directory: packages/zig
         run: |
-          eval "$(pantry env)" && zig build -Dtarget=aarch64-linux-android
+          eval "$(pantry env | sed -n '/^export /,$p')" && zig build -Dtarget=aarch64-linux-android
 
       - name: Generate Android project
         run: |

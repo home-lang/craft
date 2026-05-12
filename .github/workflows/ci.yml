@@ -31,7 +31,7 @@ jobs:
         uses: home-lang/pantry/packages/action@main
 
       - name: Verify Zig installation
-        run: eval "$(pantry env)" && zig version
+        run: eval "$(pantry env | sed -n '/^export /,$p')" && zig version
 
       - name: Cache Zig artifacts
         uses: actions/cache@v5
@@ -51,7 +51,7 @@ jobs:
 
       - name: Build Zig core
         working-directory: packages/zig
-        run: eval "$(pantry env)" && zig build
+        run: eval "$(pantry env | sed -n '/^export /,$p')" && zig build
 
       - name: Check binary size
         if: runner.os == 'Linux'
@@ -149,7 +149,7 @@ jobs:
 
       - name: Check Zig formatting
         working-directory: packages/zig
-        run: eval "$(pantry env)" && zig fmt --check src/ build.zig
+        run: eval "$(pantry env | sed -n '/^export /,$p')" && zig fmt --check src/ build.zig
 
       - name: Audit Zig C imports
         run: bun run verify:cimports
@@ -177,7 +177,7 @@ jobs:
 
       - name: Build Zig core
         working-directory: packages/zig
-        run: eval "$(pantry env)" && zig build
+        run: eval "$(pantry env | sed -n '/^export /,$p')" && zig build
 
       - name: Build TypeScript SDK
         working-directory: packages/typescript

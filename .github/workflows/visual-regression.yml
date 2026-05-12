@@ -51,7 +51,7 @@ jobs:
       - name: Build Craft
         working-directory: packages/zig
         run: |
-          eval "$(pantry env)" && zig build -Doptimize=ReleaseSafe
+          eval "$(pantry env | sed -n '/^export /,$p')" && zig build -Doptimize=ReleaseSafe
 
       - name: Download baseline snapshots
         uses: actions/cache@v5
@@ -73,7 +73,7 @@ jobs:
             cd packages/zig
 
             # Run UI automation tests that capture screenshots
-            eval "$(pantry env)" && zig build test 2>&1 | tee visual-test-output.txt
+            eval "$(pantry env | sed -n '/^export /,$p')" && zig build test 2>&1 | tee visual-test-output.txt
 
             # Run example apps and capture screenshots
             for example in button slider checkbox tabs modal; do

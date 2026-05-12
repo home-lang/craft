@@ -6,7 +6,7 @@ Thank you for your interest in contributing to Craft! This document provides gui
 
 ### Prerequisites
 
-- **Pantry-managed stable Zig**: run `eval "$(pantry env)"`, then invoke `zig`
+- **Pantry-managed stable Zig**: run `eval "$(pantry env | sed -n '/^export /,$p')"`, then invoke `zig`
 - **Bun**: Install from [bun.sh](https://bun.sh)
 
 #### Platform-specific Dependencies
