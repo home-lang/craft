@@ -1,5 +1,17 @@
 const std = @import("std");
 
+/// Copy a slice into allocator-owned sentinel-terminated memory.
+///
+/// Zig 0.17 removed `Allocator.dupeZ` as a method in some development
+/// builds, while `allocSentinel` remains available across the toolchains Craft
+/// currently supports. Keep C-string allocation behind this helper so platform
+/// bridges do not have to track that stdlib churn directly.
+pub fn dupeZ(allocator: std.mem.Allocator, comptime T: type, slice: []const T) ![:0]T {
+    const buffer = try allocator.allocSentinel(T, slice.len, 0);
+    @memcpy(buffer[0..slice.len], slice);
+    return buffer;
+}
+
 /// Memory pool for efficient allocations
 pub const MemoryPool = struct {
     arena: std.heap.ArenaAllocator,

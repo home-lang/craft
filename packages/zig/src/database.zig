@@ -604,7 +604,7 @@ pub const Database = struct {
 
         // Need a null-terminated string for sqlite3_open_v2. `dupeZ` allocates
         // with the trailing zero in one step (and bails atomically on OOM).
-        const path_z = try self.allocator.dupeZ(u8, self.path);
+        const path_z = try @import("memory.zig").dupeZ(self.allocator, u8, self.path);
         defer self.allocator.free(path_z);
 
         const rc = sqlite3_open_v2(path_z.ptr, &self.db_handle, flags, null);

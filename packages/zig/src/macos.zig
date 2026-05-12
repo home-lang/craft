@@ -338,7 +338,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     const window = msgSend4(window_alloc, "initWithContentRect:styleMask:backing:defer:", frame, styleMask, backing, defer_flag);
 
     // Create title NSString
-    const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
+    const title_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, title);
     defer std.heap.c_allocator.free(title_cstr);
     const title_str_alloc = msgSend0(NSString, "alloc");
     const title_str = msgSend1(title_str_alloc, "initWithUTF8String:", title_cstr.ptr);
@@ -505,7 +505,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     // Load content - either URL or HTML
     if (url) |u| {
         // Load URL directly (no iframe!)
-        const url_cstr = try std.heap.c_allocator.dupeZ(u8, u);
+        const url_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, u);
         defer std.heap.c_allocator.free(url_cstr);
         const url_str_alloc = msgSend0(NSString, "alloc");
         const url_str = msgSend1(url_str_alloc, "initWithUTF8String:", url_cstr.ptr);
@@ -516,7 +516,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     } else if (html) |h| {
         if (style.benchmark) {
             // Benchmark mode: load raw HTML directly without bridge injection or ArrayList
-            const html_cstr = try std.heap.c_allocator.dupeZ(u8, h);
+            const html_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, h);
             defer std.heap.c_allocator.free(html_cstr);
             const html_str = msgSend1(msgSend0(NSString, "alloc"), "initWithUTF8String:", html_cstr.ptr);
             _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, @as(?*anyopaque, null));
@@ -560,7 +560,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
             // Load the modified HTML with a proper baseURL
             // This is important - without a baseURL, body scripts may not execute!
-            const html_cstr = try std.heap.c_allocator.dupeZ(u8, final_html);
+            const html_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, final_html);
             defer std.heap.c_allocator.free(html_cstr);
             const html_str_alloc = msgSend0(NSString, "alloc");
             const html_str = msgSend1(html_str_alloc, "initWithUTF8String:", html_cstr.ptr);
@@ -1545,7 +1545,7 @@ pub fn createWindowWithSidebar(
     const window = msgSend4(window_alloc, "initWithContentRect:styleMask:backing:defer:", frame, styleMask, backing, defer_flag);
 
     // Set window title
-    const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
+    const title_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, title);
     defer std.heap.c_allocator.free(title_cstr);
     const title_str = msgSend1(msgSend0(NSString, "alloc"), "initWithUTF8String:", title_cstr.ptr);
     _ = msgSend1(window, "setTitle:", title_str);
@@ -1762,7 +1762,7 @@ pub fn createWindowWithSidebar(
     const final_html = try modified_html.toOwnedSlice(std.heap.c_allocator);
     defer std.heap.c_allocator.free(final_html);
 
-    const html_cstr = try std.heap.c_allocator.dupeZ(u8, final_html);
+    const html_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, final_html);
     defer std.heap.c_allocator.free(html_cstr);
     const html_str = msgSend1(msgSend0(NSString, "alloc"), "initWithUTF8String:", html_cstr.ptr);
     const base_url_string = createNSString("http://localhost/");
@@ -2844,7 +2844,7 @@ fn msgSend1Rect(target: anytype, selector: [*:0]const u8, rect: NSRect) objc.id 
 pub fn createNSString(str: []const u8) objc.id {
     const NSString = getClass("NSString");
     const str_alloc = msgSend0(NSString, "alloc");
-    const cstr = std.heap.c_allocator.dupeZ(u8, str) catch |err| {
+    const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, str) catch |err| {
         std.log.warn("createNSString: failed to allocate null-terminated string: {}", .{err});
         // Return an empty NSString as fallback
         return msgSend1(str_alloc, "initWithUTF8String:", @as([*:0]const u8, ""));
@@ -2861,7 +2861,7 @@ pub fn setClipboard(text: []const u8) !void {
     const pasteboard = msgSend0(NSPasteboard, "generalPasteboard");
     msgSendVoid0(pasteboard, "clearContents");
 
-    const text_cstr = try std.heap.c_allocator.dupeZ(u8, text);
+    const text_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, text);
     defer std.heap.c_allocator.free(text_cstr);
     const text_str_alloc = msgSend0(NSString, "alloc");
     const text_str = msgSend1(text_str_alloc, "initWithUTF8String:", text_cstr.ptr);
@@ -2886,7 +2886,7 @@ pub fn showOpenDialog(title: []const u8, allow_multiple: bool) !?[]const u8 {
     const panel = msgSend0(NSOpenPanel, "openPanel");
 
     // Set title
-    const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
+    const title_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, title);
     defer std.heap.c_allocator.free(title_cstr);
     const title_str_alloc = msgSend0(getClass("NSString"), "alloc");
     const title_str = msgSend1(title_str_alloc, "initWithUTF8String:", title_cstr.ptr);
@@ -2923,7 +2923,7 @@ pub fn showSaveDialog(title: []const u8, default_name: ?[]const u8) !?[]const u8
     const panel = msgSend0(NSSavePanel, "savePanel");
 
     // Set title
-    const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
+    const title_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, title);
     defer std.heap.c_allocator.free(title_cstr);
     const title_str_alloc = msgSend0(getClass("NSString"), "alloc");
     const title_str = msgSend1(title_str_alloc, "initWithUTF8String:", title_cstr.ptr);
@@ -2931,7 +2931,7 @@ pub fn showSaveDialog(title: []const u8, default_name: ?[]const u8) !?[]const u8
 
     // Set default name if provided
     if (default_name) |name| {
-        const name_cstr = try std.heap.c_allocator.dupeZ(u8, name);
+        const name_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, name);
         defer std.heap.c_allocator.free(name_cstr);
         const name_str_alloc = msgSend0(getClass("NSString"), "alloc");
         const name_str = msgSend1(name_str_alloc, "initWithUTF8String:", name_cstr.ptr);
@@ -3015,14 +3015,14 @@ pub fn showNotification(title: []const u8, message: []const u8) !void {
     const notification = msgSend0(msgSend0(NSUserNotification, "alloc"), "init");
 
     // Set title
-    const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
+    const title_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, title);
     defer std.heap.c_allocator.free(title_cstr);
     const title_str_alloc = msgSend0(getClass("NSString"), "alloc");
     const title_str = msgSend1(title_str_alloc, "initWithUTF8String:", title_cstr.ptr);
     _ = msgSend1(notification, "setTitle:", title_str);
 
     // Set message
-    const msg_cstr = try std.heap.c_allocator.dupeZ(u8, message);
+    const msg_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, message);
     defer std.heap.c_allocator.free(msg_cstr);
     const msg_str_alloc = msgSend0(getClass("NSString"), "alloc");
     const msg_str = msgSend1(msg_str_alloc, "initWithUTF8String:", msg_cstr.ptr);
@@ -3053,7 +3053,7 @@ pub const SystemTray = struct {
         const status_item = msgSend1(status_bar, "statusItemWithLength:", -1.0);
 
         // Set title
-        const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
+        const title_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, title);
         defer std.heap.c_allocator.free(title_cstr);
         const title_str_alloc = msgSend0(getClass("NSString"), "alloc");
         const title_str = msgSend1(title_str_alloc, "initWithUTF8String:", title_cstr.ptr);
@@ -3065,7 +3065,7 @@ pub const SystemTray = struct {
     }
 
     pub fn setTitle(self: SystemTray, title: []const u8) !void {
-        const title_cstr = try std.heap.c_allocator.dupeZ(u8, title);
+        const title_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, title);
         defer std.heap.c_allocator.free(title_cstr);
         const title_str_alloc = msgSend0(getClass("NSString"), "alloc");
         const title_str = msgSend1(title_str_alloc, "initWithUTF8String:", title_cstr.ptr);

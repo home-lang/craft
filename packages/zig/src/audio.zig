@@ -400,7 +400,7 @@ pub const AudioPlayer = struct {
 
         // Create NSURL from file path
         const NSURLClass = macos.getClass("NSURL") orelse return AudioError.DeviceNotAvailable;
-        const file_path_z = self.allocator.dupeZ(u8, file_path) catch return AudioError.InitializationFailed;
+        const file_path_z = @import("memory.zig").dupeZ(self.allocator, u8, file_path) catch return AudioError.InitializationFailed;
         defer self.allocator.free(file_path_z);
 
         const NSString = macos.getClass("NSString") orelse return AudioError.DeviceNotAvailable;
@@ -603,7 +603,7 @@ pub const SystemSoundPlayer = struct {
         // Use the struct's allocator consistently instead of
         // `std.heap.c_allocator`, which diverged from how every other bridge
         // allocates and made cleanup semantics inconsistent.
-        const name_cstr = self.allocator.dupeZ(u8, name) catch return AudioError.InitializationFailed;
+        const name_cstr = @import("memory.zig").dupeZ(self.allocator, u8, name) catch return AudioError.InitializationFailed;
         defer self.allocator.free(name_cstr);
 
         const NSString = macos.getClass("NSString");
@@ -626,7 +626,7 @@ pub const SystemSoundPlayer = struct {
         const io_context = @import("io_context.zig");
         const io = io_context.get();
 
-        const name_z = self.allocator.dupeZ(u8, name) catch return AudioError.InitializationFailed;
+        const name_z = @import("memory.zig").dupeZ(self.allocator, u8, name) catch return AudioError.InitializationFailed;
         defer self.allocator.free(name_z);
 
         var canberra = std.process.spawn(io, .{
@@ -665,7 +665,7 @@ pub const SystemSoundPlayer = struct {
         const SND_SYNC: u32 = 0x0000;
         const SND_NODEFAULT: u32 = 0x0002;
 
-        const name_z = self.allocator.dupeZ(u8, name) catch return AudioError.InitializationFailed;
+        const name_z = @import("memory.zig").dupeZ(self.allocator, u8, name) catch return AudioError.InitializationFailed;
         defer self.allocator.free(name_z);
 
         // NOTE: use `SND_SYNC` rather than `SND_ASYNC`. With `SND_ALIAS`

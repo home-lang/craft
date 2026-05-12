@@ -330,7 +330,7 @@ pub const Window = struct {
         });
 
         // Set window properties
-        const title_z = try std.heap.c_allocator.dupeZ(u8, options.title);
+        const title_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title);
         defer std.heap.c_allocator.free(title_z);
         gtk_window_set_title(window, title_z);
 
@@ -414,19 +414,19 @@ pub const Window = struct {
     }
 
     pub fn setTitle(self: *Window, title: []const u8) void {
-        const title_z = std.heap.c_allocator.dupeZ(u8, title) catch return;
+        const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, title) catch return;
         defer std.heap.c_allocator.free(title_z);
         gtk_window_set_title(self.gtk_window, title_z);
     }
 
     pub fn loadURL(self: *Window, url: []const u8) !void {
-        const url_z = try std.heap.c_allocator.dupeZ(u8, url);
+        const url_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, url);
         defer std.heap.c_allocator.free(url_z);
         webkit_web_view_load_uri(self.webview, url_z);
     }
 
     pub fn loadHTML(self: *Window, html: []const u8) !void {
-        const html_z = try std.heap.c_allocator.dupeZ(u8, html);
+        const html_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, html);
         defer std.heap.c_allocator.free(html_z);
         webkit_web_view_load_html(self.webview, html_z, "");
     }
@@ -448,13 +448,13 @@ pub const Window = struct {
     }
 
     pub fn executeJavaScript(self: *Window, script: []const u8) !void {
-        const script_z = try std.heap.c_allocator.dupeZ(u8, script);
+        const script_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, script);
         defer std.heap.c_allocator.free(script_z);
         webkit_web_view_run_javascript(self.webview, script_z, null, null, null);
     }
 
     pub fn injectScript(self: *Window, script: []const u8) !void {
-        const script_z = try std.heap.c_allocator.dupeZ(u8, script);
+        const script_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, script);
         defer std.heap.c_allocator.free(script_z);
 
         const content_manager = webkit_web_view_get_user_content_manager(self.webview);
@@ -505,7 +505,7 @@ pub fn evalJS(script: []const u8) !void {
     }
 
     if (latest_webview) |webview| {
-        const script_z = std.heap.c_allocator.dupeZ(u8, script) catch return error.OutOfMemory;
+        const script_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, script) catch return error.OutOfMemory;
         defer std.heap.c_allocator.free(script_z);
         webkit_web_view_run_javascript(webview, script_z, null, null, null);
     } else {
@@ -561,9 +561,9 @@ pub extern "c" fn notify_notification_new(summary: [*c]const u8, body: [*c]const
 pub extern "c" fn notify_notification_show(notification: *anyopaque, err: ?*anyopaque) c_int;
 
 pub fn showNotification(title: []const u8, message: []const u8) !void {
-    const title_z = try std.heap.c_allocator.dupeZ(u8, title);
+    const title_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, title);
     defer std.heap.c_allocator.free(title_z);
-    const message_z = try std.heap.c_allocator.dupeZ(u8, message);
+    const message_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, message);
     defer std.heap.c_allocator.free(message_z);
 
     _ = notify_init("Craft");
@@ -583,7 +583,7 @@ pub extern "c" fn gdk_clipboard_read_text_async(
 ) void;
 
 pub fn setClipboard(text: []const u8) !void {
-    const text_z = try std.heap.c_allocator.dupeZ(u8, text);
+    const text_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, text);
     defer std.heap.c_allocator.free(text_z);
 
     const display = gdk_display_get_default() orelse return error.NoDisplay;

@@ -132,7 +132,7 @@ pub const SerialBridge = struct {
         if (parsed.value.path.len == 0) return BridgeError.MissingData;
         if (!std.mem.startsWith(u8, parsed.value.path, "/dev/")) return BridgeError.InvalidParameter;
 
-        const path_z = try self.allocator.dupeZ(u8, parsed.value.path);
+        const path_z = try @import("memory.zig").dupeZ(self.allocator, u8, parsed.value.path);
         defer self.allocator.free(path_z);
 
         _ = parsed.value.baud;

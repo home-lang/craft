@@ -123,7 +123,7 @@ pub const objc = if (is_darwin) struct {
 
     /// Helper to create NSString from Zig string
     pub fn createNSString(str: []const u8, allocator: std.mem.Allocator) !id {
-        const str_z = try allocator.dupeZ(u8, str);
+        const str_z = try @import("memory.zig").dupeZ(allocator, u8, str);
         defer allocator.free(str_z);
 
         const NSStringClass = objc_getClass("NSString") orelse return error.ClassNotFound;

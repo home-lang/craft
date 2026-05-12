@@ -40,7 +40,7 @@ pub const TagsBridge = struct {
         defer parsed.deinit();
         if (parsed.value.path.len == 0) return BridgeError.MissingData;
 
-        const path_z = try self.allocator.dupeZ(u8, parsed.value.path);
+        const path_z = try @import("memory.zig").dupeZ(self.allocator, u8, parsed.value.path);
         defer self.allocator.free(path_z);
 
         const xattr_name: [*:0]const u8 = "com.apple.metadata:_kMDItemUserTags";
@@ -126,7 +126,7 @@ pub const TagsBridge = struct {
             return;
         }
 
-        const path_z = try self.allocator.dupeZ(u8, parsed.value.path);
+        const path_z = try @import("memory.zig").dupeZ(self.allocator, u8, parsed.value.path);
         defer self.allocator.free(path_z);
 
         const Bytes = *const fn (macos.objc.id, macos.objc.SEL) callconv(.c) [*]const u8;
@@ -151,7 +151,7 @@ pub const TagsBridge = struct {
         defer parsed.deinit();
         if (parsed.value.path.len == 0) return BridgeError.MissingData;
 
-        const path_z = try self.allocator.dupeZ(u8, parsed.value.path);
+        const path_z = try @import("memory.zig").dupeZ(self.allocator, u8, parsed.value.path);
         defer self.allocator.free(path_z);
 
         _ = removexattr(path_z.ptr, "com.apple.metadata:_kMDItemUserTags", 0);

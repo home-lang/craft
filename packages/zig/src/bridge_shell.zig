@@ -383,7 +383,7 @@ pub const ShellBridge = struct {
             const NSWorkspace = macos.getClass("NSWorkspace");
             const workspace = macos.msgSend0(NSWorkspace, "sharedWorkspace");
 
-            const url_z = self.allocator.dupeZ(u8, url) catch return;
+            const url_z = @import("memory.zig").dupeZ(self.allocator, u8, url) catch return;
             defer self.allocator.free(url_z);
             const NSString = macos.getClass("NSString");
             const url_str = macos.msgSend1(
@@ -445,7 +445,7 @@ pub const ShellBridge = struct {
             const NSWorkspace = macos.getClass("NSWorkspace");
             const workspace = macos.msgSend0(NSWorkspace, "sharedWorkspace");
 
-            const path_z = self.allocator.dupeZ(u8, path) catch return;
+            const path_z = @import("memory.zig").dupeZ(self.allocator, u8, path) catch return;
             defer self.allocator.free(path_z);
             const NSString = macos.getClass("NSString");
             const path_str = macos.msgSend1(
@@ -499,7 +499,7 @@ pub const ShellBridge = struct {
             const NSWorkspace = macos.getClass("NSWorkspace");
             const workspace = macos.msgSend0(NSWorkspace, "sharedWorkspace");
 
-            const path_z = self.allocator.dupeZ(u8, path) catch return;
+            const path_z = @import("memory.zig").dupeZ(self.allocator, u8, path) catch return;
             defer self.allocator.free(path_z);
             const NSString = macos.getClass("NSString");
             const path_str = macos.msgSend1(
@@ -597,9 +597,9 @@ pub const ShellBridge = struct {
         // believed env changes took effect, but no variable was ever set.
         // Now we call the platform's libc `setenv`/`_putenv_s` so the value
         // sticks for this process and any children it spawns.
-        const name_z = try self.allocator.dupeZ(u8, name);
+        const name_z = try @import("memory.zig").dupeZ(self.allocator, u8, name);
         defer self.allocator.free(name_z);
-        const value_z = try self.allocator.dupeZ(u8, value);
+        const value_z = try @import("memory.zig").dupeZ(self.allocator, u8, value);
         defer self.allocator.free(value_z);
 
         if (comptime builtin.os.tag == .windows) {

@@ -277,7 +277,7 @@ pub const WindowBridge = struct {
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            const title_cstr = try self.allocator.dupeZ(u8, title);
+            const title_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, title);
             defer self.allocator.free(title_cstr);
 
             const NSString = macos.getClass("NSString");

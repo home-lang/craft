@@ -142,7 +142,7 @@ pub const MenuBridge = struct {
             if (menu) |m| {
                 const menu_item = macos.msgSend0(macos.msgSend0(macos.getClass("NSMenuItem"), "alloc"), "init");
 
-                const label_cstr = try self.allocator.dupeZ(u8, menu_label);
+                const label_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, menu_label);
                 defer self.allocator.free(label_cstr);
                 const NSString = macos.getClass("NSString");
                 const ns_label = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", label_cstr.ptr);
@@ -173,7 +173,7 @@ pub const MenuBridge = struct {
         const NSMenu = macos.getClass("NSMenu");
         const menu = macos.msgSend0(macos.msgSend0(NSMenu, "alloc"), "init");
 
-        const title_cstr = try self.allocator.dupeZ(u8, title);
+        const title_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, title);
         defer self.allocator.free(title_cstr);
         const NSString = macos.getClass("NSString");
         const ns_title = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", title_cstr.ptr);
@@ -234,7 +234,7 @@ pub const MenuBridge = struct {
         const macos = @import("macos.zig");
 
         // Create label NSString
-        const label_cstr = try self.allocator.dupeZ(u8, label);
+        const label_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, label);
         defer self.allocator.free(label_cstr);
         const NSString = macos.getClass("NSString");
         const ns_label = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", label_cstr.ptr);
@@ -268,7 +268,7 @@ pub const MenuBridge = struct {
         }
 
         // Create key equivalent string
-        const key_cstr = if (key_equiv.len > 0) try self.allocator.dupeZ(u8, key_equiv) else try self.allocator.dupeZ(u8, "");
+        const key_cstr = if (key_equiv.len > 0) try @import("memory.zig").dupeZ(self.allocator, u8, key_equiv) else try @import("memory.zig").dupeZ(self.allocator, u8, "");
         defer self.allocator.free(key_cstr);
         const ns_key = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", key_cstr.ptr);
 
@@ -282,7 +282,7 @@ pub const MenuBridge = struct {
         }
 
         // Store item ID as represented object
-        const id_cstr = try self.allocator.dupeZ(u8, id);
+        const id_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, id);
         defer self.allocator.free(id_cstr);
         const ns_id = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", id_cstr.ptr);
         _ = macos.msgSend1(item, "setRepresentedObject:", ns_id);
@@ -299,7 +299,7 @@ pub const MenuBridge = struct {
             } else name;
 
             const NSImage = macos.getClass("NSImage");
-            const icon_cstr = try self.allocator.dupeZ(u8, resolved_name);
+            const icon_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, resolved_name);
             defer self.allocator.free(icon_cstr);
             const ns_icon_name = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", icon_cstr.ptr);
             const image = macos.msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", ns_icon_name, @as(?*anyopaque, null));
@@ -467,7 +467,7 @@ pub const MenuBridge = struct {
 
         if (findMenuItemById(item_id)) |item| {
             const macos = @import("macos.zig");
-            const label_cstr = try self.allocator.dupeZ(u8, new_label);
+            const label_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, new_label);
             defer self.allocator.free(label_cstr);
             const NSString = macos.getClass("NSString");
             const ns_label = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", label_cstr.ptr);

@@ -384,7 +384,7 @@ fn showMacFileDialog(options: FileDialogOptions) !?DialogResult {
     }
 
     // Set title
-    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title) catch return null;
     defer std.heap.c_allocator.free(title_z);
     const NSString = macos.getClass("NSString");
     const str_alloc = macos.msgSend0(NSString, "alloc");
@@ -393,7 +393,7 @@ fn showMacFileDialog(options: FileDialogOptions) !?DialogResult {
 
     // Set default path if provided
     if (options.default_path) |path| {
-        const path_z = std.heap.c_allocator.dupeZ(u8, path) catch return null;
+        const path_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, path) catch return null;
         defer std.heap.c_allocator.free(path_z);
         const str_alloc2 = macos.msgSend0(NSString, "alloc");
         const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_z.ptr);
@@ -482,7 +482,7 @@ fn showMacFileSaveDialog(options: FileDialogOptions) !?DialogResult {
 
     // Set title
     const NSString = macos.getClass("NSString");
-    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title) catch return null;
     defer std.heap.c_allocator.free(title_z);
     const str_alloc = macos.msgSend0(NSString, "alloc");
     const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_z.ptr);
@@ -500,7 +500,7 @@ fn showMacFileSaveDialog(options: FileDialogOptions) !?DialogResult {
 
     // Set default path/filename if provided
     if (options.default_path) |path| {
-        const path_z = std.heap.c_allocator.dupeZ(u8, path) catch return null;
+        const path_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, path) catch return null;
         defer std.heap.c_allocator.free(path_z);
         const str_alloc2 = macos.msgSend0(NSString, "alloc");
         const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_z.ptr);
@@ -509,7 +509,7 @@ fn showMacFileSaveDialog(options: FileDialogOptions) !?DialogResult {
 
     // Set default extension if provided
     if (options.default_extension) |ext| {
-        const ext_z = std.heap.c_allocator.dupeZ(u8, ext) catch return null;
+        const ext_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, ext) catch return null;
         defer std.heap.c_allocator.free(ext_z);
         const str_alloc3 = macos.msgSend0(NSString, "alloc");
         const ns_ext = macos.msgSend1(str_alloc3, "initWithUTF8String:", ext_z.ptr);
@@ -562,7 +562,7 @@ fn showMacDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
 
     // Set title
     const NSString = macos.getClass("NSString");
-    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title) catch return null;
     defer std.heap.c_allocator.free(title_z);
     const str_alloc = macos.msgSend0(NSString, "alloc");
     const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_z.ptr);
@@ -570,7 +570,7 @@ fn showMacDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
 
     // Set default path if provided
     if (options.default_path) |path| {
-        const path_z = std.heap.c_allocator.dupeZ(u8, path) catch return null;
+        const path_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, path) catch return null;
         defer std.heap.c_allocator.free(path_z);
         const str_alloc2 = macos.msgSend0(NSString, "alloc");
         const ns_path = macos.msgSend1(str_alloc2, "initWithUTF8String:", path_z.ptr);
@@ -608,14 +608,14 @@ fn showMacMessageDialog(options: MessageDialogOptions) !DialogResult {
     const NSString = macos.getClass("NSString");
 
     // Set title (messageText)
-    const title_z = try std.heap.c_allocator.dupeZ(u8, options.title);
+    const title_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title);
     defer std.heap.c_allocator.free(title_z);
     const str_alloc1 = macos.msgSend0(NSString, "alloc");
     const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_z.ptr);
     _ = macos.msgSend1(alert, "setMessageText:", ns_title);
 
     // Set message (informativeText)
-    const msg_z = try std.heap.c_allocator.dupeZ(u8, options.message);
+    const msg_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.message);
     defer std.heap.c_allocator.free(msg_z);
     const str_alloc2 = macos.msgSend0(NSString, "alloc");
     const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_z.ptr);
@@ -708,14 +708,14 @@ fn showMacConfirmDialog(options: ConfirmDialogOptions) !DialogResult {
     const NSString = macos.getClass("NSString");
 
     // Set title
-    const title_z = try std.heap.c_allocator.dupeZ(u8, options.title);
+    const title_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title);
     defer std.heap.c_allocator.free(title_z);
     const str_alloc1 = macos.msgSend0(NSString, "alloc");
     const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_z.ptr);
     _ = macos.msgSend1(alert, "setMessageText:", ns_title);
 
     // Set message
-    const msg_z = try std.heap.c_allocator.dupeZ(u8, options.message);
+    const msg_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.message);
     defer std.heap.c_allocator.free(msg_z);
     const str_alloc2 = macos.msgSend0(NSString, "alloc");
     const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_z.ptr);
@@ -727,14 +727,14 @@ fn showMacConfirmDialog(options: ConfirmDialogOptions) !DialogResult {
     }
 
     // Add confirm button
-    const confirm_z = try std.heap.c_allocator.dupeZ(u8, options.confirm_text);
+    const confirm_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.confirm_text);
     defer std.heap.c_allocator.free(confirm_z);
     const str_alloc3 = macos.msgSend0(NSString, "alloc");
     const ns_confirm = macos.msgSend1(str_alloc3, "initWithUTF8String:", confirm_z.ptr);
     _ = macos.msgSend1(alert, "addButtonWithTitle:", ns_confirm);
 
     // Add cancel button
-    const cancel_z = try std.heap.c_allocator.dupeZ(u8, options.cancel_text);
+    const cancel_z = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.cancel_text);
     defer std.heap.c_allocator.free(cancel_z);
     const str_alloc4 = macos.msgSend0(NSString, "alloc");
     const ns_cancel = macos.msgSend1(str_alloc4, "initWithUTF8String:", cancel_z.ptr);
@@ -759,14 +759,14 @@ fn showMacInputDialog(allocator: std.mem.Allocator, options: InputDialogOptions)
     const NSString = macos.getClass("NSString");
 
     // Set title
-    const title_z = try allocator.dupeZ(u8, options.title);
+    const title_z = try @import("memory.zig").dupeZ(allocator, u8, options.title);
     defer allocator.free(title_z);
     const str_alloc1 = macos.msgSend0(NSString, "alloc");
     const ns_title = macos.msgSend1(str_alloc1, "initWithUTF8String:", title_z.ptr);
     _ = macos.msgSend1(alert, "setMessageText:", ns_title);
 
     // Set message
-    const msg_z = try allocator.dupeZ(u8, options.message);
+    const msg_z = try @import("memory.zig").dupeZ(allocator, u8, options.message);
     defer allocator.free(msg_z);
     const str_alloc2 = macos.msgSend0(NSString, "alloc");
     const ns_msg = macos.msgSend1(str_alloc2, "initWithUTF8String:", msg_z.ptr);
@@ -781,7 +781,7 @@ fn showMacInputDialog(allocator: std.mem.Allocator, options: InputDialogOptions)
     _ = NSValue; // Would need to set frame properly
 
     // Set default value
-    const default_z = try allocator.dupeZ(u8, options.default_value);
+    const default_z = try @import("memory.zig").dupeZ(allocator, u8, options.default_value);
     defer allocator.free(default_z);
     const str_alloc3 = macos.msgSend0(NSString, "alloc");
     const ns_default = macos.msgSend1(str_alloc3, "initWithUTF8String:", default_z.ptr);
@@ -789,7 +789,7 @@ fn showMacInputDialog(allocator: std.mem.Allocator, options: InputDialogOptions)
 
     // Set placeholder if provided
     if (options.placeholder) |placeholder| {
-        const placeholder_z = try allocator.dupeZ(u8, placeholder);
+        const placeholder_z = try @import("memory.zig").dupeZ(allocator, u8, placeholder);
         defer allocator.free(placeholder_z);
         const str_alloc4 = macos.msgSend0(NSString, "alloc");
         const ns_placeholder = macos.msgSend1(str_alloc4, "initWithUTF8String:", placeholder_z.ptr);
@@ -837,7 +837,7 @@ fn showMacColorDialog(options: ColorDialogOptions) !?DialogResult {
 
     // Set title (NSColorPanel doesn't have direct title setting, but we can set window title)
     const NSString = macos.getClass("NSString");
-    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title) catch return null;
     defer std.heap.c_allocator.free(title_z);
     const str_alloc = macos.msgSend0(NSString, "alloc");
     const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_z.ptr);
@@ -877,7 +877,7 @@ fn showMacFontDialog(allocator: std.mem.Allocator, options: FontDialogOptions) !
 
     // Set title
     const NSString = macos.getClass("NSString");
-    const title_z = try allocator.dupeZ(u8, options.title);
+    const title_z = try @import("memory.zig").dupeZ(allocator, u8, options.title);
     defer allocator.free(title_z);
     const str_alloc = macos.msgSend0(NSString, "alloc");
     const ns_title = macos.msgSend1(str_alloc, "initWithUTF8String:", title_z.ptr);
@@ -888,7 +888,7 @@ fn showMacFontDialog(allocator: std.mem.Allocator, options: FontDialogOptions) !
         const NSFontManager = macos.getClass("NSFontManager");
         const font_manager = macos.msgSend0(NSFontManager, "sharedFontManager");
 
-        const family_z = try allocator.dupeZ(u8, default_font.family);
+        const family_z = try @import("memory.zig").dupeZ(allocator, u8, default_font.family);
         defer allocator.free(family_z);
         const str_alloc2 = macos.msgSend0(NSString, "alloc");
         const ns_family = macos.msgSend1(str_alloc2, "initWithUTF8String:", family_z.ptr);
@@ -1264,11 +1264,11 @@ fn showWindowsFileDialog(options: FileDialogOptions) !?DialogResult {
     var file_buf: [4096]u8 = undefined;
     @memset(&file_buf, 0);
 
-    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title) catch return null;
     defer std.heap.c_allocator.free(title_z);
 
     const initial_dir_z = if (options.default_path) |p|
-        std.heap.c_allocator.dupeZ(u8, p) catch return null
+        @import("memory.zig").dupeZ(std.heap.c_allocator, u8, p) catch return null
     else
         null;
     defer if (initial_dir_z) |z| std.heap.c_allocator.free(z);
@@ -1351,11 +1351,11 @@ fn showWindowsFileSaveDialog(options: FileDialogOptions) !?DialogResult {
         @memcpy(file_buf[0..len], path[0..len]);
     }
 
-    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title) catch return null;
     defer std.heap.c_allocator.free(title_z);
 
     const def_ext_z = if (options.default_extension) |ext|
-        std.heap.c_allocator.dupeZ(u8, ext) catch return null
+        @import("memory.zig").dupeZ(std.heap.c_allocator, u8, ext) catch return null
     else
         null;
     defer if (def_ext_z) |z| std.heap.c_allocator.free(z);
@@ -1416,7 +1416,7 @@ fn showWindowsDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
     var display_name: [260]u8 = undefined;
     var path_buf: [260]u8 = undefined;
 
-    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return null;
+    const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title) catch return null;
     defer std.heap.c_allocator.free(title_z);
 
     var bi: windows.BROWSEINFOA = .{
@@ -1483,9 +1483,9 @@ fn showWindowsMessageDialog(options: MessageDialogOptions) !DialogResult {
         .question => windows.MB_ICONQUESTION,
     };
 
-    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return DialogResult{ .ok = {} };
+    const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title) catch return DialogResult{ .ok = {} };
     defer std.heap.c_allocator.free(title_z);
-    const msg_z = std.heap.c_allocator.dupeZ(u8, options.message) catch return DialogResult{ .ok = {} };
+    const msg_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.message) catch return DialogResult{ .ok = {} };
     defer std.heap.c_allocator.free(msg_z);
 
     const result = windows.MessageBoxA(null, msg_z.ptr, title_z.ptr, msg_type);
@@ -1523,9 +1523,9 @@ fn showWindowsConfirmDialog(options: ConfirmDialogOptions) !DialogResult {
         msg_type |= windows.MB_ICONQUESTION;
     }
 
-    const title_z = std.heap.c_allocator.dupeZ(u8, options.title) catch return DialogResult{ .cancel = {} };
+    const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.title) catch return DialogResult{ .cancel = {} };
     defer std.heap.c_allocator.free(title_z);
-    const msg_z = std.heap.c_allocator.dupeZ(u8, options.message) catch return DialogResult{ .cancel = {} };
+    const msg_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, options.message) catch return DialogResult{ .cancel = {} };
     defer std.heap.c_allocator.free(msg_z);
 
     const result = windows.MessageBoxA(null, msg_z.ptr, title_z.ptr, msg_type);

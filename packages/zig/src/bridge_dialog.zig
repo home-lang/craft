@@ -63,19 +63,19 @@ fn applyPanelOptions(panel: anytype, opts: DialogOptions) void {
     const NSString = macos.getClass("NSString");
 
     if (opts.title.len > 0) {
-        const cstr = std.heap.c_allocator.dupeZ(u8, opts.title) catch return;
+        const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, opts.title) catch return;
         defer std.heap.c_allocator.free(cstr);
         const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
         _ = macos.msgSend1(panel, "setTitle:", ns);
     }
     if (opts.buttonLabel.len > 0) {
-        const cstr = std.heap.c_allocator.dupeZ(u8, opts.buttonLabel) catch return;
+        const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, opts.buttonLabel) catch return;
         defer std.heap.c_allocator.free(cstr);
         const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
         _ = macos.msgSend1(panel, "setPrompt:", ns);
     }
     if (opts.defaultPath.len > 0) {
-        const cstr = std.heap.c_allocator.dupeZ(u8, opts.defaultPath) catch return;
+        const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, opts.defaultPath) catch return;
         defer std.heap.c_allocator.free(cstr);
         const NSURL = macos.getClass("NSURL");
         const ns_path = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
@@ -127,19 +127,19 @@ fn applySavePanelOptions(panel: anytype, opts: SaveDialogOptions) void {
     const NSString = macos.getClass("NSString");
 
     if (opts.title.len > 0) {
-        const cstr = std.heap.c_allocator.dupeZ(u8, opts.title) catch return;
+        const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, opts.title) catch return;
         defer std.heap.c_allocator.free(cstr);
         const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
         _ = macos.msgSend1(panel, "setTitle:", ns);
     }
     if (opts.buttonLabel.len > 0) {
-        const cstr = std.heap.c_allocator.dupeZ(u8, opts.buttonLabel) catch return;
+        const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, opts.buttonLabel) catch return;
         defer std.heap.c_allocator.free(cstr);
         const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
         _ = macos.msgSend1(panel, "setPrompt:", ns);
     }
     if (opts.defaultPath.len > 0) {
-        const cstr = std.heap.c_allocator.dupeZ(u8, opts.defaultPath) catch return;
+        const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, opts.defaultPath) catch return;
         defer std.heap.c_allocator.free(cstr);
         const NSURL = macos.getClass("NSURL");
         const ns_path = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
@@ -147,7 +147,7 @@ fn applySavePanelOptions(panel: anytype, opts: SaveDialogOptions) void {
         _ = macos.msgSend1(panel, "setDirectoryURL:", url);
     }
     if (opts.defaultName.len > 0) {
-        const cstr = std.heap.c_allocator.dupeZ(u8, opts.defaultName) catch return;
+        const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, opts.defaultName) catch return;
         defer std.heap.c_allocator.free(cstr);
         const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
         _ = macos.msgSend1(panel, "setNameFieldStringValue:", ns);
@@ -211,13 +211,13 @@ fn applyAlertOptions(alert: anytype, opts: AlertDialogOptions, default_buttons: 
     const NSString = macos.getClass("NSString");
 
     if (opts.title.len > 0) {
-        const cstr = std.heap.c_allocator.dupeZ(u8, opts.title) catch return;
+        const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, opts.title) catch return;
         defer std.heap.c_allocator.free(cstr);
         const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
         _ = macos.msgSend1(alert, "setMessageText:", ns);
     }
     if (opts.message.len > 0) {
-        const cstr = std.heap.c_allocator.dupeZ(u8, opts.message) catch return;
+        const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, opts.message) catch return;
         defer std.heap.c_allocator.free(cstr);
         const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
         _ = macos.msgSend1(alert, "setInformativeText:", ns);
@@ -232,7 +232,7 @@ fn applyAlertOptions(alert: anytype, opts: AlertDialogOptions, default_buttons: 
     // index in our list directly maps to result_int - 1000.
     const labels: []const []const u8 = if (opts.buttons) |b| b else default_buttons;
     for (labels) |label| {
-        const cstr = std.heap.c_allocator.dupeZ(u8, label) catch continue;
+        const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, label) catch continue;
         defer std.heap.c_allocator.free(cstr);
         const ns = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", cstr.ptr);
         _ = macos.msgSend1(alert, "addButtonWithTitle:", ns);

@@ -280,7 +280,7 @@ fn createNSImage(name: []const u8, config: SymbolConfiguration) !*anyopaque {
     if (builtin.target.os.tag != .macos) return SFSymbolError.PlatformNotSupported;
 
     var allocator = std.heap.c_allocator;
-    const name_z = try allocator.dupeZ(u8, name);
+    const name_z = try @import("memory.zig").dupeZ(allocator, u8, name);
     defer allocator.free(name_z);
 
     // Get NSImage class
@@ -321,7 +321,7 @@ fn checkSymbolExists(name: []const u8) bool {
     if (builtin.target.os.tag != .macos) return false;
 
     var allocator = std.heap.c_allocator;
-    const name_z = allocator.dupeZ(u8, name) catch return false;
+    const name_z = @import("memory.zig").dupeZ(allocator, u8, name) catch return false;
     defer allocator.free(name_z);
 
     const NSImage = objc.objc_getClass("NSImage");

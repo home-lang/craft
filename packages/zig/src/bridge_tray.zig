@@ -295,7 +295,7 @@ pub const TrayBridge = struct {
             // Use resolved SF Symbol name. Allocate through the bridge's own
             // allocator rather than `std.heap.c_allocator` so lifecycle and
             // failure paths match the rest of the bridges.
-            const icon_cstr = try self.allocator.dupeZ(u8, resolved_name);
+            const icon_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, resolved_name);
             defer self.allocator.free(icon_cstr);
 
             const NSString = macos.getClass("NSString");
@@ -341,7 +341,7 @@ pub const TrayBridge = struct {
                 const ns_badge = macos.msgSend1(str_alloc, "initWithUTF8String:", empty_cstr);
                 _ = macos.msgSend1(dock_tile, "setBadgeLabel:", ns_badge);
             } else {
-                const badge_cstr = try self.allocator.dupeZ(u8, badge_text);
+                const badge_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, badge_text);
                 defer self.allocator.free(badge_cstr);
 
                 const ns_badge = macos.msgSend1(str_alloc, "initWithUTF8String:", badge_cstr.ptr);

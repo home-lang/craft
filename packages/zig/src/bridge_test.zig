@@ -264,7 +264,7 @@ test "null-terminated string creation" {
     const allocator = testing.allocator;
 
     const str = "Test String";
-    const cstr = try allocator.dupeZ(u8, str);
+    const cstr = try @import("memory.zig").dupeZ(allocator, u8, str);
     defer allocator.free(cstr);
 
     // Verify null terminator

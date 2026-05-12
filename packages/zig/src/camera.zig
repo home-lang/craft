@@ -704,7 +704,7 @@ pub const CameraSession = struct {
 
         // Try to open default video device
         const device_path = if (self.config.device_id) |id| id else "/dev/video0";
-        const device_path_z = self.allocator.dupeZ(u8, device_path) catch return CameraError.OutOfMemory;
+        const device_path_z = @import("memory.zig").dupeZ(self.allocator, u8, device_path) catch return CameraError.OutOfMemory;
         defer self.allocator.free(device_path_z);
 
         const fd = std.c.open(device_path_z.ptr, std.c.O.RDWR);

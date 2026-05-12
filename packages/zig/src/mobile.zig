@@ -983,7 +983,7 @@ pub const iOS = struct {
 
         // Create message string
         const allocator = std.heap.page_allocator;
-        const msg_z = allocator.dupeZ(u8, message) catch return;
+        const msg_z = @import("memory.zig").dupeZ(allocator, u8, message) catch return;
         defer allocator.free(msg_z);
 
         const Fn1 = *const fn (objc.id, objc.SEL, [*:0]const u8) callconv(.c) objc.id;
@@ -1157,7 +1157,7 @@ pub const Android = struct {
 
         // Convert URL to Java string (need null-terminated string)
         const allocator = std.heap.page_allocator;
-        const url_z = try allocator.dupeZ(u8, url);
+        const url_z = try @import("memory.zig").dupeZ(allocator, u8, url);
         defer allocator.free(url_z);
         const url_jstring = jni.NewStringUTF(env, url_z.ptr);
 
@@ -1183,7 +1183,7 @@ pub const Android = struct {
 
         // Convert script to Java string (need null-terminated string)
         const allocator = std.heap.page_allocator;
-        const script_z = try allocator.dupeZ(u8, script);
+        const script_z = try @import("memory.zig").dupeZ(allocator, u8, script);
         defer allocator.free(script_z);
         const script_jstring = jni.NewStringUTF(env, script_z.ptr);
 
@@ -1281,7 +1281,7 @@ pub const Android = struct {
 
         // Create string array with single permission
         const allocator = std.heap.page_allocator;
-        const permission_z = try allocator.dupeZ(u8, permission_str);
+        const permission_z = try @import("memory.zig").dupeZ(allocator, u8, permission_str);
         defer allocator.free(permission_z);
         const permission_jstring = jni.NewStringUTF(env, permission_z.ptr);
 
@@ -1348,7 +1348,7 @@ pub const Android = struct {
 
         // Convert message to Java string (need null-terminated string)
         const allocator = std.heap.page_allocator;
-        const message_z = allocator.dupeZ(u8, message) catch return;
+        const message_z = @import("memory.zig").dupeZ(allocator, u8, message) catch return;
         defer allocator.free(message_z);
         const message_jstring = jni.NewStringUTF(env, message_z.ptr);
 

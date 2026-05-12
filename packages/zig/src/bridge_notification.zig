@@ -145,7 +145,7 @@ pub const NotificationBridge = struct {
 
         // Set title
         if (title.len > 0) {
-            const title_cstr = try self.allocator.dupeZ(u8, title);
+            const title_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, title);
             defer self.allocator.free(title_cstr);
             const NSString = macos.getClass("NSString");
             const str_alloc = macos.msgSend0(NSString, "alloc");
@@ -155,7 +155,7 @@ pub const NotificationBridge = struct {
 
         // Set body
         if (body.len > 0) {
-            const body_cstr = try self.allocator.dupeZ(u8, body);
+            const body_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, body);
             defer self.allocator.free(body_cstr);
             const NSString = macos.getClass("NSString");
             const str_alloc = macos.msgSend0(NSString, "alloc");
@@ -165,7 +165,7 @@ pub const NotificationBridge = struct {
 
         // Set subtitle
         if (subtitle.len > 0) {
-            const subtitle_cstr = try self.allocator.dupeZ(u8, subtitle);
+            const subtitle_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, subtitle);
             defer self.allocator.free(subtitle_cstr);
             const NSString = macos.getClass("NSString");
             const str_alloc = macos.msgSend0(NSString, "alloc");
@@ -184,7 +184,7 @@ pub const NotificationBridge = struct {
         const trigger: ?*anyopaque = null;
 
         // Create request
-        const id_cstr = try self.allocator.dupeZ(u8, id);
+        const id_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, id);
         defer self.allocator.free(id_cstr);
         const NSString = macos.getClass("NSString");
         const str_alloc = macos.msgSend0(NSString, "alloc");
@@ -243,7 +243,7 @@ pub const NotificationBridge = struct {
         const content = macos.msgSend0(macos.msgSend0(UNMutableNotificationContent, "alloc"), "init");
 
         if (title.len > 0) {
-            const title_cstr = try self.allocator.dupeZ(u8, title);
+            const title_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, title);
             defer self.allocator.free(title_cstr);
             const NSString = macos.getClass("NSString");
             const ns_title = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", title_cstr.ptr);
@@ -251,7 +251,7 @@ pub const NotificationBridge = struct {
         }
 
         if (body.len > 0) {
-            const body_cstr = try self.allocator.dupeZ(u8, body);
+            const body_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, body);
             defer self.allocator.free(body_cstr);
             const NSString = macos.getClass("NSString");
             const ns_body = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", body_cstr.ptr);
@@ -269,7 +269,7 @@ pub const NotificationBridge = struct {
         const trigger = msg_trigger(UNTimeIntervalNotificationTrigger, macos.sel("triggerWithTimeInterval:repeats:"), delay, false);
 
         // Create request
-        const id_cstr = try self.allocator.dupeZ(u8, id);
+        const id_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, id);
         defer self.allocator.free(id_cstr);
         const NSString = macos.getClass("NSString");
         const ns_id = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", id_cstr.ptr);
@@ -311,7 +311,7 @@ pub const NotificationBridge = struct {
 
         log.debug("cancel: {s}", .{id});
 
-        const id_cstr = try self.allocator.dupeZ(u8, id);
+        const id_cstr = try @import("memory.zig").dupeZ(self.allocator, u8, id);
         defer self.allocator.free(id_cstr);
 
         const NSString = macos.getClass("NSString");

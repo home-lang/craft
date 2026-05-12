@@ -76,7 +76,7 @@ fn createNSString(str: []const u8) if (builtin.target.os.tag == .macos) objc.id 
     const NSString = getClass("NSString");
 
     // Create a null-terminated copy for stringWithUTF8String:
-    const cstr = std.heap.c_allocator.dupeZ(u8, str) catch {
+    const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, str) catch {
         // If allocation fails, return empty string
         const empty: [*:0]const u8 = @ptrCast("");
         return msgSend1(NSString, "stringWithUTF8String:", empty);

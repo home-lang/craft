@@ -297,7 +297,7 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     const text_to_display = icon_text orelse title;
 
     var allocator = std.heap.c_allocator;
-    const text_z = allocator.dupeZ(u8, text_to_display) catch |err| {
+    const text_z = @import("memory.zig").dupeZ(allocator, u8, text_to_display) catch |err| {
         if (comptime builtin.mode == .Debug)
             std.debug.print("[Tray] Error creating null-terminated title: {}\n", .{err});
         return error.AllocationFailed;
@@ -410,7 +410,7 @@ pub fn macosSetTitle(handle: *anyopaque, title: []const u8) !void {
 
     // Create null-terminated string for NSString
     var allocator = std.heap.c_allocator;
-    const title_z = try allocator.dupeZ(u8, title);
+    const title_z = try @import("memory.zig").dupeZ(allocator, u8, title);
     defer allocator.free(title_z);
 
     // Create NSString from null-terminated title
@@ -451,7 +451,7 @@ pub fn macosSetTooltip(handle: *anyopaque, tooltip: []const u8) !void {
 
     // Create null-terminated string for NSString
     var allocator = std.heap.c_allocator;
-    const tooltip_z = try allocator.dupeZ(u8, tooltip);
+    const tooltip_z = try @import("memory.zig").dupeZ(allocator, u8, tooltip);
     defer allocator.free(tooltip_z);
 
     // Create NSString from null-terminated tooltip

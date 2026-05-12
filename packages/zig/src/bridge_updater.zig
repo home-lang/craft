@@ -114,7 +114,7 @@ pub const UpdaterBridge = struct {
             if (self.feed_url) |old_url| self.allocator.free(old_url);
             self.feed_url = new_feed;
 
-            const url_z = try self.allocator.dupeZ(u8, url);
+            const url_z = try @import("memory.zig").dupeZ(self.allocator, u8, url);
             defer self.allocator.free(url_z);
 
             // NSString / NSURL are core Foundation classes and shouldn't be
@@ -289,7 +289,7 @@ pub const UpdaterBridge = struct {
             self.feed_url = new_feed;
 
             if (self.updater) |updater| {
-                const url_z = try self.allocator.dupeZ(u8, url);
+                const url_z = try @import("memory.zig").dupeZ(self.allocator, u8, url);
                 defer self.allocator.free(url_z);
 
                 const NSString = macos.getClass("NSString");

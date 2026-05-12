@@ -177,10 +177,10 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
         try loadLibraries();
 
         // Create null-terminated strings
-        const id = try allocator.dupeZ(u8, "craft-app");
+        const id = try @import("memory.zig").dupeZ(allocator, u8, "craft-app");
         defer allocator.free(id);
 
-        const icon_name = try allocator.dupeZ(u8, "application-default-icon");
+        const icon_name = try @import("memory.zig").dupeZ(allocator, u8, "application-default-icon");
         defer allocator.free(icon_name);
 
         // Create indicator
@@ -219,7 +219,7 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
     }
 
     pub fn setLabel(self: *LinuxTrayImpl, label: []const u8) !void {
-        const label_z = try self.allocator.dupeZ(u8, label);
+        const label_z = try @import("memory.zig").dupeZ(self.allocator, u8, label);
         defer self.allocator.free(label_z);
 
         app_indicator_set_label.?(
@@ -236,7 +236,7 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
     }
 
     pub fn setIcon(self: *LinuxTrayImpl, icon_path: []const u8) !void {
-        const icon_z = try self.allocator.dupeZ(u8, icon_path);
+        const icon_z = try @import("memory.zig").dupeZ(self.allocator, u8, icon_path);
         defer self.allocator.free(icon_z);
 
         app_indicator_set_icon.?(self.indicator, icon_z.ptr);
@@ -246,7 +246,7 @@ const LinuxTrayImpl = if (builtin.os.tag == .linux) struct {
         const menu = gtk_menu_new.?() orelse return error.FailedToCreateMenu;
 
         // Add a "Quit" menu item as a placeholder
-        const quit_label = try allocator.dupeZ(u8, "Quit");
+        const quit_label = try @import("memory.zig").dupeZ(allocator, u8, "Quit");
         defer allocator.free(quit_label);
 
         const menu_item = gtk_menu_item_new_with_label.?(quit_label.ptr) orelse {

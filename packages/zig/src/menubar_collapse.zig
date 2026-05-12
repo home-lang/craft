@@ -99,7 +99,7 @@ fn createNSString(str: []const u8) objc.id {
     const NSString = getClass("NSString");
     const alloc = msgSend0(NSString, "alloc");
     const allocator = std.heap.c_allocator;
-    const z = allocator.dupeZ(u8, str) catch return null;
+    const z = @import("memory.zig").dupeZ(allocator, u8, str) catch return null;
     defer allocator.free(z);
     return msgSend1(alloc, "initWithUTF8String:", z.ptr);
 }

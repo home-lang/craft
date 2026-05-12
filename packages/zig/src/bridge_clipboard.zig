@@ -110,7 +110,7 @@ pub const ClipboardBridge = struct {
             const pasteboard = macos.msgSend0(NSPasteboard, "generalPasteboard");
             _ = macos.msgSend0(pasteboard, "clearContents");
 
-            const text_cstr = try std.heap.c_allocator.dupeZ(u8, text);
+            const text_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, text);
             defer std.heap.c_allocator.free(text_cstr);
 
             const NSString = macos.getClass("NSString");
@@ -225,7 +225,7 @@ pub const ClipboardBridge = struct {
 
             _ = macos.msgSend0(pasteboard, "clearContents");
 
-            const html_cstr = try std.heap.c_allocator.dupeZ(u8, html);
+            const html_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, html);
             defer std.heap.c_allocator.free(html_cstr);
 
             const NSString = macos.getClass("NSString");
@@ -488,7 +488,7 @@ pub const ClipboardBridge = struct {
         const display = linux.gdk_display_get_default() orelse return false;
         const clipboard = linux.gdk_display_get_clipboard(display) orelse return false;
 
-        const text_z = std.heap.c_allocator.dupeZ(u8, text) catch return false;
+        const text_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, text) catch return false;
         defer std.heap.c_allocator.free(text_z);
 
         linux.gdk_clipboard_set_text(clipboard, text_z);

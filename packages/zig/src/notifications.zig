@@ -531,7 +531,7 @@ pub const NotificationManager = struct {
         // NSString reference dangling. Previously `alloc` ran before
         // `dupeZ`, and an OOM from `dupeZ` leaked the ObjC allocation.
         const NSString = macos.getClass("NSString") orelse return NotificationError.NotSupported;
-        const title_z = std.heap.c_allocator.dupeZ(u8, notification.title) catch
+        const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, notification.title) catch
             return NotificationError.OutOfMemory;
         defer std.heap.c_allocator.free(title_z);
         const title_str = macos.msgSend0(NSString, "alloc");
@@ -540,7 +540,7 @@ pub const NotificationManager = struct {
 
         // Set body if present (same ordering fix).
         if (notification.body) |body| {
-            const body_z = std.heap.c_allocator.dupeZ(u8, body) catch
+            const body_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, body) catch
                 return NotificationError.OutOfMemory;
             defer std.heap.c_allocator.free(body_z);
             const body_str = macos.msgSend0(NSString, "alloc");
@@ -604,7 +604,7 @@ pub const NotificationManager = struct {
             return NotificationError.NotSupported;
 
         const id_str = macos.msgSend0(NSString, "alloc");
-        const id_z = std.heap.c_allocator.dupeZ(u8, notification.id) catch
+        const id_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, notification.id) catch
             return NotificationError.OutOfMemory;
         defer std.heap.c_allocator.free(id_z);
         const id_ns = macos.msgSend1(id_str, "initWithUTF8String:", id_z.ptr);
@@ -651,13 +651,13 @@ pub const NotificationManager = struct {
             _ = libnotify.notify_init("craft");
 
             // Create notification
-            const title_z = std.heap.c_allocator.dupeZ(u8, notification.title) catch
+            const title_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, notification.title) catch
                 return NotificationError.OutOfMemory;
             defer std.heap.c_allocator.free(title_z);
 
             var body_z: ?[:0]u8 = null;
             if (notification.body) |body| {
-                body_z = std.heap.c_allocator.dupeZ(u8, body) catch
+                body_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, body) catch
                     return NotificationError.OutOfMemory;
             }
             defer if (body_z) |b| std.heap.c_allocator.free(b);
@@ -752,7 +752,7 @@ pub const NotificationManager = struct {
         const cmd_str = std.fmt.bufPrint(&full_cmd, "-ExecutionPolicy Bypass -Command \"{s}\"", .{ps_cmd}) catch
             return NotificationError.OutOfMemory;
 
-        const cmd_z = std.heap.c_allocator.dupeZ(u8, cmd_str) catch return NotificationError.OutOfMemory;
+        const cmd_z = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, cmd_str) catch return NotificationError.OutOfMemory;
         defer std.heap.c_allocator.free(cmd_z);
 
         const result = windows.ShellExecuteA(

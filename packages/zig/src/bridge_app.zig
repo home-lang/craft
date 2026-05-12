@@ -203,7 +203,7 @@ pub const AppBridge = struct {
             };
 
             if (label) |l| {
-                const cstr = try std.heap.c_allocator.dupeZ(u8, l);
+                const cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, l);
                 defer std.heap.c_allocator.free(cstr);
                 const NSString = macos.getClass("NSString");
                 const str_alloc = macos.msgSend0(NSString, "alloc");
