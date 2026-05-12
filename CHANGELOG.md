@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.36...v0.0.37)
+
+### 🤖 Continuous Integration
+
+- **release**: skip sysrootless linux cross targets ([9d84412](https://github.com/home-lang/craft/commit/9d84412)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.37 ([3a552d8](https://github.com/home-lang/craft/commit/3a552d8)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.36...HEAD)
+
+### 🤖 Continuous Integration
+
+- **release**: skip sysrootless linux cross targets ([9d84412](https://github.com/home-lang/craft/commit/9d84412)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.35...v0.0.36)
 
 ### 🤖 Continuous Integration
