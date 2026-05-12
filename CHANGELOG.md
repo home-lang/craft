@@ -1,4 +1,36 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.27...v0.0.28)
+
+### 💅 Styles
+
+- **zig**: format bridge api source ([36ba7d2](https://github.com/home-lang/craft/commit/36ba7d2)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🤖 Continuous Integration
+
+- use pantry stable zig toolchain ([a97b0be](https://github.com/home-lang/craft/commit/a97b0be)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.28 ([4edec57](https://github.com/home-lang/craft/commit/4edec57)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.27...HEAD)
+
+### 💅 Styles
+
+- **zig**: format bridge api source ([36ba7d2](https://github.com/home-lang/craft/commit/36ba7d2)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🤖 Continuous Integration
+
+- use pantry stable zig toolchain ([a97b0be](https://github.com/home-lang/craft/commit/a97b0be)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.26...v0.0.27)
 
 ### 🧹 Chores
