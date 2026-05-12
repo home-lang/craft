@@ -70,11 +70,11 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           mkdir -p zig-out/cross
 
+          # Only cross-compile targets that do not require a target sysroot.
+          # Linux/FreeBSD GUI builds link GTK/WebKit system libraries, so
+          # non-host triples need dedicated sysroots before they are reliable.
           for target_spec in \
-            "x86_64-windows:windows-x64:craft.exe" \
-            "aarch64-linux:linux-arm64:craft" \
-            "x86_64-freebsd:freebsd-x64:craft" \
-            "aarch64-freebsd:freebsd-arm64:craft"; do
+            "x86_64-windows:windows-x64:craft.exe"; do
             IFS=: read -r zig_target dir_name bin_name <<< "$target_spec"
             echo "::group::Cross-compile $dir_name"
             eval "$(pantry env | sed -n '/^export /,$p')"
