@@ -131,21 +131,21 @@ pub const CloudFile = struct {
 
     pub fn init() CloudFile {
         return .{
-            .id = [_]u8{0}**128,
+            .id = @splat(0),
             .id_len = 0,
-            .name = [_]u8{0}**256,
+            .name = @splat(0),
             .name_len = 0,
-            .path = [_]u8{0}**512,
+            .path = @splat(0),
             .path_len = 0,
             .size = 0,
-            .mime_type = [_]u8{0}**64,
+            .mime_type = @splat(0),
             .mime_len = 0,
             .is_folder = false,
             .created_at = getCurrentTimestamp(),
             .modified_at = getCurrentTimestamp(),
-            .version = [_]u8{0}**64,
+            .version = @splat(0),
             .version_len = 0,
-            .checksum = [_]u8{0}**64,
+            .checksum = @splat(0),
             .checksum_len = 0,
             .sync_status = .pending_upload,
         };
@@ -268,9 +268,9 @@ pub const SyncConflict = struct {
     pub fn init(file: CloudFile) SyncConflict {
         return .{
             .file = file,
-            .local_version = [_]u8{0}**64,
+            .local_version = @splat(0),
             .local_version_len = 0,
-            .remote_version = [_]u8{0}**64,
+            .remote_version = @splat(0),
             .remote_version_len = 0,
             .local_modified = 0,
             .remote_modified = 0,
@@ -334,7 +334,7 @@ pub const SyncProgress = struct {
             .completed_files = 0,
             .total_bytes = 0,
             .transferred_bytes = 0,
-            .current_file = [_]u8{0}**256,
+            .current_file = @splat(0),
             .current_file_len = 0,
             .started_at = getCurrentTimestamp(),
             .estimated_remaining = 0,
@@ -400,15 +400,15 @@ pub const SyncConfig = struct {
     pub fn init(provider: CloudProvider) SyncConfig {
         return .{
             .provider = provider,
-            .sync_path = [_]u8{0}**512,
+            .sync_path = @splat(0),
             .sync_path_len = 0,
             .conflict_strategy = .keep_newest,
             .sync_interval_seconds = 300, // 5 minutes
             .auto_sync = true,
             .sync_on_wifi_only = false,
             .compress_uploads = false,
-            .exclude_patterns = [_][64]u8{[_]u8{0}**64}**8,
-            .exclude_lens = [_]u8{0}**8,
+            .exclude_patterns = @splat(@splat(0)),
+            .exclude_lens = @splat(0),
             .exclude_count = 0,
         };
     }
@@ -540,7 +540,7 @@ pub const SyncSession = struct {
             .pending_count = 0,
             .conflict_count = 0,
             .is_authenticated = false,
-            .account_id = [_]u8{0}**128,
+            .account_id = @splat(0),
             .account_id_len = 0,
         };
     }
@@ -644,7 +644,7 @@ pub const CloudSyncController = struct {
 
     pub fn init() CloudSyncController {
         return .{
-            .sessions = [_]?SyncSession{null}**4,
+            .sessions = @splat(null),
             .session_count = 0,
             .default_session = null,
             .is_online = true,

@@ -303,7 +303,7 @@ export fn outlineViewViewForTableColumnItem(
             if (icon_name) |icon| {
                 // Create SF Symbol image
                 var icon_buf: [64]u8 = undefined;
-                const icon_z = std.fmt.bufPrintZ(&icon_buf, "{s}", .{icon}) catch "folder";
+                const icon_z = @import("../memory.zig").bufPrintZ(&icon_buf, "{s}", .{icon}) catch "folder";
                 const symbol_config = sf_symbols.SymbolConfiguration{
                     .point_size = 14.0,
                     .weight = .regular,

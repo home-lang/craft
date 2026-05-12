@@ -295,8 +295,8 @@ pub const ScannerConfig = struct {
     ocr_enabled: bool = false,
 
     /// OCR language(s)
-    ocr_languages: [4][8]u8 = [_][8]u8{[_]u8{0}**8}**4,
-    ocr_language_lens: [4]usize = [_]usize{0}**4,
+    ocr_languages: [4][8]u8 = @splat(@splat(0)),
+    ocr_language_lens: [4]usize = @splat(0),
     ocr_language_count: usize = 0,
 
     /// Maximum pages (0 = unlimited)
@@ -397,11 +397,11 @@ pub const ScannedPage = struct {
     file_size: u64 = 0,
 
     /// Image data path or reference
-    image_path_buffer: [512]u8 = [_]u8{0}**512,
+    image_path_buffer: [512]u8 = @splat(0),
     image_path_len: usize = 0,
 
     /// OCR extracted text
-    ocr_text_buffer: [8192]u8 = [_]u8{0}**8192,
+    ocr_text_buffer: [8192]u8 = @splat(0),
     ocr_text_len: usize = 0,
 
     /// OCR confidence (0-1)
@@ -492,11 +492,11 @@ pub const ScannedPage = struct {
 /// Scan session result
 pub const ScanResult = struct {
     /// Session ID
-    session_id_buffer: [64]u8 = [_]u8{0}**64,
+    session_id_buffer: [64]u8 = @splat(0),
     session_id_len: usize = 0,
 
     /// Scanned pages
-    pages: [32]ScannedPage = [_]ScannedPage{ScannedPage{}}**32,
+    pages: [32]ScannedPage = @splat(ScannedPage{}),
     page_count: usize = 0,
 
     /// Total file size
@@ -509,11 +509,11 @@ pub const ScanResult = struct {
     detected_type: DocumentType = .generic,
 
     /// Combined PDF path (if PDF output)
-    pdf_path_buffer: [512]u8 = [_]u8{0}**512,
+    pdf_path_buffer: [512]u8 = @splat(0),
     pdf_path_len: usize = 0,
 
     /// Combined OCR text from all pages
-    combined_text_buffer: [16384]u8 = [_]u8{0}**16384,
+    combined_text_buffer: [16384]u8 = @splat(0),
     combined_text_len: usize = 0,
 
     /// Session start time
@@ -632,14 +632,14 @@ pub const OCRRegion = struct {
     bounds: Quad = Quad.fullFrame(),
 
     /// Recognized text
-    text_buffer: [1024]u8 = [_]u8{0}**1024,
+    text_buffer: [1024]u8 = @splat(0),
     text_len: usize = 0,
 
     /// Confidence score (0-1)
     confidence: f32 = 0,
 
     /// Detected language
-    language_buffer: [8]u8 = [_]u8{0}**8,
+    language_buffer: [8]u8 = @splat(0),
     language_len: usize = 0,
 
     pub fn init(text: []const u8, confidence: f32) OCRRegion {

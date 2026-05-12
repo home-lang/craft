@@ -198,7 +198,7 @@ pub const WindowEntry = struct {
     webview: *anyopaque,
 };
 
-var window_registry: [32]?WindowEntry = [_]?WindowEntry{null}**32;
+var window_registry: [32]?WindowEntry = std.mem.zeroes([32]?WindowEntry);
 var window_count: u32 = 0;
 var next_window_id: u32 = 1;
 

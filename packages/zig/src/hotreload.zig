@@ -384,7 +384,7 @@ pub const ReloadServer = struct {
         hasher.update(magic);
         const hash = hasher.finalResult();
 
-        const accept_key = std.base64.standard.Encoder.encode(&[_]u8{0}**28, &hash);
+        const accept_key = std.base64.standard.Encoder.encode(&@splat(0), &hash);
 
         // Check if client sent a Sec-WebSocket-Protocol header (echo it back to confirm)
         const proto_header_check = "Sec-WebSocket-Protocol: ";

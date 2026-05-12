@@ -12,6 +12,20 @@ pub fn dupeZ(allocator: std.mem.Allocator, comptime T: type, slice: []const T) !
     return buffer;
 }
 
+/// Format into caller-provided sentinel-terminated memory.
+///
+/// `std.fmt.bufPrintZ` was removed in the Zig 0.17 development toolchain.
+/// This keeps existing bridge code explicit about its C-string expectation
+/// while relying only on the stable `bufPrint` primitive.
+pub fn bufPrintZ(buffer: []u8, comptime fmt: []const u8, args: anytype) ![:0]u8 {
+    if (buffer.len == 0) return error.NoSpaceLeft;
+
+    const printed = try std.fmt.bufPrint(buffer[0 .. buffer.len - 1], fmt, args);
+    buffer[printed.len] = 0;
+
+    return buffer[0..printed.len :0];
+}
+
 /// Memory pool for efficient allocations
 pub const MemoryPool = struct {
     arena: std.heap.ArenaAllocator,

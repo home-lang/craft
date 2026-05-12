@@ -116,11 +116,11 @@ pub const ContentType = enum {
 /// Searchable attribute for items
 pub const SearchAttribute = struct {
     /// Attribute key
-    key_buffer: [64]u8 = [_]u8{0}**64,
+    key_buffer: [64]u8 = @splat(0),
     key_len: usize = 0,
 
     /// Attribute value
-    value_buffer: [512]u8 = [_]u8{0}**512,
+    value_buffer: [512]u8 = @splat(0),
     value_len: usize = 0,
 
     /// Whether this attribute is searchable
@@ -165,15 +165,15 @@ pub const SearchAttribute = struct {
 /// Thumbnail configuration
 pub const Thumbnail = struct {
     /// Image data (base64 or raw bytes reference)
-    data_buffer: [8192]u8 = [_]u8{0}**8192,
+    data_buffer: [8192]u8 = @splat(0),
     data_len: usize = 0,
 
     /// Image URL (alternative to embedded data)
-    url_buffer: [512]u8 = [_]u8{0}**512,
+    url_buffer: [512]u8 = @splat(0),
     url_len: usize = 0,
 
     /// MIME type
-    mime_type_buffer: [64]u8 = [_]u8{0}**64,
+    mime_type_buffer: [64]u8 = @splat(0),
     mime_type_len: usize = 0,
 
     /// Width in pixels
@@ -221,42 +221,42 @@ pub const Thumbnail = struct {
 /// Searchable item to index
 pub const SearchableItem = struct {
     /// Unique identifier for the item
-    id_buffer: [128]u8 = [_]u8{0}**128,
+    id_buffer: [128]u8 = @splat(0),
     id_len: usize = 0,
 
     /// Domain identifier (for grouping)
-    domain_buffer: [64]u8 = [_]u8{0}**64,
+    domain_buffer: [64]u8 = @splat(0),
     domain_len: usize = 0,
 
     /// Title (main searchable text)
-    title_buffer: [256]u8 = [_]u8{0}**256,
+    title_buffer: [256]u8 = @splat(0),
     title_len: usize = 0,
 
     /// Description/subtitle
-    description_buffer: [1024]u8 = [_]u8{0}**1024,
+    description_buffer: [1024]u8 = @splat(0),
     description_len: usize = 0,
 
     /// Full content for search (optional)
-    content_buffer: [4096]u8 = [_]u8{0}**4096,
+    content_buffer: [4096]u8 = @splat(0),
     content_len: usize = 0,
 
     /// Content type
     content_type: ContentType = .generic,
 
     /// Keywords for search
-    keywords: [16][64]u8 = [_][64]u8{[_]u8{0}**64}**16,
-    keyword_lens: [16]usize = [_]usize{0}**16,
+    keywords: [16][64]u8 = @splat(@splat(0)),
+    keyword_lens: [16]usize = @splat(0),
     keyword_count: usize = 0,
 
     /// Custom attributes
-    attributes: [8]SearchAttribute = [_]SearchAttribute{SearchAttribute{}}**8,
+    attributes: [8]SearchAttribute = @splat(SearchAttribute{}),
     attribute_count: usize = 0,
 
     /// Thumbnail
     thumbnail: ?Thumbnail = null,
 
     /// Deep link URL
-    url_buffer: [512]u8 = [_]u8{0}**512,
+    url_buffer: [512]u8 = @splat(0),
     url_len: usize = 0,
 
     /// Expiration date (0 = never expires)
@@ -432,25 +432,25 @@ pub const SearchableItem = struct {
 /// Search result from system search
 pub const SearchResult = struct {
     /// Item ID that was found
-    item_id_buffer: [128]u8 = [_]u8{0}**128,
+    item_id_buffer: [128]u8 = @splat(0),
     item_id_len: usize = 0,
 
     /// Relevance score (0-1)
     relevance: f32 = 0,
 
     /// Highlighted title snippet
-    title_snippet_buffer: [256]u8 = [_]u8{0}**256,
+    title_snippet_buffer: [256]u8 = @splat(0),
     title_snippet_len: usize = 0,
 
     /// Highlighted content snippet
-    content_snippet_buffer: [512]u8 = [_]u8{0}**512,
+    content_snippet_buffer: [512]u8 = @splat(0),
     content_snippet_len: usize = 0,
 
     /// Content type
     content_type: ContentType = .generic,
 
     /// Deep link URL
-    url_buffer: [512]u8 = [_]u8{0}**512,
+    url_buffer: [512]u8 = @splat(0),
     url_len: usize = 0,
 
     pub fn init(item_id: []const u8, relevance: f32) SearchResult {
@@ -513,11 +513,11 @@ pub const SearchResult = struct {
 /// Search query configuration
 pub const SearchQuery = struct {
     /// Query string
-    query_buffer: [256]u8 = [_]u8{0}**256,
+    query_buffer: [256]u8 = @splat(0),
     query_len: usize = 0,
 
     /// Filter by domain
-    domain_filter_buffer: [64]u8 = [_]u8{0}**64,
+    domain_filter_buffer: [64]u8 = @splat(0),
     domain_filter_len: usize = 0,
 
     /// Filter by content type
@@ -618,7 +618,7 @@ pub const BatchResult = struct {
     status: IndexingStatus = .pending,
 
     /// Error message if failed
-    error_message_buffer: [256]u8 = [_]u8{0}**256,
+    error_message_buffer: [256]u8 = @splat(0),
     error_message_len: usize = 0,
 
     /// Time taken in milliseconds

@@ -379,7 +379,7 @@ pub const NotificationBridge = struct {
             // `initWithUTF8String:` implementation reads until it finds a
             // zero byte, potentially overrunning into adjacent stack.
             var buf: [32]u8 = undefined;
-            const count_str = std.fmt.bufPrintZ(&buf, "{}", .{count}) catch "0";
+            const count_str = @import("memory.zig").bufPrintZ(&buf, "{}", .{count}) catch "0";
 
             const NSString = macos.getClass("NSString");
             const ns_count = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", count_str.ptr);

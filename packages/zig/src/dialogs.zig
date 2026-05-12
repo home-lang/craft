@@ -1565,7 +1565,7 @@ fn showWindowsColorDialog(options: ColorDialogOptions) !?DialogResult {
         const CC_FULLOPEN: u32 = 0x00000002;
     };
 
-    var custom_colors: [16]u32 = .{0}**16;
+    var custom_colors: [16]u32 = @splat(0);
 
     // Convert Color to Windows COLORREF (0x00BBGGRR)
     const initial_color: u32 = @as(u32, options.default_color.r) |

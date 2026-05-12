@@ -68,7 +68,7 @@ pub const LocalServerBridge = struct {
             .sin_family = 2,
             .sin_port = htons(parsed.value.port),
             .sin_addr = inAddrLoopback(),
-            .sin_zero = .{0}**8,
+            .sin_zero = @splat(0),
         };
         if (bind(fd, @ptrCast(&addr), @sizeOf(sockaddr_in)) < 0) {
             _ = close(fd);

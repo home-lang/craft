@@ -188,7 +188,7 @@ fn createNameCellView(text: []const u8, icon_name: ?[]const u8) macos.objc.id {
     var symbol_name: [*:0]const u8 = "doc";
     if (icon_name) |icon| {
         var icon_buf: [64]u8 = undefined;
-        symbol_name = std.fmt.bufPrintZ(&icon_buf, "{s}", .{icon}) catch "doc";
+        symbol_name = @import("../memory.zig").bufPrintZ(&icon_buf, "{s}", .{icon}) catch "doc";
     }
 
     const symbol_config = sf_symbols.SymbolConfiguration{
