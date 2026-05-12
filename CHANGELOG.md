@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.30...v0.0.31)
+
+### 🐛 Bug Fixes
+
+- **macos**: avoid unsafe theme observer array creation ([0882ee0](https://github.com/home-lang/craft/commit/0882ee0)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.31 ([15ec9a4](https://github.com/home-lang/craft/commit/15ec9a4)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.30...HEAD)
+
+### 🐛 Bug Fixes
+
+- **macos**: avoid unsafe theme observer array creation ([0882ee0](https://github.com/home-lang/craft/commit/0882ee0)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.29...v0.0.30)
 
 ### ♻️ Code Refactoring
