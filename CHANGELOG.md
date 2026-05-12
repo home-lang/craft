@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.32...v0.0.33)
+
+### 🐛 Bug Fixes
+
+- **zig**: support Zig 0.17 array repeats ([e2fb1c3](https://github.com/home-lang/craft/commit/e2fb1c3)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.33 ([a79edcf](https://github.com/home-lang/craft/commit/a79edcf)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.32...HEAD)
+
+### 🐛 Bug Fixes
+
+- **zig**: support Zig 0.17 array repeats ([e2fb1c3](https://github.com/home-lang/craft/commit/e2fb1c3)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.31...v0.0.32)
 
 ### 🤖 Continuous Integration
