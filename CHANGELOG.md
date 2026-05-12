@@ -1,4 +1,28 @@
 # Changelog
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.34...v0.0.35)
+
+### 🐛 Bug Fixes
+
+- **zig**: align native build with Zig 0.17 ([a6917f8](https://github.com/home-lang/craft/commit/a6917f8)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### 🧹 Chores
+
+- release v0.0.35 ([85622a3](https://github.com/home-lang/craft/commit/85622a3)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.34...HEAD)
+
+### 🐛 Bug Fixes
+
+- **zig**: align native build with Zig 0.17 ([a6917f8](https://github.com/home-lang/craft/commit/a6917f8)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+### Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.33...v0.0.34)
 
 ### 🐛 Bug Fixes
