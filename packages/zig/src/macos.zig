@@ -119,6 +119,44 @@ pub fn msgSend4(target: anytype, selector: [*:0]const u8, arg1: anytype, arg2: a
     return msg(target, sel(selector), arg1, arg2, arg3, arg4);
 }
 
+fn makeWindowTranslucent(window: objc.id) void {
+    if (window == null) return;
+
+    const clearColor = msgSend0(getClass("NSColor"), "clearColor");
+    _ = msgSend1(window, "setOpaque:", @as(c_int, 0));
+    _ = msgSend1(window, "setBackgroundColor:", clearColor);
+}
+
+fn makeViewLayerTransparent(view: objc.id) void {
+    if (view == null) return;
+
+    _ = msgSend1(view, "setWantsLayer:", @as(c_int, 1));
+    const layer = msgSend0(view, "layer");
+    if (layer != null) {
+        const clearColor = msgSend0(getClass("NSColor"), "clearColor");
+        const clearCGColor = msgSend0(clearColor, "CGColor");
+        if (clearCGColor != null) {
+            _ = msgSend1(layer, "setBackgroundColor:", clearCGColor);
+        }
+    }
+}
+
+fn makeWebViewTransparent(webview: objc.id) void {
+    if (webview == null) return;
+
+    const NSNumber = getClass("NSNumber");
+    const drawsBackgroundKey = createNSString("drawsBackground");
+    const noValue = msgSend1(NSNumber, "numberWithBool:", @as(c_int, 0));
+    msgSendVoid2(webview, "setValue:forKey:", noValue, drawsBackgroundKey);
+    makeViewLayerTransparent(webview);
+
+    const scrollView = msgSend0(webview, "scrollView");
+    if (scrollView != null) {
+        _ = msgSend1(scrollView, "setDrawsBackground:", @as(c_int, 0));
+        _ = msgSend1(scrollView, "setBackgroundColor:", msgSend0(getClass("NSColor"), "clearColor"));
+    }
+}
+
 pub fn msgSendVoid0(target: anytype, selector: [*:0]const u8) void {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
     msg(target, sel(selector));
@@ -487,6 +525,11 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     // Create WKWebView with configuration
     const webview_alloc = msgSend0(WKWebView, "alloc");
     const webview = msgSend2(webview_alloc, "initWithFrame:configuration:", frame, config);
+    const wants_translucent_surface = style.transparent or style.titlebar_hidden or style.native_sidebar;
+    if (!style.benchmark and wants_translucent_surface) {
+        makeWindowTranslucent(window);
+        makeWebViewTransparent(webview);
+    }
 
     // Install the native file-drop hook so JS gets real filesystem paths.
     // No-op in benchmark mode (no JS bridge to deliver to anyway).
@@ -1728,6 +1771,8 @@ pub fn createWindowWithSidebar(
     // Create WKWebView
     const webview_alloc = msgSend0(WKWebView, "alloc");
     const webview = msgSend2(webview_alloc, "initWithFrame:configuration:", contentFrame, config);
+    makeWindowTranslucent(window);
+    makeWebViewTransparent(webview);
 
     // Setup UI delegate
     setupUIDelegate(webview) catch |err| {
@@ -2607,6 +2652,9 @@ pub fn createWindowWithSidebarURL(
 
     const webview_alloc = msgSend0(WKWebView, "alloc");
     const webview = msgSend2(webview_alloc, "initWithFrame:configuration:", contentFrame, config);
+    makeWindowTranslucent(window);
+    makeViewLayerTransparent(mainContainer);
+    makeWebViewTransparent(webview);
 
     setupUIDelegate(webview) catch |err| {
         if (comptime builtin.mode == .Debug)
@@ -2662,7 +2710,7 @@ pub fn createWindowWithSidebarURL(
         const sidebarRed: f64 = if (sidebar_uses_desktop_material) 1.0 else 26.0 / 255.0;
         const sidebarGreen: f64 = if (sidebar_uses_desktop_material) 1.0 else 26.0 / 255.0;
         const sidebarBlue: f64 = if (sidebar_uses_desktop_material) 1.0 else 46.0 / 255.0;
-        const sidebarAlpha: f64 = if (sidebar_uses_shimmer) 0.52 else if (sidebar_allows_vibrancy) 0.62 else 0.95;
+        const sidebarAlpha: f64 = if (sidebar_uses_shimmer) 0.36 else if (sidebar_allows_vibrancy) 0.50 else 0.90;
         const customBgColor = msgSend4(
             NSColor,
             "colorWithRed:green:blue:alpha:",
