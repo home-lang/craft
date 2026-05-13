@@ -1782,9 +1782,10 @@ pub fn createWindowWithSidebar(
 
     // Load HTML content with bridge injection - sidebar always uses full bridge
     const bridge_js = getCraftBridgeScriptFull();
+    const native_sidebar_bootstrap_js = getNativeSidebarBootstrapScript();
     const native_ui_js = getNativeUIScript();
 
-    var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, html.len + bridge_js.len + native_ui_js.len + 100);
+    var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, html.len + bridge_js.len + native_sidebar_bootstrap_js.len + native_ui_js.len + 100);
     defer modified_html.deinit(std.heap.c_allocator);
 
     if (std.mem.indexOf(u8, html, "</head>")) |head_pos| {
@@ -1792,12 +1793,16 @@ pub fn createWindowWithSidebar(
         try modified_html.appendSlice(std.heap.c_allocator, "<script>");
         try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
         try modified_html.appendSlice(std.heap.c_allocator, "</script><script>");
+        try modified_html.appendSlice(std.heap.c_allocator, native_sidebar_bootstrap_js);
+        try modified_html.appendSlice(std.heap.c_allocator, "</script><script>");
         try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
         try modified_html.appendSlice(std.heap.c_allocator, "</script>");
         try modified_html.appendSlice(std.heap.c_allocator, html[head_pos..]);
     } else {
         try modified_html.appendSlice(std.heap.c_allocator, "<script>");
         try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
+        try modified_html.appendSlice(std.heap.c_allocator, "</script><script>");
+        try modified_html.appendSlice(std.heap.c_allocator, native_sidebar_bootstrap_js);
         try modified_html.appendSlice(std.heap.c_allocator, "</script><script>");
         try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
         try modified_html.appendSlice(std.heap.c_allocator, "</script>");
@@ -2636,14 +2641,7 @@ pub fn createWindowWithSidebarURL(
     _ = msgSend1(userContentController, "addUserScript:", native_ui_script);
 
     // Inject native sidebar flag and default handler
-    const sidebarFlagScript =
-        \\window.__craftNativeSidebar = true;
-        \\window.__craftSidebarWidth = 260;
-        \\window.craft = window.craft || {};
-        \\window.craft._sidebarSelectHandler = window.craft._sidebarSelectHandler || function(event) {
-        \\  console.log('[Craft] Sidebar navigation:', event);
-        \\};
-    ;
+    const sidebarFlagScript = getNativeSidebarBootstrapScript();
     const flagStr = createNSString(sidebarFlagScript);
     const flagScript = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", flagStr, @as(c_long, 0), @as(c_int, 1));
     _ = msgSend1(userContentController, "addUserScript:", flagScript);
@@ -3322,6 +3320,31 @@ fn getCraftBridgeScriptFull() []const u8 {
 
 fn getNativeUIScript() []const u8 {
     return @embedFile("js/craft-native-ui.js");
+}
+
+fn getNativeSidebarBootstrapScript() []const u8 {
+    return 
+    \\window.__craftNativeSidebar = true;
+    \\window.__craftCustomWindowControls = true;
+    \\window.__craftSidebarWidth = window.__craftSidebarWidth || 260;
+    \\window.craft = window.craft || {};
+    \\window.craft._sidebarSelectHandler = window.craft._sidebarSelectHandler || function(event) {
+    \\  console.log('[Craft] Sidebar navigation:', event);
+    \\};
+    \\(function() {
+    \\  function markNativeSidebar() {
+    \\    document.documentElement.classList.add('has-native-sidebar', 'has-custom-window-controls');
+    \\    document.documentElement.style.background = 'transparent';
+    \\    if (document.body) {
+    \\      document.body.dataset.nativeSidebar = 'true';
+    \\      document.body.dataset.customWindowControls = 'true';
+    \\    }
+    \\  }
+    \\  markNativeSidebar();
+    \\  document.addEventListener('DOMContentLoaded', markNativeSidebar);
+    \\  window.dispatchEvent(new Event('craft:ready'));
+    \\})();
+    ;
 }
 
 /// Storage for bridge handlers (global state)
