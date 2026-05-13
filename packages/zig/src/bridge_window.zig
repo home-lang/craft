@@ -95,6 +95,8 @@ pub const WindowBridge = struct {
             try self.setMaxSize(data);
         } else if (std.mem.eql(u8, action, "setMovable")) {
             try self.setMovable(data);
+        } else if (std.mem.eql(u8, action, "startDrag")) {
+            try self.startDrag();
         } else if (std.mem.eql(u8, action, "setHasShadow")) {
             try self.setHasShadow(data);
         } else if (std.mem.eql(u8, action, "setAspectRatio")) {
@@ -614,6 +616,21 @@ pub const WindowBridge = struct {
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
             _ = macos.msgSend1(handle, "setMovable:", @as(c_int, if (movable) 1 else 0));
+        }
+    }
+
+    fn startDrag(self: *Self) !void {
+        const handle = try self.requireWindowHandle();
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            const app = macos.msgSend0(macos.getClass("NSApplication"), "sharedApplication");
+            if (app == null) return;
+
+            const event = macos.msgSend0(app, "currentEvent");
+            if (event == null) return;
+
+            _ = macos.msgSend1(handle, "performWindowDragWithEvent:", event);
         }
     }
 

@@ -336,6 +336,7 @@
     setAlwaysOnTop: function (on)     { return _send('window', 'setAlwaysOnTop', _stringify({ value: !!on })) },
     setResizable: function (on)       { return _send('window', 'setResizable', _stringify({ value: !!on })) },
     setMovable:   function (on)       { return _send('window', 'setMovable', _stringify({ value: !!on })) },
+    startDrag:    function ()         { return _send('window', 'startDrag') },
     setHasShadow: function (on)       { return _send('window', 'setHasShadow', _stringify({ value: !!on })) },
     setBackgroundColor: function (c)  { return _send('window', 'setBackgroundColor', _stringify({ color: String(c) })) },
     setVibrancy:  function (mat)      { return _send('window', 'setVibrancy', _stringify({ material: String(mat || '') })) },

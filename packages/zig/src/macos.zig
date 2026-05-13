@@ -84,7 +84,7 @@ pub const WindowStyle = struct {
     native_sidebar: bool = false, // Enable native sidebar (injects sidebar UI script)
     web_sidebar_material: bool = false, // Draw a native sidebar material behind web-rendered sidebars
     web_sidebar_width: u32 = 286,
-    web_sidebar_material_opacity: f64 = 0.86,
+    web_sidebar_material_opacity: f64 = 0.78,
     benchmark: bool = false, // Benchmark mode: skip bridge setup for fastest window creation
 };
 

@@ -168,7 +168,7 @@ export interface WindowOptions {
   /**
    * White/dark native tint opacity over the sidebar material.
    * Higher values reduce desktop bleed-through while keeping subtle vibrancy.
-   * @default 0.86
+   * @default 0.78
    */
   webSidebarMaterialOpacity?: number
 

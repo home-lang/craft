@@ -492,6 +492,13 @@ export class Window {
   }
 
   /**
+   * Start moving the native window from the current pointer event.
+   */
+  async startDrag(): Promise<void> {
+    await this._call('startDrag')
+  }
+
+  /**
    * Check if window is movable
    */
   async isMovable(): Promise<boolean> {

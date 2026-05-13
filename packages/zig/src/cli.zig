@@ -24,7 +24,7 @@ pub const WindowOptions = struct {
     sidebar_width: u32 = 220,
     web_sidebar_material: bool = false,
     web_sidebar_width: u32 = 286,
-    web_sidebar_material_opacity: f64 = 0.86,
+    web_sidebar_material_opacity: f64 = 0.78,
     sidebar_config: ?[]const u8 = null,
     quiet: bool = false,
     benchmark: bool = false,
@@ -240,7 +240,7 @@ fn printHelp() void {
         \\      --web-sidebar-width <W>
         \\                          Web sidebar material width in pixels (default: 286)
         \\      --web-sidebar-material-opacity <N>
-        \\                          White/dark tint over web sidebar material, 0..1 (default: 0.86)
+        \\                          White/dark tint over web sidebar material, 0..1 (default: 0.78)
         \\      --sidebar-config <J> Sidebar JSON configuration
         \\      --sidebar-width <W>  Sidebar width in pixels (default: 220)
         \\      --icon <PATH>        Path to dock icon image (PNG/JPG/ICNS)
