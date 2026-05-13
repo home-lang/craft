@@ -157,6 +157,29 @@ fn makeWebViewTransparent(webview: objc.id) void {
     }
 }
 
+fn createSidebarVisualEffectView(frame: NSRect, corner_radius: f64) objc.id {
+    const NSVisualEffectView = getClass("NSVisualEffectView");
+    if (NSVisualEffectView == null) return null;
+
+    const effect_alloc = msgSend0(NSVisualEffectView, "alloc");
+    const effect = msgSend1Rect(effect_alloc, "initWithFrame:", frame);
+    if (effect == null) return null;
+
+    _ = msgSend1(effect, "setMaterial:", @as(c_long, 7)); // NSVisualEffectMaterialSidebar
+    _ = msgSend1(effect, "setBlendingMode:", @as(c_long, 0)); // NSVisualEffectBlendingModeBehindWindow
+    _ = msgSend1(effect, "setState:", @as(c_long, 1)); // NSVisualEffectStateActive
+    msgSendVoid1(effect, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
+
+    _ = msgSend1(effect, "setWantsLayer:", @as(c_int, 1));
+    const layer = msgSend0(effect, "layer");
+    if (layer != null) {
+        _ = msgSend1(layer, "setCornerRadius:", corner_radius);
+        _ = msgSend1(layer, "setMasksToBounds:", @as(c_int, 1));
+    }
+
+    return effect;
+}
+
 pub fn msgSendVoid0(target: anytype, selector: [*:0]const u8) void {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
     msg(target, sel(selector));
@@ -926,7 +949,10 @@ fn parseSidebarConfig(json: []const u8) !void {
             else => false,
         };
     } else {
-        sidebar_allows_vibrancy = sidebar_uses_desktop_material;
+        sidebar_allows_vibrancy = sidebar_uses_desktop_material or (if (root.object.get("backgroundEffect")) |v| switch (v) {
+            .string => |s| std.mem.eql(u8, s, "vibrancy"),
+            else => false,
+        } else false);
     }
 
     // Extract sections array
@@ -1650,8 +1676,9 @@ pub fn createWindowWithSidebar(
     _ = msgSend1(scrollView, "setHasHorizontalScroller:", @as(c_int, 0));
     _ = msgSend1(scrollView, "setAutohidesScrollers:", @as(c_int, 1));
     _ = msgSend1(scrollView, "setBorderType:", @as(c_long, 0)); // NSNoBorder = 0
-    // Let the system handle the background through source list style
-    _ = msgSend1(scrollView, "setDrawsBackground:", @as(c_int, 1));
+    // Let the native material view draw the sidebar background.
+    _ = msgSend1(scrollView, "setDrawsBackground:", @as(c_int, 0));
+    _ = msgSend1(scrollView, "setBackgroundColor:", msgSend0(getClass("NSColor"), "clearColor"));
     msgSendVoid1(scrollView, "setAutoresizingMask:", @as(c_ulong, 2 | 16)); // Width + Height
 
     if (comptime builtin.mode == .Debug)
@@ -1673,6 +1700,7 @@ pub fn createWindowWithSidebar(
     // Let the source list style handle the background color naturally
     // The system will provide the appropriate sidebar appearance
     _ = msgSend1(outlineView, "setUsesAlternatingRowBackgroundColors:", @as(c_int, 0));
+    _ = msgSend1(outlineView, "setBackgroundColor:", msgSend0(getClass("NSColor"), "clearColor"));
 
     // Create table column
     const columnId = createNSString("SidebarColumn");
@@ -1713,11 +1741,16 @@ pub fn createWindowWithSidebar(
     // Set outline view as document view of scroll view
     _ = msgSend1(scrollView, "setDocumentView:", outlineView);
 
-    // Create sidebar view controller with scroll view as its view
-    // NSSplitViewItem.sidebarWithViewController: will automatically add vibrancy
+    // Create sidebar view controller with a real native material behind the outline view.
     const sidebarVC_alloc = msgSend0(NSViewController, "alloc");
     const sidebarVC = msgSend0(sidebarVC_alloc, "init");
-    _ = msgSend1(sidebarVC, "setView:", scrollView);
+    const sidebarMaterialView = createSidebarVisualEffectView(sidebarFrame, 0.0);
+    if (sidebarMaterialView != null) {
+        _ = msgSend1(sidebarMaterialView, "addSubview:", scrollView);
+        _ = msgSend1(sidebarVC, "setView:", sidebarMaterialView);
+    } else {
+        _ = msgSend1(sidebarVC, "setView:", scrollView);
+    }
 
     // Create sidebar split view item
     const sidebarItem = msgSend1(NSSplitViewItem, "sidebarWithViewController:", sidebarVC);
@@ -2705,10 +2738,10 @@ pub fn createWindowWithSidebarURL(
         // Don't mask to bounds so shadow can show
         _ = msgSend1(sidebarLayer, "setMasksToBounds:", @as(c_int, 0));
 
-        const sidebarRed: f64 = if (sidebar_uses_desktop_material) 1.0 else 26.0 / 255.0;
-        const sidebarGreen: f64 = if (sidebar_uses_desktop_material) 1.0 else 26.0 / 255.0;
-        const sidebarBlue: f64 = if (sidebar_uses_desktop_material) 1.0 else 46.0 / 255.0;
-        const sidebarAlpha: f64 = if (sidebar_uses_shimmer) 0.36 else if (sidebar_allows_vibrancy) 0.50 else 0.90;
+        const sidebarRed: f64 = if (sidebar_allows_vibrancy) 1.0 else 26.0 / 255.0;
+        const sidebarGreen: f64 = if (sidebar_allows_vibrancy) 1.0 else 26.0 / 255.0;
+        const sidebarBlue: f64 = if (sidebar_allows_vibrancy) 1.0 else 46.0 / 255.0;
+        const sidebarAlpha: f64 = if (sidebar_allows_vibrancy) 0.0 else 0.90;
         const customBgColor = msgSend4(
             NSColor,
             "colorWithRed:green:blue:alpha:",
@@ -2734,6 +2767,17 @@ pub fn createWindowWithSidebarURL(
             std.debug.print("[NativeSidebar] Floating sidebar with shadow created\n", .{});
     }
 
+    if (sidebar_allows_vibrancy) {
+        const materialFrame = NSRect{
+            .origin = .{ .x = 0, .y = 0 },
+            .size = sidebarFrame.size,
+        };
+        const materialView = createSidebarVisualEffectView(materialFrame, corner_radius);
+        if (materialView != null) {
+            _ = msgSend1(sidebarContainer, "addSubview:", materialView);
+        }
+    }
+
     // Create scroll view for sidebar content
     const scrollViewFrame = NSRect{
         .origin = .{ .x = 0, .y = 0 },
@@ -2746,6 +2790,7 @@ pub fn createWindowWithSidebarURL(
     _ = msgSend1(scrollView, "setAutohidesScrollers:", @as(c_int, 1));
     _ = msgSend1(scrollView, "setBorderType:", @as(c_long, 0));
     _ = msgSend1(scrollView, "setDrawsBackground:", @as(c_int, 0));
+    _ = msgSend1(scrollView, "setBackgroundColor:", msgSend0(getClass("NSColor"), "clearColor"));
     msgSendVoid1(scrollView, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
 
     // Create outline view
