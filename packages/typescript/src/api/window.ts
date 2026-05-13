@@ -109,6 +109,8 @@ export interface WindowCreateOptions {
   webSidebarMaterial?: boolean
   /** Width of the native material backdrop behind a web-rendered sidebar */
   webSidebarWidth?: number
+  /** White/dark tint opacity over the native material backdrop */
+  webSidebarMaterialOpacity?: number
   /** Titlebar style (macOS) */
   titlebarStyle?: 'default' | 'hidden' | 'hiddenInset' | 'customButtonsOnHover'
   /** Traffic light position (macOS) */

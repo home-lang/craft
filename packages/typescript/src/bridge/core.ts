@@ -1020,6 +1020,8 @@ export class NativeComponentBridge {
     material?: 'auto' | 'sidebar' | 'hud' | 'popover' | 'content'
     backgroundEffect?: 'none' | 'vibrancy' | 'shimmer'
     allowsVibrancy?: boolean
+    materialOpacity?: number
+    materialDarkOpacity?: number
     sections?: Array<{
       id: string
       label?: string

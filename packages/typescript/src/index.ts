@@ -396,6 +396,8 @@ export class CraftApp {
       args.push('--web-sidebar-material')
       if (window?.webSidebarWidth)
         args.push('--web-sidebar-width', String(window.webSidebarWidth))
+      if (window?.webSidebarMaterialOpacity !== undefined)
+        args.push('--web-sidebar-material-opacity', String(window.webSidebarMaterialOpacity))
     }
     if (window?.icon)
       args.push('--icon', window.icon)

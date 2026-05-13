@@ -74,6 +74,7 @@ describe('Native Sidebar', () => {
           titlebarHidden: true,
           webSidebarMaterial: true,
           webSidebarWidth: 286,
+          webSidebarMaterialOpacity: 0.9,
         },
       })
 
@@ -82,6 +83,8 @@ describe('Native Sidebar', () => {
       expect(args).toContain('--web-sidebar-material')
       expect(args).toContain('--web-sidebar-width')
       expect(args[args.indexOf('--web-sidebar-width') + 1]).toBe('286')
+      expect(args).toContain('--web-sidebar-material-opacity')
+      expect(args[args.indexOf('--web-sidebar-material-opacity') + 1]).toBe('0.9')
     })
 
     it('should work without sidebarConfig', () => {

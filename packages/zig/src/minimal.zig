@@ -148,6 +148,7 @@ pub fn main(init: std.process.Init) !void {
                 .benchmark = options.benchmark,
                 .web_sidebar_material = options.web_sidebar_material,
                 .web_sidebar_width = options.web_sidebar_width,
+                .web_sidebar_material_opacity = options.web_sidebar_material_opacity,
             },
         );
     } else if (options.html) |html| {
@@ -179,6 +180,7 @@ pub fn main(init: std.process.Init) !void {
                 .benchmark = options.benchmark,
                 .web_sidebar_material = options.web_sidebar_material,
                 .web_sidebar_width = options.web_sidebar_width,
+                .web_sidebar_material_opacity = options.web_sidebar_material_opacity,
             },
         );
     } else {

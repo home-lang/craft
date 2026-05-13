@@ -84,6 +84,7 @@ pub const WindowStyle = struct {
     native_sidebar: bool = false, // Enable native sidebar (injects sidebar UI script)
     web_sidebar_material: bool = false, // Draw a native sidebar material behind web-rendered sidebars
     web_sidebar_width: u32 = 286,
+    web_sidebar_material_opacity: f64 = 0.86,
     benchmark: bool = false, // Benchmark mode: skip bridge setup for fastest window creation
 };
 
@@ -185,7 +186,30 @@ fn createSidebarVisualEffectView(frame: NSRect, corner_radius: f64) objc.id {
     return effect;
 }
 
-fn createWebSidebarMaterialBackdrop(frame: NSRect, sidebar_width: u32) objc.id {
+fn createSidebarMaterialTint(frame: NSRect, opacity: f64) objc.id {
+    const NSView = getClass("NSView");
+    const overlay_alloc = msgSend0(NSView, "alloc");
+    const overlay = msgSend1Rect(overlay_alloc, "initWithFrame:", frame);
+    if (overlay == null) return null;
+
+    msgSendVoid1(overlay, "setAutoresizingMask:", @as(c_ulong, 16));
+    _ = msgSend1(overlay, "setWantsLayer:", @as(c_int, 1));
+
+    const clampedOpacity = if (opacity < 0.0) 0.0 else if (opacity > 1.0) 1.0 else opacity;
+    const backgroundColor = msgSend0(getClass("NSColor"), "windowBackgroundColor");
+    const tintedColor = msgSend1Double(backgroundColor, "colorWithAlphaComponent:", clampedOpacity);
+    const layer = msgSend0(overlay, "layer");
+    if (layer != null and tintedColor != null) {
+        const cgColor = msgSend0(tintedColor, "CGColor");
+        if (cgColor != null) {
+            _ = msgSend1(layer, "setBackgroundColor:", cgColor);
+        }
+    }
+
+    return overlay;
+}
+
+fn createWebSidebarMaterialBackdrop(frame: NSRect, sidebar_width: u32, material_opacity: f64) objc.id {
     const NSView = getClass("NSView");
     const container_alloc = msgSend0(NSView, "alloc");
     const container = msgSend1Rect(container_alloc, "initWithFrame:", frame);
@@ -202,6 +226,11 @@ fn createWebSidebarMaterialBackdrop(frame: NSRect, sidebar_width: u32) objc.id {
     if (material != null) {
         msgSendVoid1(material, "setAutoresizingMask:", @as(c_ulong, 16));
         _ = msgSend1(container, "addSubview:", material);
+    }
+
+    const overlay = createSidebarMaterialTint(sidebarFrame, material_opacity);
+    if (overlay != null) {
+        _ = msgSend1(container, "addSubview:", overlay);
     }
 
     return container;
@@ -721,7 +750,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         msgSendVoid1(webview, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
 
         if (style.web_sidebar_material) {
-            const materialContainer = createWebSidebarMaterialBackdrop(webviewFrame, style.web_sidebar_width);
+            const materialContainer = createWebSidebarMaterialBackdrop(webviewFrame, style.web_sidebar_width, style.web_sidebar_material_opacity);
             if (materialContainer != null) {
                 _ = msgSend1(materialContainer, "addSubview:", webview);
                 _ = msgSend1(window, "setContentView:", materialContainer);
@@ -926,6 +955,7 @@ var sidebar_width_stored: f64 = 240.0;
 var sidebar_uses_desktop_material: bool = false;
 var sidebar_uses_shimmer: bool = false;
 var sidebar_allows_vibrancy: bool = false;
+var sidebar_material_opacity: f64 = 0.90;
 
 // Default demo sections (used when no config provided)
 const default_sections = [_]DynamicSidebarSection{
@@ -1008,6 +1038,15 @@ fn parseSidebarConfig(json: []const u8) !void {
             .string => |s| std.mem.eql(u8, s, "vibrancy"),
             else => false,
         } else false);
+    }
+    if (root.object.get("materialOpacity")) |v| {
+        sidebar_material_opacity = switch (v) {
+            .float => |f| f,
+            .integer => |i| @floatFromInt(i),
+            else => 0.90,
+        };
+    } else {
+        sidebar_material_opacity = 0.90;
     }
 
     // Extract sections array
@@ -2830,6 +2869,10 @@ pub fn createWindowWithSidebarURL(
         const materialView = createSidebarVisualEffectView(materialFrame, corner_radius);
         if (materialView != null) {
             _ = msgSend1(sidebarContainer, "addSubview:", materialView);
+        }
+        const materialTint = createSidebarMaterialTint(materialFrame, sidebar_material_opacity);
+        if (materialTint != null) {
+            _ = msgSend1(sidebarContainer, "addSubview:", materialTint);
         }
     }
 

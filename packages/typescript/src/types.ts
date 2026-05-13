@@ -166,6 +166,13 @@ export interface WindowOptions {
   webSidebarWidth?: number
 
   /**
+   * White/dark native tint opacity over the sidebar material.
+   * Higher values reduce desktop bleed-through while keeping subtle vibrancy.
+   * @default 0.86
+   */
+  webSidebarMaterialOpacity?: number
+
+  /**
    * Use native macOS sidebar (Finder-style with vibrancy)
    * Creates a split view with NSOutlineView sidebar and WebView content
    * @default false
@@ -340,6 +347,18 @@ export interface SidebarConfig {
    * Let the desktop background show through the sidebar material
    */
   allowsVibrancy?: boolean
+
+  /**
+   * Light-mode tint opacity over sidebar material.
+   * Higher values reduce desktop bleed-through.
+   */
+  materialOpacity?: number
+
+  /**
+   * Dark-mode tint opacity over sidebar material.
+   * Higher values reduce desktop bleed-through.
+   */
+  materialDarkOpacity?: number
 
   /**
    * Sections to display in the sidebar
