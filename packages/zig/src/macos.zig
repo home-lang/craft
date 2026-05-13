@@ -152,8 +152,11 @@ fn makeWebViewTransparent(webview: objc.id) void {
     msgSendVoid2(webview, "setValue:forKey:", noValue, drawsBackgroundKey);
     makeViewLayerTransparent(webview);
 
-    const scrollView = msgSend0(webview, "scrollView");
-    if (scrollView != null) {
+    const canAccessScrollView = msgSend1(webview, "respondsToSelector:", sel("scrollView"));
+    if (@intFromPtr(canAccessScrollView) != 0) {
+        const scrollView = msgSend0(webview, "scrollView");
+        if (scrollView == null) return;
+
         _ = msgSend1(scrollView, "setDrawsBackground:", @as(c_int, 0));
         _ = msgSend1(scrollView, "setBackgroundColor:", msgSend0(getClass("NSColor"), "clearColor"));
     }
