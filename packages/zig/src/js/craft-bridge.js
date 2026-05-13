@@ -329,6 +329,7 @@
     // that does math doesn't have to remember.
     setSize:      function (w, h)     { return _send('window', 'setSize', _stringify({ width: _finite(w, 800), height: _finite(h, 600) })) },
     setPosition:  function (x, y)     { return _send('window', 'setPosition', _stringify({ x: _finiteSigned(x, 100), y: _finiteSigned(y, 100) })) },
+    moveBy:       function (dx, dy)   { return _send('window', 'moveBy', _stringify({ dx: Number(dx) || 0, dy: Number(dy) || 0 })) },
     setMinSize:   function (w, h)     { return _send('window', 'setMinSize', _stringify({ width: _finite(w, 0), height: _finite(h, 0) })) },
     setMaxSize:   function (w, h)     { return _send('window', 'setMaxSize', _stringify({ width: _finite(w, 0), height: _finite(h, 0) })) },
     setAspectRatio: function (w, h)   { return _send('window', 'setAspectRatio', _stringify({ width: _finite(w, 1), height: _finite(h, 1) })) },

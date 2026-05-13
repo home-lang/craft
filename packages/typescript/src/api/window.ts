@@ -429,6 +429,13 @@ export class Window {
   }
 
   /**
+   * Move window by a relative screen delta.
+   */
+  async moveBy(dx: number, dy: number): Promise<void> {
+    await this._call('moveBy', { dx, dy })
+  }
+
+  /**
    * Get window position
    */
   async getPosition(): Promise<WindowPosition> {
@@ -772,6 +779,9 @@ class WindowManager {
   /** Set current window position */
   setPosition = (x: number, y: number, animate?: boolean): Promise<void> => this.current.setPosition(x, y, animate)
 
+  /** Move current window by a relative screen delta */
+  moveBy = (dx: number, dy: number): Promise<void> => this.current.moveBy(dx, dy)
+
   /** Set current window bounds */
   setBounds = (bounds: Partial<WindowBounds>, animate?: boolean): Promise<void> => this.current.setBounds(bounds, animate)
 
@@ -789,6 +799,9 @@ class WindowManager {
 
   /** Set current window resizable */
   setResizable = (resizable: boolean): Promise<void> => this.current.setResizable(resizable)
+
+  /** Start moving current window from a native pointer event */
+  startDrag = (): Promise<void> => this.current.startDrag()
 
   /** Get current window state */
   getState = (): Promise<WindowState> => this.current.getState()

@@ -737,9 +737,10 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
         // Create the proper frame for the WebView - it should fill the content area
         // The origin should be (0, 0) relative to the content view
+        const webviewSize = if (style.titlebar_hidden or style.web_sidebar_material) frame.size else contentRect.size;
         const webviewFrame = NSRect{
             .origin = .{ .x = 0, .y = 0 },
-            .size = contentRect.size,
+            .size = webviewSize,
         };
 
         // Set the WebView's frame to the content area size
@@ -3187,6 +3188,23 @@ pub fn toggleWindow(window_handle: anytype) void {
 pub fn setWindowPosition(window: objc.id, x: i32, y: i32) void {
     const point = NSPoint{ .x = @as(f64, @floatFromInt(x)), .y = @as(f64, @floatFromInt(y)) };
     msgSendVoid1(window, "setFrameTopLeftPoint:", point);
+}
+
+pub fn moveWindowBy(window: objc.id, dx: f64, dy: f64) void {
+    var frame = msgSendRect(window, "frame");
+    frame.origin.x += dx;
+    frame.origin.y -= dy;
+    msgSendVoid1(window, "setFrameOrigin:", frame.origin);
+}
+
+pub fn startWindowDrag(window: objc.id) void {
+    const app = msgSend0(getClass("NSApplication"), "sharedApplication");
+    if (app == null) return;
+
+    const event = msgSend0(app, "currentEvent");
+    if (event == null) return;
+
+    _ = msgSend1(window, "performWindowDragWithEvent:", event);
 }
 
 pub fn setWindowSize(window: objc.id, width: u32, height: u32) void {

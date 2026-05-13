@@ -75,6 +75,8 @@ pub const WindowBridge = struct {
             try self.setSize(data);
         } else if (std.mem.eql(u8, action, "setPosition")) {
             try self.setPosition(data);
+        } else if (std.mem.eql(u8, action, "moveBy")) {
+            try self.moveBy(data);
         } else if (std.mem.eql(u8, action, "setTitle")) {
             try self.setTitle(data);
         } else if (std.mem.eql(u8, action, "reload")) {
@@ -264,6 +266,19 @@ pub const WindowBridge = struct {
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
             macos.setWindowPosition(handle, x, y);
+        }
+    }
+
+    fn moveBy(self: *Self, data: ?[]const u8) !void {
+        const handle = try self.requireWindowHandle();
+        const json_data = data orelse return BridgeError.MissingData;
+
+        const dx = json_utils.getFloat(f64, json_data, "dx") orelse 0.0;
+        const dy = json_utils.getFloat(f64, json_data, "dy") orelse 0.0;
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            macos.moveWindowBy(handle, dx, dy);
         }
     }
 
@@ -624,13 +639,7 @@ pub const WindowBridge = struct {
 
         if (builtin.os.tag == .macos) {
             const macos = @import("macos.zig");
-            const app = macos.msgSend0(macos.getClass("NSApplication"), "sharedApplication");
-            if (app == null) return;
-
-            const event = macos.msgSend0(app, "currentEvent");
-            if (event == null) return;
-
-            _ = macos.msgSend1(handle, "performWindowDragWithEvent:", event);
+            macos.startWindowDrag(handle);
         }
     }
 
