@@ -146,6 +146,8 @@ pub fn main(init: std.process.Init) !void {
                 .titlebar_hidden = options.titlebar_hidden,
                 .dev_tools = effective_dev_tools,
                 .benchmark = options.benchmark,
+                .web_sidebar_material = options.web_sidebar_material,
+                .web_sidebar_width = options.web_sidebar_width,
             },
         );
     } else if (options.html) |html| {
@@ -175,6 +177,8 @@ pub fn main(init: std.process.Init) !void {
                 .titlebar_hidden = options.titlebar_hidden,
                 .dev_tools = effective_dev_tools,
                 .benchmark = options.benchmark,
+                .web_sidebar_material = options.web_sidebar_material,
+                .web_sidebar_width = options.web_sidebar_width,
             },
         );
     } else {

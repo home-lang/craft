@@ -99,6 +99,8 @@ pub const WindowStyle = if (builtin.os.tag == .macos) macos.WindowStyle else str
     system_tray_title: ?[]const u8 = null,
     dev_tools: bool = true,
     native_sidebar: bool = false,
+    web_sidebar_material: bool = false,
+    web_sidebar_width: u32 = 286,
     benchmark: bool = false,
 };
 

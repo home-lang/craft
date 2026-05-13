@@ -63,8 +63,25 @@ describe('Native Sidebar', () => {
       const config = JSON.parse(args[args.indexOf('--sidebar-config') + 1])
       expect(config.variant).toBe('desktop')
       expect(config.material).toBe('sidebar')
-      expect(config.backgroundEffect).toBe('shimmer')
+      expect(config.backgroundEffect).toBe('vibrancy')
       expect(config.allowsVibrancy).toBe(true)
+    })
+
+    it('should pass web sidebar material options to the native binary', () => {
+      const app = new (CraftApp as unknown as { new(c: AppConfig): { buildArgs(): string[] } })({
+        url: 'http://localhost:3456/app',
+        window: {
+          titlebarHidden: true,
+          webSidebarMaterial: true,
+          webSidebarWidth: 286,
+        },
+      })
+
+      const args = app.buildArgs()
+      expect(args).toContain('--titlebar-hidden')
+      expect(args).toContain('--web-sidebar-material')
+      expect(args).toContain('--web-sidebar-width')
+      expect(args[args.indexOf('--web-sidebar-width') + 1]).toBe('286')
     })
 
     it('should work without sidebarConfig', () => {

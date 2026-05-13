@@ -392,6 +392,11 @@ export class CraftApp {
       args.push('--menubar-only')
     if (window?.titlebarHidden)
       args.push('--titlebar-hidden')
+    if (window?.webSidebarMaterial) {
+      args.push('--web-sidebar-material')
+      if (window?.webSidebarWidth)
+        args.push('--web-sidebar-width', String(window.webSidebarWidth))
+    }
     if (window?.icon)
       args.push('--icon', window.icon)
 
@@ -410,7 +415,7 @@ export class CraftApp {
         : undefined
       if (sidebarConfig?.variant === 'desktop') {
         sidebarConfig.material = sidebarConfig.material ?? 'sidebar'
-        sidebarConfig.backgroundEffect = sidebarConfig.backgroundEffect ?? 'shimmer'
+        sidebarConfig.backgroundEffect = sidebarConfig.backgroundEffect ?? 'vibrancy'
         sidebarConfig.allowsVibrancy = sidebarConfig.allowsVibrancy ?? true
       }
       if (sidebarConfig) {

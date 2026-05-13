@@ -105,6 +105,10 @@ export interface WindowCreateOptions {
   skipTaskbar?: boolean
   /** Whether titlebar is hidden */
   titlebarHidden?: boolean
+  /** Draw native macOS sidebar material behind a web-rendered sidebar */
+  webSidebarMaterial?: boolean
+  /** Width of the native material backdrop behind a web-rendered sidebar */
+  webSidebarWidth?: number
   /** Titlebar style (macOS) */
   titlebarStyle?: 'default' | 'hidden' | 'hiddenInset' | 'customButtonsOnHover'
   /** Traffic light position (macOS) */

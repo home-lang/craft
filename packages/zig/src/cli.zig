@@ -22,6 +22,8 @@ pub const WindowOptions = struct {
     titlebar_hidden: bool = false,
     native_sidebar: bool = false,
     sidebar_width: u32 = 220,
+    web_sidebar_material: bool = false,
+    web_sidebar_width: u32 = 286,
     sidebar_config: ?[]const u8 = null,
     quiet: bool = false,
     benchmark: bool = false,
@@ -152,6 +154,12 @@ pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !Wind
             options.hide_dock_icon = true; // And hiding dock icon
         } else if (std.mem.eql(u8, arg, "--native-sidebar")) {
             options.native_sidebar = true;
+        } else if (std.mem.eql(u8, arg, "--web-sidebar-material")) {
+            options.web_sidebar_material = true;
+        } else if (std.mem.eql(u8, arg, "--web-sidebar-width")) {
+            i += 1;
+            if (i >= args.len) return CliError.MissingValue;
+            options.web_sidebar_width = std.fmt.parseInt(u32, args[i], 10) catch return CliError.InvalidNumber;
         } else if (std.mem.eql(u8, arg, "--sidebar-width")) {
             i += 1;
             if (i >= args.len) return CliError.MissingValue;
@@ -222,6 +230,10 @@ fn printHelp() void {
         \\      --no-devtools        Disable WebKit DevTools
         \\      --titlebar-hidden    Hide window titlebar
         \\      --native-sidebar     Use native macOS sidebar (Finder-style)
+        \\      --web-sidebar-material
+        \\                          Draw native macOS sidebar material behind web UI
+        \\      --web-sidebar-width <W>
+        \\                          Web sidebar material width in pixels (default: 286)
         \\      --sidebar-config <J> Sidebar JSON configuration
         \\      --sidebar-width <W>  Sidebar width in pixels (default: 220)
         \\      --icon <PATH>        Path to dock icon image (PNG/JPG/ICNS)

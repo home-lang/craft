@@ -82,6 +82,8 @@ pub const WindowStyle = struct {
     system_tray_title: ?[]const u8 = null, // Initial title for system tray
     dev_tools: bool = true, // Enable WebKit DevTools (inspector)
     native_sidebar: bool = false, // Enable native sidebar (injects sidebar UI script)
+    web_sidebar_material: bool = false, // Draw a native sidebar material behind web-rendered sidebars
+    web_sidebar_width: u32 = 286,
     benchmark: bool = false, // Benchmark mode: skip bridge setup for fastest window creation
 };
 
@@ -178,6 +180,28 @@ fn createSidebarVisualEffectView(frame: NSRect, corner_radius: f64) objc.id {
     }
 
     return effect;
+}
+
+fn createWebSidebarMaterialBackdrop(frame: NSRect, sidebar_width: u32) objc.id {
+    const NSView = getClass("NSView");
+    const container_alloc = msgSend0(NSView, "alloc");
+    const container = msgSend1Rect(container_alloc, "initWithFrame:", frame);
+    if (container == null) return null;
+
+    msgSendVoid1(container, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
+    makeViewLayerTransparent(container);
+
+    const sidebarFrame = NSRect{
+        .origin = .{ .x = 0, .y = 0 },
+        .size = .{ .width = @as(f64, @floatFromInt(sidebar_width)), .height = frame.size.height },
+    };
+    const material = createSidebarVisualEffectView(sidebarFrame, 0.0);
+    if (material != null) {
+        msgSendVoid1(material, "setAutoresizingMask:", @as(c_ulong, 16));
+        _ = msgSend1(container, "addSubview:", material);
+    }
+
+    return container;
 }
 
 pub fn msgSendVoid0(target: anytype, selector: [*:0]const u8) void {
@@ -509,6 +533,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
             // Inject bridge scripts via WKUserScript for URL loading
             const WKUserScript = getClass("WKUserScript");
             const bridge_js = if (style.system_tray) getCraftBridgeScriptFull() else getCraftBridgeScriptMinimal();
+            const native_sidebar_bootstrap_js = if (style.web_sidebar_material) getNativeSidebarBootstrapScript() else "";
 
             // Create bridge script
             const bridge_js_str = createNSString(bridge_js);
@@ -516,6 +541,12 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
                 @as(c_int, 1) // YES - main frame only
             );
             _ = msgSend1(userContentController, "addUserScript:", bridge_script);
+
+            if (native_sidebar_bootstrap_js.len > 0) {
+                const bootstrap_js_str = createNSString(native_sidebar_bootstrap_js);
+                const bootstrap_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", bootstrap_js_str, @as(c_long, 0), @as(c_int, 1));
+                _ = msgSend1(userContentController, "addUserScript:", bootstrap_script);
+            }
 
             // Only inject native UI script when native sidebar is enabled
             if (style.native_sidebar) {
@@ -548,7 +579,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
     // Create WKWebView with configuration
     const webview_alloc = msgSend0(WKWebView, "alloc");
     const webview = msgSend2(webview_alloc, "initWithFrame:configuration:", frame, config);
-    const wants_translucent_surface = style.transparent or style.titlebar_hidden or style.native_sidebar;
+    const wants_translucent_surface = style.transparent or style.titlebar_hidden or style.native_sidebar or style.web_sidebar_material;
     if (!style.benchmark and wants_translucent_surface) {
         makeWindowTranslucent(window);
         makeWebViewTransparent(webview);
@@ -590,10 +621,11 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
             // CRITICAL FIX: WKUserScript doesn't reliably inject with loadHTMLString when baseURL is null
             // So we inject the bridge script directly into the HTML before loading
             const bridge_js = if (style.system_tray) getCraftBridgeScriptFull() else getCraftBridgeScriptMinimal();
+            const native_sidebar_bootstrap_js = if (style.web_sidebar_material) getNativeSidebarBootstrapScript() else "";
             const native_ui_js = if (style.native_sidebar) getNativeUIScript() else "";
 
             // Find </head> tag and inject script before it
-            var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, h.len + bridge_js.len + native_ui_js.len + 40);
+            var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, h.len + bridge_js.len + native_sidebar_bootstrap_js.len + native_ui_js.len + 40);
             defer modified_html.deinit(std.heap.c_allocator);
 
             if (std.mem.indexOf(u8, h, "</head>")) |head_pos| {
@@ -602,6 +634,11 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
                 try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
                 try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
                 try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+                if (native_sidebar_bootstrap_js.len > 0) {
+                    try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
+                    try modified_html.appendSlice(std.heap.c_allocator, native_sidebar_bootstrap_js);
+                    try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+                }
                 if (native_ui_js.len > 0) {
                     try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
                     try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
@@ -613,6 +650,11 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
                 try modified_html.appendSlice(std.heap.c_allocator, "<script>");
                 try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
                 try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+                if (native_sidebar_bootstrap_js.len > 0) {
+                    try modified_html.appendSlice(std.heap.c_allocator, "<script>");
+                    try modified_html.appendSlice(std.heap.c_allocator, native_sidebar_bootstrap_js);
+                    try modified_html.appendSlice(std.heap.c_allocator, "</script>");
+                }
                 if (native_ui_js.len > 0) {
                     try modified_html.appendSlice(std.heap.c_allocator, "<script>");
                     try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
@@ -671,12 +713,22 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // Set the WebView's frame to the content area size
         msgSendVoid1Rect(webview, "setFrame:", webviewFrame);
 
-        // Now set webview as content view
-        _ = msgSend1(window, "setContentView:", webview);
-
         // Also set autoresizing mask to resize with window
         // NSViewWidthSizable = 2, NSViewHeightSizable = 16
         msgSendVoid1(webview, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
+
+        if (style.web_sidebar_material) {
+            const materialContainer = createWebSidebarMaterialBackdrop(webviewFrame, style.web_sidebar_width);
+            if (materialContainer != null) {
+                _ = msgSend1(materialContainer, "addSubview:", webview);
+                _ = msgSend1(window, "setContentView:", materialContainer);
+            } else {
+                _ = msgSend1(window, "setContentView:", webview);
+            }
+        } else {
+            // Now set webview as content view
+            _ = msgSend1(window, "setContentView:", webview);
+        }
 
         // Store webview and window references globally
         if (webview) |wv| {
@@ -3368,10 +3420,10 @@ fn getNativeUIScript() []const u8 {
 }
 
 fn getNativeSidebarBootstrapScript() []const u8 {
-    return 
+    return
     \\window.__craftNativeSidebar = true;
     \\window.__craftCustomWindowControls = true;
-    \\window.__craftSidebarWidth = window.__craftSidebarWidth || 260;
+    \\window.__craftSidebarWidth = window.__craftSidebarWidth || 286;
     \\window.craft = window.craft || {};
     \\window.craft._sidebarSelectHandler = window.craft._sidebarSelectHandler || function(event) {
     \\  console.log('[Craft] Sidebar navigation:', event);

@@ -151,6 +151,21 @@ export interface WindowOptions {
   titlebarHidden?: boolean
 
   /**
+   * Draw native macOS sidebar material behind a web-rendered sidebar.
+   * Useful for apps whose sidebar is authored in HTML/STX but should sit over
+   * real AppKit vibrancy in transparent titlebar windows.
+   * @default false
+   */
+  webSidebarMaterial?: boolean
+
+  /**
+   * Width of the native material backdrop behind a web-rendered sidebar.
+   * Only used when webSidebarMaterial is true.
+   * @default 286
+   */
+  webSidebarWidth?: number
+
+  /**
    * Use native macOS sidebar (Finder-style with vibrancy)
    * Creates a split view with NSOutlineView sidebar and WebView content
    * @default false
