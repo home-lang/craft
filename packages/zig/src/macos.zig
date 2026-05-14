@@ -594,23 +594,28 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // This makes the titlebar truly invisible - required for macOS Tahoe/Settings look
         _ = msgSend1(window, "setTitlebarSeparatorStyle:", @as(c_long, 2)); // NSWindowTitlebarSeparatorStyleNone
 
-        // CRITICAL: Position traffic lights in the sidebar (Tahoe/Settings style)
+        // CRITICAL: Position traffic lights in the sidebar (Tahoe/Settings style).
+        // Web-sidebar material windows also draw custom sidebar/back/forward
+        // controls from the close-button frame, so this one inset defines the
+        // whole native chrome row.
+        const trafficLightTopInset: f64 = if (style.web_sidebar_material) 36.0 else 28.0;
+
         // Close button (red) - NSWindowCloseButton = 0
         const closeButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 0));
         if (closeButton != null) {
-            _ = msgSend2(closeButton, "setFrameOrigin:", @as(f64, 20.0), @as(f64, @as(f64, @floatFromInt(height)) - 28.0));
+            _ = msgSend2(closeButton, "setFrameOrigin:", @as(f64, 20.0), @as(f64, @as(f64, @floatFromInt(height)) - trafficLightTopInset));
         }
 
         // Minimize button (yellow) - NSWindowMiniaturizeButton = 1
         const miniButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 1));
         if (miniButton != null) {
-            _ = msgSend2(miniButton, "setFrameOrigin:", @as(f64, 40.0), @as(f64, @as(f64, @floatFromInt(height)) - 28.0));
+            _ = msgSend2(miniButton, "setFrameOrigin:", @as(f64, 40.0), @as(f64, @as(f64, @floatFromInt(height)) - trafficLightTopInset));
         }
 
         // Zoom button (green) - NSWindowZoomButton = 2
         const zoomButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 2));
         if (zoomButton != null) {
-            _ = msgSend2(zoomButton, "setFrameOrigin:", @as(f64, 60.0), @as(f64, @as(f64, @floatFromInt(height)) - 28.0));
+            _ = msgSend2(zoomButton, "setFrameOrigin:", @as(f64, 60.0), @as(f64, @as(f64, @floatFromInt(height)) - trafficLightTopInset));
         }
     }
 
@@ -3722,7 +3727,8 @@ fn getNativeUIScript() []const u8 {
 }
 
 fn getNativeSidebarBootstrapScript() []const u8 {
-    return \\window.__craftNativeSidebar = true;
+    return
+    \\window.__craftNativeSidebar = true;
     \\window.__craftCustomWindowControls = true;
     \\window.__craftWebChromeControls = true;
     \\window.__craftSidebarWidth = window.__craftSidebarWidth || 286;
