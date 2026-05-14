@@ -766,6 +766,9 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // Store webview and window references globally
         if (webview) |wv| {
             setGlobalWebView(wv);
+            if (style.web_sidebar_material) {
+                addWebSidebarChromeControls(window, wv);
+            }
             // Also set references for tray menu actions
             const tray_menu = @import("tray_menu.zig");
             tray_menu.setGlobalWebView(wv);
@@ -957,6 +960,7 @@ var sidebar_uses_desktop_material: bool = false;
 var sidebar_uses_shimmer: bool = false;
 var sidebar_allows_vibrancy: bool = false;
 var sidebar_material_opacity: f64 = 0.90;
+var webChromeResponderClass: objc.Class = null;
 
 // Default demo sections (used when no config provided)
 const default_sections = [_]DynamicSidebarSection{
@@ -2603,6 +2607,111 @@ fn ensureSidebarToggleResponder() void {
     objc.objc_registerClassPair(sidebarToggleResponderClass);
 }
 
+fn webChromeToggleSidebarCallback(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
+    const webview = getGlobalWebView() orelse return;
+    const js = createNSString("document.querySelector('[data-sidebar-collapse]')?.click()");
+    _ = msgSend2(webview, "evaluateJavaScript:completionHandler:", js, @as(?*anyopaque, null));
+}
+
+fn webChromeBackCallback(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
+    const webview = getGlobalWebView() orelse return;
+    msgSendVoid0(webview, "goBack");
+}
+
+fn webChromeForwardCallback(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
+    const webview = getGlobalWebView() orelse return;
+    msgSendVoid0(webview, "goForward");
+}
+
+fn ensureWebChromeResponder() void {
+    if (webChromeResponderClass != null) return;
+
+    const NSView = getClass("NSView");
+    webChromeResponderClass = objc.objc_allocateClassPair(NSView, "CraftWebChromeControlView", 0);
+    if (webChromeResponderClass == null) return;
+
+    _ = objc.class_addMethod(
+        webChromeResponderClass,
+        sel("toggleWebSidebar:"),
+        @ptrCast(@constCast(&webChromeToggleSidebarCallback)),
+        "v@:@",
+    );
+    _ = objc.class_addMethod(
+        webChromeResponderClass,
+        sel("goWebBack:"),
+        @ptrCast(@constCast(&webChromeBackCallback)),
+        "v@:@",
+    );
+    _ = objc.class_addMethod(
+        webChromeResponderClass,
+        sel("goWebForward:"),
+        @ptrCast(@constCast(&webChromeForwardCallback)),
+        "v@:@",
+    );
+
+    objc.objc_registerClassPair(webChromeResponderClass);
+}
+
+fn addWebSidebarChromeControls(window: objc.id, webview: objc.id) void {
+    if (window == null or webview == null) return;
+
+    ensureWebChromeResponder();
+    if (webChromeResponderClass == null) return;
+
+    const contentView = msgSend0(window, "contentView");
+    const themeFrame = if (contentView != null) msgSend0(contentView, "superview") else null;
+    if (themeFrame == null) return;
+
+    const NSButton = getClass("NSButton");
+    const NSImage = getClass("NSImage");
+    const responder_alloc = msgSend0(webChromeResponderClass, "alloc");
+    const responder = msgSend1Rect(responder_alloc, "initWithFrame:", .{
+        .origin = .{ .x = 0, .y = 0 },
+        .size = .{ .width = 0, .height = 0 },
+    });
+    _ = msgSend1(themeFrame, "addSubview:", responder);
+
+    const closeButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 0));
+    const closeFrame = if (closeButton != null) msgSendRect(closeButton, "frame") else NSRect{
+        .origin = .{ .x = 20.0, .y = 832.0 },
+        .size = .{ .width = 14.0, .height = 14.0 },
+    };
+    const themeBounds = msgSendRect(themeFrame, "bounds");
+    const buttonSize = NSSize{ .width = 28.0, .height = 28.0 };
+    const buttonY = themeBounds.size.height - closeFrame.origin.y - closeFrame.size.height - ((buttonSize.height - closeFrame.size.height) / 2.0);
+    const firstButtonX = closeFrame.origin.x + 68.0;
+    const buttonGap = 42.0;
+
+    const buttons = [_]struct {
+        symbol: []const u8,
+        action: [*:0]const u8,
+        tooltip: []const u8,
+        x: f64,
+    }{
+        .{ .symbol = "sidebar.left", .action = "toggleWebSidebar:", .tooltip = "Toggle Sidebar", .x = firstButtonX },
+        .{ .symbol = "chevron.left", .action = "goWebBack:", .tooltip = "Go Back", .x = firstButtonX + buttonGap },
+        .{ .symbol = "chevron.right", .action = "goWebForward:", .tooltip = "Go Forward", .x = firstButtonX + (buttonGap * 2.0) },
+    };
+
+    for (buttons) |button| {
+        const symbolName = createNSString(button.symbol);
+        const image = msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", symbolName, @as(?*anyopaque, null));
+        const btn_alloc = msgSend0(NSButton, "alloc");
+        const btn = msgSend1Rect(btn_alloc, "initWithFrame:", .{
+            .origin = .{ .x = button.x, .y = buttonY },
+            .size = buttonSize,
+        });
+        _ = msgSend1(btn, "setImage:", image);
+        _ = msgSend1(btn, "setBezelStyle:", @as(c_long, 0));
+        _ = msgSend1(btn, "setBordered:", @as(c_int, 0));
+        _ = msgSend1(btn, "setTarget:", responder);
+        _ = msgSend1(btn, "setAction:", sel(button.action));
+        _ = msgSend1(btn, "setToolTip:", createNSString(button.tooltip));
+        msgSendVoid1(btn, "setAutoresizingMask:", @as(c_ulong, 4));
+        _ = msgSend1(themeFrame, "addSubview:", btn);
+    }
+}
+
 /// Create a window with native sidebar loading a URL instead of inline HTML
 pub fn createWindowWithSidebarURL(
     title: []const u8,
@@ -3487,6 +3596,7 @@ fn getNativeSidebarBootstrapScript() []const u8 {
     return
     \\window.__craftNativeSidebar = true;
     \\window.__craftCustomWindowControls = true;
+    \\window.__craftWebChromeControls = true;
     \\window.__craftSidebarWidth = window.__craftSidebarWidth || 286;
     \\window.craft = window.craft || {};
     \\window.craft._sidebarSelectHandler = window.craft._sidebarSelectHandler || function(event) {
