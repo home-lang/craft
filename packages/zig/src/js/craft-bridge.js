@@ -341,6 +341,7 @@
     setHasShadow: function (on)       { return _send('window', 'setHasShadow', _stringify({ value: !!on })) },
     setBackgroundColor: function (c)  { return _send('window', 'setBackgroundColor', _stringify({ color: String(c) })) },
     setVibrancy:  function (mat)      { return _send('window', 'setVibrancy', _stringify({ material: String(mat || '') })) },
+    setWebSidebarCollapsed: function (on) { return _send('window', 'setWebSidebarCollapsed', _stringify({ collapsed: !!on })) },
   }
 
   // -------------------------------------------------------------------------

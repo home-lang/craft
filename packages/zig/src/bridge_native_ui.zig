@@ -250,6 +250,39 @@ pub const NativeUIBridge = struct {
         const sidebar = try NativeSidebar.init(self.allocator);
         errdefer sidebar.deinit();
 
+        if (root.get("sections")) |sections_value| {
+            for (sections_value.array.items) |section_value| {
+                const section_obj = section_value.object;
+                const section_id = if (section_obj.get("id")) |v| v.string else "section";
+                const section_label = if (section_obj.get("label")) |v| v.string else if (section_obj.get("title")) |v| v.string else section_id;
+                const items_value = section_obj.get("items") orelse continue;
+
+                var items: std.ArrayList(NativeSidebar.SidebarItem) = .{ .items = &.{}, .capacity = 0 };
+                defer items.deinit(self.allocator);
+
+                for (items_value.array.items) |item_value| {
+                    const item_obj = item_value.object;
+                    const item_id = if (item_obj.get("id")) |v| v.string else "item";
+                    const item_label = if (item_obj.get("label")) |v| v.string else item_id;
+                    try items.append(self.allocator, .{
+                        .id = item_id,
+                        .label = item_label,
+                        .icon = if (item_obj.get("icon")) |icon| icon.string else null,
+                        .badge = if (item_obj.get("badge")) |badge| switch (badge) {
+                            .string => |s| s,
+                            else => null,
+                        } else null,
+                    });
+                }
+
+                try sidebar.addSection(.{
+                    .id = section_id,
+                    .header = section_label,
+                    .items = items.items,
+                });
+            }
+        }
+
         // Store in registry
         const id_copy = try self.allocator.dupe(u8, id_str);
         try self.sidebars.put(id_copy, sidebar);

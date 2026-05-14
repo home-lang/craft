@@ -24,7 +24,7 @@ class SplitView{constructor(id,sb,br){this.id=id;this.sidebar=sb;this.browser=br
 setDividerPosition(p){s('setDividerPosition',{splitViewId:this.id,position:p});return this}
 destroy(){s('destroyComponent',{id:this.id,type:'splitView'})}}
 window.craft.nativeUI={
-createSidebar(o={}){const id=o.id||`sidebar-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;s('createSidebar',{id});return new Sidebar(id)},
+createSidebar(o={}){const id=o.id||`sidebar-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;s('createSidebar',Object.assign({},o,{id}));return new Sidebar(id)},
 createFileBrowser(o={}){const id=o.id||`browser-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;s('createFileBrowser',{id});return new FileBrowser(id)},
 createSplitView(o){if(!o.sidebar||!o.browser)throw new Error('createSplitView requires both sidebar and browser options');const id=o.id||`splitview-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;s('createSplitView',{id:id,sidebarId:o.sidebar.id,browserId:o.browser.id});return new SplitView(id,o.sidebar,o.browser)},
 showContextMenu(o){if(!o.items||!o.items.length)throw new Error('showContextMenu requires items array');s('showContextMenu',{targetId:o.targetId||'',targetType:o.targetType||'general',x:o.x||0,y:o.y||0,items:o.items})},
@@ -32,4 +32,5 @@ showQuickLook(o){if(!o.files||!o.files.length)throw new Error('showQuickLook req
 closeQuickLook(){s('closeQuickLook',{})},
 toggleQuickLook(o){if(!o.files||!o.files.length)throw new Error('toggleQuickLook requires files array');s('toggleQuickLook',{files:o.files,currentIndex:o.currentIndex||0})},
 previewFile(fp,t){this.showQuickLook({files:[{id:fp,path:fp,title:t}]})}};
+window.craft.components=window.craft.components||window.craft.nativeUI;
 document.dispatchEvent(new CustomEvent('craft:nativeui:ready'))})();

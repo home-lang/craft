@@ -83,6 +83,8 @@ pub const WindowBridge = struct {
             try self.reload();
         } else if (std.mem.eql(u8, action, "setVibrancy")) {
             try self.setVibrancy(data);
+        } else if (std.mem.eql(u8, action, "setWebSidebarCollapsed")) {
+            try self.setWebSidebarCollapsed(data);
         } else if (std.mem.eql(u8, action, "setAlwaysOnTop")) {
             try self.setAlwaysOnTop(data);
         } else if (std.mem.eql(u8, action, "setOpacity")) {
@@ -380,6 +382,16 @@ pub const WindowBridge = struct {
                 // Set as background of content view
                 _ = macos.msgSend3(content_view, "addSubview:positioned:relativeTo:", effect_view, @as(c_long, -1), @as(?*anyopaque, null));
             }
+        }
+    }
+
+    fn setWebSidebarCollapsed(_: *Self, data: ?[]const u8) !void {
+        const json_data = data orelse return BridgeError.MissingData;
+        const collapsed = json_utils.getBool(json_data, "collapsed") orelse false;
+
+        if (builtin.os.tag == .macos) {
+            const macos = @import("macos.zig");
+            macos.setWebSidebarCollapsed(collapsed);
         }
     }
 

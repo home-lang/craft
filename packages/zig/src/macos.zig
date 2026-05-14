@@ -147,6 +147,8 @@ fn makeViewLayerTransparent(view: objc.id) void {
 fn makeWebViewTransparent(webview: objc.id) void {
     if (webview == null) return;
 
+    _ = msgSend1(webview, "setOpaque:", @as(c_int, 0));
+
     const NSNumber = getClass("NSNumber");
     const drawsBackgroundKey = createNSString("drawsBackground");
     const noValue = msgSend1(NSNumber, "numberWithBool:", @as(c_int, 0));
@@ -160,6 +162,21 @@ fn makeWebViewTransparent(webview: objc.id) void {
 
         _ = msgSend1(scrollView, "setDrawsBackground:", @as(c_int, 0));
         _ = msgSend1(scrollView, "setBackgroundColor:", msgSend0(getClass("NSColor"), "clearColor"));
+    }
+}
+
+fn createAppearance(name: []const u8) objc.id {
+    const NSAppearance = getClass("NSAppearance");
+    if (NSAppearance == null) return null;
+
+    return msgSend1(NSAppearance, "appearanceNamed:", createNSString(name));
+}
+
+fn setViewAppearance(view: objc.id, name: []const u8) void {
+    if (view == null) return;
+    const appearance = createAppearance(name);
+    if (appearance != null) {
+        _ = msgSend1(view, "setAppearance:", appearance);
     }
 }
 
@@ -186,27 +203,68 @@ fn createSidebarVisualEffectView(frame: NSRect, corner_radius: f64) objc.id {
     return effect;
 }
 
-fn createSidebarMaterialTint(frame: NSRect, opacity: f64) objc.id {
+fn createColor(red: f64, green: f64, blue: f64, alpha: f64) objc.id {
+    const NSColor = getClass("NSColor");
+    if (NSColor == null) return null;
+
+    return msgSend4Double(NSColor, "colorWithCalibratedRed:green:blue:alpha:", red, green, blue, alpha);
+}
+
+fn createTintedView(frame: NSRect, color: objc.id) objc.id {
+    if (color == null) return null;
+
     const NSView = getClass("NSView");
-    const overlay_alloc = msgSend0(NSView, "alloc");
-    const overlay = msgSend1Rect(overlay_alloc, "initWithFrame:", frame);
-    if (overlay == null) return null;
+    const view_alloc = msgSend0(NSView, "alloc");
+    const view = msgSend1Rect(view_alloc, "initWithFrame:", frame);
+    if (view == null) return null;
 
-    msgSendVoid1(overlay, "setAutoresizingMask:", @as(c_ulong, 16));
-    _ = msgSend1(overlay, "setWantsLayer:", @as(c_int, 1));
+    msgSendVoid1(view, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
+    _ = msgSend1(view, "setWantsLayer:", @as(c_int, 1));
 
-    const clampedOpacity = if (opacity < 0.0) 0.0 else if (opacity > 1.0) 1.0 else opacity;
-    const backgroundColor = msgSend0(getClass("NSColor"), "windowBackgroundColor");
-    const tintedColor = msgSend1Double(backgroundColor, "colorWithAlphaComponent:", clampedOpacity);
-    const layer = msgSend0(overlay, "layer");
-    if (layer != null and tintedColor != null) {
-        const cgColor = msgSend0(tintedColor, "CGColor");
+    const layer = msgSend0(view, "layer");
+    if (layer != null) {
+        const cgColor = msgSend0(color, "CGColor");
         if (cgColor != null) {
             _ = msgSend1(layer, "setBackgroundColor:", cgColor);
         }
     }
 
-    return overlay;
+    return view;
+}
+
+fn createLightSidebarMaterialTint(frame: NSRect, opacity: f64) objc.id {
+    const clampedOpacity = if (opacity < 0.0) 0.0 else if (opacity > 1.0) 1.0 else opacity;
+    const color = createColor(246.0 / 255.0, 246.0 / 255.0, 244.0 / 255.0, clampedOpacity);
+    return createTintedView(frame, color);
+}
+
+fn createSidebarMaterialTint(frame: NSRect, opacity: f64) objc.id {
+    const clampedOpacity = if (opacity < 0.0) 0.0 else if (opacity > 1.0) 1.0 else opacity;
+    const color = switch (sidebar_material_scheme) {
+        .light => createColor(246.0 / 255.0, 246.0 / 255.0, 244.0 / 255.0, clampedOpacity),
+        .dark => createColor(24.0 / 255.0, 24.0 / 255.0, 23.0 / 255.0, clampedOpacity),
+        .system => blk: {
+            const backgroundColor = msgSend0(getClass("NSColor"), "windowBackgroundColor");
+            break :blk msgSend1Double(backgroundColor, "colorWithAlphaComponent:", clampedOpacity);
+        },
+    };
+    return createTintedView(frame, color);
+}
+
+fn createWebContentSurface(frame: NSRect, sidebar_width: u32) objc.id {
+    const sidebarWidth = @as(f64, @floatFromInt(sidebar_width));
+    if (frame.size.width <= sidebarWidth) return null;
+
+    const contentFrame = NSRect{
+        .origin = .{ .x = sidebarWidth, .y = 0 },
+        .size = .{ .width = frame.size.width - sidebarWidth, .height = frame.size.height },
+    };
+    const color = createColor(1.0, 1.0, 1.0, 1.0);
+    const surface = createTintedView(contentFrame, color);
+    if (surface != null) {
+        msgSendVoid1(surface, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
+    }
+    return surface;
 }
 
 fn createWebSidebarMaterialBackdrop(frame: NSRect, sidebar_width: u32, material_opacity: f64) objc.id {
@@ -217,23 +275,56 @@ fn createWebSidebarMaterialBackdrop(frame: NSRect, sidebar_width: u32, material_
 
     msgSendVoid1(container, "setAutoresizingMask:", @as(c_ulong, 2 | 16));
     makeViewLayerTransparent(container);
+    web_sidebar_material_container = container;
+    web_sidebar_width_stored = @as(f64, @floatFromInt(sidebar_width));
 
     const sidebarFrame = NSRect{
         .origin = .{ .x = 0, .y = 0 },
         .size = .{ .width = @as(f64, @floatFromInt(sidebar_width)), .height = frame.size.height },
     };
+
+    const contentSurface = createWebContentSurface(frame, sidebar_width);
+    if (contentSurface != null) {
+        web_sidebar_content_surface = contentSurface;
+        _ = msgSend1(container, "addSubview:", contentSurface);
+    }
+
     const material = createSidebarVisualEffectView(sidebarFrame, 0.0);
     if (material != null) {
+        setViewAppearance(material, "NSAppearanceNameVibrantLight");
         msgSendVoid1(material, "setAutoresizingMask:", @as(c_ulong, 16));
+        web_sidebar_material_view = material;
         _ = msgSend1(container, "addSubview:", material);
     }
 
-    const overlay = createSidebarMaterialTint(sidebarFrame, material_opacity);
+    const overlay = createLightSidebarMaterialTint(sidebarFrame, material_opacity);
     if (overlay != null) {
+        web_sidebar_material_tint = overlay;
         _ = msgSend1(container, "addSubview:", overlay);
     }
 
     return container;
+}
+
+pub fn setWebSidebarCollapsed(collapsed: bool) void {
+    if (web_sidebar_material_container == null) return;
+
+    const hidden = @as(c_int, if (collapsed) 1 else 0);
+    if (web_sidebar_material_view != null) {
+        _ = msgSend1(web_sidebar_material_view, "setHidden:", hidden);
+    }
+    if (web_sidebar_material_tint != null) {
+        _ = msgSend1(web_sidebar_material_tint, "setHidden:", hidden);
+    }
+
+    if (web_sidebar_content_surface != null) {
+        const bounds = msgSendRect(web_sidebar_material_container, "bounds");
+        const sidebarWidth = if (collapsed) 0.0 else web_sidebar_width_stored;
+        msgSendVoid1Rect(web_sidebar_content_surface, "setFrame:", .{
+            .origin = .{ .x = sidebarWidth, .y = 0 },
+            .size = .{ .width = bounds.size.width - sidebarWidth, .height = bounds.size.height },
+        });
+    }
 }
 
 pub fn msgSendVoid0(target: anytype, selector: [*:0]const u8) void {
@@ -314,6 +405,11 @@ pub fn msgSend1Bool(target: anytype, selector: [*:0]const u8, arg1: bool) objc.i
 pub fn msgSend1Double(target: anytype, selector: [*:0]const u8, arg1: f64) objc.id {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL, f64) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
     return msg(target, sel(selector), arg1);
+}
+
+fn msgSend4Double(target: anytype, selector: [*:0]const u8, arg1: f64, arg2: f64, arg3: f64, arg4: f64) objc.id {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, f64, f64, f64, f64) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector), arg1, arg2, arg3, arg4);
 }
 
 /// Message send that returns f64 with no arguments
@@ -462,6 +558,10 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
     // Set window title
     _ = msgSend1(window, "setTitle:", title_str);
+
+    if (style.web_sidebar_material) {
+        setViewAppearance(window, "NSAppearanceNameAqua");
+    }
 
     // Configure transparency
     if (style.transparent) {
@@ -960,7 +1060,19 @@ var sidebar_uses_desktop_material: bool = false;
 var sidebar_uses_shimmer: bool = false;
 var sidebar_allows_vibrancy: bool = false;
 var sidebar_material_opacity: f64 = 0.90;
+var sidebar_material_scheme: SidebarMaterialScheme = .system;
 var webChromeResponderClass: objc.Class = null;
+var web_sidebar_material_container: objc.id = null;
+var web_sidebar_material_view: objc.id = null;
+var web_sidebar_material_tint: objc.id = null;
+var web_sidebar_content_surface: objc.id = null;
+var web_sidebar_width_stored: f64 = 286.0;
+
+const SidebarMaterialScheme = enum {
+    system,
+    light,
+    dark,
+};
 
 // Default demo sections (used when no config provided)
 const default_sections = [_]DynamicSidebarSection{
@@ -1052,6 +1164,19 @@ fn parseSidebarConfig(json: []const u8) !void {
         };
     } else {
         sidebar_material_opacity = 0.90;
+    }
+    if (root.object.get("materialScheme")) |v| {
+        sidebar_material_scheme = switch (v) {
+            .string => |s| if (std.mem.eql(u8, s, "light"))
+                .light
+            else if (std.mem.eql(u8, s, "dark"))
+                .dark
+            else
+                .system,
+            else => .system,
+        };
+    } else {
+        sidebar_material_scheme = .system;
     }
 
     // Extract sections array
@@ -1730,7 +1855,11 @@ pub fn createWindowWithSidebar(
     // Apply dark mode appearance FIRST so sidebar inherits it
     // Use vibrant appearance for proper sidebar vibrancy
     const NSAppearance = getClass("NSAppearance");
-    const is_dark = if (style.dark_mode) |dm| dm else false;
+    const is_dark = switch (sidebar_material_scheme) {
+        .light => false,
+        .dark => true,
+        .system => if (style.dark_mode) |dm| dm else false,
+    };
     const appearanceName = if (is_dark)
         createNSString("NSAppearanceNameVibrantDark")
     else
@@ -3593,8 +3722,7 @@ fn getNativeUIScript() []const u8 {
 }
 
 fn getNativeSidebarBootstrapScript() []const u8 {
-    return
-    \\window.__craftNativeSidebar = true;
+    return \\window.__craftNativeSidebar = true;
     \\window.__craftCustomWindowControls = true;
     \\window.__craftWebChromeControls = true;
     \\window.__craftSidebarWidth = window.__craftSidebarWidth || 286;
