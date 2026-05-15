@@ -598,7 +598,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // Web-sidebar material windows also draw custom sidebar/back/forward
         // controls from the close-button frame, so this one inset defines the
         // whole native chrome row.
-        const trafficLightTopInset: f64 = if (style.web_sidebar_material) 36.0 else 28.0;
+        const trafficLightTopInset: f64 = if (style.web_sidebar_material) 32.0 else 28.0;
 
         // Close button (red) - NSWindowCloseButton = 0
         const closeButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 0));
