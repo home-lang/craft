@@ -309,6 +309,8 @@ fn createWebSidebarMaterialBackdrop(frame: NSRect, sidebar_width: u32, material_
 pub fn setWebSidebarCollapsed(collapsed: bool) void {
     if (web_sidebar_material_container == null) return;
 
+    updateWebSidebarToggleButton(collapsed);
+
     const hidden = @as(c_int, if (collapsed) 1 else 0);
     if (web_sidebar_material_view != null) {
         _ = msgSend1(web_sidebar_material_view, "setHidden:", hidden);
@@ -1071,7 +1073,20 @@ var web_sidebar_material_container: objc.id = null;
 var web_sidebar_material_view: objc.id = null;
 var web_sidebar_material_tint: objc.id = null;
 var web_sidebar_content_surface: objc.id = null;
+var web_sidebar_toggle_button: objc.id = null;
 var web_sidebar_width_stored: f64 = 286.0;
+
+fn updateWebSidebarToggleButton(collapsed: bool) void {
+    if (web_sidebar_toggle_button == null) return;
+
+    const NSImage = getClass("NSImage");
+    const symbolName = createNSString(if (collapsed) "sidebar.right" else "sidebar.left");
+    const image = msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", symbolName, @as(?*anyopaque, null));
+    if (image != null) {
+        _ = msgSend1(web_sidebar_toggle_button, "setImage:", image);
+    }
+    _ = msgSend1(web_sidebar_toggle_button, "setToolTip:", createNSString(if (collapsed) "Expand Sidebar" else "Collapse Sidebar"));
+}
 
 const SidebarMaterialScheme = enum {
     system,
@@ -2843,6 +2858,9 @@ fn addWebSidebarChromeControls(window: objc.id, webview: objc.id) void {
         _ = msgSend1(btn, "setToolTip:", createNSString(button.tooltip));
         msgSendVoid1(btn, "setAutoresizingMask:", @as(c_ulong, 4));
         _ = msgSend1(themeFrame, "addSubview:", btn);
+        if (std.mem.eql(u8, button.symbol, "sidebar.left")) {
+            web_sidebar_toggle_button = btn;
+        }
     }
 }
 
