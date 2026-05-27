@@ -2,7 +2,7 @@
     .fingerprint = 0xf45c4a848bf58c1c,
     .name = .craft,
     .version = "1.3.0",
-    .minimum_zig_version = "0.16.0",
+    .minimum_zig_version = "0.17.0-dev",
     .dependencies = .{},
     .paths = .{
         "build.zig",
