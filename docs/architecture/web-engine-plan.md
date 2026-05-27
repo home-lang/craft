@@ -218,12 +218,15 @@ Sequencing inside the JS track: **lexer/parser (→ test262 parse pass) → tree
 inline caches → optional baseline JIT (later, optional).** A correct tree-walker that passes test262
 beats a fast VM that's wrong; correctness first, speed second.
 
-> **Status:** the first three stages exist. zig-js has a working lexer/parser, a tree-walk
-> interpreter passing the language slice, and a **tier-1 stack bytecode VM**
-> (`bytecode.zig`/`compiler.zig`/`vm.zig`) that is now the default execution path — it shares the
-> interpreter's value model and environment, and falls back to the tree-walker for any node it
-> doesn't lower yet (so test262 stays flat at ~25% across the migration). Next perf tiers:
-> slot-allocated locals, NaN-boxed values, object shapes + inline caches, then a generational GC.
+> **Status:** the pipeline through tier-3 exists and is the default execution path. zig-js has a
+> lexer/parser, a tree-walk interpreter (the correctness oracle + fallback), and a bytecode VM
+> (`bytecode.zig`/`compiler.zig`/`vm.zig`) with **tier-1** (lowers nearly the whole language),
+> **tier-2** slot-allocated locals + frame-linked closures (`Frame{slots,parent}`), and **tier-3**
+> object shapes/hidden classes (`shape.zig`) + monomorphic inline caches. `zig build bench` shows
+> ~1.6–1.85× over the tree-walker; the fallback keeps test262 flat at ~25% across every tier. Next:
+> NaN-boxed values, a generational GC (replaces the arena), then a baseline JIT — plus widening
+> test262 via breadth features (template literals, `switch`, the `Object`/`Array`/`String`/`Math`/
+> `JSON` builtins).
 
 ### What already exists to build on
 
