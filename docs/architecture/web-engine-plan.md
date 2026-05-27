@@ -218,6 +218,13 @@ Sequencing inside the JS track: **lexer/parser (→ test262 parse pass) → tree
 inline caches → optional baseline JIT (later, optional).** A correct tree-walker that passes test262
 beats a fast VM that's wrong; correctness first, speed second.
 
+> **Status:** the first three stages exist. zig-js has a working lexer/parser, a tree-walk
+> interpreter passing the language slice, and a **tier-1 stack bytecode VM**
+> (`bytecode.zig`/`compiler.zig`/`vm.zig`) that is now the default execution path — it shares the
+> interpreter's value model and environment, and falls back to the tree-walker for any node it
+> doesn't lower yet (so test262 stays flat at ~25% across the migration). Next perf tiers:
+> slot-allocated locals, NaN-boxed values, object shapes + inline caches, then a generational GC.
+
 ### What already exists to build on
 
 - `packages/zig/src/renderer.zig` — real CPU `Canvas` (`drawRect/Circle/Line`, pixel buffer) +
