@@ -69,7 +69,7 @@
   },
   "devDependencies": {
     "@stacksjs/clapp": "^0.2.0",
-    "@types/archiver": "^6.0.2",
+    "@types/archiver": "^7.0.0",
     "@types/bun": "^1.2.0",
     "@types/node": "^22.0.0",
     "@types/ws": "^8.5.12",
