@@ -64,7 +64,7 @@
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
-    "archiver": "^7.0.1",
+    "archiver": "^8.0.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
