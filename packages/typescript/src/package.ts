@@ -10,29 +10,111 @@ import {
   chmodSync,
   copyFileSync,
   cpSync,
-  createWriteStream,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   writeFileSync,
 } from 'fs'
 import { homedir, tmpdir } from 'os'
 import { basename, join } from 'path'
+import { deflateRawSync } from 'zlib'
 
-// `archiver` is an optional runtime dep for ZIP packaging. Imported lazily
-// inside `createZIP` so consumers that never call it don't pay the cost.
-// The package's TS types declare a callable export; the actual ESM module
-// has the function under `.default` (CJS interop). Resolve both.
-type ArchiverModule = typeof import('archiver')
-type ArchiverFn = ArchiverModule
-let archiverFn: ArchiverFn | null = null
-async function loadArchiver(): Promise<ArchiverFn> {
-  if (!archiverFn) {
-    const mod = (await import('archiver')) as unknown as ArchiverModule & { default?: ArchiverModule }
-    archiverFn = (mod.default ?? mod) as ArchiverFn
+// Dependency-free ZIP writer. Craft used to pull `archiver` (→ archiver-utils →
+// lazystream → readable-stream) solely to zip a single Windows binary; that
+// transitive tree is heavy and broke downstream installs (lazystream requires
+// the removed `readable-stream/passthrough` subpath). Bun/Node ship raw DEFLATE
+// via node:zlib, so we assemble the ZIP container ourselves.
+const CRC32_TABLE: Uint32Array = (() => {
+  const table = new Uint32Array(256)
+  for (let n = 0; n < 256; n++) {
+    let c = n
+    for (let k = 0; k < 8; k++)
+      c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1
+    table[n] = c >>> 0
   }
-  return archiverFn
+  return table
+})()
+
+function crc32(data: Uint8Array): number {
+  let c = 0xFFFFFFFF
+  for (let i = 0; i < data.length; i++)
+    c = CRC32_TABLE[(c ^ data[i]) & 0xFF] ^ (c >>> 8)
+  return (c ^ 0xFFFFFFFF) >>> 0
+}
+
+/** DOS-format date/time for ZIP local/central headers. */
+function dosDateTime(d: Date): { time: number; date: number } {
+  const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)
+  const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()
+  return { time: time & 0xFFFF, date: date & 0xFFFF }
+}
+
+/**
+ * Build a ZIP archive (DEFLATE, level 9) from in-memory entries. Emits the
+ * standard container: one local-file-header + data record per entry, a central
+ * directory, and the end-of-central-directory record. No external dependencies.
+ */
+function buildZip(entries: Array<{ name: string; data: Uint8Array }>): Buffer {
+  const { time, date } = dosDateTime(new Date())
+  const locals: Buffer[] = []
+  const central: Buffer[] = []
+  let offset = 0
+
+  for (const entry of entries) {
+    const nameBytes = Buffer.from(entry.name, 'utf8')
+    const compressed = deflateRawSync(entry.data, { level: 9 })
+    const crc = crc32(entry.data)
+
+    const lfh = Buffer.alloc(30)
+    lfh.writeUInt32LE(0x04034B50, 0) // local file header signature
+    lfh.writeUInt16LE(20, 4) // version needed to extract
+    lfh.writeUInt16LE(0, 6) // general-purpose bit flag
+    lfh.writeUInt16LE(8, 8) // compression method: deflate
+    lfh.writeUInt16LE(time, 10)
+    lfh.writeUInt16LE(date, 12)
+    lfh.writeUInt32LE(crc, 14)
+    lfh.writeUInt32LE(compressed.length, 18)
+    lfh.writeUInt32LE(entry.data.length, 22)
+    lfh.writeUInt16LE(nameBytes.length, 26)
+    lfh.writeUInt16LE(0, 28) // extra field length
+    locals.push(lfh, nameBytes, compressed)
+
+    const cdh = Buffer.alloc(46)
+    cdh.writeUInt32LE(0x02014B50, 0) // central directory header signature
+    cdh.writeUInt16LE(20, 4) // version made by
+    cdh.writeUInt16LE(20, 6) // version needed to extract
+    cdh.writeUInt16LE(0, 8) // general-purpose bit flag
+    cdh.writeUInt16LE(8, 10) // compression method
+    cdh.writeUInt16LE(time, 12)
+    cdh.writeUInt16LE(date, 14)
+    cdh.writeUInt32LE(crc, 16)
+    cdh.writeUInt32LE(compressed.length, 20)
+    cdh.writeUInt32LE(entry.data.length, 24)
+    cdh.writeUInt16LE(nameBytes.length, 28)
+    cdh.writeUInt16LE(0, 30) // extra field length
+    cdh.writeUInt16LE(0, 32) // file comment length
+    cdh.writeUInt16LE(0, 34) // disk number start
+    cdh.writeUInt16LE(0, 36) // internal file attributes
+    cdh.writeUInt32LE(0, 38) // external file attributes
+    cdh.writeUInt32LE(offset, 42) // relative offset of local header
+    central.push(cdh, nameBytes)
+
+    offset += lfh.length + nameBytes.length + compressed.length
+  }
+
+  const centralBuf = Buffer.concat(central)
+  const eocd = Buffer.alloc(22)
+  eocd.writeUInt32LE(0x06054B50, 0) // end of central directory signature
+  eocd.writeUInt16LE(0, 4) // number of this disk
+  eocd.writeUInt16LE(0, 6) // disk where central directory starts
+  eocd.writeUInt16LE(entries.length, 8) // central directory records on this disk
+  eocd.writeUInt16LE(entries.length, 10) // total central directory records
+  eocd.writeUInt32LE(centralBuf.length, 12) // size of central directory
+  eocd.writeUInt32LE(offset, 16) // offset of central directory
+  eocd.writeUInt16LE(0, 20) // comment length
+  return Buffer.concat([...locals, centralBuf, eocd])
 }
 
 export interface PackageConfig {
@@ -537,37 +619,15 @@ async function createZIP(opts: {
   binaryPath: string
   outputPath: string
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
-  const archiverFn = await loadArchiver()
-  return new Promise((resolve) => {
-    const output = createWriteStream(opts.outputPath)
-    const archive = archiverFn('zip', { zlib: { level: 9 } })
-
-    let settled = false
-    const settle = (r: { success: boolean; outputPath?: string; error?: string }) => {
-      if (settled) return
-      settled = true
-      resolve(r)
-    }
-
-    output.on('close', () => {
-      settle({ success: true, outputPath: opts.outputPath })
-    })
-
-    // Disk-write errors used to slip through unhandled — only the archiver's
-    // own error event was wired up. A truncated zip would still resolve
-    // success: true.
-    output.on('error', (err: Error) => {
-      settle({ success: false, error: `Failed to write ZIP: ${err.message}` })
-    })
-
-    archive.on('error', (err: Error) => {
-      settle({ success: false, error: err.message })
-    })
-
-    archive.pipe(output)
-    archive.file(opts.binaryPath, { name: `${opts.name}.exe` })
-    archive.finalize()
-  })
+  try {
+    const data = new Uint8Array(readFileSync(opts.binaryPath))
+    const zip = buildZip([{ name: `${opts.name}.exe`, data }])
+    writeFileSync(opts.outputPath, zip)
+    return { success: true, outputPath: opts.outputPath }
+  }
+  catch (err) {
+    return { success: false, error: `Failed to write ZIP: ${(err as Error).message}` }
+  }
 }
 
 /**
