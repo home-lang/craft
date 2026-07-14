@@ -1,5 +1,26 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.38...v0.0.39)
+
+## 🧹 Chores
+
+- release v0.0.39 ([96cf7d1](https://github.com/home-lang/craft/commit/96cf7d1)) _(by Chris <chrisbreuer93@gmail.com>)_
+- wip ([40bfe4a](https://github.com/home-lang/craft/commit/40bfe4a)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.38...HEAD)
+
+## 🧹 Chores
+
+- wip ([40bfe4a](https://github.com/home-lang/craft/commit/40bfe4a)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.37...v0.0.38)
 
 ## 🚀 Features
