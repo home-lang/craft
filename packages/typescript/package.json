@@ -54,7 +54,7 @@
   },
   "scripts": {
     "build": "rm -rf dist && bun run build:lib && bun run build:types",
-    "build:lib": "bun build src/index.ts --outdir dist --format esm --target bun --external ws && bun build src/index.ts --outfile dist/index.cjs --format cjs --target node --external ws",
+    "build:lib": "bun build src/index.ts --outdir dist --format esm --target bun && bun build src/index.ts --outfile dist/index.cjs --format cjs --target node",
     "build:types": "bun run tsc -p tsconfig.build.json && cp dist/index.d.ts dist/index.d.cts",
     "dev": "bun --watch src/index.ts",
     "lint": "bunx --bun pickier lint . --config ../../pickier.config.ts --max-warnings 9999",
@@ -63,14 +63,11 @@
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run build"
   },
-  "dependencies": {
-    "ws": "^8.18.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@stacksjs/clapp": "^0.2.0",
     "@types/bun": "^1.2.0",
     "@types/node": "^22.0.0",
-    "@types/ws": "^8.5.12",
     "better-dx": "^0.2.7"
   }
 }

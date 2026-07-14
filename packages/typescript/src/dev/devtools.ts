@@ -3,9 +3,11 @@
  * Chrome DevTools Protocol integration and custom debugging tools
  */
 
-import { createServer, IncomingMessage, ServerResponse } from 'http'
-import { WebSocketServer, WebSocket } from 'ws'
 import { EventEmitter } from 'events'
+import type { Server, ServerWebSocket } from 'bun'
+
+/** A connected DevTools WebSocket (Bun-native; no per-connection data). */
+type DevToolsSocket = ServerWebSocket<undefined>
 
 // Types
 export interface DevToolsConfig {
@@ -57,9 +59,8 @@ export interface MemoryInfo {
 // DevTools Server
 export class DevToolsServer extends EventEmitter {
   private config: DevToolsConfig
-  private server: ReturnType<typeof createServer> | null = null
-  private wss: WebSocketServer | null = null
-  private clients: Set<WebSocket> = new Set()
+  private server: Server<undefined> | null = null
+  private clients: Set<DevToolsSocket> = new Set()
 
   // Data stores
   private consoleLogs: ConsoleMessage[] = []
@@ -84,90 +85,81 @@ export class DevToolsServer extends EventEmitter {
    * Start the DevTools server
    */
   start(): void {
-    this.server = createServer((req, res) => this.handleHttp(req, res))
-    this.wss = new WebSocketServer({ server: this.server })
-
-    this.wss.on('connection', (ws) => {
-      this.clients.add(ws)
-      console.log('[DevTools] Client connected')
-
-      // Send current state
-      this.sendInitialState(ws)
-
-      ws.on('message', (data) => {
-        try {
-          const message = JSON.parse(data.toString())
-          this.handleMessage(ws, message)
-        }
-catch (e) {
-          console.error('[DevTools] Failed to parse message:', e)
-        }
-      })
-
-      ws.on('close', () => {
-        this.clients.delete(ws)
-        console.log('[DevTools] Client disconnected')
-      })
+    // Bun.serve serves the DevTools JSON API and upgrades inspector clients to
+    // WebSockets in one server — no separate `ws` WebSocketServer.
+    this.server = Bun.serve({
+      port: this.config.port,
+      fetch: (req, server) => {
+        if (server.upgrade(req))
+          return undefined // upgraded to a WebSocket; handled below
+        return this.handleHttp(req)
+      },
+      websocket: {
+        open: (ws) => {
+          this.clients.add(ws)
+          console.log('[DevTools] Client connected')
+          this.sendInitialState(ws)
+        },
+        message: (ws, data) => {
+          try {
+            const message = JSON.parse(typeof data === 'string' ? data : data.toString())
+            this.handleMessage(ws, message)
+          }
+          catch (e) {
+            console.error('[DevTools] Failed to parse message:', e)
+          }
+        },
+        close: (ws) => {
+          this.clients.delete(ws)
+          console.log('[DevTools] Client disconnected')
+        },
+      },
     })
 
-    this.server.listen(this.config.port, () => {
-      console.log(`[DevTools] Server running on http://localhost:${this.config.port}`)
-      console.log(`[DevTools] Open chrome://inspect or devtools://devtools/bundled/inspector.html?ws=localhost:${this.config.port}`)
-    })
+    console.log(`[DevTools] Server running on http://localhost:${this.config.port}`)
+    console.log(`[DevTools] Open chrome://inspect or devtools://devtools/bundled/inspector.html?ws=localhost:${this.config.port}`)
   }
 
   /**
    * Stop the DevTools server
    */
   stop(): void {
-    this.wss?.close()
-    this.server?.close()
+    this.server?.stop(true)
+    this.server = null
     this.clients.clear()
   }
 
   /**
    * Handle HTTP request (DevTools JSON API)
    */
-  private handleHttp(req: IncomingMessage, res: ServerResponse): void {
-    const url = req.url || '/'
+  private handleHttp(req: Request): Response {
+    const { pathname } = new URL(req.url)
 
-    // CORS headers. Devtools is dev-only, but `*` lets any page on the user's
-    // machine query the API. Echo the request's Origin only if it's a
-    // localhost variant — DevTools clients always run there in practice.
-    const origin = req.headers.origin || ''
-    if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin)
-    }
-    res.setHeader('Vary', 'Origin')
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+    // CORS headers. Devtools is dev-only; echo the request's Origin only if
+    // it's a localhost variant — DevTools clients always run there in practice.
+    const headers = new Headers({
+      'Vary': 'Origin',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    })
+    const origin = req.headers.get('origin') || ''
+    if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin))
+      headers.set('Access-Control-Allow-Origin', origin)
 
-    if (req.method === 'OPTIONS') {
-      res.writeHead(204)
-      res.end()
-      return
-    }
+    if (req.method === 'OPTIONS')
+      return new Response(null, { status: 204, headers })
 
-    // Stringify once and set Content-Length so responses use a single
-    // packet instead of chunked transfer-encoding for tiny payloads.
-    const sendJson = (status: number, payload: unknown) => {
-      const body = JSON.stringify(payload)
-      res.writeHead(status, {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body).toString(),
-      })
-      res.end(body)
+    const json = (status: number, payload: unknown): Response => {
+      headers.set('Content-Type', 'application/json')
+      return new Response(JSON.stringify(payload), { status, headers })
     }
-    const sendHtml = (status: number, body: string) => {
-      res.writeHead(status, {
-        'Content-Type': 'text/html',
-        'Content-Length': Buffer.byteLength(body).toString(),
-      })
-      res.end(body)
+    const html = (status: number, body: string): Response => {
+      headers.set('Content-Type', 'text/html')
+      return new Response(body, { status, headers })
     }
 
-    if (url === '/json' || url === '/json/list') {
-      sendJson(200, [
+    if (pathname === '/json' || pathname === '/json/list') {
+      return json(200, [
         {
           description: 'Craft DevTools',
           devtoolsFrontendUrl: `devtools://devtools/bundled/inspector.html?ws=localhost:${this.config.port}`,
@@ -179,41 +171,32 @@ catch (e) {
         },
       ])
     }
-    else if (url === '/json/version') {
-      sendJson(200, {
-        Browser: 'Craft DevTools/1.0',
+    if (pathname === '/json/version') {
+      return json(200, {
+        'Browser': 'Craft DevTools/1.0',
         'Protocol-Version': '1.3',
         'User-Agent': 'Craft',
         'V8-Version': process.versions.v8,
         'WebKit-Version': 'N/A',
       })
     }
-    else if (url === '/') {
-      sendHtml(200, this.getDashboardHtml())
-    }
-    else if (url === '/api/console') {
-      sendJson(200, this.consoleLogs)
-    }
-    else if (url === '/api/network') {
-      sendJson(200, Array.from(this.networkRequests.values()))
-    }
-    else if (url === '/api/performance') {
-      sendJson(200, this.performanceEntries)
-    }
-    else if (url === '/api/memory') {
-      sendJson(200, this.memorySnapshots)
-    }
-    else {
-      const body = 'Not found'
-      res.writeHead(404, { 'Content-Length': Buffer.byteLength(body).toString() })
-      res.end(body)
-    }
+    if (pathname === '/')
+      return html(200, this.getDashboardHtml())
+    if (pathname === '/api/console')
+      return json(200, this.consoleLogs)
+    if (pathname === '/api/network')
+      return json(200, Array.from(this.networkRequests.values()))
+    if (pathname === '/api/performance')
+      return json(200, this.performanceEntries)
+    if (pathname === '/api/memory')
+      return json(200, this.memorySnapshots)
+    return new Response('Not found', { status: 404, headers })
   }
 
   /**
    * Handle WebSocket message (CDP protocol)
    */
-  private handleMessage(ws: WebSocket, message: any): void {
+  private handleMessage(ws: DevToolsSocket, message: any): void {
     const { id, method, params } = message
 
     // Chrome DevTools Protocol handlers
@@ -319,8 +302,8 @@ catch (e) {
   /**
    * Send message to client
    */
-  private send(ws: WebSocket, message: object): void {
-    if (ws.readyState === WebSocket.OPEN) {
+  private send(ws: DevToolsSocket, message: object): void {
+    if (ws.readyState === 1) {
       ws.send(JSON.stringify(message))
     }
   }
@@ -331,7 +314,7 @@ catch (e) {
   private broadcast(message: object): void {
     const data = JSON.stringify(message)
     for (const client of this.clients) {
-      if (client.readyState === WebSocket.OPEN) {
+      if (client.readyState === 1) {
         client.send(data)
       }
     }
@@ -340,7 +323,7 @@ catch (e) {
   /**
    * Send initial state to new client
    */
-  private sendInitialState(ws: WebSocket): void {
+  private sendInitialState(ws: DevToolsSocket): void {
     // Send existing console logs
     for (const log of this.consoleLogs.slice(-100)) {
       this.send(ws, {

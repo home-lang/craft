@@ -9,8 +9,6 @@ import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createServer } from 'node:http'
-import type { AddressInfo } from 'node:net'
 
 // -------------------------------------------------------------------------
 // Item 1: HMR module endpoint must reject path traversal.
@@ -30,16 +28,8 @@ describe('Item 1: HMR path traversal', () => {
     writeFileSync(join(workdir, '..', 'craft-hmr-secret.txt'), 'TOP_SECRET')
     server = new HotReloadServer({ watchDir: workdir, port: 0 })
     server.start()
-    // The HotReloadServer's HTTP server isn't exposed; pull port from internals.
-    port = await new Promise<number>((resolve) => {
-      const s = (server as unknown as { server: { address(): AddressInfo } }).server
-      const tick = () => {
-        const addr = s?.address?.()
-        if (addr && typeof addr === 'object') resolve(addr.port)
-        else setTimeout(tick, 5)
-      }
-      tick()
-    })
+    // Bun.serve binds synchronously; `port` resolves the OS-assigned port.
+    port = server.port
   })
 
   afterEach(() => {

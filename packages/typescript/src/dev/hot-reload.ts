@@ -5,10 +5,15 @@
 
 import { existsSync, readFileSync, watch, type FSWatcher } from 'fs'
 import { extname, join, relative, resolve } from 'path'
-import { createServer, IncomingMessage, ServerResponse } from 'http'
-import { WebSocketServer, WebSocket } from 'ws'
 import { EventEmitter } from 'events'
+import type { Server, ServerWebSocket } from 'bun'
 import { secureUUID } from '../bridge/ids'
+
+/** Per-connection state carried on each Bun WebSocket (set at upgrade). */
+interface HmrSocketData {
+  id: string
+  platform: string
+}
 
 // Types
 export interface HotReloadConfig {
@@ -22,7 +27,7 @@ export interface HotReloadConfig {
 }
 
 export interface HotReloadClient {
-  ws: WebSocket
+  ws: ServerWebSocket<HmrSocketData>
   id: string
   platform: string
 }
@@ -36,8 +41,7 @@ export interface FileChange {
 // Hot Reload Server
 export class HotReloadServer extends EventEmitter {
   private config: HotReloadConfig
-  private server: ReturnType<typeof createServer> | null = null
-  private wss: WebSocketServer | null = null
+  private server: Server<HmrSocketData> | null = null
   private clients: Map<string, HotReloadClient> = new Map()
   private fileVersions: Map<string, number> = new Map()
   private debounceTimers: Map<string, NodeJS.Timeout> = new Map()
@@ -63,58 +67,67 @@ export class HotReloadServer extends EventEmitter {
   /**
    * Start the hot reload server
    */
+  /**
+   * The port the server is actually listening on. With `port: 0` the OS
+   * assigns a free port at start(); this resolves to that concrete value.
+   */
+  get port(): number {
+    return this.server?.port ?? this.config.port ?? 0
+  }
+
   start(): void {
-    // Create HTTP server for serving HMR runtime
-    this.server = createServer((req, res) => this.handleHttpRequest(req, res))
+    // Bun.serve handles HTTP (HMR runtime) and WebSocket upgrades in one
+    // server — no separate `ws` WebSocketServer. Per-connection identity is
+    // attached at upgrade via `data` and read back off `ws.data`.
+    this.server = Bun.serve<HmrSocketData>({
+      port: this.config.port,
+      fetch: (req, server) => {
+        const platform = req.headers.get('x-craft-platform') || 'unknown'
+        if (server.upgrade(req, { data: { id: this.generateClientId(), platform } }))
+          return undefined // upgraded to a WebSocket; handled below
+        return this.handleHttpRequest(req)
+      },
+      websocket: {
+        open: (ws) => {
+          const client: HotReloadClient = { ws, id: ws.data.id, platform: ws.data.platform }
+          this.clients.set(ws.data.id, client)
 
-    // Create WebSocket server
-    this.wss = new WebSocketServer({ server: this.server })
+          if (this.config.verbose)
+            console.log(`[HMR] Client connected: ${ws.data.id} (${ws.data.platform})`)
 
-    this.wss.on('connection', (ws, req) => {
-      const clientId = this.generateClientId()
-      const platform = req.headers['x-craft-platform'] as string || 'unknown'
-
-      const client: HotReloadClient = { ws, id: clientId, platform }
-      this.clients.set(clientId, client)
-
-      if (this.config.verbose) {
-        console.log(`[HMR] Client connected: ${clientId} (${platform})`)
-      }
-
-      ws.on('message', (data) => {
-        try {
-          const message = JSON.parse(data.toString())
-          this.handleClientMessage(client, message)
-        }
-catch (e) {
-          console.error('[HMR] Failed to parse message:', e)
-        }
-      })
-
-      ws.on('close', () => {
-        this.clients.delete(clientId)
-        if (this.config.verbose) {
-          console.log(`[HMR] Client disconnected: ${clientId}`)
-        }
-      })
-
-      // Send initial state
-      ws.send(JSON.stringify({
-        type: 'connected',
-        clientId,
-        config: {
-          cssOnly: this.config.cssOnly,
-          preserveState: this.config.preserveState,
+          ws.send(JSON.stringify({
+            type: 'connected',
+            clientId: ws.data.id,
+            config: {
+              cssOnly: this.config.cssOnly,
+              preserveState: this.config.preserveState,
+            },
+          }))
         },
-      }))
+        message: (ws, data) => {
+          const client = this.clients.get(ws.data.id)
+          if (!client)
+            return
+          try {
+            const message = JSON.parse(typeof data === 'string' ? data : data.toString())
+            this.handleClientMessage(client, message)
+          }
+          catch (e) {
+            console.error('[HMR] Failed to parse message:', e)
+          }
+        },
+        close: (ws) => {
+          this.clients.delete(ws.data.id)
+          if (this.config.verbose)
+            console.log(`[HMR] Client disconnected: ${ws.data.id}`)
+        },
+      },
     })
 
     // Start file watcher
     this.startWatching()
 
-    this.server.listen(this.config.port, () => {
-      console.log(`[HMR] Server running on ws://localhost:${this.config.port}`)
-    })
+    console.log(`[HMR] Server running on ws://localhost:${this.config.port}`)
   }
 
   /**
@@ -140,18 +153,11 @@ catch (e) {
     }
     this.debounceTimers.clear()
 
-    // Close the websocket server first so no new messages arrive
-    // mid-shutdown. ws's `close()` accepts a callback that fires once
-    // every connection is gone.
-    const wssClosed = this.wss
-      ? new Promise<void>((resolve) => this.wss!.close(() => resolve()))
-      : Promise.resolve()
-
-    const httpClosed = this.server
-      ? new Promise<void>((resolve) => this.server!.close(() => resolve()))
-      : Promise.resolve()
-
-    await Promise.all([wssClosed, httpClosed])
+    // Tear down the server, closing active WebSocket + HTTP connections
+    // (Bun.serve owns both). `stop(true)` forces open sockets closed so a
+    // lingering HMR client can't keep the process alive after stop().
+    this.server?.stop(true)
+    this.server = null
     this.clients.clear()
   }
 
@@ -286,7 +292,8 @@ else {
     const data = JSON.stringify(message)
 
     for (const client of this.clients.values()) {
-      if (client.ws.readyState === WebSocket.OPEN) {
+      // Bun's ServerWebSocket.readyState: 1 === OPEN (WebSocket.OPEN).
+      if (client.ws.readyState === 1) {
         client.ws.send(data)
       }
     }
@@ -306,32 +313,26 @@ else {
    * Anything else returns 403 — silently 404'ing made traversal probes
    * indistinguishable from "file not found".
    */
-  private handleHttpRequest(req: IncomingMessage, res: ServerResponse): void {
-    if (req.url === '/hmr-runtime.js') {
-      res.writeHead(200, { 'Content-Type': 'application/javascript' })
-      res.end(this.getHmrRuntime())
-      return
+  private handleHttpRequest(req: Request): Response {
+    const { pathname } = new URL(req.url)
+    if (pathname === '/hmr-runtime.js') {
+      return new Response(this.getHmrRuntime(), {
+        headers: { 'Content-Type': 'application/javascript' },
+      })
     }
-    if (req.url?.startsWith('/hmr-module/')) {
-      const rawPath = req.url.replace('/hmr-module/', '').split('?')[0]
+    if (pathname.startsWith('/hmr-module/')) {
+      const rawPath = pathname.replace('/hmr-module/', '')
       const safePath = this.resolveHmrModulePath(rawPath)
-      if (!safePath) {
-        res.writeHead(403, { 'Content-Type': 'text/plain' })
-        res.end('Forbidden')
-        return
-      }
+      if (!safePath)
+        return new Response('Forbidden', { status: 403, headers: { 'Content-Type': 'text/plain' } })
       if (existsSync(safePath)) {
-        res.writeHead(200, { 'Content-Type': 'application/javascript' })
-        res.end(readFileSync(safePath, 'utf-8'))
+        return new Response(readFileSync(safePath, 'utf-8'), {
+          headers: { 'Content-Type': 'application/javascript' },
+        })
       }
-      else {
-        res.writeHead(404)
-        res.end('Not found')
-      }
-      return
+      return new Response('Not found', { status: 404 })
     }
-    res.writeHead(200, { 'Content-Type': 'text/plain' })
-    res.end('Craft HMR Server')
+    return new Response('Craft HMR Server', { headers: { 'Content-Type': 'text/plain' } })
   }
 
   /**

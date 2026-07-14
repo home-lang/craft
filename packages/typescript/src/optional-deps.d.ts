@@ -21,35 +21,6 @@ declare module 'sharp' {
   export default sharp;
 }
 
-declare module 'ws' {
-  import { EventEmitter } from 'events';
-  import { Server as HttpServer } from 'http';
-
-  export class WebSocket extends EventEmitter {
-    static readonly OPEN: number;
-    static readonly CLOSED: number;
-    static readonly CONNECTING: number;
-    static readonly CLOSING: number;
-
-    readyState: number;
-
-    constructor(address: string, options?: any);
-    send(data: string | Buffer, callback?: (err?: Error) => void): void;
-    close(code?: number, reason?: string): void;
-    on(event: 'message', listener: (data: Buffer | string) => void): this;
-    on(event: 'close', listener: () => void): this;
-    on(event: 'error', listener: (err: Error) => void): this;
-    on(event: string, listener: (...args: any[]) => void): this;
-  }
-
-  export class WebSocketServer extends EventEmitter {
-    constructor(options: { server?: HttpServer; port?: number; [key: string]: any });
-    on(event: 'connection', listener: (ws: WebSocket, request: any) => void): this;
-    on(event: string, listener: (...args: any[]) => void): this;
-    close(callback?: () => void): void;
-  }
-}
-
 declare module '@stacksjs/clapp' {
   export class CLI {
     constructor(name: string);
