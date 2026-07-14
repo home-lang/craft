@@ -1,4 +1,59 @@
 # Changelog
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.37...v0.0.38)
+
+## 🚀 Features
+
+- **macos**: tune web sidebar material opacity ([5949cc3](https://github.com/home-lang/craft/commit/5949cc3)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🐛 Bug Fixes
+
+- **macos**: flip web sidebar toggle icon ([e8a9fd3](https://github.com/home-lang/craft/commit/e8a9fd3)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **macos**: tighten web sidebar chrome inset ([9e4d381](https://github.com/home-lang/craft/commit/9e4d381)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **macos**: align web sidebar chrome row ([308ef64](https://github.com/home-lang/craft/commit/308ef64)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **macos**: stabilize web sidebar material ([fa827b4](https://github.com/home-lang/craft/commit/fa827b4)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **macos**: render web sidebar chrome natively ([0914dac](https://github.com/home-lang/craft/commit/0914dac)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **macos**: align web sidebar chrome dragging ([75d85e3](https://github.com/home-lang/craft/commit/75d85e3)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **macos**: support dragging web chrome ([d82472a](https://github.com/home-lang/craft/commit/d82472a)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **macos**: guard transparent webview scroll access ([9442daa](https://github.com/home-lang/craft/commit/9442daa)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **macos**: support web sidebar material ([052f2af](https://github.com/home-lang/craft/commit/052f2af)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **macos**: render sidebar with native vibrancy ([76a7844](https://github.com/home-lang/craft/commit/76a7844)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **macos**: expose native sidebar chrome markers ([3d19b8f](https://github.com/home-lang/craft/commit/3d19b8f)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **macos**: make native surfaces translucent ([d3a8d4d](https://github.com/home-lang/craft/commit/d3a8d4d)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## ♻️ Code Refactoring
+
+- **dev**: drop ws dep, use Bun-native WebSocket servers ([d6f775e](https://github.com/home-lang/craft/commit/d6f775e)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **package**: drop archiver dep, zip with a dependency-free writer ([65fb521](https://github.com/home-lang/craft/commit/65fb521)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 📚 Documentation
+
+- update JS-engine status through tier-3 (slots + shapes + ICs) ([1c4a853](https://github.com/home-lang/craft/commit/1c4a853)) _(by Chris <chrisbreuer93@gmail.com>)_
+- note tier-1 bytecode VM landed in the JS-engine roadmap ([31a7ad3](https://github.com/home-lang/craft/commit/31a7ad3)) _(by Chris <chrisbreuer93@gmail.com>)_
+- add homegrown web engine (Loom) + zig-js build plan ([95998d8](https://github.com/home-lang/craft/commit/95998d8)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.38 ([36b1ec0](https://github.com/home-lang/craft/commit/36b1ec0)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **pkg**: publish the TS package as @stacksjs/ts-craft ([21adc28](https://github.com/home-lang/craft/commit/21adc28)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **deps**: refresh lock after dropping archiver ([29adb84](https://github.com/home-lang/craft/commit/29adb84)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **deps**: refresh bun.lock to pick up pickier 0.1.37 ([33c8bd0](https://github.com/home-lang/craft/commit/33c8bd0)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **deps**: refresh bun.lock to pick up pickier 0.1.35 ([d619105](https://github.com/home-lang/craft/commit/d619105)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **deps**: refresh bun.lock to pick up pickier 0.1.33 ([622d497](https://github.com/home-lang/craft/commit/622d497)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **deps**: pin Zig to 0.17-dev via pantry ([efa5543](https://github.com/home-lang/craft/commit/efa5543)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **deps**: refresh bun.lock to pick up @stacksjs/logsmith 0.2.3 ([5bc5e10](https://github.com/home-lang/craft/commit/5bc5e10)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **deps**: refresh bun.lock to pick up buddy-bot 0.9.20 ([3780779](https://github.com/home-lang/craft/commit/3780779)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+- **deps**: bump better-dx to ^0.2.15 ([92acb43](https://github.com/home-lang/craft/commit/92acb43)) _(by glennmichael123 <gtorregosa@gmail.com>)_
+
+## 📄 Miscellaneous
+
+- Merge branch 'web-engine-zig-js' ([3f63bdb](https://github.com/home-lang/craft/commit/3f63bdb)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _glennmichael123 <gtorregosa@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.36...v0.0.37)
 
 ### 🤖 Continuous Integration
