@@ -34,7 +34,7 @@ const html = `<!DOCTYPE html>
       --text-muted-dark: #999;
       --border: rgba(0, 0, 0, 0.1);
       --border-dark: rgba(255, 255, 255, 0.1);
-      --accent: #0066cc;
+      --accent: #0088ff;
       --hover: rgba(0, 0, 0, 0.05);
       --hover-dark: rgba(255, 255, 255, 0.08);
     }
@@ -157,50 +157,51 @@ const html = `<!DOCTYPE html>
     }
 
     /* Item */
+    /* macOS Tahoe source-list rows: 30px tall, 9px radius, quaternary-fill
+      selection (never accent-colored), plain gray counts. */
     .item {
       display: flex;
       align-items: center;
-      padding: 6px 12px 6px 20px;
-      margin: 1px 8px;
-      border-radius: 6px;
-      cursor: pointer;
-      gap: 8px;
+      height: 30px;
+      padding: 0 8px 0 20px;
+      margin: 0 10px 2px;
+      border-radius: 9px;
+      cursor: default;
+      gap: 7px;
       font-size: 13px;
-      transition: background 0.1s;
+      transition: background-color 0.15s ease-out;
     }
 
-    .item:hover { background: var(--hover); }
+    .item:hover { background: rgba(0, 0, 0, 0.04); }
+    .item:active { background: rgba(0, 0, 0, 0.10); }
 
     .item.selected {
-      background: var(--accent);
-      color: white;
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .item:hover { background: rgba(255, 255, 255, 0.06); }
+      .item:active { background: rgba(255, 255, 255, 0.18); }
+      .item.selected { background: rgba(255, 255, 255, 0.14); }
     }
 
     .item-icon {
-      width: 16px;
-      height: 16px;
+      width: 17px;
+      height: 17px;
       flex-shrink: 0;
-      opacity: 0.8;
+      color: var(--accent);
     }
-
-    .item.selected .item-icon { opacity: 1; }
 
     .item-label { flex: 1; }
 
     .item-badge {
-      padding: 2px 6px;
-      border-radius: 10px;
-      font-size: 10px;
-      font-weight: 500;
-      background: rgba(0,0,0,0.08);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      color: rgba(60, 60, 67, 0.6);
     }
 
     @media (prefers-color-scheme: dark) {
-      .item-badge { background: rgba(255,255,255,0.1); }
-    }
-
-    .item.selected .item-badge {
-      background: rgba(255,255,255,0.25);
+      .item-badge { color: rgba(235, 235, 245, 0.6); }
     }
 
     /* Tag dot */

@@ -1,9 +1,13 @@
 /**
  * Craft Sidebar Components
  * Native sidebar implementations with different styles:
- * - Tahoe (macOS Sonoma/Sequoia Finder style)
+ * - Tahoe (the macOS Tahoe source list — macOS 26/27)
  * - Arc (Browser-style collapsible vertical tabs)
  * - OrbStack (Dark minimal sidebar)
+ *
+ * These drive the NATIVE (NSOutlineView) sidebar. For web-rendered sidebars
+ * in stx apps, use `@stacksjs/components`' <Sidebar theme="macos"> over a
+ * `webSidebarMaterial` window — that component is the canonical macOS look.
  * @module @craft-native/components/sidebar
  */
 
