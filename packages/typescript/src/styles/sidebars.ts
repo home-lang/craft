@@ -3,97 +3,120 @@
  * CSS/Tailwind-based sidebar implementations
  *
  * Three styles:
- * - Tahoe: macOS Sonoma/Sequoia Finder style
+ * - Tahoe: the macOS Tahoe (26/27) source list
  * - Arc: Arc browser vertical tabs style
  * - OrbStack: Dark minimal style
+ *
+ * For stx apps, prefer `@stacksjs/components`' <Sidebar theme="macos"> —
+ * the canonical, behavior-complete implementation these class maps mirror.
  *
  * @module @craft-native/styles/sidebars
  */
 
 // ============================================================================
-// Tahoe Style (macOS Finder)
+// Tahoe Style (macOS source list)
 // ============================================================================
 
 /**
- * Tahoe sidebar - macOS Sonoma/Sequoia Finder style
+ * Tahoe sidebar — the macOS Tahoe (26/27 "Liquid Glass") source list.
  *
- * Features:
- * - Translucent vibrancy background
- * - Source list appearance
- * - Rounded selection highlights
- * - Section headers in small caps
- * - SF Symbol-style icons
+ * Metrics measured from native Mail/Music/Notes at @2x:
+ * 30px rows + 2px gap, 9px-radius quaternary-fill highlight, 17px icons,
+ * 13px labels, plain gray tabular counts, 11px semibold section headers.
+ * Selection is a translucent gray fill — never an accent-colored pill.
  */
 export const tahoeStyles = {
-  // Container
+  // Container: frosted sidebar material. In a Craft window with
+  // `webSidebarMaterial` the native vibrancy shows through instead.
   sidebar: `
-    w-56 h-full flex flex-col
-    bg-white/70 dark:bg-neutral-900/70
-    backdrop-blur-xl backdrop-saturate-150
-    border-r border-black/5 dark:border-white/5
+    w-[250px] h-full flex flex-col
+    bg-white/55 dark:bg-[#1e1e23]/55
+    backdrop-blur-[60px] backdrop-saturate-[1.8]
+    text-black dark:text-white
     select-none
   `,
 
   // Scrollable content area
   content: `
     flex-1 overflow-y-auto overflow-x-hidden
-    py-2 px-2
-    scrollbar-thin scrollbar-thumb-black/10 dark:scrollbar-thumb-white/10
+    px-[10px] pb-[10px]
   `,
 
   // Section container
   section: `
-    mb-4
+    flex flex-col gap-[2px]
   `,
 
-  // Section header
+  // Section header — Title Case, 11px semibold secondary gray
   sectionHeader: `
-    px-2 py-1.5 mb-1
-    text-[11px] font-semibold uppercase tracking-wider
-    text-neutral-500 dark:text-neutral-400
+    pl-[8px] pr-[6px] pt-[16px] pb-[5px]
+    text-[11px] font-semibold leading-[13px]
+    text-[#3c3c43]/60 dark:text-[#ebebf5]/60
   `,
 
-  // Section header (collapsible)
+  // Section header (collapsible — chevron revealed on hover)
   sectionHeaderCollapsible: `
-    px-2 py-1.5 mb-1 flex items-center gap-1 cursor-pointer
-    text-[11px] font-semibold uppercase tracking-wider
-    text-neutral-500 dark:text-neutral-400
-    hover:text-neutral-700 dark:hover:text-neutral-200
-    transition-colors duration-150
+    group flex items-center w-full
+    pl-[8px] pr-[6px] pt-[16px] pb-[5px]
+    text-[11px] font-semibold leading-[13px]
+    text-[#3c3c43]/60 dark:text-[#ebebf5]/60
+    cursor-default
   `,
 
-  // Collapse chevron
+  // Collapse chevron (section header, hover-revealed)
   collapseChevron: `
-    w-3 h-3 transition-transform duration-200
+    ml-auto h-[11px] w-[11px]
+    text-[#3c3c43]/45 dark:text-[#ebebf5]/45
+    opacity-0 group-hover:opacity-100
+    transition-all duration-200
   `,
 
-  // Item
+  // Item — 30px row, 9px radius, subtle hover fill
   item: `
-    flex items-center gap-2.5 px-2 py-1.5 mx-1 rounded-md
-    text-[13px] text-neutral-700 dark:text-neutral-200
-    cursor-pointer transition-all duration-150
-    hover:bg-black/5 dark:hover:bg-white/5
+    flex w-full items-center
+    h-[30px] rounded-[9px] pl-[4px] pr-[8px]
+    text-[13px] leading-[16px] text-black dark:text-white
+    cursor-default transition-colors duration-150 ease-out
+    hover:bg-black/4 dark:hover:bg-white/6
+    active:bg-black/10 dark:active:bg-white/18
   `,
 
-  // Item selected
+  // Item selected — quaternary fill, same text color (no accent, no bold)
   itemSelected: `
-    flex items-center gap-2.5 px-2 py-1.5 mx-1 rounded-md
-    text-[13px] text-white
-    cursor-pointer
-    bg-blue-500 dark:bg-blue-600
-    shadow-sm
+    flex w-full items-center
+    h-[30px] rounded-[9px] pl-[4px] pr-[8px]
+    text-[13px] leading-[16px] text-black dark:text-white
+    cursor-default
+    bg-black/8 dark:bg-white/14
   `,
 
-  // Item icon
+  // Disclosure gutter before the icon (chevron slot)
+  disclosure: `
+    flex h-[16px] w-[18px] shrink-0 items-center justify-center
+  `,
+
+  // Disclosure chevron (rotates 90deg when expanded)
+  disclosureChevron: `
+    h-[11px] w-[11px]
+    text-[#3c3c43]/55 dark:text-[#ebebf5]/55
+    transition-transform duration-200 ease-out
+  `,
+
+  // Item icon — 17px SF-Symbol-style glyph, tinted with a system color
   itemIcon: `
-    w-4 h-4 flex-shrink-0
-    text-neutral-500 dark:text-neutral-400
+    h-[17px] w-[17px] flex-shrink-0
+    text-[#0088ff]
   `,
 
-  // Item icon (selected)
+  // Item icon (selected) — tint does not change on selection
   itemIconSelected: `
-    w-4 h-4 flex-shrink-0
-    text-white/90
+    h-[17px] w-[17px] flex-shrink-0
+    text-[#0088ff]
+  `,
+
+  // Fixed slot centering the icon
+  itemIconSlot: `
+    flex h-[20px] w-[22px] shrink-0 items-center justify-center mr-[7px]
   `,
 
   // Item label
@@ -101,74 +124,73 @@ export const tahoeStyles = {
     flex-1 truncate
   `,
 
-  // Item badge
+  // Item count — plain gray tabular text, not a pill
   itemBadge: `
-    px-1.5 py-0.5 rounded-full text-[10px] font-medium
-    bg-neutral-200 dark:bg-neutral-700
-    text-neutral-600 dark:text-neutral-300
+    ml-[8px] shrink-0 tabular-nums
+    text-[13px] leading-[16px]
+    text-[#3c3c43]/60 dark:text-[#ebebf5]/60
   `,
 
-  // Item badge (selected)
+  // Item count (selected) — unchanged by selection
   itemBadgeSelected: `
-    px-1.5 py-0.5 rounded-full text-[10px] font-medium
-    bg-white/20 text-white
+    ml-[8px] shrink-0 tabular-nums
+    text-[13px] leading-[16px]
+    text-[#3c3c43]/60 dark:text-[#ebebf5]/60
   `,
 
-  // Expandable item children container
+  // Expandable item children container — indented, no guide line
   children: `
-    ml-4 mt-0.5 border-l border-neutral-200 dark:border-neutral-700
+    ml-[16px] mt-[2px] flex flex-col gap-[2px]
   `,
 
   // Drag indicator
   dragIndicator: `
-    absolute left-0 right-0 h-0.5 bg-blue-500
+    absolute left-0 right-0 h-0.5 bg-[#0088ff]
     pointer-events-none
   `,
 
   // Search input
   searchContainer: `
-    px-2 pb-2
+    px-[10px] pb-[6px]
   `,
 
   searchInput: `
-    w-full px-3 py-1.5 rounded-md
-    text-[13px] placeholder:text-neutral-400
-    bg-black/5 dark:bg-white/5
+    h-[28px] w-full rounded-[8px] px-[8px]
+    text-[13px] text-black dark:text-white
+    placeholder:text-[#3c3c43]/50 dark:placeholder:text-[#ebebf5]/50
+    bg-black/5 dark:bg-white/10
     border border-transparent
-    focus:outline-none focus:border-blue-500/50 focus:bg-white dark:focus:bg-neutral-800
+    focus:outline-none focus:ring-2 focus:ring-[#0088ff]/60
     transition-all duration-150
   `,
 
-  // Header area (for profile/title)
+  // Header area — traffic-light strip height, drag region
   header: `
-    px-3 py-3 border-b border-black/5 dark:border-white/5
-    flex items-center gap-3
+    h-[52px] px-[21px] flex items-center gap-3
   `,
 
   headerAvatar: `
-    w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600
-    flex items-center justify-center text-white text-sm font-medium
+    w-[30px] h-[30px] rounded-full bg-black/10 dark:bg-white/15
+    flex items-center justify-center text-[13px] font-semibold
   `,
 
   headerTitle: `
-    text-[13px] font-medium text-neutral-800 dark:text-neutral-100
+    text-[13px] font-medium text-black dark:text-white
   `,
 
   headerSubtitle: `
-    text-[11px] text-neutral-500 dark:text-neutral-400
+    text-[11px] text-[#3c3c43]/60 dark:text-[#ebebf5]/60
   `,
 
-  // Footer
+  // Footer — account row area, like Music
   footer: `
-    px-2 py-2 border-t border-black/5 dark:border-white/5
-    flex items-center gap-2
+    px-[10px] pb-[8px] pt-[4px] flex items-center gap-2
   `,
 
   footerButton: `
-    p-1.5 rounded-md
-    text-neutral-500 dark:text-neutral-400
-    hover:bg-black/5 dark:hover:bg-white/5
-    hover:text-neutral-700 dark:hover:text-neutral-200
+    grid h-[28px] w-[28px] place-items-center rounded-[7px]
+    text-[#3c3c43]/70 dark:text-[#ebebf5]/70
+    hover:bg-black/5 dark:hover:bg-white/10
     transition-colors duration-150
   `,
 }

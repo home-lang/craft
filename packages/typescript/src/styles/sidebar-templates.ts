@@ -76,7 +76,7 @@ function getIcon(name: string): string {
 }
 
 // ============================================================================
-// Tahoe Template (macOS Finder)
+// Tahoe Template (macOS Tahoe source list)
 // ============================================================================
 
 // eslint-disable-next-line pickier/no-unused-vars
@@ -88,21 +88,28 @@ export function renderTahoeSidebar(data: SidebarData): string {
     const itemClass = isSelected ? s.itemSelected : s.item
     const iconClass = isSelected ? s.itemIconSelected : s.itemIcon
     const badgeClass = isSelected ? s.itemBadgeSelected : s.itemBadge
+    const hasChildren = (item.children?.length ?? 0) > 0
+    // macOS reserves the disclosure gutter on every row so icons align;
+    // the chevron only appears on expandable rows, pointing down when open.
+    const chevron = hasChildren
+      ? `<span class='${s.disclosureChevron}${item.expanded ? ' rotate-90' : ''}'>${icons.chevronRight}</span>`
+      : ''
+    // Icon tint accepts any CSS color; defaults to the class's system blue.
+    const tint = item.color ? ` style='color: ${item.color}'` : ''
 
     let html = `
-      <div class='${itemClass}' data-id='${item.id}' style='padding-left: ${8 + depth * 16}px'>
-        <span class='${iconClass}'>${getIcon(item.icon || 'document')}</span>
+      <div class='${itemClass}' data-id='${item.id}'${depth > 0 ? ` style='padding-left: ${4 + depth * 16}px'` : ''}>
+        <span class='${s.disclosure}'>${chevron}</span>
+        <span class='${s.itemIconSlot}'><span class='${iconClass}'${tint}>${getIcon(item.icon || 'document')}</span></span>
         <span class='${s.itemLabel}'>${item.label}</span>
         ${item.badge ? `<span class='${badgeClass}'>${item.badge}</span>` : ''}
       </div>
     `
 
     if (item.children && item.expanded) {
-      html += `<div class='${s.children}'>`
       item.children.forEach(child => {
         html += renderItem(child, depth + 1)
       })
-      html += `</div>`
     }
 
     return html
@@ -114,8 +121,8 @@ export function renderTahoeSidebar(data: SidebarData): string {
       <div class='${s.section}'>
         ${section.title ? `
           <div class="${section.collapsible ? s.sectionHeaderCollapsible : s.sectionHeader}" data-section="${section.id}">
-            ${section.collapsible ? `<span class="${s.collapseChevron}${section.collapsed ? '' : ' rotate-90'}">${icons.chevronRight}</span>` : ''}
-            ${section.title}
+            <span class='truncate'>${section.title}</span>
+            ${section.collapsible ? `<span class='${s.collapseChevron}${section.collapsed ? ' -rotate-90' : ''}'>${icons.chevronDown}</span>` : ''}
           </div>
         ` : ''}
         ${!section.collapsed ? section.items.map(item => renderItem(item)).join('') : ''}
