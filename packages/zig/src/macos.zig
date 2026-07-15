@@ -5810,3 +5810,32 @@ pub fn runApp() void {
     // Run event loop
     msgSendVoid0(app, "run");
 }
+
+/// Activate as a regular, foreground windowed app. Windowed (non-tray) apps
+/// must call this before runApp(): without it the process keeps the default
+/// activation policy when launched outside an .app bundle, so the window
+/// stays behind other apps with no Dock icon and never becomes key.
+/// Tray/menubar apps must NOT call this — see the runApp() comment above.
+pub fn activateWindowedApp() void {
+    const NSApplication = getClass("NSApplication");
+    const app = msgSend0(NSApplication, "sharedApplication");
+
+    // NSApplicationActivationPolicyRegular = 0 (Dock icon + can become active)
+    _ = msgSend1(app, "setActivationPolicy:", @as(c_long, 0));
+
+    // Bring the key (or first) window to front and activate the app.
+    const key_window = msgSend0(app, "keyWindow");
+    if (key_window) |w| {
+        _ = msgSend1(w, "makeKeyAndOrderFront:", @as(?*anyopaque, null));
+    } else {
+        const windows = msgSend0(app, "windows");
+        const count_obj = msgSend0(windows, "count");
+        const count: c_ulong = @intCast(@intFromPtr(count_obj));
+        if (count > 0) {
+            const window = msgSend1(windows, "objectAtIndex:", @as(c_ulong, 0));
+            _ = msgSend1(window, "makeKeyAndOrderFront:", @as(?*anyopaque, null));
+        }
+    }
+
+    _ = msgSend1(app, "activateIgnoringOtherApps:", @as(c_int, 1));
+}

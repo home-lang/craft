@@ -368,9 +368,13 @@ pub const App = struct {
             // (after tray creation) by the caller
             if (self.system_tray == null) {
                 macos.showAllWindows();
+                // Windowed app: claim regular activation (Dock icon, key
+                // window, foreground) — launching from a bare binary would
+                // otherwise leave the window buried with no Dock presence.
+                macos.activateWindowedApp();
             }
 
-            // Now run the event loop (which activates the app)
+            // Now run the event loop
             macos.runApp();
         }
     }
