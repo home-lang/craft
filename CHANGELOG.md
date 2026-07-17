@@ -1,5 +1,50 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.39...v0.0.40)
+
+## 🐛 Bug Fixes
+
+- **zig**: build with zig 0.17.0-dev and activate windowed apps ([894897c](https://github.com/home-lang/craft/commit/894897c)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## ♻️ Code Refactoring
+
+- **ts**: align tahoe web sidebar styles with the real macOS Tahoe spec ([e1383f5](https://github.com/home-lang/craft/commit/e1383f5)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 📚 Documentation
+
+- **ts**: point web sidebar users at the stx macos Sidebar; fix example metrics ([2e34bdc](https://github.com/home-lang/craft/commit/2e34bdc)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.40 ([b1b99d4](https://github.com/home-lang/craft/commit/b1b99d4)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **deps**: declare bun ^1.3.14 in deps.yaml ([0dabd54](https://github.com/home-lang/craft/commit/0dabd54)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.39...HEAD)
+
+## 🐛 Bug Fixes
+
+- **zig**: build with zig 0.17.0-dev and activate windowed apps ([894897c](https://github.com/home-lang/craft/commit/894897c)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## ♻️ Code Refactoring
+
+- **ts**: align tahoe web sidebar styles with the real macOS Tahoe spec ([e1383f5](https://github.com/home-lang/craft/commit/e1383f5)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 📚 Documentation
+
+- **ts**: point web sidebar users at the stx macos Sidebar; fix example metrics ([2e34bdc](https://github.com/home-lang/craft/commit/2e34bdc)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- **deps**: declare bun ^1.3.14 in deps.yaml ([0dabd54](https://github.com/home-lang/craft/commit/0dabd54)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.38...v0.0.39)
 
 ## 🧹 Chores

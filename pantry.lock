@@ -5,12 +5,12 @@
     "": {
       "name": "craft",
       "devDependencies": {
-        "better-dx": "^0.2.7"
+        "better-dx": "^0.2.15"
       }
     },
     "benchmarks": {
       "name": "craft-benchmarks",
-      "version": "0.0.25",
+      "version": "0.0.39",
       "dependencies": {
         "mitata": "^1.0.10"
       },
@@ -20,11 +20,11 @@
     },
     "packages/android": {
       "name": "@craft-native/android",
-      "version": "0.0.25"
+      "version": "0.0.39"
     },
     "packages/create-craft": {
       "name": "create-craft",
-      "version": "0.0.25",
+      "version": "0.0.39",
       "dependencies": {
         "@stacksjs/clapp": "^0.2.0"
       },
@@ -34,7 +34,7 @@
     },
     "packages/examples-ts": {
       "name": "craft-examples",
-      "version": "0.0.25",
+      "version": "0.0.39",
       "dependencies": {
         "craft-native": "workspace:*"
       },
@@ -44,11 +44,11 @@
     },
     "packages/ios": {
       "name": "@craft-native/ios",
-      "version": "0.0.25"
+      "version": "0.0.39"
     },
     "packages/react": {
       "name": "@craft-native/react",
-      "version": "0.0.25",
+      "version": "0.0.39",
       "devDependencies": {
         "@types/react": "^18.2.0",
         "react": "^18.2.0",
@@ -59,7 +59,7 @@
     },
     "packages/svelte": {
       "name": "@craft-native/svelte",
-      "version": "0.0.25",
+      "version": "0.0.39",
       "devDependencies": {
         "svelte": "^4.0.0",
         "tsup": "^8.0.0",
@@ -67,25 +67,28 @@
         "vitest": "^1.0.0"
       }
     },
+    "packages/ts-maps": {
+      "name": "@craft-native/ts-maps",
+      "version": "0.0.39",
+      "devDependencies": {
+        "@types/bun": "^1.2.0",
+        "ts-maps": "^0.2.7",
+        "very-happy-dom": "^0.1.4"
+      }
+    },
     "packages/typescript": {
       "name": "craft-native",
-      "version": "0.0.25",
-      "dependencies": {
-        "archiver": "^7.0.1",
-        "ws": "^8.18.0"
-      },
+      "version": "0.0.39",
       "devDependencies": {
         "@stacksjs/clapp": "^0.2.0",
-        "@types/archiver": "^6.0.2",
         "@types/bun": "^1.2.0",
         "@types/node": "^22.0.0",
-        "@types/ws": "^8.5.12",
         "better-dx": "^0.2.7"
       }
     },
     "packages/vue": {
       "name": "@craft-native/vue",
-      "version": "0.0.25",
+      "version": "0.0.39",
       "devDependencies": {
         "tsup": "^8.0.0",
         "typescript": "^5.3.0",
@@ -95,111 +98,65 @@
     }
   },
   "packages": {
-    "@stacksjs/clapp@0.2.0": {
+    "@stacksjs/clapp@0.2.10": {
       "name": "@stacksjs/clapp",
-      "version": "0.2.0",
+      "version": "0.2.10",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/@stacksjs/clapp/-/clapp-0.2.0.tgz",
-      "integrity": "sha512-dSqnbeZjXnQLLvVxC5NU7D9Vpjxc6cC9Bo2ZwaqjgruK7pbVoFCI0goc9Mtf/lfSTbTx6Uvv/mbY7+cOW/j3Og==",
-      "dependencies": {
-        "mri": "^1.2.0",
-        "wrap-ansi": "^9.0.0"
-      },
-      "bin": {
-        "@stacksjs/clapp": "./dist/bin/cli.js",
-        "clapp": "./dist/bin/cli.js"
-      }
+      "resolved": "https://registry.npmjs.org/@stacksjs/clapp/-/clapp-0.2.10.tgz",
+      "integrity": "sha512-l/2F0u5ihpae8R4kJ3Pdh6tV7aEpSxu6hCyafhw38Fl9+x2YKxZfUK+fF/G5AVwSzJar3dkKuMxbMcQ0PXKGRg=="
     },
-    "@types/archiver@6.0.4": {
-      "name": "@types/archiver",
-      "version": "6.0.4",
-      "source": "npm",
-      "resolved": "https://registry.npmjs.org/@types/archiver/-/archiver-6.0.4.tgz",
-      "integrity": "sha512-ULdQpARQ3sz9WH4nb98mJDYA0ft2A8C4f4fovvUcFwINa1cgGjY36JCAYuP5YypRq4mco1lJp1/7jEMS2oR0Hg==",
-      "dependencies": {
-        "@types/readdir-glob": "*"
-      }
-    },
-    "@types/bun@1.3.10": {
+    "@types/bun@1.3.14": {
       "name": "@types/bun",
-      "version": "1.3.10",
+      "version": "1.3.14",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/@types/bun/-/bun-1.3.10.tgz",
-      "integrity": "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ==",
+      "resolved": "https://registry.npmjs.org/@types/bun/-/bun-1.3.14.tgz",
+      "integrity": "sha512-h1hFqFVcvAvD9j9K7ZW7vd82aSA+rTdznZa+5bwvCwqSB1jmmfLcbIWhOLx1/+boy/xmjgCs/OMUL8hRJSmnPw==",
       "dependencies": {
-        "bun-types": "1.3.9"
+        "bun-types": "1.3.14"
       }
     },
-    "@types/node@22.19.17": {
+    "@types/node@22.20.1": {
       "name": "@types/node",
-      "version": "22.19.17",
+      "version": "22.20.1",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/@types/node/-/node-22.19.17.tgz",
-      "integrity": "sha512-wGdMcf+vPYM6jikpS/qhg6WiqSV/OhG+jeeHT/KlVqxYfD40iYJf9/AE1uQxVWFvU7MipKRkRv8NSHiCGgPr8Q==",
+      "resolved": "https://registry.npmjs.org/@types/node/-/node-22.20.1.tgz",
+      "integrity": "sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==",
       "dependencies": {
         "undici-types": "~6.21.0"
       }
     },
-    "@types/react@18.3.28": {
+    "@types/react@18.3.31": {
       "name": "@types/react",
-      "version": "18.3.28",
+      "version": "18.3.31",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/@types/react/-/react-18.3.28.tgz",
-      "integrity": "sha512-z9VXpC7MWrhfWipitjNdgCauoMLRdIILQsAEV+ZesIzBq/oUlxk0m3ApZuMFCXdnS4U7KrI+l3WRUEGQ8K1QKw==",
+      "resolved": "https://registry.npmjs.org/@types/react/-/react-18.3.31.tgz",
+      "integrity": "sha512-vfEqpXTvwT91yhmwdfouStN2hSKwTvyRs8qpLfADyrq/kxDw0hZM7Wk9Ug1FELj8hIby+S/+kQCSRFF32nv2Qw==",
       "dependencies": {
         "@types/prop-types": "*",
         "csstype": "^3.2.2"
       }
     },
-    "@types/ws@8.18.1": {
-      "name": "@types/ws",
-      "version": "8.18.1",
-      "source": "npm",
-      "resolved": "https://registry.npmjs.org/@types/ws/-/ws-8.18.1.tgz",
-      "integrity": "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==",
-      "dependencies": {
-        "@types/node": "*"
-      }
-    },
-    "archiver@7.0.1": {
-      "name": "archiver",
-      "version": "7.0.1",
-      "source": "npm",
-      "resolved": "https://registry.npmjs.org/archiver/-/archiver-7.0.1.tgz",
-      "integrity": "sha512-ZcbTaIqJOfCc03QwD468Unz/5Ir8ATtvAHsK+FdXbDIbGfihqh9mrvdcYunQzqn4HrvWWaFyaxJhGZagaJJpPQ==",
-      "dependencies": {
-        "archiver-utils": "^5.0.2",
-        "async": "^3.2.4",
-        "buffer-crc32": "^1.0.0",
-        "readable-stream": "^4.0.0",
-        "readdir-glob": "^1.1.2",
-        "tar-stream": "^3.0.0",
-        "zip-stream": "^6.0.1"
-      }
-    },
-    "better-dx@0.2.7": {
+    "better-dx@0.2.19": {
       "name": "better-dx",
-      "version": "0.2.7",
+      "version": "0.2.19",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/better-dx/-/better-dx-0.2.7.tgz",
-      "integrity": "sha512-J5Msp8jYKl4/YrTt/IWE32ZZg36/+M5klkAhSZb6Av5LGuFd7tylTerKq/8AwZxAYl9h8ZXV79Paygc+YjmCyw==",
-      "peerDependencies": {
-        "@stacksjs/bumpx": "^0.2.2",
-        "@stacksjs/bunpress": "^0.0.5",
-        "@stacksjs/clarity": "^0.3.24",
+      "resolved": "https://registry.npmjs.org/better-dx/-/better-dx-0.2.19.tgz",
+      "integrity": "sha512-4ZmFRxyDWshLY/fFYdXXfRA0YjONYUgws/6qd8xPjbQ5eRZ2FwzWO+hK7+fsZN5XcusHHPRz44TYVX1AznvR8g==",
+      "dependencies": {
+        "@stacksjs/bumpx": "^0.2.5",
+        "@stacksjs/bunpress": "^0.1.4",
+        "@stacksjs/clapp": "^0.2.6",
+        "@stacksjs/clarity": "^0.3.28",
         "@stacksjs/gitlint": "^0.1.5",
-        "@stacksjs/logsmith": "^0.2.0",
-        "@types/bun": "^1.3.0",
-        "buddy-bot": "^0.9.9",
-        "bun-git-hooks": "^0.3.1",
-        "bun-plugin-dtsx": "0.9.5",
-        "bunfig": "^0.15.0",
-        "pickier": "^0.1.7",
-        "typescript": "^5.9.3"
-      },
-      "bin": {
-        "better-dx": "./dist/bin/cli.js",
-        "dx": "./dist/bin/cli.js"
+        "@stacksjs/logsmith": "^0.2.1",
+        "@types/bun": "^1.3.13",
+        "buddy-bot": "^0.9.17",
+        "bun-git-hooks": "^0.3.2",
+        "bun-plugin-dtsx": "^0.10.6",
+        "bunfig": "^0.15.11",
+        "pickier": "^0.1.28",
+        "ts-error-handling": "^0.1.1",
+        "typescript": "^7.0.2"
       }
     },
     "mitata@1.0.34": {
@@ -224,7 +181,30 @@
       "version": "4.2.20",
       "source": "npm",
       "resolved": "https://registry.npmjs.org/svelte/-/svelte-4.2.20.tgz",
-      "integrity": "sha512-eeEgGc2DtiUil5ANdtd8vPwt9AgaMdnuUFnPft9F5oMvU/FHu5IHFic+p1dR/UOB7XU2mX2yHW+NcTch4DCh5Q=="
+      "integrity": "sha512-eeEgGc2DtiUil5ANdtd8vPwt9AgaMdnuUFnPft9F5oMvU/FHu5IHFic+p1dR/UOB7XU2mX2yHW+NcTch4DCh5Q==",
+      "dependencies": {
+        "@ampproject/remapping": "^2.2.1",
+        "@jridgewell/sourcemap-codec": "^1.4.15",
+        "@jridgewell/trace-mapping": "^0.3.18",
+        "@types/estree": "^1.0.1",
+        "acorn": "^8.9.0",
+        "aria-query": "^5.3.0",
+        "axobject-query": "^4.0.0",
+        "code-red": "^1.0.3",
+        "css-tree": "^2.3.1",
+        "estree-walker": "^3.0.3",
+        "is-reference": "^3.0.1",
+        "locate-character": "^3.0.0",
+        "magic-string": "^0.30.4",
+        "periscopic": "^3.1.0"
+      }
+    },
+    "ts-maps@0.2.7": {
+      "name": "ts-maps",
+      "version": "0.2.7",
+      "source": "npm",
+      "resolved": "https://registry.npmjs.org/ts-maps/-/ts-maps-0.2.7.tgz",
+      "integrity": "sha512-Acfyp2TfHqrycAS+fy09t/XjPdcnY3cIjdSxRCaeI41HBANGrIQZ0I0/cL+nVRtgLg0cK3Hw0pkRoZIT6hW6sw=="
     },
     "tsup@8.5.1": {
       "name": "tsup",
@@ -263,14 +243,23 @@
       },
       "optionalPeers": ["@microsoft/api-extractor", "@swc/core", "postcss", "typescript"]
     },
-    "typescript@^5.3.0": {
+    "typescript@5.9.3": {
       "name": "typescript",
-      "version": "^5.3.0",
+      "version": "5.9.3",
       "source": "npm",
+      "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
+      "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
       "bin": {
         "tsc": "./bin/tsc",
         "tsserver": "./bin/tsserver"
       }
+    },
+    "very-happy-dom@0.1.9": {
+      "name": "very-happy-dom",
+      "version": "0.1.9",
+      "source": "npm",
+      "resolved": "https://registry.npmjs.org/very-happy-dom/-/very-happy-dom-0.1.9.tgz",
+      "integrity": "sha512-i9Bvhq0xWVmb87NaDrZGPDFZwBh8sSxADxgwkGfnHzYNiDXAHLc1ve+cSNyrXKqSzIcsOfPmqP4/fG8MoVuEZg=="
     },
     "vitest@1.6.1": {
       "name": "vitest",
@@ -313,36 +302,23 @@
       },
       "optionalPeers": ["@edge-runtime/vm", "@types/node", "@vitest/browser", "@vitest/ui", "happy-dom", "jsdom"]
     },
-    "vue@3.5.32": {
+    "vue@3.5.40": {
       "name": "vue",
-      "version": "3.5.32",
+      "version": "3.5.40",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/vue/-/vue-3.5.32.tgz",
-      "integrity": "sha512-vM4z4Q9tTafVfMAK7IVzmxg34rSzTFMyIe0UUEijUCkn9+23lj0WRfA83dg7eQZIUlgOSGrkViIaCfqSAUXsMw==",
+      "resolved": "https://registry.npmjs.org/vue/-/vue-3.5.40.tgz",
+      "integrity": "sha512-+8PJ4SJXdn/cHGImF4CKdxlWHIN5Dkt7DoufRREM6h6uVCx2m7QxgcEQmmzyOK8A9mcafg7sFbJFYsdFVubTig==",
       "dependencies": {
-        "@vue/compiler-dom": "3.6.0-alpha.1",
-        "@vue/compiler-sfc": "3.6.0-alpha.1",
-        "@vue/runtime-dom": "3.6.0-alpha.1",
-        "@vue/runtime-vapor": "3.6.0-alpha.1",
-        "@vue/server-renderer": "3.6.0-alpha.1",
-        "@vue/shared": "3.6.0-alpha.1"
+        "@vue/compiler-dom": "3.5.40",
+        "@vue/compiler-sfc": "3.5.40",
+        "@vue/runtime-dom": "3.5.40",
+        "@vue/server-renderer": "3.5.40",
+        "@vue/shared": "3.5.40"
       },
       "peerDependencies": {
         "typescript": "*"
       },
       "optionalPeers": ["typescript"]
-    },
-    "ws@8.20.0": {
-      "name": "ws",
-      "version": "8.20.0",
-      "source": "npm",
-      "resolved": "https://registry.npmjs.org/ws/-/ws-8.20.0.tgz",
-      "integrity": "sha512-sAt8BhgNbzCtgGbt2OxmpuryO63ZoDk/sqaB/znQm94T4fCEsy/yV+7CdC1kJhOU9lboAEU7R3kquuycDoibVA==",
-      "peerDependencies": {
-        "bufferutil": "^4.0.1",
-        "utf-8-validate": ">=5.0.2"
-      },
-      "optionalPeers": ["bufferutil", "utf-8-validate"]
     }
   }
 }
