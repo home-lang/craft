@@ -1416,10 +1416,36 @@ pub const CodeSignConfig = struct {
 
 /// Sign binary/package (cross-platform)
 pub fn codeSign(allocator: std.mem.Allocator, file_path: []const u8, config: CodeSignConfig) !void {
-    _ = allocator;
-    _ = file_path;
-    _ = config;
-    return error.NotImplemented;
+    const builtin = @import("builtin");
+    var args: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer args.deinit(allocator);
+
+    switch (config.platform) {
+        .macos => {
+            if (builtin.os.tag != .macos) return error.UnsupportedPlatform;
+            try args.appendSlice(allocator, &.{ "codesign", "--force", "--sign", config.identity });
+            if (config.entitlements_path) |path| try args.appendSlice(allocator, &.{ "--entitlements", path });
+            if (config.timestamp_url) |url| {
+                const timestamp = try std.fmt.allocPrint(allocator, "--timestamp={s}", .{url});
+                defer allocator.free(timestamp);
+                try args.append(allocator, timestamp);
+                try args.append(allocator, file_path);
+                return runPackagingTool(allocator, args.items);
+            }
+            try args.append(allocator, "--timestamp");
+        },
+        .windows => {
+            if (builtin.os.tag != .windows) return error.UnsupportedPlatform;
+            try args.appendSlice(allocator, &.{ "signtool", "sign", "/fd", "SHA256", "/n", config.identity });
+            if (config.timestamp_url) |url| try args.appendSlice(allocator, &.{ "/tr", url, "/td", "SHA256" });
+        },
+        .linux => {
+            if (builtin.os.tag != .linux) return error.UnsupportedPlatform;
+            try args.appendSlice(allocator, &.{ "gpg", "--batch", "--yes", "--local-user", config.identity, "--detach-sign" });
+        },
+    }
+    try args.append(allocator, file_path);
+    try runPackagingTool(allocator, args.items);
 }
 
 /// macOS notarization configuration
@@ -1432,10 +1458,34 @@ pub const NotarizationConfig = struct {
 
 /// Notarize macOS application
 pub fn notarize(allocator: std.mem.Allocator, app_path: []const u8, config: NotarizationConfig) !void {
-    _ = allocator;
-    _ = app_path;
-    _ = config;
-    return error.NotImplemented;
+    if (@import("builtin").os.tag != .macos) return error.UnsupportedPlatform;
+    try runPackagingTool(allocator, &.{
+        "xcrun",      "notarytool",    "submit",    app_path,
+        "--apple-id", config.apple_id, "--team-id", config.team_id,
+        "--password", config.password, "--wait",
+    });
+    try runPackagingTool(allocator, &.{ "xcrun", "stapler", "staple", app_path });
+}
+
+fn runPackagingTool(allocator: std.mem.Allocator, argv: []const []const u8) !void {
+    const result = try std.process.run(allocator, io_context.get(), .{
+        .argv = argv,
+        .stderr_limit = .limited(1024 * 1024),
+        .stdout_limit = .limited(1024 * 1024),
+    });
+    defer allocator.free(result.stdout);
+    defer allocator.free(result.stderr);
+    switch (result.term) {
+        .exited => |code| if (code == 0) return,
+        else => {},
+    }
+    if (result.stderr.len > 0) std.log.err("packaging tool failed: {s}", .{result.stderr});
+    return error.PackagingToolFailed;
+}
+
+test "packaging tool runner accepts successful commands" {
+    if (@import("builtin").os.tag != .windows)
+        try runPackagingTool(std.testing.allocator, &.{"true"});
 }
 
 test "strip JSON comments - single line" {
