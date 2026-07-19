@@ -5,7 +5,7 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'fs'
 import { join, dirname, basename, extname } from 'path'
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { createHash } from 'crypto'
 import { gzip, brotliCompress } from 'zlib'
 import { promisify } from 'util'
@@ -232,10 +232,10 @@ catch (error: any) {
       `--target=${this.config.target === 'node' ? 'node18' : 'es2020'}`,
       ...this.config.external!.map((e) => `--external:${e}`),
       ...Object.entries(this.config.define || {}).map(([k, v]) => `--define:${k}=${v}`),
-      '--metafile=meta.json',
+      `--metafile=${join(this.config.outDir, 'meta.json')}`,
     ].filter(Boolean)
 
-    execSync(`bunx esbuild ${args.join(' ')}`, { cwd: process.cwd() })
+    execFileSync('bunx', ['esbuild', ...args], { cwd: process.cwd() })
 
     // Read outputs from metafile
     const metaPath = join(this.config.outDir, 'meta.json')

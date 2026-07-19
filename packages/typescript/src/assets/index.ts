@@ -5,7 +5,7 @@
 
 import { existsSync, readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'fs'
 import { join, extname, basename, dirname } from 'path'
-import { execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 
 // Types
 export interface AssetOptimizationOptions {
@@ -263,10 +263,11 @@ catch (error) {
 else {
         // Fall back to ImageMagick
         const quality = opts.quality || 80
-        const resize = opts.maxWidth ? `-resize ${opts.maxWidth}x${opts.maxHeight}\\>` : ''
-        const strip = opts.stripMetadata ? '-strip' : ''
-
-        execSync(`convert "${inputPath}" ${resize} ${strip} -quality ${quality} "${outputPath}"`)
+        const args = [inputPath]
+        if (opts.maxWidth) args.push('-resize', `${opts.maxWidth}x${opts.maxHeight || ''}>`)
+        if (opts.stripMetadata) args.push('-strip')
+        args.push('-quality', String(quality), outputPath)
+        execFileSync('convert', args)
         totalSize = statSync(outputPath).size
         formats.push(extname(outputPath).slice(1))
       }
@@ -339,15 +340,18 @@ catch {
           const unicodeRange = opts.subset || 'U+0000-00FF'
           const flavorFlag = format === 'woff2' ? '--flavor=woff2' : format === 'woff' ? '--flavor=woff' : ''
 
-          execSync(
-            `pyftsubset "${inputPath}" --unicodes="${unicodeRange}" ${flavorFlag} --output-file="${formatPath}"`
-          )
+          execFileSync('pyftsubset', [
+            inputPath,
+            `--unicodes=${unicodeRange}`,
+            ...(flavorFlag ? [flavorFlag] : []),
+            `--output-file=${formatPath}`,
+          ])
         }
 else if (this.commandExists('woff2_compress') && format === 'woff2') {
           // Just compress to woff2
           const tempPath = formatPath.replace('.woff2', '.ttf')
           writeFileSync(tempPath, readFileSync(inputPath))
-          execSync(`woff2_compress "${tempPath}"`)
+          execFileSync('woff2_compress', [tempPath])
         }
 else {
           // Copy as-is
@@ -372,7 +376,7 @@ catch {
 
   private commandExists(command: string): boolean {
     try {
-      execSync(`which ${command}`, { stdio: 'ignore' })
+      execFileSync(process.platform === 'win32' ? 'where' : 'which', [command], { stdio: 'ignore' })
       return true
     }
 catch {

@@ -133,7 +133,7 @@
 
   function _evt(name) {
     return function (cb) {
-      const h = function (_e) { cb((e && e.detail) || {}) }
+      const h = function (e) { cb((e && e.detail) || {}) }
       window.addEventListener(name, h)
       return function () { window.removeEventListener(name, h) }
     }
@@ -158,6 +158,17 @@
       }
       return ''
     }
+  }
+
+  // Framework adapters use a generic dotted method contract. Route it
+  // through the same request transport as the typed facade below.
+  window.craft.invoke = function (method, params) {
+    if (typeof method !== 'string' || method.length === 0)
+      return Promise.reject(new TypeError('craft.invoke requires a dotted method name'))
+    const separator = method.indexOf('.')
+    if (separator <= 0 || separator === method.length - 1)
+      return Promise.reject(new TypeError('craft.invoke method must be in the form "namespace.action"'))
+    return _req(method.slice(0, separator), method.slice(separator + 1), _stringify(params))
   }
 
   // -------------------------------------------------------------------------

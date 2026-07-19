@@ -107,6 +107,11 @@ export class AutoUpdater extends EventEmitter {
   private cachedLastModified: string | null = null
   private cachedManifest: UpdateInfo | null = null
 
+  private emitError(error: unknown): void {
+    if (this.listenerCount('error') > 0) this.emit('error', error)
+    else console.error('[Updater]', error)
+  }
+
   constructor(config: UpdaterConfig) {
     super()
 
@@ -216,7 +221,7 @@ else {
       }
     }
 catch (error) {
-      this.emit('error', error)
+      this.emitError(error)
       return null
     }
   }
@@ -296,12 +301,34 @@ catch (error) {
       }
 
       fileStream.end()
+      await new Promise<void>((resolve, reject) => {
+        fileStream.once('finish', resolve)
+        fileStream.once('error', reject)
+      })
 
       // Verify hash
       const hash = await this.computeFileHash(this.downloadPath)
       if (hash !== expectedHash) {
         unlinkSync(this.downloadPath)
         throw new Error('Download verification failed: hash mismatch')
+      }
+
+      // A delta is a patch, not an installable bundle. Reconstruct the full
+      // update first, then verify it against the full manifest entry.
+      if (deltaUpdate) {
+        if (!statSync(this.config.appPath).isFile()) {
+          throw new Error('Delta updates require appPath to point to the installed bundle file')
+        }
+        const patchPath = this.downloadPath
+        const reconstructedPath = join(downloadDir, `reconstructed-${basename(platformUpdate.url)}`)
+        await DeltaGenerator.apply(this.config.appPath, patchPath, reconstructedPath)
+        const reconstructedHash = await this.computeFileHash(reconstructedPath)
+        if (reconstructedHash !== platformUpdate.sha256) {
+          try { unlinkSync(reconstructedPath) } catch { /* best effort */ }
+          throw new Error('Delta reconstruction failed: full bundle hash mismatch')
+        }
+        unlinkSync(patchPath)
+        this.downloadPath = reconstructedPath
       }
 
       // When a public key is configured, every update MUST carry a
@@ -337,7 +364,7 @@ catch (error) {
       return this.downloadPath
     }
 catch (error) {
-      this.emit('error', error)
+      this.emitError(error)
       return null
     }
   }
@@ -424,7 +451,8 @@ catch (error) {
     }
 catch (error) {
       progress.phase = 'error'
-      this.emit('error', error)
+      this.emitError(error)
+      throw error
     }
   }
 
