@@ -1053,6 +1053,7 @@ const DynamicSidebarSection = struct {
 // Global dynamic sidebar data (parsed from JSON config)
 var dynamic_sections: ?[]DynamicSidebarSection = null;
 var sidebar_allocator: ?std.mem.Allocator = null;
+var sidebar_arena: ?std.heap.ArenaAllocator = null;
 
 // Global WebView reference for sending sidebar events
 var sidebar_webview: objc.id = null;
@@ -1137,10 +1138,10 @@ fn parseSidebarConfig(json: []const u8) !void {
     if (comptime builtin.mode == .Debug)
         std.debug.print("[NativeSidebar] Parsing sidebar config ({d} bytes)\n", .{json.len});
 
-    // Use a simple allocator for parsing
-    var arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-    sidebar_allocator = arena.allocator();
-    const allocator = sidebar_allocator.?;
+    if (sidebar_arena) |*arena| arena.deinit();
+    sidebar_arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    const allocator = sidebar_arena.?.allocator();
+    sidebar_allocator = allocator;
 
     // Parse JSON using std.json
     const parsed = std.json.parseFromSlice(std.json.Value, allocator, json, .{}) catch |err| {
@@ -1149,6 +1150,7 @@ fn parseSidebarConfig(json: []const u8) !void {
         return err;
     };
     const root = parsed.value;
+    if (root != .object) return error.InvalidSidebarConfig;
     if (root.object.get("variant")) |v| {
         sidebar_uses_desktop_material = switch (v) {
             .string => |s| std.mem.eql(u8, s, "desktop"),
@@ -1206,50 +1208,54 @@ fn parseSidebarConfig(json: []const u8) !void {
         return;
     };
 
+    if (sections_json != .array) return error.InvalidSidebarConfig;
     const sections_array = sections_json.array;
-    var sections = try allocator.alloc(DynamicSidebarSection, sections_array.items.len);
+    var sections: std.ArrayList(DynamicSidebarSection) = .empty;
 
-    for (sections_array.items, 0..) |section_val, i| {
+    for (sections_array.items) |section_val| {
+        if (section_val != .object) continue;
         const section_obj = section_val.object;
 
         // Get section fields
-        const id = if (section_obj.get("id")) |v| v.string else "section";
-        const title = if (section_obj.get("title")) |v| v.string else if (section_obj.get("label")) |v| v.string else "Section";
-        const collapsed = if (section_obj.get("collapsed")) |v| v.bool else false;
+        const id = if (section_obj.get("id")) |v| if (v == .string) v.string else "section" else "section";
+        const title = if (section_obj.get("title")) |v| if (v == .string) v.string else "Section" else if (section_obj.get("label")) |v| if (v == .string) v.string else "Section" else "Section";
+        const collapsed = if (section_obj.get("collapsed")) |v| if (v == .bool) v.bool else false else false;
 
         // Parse items
         const items_json = section_obj.get("items") orelse continue;
+        if (items_json != .array) continue;
         const items_array = items_json.array;
-        var items = try allocator.alloc(DynamicSidebarItem, items_array.items.len);
+        var items: std.ArrayList(DynamicSidebarItem) = .empty;
 
-        for (items_array.items, 0..) |item_val, j| {
+        for (items_array.items) |item_val| {
+            if (item_val != .object) continue;
             const item_obj = item_val.object;
 
-            items[j] = .{
-                .id = if (item_obj.get("id")) |v| v.string else "item",
-                .label = if (item_obj.get("label")) |v| v.string else "Item",
-                .icon = if (item_obj.get("icon")) |v| v.string else "doc",
+            try items.append(allocator, .{
+                .id = if (item_obj.get("id")) |v| if (v == .string) v.string else "item" else "item",
+                .label = if (item_obj.get("label")) |v| if (v == .string) v.string else "Item" else "Item",
+                .icon = if (item_obj.get("icon")) |v| if (v == .string) v.string else "doc" else "doc",
                 .badge = if (item_obj.get("badge")) |v| switch (v) {
                     .string => |s| s,
                     .integer => |n| std.fmt.allocPrint(allocator, "{d}", .{n}) catch null,
                     else => null,
                 } else null,
-                .tint_color = if (item_obj.get("tintColor")) |v| v.string else null,
-                .url = if (item_obj.get("url")) |v| v.string else if (item_obj.get("href")) |v| v.string else null,
-            };
+                .tint_color = if (item_obj.get("tintColor")) |v| if (v == .string) v.string else null else null,
+                .url = if (item_obj.get("url")) |v| if (v == .string) v.string else null else if (item_obj.get("href")) |v| if (v == .string) v.string else null else null,
+            });
         }
 
-        sections[i] = .{
+        try sections.append(allocator, .{
             .id = id,
             .title = title,
-            .items = items,
+            .items = try items.toOwnedSlice(allocator),
             .collapsed = collapsed,
-        };
+        });
     }
 
-    dynamic_sections = sections;
+    dynamic_sections = try sections.toOwnedSlice(allocator);
     if (comptime builtin.mode == .Debug)
-        std.debug.print("[NativeSidebar] Parsed {d} sections from config\n", .{sections.len});
+        std.debug.print("[NativeSidebar] Parsed {d} sections from config\n", .{dynamic_sections.?.len});
 }
 
 // NSOutlineViewDataSource: numberOfChildrenOfItem
@@ -3294,36 +3300,30 @@ fn msgSend1Rect(target: anytype, selector: [*:0]const u8, rect: NSRect) objc.id 
 // Helper to create NSString
 pub fn createNSString(str: []const u8) objc.id {
     const NSString = getClass("NSString");
-    const str_alloc = msgSend0(NSString, "alloc");
     const cstr = @import("memory.zig").dupeZ(std.heap.c_allocator, u8, str) catch |err| {
         std.log.warn("createNSString: failed to allocate null-terminated string: {}", .{err});
-        // Return an empty NSString as fallback
-        return msgSend1(str_alloc, "initWithUTF8String:", @as([*:0]const u8, ""));
+        return msgSend1(NSString, "stringWithUTF8String:", @as([*:0]const u8, ""));
     };
     defer std.heap.c_allocator.free(cstr);
-    return msgSend1(str_alloc, "initWithUTF8String:", cstr.ptr);
+    return msgSend1(NSString, "stringWithUTF8String:", cstr.ptr);
 }
 
 // Clipboard functions
 pub fn setClipboard(text: []const u8) !void {
     const NSPasteboard = getClass("NSPasteboard");
-    const NSString = getClass("NSString");
-
     const pasteboard = msgSend0(NSPasteboard, "generalPasteboard");
     msgSendVoid0(pasteboard, "clearContents");
 
-    const text_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, text);
-    defer std.heap.c_allocator.free(text_cstr);
-    const text_str_alloc = msgSend0(NSString, "alloc");
-    const text_str = msgSend1(text_str_alloc, "initWithUTF8String:", text_cstr.ptr);
-
-    _ = msgSend1(pasteboard, "setString:forType:", text_str);
+    const text_str = createNSString(text);
+    const pasteboard_type = createNSString("public.utf8-plain-text");
+    _ = msgSend2(pasteboard, "setString:forType:", text_str, pasteboard_type);
 }
 
 pub fn getClipboard(allocator: std.mem.Allocator) ![]const u8 {
     const NSPasteboard = getClass("NSPasteboard");
     const pasteboard = msgSend0(NSPasteboard, "generalPasteboard");
-    const str = msgSend0(pasteboard, "stringForType:");
+    const pasteboard_type = createNSString("public.utf8-plain-text");
+    const str = msgSend1(pasteboard, "stringForType:", pasteboard_type);
 
     if (str == null) return error.NoClipboardContent;
 

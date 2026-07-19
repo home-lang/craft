@@ -392,7 +392,9 @@ const EnvironmentCompletedHandler = extern struct {
 
     fn envRelease(self: *EnvironmentCompletedHandler) callconv(.c) c_ulong {
         if (self.ref_count > 0) self.ref_count -= 1;
-        return self.ref_count;
+        const remaining = self.ref_count;
+        if (remaining == 0) std.heap.c_allocator.destroy(self);
+        return remaining;
     }
 
     fn envInvoke(self: *EnvironmentCompletedHandler, hr: HRESULT, env: ?*ICoreWebView2Environment) callconv(.c) HRESULT {
@@ -407,9 +409,11 @@ const EnvironmentCompletedHandler = extern struct {
             return -1; // E_FAIL
         };
 
-        // Create the controller handler (stack-allocated; the COM call will
-        // invoke it synchronously from the message pump before we return).
-        var ctrl_handler = ControllerCompletedHandler{
+        const ctrl_handler = std.heap.c_allocator.create(ControllerCompletedHandler) catch {
+            self.ctx.init_failed = true;
+            return -1;
+        };
+        ctrl_handler.* = .{
             .lpVtbl = &ControllerCompletedHandler.vtbl_instance,
             .ref_count = 1,
             .ctx = self.ctx,
@@ -418,8 +422,9 @@ const EnvironmentCompletedHandler = extern struct {
         const result = environment.lpVtbl.CreateCoreWebView2Controller(
             environment,
             self.ctx.hwnd,
-            @ptrCast(&ctrl_handler),
+            ctrl_handler,
         );
+        _ = ControllerCompletedHandler.ctrlRelease(ctrl_handler);
         if (result != S_OK) {
             std.debug.print("[WebView2] CreateCoreWebView2Controller call failed: 0x{x}\n", .{@as(u32, @bitCast(result))});
             self.ctx.init_failed = true;
@@ -467,7 +472,9 @@ const ControllerCompletedHandler = extern struct {
 
     fn ctrlRelease(self: *ControllerCompletedHandler) callconv(.c) c_ulong {
         if (self.ref_count > 0) self.ref_count -= 1;
-        return self.ref_count;
+        const remaining = self.ref_count;
+        if (remaining == 0) std.heap.c_allocator.destroy(self);
+        return remaining;
     }
 
     fn ctrlInvoke(self: *ControllerCompletedHandler, hr: HRESULT, ctrl: ?*ICoreWebView2Controller) callconv(.c) HRESULT {
@@ -511,12 +518,21 @@ const ControllerCompletedHandler = extern struct {
         _ = controller.lpVtbl.put_IsVisible(controller, 1);
 
         // Register permission handler for camera/microphone
-        var perm_handler = PermissionRequestedHandler{
+        const perm_handler = std.heap.c_allocator.create(PermissionRequestedHandler) catch {
+            self.ctx.init_failed = true;
+            return -1;
+        };
+        perm_handler.* = .{
             .lpVtbl = &PermissionRequestedHandler.vtbl_instance,
             .ref_count = 1,
         };
         var perm_token: EventRegistrationToken = .{ .value = 0 };
-        _ = webview.lpVtbl.add_PermissionRequested(webview, @ptrCast(&perm_handler), &perm_token);
+        const perm_hr = webview.lpVtbl.add_PermissionRequested(webview, perm_handler, &perm_token);
+        _ = PermissionRequestedHandler.permRelease(perm_handler);
+        if (!succeeded(perm_hr)) {
+            self.ctx.init_failed = true;
+            return perm_hr;
+        }
 
         // Store results
         self.ctx.controller = controller;
@@ -563,7 +579,9 @@ const PermissionRequestedHandler = extern struct {
 
     fn permRelease(self: *PermissionRequestedHandler) callconv(.c) c_ulong {
         if (self.ref_count > 0) self.ref_count -= 1;
-        return self.ref_count;
+        const remaining = self.ref_count;
+        if (remaining == 0) std.heap.c_allocator.destroy(self);
+        return remaining;
     }
 
     fn permInvoke(_: *PermissionRequestedHandler, _: *ICoreWebView2, args: *ICoreWebView2PermissionRequestedEventArgs) callconv(.c) HRESULT {
@@ -614,7 +632,9 @@ const ExecuteScriptCompletedHandler = extern struct {
 
     fn esRelease(self: *ExecuteScriptCompletedHandler) callconv(.c) c_ulong {
         if (self.ref_count > 0) self.ref_count -= 1;
-        return self.ref_count;
+        const remaining = self.ref_count;
+        if (remaining == 0) std.heap.c_allocator.destroy(self);
+        return remaining;
     }
 
     fn esInvoke(_: *ExecuteScriptCompletedHandler, hr: HRESULT, _: LPCWSTR) callconv(.c) HRESULT {
@@ -679,9 +699,11 @@ var app_running = false;
 var window_class_registered = false;
 const CLASS_NAME: [:0]const u16 = &[_:0]u16{ 'Z', 'y', 't', 'e', 'W', 'i', 'n', 'd', 'o', 'w' };
 
-// Global pointer so WindowProc can access the active window for WM_SIZE.
-// For multi-window support this would need a map keyed by HWND.
-var g_active_window: ?*Window = null;
+// WebView2 owns these COM interfaces independently of the stack value returned
+// from Window.create. Keep only stable COM pointers in global callback state.
+var g_active_hwnd: ?HWND = null;
+var g_active_controller: ?*ICoreWebView2Controller = null;
+var g_active_webview: ?*ICoreWebView2 = null;
 
 pub const WindowStyle = struct {
     frameless: bool = false,
@@ -785,7 +807,8 @@ pub const Window = struct {
             .dev_tools = options.dev_tools,
         };
 
-        var env_handler = EnvironmentCompletedHandler{
+        const env_handler = try std.heap.c_allocator.create(EnvironmentCompletedHandler);
+        env_handler.* = .{
             .lpVtbl = &EnvironmentCompletedHandler.vtbl_instance,
             .ref_count = 1,
             .ctx = &init_ctx,
@@ -800,8 +823,9 @@ pub const Window = struct {
             null, // default browser executable
             null, // default user data folder
             null, // no special options
-            &env_handler,
+            env_handler,
         );
+        _ = EnvironmentCompletedHandler.envRelease(env_handler);
 
         if (!succeeded(create_hr)) {
             std.debug.print("[WebView2] CreateCoreWebView2EnvironmentWithOptions failed: 0x{x}\n", .{@as(u32, @bitCast(create_hr))});
@@ -827,7 +851,7 @@ pub const Window = struct {
 
         std.debug.print("[Media] Windows WebView2 configured for camera/microphone access\n", .{});
 
-        var window = Window{
+        const window = Window{
             .hwnd = hwnd,
             .controller = init_ctx.controller,
             .webview = init_ctx.webview,
@@ -838,8 +862,9 @@ pub const Window = struct {
             .y = y,
         };
 
-        // Store a global reference for WindowProc to use on WM_SIZE
-        g_active_window = &window;
+        g_active_hwnd = hwnd;
+        g_active_controller = window.controller;
+        g_active_webview = window.webview;
 
         return window;
     }
@@ -859,7 +884,9 @@ pub const Window = struct {
         }
         self.controller = null;
         self.webview = null;
-        g_active_window = null;
+        g_active_hwnd = null;
+        g_active_controller = null;
+        g_active_webview = null;
         _ = DestroyWindow(self.hwnd);
     }
 
@@ -936,12 +963,14 @@ pub const Window = struct {
         const script_ptr: LPCWSTR = @ptrCast(&script_wide);
 
         // Use a fire-and-forget completed handler
-        var handler = ExecuteScriptCompletedHandler{
+        const handler = try std.heap.c_allocator.create(ExecuteScriptCompletedHandler);
+        handler.* = .{
             .lpVtbl = &ExecuteScriptCompletedHandler.vtbl_instance,
             .ref_count = 1,
         };
 
-        const hr = webview.lpVtbl.ExecuteScript(webview, script_ptr, &handler);
+        const hr = webview.lpVtbl.ExecuteScript(webview, script_ptr, handler);
+        _ = ExecuteScriptCompletedHandler.esRelease(handler);
         if (!succeeded(hr)) {
             std.debug.print("[WebView2] ExecuteScript failed: 0x{x}\n", .{@as(u32, @bitCast(hr))});
             return error.ScriptExecutionFailed;
@@ -985,9 +1014,11 @@ fn WindowProc(hwnd: HWND, msg: UINT, wParam: WPARAM, lParam: LPARAM) callconv(.c
     switch (msg) {
         WM_SIZE => {
             // Resize the WebView2 control to fill the window
-            if (g_active_window) |win| {
-                if (win.hwnd == hwnd) {
-                    win.resizeWebView();
+            if (g_active_hwnd == hwnd) {
+                if (g_active_controller) |controller| {
+                    var bounds: RECT = undefined;
+                    _ = GetClientRect(hwnd, &bounds);
+                    _ = controller.lpVtbl.put_Bounds(controller, bounds);
                 }
             }
             return 0;
@@ -1021,11 +1052,13 @@ pub const App = struct {
 /// Evaluate JavaScript in the current webview (cross-platform bridge helper).
 /// Uses the active window's WebView2 instance.
 pub fn evalJS(script: []const u8) !void {
-    if (g_active_window) |win| {
-        try win.executeJavaScript(script);
-    } else {
-        return error.NoWebView;
-    }
+    const webview = g_active_webview orelse return error.NoWebView;
+    var script_wide = try utf8ToUtf16Z(16384, script);
+    const handler = try std.heap.c_allocator.create(ExecuteScriptCompletedHandler);
+    handler.* = .{ .lpVtbl = &ExecuteScriptCompletedHandler.vtbl_instance, .ref_count = 1 };
+    const hr = webview.lpVtbl.ExecuteScript(webview, @ptrCast(&script_wide), handler);
+    _ = ExecuteScriptCompletedHandler.esRelease(handler);
+    if (!succeeded(hr)) return error.ScriptExecutionFailed;
 }
 
 // Legacy API compatibility

@@ -217,9 +217,9 @@ pub const Dialog = struct {
         // Platform-specific implementation
         const builtin = @import("builtin");
         return switch (builtin.target.os.tag) {
-            .macos => showMacFileDialog(options),
-            .linux => showLinuxFileDialog(options),
-            .windows => showWindowsFileDialog(options),
+            .macos => showMacFileDialog(allocator, options),
+            .linux => showLinuxFileDialog(allocator, options),
+            .windows => showWindowsFileDialog(allocator, options),
             else => error.UnsupportedPlatform,
         };
     }
@@ -230,9 +230,9 @@ pub const Dialog = struct {
 
         const builtin = @import("builtin");
         return switch (builtin.target.os.tag) {
-            .macos => showMacFileSaveDialog(options),
-            .linux => showLinuxFileSaveDialog(options),
-            .windows => showWindowsFileSaveDialog(options),
+            .macos => showMacFileSaveDialog(allocator, options),
+            .linux => showLinuxFileSaveDialog(allocator, options),
+            .windows => showWindowsFileSaveDialog(allocator, options),
             else => error.UnsupportedPlatform,
         };
     }
@@ -243,9 +243,9 @@ pub const Dialog = struct {
 
         const builtin = @import("builtin");
         return switch (builtin.target.os.tag) {
-            .macos => showMacDirectoryDialog(options),
-            .linux => showLinuxDirectoryDialog(options),
-            .windows => showWindowsDirectoryDialog(options),
+            .macos => showMacDirectoryDialog(allocator, options),
+            .linux => showLinuxDirectoryDialog(allocator, options),
+            .windows => showWindowsDirectoryDialog(allocator, options),
             else => error.UnsupportedPlatform,
         };
     }
@@ -366,7 +366,7 @@ pub const ProgressDialog = struct {
 const macos = if (@import("builtin").os.tag == .macos) @import("macos.zig") else struct {};
 
 /// Show NSOpenPanel for file selection
-fn showMacFileDialog(options: FileDialogOptions) !?DialogResult {
+fn showMacFileDialog(allocator: std.mem.Allocator, options: FileDialogOptions) !?DialogResult {
     if (@import("builtin").os.tag != .macos) return null;
 
     // Get NSOpenPanel class and create instance
@@ -447,14 +447,15 @@ fn showMacFileDialog(options: FileDialogOptions) !?DialogResult {
             // is still backed by the NSString's internal buffer; callers
             // should copy them before the enclosing NSOpenPanel dealloc's.
             const path_count = @min(count, 32);
-            const paths = std.heap.c_allocator.alloc([]const u8, path_count) catch return null;
+            const paths = allocator.alloc([]const u8, path_count) catch return null;
+            errdefer allocator.free(paths);
 
             var i: usize = 0;
             while (i < path_count) : (i += 1) {
                 const url = macos.msgSend1(urls, "objectAtIndex:", @as(c_ulong, i));
                 const path = macos.msgSend0(url, "path");
                 const path_cstr = macos.msgSend0(path, "UTF8String");
-                paths[i] = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
+                paths[i] = try allocator.dupe(u8, std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr))));
             }
 
             return DialogResult{ .file_paths = paths };
@@ -465,7 +466,7 @@ fn showMacFileDialog(options: FileDialogOptions) !?DialogResult {
             const path_cstr = macos.msgSend0(path, "UTF8String");
             const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
 
-            return DialogResult{ .file_path = path_str };
+            return DialogResult{ .file_path = try allocator.dupe(u8, path_str) };
         }
     }
 
@@ -473,7 +474,7 @@ fn showMacFileDialog(options: FileDialogOptions) !?DialogResult {
 }
 
 /// Show NSSavePanel for file saving
-fn showMacFileSaveDialog(options: FileDialogOptions) !?DialogResult {
+fn showMacFileSaveDialog(allocator: std.mem.Allocator, options: FileDialogOptions) !?DialogResult {
     if (@import("builtin").os.tag != .macos) return null;
 
     // Get NSSavePanel class and create instance
@@ -531,14 +532,14 @@ fn showMacFileSaveDialog(options: FileDialogOptions) !?DialogResult {
         const path_cstr = macos.msgSend0(path, "UTF8String");
         const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
 
-        return DialogResult{ .file_path = path_str };
+        return DialogResult{ .file_path = try allocator.dupe(u8, path_str) };
     }
 
     return null; // Canceled
 }
 
 /// Show NSOpenPanel for directory selection
-fn showMacDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
+fn showMacDirectoryDialog(allocator: std.mem.Allocator, options: DirectoryDialogOptions) !?DialogResult {
     if (@import("builtin").os.tag != .macos) return null;
 
     // Get NSOpenPanel class and create instance
@@ -591,7 +592,7 @@ fn showMacDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
         const path_cstr = macos.msgSend0(path, "UTF8String");
         const path_str = std.mem.span(@as([*:0]const u8, @ptrCast(path_cstr)));
 
-        return DialogResult{ .directory_path = path_str };
+        return DialogResult{ .directory_path = try allocator.dupe(u8, path_str) };
     }
 
     return null; // Canceled
@@ -926,7 +927,7 @@ fn showMacFontDialog(allocator: std.mem.Allocator, options: FontDialogOptions) !
 // Linux Platform-specific implementations using zenity/kdialog
 // ============================================================================
 
-fn showLinuxFileDialog(options: FileDialogOptions) !?DialogResult {
+fn showLinuxFileDialog(allocator: std.mem.Allocator, options: FileDialogOptions) !?DialogResult {
     // Use zenity for file dialogs on Linux
     var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
     defer args.deinit();
@@ -968,7 +969,7 @@ fn showLinuxFileDialog(options: FileDialogOptions) !?DialogResult {
             const bytes_read = stdout.read(&buf) catch return null;
             if (bytes_read > 0) {
                 const path = std.mem.trimRight(u8, buf[0..bytes_read], "\n\r");
-                return DialogResult{ .file_path = path };
+                return DialogResult{ .file_path = try allocator.dupe(u8, path) };
             }
         }
     }
@@ -976,7 +977,7 @@ fn showLinuxFileDialog(options: FileDialogOptions) !?DialogResult {
     return null;
 }
 
-fn showLinuxFileSaveDialog(options: FileDialogOptions) !?DialogResult {
+fn showLinuxFileSaveDialog(allocator: std.mem.Allocator, options: FileDialogOptions) !?DialogResult {
     var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
     defer args.deinit();
 
@@ -1004,7 +1005,7 @@ fn showLinuxFileSaveDialog(options: FileDialogOptions) !?DialogResult {
             const bytes_read = stdout.read(&buf) catch return null;
             if (bytes_read > 0) {
                 const path = std.mem.trimRight(u8, buf[0..bytes_read], "\n\r");
-                return DialogResult{ .file_path = path };
+                return DialogResult{ .file_path = try allocator.dupe(u8, path) };
             }
         }
     }
@@ -1012,7 +1013,7 @@ fn showLinuxFileSaveDialog(options: FileDialogOptions) !?DialogResult {
     return null;
 }
 
-fn showLinuxDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
+fn showLinuxDirectoryDialog(allocator: std.mem.Allocator, options: DirectoryDialogOptions) !?DialogResult {
     var args = std.ArrayList([]const u8).init(std.heap.c_allocator);
     defer args.deinit();
 
@@ -1039,7 +1040,7 @@ fn showLinuxDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
             const bytes_read = stdout.read(&buf) catch return null;
             if (bytes_read > 0) {
                 const path = std.mem.trimRight(u8, buf[0..bytes_read], "\n\r");
-                return DialogResult{ .directory_path = path };
+                return DialogResult{ .directory_path = try allocator.dupe(u8, path) };
             }
         }
     }
@@ -1226,7 +1227,7 @@ fn showLinuxFontDialog(allocator: std.mem.Allocator, options: FontDialogOptions)
 // Windows Platform-specific implementations using Win32 API
 // ============================================================================
 
-fn showWindowsFileDialog(options: FileDialogOptions) !?DialogResult {
+fn showWindowsFileDialog(allocator: std.mem.Allocator, options: FileDialogOptions) !?DialogResult {
     if (@import("builtin").os.tag != .windows) return null;
 
     const windows = struct {
@@ -1302,13 +1303,13 @@ fn showWindowsFileDialog(options: FileDialogOptions) !?DialogResult {
 
     if (windows.GetOpenFileNameA(&ofn) != 0) {
         const path = std.mem.sliceTo(&file_buf, 0);
-        return DialogResult{ .file_path = path };
+        return DialogResult{ .file_path = try allocator.dupe(u8, path) };
     }
 
     return null;
 }
 
-fn showWindowsFileSaveDialog(options: FileDialogOptions) !?DialogResult {
+fn showWindowsFileSaveDialog(allocator: std.mem.Allocator, options: FileDialogOptions) !?DialogResult {
     if (@import("builtin").os.tag != .windows) return null;
 
     const windows = struct {
@@ -1385,13 +1386,13 @@ fn showWindowsFileSaveDialog(options: FileDialogOptions) !?DialogResult {
 
     if (windows.GetSaveFileNameA(&ofn) != 0) {
         const path = std.mem.sliceTo(&file_buf, 0);
-        return DialogResult{ .file_path = path };
+        return DialogResult{ .file_path = try allocator.dupe(u8, path) };
     }
 
     return null;
 }
 
-fn showWindowsDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
+fn showWindowsDirectoryDialog(allocator: std.mem.Allocator, options: DirectoryDialogOptions) !?DialogResult {
     if (@import("builtin").os.tag != .windows) return null;
 
     const windows = struct {
@@ -1433,7 +1434,7 @@ fn showWindowsDirectoryDialog(options: DirectoryDialogOptions) !?DialogResult {
     if (windows.SHBrowseForFolderA(&bi)) |pidl| {
         if (windows.SHGetPathFromIDListA(pidl, &path_buf) != 0) {
             const path = std.mem.sliceTo(&path_buf, 0);
-            return DialogResult{ .directory_path = path };
+            return DialogResult{ .directory_path = try allocator.dupe(u8, path) };
         }
     }
 

@@ -91,6 +91,9 @@ pub const GPU = struct {
         if (builtin.os.tag != .macos) return null;
         if (self.metal_device) |dev| return dev;
         self.metal_device = metal.createDevice();
+        if (self.metal_device) |dev| {
+            _ = macos.msgSend0(dev, "retain");
+        }
         return self.metal_device;
     }
 

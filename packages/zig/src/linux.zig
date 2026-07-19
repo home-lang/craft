@@ -1,10 +1,10 @@
 const std = @import("std");
 
-// Linux implementation using GTK4 and WebKit2GTK
-// Requires: libgtk-4-dev, libwebkit2gtk-4.1-dev
+// Linux implementation using GTK3 and WebKit2GTK 4.1.
+// Requires: libgtk-3-dev, libwebkit2gtk-4.1-dev
 
 // GTK and WebKit C bindings
-pub extern "c" fn gtk_init() void;
+pub extern "c" fn gtk_init(argc: ?*c_int, argv: ?*anyopaque) void;
 pub extern "c" fn gtk_application_new(application_id: [*:0]const u8, flags: c_int) ?*anyopaque;
 pub extern "c" fn g_application_run(app: *anyopaque, argc: c_int, argv: [*c][*c]u8) c_int;
 pub extern "c" fn gtk_application_window_new(app: *anyopaque) *anyopaque;
@@ -282,7 +282,7 @@ pub const Window = struct {
     pub fn create(options: @import("api.zig").WindowOptions) !Window {
         // Initialize GTK if not already done
         if (app_instance == null) {
-            gtk_init();
+            gtk_init(null, null);
             app_instance = gtk_application_new("com.craft.app", 0);
         }
 

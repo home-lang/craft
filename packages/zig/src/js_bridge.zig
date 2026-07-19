@@ -32,28 +32,35 @@ pub const JSMessage = struct {
     method: []const u8,
     params: ?std.json.Value = null,
     callback: ?[]const u8 = null,
+    parsed: std.json.Parsed(std.json.Value),
 
     pub fn parse(allocator: std.mem.Allocator, json_str: []const u8) !JSMessage {
         const parsed = try std.json.parseFromSlice(std.json.Value, allocator, json_str, .{});
-        defer parsed.deinit();
+        errdefer parsed.deinit();
 
         const root = parsed.value;
         if (root != .object) return JSBridgeError.InvalidJSON;
 
         const obj = root.object;
+        const id = obj.get("id") orelse return JSBridgeError.InvalidJSON;
+        const method = obj.get("method") orelse return JSBridgeError.InvalidJSON;
+        if (id != .string or method != .string) return JSBridgeError.InvalidJSON;
+        if (obj.get("callback")) |callback| {
+            if (callback != .string) return JSBridgeError.InvalidJSON;
+        }
 
         return JSMessage{
-            .id = if (obj.get("id")) |id_val| try allocator.dupe(u8, id_val.string) else "",
-            .method = if (obj.get("method")) |method_val| try allocator.dupe(u8, method_val.string) else "",
+            .id = id.string,
+            .method = method.string,
             .params = if (obj.get("params")) |params_val| params_val else null,
-            .callback = if (obj.get("callback")) |cb_val| try allocator.dupe(u8, cb_val.string) else null,
+            .callback = if (obj.get("callback")) |cb_val| cb_val.string else null,
+            .parsed = parsed,
         };
     }
 
     pub fn deinit(self: *JSMessage, allocator: std.mem.Allocator) void {
-        if (self.id.len > 0) allocator.free(self.id);
-        if (self.method.len > 0) allocator.free(self.method);
-        if (self.callback) |cb| allocator.free(cb);
+        _ = allocator;
+        self.parsed.deinit();
     }
 };
 

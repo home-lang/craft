@@ -1093,7 +1093,9 @@ fn parsePackageFromJson(allocator: std.mem.Allocator, value: std.json.Value) !Pa
             var it = deps_val.object.iterator();
             while (it.next()) |entry| {
                 const dep = try parseDependency(allocator, entry.value_ptr.*);
-                try deps_map.put(entry.key_ptr.*, dep);
+                const key = try allocator.dupe(u8, entry.key_ptr.*);
+                errdefer allocator.free(key);
+                try deps_map.put(key, dep);
             }
             pkg.dependencies = deps_map;
         }
@@ -1105,8 +1107,11 @@ fn parsePackageFromJson(allocator: std.mem.Allocator, value: std.json.Value) !Pa
             var scripts_map = std.StringHashMap([]const u8).init(allocator);
             var it = scripts_val.object.iterator();
             while (it.next()) |entry| {
+                const key = try allocator.dupe(u8, entry.key_ptr.*);
+                errdefer allocator.free(key);
                 const script = try allocator.dupe(u8, entry.value_ptr.string);
-                try scripts_map.put(entry.key_ptr.*, script);
+                errdefer allocator.free(script);
+                try scripts_map.put(key, script);
             }
             pkg.scripts = scripts_map;
         }
