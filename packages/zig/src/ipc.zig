@@ -161,31 +161,70 @@ pub const IPC = struct {
 
 /// Shared memory for fast IPC
 pub const SharedMemory = struct {
+    const Backing = struct {
+        data: []u8,
+        allocator: std.mem.Allocator,
+        references: usize = 1,
+    };
+
+    var registry_mutex: compat_mutex.Mutex = .{};
+    var registry: std.StringHashMapUnmanaged(*Backing) = .empty;
+
     name: []const u8,
     size: usize,
     data: []u8,
     allocator: std.mem.Allocator,
+    backing: *Backing,
 
     pub fn create(allocator: std.mem.Allocator, name: []const u8, size: usize) !SharedMemory {
-        const data = try allocator.alloc(u8, size);
+        registry_mutex.lock();
+        defer registry_mutex.unlock();
+        if (registry.contains(name)) return error.AlreadyExists;
+
+        const backing_allocator = std.heap.page_allocator;
+        const owned_name = try backing_allocator.dupe(u8, name);
+        errdefer backing_allocator.free(owned_name);
+        const data = try backing_allocator.alloc(u8, size);
+        errdefer backing_allocator.free(data);
         @memset(data, 0);
+        const backing = try backing_allocator.create(Backing);
+        errdefer backing_allocator.destroy(backing);
+        backing.* = .{ .data = data, .allocator = backing_allocator };
+        try registry.put(backing_allocator, owned_name, backing);
 
         return SharedMemory{
-            .name = name,
+            .name = owned_name,
             .size = size,
             .data = data,
             .allocator = allocator,
+            .backing = backing,
         };
     }
 
     pub fn open(allocator: std.mem.Allocator, name: []const u8) !SharedMemory {
-        _ = allocator;
-        _ = name;
-        return error.NotImplemented;
+        registry_mutex.lock();
+        defer registry_mutex.unlock();
+        const entry = registry.getEntry(name) orelse return error.NotFound;
+        entry.value_ptr.*.references += 1;
+        return .{
+            .name = entry.key_ptr.*,
+            .size = entry.value_ptr.*.data.len,
+            .data = entry.value_ptr.*.data,
+            .allocator = allocator,
+            .backing = entry.value_ptr.*,
+        };
     }
 
     pub fn deinit(self: *SharedMemory) void {
-        self.allocator.free(self.data);
+        registry_mutex.lock();
+        defer registry_mutex.unlock();
+        self.backing.references -= 1;
+        if (self.backing.references == 0) {
+            const removed = registry.fetchRemove(self.name).?;
+            self.backing.allocator.free(removed.key);
+            self.backing.allocator.free(self.backing.data);
+            self.backing.allocator.destroy(self.backing);
+        }
     }
 
     pub fn write(self: *SharedMemory, offset: usize, data: []const u8) !void {

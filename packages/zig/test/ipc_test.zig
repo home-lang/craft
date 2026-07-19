@@ -306,6 +306,28 @@ test "SharedMemory - multiple writes" {
     try testing.expectEqualStrings("third", try mem.read(20, 5));
 }
 
+test "SharedMemory - open shares the named backing" {
+    const allocator = testing.allocator;
+    var created = try ipc.SharedMemory.create(allocator, "shared-open", 64);
+    defer created.deinit();
+    var opened = try ipc.SharedMemory.open(allocator, "shared-open");
+    defer opened.deinit();
+
+    try created.write(4, "visible");
+    try testing.expectEqualStrings("visible", try opened.read(4, 7));
+    try opened.write(16, "both-ways");
+    try testing.expectEqualStrings("both-ways", try created.read(16, 9));
+}
+
+test "SharedMemory - names are unique and missing names fail" {
+    const allocator = testing.allocator;
+    var mem = try ipc.SharedMemory.create(allocator, "unique-name", 8);
+    defer mem.deinit();
+
+    try testing.expectError(error.AlreadyExists, ipc.SharedMemory.create(allocator, "unique-name", 8));
+    try testing.expectError(error.NotFound, ipc.SharedMemory.open(allocator, "missing-name"));
+}
+
 // MessageQueue tests
 test "MessageQueue - initialization" {
     const allocator = testing.allocator;
