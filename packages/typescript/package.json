@@ -43,17 +43,15 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "bin",
     "dist",
     "README.md",
     "LICENSE.md"
   ],
   "bin": {
-    "craft": "./bin/cli.ts",
-    "craft-sdk": "./bin/cli.ts"
+    "craft-sdk": "./dist/cli.js"
   },
   "scripts": {
-    "build": "rm -rf dist && bun run build:lib && bun run build:types",
+    "build": "bun build.ts && bun run build:types",
     "build:lib": "bun build src/index.ts --outdir dist --format esm --target bun && bun build src/index.ts --outfile dist/index.cjs --format cjs --target node",
     "build:types": "bun run tsc -p tsconfig.build.json && cp dist/index.d.ts dist/index.d.cts",
     "dev": "bun --watch src/index.ts",

@@ -88,10 +88,17 @@ export class DevToolsServer extends EventEmitter {
     // Bun.serve serves the DevTools JSON API and upgrades inspector clients to
     // WebSockets in one server — no separate `ws` WebSocketServer.
     this.server = Bun.serve({
+      hostname: '127.0.0.1',
       port: this.config.port,
       fetch: (req, server) => {
-        if (server.upgrade(req))
-          return undefined // upgraded to a WebSocket; handled below
+        if (req.headers.get('upgrade')?.toLowerCase() === 'websocket') {
+          const origin = req.headers.get('origin') || ''
+          if (!this.isAllowedOrigin(origin))
+            return new Response('Forbidden WebSocket origin', { status: 403 })
+          if (server.upgrade(req))
+            return undefined // upgraded to a WebSocket; handled below
+          return new Response('WebSocket upgrade failed', { status: 400 })
+        }
         return this.handleHttp(req)
       },
       websocket: {
@@ -143,7 +150,7 @@ export class DevToolsServer extends EventEmitter {
       'Access-Control-Allow-Headers': 'Content-Type',
     })
     const origin = req.headers.get('origin') || ''
-    if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin))
+    if (this.isAllowedOrigin(origin))
       headers.set('Access-Control-Allow-Origin', origin)
 
     if (req.method === 'OPTIONS')
@@ -193,6 +200,12 @@ export class DevToolsServer extends EventEmitter {
     return new Response('Not found', { status: 404, headers })
   }
 
+  private isAllowedOrigin(origin: string): boolean {
+    return origin === 'null'
+      || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(origin)
+      || /^devtools:\/\//i.test(origin)
+  }
+
   /**
    * Handle WebSocket message (CDP protocol)
    */
@@ -206,41 +219,12 @@ export class DevToolsServer extends EventEmitter {
         break
 
       case 'Runtime.evaluate': {
-        try {
-          // Sandboxed evaluation - no access to local scope
-          const sandboxedEval = new Function(`return (${params.expression})`)
-          const result = sandboxedEval()
-          this.send(ws, {
-            id,
-            result: {
-              result: {
-                type: typeof result,
-                value: result,
-                description: String(result),
-              },
-            },
-          })
-        }
-        catch (evalError: unknown) {
-          this.send(ws, {
-            id,
-            result: {
-              result: {
-                type: 'object',
-                subtype: 'error',
-                description: evalError instanceof Error ? evalError.message : String(evalError),
-              },
-              exceptionDetails: {
-                text: evalError instanceof Error ? evalError.message : String(evalError),
-                exception: {
-                  type: 'object',
-                  className: 'Error',
-                  description: evalError instanceof Error ? evalError.stack : String(evalError),
-                },
-              },
-            },
-          })
-        }
+        // This server observes the app; evaluating here would execute inside
+        // the privileged Bun host, not the inspected webview.
+        this.send(ws, {
+          id,
+          error: { code: -32601, message: 'Runtime.evaluate is unavailable without a webview execution transport' },
+        })
         break
       }
 
@@ -587,14 +571,14 @@ else if (msg.method === 'Network.responseReceived') {
       const content = document.getElementById('content');
       if (activeTab === 'console') {
         content.innerHTML = logs.map(l =>
-          '<div class="' ' + + esc(l.level) log">' + esc(l.text) + '</div>'
+          '<div class="log ' + esc(l.level) + '">' + esc(l.text) + '</div>'
         ).join('');
       }
       else if (activeTab === 'network') {
         content.innerHTML = requests.map(r =>
           '<div class="request">' +
           '<div class="request-url">' + esc(r.request.method) + ' ' + esc(r.request.url) + '</div>' +
-          '<div class="' + + esc(String(r.status)) request-status status-'">' + esc(String(r.status)) + '</div>' +
+          '<div class="request-status status-' + esc(String(r.status)) + '">' + esc(String(r.status)) + '</div>' +
           '</div>'
         ).join('');
       }
