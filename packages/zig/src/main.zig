@@ -158,9 +158,8 @@ pub const Window = struct {
     }
 
     pub fn eval(self: *Self, js: []const u8) !void {
-        _ = self;
-        _ = js;
-        return error.NotImplemented;
+        if (self.native_handle == null) return error.WindowNotShown;
+        try @import("bridge.zig").evalJS(js);
     }
 
     pub fn deinit(self: *Self) void {
