@@ -236,6 +236,7 @@ pub const Headers = struct {
 
     allocator: std.mem.Allocator,
     map: std.StringHashMapUnmanaged([]const u8),
+    owns_entries: bool = false,
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
@@ -245,11 +246,36 @@ pub const Headers = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        if (self.owns_entries) {
+            var it = self.map.iterator();
+            while (it.next()) |entry| {
+                self.allocator.free(entry.key_ptr.*);
+                self.allocator.free(entry.value_ptr.*);
+            }
+        }
         self.map.deinit(self.allocator);
     }
 
     pub fn set(self: *Self, key: []const u8, value: []const u8) !void {
         try self.map.put(self.allocator, key, value);
+    }
+
+    fn appendOwned(self: *Self, key: []const u8, value: []const u8) !void {
+        std.debug.assert(self.owns_entries);
+        var it = self.map.iterator();
+        while (it.next()) |entry| {
+            if (std.ascii.eqlIgnoreCase(entry.key_ptr.*, key)) {
+                const combined = try std.fmt.allocPrint(self.allocator, "{s}, {s}", .{ entry.value_ptr.*, value });
+                self.allocator.free(entry.value_ptr.*);
+                entry.value_ptr.* = combined;
+                return;
+            }
+        }
+        const owned_key = try self.allocator.dupe(u8, key);
+        errdefer self.allocator.free(owned_key);
+        const owned_value = try self.allocator.dupe(u8, value);
+        errdefer self.allocator.free(owned_value);
+        try self.map.put(self.allocator, owned_key, owned_value);
     }
 
     /// Case-insensitive header lookup per RFC 7230. The backing hashmap is
@@ -660,6 +686,10 @@ pub const WebSocket = struct {
     on_message: ?*const fn (*Self, WebSocketMessage) void = null,
     on_close: ?*const fn (*Self, u16, []const u8) void = null,
     on_error: ?*const fn (*Self, HttpError) void = null,
+    client: ?*std.http.Client = null,
+    request: ?*std.http.Client.Request = null,
+    transport_url: ?[]u8 = null,
+    protocol_header: ?[]u8 = null,
 
     pub fn init(allocator: std.mem.Allocator, url: []const u8, config: WebSocketConfig) Self {
         return .{
@@ -671,37 +701,148 @@ pub const WebSocket = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        _ = self;
+        if (self.request) |request| {
+            request.deinit();
+            self.allocator.destroy(request);
+            self.request = null;
+        }
+        if (self.client) |client| {
+            client.deinit();
+            self.allocator.destroy(client);
+            self.client = null;
+        }
+        if (self.transport_url) |value| self.allocator.free(value);
+        if (self.protocol_header) |value| self.allocator.free(value);
+        self.transport_url = null;
+        self.protocol_header = null;
+        self.state = .closed;
     }
 
     pub fn connect(self: *Self) !void {
+        if (self.state == .open) return;
+        self.deinit();
         self.state = .connecting;
-        self.state = .closed;
-        return error.NotImplemented;
+        errdefer self.state = .closed;
+
+        const secure = std.mem.startsWith(u8, self.url, "wss://");
+        if (!secure and !std.mem.startsWith(u8, self.url, "ws://")) return HttpError.InvalidURL;
+        self.transport_url = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{
+            if (secure) "https://" else "http://",
+            self.url[if (secure) "wss://".len else "ws://".len..],
+        });
+        const uri = std.Uri.parse(self.transport_url.?) catch return HttpError.InvalidURL;
+
+        var nonce: [16]u8 = undefined;
+        var prng = std.Random.DefaultPrng.init(getCurrentNanos());
+        prng.fill(&nonce);
+        var key_buf: [std.base64.standard.Encoder.calcSize(nonce.len)]u8 = undefined;
+        const key = std.base64.standard.Encoder.encode(&key_buf, &nonce);
+
+        var extra: std.ArrayListUnmanaged(std.http.Header) = .empty;
+        defer extra.deinit(self.allocator);
+        try extra.appendSlice(self.allocator, &.{
+            .{ .name = "Upgrade", .value = "websocket" },
+            .{ .name = "Sec-WebSocket-Version", .value = "13" },
+            .{ .name = "Sec-WebSocket-Key", .value = key },
+        });
+        if (self.config.protocols) |protocols| {
+            self.protocol_header = try std.mem.join(self.allocator, ", ", protocols);
+            try extra.append(self.allocator, .{ .name = "Sec-WebSocket-Protocol", .value = self.protocol_header.? });
+        }
+        if (self.config.headers) |headers| {
+            var it = headers.iterator();
+            while (it.next()) |entry|
+                try extra.append(self.allocator, .{ .name = entry.key_ptr.*, .value = entry.value_ptr.* });
+        }
+
+        const client = try self.allocator.create(std.http.Client);
+        client.* = .{ .allocator = self.allocator, .io = @import("io_context.zig").get() };
+        self.client = client;
+        const request = try self.allocator.create(std.http.Client.Request);
+        request.* = client.request(.GET, uri, .{
+            .redirect_behavior = .not_allowed,
+            .headers = .{ .connection = .{ .override = "Upgrade" } },
+            .extra_headers = extra.items,
+        }) catch return HttpError.ConnectionFailed;
+        self.request = request;
+        request.sendBodiless() catch return HttpError.NetworkError;
+        const response = request.receiveHead(&.{}) catch return HttpError.InvalidResponse;
+        if (@intFromEnum(response.head.status) != 101) return HttpError.InvalidResponse;
+
+        var sha1 = std.crypto.hash.Sha1.init(.{});
+        sha1.update(key);
+        sha1.update("258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
+        var digest: [std.crypto.hash.Sha1.digest_length]u8 = undefined;
+        sha1.final(&digest);
+        var accept_buf: [std.base64.standard.Encoder.calcSize(digest.len)]u8 = undefined;
+        const expected_accept = std.base64.standard.Encoder.encode(&accept_buf, &digest);
+        var headers_it = response.head.iterateHeaders();
+        var accepted = false;
+        while (headers_it.next()) |header| {
+            if (std.ascii.eqlIgnoreCase(header.name, "Sec-WebSocket-Accept"))
+                accepted = std.mem.eql(u8, header.value, expected_accept);
+        }
+        if (!accepted) return HttpError.InvalidResponse;
+        self.state = .open;
+        if (self.on_open) |callback| callback(self);
     }
 
     pub fn send(self: *Self, data: []const u8) !void {
         if (self.state != .open) {
             return HttpError.ConnectionFailed;
         }
-        _ = data;
-        return error.NotImplemented;
+        try self.writeFrame(0x1, data);
     }
 
     pub fn sendBinary(self: *Self, data: []const u8) !void {
         if (self.state != .open) {
             return HttpError.ConnectionFailed;
         }
-        _ = data;
-        return error.NotImplemented;
+        try self.writeFrame(0x2, data);
+    }
+
+    fn writeFrame(self: *Self, opcode: u8, data: []const u8) !void {
+        const request = self.request orelse return HttpError.NoConnection;
+        const connection = request.connection orelse return HttpError.NoConnection;
+        const writer = connection.writer();
+        try writer.writeByte(0x80 | opcode);
+        if (data.len <= 125) {
+            try writer.writeByte(0x80 | @as(u8, @intCast(data.len)));
+        } else if (data.len <= std.math.maxInt(u16)) {
+            try writer.writeByte(0x80 | 126);
+            try writer.writeInt(u16, @intCast(data.len), .big);
+        } else {
+            try writer.writeByte(0x80 | 127);
+            try writer.writeInt(u64, data.len, .big);
+        }
+        const seed = getCurrentNanos();
+        const mask: [4]u8 = @bitCast(@as(u32, @truncate(seed)));
+        try writer.writeAll(&mask);
+        var offset: usize = 0;
+        var masked: [1024]u8 = undefined;
+        while (offset < data.len) {
+            const count = @min(masked.len, data.len - offset);
+            for (data[offset .. offset + count], 0..) |byte, i| masked[i] = byte ^ mask[(offset + i) % 4];
+            try writer.writeAll(masked[0..count]);
+            offset += count;
+        }
+        try connection.flush();
     }
 
     pub fn close(self: *Self, code: u16, reason: []const u8) void {
+        if (self.state == .closed) return;
         self.state = .closing;
+        var payload: [125]u8 = undefined;
+        std.mem.writeInt(u16, payload[0..2], code, .big);
+        const reason_len = @min(reason.len, payload.len - 2);
+        @memcpy(payload[2 .. 2 + reason_len], reason[0..reason_len]);
+        self.writeFrame(0x8, payload[0 .. 2 + reason_len]) catch {
+            if (self.on_error) |callback| callback(self, HttpError.NetworkError);
+        };
         if (self.on_close) |callback| {
             callback(self, code, reason);
         }
-        self.state = .closed;
+        self.deinit();
     }
 
     pub fn getState(self: *const Self) WebSocketState {
@@ -788,7 +929,96 @@ pub const HttpClient = struct {
         } else try self.allocator.dupe(u8, url);
         errdefer self.allocator.free(full_url);
 
-        return error.NotImplemented;
+        const io_context = @import("io_context.zig");
+        var client: std.http.Client = .{ .allocator = self.allocator, .io = io_context.get() };
+        defer client.deinit();
+
+        var extra_headers: std.ArrayListUnmanaged(std.http.Header) = .empty;
+        defer extra_headers.deinit(self.allocator);
+        var defaults = self.default_headers.iterator();
+        while (defaults.next()) |entry| {
+            if (cfg.headers == null or cfg.headers.?.get(entry.key_ptr.*) == null)
+                try extra_headers.append(self.allocator, .{ .name = entry.key_ptr.*, .value = entry.value_ptr.* });
+        }
+        if (cfg.headers) |headers| {
+            var it = headers.iterator();
+            while (it.next()) |entry|
+                try extra_headers.append(self.allocator, .{ .name = entry.key_ptr.*, .value = entry.value_ptr.* });
+        }
+
+        const method: std.http.Method = switch (cfg.method) {
+            .GET => .GET,
+            .POST => .POST,
+            .PUT => .PUT,
+            .DELETE => .DELETE,
+            .PATCH => .PATCH,
+            .HEAD => .HEAD,
+            .OPTIONS => .OPTIONS,
+            .TRACE => .TRACE,
+            .CONNECT => .CONNECT,
+        };
+        const started = getCurrentNanos();
+        const uri = std.Uri.parse(full_url) catch return HttpError.InvalidURL;
+        var req = client.request(method, uri, .{
+            .redirect_behavior = if (cfg.follow_redirects)
+                std.http.Client.Request.RedirectBehavior.init(cfg.max_redirects)
+            else
+                .unhandled,
+            .headers = .{ .user_agent = .{ .override = self.user_agent } },
+            .extra_headers = extra_headers.items,
+        }) catch return HttpError.ConnectionFailed;
+        defer req.deinit();
+        if (cfg.body) |payload| {
+            req.transfer_encoding = .{ .content_length = payload.len };
+            var outgoing = req.sendBodyUnflushed(&.{}) catch return HttpError.RequestFailed;
+            outgoing.writer.writeAll(payload) catch return HttpError.NetworkError;
+            outgoing.end() catch return HttpError.NetworkError;
+            req.connection.?.flush() catch return HttpError.NetworkError;
+        } else {
+            req.sendBodiless() catch return HttpError.RequestFailed;
+        }
+
+        var redirect_buffer: [8192]u8 = undefined;
+        var incoming = req.receiveHead(&redirect_buffer) catch return HttpError.InvalidResponse;
+        var response_headers = Headers.init(self.allocator);
+        response_headers.owns_entries = true;
+        errdefer response_headers.deinit();
+        var incoming_headers = incoming.head.iterateHeaders();
+        while (incoming_headers.next()) |header| {
+            try response_headers.appendOwned(header.name, header.value);
+        }
+
+        var body_writer: std.Io.Writer.Allocating = .init(self.allocator);
+        errdefer body_writer.deinit();
+        var transfer_buffer: [64]u8 = undefined;
+        var decompress: std.http.Decompress = undefined;
+        const decompress_size: usize = switch (incoming.head.content_encoding) {
+            .identity => 0,
+            .zstd => std.compress.zstd.default_window_len,
+            .deflate, .gzip => std.compress.flate.max_window_len,
+            .compress => return HttpError.InvalidResponse,
+        };
+        const decompress_buffer = try self.allocator.alloc(u8, decompress_size);
+        defer self.allocator.free(decompress_buffer);
+        const reader = incoming.readerDecompressing(&transfer_buffer, &decompress, decompress_buffer);
+        _ = reader.streamRemaining(&body_writer.writer) catch return HttpError.NetworkError;
+
+        var body_list = body_writer.toArrayList();
+        const body = try body_list.toOwnedSlice(self.allocator);
+        errdefer self.allocator.free(body);
+        var response = Response{
+            .status = @intFromEnum(incoming.head.status),
+            .status_code = @enumFromInt(@intFromEnum(incoming.head.status)),
+            .headers = response_headers,
+            .body = body,
+            .url = full_url,
+            .request_time_ms = (getCurrentNanos() -| started) / std.time.ns_per_ms,
+            .allocator = self.allocator,
+        };
+        for (self.interceptors.items) |interceptor| {
+            if (interceptor.on_response) |callback| callback(interceptor.context, &response);
+        }
+        return response;
     }
 
     /// GET request
@@ -1025,6 +1255,13 @@ test "WebSocket initialization" {
     try std.testing.expect(!ws.isConnected());
 }
 
+test "WebSocket rejects non-WebSocket URLs" {
+    var socket = WebSocket.init(std.testing.allocator, "https://example.com", .{});
+    defer socket.deinit();
+    try std.testing.expectError(HttpError.InvalidURL, socket.connect());
+    try std.testing.expectEqual(WebSocketState.closed, socket.getState());
+}
+
 test "HttpClient initialization" {
     var client = HttpClient.init(std.testing.allocator);
     defer client.deinit();
@@ -1097,7 +1334,7 @@ test "Response methods" {
         .status_code = .ok,
         .headers = headers,
         .body = try std.testing.allocator.dupe(u8, "test body"),
-        .url = "https://example.com",
+        .url = try std.testing.allocator.dupe(u8, "https://example.com"),
         .request_time_ms = 50,
         .allocator = std.testing.allocator,
     };
@@ -1108,4 +1345,10 @@ test "Response methods" {
     try std.testing.expectEqualStrings("test body", response.text());
     try std.testing.expectEqualStrings("application/json", response.contentType().?);
     try std.testing.expectEqual(@as(usize, 100), response.contentLength().?);
+}
+
+test "HttpClient request rejects invalid URLs" {
+    var client = HttpClient.init(std.testing.allocator);
+    defer client.deinit();
+    try std.testing.expectError(HttpError.InvalidURL, client.get("not a URL"));
 }
