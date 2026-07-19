@@ -4238,7 +4238,10 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
     };
     defer parsed.deinit();
 
-    const root = parsed.value.object;
+    const root = switch (parsed.value) {
+        .object => |obj| obj,
+        else => return error.InvalidBridgeMessage,
+    };
 
     // Extract type and action (short keys: t, a, d)
     const msg_type_val = root.get("t") orelse {
@@ -4252,8 +4255,14 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         return error.MissingAction;
     };
 
-    const msg_type = msg_type_val.string;
-    const action = action_val.string;
+    const msg_type = switch (msg_type_val) {
+        .string => |value| value,
+        else => return error.InvalidBridgeMessage,
+    };
+    const action = switch (action_val) {
+        .string => |value| value,
+        else => return error.InvalidBridgeMessage,
+    };
 
     // Extract data if present - could be string, object, array, or missing
     var data_json_str: []const u8 = "";
@@ -4440,9 +4449,9 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         // Handle debug messages
         if (comptime builtin.mode == .Debug) {
             if (root.get("message")) |msg_val| {
-                std.debug.print("[JS Debug] {s}\n", .{msg_val.string});
+                if (msg_val == .string) std.debug.print("[JS Debug] {s}\n", .{msg_val.string});
             } else if (root.get("msg")) |msg_val| {
-                std.debug.print("[JS Debug] {s}\n", .{msg_val.string});
+                if (msg_val == .string) std.debug.print("[JS Debug] {s}\n", .{msg_val.string});
             }
         }
     } else {

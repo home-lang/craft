@@ -1045,7 +1045,10 @@ fn stripJsonComments(allocator: std.mem.Allocator, content: []const u8) ![]const
 }
 
 fn parsePackageFromJson(allocator: std.mem.Allocator, value: std.json.Value) !Package {
-    const obj = value.object;
+    const obj = switch (value) {
+        .object => |object| object,
+        else => return error.InvalidPackageJSON,
+    };
 
     var pkg = Package{
         .name = "",
@@ -1054,24 +1057,30 @@ fn parsePackageFromJson(allocator: std.mem.Allocator, value: std.json.Value) !Pa
 
     // Required fields
     if (obj.get("name")) |name_val| {
-        pkg.name = try allocator.dupe(u8, name_val.string);
+        pkg.name = try allocator.dupe(u8, switch (name_val) {
+            .string => |name| name,
+            else => return error.InvalidPackageName,
+        });
     } else {
         return error.MissingPackageName;
     }
 
     if (obj.get("version")) |version_val| {
-        pkg.version = try allocator.dupe(u8, version_val.string);
+        pkg.version = try allocator.dupe(u8, switch (version_val) {
+            .string => |version| version,
+            else => return error.InvalidPackageVersion,
+        });
     } else {
         return error.MissingPackageVersion;
     }
 
     // Optional fields
     if (obj.get("description")) |desc_val| {
-        pkg.description = try allocator.dupe(u8, desc_val.string);
+        if (desc_val == .string) pkg.description = try allocator.dupe(u8, desc_val.string);
     }
 
     if (obj.get("license")) |license_val| {
-        pkg.license = try allocator.dupe(u8, license_val.string);
+        if (license_val == .string) pkg.license = try allocator.dupe(u8, license_val.string);
     }
 
     // Parse authors
@@ -1080,6 +1089,7 @@ fn parsePackageFromJson(allocator: std.mem.Allocator, value: std.json.Value) !Pa
             const authors_array = authors_val.array;
             var authors = try allocator.alloc([]const u8, authors_array.items.len);
             for (authors_array.items, 0..) |item, i| {
+                if (item != .string) return error.InvalidPackageAuthors;
                 authors[i] = try allocator.dupe(u8, item.string);
             }
             pkg.authors = authors;
@@ -1107,6 +1117,7 @@ fn parsePackageFromJson(allocator: std.mem.Allocator, value: std.json.Value) !Pa
             var scripts_map = std.StringHashMap([]const u8).init(allocator);
             var it = scripts_val.object.iterator();
             while (it.next()) |entry| {
+                if (entry.value_ptr.* != .string) return error.InvalidPackageScripts;
                 const key = try allocator.dupe(u8, entry.key_ptr.*);
                 errdefer allocator.free(key);
                 const script = try allocator.dupe(u8, entry.value_ptr.string);
