@@ -950,23 +950,23 @@ Craft is **1351x**smaller than Electron,**2.4x**faster to start, and uses**4.3x*
 | Platform | Status | WebView | Native Components |
 |----------|--------|---------|-------------------|
 | **macOS** | ✅ Production | WKWebView | ✅ All 35 |
-| **Linux** | ✅ Production | WebKit2GTK 4.0+ | ✅ All 35 |
-| **Windows** | ✅ Production | WebView2 (Edge) | ✅ All 35 |
-| **iOS** | ✅ Beta | WKWebView | ✅ UIKit |
-| **Android** | ✅ Beta | WebView | ✅ Material |
+| **Linux** | 🧪 Experimental | WebKit2GTK 4.1 / GTK3 | Partial |
+| **Windows** | 🧪 Experimental | WebView2 (Edge) | Partial |
+| **iOS** | 🚧 Preview | WKWebView | Partial |
+| **Android** | 🚧 Preview | WebView | Partial |
 
 ## Documentation
 
-- 📖 [API Reference](API_REFERENCE.md) - Complete API documentation
-- 🚀 [Quick Start](QUICK_START.md) - Get started quickly
-- 📘 [Getting Started](GETTING_STARTED.md) - Detailed guide
-- ✨ [Features](FEATURES.md) - Complete feature list
-- 🤝 [Contributing](CONTRIBUTING.md) - Contribution guide
+- 📖 [API Reference](docs/API_REFERENCE.md) - Complete API documentation
+- 🚀 [Quick Start](docs/QUICK_START.md) - Get started quickly
+- 📘 [Getting Started](docs/GETTING_STARTED.md) - Detailed guide
+- ✨ [Features](docs/FEATURES.md) - Complete feature list
+- 🤝 [Contributing](.github/CONTRIBUTING.md) - Contribution guide
 - 📋 [Changelog](https://github.com/home-lang/craft/releases) - Release history
 
 ## Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+We welcome contributions! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md) for details.
 
 ## Community
 

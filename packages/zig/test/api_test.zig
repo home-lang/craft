@@ -14,7 +14,7 @@ test "Version - current_version matches package.json" {
     // Version is now set to 0.0.20 matching package.json
     try testing.expectEqual(@as(u32, 0), api.current_version.major);
     try testing.expectEqual(@as(u32, 0), api.current_version.minor);
-    try testing.expectEqual(@as(u32, 20), api.current_version.patch);
+    try testing.expectEqual(@as(u32, 40), api.current_version.patch);
 }
 
 test "Version - parse comptime" {

@@ -606,7 +606,7 @@ const html = `
 
         // Remove selected from siblings
         item.closest('.demo-content')
-          .querySelectorAll(`.${className}`)
+          .querySelectorAll('.' + className)
           .forEach(el => el.classList.remove('selected'));
 
         // Add selected to clicked item
@@ -626,9 +626,6 @@ const app = createApp({
     title: 'Sidebar Showcase',
     width: 1400,
     height: 700,
-    minWidth: 800,
-    minHeight: 500,
-    vibrancy: 'fullscreen-ui',
   },
 })
 

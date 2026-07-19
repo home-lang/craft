@@ -674,8 +674,8 @@ pub const Database = struct {
         }
 
         // Bind parameters using tuple
-        const fields = @typeInfo(@TypeOf(params)).@"struct".fields;
-        inline for (fields, 0..) |_, i| {
+        const field_names = @typeInfo(@TypeOf(params)).@"struct".field_names;
+        inline for (field_names, 0..) |_, i| {
             try stmt.bind(i + 1, params[i]);
         }
 
@@ -770,8 +770,8 @@ pub const Database = struct {
         }
 
         // Bind parameters
-        const fields = @typeInfo(@TypeOf(params)).@"struct".fields;
-        inline for (fields, 0..) |_, i| {
+        const field_names = @typeInfo(@TypeOf(params)).@"struct".field_names;
+        inline for (field_names, 0..) |_, i| {
             try stmt.bind(i + 1, params[i]);
         }
 

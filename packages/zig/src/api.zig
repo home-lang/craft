@@ -58,7 +58,7 @@ pub fn currentVersion() Version {
 }
 
 /// For backwards compatibility
-pub const current_version = Version{ .major = 0, .minor = 0, .patch = 20 };
+pub const current_version = Version{ .major = 0, .minor = 0, .patch = 40 };
 
 /// Stable Window API
 pub const Window = struct {

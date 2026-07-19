@@ -1,14 +1,17 @@
 # Platform Support Guide
 
-Craft v1.0.0 provides complete platform support for macOS, Linux, and Windows with a unified stable API.
+Craft 0.0.40 treats macOS as the tier-1 desktop target. Linux and Windows
+are experimental: their window/WebView foundations build, but bridge, tray,
+packaging, and advanced native API coverage are incomplete. Do not treat an
+experimental target as production-ready without application-specific testing.
 
 ## Platform Overview
 
 | Platform | Status | WebView Technology | Binary Size | Notes |
 |----------|--------|-------------------|-------------|-------|
 | **macOS** | ✅ Production | WKWebView (Native) | ~297 KB | Full native support |
-| **Linux** | ✅ Production | WebKit2GTK | ~1.5MB | Requires GTK4 + WebKit2GTK |
-| **Windows** | ✅ Production | WebView2 (Edge) | ~1.6MB | Requires WebView2 Runtime |
+| **Linux** | 🧪 Experimental | WebKit2GTK 4.1 | Untracked | Requires GTK3 + WebKit2GTK |
+| **Windows** | 🧪 Experimental | WebView2 (Edge) | Untracked | Requires WebView2 Runtime |
 
 ## macOS
 
@@ -56,7 +59,7 @@ zig build -Doptimize=ReleaseFast
 
 ### Features
 
-All 67 features fully supported:
+macOS is the only tier-1 target. The following areas have production coverage:
 
 - ✅ Native window management
 - ✅ WKWebView with full JavaScript bridge
@@ -87,7 +90,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md#macos-deployment) for:
 
 - **Distribution**: Ubuntu 20.04+, Fedora 35+, Debian 11+, or compatible
 - **WebView**: WebKit2GTK 4.1
-- **GUI**: GTK 4.0
+- **GUI**: GTK 3
 - **Build Tools**: GCC or Clang
 
 ### Installation
@@ -96,19 +99,19 @@ See [DEPLOYMENT.md](DEPLOYMENT.md#macos-deployment) for:
 # Ubuntu/Debian
 sudo apt-get update
 sudo apt-get install -y \
-    libgtk-4-dev \
+    libgtk-3-dev \
     libwebkit2gtk-4.1-dev \
     build-essential
 
 # Fedora
 sudo dnf install -y \
-    gtk4-devel \
+    gtk3-devel \
     webkit2gtk4.1-devel \
     gcc
 
 # Arch Linux
 sudo pacman -S \
-    gtk4 \
+    gtk3 \
     webkit2gtk-4.1 \
     base-devel
 
@@ -145,26 +148,20 @@ zig build -Doptimize=ReleaseFast
 
 ### Features
 
-All 67 features fully supported:
+Currently implemented foundations (experimental):
 
-- ✅ GTK4 native windows
+- 🧪 GTK3 native windows
 - ✅ WebKit2GTK web rendering
-- ✅ libnotify notifications
-- ✅ System tray (via StatusNotifier)
-- ✅ GDK clipboard
-- ✅ GTK file dialogs
+- 🚧 Notifications, tray, clipboard, and dialogs require further integration testing
 - ✅ Hot reload via WebSocket
 - ✅ Developer tools (WebKit Inspector)
-- ✅ Multi-window support
-- ✅ Fullscreen, frameless, transparent windows
-- ✅ All performance features
+- 🚧 Multi-window, bridge parity, and advanced window behavior are incomplete
 
 ### Known Limitations
 
 - **Transparency**: Requires compositor (e.g., Picom, Compton)
 - **System Tray**: May vary by desktop environment (GNOME, KDE, XFCE)
-- **Wayland**: Fully supported via GTK4
-- **X11**: Fully supported
+- **Wayland/X11**: support depends on the GTK3/WebKit2GTK environment and is experimental
 
 ### Deployment
 
@@ -243,19 +240,14 @@ zig build -Doptimize=ReleaseFast
 
 ### Features
 
-All 67 features fully supported:
+Currently implemented foundations (experimental):
 
 - ✅ Win32 native windows
 - ✅ WebView2 (Edge Chromium) rendering
-- ✅ Windows Toast notifications
-- ✅ System tray (notification area)
-- ✅ Windows clipboard
-- ✅ Win32 file dialogs
+- 🚧 Notifications, tray, clipboard, and dialogs require further integration testing
 - ✅ Hot reload via WebSocket
 - ✅ Developer tools (Edge DevTools)
-- ✅ Multi-window support
-- ✅ Fullscreen, frameless, transparent windows
-- ✅ All performance features
+- 🚧 Multi-window, bridge parity, and advanced window behavior are incomplete
 
 ### Known Limitations
 

@@ -193,7 +193,7 @@ export class AutoUpdater extends EventEmitter {
         throw new Error(`HTTP ${response.status}`)
       }
 
-      const updateInfo: UpdateInfo = await response.json()
+      const updateInfo = await response.json() as UpdateInfo
       // Capture validators for the next check. response.headers.get is
       // case-insensitive per the Fetch spec.
       this.cachedEtag = response.headers.get('etag') || null

@@ -554,8 +554,6 @@ const app = createApp({
     title: 'Containers',
     width: 1000,
     height: 700,
-    minWidth: 700,
-    minHeight: 500,
     titlebarHidden: true,
   },
 })

@@ -88,8 +88,24 @@ jobs:
           eval "$(pantry env | sed -n '/^export /,$p')" && zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
 
       # ── macOS Code Signing & Notarization ──────────────────────────
+      - name: Require macOS release credentials
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in APPLE_CERTIFICATE_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY KEYCHAIN_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required macOS release secret: $name"
+              exit 1
+            fi
+          done
+
       - name: Import signing certificate
-        if: runner.os == 'macOS' && env.APPLE_CERTIFICATE_BASE64 != ''
+        if: runner.os == 'macOS'
         env:
           APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -104,7 +120,7 @@ jobs:
           rm certificate.p12
 
       - name: Sign macOS binary
-        if: runner.os == 'macOS' && env.APPLE_SIGNING_IDENTITY != ''
+        if: runner.os == 'macOS'
         env:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           # Default to the strict distribution entitlements; CI can opt in to
@@ -119,11 +135,14 @@ jobs:
             exit 1
           fi
           echo "Using entitlements: $ENTITLEMENTS"
-          codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" \
-            --entitlements "$ENTITLEMENTS" \
-            packages/zig/zig-out/bin/craft
-          codesign --verify --deep --strict packages/zig/zig-out/bin/craft
-          echo "Binary signed successfully"
+          for binary in \
+            packages/zig/zig-out/bin/craft \
+            packages/zig/zig-out/cross/darwin-x64/craft; do
+            codesign --force --options runtime --sign "$APPLE_SIGNING_IDENTITY" \
+              --entitlements "$ENTITLEMENTS" "$binary"
+            codesign --verify --deep --strict "$binary"
+          done
+          echo "macOS ARM64 and x64 binaries signed successfully"
 
       - name: Notarize macOS binary
         if: runner.os == 'macOS' && env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != ''

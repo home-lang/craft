@@ -1717,11 +1717,11 @@ test "buffer error handling" {
     defer buffer.deinit();
 
     // Test buffer overflow
-    const large_data = @splat(0);
+    const large_data: [16]u8 = @splat(0);
     try std.testing.expectError(BufferError.BufferOverflow, buffer.upload(&large_data, 0));
 
     // Test invalid offset
-    const small_data = @splat(0);
+    const small_data: [4]u8 = @splat(0);
     try std.testing.expectError(BufferError.InvalidOffset, buffer.upload(&small_data, 100));
 }
 

@@ -587,10 +587,7 @@ const app = createApp({
     title: 'Arc Browser',
     width: 1200,
     height: 800,
-    minWidth: 900,
-    minHeight: 600,
     titlebarHidden: true,
-    vibrancy: 'sidebar',
   },
 })
 

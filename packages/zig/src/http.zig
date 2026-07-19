@@ -676,11 +676,8 @@ pub const WebSocket = struct {
 
     pub fn connect(self: *Self) !void {
         self.state = .connecting;
-        // In real implementation, perform WebSocket handshake
-        self.state = .open;
-        if (self.on_open) |callback| {
-            callback(self);
-        }
+        self.state = .closed;
+        return error.NotImplemented;
     }
 
     pub fn send(self: *Self, data: []const u8) !void {
@@ -688,7 +685,7 @@ pub const WebSocket = struct {
             return HttpError.ConnectionFailed;
         }
         _ = data;
-        // In real implementation, send WebSocket frame
+        return error.NotImplemented;
     }
 
     pub fn sendBinary(self: *Self, data: []const u8) !void {
@@ -696,7 +693,7 @@ pub const WebSocket = struct {
             return HttpError.ConnectionFailed;
         }
         _ = data;
-        // In real implementation, send binary WebSocket frame
+        return error.NotImplemented;
     }
 
     pub fn close(self: *Self, code: u16, reason: []const u8) void {
@@ -791,28 +788,7 @@ pub const HttpClient = struct {
         } else try self.allocator.dupe(u8, url);
         errdefer self.allocator.free(full_url);
 
-        // Create mock response for now (real implementation would use std.http.Client)
-        var headers = Headers.init(self.allocator);
-        try headers.set("Content-Type", "application/json");
-
-        var response = Response{
-            .status = 200,
-            .status_code = .ok,
-            .headers = headers,
-            .body = try self.allocator.dupe(u8, "{}"),
-            .url = full_url,
-            .request_time_ms = 0,
-            .allocator = self.allocator,
-        };
-
-        // Apply interceptors (on_response)
-        for (self.interceptors.items) |interceptor| {
-            if (interceptor.on_response) |callback| {
-                callback(interceptor.context, &response);
-            }
-        }
-
-        return response;
+        return error.NotImplemented;
     }
 
     /// GET request

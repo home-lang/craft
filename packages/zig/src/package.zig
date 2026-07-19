@@ -1406,21 +1406,9 @@ pub const CodeSignConfig = struct {
 /// Sign binary/package (cross-platform)
 pub fn codeSign(allocator: std.mem.Allocator, file_path: []const u8, config: CodeSignConfig) !void {
     _ = allocator;
-
-    switch (config.platform) {
-        .macos => {
-            if (config.entitlements_path) |entitlements| {
-                std.debug.print("Signing {s} with entitlements {s}\n", .{ file_path, entitlements });
-            }
-            std.debug.print("Signing macOS binary: {s} with identity: {s}\n", .{ file_path, config.identity });
-        },
-        .windows => {
-            std.debug.print("Signing Windows binary: {s}\n", .{file_path});
-        },
-        .linux => {
-            std.debug.print("Signing Linux package: {s}\n", .{file_path});
-        },
-    }
+    _ = file_path;
+    _ = config;
+    return error.NotImplemented;
 }
 
 /// macOS notarization configuration
@@ -1434,11 +1422,9 @@ pub const NotarizationConfig = struct {
 /// Notarize macOS application
 pub fn notarize(allocator: std.mem.Allocator, app_path: []const u8, config: NotarizationConfig) !void {
     _ = allocator;
-
-    std.debug.print("Notarizing macOS app: {s}\n", .{app_path});
-    std.debug.print("  Apple ID: {s}\n", .{config.apple_id});
-    std.debug.print("  Team ID: {s}\n", .{config.team_id});
-    std.debug.print("  Bundle ID: {s}\n", .{config.bundle_id});
+    _ = app_path;
+    _ = config;
+    return error.NotImplemented;
 }
 
 test "strip JSON comments - single line" {

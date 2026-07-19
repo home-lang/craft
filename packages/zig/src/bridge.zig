@@ -159,7 +159,7 @@ pub const Bridge = struct {
             "    getClipboard: function() { return this.send('getClipboard', {}); },\n" ++
             "    setClipboard: function(text) { return this.send('setClipboard', { text: text }); },\n" ++
             "    platform: '" ++ platform ++ "',\n" ++
-            "    version: '0.2.0'\n" ++
+            "    version: '0.0.40'\n" ++
             "};\n" ++
             "window.dispatchEvent(new CustomEvent('craft:ready'));\n";
     }
