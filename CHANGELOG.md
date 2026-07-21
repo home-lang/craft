@@ -1,5 +1,51 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.40...v0.0.41)
+
+## 🚀 Features
+
+- **package**: sign and notarize release artifacts ([0e2b094](https://github.com/home-lang/craft/commit/0e2b094)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **window**: evaluate scripts in shown windows ([3c146c1](https://github.com/home-lang/craft/commit/3c146c1)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ipc**: open named shared memory ([2a75ec5](https://github.com/home-lang/craft/commit/2a75ec5)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **http**: implement clients and websockets ([d4bdf9d](https://github.com/home-lang/craft/commit/d4bdf9d)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🐛 Bug Fixes
+
+- **zig**: validate external json shapes ([cd8cbfd](https://github.com/home-lang/craft/commit/cd8cbfd)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ci**: gate releases on supported verified surfaces ([1e50f98](https://github.com/home-lang/craft/commit/1e50f98)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **runtime**: harden updates assets and framework bridge ([df69fc7](https://github.com/home-lang/craft/commit/df69fc7)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **zig**: correct native ownership and callback lifetimes ([fc11ef8](https://github.com/home-lang/craft/commit/fc11ef8)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ts**: secure devtools and ship the sdk cli ([8e85336](https://github.com/home-lang/craft/commit/8e85336)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.41 ([b77acd1](https://github.com/home-lang/craft/commit/b77acd1)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.40...HEAD)
+
+## 🚀 Features
+
+- **package**: sign and notarize release artifacts ([0e2b094](https://github.com/home-lang/craft/commit/0e2b094)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **window**: evaluate scripts in shown windows ([3c146c1](https://github.com/home-lang/craft/commit/3c146c1)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ipc**: open named shared memory ([2a75ec5](https://github.com/home-lang/craft/commit/2a75ec5)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **http**: implement clients and websockets ([d4bdf9d](https://github.com/home-lang/craft/commit/d4bdf9d)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🐛 Bug Fixes
+
+- **zig**: validate external json shapes ([cd8cbfd](https://github.com/home-lang/craft/commit/cd8cbfd)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ci**: gate releases on supported verified surfaces ([1e50f98](https://github.com/home-lang/craft/commit/1e50f98)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **runtime**: harden updates assets and framework bridge ([df69fc7](https://github.com/home-lang/craft/commit/df69fc7)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **zig**: correct native ownership and callback lifetimes ([fc11ef8](https://github.com/home-lang/craft/commit/fc11ef8)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ts**: secure devtools and ship the sdk cli ([8e85336](https://github.com/home-lang/craft/commit/8e85336)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.39...v0.0.40)
 
 ## 🐛 Bug Fixes
