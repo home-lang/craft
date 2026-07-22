@@ -1,5 +1,21 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.45...v0.0.46)
+
+## 🐛 Bug Fixes
+
+- **release**: let bumpx own changelog state ([68a4c4e](https://github.com/home-lang/craft/commit/68a4c4e)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **packaging**: harden native installer artifacts ([5c72c4a](https://github.com/home-lang/craft/commit/5c72c4a)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.46 ([076118c](https://github.com/home-lang/craft/commit/076118c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **release**: pin atomic bumpx publisher ([6ac987f](https://github.com/home-lang/craft/commit/6ac987f)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.44...v0.0.45)
 
 ## 🐛 Bug Fixes
