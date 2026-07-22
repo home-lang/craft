@@ -5,6 +5,7 @@ import { createHash } from 'crypto'
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { packageApp } from '../packages/typescript/src/package'
+import { macOSRollbackPlan } from './native-lifecycle-plan'
 
 type Step = {
   name: string
@@ -111,10 +112,11 @@ async function exerciseMacOS(v1: PackageResult[], v2: PackageResult[]): Promise<
   await command('launch v1', [executable], 'craft-lifecycle 1.0.0')
   await command('update to v2', ['sudo', 'installer', '-pkg', second, '-target', '/'])
   await command('launch v2', [executable], 'craft-lifecycle 1.0.1')
-  await command('rollback to v1', ['sudo', 'installer', '-pkg', first, '-target', '/'])
+  for (const step of macOSRollbackPlan(app, 'dev.craft.lifecycle', first))
+    await command(step.name, step.argv)
   await command('launch rollback', [executable], 'craft-lifecycle 1.0.0')
   await command('uninstall', ['sudo', 'rm', '-rf', app])
-  await command('forget installer receipt', ['sudo', 'pkgutil', '--forget', 'dev.craft.lifecycle'])
+  await command('forget v1 receipt', ['sudo', 'pkgutil', '--forget', 'dev.craft.lifecycle'])
   if (existsSync(app)) throw new Error(`macOS uninstall left ${app} behind`)
   steps.push({ name: 'verify uninstall', status: 'passed' })
 }
