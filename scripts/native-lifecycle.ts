@@ -170,7 +170,8 @@ async function main(): Promise<void> {
   const report = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
-    revision: process.env.GITHUB_SHA || 'local',
+    revision: process.env.CRAFT_SOURCE_REVISION || process.env.GITHUB_SHA || 'local',
+    orchestratorRevision: process.env.CRAFT_SOURCE_REVISION ? process.env.GITHUB_SHA || null : null,
     runner: { os: process.platform, arch: process.arch, bun: Bun.version },
     installLifecycleExercised: shouldInstall,
     status: error ? 'failed' : 'passed',
