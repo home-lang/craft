@@ -542,6 +542,29 @@ export function dmgCreateArguments(opts: {
   ]
 }
 
+const HDIUTIL_MAX_ATTEMPTS = 3
+
+export function shouldRetryHdiutil(error: string, attempt: number, maxAttempts: number = HDIUTIL_MAX_ATTEMPTS): boolean {
+  if (!Number.isInteger(attempt) || attempt < 1 || !Number.isInteger(maxAttempts) || maxAttempts < 1)
+    throw new Error('hdiutil retry attempts must be positive integers')
+  return attempt < maxAttempts && /(?:resource busy|resource temporarily unavailable)/i.test(error)
+}
+
+function runHdiutil(args: string[]): Promise<{ success: true } | { success: false, error: string }> {
+  return new Promise((resolve) => {
+    const proc = spawn('hdiutil', args)
+    let stdout = ''
+    let stderr = ''
+    proc.stdout?.on('data', chunk => { stdout += chunk.toString() })
+    proc.stderr?.on('data', chunk => { stderr += chunk.toString() })
+    proc.on('close', (code) => {
+      if (code === 0) resolve({ success: true })
+      else resolve({ success: false, error: formatPackagingCommandError('hdiutil', code, stdout, stderr) })
+    })
+    proc.on('error', err => resolve({ success: false, error: err.message }))
+  })
+}
+
 /**
  * Helper: Create DMG from app bundle
  */
@@ -550,33 +573,25 @@ async function createDMG(opts: {
   outputPath: string
   volumeName: string
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
-  return new Promise((resolve) => {
-    // hdiutil rejects volume names containing `/`, `:`, or newlines and
-    // truncates anything past 27 chars. Surfacing the error early gives a
-    // clearer message than the cryptic exit-code-1 hdiutil returns.
-    if (!/^[^/:\n]{1,27}$/.test(opts.volumeName)) {
-      resolve({ success: false, error: `Invalid DMG volume name "${opts.volumeName}"; must be 1..27 chars without /, :, or newline` })
-      return
-    }
-    const proc = spawn('hdiutil', dmgCreateArguments(opts, pathContentBytes(opts.appBundlePath)))
-    let stdout = ''
-    let stderr = ''
-    proc.stdout?.on('data', chunk => { stdout += chunk.toString() })
-    proc.stderr?.on('data', chunk => { stderr += chunk.toString() })
+  // hdiutil rejects volume names containing `/`, `:`, or newlines and
+  // truncates anything past 27 chars. Surfacing the error early gives a
+  // clearer message than the cryptic exit-code-1 hdiutil returns.
+  if (!/^[^/:\n]{1,27}$/.test(opts.volumeName))
+    return { success: false, error: `Invalid DMG volume name "${opts.volumeName}"; must be 1..27 chars without /, :, or newline` }
 
-    proc.on('close', (code) => {
-      if (code === 0) {
-        resolve({ success: true, outputPath: opts.outputPath })
-      }
-else {
-        resolve({ success: false, error: formatPackagingCommandError('hdiutil', code, stdout, stderr) })
-      }
-    })
+  const args = dmgCreateArguments(opts, pathContentBytes(opts.appBundlePath))
+  const failures: string[] = []
+  for (let attempt = 1; attempt <= HDIUTIL_MAX_ATTEMPTS; attempt++) {
+    const result = await runHdiutil(args)
+    if (result.success) return { success: true, outputPath: opts.outputPath }
+    failures.push(`attempt ${attempt}: ${result.error}`)
+    if (!shouldRetryHdiutil(result.error, attempt))
+      return { success: false, error: failures.join('\n') }
 
-    proc.on('error', (err) => {
-      resolve({ success: false, error: err.message })
-    })
-  })
+    rmSync(opts.outputPath, { force: true })
+    await new Promise(resolve => setTimeout(resolve, attempt * 2000))
+  }
+  return { success: false, error: failures.join('\n') }
 }
 
 /**

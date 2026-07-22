@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, renderWixSource, windowsArchitecture, windowsExecutableName } from './package'
+import { dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, renderWixSource, shouldRetryHdiutil, windowsArchitecture, windowsExecutableName } from './package'
 
 describe('Windows MSI packaging', () => {
   it('renders a deterministic major-upgrade installer without shell interpolation', () => {
@@ -62,5 +62,13 @@ describe('macOS packaging diagnostics', () => {
       '-format', 'UDZO',
       '/tmp/Craft.dmg',
     ])
+  })
+
+  it('retries only transient hdiutil contention with a bounded attempt count', () => {
+    expect(shouldRetryHdiutil('hdiutil: create failed - Resource busy', 1)).toBe(true)
+    expect(shouldRetryHdiutil('Resource temporarily unavailable', 2)).toBe(true)
+    expect(shouldRetryHdiutil('Resource busy', 3)).toBe(false)
+    expect(shouldRetryHdiutil('No space left on device', 1)).toBe(false)
+    expect(() => shouldRetryHdiutil('Resource busy', 0)).toThrow('positive integers')
   })
 })
