@@ -1,5 +1,29 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.42...v0.0.43)
+
+## 🧪 Tests
+
+- **packaging**: cover macOS Intel lifecycle ([490a4e3](https://github.com/home-lang/craft/commit/490a4e3)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.43 ([b4469a5](https://github.com/home-lang/craft/commit/b4469a5)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.42...HEAD)
+
+## 🧪 Tests
+
+- **packaging**: cover macOS Intel lifecycle ([490a4e3](https://github.com/home-lang/craft/commit/490a4e3)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.41...v0.0.42)
 
 ## 🐛 Bug Fixes

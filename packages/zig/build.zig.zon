@@ -1,7 +1,7 @@
 .{
     .fingerprint = 0xf45c4a848bf58c1c,
     .name = .craft,
-    .version = "0.0.42",
+    .version = "0.0.43",
     .minimum_zig_version = "0.17.0-dev",
     .dependencies = .{},
     .paths = .{
