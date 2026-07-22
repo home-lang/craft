@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { renderWixSource } from './package'
+import { formatPackagingCommandError, renderWixSource } from './package'
 
 describe('Windows MSI packaging', () => {
   it('renders a deterministic major-upgrade installer without shell interpolation', () => {
@@ -14,5 +14,13 @@ describe('Windows MSI packaging', () => {
 
   it('rejects versions WiX cannot compare', () => {
     expect(() => renderWixSource({ name: 'Craft', version: 'next', manufacturer: 'Craft' }, 'craft.exe')).toThrow('MSI version')
+  })
+})
+
+describe('macOS packaging diagnostics', () => {
+  it('retains hdiutil output in a failed package result', () => {
+    expect(formatPackagingCommandError('hdiutil', 1, '', 'create failed - Resource temporarily unavailable\n'))
+      .toBe('hdiutil exited with code 1: create failed - Resource temporarily unavailable')
+    expect(formatPackagingCommandError('hdiutil', 1, '', '')).toBe('hdiutil exited with code 1')
   })
 })

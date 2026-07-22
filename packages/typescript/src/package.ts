@@ -225,6 +225,11 @@ export interface PackageResult {
   error?: string
 }
 
+export function formatPackagingCommandError(tool: string, code: number | null, stdout: string, stderr: string): string {
+  const detail = `${stdout}${stderr}`.trim()
+  return `${tool} exited with code ${code}${detail ? `: ${detail}` : ''}`
+}
+
 /**
  * Package a Craft application for distribution
  */
@@ -523,13 +528,17 @@ async function createDMG(opts: {
       '-format', 'UDZO',
       opts.outputPath,
     ])
+    let stdout = ''
+    let stderr = ''
+    proc.stdout?.on('data', chunk => { stdout += chunk.toString() })
+    proc.stderr?.on('data', chunk => { stderr += chunk.toString() })
 
     proc.on('close', (code) => {
       if (code === 0) {
         resolve({ success: true, outputPath: opts.outputPath })
       }
 else {
-        resolve({ success: false, error: `hdiutil exited with code ${code}` })
+        resolve({ success: false, error: formatPackagingCommandError('hdiutil', code, stdout, stderr) })
       }
     })
 
