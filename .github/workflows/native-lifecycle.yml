@@ -33,6 +33,9 @@ jobs:
           - os: macos-15
             name: darwin-arm64
             report: darwin-arm64
+          - os: macos-15-intel
+            name: darwin-x64
+            report: darwin-x64
           - os: ubuntu-24.04
             name: linux-x64
             report: linux-x64
