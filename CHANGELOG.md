@@ -1,5 +1,31 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.44...v0.0.45)
+
+## 🐛 Bug Fixes
+
+- **packaging**: perform explicit macOS rollback ([ae2f053](https://github.com/home-lang/craft/commit/ae2f053)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **packaging**: retain macOS image diagnostics ([504227e](https://github.com/home-lang/craft/commit/504227e)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.45 ([5c6fd8c](https://github.com/home-lang/craft/commit/5c6fd8c)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.44...HEAD)
+
+## 🐛 Bug Fixes
+
+- **packaging**: perform explicit macOS rollback ([ae2f053](https://github.com/home-lang/craft/commit/ae2f053)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **packaging**: retain macOS image diagnostics ([504227e](https://github.com/home-lang/craft/commit/504227e)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.43...v0.0.44)
 
 ## 🐛 Bug Fixes
