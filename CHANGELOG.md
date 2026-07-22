@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.47...v0.0.48)
+
+## 🐛 Bug Fixes
+
+- **packaging**: retry transient DMG contention ([f14a415](https://github.com/home-lang/craft/commit/f14a415)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.48 ([0b78ba5](https://github.com/home-lang/craft/commit/0b78ba5)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.46...v0.0.47)
 
 ## 🐛 Bug Fixes
