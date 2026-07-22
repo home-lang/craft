@@ -12,9 +12,11 @@ import {
   copyFileSync,
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from 'fs'
@@ -504,6 +506,37 @@ catch (error) {
   }
 }
 
+const MEBIBYTE = 1024 * 1024
+
+function pathContentBytes(path: string): number {
+  const stat = lstatSync(path)
+  if (!stat.isDirectory()) return stat.size
+  return readdirSync(path).reduce((total, entry) => total + pathContentBytes(join(path, entry)), 0)
+}
+
+export function dmgCapacityMegabytes(contentBytes: number): number {
+  if (!Number.isSafeInteger(contentBytes) || contentBytes < 0)
+    throw new Error(`DMG content size must be a non-negative safe integer: ${contentBytes}`)
+  const contentMegabytes = Math.ceil(contentBytes / MEBIBYTE)
+  return Math.max(64, Math.ceil(contentMegabytes * 1.25) + 32)
+}
+
+export function dmgCreateArguments(opts: {
+  appBundlePath: string
+  outputPath: string
+  volumeName: string
+}, contentBytes: number): string[] {
+  return [
+    'create',
+    '-volname', opts.volumeName,
+    '-srcfolder', opts.appBundlePath,
+    '-size', `${dmgCapacityMegabytes(contentBytes)}m`,
+    '-ov',
+    '-format', 'UDZO',
+    opts.outputPath,
+  ]
+}
+
 /**
  * Helper: Create DMG from app bundle
  */
@@ -520,14 +553,7 @@ async function createDMG(opts: {
       resolve({ success: false, error: `Invalid DMG volume name "${opts.volumeName}"; must be 1..27 chars without /, :, or newline` })
       return
     }
-    const proc = spawn('hdiutil', [
-      'create',
-      '-volname', opts.volumeName,
-      '-srcfolder', opts.appBundlePath,
-      '-ov',
-      '-format', 'UDZO',
-      opts.outputPath,
-    ])
+    const proc = spawn('hdiutil', dmgCreateArguments(opts, pathContentBytes(opts.appBundlePath)))
     let stdout = ''
     let stderr = ''
     proc.stdout?.on('data', chunk => { stdout += chunk.toString() })
@@ -650,6 +676,14 @@ export function renderWixSource(opts: Pick<MSIOptions, 'name' | 'version' | 'man
 `
 }
 
+export function windowsExecutableName(name: string): string {
+  if (name.length === 0 || name.trim() !== name || /[<>:"/\\|?*\u0000-\u001F]/.test(name) || /[. ]$/.test(name))
+    throw new Error(`Invalid Windows application name: ${JSON.stringify(name)}`)
+  if (/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(name))
+    throw new Error(`Reserved Windows application name: ${JSON.stringify(name)}`)
+  return `${name}.exe`
+}
+
 function runCommand(command: string, args: string[], cwd?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, stdio: 'inherit', windowsHide: true })
@@ -661,7 +695,7 @@ function runCommand(command: string, args: string[], cwd?: string): Promise<void
 async function createMSI(opts: MSIOptions): Promise<{ success: boolean; outputPath?: string; error?: string }> {
   const tempDir = mkdtempSync(join(tmpdir(), 'craft-msi-'))
   try {
-    const binaryName = `${wixIdentifier(opts.name)}.exe`
+    const binaryName = windowsExecutableName(opts.name)
     const sourcePath = join(tempDir, binaryName)
     const wxsPath = join(tempDir, 'installer.wxs')
     const wixobjPath = join(tempDir, 'installer.wixobj')

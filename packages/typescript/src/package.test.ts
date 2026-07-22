@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { formatPackagingCommandError, renderWixSource } from './package'
+import { dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, renderWixSource, windowsExecutableName } from './package'
 
 describe('Windows MSI packaging', () => {
   it('renders a deterministic major-upgrade installer without shell interpolation', () => {
@@ -15,6 +15,13 @@ describe('Windows MSI packaging', () => {
   it('rejects versions WiX cannot compare', () => {
     expect(() => renderWixSource({ name: 'Craft', version: 'next', manufacturer: 'Craft' }, 'craft.exe')).toThrow('MSI version')
   })
+
+  it('preserves valid application names independently of WiX identifiers', () => {
+    expect(windowsExecutableName('craft-lifecycle')).toBe('craft-lifecycle.exe')
+    expect(windowsExecutableName('Craft App')).toBe('Craft App.exe')
+    expect(() => windowsExecutableName('craft/app')).toThrow('Invalid Windows application name')
+    expect(() => windowsExecutableName('CON')).toThrow('Reserved Windows application name')
+  })
 })
 
 describe('macOS packaging diagnostics', () => {
@@ -22,5 +29,24 @@ describe('macOS packaging diagnostics', () => {
     expect(formatPackagingCommandError('hdiutil', 1, '', 'create failed - Resource temporarily unavailable\n'))
       .toBe('hdiutil exited with code 1: create failed - Resource temporarily unavailable')
     expect(formatPackagingCommandError('hdiutil', 1, '', '')).toBe('hdiutil exited with code 1')
+  })
+
+  it('overrides source-folder sizing with filesystem headroom', () => {
+    expect(dmgCapacityMegabytes(0)).toBe(64)
+    expect(dmgCapacityMegabytes(100 * 1024 * 1024)).toBe(157)
+    expect(() => dmgCapacityMegabytes(-1)).toThrow('non-negative safe integer')
+    expect(dmgCreateArguments({
+      appBundlePath: '/tmp/Craft.app',
+      outputPath: '/tmp/Craft.dmg',
+      volumeName: 'Craft',
+    }, 100 * 1024 * 1024)).toEqual([
+      'create',
+      '-volname', 'Craft',
+      '-srcfolder', '/tmp/Craft.app',
+      '-size', '157m',
+      '-ov',
+      '-format', 'UDZO',
+      '/tmp/Craft.dmg',
+    ])
   })
 })
