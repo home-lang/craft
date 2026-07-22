@@ -5,12 +5,13 @@
     "": {
       "name": "craft",
       "devDependencies": {
+        "@stacksjs/bumpx": "^0.2.7",
         "better-dx": "^0.2.15",
       },
     },
     "benchmarks": {
       "name": "craft-benchmarks",
-      "version": "0.0.38",
+      "version": "0.0.45",
       "dependencies": {
         "mitata": "^1.0.10",
       },
@@ -20,11 +21,11 @@
     },
     "packages/android": {
       "name": "@craft-native/android",
-      "version": "0.0.38",
+      "version": "0.0.45",
     },
     "packages/create-craft": {
       "name": "create-craft",
-      "version": "0.0.38",
+      "version": "0.0.45",
       "bin": {
         "create-craft": "./bin/cli.ts",
       },
@@ -37,7 +38,7 @@
     },
     "packages/examples-ts": {
       "name": "craft-examples",
-      "version": "0.0.38",
+      "version": "0.0.45",
       "dependencies": {
         "craft-native": "workspace:*",
       },
@@ -47,14 +48,14 @@
     },
     "packages/ios": {
       "name": "@craft-native/ios",
-      "version": "0.0.38",
+      "version": "0.0.45",
       "bin": {
         "craft-ios": "./dist/cli.js",
       },
     },
     "packages/react": {
       "name": "@craft-native/react",
-      "version": "0.0.38",
+      "version": "0.0.45",
       "devDependencies": {
         "@types/react": "^18.2.0",
         "react": "^18.2.0",
@@ -68,7 +69,7 @@
     },
     "packages/svelte": {
       "name": "@craft-native/svelte",
-      "version": "0.0.38",
+      "version": "0.0.45",
       "devDependencies": {
         "svelte": "^4.0.0",
         "tsup": "^8.0.0",
@@ -81,7 +82,7 @@
     },
     "packages/ts-maps": {
       "name": "@craft-native/ts-maps",
-      "version": "0.0.38",
+      "version": "0.0.45",
       "devDependencies": {
         "@types/bun": "^1.2.0",
         "ts-maps": "^0.2.7",
@@ -90,7 +91,7 @@
     },
     "packages/typescript": {
       "name": "craft-native",
-      "version": "0.0.38",
+      "version": "0.0.45",
       "bin": {
         "craft": "./bin/cli.ts",
         "craft-sdk": "./bin/cli.ts",
@@ -104,7 +105,7 @@
     },
     "packages/vue": {
       "name": "@craft-native/vue",
-      "version": "0.0.38",
+      "version": "0.0.45",
       "devDependencies": {
         "tsup": "^8.0.0",
         "typescript": "^5.3.0",
@@ -259,7 +260,7 @@
 
     "@sinclair/typebox": ["@sinclair/typebox@0.27.10", "", {}, "sha512-MTBk/3jGLNB2tVxv6uLlFh1iu64iYOQ2PbdOSK3NW8JZsmlaOh2q6sdtKowBhfw8QFLmYNzTW4/oK4uATIi6ZA=="],
 
-    "@stacksjs/bumpx": ["@stacksjs/bumpx@0.2.6", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "@stacksjs/logsmith": "^0.2.1", "bunfig": "^0.15.6" }, "bin": { "bumpx": "./dist/bin/cli.js" } }, "sha512-y4Jz8WKTJtes6/o1vsIbOeuIoqKItfnbeel94qrJKNKsY2CBzU3FT3YwKjs8K52JFfyACCdQa1tGx+lQWtpyTA=="],
+    "@stacksjs/bumpx": ["@stacksjs/bumpx@0.2.7", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "@stacksjs/logsmith": "^0.2.1", "bunfig": "^0.15.6" }, "bin": { "bumpx": "./dist/bin/cli.js" } }, "sha512-IgLvfv2NnBAVXEefVuN96v9Mzd7ofx8kuErKwd5H3SxUKfwbxJUb5Xe9DopR4uZEYwEUZpUf4N13H6/RhZYDpQ=="],
 
     "@stacksjs/bunpress": ["@stacksjs/bunpress@0.1.11", "", { "dependencies": { "@stacksjs/stx": "^0.2.72", "@stacksjs/ts-cloud": "^0.5.17", "@stacksjs/ts-md": "^0.1.1", "bunfig": "^0.15.6" }, "bin": { "bunpress": "./dist/bin/cli.js" } }, "sha512-nXWQxlBcEU9RmjZC1Wn+DSiQyNyHWUPsxAl+xuf2F/Vqk/FCfpCBueZCO1sP87dYFguWDIig8TQVB1DEBk+CTA=="],
 
@@ -740,6 +741,8 @@
     "@vue/compiler-sfc/estree-walker": ["estree-walker@2.0.2", "", {}, "sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w=="],
 
     "archiver-utils/is-stream": ["is-stream@2.0.1", "", {}, "sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg=="],
+
+    "better-dx/@stacksjs/bumpx": ["@stacksjs/bumpx@0.2.6", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "@stacksjs/logsmith": "^0.2.1", "bunfig": "^0.15.6" }, "bin": { "bumpx": "./dist/bin/cli.js" } }, "sha512-y4Jz8WKTJtes6/o1vsIbOeuIoqKItfnbeel94qrJKNKsY2CBzU3FT3YwKjs8K52JFfyACCdQa1tGx+lQWtpyTA=="],
 
     "better-dx/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
