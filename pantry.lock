@@ -5,12 +5,17 @@
     "": {
       "name": "craft",
       "devDependencies": {
+        "@stacksjs/bumpx": "^0.2.10",
         "better-dx": "^0.2.15"
+      },
+      "system": {
+        "bun.sh": "latest",
+        "ziglang.org": "^0.17.0-dev"
       }
     },
     "benchmarks": {
       "name": "craft-benchmarks",
-      "version": "0.0.39",
+      "version": "0.0.46",
       "dependencies": {
         "mitata": "^1.0.10"
       },
@@ -20,11 +25,11 @@
     },
     "packages/android": {
       "name": "@craft-native/android",
-      "version": "0.0.39"
+      "version": "0.0.46"
     },
     "packages/create-craft": {
       "name": "create-craft",
-      "version": "0.0.39",
+      "version": "0.0.46",
       "dependencies": {
         "@stacksjs/clapp": "^0.2.0"
       },
@@ -34,7 +39,7 @@
     },
     "packages/examples-ts": {
       "name": "craft-examples",
-      "version": "0.0.39",
+      "version": "0.0.46",
       "dependencies": {
         "craft-native": "workspace:*"
       },
@@ -44,11 +49,11 @@
     },
     "packages/ios": {
       "name": "@craft-native/ios",
-      "version": "0.0.39"
+      "version": "0.0.46"
     },
     "packages/react": {
       "name": "@craft-native/react",
-      "version": "0.0.39",
+      "version": "0.0.46",
       "devDependencies": {
         "@types/react": "^18.2.0",
         "react": "^18.2.0",
@@ -59,7 +64,7 @@
     },
     "packages/svelte": {
       "name": "@craft-native/svelte",
-      "version": "0.0.39",
+      "version": "0.0.46",
       "devDependencies": {
         "svelte": "^4.0.0",
         "tsup": "^8.0.0",
@@ -69,7 +74,7 @@
     },
     "packages/ts-maps": {
       "name": "@craft-native/ts-maps",
-      "version": "0.0.39",
+      "version": "0.0.46",
       "devDependencies": {
         "@types/bun": "^1.2.0",
         "ts-maps": "^0.2.7",
@@ -78,7 +83,7 @@
     },
     "packages/typescript": {
       "name": "craft-native",
-      "version": "0.0.39",
+      "version": "0.0.46",
       "devDependencies": {
         "@stacksjs/clapp": "^0.2.0",
         "@types/bun": "^1.2.0",
@@ -88,7 +93,7 @@
     },
     "packages/vue": {
       "name": "@craft-native/vue",
-      "version": "0.0.39",
+      "version": "0.0.46",
       "devDependencies": {
         "tsup": "^8.0.0",
         "typescript": "^5.3.0",
@@ -98,12 +103,27 @@
     }
   },
   "packages": {
-    "@stacksjs/clapp@0.2.10": {
-      "name": "@stacksjs/clapp",
+    "@stacksjs/bumpx@0.2.10": {
+      "name": "@stacksjs/bumpx",
       "version": "0.2.10",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/@stacksjs/clapp/-/clapp-0.2.10.tgz",
-      "integrity": "sha512-l/2F0u5ihpae8R4kJ3Pdh6tV7aEpSxu6hCyafhw38Fl9+x2YKxZfUK+fF/G5AVwSzJar3dkKuMxbMcQ0PXKGRg=="
+      "resolved": "https://registry.npmjs.org/@stacksjs/bumpx/-/bumpx-0.2.10.tgz",
+      "integrity": "sha512-XSsypcIZdCg8Qn0LwDsCtZMq8YKYXPha36DT3C1LlfjNoZzmSce/RLw/mYnMj2Lm597KOtAjTmTquBqXuIXcMA==",
+      "dependencies": {
+        "@stacksjs/clapp": "^0.2.0",
+        "@stacksjs/logsmith": "^0.2.1",
+        "bunfig": "^0.15.6"
+      },
+      "bin": {
+        "bumpx": "./dist/bin/cli.js"
+      }
+    },
+    "@stacksjs/clapp@0.2.12": {
+      "name": "@stacksjs/clapp",
+      "version": "0.2.12",
+      "source": "npm",
+      "resolved": "https://registry.npmjs.org/@stacksjs/clapp/-/clapp-0.2.12.tgz",
+      "integrity": "sha512-EzCjl9cfKNMe7UPONHSSAffyfFVrbLzcEVx2i6HYLnJkcka5HFf1vPvOMkErCC10WDX+2Z1BOMTdsTXP1MqIbQ=="
     },
     "@types/bun@1.3.14": {
       "name": "@types/bun",
@@ -136,12 +156,12 @@
         "csstype": "^3.2.2"
       }
     },
-    "better-dx@0.2.19": {
+    "better-dx@0.2.20": {
       "name": "better-dx",
-      "version": "0.2.19",
+      "version": "0.2.20",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/better-dx/-/better-dx-0.2.19.tgz",
-      "integrity": "sha512-4ZmFRxyDWshLY/fFYdXXfRA0YjONYUgws/6qd8xPjbQ5eRZ2FwzWO+hK7+fsZN5XcusHHPRz44TYVX1AznvR8g==",
+      "resolved": "https://registry.npmjs.org/better-dx/-/better-dx-0.2.20.tgz",
+      "integrity": "sha512-zuKbuW9c89gl77tb7UPYTDxEPyws6BJ4lt8VwCVweLPxoRa8X7aCbE+SKgEFHZdNyvqHsJ1WEZ15phv+ZizLjg==",
       "dependencies": {
         "@stacksjs/bumpx": "^0.2.5",
         "@stacksjs/bunpress": "^0.1.4",
@@ -152,12 +172,18 @@
         "@types/bun": "^1.3.13",
         "buddy-bot": "^0.9.17",
         "bun-git-hooks": "^0.3.2",
-        "bun-plugin-dtsx": "^0.10.6",
+        "bun-plugin-dtsx": "^0.11.1",
         "bunfig": "^0.15.11",
         "pickier": "^0.1.28",
         "ts-error-handling": "^0.1.1",
         "typescript": "^7.0.2"
       }
+    },
+    "bun.sh@1.3.14": {
+      "name": "bun.sh",
+      "version": "1.3.14",
+      "source": "pantry",
+      "resolved": "registry:bun.sh@1.3.14"
     },
     "mitata@1.0.34": {
       "name": "mitata",
@@ -254,12 +280,12 @@
         "tsserver": "./bin/tsserver"
       }
     },
-    "very-happy-dom@0.1.9": {
+    "very-happy-dom@0.1.10": {
       "name": "very-happy-dom",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "source": "npm",
-      "resolved": "https://registry.npmjs.org/very-happy-dom/-/very-happy-dom-0.1.9.tgz",
-      "integrity": "sha512-i9Bvhq0xWVmb87NaDrZGPDFZwBh8sSxADxgwkGfnHzYNiDXAHLc1ve+cSNyrXKqSzIcsOfPmqP4/fG8MoVuEZg=="
+      "resolved": "https://registry.npmjs.org/very-happy-dom/-/very-happy-dom-0.1.10.tgz",
+      "integrity": "sha512-MOo3hmxPPMVXW9yrqGtu43FOfMMQ7e6IgNSa10KkCShL0jmoIQi1ISFiyIIVJoCVE9UdVskO++hwJAKWWFoy5w=="
     },
     "vitest@1.6.1": {
       "name": "vitest",
@@ -319,6 +345,12 @@
         "typescript": "*"
       },
       "optionalPeers": ["typescript"]
+    },
+    "ziglang.org@0.17.0-dev.1441_d5181a9c9": {
+      "name": "ziglang.org",
+      "version": "0.17.0-dev.1441_d5181a9c9",
+      "source": "pantry",
+      "resolved": "registry:ziglang.org@0.17.0-dev.1441_d5181a9c9"
     }
   }
 }

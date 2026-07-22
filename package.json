@@ -55,7 +55,7 @@
     "release:patch": "bun x --bun bumpx patch --recursive --yes"
   },
   "devDependencies": {
-    "@stacksjs/bumpx": "^0.2.7",
+    "@stacksjs/bumpx": "^0.2.10",
     "better-dx": "^0.2.15"
   },
   "git-hooks": {

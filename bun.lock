@@ -5,13 +5,13 @@
     "": {
       "name": "craft",
       "devDependencies": {
-        "@stacksjs/bumpx": "^0.2.7",
+        "@stacksjs/bumpx": "^0.2.10",
         "better-dx": "^0.2.15",
       },
     },
     "benchmarks": {
       "name": "craft-benchmarks",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "dependencies": {
         "mitata": "^1.0.10",
       },
@@ -21,11 +21,11 @@
     },
     "packages/android": {
       "name": "@craft-native/android",
-      "version": "0.0.45",
+      "version": "0.0.46",
     },
     "packages/create-craft": {
       "name": "create-craft",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "bin": {
         "create-craft": "./bin/cli.ts",
       },
@@ -38,7 +38,7 @@
     },
     "packages/examples-ts": {
       "name": "craft-examples",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "dependencies": {
         "craft-native": "workspace:*",
       },
@@ -48,14 +48,14 @@
     },
     "packages/ios": {
       "name": "@craft-native/ios",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "bin": {
         "craft-ios": "./dist/cli.js",
       },
     },
     "packages/react": {
       "name": "@craft-native/react",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "devDependencies": {
         "@types/react": "^18.2.0",
         "react": "^18.2.0",
@@ -69,7 +69,7 @@
     },
     "packages/svelte": {
       "name": "@craft-native/svelte",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "devDependencies": {
         "svelte": "^4.0.0",
         "tsup": "^8.0.0",
@@ -82,7 +82,7 @@
     },
     "packages/ts-maps": {
       "name": "@craft-native/ts-maps",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "devDependencies": {
         "@types/bun": "^1.2.0",
         "ts-maps": "^0.2.7",
@@ -91,7 +91,7 @@
     },
     "packages/typescript": {
       "name": "craft-native",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "bin": {
         "craft": "./bin/cli.ts",
         "craft-sdk": "./bin/cli.ts",
@@ -105,7 +105,7 @@
     },
     "packages/vue": {
       "name": "@craft-native/vue",
-      "version": "0.0.45",
+      "version": "0.0.46",
       "devDependencies": {
         "tsup": "^8.0.0",
         "typescript": "^5.3.0",
@@ -260,7 +260,7 @@
 
     "@sinclair/typebox": ["@sinclair/typebox@0.27.10", "", {}, "sha512-MTBk/3jGLNB2tVxv6uLlFh1iu64iYOQ2PbdOSK3NW8JZsmlaOh2q6sdtKowBhfw8QFLmYNzTW4/oK4uATIi6ZA=="],
 
-    "@stacksjs/bumpx": ["@stacksjs/bumpx@0.2.7", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "@stacksjs/logsmith": "^0.2.1", "bunfig": "^0.15.6" }, "bin": { "bumpx": "./dist/bin/cli.js" } }, "sha512-IgLvfv2NnBAVXEefVuN96v9Mzd7ofx8kuErKwd5H3SxUKfwbxJUb5Xe9DopR4uZEYwEUZpUf4N13H6/RhZYDpQ=="],
+    "@stacksjs/bumpx": ["@stacksjs/bumpx@0.2.10", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "@stacksjs/logsmith": "^0.2.1", "bunfig": "^0.15.6" }, "bin": { "bumpx": "./dist/bin/cli.js" } }, "sha512-XSsypcIZdCg8Qn0LwDsCtZMq8YKYXPha36DT3C1LlfjNoZzmSce/RLw/mYnMj2Lm597KOtAjTmTquBqXuIXcMA=="],
 
     "@stacksjs/bunpress": ["@stacksjs/bunpress@0.1.11", "", { "dependencies": { "@stacksjs/stx": "^0.2.72", "@stacksjs/ts-cloud": "^0.5.17", "@stacksjs/ts-md": "^0.1.1", "bunfig": "^0.15.6" }, "bin": { "bunpress": "./dist/bin/cli.js" } }, "sha512-nXWQxlBcEU9RmjZC1Wn+DSiQyNyHWUPsxAl+xuf2F/Vqk/FCfpCBueZCO1sP87dYFguWDIig8TQVB1DEBk+CTA=="],
 
