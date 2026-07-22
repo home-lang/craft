@@ -1,5 +1,29 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.43...v0.0.44)
+
+## 🐛 Bug Fixes
+
+- **evidence**: distinguish source and orchestrator revisions ([9062c8e](https://github.com/home-lang/craft/commit/9062c8e)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.44 ([6058f37](https://github.com/home-lang/craft/commit/6058f37)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.43...HEAD)
+
+## 🐛 Bug Fixes
+
+- **evidence**: distinguish source and orchestrator revisions ([9062c8e](https://github.com/home-lang/craft/commit/9062c8e)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.42...v0.0.43)
 
 ## 🧪 Tests
