@@ -1,5 +1,20 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.46...v0.0.47)
+
+## 🐛 Bug Fixes
+
+- **packaging**: encode native MSI architecture ([4c0b1eb](https://github.com/home-lang/craft/commit/4c0b1eb)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.47 ([3f0dda7](https://github.com/home-lang/craft/commit/3f0dda7)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **release**: adopt lock-consistent Bumpx ([4b190c5](https://github.com/home-lang/craft/commit/4b190c5)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.45...v0.0.46)
 
 ## 🐛 Bug Fixes

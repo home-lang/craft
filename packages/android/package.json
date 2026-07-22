@@ -1,6 +1,6 @@
 {
   "name": "@craft-native/android",
-  "version": "0.0.46",
+  "version": "0.0.47",
   "private": true,
   "description": "Android native app builder for Craft",
   "type": "module",

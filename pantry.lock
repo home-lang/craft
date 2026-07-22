@@ -15,7 +15,7 @@
     },
     "benchmarks": {
       "name": "craft-benchmarks",
-      "version": "0.0.46",
+      "version": "0.0.47",
       "dependencies": {
         "mitata": "^1.0.10"
       },
@@ -25,11 +25,11 @@
     },
     "packages/android": {
       "name": "@craft-native/android",
-      "version": "0.0.46"
+      "version": "0.0.47"
     },
     "packages/create-craft": {
       "name": "create-craft",
-      "version": "0.0.46",
+      "version": "0.0.47",
       "dependencies": {
         "@stacksjs/clapp": "^0.2.0"
       },
@@ -39,7 +39,7 @@
     },
     "packages/examples-ts": {
       "name": "craft-examples",
-      "version": "0.0.46",
+      "version": "0.0.47",
       "dependencies": {
         "craft-native": "workspace:*"
       },
@@ -49,11 +49,11 @@
     },
     "packages/ios": {
       "name": "@craft-native/ios",
-      "version": "0.0.46"
+      "version": "0.0.47"
     },
     "packages/react": {
       "name": "@craft-native/react",
-      "version": "0.0.46",
+      "version": "0.0.47",
       "devDependencies": {
         "@types/react": "^18.2.0",
         "react": "^18.2.0",
@@ -64,7 +64,7 @@
     },
     "packages/svelte": {
       "name": "@craft-native/svelte",
-      "version": "0.0.46",
+      "version": "0.0.47",
       "devDependencies": {
         "svelte": "^4.0.0",
         "tsup": "^8.0.0",
@@ -74,7 +74,7 @@
     },
     "packages/ts-maps": {
       "name": "@craft-native/ts-maps",
-      "version": "0.0.46",
+      "version": "0.0.47",
       "devDependencies": {
         "@types/bun": "^1.2.0",
         "ts-maps": "^0.2.7",
@@ -83,7 +83,7 @@
     },
     "packages/typescript": {
       "name": "craft-native",
-      "version": "0.0.46",
+      "version": "0.0.47",
       "devDependencies": {
         "@stacksjs/clapp": "^0.2.0",
         "@types/bun": "^1.2.0",
@@ -93,7 +93,7 @@
     },
     "packages/vue": {
       "name": "@craft-native/vue",
-      "version": "0.0.46",
+      "version": "0.0.47",
       "devDependencies": {
         "tsup": "^8.0.0",
         "typescript": "^5.3.0",
@@ -267,7 +267,12 @@
         "tsup": "dist/cli-default.js",
         "tsup-node": "dist/cli-node.js"
       },
-      "optionalPeers": ["@microsoft/api-extractor", "@swc/core", "postcss", "typescript"]
+      "optionalPeers": [
+        "@microsoft/api-extractor",
+        "@swc/core",
+        "postcss",
+        "typescript"
+      ]
     },
     "typescript@5.9.3": {
       "name": "typescript",
@@ -326,7 +331,14 @@
       "bin": {
         "vitest": "./vitest.mjs"
       },
-      "optionalPeers": ["@edge-runtime/vm", "@types/node", "@vitest/browser", "@vitest/ui", "happy-dom", "jsdom"]
+      "optionalPeers": [
+        "@edge-runtime/vm",
+        "@types/node",
+        "@vitest/browser",
+        "@vitest/ui",
+        "happy-dom",
+        "jsdom"
+      ]
     },
     "vue@3.5.40": {
       "name": "vue",
@@ -344,7 +356,9 @@
       "peerDependencies": {
         "typescript": "*"
       },
-      "optionalPeers": ["typescript"]
+      "optionalPeers": [
+        "typescript"
+      ]
     },
     "ziglang.org@0.17.0-dev.1441_d5181a9c9": {
       "name": "ziglang.org",
