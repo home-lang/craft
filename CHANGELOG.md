@@ -1,5 +1,37 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.41...v0.0.42)
+
+## 🐛 Bug Fixes
+
+- **packaging**: implement Windows MSI generation ([3116fc9](https://github.com/home-lang/craft/commit/3116fc9)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧪 Tests
+
+- **packaging**: exercise native lifecycle matrix ([59a3fba](https://github.com/home-lang/craft/commit/59a3fba)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.42 ([27f7b06](https://github.com/home-lang/craft/commit/27f7b06)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.41...HEAD)
+
+## 🐛 Bug Fixes
+
+- **packaging**: implement Windows MSI generation ([3116fc9](https://github.com/home-lang/craft/commit/3116fc9)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧪 Tests
+
+- **packaging**: exercise native lifecycle matrix ([59a3fba](https://github.com/home-lang/craft/commit/59a3fba)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.40...v0.0.41)
 
 ## 🚀 Features
