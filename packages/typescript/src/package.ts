@@ -180,6 +180,9 @@ export interface PackageConfig {
     /** Create ZIP archive */
     zip?: boolean
 
+    /** Architecture encoded in MSI metadata (defaults to the native host) */
+    architecture?: 'x86' | 'x64' | 'arm64'
+
     /** Code signing certificate */
     certificatePath?: string
 
@@ -215,6 +218,7 @@ interface MSIOptions {
   binaryPath: string
   outputPath: string
   manufacturer: string
+  architecture: 'x86' | 'x64' | 'arm64'
   certificatePath?: string
   certificatePassword?: string
 }
@@ -351,6 +355,7 @@ async function packageWindows(config: PackageConfig, outDir: string): Promise<Pa
       binaryPath: config.binaryPath,
       outputPath: join(outDir, `${name}-${version}.msi`),
       manufacturer: config.author || 'Unknown',
+      architecture: opts.architecture || windowsArchitecture(process.arch),
       certificatePath: opts.certificatePath,
       certificatePassword: opts.certificatePassword,
     })
@@ -648,21 +653,29 @@ function deterministicGuid(value: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
-export function renderWixSource(opts: Pick<MSIOptions, 'name' | 'version' | 'manufacturer'>, sourceName: string): string {
+export function windowsArchitecture(architecture: string): 'x86' | 'x64' | 'arm64' {
+  if (architecture === 'ia32' || architecture === 'x86') return 'x86'
+  if (architecture === 'x64' || architecture === 'arm64') return architecture
+  throw new Error(`Unsupported Windows package architecture: ${architecture}`)
+}
+
+export function renderWixSource(opts: Pick<MSIOptions, 'name' | 'version' | 'manufacturer' | 'architecture'>, sourceName: string): string {
   if (!/^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$/.test(opts.version)) throw new Error(`MSI version must have 3 or 4 numeric parts: ${opts.version}`)
   const id = wixIdentifier(opts.name)
   const manufacturer = opts.manufacturer.trim() || 'Unknown'
   const upgradeCode = deterministicGuid(`${manufacturer}/${opts.name}`)
+  const programFilesFolder = opts.architecture === 'x86' ? 'ProgramFilesFolder' : 'ProgramFiles64Folder'
+  const win64 = opts.architecture === 'x86' ? 'no' : 'yes'
   return `<?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product Id="*" Name="${xml(opts.name)}" Language="1033" Version="${opts.version}" Manufacturer="${xml(manufacturer)}" UpgradeCode="${upgradeCode}">
-    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="${opts.architecture}" />
     <MajorUpgrade AllowDowngrades="yes" />
     <MediaTemplate EmbedCab="yes" />
     <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="ProgramFilesFolder">
+      <Directory Id="${programFilesFolder}">
         <Directory Id="INSTALLFOLDER" Name="${xml(opts.name)}">
-          <Component Id="${id}Executable" Guid="*">
+          <Component Id="${id}Executable" Guid="*" Win64="${win64}">
             <File Id="${id}File" Source="${xml(sourceName)}" KeyPath="yes" />
           </Component>
         </Directory>
