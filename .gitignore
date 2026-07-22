@@ -30,6 +30,7 @@ release/
 
 # Test outputs
 test-app/
+artifacts/native-lifecycle/
 
 # Logs
 *.log

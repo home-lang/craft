@@ -1,0 +1,80 @@
+name: Native Package Lifecycle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - packages/typescript/src/package.ts
+      - packages/typescript/src/package.test.ts
+      - scripts/native-lifecycle.ts
+      - .github/workflows/native-lifecycle.yml
+      - package.json
+      - bun.lock
+  pull_request:
+    paths:
+      - packages/typescript/src/package.ts
+      - packages/typescript/src/package.test.ts
+      - scripts/native-lifecycle.ts
+      - .github/workflows/native-lifecycle.yml
+      - package.json
+      - bun.lock
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    name: ${{ matrix.name }} install/update/rollback
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            name: darwin-arm64
+            report: darwin-arm64
+          - os: ubuntu-24.04
+            name: linux-x64
+            report: linux-x64
+          - os: windows-2025
+            name: windows-x64
+            report: win32-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CRAFT_EVIDENCE_LABEL: ${{ matrix.name }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Pantry (provides Bun)
+        uses: home-lang/pantry/packages/action@main
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install WiX Toolset v3
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install wixtoolset --version=3.14.1 --yes --no-progress
+          $bin = Get-ChildItem "${env:ProgramFiles(x86)}\WiX Toolset v3*\bin" -Directory | Select-Object -First 1
+          if (-not $bin) { throw 'WiX Toolset bin directory not found' }
+          $bin.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Test packaging API
+        run: bun test packages/typescript/src/package.test.ts
+
+      - name: Exercise native lifecycle
+        run: bun scripts/native-lifecycle.ts --install
+
+      - name: Upload lifecycle evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-lifecycle-${{ matrix.name }}
+          path: |
+            artifacts/native-lifecycle/${{ matrix.report }}/report.json
+            artifacts/native-lifecycle/${{ matrix.report }}/work/packages-*/**
+          if-no-files-found: error
+          retention-days: 90

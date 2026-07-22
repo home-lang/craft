@@ -95,9 +95,12 @@ jobs:
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
-          for name in APPLE_CERTIFICATE_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY KEYCHAIN_PASSWORD; do
+          for name in APPLE_CERTIFICATE_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY KEYCHAIN_PASSWORD APPLE_ID APPLE_APP_PASSWORD APPLE_TEAM_ID; do
             if [ -z "${!name:-}" ]; then
               echo "::error::Missing required macOS release secret: $name"
               exit 1
@@ -144,32 +147,33 @@ jobs:
           done
           echo "macOS ARM64 and x64 binaries signed successfully"
 
-      - name: Notarize macOS binary
-        if: runner.os == 'macOS' && env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != ''
+      - name: Notarize macOS binaries
+        if: runner.os == 'macOS'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
-          cd packages/zig/zig-out/bin
-          zip -r craft.zip craft
-          # Submit and wait. Without `set -e` a non-zero exit was masked by
-          # the `|| echo` fallback, so a real notarization rejection looked
-          # identical to a "no credentials" skip and the unsigned binary
-          # shipped. The job-level `if:` already guards on credentials, so
-          # any failure here is a genuine error and must abort the release.
-          xcrun notarytool submit craft.zip \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait \
-            --timeout 30m
-          # Staple the ticket so the binary is offline-Gatekeeper-valid.
-          # Failures here mean the staple didn't apply — never silently OK.
-          xcrun stapler staple craft
-          xcrun stapler validate craft
-          rm craft.zip
+          for tuple in \
+            "packages/zig/zig-out/bin/craft:arm64" \
+            "packages/zig/zig-out/cross/darwin-x64/craft:x64"; do
+            IFS=: read -r binary architecture <<< "$tuple"
+            archive="craft-${architecture}.zip"
+            ditto -c -k --keepParent "$binary" "$archive"
+            # A raw Mach-O binary has no stapler-supported container. Submit
+            # an archive containing the exact signed binary and require
+            # Apple's final Accepted result; Gatekeeper retrieves that ticket
+            # online for the binary distributed by the release.
+            xcrun notarytool submit "$archive" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait \
+              --timeout 30m
+            codesign --verify --deep --strict "$binary"
+            rm "$archive"
+          done
 
       # ── Publish & Release ──────────────────────────────
       # Pantry action handles everything:
