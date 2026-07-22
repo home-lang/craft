@@ -5,7 +5,8 @@
  * across all platforms (macOS, Windows, Linux)
  */
 
-import { exec, spawn } from 'child_process'
+import { spawn } from 'child_process'
+import { createHash } from 'crypto'
 import {
   chmodSync,
   copyFileSync,
@@ -206,6 +207,16 @@ export interface PackageConfig {
   }
 }
 
+interface MSIOptions {
+  name: string
+  version: string
+  binaryPath: string
+  outputPath: string
+  manufacturer: string
+  certificatePath?: string
+  certificatePassword?: string
+}
+
 export interface PackageResult {
   success: boolean
   platform: string
@@ -333,6 +344,8 @@ async function packageWindows(config: PackageConfig, outDir: string): Promise<Pa
       binaryPath: config.binaryPath,
       outputPath: join(outDir, `${name}-${version}.msi`),
       manufacturer: config.author || 'Unknown',
+      certificatePath: opts.certificatePath,
+      certificatePassword: opts.certificatePassword,
     })
     results.push({
       success: msiResult.success,
@@ -583,31 +596,87 @@ else {
 /**
  * Helper: Create Windows MSI
  */
-async function createMSI(_opts: {
-  name: string
-  version: string
-  binaryPath: string
-  outputPath: string
-  manufacturer: string
-}): Promise<{ success: boolean; outputPath?: string; error?: string }> {
-  // Check if WiX is available
-  return new Promise((resolve) => {
-    exec('candle.exe -?', (error: any) => {
-      if (error) {
-        resolve({
-          success: false,
-          error: 'WiX Toolset not found. Install from https://wixtoolset.org/',
-        })
-      }
-else {
-        // WiX implementation would go here
-        resolve({
-          success: false,
-          error: 'MSI creation requires Windows platform and WiX Toolset',
-        })
-      }
-    })
+function xml(value: string): string {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll(`'`, '&apos;')
+}
+
+function wixIdentifier(value: string): string {
+  const sanitized = value.replace(/[^A-Za-z0-9_.]/g, '_')
+  return /^[A-Za-z_]/.test(sanitized) ? sanitized : `_${sanitized}`
+}
+
+function deterministicGuid(value: string): string {
+  const digest = createHash('sha256').update(value).digest('hex').slice(0, 32).split('')
+  digest[12] = '4'
+  digest[16] = ((Number.parseInt(digest[16]!, 16) & 0x3) | 0x8).toString(16)
+  const hex = digest.join('').toUpperCase()
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+export function renderWixSource(opts: Pick<MSIOptions, 'name' | 'version' | 'manufacturer'>, sourceName: string): string {
+  if (!/^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$/.test(opts.version)) throw new Error(`MSI version must have 3 or 4 numeric parts: ${opts.version}`)
+  const id = wixIdentifier(opts.name)
+  const manufacturer = opts.manufacturer.trim() || 'Unknown'
+  const upgradeCode = deterministicGuid(`${manufacturer}/${opts.name}`)
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="${xml(opts.name)}" Language="1033" Version="${opts.version}" Manufacturer="${xml(manufacturer)}" UpgradeCode="${upgradeCode}">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" />
+    <MajorUpgrade AllowDowngrades="yes" />
+    <MediaTemplate EmbedCab="yes" />
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="${xml(opts.name)}">
+          <Component Id="${id}Executable" Guid="*">
+            <File Id="${id}File" Source="${xml(sourceName)}" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </Directory>
+    <Feature Id="ProductFeature" Title="${xml(opts.name)}" Level="1">
+      <ComponentRef Id="${id}Executable" />
+    </Feature>
+  </Product>
+</Wix>
+`
+}
+
+function runCommand(command: string, args: string[], cwd?: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd, stdio: 'inherit', windowsHide: true })
+    child.once('error', reject)
+    child.once('close', code => code === 0 ? resolve() : reject(new Error(`${command} exited with code ${code}`)))
   })
+}
+
+async function createMSI(opts: MSIOptions): Promise<{ success: boolean; outputPath?: string; error?: string }> {
+  const tempDir = mkdtempSync(join(tmpdir(), 'craft-msi-'))
+  try {
+    const binaryName = `${wixIdentifier(opts.name)}.exe`
+    const sourcePath = join(tempDir, binaryName)
+    const wxsPath = join(tempDir, 'installer.wxs')
+    const wixobjPath = join(tempDir, 'installer.wixobj')
+    copyFileSync(opts.binaryPath, sourcePath)
+    writeFileSync(wxsPath, renderWixSource(opts, binaryName))
+    await runCommand('candle.exe', ['-nologo', '-out', wixobjPath, wxsPath], tempDir)
+    await runCommand('light.exe', ['-nologo', '-sval', '-out', opts.outputPath, wixobjPath], tempDir)
+    if (opts.certificatePath) {
+      const signArgs = ['sign', '/fd', 'sha256', '/tr', 'https://timestamp.digicert.com', '/td', 'sha256', '/f', opts.certificatePath]
+      if (opts.certificatePassword) signArgs.push('/p', opts.certificatePassword)
+      signArgs.push(opts.outputPath)
+      await runCommand('signtool.exe', signArgs)
+      await runCommand('signtool.exe', ['verify', '/pa', '/all', opts.outputPath])
+    }
+    return { success: true, outputPath: opts.outputPath }
+  }
+  catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const missingTool = /ENOENT|not found/i.test(message)
+    return { success: false, error: missingTool ? `WiX Toolset not found: ${message}` : message }
+  }
+  finally {
+    rmSync(tempDir, { recursive: true, force: true })
+  }
 }
 
 /**
