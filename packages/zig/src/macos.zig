@@ -738,6 +738,14 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         };
     }
 
+    // Trust local dev TLS (tlsx/rpx) so https://*.localhost loads instead of
+    // failing the provisional navigation and blanking the window. Must be set
+    // before loadRequest so it handles the initial load's challenge.
+    setupNavigationDelegate(webview) catch |err| {
+        if (comptime builtin.mode == .Debug)
+            std.debug.print("[Nav] Failed to setup navigation delegate: {}\n", .{err});
+    };
+
     // Load content - either URL or HTML
     if (url) |u| {
         // Load URL directly (no iframe!)
@@ -4884,6 +4892,104 @@ pub fn setupUIDelegate(webview: objc.id) !void {
 }
 
 // ============================================================================
+// WKNavigationDelegate — trust local dev TLS (tlsx / rpx self-signed certs)
+// ============================================================================
+
+/// True for loopback / `*.localhost` hosts only.
+fn isLocalDevHost(host: objc.id) bool {
+    const raw = msgSend0(host, "UTF8String") orelse return false;
+    const cstr: [*:0]const u8 = @ptrCast(@alignCast(raw));
+    const h = std.mem.span(cstr);
+    return std.mem.eql(u8, h, "localhost") or
+        std.mem.eql(u8, h, "127.0.0.1") or
+        std.mem.eql(u8, h, "::1") or
+        std.mem.endsWith(u8, h, ".localhost");
+}
+
+/// `webView:didReceiveAuthenticationChallenge:completionHandler:`
+///
+/// WKWebView otherwise rejects the tlsx local-CA cert (e.g.
+/// https://dashboard.stacks.localhost) because that dev CA is not a public root,
+/// which blanks the window. We accept the presented server trust ONLY for
+/// loopback / `*.localhost` hosts, so real remote HTTPS still validates normally.
+/// Everything else falls through to default handling.
+fn handleAuthChallenge(
+    self: objc.id,
+    _sel: objc.SEL,
+    webView: objc.id,
+    challenge: objc.id,
+    completionHandler: objc.id,
+) callconv(.c) void {
+    _ = self;
+    _ = _sel;
+    _ = webView;
+
+    // completionHandler is a block: void(^)(NSURLSessionAuthChallengeDisposition, NSURLCredential*)
+    // 0 = UseCredential, 1 = PerformDefaultHandling.
+    const BlockLayout = extern struct {
+        isa: ?*anyopaque,
+        flags: c_int,
+        reserved: c_int,
+        invoke: *const fn (*anyopaque, c_long, objc.id) callconv(.c) void,
+    };
+    const finishDefault = struct {
+        fn call(handler: objc.id) void {
+            if (handler) |h| {
+                const block: *BlockLayout = @ptrCast(@alignCast(h));
+                block.invoke(h, 1, null);
+            }
+        }
+    }.call;
+
+    const protectionSpace = msgSend0(challenge, "protectionSpace");
+    if (protectionSpace == null) return finishDefault(completionHandler);
+
+    // Loopback / *.localhost only — remote hosts keep normal validation.
+    if (!isLocalDevHost(msgSend0(protectionSpace, "host")))
+        return finishDefault(completionHandler);
+
+    // serverTrust is non-null only for TLS server-trust challenges; other auth
+    // methods (e.g. HTTP basic) fall through to default handling.
+    const serverTrust = msgSend0(protectionSpace, "serverTrust");
+    if (serverTrust == null) return finishDefault(completionHandler);
+
+    if (comptime builtin.mode == .Debug)
+        std.debug.print("[Nav] trusting local dev TLS cert\n", .{});
+
+    const NSURLCredential = getClass("NSURLCredential");
+    const credential = msgSend1(NSURLCredential, "credentialForTrust:", serverTrust);
+    if (completionHandler) |h| {
+        const block: *BlockLayout = @ptrCast(@alignCast(h));
+        block.invoke(h, 0, credential); // UseCredential
+    }
+}
+
+/// Attach a WKNavigationDelegate that trusts local dev TLS. Implementing only the
+/// auth-challenge method leaves every other navigation decision at its default.
+pub fn setupNavigationDelegate(webview: objc.id) !void {
+    const superclass = getClass("NSObject");
+    const className = "CraftNavigationDelegate";
+
+    var delegateClass = objc.objc_getClass(className);
+    if (delegateClass == null) {
+        delegateClass = objc.objc_allocateClassPair(@ptrCast(superclass), className, 0);
+        if (delegateClass == null)
+            return error.ClassAllocationFailed;
+
+        const method_sel = objc.sel_registerName("webView:didReceiveAuthenticationChallenge:completionHandler:");
+        const method_imp: objc.IMP = @ptrCast(@constCast(&handleAuthChallenge));
+        // v@:@@@? -> void; self, _cmd, webView, challenge, completionHandler(block)
+        const method_types: [*c]const u8 = "v@:@@@?";
+        _ = objc.class_addMethod(@ptrCast(@alignCast(delegateClass)), method_sel, method_imp, method_types);
+        objc.objc_registerClassPair(@ptrCast(delegateClass));
+    }
+
+    const delegate_class_id: objc.id = @ptrCast(@alignCast(delegateClass));
+    const delegate = msgSend0(msgSend0(delegate_class_id, "alloc"), "init");
+    msgSendVoid1(webview, "setNavigationDelegate:", delegate);
+}
+
+// ============================================================================
 // v0.5.0 Features
 // ============================================================================
 
@@ -5796,6 +5902,29 @@ pub fn showAllWindows() void {
         // Use orderFront instead of makeKeyAndOrderFront - this shows the window
         // without activating the app
         _ = msgSend1(window, "orderFront:", @as(?*anyopaque, null));
+    }
+}
+
+/// Promote to a regular foreground app and bring the front window forward as the
+/// key/active window. Regular windowed apps (no menubar/tray) need this: they
+/// init via `initAppWithoutLaunching` (which sets no activation policy) and their
+/// windows are only `orderFront`-ed, so without this the window never becomes key
+/// — it won't come to the front and drops behind when clicked. Tray/menubar apps
+/// intentionally skip this (they use Accessory policy + orderFront).
+pub fn activateRegularApp() void {
+    const NSApplication = getClass("NSApplication");
+    const app = msgSend0(NSApplication, "sharedApplication");
+
+    const NSApplicationActivationPolicyRegular: c_long = 0;
+    _ = msgSend1(app, "setActivationPolicy:", NSApplicationActivationPolicyRegular);
+    _ = msgSend1(app, "activateIgnoringOtherApps:", @as(c_int, 1));
+
+    // Make the front window key so it accepts focus and stays forward.
+    const windows = msgSend0(app, "windows");
+    const count: c_ulong = @intCast(@intFromPtr(msgSend0(windows, "count")));
+    if (count > 0) {
+        const window = msgSend1(windows, "objectAtIndex:", @as(c_ulong, 0));
+        _ = msgSend1(window, "makeKeyAndOrderFront:", @as(?*anyopaque, null));
     }
 }
 

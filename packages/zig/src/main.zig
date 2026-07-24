@@ -368,9 +368,15 @@ pub const App = struct {
             // (after tray creation) by the caller
             if (self.system_tray == null) {
                 macos.showAllWindows();
+                // Regular windowed app: promote to a foreground app and bring the
+                // window forward as the key/active window. Without this the window
+                // is only orderFront-ed (tray-app behaviour), so it never becomes
+                // key — it won't come forward and drops behind when clicked.
+                // Tray/menubar apps skip this on purpose (see initAppForTray).
+                macos.activateRegularApp();
             }
 
-            // Now run the event loop (which activates the app)
+            // Now run the event loop.
             macos.runApp();
         }
     }
