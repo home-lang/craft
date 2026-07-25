@@ -973,7 +973,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](.github/CONTRIBUTING.md) 
 For help, discussion about best practices, or any other conversation:
 
 - 💬 [Discussions on GitHub](https://github.com/home-lang/craft/discussions)
-- 💭 [Join the Stacks Discord Server](https://discord.gg/stacksjs)
+- 💭 [Join the Stacks Discord Server](https://stacksjs.com/discord)
 
 ## Postcardware
 
