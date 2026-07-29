@@ -215,22 +215,59 @@ craft-package --config package.json
 - May require admin password
 
 **Code Signing** (Optional but Recommended):
+
+The bundle is signed before it is wrapped, so the copy inside the DMG or PKG
+carries the signature too.
+
 ```typescript
 macos: {
   dmg: true,
   pkg: true,
   signIdentity: 'Developer ID Application: Your Name (TEAM_ID)',
+  installerIdentity: 'Developer ID Installer: Your Name (TEAM_ID)', // signs the .pkg
+  entitlements: './app.entitlements',
 }
 ```
 
 **Notarization** (Required for macOS 10.15+):
+
+Runs `notarytool submit --wait` and staples the ticket to the artifact, so the
+DMG and PKG open without a Gatekeeper prompt.
+
 ```typescript
 macos: {
   notarize: true,
   appleId: 'you@example.com',
   applePassword: '@keychain:AC_PASSWORD',
+  teamId: 'TEAM_ID',
 }
 ```
+
+#### Mac App Store
+
+`appStore: true` builds the submission package with `productbuild` instead of
+`pkgbuild` — the only form App Store Connect accepts. Two differences follow
+automatically: the hardened runtime is left off (App Store apps run sandboxed
+instead), and notarization is skipped because Apple notarizes during review.
+
+```typescript
+macos: {
+  appStore: true,
+  signIdentity: '3rd Party Mac Developer Application: Your Name (TEAM_ID)',
+  installerIdentity: '3rd Party Mac Developer Installer: Your Name (TEAM_ID)',
+  entitlements: './app.entitlements',      // must include com.apple.security.app-sandbox
+  provisioningProfile: './app.provisionprofile',
+  category: 'public.app-category.utilities', // required by App Store review
+  minimumSystemVersion: '13.0',
+  buildNumber: '17',                       // must increase on every upload
+}
+```
+
+`menuBarOnly: true` sets `LSUIElement`, so a menu bar app ships without a Dock
+icon or app switcher entry.
+
+The resulting `.pkg` is what `pantry`'s release action uploads — see
+[Publishing to the App Store](#publishing-to-the-app-store).
 
 ### Windows
 
@@ -391,6 +428,29 @@ Once you have your installers:
 - **DMG**: Upload to website or GitHub releases
 - **PKG**: Upload to website or distribute via MDM
 - **Mac App Store**: Use App Store Connect
+
+#### Publishing to the App Store
+
+`packageApp` stops at a signed `.pkg`; uploading it is `pantry`'s job. Point
+`pantry`'s release action at the artifact and a tag push publishes the GitHub
+release and the App Store build in one step:
+
+```yaml
+- uses: pantry-pm/pantry/packages/action@main
+  with:
+    release: true
+    release-files: dist/MyApp-*.pkg
+    release-app-store: true
+    release-app-store-bundle-id: com.example.myapp
+  env:
+    APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+    APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+    APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+```
+
+The action verifies the package signature, validates it against App Store
+Connect, then uploads — so an unsigned or `pkgbuild`-built package fails before
+anything is submitted.
 
 ### Windows
 

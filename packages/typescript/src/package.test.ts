@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, renderWixSource, shouldRetryHdiutil, windowsArchitecture, windowsExecutableName } from './package'
+import { codesignArguments, dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, macOSInfoPlist, notarytoolArguments, productbuildArguments, renderWixSource, shouldRetryHdiutil, windowsArchitecture, windowsExecutableName } from './package'
 
 describe('Windows MSI packaging', () => {
   it('renders a deterministic major-upgrade installer without shell interpolation', () => {
@@ -70,5 +70,76 @@ describe('macOS packaging diagnostics', () => {
     expect(shouldRetryHdiutil('Resource busy', 3)).toBe(false)
     expect(shouldRetryHdiutil('No space left on device', 1)).toBe(false)
     expect(() => shouldRetryHdiutil('Resource busy', 0)).toThrow('positive integers')
+  })
+})
+
+describe('macOS app bundle metadata', () => {
+  it('emits only the keys the app asked for', () => {
+    const plist = macOSInfoPlist({ name: 'Craft', version: '1.2.3', bundleId: 'com.example.craft' })
+    expect(plist).toContain('<key>CFBundleShortVersionString</key>\n    <string>1.2.3</string>')
+    expect(plist).toContain('<key>CFBundleVersion</key>\n    <string>1.2.3</string>')
+    expect(plist).not.toContain('LSUIElement')
+    expect(plist).not.toContain('CFBundleIconFile')
+    expect(plist).not.toContain('LSApplicationCategoryType')
+  })
+
+  it('describes a menu bar app the App Store will accept', () => {
+    const plist = macOSInfoPlist({
+      name: 'Barista',
+      version: '0.1.0',
+      buildNumber: '17',
+      bundleId: 'org.stacksjs.barista',
+      iconName: 'AppIcon',
+      category: 'public.app-category.utilities',
+      minimumSystemVersion: '13.0',
+      menuBarOnly: true,
+    })
+    expect(plist).toContain('<key>CFBundleVersion</key>\n    <string>17</string>')
+    expect(plist).toContain('<key>CFBundleIconFile</key>\n    <string>AppIcon</string>')
+    expect(plist).toContain('<key>LSApplicationCategoryType</key>\n    <string>public.app-category.utilities</string>')
+    expect(plist).toContain('<key>LSMinimumSystemVersion</key>\n    <string>13.0</string>')
+    expect(plist).toContain('<key>LSUIElement</key>\n    <true/>')
+  })
+
+  it('escapes metadata rather than emitting malformed plist markup', () => {
+    expect(macOSInfoPlist({ name: 'Stacks & Co', version: '1.0.0', bundleId: 'com.example.app' }))
+      .toContain('<string>Stacks &amp; Co</string>')
+  })
+})
+
+describe('macOS signing and delivery arguments', () => {
+  it('opts Developer ID builds into the hardened runtime and App Store builds out of it', () => {
+    expect(codesignArguments({ path: '/tmp/Craft.app', identity: 'Developer ID Application: Acme', hardenedRuntime: true }))
+      .toEqual(['--force', '--sign', 'Developer ID Application: Acme', '--timestamp', '--options', 'runtime', '--deep', '/tmp/Craft.app'])
+    expect(codesignArguments({ path: '/tmp/Craft.app', identity: '3rd Party Mac Developer Application: Acme', entitlements: '/tmp/app.entitlements' }))
+      .toEqual(['--force', '--sign', '3rd Party Mac Developer Application: Acme', '--timestamp', '--entitlements', '/tmp/app.entitlements', '--deep', '/tmp/Craft.app'])
+  })
+
+  it('builds a signed App Store submission package installing into /Applications', () => {
+    expect(productbuildArguments({
+      appBundlePath: '/tmp/Craft.app',
+      outputPath: '/tmp/Craft.pkg',
+      identity: '3rd Party Mac Developer Installer: Acme',
+    })).toEqual([
+      '--component', '/tmp/Craft.app', '/Applications',
+      '--sign', '3rd Party Mac Developer Installer: Acme',
+      '/tmp/Craft.pkg',
+    ])
+  })
+
+  it('waits for the notarization verdict instead of returning on submission', () => {
+    expect(notarytoolArguments({
+      artifactPath: '/tmp/Craft.dmg',
+      appleId: 'dev@example.com',
+      applePassword: 'app-specific',
+      teamId: 'TEAMID',
+    })).toEqual([
+      'notarytool',
+      'submit', '/tmp/Craft.dmg',
+      '--apple-id', 'dev@example.com',
+      '--password', 'app-specific',
+      '--team-id', 'TEAMID',
+      '--wait',
+    ])
   })
 })

@@ -159,10 +159,42 @@ export interface PackageConfig {
     /** Create PKG installer */
     pkg?: boolean
 
-    /** Code signing identity */
+    /**
+     * Build the PKG as a Mac App Store submission with `productbuild` instead
+     * of a plain `pkgbuild` installer. Requires `installerIdentity`, and the
+     * app itself must be signed with a `3rd Party Mac Developer Application`
+     * identity plus a `.provisionprofile`.
+     */
+    appStore?: boolean
+
+    /** Application code signing identity, e.g. "Developer ID Application: Acme (TEAMID)" */
     signIdentity?: string
 
-    /** Notarize the app */
+    /** Installer code signing identity, e.g. "3rd Party Mac Developer Installer: Acme (TEAMID)" */
+    installerIdentity?: string
+
+    /** Path to the entitlements plist applied when signing the app */
+    entitlements?: string
+
+    /** Path to a `.provisionprofile` embedded as `Contents/embedded.provisionprofile` */
+    provisioningProfile?: string
+
+    /** Build number (`CFBundleVersion`). Defaults to `version`. */
+    buildNumber?: string
+
+    /** `LSApplicationCategoryType`, e.g. "public.app-category.utilities" — required by the App Store */
+    category?: string
+
+    /** `LSMinimumSystemVersion`, e.g. "13.0" */
+    minimumSystemVersion?: string
+
+    /**
+     * Menu bar app: sets `LSUIElement` so the app has no Dock icon and never
+     * appears in the app switcher.
+     */
+    menuBarOnly?: boolean
+
+    /** Notarize the app. Direct distribution only — App Store builds are notarized by Apple. */
     notarize?: boolean
 
     /** Apple ID for notarization */
@@ -170,6 +202,9 @@ export interface PackageConfig {
 
     /** App-specific password */
     applePassword?: string
+
+    /** Team ID for notarization. Required by `notarytool` alongside `appleId`. */
+    teamId?: string
   }
 
   /** Windows-specific options */
@@ -282,14 +317,23 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
   const { name, version, bundleId = `com.myapp.${name.toLowerCase()}` } = config
   const opts = config.macos || {}
 
+  // App Store builds run sandboxed, so they must not opt into the hardened
+  // runtime; every other distribution channel requires it for notarization.
+  const hardenedRuntime = !opts.appStore
+
   // Create app bundle
   const appBundlePath = join(outDir, `${name}.app`)
   const appBundle = createMacOSAppBundle({
     name,
     version,
     bundleId,
+    buildNumber: opts.buildNumber,
+    category: opts.category,
+    minimumSystemVersion: opts.minimumSystemVersion,
+    menuBarOnly: opts.menuBarOnly,
     binaryPath: config.binaryPath,
     iconPath: config.iconPath,
+    provisioningProfile: opts.provisioningProfile,
     outputPath: appBundlePath,
   })
 
@@ -303,13 +347,36 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
     return results
   }
 
+  // Sign the bundle before it is wrapped into a DMG or PKG — signing after
+  // packaging would leave the copy inside the installer unsigned.
+  if (opts.signIdentity) {
+    const signed = await runTool('codesign', codesignArguments({
+      path: appBundlePath,
+      identity: opts.signIdentity,
+      entitlements: opts.entitlements,
+      hardenedRuntime,
+    }))
+    if (!signed.success) {
+      results.push({ success: false, platform: 'macos', format: 'app', error: signed.error })
+      return results
+    }
+  }
+  else if (opts.appStore) {
+    results.push({
+      success: false,
+      platform: 'macos',
+      format: 'pkg',
+      error: 'App Store packaging requires macos.signIdentity (a "3rd Party Mac Developer Application" identity)',
+    })
+    return results
+  }
+
+  results.push({ success: true, platform: 'macos', format: 'app', outputPath: appBundlePath })
+
   // Create DMG
   if (opts.dmg !== false) {
-    const dmgResult = await createDMG({
-      appBundlePath,
-      outputPath: join(outDir, `${name}-${version}.dmg`),
-      volumeName: name,
-    })
+    const outputPath = join(outDir, `${name}-${version}.dmg`)
+    const dmgResult = await createDMG({ appBundlePath, outputPath, volumeName: name })
     results.push({
       success: dmgResult.success,
       platform: 'macos',
@@ -317,26 +384,74 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
       outputPath: dmgResult.outputPath,
       error: dmgResult.error,
     })
+    if (dmgResult.success)
+      results.push(...await notarizeIfRequested(opts, outputPath, 'dmg'))
   }
 
   // Create PKG
-  if (opts.pkg) {
+  if (opts.pkg || opts.appStore) {
+    const outputPath = join(outDir, `${name}-${version}.pkg`)
     const pkgResult = await createPKG({
       appBundlePath,
-      outputPath: join(outDir, `${name}-${version}.pkg`),
+      outputPath,
       identifier: bundleId,
       version,
+      appStore: opts.appStore === true,
+      installerIdentity: opts.installerIdentity,
     })
     results.push({
       success: pkgResult.success,
       platform: 'macos',
-      format: 'pkg',
+      format: opts.appStore ? 'pkg (app store)' : 'pkg',
       outputPath: pkgResult.outputPath,
       error: pkgResult.error,
     })
+    // App Store submissions are notarized by Apple during review.
+    if (pkgResult.success && !opts.appStore)
+      results.push(...await notarizeIfRequested(opts, outputPath, 'pkg'))
   }
 
   return results
+}
+
+/**
+ * Notarize and staple an artifact when `macos.notarize` is set. Returns the
+ * result rows to append, or nothing when notarization was not requested.
+ */
+async function notarizeIfRequested(
+  opts: NonNullable<PackageConfig['macos']>,
+  artifactPath: string,
+  format: string,
+): Promise<PackageResult[]> {
+  if (!opts.notarize)
+    return []
+
+  if (!opts.appleId || !opts.applePassword || !opts.teamId) {
+    return [{
+      success: false,
+      platform: 'macos',
+      format: `${format} (notarize)`,
+      error: 'Notarization requires macos.appleId, macos.applePassword and macos.teamId',
+    }]
+  }
+
+  const submitted = await runTool('xcrun', notarytoolArguments({
+    artifactPath,
+    appleId: opts.appleId,
+    applePassword: opts.applePassword,
+    teamId: opts.teamId,
+  }))
+  if (!submitted.success)
+    return [{ success: false, platform: 'macos', format: `${format} (notarize)`, error: submitted.error }]
+
+  const stapled = await runTool('xcrun', ['stapler', 'staple', artifactPath])
+  return [{
+    success: stapled.success,
+    platform: 'macos',
+    format: `${format} (notarize)`,
+    outputPath: stapled.success ? artifactPath : undefined,
+    error: stapled.success ? undefined : stapled.error,
+  }]
 }
 
 /**
@@ -456,53 +571,150 @@ async function packageLinux(config: PackageConfig, outDir: string): Promise<Pack
   return results
 }
 
-/**
- * Helper: Create macOS app bundle
- */
-function createMacOSAppBundle(opts: {
+export interface MacOSBundleMetadata {
   name: string
   version: string
   bundleId: string
-  binaryPath: string
-  iconPath?: string
-  outputPath: string
-}): { success: boolean; error?: string } {
-  try {
-    const { name, version, bundleId, binaryPath, outputPath } = opts
+  /** `CFBundleVersion`. Defaults to `version`. */
+  buildNumber?: string
+  /** Basename of the `.icns` inside `Contents/Resources`, without the extension */
+  iconName?: string
+  category?: string
+  minimumSystemVersion?: string
+  /** Sets `LSUIElement` — no Dock icon, no app switcher entry */
+  menuBarOnly?: boolean
+}
 
-    // Create bundle structure
-    mkdirSync(join(outputPath, 'Contents', 'MacOS'), { recursive: true })
-    mkdirSync(join(outputPath, 'Contents', 'Resources'), { recursive: true })
+/**
+ * Render `Contents/Info.plist` for a macOS app bundle.
+ *
+ * Only the keys that were asked for are emitted, so a plain desktop app does
+ * not carry menu-bar or App Store metadata it has no use for.
+ */
+export function macOSInfoPlist(metadata: MacOSBundleMetadata): string {
+  const entries: Array<[string, string | true]> = [
+    ['CFBundleExecutable', metadata.name],
+    ['CFBundleIdentifier', metadata.bundleId],
+    ['CFBundleName', metadata.name],
+    ['CFBundleShortVersionString', metadata.version],
+    ['CFBundleVersion', metadata.buildNumber || metadata.version],
+    ['CFBundlePackageType', 'APPL'],
+    ['NSHighResolutionCapable', true],
+  ]
 
-    // Copy binary
-    copyFileSync(binaryPath, join(outputPath, 'Contents', 'MacOS', name))
+  if (metadata.iconName) entries.push(['CFBundleIconFile', metadata.iconName])
+  if (metadata.category) entries.push(['LSApplicationCategoryType', metadata.category])
+  if (metadata.minimumSystemVersion) entries.push(['LSMinimumSystemVersion', metadata.minimumSystemVersion])
+  if (metadata.menuBarOnly) entries.push(['LSUIElement', true])
 
-    // Make executable
-    chmodSync(join(outputPath, 'Contents', 'MacOS', name), 0o755)
+  const body = entries
+    .map(([key, value]) => `    <key>${xml(key)}</key>\n${value === true ? '    <true/>' : `    <string>${xml(value)}</string>`}`)
+    .join('\n')
 
-    // Create Info.plist
-    const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleExecutable</key>
-    <string>${name}</string>
-    <key>CFBundleIdentifier</key>
-    <string>${bundleId}</string>
-    <key>CFBundleName</key>
-    <string>${name}</string>
-    <key>CFBundleShortVersionString</key>
-    <string>${version}</string>
-    <key>CFBundleVersion</key>
-    <string>${version}</string>
-    <key>CFBundlePackageType</key>
-    <string>APPL</string>
-    <key>NSHighResolutionCapable</key>
-    <true/>
+${body}
 </dict>
 </plist>`
+}
 
-    writeFileSync(join(outputPath, 'Contents', 'Info.plist'), infoPlist)
+/**
+ * Build the `codesign` argument list for an app bundle.
+ *
+ * App Store builds are sandboxed and must *not* opt into the hardened runtime;
+ * Developer ID builds must, or notarization rejects them.
+ */
+export function codesignArguments(opts: {
+  path: string
+  identity: string
+  entitlements?: string
+  hardenedRuntime?: boolean
+}): string[] {
+  return [
+    '--force',
+    '--sign', opts.identity,
+    '--timestamp',
+    ...(opts.hardenedRuntime ? ['--options', 'runtime'] : []),
+    ...(opts.entitlements ? ['--entitlements', opts.entitlements] : []),
+    '--deep',
+    opts.path,
+  ]
+}
+
+/** Build the `productbuild` argument list for a Mac App Store submission package. */
+export function productbuildArguments(opts: {
+  appBundlePath: string
+  outputPath: string
+  identity: string
+}): string[] {
+  return [
+    '--component', opts.appBundlePath, '/Applications',
+    '--sign', opts.identity,
+    opts.outputPath,
+  ]
+}
+
+/** Build the `xcrun notarytool submit` argument list for a DMG or PKG. */
+export function notarytoolArguments(opts: {
+  artifactPath: string
+  appleId: string
+  applePassword: string
+  teamId: string
+}): string[] {
+  return [
+    'notarytool',
+    'submit', opts.artifactPath,
+    '--apple-id', opts.appleId,
+    '--password', opts.applePassword,
+    '--team-id', opts.teamId,
+    '--wait',
+  ]
+}
+
+/**
+ * Helper: Create macOS app bundle
+ */
+function createMacOSAppBundle(opts: MacOSBundleMetadata & {
+  binaryPath: string
+  /** Path to a `.icns` file copied into `Contents/Resources` */
+  iconPath?: string
+  /** Path to a `.provisionprofile` copied to `Contents/embedded.provisionprofile` */
+  provisioningProfile?: string
+  outputPath: string
+}): { success: boolean; error?: string } {
+  try {
+    const { name, binaryPath, iconPath, provisioningProfile, outputPath } = opts
+    const contents = join(outputPath, 'Contents')
+
+    // Create bundle structure
+    mkdirSync(join(contents, 'MacOS'), { recursive: true })
+    mkdirSync(join(contents, 'Resources'), { recursive: true })
+
+    // Copy binary
+    copyFileSync(binaryPath, join(contents, 'MacOS', name))
+
+    // Make executable
+    chmodSync(join(contents, 'MacOS', name), 0o755)
+
+    // Copy the icon into Resources so CFBundleIconFile resolves
+    let iconName: string | undefined
+    if (iconPath) {
+      if (!existsSync(iconPath))
+        return { success: false, error: `Icon not found: ${iconPath}` }
+      iconName = basename(iconPath).replace(/\.icns$/i, '')
+      copyFileSync(iconPath, join(contents, 'Resources', `${iconName}.icns`))
+    }
+
+    // The App Store rejects submissions whose bundle has no embedded profile
+    if (provisioningProfile) {
+      if (!existsSync(provisioningProfile))
+        return { success: false, error: `Provisioning profile not found: ${provisioningProfile}` }
+      copyFileSync(provisioningProfile, join(contents, 'embedded.provisionprofile'))
+    }
+
+    writeFileSync(join(contents, 'Info.plist'), macOSInfoPlist({ ...opts, iconName }))
 
     return { success: true }
   }
@@ -550,20 +762,23 @@ export function shouldRetryHdiutil(error: string, attempt: number, maxAttempts: 
   return attempt < maxAttempts && /(?:resource busy|resource temporarily unavailable)/i.test(error)
 }
 
-function runHdiutil(args: string[]): Promise<{ success: true } | { success: false, error: string }> {
+/** Run a packaging tool, capturing output so failures carry the real diagnostic. */
+function runTool(tool: string, args: string[]): Promise<{ success: true } | { success: false, error: string }> {
   return new Promise((resolve) => {
-    const proc = spawn('hdiutil', args)
+    const proc = spawn(tool, args)
     let stdout = ''
     let stderr = ''
     proc.stdout?.on('data', chunk => { stdout += chunk.toString() })
     proc.stderr?.on('data', chunk => { stderr += chunk.toString() })
     proc.on('close', (code) => {
       if (code === 0) resolve({ success: true })
-      else resolve({ success: false, error: formatPackagingCommandError('hdiutil', code, stdout, stderr) })
+      else resolve({ success: false, error: formatPackagingCommandError(tool, code, stdout, stderr) })
     })
     proc.on('error', err => resolve({ success: false, error: err.message }))
   })
 }
+
+const runHdiutil = (args: string[]) => runTool('hdiutil', args)
 
 /**
  * Helper: Create DMG from app bundle
@@ -596,56 +811,66 @@ async function createDMG(opts: {
 
 /**
  * Helper: Create PKG from app bundle
+ *
+ * Two flavours share this entry point:
+ * - a plain `pkgbuild` installer for direct distribution, and
+ * - a signed `productbuild` submission package for the Mac App Store, which is
+ *   the only form App Store Connect accepts.
  */
 async function createPKG(opts: {
   appBundlePath: string
   outputPath: string
   identifier: string
   version: string
+  appStore?: boolean
+  installerIdentity?: string
 }): Promise<{ success: boolean; outputPath?: string; error?: string }> {
-  return new Promise((resolve) => {
-    // pkgbuild requires reverse-DNS form for the identifier. Validate
-    // upfront so the error message is actionable rather than the cryptic
-    // pkgbuild "-identifier requires" output.
-    if (!/^[a-zA-Z0-9._-]+$/.test(opts.identifier) || !opts.identifier.includes('.')) {
-      resolve({ success: false, error: `Invalid pkg identifier "${opts.identifier}"; expected reverse-DNS like com.example.app` })
-      return
-    }
-    if (!/^[A-Za-z0-9._+-]+$/.test(opts.version)) {
-      resolve({ success: false, error: `Invalid pkg version "${opts.version}"` })
-      return
-    }
-    // Create temp directory structure
-    const tempDir = mkdtempSync(join(tmpdir(), 'craft-pkg-'))
-    const appsDir = join(tempDir, 'Applications')
+  // pkgbuild requires reverse-DNS form for the identifier. Validate
+  // upfront so the error message is actionable rather than the cryptic
+  // pkgbuild "-identifier requires" output.
+  if (!/^[a-zA-Z0-9._-]+$/.test(opts.identifier) || !opts.identifier.includes('.'))
+    return { success: false, error: `Invalid pkg identifier "${opts.identifier}"; expected reverse-DNS like com.example.app` }
 
+  if (!/^[A-Za-z0-9._+-]+$/.test(opts.version))
+    return { success: false, error: `Invalid pkg version "${opts.version}"` }
+
+  if (opts.appStore) {
+    if (!opts.installerIdentity)
+      return { success: false, error: 'App Store packaging requires macos.installerIdentity (a "3rd Party Mac Developer Installer" identity)' }
+
+    const built = await runTool('productbuild', productbuildArguments({
+      appBundlePath: opts.appBundlePath,
+      outputPath: opts.outputPath,
+      identity: opts.installerIdentity,
+    }))
+    return built.success
+      ? { success: true, outputPath: opts.outputPath }
+      : { success: false, error: built.error }
+  }
+
+  // pkgbuild installs the contents of --root, so stage the bundle under the
+  // path it should land in.
+  const tempDir = mkdtempSync(join(tmpdir(), 'craft-pkg-'))
+  try {
+    const appsDir = join(tempDir, 'Applications')
     mkdirSync(appsDir, { recursive: true })
     cpSync(opts.appBundlePath, join(appsDir, basename(opts.appBundlePath)), { recursive: true })
 
-    const proc = spawn('pkgbuild', [
+    const built = await runTool('pkgbuild', [
       '--root', tempDir,
       '--identifier', opts.identifier,
       '--version', opts.version,
       '--install-location', '/',
+      ...(opts.installerIdentity ? ['--sign', opts.installerIdentity] : []),
       opts.outputPath,
     ])
-
-    proc.on('close', (code) => {
-      rmSync(tempDir, { recursive: true, force: true })
-
-      if (code === 0) {
-        resolve({ success: true, outputPath: opts.outputPath })
-      }
-else {
-        resolve({ success: false, error: `pkgbuild exited with code ${code}` })
-      }
-    })
-
-    proc.on('error', (err) => {
-      rmSync(tempDir, { recursive: true, force: true })
-      resolve({ success: false, error: err.message })
-    })
-  })
+    return built.success
+      ? { success: true, outputPath: opts.outputPath }
+      : { success: false, error: built.error }
+  }
+  finally {
+    rmSync(tempDir, { recursive: true, force: true })
+  }
 }
 
 /**
