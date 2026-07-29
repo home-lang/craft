@@ -1,5 +1,24 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.48...v0.0.49)
+
+## 🚀 Features
+
+- **packaging**: bundle helper executables into the macOS .app ([4ecc35b](https://github.com/home-lang/craft/commit/4ecc35b)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **packaging**: build signed Mac App Store submission packages ([2d17221](https://github.com/home-lang/craft/commit/2d17221)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 📚 Documentation
+
+- link the community as stacksjs.com/discord ([fd1454f](https://github.com/home-lang/craft/commit/fd1454f)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.49 ([22ca683](https://github.com/home-lang/craft/commit/22ca683)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.47...v0.0.48)
 
 ## 🐛 Bug Fixes
