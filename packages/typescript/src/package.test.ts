@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'bun:test'
-import { codesignArguments, dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, macOSInfoPlist, notarytoolArguments, productbuildArguments, renderWixSource, shouldRetryHdiutil, windowsArchitecture, windowsExecutableName } from './package'
+import { afterEach, describe, expect, it } from 'bun:test'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { codesignArguments, dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, macOSInfoPlist, notarytoolArguments, packageApp, productbuildArguments, renderWixSource, shouldRetryHdiutil, windowsArchitecture, windowsExecutableName } from './package'
 
 describe('Windows MSI packaging', () => {
   it('renders a deterministic major-upgrade installer without shell interpolation', () => {
@@ -70,6 +73,66 @@ describe('macOS packaging diagnostics', () => {
     expect(shouldRetryHdiutil('Resource busy', 3)).toBe(false)
     expect(shouldRetryHdiutil('No space left on device', 1)).toBe(false)
     expect(() => shouldRetryHdiutil('Resource busy', 0)).toThrow('positive integers')
+  })
+})
+
+describe('macOS app bundle assembly', () => {
+  const workDirs: string[] = []
+  afterEach(() => {
+    for (const dir of workDirs.splice(0))
+      rmSync(dir, { recursive: true, force: true })
+  })
+
+  function workDir(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'craft-bundle-test-'))
+    workDirs.push(dir)
+    return dir
+  }
+
+  it('bundles helper executables beside the app binary so the .app is self-contained', async () => {
+    const dir = workDir()
+    const binaryPath = join(dir, 'app-bin')
+    const helperPath = join(dir, 'craft')
+    writeFileSync(binaryPath, '#!/bin/sh\n')
+    writeFileSync(helperPath, '#!/bin/sh\n')
+    chmodSync(binaryPath, 0o755)
+
+    const results = await packageApp({
+      name: 'Barista',
+      version: '0.1.0',
+      binaryPath,
+      bundleId: 'org.stacksjs.barista',
+      outDir: join(dir, 'out'),
+      platforms: ['macos'],
+      macos: { dmg: false, menuBarOnly: true, additionalExecutables: [helperPath] },
+    })
+
+    const app = results.find(result => result.format === 'app')
+    expect(app?.success).toBe(true)
+    const bundled = join(app!.outputPath!, 'Contents', 'MacOS', 'craft')
+    expect(existsSync(bundled)).toBe(true)
+    expect(readFileSync(join(app!.outputPath!, 'Contents', 'Info.plist'), 'utf8')).toContain('LSUIElement')
+  })
+
+  it('fails clearly when a helper executable is missing', async () => {
+    const dir = workDir()
+    const binaryPath = join(dir, 'app-bin')
+    writeFileSync(binaryPath, '#!/bin/sh\n')
+    chmodSync(binaryPath, 0o755)
+
+    const results = await packageApp({
+      name: 'Barista',
+      version: '0.1.0',
+      binaryPath,
+      bundleId: 'org.stacksjs.barista',
+      outDir: join(dir, 'out'),
+      platforms: ['macos'],
+      macos: { dmg: false, additionalExecutables: [join(dir, 'does-not-exist')] },
+    })
+
+    const app = results.find(result => result.format === 'app')
+    expect(app?.success).toBe(false)
+    expect(app?.error).toContain('Additional executable not found')
   })
 })
 

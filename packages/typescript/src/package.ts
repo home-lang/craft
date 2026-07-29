@@ -205,6 +205,16 @@ export interface PackageConfig {
 
     /** Team ID for notarization. Required by `notarytool` alongside `appleId`. */
     teamId?: string
+
+    /**
+     * Extra executables copied into `Contents/MacOS/` beside the app binary.
+     *
+     * A server-backed app (a Bun program driving a Craft webview, say) spawns a
+     * helper at runtime; bundle it here so the installed `.app` is
+     * self-contained. Resolve it relative to the running executable — on macOS
+     * the helper lands next to `process.execPath`.
+     */
+    additionalExecutables?: string[]
   }
 
   /** Windows-specific options */
@@ -334,6 +344,7 @@ async function packageMacOS(config: PackageConfig, outDir: string): Promise<Pack
     binaryPath: config.binaryPath,
     iconPath: config.iconPath,
     provisioningProfile: opts.provisioningProfile,
+    additionalExecutables: opts.additionalExecutables,
     outputPath: appBundlePath,
   })
 
@@ -682,21 +693,34 @@ function createMacOSAppBundle(opts: MacOSBundleMetadata & {
   iconPath?: string
   /** Path to a `.provisionprofile` copied to `Contents/embedded.provisionprofile` */
   provisioningProfile?: string
+  /** Extra executables copied beside the app binary in `Contents/MacOS/` */
+  additionalExecutables?: string[]
   outputPath: string
 }): { success: boolean; error?: string } {
   try {
-    const { name, binaryPath, iconPath, provisioningProfile, outputPath } = opts
+    const { name, binaryPath, iconPath, provisioningProfile, additionalExecutables, outputPath } = opts
     const contents = join(outputPath, 'Contents')
+    const macOS = join(contents, 'MacOS')
 
     // Create bundle structure
-    mkdirSync(join(contents, 'MacOS'), { recursive: true })
+    mkdirSync(macOS, { recursive: true })
     mkdirSync(join(contents, 'Resources'), { recursive: true })
 
     // Copy binary
-    copyFileSync(binaryPath, join(contents, 'MacOS', name))
+    copyFileSync(binaryPath, join(macOS, name))
 
     // Make executable
-    chmodSync(join(contents, 'MacOS', name), 0o755)
+    chmodSync(join(macOS, name), 0o755)
+
+    // Bundle helper executables (e.g. the webview runtime a server-backed app
+    // spawns) so the installed .app is self-contained.
+    for (const executable of additionalExecutables || []) {
+      if (!existsSync(executable))
+        return { success: false, error: `Additional executable not found: ${executable}` }
+      const destination = join(macOS, basename(executable))
+      copyFileSync(executable, destination)
+      chmodSync(destination, 0o755)
+    }
 
     // Copy the icon into Resources so CFBundleIconFile resolves
     let iconName: string | undefined
