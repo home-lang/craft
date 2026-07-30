@@ -61,6 +61,42 @@ fn freeOptionStrings(allocator: std.mem.Allocator, options: *WindowOptions) void
     options.* = WindowOptions{};
 }
 
+/// Largest document `--html-file` will load. Generous for a bundled app shell
+/// while still refusing to read an arbitrarily large file into memory because
+/// a path was mistyped.
+const max_html_file_bytes: usize = 32 * 1024 * 1024;
+
+fn readHtmlFile(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
+    // A local Io rather than the global one: `cli.zig` is compiled into both
+    // the `craft` module and the `root` module, so it cannot import anything
+    // that belongs to only one of them. Argument parsing also runs before the
+    // global Io is installed.
+    var threaded: std.Io.Threaded = .init(allocator, .{ .environ = .empty });
+    defer threaded.deinit();
+    const io = threaded.io();
+
+    var file = try std.Io.Dir.cwd().openFile(io, path, .{});
+    defer file.close(io);
+
+    const stat = try file.stat(io);
+    if (stat.size > max_html_file_bytes) return error.FileTooBig;
+
+    const buf = try allocator.alloc(u8, @intCast(stat.size));
+    errdefer allocator.free(buf);
+
+    var read: usize = 0;
+    while (read < buf.len) {
+        const n = file.readStreaming(io, &.{buf[read..]}) catch |err| switch (err) {
+            error.EndOfStream => break,
+            else => return err,
+        };
+        if (n == 0) break;
+        read += n;
+    }
+    if (read < buf.len) return error.UnexpectedEndOfFile;
+    return buf;
+}
+
 pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !WindowOptions {
     // First pass: check for --debug flag
     for (args) |arg| {
@@ -102,6 +138,18 @@ pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !Wind
             i += 1;
             if (i >= args.len) return CliError.MissingValue;
             options.html = try allocator.dupe(u8, args[i]);
+        } else if (std.mem.eql(u8, arg, "--html-file")) {
+            // Packaged apps ship their document as a file inside the bundle.
+            // Passing it through `--html` means the whole document travels as
+            // a single argv entry: it has to survive the launcher's shell
+            // quoting intact, and anything past ARG_MAX fails outright. Read
+            // it here instead.
+            i += 1;
+            if (i >= args.len) return CliError.MissingValue;
+            options.html = readHtmlFile(allocator, args[i]) catch |err| {
+                std.debug.print("Error: could not read --html-file '{s}': {t}\n", .{ args[i], err });
+                return CliError.InvalidArgument;
+            };
         } else if (std.mem.eql(u8, arg, "--title") or std.mem.eql(u8, arg, "-t")) {
             i += 1;
             if (i >= args.len) return CliError.MissingValue;
@@ -208,6 +256,7 @@ fn printHelp() void {
         \\Window Content:
         \\  -u, --url <URL>          Load URL in the window
         \\      --html <HTML>        Load HTML content directly
+        \\      --html-file <PATH>   Load HTML content from a file
         \\
         \\Window Appearance:
         \\  -t, --title <TITLE>      Window title (default: "Craft App")
@@ -258,6 +307,7 @@ fn printHelp() void {
         \\  craft --url http://example.com --width 800 --height 600
         \\  craft --url http://localhost:3000 --title "My App" --frameless
         \\  craft --html "<h1>Hello, World!</h1>" --width 400 --height 300
+        \\  craft --html-file ./dist/index.html --menubar-only
         \\  craft http://localhost:3000 --x 100 --y 100 --fullscreen
         \\  craft http://localhost:3000 --transparent --always-on-top
         \\  craft http://localhost:3000 --dark --hot-reload
