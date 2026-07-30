@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.52...v0.0.53)
+
+## 🚀 Features
+
+- **tray**: tell left and right click apart ([cff82b9](https://github.com/home-lang/craft/commit/cff82b9)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.53 ([ed675f5](https://github.com/home-lang/craft/commit/ed675f5)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.51...v0.0.52)
 
 ## 🐛 Bug Fixes
