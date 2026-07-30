@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.53...v0.0.54)
+
+## 🐛 Bug Fixes
+
+- **tray**: enable the tray message channel for tray windows ([f72acca](https://github.com/home-lang/craft/commit/f72acca)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.54 ([1670bfb](https://github.com/home-lang/craft/commit/1670bfb)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.52...v0.0.53)
 
 ## 🚀 Features
