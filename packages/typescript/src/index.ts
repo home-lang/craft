@@ -58,6 +58,13 @@ async function probeBinaryVersion(craftPath: string): Promise<void> {
 // Export packaging API
 export { packageApp, pack, type PackageConfig, type PackageResult } from './package'
 
+// Export binary resolution. Craft ships through the pantry registry, and this is
+// the single source of truth for finding the native binary (PATH, or CRAFT_BIN
+// for local builds). Anything that spawns craft itself — the stx desktop
+// package, for instance — must resolve it the same way rather than probing paths
+// of its own.
+export { craftBinaryNotFoundMessage, resolveCraftBinary } from './binary-resolver'
+
 // Export utilities
 export * from './utils'
 
