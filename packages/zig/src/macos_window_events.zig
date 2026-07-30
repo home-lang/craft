@@ -51,7 +51,7 @@ pub fn install(window: objc.id) void {
         delegate_instance = macos.msgSend0(macos.msgSend0(cls, "alloc"), "init");
         installed = true;
 
-        if (comptime builtin.mode == .Debug) {
+        if (comptime builtin.mode == .debug) {
             std.debug.print("[WindowEvents] Installed NSWindowDelegate\n", .{});
         }
     }

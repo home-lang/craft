@@ -291,7 +291,7 @@ fn installObserver() void {
     }
 
     observer_installed = true;
-    if (comptime builtin.mode == .Debug) {
+    if (comptime builtin.mode == .debug) {
         std.debug.print("[IAP] Installed StoreKit observer\n", .{});
     }
 }

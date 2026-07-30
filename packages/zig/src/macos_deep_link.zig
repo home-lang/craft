@@ -74,7 +74,7 @@ pub fn install() void {
 
     installed = true;
 
-    if (comptime builtin.mode == .Debug) {
+    if (comptime builtin.mode == .debug) {
         std.debug.print("[DeepLink] Installed AppleEvent handler for kAEGetURL\n", .{});
     }
 }
@@ -138,7 +138,7 @@ fn deliver(url: []const u8) void {
     const js_str = macos.msgSend1(NSString, "stringWithUTF8String:", @as([*:0]const u8, @ptrCast(script.items.ptr)));
     _ = macos.msgSend2(webview, "evaluateJavaScript:completionHandler:", js_str, @as(?*anyopaque, null));
 
-    if (comptime builtin.mode == .Debug) {
+    if (comptime builtin.mode == .debug) {
         std.debug.print("[DeepLink] Delivered URL to JS: {s}\n", .{url});
     }
 }

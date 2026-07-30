@@ -113,7 +113,7 @@ pub const FSBridge = struct {
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[FSBridge] readFile: {s}\n", .{path});
 
         // Read file
@@ -157,7 +157,7 @@ pub const FSBridge = struct {
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[FSBridge] writeFile: {s} ({d} bytes)\n", .{ path, content.len });
 
         // Write file
@@ -184,7 +184,7 @@ pub const FSBridge = struct {
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[FSBridge] appendFile: {s}\n", .{path});
 
         const file = std.Io.Dir.cwd().openFile(io_context.get(), path, .{ .mode = .write_only }) catch |err| {
@@ -216,7 +216,7 @@ pub const FSBridge = struct {
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[FSBridge] deleteFile: {s}\n", .{path});
 
         std.Io.Dir.cwd().deleteFile(io_context.get(), path) catch |err| {
@@ -299,7 +299,7 @@ pub const FSBridge = struct {
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[FSBridge] readDir: {s}\n", .{path});
 
         var dir = std.Io.Dir.cwd().openDir(io_context.get(), path, .{ .iterate = true }) catch |err| {
@@ -411,7 +411,7 @@ pub const FSBridge = struct {
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[FSBridge] mkdir: {s} (recursive={})\n", .{ path, recursive });
 
         if (recursive) {
@@ -437,7 +437,7 @@ pub const FSBridge = struct {
 
         if (path.len == 0) return BridgeError.MissingData;
 
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[FSBridge] rmdir: {s}\n", .{path});
 
         std.Io.Dir.cwd().deleteDir(io_context.get(), path) catch |err| {
@@ -457,7 +457,7 @@ pub const FSBridge = struct {
 
         if (src.len == 0 or dest.len == 0) return BridgeError.MissingData;
 
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[FSBridge] copy: {s} -> {s}\n", .{ src, dest });
 
         // In Zig 0.16, copyFile uses dest_dir parameter
@@ -479,7 +479,7 @@ pub const FSBridge = struct {
 
         if (src.len == 0 or dest.len == 0) return BridgeError.MissingData;
 
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[FSBridge] move: {s} -> {s}\n", .{ src, dest });
 
         const d = std.Io.Dir.cwd();
@@ -501,7 +501,7 @@ pub const FSBridge = struct {
 
         if (id.len == 0 or path.len == 0) return BridgeError.MissingData;
 
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[FSBridge] watch: {s} -> {s} (recursive={})\n", .{ id, path, recursive });
 
         // Store watcher entry. Each dupe has its own errdefer so an OOM
@@ -534,7 +534,7 @@ pub const FSBridge = struct {
 
         if (id.len == 0) return BridgeError.MissingData;
 
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[FSBridge] unwatch: {s}\n", .{id});
 
         if (self.watchers.fetchRemove(id)) |kv| {

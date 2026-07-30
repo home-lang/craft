@@ -60,7 +60,7 @@ pub fn install() void {
 
     installed = true;
 
-    if (comptime builtin.mode == .Debug) {
+    if (comptime builtin.mode == .debug) {
         std.debug.print("[Theme] Installed NSAppearance observer\n", .{});
     }
 }

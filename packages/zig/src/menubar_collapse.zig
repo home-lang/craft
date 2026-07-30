@@ -164,7 +164,7 @@ pub fn earlyInit() void {
     if (builtin.target.os.tag != .macos) return;
     if (early_initialized) return;
 
-    if (comptime builtin.mode == .Debug)
+    if (comptime builtin.mode == .debug)
         std.debug.print("[Menubar] earlyInit — creating toggle button (rightmost)...\n", .{});
 
     if (!class_registered) {
@@ -207,7 +207,7 @@ pub fn earlyInit() void {
 
     early_initialized = true;
 
-    if (comptime builtin.mode == .Debug)
+    if (comptime builtin.mode == .debug)
         std.debug.print("[Menubar] earlyInit done — toggle button created\n", .{});
 }
 
@@ -253,7 +253,7 @@ pub fn init() void {
     is_initialized = true;
     is_collapsed = false;
 
-    if (comptime builtin.mode == .Debug)
+    if (comptime builtin.mode == .debug)
         std.debug.print("[Menubar] Ready — separator created (constraint={s})\n", .{if (separator_constraint != null) "found" else "NOT found"});
 }
 
@@ -284,7 +284,7 @@ pub fn collapse() void {
     is_collapsed = true;
     auto_collapse_timer_active = false;
 
-    if (comptime builtin.mode == .Debug)
+    if (comptime builtin.mode == .debug)
         std.debug.print("[Menubar] Collapsed — separator expanded, button shows ›\n", .{});
     notifyJS();
 }
@@ -335,7 +335,7 @@ pub fn expand() void {
         auto_collapse_timer_active = true;
     }
 
-    if (comptime builtin.mode == .Debug)
+    if (comptime builtin.mode == .debug)
         std.debug.print("[Menubar] Expanded — separator shrunk, button shows ‹\n", .{});
     notifyJS();
 }
@@ -431,7 +431,7 @@ pub fn enableAlwaysHidden() void {
         activateAlwaysHidden();
     }
 
-    if (comptime builtin.mode == .Debug)
+    if (comptime builtin.mode == .debug)
         std.debug.print("[Menubar] Always-hidden section enabled\n", .{});
     notifyJS();
 }
@@ -454,7 +454,7 @@ pub fn disableAlwaysHidden() void {
 
     always_hidden_enabled = false;
 
-    if (comptime builtin.mode == .Debug)
+    if (comptime builtin.mode == .debug)
         std.debug.print("[Menubar] Always-hidden section disabled\n", .{});
     notifyJS();
 }
@@ -595,7 +595,7 @@ fn notifyJS() void {
 }
 
 fn toggleClicked(_: objc.id, _: objc.SEL, sender: objc.id) callconv(.c) void {
-    if (comptime builtin.mode == .Debug)
+    if (comptime builtin.mode == .debug)
         std.debug.print("[Menubar] Toggle clicked\n", .{});
 
     const NSApp = msgSend0(getClass("NSApplication"), "sharedApplication");

@@ -167,7 +167,7 @@ pub fn errorMessage(err: BridgeError) []const u8 {
 pub fn sendErrorToJS(allocator: std.mem.Allocator, action: []const u8, err: BridgeError) void {
     const ctx = ErrorContext.init(err, action, errorMessage(err));
     const json = ctx.toJSON(allocator) catch {
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[BridgeError] Failed to serialize error\n", .{});
         return;
     };
@@ -182,19 +182,19 @@ pub fn sendErrorToJS(allocator: std.mem.Allocator, action: []const u8, err: Brid
         "if(window.__craftBridgeError)window.__craftBridgeError({s});",
         .{json},
     ) catch {
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[BridgeError] Failed to format JS\n", .{});
         return;
     };
     defer allocator.free(js);
 
     bridge.evalJS(js) catch |eval_err| {
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[BridgeError] Failed to send error to JS: {}\n", .{eval_err});
     };
 
     // Always log to console
-    if (comptime builtin.mode == .Debug)
+    if (comptime builtin.mode == .debug)
         std.debug.print("[BridgeError] {s}: {s} - {s}\n", .{ action, errorCodeString(err), errorMessage(err) });
 }
 
@@ -207,14 +207,14 @@ pub fn sendResultToJS(allocator: std.mem.Allocator, action: []const u8, result_j
     const js_len = js_template.len + action.len + result_json.len;
 
     const js_buf = allocator.alloc(u8, js_len) catch {
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[BridgeResult] Failed to allocate JS buffer\n", .{});
         return;
     };
     defer allocator.free(js_buf);
 
     const js = std.fmt.bufPrint(js_buf, js_template, .{ action, result_json }) catch {
-        if (comptime builtin.mode == .Debug)
+        if (comptime builtin.mode == .debug)
             std.debug.print("[BridgeResult] Failed to format JS\n", .{});
         return;
     };
