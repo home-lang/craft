@@ -194,6 +194,18 @@ export * from './optimizations'
 // Export auto-updater (delta/differential update support)
 export * as updater from './updater'
 
+// Also export the updater surface top-level. An app that self-updates needs the
+// class and the manifest builder by name; reaching them only through the
+// namespace left them untyped for anything re-exporting this package.
+export { AutoUpdater, generateUpdateManifest } from './updater'
+export type {
+  UpdateInfo as UpdateManifest,
+  UpdateProgress,
+  UpdaterConfig,
+  UpdaterEvent,
+  PlatformUpdate,
+} from './updater'
+
 /**
  * Decide whether to enable dev defaults (hot-reload + devtools). The
  * previous default keyed exclusively off `NODE_ENV === 'development'`,
