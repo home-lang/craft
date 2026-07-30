@@ -1,6 +1,6 @@
 {
   "name": "@craft-native/ios",
-  "version": "0.0.49",
+  "version": "0.0.50",
   "private": true,
   "description": "iOS native app builder for Craft",
   "type": "module",

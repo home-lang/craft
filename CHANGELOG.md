@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.49...v0.0.50)
+
+## 🚀 Features
+
+- export the craft binary resolution contract ([6a74170](https://github.com/home-lang/craft/commit/6a74170)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.50 ([b84b2b6](https://github.com/home-lang/craft/commit/b84b2b6)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.48...v0.0.49)
 
 ## 🚀 Features
