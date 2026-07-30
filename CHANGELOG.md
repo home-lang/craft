@@ -1,5 +1,21 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.51...v0.0.52)
+
+## 🐛 Bug Fixes
+
+- **tray**: render the icon setIcon was handed, at menu bar size ([4cef134](https://github.com/home-lang/craft/commit/4cef134)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **build**: compile against the pinned Zig again ([7ccaf53](https://github.com/home-lang/craft/commit/7ccaf53)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **tray**: draw the icon setIcon assigns ([e74f1fe](https://github.com/home-lang/craft/commit/e74f1fe)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.52 ([a8beb97](https://github.com/home-lang/craft/commit/a8beb97)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.50...v0.0.51)
 
 ## 🚀 Features
