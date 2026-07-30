@@ -1096,6 +1096,114 @@ export interface CraftBridgeAPI {
    * Crypto APIs
    */
   crypto?: CraftCryptoAPI
+
+  /**
+   * Do Not Disturb / Focus (macOS)
+   */
+  focus?: CraftFocusAPI
+
+  /**
+   * Screen-sharing and screen-recording detection (macOS)
+   */
+  screenSharing?: CraftScreenSharingAPI
+}
+
+/**
+ * Focus / Do Not Disturb authorization state, mirroring
+ * `INFocusStatusAuthorizationStatus`. `unsupported` is Craft's own value for
+ * platforms and OS versions where the framework isn't present at all.
+ */
+export type FocusAuthorization = 'notDetermined' | 'restricted' | 'denied' | 'authorized' | 'unsupported'
+
+export interface FocusStatus {
+  /** False when the Focus framework isn't available on this platform. */
+  supported: boolean
+  /**
+   * Whether the user is currently in *any* Focus. `null` means the system
+   * declined to answer — almost always because authorization hasn't been
+   * granted, which is not the same as "not focused".
+   */
+  isFocused: boolean | null
+  authorization: FocusAuthorization
+}
+
+export interface FocusShortcutOptions {
+  /** Shortcut to run when turning Focus on. */
+  onShortcut?: string
+  /** Shortcut to run when turning Focus off. */
+  offShortcut?: string
+}
+
+export interface FocusResult {
+  ok: boolean
+  strategy?: 'shortcut'
+  /** Exit status of the Shortcuts CLI. */
+  exitCode?: number
+  shortcut?: string
+  error?: string
+}
+
+/**
+ * Do Not Disturb / Focus.
+ *
+ * Reading is public API (`INFocusStatusCenter`). Writing is not available to
+ * third-party apps — `setEnabled` runs a user-created Shortcut containing the
+ * *Set Focus* action, which is the only path macOS sanctions.
+ */
+export interface CraftFocusAPI {
+  getStatus(): Promise<FocusStatus>
+  /** Present the system permission prompt for Focus status. */
+  requestAuthorization(): Promise<FocusAuthorization>
+  setEnabled(enabled: boolean, options?: FocusShortcutOptions): Promise<FocusResult>
+  /** Run any shortcut by name — for per-mode or timed Focus flows. */
+  runShortcut(name: string): Promise<FocusResult>
+  /** Every shortcut installed for the current user. */
+  listShortcuts(): Promise<string[]>
+}
+
+/** Which signal produced a detection. */
+export type ScreenSharingKind = 'system' | 'remote' | 'conference' | 'recording'
+
+export interface ScreenSharingSource {
+  /** Owning application, as the window server reports it. */
+  app: string
+  /** Window title that matched. Empty when the owner alone was the signal. */
+  window: string
+  kind: ScreenSharingKind
+}
+
+export interface ScreenSharingState {
+  /** True when any signal fired. */
+  sharing: boolean
+  signals: {
+    /** macOS Screen Sharing / Apple Remote Desktop has the session. */
+    systemScreenShare: boolean
+    /** The session is being driven from somewhere other than this console. */
+    remoteSession: boolean
+    /** A conferencing app is showing its live sharing control. */
+    conferenceSharing: boolean
+    /** A recorder is capturing the screen. */
+    screenRecording: boolean
+  }
+  sources: ScreenSharingSource[]
+}
+
+/**
+ * Screen-sharing detection. Matches the sharing *indicator* a conferencing app
+ * shows while a share is live, never the mere presence of the app — see
+ * `screen_sharing.zig` for the signal table.
+ */
+export interface CraftScreenSharingAPI {
+  getState(): Promise<ScreenSharingState>
+  /**
+   * Start polling. Emits `craft:screenSharing:change` whenever the resolved
+   * state differs, including once immediately. Interval is clamped to
+   * 250ms–60s.
+   */
+  watch(intervalMs?: number): Promise<{ ok: boolean, intervalMs: number }>
+  unwatch(): Promise<{ ok: boolean }>
+  /** Subscribe to state changes. Returns an unsubscribe function. */
+  onChange(cb: (state: ScreenSharingState) => void): () => void
 }
 
 /**
