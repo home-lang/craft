@@ -773,7 +773,10 @@ export function dmgCreateArguments(opts: {
     '-srcfolder', opts.appBundlePath,
     '-size', `${dmgCapacityMegabytes(contentBytes)}m`,
     '-ov',
-    '-format', 'UDZO',
+    // LZMA rather than the older zlib: for an app whose bulk is a compiled
+    // runtime this roughly halves the download, and every macOS since 10.15
+    // mounts it. hdiutil falls back to UDZO on the rare system that cannot.
+    '-format', 'ULMO',
     opts.outputPath,
   ]
 }

@@ -381,10 +381,28 @@ pub const TrayBridge = struct {
             const str_alloc = macos.msgSend0(NSString, "alloc");
             const ns_name = macos.msgSend1(str_alloc, "initWithUTF8String:", icon_cstr.ptr);
 
-            // Try systemSymbolNamed:accessibilityDescription:
-            const image = macos.msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", ns_name, @as(?*anyopaque, null));
+            // A path loads that file as the icon; anything else is an SF Symbol
+            // name. Apps whose mark is not in the system set — a particular cup,
+            // a logo — ship a PDF or PNG and point at it, and still get the
+            // template tinting the symbols get.
+            const from_file = std.mem.indexOfScalar(u8, resolved_name, '/') != null;
+            const image = if (from_file)
+                macos.msgSend1(macos.msgSend0(NSImage, "alloc"), "initWithContentsOfFile:", ns_name)
+            else
+                macos.msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", ns_name, @as(?*anyopaque, null));
 
-            if (image != null) {
+            if (image != null and from_file) {
+                // A file-backed image carries its own artwork, so it only needs
+                // sizing and template tinting.
+                _ = macos.msgSend1(image, "setTemplate:", @as(c_int, 1));
+                macos.msgSendVoid1Size(image, "setSize:", .{
+                    .width = MENU_BAR_ICON_POINT_SIZE,
+                    .height = MENU_BAR_ICON_POINT_SIZE,
+                });
+                _ = macos.msgSend1(button, "setImage:", image);
+                syncImagePosition(button);
+                log.debug("Set icon from file: {s}", .{resolved_name});
+            } else if (image != null) {
                 // An SF Symbol with no configuration inherits a point size from
                 // the control's font, which in a status item button renders as a
                 // few-pixel speck. Ask for the menu bar's own metrics — 16pt at
