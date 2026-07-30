@@ -3823,6 +3823,8 @@ var global_coreml_bridge: ?*@import("bridge_coreml.zig").CoreMLBridge = null;
 var global_continuity_camera_bridge: ?*@import("bridge_continuity_camera.zig").ContinuityCameraBridge = null;
 var global_service_menu_bridge: ?*@import("bridge_service_menu.zig").ServiceMenuBridge = null;
 var global_serial_bridge: ?*@import("bridge_serial.zig").SerialBridge = null;
+var global_focus_bridge: ?*@import("bridge_focus.zig").FocusBridge = null;
+var global_screen_sharing_bridge: ?*@import("bridge_screen_sharing.zig").ScreenSharingBridge = null;
 
 pub fn setGlobalTrayHandle(handle: *anyopaque) void {
     global_tray_handle_for_bridge = handle;

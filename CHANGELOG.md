@@ -1,5 +1,23 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.54...v0.0.55)
+
+## 🚀 Features
+
+- **tray**: accept a template image file as the icon ([f49b11c](https://github.com/home-lang/craft/commit/f49b11c)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🐛 Bug Fixes
+
+- **sidebar**: expose native document marker ([fbc5118](https://github.com/home-lang/craft/commit/fbc5118)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.55 ([36c43cb](https://github.com/home-lang/craft/commit/36c43cb)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.53...v0.0.54)
 
 ## 🐛 Bug Fixes
