@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.50...v0.0.51)
+
+## 🚀 Features
+
+- export the auto-updater surface top-level ([b594bef](https://github.com/home-lang/craft/commit/b594bef)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.51 ([ddcbd8c](https://github.com/home-lang/craft/commit/ddcbd8c)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.49...v0.0.50)
 
 ## 🚀 Features
