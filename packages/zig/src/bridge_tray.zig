@@ -82,9 +82,11 @@ fn decodeUnicodeEscapes(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
     return result.toOwnedSlice(allocator);
 }
 
-/// Point size for status item icons. macOS draws its own menu bar glyphs at
-/// roughly this size, so an app icon matches its neighbours rather than looking
-/// shrunken beside them.
+/// Point size for status item icons.
+///
+/// Matches the menu bar's own font metrics rather than the status item's full
+/// height: a glyph sized to the item fills it edge to edge and reads as
+/// oversized next to the system's icons, which carry padding.
 const MENU_BAR_ICON_POINT_SIZE: f64 = 16.0;
 
 /// Bridge handler for system tray messages from JavaScript
@@ -389,14 +391,14 @@ pub const TrayBridge = struct {
                 // the large scale — so the glyph matches what AppKit and other
                 // menu bar apps draw.
                 const NSImageSymbolConfiguration = macos.getClass("NSImageSymbolConfiguration");
-                const NSImageSymbolScaleLarge: c_long = 3;
+                const NSImageSymbolScaleMedium: c_long = 2;
                 const NSFontWeightRegular: f64 = 0.0;
                 const configuration = macos.msgSendSymbolConfiguration(
                     NSImageSymbolConfiguration,
                     "configurationWithPointSize:weight:scale:",
                     MENU_BAR_ICON_POINT_SIZE,
                     NSFontWeightRegular,
-                    NSImageSymbolScaleLarge,
+                    NSImageSymbolScaleMedium,
                 );
 
                 const configured = if (configuration != null)
@@ -408,10 +410,6 @@ pub const TrayBridge = struct {
                 // Template rendering lets macOS tint the glyph for light mode,
                 // dark mode and the highlighted menu bar.
                 _ = macos.msgSend1(final_image, "setTemplate:", @as(c_int, 1));
-                macos.msgSendVoid1Size(final_image, "setSize:", .{
-                    .width = MENU_BAR_ICON_POINT_SIZE,
-                    .height = MENU_BAR_ICON_POINT_SIZE,
-                });
                 _ = macos.msgSend1(button, "setImage:", final_image);
 
                 // An NSButton whose imagePosition is NSNoImage — the default for
