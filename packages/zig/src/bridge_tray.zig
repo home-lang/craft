@@ -82,6 +82,11 @@ fn decodeUnicodeEscapes(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
     return result.toOwnedSlice(allocator);
 }
 
+/// Point size for status item icons. macOS draws its own menu bar glyphs at
+/// roughly this size, so an app icon matches its neighbours rather than looking
+/// shrunken beside them.
+const MENU_BAR_ICON_POINT_SIZE: f64 = 16.0;
+
 /// Bridge handler for system tray messages from JavaScript
 pub const TrayBridge = struct {
     allocator: std.mem.Allocator,
@@ -299,10 +304,41 @@ pub const TrayBridge = struct {
         _ = macos.msgSend1(button, "setImagePosition:", if (has_title) NSImageLeading else NSImageOnly);
     }
 
-    fn setIcon(self: *Self, icon_name: []const u8) !void {
+    /// Extract the icon name from the bridge payload.
+    ///
+    /// The JS side sends `{"icon":"name"}`, and this handler used to hand that
+    /// whole JSON string to AppKit as the symbol name — so every lookup missed
+    /// and no icon was ever drawn. A bare string is still accepted, since the
+    /// CLI and older callers pass one.
+    fn parseIconName(allocator: std.mem.Allocator, data: []const u8) ?[]const u8 {
+        const trimmed = std.mem.trim(u8, data, " \t\r\n");
+        if (trimmed.len == 0) return null;
+        if (trimmed[0] != '{') return trimmed;
+
+        const parsed = std.json.parseFromSlice(std.json.Value, allocator, trimmed, .{}) catch |err| {
+            log.debug("setIcon: could not parse payload: {}", .{err});
+            return null;
+        };
+        defer parsed.deinit();
+
+        const icon = parsed.value.object.get("icon") orelse return null;
+        if (icon != .string or icon.string.len == 0) return null;
+
+        // The parsed tree is freed above, so hand back a copy the caller owns.
+        return allocator.dupe(u8, icon.string) catch null;
+    }
+
+    fn setIcon(self: *Self, data: []const u8) !void {
         const handle = try self.requireTrayHandle();
 
-        log.debug("setIcon: {s}", .{icon_name});
+        log.debug("setIcon: {s}", .{data});
+
+        const owns_name = data.len > 0 and std.mem.trim(u8, data, " \t\r\n")[0] == '{';
+        const icon_name = parseIconName(self.allocator, data) orelse {
+            log.debug("setIcon: no icon name in payload", .{});
+            return;
+        };
+        defer if (owns_name) self.allocator.free(icon_name);
 
         // First try to resolve icon through cross-platform icons module
         const resolved_name = if (icons.getIconByName(icon_name)) |icon| blk: {
@@ -337,9 +373,36 @@ pub const TrayBridge = struct {
             const image = macos.msgSend2(NSImage, "imageWithSystemSymbolName:accessibilityDescription:", ns_name, @as(?*anyopaque, null));
 
             if (image != null) {
-                // Configure for template rendering (adapts to light/dark mode)
-                _ = macos.msgSend1(image, "setTemplate:", @as(c_int, 1));
-                _ = macos.msgSend1(button, "setImage:", image);
+                // An SF Symbol with no configuration inherits a point size from
+                // the control's font, which in a status item button renders as a
+                // few-pixel speck. Ask for the menu bar's own metrics — 16pt at
+                // the large scale — so the glyph matches what AppKit and other
+                // menu bar apps draw.
+                const NSImageSymbolConfiguration = macos.getClass("NSImageSymbolConfiguration");
+                const NSImageSymbolScaleLarge: c_long = 3;
+                const NSFontWeightRegular: f64 = 0.0;
+                const configuration = macos.msgSendSymbolConfiguration(
+                    NSImageSymbolConfiguration,
+                    "configurationWithPointSize:weight:scale:",
+                    MENU_BAR_ICON_POINT_SIZE,
+                    NSFontWeightRegular,
+                    NSImageSymbolScaleLarge,
+                );
+
+                const configured = if (configuration != null)
+                    macos.msgSend1(image, "imageWithSymbolConfiguration:", configuration)
+                else
+                    image;
+                const final_image = if (configured != null) configured else image;
+
+                // Template rendering lets macOS tint the glyph for light mode,
+                // dark mode and the highlighted menu bar.
+                _ = macos.msgSend1(final_image, "setTemplate:", @as(c_int, 1));
+                macos.msgSendVoid1Size(final_image, "setSize:", .{
+                    .width = MENU_BAR_ICON_POINT_SIZE,
+                    .height = MENU_BAR_ICON_POINT_SIZE,
+                });
+                _ = macos.msgSend1(button, "setImage:", final_image);
 
                 // An NSButton whose imagePosition is NSNoImage — the default for
                 // a status item button created with a title — draws no image at
