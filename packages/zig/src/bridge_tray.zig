@@ -200,6 +200,10 @@ pub const TrayBridge = struct {
             const macos = @import("tray.zig");
             try macos.macosSetTitle(handle, decoded_title);
             log.debug("setTitle: macosSetTitle completed", .{});
+
+            // Clearing the title on an icon-only item, or adding one back beside
+            // an icon, both change where the image belongs.
+            syncImagePosition(@import("macos.zig").msgSend0(handle, "button"));
         }
     }
 
@@ -268,6 +272,33 @@ pub const TrayBridge = struct {
         }
     }
 
+    /// Reconcile a status item button's imagePosition with what it actually has.
+    ///
+    /// AppKit defaults the position to NSNoImage, which silently discards any
+    /// image the app sets, and leaving it on NSImageOnly would hide a title the
+    /// app sets later. Deriving it from the button's current contents keeps both
+    /// setIcon and setTitle correct regardless of the order they are called in.
+    fn syncImagePosition(button: ?*anyopaque) void {
+        if (builtin.os.tag != .macos) return;
+
+        const macos = @import("macos.zig");
+        if (macos.msgSend0(button, "image") == null) return;
+
+        var has_title = false;
+        const title = macos.msgSend0(button, "title");
+        if (title != null) {
+            const utf8 = macos.msgSend0(title, "UTF8String");
+            if (utf8 != null) {
+                const cstr: [*:0]const u8 = @ptrCast(utf8);
+                has_title = cstr[0] != 0;
+            }
+        }
+
+        const NSImageOnly: c_long = 1;
+        const NSImageLeading: c_long = 7;
+        _ = macos.msgSend1(button, "setImagePosition:", if (has_title) NSImageLeading else NSImageOnly);
+    }
+
     fn setIcon(self: *Self, icon_name: []const u8) !void {
         const handle = try self.requireTrayHandle();
 
@@ -309,6 +340,12 @@ pub const TrayBridge = struct {
                 // Configure for template rendering (adapts to light/dark mode)
                 _ = macos.msgSend1(image, "setTemplate:", @as(c_int, 1));
                 _ = macos.msgSend1(button, "setImage:", image);
+
+                // An NSButton whose imagePosition is NSNoImage — the default for
+                // a status item button created with a title — draws no image at
+                // all, so the assignment above was invisible.
+                syncImagePosition(button);
+
                 log.debug("Set SF Symbol icon: {s}", .{resolved_name});
             } else {
                 log.debug("SF Symbol not found: {s}", .{resolved_name});
