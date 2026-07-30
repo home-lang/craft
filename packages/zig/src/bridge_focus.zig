@@ -432,5 +432,7 @@ test "validateShortcutName rejects control characters and oversized names" {
     try validateShortcutName("Focus — On (1h)");
     try std.testing.expectError(BridgeError.InvalidParameter, validateShortcutName("bad\nname"));
     try std.testing.expectError(BridgeError.InvalidParameter, validateShortcutName("bad\x00name"));
-    try std.testing.expectError(BridgeError.InvalidParameter, validateShortcutName("x" ** 256));
+    var overlong: [256]u8 = undefined;
+    @memset(&overlong, 'x');
+    try std.testing.expectError(BridgeError.InvalidParameter, validateShortcutName(&overlong));
 }

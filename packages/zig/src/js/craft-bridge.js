@@ -845,6 +845,30 @@
   }
 
   // -------------------------------------------------------------------------
+  // focus — Do Not Disturb / Focus status (read) and control (via Shortcuts)
+  // -------------------------------------------------------------------------
+  window.craft.focus = {
+    getStatus:            function () { return _req('focus', 'getStatus') },
+    requestAuthorization: function () { return _req('focus', 'requestAuthorization').then(function (r) { return (r && r.authorization) || 'notDetermined' }) },
+    setEnabled:           function (enabled, opts) {
+      const o = Object.assign({ enabled: !!enabled }, opts || {})
+      return _req('focus', 'setEnabled', _stringify(o))
+    },
+    runShortcut:          function (name) { return _req('focus', 'runShortcut', _stringify({ name: String(name) })) },
+    listShortcuts:        function () { return _req('focus', 'listShortcuts').then(function (r) { return (r && r.shortcuts) || [] }) },
+  }
+
+  // -------------------------------------------------------------------------
+  // screenSharing — is the screen being shared or recorded right now?
+  // -------------------------------------------------------------------------
+  window.craft.screenSharing = {
+    getState: function () { return _req('screenSharing', 'getState') },
+    watch:    function (intervalMs) { return _req('screenSharing', 'watch', _stringify({ intervalMs: Number(intervalMs) || 2000 })) },
+    unwatch:  function () { return _req('screenSharing', 'unwatch') },
+    onChange: _evt('craft:screenSharing:change'),
+  }
+
+  // -------------------------------------------------------------------------
   // localServer — minimal HTTP listener for OAuth callbacks
   // -------------------------------------------------------------------------
   window.craft.localServer = {

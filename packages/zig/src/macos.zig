@@ -4103,6 +4103,16 @@ pub fn setupBridgeHandlers(allocator: std.mem.Allocator, tray_handle: ?*anyopaqu
         global_serial_bridge = try allocator.create(T);
         global_serial_bridge.?.* = T.init(allocator);
     }
+    if (global_focus_bridge == null) {
+        const T = @import("bridge_focus.zig").FocusBridge;
+        global_focus_bridge = try allocator.create(T);
+        global_focus_bridge.?.* = T.init(allocator);
+    }
+    if (global_screen_sharing_bridge == null) {
+        const T = @import("bridge_screen_sharing.zig").ScreenSharingBridge;
+        global_screen_sharing_bridge = try allocator.create(T);
+        global_screen_sharing_bridge.?.* = T.init(allocator);
+    }
 
     // theme + dragOut + deepLink: native modules with their own state, no
     // shared bridge struct — they install handlers directly via init().
@@ -4452,6 +4462,10 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         if (global_service_menu_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
     } else if (std.mem.eql(u8, msg_type, "serial")) {
         if (global_serial_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "focus")) {
+        if (global_focus_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
+    } else if (std.mem.eql(u8, msg_type, "screenSharing")) {
+        if (global_screen_sharing_bridge) |bridge| try bridge.handleMessage(action, data_json_str);
     } else if (std.mem.eql(u8, msg_type, "debug")) {
         // Handle debug messages
         if (comptime builtin.mode == .debug) {
