@@ -420,6 +420,18 @@ pub fn msgSend0Double(target: anytype, selector: [*:0]const u8) f64 {
     return msg(target, sel(selector));
 }
 
+/// Message send returning NSUInteger, e.g. `type` or `modifierFlags` on NSEvent
+pub fn msgSend0Ulong(target: anytype, selector: [*:0]const u8) c_ulong {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL) callconv(.c) c_ulong, @ptrCast(&objc.objc_msgSend));
+    return msg(target, sel(selector));
+}
+
+/// Message send with one NSUInteger argument (void return), e.g. `sendActionOn:`
+pub fn msgSendVoid1Ulong(target: anytype, selector: [*:0]const u8, arg1: c_ulong) void {
+    const msg = @as(*const fn (@TypeOf(target), objc.SEL, c_ulong) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
+    msg(target, sel(selector), arg1);
+}
+
 /// Message send with one NSSize argument (void return), e.g. `setSize:`
 pub fn msgSendVoid1Size(target: anytype, selector: [*:0]const u8, size: NSSize) void {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL, NSSize) callconv(.c) void, @ptrCast(&objc.objc_msgSend));

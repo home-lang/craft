@@ -380,10 +380,14 @@ fn macosCreate(title: []const u8, icon_text: ?[]const u8) !*anyopaque {
     msgSendVoid1(quitItem, "setRepresentedObject:", quitAction);
     msgSendVoid1(defaultMenu, "addItem:", quitItem);
 
-    // Attach default menu
-    _ = msgSend1(statusItem, "setMenu:", defaultMenu);
+    // Hand the default menu to the click handler rather than attaching it with
+    // setMenu:. An attached menu opens on either button and suppresses the
+    // button's action, which would make left and right click indistinguishable.
+    const tray_click = @import("tray_click.zig");
+    tray_click.install(statusItem);
+    tray_click.setMenu(defaultMenu);
     if (comptime builtin.mode == .debug)
-        std.debug.print("[Tray] Created with default menu (with actions)\n", .{});
+        std.debug.print("[Tray] Created with default menu (right click)\n", .{});
 
     // Retain the status item so it doesn't get deallocated
     _ = msgSend0(statusItem, "retain");
@@ -510,8 +514,9 @@ pub fn macosSetMenu(handle: *anyopaque, menu: *anyopaque) !void {
         std.debug.print("[Tray] Menu: {*}\n", .{nsMenu});
     }
 
-    // Set the menu on the status item
-    _ = msgSend1(statusItem, "setMenu:", nsMenu);
+    // Hold it for right click rather than attaching it, so left click keeps
+    // running the button's action.
+    @import("tray_click.zig").setMenu(nsMenu);
 
     if (comptime builtin.mode == .debug)
         std.debug.print("[Tray] Menu set successfully\n", .{});

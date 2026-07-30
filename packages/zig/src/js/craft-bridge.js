@@ -1071,6 +1071,13 @@
     },
     onMenuAction: _evt('craft:tray:menuAction'),
   }
+  // Native side calls this when the status item is left-clicked. Right clicks
+  // open the menu in AppKit and never come through here.
+  window.__craftDeliverTrayClick = function (button) {
+    window.dispatchEvent(new CustomEvent('craft:tray:click', {
+      detail: { button: button || 'left', timestamp: Date.now(), modifiers: {} },
+    }))
+  }
   window.__craftDeliverAction = function (a) {
     if (a && a.length > 0) {
       window.dispatchEvent(new CustomEvent('craft:tray:menuAction', { detail: { action: a } }))

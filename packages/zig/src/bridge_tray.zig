@@ -153,6 +153,16 @@ pub const TrayBridge = struct {
     fn pollActions(self: *Self) !void {
         _ = self;
 
+        // A left click on the status item, which JavaScript turns into a
+        // craft:tray:click event. Right clicks open the menu natively and never
+        // reach here.
+        if (@import("tray_click.zig").takePendingClick()) {
+            const bridge = @import("bridge.zig");
+            bridge.evalJS("if(window.__craftDeliverTrayClick)window.__craftDeliverTrayClick('left');") catch |err| {
+                log.debug("Failed to deliver tray click: {}", .{err});
+            };
+        }
+
         // Pop the next action from the queue
         if (tray_menu.getPendingAction()) |action| {
             log.debug("Polling found action: {s}", .{action});
