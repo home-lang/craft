@@ -44,7 +44,6 @@ pub fn build(b: *std.Build) void {
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
 
-
     const run_step = b.step("run-demo", "Run the demo app");
     run_step.dependOn(&run_cmd.step);
 
@@ -72,7 +71,6 @@ pub fn build(b: *std.Build) void {
 
     const run_craft_cmd = b.addRunArtifact(craft_exe);
     run_craft_cmd.step.dependOn(b.getInstallStep());
-
 
     const run_craft_step = b.step("run", "Run the craft CLI");
     run_craft_step.dependOn(&run_craft_cmd.step);
@@ -177,6 +175,10 @@ pub fn build(b: *std.Build) void {
         .imports = &.{
             .{ .name = "build_options", .module = build_options.createModule() },
         },
+    });
+
+    const native_sidebar_bootstrap_module = b.createModule(.{
+        .root_source_file = b.path("src/native_sidebar_bootstrap.zig"),
     });
 
     const config_module = b.createModule(.{
@@ -448,6 +450,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "../src/cli.zig", .module = cli_module },
+                .{ .name = "native_sidebar_bootstrap", .module = native_sidebar_bootstrap_module },
             },
         }),
     });

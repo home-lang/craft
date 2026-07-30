@@ -1,6 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 const cli = @import("../src/cli.zig");
+const native_sidebar_bootstrap = @import("native_sidebar_bootstrap");
 
 // ============================================
 // Native Sidebar CLI Options
@@ -16,6 +17,14 @@ test "WindowOptions - native_sidebar can be enabled" {
         .native_sidebar = true,
     };
     try testing.expect(options.native_sidebar);
+}
+
+test "native sidebar bootstrap exposes a stable document marker" {
+    try testing.expect(std.mem.indexOf(
+        u8,
+        native_sidebar_bootstrap.script,
+        "data-craft-native-sidebar",
+    ) != null);
 }
 
 test "WindowOptions - sidebar_width defaults to 220" {

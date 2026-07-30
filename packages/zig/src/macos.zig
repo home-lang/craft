@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const native_sidebar_bootstrap = @import("native_sidebar_bootstrap.zig");
 
 // Objective-C runtime types and functions (manual declarations to avoid @cImport issues)
 pub const objc = struct {
@@ -3771,29 +3772,7 @@ fn getNativeUIScript() []const u8 {
 }
 
 fn getNativeSidebarBootstrapScript() []const u8 {
-    return
-    \\window.__craftNativeSidebar = true;
-    \\window.__craftCustomWindowControls = true;
-    \\window.__craftWebChromeControls = true;
-    \\window.__craftSidebarWidth = window.__craftSidebarWidth || 286;
-    \\window.craft = window.craft || {};
-    \\window.craft._sidebarSelectHandler = window.craft._sidebarSelectHandler || function(event) {
-    \\  console.log('[Craft] Sidebar navigation:', event);
-    \\};
-    \\(function() {
-    \\  function markNativeSidebar() {
-    \\    document.documentElement.classList.add('has-native-sidebar', 'has-custom-window-controls');
-    \\    document.documentElement.style.background = 'transparent';
-    \\    if (document.body) {
-    \\      document.body.dataset.nativeSidebar = 'true';
-    \\      document.body.dataset.customWindowControls = 'true';
-    \\    }
-    \\  }
-    \\  markNativeSidebar();
-    \\  document.addEventListener('DOMContentLoaded', markNativeSidebar);
-    \\  window.dispatchEvent(new Event('craft:ready'));
-    \\})();
-    ;
+    return native_sidebar_bootstrap.script;
 }
 
 /// Storage for bridge handlers (global state)
