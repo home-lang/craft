@@ -156,6 +156,7 @@ pub const FocusBridge = struct {
             enabled: bool = false,
             onShortcut: []const u8 = "",
             offShortcut: []const u8 = "",
+            strategy: []const u8 = "auto",
         };
         const parsed = std.json.parseFromSlice(Params, self.allocator, data, .{
             .ignore_unknown_fields = true,
@@ -165,28 +166,33 @@ pub const FocusBridge = struct {
 
         const name = if (parsed.value.enabled) parsed.value.onShortcut else parsed.value.offShortcut;
         if (name.len == 0) return BridgeError.MissingData;
-        try self.executeShortcut("setEnabled", name);
+        try self.executeShortcut("setEnabled", name, resolveStrategy(parsed.value.strategy));
     }
 
     /// `{"name":"Some Shortcut"}` — the generic escape hatch for apps that
     /// drive more than an on/off pair (per-mode shortcuts, timed focus, …).
     fn runShortcut(self: *Self, data: []const u8) !void {
-        const Params = struct { name: []const u8 = "" };
+        const Params = struct { name: []const u8 = "", strategy: []const u8 = "auto" };
         const parsed = std.json.parseFromSlice(Params, self.allocator, data, .{
             .ignore_unknown_fields = true,
             .allocate = .alloc_always,
         }) catch return BridgeError.InvalidJSON;
         defer parsed.deinit();
         if (parsed.value.name.len == 0) return BridgeError.MissingData;
-        try self.executeShortcut("runShortcut", parsed.value.name);
+        try self.executeShortcut("runShortcut", parsed.value.name, resolveStrategy(parsed.value.strategy));
     }
 
-    fn executeShortcut(self: *Self, action: []const u8, name: []const u8) !void {
+    fn executeShortcut(self: *Self, action: []const u8, name: []const u8, strategy: Strategy) !void {
         if (comptime builtin.os.tag != .macos) {
             bridge_error.sendResultToJS(self.allocator, action, "{\"ok\":false,\"error\":\"unsupported platform\"}");
             return;
         }
         try validateShortcutName(name);
+
+        if (strategy == .url) {
+            try self.openShortcutUrl(action, name);
+            return;
+        }
 
         const io = io_context.get();
         var child = std.process.spawn(io, .{
@@ -232,11 +238,65 @@ pub const FocusBridge = struct {
         bridge_error.sendResultToJS(self.allocator, action, out.items);
     }
 
+    /// Hand `shortcuts://run-shortcut?name=…` to LaunchServices.
+    ///
+    /// The sandbox-legal route. It is fire-and-forget by construction: the
+    /// reply says the URL was accepted, never whether the shortcut ran, so the
+    /// result carries `dispatched:true` rather than pretending to an exit
+    /// status it does not have.
+    fn openShortcutUrl(self: *Self, action: []const u8, name: []const u8) !void {
+        const macos = @import("macos.zig");
+
+        const encoded = try percentEncode(self.allocator, name);
+        defer self.allocator.free(encoded);
+
+        const url = try std.fmt.allocPrintSentinel(
+            self.allocator,
+            "shortcuts://run-shortcut?name={s}",
+            .{encoded},
+            0,
+        );
+        defer self.allocator.free(url);
+
+        const NSString = macos.getClass("NSString");
+        const url_str = macos.msgSend1(NSString, "stringWithUTF8String:", url.ptr);
+        const NSURL = macos.getClass("NSURL");
+        const nsurl = macos.msgSend1(NSURL, "URLWithString:", url_str);
+        if (@intFromPtr(nsurl) == 0) return BridgeError.InvalidParameter;
+
+        const NSWorkspace = macos.getClass("NSWorkspace");
+        const workspace = macos.msgSend0(NSWorkspace, "sharedWorkspace");
+        const opened = msgSendBool1(workspace, "openURL:", nsurl);
+
+        var out: std.ArrayListUnmanaged(u8) = .empty;
+        defer out.deinit(self.allocator);
+        try out.appendSlice(self.allocator, if (opened) "{\"ok\":true," else "{\"ok\":false,");
+        try out.appendSlice(self.allocator, "\"strategy\":\"url\",\"dispatched\":");
+        try out.appendSlice(self.allocator, if (opened) "true" else "false");
+        try out.appendSlice(self.allocator, ",\"shortcut\":\"");
+        try bridge_error.appendJsonEscaped(self.allocator, &out, name);
+        try out.appendSlice(self.allocator, "\"");
+        if (!opened) {
+            try out.appendSlice(self.allocator, ",\"error\":\"Shortcuts did not accept the request — is the Shortcuts app available?\"");
+        }
+        try out.append(self.allocator, '}');
+
+        bridge_error.sendResultToJS(self.allocator, action, out.items);
+    }
+
     /// Names of every shortcut installed for the current user. Apps use this
     /// to verify their Focus shortcuts exist before offering the feature.
     fn listShortcuts(self: *Self) !void {
         if (comptime builtin.os.tag != .macos) {
-            bridge_error.sendResultToJS(self.allocator, "listShortcuts", "{\"shortcuts\":[]}");
+            bridge_error.sendResultToJS(self.allocator, "listShortcuts", unavailable_list_json);
+            return;
+        }
+        // Enumerating means running the CLI, which the App Sandbox forbids. A
+        // sandboxed app gets `canList:false` — meaningfully different from an
+        // empty list, which would otherwise read as "the user has no shortcuts"
+        // and send them into a setup flow they have already completed.
+        if (isSandboxed()) {
+            bridge_error.sendResultToJS(self.allocator, "listShortcuts", unavailable_list_json);
             return;
         }
         const io = io_context.get();
@@ -246,7 +306,7 @@ pub const FocusBridge = struct {
             .stderr = .ignore,
             .stdin = .ignore,
         }) catch {
-            bridge_error.sendResultToJS(self.allocator, "listShortcuts", "{\"shortcuts\":[]}");
+            bridge_error.sendResultToJS(self.allocator, "listShortcuts", unavailable_list_json);
             return;
         };
 
@@ -257,7 +317,7 @@ pub const FocusBridge = struct {
 
         var out: std.ArrayListUnmanaged(u8) = .empty;
         defer out.deinit(self.allocator);
-        try out.appendSlice(self.allocator, "{\"shortcuts\":[");
+        try out.appendSlice(self.allocator, "{\"canList\":true,\"shortcuts\":[");
         var first = true;
         var lines = std.mem.splitScalar(u8, stdout_buf.items, '\n');
         while (lines.next()) |raw| {
@@ -279,6 +339,63 @@ pub const FocusBridge = struct {
 // =============================================================================
 
 const shortcuts_binary = "/usr/bin/shortcuts";
+
+const unavailable_list_json = "{\"canList\":false,\"shortcuts\":[]}";
+
+/// How a shortcut gets run.
+///
+/// `cli` execs `/usr/bin/shortcuts` and reports the shortcut's real exit
+/// status. `url` opens `shortcuts://run-shortcut`, which is the only route the
+/// App Sandbox permits — a sandboxed process may ask LaunchServices to open a
+/// URL, but may not spawn a binary outside its bundle.
+///
+/// The two are not equivalent, and callers should know which they got: the URL
+/// scheme is fire-and-forget. LaunchServices reports that it handed the URL to
+/// Shortcuts, not that the shortcut ran or succeeded, so `ok` means "asked"
+/// rather than "done". Where a real status is available, `cli` is the better
+/// answer, which is why `auto` only falls back to `url` under sandbox.
+pub const Strategy = enum { cli, url };
+
+fn resolveStrategy(requested: []const u8) Strategy {
+    if (std.mem.eql(u8, requested, "cli")) return .cli;
+    if (std.mem.eql(u8, requested, "url")) return .url;
+    // "auto", and anything unrecognised.
+    return if (isSandboxed()) .url else .cli;
+}
+
+/// Whether this process is running inside the App Sandbox.
+///
+/// The container id is exported into every sandboxed process's environment and
+/// is absent otherwise, which makes it the cheapest reliable marker — no
+/// entitlement parsing, no private API.
+fn isSandboxed() bool {
+    if (comptime builtin.os.tag != .macos) return false;
+    return c_getenv("APP_SANDBOX_CONTAINER_ID") != null;
+}
+
+/// Percent-encode a shortcut name for a query string.
+///
+/// Names routinely contain spaces, and may contain `&`, `#` or `+` — each of
+/// which silently changes the parse if it goes through raw, so the shortcut
+/// that runs is not the one that was asked for. Everything outside the
+/// unreserved set is escaped.
+fn percentEncode(allocator: std.mem.Allocator, value: []const u8) ![]u8 {
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    errdefer out.deinit(allocator);
+    const hex = "0123456789ABCDEF";
+    for (value) |c| {
+        const unreserved = (c >= 'A' and c <= 'Z') or (c >= 'a' and c <= 'z') or
+            (c >= '0' and c <= '9') or c == '-' or c == '.' or c == '_' or c == '~';
+        if (unreserved) {
+            try out.append(allocator, c);
+        } else {
+            try out.append(allocator, '%');
+            try out.append(allocator, hex[c >> 4]);
+            try out.append(allocator, hex[c & 0x0F]);
+        }
+    }
+    return out.toOwnedSlice(allocator);
+}
 
 const unsupported_status_json = "{\"supported\":false,\"isFocused\":null,\"authorization\":\"unsupported\"}";
 
@@ -325,6 +442,8 @@ fn authorizationName(status: c_long) []const u8 {
 // -----------------------------------------------------------------------------
 
 extern "c" fn dlopen(path: [*:0]const u8, mode: c_int) ?*anyopaque;
+extern "c" fn getenv(name: [*:0]const u8) ?[*:0]const u8;
+const c_getenv = getenv;
 const RTLD_LAZY: c_int = 0x1;
 
 var intents_loaded = false;
@@ -354,6 +473,13 @@ fn msgSendLong(target: anytype, selector: [*:0]const u8) c_long {
     const Fn = *const fn (macos.objc.id, macos.objc.SEL) callconv(.c) c_long;
     const f: Fn = @ptrCast(&macos.objc.objc_msgSend);
     return f(@ptrCast(target), macos.sel(selector));
+}
+
+fn msgSendBool1(target: anytype, selector: [*:0]const u8, arg: anytype) bool {
+    const macos = @import("macos.zig");
+    const Fn = *const fn (macos.objc.id, macos.objc.SEL, @TypeOf(arg)) callconv(.c) bool;
+    const f: Fn = @ptrCast(&macos.objc.objc_msgSend);
+    return f(@ptrCast(target), macos.sel(selector), arg);
 }
 
 fn msgSendBool(target: anytype, selector: [*:0]const u8) bool {
@@ -425,6 +551,31 @@ test "authorizationName maps every INFocusStatusAuthorizationStatus case" {
     // Anything the OS adds later reads as "not determined" rather than
     // silently claiming authorization.
     try std.testing.expectEqualStrings("notDetermined", authorizationName(99));
+}
+
+test "resolveStrategy honours an explicit choice and defaults by environment" {
+    try std.testing.expectEqual(Strategy.cli, resolveStrategy("cli"));
+    try std.testing.expectEqual(Strategy.url, resolveStrategy("url"));
+    // "auto" and anything unrecognised follow the sandbox, and this process is
+    // not sandboxed, so both land on the strategy that reports a real status.
+    try std.testing.expectEqual(Strategy.cli, resolveStrategy("auto"));
+    try std.testing.expectEqual(Strategy.cli, resolveStrategy("nonsense"));
+}
+
+test "percentEncode escapes everything that would change the query's parse" {
+    const a = try percentEncode(std.testing.allocator, "Hush Focus On");
+    defer std.testing.allocator.free(a);
+    try std.testing.expectEqualStrings("Hush%20Focus%20On", a);
+
+    // `&` would start a new parameter, `#` a fragment, `+` decode as a space —
+    // each silently runs a different shortcut than the one requested.
+    const b = try percentEncode(std.testing.allocator, "A&B#C+D");
+    defer std.testing.allocator.free(b);
+    try std.testing.expectEqualStrings("A%26B%23C%2BD", b);
+
+    const c = try percentEncode(std.testing.allocator, "safe-name_1.0~x");
+    defer std.testing.allocator.free(c);
+    try std.testing.expectEqualStrings("safe-name_1.0~x", c);
 }
 
 test "validateShortcutName rejects control characters and oversized names" {

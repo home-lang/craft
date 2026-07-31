@@ -113,6 +113,32 @@ The shortcut name is passed as a single `argv` entry to `/usr/bin/shortcuts`.
 There is no shell in the path, so a name cannot be used for command injection;
 control characters and names over 255 bytes are rejected outright.
 
+### Inside the App Sandbox
+
+A sandboxed app — which is to say any app destined for the Mac App Store —
+cannot spawn a binary outside its own bundle, so the CLI route is closed. What
+it *can* do is ask LaunchServices to open a URL, and Shortcuts registers
+`shortcuts://run-shortcut`. Craft detects the sandbox and switches
+automatically; `strategy` forces the choice:
+
+```typescript
+await window.craft.focus.setEnabled(true, {
+  onShortcut: 'Hush Focus On',
+  strategy: 'url', // 'auto' (default) | 'cli' | 'url'
+})
+```
+
+The two routes are not equivalent, and the result says which you got. The CLI
+reports the shortcut's real exit status. The URL scheme is fire-and-forget:
+LaunchServices confirms it handed the URL to Shortcuts, never that the
+shortcut ran, so the result carries `dispatched: true` instead of an
+`exitCode`. That is why `auto` only falls back to the URL when it has to.
+
+Enumeration is closed under sandbox for the same reason, so `listShortcuts()`
+returns an empty array there. Use `listShortcutsResult()` when the difference
+matters — `canList: false` means *could not check*, which should not send a
+user through a setup flow they have already completed.
+
 ### Verifying setup
 
 Because the shortcuts are user-created, check for them before offering the

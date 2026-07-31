@@ -1132,13 +1132,31 @@ export interface FocusShortcutOptions {
   onShortcut?: string
   /** Shortcut to run when turning Focus off. */
   offShortcut?: string
+  /** Defaults to `auto`. */
+  strategy?: FocusStrategy
 }
+
+/**
+ * How a shortcut is run.
+ *
+ * `cli` execs `/usr/bin/shortcuts` and reports the shortcut's real exit status.
+ * `url` opens `shortcuts://run-shortcut`, the only route the App Sandbox
+ * permits — but it is fire-and-forget: LaunchServices confirms it handed the
+ * URL over, never that the shortcut ran. `auto` picks `url` under sandbox and
+ * `cli` everywhere else, so a real status is used wherever one exists.
+ */
+export type FocusStrategy = 'auto' | 'cli' | 'url'
 
 export interface FocusResult {
   ok: boolean
-  strategy?: 'shortcut'
-  /** Exit status of the Shortcuts CLI. */
+  strategy?: 'shortcut' | 'url'
+  /** Exit status of the Shortcuts CLI. Absent for the `url` strategy. */
   exitCode?: number
+  /**
+   * `url` strategy only: the request reached Shortcuts. Not a claim that the
+   * shortcut ran — no such signal is available on this route.
+   */
+  dispatched?: boolean
   shortcut?: string
   error?: string
 }

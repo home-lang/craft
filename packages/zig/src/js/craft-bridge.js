@@ -856,6 +856,9 @@
     },
     runShortcut:          function (name) { return _req('focus', 'runShortcut', _stringify({ name: String(name) })) },
     listShortcuts:        function () { return _req('focus', 'listShortcuts').then(function (r) { return (r && r.shortcuts) || [] }) },
+    // Full result, including `canList` — false inside the App Sandbox, where
+    // enumeration is impossible and an empty array would read as "none".
+    listShortcutsResult:  function () { return _req('focus', 'listShortcuts') },
   }
 
   // -------------------------------------------------------------------------
