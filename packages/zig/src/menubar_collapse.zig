@@ -4,13 +4,13 @@
 //! to take up the room instead: a status item that grows very wide shoves the
 //! items to its left off the front of the bar.
 //!
-//!   «    the marker: the boundary, and the item that grows
+//!   |    the marker: the boundary, and the item that grows
 //!   ☕️   the app's own tray icon
 //!
-//!   expanded:  [items to hide] [«] [☕️]
+//!   expanded:  [items to hide] [|] [☕️]
 //!   collapsed: [······················] [☕️]
 //!
-//! The user decides what gets hidden by cmd-dragging icons to the left of `«`.
+//! The user decides what gets hidden by cmd-dragging icons to the left of `|`.
 //! Collapsed, the marker covers the space it just cleared, so clicking anywhere
 //! in the emptied stretch brings the icons back. That is deliberately the only
 //! affordance: a separate always-visible toggle button would be one more item
@@ -156,7 +156,7 @@ var early_initialized: bool = false;
 var is_initialized: bool = false;
 var is_collapsed: bool = false;
 
-/// The `«`: the boundary the user arranges icons around, and the item that
+/// The `|`: the boundary the user arranges icons around, and the item that
 /// widens to carry everything behind it off the bar.
 var separator_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
 
@@ -176,7 +176,7 @@ var always_hidden_active: bool = false;
 var separator_hidden: bool = false;
 
 /// A marker being widened, and the bookkeeping needed to find out how far it
-/// was allowed to go. Both the `«` and the always-hidden marker use one.
+/// was allowed to go. Both the `|` and the always-hidden marker use one.
 const Widening = struct {
     /// Where the marker stood before it started growing.
     origin: f64 = 0,
@@ -275,12 +275,11 @@ const TARGET_BACKOFF: f64 = 0.75;
 /// back to how it was rather than shuffling icons a few points sideways.
 const MIN_TRAVEL: f64 = 80.0;
 
-const MARKER_GLYPH = "\xC2\xAB"; // «
-const MARKER_GLYPH_WIDENED = "\xC2\xBB"; // »
-
-/// NSTextAlignment
-const NSTextAlignmentRight: c_long = 1;
-const NSTextAlignmentCenter: c_long = 2;
+/// A plain divider rather than a chevron. macOS draws its own `«` when the bar
+/// runs out of room, which a chevron here would be mistaken for — and the two
+/// mean different things: that one appears on any crowded bar, whether or not
+/// anything is tucked away.
+const MARKER_GLYPH = "|";
 
 /// NSEvent types and masks. A status button reports left clicks only unless it
 /// is told otherwise, so a right click would never reach `toggleClicked:`.
@@ -384,7 +383,7 @@ pub fn collapse() void {
     // be and so as likely as possible to be honoured.
     const boundary = markerOriginX(separator_item) orelse return;
 
-    // The `«` marks what gets hidden: everything to its left. If it has been
+    // The `|` marks what gets hidden: everything to its left. If it has been
     // dragged past the app's own icon then the app's icon is on the wrong side
     // of that line, and collapsing would take away the very menu that turns the
     // collapse back off. Leave the bar alone and say so.
@@ -578,21 +577,18 @@ fn routeClicks(button: objc.id) void {
     msgSendVoid1(button, "sendActionOn:", NSEventMaskLeftMouseUp | NSEventMaskRightMouseUp);
 }
 
-/// What a marker draws: `«` at rest, pointing at the icons it can tuck away,
-/// and `»` once widened, pointing back at the ones it is holding.
+/// The divider the user arranges icons around: whatever ends up to its left is
+/// what a collapse tucks away.
 ///
-/// A widened marker spans the stretch it just cleared, and a title centred in
-/// that stretch would float in the middle of an empty bar. Pinned to the right
-/// instead, the `»` lands immediately beside the icons that stayed — where the
-/// hidden ones went in, and so where the user looks to get them back.
+/// Only drawn at its resting size. A widened marker covers the stretch it just
+/// cleared, and AppKit draws no title on a status button that wide anyway.
 fn drawMarker(item: objc.id, widened: bool) void {
     if (item == null) return;
     const button = msgSend0(item, "button");
     if (button == null) return;
 
-    const glyph = if (separator_hidden) "" else if (widened) MARKER_GLYPH_WIDENED else MARKER_GLYPH;
-    msgSendVoid1(button, "setTitle:", createNSString(glyph));
-    msgSendVoid1(button, "setAlignment:", @as(c_long, if (widened) NSTextAlignmentRight else NSTextAlignmentCenter));
+    const visible = !widened and !separator_hidden;
+    msgSendVoid1(button, "setTitle:", createNSString(if (visible) MARKER_GLYPH else ""));
 }
 
 /// Widen a marker as far as the system will let it, pushing the items to its
@@ -604,7 +600,7 @@ fn drawMarker(item: objc.id, widened: bool) void {
 /// Hidden Bar trick ask for a flat 10,000pt, which lands past the cap on every
 /// display this was measured on and so hides nothing.
 ///
-/// Set a marker's width, and draw its `«` only at its resting size — a widened
+/// Set a marker's width, and draw its `|` only at its resting size — a widened
 /// marker spans most of the bar, so a dot centred in it would float somewhere
 /// out in the empty space.
 ///
