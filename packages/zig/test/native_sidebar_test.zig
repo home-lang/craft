@@ -1,6 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 const cli = @import("../src/cli.zig");
+const javascript = @import("javascript");
 const native_sidebar_bootstrap = @import("native_sidebar_bootstrap");
 
 // ============================================
@@ -25,6 +26,19 @@ test "native sidebar bootstrap exposes a stable document marker" {
         native_sidebar_bootstrap.script,
         "data-craft-native-sidebar",
     ) != null);
+}
+
+test "native sidebar navigation serializes configured URLs as JavaScript data" {
+    const script = try javascript.buildNavigationScript(
+        testing.allocator,
+        "/settings/\"quote\"\\path\nnext",
+    );
+    defer testing.allocator.free(script);
+
+    try testing.expectEqualStrings(
+        "(() => { const url = \"/settings/\\\"quote\\\"\\\\path\\nnext\"; return typeof window.navigate === 'function' ? window.navigate(url) : (window.location.href = url); })()",
+        script,
+    );
 }
 
 test "WindowOptions - sidebar_width defaults to 220" {

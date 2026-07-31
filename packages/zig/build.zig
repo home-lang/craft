@@ -181,6 +181,10 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/native_sidebar_bootstrap.zig"),
     });
 
+    const javascript_module = b.createModule(.{
+        .root_source_file = b.path("src/javascript.zig"),
+    });
+
     const config_module = b.createModule(.{
         .root_source_file = b.path("src/config.zig"),
     });
@@ -450,6 +454,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "../src/cli.zig", .module = cli_module },
+                .{ .name = "javascript", .module = javascript_module },
                 .{ .name = "native_sidebar_bootstrap", .module = native_sidebar_bootstrap_module },
             },
         }),

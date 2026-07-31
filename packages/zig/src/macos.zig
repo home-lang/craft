@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const javascript = @import("javascript.zig");
 const native_sidebar_bootstrap = @import("native_sidebar_bootstrap.zig");
 
 // Objective-C runtime types and functions (manual declarations to avoid @cImport issues)
@@ -1419,15 +1420,16 @@ fn sidebarSelectionDidChange(
     // Navigate via window.navigate() for SPA routing, or fall back to location.href.
     // If the item has a URL, use it directly. Otherwise construct from section/item IDs.
     if (sidebar_webview != null) {
-        var js_buf: [2048]u8 = undefined;
-        const js = if (child.url) |url|
-            std.fmt.bufPrint(&js_buf,
-                \\typeof window.navigate === 'function' ? window.navigate('{s}') : (window.location.href = '{s}')
-            , .{ url, url }) catch return
+        const allocator = std.heap.c_allocator;
+        const generated_url = if (child.url == null)
+            std.fmt.allocPrint(allocator, "/{s}/{s}", .{ section.id, child.id }) catch return
         else
-            std.fmt.bufPrint(&js_buf,
-                \\typeof window.navigate === 'function' ? window.navigate('/{s}/{s}') : (window.location.href = '/{s}/{s}')
-            , .{ section.id, child.id, section.id, child.id }) catch return;
+            null;
+        defer if (generated_url) |url| allocator.free(url);
+
+        const url = child.url orelse generated_url.?;
+        const js = javascript.buildNavigationScript(allocator, url) catch return;
+        defer allocator.free(js);
 
         const js_str = createNSString(js);
         _ = msgSend2(sidebar_webview, "evaluateJavaScript:completionHandler:", js_str, @as(?*anyopaque, null));
