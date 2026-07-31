@@ -160,6 +160,10 @@ fn separatorItem() objc.id {
 }
 
 var saved_tray_menu: objc.id = if (builtin.target.os.tag == .macos) null else null;
+/// The app's own icon. Nothing may be widened to its right, or the collapse
+/// would carry it off the bar along with the icons it is meant to be hiding —
+/// and with it the menu that turns the collapse back off.
+var tray_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var click_target: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var class_registered: bool = false;
 
@@ -175,9 +179,11 @@ var separator_hidden: bool = false;
 /// took the widths it was handed.
 var collapse_origin: f64 = 0;
 var collapse_travel: f64 = 0;
-var collapse_limit: f64 = 0;
 var collapse_settled: bool = true;
-var settle_attempts: u8 = 0;
+var collapse_started_ns: ?u64 = null;
+var collapse_links: f64 = 0;
+/// Which links were judged able to help, fixed for the duration of a collapse.
+var marker_usable: [MARKER_COUNT]bool = @splat(false);
 
 var auto_collapse_delay: u32 = 0;
 var auto_collapse_timer_active: bool = false;
@@ -202,10 +208,21 @@ const MARKER_COUNT = 4;
 /// releases or everyone's arrangement resets.
 const autosaveNames = [MARKER_COUNT][]const u8{ "craft_menubar_marker", "craft_menubar_link_1", "craft_menubar_link_2", "craft_menubar_link_3" };
 
-/// How much narrower to go on each retry, and how many retries to allow before
-/// settling for whatever was achieved.
-const LIMIT_BACKOFF: f64 = 0.75;
-const MAX_SETTLE_ATTEMPTS: u8 = 6;
+/// How long to let the system get round to applying the widths before reading
+/// back what it did. This is a duration rather than a number of checks because
+/// the checks are driven by a poll from JavaScript that can fire many times a
+/// second — counting them would give up in a few milliseconds, long before any
+/// relayout could have happened.
+const SETTLE_GRACE_NS: u64 = 400 * std.time.ns_per_ms;
+
+/// How much of the requested distance has to materialise for the widths to
+/// count as accepted, and how much to come down by when they were not.
+const ACCEPTED_FRACTION: f64 = 0.9;
+const TARGET_BACKOFF: f64 = 0.75;
+
+/// Below this there is not enough room to tuck anything away, so the bar goes
+/// back to how it was rather than shuffling icons a few points sideways.
+const MIN_TRAVEL: f64 = 80.0;
 
 const SEPARATOR_DOT = "\xC2\xB7"; // ·
 
@@ -272,6 +289,7 @@ pub fn init() void {
     const macos = @import("macos.zig");
     if (macos.getGlobalTrayHandle()) |tray_handle| {
         const statusItem: objc.id = @ptrFromInt(@intFromPtr(tray_handle));
+        tray_item = statusItem;
         const menu = msgSend0(statusItem, "menu");
         if (menu != null) {
             saved_tray_menu = menu;
@@ -315,19 +333,35 @@ pub fn collapse() void {
     // Carry the chain off the front of the bar; everything to its left travels
     // with it. No single item can stretch that far — past some width the system
     // ignores the request rather than trimming it down — so the distance is
-    // shared out, each link taking a slice and the rest passing down the chain.
-    //
-    // That refusal width is not documented and is not a fixed fraction of the
-    // display: 1262pt was accepted on a 2560pt bar with one link widening and
-    // refused on the same bar with two. So the first attempt is a guess and
-    // `settleCollapse` checks, on the next turn of the run loop, whether the
-    // bar actually moved — retrying with narrower slices until it does.
-    collapse_origin = leftmostMarkerX();
-    collapse_travel = collapse_origin + SEPARATOR_LENGTH;
-    collapse_limit = screenWidth() / 2 - SEPARATOR_LENGTH;
+    // split evenly between the links, which keeps each ask as small as it can
+    // be and so as likely as possible to be honoured.
+    const boundary = markerOriginX(separatorItem()) orelse return;
+
+    // The `·` marks what gets hidden: everything to its left. If it has been
+    // dragged past the app's own icon then the app's icon is on the wrong side
+    // of that line, and collapsing would take away the very menu that turns the
+    // collapse back off. Leave the bar alone and say so.
+    if (boundary >= trayOriginX()) {
+        log.debug("not collapsing: the marker sits right of the tray icon", .{});
+        notifyJS();
+        return;
+    }
+
+    const links = chooseUsableMarkers();
+    if (links < 1) {
+        log.debug("not collapsing: no marker is in a position to widen", .{});
+        notifyJS();
+        return;
+    }
+
+    collapse_origin = boundary;
+    collapse_links = links;
+    collapse_travel = boundary + SEPARATOR_LENGTH;
     collapse_settled = false;
-    settle_attempts = 0;
-    applyWidening(collapse_limit);
+    collapse_started_ns = nanoTimestamp();
+    if (comptime builtin.mode == .debug)
+        std.debug.print("[Menubar] collapsing: boundary={d} tray={d} links={d} travel={d}\n", .{ boundary, trayOriginX(), links, collapse_travel });
+    applyWidening(collapse_travel / links);
 
     is_collapsed = true;
     auto_collapse_timer_active = false;
@@ -545,54 +579,92 @@ fn setMarkerWidth(item: objc.id, width: f64) void {
     if (item == separatorItem()) drawMarker(item, width > SEPARATOR_LENGTH);
 }
 
-/// Hand each link a slice of the remaining distance, none wider than `limit`.
-/// Links with nothing left to carry drop to their resting width, which also
-/// undoes anything left over from an earlier, wider attempt.
-fn applyWidening(limit: f64) void {
-    var remaining = collapse_travel;
+/// Work out which links are in a position to help, from the bar as it stands at
+/// rest. This has to happen before anything is widened and must not be redone
+/// while it is: a widened link's own left edge has already travelled, so asking
+/// again mid-collapse compares against a bar that is halfway through moving and
+/// the answer flips from one retry to the next.
+fn chooseUsableMarkers() f64 {
+    const boundary = markerOriginX(separatorItem()) orelse return 0;
+    const stop = trayOriginX();
+
+    var count: f64 = 0;
     for (markers, 0..) |marker, index| {
-        const share = @max(@min(remaining, limit), 0);
-        setMarkerWidth(marker, @max(share, restingWidth(index)));
-        remaining -= share;
+        const x = markerOriginX(marker) orelse {
+            marker_usable[index] = false;
+            continue;
+        };
+        // A link left of the `·` sits among the icons being hidden, so widening
+        // it would shove some of them without moving the boundary; a link right
+        // of the tray would take the tray with it. Only what lies between the
+        // two does the job it is there for.
+        marker_usable[index] = x >= boundary and x < stop;
+        if (marker_usable[index]) count += 1;
+    }
+    return count;
+}
+
+/// Give every helping link an equal slice of the distance. Equal rather than
+/// filling one at a time because the system turns down an over-long ask outright
+/// rather than trimming it, so the smallest workable width per link is also the
+/// likeliest to be granted.
+fn applyWidening(share: f64) void {
+    for (markers, 0..) |marker, index| {
+        const width = if (marker_usable[index]) @max(share, restingWidth(index)) else restingWidth(index);
+        setMarkerWidth(marker, width);
     }
 }
 
-/// Check whether the widening took, and narrow the slices if it did not.
+fn trayOriginX() f64 {
+    const button = msgSend0(tray_item, "button");
+    if (button == null) return screenWidth();
+    const window = msgSend0(button, "window");
+    if (window == null) return screenWidth();
+    return msgSendRect(window, "frame").origin.x;
+}
+
+/// Confirm the widening actually moved the bar, and undo it if it did not.
 ///
 /// The system resizes status item windows asynchronously, so this has to run a
 /// turn of the run loop after the widths were set — never straight after them,
-/// where the frames still read as they did before.
+/// where the frames still read as they did before. It may take a few turns, so
+/// a short run of quiet checks is normal; only a persistent shortfall means the
+/// widths were refused outright.
 fn settleCollapse() void {
     if (collapse_settled or !is_collapsed) return;
 
-    const moved = collapse_origin - leftmostMarkerX();
-    if (moved >= collapse_travel - SEPARATOR_LENGTH) {
+    const started = collapse_started_ns orelse return;
+    const now = nanoTimestamp() orelse return;
+    if (now - started < SETTLE_GRACE_NS) return;
+
+    const moved = collapse_origin - (markerOriginX(separatorItem()) orelse collapse_origin);
+    if (moved >= collapse_travel * ACCEPTED_FRACTION) {
         collapse_settled = true;
         if (comptime builtin.mode == .debug)
             std.debug.print("[Menubar] Settled — moved {d}pt of {d}pt\n", .{ moved, collapse_travel });
         return;
     }
 
-    settle_attempts += 1;
-    if (settle_attempts >= MAX_SETTLE_ATTEMPTS) {
+    // Refused. An item only grows into whatever stretch of bar is actually
+    // free, so an ask longer than that is turned down flat rather than trimmed
+    // — and asking for less is the only way to find out how much there is.
+    //
+    // Coming down is not a compromise. The free stretch is precisely the gap
+    // the hidden icons have to cross, since they sit immediately to the right
+    // of it, so the largest ask the system accepts is also exactly the one that
+    // clears them off.
+    collapse_travel *= TARGET_BACKOFF;
+    if (collapse_travel < MIN_TRAVEL) {
+        // Nothing worth doing fits. Half a collapse is worse than none, so put
+        // the bar back rather than leaving icons stranded mid-bar.
+        log.debug("menu bar collapse: no room to tuck anything away — restoring", .{});
         collapse_settled = true;
-        log.debug("menu bar collapse fell short: moved {d}pt of {d}pt", .{ moved, collapse_travel });
+        expand();
         return;
     }
 
-    // Never go below what the chain needs to cover the distance between them.
-    const floor = collapse_travel / @as(f64, MARKER_COUNT);
-    collapse_limit = @max(collapse_limit * LIMIT_BACKOFF, floor);
-    applyWidening(collapse_limit);
-}
-
-fn leftmostMarkerX() f64 {
-    var leftmost: f64 = screenWidth();
-    for (markers) |marker| {
-        const x = markerOriginX(marker) orelse continue;
-        if (x < leftmost) leftmost = x;
-    }
-    return leftmost;
+    collapse_started_ns = now;
+    applyWidening(collapse_travel / collapse_links);
 }
 
 /// What a link is worth when it is not carrying anything: a visible divider for
