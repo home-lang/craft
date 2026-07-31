@@ -717,6 +717,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             system_tray_tests.root_module.linkFramework("Cocoa", .{});
             system_tray_tests.root_module.linkFramework("WebKit", .{});
+            system_tray_tests.root_module.linkFramework("CoreMIDI", .{});
             applySdkPaths(b, system_tray_tests.root_module, macos_sdk);
         },
         .linux => {
@@ -741,6 +742,7 @@ pub fn build(b: *std.Build) void {
         .macos => {
             system_tray_benchmark.root_module.linkFramework("Cocoa", .{});
             system_tray_benchmark.root_module.linkFramework("WebKit", .{});
+            system_tray_benchmark.root_module.linkFramework("CoreMIDI", .{});
             applySdkPaths(b, system_tray_benchmark.root_module, macos_sdk);
         },
         .linux => {
