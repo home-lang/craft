@@ -2,25 +2,37 @@
 //!
 //! macOS gives no API for hiding another app's menu bar item, so the trick is
 //! to take up the room instead: a status item that grows very wide shoves the
-//! items to its left off the front of the bar. Three items make that usable —
+//! items to its left off the front of the bar.
 //!
-//!   ‹/›  a toggle, which never changes width and so is always reachable
+//!   ·    the marker: the boundary the user arranges icons around
+//!   ⋯    invisible links that widen alongside it, resting at no width at all
 //!   ☕️   the app's own tray icon
-//!   ·    the marker, which is what actually grows
 //!
-//!   expanded:  [items to hide] [·] [☕️] [‹]
-//!   collapsed: [·············] [☕️] [›]
+//!   expanded:  [items to hide] [·][⋯][⋯][⋯] [☕️]
+//!   collapsed: [·······················] [☕️]
 //!
 //! The user decides what gets hidden by cmd-dragging icons to the left of `·`.
+//! Collapsed, the chain covers the space it just cleared, so clicking anywhere
+//! in the emptied stretch brings the icons back. That is deliberately the only
+//! affordance: a separate always-visible toggle button would be one more item
+//! in a bar the user is trying to empty, and — being just another status item —
+//! could itself end up left of the boundary and vanish with everything else.
 //! An optional second marker adds a group that stays tucked away even while the
 //! rest is expanded.
 //!
-//! Two things about the growing are easy to get wrong, and both look like the
-//! feature doing nothing at all:
+//! Three things about the growing are easy to get wrong, and each of them looks
+//! like the feature doing nothing at all:
 //!
-//!   - The system caps how wide a status item may be at half the display, and a
-//!     request over that cap is dropped rather than clamped down to it. A flat
-//!     10,000pt — which the ports of this trick all use — is over every cap.
+//!   - Past some width the system ignores a `setLength:` rather than trimming
+//!     it to what it will allow. The ports of this trick ask for a flat
+//!     10,000pt, which is over that width everywhere, so nothing ever moves.
+//!   - That width is not documented and is not a fixed fraction of the display:
+//!     1262pt was accepted on a 2560pt bar with one item widening and refused
+//!     on the same bar with two. So no single item can be relied on to cross
+//!     the whole bar, and the distance is shared across a chain of them —
+//!     every link widening shoves what is left of the chain further left, so
+//!     the pushes add up. `settleCollapse` then checks what actually happened
+//!     and narrows the slices until the bar really moved.
 //!   - The width has to be set before the button's title, or AppKit lays the
 //!     button out against the old width and the growth is lost.
 
@@ -137,13 +149,15 @@ var early_initialized: bool = false;
 var is_initialized: bool = false;
 var is_collapsed: bool = false;
 
-// The toggle button (rightmost) — shows ‹ or ›, ALWAYS visible, never changes width
-// Matches Hidden's btnExpandCollapse
-var expand_collapse_btn: objc.id = if (builtin.target.os.tag == .macos) null else null;
+// The widening chain. `markers[0]` is the `·` the user sees and drags icons to
+// the left of; the rest are helpers that only exist because one item cannot get
+// wide enough on its own. See `collapse` for why there is more than one.
+var markers: [MARKER_COUNT]objc.id = @splat(if (builtin.target.os.tag == .macos) null else null);
 
-// The separator (created after tray, to LEFT of tray icon) — THIS expands to hide items
-// Matches Hidden's btnSeparate
-var separator_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
+/// The `·` marker: the boundary the user arranges icons around.
+fn separatorItem() objc.id {
+    return markers[0];
+}
 
 var saved_tray_menu: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var click_target: objc.id = if (builtin.target.os.tag == .macos) null else null;
@@ -156,6 +170,15 @@ var always_hidden_active: bool = false;
 
 var separator_hidden: bool = false;
 
+/// Where the leftmost link stood before the widening, and how far it has to
+/// travel. `settleCollapse` compares against these to see whether the system
+/// took the widths it was handed.
+var collapse_origin: f64 = 0;
+var collapse_travel: f64 = 0;
+var collapse_limit: f64 = 0;
+var collapse_settled: bool = true;
+var settle_attempts: u8 = 0;
+
 var auto_collapse_delay: u32 = 0;
 var auto_collapse_timer_active: bool = false;
 var last_expand_ns: ?u64 = null;
@@ -165,14 +188,25 @@ var toggle_debounce_active: bool = false;
 var toggle_debounce_ns: ?u64 = null;
 const DEBOUNCE_INTERVAL_NS: u64 = 300_000_000;
 
-const LENGTH_VARIABLE: f64 = -1.0;
 const SEPARATOR_LENGTH: f64 = 20.0; // matches Hidden's btnHiddenLength
-/// Smallest widening worth attempting. Below this the marker is a fat button
-/// rather than a divider, and nothing meaningful moves off the bar.
-const MIN_COLLAPSE_WIDTH: f64 = 200.0;
 
-const CHEVRON_COLLAPSE = "\xE2\x80\xB9"; // ‹
-const CHEVRON_EXPAND = "\xE2\x80\xBA"; // ›
+/// How many items the widening is spread across.
+///
+/// A chain never has to travel further than the width of the display. Four
+/// links means the job is still possible once `settleCollapse` has backed the
+/// per-link width down to a quarter of the display, which is well below any
+/// refusal seen in practice.
+const MARKER_COUNT = 4;
+
+/// Positions are remembered per name, so these have to stay stable across
+/// releases or everyone's arrangement resets.
+const autosaveNames = [MARKER_COUNT][]const u8{ "craft_menubar_marker", "craft_menubar_link_1", "craft_menubar_link_2", "craft_menubar_link_3" };
+
+/// How much narrower to go on each retry, and how many retries to allow before
+/// settling for whatever was achieved.
+const LIMIT_BACKOFF: f64 = 0.75;
+const MAX_SETTLE_ATTEMPTS: u8 = 6;
+
 const SEPARATOR_DOT = "\xC2\xB7"; // ·
 
 /// NSEvent types and masks. A status button reports left clicks only unless it
@@ -188,14 +222,14 @@ const NSEventModifierFlagControl: usize = 1 << 18;
 // Public API
 // ============================================================================
 
-/// Called from tray.zig BEFORE the tray item is created.
-/// Creates the expand/collapse toggle button (rightmost, always visible).
+/// Called from tray.zig before the tray item is created, to register the click
+/// target the markers share.
 pub fn earlyInit() void {
     if (builtin.target.os.tag != .macos) return;
     if (early_initialized) return;
 
     if (comptime builtin.mode == .debug)
-        std.debug.print("[Menubar] earlyInit — creating toggle button (rightmost)...\n", .{});
+        std.debug.print("[Menubar] earlyInit — registering click target...\n", .{});
 
     if (!class_registered) {
         const NSObject = getClass("NSObject");
@@ -223,21 +257,10 @@ pub fn earlyInit() void {
         class_registered = true;
     }
 
-    // Create the toggle button (rightmost, NEVER changes width)
-    expand_collapse_btn = msgSend1(getSystemStatusBar(), "statusItemWithLength:", LENGTH_VARIABLE);
-    _ = msgSend0(expand_collapse_btn, "retain");
-    msgSendVoid1(expand_collapse_btn, "setAutosaveName:", createNSString("barista_expandcollapse"));
-
-    const btn = msgSend0(expand_collapse_btn, "button");
-    if (btn != null) {
-        msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_COLLAPSE));
-        routeClicks(btn);
-    }
-
     early_initialized = true;
 
     if (comptime builtin.mode == .debug)
-        std.debug.print("[Menubar] earlyInit done — toggle button created\n", .{});
+        std.debug.print("[Menubar] earlyInit done\n", .{});
 }
 
 /// Called after tray is created. Creates the separator (the width-changer).
@@ -256,13 +279,22 @@ pub fn init() void {
         }
     }
 
-    // Create the separator (to LEFT of tray icon — THIS does the width expansion)
-    separator_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", SEPARATOR_LENGTH);
-    _ = msgSend0(separator_item, "retain");
-    msgSendVoid1(separator_item, "setAutosaveName:", createNSString("barista_separate"));
-
-    drawMarker(separator_item, false);
-    routeClicks(msgSend0(separator_item, "button"));
+    // The system drops each new status item to the left of the ones already
+    // there, so the chain is built back to front — helpers first, `·` last —
+    // which lands the `·` leftmost of ours on a first run, with the helpers
+    // tucked between it and the tray icon. Only on a first run, though: a
+    // position is remembered per autosave name, so once the user drags things
+    // around the order is theirs. `travelToClearBar` does not assume it.
+    var i: usize = MARKER_COUNT;
+    while (i > 0) {
+        i -= 1;
+        markers[i] = msgSend1(getSystemStatusBar(), "statusItemWithLength:", restingWidth(i));
+        _ = msgSend0(markers[i], "retain");
+        msgSendVoid1(markers[i], "setAutosaveName:", createNSString(autosaveNames[i]));
+        if (i == 0) drawMarker(markers[i], false);
+        routeClicks(msgSend0(markers[i], "button"));
+        suppressHighlight(markers[i]);
+    }
 
     is_initialized = true;
     is_collapsed = false;
@@ -278,25 +310,30 @@ pub fn collapse() void {
         if (!is_initialized) return;
     }
     if (is_collapsed) return;
-    if (separator_item == null) return;
+    if (separatorItem() == null) return;
 
-    // Widen the separator so everything to its LEFT is pushed off-screen. The
-    // toggle button and tray icon sit to its RIGHT and stay visible.
-    setMarkerWidened(separator_item, true);
-
-    // Show › on the toggle button
-    if (expand_collapse_btn != null) {
-        const btn = msgSend0(expand_collapse_btn, "button");
-        if (btn != null) {
-            msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_EXPAND));
-        }
-    }
+    // Carry the chain off the front of the bar; everything to its left travels
+    // with it. No single item can stretch that far — past some width the system
+    // ignores the request rather than trimming it down — so the distance is
+    // shared out, each link taking a slice and the rest passing down the chain.
+    //
+    // That refusal width is not documented and is not a fixed fraction of the
+    // display: 1262pt was accepted on a 2560pt bar with one link widening and
+    // refused on the same bar with two. So the first attempt is a guess and
+    // `settleCollapse` checks, on the next turn of the run loop, whether the
+    // bar actually moved — retrying with narrower slices until it does.
+    collapse_origin = leftmostMarkerX();
+    collapse_travel = collapse_origin + SEPARATOR_LENGTH;
+    collapse_limit = screenWidth() / 2 - SEPARATOR_LENGTH;
+    collapse_settled = false;
+    settle_attempts = 0;
+    applyWidening(collapse_limit);
 
     is_collapsed = true;
     auto_collapse_timer_active = false;
 
     if (comptime builtin.mode == .debug)
-        std.debug.print("[Menubar] Collapsed — separator expanded, button shows ›\n", .{});
+        std.debug.print("[Menubar] Collapsed\n", .{});
     notifyJS();
 }
 
@@ -307,22 +344,17 @@ pub fn expand() void {
         if (!is_initialized) return;
     }
     if (!is_collapsed) return;
-    if (separator_item == null) return;
+    if (separatorItem() == null) return;
 
-    // Shrink the separator back, which brings its `·` marker back with it
-    setMarkerWidened(separator_item, false);
+    // Shrink the chain back, which brings the hidden items along with it.
+    collapse_settled = true;
+    for (markers, 0..) |marker, index| {
+        setMarkerWidth(marker, restingWidth(index));
+    }
 
     // Keep always-hidden items off-screen
     if (always_hidden_enabled and always_hidden_item != null and !always_hidden_active) {
         activateAlwaysHidden();
-    }
-
-    // Show ‹ on the toggle button
-    if (expand_collapse_btn != null) {
-        const btn = msgSend0(expand_collapse_btn, "button");
-        if (btn != null) {
-            msgSendVoid1(btn, "setTitle:", createNSString(CHEVRON_COLLAPSE));
-        }
     }
 
     is_collapsed = false;
@@ -332,7 +364,7 @@ pub fn expand() void {
     }
 
     if (comptime builtin.mode == .debug)
-        std.debug.print("[Menubar] Expanded — separator shrunk, button shows ‹\n", .{});
+        std.debug.print("[Menubar] Expanded\n", .{});
     notifyJS();
 }
 
@@ -370,6 +402,8 @@ pub fn setAutoCollapse(delay_seconds: u32) void {
 }
 
 pub fn checkAutoCollapse() void {
+    settleCollapse();
+
     if (toggle_debounce_active) {
         if (toggle_debounce_ns) |start| {
             if (nanoTimestamp()) |now| {
@@ -454,7 +488,7 @@ pub fn setSeparatorHidden(hidden: bool) void {
     if (builtin.target.os.tag != .macos) return;
     separator_hidden = hidden;
 
-    drawMarker(separator_item, is_collapsed);
+    drawMarker(separatorItem(), is_collapsed);
     if (always_hidden_enabled) drawMarker(always_hidden_item, always_hidden_active);
 }
 
@@ -498,36 +532,81 @@ fn drawMarker(item: objc.id, widened: bool) void {
 /// Hidden Bar trick ask for a flat 10,000pt, which lands past the cap on every
 /// display this was measured on and so hides nothing.
 ///
-/// The width has to be set before the title: a status button sizes itself to
-/// its own content, and touching the title first makes AppKit relayout against
-/// the old length, which loses the widening.
-fn setMarkerWidened(item: objc.id, widened: bool) void {
+/// Set a marker's width, and draw its `·` only at its resting size — a widened
+/// marker spans most of the bar, so a dot centred in it would float somewhere
+/// out in the empty space.
+///
+/// The width goes on before the title: a status button sizes itself to its own
+/// content, so touching the title first makes AppKit lay the button out against
+/// the width it had before, and the change is lost.
+fn setMarkerWidth(item: objc.id, width: f64) void {
     if (item == null) return;
-
-    msgSendVoid1(item, "setLength:", if (widened) collapseWidth(item) else SEPARATOR_LENGTH);
-    drawMarker(item, widened);
+    msgSendVoid1(item, "setLength:", width);
+    if (item == separatorItem()) drawMarker(item, width > SEPARATOR_LENGTH);
 }
 
-/// How wide to ask a marker to become.
-///
-/// Enough to carry the marker's left edge off the front of the bar, which is
-/// what drags the items to its left off with it — but never past the cap, since
-/// an over-cap request is discarded rather than clamped and hides nothing.
-fn collapseWidth(item: objc.id) f64 {
-    // Measured on a 2560pt bar: 1260 was honoured and 1400 was not, so the
-    // ceiling is half the display. The item is laid out a couple of points
-    // wider than the length it is given, hence the margin.
-    const cap = screenWidth() / 2 - SEPARATOR_LENGTH;
-    const wanted = (markerOriginX(item) orelse cap) + SEPARATOR_LENGTH;
+/// Hand each link a slice of the remaining distance, none wider than `limit`.
+/// Links with nothing left to carry drop to their resting width, which also
+/// undoes anything left over from an earlier, wider attempt.
+fn applyWidening(limit: f64) void {
+    var remaining = collapse_travel;
+    for (markers, 0..) |marker, index| {
+        const share = @max(@min(remaining, limit), 0);
+        setMarkerWidth(marker, @max(share, restingWidth(index)));
+        remaining -= share;
+    }
+}
 
-    if (wanted > cap) return cap;
-    return if (wanted > MIN_COLLAPSE_WIDTH) wanted else MIN_COLLAPSE_WIDTH;
+/// Check whether the widening took, and narrow the slices if it did not.
+///
+/// The system resizes status item windows asynchronously, so this has to run a
+/// turn of the run loop after the widths were set — never straight after them,
+/// where the frames still read as they did before.
+fn settleCollapse() void {
+    if (collapse_settled or !is_collapsed) return;
+
+    const moved = collapse_origin - leftmostMarkerX();
+    if (moved >= collapse_travel - SEPARATOR_LENGTH) {
+        collapse_settled = true;
+        if (comptime builtin.mode == .debug)
+            std.debug.print("[Menubar] Settled — moved {d}pt of {d}pt\n", .{ moved, collapse_travel });
+        return;
+    }
+
+    settle_attempts += 1;
+    if (settle_attempts >= MAX_SETTLE_ATTEMPTS) {
+        collapse_settled = true;
+        log.debug("menu bar collapse fell short: moved {d}pt of {d}pt", .{ moved, collapse_travel });
+        return;
+    }
+
+    // Never go below what the chain needs to cover the distance between them.
+    const floor = collapse_travel / @as(f64, MARKER_COUNT);
+    collapse_limit = @max(collapse_limit * LIMIT_BACKOFF, floor);
+    applyWidening(collapse_limit);
+}
+
+fn leftmostMarkerX() f64 {
+    var leftmost: f64 = screenWidth();
+    for (markers) |marker| {
+        const x = markerOriginX(marker) orelse continue;
+        if (x < leftmost) leftmost = x;
+    }
+    return leftmost;
+}
+
+/// What a link is worth when it is not carrying anything: a visible divider for
+/// the `·`, and nothing at all for the helpers, so the user sees one marker in
+/// the bar rather than three.
+fn restingWidth(index: usize) f64 {
+    return if (index == 0) SEPARATOR_LENGTH else 0;
 }
 
 /// The x of the marker's own status window. Read before widening: the system
 /// resizes status item windows asynchronously, so a frame read straight after a
 /// `setLength:` still reports the old geometry.
 fn markerOriginX(item: objc.id) ?f64 {
+    if (item == null) return null;
     const button = msgSend0(item, "button");
     if (button == null) return null;
     const window = msgSend0(button, "window");
@@ -537,18 +616,30 @@ fn markerOriginX(item: objc.id) ?f64 {
 
 fn screenWidth() f64 {
     const screen = msgSend0(getClass("NSScreen"), "mainScreen");
-    if (screen == null) return MIN_COLLAPSE_WIDTH * 2;
-    const width = msgSendRect(screen, "frame").size.width;
-    return if (width > MIN_COLLAPSE_WIDTH * 2) width else MIN_COLLAPSE_WIDTH * 2;
+    if (screen == null) return 0;
+    return msgSendRect(screen, "frame").size.width;
+}
+
+/// A status button flashes a highlight behind itself while pressed. Across a
+/// widened marker that is a slab of colour over half the menu bar, so the
+/// markers opt out of it and stay invisible whether or not they are being
+/// clicked.
+fn suppressHighlight(item: objc.id) void {
+    if (item == null) return;
+    const button = msgSend0(item, "button");
+    if (button == null) return;
+    const cell = msgSend0(button, "cell");
+    if (cell == null) return;
+    msgSendVoid1(cell, "setHighlightsBy:", @as(c_ulong, 0));
 }
 
 fn activateAlwaysHidden() void {
-    setMarkerWidened(always_hidden_item, true);
+    setMarkerWidth(always_hidden_item, screenWidth() / 2 - SEPARATOR_LENGTH);
     if (always_hidden_item != null) always_hidden_active = true;
 }
 
 fn deactivateAlwaysHidden() void {
-    setMarkerWidened(always_hidden_item, false);
+    setMarkerWidth(always_hidden_item, SEPARATOR_LENGTH);
     if (always_hidden_item != null) always_hidden_active = false;
 }
 
