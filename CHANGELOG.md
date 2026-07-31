@@ -1,5 +1,20 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.56...v0.0.57)
+
+## 🚀 Features
+
+- **focus**: add a sandbox-legal strategy for running Focus shortcuts ([9dcdbfe](https://github.com/home-lang/craft/commit/9dcdbfe)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **cli**: read Contents/Resources/craft.json so craft can be the app executable ([80eb4d8](https://github.com/home-lang/craft/commit/80eb4d8)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.57 ([bd631d6](https://github.com/home-lang/craft/commit/bd631d6)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.55...v0.0.56)
 
 ## 🚀 Features
