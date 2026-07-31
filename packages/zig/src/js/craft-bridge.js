@@ -1132,7 +1132,10 @@
         }
       })
     },
-    setAutoCollapse:       function (s)     { return _send('menubarCollapse', 'setAutoCollapse', String(!!s)) },
+    // Seconds to wait before tidying up again, or 0 to leave the bar alone.
+    // The native side parses this as a number: coercing it to a boolean here
+    // sent "true", which parsed as 0 and quietly switched the feature off.
+    setAutoCollapse:       function (s)     { return _send('menubarCollapse', 'setAutoCollapse', String(Math.max(0, Math.trunc(Number(s) || 0)))) },
     enableAlwaysHidden:    function ()      { return _send('menubarCollapse', 'enableAlwaysHidden') },
     disableAlwaysHidden:   function ()      { return _send('menubarCollapse', 'disableAlwaysHidden') },
     setSeparatorHidden:    function (h)     { return _send('menubarCollapse', 'setSeparatorHidden', h ? 'true' : 'false') },
