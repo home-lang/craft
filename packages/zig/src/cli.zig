@@ -53,7 +53,7 @@ fn debugPrint(comptime fmt: []const u8, args: anytype) void {
 
 /// Release every string inside `options` that was allocated by `parseArgs`.
 /// `title` defaults to a string literal, so only free it if it was replaced.
-fn freeOptionStrings(allocator: std.mem.Allocator, options: *WindowOptions) void {
+pub fn freeOptionStrings(allocator: std.mem.Allocator, options: *WindowOptions) void {
     if (options.url) |s| allocator.free(s);
     if (options.html) |s| allocator.free(s);
     if (!std.mem.eql(u8, options.title, "Craft App")) allocator.free(options.title);

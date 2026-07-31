@@ -20,6 +20,14 @@ pub fn main(init: std.process.Init) !void {
         std.process.exit(1);
     };
 
+    // parseArgs dupes every string option, and until now nothing freed them on
+    // a successful run — invisible while `app.run()` never returned, but the
+    // moment a path exits (benchmark mode) the allocator reports the leak.
+    defer {
+        var owned = options;
+        cli.freeOptionStrings(allocator, &owned);
+    }
+
     // In benchmark mode, disable dev_tools for lower overhead
     const effective_dev_tools = if (options.benchmark) false else options.dev_tools;
 
@@ -417,6 +425,15 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
     // IMPORTANT: We must show windows even in menubar-only mode to trigger WebView loading
     // Without this, the WebView won't load its HTML/JavaScript content
     app.showWindows();
+
+    // Benchmark mode measures time-to-ready and exits. The windowed paths
+    // already honour it; the tray path did not, so `--benchmark` on a menubar
+    // app ran the event loop forever — which is exactly the shape of a CI
+    // smoke test, and it hung instead of reporting.
+    if (options.benchmark) {
+        std.debug.print("ready\n", .{});
+        return;
+    }
 
     try app.run();
 }
