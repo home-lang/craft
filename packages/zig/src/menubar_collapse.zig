@@ -16,8 +16,6 @@
 //! affordance: a separate always-visible toggle button would be one more item
 //! in a bar the user is trying to empty, and — being just another status item —
 //! could itself end up left of the boundary and vanish with everything else.
-//! An optional second marker adds a group that stays tucked away even while the
-//! rest is expanded.
 //!
 //! Three things about the growing are easy to get wrong, and each of them looks
 //! like the feature doing nothing at all:
@@ -168,15 +166,10 @@ var tray_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var click_target: objc.id = if (builtin.target.os.tag == .macos) null else null;
 var class_registered: bool = false;
 
-// Always-hidden section — matches Hidden's btnAlwaysHidden
-var always_hidden_item: objc.id = if (builtin.target.os.tag == .macos) null else null;
-var always_hidden_enabled: bool = false;
-var always_hidden_active: bool = false;
-
 var separator_hidden: bool = false;
 
 /// A marker being widened, and the bookkeeping needed to find out how far it
-/// was allowed to go. Both the `|` and the always-hidden marker use one.
+/// was allowed to go.
 const Widening = struct {
     /// Where the marker stood before it started growing.
     origin: f64 = 0,
@@ -242,7 +235,6 @@ const Widening = struct {
 };
 
 var collapse_widening: Widening = .{};
-var always_hidden_widening: Widening = .{};
 
 var auto_collapse_delay: u32 = 0;
 var auto_collapse_timer_active: bool = false;
@@ -418,11 +410,6 @@ pub fn expand() void {
     collapse_widening.reset();
     setMarkerWidth(separator_item, SEPARATOR_LENGTH);
 
-    // Keep always-hidden items off-screen
-    if (always_hidden_enabled and always_hidden_item != null and !always_hidden_active) {
-        activateAlwaysHidden();
-    }
-
     is_collapsed = false;
     last_expand_ns = nanoTimestamp();
     if (auto_collapse_delay > 0) {
@@ -444,8 +431,6 @@ pub fn toggle() void {
 }
 
 pub fn cleanup() void {
-    if (always_hidden_active) deactivateAlwaysHidden();
-    always_hidden_enabled = false;
     if (is_collapsed) expand();
 }
 
@@ -494,59 +479,6 @@ pub fn checkAutoCollapse() void {
 }
 
 // ============================================================================
-// Always-Hidden Section
-// ============================================================================
-
-pub fn enableAlwaysHidden() void {
-    if (builtin.target.os.tag != .macos) return;
-    if (always_hidden_enabled) return;
-    if (!is_initialized) {
-        init();
-        if (!is_initialized) return;
-    }
-
-    always_hidden_item = msgSend1(getSystemStatusBar(), "statusItemWithLength:", SEPARATOR_LENGTH);
-    _ = msgSend0(always_hidden_item, "retain");
-    msgSendVoid1(always_hidden_item, "setAutosaveName:", createNSString("barista_always_hidden"));
-
-    drawMarker(always_hidden_item, false);
-    routeClicks(msgSend0(always_hidden_item, "button"));
-
-    always_hidden_enabled = true;
-
-    if (!is_collapsed) {
-        activateAlwaysHidden();
-    }
-
-    if (comptime builtin.mode == .debug)
-        std.debug.print("[Menubar] Always-hidden section enabled\n", .{});
-    notifyJS();
-}
-
-pub fn disableAlwaysHidden() void {
-    if (builtin.target.os.tag != .macos) return;
-    if (!always_hidden_enabled) return;
-
-    if (always_hidden_active) deactivateAlwaysHidden();
-
-    if (always_hidden_item != null) {
-        msgSendVoid1(getSystemStatusBar(), "removeStatusItem:", always_hidden_item);
-        _ = msgSend0(always_hidden_item, "release");
-        always_hidden_item = null;
-    }
-
-    always_hidden_enabled = false;
-
-    if (comptime builtin.mode == .debug)
-        std.debug.print("[Menubar] Always-hidden section disabled\n", .{});
-    notifyJS();
-}
-
-pub fn isAlwaysHiddenEnabled() bool {
-    return always_hidden_enabled;
-}
-
-// ============================================================================
 // Separator Visibility
 // ============================================================================
 
@@ -555,7 +487,6 @@ pub fn setSeparatorHidden(hidden: bool) void {
     separator_hidden = hidden;
 
     drawMarker(separator_item, is_collapsed);
-    if (always_hidden_enabled) drawMarker(always_hidden_item, always_hidden_active);
 }
 
 pub fn isSeparatorHidden() bool {
@@ -631,11 +562,6 @@ fn settleCollapse() void {
         log.debug("menu bar collapse: no room to tuck anything away — restoring", .{});
         expand();
     }
-
-    if (always_hidden_active and !always_hidden_widening.settle(always_hidden_item)) {
-        log.debug("always-hidden section: no room — leaving it visible", .{});
-        deactivateAlwaysHidden();
-    }
 }
 
 /// The x of the marker's own status window. Read before widening: the system
@@ -667,17 +593,6 @@ fn suppressHighlight(item: objc.id) void {
     const cell = msgSend0(button, "cell");
     if (cell == null) return;
     msgSendVoid1(cell, "setHighlightsBy:", @as(c_ulong, 0));
-}
-
-fn activateAlwaysHidden() void {
-    always_hidden_widening.begin(always_hidden_item);
-    if (always_hidden_item != null) always_hidden_active = true;
-}
-
-fn deactivateAlwaysHidden() void {
-    always_hidden_widening.reset();
-    setMarkerWidth(always_hidden_item, SEPARATOR_LENGTH);
-    if (always_hidden_item != null) always_hidden_active = false;
 }
 
 fn nanoTimestamp() ?u64 {
@@ -716,9 +631,8 @@ fn showTrayMenu(view: objc.id) void {
 fn notifyJS() void {
     const macos = @import("macos.zig");
     var buf: [320]u8 = undefined;
-    const js = std.fmt.bufPrint(&buf, "window.dispatchEvent(new CustomEvent('craft:menubar:stateChange',{{detail:{{collapsed:{s},alwaysHiddenEnabled:{s},separatorHidden:{s}}}}}));", .{
+    const js = std.fmt.bufPrint(&buf, "window.dispatchEvent(new CustomEvent('craft:menubar:stateChange',{{detail:{{collapsed:{s},separatorHidden:{s}}}}}));", .{
         if (is_collapsed) "true" else "false",
-        if (always_hidden_enabled) "true" else "false",
         if (separator_hidden) "true" else "false",
     }) catch return;
     macos.tryEvalJS(js) catch |err| {

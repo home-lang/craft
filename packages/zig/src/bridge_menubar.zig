@@ -31,13 +31,11 @@ pub const MenubarCollapseBridge = struct {
             // Return current state via JS callback
             const collapsed = menubar_collapse.isCollapsed();
             const initialized = menubar_collapse.isInitialized();
-            const ah_enabled = menubar_collapse.isAlwaysHiddenEnabled();
             const sep_hidden = menubar_collapse.isSeparatorHidden();
             var buf: [384]u8 = undefined;
-            const js = std.fmt.bufPrint(&buf, "window.__craftBridgeResult('menubarCollapse:getState',{{collapsed:{s},initialized:{s},alwaysHiddenEnabled:{s},separatorHidden:{s}}});", .{
+            const js = std.fmt.bufPrint(&buf, "window.__craftBridgeResult('menubarCollapse:getState',{{collapsed:{s},initialized:{s},separatorHidden:{s}}});", .{
                 if (collapsed) "true" else "false",
                 if (initialized) "true" else "false",
-                if (ah_enabled) "true" else "false",
                 if (sep_hidden) "true" else "false",
             }) catch return;
             const bridge = @import("bridge.zig");
@@ -50,10 +48,6 @@ pub const MenubarCollapseBridge = struct {
                 const delay = std.fmt.parseInt(u32, data, 10) catch 0;
                 menubar_collapse.setAutoCollapse(delay);
             }
-        } else if (std.mem.eql(u8, action, "enableAlwaysHidden")) {
-            menubar_collapse.enableAlwaysHidden();
-        } else if (std.mem.eql(u8, action, "disableAlwaysHidden")) {
-            menubar_collapse.disableAlwaysHidden();
         } else if (std.mem.eql(u8, action, "setSeparatorHidden")) {
             const hidden = data.len > 0 and std.mem.eql(u8, data, "true");
             menubar_collapse.setSeparatorHidden(hidden);
