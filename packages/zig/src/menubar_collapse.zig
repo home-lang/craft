@@ -520,6 +520,7 @@ fn drawMarker(item: objc.id, widened: bool) void {
 
     const visible = !widened and !separator_hidden;
     msgSendVoid1(button, "setTitle:", createNSString(if (visible) MARKER_GLYPH else ""));
+    clearHighlight(button);
 }
 
 /// Widen a marker as far as the system will let it, pushing the items to its
@@ -587,12 +588,22 @@ fn screenWidth() f64 {
 /// markers opt out of it and stay invisible whether or not they are being
 /// clicked.
 fn suppressHighlight(item: objc.id) void {
-    if (item == null) return;
-    const button = msgSend0(item, "button");
+    clearHighlight(msgSend0(item, "button"));
+}
+
+/// Take the pressed look back off a status button.
+///
+/// AppKit lights one up on mouse-down and leaves it lit for as long as it
+/// assumes a menu is open. These buttons run an action instead, so nothing ever
+/// comes along to put it out, and the marker sits there as a lozenge of
+/// highlight in the middle of the bar. Telling the cell not to highlight is not
+/// enough on its own — the state is already set by the time the action runs.
+fn clearHighlight(button: objc.id) void {
     if (button == null) return;
+
     const cell = msgSend0(button, "cell");
-    if (cell == null) return;
-    msgSendVoid1(cell, "setHighlightsBy:", @as(c_ulong, 0));
+    if (cell != null) msgSendVoid1(cell, "setHighlightsBy:", @as(c_ulong, 0));
+    msgSendVoid1(button, "setHighlighted:", @as(c_int, 0));
 }
 
 fn nanoTimestamp() ?u64 {
@@ -648,6 +659,7 @@ fn toggleClicked(_: objc.id, _: objc.SEL, sender: objc.id) callconv(.c) void {
     const event = msgSend0(NSApp, "currentEvent");
     if (wantsMenu(event)) {
         if (sender != null) showTrayMenu(sender);
+        clearHighlight(sender);
         return;
     }
 
@@ -663,4 +675,5 @@ fn toggleClicked(_: objc.id, _: objc.SEL, sender: objc.id) callconv(.c) void {
     toggle_debounce_ns = nanoTimestamp();
 
     toggle();
+    clearHighlight(sender);
 }
