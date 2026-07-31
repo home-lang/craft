@@ -1,5 +1,29 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.55...v0.0.56)
+
+## 🚀 Features
+
+- **cli**: add --html-file for loading a document from disk ([ae62e7d](https://github.com/home-lang/craft/commit/ae62e7d)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **focus**: add Focus/DND and screen-sharing detection bridges ([9d74e1b](https://github.com/home-lang/craft/commit/9d74e1b)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🐛 Bug Fixes
+
+- **menubar**: make collapsing actually hide items ([5ff5190](https://github.com/home-lang/craft/commit/5ff5190)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **bridge**: restore parameter names and payload keys in the JS facade ([b0d1c62](https://github.com/home-lang/craft/commit/b0d1c62)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 📚 Documentation
+
+- **focus**: type and document the focus and screenSharing bridges ([4a09fee](https://github.com/home-lang/craft/commit/4a09fee)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.56 ([439e51f](https://github.com/home-lang/craft/commit/439e51f)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.54...v0.0.55)
 
 ## 🚀 Features
