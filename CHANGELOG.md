@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.57...v0.0.58)
+
+## 🐛 Bug Fixes
+
+- **cli**: honour --benchmark in the system-tray path, and free parsed options ([9e5fe86](https://github.com/home-lang/craft/commit/9e5fe86)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.58 ([3523c8b](https://github.com/home-lang/craft/commit/3523c8b)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.56...v0.0.57)
 
 ## 🚀 Features
