@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub const WindowOptions = struct {
     url: ?[]const u8 = null,
@@ -97,6 +98,210 @@ fn readHtmlFile(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
     return buf;
 }
 
+/// Read a whole file, subject to the same size ceiling as `--html-file`.
+fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
+    return readHtmlFile(allocator, path);
+}
+
+// =============================================================================
+// Bundle configuration
+// =============================================================================
+
+/// `Contents/Resources/craft.json` — the manifest a packaged app describes
+/// itself with.
+///
+/// A packaged app has nowhere to put command-line arguments: `LaunchServices`
+/// starts `CFBundleExecutable` with none. The workaround has been to make the
+/// bundle's executable a shell script that re-execs the real binary with flags,
+/// but that costs a process, breaks on any path with a space, and — decisively
+/// — is not something the Mac App Store accepts, because `CFBundleExecutable`
+/// has to be a Mach-O image.
+///
+/// With this, craft *is* the executable. It reads the manifest sitting beside
+/// it and configures itself, so the bundle contains exactly one program.
+const BundleConfig = struct {
+    /// Document to load, relative to `Resources/` (or absolute).
+    html: ?[]const u8 = null,
+    url: ?[]const u8 = null,
+    title: ?[]const u8 = null,
+    width: ?u32 = null,
+    height: ?u32 = null,
+    icon: ?[]const u8 = null,
+    frameless: ?bool = null,
+    transparent: ?bool = null,
+    alwaysOnTop: ?bool = null,
+    resizable: ?bool = null,
+    fullscreen: ?bool = null,
+    devTools: ?bool = null,
+    darkMode: ?bool = null,
+    systemTray: ?bool = null,
+    hideDockIcon: ?bool = null,
+    menubarOnly: ?bool = null,
+    titlebarHidden: ?bool = null,
+};
+
+/// Absolute path of the running executable's directory.
+///
+/// `std` has no self-exe helper in this Zig version, so this goes straight to
+/// the platform call. macOS-only for now: it is the only platform with a bundle
+/// layout to resolve against.
+fn selfExeDir(allocator: std.mem.Allocator) ?[]const u8 {
+    if (comptime builtin.os.tag != .macos) return null;
+
+    var size: u32 = 0;
+    _ = _NSGetExecutablePath(undefined, &size); // returns -1, sets required size
+    if (size == 0 or size > 8192) return null;
+
+    const buf = allocator.alloc(u8, size) catch return null;
+    defer allocator.free(buf);
+    if (_NSGetExecutablePath(buf.ptr, &size) != 0) return null;
+
+    const exe_path = std.mem.sliceTo(buf, 0);
+    const dir = std.fs.path.dirname(exe_path) orelse return null;
+    return allocator.dupe(u8, dir) catch null;
+}
+
+extern "c" fn _NSGetExecutablePath(buf: [*]u8, bufsize: *u32) c_int;
+
+/// Load `../Resources/craft.json` relative to the executable, if it is there.
+///
+/// Returns options with only the manifest's fields set; `parseArgs` layers the
+/// command line on top, so an argument always wins over the manifest.
+fn loadBundleConfig(allocator: std.mem.Allocator) ?WindowOptions {
+    if (comptime builtin.os.tag != .macos) return null;
+
+    const exe_dir = selfExeDir(allocator) orelse return null;
+    defer allocator.free(exe_dir);
+
+    const resources = std.fs.path.join(allocator, &.{ exe_dir, "..", "Resources" }) catch return null;
+    defer allocator.free(resources);
+
+    const config_path = std.fs.path.join(allocator, &.{ resources, "craft.json" }) catch return null;
+    defer allocator.free(config_path);
+
+    const source = readFileAlloc(allocator, config_path) catch return null;
+    defer allocator.free(source);
+
+    const parsed = std.json.parseFromSlice(BundleConfig, allocator, source, .{
+        .ignore_unknown_fields = true,
+        .allocate = .alloc_always,
+    }) catch |err| {
+        // A manifest that is present but malformed is a packaging mistake, and
+        // silently opening a default window would hide it.
+        std.debug.print("craft: ignoring malformed {s}: {t}\n", .{ config_path, err });
+        return null;
+    };
+    defer parsed.deinit();
+    const cfg = parsed.value;
+
+    var options = WindowOptions{};
+
+    if (cfg.html) |rel| {
+        const doc_path = if (std.fs.path.isAbsolute(rel))
+            allocator.dupe(u8, rel) catch return null
+        else
+            std.fs.path.join(allocator, &.{ resources, rel }) catch return null;
+        defer allocator.free(doc_path);
+
+        options.html = readFileAlloc(allocator, doc_path) catch |err| blk: {
+            std.debug.print("craft: could not read {s}: {t}\n", .{ doc_path, err });
+            break :blk null;
+        };
+    }
+    if (cfg.url) |v| options.url = allocator.dupe(u8, v) catch null;
+    if (cfg.title) |v| options.title = allocator.dupe(u8, v) catch options.title;
+    if (cfg.icon) |v| options.icon = allocator.dupe(u8, v) catch null;
+    applyScalarConfig(cfg, &options);
+
+    return options;
+}
+
+/// Copy the manifest's non-allocating fields onto `options`.
+///
+/// Split out from `loadBundleConfig` so the mapping — including the way
+/// `menubarOnly` implies the tray and a hidden dock icon — is testable without
+/// a bundle on disk.
+fn applyScalarConfig(cfg: BundleConfig, options: *WindowOptions) void {
+    if (cfg.width) |v| options.width = v;
+    if (cfg.height) |v| options.height = v;
+    if (cfg.frameless) |v| options.frameless = v;
+    if (cfg.transparent) |v| options.transparent = v;
+    if (cfg.alwaysOnTop) |v| options.always_on_top = v;
+    if (cfg.resizable) |v| options.resizable = v;
+    if (cfg.fullscreen) |v| options.fullscreen = v;
+    if (cfg.devTools) |v| options.dev_tools = v;
+    if (cfg.darkMode) |v| options.dark_mode = v;
+    if (cfg.systemTray) |v| options.system_tray = v;
+    if (cfg.hideDockIcon) |v| options.hide_dock_icon = v;
+    if (cfg.titlebarHidden) |v| options.titlebar_hidden = v;
+    // A menubar app with a dock icon and no tray is not a menubar app, so the
+    // one flag sets all three rather than making every manifest repeat them.
+    if (cfg.menubarOnly) |v| {
+        if (v) {
+            options.menubar_only = true;
+            options.system_tray = true;
+            options.hide_dock_icon = true;
+        }
+    }
+}
+
+test "applyScalarConfig leaves untouched fields at their defaults" {
+    var options = WindowOptions{};
+    applyScalarConfig(.{ .width = 400 }, &options);
+    try std.testing.expectEqual(@as(u32, 400), options.width);
+    try std.testing.expectEqual(@as(u32, 800), options.height);
+    try std.testing.expect(options.resizable);
+    try std.testing.expect(!options.system_tray);
+}
+
+test "menubarOnly implies the tray and a hidden dock icon" {
+    var options = WindowOptions{};
+    applyScalarConfig(.{ .menubarOnly = true }, &options);
+    try std.testing.expect(options.menubar_only);
+    try std.testing.expect(options.system_tray);
+    try std.testing.expect(options.hide_dock_icon);
+}
+
+test "menubarOnly false does not force the tray off" {
+    // `systemTray: true, menubarOnly: false` is a real combination — a tray app
+    // that also keeps its dock icon.
+    var options = WindowOptions{};
+    applyScalarConfig(.{ .menubarOnly = false, .systemTray = true }, &options);
+    try std.testing.expect(!options.menubar_only);
+    try std.testing.expect(options.system_tray);
+    try std.testing.expect(!options.hide_dock_icon);
+}
+
+test "a manifest parses into the fields it names and no others" {
+    const source =
+        \\{"html":"index.html","title":"Hush","width":340,"height":560,"menubarOnly":true}
+    ;
+    const parsed = try std.json.parseFromSlice(BundleConfig, std.testing.allocator, source, .{
+        .ignore_unknown_fields = true,
+        .allocate = .alloc_always,
+    });
+    defer parsed.deinit();
+
+    try std.testing.expectEqualStrings("index.html", parsed.value.html.?);
+    try std.testing.expectEqual(@as(u32, 340), parsed.value.width.?);
+    try std.testing.expect(parsed.value.menubarOnly.?);
+    // Absent stays null so `parseArgs` keeps craft's default rather than a zero.
+    try std.testing.expect(parsed.value.url == null);
+    try std.testing.expect(parsed.value.devTools == null);
+}
+
+test "unknown manifest keys are ignored rather than failing the launch" {
+    const source =
+        \\{"title":"Hush","somethingNewer":true}
+    ;
+    const parsed = try std.json.parseFromSlice(BundleConfig, std.testing.allocator, source, .{
+        .ignore_unknown_fields = true,
+        .allocate = .alloc_always,
+    });
+    defer parsed.deinit();
+    try std.testing.expectEqualStrings("Hush", parsed.value.title.?);
+}
+
 pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !WindowOptions {
     // First pass: check for --debug flag
     for (args) |arg| {
@@ -112,7 +317,9 @@ pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !Wind
     }
     debugPrint("\n", .{});
 
-    var options = WindowOptions{};
+    // The bundle manifest is the base; every argument below layers on top, so
+    // a command line always wins over what the packaged app declares.
+    var options = loadBundleConfig(allocator) orelse WindowOptions{};
     // If we return an error partway through parsing, free any strings we've
     // already duped. Previously these allocations leaked on the error path
     // (e.g. `--width abc` triggers InvalidNumber with a duped `--title` value
