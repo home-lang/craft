@@ -1,5 +1,23 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.59...v0.0.60)
+
+## 🚀 Features
+
+- **spaces**: native switcher for Arc-style sidebar spaces ([2813a86](https://github.com/home-lang/craft/commit/2813a86)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## ♻️ Code Refactoring
+
+- **sidebar**: one SidebarItem instead of two that disagreed ([0c57dcd](https://github.com/home-lang/craft/commit/0c57dcd)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.60 ([5561d69](https://github.com/home-lang/craft/commit/5561d69)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.58...v0.0.59)
 
 ## 💥 Breaking Changes
