@@ -9,8 +9,8 @@
         "better-dx": "^0.2.15"
       },
       "system": {
-        "bun.sh": "latest",
-        "ziglang.org": "^0.17.0-dev"
+        "bun.sh": "1.3.14",
+        "ziglang.org": "0.17.0-dev.1509_bb296ab9b"
       }
     },
     "benchmarks": {
@@ -267,12 +267,7 @@
         "tsup": "dist/cli-default.js",
         "tsup-node": "dist/cli-node.js"
       },
-      "optionalPeers": [
-        "@microsoft/api-extractor",
-        "@swc/core",
-        "postcss",
-        "typescript"
-      ]
+      "optionalPeers": ["@microsoft/api-extractor", "@swc/core", "postcss", "typescript"]
     },
     "typescript@5.9.3": {
       "name": "typescript",
@@ -331,14 +326,7 @@
       "bin": {
         "vitest": "./vitest.mjs"
       },
-      "optionalPeers": [
-        "@edge-runtime/vm",
-        "@types/node",
-        "@vitest/browser",
-        "@vitest/ui",
-        "happy-dom",
-        "jsdom"
-      ]
+      "optionalPeers": ["@edge-runtime/vm", "@types/node", "@vitest/browser", "@vitest/ui", "happy-dom", "jsdom"]
     },
     "vue@3.5.40": {
       "name": "vue",
@@ -356,9 +344,7 @@
       "peerDependencies": {
         "typescript": "*"
       },
-      "optionalPeers": [
-        "typescript"
-      ]
+      "optionalPeers": ["typescript"]
     },
     "ziglang.org@0.17.0-dev.1509_bb296ab9b": {
       "name": "ziglang.org",

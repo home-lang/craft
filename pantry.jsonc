@@ -1,6 +1,12 @@
 {
   "dependencies": {
-    "bun.sh": "latest",
-    "ziglang.org": "^0.17.0-dev"
+    // Pinned exactly, and deliberately not "latest": 1.4.x writes
+    // `lockfileVersion: 2`, which 1.3.x cannot parse, so "latest" would break
+    // every 1.3-based checkout and CI job the day 1.4.0 publishes. Keep this in
+    // step with deps.yaml.
+    "bun.sh": "1.3.14",
+    // Pinned exactly — `^0.17.0-dev` floats on Zig's dev channel and swaps the
+    // compiler out from under a build. Keep in step with deps.yaml.
+    "ziglang.org": "0.17.0-dev.1509_bb296ab9b"
   }
 }
