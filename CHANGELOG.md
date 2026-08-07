@@ -1,5 +1,42 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.58...v0.0.59)
+
+## 💥 Breaking Changes
+
+- feat(menubar)!: drop the always-hidden section ([1ff0ced](https://github.com/home-lang/craft/commit/1ff0ced)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🚀 Features
+
+- **gestures**: forward real trackpad swipe phases to the webview ([51a5a74](https://github.com/home-lang/craft/commit/51a5a74)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🐛 Bug Fixes
+
+- **menubar**: take the pressed look off the marker after a click ([e528a3c](https://github.com/home-lang/craft/commit/e528a3c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **menubar**: draw the marker as a divider, not a chevron ([26627f8](https://github.com/home-lang/craft/commit/26627f8)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **menubar**: one marker, and the tray icon as the way back ([21ccdaf](https://github.com/home-lang/craft/commit/21ccdaf)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **menubar**: pass the auto-collapse delay as a number ([c326d78](https://github.com/home-lang/craft/commit/c326d78)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **menubar**: never let a collapse take the app's own icon with it ([4c0d7b5](https://github.com/home-lang/craft/commit/4c0d7b5)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **build**: link MIDI in tray tests ([90e9c83](https://github.com/home-lang/craft/commit/90e9c83)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **sidebar**: serialize native navigation URLs ([a04ebe9](https://github.com/home-lang/craft/commit/a04ebe9)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **menubar**: hide items across the whole bar, not one item's worth ([16b63eb](https://github.com/home-lang/craft/commit/16b63eb)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## ♻️ Code Refactoring
+
+- **macos**: one JS injection path for every window ([dd27334](https://github.com/home-lang/craft/commit/dd27334)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 📦 Build System
+
+- **deps**: pin bun and zig to exact versions ([c2b3542](https://github.com/home-lang/craft/commit/c2b3542)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.59 ([3518b84](https://github.com/home-lang/craft/commit/3518b84)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.57...v0.0.58)
 
 ## 🐛 Bug Fixes
