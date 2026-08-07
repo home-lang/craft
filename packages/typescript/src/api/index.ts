@@ -338,3 +338,17 @@ export type {
   SidebarSelectEvent,
   SidebarSearchEvent
 } from './sidebar'
+
+// Gestures API - real trackpad swipe phases from the host's NSEvent
+export {
+  gestures,
+  onSwipe,
+  hasNativeGestures
+} from './gestures'
+export type {
+  SwipeAxis,
+  SwipePhase,
+  SwipeEvent,
+  SwipeListener,
+  Unsubscribe
+} from './gestures'

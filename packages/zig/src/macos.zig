@@ -3668,8 +3668,104 @@ fn getNativeUIScript() []const u8 {
     return @embedFile("js/craft-native-ui.js");
 }
 
+fn getGesturesScript() []const u8 {
+    return @embedFile("js/craft-gestures.js");
+}
+
 fn getNativeSidebarBootstrapScript() []const u8 {
     return native_sidebar_bootstrap.script;
+}
+
+// ============================================================================
+// Trackpad swipe phases → window.craft.gestures
+//
+// A WKWebView's `wheel` stream has no phase information, so web code has to
+// guess where a gesture starts and ends. The usual guess — end it after a short
+// idle gap — cannot distinguish a finger still on the trackpad from the
+// momentum macOS keeps delivering for over a second afterwards, so a web-side
+// swipe settles at the end of momentum instead of at finger-up.
+//
+// We hold the real NSEvent, so we forward its phases instead. A local event
+// monitor sees scroll wheels before they are dispatched; we read the phase and
+// pass the event through untouched, so normal scrolling is unaffected.
+// ============================================================================
+
+const scroll_gesture = @import("scroll_gesture.zig");
+
+/// Block ABI: { isa, flags, reserved, invoke, descriptor }. Same shape the
+/// permissions and focus bridges already use; `_NSConcreteStackBlock` is what
+/// Apple resolves a block's isa against, so we can hand AppKit a real block
+/// without linking libBlocksRuntime.
+const ScrollBlockLayout = extern struct {
+    isa: ?*anyopaque,
+    flags: c_int,
+    reserved: c_int,
+    invoke: *const fn (*const anyopaque, objc.id) callconv(.c) objc.id,
+    descriptor: *const ScrollBlockDescriptor,
+};
+
+const ScrollBlockDescriptor = extern struct {
+    reserved: usize = 0,
+    size: usize,
+};
+
+extern var _NSConcreteStackBlock: anyopaque;
+
+var scroll_state: scroll_gesture.State = .{};
+var scroll_monitor: ?objc.id = null;
+
+fn emitSwipe(emit: scroll_gesture.Emit) void {
+    var buffer: [320]u8 = undefined;
+    const js = std.fmt.bufPrint(
+        &buffer,
+        "window.craft&&window.craft.gestures&&window.craft.gestures._emit({{axis:'horizontal',phase:'{s}',deltaX:{d:.4},deltaY:{d:.4},velocityX:{d:.4},momentum:false}})",
+        .{ @tagName(emit.phase), emit.delta_x, emit.delta_y, emit.velocity_x },
+    ) catch return;
+
+    // No webview yet (or already torn down) is normal, not an error.
+    tryEvalJS(js) catch {};
+}
+
+fn scrollMonitorInvoke(_: *const anyopaque, event: objc.id) callconv(.c) objc.id {
+    // Always return the event unmodified — we observe, we do not consume.
+    // Swallowing it here would break vertical scrolling everywhere.
+    if (event == null) return event;
+
+    const emits = scroll_gesture.step(
+        &scroll_state,
+        msgSend0Ulong(event, "phase"),
+        msgSend0Ulong(event, "momentumPhase"),
+        msgSend0Double(event, "scrollingDeltaX"),
+        msgSend0Double(event, "scrollingDeltaY"),
+        msgSend0Double(event, "timestamp"),
+    );
+
+    for (emits.slice()) |emit| emitSwipe(emit);
+
+    return event;
+}
+
+const scroll_block_descriptor = ScrollBlockDescriptor{ .size = @sizeOf(ScrollBlockLayout) };
+var scroll_block = ScrollBlockLayout{
+    .isa = &_NSConcreteStackBlock,
+    .flags = 0,
+    .reserved = 0,
+    .invoke = scrollMonitorInvoke,
+    .descriptor = &scroll_block_descriptor,
+};
+
+/// Install the scroll-wheel monitor once per process. Safe to call repeatedly;
+/// a second monitor would deliver every gesture twice.
+pub fn installScrollGestureMonitor() void {
+    if (scroll_monitor != null) return;
+
+    const NSEvent = getClass("NSEvent");
+    scroll_monitor = msgSend2(
+        NSEvent,
+        "addLocalMonitorForEventsMatchingMask:handler:",
+        scroll_gesture.NSEventMaskScrollWheel,
+        @as(objc.id, @ptrCast(&scroll_block)),
+    );
 }
 
 /// Which of the injected scripts a given window wants.
@@ -3681,6 +3777,10 @@ pub const CraftScripts = struct {
     full_bridge: bool = false,
     sidebar_bootstrap: bool = false,
     native_ui: bool = false,
+    /// Install `window.craft.gestures` and the NSEvent scroll monitor behind
+    /// it. On by default: the registry is inert until the host emits, and a
+    /// swipeable sidebar in any window should feel native.
+    gestures: bool = true,
 };
 
 /// Add one source string to a content controller as an at-document-start,
@@ -3727,6 +3827,11 @@ pub fn injectCraftScripts(userContentController: objc.id, scripts: CraftScripts)
 
     if (scripts.native_ui)
         addUserScriptSource(userContentController, getNativeUIScript());
+
+    if (scripts.gestures) {
+        addUserScriptSource(userContentController, getGesturesScript());
+        installScrollGestureMonitor();
+    }
 
     if (scripts.sidebar_bootstrap)
         addUserScriptSource(userContentController, getNativeSidebarBootstrapScript());

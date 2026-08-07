@@ -1053,6 +1053,15 @@ export interface CraftMobileAPI {
  */
 export interface CraftBridgeAPI {
   /**
+   * Trackpad gesture phases (desktop only).
+   *
+   * Present in every Craft window, but dormant on a host that does not emit —
+   * so its presence is not a promise that swipes will arrive. See
+   * `api/gestures`.
+   */
+  gestures?: import('./api/gestures').GesturesAPI
+
+  /**
    * System tray control (desktop only)
    */
   tray?: CraftTrayAPI
