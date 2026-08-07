@@ -17,89 +17,11 @@ import { getBridge } from '../bridge/core'
 // Types
 // ============================================================================
 
-/**
- * Sidebar item — components-flavored.
- *
- * NOTE: there is a separate `SidebarItem` type in `api/sidebar` with a
- * narrower shape (only `tintColor` / `enabled` / no `contextMenu`). The
- * top-level package exports the api version; if you reach into
- * `craft-native/components` directly you will get *this* one.
- * Don't rely on cross-mixing the two.
- */
-export interface SidebarItem {
-  /** Unique identifier */
-  id: string
-  /** Display label */
-  label: string
-  /** Icon (SF Symbol name, path, or emoji) */
-  icon?: string
-  /** Badge text/number */
-  badge?: string | number
-  /** Badge color */
-  badgeColor?: string
-  /** Whether item is selected */
-  selected?: boolean
-  /** Whether item is disabled */
-  disabled?: boolean
-  /** Whether item is expandable/collapsible */
-  expandable?: boolean
-  /** Whether item is expanded (if expandable) */
-  expanded?: boolean
-  /** Child items */
-  children?: SidebarItem[]
-  /** Custom data */
-  data?: Record<string, any>
-  /** Tooltip */
-  tooltip?: string
-  /** Context menu items */
-  contextMenu?: ContextMenuItem[]
-  /** Whether item is draggable */
-  draggable?: boolean
-  /** Drop target types accepted */
-  dropTypes?: string[]
-}
+// Shared with `api/sidebar`; see `../sidebar-types`.
+export type { ContextMenuItem, SidebarItem, SidebarSection } from '../sidebar-types'
 
-/**
- * Sidebar section (group of items)
- */
-export interface SidebarSection {
-  /** Section ID */
-  id: string
-  /** Section title (can be empty for untitled section) */
-  title?: string
-  /** Items in this section */
-  items: SidebarItem[]
-  /** Whether section is collapsible */
-  collapsible?: boolean
-  /** Whether section is collapsed */
-  collapsed?: boolean
-}
+import type { SidebarItem, SidebarSection } from '../sidebar-types'
 
-/**
- * Context menu item
- */
-export interface ContextMenuItem {
-  /** Item ID */
-  id?: string
-  /** Label */
-  label?: string
-  /** Item type */
-  type?: 'normal' | 'separator' | 'checkbox'
-  /** Icon */
-  icon?: string
-  /** Keyboard shortcut */
-  shortcut?: string
-  /** Checked state */
-  checked?: boolean
-  /** Disabled state */
-  disabled?: boolean
-  /** Submenu items */
-  submenu?: ContextMenuItem[]
-}
-
-/**
- * Sidebar style presets
- */
 export type SidebarStyle = 'tahoe' | 'arc' | 'orbstack' | 'custom'
 
 /**

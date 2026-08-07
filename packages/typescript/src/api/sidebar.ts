@@ -11,26 +11,12 @@ import { getPlatform, type Platform } from './process'
 // Types
 // ============================================================================
 
-export interface SidebarItem {
-  id: string
-  label: string
-  icon?: string
-  badge?: string | number
-  selected?: boolean
-  children?: SidebarItem[]
-  expanded?: boolean
-  enabled?: boolean
-  tintColor?: string
-  tooltip?: string
-}
+// `SidebarItem` and `SidebarSection` are shared with `components/sidebar` —
+// see `../sidebar-types` for why they are no longer declared per-module.
+export type { SidebarItem, SidebarSection } from '../sidebar-types'
+export { isSidebarItemDisabled } from '../sidebar-types'
 
-export interface SidebarSection {
-  id: string
-  title?: string
-  items: SidebarItem[]
-  collapsible?: boolean
-  collapsed?: boolean
-}
+import type { SidebarItem, SidebarSection } from '../sidebar-types'
 
 export interface SidebarConfig {
   /** Sidebar width in pixels */
