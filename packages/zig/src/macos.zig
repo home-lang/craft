@@ -336,7 +336,7 @@ pub fn msgSendVoid0(target: anytype, selector: [*:0]const u8) void {
     msg(target, sel(selector));
 }
 
-fn msgSendVoid1(target: anytype, selector: [*:0]const u8, arg1: anytype) void {
+pub fn msgSendVoid1(target: anytype, selector: [*:0]const u8, arg1: anytype) void {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL, @TypeOf(arg1)) callconv(.c) void, @ptrCast(&objc.objc_msgSend));
     msg(target, sel(selector), arg1);
 }
@@ -461,7 +461,7 @@ fn msgSendRect2Double(target: anytype, selector: [*:0]const u8, rect: NSRect, ar
 }
 
 /// Parse hex color string (e.g. "#ef4444" or "ef4444") and create NSColor
-fn createColorFromHex(hex_str: []const u8) ?objc.id {
+pub fn createColorFromHex(hex_str: []const u8) ?objc.id {
     // Skip leading # if present
     const hex = if (hex_str.len > 0 and hex_str[0] == '#') hex_str[1..] else hex_str;
 
@@ -3216,7 +3216,7 @@ pub fn createWindowWithSidebarURL(
 }
 
 // Helper to send message with NSRect parameter
-fn msgSend1Rect(target: anytype, selector: [*:0]const u8, rect: NSRect) objc.id {
+pub fn msgSend1Rect(target: anytype, selector: [*:0]const u8, rect: NSRect) objc.id {
     const msg = @as(*const fn (@TypeOf(target), objc.SEL, NSRect) callconv(.c) objc.id, @ptrCast(&objc.objc_msgSend));
     return msg(target, sel(selector), rect);
 }

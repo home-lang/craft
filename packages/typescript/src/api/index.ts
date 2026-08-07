@@ -339,6 +339,19 @@ export type {
   SidebarSearchEvent
 } from './sidebar'
 
+// Spaces API - native switcher for Arc-style sidebar spaces
+export {
+  spaces,
+  createSpacesSidebar,
+  hasNativeSpaces
+} from './spaces'
+export type {
+  SpaceDescriptor,
+  SpacesSidebarOptions,
+  SpacesSidebarHandle,
+  NativeUIAPI
+} from './spaces'
+
 // Gestures API - real trackpad swipe phases from the host's NSEvent
 export {
   gestures,

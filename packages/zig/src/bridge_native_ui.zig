@@ -5,6 +5,7 @@ const NativeSidebar = @import("components/native_sidebar.zig").NativeSidebar;
 const NativeFileBrowser = @import("components/native_file_browser.zig").NativeFileBrowser;
 const NativeSplitView = @import("components/native_split_view.zig").NativeSplitView;
 const NativeSplitViewController = @import("components/native_split_view_controller.zig").NativeSplitViewController;
+const space_switcher = @import("components/native_space_switcher.zig");
 const context_menu = @import("components/context_menu.zig");
 const quick_look = @import("components/quick_look.zig");
 const TestHelpers = @import("test_helpers.zig").TestHelpers;
@@ -45,6 +46,10 @@ pub const NativeUIBridge = struct {
 
     pub fn deinit(self: *Self) void {
         self.is_destroyed = true;
+
+        // Drop the spaces switcher before the window goes: it holds views in
+        // the titlebar and a pointer the target/action callback still reads.
+        space_switcher.destroy();
 
         // Clean up Quick Look controller
         if (self.quick_look_controller) |controller| {
@@ -130,6 +135,21 @@ pub const NativeUIBridge = struct {
                 if (comptime builtin.mode == .debug)
                     std.debug.print("[NativeUI] ERROR creating sidebar: {any}\n", .{err});
             };
+        } else if (std.mem.eql(u8, action, "createSpacesSidebar")) {
+            self.createSpacesSidebar(data) catch |err| {
+                if (comptime builtin.mode == .debug)
+                    std.debug.print("[NativeUI] ERROR creating spaces switcher: {any}\n", .{err});
+            };
+        } else if (std.mem.eql(u8, action, "setSpaces")) {
+            self.setSpaces(data) catch |err| {
+                if (comptime builtin.mode == .debug)
+                    std.debug.print("[NativeUI] ERROR setting spaces: {any}\n", .{err});
+            };
+        } else if (std.mem.eql(u8, action, "setActiveSpace")) {
+            self.setActiveSpace(data) catch |err| {
+                if (comptime builtin.mode == .debug)
+                    std.debug.print("[NativeUI] ERROR setting active space: {any}\n", .{err});
+            };
         } else if (std.mem.eql(u8, action, "addSidebarSection")) {
             self.addSidebarSection(data) catch |err| {
                 if (comptime builtin.mode == .debug)
@@ -201,6 +221,95 @@ pub const NativeUIBridge = struct {
         }
         self.last_reload_time = now;
         return false;
+    }
+
+    /// Parse a `spaces` array into the switcher's own shape.
+    ///
+    /// The returned slice borrows every string from `parsed`, so it must be
+    /// consumed before the parse arena is freed — `SpaceList.append` copies.
+    fn parseSpaces(allocator: std.mem.Allocator, value: std.json.Value) !std.ArrayList(space_switcher.Space) {
+        var spaces: std.ArrayList(space_switcher.Space) = .{ .items = &.{}, .capacity = 0 };
+        errdefer spaces.deinit(allocator);
+
+        for (value.array.items) |entry| {
+            const obj = entry.object;
+            const space_id = if (obj.get("id")) |v| v.string else continue;
+            try spaces.append(allocator, .{
+                .id = space_id,
+                .label = if (obj.get("label")) |v| v.string else space_id,
+                .icon = if (obj.get("icon")) |v| switch (v) {
+                    .string => |s| s,
+                    else => null,
+                } else null,
+                .tint = if (obj.get("tint")) |v| switch (v) {
+                    .string => |s| s,
+                    else => null,
+                } else null,
+            });
+        }
+
+        return spaces;
+    }
+
+    /// Create the native switcher for Arc-style sidebar spaces.
+    ///
+    /// Deliberately *not* a second `NativeSidebar`: the spaces and their rows
+    /// stay in the webview, and this only puts a real control in the window
+    /// chrome. That keeps it clear of the one-sidebar-per-window restriction in
+    /// `createSidebar`, so a window can have both.
+    fn createSpacesSidebar(self: *Self, data: []const u8) !void {
+        if (data.len == 0) return error.EmptyData;
+
+        const parsed = std.json.parseFromSlice(std.json.Value, self.allocator, data, .{}) catch
+            return error.MalformedJSON;
+        defer parsed.deinit();
+
+        const root = parsed.value.object;
+        const id_str = if (root.get("id")) |v| v.string else return error.MissingRequiredField;
+
+        var spaces = if (root.get("spaces")) |v|
+            try parseSpaces(self.allocator, v)
+        else
+            std.ArrayList(space_switcher.Space){ .items = &.{}, .capacity = 0 };
+        defer spaces.deinit(self.allocator);
+
+        const active = if (root.get("activeSpace")) |v| switch (v) {
+            .string => |s| s,
+            else => null,
+        } else null;
+
+        // `self.window` is doubly optional: an unset window reference vs. a nil
+        // objc id. The switcher treats both the same — the list works, the
+        // control just has nowhere to attach.
+        try space_switcher.create(self.allocator, self.window orelse null, id_str, spaces.items, active);
+
+        if (comptime builtin.mode == .debug)
+            std.debug.print("[NativeUI] Spaces switcher '{s}' with {d} space(s)\n", .{ id_str, spaces.items.len });
+    }
+
+    fn setSpaces(self: *Self, data: []const u8) !void {
+        if (data.len == 0) return error.EmptyData;
+
+        const parsed = std.json.parseFromSlice(std.json.Value, self.allocator, data, .{}) catch
+            return error.MalformedJSON;
+        defer parsed.deinit();
+
+        const spaces_value = parsed.value.object.get("spaces") orelse return error.MissingRequiredField;
+        var spaces = try parseSpaces(self.allocator, spaces_value);
+        defer spaces.deinit(self.allocator);
+
+        try space_switcher.setSpaces(spaces.items);
+    }
+
+    fn setActiveSpace(self: *Self, data: []const u8) !void {
+        if (data.len == 0) return error.EmptyData;
+
+        const parsed = std.json.parseFromSlice(std.json.Value, self.allocator, data, .{}) catch
+            return error.MalformedJSON;
+        defer parsed.deinit();
+
+        const space_id = parsed.value.object.get("spaceId") orelse return error.MissingRequiredField;
+        space_switcher.setActiveSpace(space_id.string);
     }
 
     /// Create a new sidebar component using NSSplitViewController with native Liquid Glass
@@ -585,6 +694,14 @@ pub const NativeUIBridge = struct {
                 entry.value.deinit();
                 if (comptime builtin.mode == .debug)
                     std.debug.print("[NativeUI] Destroyed split view '{s}'\n", .{id});
+            }
+        } else if (std.mem.eql(u8, component_type, "spacesSidebar")) {
+            // Guarded by id: a second consumer tearing down its own switcher
+            // must not remove the one that is currently installed.
+            if (space_switcher.isActive(id)) {
+                space_switcher.destroy();
+                if (comptime builtin.mode == .debug)
+                    std.debug.print("[NativeUI] Destroyed spaces switcher '{s}'\n", .{id});
             }
         }
     }

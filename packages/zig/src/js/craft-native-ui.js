@@ -20,11 +20,26 @@ previewFile(fid,fp,t){s('showQuickLook',{files:[{id:fid,path:fp,title:t}]});retu
 previewFiles(f,i=0){s('showQuickLook',{files:f,currentIndex:i});return this}
 toggleQuickLook(f,i=0){s('toggleQuickLook',{files:f,currentIndex:i});return this}
 destroy(){s('destroyComponent',{id:this.id,type:'fileBrowser'})}}
+// Arc-style spaces. The webview keeps the spaces, their rows and the swipe;
+// this only publishes the list to a native control in the window chrome and
+// reports back what it selects. Callbacks are held here rather than native-side
+// so `_emitSpaceChange` stays a plain function call the host can guard on.
+class SpacesSidebar{constructor(id){this.id=id;this._spaceChangeCallbacks=[]}
+onSpaceChange(cb){if(typeof cb==='function')this._spaceChangeCallbacks.push(cb);return this}
+setSpaces(spaces){s('setSpaces',{id:this.id,spaces:spaces||[]});return this}
+setActiveSpace(spaceId){s('setActiveSpace',{id:this.id,spaceId:spaceId});return this}
+_emit(spaceId){for(const cb of this._spaceChangeCallbacks.slice()){try{cb(spaceId)}catch(e){console.error('[craft] spaceChange listener threw',e)}}}
+destroy(){s('destroyComponent',{id:this.id,type:'spacesSidebar'})}}
 class SplitView{constructor(id,sb,br){this.id=id;this.sidebar=sb;this.browser=br}
 setDividerPosition(p){s('setDividerPosition',{splitViewId:this.id,position:p});return this}
 destroy(){s('destroyComponent',{id:this.id,type:'splitView'})}}
+const spacesRegistry=new Map();
 window.craft.nativeUI={
 createSidebar(o={}){const id=o.id||`sidebar-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;s('createSidebar',Object.assign({},o,{id}));return new Sidebar(id)},
+createSpacesSidebar(o={}){const id=o.id||`spaces-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;const h=new SpacesSidebar(id);spacesRegistry.set(id,h);s('createSpacesSidebar',{id:id,spaces:o.spaces||[],activeSpace:o.activeSpace});const d=h.destroy.bind(h);h.destroy=()=>{spacesRegistry.delete(id);d()};return h},
+// Called by the host when the native control is clicked. Unknown ids are
+// ignored rather than thrown on: a late event after destroy() is expected.
+_emitSpaceChange(id,spaceId){const h=spacesRegistry.get(id);if(h)h._emit(spaceId)},
 createFileBrowser(o={}){const id=o.id||`browser-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;s('createFileBrowser',{id});return new FileBrowser(id)},
 createSplitView(o){if(!o.sidebar||!o.browser)throw new Error('createSplitView requires both sidebar and browser options');const id=o.id||`splitview-${Date.now()}-${Math.random().toString(36).substr(2,9)}`;s('createSplitView',{id:id,sidebarId:o.sidebar.id,browserId:o.browser.id});return new SplitView(id,o.sidebar,o.browser)},
 showContextMenu(o){if(!o.items||!o.items.length)throw new Error('showContextMenu requires items array');s('showContextMenu',{targetId:o.targetId||'',targetType:o.targetType||'general',x:o.x||0,y:o.y||0,items:o.items})},
