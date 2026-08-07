@@ -694,37 +694,14 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // Set up user content controller for JavaScript bridge
         const userContentController = msgSend0(msgSend0(WKUserContentController, "alloc"), "init");
 
-        // CRITICAL: For URL loading, we MUST use WKUserScript to inject the bridge
-        // For HTML loading, we inject directly into the HTML string (more reliable for loadHTMLString)
-        if (url != null) {
-            // Inject bridge scripts via WKUserScript for URL loading
-            const WKUserScript = getClass("WKUserScript");
-            const bridge_js = if (style.system_tray) getCraftBridgeScriptFull() else getCraftBridgeScriptMinimal();
-            const native_sidebar_bootstrap_js = if (style.web_sidebar_material) getNativeSidebarBootstrapScript() else "";
-
-            // Create bridge script
-            const bridge_js_str = createNSString(bridge_js);
-            const bridge_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", bridge_js_str, @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
-                @as(c_int, 1) // YES - main frame only
-            );
-            _ = msgSend1(userContentController, "addUserScript:", bridge_script);
-
-            if (native_sidebar_bootstrap_js.len > 0) {
-                const bootstrap_js_str = createNSString(native_sidebar_bootstrap_js);
-                const bootstrap_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", bootstrap_js_str, @as(c_long, 0), @as(c_int, 1));
-                _ = msgSend1(userContentController, "addUserScript:", bootstrap_script);
-            }
-
-            // Only inject native UI script when native sidebar is enabled
-            if (style.native_sidebar) {
-                const native_ui_js = getNativeUIScript();
-                const native_ui_js_str = createNSString(native_ui_js);
-                const native_ui_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", native_ui_js_str, @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart = 0
-                    @as(c_int, 1) // YES - main frame only
-                );
-                _ = msgSend1(userContentController, "addUserScript:", native_ui_script);
-            }
-        }
+        // One injection path for both URL and HTML loads — see
+        // `injectCraftScripts`. Scripts land at document-start and survive
+        // navigation, which the old HTML-splicing path did not.
+        injectCraftScripts(userContentController, .{
+            .full_bridge = style.system_tray,
+            .sidebar_bootstrap = style.web_sidebar_material,
+            .native_ui = style.native_sidebar,
+        });
 
         // Set up the script message handler
         setupScriptMessageHandler(userContentController) catch |err| {
@@ -785,63 +762,16 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
             const html_str = msgSend1(msgSend0(NSString, "alloc"), "initWithUTF8String:", html_cstr.ptr);
             _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, @as(?*anyopaque, null));
         } else {
-            // CRITICAL FIX: WKUserScript doesn't reliably inject with loadHTMLString when baseURL is null
-            // So we inject the bridge script directly into the HTML before loading
-            const bridge_js = if (style.system_tray) getCraftBridgeScriptFull() else getCraftBridgeScriptMinimal();
-            const native_sidebar_bootstrap_js = if (style.web_sidebar_material) getNativeSidebarBootstrapScript() else "";
-            const native_ui_js = if (style.native_sidebar) getNativeUIScript() else "";
-
-            // Find </head> tag and inject script before it
-            var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, h.len + bridge_js.len + native_sidebar_bootstrap_js.len + native_ui_js.len + 40);
-            defer modified_html.deinit(std.heap.c_allocator);
-
-            if (std.mem.indexOf(u8, h, "</head>")) |head_pos| {
-                // Inject before </head>
-                try modified_html.appendSlice(std.heap.c_allocator, h[0..head_pos]);
-                try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
-                try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
-                try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-                if (native_sidebar_bootstrap_js.len > 0) {
-                    try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
-                    try modified_html.appendSlice(std.heap.c_allocator, native_sidebar_bootstrap_js);
-                    try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-                }
-                if (native_ui_js.len > 0) {
-                    try modified_html.appendSlice(std.heap.c_allocator, "<script type=\"text/javascript\">");
-                    try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
-                    try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-                }
-                try modified_html.appendSlice(std.heap.c_allocator, h[head_pos..]);
-            } else {
-                // No </head> found, just prepend to the HTML
-                try modified_html.appendSlice(std.heap.c_allocator, "<script>");
-                try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
-                try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-                if (native_sidebar_bootstrap_js.len > 0) {
-                    try modified_html.appendSlice(std.heap.c_allocator, "<script>");
-                    try modified_html.appendSlice(std.heap.c_allocator, native_sidebar_bootstrap_js);
-                    try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-                }
-                if (native_ui_js.len > 0) {
-                    try modified_html.appendSlice(std.heap.c_allocator, "<script>");
-                    try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
-                    try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-                }
-                try modified_html.appendSlice(std.heap.c_allocator, h);
-            }
-
-            const final_html = try modified_html.toOwnedSlice(std.heap.c_allocator);
-            defer std.heap.c_allocator.free(final_html);
-
-            // Load the modified HTML with a proper baseURL
-            // This is important - without a baseURL, body scripts may not execute!
-            const html_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, final_html);
+            // The bridge is already installed on the content controller as a
+            // document-start user script, so the HTML loads unmodified.
+            const html_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, h);
             defer std.heap.c_allocator.free(html_cstr);
             const html_str_alloc = msgSend0(NSString, "alloc");
             const html_str = msgSend1(html_str_alloc, "initWithUTF8String:", html_cstr.ptr);
 
-            // Create a baseURL - use http://localhost to avoid security restrictions
-            // about:blank has restrictions on evaluateJavaScript from native code
+            // A real baseURL matters twice over: without one, body scripts may
+            // not execute, `evaluateJavaScript` from native code is restricted,
+            // and `WKUserScript` injection into `loadHTMLString:` is unreliable.
             const base_url_string = createNSString("http://localhost/");
             const base_url = msgSend1(getClass("NSURL"), "URLWithString:", base_url_string);
 
@@ -2082,6 +2012,13 @@ pub fn createWindowWithSidebar(
         if (comptime builtin.mode == .debug)
             std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
     };
+    // A sidebar window always takes the full bridge, the bootstrap and the
+    // native UI surface — it has a native sidebar to drive by definition.
+    injectCraftScripts(userContentController, .{
+        .full_bridge = true,
+        .sidebar_bootstrap = true,
+        .native_ui = true,
+    });
     _ = msgSend1(config, "setUserContentController:", userContentController);
 
     // Create WKWebView
@@ -2096,39 +2033,8 @@ pub fn createWindowWithSidebar(
             std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
     };
 
-    // Load HTML content with bridge injection - sidebar always uses full bridge
-    const bridge_js = getCraftBridgeScriptFull();
-    const native_sidebar_bootstrap_js = getNativeSidebarBootstrapScript();
-    const native_ui_js = getNativeUIScript();
-
-    var modified_html = try std.ArrayList(u8).initCapacity(std.heap.c_allocator, html.len + bridge_js.len + native_sidebar_bootstrap_js.len + native_ui_js.len + 100);
-    defer modified_html.deinit(std.heap.c_allocator);
-
-    if (std.mem.indexOf(u8, html, "</head>")) |head_pos| {
-        try modified_html.appendSlice(std.heap.c_allocator, html[0..head_pos]);
-        try modified_html.appendSlice(std.heap.c_allocator, "<script>");
-        try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
-        try modified_html.appendSlice(std.heap.c_allocator, "</script><script>");
-        try modified_html.appendSlice(std.heap.c_allocator, native_sidebar_bootstrap_js);
-        try modified_html.appendSlice(std.heap.c_allocator, "</script><script>");
-        try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
-        try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-        try modified_html.appendSlice(std.heap.c_allocator, html[head_pos..]);
-    } else {
-        try modified_html.appendSlice(std.heap.c_allocator, "<script>");
-        try modified_html.appendSlice(std.heap.c_allocator, bridge_js);
-        try modified_html.appendSlice(std.heap.c_allocator, "</script><script>");
-        try modified_html.appendSlice(std.heap.c_allocator, native_sidebar_bootstrap_js);
-        try modified_html.appendSlice(std.heap.c_allocator, "</script><script>");
-        try modified_html.appendSlice(std.heap.c_allocator, native_ui_js);
-        try modified_html.appendSlice(std.heap.c_allocator, "</script>");
-        try modified_html.appendSlice(std.heap.c_allocator, html);
-    }
-
-    const final_html = try modified_html.toOwnedSlice(std.heap.c_allocator);
-    defer std.heap.c_allocator.free(final_html);
-
-    const html_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, final_html);
+    // HTML loads unmodified — the scripts are user scripts on the controller.
+    const html_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, html);
     defer std.heap.c_allocator.free(html_cstr);
     const html_str = msgSend1(msgSend0(NSString, "alloc"), "initWithUTF8String:", html_cstr.ptr);
     const base_url_string = createNSString("http://localhost/");
@@ -3051,24 +2957,13 @@ pub fn createWindowWithSidebarURL(
             std.debug.print("[Bridge] Failed to setup message handler: {}\n", .{err});
     };
 
-    // Inject minimal bridge (no menubar/tray polling) + native sidebar flag
-    const WKUserScript = getClass("WKUserScript");
-    const bridge_js = getCraftBridgeScriptMinimal();
-    const bridge_js_str = createNSString(bridge_js);
-    const bridge_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", bridge_js_str, @as(c_long, 0), @as(c_int, 1));
-    _ = msgSend1(userContentController, "addUserScript:", bridge_script);
-
-    // Inject native UI script for sidebar/split-view components
-    const native_ui_js = getNativeUIScript();
-    const native_ui_js_str = createNSString(native_ui_js);
-    const native_ui_script = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", native_ui_js_str, @as(c_long, 0), @as(c_int, 1));
-    _ = msgSend1(userContentController, "addUserScript:", native_ui_script);
-
-    // Inject native sidebar flag and default handler
-    const sidebarFlagScript = getNativeSidebarBootstrapScript();
-    const flagStr = createNSString(sidebarFlagScript);
-    const flagScript = msgSend3(msgSend0(WKUserScript, "alloc"), "initWithSource:injectionTime:forMainFrameOnly:", flagStr, @as(c_long, 0), @as(c_int, 1));
-    _ = msgSend1(userContentController, "addUserScript:", flagScript);
+    // Minimal bridge (no menubar/tray polling), plus the native UI surface and
+    // the sidebar bootstrap this window type needs.
+    injectCraftScripts(userContentController, .{
+        .full_bridge = false,
+        .sidebar_bootstrap = true,
+        .native_ui = true,
+    });
 
     _ = msgSend1(config, "setUserContentController:", userContentController);
 
@@ -3775,6 +3670,66 @@ fn getNativeUIScript() []const u8 {
 
 fn getNativeSidebarBootstrapScript() []const u8 {
     return native_sidebar_bootstrap.script;
+}
+
+/// Which of the injected scripts a given window wants.
+///
+/// `bridge` is always injected; the rest are opt-in because a plain window has
+/// no sidebar to bootstrap and no native UI to talk to.
+pub const CraftScripts = struct {
+    /// Full bridge enables tray/menubar polling. Minimal otherwise.
+    full_bridge: bool = false,
+    sidebar_bootstrap: bool = false,
+    native_ui: bool = false,
+};
+
+/// Add one source string to a content controller as an at-document-start,
+/// main-frame-only user script.
+fn addUserScriptSource(userContentController: objc.id, source: []const u8) void {
+    if (source.len == 0) return;
+    const WKUserScript = getClass("WKUserScript");
+    const source_str = createNSString(source);
+    const script = msgSend3(
+        msgSend0(WKUserScript, "alloc"),
+        "initWithSource:injectionTime:forMainFrameOnly:",
+        source_str,
+        @as(c_long, 0), // WKUserScriptInjectionTimeAtDocumentStart
+        @as(c_int, 1), // main frame only
+    );
+    _ = msgSend1(userContentController, "addUserScript:", script);
+}
+
+/// Install Craft's JS into a content controller.
+///
+/// Every window path goes through here, whether it loads a URL or an HTML
+/// string. It used to be split: URL loads used `addUserScript:` while HTML
+/// loads spliced `<script>` tags into the markup, because `WKUserScript` does
+/// not inject reliably into `loadHTMLString:` when the baseURL is null. That
+/// caveat no longer applies — every non-benchmark HTML load passes a real
+/// `http://localhost/` baseURL — so the workaround outlived its cause while
+/// leaving four copies of the injection logic behind.
+///
+/// Using `addUserScript:` everywhere also fixes a real bug: spliced tags belong
+/// to the one document they were spliced into, so any navigation or reload in
+/// an HTML-loaded window dropped `window.craft` entirely. A user script at
+/// document-start is re-injected on every navigation.
+/// Order is load-bearing: the bootstrap ends by dispatching `craft:ready`, and
+/// that event means "the whole surface is installed". So the bootstrap goes
+/// **last**, after `window.craft.nativeUI` exists. Three of the four call sites
+/// this replaced had it the other way round and fired `craft:ready` before the
+/// native UI surface was defined, so anything reacting to the event saw a
+/// half-built `window.craft`.
+pub fn injectCraftScripts(userContentController: objc.id, scripts: CraftScripts) void {
+    addUserScriptSource(userContentController, if (scripts.full_bridge)
+        getCraftBridgeScriptFull()
+    else
+        getCraftBridgeScriptMinimal());
+
+    if (scripts.native_ui)
+        addUserScriptSource(userContentController, getNativeUIScript());
+
+    if (scripts.sidebar_bootstrap)
+        addUserScriptSource(userContentController, getNativeSidebarBootstrapScript());
 }
 
 /// Storage for bridge handlers (global state)
