@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.61...v0.0.62)
+
+## 🐛 Bug Fixes
+
+- **zig**: route payloads to the window and app bridges, and unblock the test suite ([d28bdeb](https://github.com/home-lang/craft/commit/d28bdeb)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.62 ([d865750](https://github.com/home-lang/craft/commit/d865750)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.60...v0.0.61)
 
 ## 🐛 Bug Fixes
