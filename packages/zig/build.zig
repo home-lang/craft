@@ -8,6 +8,10 @@ pub fn build(b: *std.Build) void {
     // to avoid Zig bug where --sysroot breaks @cImport (ziglang/zig#22704, #25010)
     const macos_sdk = b.option([]const u8, "macos-sdk", "macOS SDK path for cross-compilation");
 
+    // Set when the opt-in JavaScript tests are wired up, so `test` can include
+    // them without the declaration being scoped inside the `if`.
+    var js_test_run: ?*std.Build.Step.Run = null;
+
     // Version from -Dversion= flag or default
     const version_option = b.option([]const u8, "version", "Version string (from package.json)") orelse "0.0.0";
 
@@ -813,8 +817,50 @@ pub fn build(b: *std.Build) void {
     const run_system_tray_benchmark = b.addRunArtifact(system_tray_benchmark);
     const run_database_tests = b.addRunArtifact(database_tests);
 
+    // craft injects six JavaScript files into every webview and none of them
+    // had a test: the only way to exercise `window.craft.gestures` was to
+    // launch an app and swipe a trackpad. zig-js runs them headlessly.
+    //
+    // Opt-in, because it needs the sibling checkout at ~/Code/Libraries/zig-js,
+    // which someone installing craft from npm will not have. Declared lazy so
+    // the dependency is only resolved when actually asked for — the rest of the
+    // suite must keep building without it.
+    const js_tests_enabled = b.option(
+        bool,
+        "js-tests",
+        "Test craft's injected JavaScript against zig-js (needs ../../../../Libraries/zig-js)",
+    ) orelse false;
+
+    if (js_tests_enabled) {
+        if (b.lazyDependency("zig_js", .{ .target = target, .optimize = optimize })) |js_dep| {
+            const injected_js_tests = b.addTest(.{
+                .root_module = b.createModule(.{
+                    .root_source_file = b.path("test/injected_js_test.zig"),
+                    .target = target,
+                    .optimize = optimize,
+                    .imports = &.{.{ .name = "js", .module = js_dep.module("js") }},
+                }),
+            });
+            // Passed in by name rather than reached with a relative
+            // `@embedFile`: a test module cannot embed files outside its own
+            // package path, and these are the same bytes the binary injects.
+            injected_js_tests.root_module.addAnonymousImport("craft-gestures.js", .{
+                .root_source_file = b.path("src/js/craft-gestures.js"),
+            });
+            injected_js_tests.root_module.addAnonymousImport("craft-bridge.js", .{
+                .root_source_file = b.path("src/js/craft-bridge.js"),
+            });
+
+            const run_injected_js_tests = b.addRunArtifact(injected_js_tests);
+            b.step("test-js", "Run craft's injected JavaScript against zig-js")
+                .dependOn(&run_injected_js_tests.step);
+            js_test_run = run_injected_js_tests;
+        }
+    }
+
     const test_step = b.step("test", "Run all unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
+    if (js_test_run) |run| test_step.dependOn(&run.step);
     test_step.dependOn(&run_api_tests.step);
     test_step.dependOn(&run_mobile_tests.step);
     test_step.dependOn(&run_menubar_tests.step);

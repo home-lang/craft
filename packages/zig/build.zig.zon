@@ -3,7 +3,12 @@
     .name = .craft,
     .version = "0.0.62",
     .minimum_zig_version = "0.17.0-dev",
-    .dependencies = .{},
+    .dependencies = .{
+        // Opt-in, and only for `-Djs-tests`: craft's injected JavaScript is
+        // otherwise untestable without launching a window. Lazy so that a
+        // normal build never needs the sibling checkout to exist.
+        .zig_js = .{ .path = "../../../../Libraries/zig-js", .lazy = true },
+    },
     .paths = .{
         "build.zig",
         "build.zig.zon",
