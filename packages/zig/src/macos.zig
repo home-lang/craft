@@ -66,6 +66,8 @@ pub const NSRange = extern struct {
 };
 
 // Window style options
+const startup_timing = @import("startup_timing.zig");
+
 pub const WindowStyle = struct {
     frameless: bool = false,
     transparent: bool = false,
@@ -588,6 +590,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
     // Set window title
     _ = msgSend1(window, "setTitle:", title_str);
+    startup_timing.mark(.window_created);
 
     if (style.web_sidebar_material) {
         setViewAppearance(window, "NSAppearanceNameAqua");
@@ -730,29 +733,24 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         msgSendVoid1(config, "setSuppressesIncrementalRendering:", true);
     }
 
+    startup_timing.mark(.webview_config_built);
+
     // Create WKWebView with configuration
     const webview_alloc = msgSend0(WKWebView, "alloc");
     const webview = msgSend2(webview_alloc, "initWithFrame:configuration:", frame, config);
-    const wants_translucent_surface = style.transparent or style.titlebar_hidden or style.native_sidebar or style.web_sidebar_material;
-    if (!style.benchmark and wants_translucent_surface) {
-        makeWindowTranslucent(window);
-        makeWebViewTransparent(webview);
-    }
-
-    // Install the native file-drop hook so JS gets real filesystem paths.
-    // No-op in benchmark mode (no JS bridge to deliver to anyway).
-    if (!style.benchmark) {
-        @import("macos_file_drop.zig").install();
-    }
-
-    // Set up UI delegate for camera/microphone permission handling (skip if not needed)
-    if (style.dev_tools) {
-        setupUIDelegate(webview) catch |err| {
-            if (comptime builtin.mode == .debug)
-                std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
-        };
-    }
-
+    startup_timing.mark(.webview_created);
+    // Start the load before any cosmetic setup.
+    //
+    // `loadRequest:` hands the fetch to the networking and WebContent
+    // processes immediately; everything below only matters once pixels exist.
+    // Measured with `--timing`, the translucency, file-drop and UI-delegate
+    // work between here and the load was ~50ms the network spent waiting on
+    // work nothing was waiting for. Nothing can paint in between either, since
+    // the run loop is not entered until later — so there is no flash to trade
+    // for it.
+    //
+    // The bridge is unaffected: user scripts live on the content controller
+    // inside `config`, which was built before the webview existed.
     // Load content - either URL or HTML
     if (url) |u| {
         // Load URL directly (no iframe!)
@@ -764,6 +762,7 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         const nsurl = msgSend1(getClass("NSURL"), "URLWithString:", url_str);
         const request = msgSend1(getClass("NSURLRequest"), "requestWithURL:", nsurl);
         _ = msgSend1(webview, "loadRequest:", request);
+        startup_timing.mark(.load_started);
     } else if (html) |h| {
         if (style.benchmark) {
             // Benchmark mode: load raw HTML directly without bridge injection or ArrayList
@@ -787,6 +786,28 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
 
             _ = msgSend2(webview, "loadHTMLString:baseURL:", html_str, base_url);
         }
+    }
+
+
+    // Cosmetic and lazily-needed setup, now overlapping the fetch.
+    const wants_translucent_surface = style.transparent or style.titlebar_hidden or style.native_sidebar or style.web_sidebar_material;
+    if (!style.benchmark and wants_translucent_surface) {
+        makeWindowTranslucent(window);
+        makeWebViewTransparent(webview);
+    }
+
+    // Install the native file-drop hook so JS gets real filesystem paths.
+    // No-op in benchmark mode (no JS bridge to deliver to anyway).
+    if (!style.benchmark) {
+        @import("macos_file_drop.zig").install();
+    }
+
+    // Set up UI delegate for camera/microphone permission handling (skip if not needed)
+    if (style.dev_tools) {
+        setupUIDelegate(webview) catch |err| {
+            if (comptime builtin.mode == .debug)
+                std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
+        };
     }
 
     if (style.benchmark) {
@@ -4372,6 +4393,12 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
     }
     defer if (data_needs_free and data_json_str.len > 0) allocator.free(data_json_str);
 
+    // The window and app bridges take their payload as an optional, and `d` is
+    // absent for the many actions that need none. An empty string would clear
+    // the `orelse MissingData` guard and then fail JSON parsing instead, which
+    // reports the wrong cause.
+    const data_opt: ?[]const u8 = if (data_json_str.len > 0) data_json_str else null;
+
     // Route to appropriate bridge
     if (std.mem.eql(u8, msg_type, "tray")) {
         if (global_tray_bridge) |bridge| {
@@ -4379,11 +4406,18 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         }
     } else if (std.mem.eql(u8, msg_type, "window")) {
         if (global_window_bridge) |bridge| {
-            try bridge.handleMessage(action);
+            // `handleMessage` discards the payload — it exists for the actions
+            // that take none. Routing every window message through it meant
+            // every action that *does* take one (setSize, setTitle,
+            // setWebSidebarCollapsed, and 15 more) received null and answered
+            // MISSING_DATA, no matter what the page sent.
+            try bridge.handleMessageWithData(action, data_opt);
         }
     } else if (std.mem.eql(u8, msg_type, "app")) {
         if (global_app_bridge) |bridge| {
-            try bridge.handleMessage(action);
+            // Same bug, same shape: notify and setBadge could never see their
+            // arguments.
+            try bridge.handleMessageWithData(action, data_opt);
         }
     } else if (std.mem.eql(u8, msg_type, "nativeUI")) {
         if (global_native_ui_bridge) |bridge| {
@@ -4419,13 +4453,10 @@ pub fn handleBridgeMessageJSON(json_str: []const u8) !void {
         }
     } else if (std.mem.eql(u8, msg_type, "dialog")) {
         if (global_dialog_bridge) |bridge| {
-            const data_opt: ?[]const u8 = if (data_json_str.len > 0) data_json_str else null;
             try bridge.handleMessageWithData(action, data_opt);
         }
     } else if (std.mem.eql(u8, msg_type, "clipboard")) {
         if (global_clipboard_bridge) |bridge| {
-            // ClipboardBridge expects optional raw JSON slice for data
-            const data_opt: ?[]const u8 = if (data_json_str.len > 0) data_json_str else null;
             try bridge.handleMessageWithData(action, data_opt);
         }
     } else if (std.mem.eql(u8, msg_type, "menubarCollapse")) {
@@ -5902,6 +5933,10 @@ pub fn showAllWindows() void {
 }
 
 pub fn runApp() void {
+    startup_timing.mark(.runloop_entered);
+    // Reported before `run`, which never returns.
+    startup_timing.report();
+
     const NSApplication = getClass("NSApplication");
     const app = msgSend0(NSApplication, "sharedApplication");
 
@@ -5940,4 +5975,5 @@ pub fn activateWindowedApp() void {
     }
 
     _ = msgSend1(app, "activateIgnoringOtherApps:", @as(c_int, 1));
+    startup_timing.mark(.window_shown);
 }

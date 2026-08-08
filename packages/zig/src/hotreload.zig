@@ -1,4 +1,6 @@
 const std = @import("std");
+// This Zig has no std.crypto.random; compat goes to the platform CSPRNG.
+const compat = @import("compat.zig");
 const log = @import("log.zig");
 const io_context = @import("io_context.zig");
 
@@ -253,7 +255,7 @@ pub const ReloadServer = struct {
         } else {
             // Generate a random token
             var random_bytes: [token_bytes]u8 = undefined;
-            std.crypto.random.bytes(&random_bytes);
+            compat.randomBytes(&random_bytes);
             const hex_chars = "0123456789abcdef";
             for (random_bytes, 0..) |byte, i| {
                 server.active_token[i * 2] = hex_chars[byte >> 4];

@@ -29,6 +29,9 @@ pub const WindowOptions = struct {
     sidebar_config: ?[]const u8 = null,
     quiet: bool = false,
     benchmark: bool = false,
+    // Print where startup time went. Unlike --benchmark, which exits at window
+    // creation, this keeps running and reports the phases a real launch pays.
+    timing: bool = false,
     // Path to a PNG/JPG/ICNS file used as the dock icon for the running
     // process. NSImage decodes everything Cocoa can render, so any common
     // raster format works; .icns is preferred for crispness across sizes.
@@ -426,6 +429,8 @@ pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !Wind
             options.sidebar_width = std.fmt.parseInt(u32, args[i], 10) catch return CliError.InvalidNumber;
         } else if (std.mem.eql(u8, arg, "--quiet") or std.mem.eql(u8, arg, "-q")) {
             options.quiet = true;
+        } else if (std.mem.eql(u8, arg, "--timing")) {
+            options.timing = true;
         } else if (std.mem.eql(u8, arg, "--benchmark")) {
             options.benchmark = true;
         } else if (std.mem.eql(u8, arg, "--sidebar-config")) {
@@ -506,6 +511,7 @@ fn printHelp() void {
         \\      --benchmark          Benchmark mode: create window, print "ready", exit
         \\
         \\Information:
+        \\      --timing             Print startup phase timings (process, window, webview, load)
         \\  -h, --help               Show this help message
         \\  -v, --version            Show version information
         \\

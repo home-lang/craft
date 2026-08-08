@@ -1,4 +1,6 @@
 const std = @import("std");
+// This Zig has no std.crypto.random; compat goes to the platform CSPRNG.
+const compat = @import("compat.zig");
 
 /// Crypto API
 /// Cryptographic operations
@@ -12,7 +14,7 @@ pub const Crypto = struct {
     /// Generate random bytes
     pub fn randomBytes(self: *Crypto, len: usize) ![]u8 {
         const bytes = try self.allocator.alloc(u8, len);
-        std.crypto.random.bytes(bytes);
+        compat.randomBytes(bytes);
         return bytes;
     }
 
@@ -86,14 +88,14 @@ pub const Crypto = struct {
     }
 
     /// Generate key pair for X25519 key exchange.
-    /// Previously called `std.crypto.random.bytes([32]u8{})` which passes a
+    /// Previously called `compat.randomBytes([32]u8{})` which passes a
     /// zero-filled buffer BY VALUE to a fill function. The buffer was never
     /// updated and the "seed" remained all zeros — producing deterministic,
     /// attacker-predictable keys. We now fill a mutable buffer by pointer.
     pub fn generateX25519KeyPair(self: *Crypto) !KeyPair {
         _ = self;
         var seed: [32]u8 = undefined;
-        std.crypto.random.bytes(&seed);
+        compat.randomBytes(&seed);
         const kp = try std.crypto.dh.X25519.KeyPair.create(seed);
 
         return KeyPair{

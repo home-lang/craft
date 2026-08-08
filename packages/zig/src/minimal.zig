@@ -3,6 +3,9 @@ const builtin = @import("builtin");
 const craft = @import("craft");
 const cli = @import("cli.zig");
 const io_context = craft.io_context;
+// Reached through the craft module: a file cannot belong to both `root` and
+// `craft`, and macos.zig already owns it there.
+const timing = craft.startup_timing;
 
 pub fn main(init: std.process.Init) !void {
     io_context.init(init.io);
@@ -10,6 +13,17 @@ pub fn main(init: std.process.Init) !void {
 
     // Parse CLI arguments
     const args = try init.minimal.args.toSlice(init.arena.allocator());
+
+    // Started before parsing, from the raw argv: the flag that turns timing on
+    // is itself discovered during a phase we want to measure, so waiting for
+    // the parsed options would hide argument parsing from its own report.
+    for (args) |arg| {
+        if (std.mem.eql(u8, arg, "--timing")) {
+            timing.start();
+            break;
+        }
+    }
+
     const options = cli.parseArgs(allocator, args) catch |err| {
         switch (err) {
             cli.CliError.InvalidArgument => std.debug.print("Error: Invalid argument\n", .{}),
@@ -37,12 +51,15 @@ pub fn main(init: std.process.Init) !void {
         return;
     }
 
+    timing.mark(.args_parsed);
+
     var app = craft.App.init(allocator);
     defer app.deinit();
 
     // Initialize platform FIRST (must be called before creating windows or system tray)
     // This calls finishLaunching on macOS which is required for menubar items
     app.initPlatform();
+    timing.mark(.platform_init);
 
     // Determine what to load
     if (options.native_sidebar and options.url != null) {

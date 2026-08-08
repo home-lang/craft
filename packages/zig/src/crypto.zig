@@ -1,4 +1,6 @@
 const std = @import("std");
+// This Zig has no std.crypto.random; compat goes to the platform CSPRNG.
+const compat = @import("compat.zig");
 const crypto = std.crypto;
 
 /// Cryptography utilities for plugin signing, verification, and general crypto operations
@@ -13,7 +15,7 @@ pub const Crypto = struct {
     /// Generate a new Ed25519 keypair
     pub fn generateKeyPair() !KeyPair {
         var seed: [32]u8 = undefined; // Ed25519 seed is 32 bytes
-        std.crypto.random.bytes(&seed);
+        compat.randomBytes(&seed);
         return try Ed25519.KeyPair.create(seed);
     }
 

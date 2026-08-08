@@ -7,9 +7,44 @@
 /// - std.time.Timer -> compat.Timer
 /// - std.Thread.Condition -> compat.Condition
 /// - std.Thread.Mutex -> compat.Mutex
+/// - std.crypto.random.bytes -> compat.randomBytes
 const std = @import("std");
 const builtin = @import("builtin");
 const native_os = builtin.os.tag;
+
+/// Fill a buffer with cryptographically secure random bytes.
+///
+/// Replaces `std.crypto.random.bytes`, which this Zig no longer provides. That
+/// was not a cosmetic break: it is referenced from keychain, crypto and
+/// api_crypto, so `zig test` on anything reaching them failed to compile and
+/// took the whole suite with it.
+///
+/// Goes straight to the platform CSPRNG rather than seeding a userspace PRNG.
+/// These bytes become encryption keys and tokens, and a generator seeded from a
+/// clock is the classic way to make that look fine and not be.
+pub fn randomBytes(buffer: []u8) void {
+    if (buffer.len == 0) return;
+
+    if (comptime native_os == .windows) {
+        const advapi = struct {
+            extern "advapi32" fn SystemFunction036(RandomBuffer: [*]u8, RandomBufferLength: u32) callconv(.c) u8;
+        };
+        // RtlGenRandom. Documented as never failing for a valid buffer, but the
+        // result is checked rather than assumed — silently returning zeroed
+        // "random" bytes is the worst possible failure for a key.
+        if (advapi.SystemFunction036(buffer.ptr, @intCast(buffer.len)) == 0)
+            @panic("compat.randomBytes: RtlGenRandom failed");
+        return;
+    }
+
+    // arc4random_buf is present on macOS, iOS and the BSDs, and on glibc and
+    // musl Linux. It cannot fail and never blocks after early boot, which is
+    // why it is preferred over reading /dev/urandom.
+    const libc = struct {
+        extern "c" fn arc4random_buf(buf: [*]u8, nbytes: usize) callconv(.c) void;
+    };
+    libc.arc4random_buf(buffer.ptr, buffer.len);
+}
 
 /// Returns seconds since Unix epoch (replacement for std.time.timestamp).
 /// Returns 0 if the system clock can't be read, so callers never observe the

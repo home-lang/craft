@@ -856,3 +856,38 @@ test "WindowBridge.requireWebViewHandle returns error when null" {
     const result = bridge.requireWebViewHandle();
     try testing.expectError(BridgeError.WebViewHandleNotSet, result);
 }
+
+test "an action that takes a payload fails without one" {
+    // The contract the router broke: `handleMessage` deliberately passes no
+    // data, so every action that needs some must report MissingData through it.
+    // That is correct behaviour here and a bug at the call site — the router
+    // used to send every window message down this path, so setSize, setTitle,
+    // setWebSidebarCollapsed and 15 others could never see their arguments.
+    const testing = std.testing;
+    var bridge = WindowBridge.init(testing.allocator);
+    defer bridge.deinit();
+
+    try testing.expectError(BridgeError.MissingData, bridge.setWebSidebarCollapsed(null));
+}
+
+test "the same action succeeds when the payload is routed through" {
+    const testing = std.testing;
+    var bridge = WindowBridge.init(testing.allocator);
+    defer bridge.deinit();
+
+    // No window handle is set and none is needed: this action only forwards a
+    // flag to the platform layer, which is exactly why its failure was a
+    // routing bug rather than a windowing one.
+    try bridge.setWebSidebarCollapsed("{\"collapsed\":true}");
+    try bridge.setWebSidebarCollapsed("{\"collapsed\":false}");
+}
+
+test "handleMessageWithData reaches a payload action" {
+    // End of the path the router now takes. `handleMessage` would swallow the
+    // payload before it got here.
+    const testing = std.testing;
+    var bridge = WindowBridge.init(testing.allocator);
+    defer bridge.deinit();
+
+    try bridge.handleMessageWithData("setWebSidebarCollapsed", "{\"collapsed\":true}");
+}

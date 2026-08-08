@@ -10,6 +10,7 @@ const Menu = @import("menu.zig").Menu;
 
 // Re-export io_context so root modules can access it without dual-module conflicts
 pub const io_context = @import("io_context.zig");
+pub const startup_timing = @import("startup_timing.zig");
 
 // Re-export iOS module (available on all platforms for cross-compilation)
 pub const ios = @import("ios.zig");

@@ -27,6 +27,8 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+// This Zig has no std.crypto.random; compat goes to the platform CSPRNG.
+const compat = @import("compat.zig");
 
 /// Keychain item accessibility options (iOS/macOS)
 pub const Accessibility = enum {
@@ -550,7 +552,7 @@ pub const Keychain = struct {
         if (self.encryption_key == null) {
             // Generate random key
             var key: [32]u8 = undefined;
-            std.crypto.random.bytes(&key);
+            compat.randomBytes(&key);
             self.encryption_key = key;
         }
 
