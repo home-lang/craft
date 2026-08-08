@@ -19,10 +19,49 @@ pub fn build(b: *std.Build) void {
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "version", version_option);
 
+    // Craft's own JavaScript runtime, distinct from the page's: the page runs
+    // on WebKit's JSC inside the WebContent process, which craft does not own.
+    // This is for everything else — a tray handler, a scheduled task, a script
+    // handed to the CLI — which previously had to create a whole WKWebView to
+    // run, and in a menubar-only app could not run at all.
+    //
+    // On by default: zig-js is first-party, so craft's own JavaScript runs on
+    // an engine we own rather than on whatever the platform ships.
+    //
+    // `-Djs-runtime=false` opts out, and is not decoration — it costs 6.5MB of
+    // binary (1.15MB to 7.66MB, ReleaseFast), which matters for a menubar
+    // utility that never evaluates anything. The null backend then reports its
+    // own absence rather than pretending.
+    const js_runtime_enabled = b.option(
+        bool,
+        "js-runtime",
+        "Craft's first-party JavaScript runtime on zig-js (default true; false saves ~6.5MB)",
+    ) orelse true;
+
+    const js_backend_module = blk: {
+        if (js_runtime_enabled) {
+            const js_dep = b.dependency("zig_js", .{ .target = target, .optimize = optimize });
+            break :blk b.createModule(.{
+                .root_source_file = b.path("src/js_backend_zigjs.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{.{ .name = "js", .module = js_dep.module("js") }},
+            });
+        }
+        break :blk b.createModule(.{
+            .root_source_file = b.path("src/js_backend_null.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+    };
+
     // Create the craft module (library module — does not own build_options;
     // each executable supplies build_options directly so there is no duplicate)
     const craft_module = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
+        .imports = &.{
+            .{ .name = "js_backend", .module = js_backend_module },
+        },
     });
     // Add vendored SQLite include path for any C compilation units.
     craft_module.addIncludePath(b.path("vendor/sqlite"));
@@ -58,7 +97,11 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/minimal.zig"),
             .target = target,
             .optimize = optimize,
-            .single_threaded = true,
+            // Single-threaded by default: craft's CLI has no use for threads
+            // and it keeps the binary small. zig-js does spawn them, so the
+            // constraint is relaxed only for builds that include the JS
+            // runtime, rather than giving it up for everyone.
+            .single_threaded = !js_runtime_enabled,
             .strip = if (optimize != .debug) true else null,
             .unwind_tables = if (optimize != .debug) .none else null,
             .omit_frame_pointer = if (optimize == .small) true else null,
@@ -821,18 +864,17 @@ pub fn build(b: *std.Build) void {
     // had a test: the only way to exercise `window.craft.gestures` was to
     // launch an app and swipe a trackpad. zig-js runs them headlessly.
     //
-    // Opt-in, because it needs the sibling checkout at ~/Code/Libraries/zig-js,
-    // which someone installing craft from npm will not have. Declared lazy so
-    // the dependency is only resolved when actually asked for — the rest of the
-    // suite must keep building without it.
+    // On whenever the runtime is: the engine is already a dependency, so there
+    // is no reason for craft's own injected scripts to go untested.
     const js_tests_enabled = b.option(
         bool,
         "js-tests",
-        "Test craft's injected JavaScript against zig-js (needs ../../../../Libraries/zig-js)",
-    ) orelse false;
+        "Test craft's injected JavaScript against zig-js (defaults to whether the JS runtime is built)",
+    ) orelse js_runtime_enabled;
 
     if (js_tests_enabled) {
-        if (b.lazyDependency("zig_js", .{ .target = target, .optimize = optimize })) |js_dep| {
+        {
+            const js_dep = b.dependency("zig_js", .{ .target = target, .optimize = optimize });
             const injected_js_tests = b.addTest(.{
                 .root_module = b.createModule(.{
                     .root_source_file = b.path("test/injected_js_test.zig"),

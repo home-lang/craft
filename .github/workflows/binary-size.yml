@@ -46,6 +46,9 @@ jobs:
           restore-keys: |
             size-${{ runner.os }}-zig-master-
 
+      - name: First-party Zig dependencies
+        uses: ./.github/actions/first-party-zig-deps
+
       - name: Build release binary
         working-directory: packages/zig
         run: |
@@ -82,6 +85,9 @@ jobs:
           elif [ "$SIZE" -gt "$WARN_BINARY_SIZE" ]; then
             echo "::warning::Binary size (${SIZE_MB}MB) is approaching the limit"
           fi
+
+      - name: First-party Zig dependencies
+        uses: ./.github/actions/first-party-zig-deps
 
       - name: Get baseline size (main branch)
         if: github.event_name == 'pull_request'

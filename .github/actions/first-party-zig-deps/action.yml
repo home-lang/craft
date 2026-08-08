@@ -1,0 +1,33 @@
+name: First-party Zig dependencies
+description: >
+  Clone the first-party Zig packages craft depends on by relative path
+  (zig-js and its zig-regex / zig-gc) into the directory build.zig.zon
+  resolves to.
+
+runs:
+  using: composite
+  steps:
+    # These are co-developed first-party packages, so there is no published
+    # tarball to fetch and the dependency is a relative path. The destination is
+    # derived from that same relative path rather than hardcoded, so the two
+    # cannot drift apart.
+    #
+    # Unpinned, which is the honest cost of a path dependency: an unrelated push
+    # to zig-js can turn a craft build red. Pinning belongs with a future
+    # `.url` + hash dependency, which first needs zig-js to publish its own
+    # dependencies the same way.
+    #
+    # Idempotent, because several jobs call this and some run more than one
+    # build step.
+    - shell: bash
+      run: |
+        set -euo pipefail
+        deps="$GITHUB_WORKSPACE/packages/zig/../../../../Libraries"
+        mkdir -p "$deps"
+        for repo in zig-js zig-regex zig-gc; do
+          if [ -d "$deps/$repo/.git" ]; then
+            echo "$repo already present"
+          else
+            git clone --depth 1 "https://github.com/zig-utils/$repo" "$deps/$repo"
+          fi
+        done

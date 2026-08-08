@@ -4,10 +4,11 @@
     .version = "0.0.63",
     .minimum_zig_version = "0.17.0-dev",
     .dependencies = .{
-        // Opt-in, and only for `-Djs-tests`: craft's injected JavaScript is
-        // otherwise untestable without launching a window. Lazy so that a
-        // normal build never needs the sibling checkout to exist.
-        .zig_js = .{ .path = "../../../../Libraries/zig-js", .lazy = true },
+        // First-party, and the engine craft's own JavaScript runs on — see
+        // src/js_runtime.zig. A sibling checkout rather than a URL because
+        // zig-js's own dependencies are relative paths; publishing those is
+        // what would let this become a fetchable `.url` dependency.
+        .zig_js = .{ .path = "../../../../Libraries/zig-js" },
     },
     .paths = .{
         "build.zig",

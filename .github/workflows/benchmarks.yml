@@ -41,10 +41,16 @@ jobs:
           restore-keys: |
             bench-${{ runner.os }}-zig-master-
 
+      - name: First-party Zig dependencies
+        uses: ./.github/actions/first-party-zig-deps
+
       - name: Build benchmark executable
         working-directory: packages/zig
         run: |
           eval "$(pantry env | sed -n '/^export /,$p')" && zig build -Doptimize=ReleaseFast
+
+      - name: First-party Zig dependencies
+        uses: ./.github/actions/first-party-zig-deps
 
       - name: Run benchmarks
         id: bench

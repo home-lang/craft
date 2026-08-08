@@ -53,6 +53,14 @@ pub fn main(init: std.process.Init) !void {
 
     timing.mark(.args_parsed);
 
+    // Evaluate and exit, before any AppKit or WebKit setup. That ordering is
+    // the feature: running a script costs a process, not a window and a
+    // WebContent process behind it.
+    if (options.eval_source != null or options.eval_file != null) {
+        try runEval(allocator, options);
+        return;
+    }
+
     var app = craft.App.init(allocator);
     defer app.deinit();
 
@@ -453,4 +461,45 @@ fn runWithSystemTray(allocator: std.mem.Allocator, options: cli.WindowOptions) !
     }
 
     try app.run();
+}
+
+/// Run a script on craft's own JavaScript runtime and print its result.
+///
+/// Exits non-zero on a script error so a shell or CI step notices — a script
+/// that threw and a script that printed nothing must not look the same.
+fn runEval(allocator: std.mem.Allocator, options: cli.WindowOptions) !void {
+    const js_runtime = craft.js_runtime;
+
+    if (!js_runtime.available) {
+        std.debug.print("{s}\n", .{js_runtime.unavailable_message});
+        std.process.exit(1);
+    }
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+
+    const source = if (options.eval_source) |src| src else blk: {
+        const path = options.eval_file.?;
+        // Craft's own reader, so `--eval-file` inherits the same size ceiling
+        // and IO conventions as `--html-file` rather than inventing a second.
+        break :blk cli.readFileAlloc(arena.allocator(), path) catch {
+            std.debug.print("could not read {s}\n", .{path});
+            std.process.exit(1);
+        };
+    };
+
+    const result = js_runtime.evalOnce(allocator, arena.allocator(), source) catch |err| {
+        // Named distinctly: a syntax error and a thrown error are different
+        // problems, and "it failed" sends the reader to the wrong place.
+        const what = switch (err) {
+            error.Parse => "syntax error",
+            error.Throw => "uncaught error",
+            error.Unavailable => js_runtime.unavailable_message,
+            error.OutOfMemory => "out of memory",
+        };
+        std.debug.print("{s}\n", .{what});
+        std.process.exit(1);
+    };
+
+    std.debug.print("{s}\n", .{result});
 }

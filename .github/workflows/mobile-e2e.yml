@@ -73,12 +73,18 @@ jobs:
           # the device reaches a Booted state, eliminating the flaky fixed sleep.
           xcrun simctl bootstatus "$DEVICE_ID" -b
 
+      - name: First-party Zig dependencies
+        uses: ./.github/actions/first-party-zig-deps
+
       - name: Build iOS library
         working-directory: packages/zig
         run: |
           # Build iOS simulator static libraries using dedicated build step
           # (not the default target which builds macOS executables)
           eval "$(pantry env | sed -n '/^export /,$p')" && zig build build-ios-simulator -Doptimize=ReleaseSafe -Dmacos-sdk="$(xcrun --sdk iphonesimulator --show-sdk-path)"
+
+      - name: First-party Zig dependencies
+        uses: ./.github/actions/first-party-zig-deps
 
       - name: Run iOS unit tests
         working-directory: packages/zig
@@ -165,11 +171,17 @@ jobs:
           sdkmanager --install "ndk;26.1.10909125"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> $GITHUB_ENV
 
+      - name: First-party Zig dependencies
+        uses: ./.github/actions/first-party-zig-deps
+
       - name: Build Android library
         working-directory: packages/zig
         run: |
           # Build for Android arm64
           eval "$(pantry env | sed -n '/^export /,$p')" && zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-linux-android
+
+      - name: First-party Zig dependencies
+        uses: ./.github/actions/first-party-zig-deps
 
       - name: Run Android unit tests
         working-directory: packages/zig

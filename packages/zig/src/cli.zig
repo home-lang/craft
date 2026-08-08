@@ -32,6 +32,10 @@ pub const WindowOptions = struct {
     // Print where startup time went. Unlike --benchmark, which exits at window
     // creation, this keeps running and reports the phases a real launch pays.
     timing: bool = false,
+    // Evaluate JavaScript on craft's own runtime and exit — no window, no
+    // WebKit. The source itself, or a path to read it from.
+    eval_source: ?[]const u8 = null,
+    eval_file: ?[]const u8 = null,
     // Path to a PNG/JPG/ICNS file used as the dock icon for the running
     // process. NSImage decodes everything Cocoa can render, so any common
     // raster format works; .icns is preferred for crispness across sizes.
@@ -62,6 +66,8 @@ pub fn freeOptionStrings(allocator: std.mem.Allocator, options: *WindowOptions) 
     if (!std.mem.eql(u8, options.title, "Craft App")) allocator.free(options.title);
     if (options.sidebar_config) |s| allocator.free(s);
     if (options.icon) |s| allocator.free(s);
+    if (options.eval_source) |s| allocator.free(s);
+    if (options.eval_file) |s| allocator.free(s);
     options.* = WindowOptions{};
 }
 
@@ -102,7 +108,7 @@ fn readHtmlFile(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
 }
 
 /// Read a whole file, subject to the same size ceiling as `--html-file`.
-fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
+pub fn readFileAlloc(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
     return readHtmlFile(allocator, path);
 }
 
@@ -429,6 +435,14 @@ pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !Wind
             options.sidebar_width = std.fmt.parseInt(u32, args[i], 10) catch return CliError.InvalidNumber;
         } else if (std.mem.eql(u8, arg, "--quiet") or std.mem.eql(u8, arg, "-q")) {
             options.quiet = true;
+        } else if (std.mem.eql(u8, arg, "--eval")) {
+            i += 1;
+            if (i >= args.len) return CliError.MissingValue;
+            options.eval_source = try allocator.dupe(u8, args[i]);
+        } else if (std.mem.eql(u8, arg, "--eval-file")) {
+            i += 1;
+            if (i >= args.len) return CliError.MissingValue;
+            options.eval_file = try allocator.dupe(u8, args[i]);
         } else if (std.mem.eql(u8, arg, "--timing")) {
             options.timing = true;
         } else if (std.mem.eql(u8, arg, "--benchmark")) {
@@ -511,6 +525,8 @@ fn printHelp() void {
         \\      --benchmark          Benchmark mode: create window, print "ready", exit
         \\
         \\Information:
+        \\      --eval <SOURCE>      Run JavaScript on craft's own runtime and exit (no window)
+        \\      --eval-file <FILE>   Same, reading the script from a file
         \\      --timing             Print startup phase timings (process, window, webview, load)
         \\  -h, --help               Show this help message
         \\  -v, --version            Show version information
