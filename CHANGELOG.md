@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.60...v0.0.61)
+
+## 🐛 Bug Fixes
+
+- **macos**: inject the native UI surface for web-sidebar windows too ([bc80637](https://github.com/home-lang/craft/commit/bc80637)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.61 ([5512219](https://github.com/home-lang/craft/commit/5512219)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.59...v0.0.60)
 
 ## 🚀 Features
