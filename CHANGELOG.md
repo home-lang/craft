@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.62...v0.0.63)
+
+## 🧪 Tests
+
+- **js**: run craft's injected JavaScript headlessly against zig-js ([a2c484b](https://github.com/home-lang/craft/commit/a2c484b)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.63 ([3971b7c](https://github.com/home-lang/craft/commit/3971b7c)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.61...v0.0.62)
 
 ## 🐛 Bug Fixes

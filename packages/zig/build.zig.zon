@@ -1,7 +1,7 @@
 .{
     .fingerprint = 0xf45c4a848bf58c1c,
     .name = .craft,
-    .version = "0.0.62",
+    .version = "0.0.63",
     .minimum_zig_version = "0.17.0-dev",
     .dependencies = .{
         // Opt-in, and only for `-Djs-tests`: craft's injected JavaScript is
