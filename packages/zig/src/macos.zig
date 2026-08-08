@@ -700,7 +700,17 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         injectCraftScripts(userContentController, .{
             .full_bridge = style.system_tray,
             .sidebar_bootstrap = style.web_sidebar_material,
-            .native_ui = style.native_sidebar,
+            // Also for a web-sidebar window, not only a native one.
+            //
+            // The surface used to be sidebar-only — createSidebar,
+            // createFileBrowser, createSplitView — so gating it on
+            // `native_sidebar` was exactly right. `createSpacesSidebar` broke
+            // that assumption: it puts a segmented control in the *titlebar*
+            // while the web keeps rendering the spaces, which is precisely the
+            // `web_sidebar_material` case. Leaving the old gate meant the one
+            // window mode that wants a native space rail was the one mode that
+            // could not reach it.
+            .native_ui = style.native_sidebar or style.web_sidebar_material,
         });
 
         // Set up the script message handler
