@@ -1,5 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const color_parse = @import("color.zig");
 const bridge_error = @import("bridge_error.zig");
 const logging = @import("logging.zig");
 const json_utils = @import("json_utils.zig");
@@ -484,55 +485,26 @@ pub const WindowBridge = struct {
         var a: f64 = 1.0;
 
         if (data) |json_data| {
-            // Parse {"r": 0.5, "g": 0.5, "b": 0.5, "a": 1.0} or {"color": "#RRGGBB"}
-            // Try hex color first
-            if (std.mem.indexOf(u8, json_data, "\"color\":\"#")) |idx| {
-                const start = idx + 10;
-                if (start + 6 <= json_data.len) {
-                    const hex = json_data[start .. start + 6];
-                    // Parse hex RRGGBB
-                    r = @as(f64, @floatFromInt(std.fmt.parseInt(u8, hex[0..2], 16) catch 255)) / 255.0;
-                    g = @as(f64, @floatFromInt(std.fmt.parseInt(u8, hex[2..4], 16) catch 255)) / 255.0;
-                    b = @as(f64, @floatFromInt(std.fmt.parseInt(u8, hex[4..6], 16) catch 255)) / 255.0;
-                }
+            // `{"color": "..."}` — any CSS colour the parser understands.
+            if (json_utils.getString(json_data, "color")) |text| {
+                const parsed = color_parse.parse(text) orelse {
+                    // Refused rather than approximated. This used to fall back
+                    // to white, so `setBackgroundColor("violet")` produced an
+                    // opaque white window and no indication that the value had
+                    // not been understood.
+                    log.warn("setBackgroundColor: cannot parse colour '{s}'", .{text});
+                    return BridgeError.InvalidParameter;
+                };
+                r = parsed.r;
+                g = parsed.g;
+                b = parsed.b;
+                a = parsed.a;
             } else {
-                // Try RGBA components
-                if (std.mem.indexOf(u8, json_data, "\"r\":")) |idx| {
-                    var start = idx + 4;
-                    while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
-                    var end = start;
-                    while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
-                    if (end > start) {
-                        r = std.fmt.parseFloat(f64, json_data[start..end]) catch 1.0;
-                    }
-                }
-                if (std.mem.indexOf(u8, json_data, "\"g\":")) |idx| {
-                    var start = idx + 4;
-                    while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
-                    var end = start;
-                    while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
-                    if (end > start) {
-                        g = std.fmt.parseFloat(f64, json_data[start..end]) catch 1.0;
-                    }
-                }
-                if (std.mem.indexOf(u8, json_data, "\"b\":")) |idx| {
-                    var start = idx + 4;
-                    while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
-                    var end = start;
-                    while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
-                    if (end > start) {
-                        b = std.fmt.parseFloat(f64, json_data[start..end]) catch 1.0;
-                    }
-                }
-                if (std.mem.indexOf(u8, json_data, "\"a\":")) |idx| {
-                    var start = idx + 4;
-                    while (start < json_data.len and (json_data[start] == ' ' or json_data[start] == '\t')) : (start += 1) {}
-                    var end = start;
-                    while (end < json_data.len and ((json_data[end] >= '0' and json_data[end] <= '9') or json_data[end] == '.')) : (end += 1) {}
-                    if (end > start) {
-                        a = std.fmt.parseFloat(f64, json_data[start..end]) catch 1.0;
-                    }
-                }
+                // `{"r":…, "g":…, "b":…, "a":…}`, each 0–1.
+                r = json_utils.getFloat(f64, json_data, "r") orelse r;
+                g = json_utils.getFloat(f64, json_data, "g") orelse g;
+                b = json_utils.getFloat(f64, json_data, "b") orelse b;
+                a = json_utils.getFloat(f64, json_data, "a") orelse a;
             }
         }
 
