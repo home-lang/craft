@@ -1,5 +1,23 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.63...v0.0.64)
+
+## 🚀 Features
+
+- **js**: craft's own JavaScript runs on zig-js, not on the platform engine ([8556d46](https://github.com/home-lang/craft/commit/8556d46)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🐛 Bug Fixes
+
+- **window**: parse colours properly instead of silently painting white ([4511f1d](https://github.com/home-lang/craft/commit/4511f1d)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.64 ([9d76958](https://github.com/home-lang/craft/commit/9d76958)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.62...v0.0.63)
 
 ## 🧪 Tests
