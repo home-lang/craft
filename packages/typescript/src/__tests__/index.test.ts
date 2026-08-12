@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'bun:test'
-import { CraftApp, createApp, type WindowOptions, type AppConfig } from '../index'
+import { CraftApp, createApp, parseCraftVersionOutput, type WindowOptions, type AppConfig } from '../index'
 
 describe('CraftApp', () => {
   describe('constructor', () => {
@@ -85,6 +85,18 @@ describe('CraftApp', () => {
 })
 
 describe('Helper functions', () => {
+  describe('parseCraftVersionOutput', () => {
+    it('extracts the semantic version from the native CLI report', () => {
+      expect(parseCraftVersionOutput(
+        'craft version 0.0.64\nBuilt with Zig 0.17.0-dev\nPlatform: macOS\n',
+      )).toBe('0.0.64')
+    })
+
+    it('accepts compact registry binaries that print only a version', () => {
+      expect(parseCraftVersionOutput('v0.0.64\n')).toBe('0.0.64')
+    })
+  })
+
   describe('createApp', () => {
     it('should create CraftApp instance', () => {
       const app = createApp()

@@ -473,7 +473,7 @@ pub fn parseArgs(allocator: std.mem.Allocator, args: []const [:0]const u8) !Wind
 }
 
 fn printHelp() void {
-    std.debug.print(
+    writeStdout(
         \\
         \\⚡ Craft - Build desktop apps with web languages
         \\
@@ -560,11 +560,32 @@ fn printVersion() void {
 
     const build_opts = @import("build_options");
     const version = if (@hasDecl(build_opts, "version")) build_opts.version else "0.0.0";
-    std.debug.print(
-        \\craft version {s}
-        \\Built with Zig 0.17.0-dev
-        \\Platform: {s}
-        \\
-        \\
-    , .{ version, platform_name });
+    var buffer: [128]u8 = undefined;
+    const output = formatVersion(&buffer, version, platform_name) catch {
+        std.debug.print("craft: could not format version output\n", .{});
+        return;
+    };
+    writeStdout("{s}", .{output});
+}
+
+fn writeStdout(comptime format: []const u8, args: anytype) void {
+    var buffer: [8192]u8 = undefined;
+    const output = std.fmt.bufPrint(&buffer, format, args) catch {
+        std.debug.print("craft: output exceeded the CLI buffer\n", .{});
+        return;
+    };
+
+    var threaded: std.Io.Threaded = .init(std.heap.page_allocator, .{ .environ = .empty });
+    defer threaded.deinit();
+    std.Io.File.stdout().writeStreamingAll(threaded.io(), output) catch |err| {
+        std.debug.print("craft: stdout write failed: {}\n", .{err});
+    };
+}
+
+pub fn formatVersion(buffer: []u8, version: []const u8, platform_name: []const u8) ![]const u8 {
+    return std.fmt.bufPrint(
+        buffer,
+        "craft version {s}\nBuilt with Zig 0.17.0-dev\nPlatform: {s}\n\n",
+        .{ version, platform_name },
+    );
 }

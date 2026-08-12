@@ -73,6 +73,16 @@ test "CliError - error types exist" {
     try testing.expectEqual(cli.CliError.InvalidNumber, err3);
 }
 
+test "version output includes the release and platform" {
+    var buffer: [128]u8 = undefined;
+    const output = try cli.formatVersion(&buffer, "1.2.3", "macOS");
+
+    try testing.expectEqualStrings(
+        "craft version 1.2.3\nBuilt with Zig 0.17.0-dev\nPlatform: macOS\n\n",
+        output,
+    );
+}
+
 test "WindowOptions - position coordinates" {
     const options = cli.WindowOptions{
         .x = -100,

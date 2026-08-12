@@ -40,7 +40,7 @@ async function probeBinaryVersion(craftPath: string): Promise<void> {
   if (versionMismatchWarned) return
   try {
     const { stdout } = await execFileAsync(craftPath, ['--version'], { timeout: 2000 })
-    const nativeVersion = stdout.trim().replace(/^v/, '')
+    const nativeVersion = parseCraftVersionOutput(stdout)
     const sdkVersion = getSdkVersion()
     if (sdkVersion !== 'unknown' && nativeVersion && nativeVersion !== sdkVersion) {
       versionMismatchWarned = true
@@ -53,6 +53,11 @@ async function probeBinaryVersion(craftPath: string): Promise<void> {
   catch {
     // Binary may not implement --version, or may be slow; don't block startup.
   }
+}
+
+export function parseCraftVersionOutput(output: string): string {
+  const firstLine = output.trim().split(/\r?\n/, 1)[0] ?? ''
+  return firstLine.replace(/^craft version\s+/i, '').replace(/^v/, '').trim()
 }
 
 // Export packaging API
