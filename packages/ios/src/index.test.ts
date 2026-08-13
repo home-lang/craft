@@ -54,9 +54,13 @@ describe('Craft iOS builder', () => {
 
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
     const plist = readFileSync(join(output, 'Info.plist'), 'utf8')
+    const generatedConfig = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
     expect(swift).toContain('subdirectory: "dist"')
     expect(swift.match(/private var pendingCallbackId/g)?.length).toBe(1)
     expect(plist).toContain('NSLocationWhenInUseUsageDescription')
     expect(plist).toContain('<string>wildloop</string>')
+    expect(generatedConfig.enableHaptics).toBe(true)
+    expect(generatedConfig.enableSecureStorage).toBe(false)
+    expect(generatedConfig.enableScreenCapture).toBe(false)
   })
 })
