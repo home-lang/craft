@@ -216,9 +216,9 @@ struct CraftWebView: UIViewRepresentable {
             if let url = URL(string: devURL) {
                 webView.load(URLRequest(url: url))
             }
-        } else if let htmlPath = Bundle.main.path(forResource: "index", ofType: "html") {
+        } else if let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "dist")
+            ?? Bundle.main.url(forResource: "index", withExtension: "html") {
             // Production mode - load bundled HTML
-            let htmlURL = URL(fileURLWithPath: htmlPath)
             webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
         }
 
@@ -283,9 +283,6 @@ struct CraftWebView: UIViewRepresentable {
 
         // SQLite database
         private var db: OpaquePointer?
-
-        // Pending callback for async operations
-        private var pendingCallbackId: String?
 
         init(config: CraftConfig) {
             self.config = config
