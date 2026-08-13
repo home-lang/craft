@@ -39,6 +39,11 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./mobile": {
+      "types": "./dist/mobile.d.ts",
+      "import": "./dist/mobile.js",
+      "default": "./dist/mobile.js"
+    },
     "./ios": {
       "types": "./dist/ios/src/index.d.ts",
       "import": "./dist/ios/src/index.js"

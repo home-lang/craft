@@ -33,6 +33,17 @@ await cp(resolve(root, '../android/templates'), resolve(dist, 'android/templates
 await cp(resolve(root, '../../templates/projects'), resolve(dist, 'templates/projects'), { recursive: true })
 
 await build(['src/index.ts'], 'dist')
+const mobileResult = await Bun.build({
+  entrypoints: [resolve(root, 'src/mobile.ts')],
+  outdir: dist,
+  target: 'browser',
+  format: 'esm',
+  sourcemap: 'external',
+})
+if (!mobileResult.success) {
+  for (const log of mobileResult.logs) console.error(log)
+  throw new Error('Failed to build browser-safe mobile SDK')
+}
 await Bun.$`bun build ${resolve(root, 'src/index.ts')} --outfile ${resolve(dist, 'index.cjs')} --format cjs --target node`
 await Bun.$`bun build ${resolve(root, 'bin/cli.ts')} --outfile ${resolve(dist, 'cli.js')} --format esm --target bun`
 await Bun.$`chmod +x ${resolve(dist, 'cli.js')}`
