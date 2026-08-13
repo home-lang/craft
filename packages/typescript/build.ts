@@ -25,6 +25,7 @@ async function build(entrypoints: string[], outdir: string): Promise<void> {
 // their implementation and templates instead of importing unpublished peers.
 await build(['../ios/src/index.ts'], 'dist/ios/src')
 await build(['../android/src/index.ts'], 'dist/android/src')
+await Bun.$`bunx tsc ${resolve(root, '../ios/src/index.ts')} --declaration --emitDeclarationOnly --module esnext --target esnext --moduleResolution bundler --types bun --skipLibCheck --outDir ${resolve(dist, 'ios/src')}`
 await cp(resolve(root, '../ios/templates'), resolve(dist, 'ios/templates'), { recursive: true })
 await cp(resolve(root, '../android/templates'), resolve(dist, 'android/templates'), { recursive: true })
 

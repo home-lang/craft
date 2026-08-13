@@ -4,8 +4,8 @@
  * Generates native iOS apps from web content using WKWebView.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, cpSync, readdirSync } from 'node:fs'
-import { join, dirname, basename } from 'node:path'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 import { $ } from 'bun'
 
 const TEMPLATES_DIR = join(dirname(import.meta.dir), 'templates')
@@ -20,9 +20,40 @@ export interface CraftConfig {
   enableSpeechRecognition?: boolean
   enableHaptics?: boolean
   enableShare?: boolean
+  enableCamera?: boolean
+  enableBiometric?: boolean
+  enablePushNotifications?: boolean
+  enableSecureStorage?: boolean
+  enableGeolocation?: boolean
+  enableClipboard?: boolean
+  enableContacts?: boolean
+  enableCalendar?: boolean
+  enableLocalNotifications?: boolean
+  enableInAppPurchase?: boolean
+  enableKeepAwake?: boolean
+  enableOrientationLock?: boolean
+  enableDeepLinks?: boolean
+  enableQRScanner?: boolean
+  enableFilePicker?: boolean
+  enableFileDownload?: boolean
+  enableSocialAuth?: boolean
+  enableAudioRecording?: boolean
+  enableVideoRecording?: boolean
+  enableMotionSensors?: boolean
+  enableLocalDatabase?: boolean
+  enableBluetooth?: boolean
+  enableNFC?: boolean
+  enableHealthKit?: boolean
+  enableBackgroundTasks?: boolean
+  enableScreenCapture?: boolean
+  enablePDFViewer?: boolean
+  enableAR?: boolean
+  enableMLKit?: boolean
   devServerURL?: string
   iosVersion?: string
   teamId?: string
+  urlSchemes?: string[]
+  orientations?: Array<'portrait' | 'landscape-left' | 'landscape-right' | 'portrait-upside-down'>
 }
 
 export interface InitOptions {
@@ -30,12 +61,14 @@ export interface InitOptions {
   bundleId?: string
   teamId?: string
   output: string
+  config?: Partial<CraftConfig>
 }
 
 export interface BuildOptions {
   htmlPath?: string
   devServer?: string
   output: string
+  generateProject?: boolean
 }
 
 export interface OpenOptions {
@@ -45,6 +78,123 @@ export interface OpenOptions {
 export interface RunOptions {
   simulator: boolean
   output: string
+}
+
+const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
+  version: '1.0.0',
+  buildNumber: '1',
+  darkMode: true,
+  backgroundColor: '#0b1712',
+  enableSpeechRecognition: false,
+  enableHaptics: true,
+  enableShare: true,
+  enableCamera: false,
+  enableBiometric: false,
+  enablePushNotifications: false,
+  enableSecureStorage: true,
+  enableGeolocation: false,
+  enableClipboard: true,
+  enableContacts: false,
+  enableCalendar: false,
+  enableLocalNotifications: false,
+  enableInAppPurchase: false,
+  enableKeepAwake: false,
+  enableOrientationLock: true,
+  enableDeepLinks: true,
+  enableQRScanner: false,
+  enableFilePicker: true,
+  enableFileDownload: true,
+  enableSocialAuth: false,
+  enableAudioRecording: false,
+  enableVideoRecording: false,
+  enableMotionSensors: false,
+  enableLocalDatabase: true,
+  enableBluetooth: false,
+  enableNFC: false,
+  enableHealthKit: false,
+  enableBackgroundTasks: false,
+  enableScreenCapture: true,
+  enablePDFViewer: true,
+  enableAR: false,
+  enableMLKit: false,
+  iosVersion: '16.0',
+  teamId: '',
+  orientations: ['portrait'],
+}
+
+function xmlEscape(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll(/\u0027/g, '&apos;')
+}
+
+function plistString(key: string, value: string): string {
+  return `    <key>${key}</key>\n    <string>${xmlEscape(value)}</string>`
+}
+
+export function renderUsageDescriptions(config: CraftConfig): string {
+  const entries: Array<[boolean | undefined, string, string]> = [
+    [config.enableSpeechRecognition, 'NSSpeechRecognitionUsageDescription', `${config.appName} uses speech recognition for voice input.`],
+    [config.enableSpeechRecognition || config.enableAudioRecording, 'NSMicrophoneUsageDescription', `${config.appName} uses the microphone to record audio.`],
+    [config.enableCamera || config.enableVideoRecording || config.enableQRScanner || config.enableAR, 'NSCameraUsageDescription', `${config.appName} uses the camera for photos, video, scanning, and augmented reality.`],
+    [config.enableCamera || config.enableVideoRecording, 'NSPhotoLibraryUsageDescription', `${config.appName} lets you choose photos and videos from your library.`],
+    [config.enableGeolocation, 'NSLocationWhenInUseUsageDescription', `${config.appName} uses your location while the app is open.`],
+    [config.enableContacts, 'NSContactsUsageDescription', `${config.appName} accesses contacts only when you choose a contact feature.`],
+    [config.enableCalendar, 'NSCalendarsUsageDescription', `${config.appName} accesses your calendar only when you choose a calendar feature.`],
+    [config.enableBluetooth, 'NSBluetoothAlwaysUsageDescription', `${config.appName} uses Bluetooth to connect to nearby devices.`],
+    [config.enableMotionSensors, 'NSMotionUsageDescription', `${config.appName} uses motion data for activity features.`],
+    [config.enableNFC, 'NFCReaderUsageDescription', `${config.appName} reads NFC tags when you start a scan.`],
+    [config.enableHealthKit, 'NSHealthShareUsageDescription', `${config.appName} reads health data you choose to share.`],
+    [config.enableHealthKit, 'NSHealthUpdateUsageDescription', `${config.appName} writes health data only with your permission.`],
+    [config.enableBiometric, 'NSFaceIDUsageDescription', `${config.appName} uses Face ID to protect your account.`],
+  ]
+
+  return entries
+    .filter(([enabled]) => enabled)
+    .map(([, key, value]) => plistString(key, value))
+    .join('\n')
+}
+
+export function renderOrientations(config: CraftConfig): string {
+  const names: Record<NonNullable<CraftConfig['orientations']>[number], string> = {
+    portrait: 'UIInterfaceOrientationPortrait',
+    'landscape-left': 'UIInterfaceOrientationLandscapeLeft',
+    'landscape-right': 'UIInterfaceOrientationLandscapeRight',
+    'portrait-upside-down': 'UIInterfaceOrientationPortraitUpsideDown',
+  }
+  const values = config.orientations?.length ? config.orientations : ['portrait']
+  return values.map(value => `        <string>${names[value]}</string>`).join('\n')
+}
+
+export function renderUrlTypes(config: CraftConfig): string {
+  const schemes = [...new Set(config.urlSchemes?.map(value => value.trim()).filter(Boolean) ?? [])]
+  if (!schemes.length) return ''
+
+  return `    <key>CFBundleURLTypes</key>\n    <array>\n        <dict>\n            <key>CFBundleURLSchemes</key>\n            <array>\n${schemes.map(value => `                <string>${xmlEscape(value)}</string>`).join('\n')}\n            </array>\n        </dict>\n    </array>`
+}
+
+/** Replace the bundled web application atomically so removed assets cannot linger. */
+export function syncWebAssets(source: string, output: string): void {
+  const sourcePath = resolve(source)
+  if (!existsSync(sourcePath)) throw new Error(`Web asset path not found: ${source}`)
+
+  const distDir = join(output, 'dist')
+  rmSync(distDir, { recursive: true, force: true })
+  mkdirSync(distDir, { recursive: true })
+
+  if (statSync(sourcePath).isDirectory()) {
+    cpSync(sourcePath, distDir, { recursive: true })
+  }
+  else {
+    cpSync(sourcePath, join(distDir, 'index.html'))
+  }
+
+  if (!existsSync(join(distDir, 'index.html'))) {
+    throw new Error(`Web asset directory must contain index.html: ${source}`)
+  }
 }
 
 /**
@@ -70,17 +220,11 @@ export async function init(options: InitOptions): Promise<void> {
 
   // Create craft.config.json
   const config: CraftConfig = {
+    ...DEFAULT_CONFIG,
     appName: name,
     bundleId: finalBundleId,
-    version: '1.0.0',
-    buildNumber: '1',
-    darkMode: true,
-    backgroundColor: '#1a1a2e',
-    enableSpeechRecognition: true,
-    enableHaptics: true,
-    enableShare: true,
-    iosVersion: '15.0',
     teamId: teamId || '',
+    ...options.config,
   }
 
   writeFileSync(join(output, 'craft.config.json'), JSON.stringify(config, null, 2))
@@ -97,6 +241,9 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{VERSION\}\}/g, config.version || '1.0.0')
     .replace(/\{\{BUILD_NUMBER\}\}/g, config.buildNumber || '1')
     .replace(/\{\{UI_STYLE\}\}/g, config.darkMode ? 'Dark' : 'Light')
+    .replace(/\{\{ORIENTATIONS\}\}/g, renderOrientations(config))
+    .replace(/\{\{USAGE_DESCRIPTIONS\}\}/g, renderUsageDescriptions(config))
+    .replace(/\{\{URL_TYPES\}\}/g, renderUrlTypes(config))
 
   writeFileSync(join(output, 'Info.plist'), infoPlist)
 
@@ -169,7 +316,7 @@ export async function init(options: InitOptions): Promise<void> {
  * Build web assets and generate Xcode project
  */
 export async function build(options: BuildOptions): Promise<void> {
-  const { htmlPath, devServer, output } = options
+  const { htmlPath, devServer, output, generateProject = true } = options
 
   console.log('\n📦 Building Craft iOS project...')
 
@@ -188,26 +335,12 @@ export async function build(options: BuildOptions): Promise<void> {
     console.log(`   Dev server: ${devServer}`)
   }
 
-  // Copy HTML if provided
   if (htmlPath) {
-    const distDir = join(output, 'dist')
-    if (!existsSync(distDir)) {
-      mkdirSync(distDir, { recursive: true })
-    }
-
-    if (existsSync(htmlPath)) {
-      const stat = await Bun.file(htmlPath).exists()
-      if (stat) {
-        // Single file
-        const html = readFileSync(htmlPath, 'utf-8')
-        writeFileSync(join(distDir, 'index.html'), html)
-        console.log(`   Copied: ${htmlPath} → dist/index.html`)
-      }
-    }
-else {
-      throw new Error(`HTML path not found: ${htmlPath}`)
-    }
+    syncWebAssets(htmlPath, output)
+    console.log(`   Synced: ${htmlPath} → dist/`)
   }
+
+  if (!generateProject) return
 
   // Generate Xcode project using xcodegen
   try {
@@ -221,10 +354,10 @@ else {
       throw new Error('xcodegen not found')
     }
   }
-catch {
-    console.log('⚠️  xcodegen not found. Install with: brew install xcodegen')
-    console.log('   Then run: craft ios build')
-    return
+catch (error) {
+    throw new Error('Unable to generate the Xcode project. Install xcodegen with `brew install xcodegen`.', {
+      cause: error,
+    })
   }
 
   console.log('')
@@ -284,7 +417,7 @@ export async function run(options: RunOptions): Promise<void> {
       console.log('✅ App deployed to simulator')
     }
 catch (error) {
-      console.error('Build failed. Open in Xcode for details:', projectPath)
+      throw new Error(`iOS simulator build failed for ${projectPath}`, { cause: error })
     }
   }
 else {
@@ -299,6 +432,3 @@ else {
     console.log('  4. Click Run (▶️)')
   }
 }
-
-// Re-export types
-export type { CraftConfig }

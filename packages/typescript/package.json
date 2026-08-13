@@ -38,6 +38,10 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./ios": {
+      "types": "./dist/ios/src/index.d.ts",
+      "import": "./dist/ios/src/index.js"
     }
   },
   "module": "./dist/index.js",

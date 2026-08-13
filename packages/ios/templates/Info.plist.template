@@ -30,9 +30,7 @@
     </array>
     <key>UISupportedInterfaceOrientations</key>
     <array>
-        <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationLandscapeLeft</string>
-        <string>UIInterfaceOrientationLandscapeRight</string>
+{{ORIENTATIONS}}
     </array>
     <key>UIUserInterfaceStyle</key>
     <string>{{UI_STYLE}}</string>
@@ -40,10 +38,8 @@
     <string>UIStatusBarStyleLightContent</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
-    <key>NSSpeechRecognitionUsageDescription</key>
-    <string>{{APP_NAME}} uses speech recognition for voice commands.</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>{{APP_NAME}} needs microphone access for voice input.</string>
+{{USAGE_DESCRIPTIONS}}
+{{URL_TYPES}}
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsLocalNetworking</key>
