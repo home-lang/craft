@@ -290,6 +290,11 @@ export async function init(options: InitOptions): Promise<void> {
       : '')
 
   writeFileSync(join(output, 'app/build.gradle.kts'), appGradle)
+  const proguardTemplate = readFileSync(join(TEMPLATES_DIR, 'proguard-rules.pro.template'), 'utf-8')
+  writeFileSync(
+    join(output, 'app/proguard-rules.pro'),
+    proguardTemplate.replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName),
+  )
 
   // Create settings.gradle.kts
   const settingsTemplate = readFileSync(join(TEMPLATES_DIR, 'settings.gradle.kts.template'), 'utf-8')

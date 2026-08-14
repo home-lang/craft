@@ -49,6 +49,7 @@ describe('Craft Android builder', () => {
     expect(bridge).toContain('camera: false')
     expect(manifest).toContain('android:allowBackup="false"')
     expect(manifest).toContain('android:usesCleartextTraffic="false"')
+    expect(readFileSync(join(output, 'app/proguard-rules.pro'), 'utf8')).toContain('android.webkit.JavascriptInterface')
   })
 
   it('marks bundled assets as the remote-app recovery path', async () => {

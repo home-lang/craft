@@ -1,0 +1,9 @@
+# Preserve the JavaScript bridge contract and its annotated methods when R8
+# optimizes release builds. These classes are reached from WebView by name.
+-keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keep class {{PACKAGE_NAME}}.CraftBridge { *; }
+-keep class {{PACKAGE_NAME}}.CraftHealthConnect { *; }
+-keep class {{PACKAGE_NAME}}.LocationRecordingService { *; }
