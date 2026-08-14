@@ -230,31 +230,46 @@ final class BundledAssetSchemeHandler: NSObject, WKURLSchemeHandler {
     private let rootURL: URL?
 
     override init() {
-        if let resources = Bundle.main.resourceURL {
-            let nested = resources.appendingPathComponent("dist", isDirectory: true)
-            let nestedIndex = nested.appendingPathComponent("index.html").path
-            let flattenedIndex = resources.appendingPathComponent("index.html").path
-            if FileManager.default.fileExists(atPath: nestedIndex) {
-                rootURL = nested
-            } else if FileManager.default.fileExists(atPath: flattenedIndex) {
-                // Xcode can flatten a synchronized resource folder depending
-                // on how the generated project is materialized.
-                rootURL = resources
-            } else {
-                rootURL = nil
-            }
-        } else {
-            rootURL = nil
-        }
+        rootURL = Self.findBundledRoot()
         super.init()
+    }
+
+    private static func findBundledRoot() -> URL? {
+        let bundle = Bundle.main
+        let directCandidates = [
+            bundle.url(forResource: "index", withExtension: "html", subdirectory: "dist"),
+            bundle.url(forResource: "index", withExtension: "html")
+        ]
+        if let indexURL = directCandidates.compactMap({ $0 }).first {
+            return indexURL.deletingLastPathComponent()
+        }
+
+        // Folder references, synchronized folders, and different Xcode
+        // versions can materialize resources at different bundle depths.
+        // Search the app resources once so a valid bundle never becomes a
+        // silent blank screen merely because its generated layout changed.
+        guard let resources = bundle.resourceURL,
+              let files = FileManager.default.enumerator(
+                at: resources,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+              ) else { return nil }
+
+        for case let fileURL as URL in files where fileURL.lastPathComponent == "index.html" {
+            return fileURL.deletingLastPathComponent()
+        }
+        return nil
     }
 
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
         guard let requestURL = urlSchemeTask.request.url,
               requestURL.scheme == "craft",
-              requestURL.host == "app",
-              let rootURL = rootURL else {
+              requestURL.host == "app" else {
             fail(urlSchemeTask, code: .badURL)
+            return
+        }
+        guard let rootURL = rootURL else {
+            fail(urlSchemeTask, code: .fileDoesNotExist)
             return
         }
 
@@ -337,7 +352,7 @@ struct CraftWebView: UIViewRepresentable {
             if let url = URL(string: devURL) {
                 webView.load(URLRequest(url: url))
             }
-        } else if let bundledURL = URL(string: "craft://app/") {
+        } else if let bundledURL = URL(string: "craft://app/index.html") {
             // A route-aware local origin keeps root-relative STX assets and
             // clean links working without granting arbitrary file access.
             webView.load(URLRequest(url: bundledURL))
@@ -1093,7 +1108,7 @@ struct CraftWebView: UIViewRepresentable {
         private func loadBundledFallback(in webView: WKWebView) {
             guard !loadedBundledFallback,
                   config.devServerURL != nil,
-                  let bundledURL = URL(string: "craft://app/") else { return }
+                  let bundledURL = URL(string: "craft://app/index.html") else { return }
             loadedBundledFallback = true
             webView.load(URLRequest(url: bundledURL))
         }
