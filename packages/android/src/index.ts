@@ -31,6 +31,7 @@ export interface CraftAndroidConfig {
   trustedOrigins?: string[]
   appIconPath?: string
   devServerURL?: string
+  hasBundledFallback?: boolean
   minSdk?: number
   targetSdk?: number
 }
@@ -370,6 +371,9 @@ export async function build(options: BuildOptions): Promise<void> {
   // Copy the complete web application if provided.
   if (htmlPath) {
     syncAndroidWebAssets(htmlPath, output)
+    config.hasBundledFallback = Boolean(devServer)
+    writeFileSync(configPath, JSON.stringify(config, null, 2))
+    writeFileSync(join(output, 'app/src/main/assets/craft.config.json'), JSON.stringify(config, null, 2))
     console.log(`   Synced: ${htmlPath} → assets/`)
   }
 

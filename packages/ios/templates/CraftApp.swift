@@ -280,6 +280,7 @@ struct CraftWebView: UIViewRepresentable {
         private weak var webView: WKWebView?
         private var pendingCallbackId: String?
         private var pendingPushCallbackId: String?
+        private var loadedBundledFallback = false
 
         // Location
         private var locationManager: CLLocationManager?
@@ -976,6 +977,23 @@ struct CraftWebView: UIViewRepresentable {
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             webView.reload()
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            loadBundledFallback(in: webView)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            loadBundledFallback(in: webView)
+        }
+
+        private func loadBundledFallback(in webView: WKWebView) {
+            guard !loadedBundledFallback,
+                  config.devServerURL != nil,
+                  let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "dist")
+                    ?? Bundle.main.url(forResource: "index", withExtension: "html") else { return }
+            loadedBundledFallback = true
+            webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
         }
 
         private func isTrustedURL(_ url: URL?) -> Bool {

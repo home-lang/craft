@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.content.Intent
 import android.net.Uri
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceError
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -18,6 +19,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var craftBridge: CraftBridge
     private val devServerUrl: String? by lazy { getDevServerUrl() }
     private val trustedOrigins: Set<String> by lazy { getTrustedOrigins() }
+    private val hasBundledFallback: Boolean by lazy { configJson()?.optBoolean("hasBundledFallback", false) == true }
+    private var loadedBundledFallback = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,7 +43,7 @@ class MainActivity : AppCompatActivity() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            allowFileAccess = devServerUrl == null
+            allowFileAccess = devServerUrl == null || hasBundledFallback
             allowContentAccess = false
             allowFileAccessFromFileURLs = true
             allowUniversalAccessFromFileURLs = false
@@ -63,6 +66,14 @@ class MainActivity : AppCompatActivity() {
                 if (isTrustedUrl(url)) return false
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                 return true
+            }
+
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                super.onReceivedError(view, request, error)
+                if (request?.isForMainFrame == true && hasBundledFallback && !loadedBundledFallback) {
+                    loadedBundledFallback = true
+                    webView.loadUrl("file:///android_asset/index.html")
+                }
             }
         }
 

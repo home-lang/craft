@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'bun:test'
-import { init, renderAndroidPermissions, syncAndroidWebAssets } from './index'
+import { build, init, renderAndroidPermissions, syncAndroidWebAssets } from './index'
 
 describe('Craft Android builder', () => {
   it('renders only permissions required by enabled capabilities', () => {
@@ -49,5 +49,20 @@ describe('Craft Android builder', () => {
     expect(bridge).toContain('camera: false')
     expect(manifest).toContain('android:allowBackup="false"')
     expect(manifest).toContain('android:usesCleartextTraffic="false"')
+  })
+
+  it('marks bundled assets as the remote-app recovery path', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'craft-android-fallback-'))
+    const web = join(root, 'web')
+    const output = join(root, 'android')
+    Bun.spawnSync(['mkdir', '-p', web])
+    writeFileSync(join(web, 'index.html'), '<main>Available offline</main>')
+    await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
+    await build({ htmlPath: web, devServer: 'https://wildloop.org', output, compile: false })
+
+    const config = JSON.parse(readFileSync(join(output, 'app/src/main/assets/craft.config.json'), 'utf8'))
+    const activity = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/MainActivity.kt'), 'utf8')
+    expect(config.hasBundledFallback).toBe(true)
+    expect(activity).toContain('hasBundledFallback && !loadedBundledFallback')
   })
 })

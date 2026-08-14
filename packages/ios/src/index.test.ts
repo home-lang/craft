@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'bun:test'
 import {
+  build,
   init,
   renderBackgroundModes,
   renderEntitlements,
@@ -108,5 +109,19 @@ describe('Craft iOS builder', () => {
     expect(generatedConfig.enableHaptics).toBe(true)
     expect(generatedConfig.enableSecureStorage).toBe(false)
     expect(generatedConfig.enableScreenCapture).toBe(false)
+  })
+
+  it('keeps bundled assets as a remote-app recovery path', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'craft-ios-fallback-'))
+    const web = join(root, 'web')
+    const output = join(root, 'ios')
+    Bun.spawnSync(['mkdir', '-p', web])
+    writeFileSync(join(web, 'index.html'), '<main>Available offline</main>')
+    await init({ name: 'WildLoop', bundleId: 'org.wildloop.app', output })
+    await build({ htmlPath: web, devServer: 'https://wildloop.org', output, generateProject: false })
+
+    const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
+    expect(swift).toContain('loadBundledFallback(in: webView)')
+    expect(readFileSync(join(output, 'dist/index.html'), 'utf8')).toContain('Available offline')
   })
 })
