@@ -49,6 +49,7 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.play.core.review.ReviewManagerFactory
+{{FIREBASE_IMPORT}}
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.ContentValues
@@ -1524,24 +1525,7 @@ class CraftBridge(
 
     @JavascriptInterface
     fun registerPush() {
-        // This would integrate with Firebase Cloud Messaging
-        // For now, return a placeholder token
-        activity.runOnUiThread {
-            // In a real implementation, you would use Firebase:
-            // FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            //     if (task.isSuccessful) {
-            //         val token = task.result
-            //         webView.evaluateJavascript("window._craftPushResolve('$token')", null)
-            //     } else {
-            //         webView.evaluateJavascript("window._craftPushReject('Failed to get token')", null)
-            //     }
-            // }
-
-            webView.evaluateJavascript(
-                "window._craftPushResolve && window._craftPushResolve('push-token-placeholder')",
-                null
-            )
-        }
+        {{REGISTER_PUSH_IMPLEMENTATION}}
     }
 
     // ==================== Secure Storage ====================

@@ -30,6 +30,7 @@ export interface CraftAndroidConfig {
   enableDeepLinks?: boolean
   trustedOrigins?: string[]
   appIconPath?: string
+  googleServicesFile?: string
   devServerURL?: string
   hasBundledFallback?: boolean
   minSdk?: number
@@ -157,6 +158,12 @@ export async function init(options: InitOptions): Promise<void> {
   writeFileSync(join(output, 'craft.config.json'), JSON.stringify(config, null, 2))
   writeFileSync(join(output, 'app/src/main/assets/craft.config.json'), JSON.stringify(config, null, 2))
 
+  const hasGoogleServices = Boolean(config.googleServicesFile)
+  if (config.googleServicesFile) {
+    if (!existsSync(config.googleServicesFile)) throw new Error(`Google services file not found: ${config.googleServicesFile}`)
+    cpSync(config.googleServicesFile, join(output, 'app/google-services.json'))
+  }
+
   // Copy templates
   const mainActivityTemplate = readFileSync(join(TEMPLATES_DIR, 'MainActivity.kt.template'), 'utf-8')
   const mainActivity = mainActivityTemplate
@@ -180,6 +187,31 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{ENABLE_BACKGROUND_LOCATION\}\}/g, String(Boolean(config.enableBackgroundLocation)))
     .replace(/\{\{ENABLE_KEEP_AWAKE\}\}/g, String(Boolean(config.enableKeepAwake)))
     .replace(/\{\{ENABLE_DEEP_LINKS\}\}/g, String(Boolean(config.enableDeepLinks)))
+    .replace(/\{\{FIREBASE_IMPORT\}\}/g, config.enablePushNotifications ? 'import com.google.firebase.messaging.FirebaseMessaging' : '')
+    .replace(/\{\{REGISTER_PUSH_IMPLEMENTATION\}\}/g, config.enablePushNotifications
+      ? `activity.runOnUiThread {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 4204)
+            }
+            try {
+                FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                    val token = if (task.isSuccessful) task.result else null
+                    val callback = if (token.isNullOrBlank()) "window._craftPushReject" else "window._craftPushResolve"
+                    val payload = JSONObject.quote(token ?: task.exception?.message ?: "Firebase Cloud Messaging is not configured")
+                    webView.evaluateJavascript("$callback && $callback($payload)", null)
+                }
+            } catch (error: Exception) {
+                val payload = JSONObject.quote(error.message ?: "Firebase Cloud Messaging is not configured")
+                webView.evaluateJavascript("window._craftPushReject && window._craftPushReject($payload)", null)
+            }
+        }`
+      : `activity.runOnUiThread {
+            webView.evaluateJavascript(
+                "window._craftPushReject && window._craftPushReject('Push notifications are disabled')",
+                null
+            )
+        }`)
   writeFileSync(join(output, 'app/src/main/java', packagePath, 'CraftBridge.kt'), craftBridge)
   if (config.enableBackgroundLocation) {
     const serviceTemplate = readFileSync(join(TEMPLATES_DIR, 'LocationRecordingService.kt.template'), 'utf-8')
@@ -204,7 +236,8 @@ export async function init(options: InitOptions): Promise<void> {
 
   // Create build.gradle.kts (project level)
   const projectGradleTemplate = readFileSync(join(TEMPLATES_DIR, 'build.gradle.kts.project.template'), 'utf-8')
-  writeFileSync(join(output, 'build.gradle.kts'), projectGradleTemplate)
+  writeFileSync(join(output, 'build.gradle.kts'), projectGradleTemplate
+    .replace(/\{\{GOOGLE_SERVICES_PLUGIN\}\}/g, hasGoogleServices ? '    id("com.google.gms.google-services") version "4.4.2" apply false' : ''))
 
   // Create build.gradle.kts (app level)
   const appGradleTemplate = readFileSync(join(TEMPLATES_DIR, 'build.gradle.kts.app.template'), 'utf-8')
@@ -214,6 +247,10 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{VERSION_CODE\}\}/g, String(config.versionCode || 1))
     .replace(/\{\{MIN_SDK\}\}/g, String(config.minSdk || 24))
     .replace(/\{\{TARGET_SDK\}\}/g, String(config.targetSdk || 34))
+    .replace(/\{\{GOOGLE_SERVICES_PLUGIN\}\}/g, hasGoogleServices ? '    id("com.google.gms.google-services")' : '')
+    .replace(/\{\{FIREBASE_MESSAGING_DEPENDENCY\}\}/g, config.enablePushNotifications
+      ? '    implementation("com.google.firebase:firebase-messaging:24.1.0")'
+      : '')
 
   writeFileSync(join(output, 'app/build.gradle.kts'), appGradle)
 

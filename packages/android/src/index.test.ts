@@ -84,4 +84,38 @@ describe('Craft Android builder', () => {
     expect(bridge).toContain('fun stopLocationRecording()')
     expect(manifest).toContain('android:foregroundServiceType="location"')
   })
+
+  it('uses Firebase Cloud Messaging instead of placeholder push tokens', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'craft-android-push-'))
+    const output = join(root, 'android')
+    const googleServicesFile = join(root, 'google-services.json')
+    writeFileSync(googleServicesFile, JSON.stringify({ project_info: { project_number: '1' } }))
+    await init({
+      name: 'WildLoop',
+      packageName: 'org.wildloop.app',
+      output,
+      config: { enablePushNotifications: true, googleServicesFile },
+    })
+
+    const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
+    const appGradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
+    const projectGradle = readFileSync(join(output, 'build.gradle.kts'), 'utf8')
+    expect(bridge).toContain('FirebaseMessaging.getInstance().token')
+    expect(bridge).not.toContain('push-token-placeholder')
+    expect(appGradle).toContain('com.google.firebase:firebase-messaging')
+    expect(appGradle).toContain('id("com.google.gms.google-services")')
+    expect(projectGradle).toContain('id("com.google.gms.google-services")')
+    expect(existsSync(join(output, 'app/google-services.json'))).toBe(true)
+  })
+
+  it('declares the libraries used by the generated bridge', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-android-dependencies-'))
+    await init({ name: 'WildLoop', packageName: 'org.wildloop.app', output })
+    const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
+    expect(gradle).toContain('androidx.fragment:fragment-ktx')
+    expect(gradle).toContain('com.google.mlkit:barcode-scanning')
+    expect(gradle).toContain('com.google.mlkit:image-labeling')
+    expect(gradle).toContain('com.google.mlkit:object-detection')
+    expect(gradle).toContain('com.google.mlkit:text-recognition')
+  })
 })

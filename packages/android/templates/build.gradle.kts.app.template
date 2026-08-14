@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+{{GOOGLE_SERVICES_PLUGIN}}
 }
 
 android {
@@ -49,6 +50,7 @@ dependencies {
     // AndroidX Core
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.coordinatorlayout:coordinatorlayout:1.2.0")
 
@@ -68,6 +70,15 @@ dependencies {
     // Google Play In-App Review
     implementation("com.google.android.play:review:2.0.1")
     implementation("com.google.android.play:review-ktx:2.0.1")
+
+    // Native push notifications (included only when enabled)
+{{FIREBASE_MESSAGING_DEPENDENCY}}
+
+    // On-device computer vision APIs exposed by CraftBridge
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("com.google.mlkit:image-labeling:17.0.9")
+    implementation("com.google.mlkit:object-detection:17.0.2")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // Google Play Billing (In-App Purchase)
     implementation("com.android.billingclient:billing:6.1.0")
