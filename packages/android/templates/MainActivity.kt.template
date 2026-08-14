@@ -6,13 +6,17 @@ import android.content.Intent
 import android.net.Uri
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceError
+import android.webkit.WebResourceResponse
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
+import androidx.webkit.WebViewAssetLoader
 import org.json.JSONObject
+import java.io.FileNotFoundException
+import java.net.URLConnection
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
@@ -20,6 +24,12 @@ class MainActivity : AppCompatActivity() {
     private val devServerUrl: String? by lazy { loadDevServerUrl() }
     private val trustedOrigins: Set<String> by lazy { loadTrustedOrigins() }
     private val hasBundledFallback: Boolean by lazy { configJson()?.optBoolean("hasBundledFallback", false) == true }
+    private val bundledAssetLoader: WebViewAssetLoader by lazy {
+        WebViewAssetLoader.Builder()
+            .setDomain(BUNDLED_APP_HOST)
+            .addPathHandler("/", RouteAwareAssetPathHandler())
+            .build()
+    }
     private var loadedBundledFallback = false
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -33,6 +43,7 @@ class MainActivity : AppCompatActivity() {
 
         webView = findViewById(R.id.webview)
         craftBridge = CraftBridge(this, webView, CraftHealthConnect(this, webView))
+        handleIncomingDeepLink(intent, dispatch = false)
 
         setupWebView()
         loadContent()
@@ -43,9 +54,9 @@ class MainActivity : AppCompatActivity() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            allowFileAccess = devServerUrl == null || hasBundledFallback
+            allowFileAccess = false
             allowContentAccess = false
-            allowFileAccessFromFileURLs = true
+            allowFileAccessFromFileURLs = false
             allowUniversalAccessFromFileURLs = false
             mediaPlaybackRequiresUserGesture = false
             mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -61,10 +72,16 @@ class MainActivity : AppCompatActivity() {
                 if (url != null && isTrustedUrl(url)) craftBridge.injectBridge()
             }
 
+            override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                val url = request?.url ?: return null
+                return bundledAssetLoader.shouldInterceptRequest(url)
+                    ?: super.shouldInterceptRequest(view, request)
+            }
+
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return true
                 if (isTrustedUrl(url)) return false
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                 return true
             }
 
@@ -72,7 +89,7 @@ class MainActivity : AppCompatActivity() {
                 super.onReceivedError(view, request, error)
                 if (request?.isForMainFrame == true && hasBundledFallback && !loadedBundledFallback) {
                     loadedBundledFallback = true
-                    webView.loadUrl("file:///android_asset/index.html")
+                    webView.loadUrl(BUNDLED_APP_URL)
                 }
             }
         }
@@ -90,8 +107,46 @@ class MainActivity : AppCompatActivity() {
             webView.loadUrl(remoteUrl)
         } else {
             // Load from assets
-            webView.loadUrl("file:///android_asset/index.html")
+            webView.loadUrl(BUNDLED_APP_URL)
         }
+    }
+
+    private inner class RouteAwareAssetPathHandler : WebViewAssetLoader.PathHandler {
+        override fun handle(path: String): WebResourceResponse? {
+            val cleanPath = Uri.decode(path).substringBefore('?').trimStart('/')
+            if (cleanPath.split('/').any { it == ".." }) return null
+            val candidates = when {
+                cleanPath.isBlank() -> listOf("index.html")
+                cleanPath.endsWith('/') -> listOf("${cleanPath}index.html")
+                cleanPath.substringAfterLast('/').contains('.') -> listOf(cleanPath)
+                else -> listOf("${cleanPath}.html", "${cleanPath}/index.html")
+            }
+
+            for (candidate in candidates) {
+                try {
+                    val stream = assets.open(candidate)
+                    val mimeType = URLConnection.guessContentTypeFromName(candidate)
+                        ?: when (candidate.substringAfterLast('.', "").lowercase()) {
+                            "js", "mjs" -> "text/javascript"
+                            "css" -> "text/css"
+                            "json", "webmanifest" -> "application/json"
+                            "svg" -> "image/svg+xml"
+                            else -> "application/octet-stream"
+                        }
+                    val encoding = if (mimeType.startsWith("text/") || mimeType.contains("javascript") || mimeType.contains("json")) "UTF-8" else null
+                    return WebResourceResponse(mimeType, encoding, stream)
+                } catch (_: FileNotFoundException) {
+                    // Try the next clean-route candidate.
+                }
+            }
+            return null
+        }
+    }
+
+    private fun handleIncomingDeepLink(source: Intent?, dispatch: Boolean) {
+        val url = source?.data?.toString() ?: return
+        craftBridge.setInitialURL(url)
+        if (dispatch) craftBridge.dispatchDeepLink(url)
     }
 
     private fun configJson(): JSONObject? {
@@ -125,11 +180,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun isTrustedUrl(value: String): Boolean {
-        if (value.startsWith("file:///android_asset/")) return true
         val uri = Uri.parse(value)
+        if (uri.scheme == "https" && uri.host == BUNDLED_APP_HOST) return true
         val origin = "${uri.scheme}://${uri.authority}"
         val localDevelopment = uri.scheme == "http" && uri.host in setOf("localhost", "127.0.0.1", "10.0.2.2")
         return (uri.scheme == "https" || localDevelopment) && origin in trustedOrigins
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingDeepLink(intent, dispatch = true)
     }
 
     override fun onBackPressed() {
@@ -160,5 +221,10 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (craftBridge.onActivityResult(requestCode, resultCode, data)) return
         super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    companion object {
+        private const val BUNDLED_APP_HOST = "appassets.androidplatform.net"
+        private const val BUNDLED_APP_URL = "https://appassets.androidplatform.net/"
     }
 }

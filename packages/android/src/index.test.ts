@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'bun:test'
-import { build, init, renderAndroidPermissions, syncAndroidWebAssets } from './index'
+import { build, init, renderAndroidDeepLinks, renderAndroidPermissions, syncAndroidWebAssets } from './index'
 
 describe('Craft Android builder', () => {
   it('renders only permissions required by enabled capabilities', () => {
@@ -15,6 +15,21 @@ describe('Craft Android builder', () => {
 
     expect(permissions).toContain('android.permission.ACCESS_FINE_LOCATION')
     expect(permissions).not.toContain('android.permission.CAMERA')
+  })
+
+  it('registers configured deep-link schemes only when enabled', () => {
+    expect(renderAndroidDeepLinks({
+      appName: 'WildLoop',
+      packageName: 'org.wildloop.app',
+      enableDeepLinks: true,
+      urlSchemes: ['wildloop', 'wildloop'],
+    })).toContain('android:scheme="wildloop"')
+    expect(renderAndroidDeepLinks({
+      appName: 'WildLoop',
+      packageName: 'org.wildloop.app',
+      enableDeepLinks: false,
+      urlSchemes: ['wildloop'],
+    })).toBe('')
   })
 
   it('copies a complete web distribution while preserving native configuration', async () => {
@@ -39,7 +54,7 @@ describe('Craft Android builder', () => {
       name: 'WildLoop',
       packageName: 'org.wildloop.app',
       output,
-      config: { enableHaptics: true, enableGeolocation: true },
+      config: { enableHaptics: true, enableGeolocation: true, enableDeepLinks: true, urlSchemes: ['wildloop'] },
     })
 
     const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
@@ -49,6 +64,10 @@ describe('Craft Android builder', () => {
     expect(bridge).toContain('camera: false')
     expect(manifest).toContain('android:allowBackup="false"')
     expect(manifest).toContain('android:usesCleartextTraffic="false"')
+    expect(manifest).toContain('android:scheme="wildloop"')
+    expect(bridge).toContain('fun setInitialURL')
+    expect(readFileSync(join(output, 'app/src/main/java/org/wildloop/app/MainActivity.kt'), 'utf8')).toContain('WebViewAssetLoader')
+    expect(readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')).toContain('androidx.webkit:webkit')
     expect(readFileSync(join(output, 'app/proguard-rules.pro'), 'utf8')).toContain('android.webkit.JavascriptInterface')
   })
 

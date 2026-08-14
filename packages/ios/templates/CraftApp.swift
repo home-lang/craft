@@ -226,6 +226,69 @@ struct CraftConfig: Codable {
 }
 
 // MARK: - WebView
+final class BundledAssetSchemeHandler: NSObject, WKURLSchemeHandler {
+    private let rootURL: URL?
+
+    override init() {
+        rootURL = Bundle.main.resourceURL?.appendingPathComponent("dist", isDirectory: true)
+        super.init()
+    }
+
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        guard let requestURL = urlSchemeTask.request.url,
+              requestURL.scheme == "craft",
+              requestURL.host == "app",
+              let rootURL = rootURL else {
+            fail(urlSchemeTask, code: .badURL)
+            return
+        }
+
+        let path = requestURL.path.removingPercentEncoding?.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
+        guard !path.split(separator: "/").contains("..") else {
+            fail(urlSchemeTask, code: .noPermissionsToReadFile)
+            return
+        }
+
+        let candidates: [String]
+        if path.isEmpty {
+            candidates = ["index.html"]
+        } else if path.hasSuffix("/") {
+            candidates = ["\(path)index.html"]
+        } else if URL(fileURLWithPath: path).pathExtension.isEmpty {
+            candidates = ["\(path).html", "\(path)/index.html"]
+        } else {
+            candidates = [path]
+        }
+
+        let standardizedRoot = rootURL.standardizedFileURL
+        for candidate in candidates {
+            let fileURL = rootURL.appendingPathComponent(candidate).standardizedFileURL
+            guard fileURL.path.hasPrefix(standardizedRoot.path + "/") else { continue }
+            guard let data = try? Data(contentsOf: fileURL) else { continue }
+            let mimeType = UTType(filenameExtension: fileURL.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+            let encoding = mimeType.hasPrefix("text/") || mimeType.contains("javascript") || mimeType.contains("json") ? "utf-8" : nil
+            let response = URLResponse(
+                url: requestURL,
+                mimeType: mimeType,
+                expectedContentLength: data.count,
+                textEncodingName: encoding
+            )
+            urlSchemeTask.didReceive(response)
+            urlSchemeTask.didReceive(data)
+            urlSchemeTask.didFinish()
+            return
+        }
+
+        fail(urlSchemeTask, code: .fileDoesNotExist)
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+
+    private func fail(_ task: WKURLSchemeTask, code: URLError.Code) {
+        task.didFailWithError(URLError(code))
+    }
+}
+
 struct CraftWebView: UIViewRepresentable {
     let config: CraftConfig
 
@@ -234,6 +297,7 @@ struct CraftWebView: UIViewRepresentable {
         webConfig.defaultWebpagePreferences.allowsContentJavaScript = true
         webConfig.allowsInlineMediaPlayback = true
         webConfig.mediaTypesRequiringUserActionForPlayback = []
+        webConfig.setURLSchemeHandler(BundledAssetSchemeHandler(), forURLScheme: "craft")
 
         // Add native bridge
         let contentController = WKUserContentController()
@@ -258,10 +322,10 @@ struct CraftWebView: UIViewRepresentable {
             if let url = URL(string: devURL) {
                 webView.load(URLRequest(url: url))
             }
-        } else if let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "dist")
-            ?? Bundle.main.url(forResource: "index", withExtension: "html") {
-            // Production mode - load bundled HTML
-            webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
+        } else if let bundledURL = URL(string: "craft://app/") {
+            // A route-aware local origin keeps root-relative STX assets and
+            // clean links working without granting arbitrary file access.
+            webView.load(URLRequest(url: bundledURL))
         }
 
         return webView
@@ -1014,15 +1078,14 @@ struct CraftWebView: UIViewRepresentable {
         private func loadBundledFallback(in webView: WKWebView) {
             guard !loadedBundledFallback,
                   config.devServerURL != nil,
-                  let htmlURL = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "dist")
-                    ?? Bundle.main.url(forResource: "index", withExtension: "html") else { return }
+                  let bundledURL = URL(string: "craft://app/") else { return }
             loadedBundledFallback = true
-            webView.loadFileURL(htmlURL, allowingReadAccessTo: htmlURL.deletingLastPathComponent())
+            webView.load(URLRequest(url: bundledURL))
         }
 
         private func isTrustedURL(_ url: URL?) -> Bool {
             guard let url = url else { return false }
-            if url.isFileURL { return true }
+            if url.scheme == "craft" && url.host == "app" { return true }
             return isTrustedOrigin(scheme: url.scheme ?? "", host: url.host ?? "", port: url.port ?? 0)
         }
 

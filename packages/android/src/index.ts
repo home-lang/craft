@@ -29,6 +29,7 @@ export interface CraftAndroidConfig {
   enableHealthConnect?: boolean
   enableKeepAwake?: boolean
   enableDeepLinks?: boolean
+  urlSchemes?: string[]
   trustedOrigins?: string[]
   appIconPath?: string
   googleServicesFile?: string
@@ -80,6 +81,7 @@ const DEFAULT_CONFIG: Omit<CraftAndroidConfig, 'appName' | 'packageName'> = {
   enableHealthConnect: false,
   enableKeepAwake: false,
   enableDeepLinks: false,
+  urlSchemes: [],
   trustedOrigins: [],
   minSdk: 26,
   compileSdk: 36,
@@ -128,6 +130,17 @@ export function renderAndroidPermissions(config: CraftAndroidConfig): string {
     permissions.add('android.permission.health.WRITE_DISTANCE')
   }
   return [...permissions].map(permission => `    <uses-permission android:name="${permission}" />`).join('\n')
+}
+
+export function renderAndroidDeepLinks(config: CraftAndroidConfig): string {
+  if (!config.enableDeepLinks) return ''
+  const schemes = [...new Set(config.urlSchemes?.map(value => value.trim()).filter(value => /^[a-z][a-z0-9+.-]*$/i.test(value)) ?? [])]
+  return schemes.map(scheme => `            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${scheme}" />
+            </intent-filter>`).join('\n')
 }
 
 /**
@@ -251,6 +264,7 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{APP_NAME\}\}/g, name)
     .replace(/\{\{PERMISSIONS\}\}/g, renderAndroidPermissions(config))
     .replace(/\{\{USES_CLEARTEXT\}\}/g, config.devServerURL?.startsWith('http://') ? 'true' : 'false')
+    .replace(/\{\{DEEP_LINK_INTENT_FILTERS\}\}/g, renderAndroidDeepLinks(config))
     .replace(/\{\{BACKGROUND_SERVICE\}\}/g, config.enableBackgroundLocation
       ? '        <service android:name=".LocationRecordingService" android:exported="false" android:foregroundServiceType="location" android:stopWithTask="false" />'
       : '')
