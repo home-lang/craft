@@ -67,7 +67,10 @@ describe('Craft Android builder', () => {
     expect(manifest).toContain('android:scheme="wildloop"')
     expect(bridge).toContain('fun setInitialURL')
     expect(readFileSync(join(output, 'app/src/main/java/org/wildloop/app/MainActivity.kt'), 'utf8')).toContain('WebViewAssetLoader')
-    expect(readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')).toContain('androidx.webkit:webkit')
+    const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
+    expect(gradle).toContain('androidx.webkit:webkit')
+    expect(gradle).toContain('ignoreAssetsPattern')
+    expect(gradle).not.toContain('<dir>_*')
     expect(readFileSync(join(output, 'app/proguard-rules.pro'), 'utf8')).toContain('android.webkit.JavascriptInterface')
   })
 

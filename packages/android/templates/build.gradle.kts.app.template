@@ -44,6 +44,13 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    // Android's default AAPT ignore pattern drops underscore-prefixed asset
+    // directories. STX intentionally emits its browser runtime and generated
+    // styles under `_stx`, so keep those files in the APK.
+    androidResources {
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~"
+    }
 }
 
 dependencies {
