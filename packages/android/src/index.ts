@@ -181,6 +181,13 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{ENABLE_KEEP_AWAKE\}\}/g, String(Boolean(config.enableKeepAwake)))
     .replace(/\{\{ENABLE_DEEP_LINKS\}\}/g, String(Boolean(config.enableDeepLinks)))
   writeFileSync(join(output, 'app/src/main/java', packagePath, 'CraftBridge.kt'), craftBridge)
+  if (config.enableBackgroundLocation) {
+    const serviceTemplate = readFileSync(join(TEMPLATES_DIR, 'LocationRecordingService.kt.template'), 'utf-8')
+    writeFileSync(
+      join(output, 'app/src/main/java', packagePath, 'LocationRecordingService.kt'),
+      serviceTemplate.replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName),
+    )
+  }
 
   // Create AndroidManifest.xml
   const manifestTemplate = readFileSync(join(TEMPLATES_DIR, 'AndroidManifest.xml.template'), 'utf-8')
@@ -189,6 +196,9 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{APP_NAME\}\}/g, name)
     .replace(/\{\{PERMISSIONS\}\}/g, renderAndroidPermissions(config))
     .replace(/\{\{USES_CLEARTEXT\}\}/g, config.devServerURL?.startsWith('http://') ? 'true' : 'false')
+    .replace(/\{\{BACKGROUND_SERVICE\}\}/g, config.enableBackgroundLocation
+      ? '        <service android:name=".LocationRecordingService" android:exported="false" android:foregroundServiceType="location" android:stopWithTask="false" />'
+      : '')
 
   writeFileSync(join(output, 'app/src/main/AndroidManifest.xml'), manifest)
 
@@ -262,7 +272,13 @@ zipStorePath=wrapper/dists
     <path android:fillColor="#10B981" android:pathData="M18,78L42,42l12,18l12,-12l24,30z" />
 </vector>
 `
-  writeFileSync(join(output, 'app/src/main/res/drawable/craft_app_icon.xml'), appIconXml)
+  if (config.appIconPath) {
+    if (!existsSync(config.appIconPath)) throw new Error(`App icon not found: ${config.appIconPath}`)
+    cpSync(config.appIconPath, join(output, 'app/src/main/res/drawable/craft_app_icon.png'))
+  }
+  else {
+    writeFileSync(join(output, 'app/src/main/res/drawable/craft_app_icon.xml'), appIconXml)
+  }
 
   const themesXml = `<?xml version="1.0" encoding="utf-8"?>
 <resources>

@@ -33,6 +33,8 @@
             </intent-filter>
         </activity>
 
+{{BACKGROUND_SERVICE}}
+
     </application>
 
 </manifest>

@@ -65,4 +65,23 @@ describe('Craft Android builder', () => {
     expect(config.hasBundledFallback).toBe(true)
     expect(activity).toContain('hasBundledFallback && !loadedBundledFallback')
   })
+
+  it('generates a foreground service for durable background recording', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-android-location-'))
+    await init({
+      name: 'WildLoop',
+      packageName: 'org.wildloop.app',
+      output,
+      config: { enableBackgroundLocation: true },
+    })
+
+    const service = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/LocationRecordingService.kt'), 'utf8')
+    const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
+    const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
+    expect(service).toContain('START_STICKY')
+    expect(service).toContain('CraftLocationRecordingStore.append')
+    expect(bridge).toContain('startRecording: function(options)')
+    expect(bridge).toContain('fun stopLocationRecording()')
+    expect(manifest).toContain('android:foregroundServiceType="location"')
+  })
 })

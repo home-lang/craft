@@ -95,6 +95,7 @@ import android.graphics.BitmapFactory
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.TimeUnit
+import java.util.UUID
 
 class CraftBridge(
     private val activity: Activity,
@@ -1240,7 +1241,13 @@ class CraftBridge(
                 craft.location = {
                     getCurrentPosition: craft.getCurrentPosition,
                     watchPosition: craft.watchPosition,
-                    clearWatch: craft.clearWatch
+                    clearWatch: craft.clearWatch,
+                    startRecording: function(options) { return Promise.resolve(JSON.parse(CraftAndroid.startLocationRecording(JSON.stringify(options || {})))); },
+                    pauseRecording: function() { return Promise.resolve(JSON.parse(CraftAndroid.pauseLocationRecording())); },
+                    resumeRecording: function() { return Promise.resolve(JSON.parse(CraftAndroid.resumeLocationRecording())); },
+                    stopRecording: function() { return Promise.resolve(JSON.parse(CraftAndroid.stopLocationRecording())); },
+                    getRecordingState: function() { return Promise.resolve(JSON.parse(CraftAndroid.getLocationRecordingState())); },
+                    readRecording: function() { return Promise.resolve(JSON.parse(CraftAndroid.readLocationRecording())); }
                 };
                 var shareApi = function(text, title) { return legacyShare(text, title); };
                 shareApi.share = function(options) {
@@ -1725,6 +1732,58 @@ class CraftBridge(
         }
         locationCallback = null
     }
+
+    @JavascriptInterface
+    fun startLocationRecording(optionsJson: String): String {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return JSONObject().apply {
+                put("id", JSONObject.NULL)
+                put("active", false)
+                put("paused", false)
+                put("startedAt", JSONObject.NULL)
+                put("sampleCount", 0)
+            }.toString()
+        }
+        val id = UUID.randomUUID().toString()
+        CraftLocationRecordingStore.start(activity, id, System.currentTimeMillis())
+        ContextCompat.startForegroundService(
+            activity,
+            Intent(activity, LocationRecordingService::class.java).setAction(LocationRecordingService.ACTION_START)
+        )
+        return CraftLocationRecordingStore.state(activity).toString()
+    }
+
+    @JavascriptInterface
+    fun pauseLocationRecording(): String {
+        CraftLocationRecordingStore.setPaused(activity, true)
+        return CraftLocationRecordingStore.state(activity).toString()
+    }
+
+    @JavascriptInterface
+    fun resumeLocationRecording(): String {
+        CraftLocationRecordingStore.setPaused(activity, false)
+        if (CraftLocationRecordingStore.isActive(activity)) {
+            ContextCompat.startForegroundService(
+                activity,
+                Intent(activity, LocationRecordingService::class.java).setAction(LocationRecordingService.ACTION_START)
+            )
+        }
+        return CraftLocationRecordingStore.state(activity).toString()
+    }
+
+    @JavascriptInterface
+    fun stopLocationRecording(): String {
+        CraftLocationRecordingStore.stop(activity)
+        val result = CraftLocationRecordingStore.state(activity, includeLocations = true).toString()
+        activity.stopService(Intent(activity, LocationRecordingService::class.java).setAction(LocationRecordingService.ACTION_STOP))
+        return result
+    }
+
+    @JavascriptInterface
+    fun getLocationRecordingState(): String = CraftLocationRecordingStore.state(activity).toString()
+
+    @JavascriptInterface
+    fun readLocationRecording(): String = CraftLocationRecordingStore.locations(activity).toString()
 
     // ==================== Clipboard ====================
 

@@ -1,0 +1,160 @@
+package {{PACKAGE_NAME}}
+
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.IBinder
+import android.os.Looper
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+
+object CraftLocationRecordingStore {
+    private const val PREFS = "craft_location_recording"
+    private const val FILE = "craft-location-recording.jsonl"
+
+    private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private fun file(context: Context) = File(context.filesDir, FILE)
+
+    @Synchronized
+    fun start(context: Context, id: String, startedAt: Long) {
+        file(context).writeText("")
+        prefs(context).edit()
+            .putString("id", id)
+            .putBoolean("active", true)
+            .putBoolean("paused", false)
+            .putLong("startedAt", startedAt)
+            .apply()
+    }
+
+    @Synchronized
+    fun setPaused(context: Context, paused: Boolean) {
+        prefs(context).edit().putBoolean("paused", paused).apply()
+    }
+
+    @Synchronized
+    fun stop(context: Context) {
+        prefs(context).edit().putBoolean("active", false).putBoolean("paused", false).apply()
+    }
+
+    fun isActive(context: Context) = prefs(context).getBoolean("active", false)
+    fun isPaused(context: Context) = prefs(context).getBoolean("paused", false)
+
+    @Synchronized
+    fun append(context: Context, location: android.location.Location) {
+        if (!isActive(context) || isPaused(context)) return
+        val json = JSONObject().apply {
+            put("latitude", location.latitude)
+            put("longitude", location.longitude)
+            put("accuracy", location.accuracy)
+            put("altitude", location.altitude)
+            put("speed", location.speed)
+            put("heading", location.bearing)
+            put("timestamp", location.time)
+        }
+        file(context).appendText("$json\n")
+    }
+
+    @Synchronized
+    fun locations(context: Context): JSONArray {
+        val result = JSONArray()
+        val source = file(context)
+        if (!source.exists()) return result
+        source.forEachLine { line ->
+            if (line.isNotBlank()) runCatching { result.put(JSONObject(line)) }
+        }
+        return result
+    }
+
+    fun state(context: Context, includeLocations: Boolean = false): JSONObject {
+        val values = prefs(context)
+        val locations = locations(context)
+        return JSONObject().apply {
+            put("id", values.getString("id", null))
+            put("active", values.getBoolean("active", false))
+            put("paused", values.getBoolean("paused", false))
+            put("startedAt", values.getLong("startedAt", 0).takeIf { it > 0 } ?: JSONObject.NULL)
+            put("sampleCount", locations.length())
+            if (includeLocations) put("locations", locations)
+        }
+    }
+}
+
+class LocationRecordingService : Service() {
+    private val client by lazy { LocationServices.getFusedLocationProviderClient(this) }
+    private var callback: LocationCallback? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        val manager = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, "Activity recording", NotificationManager.IMPORTANCE_LOW))
+        }
+        val notification = NotificationCompat.Builder(this, CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setContentTitle("Recording your activity")
+            .setContentText("WildLoop is securely saving your route")
+            .setOngoing(true)
+            .setSilent(true)
+            .build()
+        startForeground(NOTIFICATION_ID, notification)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_STOP -> {
+                stopUpdates()
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            else -> startUpdates()
+        }
+        return if (CraftLocationRecordingStore.isActive(this)) START_STICKY else START_NOT_STICKY
+    }
+
+    private fun startUpdates() {
+        if (callback != null || !CraftLocationRecordingStore.isActive(this)) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5_000)
+            .setMinUpdateIntervalMillis(2_000)
+            .setMaxUpdateDelayMillis(10_000)
+            .build()
+        callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                for (location in result.locations) CraftLocationRecordingStore.append(this@LocationRecordingService, location)
+            }
+        }
+        client.requestLocationUpdates(request, callback!!, Looper.getMainLooper())
+    }
+
+    private fun stopUpdates() {
+        callback?.let { client.removeLocationUpdates(it) }
+        callback = null
+    }
+
+    override fun onDestroy() {
+        stopUpdates()
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val ACTION_START = "craft.location.START"
+        const val ACTION_STOP = "craft.location.STOP"
+        private const val CHANNEL = "craft_location_recording"
+        private const val NOTIFICATION_ID = 7001
+    }
+}
