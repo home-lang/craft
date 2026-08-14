@@ -363,7 +363,7 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{URL_TYPES\}\}/g, renderUrlTypes(config))
     .replace(/\{\{BACKGROUND_MODES\}\}/g, renderBackgroundModes(config))
     .replace(/\{\{LIVE_ACTIVITY_SUPPORT\}\}/g, config.enableLiveActivities
-      ? '    <key>NSSupportsLiveActivities</key>\n    <true/>'
+      ? '    <key>NSSupportsLiveActivities</key>\n    <true/>\n    <key>NSSupportsLiveActivitiesFrequentUpdates</key>\n    <true/>'
       : '')
 
   writeFileSync(join(output, 'Info.plist'), infoPlist)
@@ -393,7 +393,9 @@ export async function init(options: InitOptions): Promise<void> {
     settings:
       INFOPLIST_FILE: WidgetExtension/Info.plist
       PRODUCT_BUNDLE_IDENTIFIER: ${finalBundleId}.liveactivity
-      SWIFT_VERSION: "5.0"`
+      SWIFT_VERSION: "5.0"
+      APPLICATION_EXTENSION_API_ONLY: YES
+      SKIP_INSTALL: YES`
       : '')
 
   writeFileSync(join(output, 'project.yml'), projectYml)
