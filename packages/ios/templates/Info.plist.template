@@ -22,8 +22,11 @@
     <string>{{BUILD_NUMBER}}</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
-    <key>UILaunchStoryboardName</key>
-    <string>LaunchScreen</string>
+    <key>UILaunchScreen</key>
+    <dict>
+        <key>UIColorName</key>
+        <string>LaunchBackground</string>
+    </dict>
     <key>UIRequiredDeviceCapabilities</key>
     <array>
         <string>arm64</string>
@@ -40,6 +43,7 @@
     <false/>
 {{USAGE_DESCRIPTIONS}}
 {{URL_TYPES}}
+{{BACKGROUND_MODES}}
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsLocalNetworking</key>

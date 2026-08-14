@@ -30,9 +30,41 @@ import WidgetKit
 import Intents
 import WatchConnectivity
 
+extension Notification.Name {
+    static let craftPushToken = Notification.Name("craftPushToken")
+    static let craftPushRegistrationError = Notification.Name("craftPushRegistrationError")
+    static let craftNotificationResponse = Notification.Name("craftNotificationResponse")
+}
+
+final class CraftAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+        NotificationCenter.default.post(name: .craftPushToken, object: token)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .craftPushRegistrationError, object: error.localizedDescription)
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        NotificationCenter.default.post(name: .craftNotificationResponse, object: response.notification.request.content.userInfo)
+        completionHandler()
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .badge, .sound])
+    }
+}
+
 // MARK: - App Entry Point
 @main
 struct CraftApp: App {
+    @UIApplicationDelegateAdaptor(CraftAppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
 
     var body: some Scene {
@@ -44,6 +76,11 @@ struct CraftApp: App {
                 .onOpenURL { url in
                     // Handle deep links and universal links
                     DeepLinkManager.shared.handleURL(url)
+                }
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    if let url = activity.webpageURL {
+                        DeepLinkManager.shared.handleURL(url)
+                    }
                 }
         }
     }
@@ -148,39 +185,41 @@ struct CraftConfig: Codable {
     var bundleId: String = "com.craft.app"
     var darkMode: Bool = true
     var backgroundColor: String = "#1a1a2e"
-    var enableSpeechRecognition: Bool = true
-    var enableHaptics: Bool = true
-    var enableShare: Bool = true
-    var enableCamera: Bool = true
-    var enableBiometric: Bool = true
+    var enableSpeechRecognition: Bool = false
+    var enableHaptics: Bool = false
+    var enableShare: Bool = false
+    var enableCamera: Bool = false
+    var enableBiometric: Bool = false
     var enablePushNotifications: Bool = false
-    var enableSecureStorage: Bool = true
-    var enableGeolocation: Bool = true
-    var enableClipboard: Bool = true
-    var enableContacts: Bool = true
-    var enableCalendar: Bool = true
-    var enableLocalNotifications: Bool = true
-    var enableInAppPurchase: Bool = true
-    var enableKeepAwake: Bool = true
-    var enableOrientationLock: Bool = true
-    var enableDeepLinks: Bool = true
-    var enableQRScanner: Bool = true
-    var enableFilePicker: Bool = true
-    var enableFileDownload: Bool = true
-    var enableSocialAuth: Bool = true
-    var enableAudioRecording: Bool = true
-    var enableVideoRecording: Bool = true
-    var enableMotionSensors: Bool = true
-    var enableLocalDatabase: Bool = true
-    var enableBluetooth: Bool = true
-    var enableNFC: Bool = true
+    var enableSecureStorage: Bool = false
+    var enableGeolocation: Bool = false
+    var enableClipboard: Bool = false
+    var enableContacts: Bool = false
+    var enableCalendar: Bool = false
+    var enableLocalNotifications: Bool = false
+    var enableInAppPurchase: Bool = false
+    var enableKeepAwake: Bool = false
+    var enableOrientationLock: Bool = false
+    var enableDeepLinks: Bool = false
+    var enableQRScanner: Bool = false
+    var enableFilePicker: Bool = false
+    var enableFileDownload: Bool = false
+    var enableSocialAuth: Bool = false
+    var enableAudioRecording: Bool = false
+    var enableVideoRecording: Bool = false
+    var enableMotionSensors: Bool = false
+    var enableLocalDatabase: Bool = false
+    var enableBluetooth: Bool = false
+    var enableNFC: Bool = false
     var enableHealthKit: Bool = false
-    var enableBackgroundTasks: Bool = true
-    var enableScreenCapture: Bool = true
-    var enablePDFViewer: Bool = true
-    var enableAR: Bool = true
-    var enableMLKit: Bool = true
+    var enableBackgroundLocation: Bool = false
+    var enableBackgroundTasks: Bool = false
+    var enableScreenCapture: Bool = false
+    var enablePDFViewer: Bool = false
+    var enableAR: Bool = false
+    var enableMLKit: Bool = false
     var devServerURL: String? = nil
+    var trustedOrigins: [String] = []
 }
 
 // MARK: - WebView
@@ -240,10 +279,17 @@ struct CraftWebView: UIViewRepresentable {
         private var audioEngine = AVAudioEngine()
         private weak var webView: WKWebView?
         private var pendingCallbackId: String?
+        private var pendingPushCallbackId: String?
 
         // Location
         private var locationManager: CLLocationManager?
-        private var locationCallbackId: String?
+        private var singleLocationCallbackId: String?
+        private var locationPermissionCallbackId: String?
+        private var isWatchingLocation = false
+        private var isRecordingLocation = false
+        private var isLocationRecordingPaused = false
+        private var locationRecordingId: String?
+        private var locationRecordingStartedAt: TimeInterval?
 
         // Network monitoring
         private var networkMonitor: NWPathMonitor?
@@ -292,6 +338,10 @@ struct CraftWebView: UIViewRepresentable {
             }
             if config.enableGeolocation {
                 locationManager = CLLocationManager()
+                locationManager?.desiredAccuracy = kCLLocationAccuracyBest
+                locationManager?.activityType = .fitness
+                locationManager?.pausesLocationUpdatesAutomatically = false
+                restoreLocationRecordingState()
             }
             if config.enableContacts {
                 contactStore = CNContactStore()
@@ -308,7 +358,15 @@ struct CraftWebView: UIViewRepresentable {
             if config.enableLocalDatabase {
                 setupDatabase()
             }
+            NotificationCenter.default.addObserver(self, selector: #selector(receivePushToken(_:)), name: .craftPushToken, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(receivePushRegistrationError(_:)), name: .craftPushRegistrationError, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(receiveNotificationResponse(_:)), name: .craftNotificationResponse, object: nil)
             setupNetworkMonitoring()
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+            networkMonitor?.cancel()
         }
 
         private func setupDatabase() {
@@ -344,6 +402,11 @@ struct CraftWebView: UIViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            let securityOrigin = message.frameInfo.securityOrigin
+            guard isTrustedOrigin(scheme: securityOrigin.protocol, host: securityOrigin.host, port: securityOrigin.port) else {
+                print("Blocked Craft bridge message from untrusted origin: \(securityOrigin.protocol)://\(securityOrigin.host)")
+                return
+            }
             guard let body = message.body as? [String: Any],
                   let action = body["action"] as? String else { return }
 
@@ -360,8 +423,16 @@ struct CraftWebView: UIViewRepresentable {
                     triggerHaptic(style: style)
                 }
             case "share":
-                if config.enableShare, let text = body["text"] as? String {
-                    shareText(text)
+                if config.enableShare {
+                    if let options = body["options"] as? [String: Any] {
+                        share(options: options, callbackId: callbackId)
+                    } else if let text = body["text"] as? String {
+                        share(options: ["text": text], callbackId: callbackId)
+                    } else {
+                        rejectCallback(callbackId, error: "Nothing to share", code: "INVALID_ARGUMENT")
+                    }
+                } else {
+                    rejectCallback(callbackId, error: "Sharing is disabled", code: "CAPABILITY_DISABLED")
                 }
             case "openCamera":
                 if config.enableCamera {
@@ -401,6 +472,24 @@ struct CraftWebView: UIViewRepresentable {
                     let success = secureRemove(key: key)
                     resolveCallback(callbackId, result: success)
                 }
+            case "secureClear":
+                if config.enableSecureStorage {
+                    resolveCallback(callbackId, result: secureClear())
+                } else {
+                    rejectCallback(callbackId, error: "Secure storage is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "checkPermission":
+                checkPermission(body["permission"] as? String, callbackId: callbackId)
+            case "requestPermission":
+                requestPermission(body["permission"] as? String, callbackId: callbackId)
+            case "openSettings":
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url) { opened in
+                        self.resolveCallback(callbackId, result: opened)
+                    }
+                } else {
+                    rejectCallback(callbackId, error: "Settings URL is unavailable")
+                }
             case "log":
                 if let msg = body["message"] as? String {
                     print("[Craft Web] \(msg)")
@@ -414,13 +503,34 @@ struct CraftWebView: UIViewRepresentable {
             case "getCurrentPosition":
                 if config.enableGeolocation {
                     getCurrentPosition(callbackId: callbackId)
+                } else {
+                    rejectCallback(callbackId, error: "Geolocation is disabled", code: "CAPABILITY_DISABLED")
                 }
             case "watchPosition":
                 if config.enableGeolocation {
                     watchPosition(callbackId: callbackId)
+                } else {
+                    rejectCallback(callbackId, error: "Geolocation is disabled", code: "CAPABILITY_DISABLED")
                 }
             case "clearWatch":
                 stopWatchingPosition()
+                resolveCallback(callbackId, result: true)
+            case "startLocationRecording":
+                if config.enableGeolocation {
+                    startLocationRecording(callbackId: callbackId)
+                } else {
+                    rejectCallback(callbackId, error: "Geolocation is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "pauseLocationRecording":
+                pauseLocationRecording(callbackId: callbackId)
+            case "resumeLocationRecording":
+                resumeLocationRecording(callbackId: callbackId)
+            case "stopLocationRecording":
+                stopLocationRecording(callbackId: callbackId)
+            case "getLocationRecordingState":
+                getLocationRecordingState(callbackId: callbackId)
+            case "readLocationRecording":
+                readLocationRecording(callbackId: callbackId)
             // Clipboard
             case "clipboardWrite":
                 if config.enableClipboard, let text = body["text"] as? String {
@@ -845,7 +955,50 @@ struct CraftWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             self.webView = webView
+            guard isTrustedURL(webView.url) else { return }
             injectNativeBridge()
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            guard let url = navigationAction.request.url else {
+                decisionHandler(.cancel)
+                return
+            }
+            if isTrustedURL(url) {
+                decisionHandler(.allow)
+                return
+            }
+            if navigationAction.targetFrame?.isMainFrame != false {
+                UIApplication.shared.open(url)
+            }
+            decisionHandler(.cancel)
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            webView.reload()
+        }
+
+        private func isTrustedURL(_ url: URL?) -> Bool {
+            guard let url = url else { return false }
+            if url.isFileURL { return true }
+            return isTrustedOrigin(scheme: url.scheme ?? "", host: url.host ?? "", port: url.port ?? 0)
+        }
+
+        private func isTrustedOrigin(scheme: String, host: String, port: Int) -> Bool {
+            if scheme == "file" { return true }
+            guard scheme == "https" || (scheme == "http" && ["localhost", "127.0.0.1", "::1"].contains(host)) else { return false }
+            let defaultPort = scheme == "https" ? 443 : 80
+            let normalizedPort = port == 0 ? defaultPort : port
+            let origin = "\(scheme)://\(host)\(normalizedPort == defaultPort ? "" : ":\(normalizedPort)")"
+            var allowed = Set(config.trustedOrigins)
+            if let devServerURL = config.devServerURL,
+               let components = URLComponents(string: devServerURL),
+               let configuredHost = components.host,
+               let configuredScheme = components.scheme {
+                let configuredPort = components.port ?? (configuredScheme == "https" ? 443 : 80)
+                allowed.insert("\(configuredScheme)://\(configuredHost)\(configuredPort == (configuredScheme == "https" ? 443 : 80) ? "" : ":\(configuredPort)")")
+            }
+            return allowed.contains(origin)
         }
 
         private func injectNativeBridge() {
@@ -867,6 +1020,7 @@ struct CraftWebView: UIViewRepresentable {
                     pushNotifications: \(config.enablePushNotifications),
                     secureStorage: \(config.enableSecureStorage),
                     geolocation: \(config.enableGeolocation),
+                    backgroundLocation: \(config.enableBackgroundLocation),
                     clipboard: \(config.enableClipboard),
                     contacts: \(config.enableContacts),
                     calendar: \(config.enableCalendar),
@@ -1991,6 +2145,123 @@ struct CraftWebView: UIViewRepresentable {
                 }
             };
 
+            // Stable, versioned mobile contract consumed by craft-native/mobile.
+            // Legacy flat methods remain available while every public SDK method
+            // is routed through this nested contract.
+            (function installCraftMobileContract(craft) {
+                var legacyShare = craft.share.bind(craft);
+                var legacyOpenCamera = craft.openCamera.bind(craft);
+                var legacyPickImage = craft.pickImage.bind(craft);
+                var legacyAuthenticate = craft.authenticate.bind(craft);
+                var legacySecureStore = craft.secureStore;
+                var legacyGeolocation = craft.geolocation;
+                var legacyNotifications = craft.notifications;
+
+                craft.contractVersion = '1.0.0';
+                craft._invoke = function(action, payload) {
+                    var self = craft;
+                    var id = 'cb_' + (++self._callbackId);
+                    var message = Object.assign({}, payload || {}, {action: action, callbackId: id});
+                    window.webkit.messageHandlers.craft.postMessage(message);
+                    return new Promise(function(resolve, reject) {
+                        var timeout = setTimeout(function() {
+                            delete self._callbacks[id];
+                            reject(new Error('Craft bridge timed out: ' + action));
+                        }, 30000);
+                        self._callbacks[id] = {
+                            resolve: function(value) { clearTimeout(timeout); resolve(value); },
+                            reject: function(error) { clearTimeout(timeout); reject(error); }
+                        };
+                    });
+                };
+
+                craft.device = {
+                    getInfo: function() { return craft.getDeviceInfo(); },
+                    getCapabilities: function() { return Promise.resolve(Object.assign({}, craft.capabilities)); }
+                };
+                craft.haptics = {
+                    impact: function(style) { craft.haptic(style || 'medium'); return Promise.resolve(); },
+                    notification: function(type) {
+                        craft.haptic(type === 'error' ? 'heavy' : type === 'warning' ? 'medium' : 'light');
+                        return Promise.resolve();
+                    },
+                    selection: function() { craft.haptic('soft'); return Promise.resolve(); },
+                    vibrate: function(pattern) { craft.vibrate(pattern || []); return Promise.resolve(); }
+                };
+                craft.permissions = {
+                    check: function(permission) { return craft._invoke('checkPermission', {permission: permission}); },
+                    request: function(permission) { return craft._invoke('requestPermission', {permission: permission}); },
+                    openSettings: function() { return craft._invoke('openSettings'); }
+                };
+                craft.camera = {
+                    takePicture: function() { return legacyOpenCamera().then(normalizePhoto); },
+                    pickImage: function() { return legacyPickImage().then(normalizePhoto); },
+                    pickMultiple: function() { return legacyPickImage().then(function(photo) { return [normalizePhoto(photo)]; }); },
+                    isAvailable: function() { return Promise.resolve(!!craft.capabilities.camera); }
+                };
+                craft.biometrics = {
+                    isAvailable: function() { return Promise.resolve(!!craft.capabilities.biometric); },
+                    getBiometricType: function() { return Promise.resolve(craft.capabilities.biometric ? 'faceId' : null); },
+                    authenticate: function(reason) { return legacyAuthenticate(reason); }
+                };
+                craft.secureStorage = {
+                    set: function(key, value) { return legacySecureStore.set(key, value).then(function() {}); },
+                    get: function(key) { return legacySecureStore.get(key); },
+                    delete: function(key) { return legacySecureStore.remove(key).then(function() {}); },
+                    clear: function() { return craft._invoke('secureClear').then(function() {}); }
+                };
+
+                var locationWatchCallbacks = new Map();
+                var nextLocationWatchId = 0;
+                window.addEventListener('craftLocationUpdate', function(event) {
+                    locationWatchCallbacks.forEach(function(callback) { callback(event.detail); });
+                });
+                craft.location = {
+                    getCurrentPosition: function(options) { return legacyGeolocation.getCurrentPosition(options || {}); },
+                    watchPosition: function(callback) {
+                        var id = ++nextLocationWatchId;
+                        locationWatchCallbacks.set(id, callback);
+                        if (locationWatchCallbacks.size === 1) void craft._invoke('watchPosition');
+                        return id;
+                    },
+                    clearWatch: function(id) {
+                        locationWatchCallbacks.delete(id);
+                        if (locationWatchCallbacks.size === 0) {
+                            window.webkit.messageHandlers.craft.postMessage({action: 'clearWatch'});
+                        }
+                    },
+                    startRecording: function() { return craft._invoke('startLocationRecording'); },
+                    pauseRecording: function() { return craft._invoke('pauseLocationRecording'); },
+                    resumeRecording: function() { return craft._invoke('resumeLocationRecording'); },
+                    stopRecording: function() { return craft._invoke('stopLocationRecording'); },
+                    getRecordingState: function() { return craft._invoke('getLocationRecordingState'); },
+                    readRecording: function() { return craft._invoke('readLocationRecording'); }
+                };
+                var shareApi = function(text) { return legacyShare(text); };
+                shareApi.share = function(options) { return craft._invoke('share', {options: options || {}}); };
+                craft.share = shareApi;
+                craft.lifecycle = {
+                    getState: function() { return document.visibilityState === 'visible' ? 'active' : 'background'; },
+                    onStateChange: function(callback) {
+                        var handler = function() { callback(document.visibilityState === 'visible' ? 'active' : 'background'); };
+                        document.addEventListener('visibilitychange', handler);
+                        return function() { document.removeEventListener('visibilitychange', handler); };
+                    }
+                };
+                craft.notifications = Object.assign({}, legacyNotifications, {
+                    show: function(options) {
+                        return legacyNotifications.schedule(Object.assign({}, options || {}, {scheduleAt: Date.now()}));
+                    },
+                    setBadge: function(count) { return craft.setBadge(count).then(function() {}); }
+                });
+
+                function normalizePhoto(photo) {
+                    if (photo && typeof photo === 'object') return photo;
+                    var base64 = String(photo || '');
+                    return {base64: base64, uri: 'data:image/jpeg;base64,' + base64, width: 0, height: 0, mimeType: 'image/jpeg'};
+                }
+            })(window.craft);
+
             // Dispatch ready event
             window.dispatchEvent(new CustomEvent('craftReady', {detail: window.craft}));
             console.log('Craft iOS bridge initialized');
@@ -2004,18 +2275,20 @@ struct CraftWebView: UIViewRepresentable {
         // MARK: - Callback Helpers
         private func resolveCallback(_ callbackId: String?, result: Any) {
             guard let id = callbackId else { return }
-            var resultStr: String
-            if let str = result as? String {
-                resultStr = "'\(str.replacingOccurrences(of: "'", with: "\\'"))'"
-            } else if let bool = result as? Bool {
-                resultStr = bool ? "true" : "false"
-            } else if result is NSNull {
-                resultStr = "null"
-            } else {
-                resultStr = "null"
+            let resultStr: String
+            do {
+                let data = try JSONSerialization.data(withJSONObject: result, options: [.fragmentsAllowed])
+                resultStr = String(data: data, encoding: .utf8) ?? "null"
+            } catch {
+                rejectCallback(callbackId, error: "Native result could not be serialized", code: "SERIALIZATION_ERROR")
+                return
             }
             let script = "window.craft._resolveCallback('\(id)', \(resultStr));"
             DispatchQueue.main.async { self.webView?.evaluateJavaScript(script, completionHandler: nil) }
+        }
+
+        private func resolveCallbackJSON(_ callbackId: String?, json: [String: Any]) {
+            resolveCallback(callbackId, result: json)
         }
 
         private func rejectCallback(_ callbackId: String?, error: String, code: String = "CRAFT_ERROR") {
@@ -2133,10 +2406,34 @@ struct CraftWebView: UIViewRepresentable {
         }
 
         // MARK: - Share
-        private func shareText(_ text: String) {
+        private func share(options: [String: Any], callbackId: String?) {
             guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                  let rootVC = windowScene.windows.first?.rootViewController else { return }
-            let activityVC = UIActivityViewController(activityItems: [text], applicationActivities: nil)
+                  let rootVC = windowScene.windows.first?.rootViewController else {
+                rejectCallback(callbackId, error: "Unable to present the share sheet")
+                return
+            }
+            var items: [Any] = []
+            if let title = options["title"] as? String, !title.isEmpty { items.append(title) }
+            if let text = options["text"] as? String, !text.isEmpty { items.append(text) }
+            if let urlString = options["url"] as? String, let url = URL(string: urlString) { items.append(url) }
+            if let files = options["files"] as? [String] {
+                for file in files {
+                    if let url = URL(string: file), url.isFileURL { items.append(url) }
+                    else if FileManager.default.fileExists(atPath: file) { items.append(URL(fileURLWithPath: file)) }
+                }
+            }
+            guard !items.isEmpty else {
+                rejectCallback(callbackId, error: "Nothing to share", code: "INVALID_ARGUMENT")
+                return
+            }
+            let activityVC = UIActivityViewController(activityItems: items, applicationActivities: nil)
+            activityVC.completionWithItemsHandler = { _, completed, _, error in
+                if let error = error {
+                    self.rejectCallback(callbackId, error: error.localizedDescription, code: "SHARE_ERROR")
+                } else {
+                    self.resolveCallback(callbackId, result: completed)
+                }
+            }
             rootVC.present(activityVC, animated: true)
         }
 
@@ -2174,8 +2471,14 @@ struct CraftWebView: UIViewRepresentable {
 
             if let image = info[.originalImage] as? UIImage,
                let imageData = image.jpegData(compressionQuality: 0.8) {
-                let base64 = "data:image/jpeg;base64," + imageData.base64EncodedString()
-                resolveCallback(pendingCallbackId, result: base64)
+                let base64 = imageData.base64EncodedString()
+                resolveCallback(pendingCallbackId, result: [
+                    "base64": base64,
+                    "uri": "data:image/jpeg;base64," + base64,
+                    "width": image.size.width,
+                    "height": image.size.height,
+                    "mimeType": "image/jpeg",
+                ])
             } else {
                 rejectCallback(pendingCallbackId, error: "Failed to process image")
             }
@@ -2210,17 +2513,35 @@ struct CraftWebView: UIViewRepresentable {
 
         // MARK: - Push Notifications
         private func registerPushNotifications(callbackId: String?) {
+            pendingPushCallbackId = callbackId
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { [weak self] granted, error in
                 if granted {
                     DispatchQueue.main.async {
                         UIApplication.shared.registerForRemoteNotifications()
-                        // In a real app, you'd get the device token from application delegate
-                        self?.resolveCallback(callbackId, result: "push-registered")
                     }
                 } else {
                     self?.rejectCallback(callbackId, error: error?.localizedDescription ?? "Permission denied")
+                    self?.pendingPushCallbackId = nil
                 }
             }
+        }
+
+        @objc private func receivePushToken(_ notification: Notification) {
+            guard let token = notification.object as? String else { return }
+            resolveCallback(pendingPushCallbackId, result: token)
+            pendingPushCallbackId = nil
+            sendToWeb("craftPushToken", data: ["token": token])
+        }
+
+        @objc private func receivePushRegistrationError(_ notification: Notification) {
+            let message = notification.object as? String ?? "Push registration failed"
+            rejectCallback(pendingPushCallbackId, error: message, code: "PUSH_REGISTRATION_ERROR")
+            pendingPushCallbackId = nil
+        }
+
+        @objc private func receiveNotificationResponse(_ notification: Notification) {
+            let data = notification.object as? [String: Any] ?? [:]
+            sendToWeb("craftNotificationResponse", data: data)
         }
 
         // MARK: - Secure Storage (Keychain)
@@ -2264,23 +2585,313 @@ struct CraftWebView: UIViewRepresentable {
             return status == errSecSuccess || status == errSecItemNotFound
         }
 
+        private func secureClear() -> Bool {
+            let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword]
+            let status = SecItemDelete(query as CFDictionary)
+            return status == errSecSuccess || status == errSecItemNotFound
+        }
+
+        // MARK: - Permissions
+        private func permissionStatus(_ granted: Bool?, denied: Bool = false, restricted: Bool = false) -> String {
+            if restricted { return "restricted" }
+            if denied { return "denied" }
+            guard let granted = granted else { return "undetermined" }
+            return granted ? "granted" : "undetermined"
+        }
+
+        private func checkPermission(_ permission: String?, callbackId: String?) {
+            guard let permission = permission else {
+                rejectCallback(callbackId, error: "Missing permission", code: "INVALID_ARGUMENT")
+                return
+            }
+            switch permission {
+            case "location", "locationAlways":
+                let status = CLLocationManager.authorizationStatus()
+                let granted = status == .authorizedAlways || (permission == "location" && status == .authorizedWhenInUse)
+                resolveCallback(callbackId, result: permissionStatus(granted, denied: status == .denied, restricted: status == .restricted))
+            case "camera":
+                let status = AVCaptureDevice.authorizationStatus(for: .video)
+                resolveCallback(callbackId, result: permissionStatus(status == .authorized, denied: status == .denied, restricted: status == .restricted))
+            case "microphone":
+                let status = AVAudioSession.sharedInstance().recordPermission
+                resolveCallback(callbackId, result: permissionStatus(status == .granted, denied: status == .denied))
+            case "photos":
+                let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+                resolveCallback(callbackId, result: permissionStatus(status == .authorized || status == .limited, denied: status == .denied, restricted: status == .restricted))
+            case "contacts":
+                let status = CNContactStore.authorizationStatus(for: .contacts)
+                resolveCallback(callbackId, result: permissionStatus(status == .authorized, denied: status == .denied, restricted: status == .restricted))
+            case "calendar", "reminders":
+                let entity: EKEntityType = permission == "calendar" ? .event : .reminder
+                let status = EKEventStore.authorizationStatus(for: entity)
+                resolveCallback(callbackId, result: permissionStatus(status == .authorized || status.rawValue >= 4, denied: status == .denied, restricted: status == .restricted))
+            case "motion":
+                let status = CMMotionActivityManager.authorizationStatus()
+                resolveCallback(callbackId, result: permissionStatus(status == .authorized, denied: status == .denied, restricted: status == .restricted))
+            case "bluetooth":
+                let status = CBManager.authorization
+                resolveCallback(callbackId, result: permissionStatus(status == .allowedAlways, denied: status == .denied, restricted: status == .restricted))
+            case "notifications":
+                UNUserNotificationCenter.current().getNotificationSettings { settings in
+                    let status: String
+                    switch settings.authorizationStatus {
+                    case .authorized, .provisional, .ephemeral: status = "granted"
+                    case .denied: status = "denied"
+                    case .notDetermined: status = "undetermined"
+                    @unknown default: status = "undetermined"
+                    }
+                    self.resolveCallback(callbackId, result: status)
+                }
+            default:
+                resolveCallback(callbackId, result: "undetermined")
+            }
+        }
+
+        private func requestPermission(_ permission: String?, callbackId: String?) {
+            guard let permission = permission else {
+                rejectCallback(callbackId, error: "Missing permission", code: "INVALID_ARGUMENT")
+                return
+            }
+            switch permission {
+            case "location", "locationAlways":
+                locationPermissionCallbackId = callbackId
+                if permission == "locationAlways" || config.enableBackgroundLocation {
+                    locationManager?.requestAlwaysAuthorization()
+                } else {
+                    locationManager?.requestWhenInUseAuthorization()
+                }
+            case "camera":
+                AVCaptureDevice.requestAccess(for: .video) { granted in
+                    self.resolveCallback(callbackId, result: granted ? "granted" : "denied")
+                }
+            case "microphone":
+                AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                    self.resolveCallback(callbackId, result: granted ? "granted" : "denied")
+                }
+            case "photos":
+                PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+                    self.resolveCallback(callbackId, result: status == .authorized || status == .limited ? "granted" : "denied")
+                }
+            case "contacts":
+                (contactStore ?? CNContactStore()).requestAccess(for: .contacts) { granted, _ in
+                    self.resolveCallback(callbackId, result: granted ? "granted" : "denied")
+                }
+            case "calendar", "reminders":
+                let store = eventStore ?? EKEventStore()
+                let entity: EKEntityType = permission == "calendar" ? .event : .reminder
+                if #available(iOS 17.0, *) {
+                    if permission == "calendar" {
+                        store.requestFullAccessToEvents { granted, _ in
+                            self.resolveCallback(callbackId, result: granted ? "granted" : "denied")
+                        }
+                    } else {
+                        store.requestFullAccessToReminders { granted, _ in
+                            self.resolveCallback(callbackId, result: granted ? "granted" : "denied")
+                        }
+                    }
+                } else {
+                    store.requestAccess(to: entity) { granted, _ in
+                        self.resolveCallback(callbackId, result: granted ? "granted" : "denied")
+                    }
+                }
+            case "notifications":
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
+                    self.resolveCallback(callbackId, result: granted ? "granted" : "denied")
+                }
+            default:
+                resolveCallback(callbackId, result: "undetermined")
+            }
+        }
+
         // MARK: - Geolocation
         private func getCurrentPosition(callbackId: String?) {
             locationManager?.delegate = self
-            locationCallbackId = callbackId
-            locationManager?.requestWhenInUseAuthorization()
+            singleLocationCallbackId = callbackId
+            requestLocationAuthorization()
             locationManager?.requestLocation()
         }
 
         private func watchPosition(callbackId: String?) {
             locationManager?.delegate = self
-            locationCallbackId = callbackId
-            locationManager?.requestWhenInUseAuthorization()
+            isWatchingLocation = true
+            requestLocationAuthorization()
+            configureBackgroundLocationIfNeeded()
             locationManager?.startUpdatingLocation()
+            resolveCallback(callbackId, result: true)
         }
 
         private func stopWatchingPosition() {
-            locationManager?.stopUpdatingLocation()
+            isWatchingLocation = false
+            if !isRecordingLocation {
+                locationManager?.stopUpdatingLocation()
+                locationManager?.allowsBackgroundLocationUpdates = false
+            }
+        }
+
+        private var locationRecordingStateURL: URL {
+            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("craft-location-recording-state.json")
+        }
+
+        private var locationRecordingTrackURL: URL {
+            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("craft-location-recording.jsonl")
+        }
+
+        private func requestLocationAuthorization() {
+            if config.enableBackgroundLocation {
+                locationManager?.requestAlwaysAuthorization()
+            } else {
+                locationManager?.requestWhenInUseAuthorization()
+            }
+        }
+
+        private func configureBackgroundLocationIfNeeded() {
+            locationManager?.allowsBackgroundLocationUpdates = config.enableBackgroundLocation
+            locationManager?.showsBackgroundLocationIndicator = config.enableBackgroundLocation
+        }
+
+        private func persistLocationRecordingState() {
+            let state: [String: Any] = [
+                "active": isRecordingLocation,
+                "paused": isLocationRecordingPaused,
+                "id": locationRecordingId ?? NSNull(),
+                "startedAt": locationRecordingStartedAt ?? NSNull(),
+            ]
+            do {
+                let directory = locationRecordingStateURL.deletingLastPathComponent()
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let data = try JSONSerialization.data(withJSONObject: state)
+                try data.write(to: locationRecordingStateURL, options: .atomic)
+                protectLocationFile(locationRecordingStateURL)
+            } catch {
+                print("Unable to persist location recording state: \(error)")
+            }
+        }
+
+        private func restoreLocationRecordingState() {
+            guard let data = try? Data(contentsOf: locationRecordingStateURL),
+                  let state = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  state["active"] as? Bool == true else { return }
+            isRecordingLocation = true
+            isLocationRecordingPaused = state["paused"] as? Bool ?? false
+            locationRecordingId = state["id"] as? String
+            locationRecordingStartedAt = state["startedAt"] as? TimeInterval
+            if !isLocationRecordingPaused {
+                locationManager?.delegate = self
+                configureBackgroundLocationIfNeeded()
+                locationManager?.startUpdatingLocation()
+            }
+        }
+
+        private func startLocationRecording(callbackId: String?) {
+            let directory = locationRecordingTrackURL.deletingLastPathComponent()
+            do {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                try Data().write(to: locationRecordingTrackURL, options: .atomic)
+                protectLocationFile(locationRecordingTrackURL)
+            } catch {
+                rejectCallback(callbackId, error: "Unable to create the location recording", code: "RECORDING_STORAGE_ERROR")
+                return
+            }
+            locationRecordingId = UUID().uuidString
+            locationRecordingStartedAt = Date().timeIntervalSince1970 * 1000
+            isRecordingLocation = true
+            isLocationRecordingPaused = false
+            persistLocationRecordingState()
+            locationManager?.delegate = self
+            requestLocationAuthorization()
+            configureBackgroundLocationIfNeeded()
+            locationManager?.startUpdatingLocation()
+            resolveCallback(callbackId, result: locationRecordingSummary())
+        }
+
+        private func pauseLocationRecording(callbackId: String?) {
+            guard isRecordingLocation else {
+                rejectCallback(callbackId, error: "No active location recording", code: "NO_ACTIVE_RECORDING")
+                return
+            }
+            isLocationRecordingPaused = true
+            persistLocationRecordingState()
+            if !isWatchingLocation { locationManager?.stopUpdatingLocation() }
+            resolveCallback(callbackId, result: locationRecordingSummary())
+        }
+
+        private func resumeLocationRecording(callbackId: String?) {
+            guard isRecordingLocation else {
+                rejectCallback(callbackId, error: "No active location recording", code: "NO_ACTIVE_RECORDING")
+                return
+            }
+            isLocationRecordingPaused = false
+            persistLocationRecordingState()
+            requestLocationAuthorization()
+            configureBackgroundLocationIfNeeded()
+            locationManager?.startUpdatingLocation()
+            resolveCallback(callbackId, result: locationRecordingSummary())
+        }
+
+        private func stopLocationRecording(callbackId: String?) {
+            isRecordingLocation = false
+            isLocationRecordingPaused = false
+            persistLocationRecordingState()
+            if !isWatchingLocation {
+                locationManager?.stopUpdatingLocation()
+                locationManager?.allowsBackgroundLocationUpdates = false
+            }
+            let locations = loadRecordedLocations()
+            var summary = locationRecordingSummary()
+            summary["locations"] = locations
+            resolveCallback(callbackId, result: summary)
+        }
+
+        private func getLocationRecordingState(callbackId: String?) {
+            var summary = locationRecordingSummary()
+            summary["sampleCount"] = loadRecordedLocations().count
+            resolveCallback(callbackId, result: summary)
+        }
+
+        private func readLocationRecording(callbackId: String?) {
+            resolveCallback(callbackId, result: loadRecordedLocations())
+        }
+
+        private func locationRecordingSummary() -> [String: Any] {
+            [
+                "id": locationRecordingId ?? NSNull(),
+                "active": isRecordingLocation,
+                "paused": isLocationRecordingPaused,
+                "startedAt": locationRecordingStartedAt ?? NSNull(),
+            ]
+        }
+
+        private func appendRecordedLocation(_ data: [String: Any]) {
+            guard isRecordingLocation && !isLocationRecordingPaused,
+                  let json = try? JSONSerialization.data(withJSONObject: data) else { return }
+            var line = json
+            line.append(0x0A)
+            do {
+                let handle = try FileHandle(forWritingTo: locationRecordingTrackURL)
+                try handle.seekToEnd()
+                try handle.write(contentsOf: line)
+                try handle.close()
+            } catch {
+                print("Unable to append location sample: \(error)")
+            }
+        }
+
+        private func protectLocationFile(_ url: URL) {
+            try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication], ofItemAtPath: url.path)
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            var protectedURL = url
+            try? protectedURL.setResourceValues(values)
+        }
+
+        private func loadRecordedLocations() -> [[String: Any]] {
+            guard let text = try? String(contentsOf: locationRecordingTrackURL, encoding: .utf8) else { return [] }
+            return text.split(separator: "\n").compactMap { line in
+                guard let data = line.data(using: .utf8) else { return nil }
+                return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            }
         }
 
         func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -2296,20 +2907,30 @@ struct CraftWebView: UIViewRepresentable {
                 "timestamp": location.timestamp.timeIntervalSince1970 * 1000
             ]
 
-            if let callbackId = locationCallbackId {
+            if let callbackId = singleLocationCallbackId {
                 resolveCallback(callbackId, result: data)
-                // For single request, clear callback
-                if !manager.allowsBackgroundLocationUpdates {
-                    locationCallbackId = nil
-                }
+                singleLocationCallbackId = nil
             }
 
-            sendToWeb("craftLocationUpdate", data: data)
+            appendRecordedLocation(data)
+            if isWatchingLocation || isRecordingLocation {
+                sendToWeb("craftLocationUpdate", data: data)
+            }
         }
 
         func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-            rejectCallback(locationCallbackId, error: error.localizedDescription)
-            locationCallbackId = nil
+            rejectCallback(singleLocationCallbackId, error: error.localizedDescription)
+            singleLocationCallbackId = nil
+            sendToWeb("craftLocationError", data: ["message": error.localizedDescription])
+        }
+
+        func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+            guard let callbackId = locationPermissionCallbackId else { return }
+            let status = manager.authorizationStatus
+            if status == .notDetermined { return }
+            let granted = status == .authorizedAlways || status == .authorizedWhenInUse
+            resolveCallback(callbackId, result: permissionStatus(granted, denied: status == .denied, restricted: status == .restricted))
+            locationPermissionCallbackId = nil
         }
 
         // MARK: - Memory Usage (for Profiling)

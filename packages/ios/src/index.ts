@@ -44,6 +44,7 @@ export interface CraftConfig {
   enableBluetooth?: boolean
   enableNFC?: boolean
   enableHealthKit?: boolean
+  enableBackgroundLocation?: boolean
   enableBackgroundTasks?: boolean
   enableScreenCapture?: boolean
   enablePDFViewer?: boolean
@@ -53,7 +54,31 @@ export interface CraftConfig {
   iosVersion?: string
   teamId?: string
   urlSchemes?: string[]
+  trustedOrigins?: string[]
+  associatedDomains?: string[]
+  appGroups?: string[]
+  appIconPath?: string
+  privacy?: CraftPrivacyManifest
   orientations?: Array<'portrait' | 'landscape-left' | 'landscape-right' | 'portrait-upside-down'>
+}
+
+export interface CraftPrivacyDataType {
+  type: string
+  linked?: boolean
+  tracking?: boolean
+  purposes: string[]
+}
+
+export interface CraftPrivacyAccessedApiType {
+  type: string
+  reasons: string[]
+}
+
+export interface CraftPrivacyManifest {
+  tracking?: boolean
+  trackingDomains?: string[]
+  collectedDataTypes?: CraftPrivacyDataType[]
+  accessedApiTypes?: CraftPrivacyAccessedApiType[]
 }
 
 export interface InitOptions {
@@ -112,6 +137,7 @@ const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
   enableBluetooth: false,
   enableNFC: false,
   enableHealthKit: false,
+  enableBackgroundLocation: false,
   enableBackgroundTasks: false,
   enableScreenCapture: false,
   enablePDFViewer: false,
@@ -119,6 +145,9 @@ const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
   enableMLKit: false,
   iosVersion: '16.0',
   teamId: '',
+  trustedOrigins: [],
+  associatedDomains: [],
+  appGroups: [],
   orientations: ['portrait'],
 }
 
@@ -141,7 +170,8 @@ export function renderUsageDescriptions(config: CraftConfig): string {
     [config.enableSpeechRecognition || config.enableAudioRecording, 'NSMicrophoneUsageDescription', `${config.appName} uses the microphone to record audio.`],
     [config.enableCamera || config.enableVideoRecording || config.enableQRScanner || config.enableAR, 'NSCameraUsageDescription', `${config.appName} uses the camera for photos, video, scanning, and augmented reality.`],
     [config.enableCamera || config.enableVideoRecording, 'NSPhotoLibraryUsageDescription', `${config.appName} lets you choose photos and videos from your library.`],
-    [config.enableGeolocation, 'NSLocationWhenInUseUsageDescription', `${config.appName} uses your location while the app is open.`],
+    [config.enableGeolocation || config.enableBackgroundLocation, 'NSLocationWhenInUseUsageDescription', `${config.appName} uses your location while you record an activity.`],
+    [config.enableBackgroundLocation, 'NSLocationAlwaysAndWhenInUseUsageDescription', `${config.appName} continues recording your route when the screen is locked or the app is in the background.`],
     [config.enableContacts, 'NSContactsUsageDescription', `${config.appName} accesses contacts only when you choose a contact feature.`],
     [config.enableCalendar, 'NSCalendarsUsageDescription', `${config.appName} accesses your calendar only when you choose a calendar feature.`],
     [config.enableBluetooth, 'NSBluetoothAlwaysUsageDescription', `${config.appName} uses Bluetooth to connect to nearby devices.`],
@@ -174,6 +204,87 @@ export function renderUrlTypes(config: CraftConfig): string {
   if (!schemes.length) return ''
 
   return `    <key>CFBundleURLTypes</key>\n    <array>\n        <dict>\n            <key>CFBundleURLSchemes</key>\n            <array>\n${schemes.map(value => `                <string>${xmlEscape(value)}</string>`).join('\n')}\n            </array>\n        </dict>\n    </array>`
+}
+
+function plistArray(values: string[], indent = 2): string {
+  const padding = '    '.repeat(indent)
+  return values.map(value => `${padding}<string>${xmlEscape(value)}</string>`).join('\n')
+}
+
+export function renderBackgroundModes(config: CraftConfig): string {
+  const modes = new Set<string>()
+  if (config.enableBackgroundLocation) modes.add('location')
+  if (config.enableBackgroundTasks) modes.add('processing')
+  if (config.enablePushNotifications) modes.add('remote-notification')
+  if (!modes.size) return ''
+
+  return `    <key>UIBackgroundModes</key>\n    <array>\n${plistArray([...modes])}\n    </array>`
+}
+
+export function renderEntitlements(config: CraftConfig): string {
+  const entries: string[] = []
+  if (config.associatedDomains?.length) {
+    entries.push(`    <key>com.apple.developer.associated-domains</key>\n    <array>\n${plistArray(config.associatedDomains)}\n    </array>`)
+  }
+  if (config.appGroups?.length) {
+    entries.push(`    <key>com.apple.security.application-groups</key>\n    <array>\n${plistArray(config.appGroups)}\n    </array>`)
+  }
+  if (config.enableHealthKit) {
+    entries.push('    <key>com.apple.developer.healthkit</key>\n    <true/>')
+  }
+  if (config.enablePushNotifications) {
+    entries.push('    <key>aps-environment</key>\n    <string>development</string>')
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n${entries.join('\n')}\n</dict>\n</plist>\n`
+}
+
+export function renderPrivacyManifest(config: CraftConfig): string {
+  const privacy = config.privacy ?? {}
+  const collected = privacy.collectedDataTypes ?? []
+  const accessed = privacy.accessedApiTypes ?? []
+  const collectedXml = collected.map(item => `        <dict>\n            <key>NSPrivacyCollectedDataType</key>\n            <string>${xmlEscape(item.type)}</string>\n            <key>NSPrivacyCollectedDataTypeLinked</key>\n            <${item.linked ? 'true' : 'false'}/>\n            <key>NSPrivacyCollectedDataTypeTracking</key>\n            <${item.tracking ? 'true' : 'false'}/>\n            <key>NSPrivacyCollectedDataTypePurposes</key>\n            <array>\n${plistArray(item.purposes, 4)}\n            </array>\n        </dict>`).join('\n')
+  const accessedXml = accessed.map(item => `        <dict>\n            <key>NSPrivacyAccessedAPIType</key>\n            <string>${xmlEscape(item.type)}</string>\n            <key>NSPrivacyAccessedAPITypeReasons</key>\n            <array>\n${plistArray(item.reasons, 4)}\n            </array>\n        </dict>`).join('\n')
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>NSPrivacyTracking</key>\n    <${privacy.tracking ? 'true' : 'false'}/>\n    <key>NSPrivacyTrackingDomains</key>\n    <array>\n${plistArray(privacy.trackingDomains ?? [])}\n    </array>\n    <key>NSPrivacyCollectedDataTypes</key>\n    <array>\n${collectedXml}\n    </array>\n    <key>NSPrivacyAccessedAPITypes</key>\n    <array>\n${accessedXml}\n    </array>\n</dict>\n</plist>\n`
+}
+
+function renderAssetCatalog(output: string, config: CraftConfig): void {
+  const catalog = join(output, 'Assets.xcassets')
+  const appIcon = join(catalog, 'AppIcon.appiconset')
+  const launchBackground = join(catalog, 'LaunchBackground.colorset')
+  mkdirSync(appIcon, { recursive: true })
+  mkdirSync(launchBackground, { recursive: true })
+  writeFileSync(join(catalog, 'Contents.json'), `${JSON.stringify({ info: { author: 'xcode', version: 1 } }, null, 2)}\n`)
+
+  const iconFilename = config.appIconPath ? 'AppIcon-1024.png' : undefined
+  if (config.appIconPath) {
+    if (!existsSync(config.appIconPath)) throw new Error(`App icon not found: ${config.appIconPath}`)
+    cpSync(config.appIconPath, join(appIcon, iconFilename!))
+  }
+  writeFileSync(join(appIcon, 'Contents.json'), `${JSON.stringify({
+    images: iconFilename ? [{
+      filename: iconFilename,
+      idiom: 'universal',
+      platform: 'ios',
+      size: '1024x1024',
+    }] : [],
+    info: { author: 'xcode', version: 1 },
+  }, null, 2)}\n`)
+
+  const color = config.backgroundColor?.replace(/^#/, '') || '000000'
+  const normalized = color.length === 3 ? [...color].map(value => `${value}${value}`).join('') : color.padEnd(6, '0').slice(0, 6)
+  const components = [0, 2, 4].map(index => (Number.parseInt(normalized.slice(index, index + 2), 16) / 255).toFixed(3))
+  writeFileSync(join(launchBackground, 'Contents.json'), `${JSON.stringify({
+    colors: [{
+      color: {
+        'color-space': 'srgb',
+        components: { alpha: '1.000', blue: components[2], green: components[1], red: components[0] },
+      },
+      idiom: 'universal',
+    }],
+    info: { author: 'xcode', version: 1 },
+  }, null, 2)}\n`)
 }
 
 /** Replace the bundled web application atomically so removed assets cannot linger. */
@@ -226,12 +337,16 @@ export async function init(options: InitOptions): Promise<void> {
     teamId: teamId || '',
     ...options.config,
   }
+  if (config.enableBackgroundLocation) config.enableGeolocation = true
 
   writeFileSync(join(output, 'craft.config.json'), JSON.stringify(config, null, 2))
 
   // Copy and customize Swift template
   const swiftTemplate = readFileSync(join(TEMPLATES_DIR, 'CraftApp.swift'), 'utf-8')
-  writeFileSync(join(output, 'Sources', `${name}App.swift`), swiftTemplate.replace(/CraftApp/g, `${name}App`))
+  const swiftSource = swiftTemplate
+    .replace(/CraftApp/g, `${name}App`)
+    .replace(/\{\{BUNDLE_ID\}\}/g, finalBundleId)
+  writeFileSync(join(output, 'Sources', `${name}App.swift`), swiftSource)
 
   // Generate Info.plist
   const infoPlistTemplate = readFileSync(join(TEMPLATES_DIR, 'Info.plist.template'), 'utf-8')
@@ -244,6 +359,7 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{ORIENTATIONS\}\}/g, renderOrientations(config))
     .replace(/\{\{USAGE_DESCRIPTIONS\}\}/g, renderUsageDescriptions(config))
     .replace(/\{\{URL_TYPES\}\}/g, renderUrlTypes(config))
+    .replace(/\{\{BACKGROUND_MODES\}\}/g, renderBackgroundModes(config))
 
   writeFileSync(join(output, 'Info.plist'), infoPlist)
 
@@ -259,6 +375,9 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{TEAM_ID\}\}/g, teamId || '')
 
   writeFileSync(join(output, 'project.yml'), projectYml)
+  writeFileSync(join(output, 'Craft.entitlements'), renderEntitlements(config))
+  writeFileSync(join(output, 'PrivacyInfo.xcprivacy'), renderPrivacyManifest(config))
+  renderAssetCatalog(output, config)
 
   // Create placeholder index.html
   const placeholderHtml = `<!DOCTYPE html>
@@ -331,6 +450,8 @@ export async function build(options: BuildOptions): Promise<void> {
   // Update dev server URL if provided
   if (devServer) {
     config.devServerURL = devServer
+    const origin = new URL(devServer).origin
+    config.trustedOrigins = [...new Set([...(config.trustedOrigins ?? []), origin])]
     writeFileSync(configPath, JSON.stringify(config, null, 2))
     console.log(`   Dev server: ${devServer}`)
   }

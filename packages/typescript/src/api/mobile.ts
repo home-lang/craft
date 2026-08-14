@@ -121,6 +121,8 @@ export interface DeviceCapabilities {
   bluetooth: boolean
   /** Has GPS */
   gps: boolean
+  /** Can continue location recording in the background */
+  backgroundLocation?: boolean
   /** Has accelerometer */
   accelerometer: boolean
   /** Has gyroscope */
@@ -748,6 +750,8 @@ export const secureStorage = {
     if (typeof window !== 'undefined' && craft?.secureStorage) {
       return craft.secureStorage.set(key, value)
     }
+    if (typeof window !== 'undefined' && (window as any).craft)
+      throw new Error('Craft secure storage bridge is unavailable')
     // Fallback to localStorage (not secure, but functional for development)
     localStorage.setItem(`secure_${key}`, value)
   },
@@ -763,6 +767,8 @@ export const secureStorage = {
     if (typeof window !== 'undefined' && craft?.secureStorage) {
       return craft.secureStorage.get(key)
     }
+    if (typeof window !== 'undefined' && (window as any).craft)
+      throw new Error('Craft secure storage bridge is unavailable')
     return localStorage.getItem(`secure_${key}`)
   },
 
@@ -776,6 +782,8 @@ export const secureStorage = {
     if (typeof window !== 'undefined' && craft?.secureStorage) {
       return craft.secureStorage.delete(key)
     }
+    if (typeof window !== 'undefined' && (window as any).craft)
+      throw new Error('Craft secure storage bridge is unavailable')
     localStorage.removeItem(`secure_${key}`)
   },
 
@@ -787,6 +795,8 @@ export const secureStorage = {
     if (typeof window !== 'undefined' && craft?.secureStorage) {
       return craft.secureStorage.clear()
     }
+    if (typeof window !== 'undefined' && (window as any).craft)
+      throw new Error('Craft secure storage bridge is unavailable')
     Object.keys(localStorage)
       .filter(k => k.startsWith('secure_'))
       .forEach(k => localStorage.removeItem(k))
@@ -821,6 +831,27 @@ export interface LocationOptions {
   /** Maximum age of cached position in milliseconds */
   maximumAge?: number
 }
+
+export interface LocationRecordingState {
+  id: string | null
+  active: boolean
+  paused: boolean
+  startedAt: number | null
+  sampleCount?: number
+}
+
+export interface LocationRecordingResult extends LocationRecordingState {
+  locations: Location[]
+}
+
+let webLocationRecording: LocationRecordingResult = {
+  id: null,
+  active: false,
+  paused: false,
+  startedAt: null,
+  locations: []
+}
+let webLocationRecordingWatchId: number | null = null
 
 /**
  * Location API.
@@ -915,6 +946,69 @@ export const location = {
       return craft.location.clearWatch(watchId)
     }
     navigator.geolocation.clearWatch(watchId)
+  },
+
+  async startRecording(options: LocationOptions = {}): Promise<LocationRecordingState> {
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.location?.startRecording)
+      return craft.location.startRecording(options)
+
+    if (webLocationRecordingWatchId !== null)
+      navigator.geolocation.clearWatch(webLocationRecordingWatchId)
+    webLocationRecording = {
+      id: secureUUID(),
+      active: true,
+      paused: false,
+      startedAt: Date.now(),
+      locations: []
+    }
+    webLocationRecordingWatchId = location.watchPosition((position) => {
+      if (!webLocationRecording.paused) webLocationRecording.locations.push(position)
+    }, options)
+    return { ...webLocationRecording, sampleCount: 0 }
+  },
+
+  async pauseRecording(): Promise<LocationRecordingState> {
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.location?.pauseRecording)
+      return craft.location.pauseRecording()
+    webLocationRecording.paused = true
+    return { ...webLocationRecording, sampleCount: webLocationRecording.locations.length }
+  },
+
+  async resumeRecording(): Promise<LocationRecordingState> {
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.location?.resumeRecording)
+      return craft.location.resumeRecording()
+    webLocationRecording.paused = false
+    return { ...webLocationRecording, sampleCount: webLocationRecording.locations.length }
+  },
+
+  async stopRecording(): Promise<LocationRecordingResult> {
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.location?.stopRecording)
+      return craft.location.stopRecording()
+    if (webLocationRecordingWatchId !== null) {
+      location.clearWatch(webLocationRecordingWatchId)
+      webLocationRecordingWatchId = null
+    }
+    webLocationRecording.active = false
+    webLocationRecording.paused = false
+    return { ...webLocationRecording, locations: [...webLocationRecording.locations] }
+  },
+
+  async getRecordingState(): Promise<LocationRecordingState> {
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.location?.getRecordingState)
+      return craft.location.getRecordingState()
+    return { ...webLocationRecording, sampleCount: webLocationRecording.locations.length }
+  },
+
+  async readRecording(): Promise<Location[]> {
+    const craft = getCraftMobile()
+    if (typeof window !== 'undefined' && craft?.location?.readRecording)
+      return craft.location.readRecording()
+    return [...webLocationRecording.locations]
   }
 }
 
@@ -1217,6 +1311,12 @@ interface CraftMobileBridge {
     getCurrentPosition(options: LocationOptions): Promise<Location>
     watchPosition(callback: (location: Location) => void, options: LocationOptions): number
     clearWatch(watchId: number): void
+    startRecording?(options: LocationOptions): Promise<LocationRecordingState>
+    pauseRecording?(): Promise<LocationRecordingState>
+    resumeRecording?(): Promise<LocationRecordingState>
+    stopRecording?(): Promise<LocationRecordingResult>
+    getRecordingState?(): Promise<LocationRecordingState>
+    readRecording?(): Promise<Location[]>
   }
   share?: {
     share(options: ShareOptions): Promise<void>
