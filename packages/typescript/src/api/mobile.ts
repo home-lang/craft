@@ -1270,16 +1270,31 @@ export const keepAwake = {
 
 export const deepLinks = {
   async getInitialURL(): Promise<string | null> {
-    return await getCraftRoot()?.deepLinks?.getInitialURL?.() ?? null
+    return normalizeDeepLinkURL(await getCraftRoot()?.deepLinks?.getInitialURL?.())
   },
   onLink(callback: (url: string) => void): () => void {
     const craft = getCraftRoot()
-    if (craft?.deepLinks?.onLink) return craft.deepLinks.onLink(callback) ?? (() => {})
+    if (craft?.deepLinks?.onLink) {
+      return craft.deepLinks.onLink((value: unknown) => {
+        const url = normalizeDeepLinkURL(value)
+        if (url) callback(url)
+      }) ?? (() => {})
+    }
     if (typeof globalThis === 'undefined') return () => {}
-    const listener = (event: Event) => callback((event as CustomEvent<{ url?: string }>).detail?.url ?? '')
+    const listener = (event: Event) => {
+      const url = normalizeDeepLinkURL((event as CustomEvent<unknown>).detail)
+      if (url) callback(url)
+    }
     globalThis.addEventListener('craftDeepLink', listener)
     return () => globalThis.removeEventListener('craftDeepLink', listener)
   }
+}
+
+export function normalizeDeepLinkURL(value: unknown): string | null {
+  if (typeof value === 'string') return value.trim() || null
+  if (!value || typeof value !== 'object') return null
+  const url = (value as { url?: unknown }).url
+  return typeof url === 'string' && url.trim() ? url : null
 }
 
 export const network = {

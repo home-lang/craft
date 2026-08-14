@@ -23,6 +23,15 @@ import type {
   HealthDataResult,
   LiveActivityOptions,
 } from '../api/mobile'
+import { normalizeDeepLinkURL } from '../api/mobile'
+
+describe('Mobile deep links', () => {
+  it('normalizes native payloads to the public string contract', () => {
+    expect(normalizeDeepLinkURL('wildloop://record')).toBe('wildloop://record')
+    expect(normalizeDeepLinkURL({ url: 'wildloop://trail/42', scheme: 'wildloop' })).toBe('wildloop://trail/42')
+    expect(normalizeDeepLinkURL({ scheme: 'wildloop' })).toBeNull()
+  })
+})
 
 describe('Mobile API Types', () => {
   describe('DeviceInfo', () => {
