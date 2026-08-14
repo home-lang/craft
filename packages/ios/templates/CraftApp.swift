@@ -5070,6 +5070,7 @@ extension CraftWebView.Coordinator: WCSessionDelegate {
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String : Any]) {
         DispatchQueue.main.async { [weak self] in
             self?.sendToWeb("craftWatchUserInfo", data: userInfo)
+            self?.sendToWeb("craftWatchMessage", data: userInfo)
         }
     }
 }
