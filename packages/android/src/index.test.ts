@@ -142,5 +142,6 @@ describe('Craft Android builder', () => {
     expect(manifest).toContain('com.google.android.apps.healthdata')
     expect(manifest).toContain('android.intent.category.HEALTH_PERMISSIONS')
     expect(gradle).toContain('androidx.health.connect:connect-client')
+    expect(gradle).toContain('compileSdk = 36')
   })
 })

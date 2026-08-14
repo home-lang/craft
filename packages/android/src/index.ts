@@ -35,6 +35,7 @@ export interface CraftAndroidConfig {
   devServerURL?: string
   hasBundledFallback?: boolean
   minSdk?: number
+  compileSdk?: number
   targetSdk?: number
 }
 
@@ -81,6 +82,7 @@ const DEFAULT_CONFIG: Omit<CraftAndroidConfig, 'appName' | 'packageName'> = {
   enableDeepLinks: false,
   trustedOrigins: [],
   minSdk: 26,
+  compileSdk: 36,
   targetSdk: 35,
 }
 
@@ -279,7 +281,8 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{VERSION_NAME\}\}/g, config.version || '1.0.0')
     .replace(/\{\{VERSION_CODE\}\}/g, String(config.versionCode || 1))
     .replace(/\{\{MIN_SDK\}\}/g, String(config.minSdk || 24))
-    .replace(/\{\{TARGET_SDK\}\}/g, String(config.targetSdk || 34))
+    .replace(/\{\{COMPILE_SDK\}\}/g, String(Math.max(config.compileSdk || 36, config.enableHealthConnect ? 36 : 1)))
+    .replace(/\{\{TARGET_SDK\}\}/g, String(config.targetSdk || 35))
     .replace(/\{\{GOOGLE_SERVICES_PLUGIN\}\}/g, hasGoogleServices ? '    id("com.google.gms.google-services")' : '')
     .replace(/\{\{FIREBASE_MESSAGING_DEPENDENCY\}\}/g, config.enablePushNotifications
       ? '    implementation("com.google.firebase:firebase-messaging:24.1.0")'
@@ -315,7 +318,7 @@ android.nonTransitiveRClass=true
   // Create gradle wrapper properties
   const gradleWrapperProps = `distributionBase=GRADLE_USER_HOME
 distributionPath=wrapper/dists
-distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip
+distributionUrl=https\\://services.gradle.org/distributions/gradle-8.11.1-bin.zip
 networkTimeout=10000
 validateDistributionUrl=true
 zipStoreBase=GRADLE_USER_HOME

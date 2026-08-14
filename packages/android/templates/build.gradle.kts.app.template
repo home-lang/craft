@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "{{PACKAGE_NAME}}"
-    compileSdk = {{TARGET_SDK}}
+    compileSdk = {{COMPILE_SDK}}
 
     defaultConfig {
         applicationId = "{{PACKAGE_NAME}}"
