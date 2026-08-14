@@ -141,6 +141,8 @@ describe('Craft iOS builder', () => {
     expect(project).toContain('type: app-extension')
     expect(swift).toContain('startLiveActivity')
     expect(swift).toContain('craft.liveActivity = {')
+    expect(swift).toContain('saveHealthWorkout')
+    expect(swift).toContain('HKWorkoutRouteBuilder')
     expect(plist).toContain('NSSupportsLiveActivities')
     expect(existsSync(join(output, 'Shared', 'CraftActivityAttributes.swift'))).toBe(true)
     expect(existsSync(join(output, 'WidgetExtension', 'WildLoopLiveActivity.swift'))).toBe(true)

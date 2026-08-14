@@ -792,6 +792,12 @@ struct CraftWebView: UIViewRepresentable {
                     let endDate = body["endDate"] as? Double
                     getHealthData(type: dataType, startDate: startDate, endDate: endDate, callbackId: callbackId)
                 }
+            case "saveHealthWorkout":
+                if config.enableHealthKit {
+                    saveHealthWorkout(body: body, callbackId: callbackId)
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled")
+                }
 
             // MARK: - Live Activities
             case "startLiveActivity":
@@ -2277,7 +2283,8 @@ struct CraftWebView: UIViewRepresentable {
                     getData: function(type, options) {
                         options = options || {};
                         return craft._invoke('getHealthData', {type: type, startDate: options.startDate, endDate: options.endDate});
-                    }
+                    },
+                    saveWorkout: function(workout) { return craft._invoke('saveHealthWorkout', workout || {}); }
                 };
                 craft.liveActivity = {
                     start: function(options) { return craft._invoke('startLiveActivity', options || {}); },
@@ -3797,6 +3804,10 @@ struct CraftWebView: UIViewRepresentable {
             }
 
             var readTypes: Set<HKObjectType> = []
+            var shareTypes: Set<HKSampleType> = [HKObjectType.workoutType()]
+            if let routeType = HKSeriesType.workoutRoute() as? HKSampleType {
+                shareTypes.insert(routeType)
+            }
 
             for type in types {
                 switch type {
@@ -3811,17 +3822,21 @@ struct CraftWebView: UIViewRepresentable {
                 case "activeEnergy":
                     if let energyType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) {
                         readTypes.insert(energyType)
+                        shareTypes.insert(energyType)
                     }
                 case "distance":
                     if let distanceType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning) {
                         readTypes.insert(distanceType)
+                        shareTypes.insert(distanceType)
                     }
+                case "workouts":
+                    readTypes.insert(HKObjectType.workoutType())
                 default:
                     break
                 }
             }
 
-            healthStore.requestAuthorization(toShare: nil, read: readTypes) { [weak self] success, error in
+            healthStore.requestAuthorization(toShare: shareTypes, read: readTypes) { [weak self] success, error in
                 if success {
                     self?.resolveCallback(callbackId, result: true)
                 } else {
@@ -3878,6 +3893,94 @@ struct CraftWebView: UIViewRepresentable {
             }
 
             healthStore.execute(query)
+        }
+
+        private func saveHealthWorkout(body: [String: Any], callbackId: String?) {
+            guard let healthStore = healthStore else {
+                rejectCallback(callbackId, error: "HealthKit not available")
+                return
+            }
+            guard let activityId = body["activityId"] as? String,
+                  let type = body["type"] as? String,
+                  let startValue = body["startDate"] as? Double,
+                  let endValue = body["endDate"] as? Double,
+                  endValue > startValue else {
+                rejectCallback(callbackId, error: "A valid activityId, type, startDate, and endDate are required")
+                return
+            }
+
+            let activityType: HKWorkoutActivityType
+            switch type {
+            case "running": activityType = .running
+            case "walking": activityType = .walking
+            case "hiking": activityType = .hiking
+            case "cycling": activityType = .cycling
+            default:
+                rejectCallback(callbackId, error: "Unsupported workout type")
+                return
+            }
+
+            let distance = (body["distanceMeters"] as? Double).flatMap { value in
+                value > 0 ? HKQuantity(unit: .meter(), doubleValue: value) : nil
+            }
+            let energy = (body["activeEnergyCalories"] as? Double).flatMap { value in
+                value > 0 ? HKQuantity(unit: .kilocalorie(), doubleValue: value) : nil
+            }
+            let start = Date(timeIntervalSince1970: startValue / 1000)
+            let end = Date(timeIntervalSince1970: endValue / 1000)
+            let workout = HKWorkout(
+                activityType: activityType,
+                start: start,
+                end: end,
+                workoutEvents: nil,
+                totalEnergyBurned: energy,
+                totalDistance: distance,
+                metadata: [HKMetadataKeyExternalUUID: activityId, HKMetadataKeyIndoorWorkout: false]
+            )
+
+            healthStore.save(workout) { [weak self] success, error in
+                guard let self = self else { return }
+                guard success else {
+                    self.rejectCallback(callbackId, error: error?.localizedDescription ?? "Workout could not be saved")
+                    return
+                }
+
+                let locations = (body["locations"] as? [[String: Any]] ?? []).compactMap { item -> CLLocation? in
+                    guard let latitude = item["latitude"] as? Double,
+                          let longitude = item["longitude"] as? Double,
+                          let timestamp = item["timestamp"] as? Double else { return nil }
+                    return CLLocation(
+                        coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
+                        altitude: item["altitude"] as? Double ?? 0,
+                        horizontalAccuracy: item["accuracy"] as? Double ?? 10,
+                        verticalAccuracy: -1,
+                        timestamp: Date(timeIntervalSince1970: timestamp / 1000)
+                    )
+                }.filter { $0.timestamp >= start && $0.timestamp <= end }
+
+                guard !locations.isEmpty else {
+                    self.resolveCallback(callbackId, result: ["id": workout.uuid.uuidString])
+                    return
+                }
+
+                let routeBuilder = HKWorkoutRouteBuilder(healthStore: healthStore, device: .local())
+                routeBuilder.insertRouteData(locations) { inserted, routeError in
+                    guard inserted else {
+                        self.rejectCallback(callbackId, error: routeError?.localizedDescription ?? "Workout route could not be saved")
+                        return
+                    }
+                    routeBuilder.finishRoute(with: workout, metadata: [HKMetadataKeyExternalUUID: activityId]) { route, finishError in
+                        if let finishError = finishError {
+                            self.rejectCallback(callbackId, error: finishError.localizedDescription)
+                        } else {
+                            self.resolveCallback(callbackId, result: [
+                                "id": workout.uuid.uuidString,
+                                "routeId": route?.uuid.uuidString ?? ""
+                            ])
+                        }
+                    }
+                }
+            }
         }
 
         // MARK: - Live Activities

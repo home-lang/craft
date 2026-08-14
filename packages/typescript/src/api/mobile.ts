@@ -1330,7 +1330,7 @@ export const pushNotifications = {
   }
 }
 
-export type HealthDataType = 'steps' | 'heartRate' | 'activeEnergy' | 'distance'
+export type HealthDataType = 'steps' | 'heartRate' | 'activeEnergy' | 'distance' | 'workouts'
 
 export interface HealthDataOptions {
   startDate?: number
@@ -1340,6 +1340,30 @@ export interface HealthDataOptions {
 export interface HealthDataResult {
   value: number
   unit: string
+}
+
+export type HealthWorkoutType = 'running' | 'walking' | 'hiking' | 'cycling'
+
+export interface HealthWorkoutLocation {
+  latitude: number
+  longitude: number
+  altitude?: number
+  accuracy?: number
+  timestamp: number
+}
+
+export interface HealthWorkout {
+  activityId: string
+  type: HealthWorkoutType
+  startDate: number
+  endDate: number
+  distanceMeters?: number
+  activeEnergyCalories?: number
+  locations?: HealthWorkoutLocation[]
+}
+
+export interface HealthWorkoutResult {
+  id: string
 }
 
 export const health = {
@@ -1352,6 +1376,11 @@ export const health = {
     const craft = getCraftRoot()
     if (!craft?.health?.getData) throw new Error('Health data is unavailable')
     return craft.health.getData(type, options)
+  },
+  async saveWorkout(workout: HealthWorkout): Promise<HealthWorkoutResult> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.saveWorkout) throw new Error('Saving health workouts is unavailable')
+    return craft.health.saveWorkout(workout)
   }
 }
 
@@ -1514,6 +1543,7 @@ interface CraftMobileBridge {
   health?: {
     requestAuthorization(types: HealthDataType[]): Promise<boolean>
     getData(type: HealthDataType, options: HealthDataOptions): Promise<HealthDataResult>
+    saveWorkout(workout: HealthWorkout): Promise<HealthWorkoutResult>
   }
   liveActivity?: {
     start(options: LiveActivityOptions): Promise<{ id: string }>
