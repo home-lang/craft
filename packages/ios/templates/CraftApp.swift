@@ -230,7 +230,22 @@ final class BundledAssetSchemeHandler: NSObject, WKURLSchemeHandler {
     private let rootURL: URL?
 
     override init() {
-        rootURL = Bundle.main.resourceURL?.appendingPathComponent("dist", isDirectory: true)
+        if let resources = Bundle.main.resourceURL {
+            let nested = resources.appendingPathComponent("dist", isDirectory: true)
+            let nestedIndex = nested.appendingPathComponent("index.html").path
+            let flattenedIndex = resources.appendingPathComponent("index.html").path
+            if FileManager.default.fileExists(atPath: nestedIndex) {
+                rootURL = nested
+            } else if FileManager.default.fileExists(atPath: flattenedIndex) {
+                // Xcode can flatten a synchronized resource folder depending
+                // on how the generated project is materialized.
+                rootURL = resources
+            } else {
+                rootURL = nil
+            }
+        } else {
+            rootURL = nil
+        }
         super.init()
     }
 

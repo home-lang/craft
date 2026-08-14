@@ -100,6 +100,8 @@ describe('Craft iOS builder', () => {
     const generatedConfig = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
     expect(swift).toContain('BundledAssetSchemeHandler')
     expect(swift).toContain('craft://app/')
+    expect(swift).toContain('FileManager.default.fileExists(atPath: nestedIndex)')
+    expect(swift).toContain('FileManager.default.fileExists(atPath: flattenedIndex)')
     expect(swift).not.toContain('loadFileURL')
     expect(swift).toContain("craft.contractVersion = '1.0.0'")
     expect(swift).toContain('craft.location = {')
