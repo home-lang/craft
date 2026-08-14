@@ -1,5 +1,27 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.64...v0.0.65)
+
+## 🚀 Features
+
+- **sdk**: add browser-safe mobile entrypoint ([e525749](https://github.com/home-lang/craft/commit/e525749)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: expose production project builder ([31d94b2](https://github.com/home-lang/craft/commit/31d94b2)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🐛 Bug Fixes
+
+- **ios**: default native capabilities off ([02c97bf](https://github.com/home-lang/craft/commit/02c97bf)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: load bundled app from dist ([facae34](https://github.com/home-lang/craft/commit/facae34)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **cli**: report native version reliably ([0985620](https://github.com/home-lang/craft/commit/0985620)) _(by Chris Breuer <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.65 ([99ca57f](https://github.com/home-lang/craft/commit/99ca57f)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _Chris Breuer <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.63...v0.0.64)
 
 ## 🚀 Features
