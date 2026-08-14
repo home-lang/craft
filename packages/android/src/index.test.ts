@@ -102,6 +102,7 @@ describe('Craft Android builder', () => {
     const projectGradle = readFileSync(join(output, 'build.gradle.kts'), 'utf8')
     expect(bridge).toContain('FirebaseMessaging.getInstance().token')
     expect(bridge).not.toContain('push-token-placeholder')
+    expect(bridge).not.toContain('?: \\"Review flow failed\\"')
     expect(appGradle).toContain('com.google.firebase:firebase-messaging')
     expect(appGradle).toContain('id("com.google.gms.google-services")')
     expect(projectGradle).toContain('id("com.google.gms.google-services")')

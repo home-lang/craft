@@ -85,8 +85,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadContent() {
         // Check for dev server URL in config
-        if (devServerUrl != null) {
-            webView.loadUrl(devServerUrl)
+        val remoteUrl = devServerUrl
+        if (remoteUrl != null) {
+            webView.loadUrl(remoteUrl)
         } else {
             // Load from assets
             webView.loadUrl("file:///android_asset/index.html")

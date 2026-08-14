@@ -1939,8 +1939,9 @@ class CraftBridge(
                 }
             } else {
                 activity.runOnUiThread {
+                    val message = JSONObject.quote(task.exception?.message ?: "Review flow failed")
                     webView.evaluateJavascript(
-                        "window._craftReviewReject && window._craftReviewReject('${task.exception?.message ?: \"Review flow failed\"}')",
+                        "window._craftReviewReject && window._craftReviewReject($message)",
                         null
                     )
                 }
