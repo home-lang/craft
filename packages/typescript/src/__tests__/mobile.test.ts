@@ -19,7 +19,9 @@ import type {
   LocationOptions,
   ShareOptions,
   AppState,
-  NotificationOptions
+  NotificationOptions,
+  HealthDataResult,
+  LiveActivityOptions,
 } from '../api/mobile'
 
 describe('Mobile API Types', () => {
@@ -225,6 +227,21 @@ describe('Mobile API Types', () => {
       expect(options.title).toBe('New Message')
       expect(options.body).toBe('You have a new message')
       expect(options.badge).toBe(1)
+    })
+  })
+
+  describe('native activity integrations', () => {
+    it('defines HealthKit and Live Activity payloads', () => {
+      const health: HealthDataResult = { value: 4219, unit: 'count' }
+      const live: LiveActivityOptions = {
+        activityId: 'activity-1',
+        title: 'WildLoop',
+        status: 'Recording',
+        distanceMeters: 1609,
+        durationSeconds: 480,
+      }
+      expect(health.value).toBe(4219)
+      expect(live.distanceMeters).toBe(1609)
     })
   })
 })

@@ -1330,6 +1330,84 @@ export const pushNotifications = {
   }
 }
 
+export type HealthDataType = 'steps' | 'heartRate' | 'activeEnergy' | 'distance'
+
+export interface HealthDataOptions {
+  startDate?: number
+  endDate?: number
+}
+
+export interface HealthDataResult {
+  value: number
+  unit: string
+}
+
+export const health = {
+  async requestAuthorization(types: HealthDataType[]): Promise<boolean> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.requestAuthorization) throw new Error('Health data is unavailable')
+    return Boolean(await craft.health.requestAuthorization(types))
+  },
+  async getData(type: HealthDataType, options: HealthDataOptions = {}): Promise<HealthDataResult> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.getData) throw new Error('Health data is unavailable')
+    return craft.health.getData(type, options)
+  }
+}
+
+export interface LiveActivityState {
+  status?: string
+  distanceMeters?: number
+  durationSeconds?: number
+  progress?: number
+}
+
+export interface LiveActivityOptions extends LiveActivityState {
+  activityId: string
+  title: string
+}
+
+export const liveActivities = {
+  async start(options: LiveActivityOptions): Promise<{ id: string }> {
+    const craft = getCraftRoot()
+    if (!craft?.liveActivity?.start) throw new Error('Live Activities are unavailable')
+    return craft.liveActivity.start(options)
+  },
+  async update(state: LiveActivityState): Promise<void> {
+    const craft = getCraftRoot()
+    if (!craft?.liveActivity?.update) return
+    await craft.liveActivity.update(state)
+  },
+  async end(): Promise<void> {
+    const craft = getCraftRoot()
+    if (!craft?.liveActivity?.end) return
+    await craft.liveActivity.end()
+  }
+}
+
+export const watchConnectivity = {
+  async send(message: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const craft = getCraftRoot()
+    if (!craft?.watch?.send) throw new Error('Apple Watch connectivity is unavailable')
+    return craft.watch.send(message)
+  },
+  async updateContext(context: Record<string, unknown>): Promise<void> {
+    const craft = getCraftRoot()
+    if (!craft?.watch?.updateContext) throw new Error('Apple Watch connectivity is unavailable')
+    await craft.watch.updateContext(context)
+  },
+  async isReachable(): Promise<boolean> {
+    const result = await getCraftRoot()?.watch?.isReachable?.()
+    return Boolean(result?.reachable)
+  },
+  onMessage(callback: (message: Record<string, unknown>) => void): () => void {
+    return onCraftEvent('craftWatchMessage', callback)
+  },
+  onReachabilityChange(callback: (reachable: boolean) => void): () => void {
+    return onCraftEvent('craftWatchReachability', detail => callback(Boolean(detail.reachable)))
+  }
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -1433,6 +1511,20 @@ interface CraftMobileBridge {
     cancelAll(): Promise<void>
     setBadge(count: number): Promise<void>
   }
+  health?: {
+    requestAuthorization(types: HealthDataType[]): Promise<boolean>
+    getData(type: HealthDataType, options: HealthDataOptions): Promise<HealthDataResult>
+  }
+  liveActivity?: {
+    start(options: LiveActivityOptions): Promise<{ id: string }>
+    update(state: LiveActivityState): Promise<void>
+    end(): Promise<void>
+  }
+  watch?: {
+    send(message: Record<string, unknown>): Promise<Record<string, unknown>>
+    updateContext(context: Record<string, unknown>): Promise<void>
+    isReachable(): Promise<{ reachable: boolean }>
+  }
 }
 
 /**
@@ -1462,6 +1554,9 @@ const mobile: {
   network: typeof network
   appReview: typeof appReview
   pushNotifications: typeof pushNotifications
+  health: typeof health
+  liveActivities: typeof liveActivities
+  watchConnectivity: typeof watchConnectivity
 } = {
   device: device,
   haptics: haptics,
@@ -1477,7 +1572,10 @@ const mobile: {
   deepLinks: deepLinks,
   network: network,
   appReview: appReview,
-  pushNotifications: pushNotifications
+  pushNotifications: pushNotifications,
+  health: health,
+  liveActivities: liveActivities,
+  watchConnectivity: watchConnectivity,
 }
 
 export default mobile
