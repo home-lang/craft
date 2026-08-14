@@ -26,6 +26,7 @@ export interface CraftAndroidConfig {
   enableSecureStorage?: boolean
   enableGeolocation?: boolean
   enableBackgroundLocation?: boolean
+  enableHealthConnect?: boolean
   enableKeepAwake?: boolean
   enableDeepLinks?: boolean
   trustedOrigins?: string[]
@@ -75,6 +76,7 @@ const DEFAULT_CONFIG: Omit<CraftAndroidConfig, 'appName' | 'packageName'> = {
   enableSecureStorage: false,
   enableGeolocation: false,
   enableBackgroundLocation: false,
+  enableHealthConnect: false,
   enableKeepAwake: false,
   enableDeepLinks: false,
   trustedOrigins: [],
@@ -113,6 +115,16 @@ export function renderAndroidPermissions(config: CraftAndroidConfig): string {
   }
   if (config.enablePushNotifications) permissions.add('android.permission.POST_NOTIFICATIONS')
   if (config.enableKeepAwake) permissions.add('android.permission.WAKE_LOCK')
+  if (config.enableHealthConnect) {
+    permissions.add('android.permission.health.READ_STEPS')
+    permissions.add('android.permission.health.READ_HEART_RATE')
+    permissions.add('android.permission.health.READ_ACTIVE_CALORIES_BURNED')
+    permissions.add('android.permission.health.READ_DISTANCE')
+    permissions.add('android.permission.health.READ_EXERCISE')
+    permissions.add('android.permission.health.WRITE_EXERCISE')
+    permissions.add('android.permission.health.WRITE_ACTIVE_CALORIES_BURNED')
+    permissions.add('android.permission.health.WRITE_DISTANCE')
+  }
   return [...permissions].map(permission => `    <uses-permission android:name="${permission}" />`).join('\n')
 }
 
@@ -187,6 +199,7 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{ENABLE_BACKGROUND_LOCATION\}\}/g, String(Boolean(config.enableBackgroundLocation)))
     .replace(/\{\{ENABLE_KEEP_AWAKE\}\}/g, String(Boolean(config.enableKeepAwake)))
     .replace(/\{\{ENABLE_DEEP_LINKS\}\}/g, String(Boolean(config.enableDeepLinks)))
+    .replace(/\{\{ENABLE_HEALTH_CONNECT\}\}/g, String(Boolean(config.enableHealthConnect)))
     .replace(/\{\{FIREBASE_IMPORT\}\}/g, config.enablePushNotifications ? 'import com.google.firebase.messaging.FirebaseMessaging' : '')
     .replace(/\{\{REGISTER_PUSH_IMPLEMENTATION\}\}/g, config.enablePushNotifications
       ? `activity.runOnUiThread {
@@ -213,6 +226,14 @@ export async function init(options: InitOptions): Promise<void> {
             )
         }`)
   writeFileSync(join(output, 'app/src/main/java', packagePath, 'CraftBridge.kt'), craftBridge)
+  const healthTemplate = readFileSync(join(
+    TEMPLATES_DIR,
+    config.enableHealthConnect ? 'CraftHealthConnect.kt.template' : 'CraftHealthConnectStub.kt.template',
+  ), 'utf-8')
+  writeFileSync(
+    join(output, 'app/src/main/java', packagePath, 'CraftHealthConnect.kt'),
+    healthTemplate.replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName),
+  )
   if (config.enableBackgroundLocation) {
     const serviceTemplate = readFileSync(join(TEMPLATES_DIR, 'LocationRecordingService.kt.template'), 'utf-8')
     writeFileSync(
@@ -230,6 +251,18 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{USES_CLEARTEXT\}\}/g, config.devServerURL?.startsWith('http://') ? 'true' : 'false')
     .replace(/\{\{BACKGROUND_SERVICE\}\}/g, config.enableBackgroundLocation
       ? '        <service android:name=".LocationRecordingService" android:exported="false" android:foregroundServiceType="location" android:stopWithTask="false" />'
+      : '')
+    .replace(/\{\{HEALTH_CONNECT_QUERIES\}\}/g, config.enableHealthConnect
+      ? '    <queries>\n        <package android:name="com.google.android.apps.healthdata" />\n    </queries>'
+      : '')
+    .replace(/\{\{HEALTH_CONNECT_RATIONALE\}\}/g, config.enableHealthConnect
+      ? `            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>`
       : '')
 
   writeFileSync(join(output, 'app/src/main/AndroidManifest.xml'), manifest)
@@ -250,6 +283,10 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{GOOGLE_SERVICES_PLUGIN\}\}/g, hasGoogleServices ? '    id("com.google.gms.google-services")' : '')
     .replace(/\{\{FIREBASE_MESSAGING_DEPENDENCY\}\}/g, config.enablePushNotifications
       ? '    implementation("com.google.firebase:firebase-messaging:24.1.0")'
+      : '')
+    .replace(/\{\{HEALTH_CONNECT_DEPENDENCIES\}\}/g, config.enableHealthConnect
+      ? `    implementation("androidx.health.connect:connect-client:1.1.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")`
       : '')
 
   writeFileSync(join(output, 'app/build.gradle.kts'), appGradle)

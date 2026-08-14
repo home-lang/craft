@@ -74,6 +74,9 @@ dependencies {
     // Native push notifications (included only when enabled)
 {{FIREBASE_MESSAGING_DEPENDENCY}}
 
+    // Android Health Connect (included only when enabled)
+{{HEALTH_CONNECT_DEPENDENCIES}}
+
     // On-device computer vision APIs exposed by CraftBridge
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     implementation("com.google.mlkit:image-labeling:17.0.9")

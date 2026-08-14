@@ -119,4 +119,27 @@ describe('Craft Android builder', () => {
     expect(gradle).toContain('com.google.mlkit:object-detection')
     expect(gradle).toContain('com.google.mlkit:text-recognition')
   })
+
+  it('generates Health Connect permissions, APIs, and workout write-back only when enabled', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-android-health-'))
+    await init({
+      name: 'WildLoop',
+      packageName: 'org.wildloop.app',
+      output,
+      config: { enableHealthConnect: true },
+    })
+
+    const bridge = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftBridge.kt'), 'utf8')
+    const health = readFileSync(join(output, 'app/src/main/java/org/wildloop/app/CraftHealthConnect.kt'), 'utf8')
+    const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
+    const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
+    expect(bridge).toContain('health: true')
+    expect(bridge).toContain('saveHealthWorkout')
+    expect(health).toContain('HealthConnectClient')
+    expect(health).toContain('ExerciseSessionRecord')
+    expect(manifest).toContain('android.permission.health.WRITE_EXERCISE')
+    expect(manifest).toContain('com.google.android.apps.healthdata')
+    expect(manifest).toContain('android.intent.category.HEALTH_PERMISSIONS')
+    expect(gradle).toContain('androidx.health.connect:connect-client')
+  })
 })

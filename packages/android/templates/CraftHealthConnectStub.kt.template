@@ -1,0 +1,28 @@
+package {{PACKAGE_NAME}}
+
+import android.app.Activity
+import android.content.Intent
+import android.webkit.WebView
+import org.json.JSONObject
+
+class CraftHealthConnect(
+    private val activity: Activity,
+    private val webView: WebView
+) {
+    fun requestAuthorization(typesJson: String) = reject("_craftFitnessAuthReject")
+
+    fun getData(type: String, startDate: Long, endDate: Long) = reject("_craftFitnessDataReject")
+
+    fun saveWorkout(workoutJson: String) = reject("_craftFitnessSaveReject")
+
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean = false
+
+    fun close() = Unit
+
+    private fun reject(callback: String) {
+        activity.runOnUiThread {
+            val reason = JSONObject.quote("Health Connect is disabled")
+            webView.evaluateJavascript("window.$callback && window.$callback($reason)", null)
+        }
+    }
+}

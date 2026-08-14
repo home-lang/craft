@@ -100,7 +100,8 @@ import java.util.UUID
 
 class CraftBridge(
     private val activity: Activity,
-    private val webView: WebView
+    private val webView: WebView,
+    private val healthConnect: CraftHealthConnect
 ) {
     private var speechRecognizer: SpeechRecognizer? = null
     private var isListening = false
@@ -204,7 +205,7 @@ class CraftBridge(
                     localDatabase: false,
                     bluetooth: false,
                     nfc: false,
-                    fitness: false,
+                    health: {{ENABLE_HEALTH_CONNECT}},
                     screenCapture: false
                 },
 
@@ -598,7 +599,7 @@ class CraftBridge(
                 },
 
                 // Fitness / Health
-                fitness: {
+                health: {
                     requestAuthorization: function(types) {
                         return new Promise(function(resolve, reject) {
                             window._craftFitnessAuthResolve = resolve;
@@ -606,11 +607,19 @@ class CraftBridge(
                             CraftAndroid.requestFitnessAuthorization(JSON.stringify(types || []));
                         });
                     },
-                    getData: function(type, startDate, endDate) {
+                    getData: function(type, options) {
+                        options = options || {};
                         return new Promise(function(resolve, reject) {
                             window._craftFitnessDataResolve = resolve;
                             window._craftFitnessDataReject = reject;
-                            CraftAndroid.getFitnessData(type, startDate || 0, endDate || 0);
+                            CraftAndroid.getFitnessData(type, options.startDate || 0, options.endDate || 0);
+                        });
+                    },
+                    saveWorkout: function(workout) {
+                        return new Promise(function(resolve, reject) {
+                            window._craftFitnessSaveResolve = resolve;
+                            window._craftFitnessSaveReject = reject;
+                            CraftAndroid.saveHealthWorkout(JSON.stringify(workout || {}));
                         });
                     }
                 },
@@ -2885,17 +2894,24 @@ class CraftBridge(
 
     @JavascriptInterface
     fun requestFitnessAuthorization(typesJson: String) {
-        // Google Fit requires configuration
-        activity.runOnUiThread {
-            webView.evaluateJavascript("window._craftFitnessAuthReject && window._craftFitnessAuthReject('Fitness requires Google Fit configuration')", null)
-        }
+        healthConnect.requestAuthorization(typesJson)
     }
 
     @JavascriptInterface
     fun getFitnessData(type: String, startDate: Long, endDate: Long) {
-        activity.runOnUiThread {
-            webView.evaluateJavascript("window._craftFitnessDataReject && window._craftFitnessDataReject('Fitness requires Google Fit configuration')", null)
-        }
+        healthConnect.getData(type, startDate, endDate)
+    }
+
+    @JavascriptInterface
+    fun saveHealthWorkout(workoutJson: String) {
+        healthConnect.saveWorkout(workoutJson)
+    }
+
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean =
+        healthConnect.onActivityResult(requestCode, resultCode, data)
+
+    fun close() {
+        healthConnect.close()
     }
 
     // ==================== Screen Capture ====================

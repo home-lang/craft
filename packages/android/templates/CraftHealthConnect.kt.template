@@ -1,0 +1,200 @@
+package {{PACKAGE_NAME}}
+
+import android.app.Activity
+import android.content.Intent
+import android.webkit.WebView
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.PermissionController
+import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.DistanceRecord
+import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.metadata.Metadata
+import androidx.health.connect.client.request.AggregateRequest
+import androidx.health.connect.client.time.TimeRangeFilter
+import androidx.health.connect.client.units.Energy
+import androidx.health.connect.client.units.Length
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
+import java.time.Instant
+import java.time.ZoneId
+
+class CraftHealthConnect(
+    private val activity: Activity,
+    private val webView: WebView
+) {
+    companion object {
+        private const val PERMISSION_REQUEST_CODE = 8407
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val permissionContract = PermissionController.createRequestPermissionResultContract()
+    private var pendingPermissions: Set<String> = emptySet()
+
+    private val client: HealthConnectClient?
+        get() = if (HealthConnectClient.getSdkStatus(activity) == HealthConnectClient.SDK_AVAILABLE) {
+            HealthConnectClient.getOrCreate(activity)
+        } else {
+            null
+        }
+
+    fun requestAuthorization(typesJson: String) {
+        val requested = permissionsFor(JSONArray(typesJson))
+        val healthClient = client ?: return reject("_craftFitnessAuthReject", "Health Connect is unavailable or requires an update")
+        scope.launch {
+            try {
+                val granted = healthClient.permissionController.getGrantedPermissions()
+                if (granted.containsAll(requested)) {
+                    resolve("_craftFitnessAuthResolve", "true")
+                } else {
+                    pendingPermissions = requested
+                    activity.runOnUiThread {
+                        val intent = permissionContract.createIntent(activity, requested)
+                        activity.startActivityForResult(intent, PERMISSION_REQUEST_CODE)
+                    }
+                }
+            } catch (error: Exception) {
+                reject("_craftFitnessAuthReject", error.message ?: "Health permissions could not be requested")
+            }
+        }
+    }
+
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode != PERMISSION_REQUEST_CODE) return false
+        val granted = permissionContract.parseResult(resultCode, data)
+        resolve("_craftFitnessAuthResolve", if (granted.containsAll(pendingPermissions)) "true" else "false")
+        pendingPermissions = emptySet()
+        return true
+    }
+
+    fun getData(type: String, startDate: Long, endDate: Long) {
+        val healthClient = client ?: return reject("_craftFitnessDataReject", "Health Connect is unavailable or requires an update")
+        val end = if (endDate > 0) Instant.ofEpochMilli(endDate) else Instant.now()
+        val start = if (startDate > 0) Instant.ofEpochMilli(startDate) else end.minusSeconds(7 * 24 * 60 * 60)
+        scope.launch {
+            try {
+                val (unit, value) = when (type) {
+                    "steps" -> {
+                        val metric = StepsRecord.COUNT_TOTAL
+                        val result = healthClient.aggregate(AggregateRequest(setOf(metric), TimeRangeFilter.between(start, end)))
+                        Pair("count", (result[metric] ?: 0L).toDouble())
+                    }
+                    "heartRate" -> {
+                        val metric = HeartRateRecord.BPM_AVG
+                        val result = healthClient.aggregate(AggregateRequest(setOf(metric), TimeRangeFilter.between(start, end)))
+                        Pair("count/min", (result[metric] ?: 0L).toDouble())
+                    }
+                    "activeEnergy" -> {
+                        val metric = ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL
+                        val result = healthClient.aggregate(AggregateRequest(setOf(metric), TimeRangeFilter.between(start, end)))
+                        Pair("kcal", (result[metric] ?: Energy.kilocalories(0.0)).inKilocalories)
+                    }
+                    "distance" -> {
+                        val metric = DistanceRecord.DISTANCE_TOTAL
+                        val result = healthClient.aggregate(AggregateRequest(setOf(metric), TimeRangeFilter.between(start, end)))
+                        Pair("m", (result[metric] ?: Length.meters(0.0)).inMeters)
+                    }
+                    else -> throw IllegalArgumentException("Unsupported Health Connect data type")
+                }
+                val payload = JSONObject().put("value", value).put("unit", unit).toString()
+                resolve("_craftFitnessDataResolve", payload)
+            } catch (error: Exception) {
+                reject("_craftFitnessDataReject", error.message ?: "Health data could not be read")
+            }
+        }
+    }
+
+    fun saveWorkout(workoutJson: String) {
+        val healthClient = client ?: return reject("_craftFitnessSaveReject", "Health Connect is unavailable or requires an update")
+        scope.launch {
+            try {
+                val data = JSONObject(workoutJson)
+                val activityId = data.getString("activityId")
+                val start = Instant.ofEpochMilli(data.getLong("startDate"))
+                val end = Instant.ofEpochMilli(data.getLong("endDate"))
+                require(end.isAfter(start)) { "Workout endDate must be after startDate" }
+                val zone = ZoneId.systemDefault().rules.getOffset(start)
+                val exerciseType = when (data.getString("type")) {
+                    "running" -> ExerciseSessionRecord.EXERCISE_TYPE_RUNNING
+                    "walking" -> ExerciseSessionRecord.EXERCISE_TYPE_WALKING
+                    "hiking" -> ExerciseSessionRecord.EXERCISE_TYPE_HIKING
+                    "cycling" -> ExerciseSessionRecord.EXERCISE_TYPE_BIKING
+                    else -> throw IllegalArgumentException("Unsupported workout type")
+                }
+                val records = mutableListOf<androidx.health.connect.client.records.Record>()
+                records.add(ExerciseSessionRecord(
+                    startTime = start,
+                    startZoneOffset = zone,
+                    endTime = end,
+                    endZoneOffset = zone,
+                    exerciseType = exerciseType,
+                    title = "WildLoop",
+                    metadata = Metadata.manualEntry(clientRecordId = activityId)
+                ))
+                val distance = data.optDouble("distanceMeters", 0.0)
+                if (distance > 0) records.add(DistanceRecord(
+                    startTime = start,
+                    startZoneOffset = zone,
+                    endTime = end,
+                    endZoneOffset = zone,
+                    distance = Length.meters(distance),
+                    metadata = Metadata.manualEntry(clientRecordId = "$activityId-distance")
+                ))
+                val calories = data.optDouble("activeEnergyCalories", 0.0)
+                if (calories > 0) records.add(ActiveCaloriesBurnedRecord(
+                    startTime = start,
+                    startZoneOffset = zone,
+                    endTime = end,
+                    endZoneOffset = zone,
+                    energy = Energy.kilocalories(calories),
+                    metadata = Metadata.manualEntry(clientRecordId = "$activityId-energy")
+                ))
+                val result = healthClient.insertRecords(records)
+                val payload = JSONObject().put("id", result.recordIdsList.firstOrNull() ?: activityId).toString()
+                resolve("_craftFitnessSaveResolve", payload)
+            } catch (error: Exception) {
+                reject("_craftFitnessSaveReject", error.message ?: "Workout could not be saved")
+            }
+        }
+    }
+
+    fun close() {
+        scope.cancel()
+    }
+
+    private fun permissionsFor(types: JSONArray): Set<String> {
+        val permissions = mutableSetOf<String>()
+        for (index in 0 until types.length()) {
+            when (types.optString(index)) {
+                "steps" -> permissions.add(HealthPermission.getReadPermission(StepsRecord::class))
+                "heartRate" -> permissions.add(HealthPermission.getReadPermission(HeartRateRecord::class))
+                "activeEnergy" -> permissions.add(HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class))
+                "distance" -> permissions.add(HealthPermission.getReadPermission(DistanceRecord::class))
+                "workouts" -> {
+                    permissions.add(HealthPermission.getReadPermission(ExerciseSessionRecord::class))
+                    permissions.add(HealthPermission.getWritePermission(ExerciseSessionRecord::class))
+                    permissions.add(HealthPermission.getWritePermission(ActiveCaloriesBurnedRecord::class))
+                    permissions.add(HealthPermission.getWritePermission(DistanceRecord::class))
+                }
+            }
+        }
+        return permissions
+    }
+
+    private fun resolve(callback: String, json: String) {
+        activity.runOnUiThread {
+            webView.evaluateJavascript("window.$callback && window.$callback($json)", null)
+        }
+    }
+
+    private fun reject(callback: String, message: String) {
+        resolve(callback, JSONObject.quote(message))
+    }
+}

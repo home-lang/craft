@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
 {{PERMISSIONS}}
+{{HEALTH_CONNECT_QUERIES}}
 
     <!-- Camera feature (optional) -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -31,6 +32,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+{{HEALTH_CONNECT_RATIONALE}}
         </activity>
 
 {{BACKGROUND_SERVICE}}
