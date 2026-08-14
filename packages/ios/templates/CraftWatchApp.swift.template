@@ -1,0 +1,155 @@
+import SwiftUI
+import WatchConnectivity
+
+@main
+struct {{APP_NAME}}WatchApp: App {
+    @StateObject private var session = CraftWatchSession()
+
+    var body: some Scene {
+        WindowGroup {
+            CraftWatchRecordingView()
+                .environmentObject(session)
+        }
+    }
+}
+
+@MainActor
+final class CraftWatchSession: NSObject, ObservableObject {
+    @Published private(set) var isPhoneReachable = false
+    @Published private(set) var isRecording = false
+    @Published private(set) var isPaused = false
+    @Published private(set) var distanceMeters = 0.0
+    @Published private(set) var durationSeconds = 0.0
+    @Published private(set) var status = "Ready"
+
+    private let session: WCSession?
+
+    override init() {
+        if WCSession.isSupported() {
+            session = .default
+        } else {
+            session = nil
+        }
+        super.init()
+        session?.delegate = self
+        session?.activate()
+    }
+
+    func toggleRecording() {
+        let action: String
+        if !isRecording {
+            action = "start"
+        } else if isPaused {
+            action = "resume"
+        } else {
+            action = "pause"
+        }
+        send(action: action)
+    }
+
+    func finishRecording() {
+        send(action: "finish")
+    }
+
+    private func send(action: String) {
+        guard let session, session.activationState == .activated else {
+            status = "Open WildLoop on iPhone"
+            return
+        }
+        let message: [String: Any] = ["type": "recording-control", "action": action]
+        if session.isReachable {
+            session.sendMessage(message, replyHandler: { [weak self] reply in
+                Task { @MainActor in self?.apply(reply) }
+            }, errorHandler: { [weak self] _ in
+                Task { @MainActor in self?.status = "Could not reach iPhone" }
+            })
+        } else {
+            session.transferUserInfo(message)
+            status = "Command queued"
+        }
+    }
+
+    private func apply(_ payload: [String: Any]) {
+        if let recording = payload["recording"] as? Bool { isRecording = recording }
+        if let paused = payload["paused"] as? Bool { isPaused = paused }
+        if let distance = payload["distanceMeters"] as? Double { distanceMeters = max(distance, 0) }
+        if let duration = payload["durationSeconds"] as? Double { durationSeconds = max(duration, 0) }
+        if let value = payload["status"] as? String { status = value }
+    }
+}
+
+extension CraftWatchSession: WCSessionDelegate {
+    nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+        Task { @MainActor in
+            isPhoneReachable = session.isReachable
+            status = error == nil ? "Ready" : "Connection unavailable"
+            apply(session.receivedApplicationContext)
+        }
+    }
+
+    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
+        Task { @MainActor in isPhoneReachable = session.isReachable }
+    }
+
+    nonisolated func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        Task { @MainActor in apply(applicationContext) }
+    }
+
+    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        Task { @MainActor in apply(message) }
+    }
+
+    nonisolated func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        Task { @MainActor in apply(userInfo) }
+    }
+}
+
+struct CraftWatchRecordingView: View {
+    @EnvironmentObject private var session: CraftWatchSession
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                Image(systemName: "figure.run.circle.fill")
+                    .font(.system(size: 34))
+                    .foregroundStyle(.green)
+                    .accessibilityHidden(true)
+                Text(session.status)
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+                HStack {
+                    metric(distance, label: "Distance")
+                    metric(duration, label: "Time")
+                }
+                Button(session.isRecording && !session.isPaused ? "Pause" : session.isPaused ? "Resume" : "Start") {
+                    session.toggleRecording()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
+                if session.isRecording {
+                    Button("Finish", role: .destructive) { session.finishRecording() }
+                }
+                Text(session.isPhoneReachable ? "iPhone connected" : "Commands sync when iPhone reconnects")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 8)
+        }
+    }
+
+    private var distance: String { String(format: "%.2f km", session.distanceMeters / 1000) }
+    private var duration: String {
+        let seconds = max(Int(session.durationSeconds), 0)
+        return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
+
+    private func metric(_ value: String, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.headline.monospacedDigit())
+            Text(label).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+}

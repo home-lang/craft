@@ -45,6 +45,7 @@ export interface CraftConfig {
   enableNFC?: boolean
   enableHealthKit?: boolean
   enableLiveActivities?: boolean
+  enableWatchApp?: boolean
   enableBackgroundLocation?: boolean
   enableBackgroundTasks?: boolean
   enableScreenCapture?: boolean
@@ -53,6 +54,7 @@ export interface CraftConfig {
   enableMLKit?: boolean
   devServerURL?: string
   iosVersion?: string
+  watchosVersion?: string
   teamId?: string
   urlSchemes?: string[]
   trustedOrigins?: string[]
@@ -139,6 +141,7 @@ const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
   enableNFC: false,
   enableHealthKit: false,
   enableLiveActivities: false,
+  enableWatchApp: false,
   enableBackgroundLocation: false,
   enableBackgroundTasks: false,
   enableScreenCapture: false,
@@ -146,6 +149,7 @@ const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
   enableAR: false,
   enableMLKit: false,
   iosVersion: '16.0',
+  watchosVersion: '9.0',
   teamId: '',
   trustedOrigins: [],
   associatedDomains: [],
@@ -241,6 +245,13 @@ export function renderEntitlements(config: CraftConfig): string {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n${entries.join('\n')}\n</dict>\n</plist>\n`
 }
 
+export function renderWatchEntitlements(config: CraftConfig): string {
+  const appGroups = config.appGroups?.length
+    ? `    <key>com.apple.security.application-groups</key>\n    <array>\n${plistArray(config.appGroups)}\n    </array>\n`
+    : ''
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n${appGroups}</dict>\n</plist>\n`
+}
+
 export function renderPrivacyManifest(config: CraftConfig): string {
   const privacy = config.privacy ?? {}
   const collected = privacy.collectedDataTypes ?? []
@@ -321,6 +332,7 @@ export async function init(options: InitOptions): Promise<void> {
 
   // Create directory structure
   const dirs = [output, join(output, 'Sources'), join(output, 'Shared'), join(output, 'dist')]
+  if (options.config?.enableWatchApp) dirs.push(join(output, 'WatchApp'))
   for (const dir of dirs) {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true })
@@ -370,20 +382,12 @@ export async function init(options: InitOptions): Promise<void> {
 
   // Generate project.yml for xcodegen
   const projectYmlTemplate = readFileSync(join(TEMPLATES_DIR, 'project.yml.template'), 'utf-8')
-  const projectYml = projectYmlTemplate
-    .replace(/\{\{APP_NAME\}\}/g, name)
-    .replace(/\{\{BUNDLE_ID\}\}/g, finalBundleId)
-    .replace(/\{\{BUNDLE_ID_PREFIX\}\}/g, bundleIdPrefix)
-    .replace(/\{\{VERSION\}\}/g, config.version || '1.0.0')
-    .replace(/\{\{BUILD_NUMBER\}\}/g, config.buildNumber || '1')
-    .replace(/\{\{IOS_VERSION\}\}/g, config.iosVersion || '15.0')
-    .replace(/\{\{TEAM_ID\}\}/g, teamId || '')
-    .replace(/\{\{LIVE_ACTIVITY_DEPENDENCY\}\}/g, config.enableLiveActivities
-      ? `    dependencies:
-      - target: ${name}LiveActivity`
-      : '')
-    .replace(/\{\{LIVE_ACTIVITY_TARGET\}\}/g, config.enableLiveActivities
-      ? `  ${name}LiveActivity:
+  const nativeDependencies: string[] = []
+  if (config.enableLiveActivities) nativeDependencies.push(`      - target: ${name}LiveActivity`)
+  if (config.enableWatchApp) nativeDependencies.push(`      - target: ${name}Watch\n        embed: true`)
+  const nativeTargets: string[] = []
+  if (config.enableLiveActivities) {
+    nativeTargets.push(`  ${name}LiveActivity:
     type: app-extension
     platform: iOS
     deploymentTarget: "16.2"
@@ -395,8 +399,33 @@ export async function init(options: InitOptions): Promise<void> {
       PRODUCT_BUNDLE_IDENTIFIER: ${finalBundleId}.liveactivity
       SWIFT_VERSION: "5.0"
       APPLICATION_EXTENSION_API_ONLY: YES
-      SKIP_INSTALL: YES`
-      : '')
+      SKIP_INSTALL: YES`)
+  }
+  if (config.enableWatchApp) {
+    nativeTargets.push(`  ${name}Watch:
+    type: application
+    platform: watchOS
+    deploymentTarget: "${config.watchosVersion || '9.0'}"
+    sources:
+      - WatchApp
+    settings:
+      INFOPLIST_FILE: WatchApp/Info.plist
+      CODE_SIGN_ENTITLEMENTS: WatchApp/Watch.entitlements
+      PRODUCT_BUNDLE_IDENTIFIER: ${finalBundleId}.watchkitapp
+      SWIFT_VERSION: "5.0"
+      SKIP_INSTALL: YES`)
+  }
+
+  const projectYml = projectYmlTemplate
+    .replace(/\{\{APP_NAME\}\}/g, name)
+    .replace(/\{\{BUNDLE_ID\}\}/g, finalBundleId)
+    .replace(/\{\{BUNDLE_ID_PREFIX\}\}/g, bundleIdPrefix)
+    .replace(/\{\{VERSION\}\}/g, config.version || '1.0.0')
+    .replace(/\{\{BUILD_NUMBER\}\}/g, config.buildNumber || '1')
+    .replace(/\{\{IOS_VERSION\}\}/g, config.iosVersion || '15.0')
+    .replace(/\{\{TEAM_ID\}\}/g, teamId || '')
+    .replace(/\{\{NATIVE_DEPENDENCIES\}\}/g, nativeDependencies.length ? `    dependencies:\n${nativeDependencies.join('\n')}` : '')
+    .replace(/\{\{NATIVE_TARGETS\}\}/g, nativeTargets.join('\n'))
 
   writeFileSync(join(output, 'project.yml'), projectYml)
   writeFileSync(join(output, 'Craft.entitlements'), renderEntitlements(config))
@@ -410,6 +439,16 @@ export async function init(options: InitOptions): Promise<void> {
     writeFileSync(join(output, 'WidgetExtension', `${name}LiveActivity.swift`), widgetSource)
     const widgetInfo = readFileSync(join(TEMPLATES_DIR, 'WidgetExtension.Info.plist'), 'utf8')
     writeFileSync(join(output, 'WidgetExtension', 'Info.plist'), widgetInfo)
+  }
+  if (config.enableWatchApp) {
+    const watchSource = readFileSync(join(TEMPLATES_DIR, 'CraftWatchApp.swift.template'), 'utf8')
+      .replace(/\{\{APP_NAME\}\}/g, name)
+    writeFileSync(join(output, 'WatchApp', `${name}WatchApp.swift`), watchSource)
+    const watchInfo = readFileSync(join(TEMPLATES_DIR, 'WatchApp.Info.plist.template'), 'utf8')
+      .replace(/\{\{APP_NAME\}\}/g, name)
+      .replace(/\{\{BUNDLE_ID\}\}/g, finalBundleId)
+    writeFileSync(join(output, 'WatchApp', 'Info.plist'), watchInfo)
+    writeFileSync(join(output, 'WatchApp', 'Watch.entitlements'), renderWatchEntitlements(config))
   }
 
   // Create placeholder index.html

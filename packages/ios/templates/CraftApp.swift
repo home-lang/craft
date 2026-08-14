@@ -214,6 +214,7 @@ struct CraftConfig: Codable {
     var enableNFC: Bool = false
     var enableHealthKit: Bool = false
     var enableLiveActivities: Bool = false
+    var enableWatchApp: Bool = false
     var enableBackgroundLocation: Bool = false
     var enableBackgroundTasks: Bool = false
     var enableScreenCapture: Bool = false
@@ -357,6 +358,9 @@ struct CraftWebView: UIViewRepresentable {
             }
             if config.enableHealthKit && HKHealthStore.isHealthDataAvailable() {
                 healthStore = HKHealthStore()
+            }
+            if config.enableWatchApp {
+                setupWatchConnectivity()
             }
             if config.enableLocalDatabase {
                 setupDatabase()

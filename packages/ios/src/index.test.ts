@@ -11,6 +11,7 @@ import {
   renderPrivacyManifest,
   renderUsageDescriptions,
   renderUrlTypes,
+  renderWatchEntitlements,
   syncWebAssets,
 } from './index'
 
@@ -73,6 +74,7 @@ describe('Craft iOS builder', () => {
 
     expect(renderEntitlements(config)).toContain('applinks:wildloop.org')
     expect(renderEntitlements(config)).toContain('com.apple.developer.healthkit')
+    expect(renderWatchEntitlements({ ...config, appGroups: ['group.org.wildloop.app'] })).toContain('group.org.wildloop.app')
     expect(renderPrivacyManifest(config)).toContain('NSPrivacyCollectedDataTypePreciseLocation')
     expect(renderPrivacyManifest(config)).toContain('CA92.1')
   })
@@ -146,5 +148,27 @@ describe('Craft iOS builder', () => {
     expect(plist).toContain('NSSupportsLiveActivities')
     expect(existsSync(join(output, 'Shared', 'CraftActivityAttributes.swift'))).toBe(true)
     expect(existsSync(join(output, 'WidgetExtension', 'WildLoopLiveActivity.swift'))).toBe(true)
+  })
+
+  it('generates an embedded watchOS companion when enabled', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-watch-'))
+    await init({
+      name: 'WildLoop',
+      bundleId: 'org.wildloop.app',
+      output,
+      config: { enableWatchApp: true, watchosVersion: '9.0' },
+    })
+
+    const project = readFileSync(join(output, 'project.yml'), 'utf8')
+    const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
+    const watch = readFileSync(join(output, 'WatchApp', 'WildLoopWatchApp.swift'), 'utf8')
+    expect(project).toContain('WildLoopWatch:')
+    expect(project).toContain('platform: watchOS')
+    expect(project).toContain('embed: true')
+    expect(swift).toContain('setupWatchConnectivity()')
+    expect(watch).toContain('recording-control')
+    expect(watch).toContain('WCSessionDelegate')
+    expect(existsSync(join(output, 'WatchApp', 'Info.plist'))).toBe(true)
+    expect(existsSync(join(output, 'WatchApp', 'Watch.entitlements'))).toBe(true)
   })
 })
