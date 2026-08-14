@@ -68,7 +68,7 @@ struct CraftApp: App {
     @UIApplicationDelegateAdaptor(CraftAppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
 
-    var body: some Scene {
+    var body: some SwiftUI.Scene {
         WindowGroup {
             CraftWebView(config: appState.config)
                 .ignoresSafeArea()
@@ -273,7 +273,7 @@ struct CraftWebView: UIViewRepresentable {
     }
 
     // MARK: - Coordinator (Native Bridge)
-    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, UIImagePickerControllerDelegate, UINavigationControllerDelegate, CLLocationManagerDelegate, ARSCNViewDelegate, WCSessionDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler, UIImagePickerControllerDelegate, UINavigationControllerDelegate, CLLocationManagerDelegate, ARSCNViewDelegate {
         let config: CraftConfig
         private var speechRecognizer: SFSpeechRecognizer?
         private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -329,8 +329,6 @@ struct CraftWebView: UIViewRepresentable {
 
         // Health
         private var healthStore: HKHealthStore?
-        @available(iOS 16.1, *)
-        private var liveActivity: Activity<CraftActivityAttributes>?
 
         // SQLite database
         private var db: OpaquePointer?
@@ -3894,19 +3892,19 @@ struct CraftWebView: UIViewRepresentable {
                 progress: min(max(body["progress"] as? Double ?? 0, 0), 1)
             )
             do {
-                liveActivity = try Activity.request(
+                let activity = try Activity.request(
                     attributes: attributes,
                     content: ActivityContent(state: state, staleDate: nil),
                     pushType: nil
                 )
-                resolveCallback(callbackId, result: ["id": liveActivity?.id ?? attributes.activityId])
+                resolveCallback(callbackId, result: ["id": activity.id])
             } catch {
                 rejectCallback(callbackId, error: error.localizedDescription)
             }
         }
 
         private func updateLiveActivity(body: [String: Any], callbackId: String?) {
-            guard #available(iOS 16.1, *), let activity = liveActivity ?? Activity<CraftActivityAttributes>.activities.first else {
+            guard #available(iOS 16.1, *), let activity = Activity<CraftActivityAttributes>.activities.first else {
                 rejectCallback(callbackId, error: "No Live Activity is running")
                 return
             }
@@ -3924,13 +3922,12 @@ struct CraftWebView: UIViewRepresentable {
         }
 
         private func endLiveActivity(callbackId: String?) {
-            guard #available(iOS 16.1, *), let activity = liveActivity ?? Activity<CraftActivityAttributes>.activities.first else {
+            guard #available(iOS 16.1, *), let activity = Activity<CraftActivityAttributes>.activities.first else {
                 resolveCallback(callbackId, result: ["ended": false])
                 return
             }
             Task {
                 await activity.end(nil, dismissalPolicy: .default)
-                liveActivity = nil
                 resolveCallback(callbackId, result: ["ended": true])
             }
         }
