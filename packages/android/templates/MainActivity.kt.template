@@ -17,8 +17,8 @@ import org.json.JSONObject
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var craftBridge: CraftBridge
-    private val devServerUrl: String? by lazy { getDevServerUrl() }
-    private val trustedOrigins: Set<String> by lazy { getTrustedOrigins() }
+    private val devServerUrl: String? by lazy { loadDevServerUrl() }
+    private val trustedOrigins: Set<String> by lazy { loadTrustedOrigins() }
     private val hasBundledFallback: Boolean by lazy { configJson()?.optBoolean("hasBundledFallback", false) == true }
     private var loadedBundledFallback = false
 
@@ -102,7 +102,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun getDevServerUrl(): String? {
+    private fun loadDevServerUrl(): String? {
         return try {
             configJson()?.optString("devServerURL")?.takeIf { it.isNotBlank() }
         } catch (e: Exception) {
@@ -110,7 +110,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun getTrustedOrigins(): Set<String> {
+    private fun loadTrustedOrigins(): Set<String> {
         val origins = mutableSetOf<String>()
         val config = configJson()
         val configured = config?.optJSONArray("trustedOrigins")
