@@ -3007,6 +3007,11 @@ struct CraftWebView: UIViewRepresentable {
         private func getDeviceInfo(callbackId: String?) {
             let device = UIDevice.current
             let screen = UIScreen.main
+            #if targetEnvironment(simulator)
+            let isSimulator = true
+            #else
+            let isSimulator = false
+            #endif
             let info: [String: Any] = [
                 "platform": "ios",
                 "model": device.model,
@@ -3014,7 +3019,7 @@ struct CraftWebView: UIViewRepresentable {
                 "systemName": device.systemName,
                 "systemVersion": device.systemVersion,
                 "identifierForVendor": device.identifierForVendor?.uuidString ?? "",
-                "isSimulator": TARGET_OS_SIMULATOR != 0,
+                "isSimulator": isSimulator,
                 "screenWidth": screen.bounds.width,
                 "screenHeight": screen.bounds.height,
                 "screenScale": screen.scale,
@@ -3877,7 +3882,7 @@ struct CraftWebView: UIViewRepresentable {
 
         // MARK: - Live Activities
         private func startLiveActivity(body: [String: Any], callbackId: String?) {
-            guard #available(iOS 16.1, *), ActivityAuthorizationInfo().areActivitiesEnabled else {
+            guard #available(iOS 16.2, *), ActivityAuthorizationInfo().areActivitiesEnabled else {
                 rejectCallback(callbackId, error: "Live Activities are unavailable")
                 return
             }
@@ -3904,7 +3909,7 @@ struct CraftWebView: UIViewRepresentable {
         }
 
         private func updateLiveActivity(body: [String: Any], callbackId: String?) {
-            guard #available(iOS 16.1, *), let activity = Activity<CraftActivityAttributes>.activities.first else {
+            guard #available(iOS 16.2, *), let activity = Activity<CraftActivityAttributes>.activities.first else {
                 rejectCallback(callbackId, error: "No Live Activity is running")
                 return
             }
@@ -3922,7 +3927,7 @@ struct CraftWebView: UIViewRepresentable {
         }
 
         private func endLiveActivity(callbackId: String?) {
-            guard #available(iOS 16.1, *), let activity = Activity<CraftActivityAttributes>.activities.first else {
+            guard #available(iOS 16.2, *), let activity = Activity<CraftActivityAttributes>.activities.first else {
                 resolveCallback(callbackId, result: ["ended": false])
                 return
             }

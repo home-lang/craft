@@ -386,7 +386,7 @@ export async function init(options: InitOptions): Promise<void> {
       ? `  ${name}LiveActivity:
     type: app-extension
     platform: iOS
-    deploymentTarget: "16.1"
+    deploymentTarget: "16.2"
     sources:
       - WidgetExtension
       - Shared
