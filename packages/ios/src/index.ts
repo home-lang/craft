@@ -44,6 +44,7 @@ export interface CraftConfig {
   enableBluetooth?: boolean
   enableNFC?: boolean
   enableHealthKit?: boolean
+  enableLiveActivities?: boolean
   enableBackgroundLocation?: boolean
   enableBackgroundTasks?: boolean
   enableScreenCapture?: boolean
@@ -137,6 +138,7 @@ const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
   enableBluetooth: false,
   enableNFC: false,
   enableHealthKit: false,
+  enableLiveActivities: false,
   enableBackgroundLocation: false,
   enableBackgroundTasks: false,
   enableScreenCapture: false,
@@ -318,7 +320,7 @@ export async function init(options: InitOptions): Promise<void> {
   console.log(`   Output: ${output}\n`)
 
   // Create directory structure
-  const dirs = [output, join(output, 'Sources'), join(output, 'dist')]
+  const dirs = [output, join(output, 'Sources'), join(output, 'Shared'), join(output, 'dist')]
   for (const dir of dirs) {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true })
@@ -360,6 +362,9 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{USAGE_DESCRIPTIONS\}\}/g, renderUsageDescriptions(config))
     .replace(/\{\{URL_TYPES\}\}/g, renderUrlTypes(config))
     .replace(/\{\{BACKGROUND_MODES\}\}/g, renderBackgroundModes(config))
+    .replace(/\{\{LIVE_ACTIVITY_SUPPORT\}\}/g, config.enableLiveActivities
+      ? '    <key>NSSupportsLiveActivities</key>\n    <true/>'
+      : '')
 
   writeFileSync(join(output, 'Info.plist'), infoPlist)
 
@@ -373,11 +378,37 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{BUILD_NUMBER\}\}/g, config.buildNumber || '1')
     .replace(/\{\{IOS_VERSION\}\}/g, config.iosVersion || '15.0')
     .replace(/\{\{TEAM_ID\}\}/g, teamId || '')
+    .replace(/\{\{LIVE_ACTIVITY_DEPENDENCY\}\}/g, config.enableLiveActivities
+      ? `    dependencies:
+      - target: ${name}LiveActivity`
+      : '')
+    .replace(/\{\{LIVE_ACTIVITY_TARGET\}\}/g, config.enableLiveActivities
+      ? `  ${name}LiveActivity:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.1"
+    sources:
+      - WidgetExtension
+      - Shared
+    settings:
+      INFOPLIST_FILE: WidgetExtension/Info.plist
+      PRODUCT_BUNDLE_IDENTIFIER: ${finalBundleId}.liveactivity
+      SWIFT_VERSION: "5.0"`
+      : '')
 
   writeFileSync(join(output, 'project.yml'), projectYml)
   writeFileSync(join(output, 'Craft.entitlements'), renderEntitlements(config))
   writeFileSync(join(output, 'PrivacyInfo.xcprivacy'), renderPrivacyManifest(config))
   renderAssetCatalog(output, config)
+  cpSync(join(TEMPLATES_DIR, 'CraftActivityAttributes.swift'), join(output, 'Shared', 'CraftActivityAttributes.swift'))
+  if (config.enableLiveActivities) {
+    mkdirSync(join(output, 'WidgetExtension'), { recursive: true })
+    const widgetSource = readFileSync(join(TEMPLATES_DIR, 'CraftLiveActivityWidget.swift.template'), 'utf8')
+      .replace(/\{\{APP_NAME\}\}/g, name)
+    writeFileSync(join(output, 'WidgetExtension', `${name}LiveActivity.swift`), widgetSource)
+    const widgetInfo = readFileSync(join(TEMPLATES_DIR, 'WidgetExtension.Info.plist'), 'utf8')
+    writeFileSync(join(output, 'WidgetExtension', 'Info.plist'), widgetInfo)
+  }
 
   // Create placeholder index.html
   const placeholderHtml = `<!DOCTYPE html>

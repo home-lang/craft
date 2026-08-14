@@ -44,6 +44,7 @@
 {{USAGE_DESCRIPTIONS}}
 {{URL_TYPES}}
 {{BACKGROUND_MODES}}
+{{LIVE_ACTIVITY_SUPPORT}}
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsLocalNetworking</key>

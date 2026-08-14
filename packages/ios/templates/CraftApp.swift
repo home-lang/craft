@@ -29,6 +29,7 @@ import Vision
 import WidgetKit
 import Intents
 import WatchConnectivity
+import ActivityKit
 
 extension Notification.Name {
     static let craftPushToken = Notification.Name("craftPushToken")
@@ -212,6 +213,7 @@ struct CraftConfig: Codable {
     var enableBluetooth: Bool = false
     var enableNFC: Bool = false
     var enableHealthKit: Bool = false
+    var enableLiveActivities: Bool = false
     var enableBackgroundLocation: Bool = false
     var enableBackgroundTasks: Bool = false
     var enableScreenCapture: Bool = false
@@ -327,6 +329,8 @@ struct CraftWebView: UIViewRepresentable {
 
         // Health
         private var healthStore: HKHealthStore?
+        @available(iOS 16.1, *)
+        private var liveActivity: Activity<CraftActivityAttributes>?
 
         // SQLite database
         private var db: OpaquePointer?
@@ -791,6 +795,18 @@ struct CraftWebView: UIViewRepresentable {
                     getHealthData(type: dataType, startDate: startDate, endDate: endDate, callbackId: callbackId)
                 }
 
+            // MARK: - Live Activities
+            case "startLiveActivity":
+                if config.enableLiveActivities {
+                    startLiveActivity(body: body, callbackId: callbackId)
+                } else {
+                    rejectCallback(callbackId, error: "Live Activities are disabled")
+                }
+            case "updateLiveActivity":
+                updateLiveActivity(body: body, callbackId: callbackId)
+            case "endLiveActivity":
+                endLiveActivity(callbackId: callbackId)
+
             // MARK: - Screen Capture
             case "takeScreenshot":
                 if config.enableScreenCapture {
@@ -1039,6 +1055,9 @@ struct CraftWebView: UIViewRepresentable {
                     secureStorage: \(config.enableSecureStorage),
                     geolocation: \(config.enableGeolocation),
                     backgroundLocation: \(config.enableBackgroundLocation),
+                    healthKit: \(config.enableHealthKit),
+                    liveActivities: \(config.enableLiveActivities),
+                    watchConnectivity: true,
                     clipboard: \(config.enableClipboard),
                     contacts: \(config.enableContacts),
                     calendar: \(config.enableCalendar),
@@ -2254,6 +2273,18 @@ struct CraftWebView: UIViewRepresentable {
                     stopRecording: function() { return craft._invoke('stopLocationRecording'); },
                     getRecordingState: function() { return craft._invoke('getLocationRecordingState'); },
                     readRecording: function() { return craft._invoke('readLocationRecording'); }
+                };
+                craft.health = {
+                    requestAuthorization: function(types) { return craft._invoke('requestHealthAuthorization', {types: types || []}); },
+                    getData: function(type, options) {
+                        options = options || {};
+                        return craft._invoke('getHealthData', {type: type, startDate: options.startDate, endDate: options.endDate});
+                    }
+                };
+                craft.liveActivity = {
+                    start: function(options) { return craft._invoke('startLiveActivity', options || {}); },
+                    update: function(options) { return craft._invoke('updateLiveActivity', options || {}); },
+                    end: function() { return craft._invoke('endLiveActivity'); }
                 };
                 var shareApi = function(text) { return legacyShare(text); };
                 shareApi.share = function(options) { return craft._invoke('share', {options: options || {}}); };
@@ -3844,6 +3875,64 @@ struct CraftWebView: UIViewRepresentable {
             }
 
             healthStore.execute(query)
+        }
+
+        // MARK: - Live Activities
+        private func startLiveActivity(body: [String: Any], callbackId: String?) {
+            guard #available(iOS 16.1, *), ActivityAuthorizationInfo().areActivitiesEnabled else {
+                rejectCallback(callbackId, error: "Live Activities are unavailable")
+                return
+            }
+            let attributes = CraftActivityAttributes(
+                activityId: body["activityId"] as? String ?? UUID().uuidString,
+                title: body["title"] as? String ?? config.appName
+            )
+            let state = CraftActivityAttributes.ContentState(
+                status: body["status"] as? String ?? "Recording",
+                distanceMeters: body["distanceMeters"] as? Double ?? 0,
+                durationSeconds: body["durationSeconds"] as? Double ?? 0,
+                progress: min(max(body["progress"] as? Double ?? 0, 0), 1)
+            )
+            do {
+                liveActivity = try Activity.request(
+                    attributes: attributes,
+                    content: ActivityContent(state: state, staleDate: nil),
+                    pushType: nil
+                )
+                resolveCallback(callbackId, result: ["id": liveActivity?.id ?? attributes.activityId])
+            } catch {
+                rejectCallback(callbackId, error: error.localizedDescription)
+            }
+        }
+
+        private func updateLiveActivity(body: [String: Any], callbackId: String?) {
+            guard #available(iOS 16.1, *), let activity = liveActivity ?? Activity<CraftActivityAttributes>.activities.first else {
+                rejectCallback(callbackId, error: "No Live Activity is running")
+                return
+            }
+            let current = activity.content.state
+            let state = CraftActivityAttributes.ContentState(
+                status: body["status"] as? String ?? current.status,
+                distanceMeters: body["distanceMeters"] as? Double ?? current.distanceMeters,
+                durationSeconds: body["durationSeconds"] as? Double ?? current.durationSeconds,
+                progress: min(max(body["progress"] as? Double ?? current.progress, 0), 1)
+            )
+            Task {
+                await activity.update(ActivityContent(state: state, staleDate: nil))
+                resolveCallback(callbackId, result: ["updated": true])
+            }
+        }
+
+        private func endLiveActivity(callbackId: String?) {
+            guard #available(iOS 16.1, *), let activity = liveActivity ?? Activity<CraftActivityAttributes>.activities.first else {
+                resolveCallback(callbackId, result: ["ended": false])
+                return
+            }
+            Task {
+                await activity.end(nil, dismissalPolicy: .default)
+                liveActivity = nil
+                resolveCallback(callbackId, result: ["ended": true])
+            }
         }
 
         // MARK: - Screen Capture

@@ -1,0 +1,62 @@
+import ActivityKit
+import SwiftUI
+import WidgetKit
+
+@main
+struct CraftLiveActivityBundle: WidgetBundle {
+    var body: some Widget {
+        CraftLiveActivityWidget()
+    }
+}
+
+struct CraftLiveActivityWidget: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: CraftActivityAttributes.self) { context in
+            HStack(spacing: 12) {
+                Image(systemName: "figure.run")
+                    .foregroundStyle(.green)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(context.attributes.title).font(.headline)
+                    Text(context.state.status).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(distance(context.state.distanceMeters)).font(.headline.monospacedDigit())
+                    Text(duration(context.state.durationSeconds)).font(.caption.monospacedDigit())
+                }
+            }
+            .padding()
+            .activityBackgroundTint(Color(red: 0, green: 0.24, blue: 0.18))
+            .activitySystemActionForegroundColor(.white)
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    Label(context.state.status, systemImage: "figure.run")
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    Text(distance(context.state.distanceMeters)).monospacedDigit()
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    ProgressView(value: context.state.progress)
+                        .tint(.green)
+                }
+            } compactLeading: {
+                Image(systemName: "figure.run")
+            } compactTrailing: {
+                Text(distance(context.state.distanceMeters)).monospacedDigit()
+            } minimal: {
+                Image(systemName: "figure.run")
+            }
+            .keylineTint(.green)
+        }
+    }
+
+    private func distance(_ meters: Double) -> String {
+        String(format: "%.2f km", meters / 1000)
+    }
+
+    private func duration(_ seconds: Double) -> String {
+        let value = max(Int(seconds), 0)
+        return String(format: "%02d:%02d", value / 60, value % 60)
+    }
+}

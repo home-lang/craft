@@ -124,4 +124,25 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('loadBundledFallback(in: webView)')
     expect(readFileSync(join(output, 'dist/index.html'), 'utf8')).toContain('Available offline')
   })
+
+  it('generates a native Live Activity extension when enabled', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-live-activity-'))
+    await init({
+      name: 'WildLoop',
+      bundleId: 'org.wildloop.app',
+      output,
+      config: { enableLiveActivities: true },
+    })
+
+    const project = readFileSync(join(output, 'project.yml'), 'utf8')
+    const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
+    const plist = readFileSync(join(output, 'Info.plist'), 'utf8')
+    expect(project).toContain('WildLoopLiveActivity:')
+    expect(project).toContain('type: app-extension')
+    expect(swift).toContain('startLiveActivity')
+    expect(swift).toContain('craft.liveActivity = {')
+    expect(plist).toContain('NSSupportsLiveActivities')
+    expect(existsSync(join(output, 'Shared', 'CraftActivityAttributes.swift'))).toBe(true)
+    expect(existsSync(join(output, 'WidgetExtension', 'WildLoopLiveActivity.swift'))).toBe(true)
+  })
 })
