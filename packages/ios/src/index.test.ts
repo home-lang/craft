@@ -97,6 +97,7 @@ describe('Craft iOS builder', () => {
 
     const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
     const plist = readFileSync(join(output, 'Info.plist'), 'utf8')
+    const project = readFileSync(join(output, 'project.yml'), 'utf8')
     const generatedConfig = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
     expect(swift).toContain('BundledAssetSchemeHandler')
     expect(swift).toContain('craft://app/index.html')
@@ -108,6 +109,8 @@ describe('Craft iOS builder', () => {
     expect(swift.match(/private var pendingCallbackId/g)?.length).toBe(1)
     expect(plist).toContain('NSLocationWhenInUseUsageDescription')
     expect(plist).toContain('<string>wildloop</string>')
+    expect(project).not.toContain('    resources:')
+    expect(project).toContain('      - path: dist\n        type: folder\n        buildPhase: resources')
     expect(plist).toContain('<string>location</string>')
     expect(existsSync(join(output, 'Craft.entitlements'))).toBe(true)
     expect(existsSync(join(output, 'PrivacyInfo.xcprivacy'))).toBe(true)

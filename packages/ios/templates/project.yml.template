@@ -15,13 +15,16 @@ targets:
     sources:
       - Sources
       - Shared
-    resources:
       - path: dist
         type: folder
+        buildPhase: resources
       - path: craft.config.json
         optional: true
+        buildPhase: resources
       - path: Assets.xcassets
+        buildPhase: resources
       - path: PrivacyInfo.xcprivacy
+        buildPhase: resources
     settings:
       INFOPLIST_FILE: Info.plist
       CODE_SIGN_ENTITLEMENTS: Craft.entitlements
