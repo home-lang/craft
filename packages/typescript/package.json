@@ -47,6 +47,10 @@
     "./ios": {
       "types": "./dist/ios/src/index.d.ts",
       "import": "./dist/ios/src/index.js"
+    },
+    "./android": {
+      "types": "./dist/android/src/index.d.ts",
+      "import": "./dist/android/src/index.js"
     }
   },
   "module": "./dist/index.js",

@@ -167,42 +167,43 @@ class CraftBridge(
             window.craft = {
                 platform: 'android',
                 capabilities: {
-                    haptics: true,
-                    speechRecognition: ${SpeechRecognizer.isRecognitionAvailable(activity)},
-                    share: true,
-                    camera: true,
-                    biometric: ${isBiometricAvailable()},
-                    pushNotifications: true,
-                    secureStorage: true,
-                    geolocation: true,
-                    clipboard: true,
+                    haptics: {{ENABLE_HAPTICS}},
+                    speechRecognition: {{ENABLE_SPEECH}} && ${SpeechRecognizer.isRecognitionAvailable(activity)},
+                    share: {{ENABLE_SHARE}},
+                    camera: {{ENABLE_CAMERA}},
+                    biometric: {{ENABLE_BIOMETRIC}} && ${isBiometricAvailable()},
+                    pushNotifications: {{ENABLE_PUSH}},
+                    secureStorage: {{ENABLE_SECURE_STORAGE}},
+                    geolocation: {{ENABLE_GEOLOCATION}},
+                    backgroundLocation: {{ENABLE_BACKGROUND_LOCATION}},
+                    clipboard: false,
                     deviceInfo: true,
-                    appBadge: true,
+                    appBadge: {{ENABLE_PUSH}},
                     networkStatus: true,
                     appReview: true,
-                    flashlight: ${hasFlashlight()},
+                    flashlight: {{ENABLE_CAMERA}} && ${hasFlashlight()},
                     openURL: true,
                     vibrationPattern: true,
                     appState: true,
-                    contacts: true,
-                    calendar: true,
-                    localNotifications: true,
-                    inAppPurchase: true,
-                    keepAwake: true,
-                    orientationLock: true,
-                    deepLinks: true,
-                    qrScanner: true,
-                    filePicker: true,
-                    fileDownload: true,
-                    googleSignIn: true,
-                    audioRecording: true,
-                    videoRecording: true,
-                    motionSensors: true,
-                    localDatabase: true,
-                    bluetooth: true,
-                    nfc: ${NfcAdapter.getDefaultAdapter(activity) != null},
-                    fitness: true,
-                    screenCapture: true
+                    contacts: false,
+                    calendar: false,
+                    localNotifications: {{ENABLE_PUSH}},
+                    inAppPurchase: false,
+                    keepAwake: {{ENABLE_KEEP_AWAKE}},
+                    orientationLock: false,
+                    deepLinks: {{ENABLE_DEEP_LINKS}},
+                    qrScanner: false,
+                    filePicker: false,
+                    fileDownload: false,
+                    googleSignIn: false,
+                    audioRecording: false,
+                    videoRecording: false,
+                    motionSensors: false,
+                    localDatabase: false,
+                    bluetooth: false,
+                    nfc: false,
+                    fitness: false,
+                    screenCapture: false
                 },
 
                 // Haptic feedback
@@ -1202,6 +1203,67 @@ class CraftBridge(
                 }
             };
 
+            (function installCraftMobileContract(craft) {
+                var legacyShare = craft.share.bind(craft);
+                var legacyOpenCamera = craft.openCamera.bind(craft);
+                var legacyPickImage = craft.pickImage.bind(craft);
+                var legacyAuthenticate = craft.authenticate.bind(craft);
+                var legacySecureStore = craft.secureStore;
+                craft.contractVersion = '1.0.0';
+                craft.device = {
+                    getInfo: function() { return Promise.resolve(craft.getDeviceInfo()); },
+                    getCapabilities: function() { return Promise.resolve(Object.assign({}, craft.capabilities)); }
+                };
+                craft.haptics = {
+                    impact: function(style) { craft.haptic(style || 'medium'); return Promise.resolve(); },
+                    notification: function(type) { craft.haptic(type === 'error' ? 'heavy' : 'light'); return Promise.resolve(); },
+                    selection: function() { craft.haptic('selection'); return Promise.resolve(); },
+                    vibrate: function(pattern) { craft.vibrate(pattern || []); return Promise.resolve(); }
+                };
+                craft.camera = {
+                    takePicture: function() { return legacyOpenCamera().then(normalizePhoto); },
+                    pickImage: function() { return legacyPickImage().then(normalizePhoto); },
+                    pickMultiple: function() { return legacyPickImage().then(function(photo) { return [normalizePhoto(photo)]; }); },
+                    isAvailable: function() { return Promise.resolve(!!craft.capabilities.camera); }
+                };
+                craft.biometrics = {
+                    isAvailable: function() { return Promise.resolve(!!craft.capabilities.biometric); },
+                    getBiometricType: function() { return Promise.resolve(craft.capabilities.biometric ? 'fingerprint' : null); },
+                    authenticate: function(reason) { return legacyAuthenticate(reason); }
+                };
+                craft.secureStorage = {
+                    set: function(key, value) { return Promise.resolve(legacySecureStore.set(key, value)).then(function() {}); },
+                    get: function(key) { return Promise.resolve(legacySecureStore.get(key)); },
+                    delete: function(key) { return Promise.resolve(legacySecureStore.remove(key)).then(function() {}); },
+                    clear: function() { return Promise.resolve(CraftAndroid.secureClear()).then(function() {}); }
+                };
+                craft.location = {
+                    getCurrentPosition: craft.getCurrentPosition,
+                    watchPosition: craft.watchPosition,
+                    clearWatch: craft.clearWatch
+                };
+                var shareApi = function(text, title) { return legacyShare(text, title); };
+                shareApi.share = function(options) {
+                    options = options || {};
+                    return Promise.resolve(legacyShare([options.text, options.url].filter(Boolean).join(' '), options.title || ''));
+                };
+                craft.share = shareApi;
+                craft.lifecycle = {
+                    getState: function() { return document.visibilityState === 'visible' ? 'active' : 'background'; },
+                    onStateChange: function(callback) {
+                        var handler = function() { callback(document.visibilityState === 'visible' ? 'active' : 'background'); };
+                        document.addEventListener('visibilitychange', handler);
+                        return function() { document.removeEventListener('visibilitychange', handler); };
+                    }
+                };
+                function normalizePhoto(photo) {
+                    if (photo && typeof photo === 'object') return photo;
+                    var value = String(photo || '');
+                    var base64 = value.indexOf(',') >= 0 ? value.split(',').pop() : value;
+                    return {base64: base64, uri: value, width: 0, height: 0, mimeType: 'image/jpeg'};
+                }
+            })(window.craft);
+
             // Dispatch ready event
             window.dispatchEvent(new CustomEvent('craftReady', {detail: window.craft}));
             console.log('Craft Android bridge initialized');
@@ -1500,6 +1562,16 @@ class CraftBridge(
     fun secureRemove(key: String): Boolean {
         return try {
             securePrefs.edit().remove(key).apply()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun secureClear(): Boolean {
+        return try {
+            securePrefs.edit().clear().apply()
             true
         } catch (e: Exception) {
             false

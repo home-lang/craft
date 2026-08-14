@@ -2,18 +2,22 @@ package {{PACKAGE_NAME}}
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
+import android.webkit.WebResourceRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var craftBridge: CraftBridge
+    private val devServerUrl: String? by lazy { getDevServerUrl() }
+    private val trustedOrigins: Set<String> by lazy { getTrustedOrigins() }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,10 +40,12 @@ class MainActivity : AppCompatActivity() {
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
-            allowFileAccess = true
-            allowContentAccess = true
+            allowFileAccess = devServerUrl == null
+            allowContentAccess = false
+            allowFileAccessFromFileURLs = true
+            allowUniversalAccessFromFileURLs = false
             mediaPlaybackRequiresUserGesture = false
-            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
             cacheMode = WebSettings.LOAD_DEFAULT
             setSupportZoom(false)
             builtInZoomControls = false
@@ -49,7 +55,14 @@ class MainActivity : AppCompatActivity() {
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                craftBridge.injectBridge()
+                if (url != null && isTrustedUrl(url)) craftBridge.injectBridge()
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url?.toString() ?: return true
+                if (isTrustedUrl(url)) return false
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                return true
             }
         }
 
@@ -61,7 +74,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadContent() {
         // Check for dev server URL in config
-        val devServerUrl = getDevServerUrl()
         if (devServerUrl != null) {
             webView.loadUrl(devServerUrl)
         } else {
@@ -70,18 +82,42 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun configJson(): JSONObject? {
+        return try {
+            assets.open("craft.config.json").bufferedReader().use { JSONObject(it.readText()) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun getDevServerUrl(): String? {
         return try {
-            val inputStream = assets.open("craft.config.json")
-            val reader = BufferedReader(InputStreamReader(inputStream))
-            val content = reader.readText()
-            reader.close()
-            // Simple JSON parsing for devServerURL
-            val regex = "\"devServerURL\"\\s*:\\s*\"([^\"]+)\"".toRegex()
-            regex.find(content)?.groupValues?.get(1)
+            configJson()?.optString("devServerURL")?.takeIf { it.isNotBlank() }
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun getTrustedOrigins(): Set<String> {
+        val origins = mutableSetOf<String>()
+        val config = configJson()
+        val configured = config?.optJSONArray("trustedOrigins")
+        if (configured != null) {
+            for (index in 0 until configured.length()) origins.add(configured.optString(index))
+        }
+        devServerUrl?.let { url ->
+            val uri = Uri.parse(url)
+            origins.add("${uri.scheme}://${uri.authority}")
+        }
+        return origins
+    }
+
+    private fun isTrustedUrl(value: String): Boolean {
+        if (value.startsWith("file:///android_asset/")) return true
+        val uri = Uri.parse(value)
+        val origin = "${uri.scheme}://${uri.authority}"
+        val localDevelopment = uri.scheme == "http" && uri.host in setOf("localhost", "127.0.0.1", "10.0.2.2")
+        return (uri.scheme == "https" || localDevelopment) && origin in trustedOrigins
     }
 
     override fun onBackPressed() {

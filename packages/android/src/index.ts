@@ -4,8 +4,8 @@
  * Generates native Android apps from web content using WebView.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, statSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { $ } from 'bun'
 
 const TEMPLATES_DIR = join(dirname(import.meta.dir), 'templates')
@@ -23,6 +23,13 @@ export interface CraftAndroidConfig {
   enableCamera?: boolean
   enableBiometric?: boolean
   enablePushNotifications?: boolean
+  enableSecureStorage?: boolean
+  enableGeolocation?: boolean
+  enableBackgroundLocation?: boolean
+  enableKeepAwake?: boolean
+  enableDeepLinks?: boolean
+  trustedOrigins?: string[]
+  appIconPath?: string
   devServerURL?: string
   minSdk?: number
   targetSdk?: number
@@ -32,6 +39,7 @@ export interface InitOptions {
   name: string
   packageName?: string
   output: string
+  config?: Partial<CraftAndroidConfig>
 }
 
 export interface BuildOptions {
@@ -39,6 +47,7 @@ export interface BuildOptions {
   devServer?: string
   output: string
   release?: boolean
+  compile?: boolean
 }
 
 export interface OpenOptions {
@@ -48,6 +57,61 @@ export interface OpenOptions {
 export interface RunOptions {
   device?: string
   output: string
+}
+
+const DEFAULT_CONFIG: Omit<CraftAndroidConfig, 'appName' | 'packageName'> = {
+  version: '1.0.0',
+  versionCode: 1,
+  darkMode: true,
+  backgroundColor: '#0b1712',
+  enableSpeechRecognition: false,
+  enableHaptics: false,
+  enableShare: false,
+  enableCamera: false,
+  enableBiometric: false,
+  enablePushNotifications: false,
+  enableSecureStorage: false,
+  enableGeolocation: false,
+  enableBackgroundLocation: false,
+  enableKeepAwake: false,
+  enableDeepLinks: false,
+  trustedOrigins: [],
+  minSdk: 26,
+  targetSdk: 35,
+}
+
+export function syncAndroidWebAssets(source: string, output: string): void {
+  const sourcePath = resolve(source)
+  if (!existsSync(sourcePath)) throw new Error(`Web asset path not found: ${source}`)
+  const assetsDir = join(output, 'app/src/main/assets')
+  const configPath = join(assetsDir, 'craft.config.json')
+  const config = existsSync(configPath) ? readFileSync(configPath) : undefined
+  rmSync(assetsDir, { recursive: true, force: true })
+  mkdirSync(assetsDir, { recursive: true })
+  if (statSync(sourcePath).isDirectory()) cpSync(sourcePath, assetsDir, { recursive: true })
+  else cpSync(sourcePath, join(assetsDir, 'index.html'))
+  if (!existsSync(join(assetsDir, 'index.html'))) throw new Error(`Web asset directory must contain index.html: ${source}`)
+  if (config) writeFileSync(configPath, config)
+}
+
+export function renderAndroidPermissions(config: CraftAndroidConfig): string {
+  const permissions = new Set(['android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE'])
+  if (config.enableSpeechRecognition) permissions.add('android.permission.RECORD_AUDIO')
+  if (config.enableCamera) permissions.add('android.permission.CAMERA')
+  if (config.enableHaptics) permissions.add('android.permission.VIBRATE')
+  if (config.enableBiometric) permissions.add('android.permission.USE_BIOMETRIC')
+  if (config.enableGeolocation || config.enableBackgroundLocation) {
+    permissions.add('android.permission.ACCESS_FINE_LOCATION')
+    permissions.add('android.permission.ACCESS_COARSE_LOCATION')
+  }
+  if (config.enableBackgroundLocation) {
+    permissions.add('android.permission.ACCESS_BACKGROUND_LOCATION')
+    permissions.add('android.permission.FOREGROUND_SERVICE')
+    permissions.add('android.permission.FOREGROUND_SERVICE_LOCATION')
+  }
+  if (config.enablePushNotifications) permissions.add('android.permission.POST_NOTIFICATIONS')
+  if (config.enableKeepAwake) permissions.add('android.permission.WAKE_LOCK')
+  return [...permissions].map(permission => `    <uses-permission android:name="${permission}" />`).join('\n')
 }
 
 /**
@@ -82,23 +146,15 @@ export async function init(options: InitOptions): Promise<void> {
 
   // Create craft.config.json
   const config: CraftAndroidConfig = {
+    ...DEFAULT_CONFIG,
     appName: name,
     packageName: finalPackageName,
-    version: '1.0.0',
-    versionCode: 1,
-    darkMode: true,
-    backgroundColor: '#1a1a2e',
-    enableSpeechRecognition: true,
-    enableHaptics: true,
-    enableShare: true,
-    enableCamera: true,
-    enableBiometric: true,
-    enablePushNotifications: false,
-    minSdk: 24,
-    targetSdk: 34,
+    ...options.config,
   }
+  if (config.enableBackgroundLocation) config.enableGeolocation = true
 
   writeFileSync(join(output, 'craft.config.json'), JSON.stringify(config, null, 2))
+  writeFileSync(join(output, 'app/src/main/assets/craft.config.json'), JSON.stringify(config, null, 2))
 
   // Copy templates
   const mainActivityTemplate = readFileSync(join(TEMPLATES_DIR, 'MainActivity.kt.template'), 'utf-8')
@@ -110,7 +166,19 @@ export async function init(options: InitOptions): Promise<void> {
 
   // Create CraftBridge.kt
   const craftBridgeTemplate = readFileSync(join(TEMPLATES_DIR, 'CraftBridge.kt.template'), 'utf-8')
-  const craftBridge = craftBridgeTemplate.replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName)
+  const craftBridge = craftBridgeTemplate
+    .replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName)
+    .replace(/\{\{ENABLE_SPEECH\}\}/g, String(Boolean(config.enableSpeechRecognition)))
+    .replace(/\{\{ENABLE_HAPTICS\}\}/g, String(Boolean(config.enableHaptics)))
+    .replace(/\{\{ENABLE_SHARE\}\}/g, String(Boolean(config.enableShare)))
+    .replace(/\{\{ENABLE_CAMERA\}\}/g, String(Boolean(config.enableCamera)))
+    .replace(/\{\{ENABLE_BIOMETRIC\}\}/g, String(Boolean(config.enableBiometric)))
+    .replace(/\{\{ENABLE_PUSH\}\}/g, String(Boolean(config.enablePushNotifications)))
+    .replace(/\{\{ENABLE_SECURE_STORAGE\}\}/g, String(Boolean(config.enableSecureStorage)))
+    .replace(/\{\{ENABLE_GEOLOCATION\}\}/g, String(Boolean(config.enableGeolocation)))
+    .replace(/\{\{ENABLE_BACKGROUND_LOCATION\}\}/g, String(Boolean(config.enableBackgroundLocation)))
+    .replace(/\{\{ENABLE_KEEP_AWAKE\}\}/g, String(Boolean(config.enableKeepAwake)))
+    .replace(/\{\{ENABLE_DEEP_LINKS\}\}/g, String(Boolean(config.enableDeepLinks)))
   writeFileSync(join(output, 'app/src/main/java', packagePath, 'CraftBridge.kt'), craftBridge)
 
   // Create AndroidManifest.xml
@@ -118,6 +186,8 @@ export async function init(options: InitOptions): Promise<void> {
   const manifest = manifestTemplate
     .replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName)
     .replace(/\{\{APP_NAME\}\}/g, name)
+    .replace(/\{\{PERMISSIONS\}\}/g, renderAndroidPermissions(config))
+    .replace(/\{\{USES_CLEARTEXT\}\}/g, config.devServerURL?.startsWith('http://') ? 'true' : 'false')
 
   writeFileSync(join(output, 'app/src/main/AndroidManifest.xml'), manifest)
 
@@ -180,6 +250,18 @@ zipStorePath=wrapper/dists
 </resources>
 `
   writeFileSync(join(output, 'app/src/main/res/values/colors.xml'), colorsXml)
+
+  const appIconXml = `<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="${config.backgroundColor}" android:pathData="M0,0h108v108h-108z" />
+    <path android:fillColor="#10B981" android:pathData="M18,78L42,42l12,18l12,-12l24,30z" />
+</vector>
+`
+  writeFileSync(join(output, 'app/src/main/res/drawable/craft_app_icon.xml'), appIconXml)
 
   const themesXml = `<?xml version="1.0" encoding="utf-8"?>
 <resources>
@@ -264,7 +346,7 @@ zipStorePath=wrapper/dists
  * Build Android project
  */
 export async function build(options: BuildOptions): Promise<void> {
-  const { htmlPath, devServer, output, release } = options
+  const { htmlPath, devServer, output, release, compile = true } = options
 
   console.log('\n📦 Building Craft Android project...')
 
@@ -279,26 +361,19 @@ export async function build(options: BuildOptions): Promise<void> {
   // Update dev server URL if provided
   if (devServer) {
     config.devServerURL = devServer
+    config.trustedOrigins = [...new Set([...(config.trustedOrigins ?? []), new URL(devServer).origin])]
     writeFileSync(configPath, JSON.stringify(config, null, 2))
+    writeFileSync(join(output, 'app/src/main/assets/craft.config.json'), JSON.stringify(config, null, 2))
     console.log(`   Dev server: ${devServer}`)
   }
 
-  // Copy HTML if provided
+  // Copy the complete web application if provided.
   if (htmlPath) {
-    const assetsDir = join(output, 'app/src/main/assets')
-    if (!existsSync(assetsDir)) {
-      mkdirSync(assetsDir, { recursive: true })
-    }
-
-    if (existsSync(htmlPath) && statSync(htmlPath).isFile()) {
-      const html = readFileSync(htmlPath, 'utf-8')
-      writeFileSync(join(assetsDir, 'index.html'), html)
-      console.log(`   Copied: ${htmlPath} → assets/index.html`)
-    }
-else {
-      throw new Error(`HTML file not found or is a directory: ${htmlPath}`)
-    }
+    syncAndroidWebAssets(htmlPath, output)
+    console.log(`   Synced: ${htmlPath} → assets/`)
   }
+
+  if (!compile) return
 
   // Check if gradlew exists
   const gradlewPath = join(output, 'gradlew')
@@ -307,10 +382,8 @@ else {
     try {
       await $`cd ${output} && gradle wrapper`.quiet()
     }
-catch {
-      console.log('⚠️  Gradle not found. Please install Android Studio or Gradle.')
-      console.log('   Download: https://developer.android.com/studio')
-      return
+    catch (error) {
+      throw new Error('Gradle is unavailable. Install Android Studio or Gradle before building Android.', { cause: error })
     }
   }
 
@@ -408,5 +481,3 @@ catch (error) {
     throw error
   }
 }
-
-export type { CraftAndroidConfig }
