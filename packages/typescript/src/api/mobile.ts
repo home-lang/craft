@@ -1240,9 +1240,111 @@ export const notifications = {
   }
 }
 
+export interface NetworkStatus {
+  type: 'wifi' | 'cellular' | 'ethernet' | 'none' | 'unknown'
+  isConnected: boolean
+}
+
+let webWakeLock: { release: () => Promise<void> } | null = null
+
+export const keepAwake = {
+  async enable(): Promise<void> {
+    const craft = getCraftRoot()
+    if (craft?.setKeepAwake) {
+      await craft.setKeepAwake(true)
+      return
+    }
+    const wakeLock = (navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock
+    webWakeLock = await wakeLock?.request('screen') ?? null
+  },
+  async disable(): Promise<void> {
+    const craft = getCraftRoot()
+    if (craft?.setKeepAwake) {
+      await craft.setKeepAwake(false)
+      return
+    }
+    await webWakeLock?.release()
+    webWakeLock = null
+  }
+}
+
+export const deepLinks = {
+  async getInitialURL(): Promise<string | null> {
+    return await getCraftRoot()?.deepLinks?.getInitialURL?.() ?? null
+  },
+  onLink(callback: (url: string) => void): () => void {
+    const craft = getCraftRoot()
+    if (craft?.deepLinks?.onLink) return craft.deepLinks.onLink(callback) ?? (() => {})
+    if (typeof globalThis === 'undefined') return () => {}
+    const listener = (event: Event) => callback((event as CustomEvent<{ url?: string }>).detail?.url ?? '')
+    globalThis.addEventListener('craftDeepLink', listener)
+    return () => globalThis.removeEventListener('craftDeepLink', listener)
+  }
+}
+
+export const network = {
+  async getStatus(): Promise<NetworkStatus> {
+    const craft = getCraftRoot()
+    if (craft?.getNetworkStatus) return await craft.getNetworkStatus()
+    return {
+      type: 'unknown',
+      isConnected: typeof navigator === 'undefined' ? false : navigator.onLine,
+    }
+  },
+  onChange(callback: (status: NetworkStatus) => void): () => void {
+    const craft = getCraftRoot()
+    if (craft?.onNetworkChange) {
+      craft.onNetworkChange(callback)
+      return () => craft.offNetworkChange?.()
+    }
+    if (typeof globalThis === 'undefined') return () => {}
+    const listener = () => callback({ type: 'unknown', isConnected: navigator.onLine })
+    globalThis.addEventListener('online', listener)
+    globalThis.addEventListener('offline', listener)
+    return () => {
+      globalThis.removeEventListener('online', listener)
+      globalThis.removeEventListener('offline', listener)
+    }
+  }
+}
+
+export const appReview = {
+  async request(): Promise<boolean> {
+    const craft = getCraftRoot()
+    if (!craft?.requestReview) return false
+    return Boolean(await craft.requestReview())
+  }
+}
+
+export const pushNotifications = {
+  async register(): Promise<string> {
+    const craft = getCraftRoot()
+    if (!craft?.registerPush) throw new Error('Push notifications are unavailable')
+    return craft.registerPush()
+  },
+  onToken(callback: (token: string) => void): () => void {
+    return onCraftEvent('craftPushToken', detail => callback(String(detail.token ?? '')))
+  },
+  onNotification(callback: (data: Record<string, unknown>) => void): () => void {
+    return onCraftEvent('craftNotificationResponse', detail => callback(detail))
+  }
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+function onCraftEvent(eventName: string, callback: (detail: Record<string, unknown>) => void): () => void {
+  if (typeof globalThis === 'undefined') return () => {}
+  const listener = (event: Event) => callback((event as CustomEvent<Record<string, unknown>>).detail ?? {})
+  globalThis.addEventListener(eventName, listener)
+  return () => globalThis.removeEventListener(eventName, listener)
+}
+
+function getCraftRoot(): any {
+  if (typeof window === 'undefined') return undefined
+  return (window as any).craft
+}
 
 function detectPlatform(): DeviceInfo['platform'] {
   if (typeof window === 'undefined') return 'linux'
@@ -1355,6 +1457,11 @@ const mobile: {
   share: typeof share
   lifecycle: typeof lifecycle
   notifications: typeof notifications
+  keepAwake: typeof keepAwake
+  deepLinks: typeof deepLinks
+  network: typeof network
+  appReview: typeof appReview
+  pushNotifications: typeof pushNotifications
 } = {
   device: device,
   haptics: haptics,
@@ -1365,7 +1472,12 @@ const mobile: {
   location: location,
   share: share,
   lifecycle: lifecycle,
-  notifications: notifications
+  notifications: notifications,
+  keepAwake: keepAwake,
+  deepLinks: deepLinks,
+  network: network,
+  appReview: appReview,
+  pushNotifications: pushNotifications
 }
 
 export default mobile
