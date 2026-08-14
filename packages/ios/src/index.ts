@@ -332,7 +332,7 @@ export async function init(options: InitOptions): Promise<void> {
 
   // Create directory structure
   const dirs = [output, join(output, 'Sources'), join(output, 'Shared'), join(output, 'dist')]
-  if (options.config?.enableWatchApp) dirs.push(join(output, 'WatchApp'), join(output, 'WatchExtension'))
+  if (options.config?.enableWatchApp) dirs.push(join(output, 'WatchApp'))
   for (const dir of dirs) {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true })
@@ -403,28 +403,15 @@ export async function init(options: InitOptions): Promise<void> {
   }
   if (config.enableWatchApp) {
     nativeTargets.push(`  ${name}Watch:
-    type: application.watchapp2
+    type: application
     platform: watchOS
     deploymentTarget: "${config.watchosVersion || '9.0'}"
     sources:
       - WatchApp
     settings:
       INFOPLIST_FILE: WatchApp/Info.plist
+      CODE_SIGN_ENTITLEMENTS: WatchApp/Watch.entitlements
       PRODUCT_BUNDLE_IDENTIFIER: ${finalBundleId}.watchkitapp
-      SWIFT_VERSION: "5.0"
-      SKIP_INSTALL: YES
-    dependencies:
-      - target: ${name}WatchExtension
-  ${name}WatchExtension:
-    type: watchkit2-extension
-    platform: watchOS
-    deploymentTarget: "${config.watchosVersion || '9.0'}"
-    sources:
-      - WatchExtension
-    settings:
-      INFOPLIST_FILE: WatchExtension/Info.plist
-      CODE_SIGN_ENTITLEMENTS: WatchExtension/Watch.entitlements
-      PRODUCT_BUNDLE_IDENTIFIER: ${finalBundleId}.watchkitapp.watchkitextension
       SWIFT_VERSION: "5.0"
       SKIP_INSTALL: YES`)
   }
@@ -456,15 +443,12 @@ export async function init(options: InitOptions): Promise<void> {
   if (config.enableWatchApp) {
     const watchSource = readFileSync(join(TEMPLATES_DIR, 'CraftWatchApp.swift.template'), 'utf8')
       .replace(/\{\{APP_NAME\}\}/g, name)
-    writeFileSync(join(output, 'WatchExtension', `${name}WatchApp.swift`), watchSource)
+    writeFileSync(join(output, 'WatchApp', `${name}WatchApp.swift`), watchSource)
     const watchInfo = readFileSync(join(TEMPLATES_DIR, 'WatchApp.Info.plist.template'), 'utf8')
       .replace(/\{\{APP_NAME\}\}/g, name)
       .replace(/\{\{BUNDLE_ID\}\}/g, finalBundleId)
     writeFileSync(join(output, 'WatchApp', 'Info.plist'), watchInfo)
-    const watchExtensionInfo = readFileSync(join(TEMPLATES_DIR, 'WatchExtension.Info.plist.template'), 'utf8')
-      .replace(/\{\{BUNDLE_ID\}\}/g, finalBundleId)
-    writeFileSync(join(output, 'WatchExtension', 'Info.plist'), watchExtensionInfo)
-    writeFileSync(join(output, 'WatchExtension', 'Watch.entitlements'), renderWatchEntitlements(config))
+    writeFileSync(join(output, 'WatchApp', 'Watch.entitlements'), renderWatchEntitlements(config))
   }
 
   // Create placeholder index.html
