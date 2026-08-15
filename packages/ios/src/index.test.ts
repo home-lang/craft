@@ -182,6 +182,7 @@ describe('Craft iOS builder', () => {
     expect(watchInfo).toContain('<key>CFBundleExecutable</key>')
     expect(watchInfo).toContain('<key>CFBundleShortVersionString</key>')
     expect(watchInfo).toContain('<string>org.wildloop.app</string>')
+    expect(watchInfo).not.toContain('<key>WKWatchKitApp</key>')
     expect(existsSync(join(output, 'WatchApp', 'Info.plist'))).toBe(true)
     expect(existsSync(join(output, 'WatchApp', 'Watch.entitlements'))).toBe(true)
   })
