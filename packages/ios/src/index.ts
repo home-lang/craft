@@ -63,6 +63,7 @@ export interface CraftConfig {
   appIconPath?: string
   privacy?: CraftPrivacyManifest
   orientations?: Array<'portrait' | 'landscape-left' | 'landscape-right' | 'portrait-upside-down'>
+  deviceFamilies?: Array<'iphone' | 'ipad'>
 }
 
 export interface CraftPrivacyDataType {
@@ -155,6 +156,13 @@ const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
   associatedDomains: [],
   appGroups: [],
   orientations: ['portrait'],
+  deviceFamilies: ['iphone', 'ipad'],
+}
+
+export function renderDeviceFamilies(config: CraftConfig): string {
+  const values = new Set((config.deviceFamilies?.length ? config.deviceFamilies : ['iphone', 'ipad'])
+    .map(family => family === 'ipad' ? '2' : '1'))
+  return [...values].join(',')
 }
 
 function xmlEscape(value: string): string {
@@ -423,6 +431,7 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{VERSION\}\}/g, config.version || '1.0.0')
     .replace(/\{\{BUILD_NUMBER\}\}/g, config.buildNumber || '1')
     .replace(/\{\{IOS_VERSION\}\}/g, config.iosVersion || '15.0')
+    .replace(/\{\{DEVICE_FAMILIES\}\}/g, renderDeviceFamilies(config))
     .replace(/\{\{TEAM_ID\}\}/g, teamId || '')
     .replace(/\{\{NATIVE_DEPENDENCIES\}\}/g, nativeDependencies.length ? `    dependencies:\n${nativeDependencies.join('\n')}` : '')
     .replace(/\{\{NATIVE_TARGETS\}\}/g, nativeTargets.join('\n'))

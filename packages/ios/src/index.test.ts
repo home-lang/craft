@@ -163,7 +163,7 @@ describe('Craft iOS builder', () => {
       name: 'WildLoop',
       bundleId: 'org.wildloop.app',
       output,
-      config: { enableWatchApp: true, watchosVersion: '9.0' },
+      config: { deviceFamilies: ['iphone'], enableWatchApp: true, watchosVersion: '9.0' },
     })
 
     const project = readFileSync(join(output, 'project.yml'), 'utf8')
@@ -174,6 +174,7 @@ describe('Craft iOS builder', () => {
     expect(project).toContain('type: application')
     expect(project).toContain('platform: watchOS')
     expect(project).toContain('embed: true')
+    expect(project).toContain('TARGETED_DEVICE_FAMILY: "1"')
     expect(swift).toContain('setupWatchConnectivity()')
     expect(watch).toContain('recording-control')
     expect(watch).toContain('WCSessionDelegate')
