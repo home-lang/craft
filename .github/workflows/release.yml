@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: home-lang/pantry/packages/action@main
+        uses: pantry-pm/pantry/packages/action@main
 
       - name: Install System Dependencies
         if: matrix.platform.deps != ''
@@ -190,7 +190,7 @@ jobs:
       # 2. Auto-packages binaries from zig-out/ into platform-named zips
       # 3. Creates/updates GitHub release with all artifacts + changelog
       - name: Publish & Release
-        uses: home-lang/pantry/packages/action@main
+        uses: pantry-pm/pantry/packages/action@main
         with:
           install: 'false'
           publish: 'zig'
@@ -216,7 +216,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Pantry (provides Bun, Zig, etc.)
-        uses: home-lang/pantry/packages/action@main
+        uses: pantry-pm/pantry/packages/action@main
       - name: Install Dependencies
         run: bun install
 

@@ -73,11 +73,11 @@ jobs:
             "externalReferences": [
               {
                 "type": "website",
-                "url": "https://github.com/home-lang/craft"
+                "url": "https://github.com/craft-native/craft"
               },
               {
                 "type": "vcs",
-                "url": "https://github.com/home-lang/craft.git"
+                "url": "https://github.com/craft-native/craft.git"
               }
             ]
           }
@@ -155,9 +155,9 @@ jobs:
                 "description": "Build desktop apps with web languages, powered by Zig",
                 "licenses": [{"license": {"id": "MIT"}}],
                 "externalReferences": [
-                  {"type": "website", "url": "https://github.com/home-lang/craft"},
-                  {"type": "vcs", "url": "https://github.com/home-lang/craft.git"},
-                  {"type": "issue-tracker", "url": "https://github.com/home-lang/craft/issues"}
+                  {"type": "website", "url": "https://github.com/craft-native/craft"},
+                  {"type": "vcs", "url": "https://github.com/craft-native/craft.git"},
+                  {"type": "issue-tracker", "url": "https://github.com/craft-native/craft/issues"}
                 ]
               }
             }

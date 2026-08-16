@@ -51,7 +51,7 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Setup Pantry (provides Bun)
-        uses: home-lang/pantry/packages/action@main
+        uses: pantry-pm/pantry/packages/action@main
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Zig
-        uses: home-lang/pantry/packages/action@main
+        uses: pantry-pm/pantry/packages/action@main
       - name: Install Linux dependencies
         run: |
           sudo apt-get update
