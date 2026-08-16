@@ -11,10 +11,20 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Maximum allowed binary size in bytes (2MB = 2097152)
-  MAX_BINARY_SIZE: 2097152
-  # Warning threshold (1.5MB = 1572864)
-  WARN_BINARY_SIZE: 1572864
+  # Maximum allowed binary size in bytes (16MB = 16777216).
+  #
+  # Baseline: the CLI measured ~1.9MB until Aug 2026, when 8556d46 made
+  # craft's first-party zig-js runtime part of the default build. That is a
+  # deliberate subsystem, not bloat — see the js-runtime option in
+  # packages/zig/build.zig (~+6.5MB in ReleaseFast; the ReleaseSafe binary
+  # we ship and measure here lands at ~13.9MB, already stripped, with no
+  # unwind tables or error traces). The gate sits ~15% above that baseline
+  # so it still catches accidental growth; opt-out `-Djs-runtime=false`
+  # builds remain around 2MB.
+  MAX_BINARY_SIZE: 16777216
+  # Warning threshold (14.5MB = 15204352), just above the ~13.9MB baseline
+  # so creep surfaces as a warning well before the hard limit.
+  WARN_BINARY_SIZE: 15204352
 
 defaults:
   run:
@@ -163,6 +173,8 @@ jobs:
             const diff = '${{ steps.diff.outputs.diff_kb }}';
             const percent = '${{ steps.diff.outputs.percent }}';
             const direction = '${{ steps.diff.outputs.direction }}';
+            const warnMB = (Number(process.env.WARN_BINARY_SIZE) / 1048576).toFixed(2);
+            const maxMB = (Number(process.env.MAX_BINARY_SIZE) / 1048576).toFixed(2);
 
             let emoji = '✅';
             if (direction === 'increased' && parseInt(diff) > 10) emoji = '⚠️';
@@ -178,8 +190,8 @@ jobs:
             <details>
             <summary>Size limits</summary>
 
-            - Warning: 1.5MB
-            - Maximum: 2MB
+            - Warning: ${warnMB}MB
+            - Maximum: ${maxMB}MB
             </details>`;
 
             // Find existing comment
@@ -209,6 +221,21 @@ jobs:
                 body: body
               });
             }
+
+      - name: Restore size history
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The history file lives only in the uploaded artifact (never in the
+          # repo), so pull the previous run's copy before appending — without
+          # this each artifact holds a single entry and no history accumulates.
+          mkdir -p .github/metrics
+          PREV_RUN=$(gh run list --workflow "Binary Size" --branch main --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$PREV_RUN" ]; then
+            gh run download "$PREV_RUN" -n binary-size-metrics -D .github/metrics || true
+          fi
 
       - name: Save size history
         if: github.ref == 'refs/heads/main'
