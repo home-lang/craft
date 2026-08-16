@@ -2,12 +2,15 @@ name: Buddy Bot
 
 on:
   schedule:
-    # Check for rebase requests every minute
-    - cron: '*/1 * * * *'
-    # Update dependencies every 2 hours
-    - cron: '0 */2 * * *'
+    # Check for rebase requests hourly. This used to be every MINUTE, which
+    # burned ~1,440 runs/day (~13,500 total) and is the most likely trigger
+    # for GitHub disabling Actions on this repository - a rebase request
+    # waiting up to an hour is fine, a disabled release pipeline is not.
+    - cron: '0 * * * *'
+    # Update dependencies twice a day
+    - cron: '0 3,15 * * *'
     # Update dashboard 15 minutes after dependency updates (ensures updates are reflected)
-    - cron: '15 */2 * * *'
+    - cron: '15 3,15 * * *'
 
   workflow_dispatch: # Manual trigger
     inputs:
