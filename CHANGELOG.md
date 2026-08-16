@@ -1,5 +1,55 @@
 # Changelog
 
+[Compare changes](https://github.com/home-lang/craft/compare/v0.0.65...v0.0.66)
+
+## 🚀 Features
+
+- **ios**: configure supported device families ([26d927f](https://github.com/home-lang/craft/commit/26d927f)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **android**: integrate Health Connect workouts ([5298420](https://github.com/home-lang/craft/commit/5298420)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: generate a watchOS companion ([005e075](https://github.com/home-lang/craft/commit/005e075)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **health**: save native iOS workouts ([209b2fb](https://github.com/home-lang/craft/commit/209b2fb)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **sdk**: expose native activity integrations ([0dcbf38](https://github.com/home-lang/craft/commit/0dcbf38)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: generate native Live Activities ([638e123](https://github.com/home-lang/craft/commit/638e123)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **android**: persist background location recordings ([bb9a0b0](https://github.com/home-lang/craft/commit/bb9a0b0)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **mobile**: add bundled offline recovery ([989ee6b](https://github.com/home-lang/craft/commit/989ee6b)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **android**: add production mobile builder contract ([c6d76ea](https://github.com/home-lang/craft/commit/c6d76ea)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **sdk**: expose mobile lifecycle services ([19a61a8](https://github.com/home-lang/craft/commit/19a61a8)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: harden native mobile runtime ([68c6d3a](https://github.com/home-lang/craft/commit/68c6d3a)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🐛 Bug Fixes
+
+- **ios**: generate modern watch app metadata ([c63fe15](https://github.com/home-lang/craft/commit/c63fe15)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: validate embedded watch bundle ([aa3c4ec](https://github.com/home-lang/craft/commit/aa3c4ec)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: embed generated web resources ([47423b6](https://github.com/home-lang/craft/commit/47423b6)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: resolve bundled entry point reliably ([3d55ba7](https://github.com/home-lang/craft/commit/3d55ba7)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: locate bundled web resources ([3348023](https://github.com/home-lang/craft/commit/3348023)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **android**: retain generated stx assets ([722175c](https://github.com/home-lang/craft/commit/722175c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **mobile**: normalize native deep link payloads ([182e42a](https://github.com/home-lang/craft/commit/182e42a)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **mobile**: serve bundled routes from secure origins ([5e1c20c](https://github.com/home-lang/craft/commit/5e1c20c)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **watchos**: use platform-valid session delegates ([5d03387](https://github.com/home-lang/craft/commit/5d03387)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: generate modern single-target watch apps ([10b6166](https://github.com/home-lang/craft/commit/10b6166)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: generate a real watch extension target ([60cef64](https://github.com/home-lang/craft/commit/60cef64)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **android**: preserve release bridge contracts ([546d9f2](https://github.com/home-lang/craft/commit/546d9f2)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: deliver queued watch commands ([832255d](https://github.com/home-lang/craft/commit/832255d)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **android**: avoid generated JVM getter clashes ([a83eea7](https://github.com/home-lang/craft/commit/a83eea7)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **android**: compile generated Kotlin bridge ([2c93157](https://github.com/home-lang/craft/commit/2c93157)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: compile modern ActivityKit APIs safely ([dbc91b7](https://github.com/home-lang/craft/commit/dbc91b7)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: resolve generated Swift conformance errors ([c09963f](https://github.com/home-lang/craft/commit/c09963f)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ios**: complete Live Activity metadata ([b5b92b8](https://github.com/home-lang/craft/commit/b5b92b8)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **android**: ship real push and bridge dependencies ([33523a1](https://github.com/home-lang/craft/commit/33523a1)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 📦 Build System
+
+- **android**: support current Health Connect SDK ([f914621](https://github.com/home-lang/craft/commit/f914621)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.66 ([0cbecaa](https://github.com/home-lang/craft/commit/0cbecaa)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.64...v0.0.65)
 
 ## 🚀 Features
