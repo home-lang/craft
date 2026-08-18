@@ -1,22 +1,15 @@
 name: Mobile E2E Testing
 
+# Manual only. This workflow has been red since May and cannot go green from
+# a workflow edit: the iOS Zig sources stopped compiling in the 0.17 migration
+# (1b6f285) and need real source work — see the notes in the PR that made this
+# manual. It also runs no end-to-end tests today; every step that would has an
+# `if: hashFiles(...)` guard pointing at a TestApp/project that is not in the
+# tree, so they all skip. Firing it on push meant a red X on unrelated commits
+# for a signal nobody could act on, and two of its path filters
+# (packages/zig/src/ios/**, packages/zig/src/android/**) match directories that
+# do not exist at all.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'packages/zig/src/mobile.zig'
-      - 'packages/zig/src/ios/**'
-      - 'packages/zig/src/android/**'
-      - 'packages/ios/**'
-      - 'packages/android/**'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'packages/zig/src/mobile.zig'
-      - 'packages/zig/src/ios/**'
-      - 'packages/zig/src/android/**'
-      - 'packages/ios/**'
-      - 'packages/android/**'
   workflow_dispatch:
 
 concurrency:
@@ -89,9 +82,10 @@ jobs:
       - name: Run iOS unit tests
         working-directory: packages/zig
         run: |
-          # Run mobile-specific tests
-          eval "$(pantry env | sed -n '/^export /,$p')" && zig build test 2>&1 | tee ios-unit-output.txt
-          grep -E "(mobile|ios)" ios-unit-output.txt
+          # `zig build test` reports through its exit code. The old form piped
+          # it to a file and grepped for "mobile"/"ios", which fails under
+          # `set -e` whenever the run is clean and the file is therefore empty.
+          eval "$(pantry env | sed -n '/^export /,$p')" && zig build test
 
       - name: Build iOS test app
         if: hashFiles('packages/ios/TestApp/TestApp.xcodeproj') != ''
@@ -177,8 +171,12 @@ jobs:
       - name: Build Android library
         working-directory: packages/zig
         run: |
-          # Build for Android arm64
-          eval "$(pantry env | sed -n '/^export /,$p')" && zig build -Doptimize=ReleaseSafe -Dtarget=aarch64-linux-android
+          # Use the dedicated android step, which resolves its own target.
+          # Passing -Dtarget steers the *default* install step instead, which
+          # builds the desktop binaries — and since an android triple reports
+          # os_tag == .linux, that links GTK3/WebKit2GTK against a sysroot that
+          # does not exist for Android.
+          eval "$(pantry env | sed -n '/^export /,$p')" && zig build build-android -Doptimize=ReleaseSafe
 
       - name: First-party Zig dependencies
         uses: ./.github/actions/first-party-zig-deps
@@ -186,9 +184,10 @@ jobs:
       - name: Run Android unit tests
         working-directory: packages/zig
         run: |
-          # Run mobile-specific tests
-          eval "$(pantry env | sed -n '/^export /,$p')" && zig build test 2>&1 | tee android-unit-output.txt
-          grep -E "(mobile|android)" android-unit-output.txt
+          # `zig build test` reports through its exit code. The old form piped
+          # it to a file and grepped for "mobile"/"android", which fails under
+          # `set -e` whenever the run is clean and the file is therefore empty.
+          eval "$(pantry env | sed -n '/^export /,$p')" && zig build test
 
       - name: Enable KVM
         run: |

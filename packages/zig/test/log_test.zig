@@ -153,12 +153,13 @@ test "Log - output to file" {
     if (fd < 0) return error.FileNotFound;
     defer _ = std.c.close(fd);
 
-    var stat: std.c.Stat = undefined;
-    _ = std.c.fstat(fd, &stat);
-    const size: usize = @intCast(stat.size);
-    const content = try testing.allocator.alloc(u8, size);
-    defer testing.allocator.free(content);
-    const read_result = std.c.read(fd, content.ptr, size);
+    // Read into a fixed buffer instead of sizing the file first. `std.c.fstat`
+    // is not a portable declaration — on Linux it resolves to `void`, so this
+    // test did not compile there at all once the missing libc link stopped
+    // hiding it. All the assertions below need is that the message landed, not
+    // how big the file is.
+    var content: [4096]u8 = undefined;
+    const read_result = std.c.read(fd, &content, content.len);
     if (read_result <= 0) return error.UnexpectedEof;
     const bytes_read: usize = @intCast(read_result);
 
@@ -167,8 +168,8 @@ test "Log - output to file" {
 }
 
 test "LogLevel - enum ordering" {
-    try testing.expect(@intFromEnum(log_module.LogLevel.Debug) < @intFromEnum(log_module.LogLevel.Info));
-    try testing.expect(@intFromEnum(log_module.LogLevel.Info) < @intFromEnum(log_module.LogLevel.Warning));
-    try testing.expect(@intFromEnum(log_module.LogLevel.Warning) < @intFromEnum(log_module.LogLevel.Error));
-    try testing.expect(@intFromEnum(log_module.LogLevel.Error) < @intFromEnum(log_module.LogLevel.Fatal));
+    try testing.expect(@backingInt(log_module.LogLevel.Debug) < @backingInt(log_module.LogLevel.Info));
+    try testing.expect(@backingInt(log_module.LogLevel.Info) < @backingInt(log_module.LogLevel.Warning));
+    try testing.expect(@backingInt(log_module.LogLevel.Warning) < @backingInt(log_module.LogLevel.Error));
+    try testing.expect(@backingInt(log_module.LogLevel.Error) < @backingInt(log_module.LogLevel.Fatal));
 }
