@@ -253,6 +253,18 @@ export interface MenuItemDefinition {
   icon?: string;
   /** Renders a divider; every other field is ignored when this is set. */
   separator?: boolean;
+  /**
+   * A standard-behavior item, named with Electron's vocabulary: `about`,
+   * `hide`, `hideOthers`, `showAll`, `quit`, `undo`, `redo`, `cut`, `copy`,
+   * `paste`, `delete`, `selectAll`, `close`, `minimize`, `zoom`, `front`,
+   * `fullscreen`, `reload`, `forceReload`.
+   *
+   * The item is wired to the matching AppKit selector through the responder
+   * chain, exactly as a nib-built menu would be — the only way Cut/Copy/Paste
+   * can reach a text field. A role item does not fire `onAction`; an unknown
+   * role falls back to an ordinary id item, which does.
+   */
+  role?: string;
 }
 
 // ============================================
