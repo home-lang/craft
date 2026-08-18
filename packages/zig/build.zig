@@ -350,6 +350,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    profiler_tests.root_module.link_libc = true;
 
     const memory_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -394,6 +395,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    hotreload_tests.root_module.link_libc = true;
 
     const async_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -438,6 +440,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    devmode_tests.root_module.link_libc = true;
 
     const renderer_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -460,6 +463,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    log_tests.root_module.link_libc = true;
 
     const theme_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -540,6 +544,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    config_tests.root_module.link_libc = true;
 
     const ipc_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -559,6 +564,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    performance_tests.root_module.link_libc = true;
 
     const button_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -669,6 +675,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    toast_tests.root_module.link_libc = true;
 
     const tree_view_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -713,6 +720,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    tooltip_tests.root_module.link_libc = true;
 
     const slider_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -759,6 +767,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    error_context_tests.root_module.link_libc = true;
 
     const benchmark_tests = b.addTest(.{
         .root_module = b.createModule(.{
@@ -770,6 +779,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    benchmark_tests.root_module.link_libc = true;
 
     const system_tray_tests = b.addTest(.{
         .root_module = b.createModule(.{
