@@ -13,7 +13,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { craftBinaryNotFoundMessage, resolveCraftBinary } from '../binary-resolver'
+import { craftBinaryIsCliShimMessage, craftBinaryNotFoundMessage, resolveCraftBinary } from '../binary-resolver'
 
 describe('resolveCraftBinary', () => {
   let savedEnv: string | undefined
@@ -128,5 +128,36 @@ describe('SDK and CLI both delegate to the shared resolver', () => {
     const cli = await Bun.file(new URL('../../bin/cli.ts', import.meta.url)).text()
     expect(idx).toContain('craftBinaryNotFoundMessage')
     expect(cli).toContain('craftBinaryNotFoundMessage')
+  })
+})
+
+describe('CLI shim re-entry', () => {
+  it('marks spawned children so a re-entered CLI can recognise itself', async () => {
+    const cli = await Bun.file(new URL('../../bin/cli.ts', import.meta.url)).text()
+    // The marker has to be set on the spawn and checked at startup; either
+    // half alone leaves the loop undiagnosed.
+    expect(cli).toContain('CRAFT_CLI_SPAWN_MARKER')
+    expect(cli).toContain('craftBinaryIsCliShimMessage')
+    expect(cli.indexOf('craftBinaryIsCliShimMessage')).toBeLessThan(cli.indexOf('const cli = new CLI'))
+  })
+
+  it('names the offending PATH entry, since nothing else points at PATH', () => {
+    const message = craftBinaryIsCliShimMessage('/Users/me/.bun/bin/craft')
+    expect(message).toContain('/Users/me/.bun/bin/craft')
+    expect(message).toContain('CRAFT_BIN')
+    expect(message).toContain('pantry install craft')
+    // Explains the symptom the user actually saw, not just the cause.
+    expect(message).toContain('--url')
+  })
+
+  it('still resolves to the bare PATH name — the guard adds no probing', () => {
+    const previous = process.env.CRAFT_BIN
+    delete process.env.CRAFT_BIN
+    try {
+      expect(resolveCraftBinary()).toBe('craft')
+    }
+    finally {
+      if (previous !== undefined) process.env.CRAFT_BIN = previous
+    }
   })
 })
