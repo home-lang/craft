@@ -519,6 +519,17 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    // The host-matching and opt-in rules behind the local development TLS
+    // exception. Security-relevant and AppKit-free, so they are tested here
+    // rather than only exercised through a window.
+    const local_tls_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/local_tls.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
     const config_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("test/config_test.zig"),
@@ -847,6 +858,7 @@ pub fn build(b: *std.Build) void {
     const run_cli_tests = b.addRunArtifact(cli_tests);
     const run_native_sidebar_tests = b.addRunArtifact(native_sidebar_tests);
     const run_space_list_tests = b.addRunArtifact(space_list_tests);
+    const run_local_tls_tests = b.addRunArtifact(local_tls_tests);
     const run_config_tests = b.addRunArtifact(config_tests);
     const run_ipc_tests = b.addRunArtifact(ipc_tests);
     const run_performance_tests = b.addRunArtifact(performance_tests);
@@ -938,6 +950,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_cli_tests.step);
     test_step.dependOn(&run_native_sidebar_tests.step);
     test_step.dependOn(&run_space_list_tests.step);
+    test_step.dependOn(&run_local_tls_tests.step);
     test_step.dependOn(&run_config_tests.step);
     test_step.dependOn(&run_ipc_tests.step);
     test_step.dependOn(&run_performance_tests.step);
@@ -1030,6 +1043,9 @@ pub fn build(b: *std.Build) void {
 
     const test_space_list_step = b.step("test:space-list", "Run Space List tests");
     test_space_list_step.dependOn(&run_space_list_tests.step);
+
+    const test_local_tls_step = b.step("test:local-tls", "Run local development TLS tests");
+    test_local_tls_step.dependOn(&run_local_tls_tests.step);
 
     const test_config_step = b.step("test:config", "Run Config tests");
     test_config_step.dependOn(&run_config_tests.step);

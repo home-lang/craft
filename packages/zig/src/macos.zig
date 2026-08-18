@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const javascript = @import("javascript.zig");
 const native_sidebar_bootstrap = @import("native_sidebar_bootstrap.zig");
+const local_tls = @import("local_tls.zig");
 
 // Objective-C runtime types and functions (manual declarations to avoid @cImport issues)
 pub const objc = struct {
@@ -821,6 +822,14 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
                 std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
         };
     }
+
+    // Not gated on dev_tools: whether the inspector is available and whether a
+    // local certificate is trusted are unrelated questions. Before the load
+    // below, so it is in place for the first request's challenge.
+    setupNavigationDelegate(webview) catch |err| {
+        if (comptime builtin.mode == .debug)
+            std.debug.print("[Nav] Failed to setup navigation delegate: {}\n", .{err});
+    };
 
     if (style.benchmark) {
         // Benchmark mode: minimal setup — just set content view and return
@@ -2076,6 +2085,13 @@ pub fn createWindowWithSidebar(
             std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
     };
 
+    // The HTML below is loaded against a localhost base URL, and anything it
+    // fetches over HTTPS gets the same treatment as a directly loaded URL.
+    setupNavigationDelegate(webview) catch |err| {
+        if (comptime builtin.mode == .debug)
+            std.debug.print("[Nav] Failed to setup navigation delegate: {}\n", .{err});
+    };
+
     // HTML loads unmodified — the scripts are user scripts on the controller.
     const html_cstr = try @import("memory.zig").dupeZ(std.heap.c_allocator, u8, html);
     defer std.heap.c_allocator.free(html_cstr);
@@ -3086,6 +3102,13 @@ pub fn createWindowWithSidebarURL(
     setupUIDelegate(webview) catch |err| {
         if (comptime builtin.mode == .debug)
             std.debug.print("[Media] Failed to setup UI delegate: {}\n", .{err});
+    };
+
+    // This is the path that loads a URL straight into a sidebar window — the
+    // one a local dashboard actually goes through.
+    setupNavigationDelegate(webview) catch |err| {
+        if (comptime builtin.mode == .debug)
+            std.debug.print("[Nav] Failed to setup navigation delegate: {}\n", .{err});
     };
 
     msgSendVoid1(webview, "setAutoresizingMask:", @as(c_ulong, 2 | 16 | 4)); // Width + Height + Left margin flexible
@@ -5093,6 +5116,146 @@ pub fn setupUIDelegate(webview: objc.id) !void {
 
     if (comptime builtin.mode == .debug)
         std.debug.print("[Media] UI delegate set successfully - camera/microphone permissions enabled\n", .{});
+}
+
+// ============================================================================
+// WKNavigationDelegate — local development TLS
+// ============================================================================
+//
+// A development proxy such as rpx fronts local services over HTTPS with a
+// certificate from a local CA (tlsx). That CA is not a public root, so
+// WKWebView rejects the certificate, fails the provisional navigation, and
+// leaves a blank window on something like `https://dashboard.stacks.localhost`
+// with no visible explanation.
+//
+// The exception below is opt-in and narrow: nothing happens at all unless
+// `CRAFT_ALLOW_LOCAL_TLS` is set, and even then only loopback and the
+// `localhost` TLD skip validation. See `local_tls.zig` for both rules and the
+// reasoning behind the environment variable; this file only wires them to
+// AppKit.
+
+/// Read once. A trust exception that could switch itself on part-way through a
+/// process's life would be harder to reason about, not easier.
+var local_tls_allowed: ?bool = null;
+
+fn allowsLocalDevTLS() bool {
+    if (local_tls_allowed) |cached| return cached;
+    const raw = std.c.getenv(local_tls.env_var);
+    const value: ?[]const u8 = if (raw) |v| std.mem.span(v) else null;
+    const allowed = local_tls.allowedByEnv(value);
+    local_tls_allowed = allowed;
+    return allowed;
+}
+
+/// Enough of the Objective-C block ABI to reach `invoke`. The layout is fixed:
+/// isa, flags, reserved, invoke, descriptor. Mirrors the block call in
+/// `handleMediaCapturePermission`, which takes one argument where this takes
+/// two.
+const AuthChallengeBlock = extern struct {
+    isa: ?*anyopaque,
+    flags: c_int,
+    reserved: c_int,
+    invoke: *const fn (*anyopaque, c_long, objc.id) callconv(.c) void,
+};
+
+/// `NSURLSessionAuthChallengeDisposition`.
+const AuthDisposition = enum(c_long) {
+    use_credential = 0,
+    perform_default_handling = 1,
+};
+
+/// Answer the challenge. This must happen exactly once on every path out of
+/// the delegate method: dropping the handler does not fail the load, it hangs
+/// it, and WKWebView will sit on a blank window forever waiting for a reply.
+fn finishAuthChallenge(handler: objc.id, disposition: AuthDisposition, credential: objc.id) void {
+    const h = handler orelse return;
+    const block: *AuthChallengeBlock = @ptrCast(@alignCast(h));
+    block.invoke(h, @intFromEnum(disposition), credential);
+}
+
+fn hostIsLocalDev(host: objc.id) bool {
+    const raw = msgSend0(host, "UTF8String") orelse return false;
+    const cstr: [*:0]const u8 = @ptrCast(@alignCast(raw));
+    return local_tls.isLocalHostName(std.mem.span(cstr));
+}
+
+/// `webView:didReceiveAuthenticationChallenge:completionHandler:`
+///
+/// Accepts the presented server trust for a local host, and takes default
+/// handling for everything else — every host on the internet, and every
+/// challenge that is not a TLS server trust (HTTP basic auth, client
+/// certificates). Default handling is ordinary validation, so falling through
+/// is always the safe answer.
+fn handleAuthChallenge(
+    _: objc.id,
+    _: objc.SEL,
+    _: objc.id,
+    challenge: objc.id,
+    completionHandler: objc.id,
+) callconv(.c) void {
+    const protectionSpace = msgSend0(challenge, "protectionSpace");
+    if (protectionSpace == null)
+        return finishAuthChallenge(completionHandler, .perform_default_handling, null);
+
+    // Non-null only for server-trust challenges.
+    const serverTrust = msgSend0(protectionSpace, "serverTrust");
+    if (serverTrust == null)
+        return finishAuthChallenge(completionHandler, .perform_default_handling, null);
+
+    if (!hostIsLocalDev(msgSend0(protectionSpace, "host")))
+        return finishAuthChallenge(completionHandler, .perform_default_handling, null);
+
+    if (comptime builtin.mode == .debug)
+        std.debug.print("[Nav] Trusting local development certificate\n", .{});
+
+    const NSURLCredential = getClass("NSURLCredential");
+    const credential = msgSend1(NSURLCredential, "credentialForTrust:", serverTrust);
+    finishAuthChallenge(completionHandler, .use_credential, credential);
+}
+
+/// Attach a `WKNavigationDelegate` that trusts local development certificates.
+///
+/// A no-op unless the process opted in: without `CRAFT_ALLOW_LOCAL_TLS` craft
+/// installs no navigation delegate at all, which is exactly the behaviour it
+/// has always had. Implementing only the auth-challenge method leaves every
+/// other navigation decision — policy, redirects, provisional failures — at its
+/// AppKit default.
+///
+/// Call before loading, so the delegate is in place for the first request's
+/// challenge.
+pub fn setupNavigationDelegate(webview: objc.id) !void {
+    if (!allowsLocalDevTLS()) return;
+
+    const superclass = getClass("NSObject");
+    const className = "CraftNavigationDelegate";
+
+    // May already exist: one delegate class serves every window.
+    var delegateClass = objc.objc_getClass(className);
+    if (delegateClass == null) {
+        delegateClass = objc.objc_allocateClassPair(@ptrCast(superclass), className, 0);
+        if (delegateClass == null)
+            return error.ClassAllocationFailed;
+
+        const method_sel = objc.sel_registerName("webView:didReceiveAuthenticationChallenge:completionHandler:");
+        const method_imp: objc.IMP = @ptrCast(@constCast(&handleAuthChallenge));
+        // void; self, _cmd, webView, challenge, completionHandler (block)
+        const method_types: [*c]const u8 = "v@:@@@?";
+        if (!objc.class_addMethod(@ptrCast(@alignCast(delegateClass)), method_sel, method_imp, method_types))
+            return error.MethodAdditionFailed;
+
+        objc.objc_registerClassPair(@ptrCast(delegateClass));
+    }
+
+    // `navigationDelegate` is a weak reference, so the +1 from `alloc`/`init`
+    // is what keeps this alive — one small object per window, deliberately
+    // never released. Balancing it would leave the webview pointing at freed
+    // memory the moment a challenge arrived.
+    const delegate_class_id: objc.id = @ptrCast(@alignCast(delegateClass));
+    const delegate = msgSend0(msgSend0(delegate_class_id, "alloc"), "init");
+    msgSendVoid1(webview, "setNavigationDelegate:", delegate);
+
+    if (comptime builtin.mode == .debug)
+        std.debug.print("[Nav] Local development TLS enabled via {s}\n", .{local_tls.env_var});
 }
 
 // ============================================================================

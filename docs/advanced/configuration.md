@@ -290,8 +290,34 @@ CRAFT_BUILD_TARGET=macos,linux,windows
 
 # Development
 CRAFT_DEV_PORT=3000
+CRAFT_ALLOW_LOCAL_TLS=1
 NODE_ENV=development
 ```
+
+### `CRAFT_ALLOW_LOCAL_TLS`
+
+A development proxy that fronts your local services over HTTPS — rpx, or
+anything else using a locally issued certificate — presents a certificate
+signed by a CA that is not a public root. The webview rejects it, the
+navigation fails, and you get a blank window with no explanation on something
+like `https://dashboard.myapp.localhost`.
+
+Setting this variable tells Craft to accept that certificate:
+
+```bash
+CRAFT_ALLOW_LOCAL_TLS=1 craft --url https://dashboard.myapp.localhost
+```
+
+It applies only to loopback addresses (`127.0.0.0/8`, `::1`) and the
+`localhost` TLD (`localhost`, `*.localhost`). Every other host keeps ordinary
+certificate validation, including a host that *resolves* to loopback but is
+not named for it — `127.0.0.1.nip.io` is still validated normally.
+
+This is deliberately an environment variable and not a `craft.config.ts`
+option: config travels into the app you ship, and a certificate exception that
+can be committed is one that eventually reaches users who never asked for it.
+Set it on the machine doing the development. Unset — or set to `0`, `false` or
+`no` — Craft installs no certificate handling at all.
 
 ### Environment Files
 
