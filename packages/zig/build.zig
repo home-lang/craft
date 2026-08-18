@@ -103,7 +103,15 @@ pub fn build(b: *std.Build) void {
             // runtime, rather than giving it up for everyone.
             .single_threaded = !js_runtime_enabled,
             .strip = if (optimize != .debug) true else null,
-            .unwind_tables = if (optimize != .debug) .none else null,
+            // Never `.none` on Windows. The x64 ABI requires unwind data for
+            // non-leaf functions, and zig passes this module option down into
+            // the mingw-w64 CRT it builds for the target — where crtexe.c's
+            // inline `.seh_handler` has no active `.seh_proc` frame to attach
+            // to and the cross-compile dies on ".seh_ directive must appear
+            // within an active frame". The release workflow cross-compiles
+            // x86_64-windows from Linux, so this is the difference between a
+            // release happening and not.
+            .unwind_tables = if (optimize != .debug and target_os != .windows) .none else null,
             .omit_frame_pointer = if (optimize == .small) true else null,
             .error_tracing = if (optimize != .debug) false else null,
             .imports = &.{
