@@ -40,18 +40,43 @@
 
   // Catastrophic native-side failure: drop every pending promise with the
   // same error so callers don't hang forever.
+  // Native calls this when an action fails. The payload names the action that
+  // failed, so only that action's callers are rejected — this used to empty the
+  // whole pending table, so one bridge failing took down every unrelated call
+  // in flight at the time.
+  //
+  // Fire-and-forget calls (`_send`) never register a pending entry: native
+  // acknowledges nothing on success, so there is nothing to wait on and the
+  // promise has already resolved by the time a failure comes back. Those have
+  // no caller left to reject, so they are reported to the console instead —
+  // otherwise the only trace is in the native log, which is not where anyone
+  // writing a web page is looking.
   window.__craftBridgeError = function (err) {
-    const p = window.__craftBridgePending || {}
-    Object.keys(p).forEach(function (k) {
-      const q = p[k]
-      if (Array.isArray(q)) {
-        while (q.length > 0) {
-          const e = q.shift()
-          if (e && e.reject) e.reject(err)
-        }
+    const pending = window.__craftBridgePending || {}
+    const action = err && err.action
+    let rejected = 0
+
+    const drain = function (key) {
+      const q = pending[key]
+      if (!Array.isArray(q)) return
+      while (q.length > 0) {
+        const e = q.shift()
+        if (e && e.reject) { e.reject(err); rejected++ }
       }
-    })
-    window.__craftBridgePending = {}
+      delete pending[key]
+    }
+
+    if (action) drain(action)
+    // An error that does not name its action cannot be targeted; the
+    // conservative reading is that the bridge itself is in trouble.
+    else Object.keys(pending).forEach(drain)
+
+    if (rejected === 0 && typeof console !== 'undefined' && console.error) {
+      console.error(
+        '[craft] bridge call failed: ' + (action || '(unnamed action)'),
+        (err && err.code) || '', (err && err.message) || '',
+      )
+    }
   }
 
   function _post(t, a, d) {
@@ -137,6 +162,24 @@
       window.addEventListener(name, h)
       return function () { window.removeEventListener(name, h) }
     }
+  }
+
+  // `menu.addItem` takes the item in the shape the rest of the menu API uses
+  // — `{ id, label, shortcut }` — while the native side reads a flat payload
+  // keyed `itemId`/`menuId` with the index alongside. Translate here rather
+  // than asking callers to know both spellings.
+  function _menuItemPayload(menuId, item) {
+    const it = item || {}
+    const payload = {
+      menuId: String(menuId),
+      itemId: String(it.id == null ? '' : it.id),
+      label: String(it.label == null ? '' : it.label),
+      // -1 appends, which is what a caller who did not say where means.
+      index: typeof it.index === 'number' ? it.index : -1,
+    }
+    if (it.shortcut != null) payload.shortcut = String(it.shortcut)
+    if (it.icon != null) payload.icon = String(it.icon)
+    return payload
   }
 
   function _stringify(d) {
@@ -639,16 +682,23 @@
   // -------------------------------------------------------------------------
   // menu — application menubar (the macOS top-of-screen menu)
   // -------------------------------------------------------------------------
+  //
+  // Every payload here is keyed the way `bridge_menu.zig` reads it, which is
+  // `itemId` and `menuId` — not `id` and `parent`. The two drifted apart, and
+  // because the native item handlers scan for their key and fall back to an
+  // empty string, a wrong key does not raise anything: the lookup just misses
+  // and the call returns as if it had worked. Same reason the action below is
+  // `setAppMenu` and not `setApplicationMenu`, which no dispatcher ever had.
   window.craft.menu = {
-    set:                  function (items)             { return _send('menu', 'setApplicationMenu', _stringify(items || [])) },
-    setDock:              function (items)             { return _send('menu', 'setDockMenu', _stringify(items || [])) },
-    addItem:              function (parent, item)      { return _send('menu', 'addMenuItem', _stringify({ parent: String(parent), item: item })) },
-    removeItem:           function (id)                { return _send('menu', 'removeMenuItem', _stringify({ id: String(id) })) },
-    enableItem:           function (id)                { return _send('menu', 'enableMenuItem', _stringify({ id: String(id) })) },
-    disableItem:          function (id)                { return _send('menu', 'disableMenuItem', _stringify({ id: String(id) })) },
-    checkItem:            function (id)                { return _send('menu', 'checkMenuItem', _stringify({ id: String(id) })) },
-    uncheckItem:          function (id)                { return _send('menu', 'uncheckMenuItem', _stringify({ id: String(id) })) },
-    setItemLabel:         function (id, label)         { return _send('menu', 'setMenuItemLabel', _stringify({ id: String(id), label: String(label) })) },
+    set:                  function (options)           { return _send('menu', 'setAppMenu', _stringify(options || {})) },
+    setDock:              function (options)           { return _send('menu', 'setDockMenu', _stringify(options || {})) },
+    addItem:              function (menuId, item)      { return _send('menu', 'addMenuItem', _stringify(_menuItemPayload(menuId, item))) },
+    removeItem:           function (itemId)            { return _send('menu', 'removeMenuItem', _stringify({ itemId: String(itemId) })) },
+    enableItem:           function (itemId)            { return _send('menu', 'enableMenuItem', _stringify({ itemId: String(itemId) })) },
+    disableItem:          function (itemId)            { return _send('menu', 'disableMenuItem', _stringify({ itemId: String(itemId) })) },
+    checkItem:            function (itemId)            { return _send('menu', 'checkMenuItem', _stringify({ itemId: String(itemId) })) },
+    uncheckItem:          function (itemId)            { return _send('menu', 'uncheckMenuItem', _stringify({ itemId: String(itemId) })) },
+    setItemLabel:         function (itemId, label)     { return _send('menu', 'setMenuItemLabel', _stringify({ itemId: String(itemId), label: String(label) })) },
     clearDock:            function ()                  { return _send('menu', 'clearDockMenu') },
     onAction:             _evt('craft:menu:action'),
   }

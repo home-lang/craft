@@ -193,17 +193,34 @@ export interface NotificationAction {
 // Menu Bridge Types
 // ============================================
 
+/**
+ * The macOS application menubar, as `window.craft.menu` actually exposes it.
+ *
+ * These names are the ones on the injected bridge. An earlier version of this
+ * file declared the *wire* action names instead (`setAppMenu`, `addMenuItem`,
+ * ...), which are what the bridge sends to native, not what it offers to a
+ * page — so every declared method typechecked and then threw at runtime.
+ */
 export interface MenuBridge {
-  setAppMenu(options: { menus: MenuDefinition[] }): Promise<void>;
-  setDockMenu(options: { items: MenuItemDefinition[] }): Promise<void>;
-  addMenuItem(options: AddMenuItemOptions): Promise<void>;
-  removeMenuItem(options: { id: string }): Promise<void>;
-  enableMenuItem(options: { id: string }): Promise<void>;
-  disableMenuItem(options: { id: string }): Promise<void>;
-  checkMenuItem(options: { id: string }): Promise<void>;
-  uncheckMenuItem(options: { id: string }): Promise<void>;
-  setMenuItemLabel(options: { id: string; label: string }): Promise<void>;
-  clearDockMenu(): Promise<void>;
+  /** Replace the whole menubar. */
+  set(options: { menus: MenuDefinition[] }): Promise<void>;
+  /** Replace the Dock menu (right-click the Dock icon). */
+  setDock(options: { items: MenuItemDefinition[] }): Promise<void>;
+  /** Append an item to an existing menu. Omit `index` on the item to append. */
+  addItem(menuId: string, item: MenuItemDefinition & { index?: number }): Promise<void>;
+  removeItem(itemId: string): Promise<void>;
+  enableItem(itemId: string): Promise<void>;
+  disableItem(itemId: string): Promise<void>;
+  /** Add a checkmark. */
+  checkItem(itemId: string): Promise<void>;
+  uncheckItem(itemId: string): Promise<void>;
+  setItemLabel(itemId: string, label: string): Promise<void>;
+  clearDock(): Promise<void>;
+  /**
+   * Menu clicks arrive here — without it there is no way to respond to a menu
+   * at all. Returns an unsubscribe function.
+   */
+  onAction(handler: (event: { id: string }) => void): () => void;
 }
 
 export interface MenuDefinition {
@@ -211,22 +228,31 @@ export interface MenuDefinition {
   items: MenuItemDefinition[];
 }
 
+/**
+ * One menu item.
+ *
+ * This is the whole of it. The native decoder parses exactly these fields and
+ * is set to ignore anything else, so extra keys are dropped in silence rather
+ * than rejected — which is why `type`, `checked`, `enabled`, `action` and
+ * `submenu` used to be declared here despite never having had an effect.
+ *
+ * Two consequences worth knowing:
+ *   - a separator is `{ separator: true }`, not `{ type: 'separator' }`
+ *   - there are no nested submenus yet; a menubar is one level deep
+ *
+ * Toggling a checkmark or enablement is done after the fact, through
+ * `checkItem` / `enableItem`, not by a field here.
+ */
 export interface MenuItemDefinition {
-  id: string;
-  label: string;
-  type?: 'normal' | 'separator' | 'checkbox' | 'radio';
-  checked?: boolean;
-  enabled?: boolean;
-  action?: string;
+  /** Echoed back by `onAction` when this item is clicked. */
+  id?: string;
+  label?: string;
+  /** Accelerator, e.g. `cmd+n`. */
   shortcut?: string;
-  icon?: string; // Icon name from icons.zig
-  submenu?: MenuItemDefinition[];
-}
-
-export interface AddMenuItemOptions {
-  menuId: string;
-  item: MenuItemDefinition;
-  position?: number;
+  /** Icon name from icons.zig. */
+  icon?: string;
+  /** Renders a divider; every other field is ignored when this is set. */
+  separator?: boolean;
 }
 
 // ============================================
