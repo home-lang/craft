@@ -154,6 +154,10 @@ export interface WindowOptions {
    * Draw native macOS sidebar material behind a web-rendered sidebar.
    * Useful for apps whose sidebar is authored in HTML/STX but should sit over
    * real AppKit vibrancy in transparent titlebar windows.
+   *
+   * The window title is hidden in this mode: the host draws its own
+   * sidebar/back/forward row into the titlebar, where AppKit would otherwise
+   * print the title underneath it.
    * @default false
    */
   webSidebarMaterial?: boolean

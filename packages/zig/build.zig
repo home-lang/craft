@@ -507,6 +507,18 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    // The space list is the AppKit-free half of the spaces switcher, so its
+    // tests are the ones that can run anywhere. They root at the source file
+    // itself: nothing else in the build reaches it, and Zig's lazy analysis
+    // means tests in an unreferenced file are silently never compiled.
+    const space_list_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/components/space_list.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
     const config_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("test/config_test.zig"),
@@ -834,6 +846,7 @@ pub fn build(b: *std.Build) void {
     const run_animation_tests = b.addRunArtifact(animation_tests);
     const run_cli_tests = b.addRunArtifact(cli_tests);
     const run_native_sidebar_tests = b.addRunArtifact(native_sidebar_tests);
+    const run_space_list_tests = b.addRunArtifact(space_list_tests);
     const run_config_tests = b.addRunArtifact(config_tests);
     const run_ipc_tests = b.addRunArtifact(ipc_tests);
     const run_performance_tests = b.addRunArtifact(performance_tests);
@@ -924,6 +937,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_animation_tests.step);
     test_step.dependOn(&run_cli_tests.step);
     test_step.dependOn(&run_native_sidebar_tests.step);
+    test_step.dependOn(&run_space_list_tests.step);
     test_step.dependOn(&run_config_tests.step);
     test_step.dependOn(&run_ipc_tests.step);
     test_step.dependOn(&run_performance_tests.step);
@@ -1013,6 +1027,9 @@ pub fn build(b: *std.Build) void {
 
     const test_native_sidebar_step = b.step("test:native-sidebar", "Run Native Sidebar tests");
     test_native_sidebar_step.dependOn(&run_native_sidebar_tests.step);
+
+    const test_space_list_step = b.step("test:space-list", "Run Space List tests");
+    test_space_list_step.dependOn(&run_space_list_tests.step);
 
     const test_config_step = b.step("test:config", "Run Config tests");
     test_config_step.dependOn(&run_config_tests.step);

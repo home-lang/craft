@@ -112,6 +112,20 @@ pub const SpaceList = struct {
     }
 };
 
+/// Whether a switcher over `count` spaces is worth putting on screen.
+///
+/// One space renders as a single selected segment naming the space the user is
+/// already in — a lone pill in the window chrome that says nothing and does
+/// nothing. The web rail hides its dots for exactly this case (`showDots =
+/// spaces.length > 1` in `<SidebarSpaceSwitcher>`, following Dia); the native
+/// control follows the same rule.
+///
+/// Lives here rather than next to the NSSegmentedControl so the rule can be
+/// tested without a window, like the rest of this file.
+pub fn shouldShowSwitcher(count: usize) bool {
+    return count >= 2;
+}
+
 // =============================================================================
 
 const testing = std.testing;
@@ -203,6 +217,45 @@ test "replacing with nothing leaves no active space" {
 
     try testing.expectEqual(@as(?usize, null), list.active);
     try testing.expectEqual(@as(?Space, null), list.activeSpace());
+}
+
+test "a switcher over fewer than two spaces stays hidden" {
+    try testing.expect(!shouldShowSwitcher(0));
+    try testing.expect(!shouldShowSwitcher(1));
+    try testing.expect(shouldShowSwitcher(2));
+    try testing.expect(shouldShowSwitcher(7));
+}
+
+test "growing from one space to two brings the switcher back" {
+    var list = make(testing.allocator);
+    defer list.deinit();
+    try list.append(.{ .id = "personal", .label = "Personal" });
+
+    // One space: nothing to switch between, so nothing to show.
+    try testing.expect(!shouldShowSwitcher(list.count()));
+
+    try list.replace(&.{
+        .{ .id = "personal", .label = "Personal" },
+        .{ .id = "work", .label = "Work" },
+    });
+
+    // The control is hidden, not destroyed, so this is all it takes to get it
+    // back — and the user is still in the space they were in.
+    try testing.expect(shouldShowSwitcher(list.count()));
+    try testing.expectEqualStrings("personal", list.activeSpace().?.id);
+}
+
+test "shrinking back to one space hides it again" {
+    var list = make(testing.allocator);
+    defer list.deinit();
+    try list.append(.{ .id = "personal", .label = "Personal" });
+    try list.append(.{ .id = "work", .label = "Work" });
+    try testing.expect(shouldShowSwitcher(list.count()));
+
+    try list.replace(&.{.{ .id = "work", .label = "Work" }});
+
+    try testing.expect(!shouldShowSwitcher(list.count()));
+    try testing.expectEqualStrings("work", list.activeSpace().?.id);
 }
 
 /// Mirrors `native_space_switcher.sanitizeId`. Duplicated rather than imported

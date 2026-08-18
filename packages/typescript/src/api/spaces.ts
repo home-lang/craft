@@ -33,6 +33,12 @@ export interface SpaceDescriptor {
 export interface SpacesSidebarOptions {
   /** Supply one to keep a stable id across reloads; generated otherwise. */
   id?: string
+  /**
+   * Fewer than two and the native control stays hidden — one space renders as a
+   * single selected segment naming the space the user is already in. It is
+   * hidden rather than destroyed, so a later `setSpaces` with two or more
+   * brings it straight back.
+   */
   spaces?: SpaceDescriptor[]
   /** Which space opens selected. Defaults to the first. */
   activeSpace?: string
