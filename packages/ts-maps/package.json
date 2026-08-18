@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
-    "ts-maps": "^0.2.7",
+    "ts-maps": "^0.3.1",
     "very-happy-dom": "^0.1.4"
   }
 }

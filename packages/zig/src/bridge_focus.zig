@@ -215,7 +215,7 @@ pub const FocusBridge = struct {
         };
         const exit_code: i32 = switch (term) {
             .exited => |code| @intCast(code),
-            .signal => |sig| -@as(i32, @intCast(@intFromEnum(sig))),
+            .signal => |sig| -@as(i32, @intCast(@backingInt(sig))),
             else => -1,
         };
 

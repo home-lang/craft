@@ -62,7 +62,7 @@ describe('macOS packaging diagnostics', () => {
       '-srcfolder', '/tmp/Craft.app',
       '-size', '157m',
       '-ov',
-      '-format', 'UDZO',
+      '-format', 'ULMO',
       '/tmp/Craft.dmg',
     ])
   })

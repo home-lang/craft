@@ -19,7 +19,7 @@ pub const Priority = enum(u8) {
     Critical = 3,
 
     pub fn compare(a: Priority, b: Priority) std.math.Order {
-        return std.math.order(@intFromEnum(a), @intFromEnum(b));
+        return std.math.order(@backingInt(a), @backingInt(b));
     }
 };
 
@@ -254,7 +254,7 @@ pub const MessageQueue = struct {
 
     fn comparePriority(_: void, a: QueuedMessage, b: QueuedMessage) bool {
         // Higher priority first
-        return @intFromEnum(a.priority) > @intFromEnum(b.priority);
+        return @backingInt(a.priority) > @backingInt(b.priority);
     }
 };
 

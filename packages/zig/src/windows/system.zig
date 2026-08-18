@@ -983,8 +983,8 @@ pub const Shell = struct {
 // ============================================
 
 test "TaskbarProgressState enum" {
-    try std.testing.expectEqual(@as(c_int, 0), @intFromEnum(TaskbarProgressState.no_progress));
-    try std.testing.expectEqual(@as(c_int, 2), @intFromEnum(TaskbarProgressState.normal));
+    try std.testing.expectEqual(@as(c_int, 0), @backingInt(TaskbarProgressState.no_progress));
+    try std.testing.expectEqual(@as(c_int, 2), @backingInt(TaskbarProgressState.normal));
 }
 
 test "ToastNotification init" {
@@ -1014,5 +1014,5 @@ test "JumpList init" {
 }
 
 test "WindowsTheme BackdropType" {
-    try std.testing.expectEqual(@as(c_int, 2), @intFromEnum(WindowsTheme.BackdropType.main_window));
+    try std.testing.expectEqual(@as(c_int, 2), @backingInt(WindowsTheme.BackdropType.main_window));
 }

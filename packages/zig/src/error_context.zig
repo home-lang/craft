@@ -125,7 +125,7 @@ pub const ErrorCode = enum(u32) {
     shader_compilation_failed = 1902,
 
     pub fn getCategory(self: ErrorCode) ErrorCategory {
-        const code = @intFromEnum(self);
+        const code = @backingInt(self);
         return switch (code / 100) {
             10 => .memory,
             11 => .io,
@@ -270,7 +270,7 @@ pub const ErrorContext = struct {
         const header = try std.fmt.allocPrint(allocator, "[{s}] {s} (Code: {d})\n", .{
             self.severity.toString(),
             self.code.getCategory().toString(),
-            @intFromEnum(self.code),
+            @backingInt(self.code),
         });
         defer allocator.free(header);
         try buf.appendSlice(allocator, header);

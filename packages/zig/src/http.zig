@@ -142,22 +142,22 @@ pub const StatusCode = enum(u16) {
     _,
 
     pub fn isSuccess(self: StatusCode) bool {
-        const code = @intFromEnum(self);
+        const code = @backingInt(self);
         return code >= 200 and code < 300;
     }
 
     pub fn isRedirect(self: StatusCode) bool {
-        const code = @intFromEnum(self);
+        const code = @backingInt(self);
         return code >= 300 and code < 400;
     }
 
     pub fn isClientError(self: StatusCode) bool {
-        const code = @intFromEnum(self);
+        const code = @backingInt(self);
         return code >= 400 and code < 500;
     }
 
     pub fn isServerError(self: StatusCode) bool {
-        const code = @intFromEnum(self);
+        const code = @backingInt(self);
         return code >= 500 and code < 600;
     }
 
@@ -767,7 +767,7 @@ pub const WebSocket = struct {
         self.request = request;
         request.sendBodiless() catch return HttpError.NetworkError;
         const response = request.receiveHead(&.{}) catch return HttpError.InvalidResponse;
-        if (@intFromEnum(response.head.status) != 101) return HttpError.InvalidResponse;
+        if (@backingInt(response.head.status) != 101) return HttpError.InvalidResponse;
 
         var sha1 = std.crypto.hash.Sha1.init(.{});
         sha1.update(key);
@@ -1007,8 +1007,8 @@ pub const HttpClient = struct {
         const body = try body_list.toOwnedSlice(self.allocator);
         errdefer self.allocator.free(body);
         var response = Response{
-            .status = @intFromEnum(incoming.head.status),
-            .status_code = @enumFromInt(@intFromEnum(incoming.head.status)),
+            .status = @backingInt(incoming.head.status),
+            .status_code = @fromBackingInt(@intCast(@backingInt(incoming.head.status))),
             .headers = response_headers,
             .body = body,
             .url = full_url,

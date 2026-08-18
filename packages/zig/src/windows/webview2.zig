@@ -1011,8 +1011,8 @@ test "WebView2 init" {
 }
 
 test "WebErrorStatus enum" {
-    try std.testing.expectEqual(@as(c_int, 0), @intFromEnum(WebErrorStatus.unknown));
-    try std.testing.expectEqual(@as(c_int, 7), @intFromEnum(WebErrorStatus.timeout));
+    try std.testing.expectEqual(@as(c_int, 0), @backingInt(WebErrorStatus.unknown));
+    try std.testing.expectEqual(@as(c_int, 7), @backingInt(WebErrorStatus.timeout));
 }
 
 test "utf8ToUtf16 basic" {

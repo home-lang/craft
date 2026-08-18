@@ -677,7 +677,7 @@ pub const CastController = struct {
     }
 
     pub fn setProtocolEnabled(self: *CastController, protocol: CastProtocol, enabled: bool) void {
-        const bit = @as(u8, 1) << @intFromEnum(protocol);
+        const bit = @as(u8, 1) << @backingInt(protocol);
         if (enabled) {
             self.supported_protocols |= bit;
         } else {
@@ -686,7 +686,7 @@ pub const CastController = struct {
     }
 
     pub fn isProtocolEnabled(self: CastController, protocol: CastProtocol) bool {
-        const bit = @as(u8, 1) << @intFromEnum(protocol);
+        const bit = @as(u8, 1) << @backingInt(protocol);
         return (self.supported_protocols & bit) != 0;
     }
 };

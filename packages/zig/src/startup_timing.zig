@@ -60,7 +60,7 @@ pub fn start() void {
     enabled = true;
     origin_ns = compat.nanoTimestamp();
     stamps = @splat(null);
-    stamps[@intFromEnum(Phase.process_start)] = origin_ns;
+    stamps[@backingInt(Phase.process_start)] = origin_ns;
 }
 
 /// Record a phase. A no-op unless `start()` ran, so call sites need no guard.
@@ -70,14 +70,14 @@ pub fn start() void {
 /// question is always when a phase *first* happened.
 pub fn mark(phase: Phase) void {
     if (!enabled) return;
-    const index = @intFromEnum(phase);
+    const index = @backingInt(phase);
     if (stamps[index] != null) return;
     stamps[index] = compat.nanoTimestamp();
 }
 
 /// Milliseconds from process start to a phase, or null if it never happened.
 pub fn millisSince(phase: Phase) ?f64 {
-    const at = stamps[@intFromEnum(phase)] orelse return null;
+    const at = stamps[@backingInt(phase)] orelse return null;
     return @as(f64, @floatFromInt(at - origin_ns)) / 1_000_000.0;
 }
 
@@ -91,7 +91,7 @@ pub fn report() void {
     std.debug.print("\n  craft startup\n", .{});
     var previous: ?f64 = null;
     inline for (0..count) |index| {
-        const phase: Phase = @enumFromInt(info.field_values[index]);
+        const phase: Phase = @fromBackingInt(@intCast(info.field_values[index]));
         if (millisSince(phase)) |elapsed| {
             // Phases that never ran are skipped rather than shown as zero: a
             // menubar-only app has no window, and a fabricated 0.0 there would

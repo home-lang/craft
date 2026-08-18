@@ -112,8 +112,8 @@ const InternalError = enum {
 
     fn code(self: InternalError) i32 {
         return switch (self) {
-            .invalid_json_id_unavailable, .missing_method => @intFromEnum(ErrorCode.protocol_mismatch),
-            .handler_failed => @intFromEnum(ErrorCode.unknown),
+            .invalid_json_id_unavailable, .missing_method => @backingInt(ErrorCode.protocol_mismatch),
+            .handler_failed => @backingInt(ErrorCode.unknown),
         };
     }
 };

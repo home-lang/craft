@@ -208,7 +208,7 @@ pub const Connection = struct {
         user_data: ?*anyopaque,
     ) c_uint {
         return c.g_bus_own_name(
-            @intFromEnum(bus_type),
+            @backingInt(bus_type),
             name,
             flags,
             bus_acquired,
@@ -243,7 +243,7 @@ pub const Proxy = struct {
     ) !Self {
         var err: ?*GError = null;
         const proxy = c.g_dbus_proxy_new_for_bus_sync(
-            @intFromEnum(bus_type),
+            @backingInt(bus_type),
             c.G_DBUS_PROXY_FLAGS_NONE,
             null,
             name,
@@ -822,7 +822,7 @@ pub const NetworkManager = struct {
         if (@constCast(&proxy).getProperty("Connectivity")) |variant| {
             defer c.g_variant_unref(variant);
             const state = c.g_variant_get_uint32(variant);
-            return @enumFromInt(state);
+            return @fromBackingInt(@intCast(state));
         }
         return .unknown;
     }
@@ -1160,11 +1160,11 @@ pub const FlatpakPortal = struct {
 // ============================================
 
 test "BusType enum values" {
-    try std.testing.expectEqual(@as(c_int, c.G_BUS_TYPE_SESSION), @intFromEnum(BusType.session));
-    try std.testing.expectEqual(@as(c_int, c.G_BUS_TYPE_SYSTEM), @intFromEnum(BusType.system));
+    try std.testing.expectEqual(@as(c_int, c.G_BUS_TYPE_SESSION), @backingInt(BusType.session));
+    try std.testing.expectEqual(@as(c_int, c.G_BUS_TYPE_SYSTEM), @backingInt(BusType.system));
 }
 
 test "NetworkManager ConnectivityState" {
-    try std.testing.expectEqual(@as(u32, 0), @intFromEnum(NetworkManager.ConnectivityState.unknown));
-    try std.testing.expectEqual(@as(u32, 4), @intFromEnum(NetworkManager.ConnectivityState.full));
+    try std.testing.expectEqual(@as(u32, 0), @backingInt(NetworkManager.ConnectivityState.unknown));
+    try std.testing.expectEqual(@as(u32, 4), @backingInt(NetworkManager.ConnectivityState.full));
 }

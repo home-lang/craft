@@ -17,7 +17,7 @@
   window.craft = window.craft || {}
   if (window.craft.gestures) return
 
-  var listeners = []
+  const listeners = []
 
   window.craft.gestures = {
     /**
@@ -37,7 +37,7 @@
       if (typeof callback !== 'function') return function () {}
       listeners.push(callback)
       return function off() {
-        var at = listeners.indexOf(callback)
+        const at = listeners.indexOf(callback)
         if (at !== -1) listeners.splice(at, 1)
       }
     },
@@ -47,7 +47,7 @@
       // Iterate a copy: a listener that unsubscribes itself mid-dispatch
       // would otherwise shift the array out from under the loop and skip the
       // next listener.
-      var current = listeners.slice()
+      const current = listeners.slice()
       for (var i = 0; i < current.length; i++) {
         try {
           current[i](swipe)

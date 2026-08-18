@@ -527,7 +527,7 @@ pub const Linux = struct {
             self.status = status;
             // In a real implementation:
             // app_indicator_set_status(self.app_indicator, status);
-            log.debug("Linux AppIndicator status set: {}", .{@intFromEnum(status)});
+            log.debug("Linux AppIndicator status set: {}", .{@backingInt(status)});
         }
 
         pub fn setIcon(self: *Indicator, icon_name: []const u8) void {
@@ -1162,11 +1162,11 @@ test "windows tray icon creation" {
 }
 
 test "windows balloon icon types" {
-    try std.testing.expectEqual(@as(u32, 0), @intFromEnum(Windows.BalloonIconType.none));
-    try std.testing.expectEqual(@as(u32, 1), @intFromEnum(Windows.BalloonIconType.info));
-    try std.testing.expectEqual(@as(u32, 2), @intFromEnum(Windows.BalloonIconType.warning));
-    try std.testing.expectEqual(@as(u32, 3), @intFromEnum(Windows.BalloonIconType.@"error"));
-    try std.testing.expectEqual(@as(u32, 4), @intFromEnum(Windows.BalloonIconType.user));
+    try std.testing.expectEqual(@as(u32, 0), @backingInt(Windows.BalloonIconType.none));
+    try std.testing.expectEqual(@as(u32, 1), @backingInt(Windows.BalloonIconType.info));
+    try std.testing.expectEqual(@as(u32, 2), @backingInt(Windows.BalloonIconType.warning));
+    try std.testing.expectEqual(@as(u32, 3), @backingInt(Windows.BalloonIconType.@"error"));
+    try std.testing.expectEqual(@as(u32, 4), @backingInt(Windows.BalloonIconType.user));
 }
 
 test "click action types" {

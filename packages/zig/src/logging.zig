@@ -111,7 +111,7 @@ fn logInternal(
     src: std.builtin.SourceLocation,
 ) void {
     // Check if we should log at this level
-    if (@intFromEnum(level) < @intFromEnum(global_config.level)) {
+    if (@backingInt(level) < @backingInt(global_config.level)) {
         return;
     }
 
@@ -297,11 +297,11 @@ pub const shortcuts = scoped("Shortcuts");
 // ============================================
 
 test "log level ordering" {
-    try std.testing.expect(@intFromEnum(LogLevel.trace) < @intFromEnum(LogLevel.debug));
-    try std.testing.expect(@intFromEnum(LogLevel.debug) < @intFromEnum(LogLevel.info));
-    try std.testing.expect(@intFromEnum(LogLevel.info) < @intFromEnum(LogLevel.warn));
-    try std.testing.expect(@intFromEnum(LogLevel.warn) < @intFromEnum(LogLevel.err));
-    try std.testing.expect(@intFromEnum(LogLevel.err) < @intFromEnum(LogLevel.fatal));
+    try std.testing.expect(@backingInt(LogLevel.trace) < @backingInt(LogLevel.debug));
+    try std.testing.expect(@backingInt(LogLevel.debug) < @backingInt(LogLevel.info));
+    try std.testing.expect(@backingInt(LogLevel.info) < @backingInt(LogLevel.warn));
+    try std.testing.expect(@backingInt(LogLevel.warn) < @backingInt(LogLevel.err));
+    try std.testing.expect(@backingInt(LogLevel.err) < @backingInt(LogLevel.fatal));
 }
 
 test "scoped logger" {

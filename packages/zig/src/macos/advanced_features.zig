@@ -289,7 +289,7 @@ pub const Menu = struct {
                     // Set properties
                     _ = objc.objc_msgSend(mi, objc.sel_registerName("setTag:"), item_config.tag);
                     _ = objc.objc_msgSend(mi, objc.sel_registerName("setEnabled:"), @as(i8, if (item_config.enabled) 1 else 0));
-                    _ = objc.objc_msgSend(mi, objc.sel_registerName("setState:"), @intFromEnum(item_config.state));
+                    _ = objc.objc_msgSend(mi, objc.sel_registerName("setState:"), @backingInt(item_config.state));
 
                     if (item_config.image) |img| {
                         _ = objc.objc_msgSend(mi, objc.sel_registerName("setImage:"), img);

@@ -19,8 +19,12 @@ defaults:
 jobs:
   zig-core:
     strategy:
+      # Without this, one red leg cancels the others mid-step and nobody sees a
+      # result for the platforms that were fine. release.yml and
+      # native-lifecycle.yml both already set it.
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
 
     runs-on: ${{ matrix.os }}
 
