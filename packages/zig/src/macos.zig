@@ -616,6 +616,19 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         _ = msgSend1(window, "setLevel:", NSFloatingWindowLevel);
     }
 
+    // A web-sidebar-material window draws its own chrome row into the theme
+    // frame, starting 68pt right of the close button — and AppKit puts the
+    // window title at x = 82. Left visible, the title prints underneath that
+    // row. Hiding it is the whole fix; the rest of the titlebar treatment below
+    // must NOT follow, because `setTitlebarAppearsTransparent:` hides
+    // NSTitlebarBackgroundView, and on a window that did not also ask for
+    // `titlebar_hidden` the content view stops 32pt short of the top, so with
+    // the non-opaque background craft sets further down there would be nothing
+    // left to paint that strip: a see-through hole where the titlebar was.
+    if (style.web_sidebar_material and !style.titlebar_hidden) {
+        _ = msgSend1(window, "setTitleVisibility:", @as(c_int, 1)); // NSWindowTitleHidden
+    }
+
     // Configure titlebar transparency for full-size content view
     if (style.titlebar_hidden) {
         _ = msgSend1(window, "setTitlebarAppearsTransparent:", @as(c_int, 1)); // YES
@@ -628,9 +641,8 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         _ = msgSend1(window, "setTitlebarSeparatorStyle:", @as(c_long, 2)); // NSWindowTitlebarSeparatorStyleNone
 
         // CRITICAL: Position traffic lights in the sidebar (Tahoe/Settings style).
-        // Web-sidebar material windows also draw custom sidebar/back/forward
-        // controls from the close-button frame, so this one inset defines the
-        // whole native chrome row.
+        // Web-sidebar material windows draw custom sidebar/back/forward controls
+        // to the right of these, from the close button's x.
         const trafficLightTopInset: f64 = if (style.web_sidebar_material) 32.0 else 28.0;
 
         // Close button (red) - NSWindowCloseButton = 0
@@ -2728,6 +2740,75 @@ fn ensureSidebarToggleResponder() void {
     objc.objc_registerClassPair(sidebarToggleResponderClass);
 }
 
+// =============================================================================
+// Titlebar geometry
+//
+// Anything craft draws into the window chrome — the web-sidebar chrome row, the
+// spaces switcher — has to answer the same two questions: how far down the
+// theme frame does the titlebar band reach, and which autoresizing bits keep a
+// control up there when the window grows. Both used to be answered inline, and
+// wrongly, wherever they came up.
+//
+// The native-sidebar toggle button in `createWindowWithSidebarURL` still has
+// its own hand-rolled 52pt titlebar constant for y; it takes the mask from here
+// but not the band. Migrating it moves a button in a feature this change has
+// not otherwise touched, so it is left for its own commit.
+// =============================================================================
+
+/// Height of the titlebar band, in points.
+///
+/// `contentLayoutRect` is the part of the window AppKit leaves to content, so
+/// the difference against the theme frame is the band — 32pt for a standard
+/// window, and still 32pt when `fullSizeContentView` lets the webview draw
+/// underneath it. A borderless window has no band at all and reports 0.
+fn titlebarBandHeight(window: objc.id, themeFrame: objc.id) f64 {
+    const themeHeight = msgSendRect(themeFrame, "bounds").size.height;
+    const layoutHeight = msgSendRect(window, "contentLayoutRect").size.height;
+    return themeHeight - layoutHeight;
+}
+
+/// Where to put a `height`-point control so it sits centred in the titlebar,
+/// in theme-frame coordinates.
+///
+/// The obvious-looking alternative — read `standardWindowButton:`'s frame and
+/// mirror it through the theme frame's height — is what the switcher and the
+/// chrome row both used to do, and it is wrong twice over. Those frames are in
+/// *NSTitlebarView* coordinates, not the theme frame's, and the arithmetic then
+/// mirrors an already-top-relative y a second time. The two errors cancel
+/// exactly while the buttons sit at their default position (the band is 32 and
+/// the button is centred in it: 2*9 + 14 == 32), which is why it looked correct
+/// for so long. Move the traffic lights — craft does, in `createWindowWithStyle`
+/// and again in the native-UI bridge — and the control lands at the far edge:
+/// measured at y = -6 on an 800pt window against a correct 772.
+///
+/// Anchoring to the band instead is immune to where the buttons are, agrees
+/// with today's value to the point in every case where today's value was right,
+/// and keeps the control on screen when `standardWindowButton:` returns nothing
+/// at all.
+pub fn titlebarControlY(window: objc.id, themeFrame: objc.id, height: f64) f64 {
+    const themeHeight = msgSendRect(themeFrame, "bounds").size.height;
+    const measured = titlebarBandHeight(window, themeFrame);
+    // A window that reports no band has no titlebar to centre in — a borderless
+    // one, most obviously. Fall back to a nominal titlebar's worth so the
+    // control lands just inside the top of the content rather than off-window,
+    // which is where the old arithmetic put it.
+    const band: f64 = if (measured > 1.0) measured else 28.0;
+    return themeHeight - band + ((band - height) / 2.0);
+}
+
+/// Autoresizing mask that keeps a titlebar control pinned to the window's
+/// top-left corner as the window resizes.
+///
+/// NSViewMaxXMargin (4) holds the left edge by letting the right margin absorb
+/// the extra width; NSViewMinYMargin (8) holds the top edge by letting the
+/// *bottom* margin absorb the extra height — NSThemeFrame is not a flipped
+/// view, so the bottom margin is the one below the control. 4 on its own, which
+/// is what every one of these controls used to be given (under a comment
+/// claiming it was the min-Y bit), has no vertical effect whatsoever: measured,
+/// a control set that way stayed put while the window grew 100pt taller, ending
+/// up 100pt further from the titlebar it belongs to.
+pub const titlebar_control_autoresizing_mask: c_ulong = 4 | 8;
+
 fn webChromeToggleSidebarCallback(_: objc.id, _: objc.SEL, _: objc.id) callconv(.c) void {
     const webview = getGlobalWebView() orelse return;
     const js = createNSString("document.querySelector('[data-sidebar-collapse]')?.click()");
@@ -2792,15 +2873,13 @@ fn addWebSidebarChromeControls(window: objc.id, webview: objc.id) void {
     });
     _ = msgSend1(themeFrame, "addSubview:", responder);
 
+    // Only the button's x is read from its frame; see `titlebarControlY` for
+    // why its y cannot be mixed with the theme frame's.
     const closeButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 0));
-    const closeFrame = if (closeButton != null) msgSendRect(closeButton, "frame") else NSRect{
-        .origin = .{ .x = 20.0, .y = 832.0 },
-        .size = .{ .width = 14.0, .height = 14.0 },
-    };
-    const themeBounds = msgSendRect(themeFrame, "bounds");
+    const closeX: f64 = if (closeButton != null) msgSendRect(closeButton, "frame").origin.x else 20.0;
     const buttonSize = NSSize{ .width = 28.0, .height = 28.0 };
-    const buttonY = themeBounds.size.height - closeFrame.origin.y - closeFrame.size.height - ((buttonSize.height - closeFrame.size.height) / 2.0);
-    const firstButtonX = closeFrame.origin.x + 68.0;
+    const buttonY = titlebarControlY(window, themeFrame, buttonSize.height);
+    const firstButtonX = closeX + 68.0;
     const buttonGap = 42.0;
 
     const buttons = [_]struct {
@@ -2828,7 +2907,7 @@ fn addWebSidebarChromeControls(window: objc.id, webview: objc.id) void {
         _ = msgSend1(btn, "setTarget:", responder);
         _ = msgSend1(btn, "setAction:", sel(button.action));
         _ = msgSend1(btn, "setToolTip:", createNSString(button.tooltip));
-        msgSendVoid1(btn, "setAutoresizingMask:", @as(c_ulong, 4));
+        msgSendVoid1(btn, "setAutoresizingMask:", titlebar_control_autoresizing_mask);
         _ = msgSend1(themeFrame, "addSubview:", btn);
         if (std.mem.eql(u8, button.symbol, "sidebar.left")) {
             web_sidebar_toggle_button = btn;
@@ -3208,7 +3287,7 @@ pub fn createWindowWithSidebarURL(
                 .origin = .{ .x = btnX, .y = btnY },
                 .size = .{ .width = 28, .height = 22 },
             });
-            msgSendVoid1(toggleBtn, "setAutoresizingMask:", @as(c_ulong, 4)); // NSViewMinYMargin - stick to top
+            msgSendVoid1(toggleBtn, "setAutoresizingMask:", titlebar_control_autoresizing_mask);
             _ = msgSend1(themeFrame, "addSubview:", toggleBtn);
         }
     }

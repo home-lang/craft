@@ -44,6 +44,13 @@ pub const SpaceSwitcher = struct {
             _ = macos.msgSend0(self.control, "removeFromSuperview");
             self.control = null;
         }
+        // The responder is a view too, and `create` destroys the old switcher
+        // before building the new one — leaving it parented would strand a
+        // zero-sized subview in the window chrome on every re-create.
+        if (self.responder != null) {
+            _ = macos.msgSend0(self.responder, "removeFromSuperview");
+            self.responder = null;
+        }
         self.spaces.deinit();
         self.allocator.free(self.id);
         self.allocator.destroy(self);
@@ -133,6 +140,13 @@ fn rebuildSegments(self: *SpaceSwitcher) void {
     const count = self.spaces.count();
     macos.msgSendVoid1Ulong(control, "setSegmentCount:", @intCast(count));
 
+    // Hidden rather than destroyed, and written in both directions on every
+    // rebuild: `createSpacesSidebar()` with no options posts an empty list, so
+    // create-empty-then-`setSpaces` is the ordinary flow from JS, and a list
+    // that grows back to two has to bring the same control back with it.
+    const hidden = @as(c_int, if (space_list.shouldShowSwitcher(count)) 0 else 1);
+    _ = macos.msgSend1(control, "setHidden:", hidden);
+
     for (0..count) |i| {
         const space = self.spaces.at(i) orelse continue;
         const label = macos.createNSString(space.label);
@@ -192,18 +206,22 @@ fn attach(self: *SpaceSwitcher, window: objc.id) void {
     const NSSegmentedControl = macos.getClass("NSSegmentedControl");
     const control_alloc = macos.msgSend0(NSSegmentedControl, "alloc");
 
-    // Sit clear of the traffic lights, vertically centred on them.
+    // Sit clear of the traffic lights, centred in the titlebar band.
+    //
+    // Only the button's x is read from its frame. `standardWindowButton:`
+    // answers in NSTitlebarView coordinates; that view spans the window at
+    // x = 0, so its x is the theme frame's, but its y is not — see
+    // `macos.titlebarControlY`, which takes the band instead.
     const closeButton = macos.msgSend1(window, "standardWindowButton:", @as(c_ulong, 0));
-    const closeFrame = if (closeButton != null)
-        macos.msgSendRect(closeButton, "frame")
+    const closeX: f64 = if (closeButton != null)
+        macos.msgSendRect(closeButton, "frame").origin.x
     else
-        macos.NSRect{ .origin = .{ .x = 20.0, .y = 832.0 }, .size = .{ .width = 14.0, .height = 14.0 } };
-    const themeBounds = macos.msgSendRect(themeFrame, "bounds");
+        20.0;
     const height: f64 = 24.0;
-    const y = themeBounds.size.height - closeFrame.origin.y - closeFrame.size.height - ((height - closeFrame.size.height) / 2.0);
+    const y = macos.titlebarControlY(window, themeFrame, height);
 
     const control = macos.msgSend1Rect(control_alloc, "initWithFrame:", .{
-        .origin = .{ .x = closeFrame.origin.x + 200.0, .y = y },
+        .origin = .{ .x = closeX + 200.0, .y = y },
         .size = .{ .width = 240.0, .height = height },
     });
 
@@ -211,7 +229,7 @@ fn attach(self: *SpaceSwitcher, window: objc.id) void {
     _ = macos.msgSend1(control, "setTrackingMode:", @as(c_long, 0)); // SelectOne
     _ = macos.msgSend1(control, "setTarget:", responder);
     _ = macos.msgSend1(control, "setAction:", macos.sel("craftSpaceSelected:"));
-    macos.msgSendVoid1(control, "setAutoresizingMask:", @as(c_ulong, 4)); // min-Y margin flexible
+    macos.msgSendVoid1(control, "setAutoresizingMask:", macos.titlebar_control_autoresizing_mask);
     _ = macos.msgSend1(themeFrame, "addSubview:", control);
 
     self.control = control;
