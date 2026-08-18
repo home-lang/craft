@@ -1,0 +1,42 @@
+diff --git a/package.json b/package.json
+index cf2ec1349bc2d7f9b9d0658e5c988d3ec85e4ae5..e517bf929c9ddeb41620844d2317a0b396dc59c9 100644
+--- a/package.json
++++ b/package.json
+@@ -28,37 +28,30 @@
+   "exports": {
+     ".": {
+       "types": "./dist/index.d.ts",
+-      "bun": "./src/index.ts",
+       "import": "./dist/index.js"
+     },
+     "./services": {
+       "types": "./dist/core-map/services/index.d.ts",
+-      "bun": "./src/core-map/services/index.ts",
+       "import": "./dist/core-map/services/index.js"
+     },
+     "./style-spec": {
+       "types": "./dist/core-map/style-spec/index.d.ts",
+-      "bun": "./src/core-map/style-spec/index.ts",
+       "import": "./dist/core-map/style-spec/index.js"
+     },
+     "./storage": {
+       "types": "./dist/core-map/storage/index.d.ts",
+-      "bun": "./src/core-map/storage/index.ts",
+       "import": "./dist/core-map/storage/index.js"
+     },
+     "./geo": {
+       "types": "./dist/core-map/geo/index.d.ts",
+-      "bun": "./src/core-map/geo/index.ts",
+       "import": "./dist/core-map/geo/index.js"
+     },
+     "./geometry": {
+       "types": "./dist/core-map/geometry/index.d.ts",
+-      "bun": "./src/core-map/geometry/index.ts",
+       "import": "./dist/core-map/geometry/index.js"
+     },
+     "./symbols": {
+       "types": "./dist/core-map/symbols/index.d.ts",
+-      "bun": "./src/core-map/symbols/index.ts",
+       "import": "./dist/core-map/symbols/index.js"
+     },
+     "./styles.css": "./src/core-map/ts-maps.css",

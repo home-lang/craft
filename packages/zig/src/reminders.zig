@@ -29,7 +29,7 @@ pub const TaskPriority = enum(u8) {
     high = 9,
 
     pub fn toValue(self: TaskPriority) u8 {
-        return @intFromEnum(self);
+        return @backingInt(self);
     }
 
     pub fn toString(self: TaskPriority) []const u8 {
@@ -105,12 +105,12 @@ pub const DayOfWeek = enum(u8) {
     saturday = 6,
 
     pub fn toValue(self: DayOfWeek) u8 {
-        return @intFromEnum(self);
+        return @backingInt(self);
     }
 
     pub fn fromValue(value: u8) ?DayOfWeek {
         if (value > 6) return null;
-        return @enumFromInt(value);
+        return @fromBackingInt(@intCast(value));
     }
 
     pub fn toString(self: DayOfWeek) []const u8 {
@@ -958,7 +958,7 @@ pub const DateUtils = struct {
     pub fn getDayOfWeek(timestamp: i64) DayOfWeek {
         const days_since_epoch = @divFloor(timestamp, day_ms);
         const dow = @mod(days_since_epoch + 4, 7);
-        return @enumFromInt(@as(u8, @intCast(dow)));
+        return @fromBackingInt(@intCast(@as(u8, @intCast(dow))));
     }
 
     pub fn isWeekend(timestamp: i64) bool {

@@ -801,7 +801,6 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         }
     }
 
-
     // Cosmetic and lazily-needed setup, now overlapping the fetch.
     const wants_translucent_surface = style.transparent or style.titlebar_hidden or style.native_sidebar or style.web_sidebar_material;
     if (!style.benchmark and wants_translucent_surface) {
@@ -5170,7 +5169,7 @@ const AuthDisposition = enum(c_long) {
 fn finishAuthChallenge(handler: objc.id, disposition: AuthDisposition, credential: objc.id) void {
     const h = handler orelse return;
     const block: *AuthChallengeBlock = @ptrCast(@alignCast(h));
-    block.invoke(h, @intFromEnum(disposition), credential);
+    block.invoke(h, @backingInt(disposition), credential);
 }
 
 fn hostIsLocalDev(host: objc.id) bool {

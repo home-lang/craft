@@ -92,7 +92,7 @@ pub const CharacteristicProperty = enum(u8) {
     extended_properties = 0x80,
 
     pub fn toValue(self: CharacteristicProperty) u8 {
-        return @intFromEnum(self);
+        return @backingInt(self);
     }
 };
 

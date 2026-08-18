@@ -34,7 +34,7 @@ pub const NativeSplitView = struct {
 
         // Configure split view
         _ = macos.msgSend1(split_view, "setVertical:", @as(c_int, 1)); // Vertical split (side-by-side)
-        _ = macos.msgSend1(split_view, "setDividerStyle:", @intFromEnum(config.divider_style));
+        _ = macos.msgSend1(split_view, "setDividerStyle:", @backingInt(config.divider_style));
 
         // Set autosave name for divider position persistence
         const autosave_name = macos.createNSString("CraftSplitView");

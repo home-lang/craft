@@ -156,7 +156,7 @@ pub const Digest = struct {
         // FNV-1a per entry, XOR-combined so poll-to-poll window reordering
         // (which CGWindowList does freely) doesn't look like a state change.
         var h: u64 = 0xcbf29ce484222325;
-        h = mix(h, @intFromEnum(kind));
+        h = mix(h, @backingInt(kind));
         for (app) |c| h = mix(h, lower(c));
         h = mix(h, 0x1f);
         for (window) |c| h = mix(h, lower(c));

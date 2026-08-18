@@ -450,7 +450,7 @@ pub const Statement = struct {
         const handle = self.stmt_handle orelse return DatabaseError.InvalidQuery;
         const rc = sqlite3_step(handle);
         if (rc != SQLITE_DONE and rc != SQLITE_ROW) {
-            const result: SqliteResult = @enumFromInt(rc);
+            const result: SqliteResult = @fromBackingInt(@intCast(rc));
             return result.toError() orelse DatabaseError.StepFailed;
         }
     }
@@ -472,7 +472,7 @@ pub const Statement = struct {
             const rc = sqlite3_step(handle);
             if (rc == SQLITE_DONE) break;
             if (rc != SQLITE_ROW) {
-                const result: SqliteResult = @enumFromInt(rc);
+                const result: SqliteResult = @fromBackingInt(@intCast(rc));
                 return result.toError() orelse DatabaseError.StepFailed;
             }
 
@@ -735,7 +735,7 @@ pub const Database = struct {
         const rc = sqlite3_exec(handle, sql_z.ptr, null, null, &errmsg);
         if (rc != SQLITE_OK) {
             if (errmsg) |msg| sqlite3_free(@ptrCast(msg));
-            const result: SqliteResult = @enumFromInt(rc);
+            const result: SqliteResult = @fromBackingInt(@intCast(rc));
             return result.toError() orelse DatabaseError.QueryFailed;
         }
     }

@@ -66,5 +66,8 @@
     },
     "pre-push": "bun run typecheck",
     "commit-msg": "bun x gitlint --edit .git/COMMIT_EDITMSG"
+  },
+  "patchedDependencies": {
+    "ts-maps@0.3.1": "patches/ts-maps@0.3.1.patch"
   }
 }

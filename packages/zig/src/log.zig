@@ -93,14 +93,14 @@ pub fn getLevel() LogLevel {
 pub fn shouldLog(level: LogLevel) bool {
     log_mutex.lock();
     defer log_mutex.unlock();
-    return @intFromEnum(level) >= @intFromEnum(current_config.min_level);
+    return @backingInt(level) >= @backingInt(current_config.min_level);
 }
 
 /// Internal, lock-free variant used by `log()` while it already holds
 /// `log_mutex`. Keeping the public `shouldLog` locked means callers that
 /// call it outside `log()` still observe consistent state.
 fn shouldLogLocked(level: LogLevel) bool {
-    return @intFromEnum(level) >= @intFromEnum(current_config.min_level);
+    return @backingInt(level) >= @backingInt(current_config.min_level);
 }
 
 pub fn log(

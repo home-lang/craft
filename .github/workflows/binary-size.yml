@@ -104,7 +104,13 @@ jobs:
         id: baseline
         run: |
           git fetch origin main
-          trap 'git restore --source=HEAD -- packages/zig' EXIT
+          # Anchored at the workspace and `|| true`-guarded on purpose: the trap
+          # fires at the end of the step, by which point `cd packages/zig` below
+          # has moved us, so a relative pathspec resolves against the wrong
+          # directory and fails. Under `set -e` that failing restore became the
+          # step's exit status, so every pull request got a red Binary Size
+          # check for a cleanup step rather than for its binary size.
+          trap 'git -C "$GITHUB_WORKSPACE" restore --staged --worktree --source=HEAD -- packages/zig || true' EXIT
           git checkout origin/main -- packages/zig
 
           cd packages/zig

@@ -76,7 +76,7 @@ pub const HttpClient = struct {
         }
 
         return Response{
-            .status = @intFromEnum(req.response.status),
+            .status = @backingInt(req.response.status),
             .headers = if (have_headers) response_headers else blk: {
                 response_headers.deinit();
                 break :blk null;

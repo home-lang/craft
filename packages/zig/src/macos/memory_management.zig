@@ -31,7 +31,7 @@ pub fn setAssociatedObject(
     const objc_setAssociatedObject = @extern(*const fn (objc.id, [*:0]const u8, ?objc.id, usize) callconv(.c) void, .{
         .name = "objc_setAssociatedObject",
     });
-    objc_setAssociatedObject(object, key, value, @intFromEnum(policy));
+    objc_setAssociatedObject(object, key, value, @backingInt(policy));
 }
 
 /// Get an associated object from an ObjC object

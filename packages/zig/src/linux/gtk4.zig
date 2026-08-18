@@ -224,7 +224,7 @@ pub const Box = struct {
     widget: *GtkBox,
 
     pub fn init(orientation: Orientation, spacing: c_int) Self {
-        const box = c.gtk_box_new(@intFromEnum(orientation), spacing);
+        const box = c.gtk_box_new(@backingInt(orientation), spacing);
         return Self{ .widget = @ptrCast(box) };
     }
 
@@ -565,7 +565,7 @@ pub const Paned = struct {
     widget: *GtkPaned,
 
     pub fn init(orientation: Orientation) Self {
-        const paned = c.gtk_paned_new(@intFromEnum(orientation));
+        const paned = c.gtk_paned_new(@backingInt(orientation));
         return Self{ .widget = @ptrCast(paned) };
     }
 
@@ -695,8 +695,8 @@ pub fn setExpand(widget: *GtkWidget, hexpand: bool, vexpand: bool) void {
 
 /// Set widget alignment
 pub fn setAlign(widget: *GtkWidget, halign: Align, valign: Align) void {
-    c.gtk_widget_set_halign(widget, @intFromEnum(halign));
-    c.gtk_widget_set_valign(widget, @intFromEnum(valign));
+    c.gtk_widget_set_halign(widget, @backingInt(halign));
+    c.gtk_widget_set_valign(widget, @backingInt(valign));
 }
 
 /// Show widget
@@ -1320,7 +1320,7 @@ pub const Scale = struct {
     user_data: ?*anyopaque,
 
     pub fn init(orientation: Orientation, min: f64, max: f64, step: f64) Self {
-        const scale = c.gtk_scale_new_with_range(@intFromEnum(orientation), min, max, step);
+        const scale = c.gtk_scale_new_with_range(@backingInt(orientation), min, max, step);
         return Self{
             .widget = @ptrCast(scale),
             .on_value_changed = null,

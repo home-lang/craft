@@ -1286,7 +1286,7 @@ pub const Android = struct {
         const permission_jstring = jni.NewStringUTF(env, permission_z.ptr);
 
         // Use a unique request code based on permission type
-        const request_code: u32 = 1001 + @intFromEnum(permission);
+        const request_code: u32 = 1001 + @backingInt(permission);
 
         // Store callback to be invoked in onRequestPermissionsResult
         if (callback) |cb| {

@@ -204,7 +204,7 @@ fn createSymbolConfiguration(config: SymbolConfiguration) objc.id {
         NSImageSymbolConfiguration,
         "configurationWithPointSize:weight:",
         config.point_size,
-        @intFromEnum(config.weight),
+        @backingInt(config.weight),
     );
 
     return symbol_config;

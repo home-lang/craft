@@ -476,12 +476,12 @@ pub const PaymentRequest = struct {
 
     pub fn allowNetwork(self: PaymentRequest, network: CardNetwork) PaymentRequest {
         var req = self;
-        req.allowed_networks |= @as(u16, 1) << @intFromEnum(network);
+        req.allowed_networks |= @as(u16, 1) << @backingInt(network);
         return req;
     }
 
     pub fn isNetworkAllowed(self: PaymentRequest, network: CardNetwork) bool {
-        return (self.allowed_networks & (@as(u16, 1) << @intFromEnum(network))) != 0;
+        return (self.allowed_networks & (@as(u16, 1) << @backingInt(network))) != 0;
     }
 };
 
@@ -664,14 +664,14 @@ pub const WalletController = struct {
         self.available_providers = 0;
 
         // Simulate checking availability
-        self.available_providers |= @as(u16, 1) << @intFromEnum(WalletProvider.apple_pay);
-        self.available_providers |= @as(u16, 1) << @intFromEnum(WalletProvider.google_pay);
-        self.available_providers |= @as(u16, 1) << @intFromEnum(WalletProvider.stripe);
-        self.available_providers |= @as(u16, 1) << @intFromEnum(WalletProvider.paypal);
+        self.available_providers |= @as(u16, 1) << @backingInt(WalletProvider.apple_pay);
+        self.available_providers |= @as(u16, 1) << @backingInt(WalletProvider.google_pay);
+        self.available_providers |= @as(u16, 1) << @backingInt(WalletProvider.stripe);
+        self.available_providers |= @as(u16, 1) << @backingInt(WalletProvider.paypal);
     }
 
     pub fn isProviderAvailable(self: WalletController, provider: WalletProvider) bool {
-        return (self.available_providers & (@as(u16, 1) << @intFromEnum(provider))) != 0;
+        return (self.available_providers & (@as(u16, 1) << @backingInt(provider))) != 0;
     }
 
     pub fn setDefaultProvider(self: *WalletController, provider: WalletProvider) bool {

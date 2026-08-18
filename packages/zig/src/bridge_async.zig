@@ -35,7 +35,7 @@ pub const MessageHeader = packed struct {
         var buffer: [14]u8 = undefined;
         std.mem.writeInt(u32, buffer[0..4], self.magic, .little);
         buffer[4] = self.version;
-        buffer[5] = @intFromEnum(self.type);
+        buffer[5] = @backingInt(self.type);
         std.mem.writeInt(u32, buffer[6..10], self.id, .little);
         std.mem.writeInt(u32, buffer[10..14], self.payload_len, .little);
         return buffer;
@@ -50,7 +50,7 @@ pub const MessageHeader = packed struct {
         return MessageHeader{
             .magic = magic,
             .version = buffer[4],
-            .type = @enumFromInt(buffer[5]),
+            .type = @fromBackingInt(@intCast(buffer[5])),
             .id = std.mem.readInt(u32, buffer[6..10], .little),
             .payload_len = std.mem.readInt(u32, buffer[10..14], .little),
         };
