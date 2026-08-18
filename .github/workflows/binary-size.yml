@@ -34,6 +34,15 @@ jobs:
   track:
     runs-on: ubuntu-latest
 
+    # The last step posts the size report as a pull request comment, and the
+    # default token here is read-only, so it failed with "Resource not
+    # accessible by integration" — after the build and the measuring had all
+    # succeeded. Requested explicitly rather than left to the repository
+    # default, which is what made this invisible.
+    permissions:
+      contents: read
+      pull-requests: write
+
     steps:
       - uses: actions/checkout@v6
         with:
