@@ -51,6 +51,50 @@ export function resolveCraftBinary(explicit?: string): string {
 }
 
 /**
+ * Set on the child environment whenever the CLI spawns what it believes is
+ * the native binary.
+ *
+ * `resolveCraftBinary()` returns the bare string `'craft'` and lets the OS
+ * resolve it, which is the pantry contract and stays that way. But `craft` on
+ * PATH is not always the native binary: install the SDK with a package manager
+ * that publishes a `bin` entry and PATH may resolve `craft` to this very CLI
+ * (`~/.bun/bin/craft`, a `#!/usr/bin/env bun` script). Spawning that re-enters
+ * the TypeScript entry point with native-binary flags, and the user sees
+ * `Unknown option --url` for an option they never typed.
+ *
+ * Probing for the binary elsewhere would answer it, but that is exactly the
+ * path-matrix behaviour the pantry contract exists to remove. So instead the
+ * spawn is marked, and a CLI that starts up already marked knows it *is* the
+ * thing that was spawned, and says so.
+ */
+export const CRAFT_CLI_SPAWN_MARKER = 'CRAFT_CLI_SPAWNED_FROM'
+
+/**
+ * The message for that case. Names the offending PATH entry, because the whole
+ * difficulty of the original report was that nothing pointed at PATH at all.
+ */
+export function craftBinaryIsCliShimMessage(spawnedFrom: string): string {
+  return [
+    `"${spawnedFrom}" on PATH is the Craft CLI, not the native binary.`,
+    '',
+    'The CLI spawned it expecting the native build, and re-entered itself —',
+    'which is why an option you never typed (--url) came back as unknown.',
+    '',
+    'Fix it in one of two ways:',
+    '',
+    '  1. Install the native binary and make sure it comes first on PATH:',
+    '',
+    '       pantry install craft',
+    '',
+    '  2. Point CRAFT_BIN at a build directly:',
+    '',
+    '       CRAFT_BIN=/path/to/craft craft <url>',
+    '',
+    'For monorepo development, CRAFT_BIN is the supported way in.',
+  ].join('\n')
+}
+
+/**
  * Build a deterministic, pantry-aware error for the case where the
  * spawn errored with ENOENT (binary not found on PATH). Used as the
  * `process.on('error', …)` handler in both the SDK and the CLI.

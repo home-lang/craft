@@ -8,8 +8,17 @@ import { CLI } from '@stacksjs/clapp'
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import process from 'node:process'
-import { craftBinaryNotFoundMessage, resolveCraftBinary } from '../src/binary-resolver'
+import { CRAFT_CLI_SPAWN_MARKER, craftBinaryIsCliShimMessage, craftBinaryNotFoundMessage, resolveCraftBinary } from '../src/binary-resolver'
 import { version } from '../package.json'
+
+// If this marker is already set we were spawned by a craft CLI that meant to
+// spawn the native binary — so `craft` on PATH resolves to this script. Say so
+// now, rather than letting the arg parser reject a flag the user never typed.
+const spawnedFrom = process.env[CRAFT_CLI_SPAWN_MARKER]
+if (spawnedFrom) {
+  console.error(craftBinaryIsCliShimMessage(spawnedFrom))
+  process.exit(1)
+}
 
 const cli = new CLI('craft')
 
@@ -24,7 +33,12 @@ async function runCraftBinary(args: string[]): Promise<void> {
   const craftPath = resolveCraftBinary()
 
   return new Promise((resolve, reject) => {
-    const proc = spawn(craftPath, args, { stdio: 'inherit' })
+    const proc = spawn(craftPath, args, {
+      stdio: 'inherit',
+      // Marks the child so that, if it turns out to be this CLI rather than
+      // the native binary, it can recognise the loop and explain it.
+      env: { ...process.env, [CRAFT_CLI_SPAWN_MARKER]: craftPath },
+    })
 
     proc.on('exit', (code) => {
       if (code === 0 || code === null) resolve()
