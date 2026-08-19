@@ -59,7 +59,55 @@ const platformFeatures = await import(
 
 ## Platform-Specific Features
 
-### macOS
+### macOS: the application menu bar
+
+The top-of-screen menu bar is reached through the injected bridge, not through
+an import. It is available on `window` in any Craft window, with no setup:
+
+```typescript
+// Replaces the whole bar, including the default one Craft installs.
+await window.craft.menu.set({
+  menus: [
+    {
+      label: 'File',
+      items: [
+        { id: 'new', label: 'New', shortcut: 'cmd+n' },
+        { separator: true },
+        { role: 'close', label: 'Close Window', shortcut: 'cmd+w' },
+      ],
+    },
+    {
+      label: 'Edit',
+      items: [
+        { role: 'undo', label: 'Undo', shortcut: 'cmd+z' },
+        { separator: true },
+        { role: 'cut', label: 'Cut', shortcut: 'cmd+x' },
+        { role: 'copy', label: 'Copy', shortcut: 'cmd+c' },
+        { role: 'paste', label: 'Paste', shortcut: 'cmd+v' },
+      ],
+    },
+  ],
+})
+
+// Items with an `id` come back here when clicked. Items with a `role` do not —
+// the system performs those.
+window.craft.menu.onAction(({ id }) => {
+  if (id === 'new') openNewDocument()
+})
+```
+
+Use `role` for anything the system already knows how to do, and `id` for your
+own commands. See [Bridge API](../BRIDGE_API.md#application-menu-macos) for the
+full surface and the list of roles.
+
+### Planned platform namespaces
+
+The `craft-native/platform` namespaces below are **not implemented yet** — they
+describe the intended shape of the API, not something you can call today. The
+menu bar above and the [tray API](../BRIDGE_API.md) are the platform surfaces
+that exist now.
+
+#### macOS
 
 ```typescript
 import { mac } from 'craft-native/platform'
@@ -75,14 +123,11 @@ mac.touchBar.setItems([
   { type: 'slider', min: 0, max: 100, value: 50 },
 ])
 
-// Menu Bar
-mac.systemMenu.setApplicationMenu(menu)
-
 // Vibrancy
 window.setVibrancy('under-window')
 ```
 
-### Windows
+#### Windows
 
 ```typescript
 import { win } from 'craft-native/platform'
@@ -109,7 +154,7 @@ win.thumbnailToolbar.setButtons([
 ])
 ```
 
-### Linux
+#### Linux
 
 ```typescript
 import { linux } from 'craft-native/platform'

@@ -859,51 +859,14 @@ export function createTypedBridge<T extends Record<string, BridgeMethod<any, any
   }
 }
 
-// Native Menu System
-export interface MenuItem {
-  id: string
-  label: string
-  accelerator?: string
-  type?: 'normal' | 'separator' | 'checkbox' | 'radio'
-  checked?: boolean
-  enabled?: boolean
-  visible?: boolean
-  icon?: string
-  submenu?: MenuItem[]
-}
-
-export class NativeMenus {
-  constructor(private bridge: NativeBridge) {}
-
-  /**
-   * Set application menu
-   */
-  async setApplicationMenu(menu: MenuItem[]): Promise<void> {
-    await this.bridge.request('menu.setApplicationMenu', { menu })
-  }
-
-  /**
-   * Show context menu
-   */
-  async showContextMenu(menu: MenuItem[], position?: { x: number; y: number }): Promise<string | null> {
-    return this.bridge.request('menu.showContextMenu', { menu, position })
-  }
-
-  /**
-   * Update menu item
-   */
-  async updateMenuItem(id: string, updates: Partial<MenuItem>): Promise<void> {
-    await this.bridge.request('menu.updateMenuItem', { id, updates })
-  }
-
-  /**
-   * Listen for menu item clicks
-   */
-  onMenuClick(callback: (id: string) => void): () => void {
-    this.bridge.on('menu.click', callback)
-    return () => this.bridge.off('menu.click', callback)
-  }
-}
+// There is deliberately no menu class here. The application menu bar is a
+// fire-and-forget action bridge (`menu` / `setAppMenu`), not a request/response
+// method, and it is reached through the injected `window.craft.menu` — see
+// packages/zig/src/js/craft-bridge.js and its types in
+// packages/zig/types/craft-bridge.d.ts. A `NativeMenus` class used to sit here
+// calling `bridge.request('menu.setApplicationMenu')`, a transport no zig
+// handler serves; nothing noticed because `bridge/core` is not re-exported from
+// the package index, so it was unreachable through the public API either way.
 
 // Native Dialogs
 export interface OpenDialogOptions {
@@ -1177,10 +1140,6 @@ export function resetGlobalBridge(): void {
 }
 
 // Export convenience instances
-export function getMenus(): NativeMenus {
-  return new NativeMenus(getBridge())
-}
-
 export function getDialogs(): NativeDialogs {
   return new NativeDialogs(getBridge())
 }
@@ -1194,12 +1153,10 @@ const bridgeCore: {
   BridgeError: typeof BridgeError
   BridgeErrorCodes: typeof BridgeErrorCodes
   createTypedBridge: typeof createTypedBridge
-  NativeMenus: typeof NativeMenus
   NativeDialogs: typeof NativeDialogs
   NativeComponentBridge: typeof NativeComponentBridge
   getBridge: typeof getBridge
   createBridge: typeof createBridge
-  getMenus: typeof getMenus
   getDialogs: typeof getDialogs
   getComponents: typeof getComponents
 } = {
@@ -1207,12 +1164,10 @@ const bridgeCore: {
   BridgeError,
   BridgeErrorCodes,
   createTypedBridge,
-  NativeMenus,
   NativeDialogs,
   NativeComponentBridge,
   getBridge,
   createBridge,
-  getMenus,
   getDialogs,
   getComponents,
 }
