@@ -5,8 +5,6 @@ const std = @import("std");
 /// and migration support. Uses real SQLite on all platforms — the vendored
 /// amalgamation (vendor/sqlite/sqlite3.c) is compiled by Zig's C compiler,
 /// so no system SQLite dependency is required.
-const builtin = @import("builtin");
-
 const sqlite3 = opaque {};
 const sqlite3_stmt = opaque {};
 const sqlite3_backup = opaque {};
@@ -60,64 +58,33 @@ extern fn sqlite3_backup_init(destDb: ?*sqlite3, destName: [*:0]const u8, source
 extern fn sqlite3_backup_step(backup: ?*sqlite3_backup, pages: c_int) c_int;
 extern fn sqlite3_backup_finish(backup: ?*sqlite3_backup) c_int;
 
-// SQLITE_TRANSIENT tells SQLite to make its own copy of the bound data.
-// The C definition is ((sqlite3_destructor_type)-1), i.e. a function pointer with value -1.
-// We call SQLite through thin asm stubs that pass the correct destructor
-// value (-1), avoiding a function-pointer cast in Zig source.
-extern fn sqlite3_bind_text_transient(stmt: ?*sqlite3_stmt, idx: c_int, text: [*]const u8, len: c_int) c_int;
-extern fn sqlite3_bind_blob_transient(stmt: ?*sqlite3_stmt, idx: c_int, blob: [*]const u8, len: c_int) c_int;
+// SQLITE_TRANSIENT is `((sqlite3_destructor_type)-1)`: a destructor pointer
+// whose bits are all ones, which tells SQLite to copy the bound data rather
+// than borrow it. `bindText`/`bindBlob` hand out slices the caller may free
+// the moment they return, so it is not optional.
+//
+// This used to be six hand-written module-level asm stubs — one pair per
+// calling convention — that tail-called sqlite3_bind_text/blob with the fifth
+// argument preset to -1, so that Zig never had to name a function pointer with
+// an impossible value. Both halves of that were broken on x86_64 Linux:
+//
+//   - Zig's self-hosted x86_64 backend, which is the default for Debug builds,
+//     drops module-level `asm` on the floor. It emits no symbol and no
+//     diagnostic, so the link failed with `undefined symbol:
+//     sqlite3_bind_text_transient` and every Linux build of the database tests
+//     died there.
+//   - The stubs were written in Intel syntax, which the LLVM backend's
+//     assembler rejects outright on x86 ELF ("unknown use of instruction
+//     mnemonic without a size suffix"). So `-fllvm` was not an escape either.
+//
+// None of it was necessary. The destructor is declared as an opaque pointer
+// instead of a typed function pointer — identical ABI, and it sidesteps the
+// alignment requirement a `*const fn` carries, which an all-ones address
+// cannot satisfy.
+const SQLITE_TRANSIENT: ?*const anyopaque = @ptrFromInt(std.math.maxInt(usize));
 
-comptime {
-    // Asm stubs that tail-call sqlite3_bind_text/sqlite3_bind_blob with the 5th argument
-    // (destructor) set to -1 (SQLITE_TRANSIENT). Platform-specific calling conventions:
-    //   arm64: 5th arg in x4
-    //   x86_64 SysV: 5th arg in r8 (Linux)
-    //   x86_64 Win64: 5th arg on stack (Windows uses 4-register fastcall)
-    if (builtin.cpu.arch == .aarch64) {
-        asm (
-            \\.globl _sqlite3_bind_text_transient
-            \\_sqlite3_bind_text_transient:
-            \\  mov x4, #-1
-            \\  b _sqlite3_bind_text
-        );
-        asm (
-            \\.globl _sqlite3_bind_blob_transient
-            \\_sqlite3_bind_blob_transient:
-            \\  mov x4, #-1
-            \\  b _sqlite3_bind_blob
-        );
-    } else if (builtin.cpu.arch == .x86_64) {
-        if (builtin.os.tag == .windows) {
-            // Win64 ABI: first 4 args in rcx,rdx,r8,r9; 5th arg at [rsp+40]
-            asm (
-                \\.globl sqlite3_bind_text_transient
-                \\sqlite3_bind_text_transient:
-                \\  mov qword ptr [rsp+32], -1
-                \\  jmp sqlite3_bind_text
-            );
-            asm (
-                \\.globl sqlite3_bind_blob_transient
-                \\sqlite3_bind_blob_transient:
-                \\  mov qword ptr [rsp+32], -1
-                \\  jmp sqlite3_bind_blob
-            );
-        } else {
-            // SysV ABI (Linux/macOS): first 6 args in rdi,rsi,rdx,rcx,r8,r9
-            asm (
-                \\.globl sqlite3_bind_text_transient
-                \\sqlite3_bind_text_transient:
-                \\  mov r8, -1
-                \\  jmp sqlite3_bind_text
-            );
-            asm (
-                \\.globl sqlite3_bind_blob_transient
-                \\sqlite3_bind_blob_transient:
-                \\  mov r8, -1
-                \\  jmp sqlite3_bind_blob
-            );
-        }
-    }
-}
+extern fn sqlite3_bind_text(stmt: ?*sqlite3_stmt, idx: c_int, text: [*]const u8, len: c_int, destructor: ?*const anyopaque) c_int;
+extern fn sqlite3_bind_blob(stmt: ?*sqlite3_stmt, idx: c_int, blob: [*]const u8, len: c_int, destructor: ?*const anyopaque) c_int;
 
 pub const DatabaseError = error{
     ConnectionFailed,
@@ -386,11 +353,12 @@ pub const Statement = struct {
         try self.ensureParamCapacity(index);
         self.bound_params.items[index - 1] = .{ .text = value };
         if (self.stmt_handle) |handle| {
-            const rc = sqlite3_bind_text_transient(
+            const rc = sqlite3_bind_text(
                 handle,
                 @intCast(index),
                 value.ptr,
                 @intCast(value.len),
+                SQLITE_TRANSIENT,
             );
             if (rc != SQLITE_OK) return DatabaseError.BindFailed;
         }
@@ -401,11 +369,12 @@ pub const Statement = struct {
         try self.ensureParamCapacity(index);
         self.bound_params.items[index - 1] = .{ .blob = value };
         if (self.stmt_handle) |handle| {
-            const rc = sqlite3_bind_blob_transient(
+            const rc = sqlite3_bind_blob(
                 handle,
                 @intCast(index),
                 value.ptr,
                 @intCast(value.len),
+                SQLITE_TRANSIENT,
             );
             if (rc != SQLITE_OK) return DatabaseError.BindFailed;
         }
@@ -1392,6 +1361,52 @@ test "prepared statement binding" {
     try std.testing.expectEqual(@as(i64, 42), stmt.bound_params.items[0].integer);
     try std.testing.expectEqualStrings("Alice", stmt.bound_params.items[1].text);
     try std.testing.expectEqual(@as(f64, 95.5), stmt.bound_params.items[2].real);
+}
+
+test "bound text and blob are copied at bind time, not borrowed" {
+    // This is what SQLITE_TRANSIENT buys: `bindText` and `bindBlob` take a
+    // slice the caller owns and may reuse the moment they return. Both buffers
+    // here are overwritten between bind and step, so a borrowing destructor
+    // (SQLITE_STATIC, i.e. a null pointer) would store the overwritten bytes
+    // instead. Nothing else in this file reads back what SQLite actually
+    // stored — the other binding test asserts only against our own mirror of
+    // the parameters — so this is the only check on the destructor value.
+    const allocator = std.testing.allocator;
+
+    var db = try Database.init(allocator, .{ .path = ":memory:" });
+    defer db.deinit();
+
+    try db.executeRaw("CREATE TABLE t (name TEXT, data BLOB)");
+
+    var name = "Alice".*;
+    var data = [_]u8{ 0xDE, 0xAD, 0xBE, 0xEF };
+
+    {
+        var stmt = try db.prepare("INSERT INTO t (name, data) VALUES (?, ?)");
+        defer {
+            stmt.deinit();
+            allocator.destroy(stmt);
+        }
+        try stmt.bindText(1, &name);
+        try stmt.bindBlob(2, &data);
+        name = "Zzzzz".*;
+        data = @splat(0);
+        try stmt.execute();
+    }
+
+    // hex() rather than a blob getter, which Row does not expose.
+    const rows = try db.query("SELECT name, hex(data) AS data FROM t", .{});
+    defer {
+        for (rows) |*row| {
+            var r = row.*;
+            r.deinit();
+        }
+        allocator.free(rows);
+    }
+
+    try std.testing.expectEqual(@as(usize, 1), rows.len);
+    try std.testing.expectEqualStrings("Alice", rows[0].getText("name").?);
+    try std.testing.expectEqualStrings("DEADBEEF", rows[0].getText("data").?);
 }
 
 test "prepared statement reset" {
