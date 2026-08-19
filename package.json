@@ -56,6 +56,7 @@
   },
   "devDependencies": {
     "@stacksjs/bumpx": "^0.2.10",
+    "@stacksjs/bunpress": "^0.2.11",
     "better-dx": "^0.2.15"
   },
   "git-hooks": {

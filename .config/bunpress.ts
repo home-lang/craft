@@ -1,4 +1,4 @@
-import type { BunPressConfig } from 'bunpress'
+import type { BunPressConfig } from '@stacksjs/bunpress'
 
 export default {
   title: 'Craft',
@@ -79,10 +79,10 @@ export default {
       message: 'Released under the MIT License.',
       copyright: 'Copyright 2024-present Stacks.js Contributors',
     },
+  },
 
-    search: {
-      provider: 'local',
-    },
+  search: {
+    provider: 'local',
   },
 
   cloud: {
