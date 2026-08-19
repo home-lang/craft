@@ -19,6 +19,16 @@ jobs:
     name: run
     runs-on: ubuntu-latest
 
+    # The last step posts the benchmark comparison as a pull request comment,
+    # and the default token is read-only, so it failed with "Resource not
+    # accessible by integration" — after the build and every benchmark had
+    # succeeded. Only pull requests comment, so main pushes stayed green and
+    # the job looked healthy. binary-size.yml had the identical bug and was
+    # fixed in #22; this workflow was missed.
+    permissions:
+      contents: read
+      pull-requests: write
+
     steps:
       - uses: actions/checkout@v6
         with:
