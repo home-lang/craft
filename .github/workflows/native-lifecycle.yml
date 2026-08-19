@@ -30,18 +30,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # `name` is the whole identity of a leg: it is the evidence label the
+          # script writes under, the artifact name, and the path the upload
+          # reads back. It used to be two fields, `name` and `report`, and they
+          # disagreed on Windows — the script wrote windows-x64/ while the
+          # upload looked in win32-x64/ and failed with "No files were found".
           - os: macos-15
             name: darwin-arm64
-            report: darwin-arm64
           - os: macos-15-intel
             name: darwin-x64
-            report: darwin-x64
           - os: ubuntu-24.04
             name: linux-x64
-            report: linux-x64
           - os: windows-2025
             name: windows-x64
-            report: win32-x64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
@@ -60,9 +61,28 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          choco install wixtoolset --version=3.14.1 --yes --no-progress
-          $bin = Get-ChildItem "${env:ProgramFiles(x86)}\WiX Toolset v3*\bin" -Directory | Select-Object -First 1
-          if (-not $bin) { throw 'WiX Toolset bin directory not found' }
+          # The windows-2025 image already ships WiX v3 — 3.14.1.20250415 as of
+          # this writing — and `choco install --version=3.14.1` is a *downgrade*
+          # against it, which choco refuses:
+          #
+          #   A newer version of wixtoolset (v3.14.1.20250415) is already installed.
+          #   Chocolatey installed 0/1 packages. 1 packages failed.
+          #
+          # So the step failed before it ever looked for the toolset it needed,
+          # and every Windows lifecycle run died at setup. Look first, install
+          # only when it is genuinely absent, and take whatever v3 the image
+          # provides rather than pinning under it.
+          $wixBin = {
+            Get-ChildItem "${env:ProgramFiles(x86)}\WiX Toolset v3*\bin" -Directory -ErrorAction SilentlyContinue |
+              Sort-Object Name -Descending | Select-Object -First 1
+          }
+          $bin = & $wixBin
+          if (-not $bin) {
+            choco install wixtoolset --version=3.14.1 --yes --no-progress
+            $bin = & $wixBin
+          }
+          if (-not $bin) { throw 'WiX Toolset v3 bin directory not found' }
+          Write-Host "Using WiX at $($bin.FullName)"
           $bin.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Test packaging API
@@ -77,7 +97,7 @@ jobs:
         with:
           name: native-lifecycle-${{ matrix.name }}
           path: |
-            artifacts/native-lifecycle/${{ matrix.report }}/report.json
-            artifacts/native-lifecycle/${{ matrix.report }}/work/packages-*/**
+            artifacts/native-lifecycle/${{ matrix.name }}/report.json
+            artifacts/native-lifecycle/${{ matrix.name }}/work/packages-*/**
           if-no-files-found: error
           retention-days: 90

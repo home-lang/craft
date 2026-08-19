@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test'
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { codesignArguments, dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, macOSInfoPlist, notarytoolArguments, packageApp, productbuildArguments, renderWixSource, shouldRetryHdiutil, windowsArchitecture, windowsExecutableName } from './package'
+import { candleArguments, codesignArguments, dmgCapacityMegabytes, dmgCreateArguments, formatPackagingCommandError, macOSInfoPlist, notarytoolArguments, packageApp, productbuildArguments, renderWixSource, shouldRetryHdiutil, windowsArchitecture, windowsExecutableName } from './package'
 
 describe('Windows MSI packaging', () => {
   it('renders a deterministic major-upgrade installer without shell interpolation', () => {
@@ -27,6 +27,16 @@ describe('Windows MSI packaging', () => {
     expect(windowsExecutableName('Craft App')).toBe('Craft App.exe')
     expect(() => windowsExecutableName('craft/app')).toThrow('Invalid Windows application name')
     expect(() => windowsExecutableName('CON')).toThrow('Reserved Windows application name')
+  })
+
+  it('compiles for the architecture the source declares', () => {
+    // Without -arch, candle defaults to x86 and quietly produces a 32-bit
+    // installer around a 64-bit payload — while the source it just compiled
+    // says Platform="x64", ProgramFiles64Folder and Win64="yes". ICE80 would
+    // catch the contradiction, but light runs with -sval.
+    expect(candleArguments('x64', 'out.wixobj', 'in.wxs')).toEqual(['-nologo', '-arch', 'x64', '-out', 'out.wixobj', 'in.wxs'])
+    expect(candleArguments('x86', 'out.wixobj', 'in.wxs')).toContain('x86')
+    expect(candleArguments('arm64', 'out.wixobj', 'in.wxs')).toContain('arm64')
   })
 
   it('renders explicit 32-bit metadata only when requested', () => {
