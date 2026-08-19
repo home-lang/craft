@@ -11,7 +11,14 @@
   "include": [
     "src"
   ],
+  // Test sources emit declarations too, and `dist/package.test.d.ts` was
+  // shipping in the published package. Excluding the directory is not enough:
+  // `src/package.test.ts` sits beside the module it tests, which is the
+  // convention the rest of the repo uses too. Match ts-maps and exclude by
+  // pattern.
   "exclude": [
-    "src/__tests__/**"
+    "src/__tests__/**",
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts"
   ]
 }
