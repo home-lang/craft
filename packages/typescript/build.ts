@@ -13,7 +13,7 @@ async function build(entrypoints: string[], outdir: string): Promise<void> {
     outdir: resolve(root, outdir),
     target: 'bun',
     format: 'esm',
-    sourcemap: 'external',
+    sourcemap: 'none',
   })
   if (!result.success) {
     for (const log of result.logs) console.error(log)
@@ -39,7 +39,7 @@ const mobileResult = await Bun.build({
   outdir: dist,
   target: 'browser',
   format: 'esm',
-  sourcemap: 'external',
+  sourcemap: 'none',
 })
 if (!mobileResult.success) {
   for (const log of mobileResult.logs) console.error(log)
