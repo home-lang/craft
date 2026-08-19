@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const javascript = @import("javascript.zig");
 const native_sidebar_bootstrap = @import("native_sidebar_bootstrap.zig");
 const local_tls = @import("local_tls.zig");
+const menu_roles = @import("menu_roles.zig");
 
 // Objective-C runtime types and functions (manual declarations to avoid @cImport issues)
 pub const objc = struct {
@@ -6052,88 +6053,193 @@ pub fn setApplicationIcon(path: []const u8) void {
     msgSendVoid1(app, "setApplicationIconImage:", image);
 }
 
-/// Create a minimal application menu with standard shortcuts (CMD+H, CMD+Q, etc.)
-/// plus a View menu wired into WKWebView's responder chain for Reload (Cmd+R)
-/// and Force Reload (Cmd+Shift+R). Dev consoles can be opened via right-click
-/// when `dev_tools` is enabled (the webview sets `setInspectable:YES`).
+// NSEventModifierFlags. A key equivalent implies Command already, so these
+// name only what gets added on top of it.
+const modifier_shift: c_ulong = 1 << 17;
+const modifier_control: c_ulong = 1 << 18;
+const modifier_option: c_ulong = 1 << 19;
+const modifier_command: c_ulong = 1 << 20;
+
+/// The AppKit selector for a role, resolved where the menu is declared.
+///
+/// A role `menu_roles.zig` does not define produces an item with a nil action,
+/// which AppKit renders permanently greyed out — a failure you find by
+/// launching the app and looking at it. The tables below are comptime-known, so
+/// a typo is a build error instead.
+fn menuRole(comptime name: []const u8) [*:0]const u8 {
+    return comptime menu_roles.selectorFor(name) orelse
+        @compileError("menu role \"" ++ name ++ "\" has no AppKit selector in menu_roles.zig");
+}
+
+/// One entry in the default menu bar.
+///
+/// Declaring the bar as data rather than as ~40 lines of msgSend per menu is
+/// what keeps it readable at this size — and it keeps the default bar and an
+/// app-declared one resolving roles through the same table.
+const DefaultItem = struct {
+    title: []const u8 = "",
+    /// What the item performs. Null is a separator.
+    selector: ?[*:0]const u8 = null,
+    /// Key equivalent, lowercase. Empty means no shortcut.
+    key: []const u8 = "",
+    /// Modifiers beyond the Command a key equivalent already implies.
+    extra_modifiers: c_ulong = 0,
+    /// Append the app name to the title, as the App menu does: "Quit Craft".
+    with_app_name: bool = false,
+};
+
+const DefaultMenu = struct {
+    /// Fallback title, used when `use_app_name` is set but the name could not
+    /// be read.
+    title: []const u8,
+    items: []const DefaultItem,
+    /// Title this menu with the app's name. AppKit is documented to show the
+    /// application name over the first menu whatever we title it, but setting
+    /// it explicitly costs nothing and does not depend on that.
+    use_app_name: bool = false,
+    /// Hand this menu to `-[NSApplication setWindowsMenu:]`, which makes AppKit
+    /// maintain the list of open windows underneath it.
+    is_windows_menu: bool = false,
+};
+
+/// The App menu. AppKit renders the first menu in the bar under the app's own
+/// name in bold, and everything here is what a Mac user expects to find there.
+const app_menu_items = [_]DefaultItem{
+    .{ .title = "About", .selector = menuRole("about"), .with_app_name = true },
+    .{},
+    .{ .title = "Hide", .selector = menuRole("hide"), .key = "h", .with_app_name = true },
+    .{ .title = "Hide Others", .selector = menuRole("hideOthers"), .key = "h", .extra_modifiers = modifier_option },
+    .{ .title = "Show All", .selector = menuRole("showAll") },
+    .{},
+    .{ .title = "Quit", .selector = menuRole("quit"), .key = "q", .with_app_name = true },
+};
+
+/// The Edit menu, and the reason this function grew.
+///
+/// On macOS a menu item's key equivalent is how Cmd+X/C/V/A reach the responder
+/// chain at all. Without these items an app that never calls `craft.menu.set()`
+/// has no menu-driven clipboard: text fields get only whatever the WKWebView
+/// intercepts for itself, and Cmd+C over a native control does nothing.
+const edit_menu_items = [_]DefaultItem{
+    .{ .title = "Undo", .selector = menuRole("undo"), .key = "z" },
+    .{ .title = "Redo", .selector = menuRole("redo"), .key = "z", .extra_modifiers = modifier_shift },
+    .{},
+    .{ .title = "Cut", .selector = menuRole("cut"), .key = "x" },
+    .{ .title = "Copy", .selector = menuRole("copy"), .key = "c" },
+    .{ .title = "Paste", .selector = menuRole("paste"), .key = "v" },
+    .{ .title = "Delete", .selector = menuRole("delete") },
+    .{ .title = "Select All", .selector = menuRole("selectAll"), .key = "a" },
+};
+
+/// Reload and Force Reload land on the focused WKWebView, which implements
+/// `reload:` and `reloadFromOrigin:` as action selectors. Dev consoles stay
+/// reachable by right-click when `dev_tools` is enabled (the webview sets
+/// `setInspectable:YES`).
+const view_menu_items = [_]DefaultItem{
+    .{ .title = "Reload", .selector = menuRole("reload"), .key = "r" },
+    .{ .title = "Force Reload", .selector = menuRole("forceReload"), .key = "r", .extra_modifiers = modifier_shift },
+    .{},
+    .{ .title = "Enter Full Screen", .selector = menuRole("fullscreen"), .key = "f", .extra_modifiers = modifier_control },
+};
+
+const window_menu_items = [_]DefaultItem{
+    .{ .title = "Minimize", .selector = menuRole("minimize"), .key = "m" },
+    .{ .title = "Zoom", .selector = menuRole("zoom") },
+    .{},
+    .{ .title = "Close Window", .selector = menuRole("close"), .key = "w" },
+    .{},
+    .{ .title = "Bring All to Front", .selector = menuRole("front") },
+};
+
+const default_menus = [_]DefaultMenu{
+    .{ .title = "App", .items = &app_menu_items, .use_app_name = true },
+    .{ .title = "Edit", .items = &edit_menu_items },
+    .{ .title = "View", .items = &view_menu_items },
+    .{ .title = "Window", .items = &window_menu_items, .is_windows_menu = true },
+};
+
+/// The app's display name: `-[NSProcessInfo processName]`, which is the
+/// executable name for a bare binary and CFBundleName inside a `.app`.
+///
+/// Copied into `buf` because the titles built from it are formatted, and a
+/// name too long to fit is reported as absent rather than truncated — a cut
+/// mid-codepoint would make `stringWithUTF8String:` return nil and the menu
+/// item lose its title entirely.
+fn appDisplayName(buf: []u8) ?[]const u8 {
+    const NSProcessInfo = getClass("NSProcessInfo");
+    const info = msgSend0(NSProcessInfo, "processInfo");
+    if (info == null) return null;
+    const name = msgSend0(info, "processName");
+    if (name == null) return null;
+    const utf8 = msgSend0(name, "UTF8String");
+    if (utf8 == null) return null;
+    const span = std.mem.span(@as([*:0]const u8, @ptrCast(utf8)));
+    if (span.len == 0 or span.len > buf.len) return null;
+    @memcpy(buf[0..span.len], span);
+    return buf[0..span.len];
+}
+
+/// Create the default application menu bar: App, Edit, View and Window.
+///
+/// Every item is a role with a **nil target**, so AppKit walks the responder
+/// chain to perform it — exactly as a nib-built menu would. That is what makes
+/// Cmd+C reach the focused field editor or the WKWebView rather than a handler
+/// of ours, which can see neither.
+///
+/// Replaced wholesale the moment an app calls `craft.menu.set()`.
 pub fn createApplicationMenu() void {
     const NSApplication = getClass("NSApplication");
     const NSMenu = getClass("NSMenu");
     const NSMenuItem = getClass("NSMenuItem");
-    const NSString = getClass("NSString");
 
     const app = msgSend0(NSApplication, "sharedApplication");
-
-    // Create main menu bar
     const main_menu = msgSend0(msgSend0(NSMenu, "alloc"), "init");
 
-    // Create app menu (first menu in menu bar)
-    const app_menu_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
-    const app_menu = msgSend0(msgSend0(NSMenu, "alloc"), "init");
+    var name_buf: [128]u8 = undefined;
+    const app_name = appDisplayName(&name_buf);
 
-    // Add "Hide" item with CMD+H
-    const hide_title = msgSend1(NSString, "stringWithUTF8String:", "Hide");
-    const hide_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
-    msgSendVoid1(hide_item, "setTitle:", hide_title);
-    const h_key = msgSend1(NSString, "stringWithUTF8String:", "h");
-    msgSendVoid1(hide_item, "setKeyEquivalent:", h_key);
-    const hide_sel = sel("hide:");
-    msgSendVoid1(hide_item, "setAction:", hide_sel);
-    msgSendVoid1(app_menu, "addItem:", hide_item);
+    for (default_menus) |menu_def| {
+        const menu_title = createNSString(if (menu_def.use_app_name) (app_name orelse menu_def.title) else menu_def.title);
+        const menu_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
+        msgSendVoid1(menu_item, "setTitle:", menu_title);
+        const menu = msgSend1(msgSend0(NSMenu, "alloc"), "initWithTitle:", menu_title);
 
-    // Add separator
-    const sep1 = msgSend0(NSMenuItem, "separatorItem");
-    msgSendVoid1(app_menu, "addItem:", sep1);
+        for (menu_def.items) |item| {
+            const selector = item.selector orelse {
+                msgSendVoid1(menu, "addItem:", msgSend0(NSMenuItem, "separatorItem"));
+                continue;
+            };
 
-    // Add "Quit" item with CMD+Q
-    const quit_title = msgSend1(NSString, "stringWithUTF8String:", "Quit");
-    const quit_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
-    msgSendVoid1(quit_item, "setTitle:", quit_title);
-    const q_key = msgSend1(NSString, "stringWithUTF8String:", "q");
-    msgSendVoid1(quit_item, "setKeyEquivalent:", q_key);
-    const quit_sel = sel("terminate:");
-    msgSendVoid1(quit_item, "setAction:", quit_sel);
-    msgSendVoid1(app_menu, "addItem:", quit_item);
+            // "Quit" becomes "Quit Craft" when we could read a name, and stays
+            // "Quit" when we could not — a bare verb is a worse label than the
+            // full one, but it is still the right item.
+            var title_buf: [160]u8 = undefined;
+            const title = if (item.with_app_name) blk: {
+                const name = app_name orelse break :blk item.title;
+                break :blk std.fmt.bufPrint(&title_buf, "{s} {s}", .{ item.title, name }) catch item.title;
+            } else item.title;
 
-    // Set submenu
-    msgSendVoid1(app_menu_item, "setSubmenu:", app_menu);
-    msgSendVoid1(main_menu, "addItem:", app_menu_item);
+            const native_item = msgSend3(
+                msgSend0(NSMenuItem, "alloc"),
+                "initWithTitle:action:keyEquivalent:",
+                createNSString(title),
+                sel(selector),
+                createNSString(item.key),
+            );
+            if (item.extra_modifiers != 0) {
+                msgSendVoid1Ulong(native_item, "setKeyEquivalentModifierMask:", modifier_command | item.extra_modifiers);
+            }
+            msgSendVoid1(menu, "addItem:", native_item);
+        }
 
-    // ── View menu ─────────────────────────────────────────────────────
-    // Items leave target as nil so AppKit walks the responder chain. The
-    // focused WKWebView responds to `reload:` and `reloadFromOrigin:` as
-    // IBAction-style selectors (defined on WKWebView).
-    const view_menu_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
-    const view_menu_title = msgSend1(NSString, "stringWithUTF8String:", "View");
-    msgSendVoid1(view_menu_item, "setTitle:", view_menu_title);
-    const view_menu = msgSend1(msgSend0(NSMenu, "alloc"), "initWithTitle:", view_menu_title);
+        msgSendVoid1(menu_item, "setSubmenu:", menu);
+        msgSendVoid1(main_menu, "addItem:", menu_item);
 
-    // Reload — Cmd+R
-    const reload_title = msgSend1(NSString, "stringWithUTF8String:", "Reload");
-    const reload_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
-    msgSendVoid1(reload_item, "setTitle:", reload_title);
-    const r_key = msgSend1(NSString, "stringWithUTF8String:", "r");
-    msgSendVoid1(reload_item, "setKeyEquivalent:", r_key);
-    msgSendVoid1(reload_item, "setAction:", sel("reload:"));
-    msgSendVoid1(view_menu, "addItem:", reload_item);
+        // Told about the Window menu, AppKit keeps the list of open windows in
+        // it and adds the checkmark for the active one.
+        if (menu_def.is_windows_menu) msgSendVoid1(app, "setWindowsMenu:", menu);
+    }
 
-    // Force Reload — Cmd+Shift+R. NSEventModifierFlagShift = 1<<17,
-    // NSEventModifierFlagCommand = 1<<20; key equivalents add Command
-    // implicitly so we only OR Shift in here.
-    const NSEventModifierFlagShift: c_ulong = 1 << 17;
-    const NSEventModifierFlagCommand: c_ulong = 1 << 20;
-    const force_reload_title = msgSend1(NSString, "stringWithUTF8String:", "Force Reload");
-    const force_reload_item = msgSend0(msgSend0(NSMenuItem, "alloc"), "init");
-    msgSendVoid1(force_reload_item, "setTitle:", force_reload_title);
-    msgSendVoid1(force_reload_item, "setKeyEquivalent:", r_key);
-    msgSendVoid1(force_reload_item, "setKeyEquivalentModifierMask:", NSEventModifierFlagShift | NSEventModifierFlagCommand);
-    msgSendVoid1(force_reload_item, "setAction:", sel("reloadFromOrigin:"));
-    msgSendVoid1(view_menu, "addItem:", force_reload_item);
-
-    msgSendVoid1(view_menu_item, "setSubmenu:", view_menu);
-    msgSendVoid1(main_menu, "addItem:", view_menu_item);
-
-    // Set as main menu
     msgSendVoid1(app, "setMainMenu:", main_menu);
 }
 

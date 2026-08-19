@@ -546,6 +546,17 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    // The role -> AppKit selector table, shared by the bridge and by the
+    // default menu bar. Pure data and pure lookups, so it is tested here
+    // instead of by launching an app and reading the menus.
+    const menu_roles_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/menu_roles.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
     const config_tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("test/config_test.zig"),
@@ -881,6 +892,7 @@ pub fn build(b: *std.Build) void {
     const run_native_sidebar_tests = b.addRunArtifact(native_sidebar_tests);
     const run_space_list_tests = b.addRunArtifact(space_list_tests);
     const run_local_tls_tests = b.addRunArtifact(local_tls_tests);
+    const run_menu_roles_tests = b.addRunArtifact(menu_roles_tests);
     const run_config_tests = b.addRunArtifact(config_tests);
     const run_ipc_tests = b.addRunArtifact(ipc_tests);
     const run_performance_tests = b.addRunArtifact(performance_tests);
@@ -981,6 +993,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_native_sidebar_tests.step);
     test_step.dependOn(&run_space_list_tests.step);
     test_step.dependOn(&run_local_tls_tests.step);
+    test_step.dependOn(&run_menu_roles_tests.step);
     test_step.dependOn(&run_config_tests.step);
     test_step.dependOn(&run_ipc_tests.step);
     test_step.dependOn(&run_performance_tests.step);
@@ -1076,6 +1089,9 @@ pub fn build(b: *std.Build) void {
 
     const test_local_tls_step = b.step("test:local-tls", "Run local development TLS tests");
     test_local_tls_step.dependOn(&run_local_tls_tests.step);
+
+    const test_menu_roles_step = b.step("test:menu-roles", "Run menu role table tests");
+    test_menu_roles_step.dependOn(&run_menu_roles_tests.step);
 
     const test_config_step = b.step("test:config", "Run Config tests");
     test_config_step.dependOn(&run_config_tests.step);
