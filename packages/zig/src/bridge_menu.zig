@@ -50,7 +50,12 @@ pub const MenuBridge = struct {
     }
 
     fn handleMessageInternal(self: *Self, action: []const u8, data: []const u8) !void {
-        if (std.mem.eql(u8, action, "setAppMenu")) {
+        // `setAppMenu` is the canonical action (the bridge JS and .d.ts both
+        // say so since #27). The old bridge name `setApplicationMenu` stays
+        // accepted for callers that post raw bridge messages against the old
+        // contract — one string compare buys them a working menu instead of
+        // the silent no-op #27 fixed.
+        if (std.mem.eql(u8, action, "setAppMenu") or std.mem.eql(u8, action, "setApplicationMenu")) {
             try self.setAppMenu(data);
         } else if (std.mem.eql(u8, action, "setDockMenu")) {
             try self.setDockMenu(data);
@@ -91,6 +96,12 @@ pub const MenuBridge = struct {
         shortcut: ?[]const u8 = null,
         icon: ?[]const u8 = null,
         separator: ?bool = null,
+        /// A standard-behavior item ("copy", "quit", "minimize"): the item is
+        /// wired to the matching AppKit selector with a nil target, so the
+        /// responder chain — not JS — performs it. Cut/copy/paste MUST take
+        /// this path: a JS round-trip cannot reach the field editor or the
+        /// WKWebView's own clipboard actions.
+        role: ?[]const u8 = null,
     };
 
     /// Shape parsed from JSON: a top-level menu (bar / dock root).
@@ -189,7 +200,7 @@ pub const MenuBridge = struct {
             const id = it.id orelse continue;
             const label = it.label orelse id;
             const shortcut = it.shortcut orelse "";
-            const item = try self.createMenuItem(id, label, shortcut, it.icon);
+            const item = try self.createMenuItemFull(id, label, shortcut, it.icon, it.role);
             if (item) |i| {
                 _ = macos.msgSend1(menu, "addItem:", i);
             }
@@ -227,8 +238,25 @@ pub const MenuBridge = struct {
         return null;
     }
 
-    /// Create a single menu item with optional icon
+    /// Create a single menu item with optional icon. Kept as the two-behavior
+    /// wrapper existing callers (`addMenuItemImpl`) use: id-actions only.
     fn createMenuItem(self: *Self, id: []const u8, label: []const u8, shortcut: []const u8, icon_name: ?[]const u8) !?*anyopaque {
+        return self.createMenuItemFull(id, label, shortcut, icon_name, null);
+    }
+
+    /// The real builder. Two kinds of item come out of it:
+    ///
+    /// - role items: action = the AppKit selector for the role, target = nil,
+    ///   so the responder chain performs the standard behavior (copy:,
+    ///   terminate:, performMiniaturize:, …) exactly as a nib-built menu
+    ///   would.
+    /// - id items: action = craftMenuAction: on the registered target below,
+    ///   which reads the id back out of representedObject and forwards it to
+    ///   the page as a `craft:menu:action` event. Before the target existed,
+    ///   every bridge-built item pointed at a selector nobody implemented, so
+    ///   AppKit auto-disabled the entire menu — `craft.menu.set()` produced
+    ///   grey text.
+    fn createMenuItemFull(self: *Self, id: []const u8, label: []const u8, shortcut: []const u8, icon_name: ?[]const u8, role: ?[]const u8) !?*anyopaque {
         if (comptime builtin.os.tag != .macos) return null;
 
         const macos = @import("macos.zig");
@@ -272,9 +300,21 @@ pub const MenuBridge = struct {
         defer self.allocator.free(key_cstr);
         const ns_key = macos.msgSend1(macos.msgSend0(NSString, "alloc"), "initWithUTF8String:", key_cstr.ptr);
 
-        // Create menu item with action
+        // Role items act through the responder chain; id items through the
+        // registered target. An unknown role falls back to an id item rather
+        // than a dead one, so a newer JS surface degrades to an event the
+        // page can still handle.
+        const role_sel = if (role) |r| roleSelector(r) else null;
+        const action_sel = if (role_sel) |s| macos.sel(s) else macos.sel("craftMenuAction:");
+
         const NSMenuItem = macos.getClass("NSMenuItem");
-        const item = macos.msgSend3(macos.msgSend0(NSMenuItem, "alloc"), "initWithTitle:action:keyEquivalent:", ns_label, macos.sel("craftMenuAction:"), ns_key);
+        const item = macos.msgSend3(macos.msgSend0(NSMenuItem, "alloc"), "initWithTitle:action:keyEquivalent:", ns_label, action_sel, ns_key);
+
+        if (role_sel == null) {
+            if (ensureMenuTarget()) |target| {
+                _ = macos.msgSend1(item, "setTarget:", target);
+            }
+        }
 
         // Set modifier mask
         if (modifier_mask > 0) {
@@ -505,6 +545,77 @@ pub const MenuBridge = struct {
 
 /// Global dock menu for delegate callback
 var global_dock_menu: ?*anyopaque = null;
+
+/// The AppKit selector a role stands for, or null for a role this build does
+/// not know. Names follow Electron's role vocabulary where one exists — the
+/// audience for this API has usually met it there first.
+fn roleSelector(role: []const u8) ?[*:0]const u8 {
+    const roles = [_]struct { name: []const u8, selector: [*:0]const u8 }{
+        .{ .name = "about", .selector = "orderFrontStandardAboutPanel:" },
+        .{ .name = "hide", .selector = "hide:" },
+        .{ .name = "hideOthers", .selector = "hideOtherApplications:" },
+        .{ .name = "showAll", .selector = "unhideAllApplications:" },
+        .{ .name = "quit", .selector = "terminate:" },
+        .{ .name = "undo", .selector = "undo:" },
+        .{ .name = "redo", .selector = "redo:" },
+        .{ .name = "cut", .selector = "cut:" },
+        .{ .name = "copy", .selector = "copy:" },
+        .{ .name = "paste", .selector = "paste:" },
+        .{ .name = "delete", .selector = "delete:" },
+        .{ .name = "selectAll", .selector = "selectAll:" },
+        .{ .name = "close", .selector = "performClose:" },
+        .{ .name = "minimize", .selector = "performMiniaturize:" },
+        .{ .name = "zoom", .selector = "performZoom:" },
+        .{ .name = "front", .selector = "arrangeInFront:" },
+        .{ .name = "fullscreen", .selector = "toggleFullScreen:" },
+        .{ .name = "reload", .selector = "reload:" },
+        .{ .name = "forceReload", .selector = "reloadFromOrigin:" },
+    };
+    for (roles) |entry| {
+        if (std.ascii.eqlIgnoreCase(role, entry.name)) return entry.selector;
+    }
+    return null;
+}
+
+/// One target for every id item in every bridge-built menu. A single retained
+/// NSObject is enough: the clicked item arrives as `sender`, carrying its own
+/// id in `representedObject`.
+var menu_target: ?*anyopaque = null;
+
+fn menuActionCallback(_: ?*anyopaque, _: ?*anyopaque, sender: ?*anyopaque) callconv(.c) void {
+    if (comptime builtin.os.tag != .macos) return;
+    if (sender == null) return;
+
+    const macos = @import("macos.zig");
+    const rep = macos.msgSend0(sender, "representedObject");
+    if (rep == null) return;
+    const cstr = macos.msgSend0(rep, "UTF8String");
+    if (cstr == null) return;
+    handleMenuItemClick(std.mem.span(@as([*:0]const u8, @ptrCast(cstr))));
+}
+
+fn ensureMenuTarget() ?*anyopaque {
+    if (comptime builtin.os.tag != .macos) return null;
+    if (menu_target != null) return menu_target;
+
+    const macos = @import("macos.zig");
+    const objc = macos.objc;
+
+    const NSObject = macos.getClass("NSObject");
+    const cls = objc.objc_allocateClassPair(NSObject, "CraftMenuTarget", 0);
+    if (cls == null) return null;
+
+    _ = objc.class_addMethod(
+        cls,
+        macos.sel("craftMenuAction:"),
+        @ptrCast(@constCast(&menuActionCallback)),
+        "v@:@",
+    );
+    objc.objc_registerClassPair(cls);
+
+    menu_target = macos.msgSend0(macos.msgSend0(cls, "alloc"), "init");
+    return menu_target;
+}
 
 /// Get dock menu for applicationDockMenu: delegate
 pub fn getDockMenu() ?*anyopaque {
