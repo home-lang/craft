@@ -114,9 +114,6 @@ pub const tray = @import("tray.zig");
 /// Window management
 pub const window = @import("window.zig");
 
-/// Menu management
-pub const menu = @import("menu.zig");
-
 /// Keyboard shortcuts
 pub const shortcuts = @import("shortcuts.zig");
 
