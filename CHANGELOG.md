@@ -1,5 +1,39 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.66...v0.0.67)
+
+## 🐛 Bug Fixes
+
+- **cli**: tell the user when `craft` on PATH is the CLI, not the binary (#28) ([85ff14b](https://github.com/craft-native/craft/commit/85ff14b)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#28](https://github.com/craft-native/craft/issues/28), [#28](https://github.com/craft-native/craft/issues/28))
+- **menu**: align the injected bridge with the contract native parses (#27) ([6fc212d](https://github.com/craft-native/craft/commit/6fc212d)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#27](https://github.com/craft-native/craft/issues/27), [#27](https://github.com/craft-native/craft/issues/27))
+- **ci**: link libc in the test artifacts that need it, retire mobile E2E (#23) ([e1bc449](https://github.com/craft-native/craft/commit/e1bc449)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#23](https://github.com/craft-native/craft/issues/23), [#23](https://github.com/craft-native/craft/issues/23))
+- **ci**: get the CI workflow green again (#22) ([3c7bcec](https://github.com/craft-native/craft/commit/3c7bcec)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#22](https://github.com/craft-native/craft/issues/22), [#22](https://github.com/craft-native/craft/issues/22))
+- **build**: keep unwind tables on Windows so the release can cross-compile (#21) ([5872e09](https://github.com/craft-native/craft/commit/5872e09)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#21](https://github.com/craft-native/craft/issues/21), [#21](https://github.com/craft-native/craft/issues/21))
+- **macos**: trust local development certificates behind an opt-in (#20) ([3e7c589](https://github.com/craft-native/craft/commit/3e7c589)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#20](https://github.com/craft-native/craft/issues/20), [#20](https://github.com/craft-native/craft/issues/20))
+- **macos**: anchor titlebar controls to the titlebar band (#19) ([aec7337](https://github.com/craft-native/craft/commit/aec7337)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#19](https://github.com/craft-native/craft/issues/19), [#19](https://github.com/craft-native/craft/issues/19))
+- **build**: move the zig pin past the SEH miscompile ([5930464](https://github.com/craft-native/craft/commit/5930464)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **deps**: drop unused vitest to clear critical Go stdlib CVEs from the SBOM gate ([b53392d](https://github.com/craft-native/craft/commit/b53392d)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ci**: stop Buddy Bot's every-minute schedule ([7edbaad](https://github.com/craft-native/craft/commit/7edbaad)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## ⚡ Performance Improvements
+
+- **build**: stop shipping sourcemaps and declaration maps ([332b96a](https://github.com/craft-native/craft/commit/332b96a)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## 🤖 Continuous Integration
+
+- **size**: rebaseline the binary gate for the bundled zig-js runtime ([e3c0a65](https://github.com/craft-native/craft/commit/e3c0a65)) _(by Chris Breuer <chrisbreuer93@gmail.com>)_
+
+## 🧹 Chores
+
+- release v0.0.67 ([922c87f](https://github.com/craft-native/craft/commit/922c87f)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **ci**: follow the org moves in workflow and doc references ([0e30d01](https://github.com/craft-native/craft/commit/0e30d01)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _Chris Breuer <chrisbreuer93@gmail.com>_
+- _Glenn Michael Torregosa <gtorregosa@gmail.com>_
+
 [Compare changes](https://github.com/home-lang/craft/compare/v0.0.65...v0.0.66)
 
 ## 🚀 Features
