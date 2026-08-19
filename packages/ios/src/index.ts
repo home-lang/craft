@@ -209,7 +209,9 @@ export function renderOrientations(config: CraftConfig): string {
     'landscape-right': 'UIInterfaceOrientationLandscapeRight',
     'portrait-upside-down': 'UIInterfaceOrientationPortraitUpsideDown',
   }
-  const values = config.orientations?.length ? config.orientations : ['portrait']
+  // Annotated, not inferred: the `['portrait']` fallback widens to string[]
+  // on its own, which then cannot index `names`.
+  const values: NonNullable<CraftConfig['orientations']> = config.orientations?.length ? config.orientations : ['portrait']
   return values.map(value => `        <string>${names[value]}</string>`).join('\n')
 }
 

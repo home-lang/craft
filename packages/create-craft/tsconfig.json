@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
-    "isolatedDeclarations": true
+    "isolatedDeclarations": true,
+    "types": [
+      "node",
+      "bun"
+    ]
   },
   "include": [
     "bin"
