@@ -66,7 +66,11 @@ jobs:
           mkdir -p zig-out/cross/darwin-x64 && cp zig-out/bin/craft zig-out/cross/darwin-x64/craft
           echo "::endgroup::"
 
-          # Restore native ARM64 binary
+          # Restore native ARM64 binary. `zig-out/bin` is cleared first because
+          # the publish step zips that directory whole and unfiltered, so
+          # anything a cross build left in it ships to users under the host's
+          # archive name.
+          rm -rf zig-out/bin
           eval "$(pantry env | sed -n '/^export /,$p')" && zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
 
       - name: First-party Zig dependencies
@@ -93,7 +97,12 @@ jobs:
             echo "::endgroup::"
           done
 
-          # Restore native linux-x64 binary
+          # Restore native linux-x64 binary. Clearing `zig-out/bin` first is
+          # load-bearing: the windows cross build above leaves craft.exe there,
+          # nothing removes it, and the publish step zips the whole directory —
+          # so craft-linux-x64.zip shipped a Windows PE binary alongside the
+          # Linux one.
+          rm -rf zig-out/bin
           eval "$(pantry env | sed -n '/^export /,$p')" && zig build -Doptimize=ReleaseSafe -Dversion="$VERSION"
 
       # ── macOS Code Signing & Notarization ──────────────────────────
@@ -199,6 +208,13 @@ jobs:
           release: 'true'
           release-changelog: CHANGELOG.md
           release-token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+          # Replaces the old `notify` job, which pointed at
+          # .github/actions/discord-notify — a path that has never existed in
+          # this repository. Its `hashFiles` guard skipped the only real step,
+          # so the job checked out the repo, did nothing and reported success:
+          # a failed release looked notified. The action does this natively.
+          discord-webhook: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          notification-title: craft ${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
 
@@ -224,27 +240,3 @@ jobs:
         run: pantry publish --npm --access public
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  notify:
-    name: discord-notification
-    needs: [pantry, npm]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/discord-notify
-        if: hashFiles('.github/actions/discord-notify/action.yml') != ''
-        with:
-          title: "Release ${{ github.ref_name }} — ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'Published' || (needs.pantry.result == 'cancelled' || needs.npm.result == 'cancelled') && 'Cancelled' || 'Failed' }}"
-          description: "craft ${{ github.ref_name }} has been released"
-          status: ${{ needs.pantry.result == 'success' && needs.npm.result == 'success' && 'success' || (needs.pantry.result == 'cancelled' || needs.npm.result == 'cancelled') && 'warning' || 'failure' }}
-          fields: |
-            [
-              {"name": "Tag", "value": "`${{ github.ref_name }}`", "inline": true},
-              {"name": "Actor", "value": "${{ github.actor }}", "inline": true},
-              {"name": "Binaries", "value": "${{ needs.pantry.result == 'success' && '✅ Published' || '❌ Failed' }}", "inline": true},
-              {"name": "npm Packages", "value": "${{ needs.npm.result == 'success' && '✅ Published' || '❌ Failed' }}", "inline": true},
-              {"name": "Release", "value": "[View on GitHub](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})", "inline": true}
-            ]
-          webhook_url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        continue-on-error: true

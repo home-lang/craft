@@ -82,10 +82,14 @@ pub fn build(b: *std.Build) void {
     // Add system libraries based on platform
     const target_os = target.result.os.tag;
     linkPlatformLibraries(b, exe.root_module, target_os, macos_sdk);
-    b.installArtifact(exe);
 
+    // Deliberately not installed. `zig-out/bin` is what the release packager
+    // zips, whole and unfiltered, so anything installed here ships to users —
+    // and the demo was riding along in every archive, unsigned on macOS next
+    // to a notarized `craft`, because the signing loop names only `craft`.
+    // `zig build run-demo` still builds and runs it; it just does not end up
+    // in the install prefix.
     const run_cmd = b.addRunArtifact(exe);
-    run_cmd.step.dependOn(b.getInstallStep());
 
     const run_step = b.step("run-demo", "Run the demo app");
     run_step.dependOn(&run_cmd.step);
