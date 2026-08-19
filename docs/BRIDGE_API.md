@@ -7,6 +7,7 @@ The Craft JavaScript Bridge provides a seamless interface for your web applicati
 - [Overview](#overview)
 - [Getting Started](#getting-started)
 - [System Tray API](#system-tray-api)
+- [Application Menu (macOS)](#application-menu-macos)
 - [Window API](#window-api)
 - [App API](#app-api)
 - [TypeScript Support](#typescript-support)
@@ -156,6 +157,134 @@ interface MenuItem {
   submenu?: MenuItem[]
 }
 ```
+
+## Application Menu (macOS)
+
+The menu bar across the top of the screen, distinct from the tray menu above.
+macOS only — on Linux and Windows these calls are accepted and ignored.
+
+Craft installs a default bar at startup, so an app that never touches this API
+still gets the standard shortcuts. Calling `set()` replaces that bar
+**entirely** — if your app has text input anywhere, declare an Edit menu
+yourself, or Cmd+X/C/V stop reaching it.
+
+### `window.craft.menu.set(options: { menus: MenuDefinition[] }): Promise<void>`
+
+Replace the whole bar.
+
+```javascript
+await window.craft.menu.set({
+  menus: [
+    {
+      label: 'File',
+      items: [
+        { id: 'new', label: 'New', shortcut: 'cmd+n' },
+        { id: 'open', label: 'Open...', shortcut: 'cmd+o' },
+        { separator: true },
+        { role: 'close', label: 'Close Window', shortcut: 'cmd+w' },
+      ],
+    },
+    {
+      label: 'Edit',
+      items: [
+        { role: 'undo', label: 'Undo', shortcut: 'cmd+z' },
+        { role: 'redo', label: 'Redo', shortcut: 'cmd+shift+z' },
+        { separator: true },
+        { role: 'cut', label: 'Cut', shortcut: 'cmd+x' },
+        { role: 'copy', label: 'Copy', shortcut: 'cmd+c' },
+        { role: 'paste', label: 'Paste', shortcut: 'cmd+v' },
+        { role: 'selectAll', label: 'Select All', shortcut: 'cmd+a' },
+      ],
+    },
+  ],
+});
+```
+
+The returned promise resolves once the message has been posted, not once the
+menu exists — native acknowledges nothing on success. A failure arrives on the
+console rather than as a rejection.
+
+### `window.craft.menu.onAction(handler: (event: { id: string }) => void): () => void`
+
+Menu clicks arrive here. Without it there is no way to respond to a menu at all.
+Returns an unsubscribe function.
+
+```javascript
+const off = window.craft.menu.onAction(({ id }) => {
+  if (id === 'new') createDocument();
+  if (id === 'open') openDocument();
+});
+```
+
+Only items with an `id` fire this. Role items are performed by the system and
+never reach your handler.
+
+### Items and roles
+
+```typescript
+interface MenuDefinition {
+  label: string
+  items: MenuItemDefinition[]
+}
+
+interface MenuItemDefinition {
+  /** Echoed back by `onAction` when this item is clicked. */
+  id?: string
+  label?: string
+  /** Accelerator, e.g. `cmd+n`, `cmd+shift+r`. */
+  shortcut?: string
+  /** Icon name (SF Symbol, resolved through Craft's cross-platform icon table). */
+  icon?: string
+  /** Renders a divider; every other field is ignored when this is set. */
+  separator?: boolean
+  /** A standard behavior the system performs — see the table below. */
+  role?: string
+}
+```
+
+This is the whole of it. The native decoder parses exactly these fields and
+ignores anything else, so extra keys are dropped in silence rather than
+rejected. Two consequences worth knowing:
+
+- a separator is `{ separator: true }`, not `{ type: 'separator' }`
+- there are no nested submenus yet; the bar is one level deep
+
+Checkmarks and enablement are set after the fact, with `checkItem()` /
+`enableItem()`, not with a field here.
+
+**Roles.** A role item is wired to an AppKit selector through the responder
+chain, exactly as a hand-built Mac menu would be. Use one wherever the system
+already knows how to do the job:
+
+| role | performs | role | performs |
+|---|---|---|---|
+| `about` | About panel | `selectAll` | select all |
+| `hide` | hide app | `close` | close window |
+| `hideOthers` | hide other apps | `minimize` | minimize |
+| `showAll` | unhide all | `zoom` | zoom |
+| `quit` | quit | `front` | bring all to front |
+| `undo` / `redo` | undo, redo | `fullscreen` | toggle full screen |
+| `cut` / `copy` / `paste` | clipboard | `reload` | reload the webview |
+| `delete` | delete selection | `forceReload` | reload ignoring cache |
+
+Cut, copy and paste **must** be roles. A round trip through JavaScript cannot
+reach the field editor inside a text field or the WKWebView's own clipboard
+handling, so an `id` item named "Copy" will not copy anything.
+
+An unrecognized role degrades to an ordinary `id` item, which fires `onAction` —
+a newer bridge surface therefore fails soft on an older binary.
+
+### The rest of the surface
+
+| method | effect |
+|---|---|
+| `setDock({ items })` | replace the Dock menu (right-click the Dock icon) |
+| `clearDock()` | remove it |
+| `addItem(menuId, item)` | append one item to an existing menu; `menuId` is the menu's **label**, e.g. `'File'`. Pass `index` on the item to insert instead of append |
+| `removeItem(itemId)` | remove by id |
+| `enableItem(itemId)` / `disableItem(itemId)` | greyed out or not |
+| `checkItem(itemId)` / `uncheckItem(itemId)` | checkmark |
+| `setItemLabel(itemId, label)` | rename in place |
 
 ## Window API
 
