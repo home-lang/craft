@@ -2,7 +2,7 @@
 
 import type { PackageResult } from '../packages/typescript/src/package'
 import { createHash } from 'crypto'
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from 'fs'
 import { join, resolve } from 'path'
 import { packageApp } from '../packages/typescript/src/package'
 import { macOSRollbackPlan } from './native-lifecycle-plan'
@@ -23,8 +23,56 @@ const workDir = join(reportDir, 'work')
 const shouldInstall = process.argv.includes('--install')
 const steps: Step[] = []
 
-function sha256(path: string): string {
-  return createHash('sha256').update(readFileSync(path)).digest('hex')
+/**
+ * Every file inside a bundle, deepest-last, in a stable order.
+ *
+ * Sorted at each level so the walk does not depend on directory order, which
+ * differs between filesystems and would make the digest below unreproducible.
+ */
+function* bundleEntries(dir: string, prefix = ''): Generator<{ relativePath: string, absolutePath: string }> {
+  for (const name of readdirSync(dir).sort()) {
+    const absolutePath = join(dir, name)
+    const relativePath = prefix ? `${prefix}/${name}` : name
+    if (lstatSync(absolutePath).isDirectory()) yield* bundleEntries(absolutePath, relativePath)
+    else yield { relativePath, absolutePath }
+  }
+}
+
+/**
+ * SHA-256 of a packaged artifact.
+ *
+ * Most artifacts are single files. A macOS `.app` is a directory, and reading
+ * one as a file throws `EISDIR` — which is what took down both macOS legs of
+ * this workflow, after every packaging, install, update and rollback step had
+ * already passed. The report was never written and the evidence upload then
+ * failed too, so a fully successful lifecycle run reported nothing at all.
+ *
+ * Bundles are hashed as a tree instead: each file's path, then its mode bit or
+ * symlink target, then its contents. The path goes in as well as the contents
+ * so that moving a file within the bundle changes the digest. `report.json`
+ * says which of the two kinds each digest is, since they are not comparable.
+ */
+function sha256(path: string): { sha256: string, kind: 'file' | 'tree' } {
+  if (!lstatSync(path).isDirectory())
+    return { sha256: createHash('sha256').update(readFileSync(path)).digest('hex'), kind: 'file' }
+
+  const hash = createHash('sha256')
+  for (const { relativePath, absolutePath } of bundleEntries(path)) {
+    const stats = lstatSync(absolutePath)
+    hash.update(relativePath)
+    if (stats.isSymbolicLink()) {
+      // Read the link rather than follow it: bundles are full of internal
+      // symlinks (Versions/Current and friends) and following them would both
+      // double-count and, in the wrong bundle, loop.
+      hash.update('\u0002')
+      hash.update(readlinkSync(absolutePath))
+    }
+    else {
+      hash.update(stats.mode & 0o111 ? '\u0001' : '\u0000')
+      hash.update(readFileSync(absolutePath))
+    }
+  }
+  return { sha256: hash.digest('hex'), kind: 'tree' }
 }
 
 async function command(name: string, argv: string[], expected?: string): Promise<string> {
@@ -161,14 +209,32 @@ async function main(): Promise<void> {
     error = caught instanceof Error ? caught.stack || caught.message : String(caught)
   }
 
+  // Hashing runs after the try/catch above, so anything it throws used to
+  // escape `main` before `report.json` was written — losing the record of
+  // every step that had already passed. Failures are recorded per artifact
+  // and still fail the run, but the evidence survives them.
   const artifacts = packages
     .filter(result => result.success && result.outputPath && existsSync(result.outputPath))
-    .map(result => ({
-      platform: result.platform,
-      format: result.format,
-      path: result.outputPath!.replace(`${root}/`, ''),
-      sha256: sha256(result.outputPath!),
-    }))
+    .map((result) => {
+      const artifact = {
+        platform: result.platform,
+        format: result.format,
+        path: result.outputPath!.replace(`${root}/`, ''),
+        sha256: null as string | null,
+        sha256Kind: null as 'file' | 'tree' | null,
+        error: undefined as string | undefined,
+      }
+      try {
+        const digest = sha256(result.outputPath!)
+        artifact.sha256 = digest.sha256
+        artifact.sha256Kind = digest.kind
+      }
+      catch (caught) {
+        artifact.error = caught instanceof Error ? caught.message : String(caught)
+        error ||= `failed to hash ${result.format} artifact ${artifact.path}: ${artifact.error}`
+      }
+      return artifact
+    })
   const report = {
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),

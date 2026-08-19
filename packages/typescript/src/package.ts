@@ -964,6 +964,20 @@ export function windowsExecutableName(name: string): string {
   return `${name}.exe`
 }
 
+/**
+ * `candle.exe` arguments.
+ *
+ * `-arch` is not optional. WiX v3 deprecated `Package/@Platform` in favour of
+ * this switch, and candle defaults to `x86` without it — so an x64 payload was
+ * being compiled into a 32-bit installer whose one component declares
+ * `Win64="yes"` and installs under `ProgramFiles64Folder`. ICE80 exists to
+ * catch exactly that contradiction, and `light -sval` below turns validation
+ * off, so nothing ever reported it.
+ */
+export function candleArguments(architecture: 'x86' | 'x64' | 'arm64', wixobjPath: string, wxsPath: string): string[] {
+  return ['-nologo', '-arch', architecture, '-out', wixobjPath, wxsPath]
+}
+
 function runCommand(command: string, args: string[], cwd?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd, stdio: 'inherit', windowsHide: true })
@@ -981,7 +995,7 @@ async function createMSI(opts: MSIOptions): Promise<{ success: boolean; outputPa
     const wixobjPath = join(tempDir, 'installer.wixobj')
     copyFileSync(opts.binaryPath, sourcePath)
     writeFileSync(wxsPath, renderWixSource(opts, binaryName))
-    await runCommand('candle.exe', ['-nologo', '-out', wixobjPath, wxsPath], tempDir)
+    await runCommand('candle.exe', candleArguments(opts.architecture, wixobjPath, wxsPath), tempDir)
     await runCommand('light.exe', ['-nologo', '-sval', '-out', opts.outputPath, wixobjPath], tempDir)
     if (opts.certificatePath) {
       const signArgs = ['sign', '/fd', 'sha256', '/tr', 'https://timestamp.digicert.com', '/td', 'sha256', '/f', opts.certificatePath]
