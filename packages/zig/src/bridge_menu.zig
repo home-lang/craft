@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const bridge_error = @import("bridge_error.zig");
 const icons = @import("icons.zig");
+const menu_roles = @import("menu_roles.zig");
 const logging = @import("logging.zig");
 
 const BridgeError = bridge_error.BridgeError;
@@ -549,33 +550,11 @@ var global_dock_menu: ?*anyopaque = null;
 /// The AppKit selector a role stands for, or null for a role this build does
 /// not know. Names follow Electron's role vocabulary where one exists — the
 /// audience for this API has usually met it there first.
-fn roleSelector(role: []const u8) ?[*:0]const u8 {
-    const roles = [_]struct { name: []const u8, selector: [*:0]const u8 }{
-        .{ .name = "about", .selector = "orderFrontStandardAboutPanel:" },
-        .{ .name = "hide", .selector = "hide:" },
-        .{ .name = "hideOthers", .selector = "hideOtherApplications:" },
-        .{ .name = "showAll", .selector = "unhideAllApplications:" },
-        .{ .name = "quit", .selector = "terminate:" },
-        .{ .name = "undo", .selector = "undo:" },
-        .{ .name = "redo", .selector = "redo:" },
-        .{ .name = "cut", .selector = "cut:" },
-        .{ .name = "copy", .selector = "copy:" },
-        .{ .name = "paste", .selector = "paste:" },
-        .{ .name = "delete", .selector = "delete:" },
-        .{ .name = "selectAll", .selector = "selectAll:" },
-        .{ .name = "close", .selector = "performClose:" },
-        .{ .name = "minimize", .selector = "performMiniaturize:" },
-        .{ .name = "zoom", .selector = "performZoom:" },
-        .{ .name = "front", .selector = "arrangeInFront:" },
-        .{ .name = "fullscreen", .selector = "toggleFullScreen:" },
-        .{ .name = "reload", .selector = "reload:" },
-        .{ .name = "forceReload", .selector = "reloadFromOrigin:" },
-    };
-    for (roles) |entry| {
-        if (std.ascii.eqlIgnoreCase(role, entry.name)) return entry.selector;
-    }
-    return null;
-}
+///
+/// The table moved to `menu_roles.zig` so the default menu bar in `macos.zig`
+/// resolves roles the same way an app-declared one does; an app that overrides
+/// the bar should not get a different idea of what "copy" means.
+const roleSelector = menu_roles.selectorFor;
 
 /// One target for every id item in every bridge-built menu. A single retained
 /// NSObject is enough: the clicked item arrives as `sender`, carrying its own
