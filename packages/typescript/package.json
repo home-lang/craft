@@ -45,12 +45,27 @@
       "default": "./dist/mobile.js"
     },
     "./ios": {
+      "browser": null,
       "types": "./dist/ios/src/index.d.ts",
       "import": "./dist/ios/src/index.js"
     },
     "./android": {
+      "browser": null,
       "types": "./dist/android/src/index.d.ts",
       "import": "./dist/android/src/index.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "mobile": [
+        "./dist/mobile.d.ts"
+      ],
+      "ios": [
+        "./dist/ios/src/index.d.ts"
+      ],
+      "android": [
+        "./dist/android/src/index.d.ts"
+      ]
     }
   },
   "module": "./dist/index.js",
