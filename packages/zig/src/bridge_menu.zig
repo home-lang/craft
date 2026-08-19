@@ -28,6 +28,58 @@ pub const MenuItem = struct {
     submenu: ?[]MenuItem = null,
 };
 
+/// The action `craft-bridge.js` posts for `craft.menu.set`, named once so the
+/// dispatcher below and the contract test in `test/injected_js_test.zig` compare
+/// against the same bytes. A copy on each side is what #27 was: the JS said
+/// `setApplicationMenu`, the dispatcher said `setAppMenu`, and because an
+/// unrecognized action only logs, every call looked like it had worked.
+pub const action_set_app_menu = "setAppMenu";
+
+/// Shape parsed from JSON: a single item in an items array.
+pub const ParsedItem = struct {
+    id: ?[]const u8 = null,
+    label: ?[]const u8 = null,
+    shortcut: ?[]const u8 = null,
+    icon: ?[]const u8 = null,
+    separator: ?bool = null,
+    /// A standard-behavior item ("copy", "quit", "minimize"): the item is
+    /// wired to the matching AppKit selector with a nil target, so the
+    /// responder chain — not JS — performs it. Cut/copy/paste MUST take
+    /// this path: a JS round-trip cannot reach the field editor or the
+    /// WKWebView's own clipboard actions.
+    role: ?[]const u8 = null,
+};
+
+/// Shape parsed from JSON: a top-level menu (bar / dock root).
+pub const ParsedMenu = struct {
+    label: ?[]const u8 = null,
+    items: ?[]const ParsedItem = null,
+};
+
+/// Shape parsed from JSON for `setAppMenu`.
+pub const ParsedAppMenu = struct {
+    menus: ?[]const ParsedMenu = null,
+};
+
+/// Decode a `setAppMenu` payload.
+///
+/// Split out of `setAppMenu`, which goes straight on to talk to AppKit and so
+/// can only run inside a real app. This half is the JS/native contract itself
+/// — the field names `craft-bridge.js` writes and the ones native reads — and
+/// it is the half that drifted in #27, silently, because a key native does not
+/// recognize is indistinguishable from one the caller omitted. Keeping it
+/// AppKit-free means the contract can be tested against the real injected
+/// script instead of against a hand-built message: see
+/// `test/injected_js_test.zig`.
+///
+/// Caller owns the returned `Parsed` and must `deinit()` it.
+pub fn parseAppMenu(allocator: std.mem.Allocator, data: []const u8) BridgeError!std.json.Parsed(ParsedAppMenu) {
+    return std.json.parseFromSlice(ParsedAppMenu, allocator, data, .{
+        .ignore_unknown_fields = true,
+        .allocate = .alloc_always,
+    }) catch BridgeError.InvalidJSON;
+}
+
 /// Bridge handler for application menu and dock menu
 pub const MenuBridge = struct {
     allocator: std.mem.Allocator,
@@ -55,7 +107,7 @@ pub const MenuBridge = struct {
         // accepted for callers that post raw bridge messages against the old
         // contract — one string compare buys them a working menu instead of
         // the silent no-op #27 fixed.
-        if (std.mem.eql(u8, action, "setAppMenu") or std.mem.eql(u8, action, "setApplicationMenu")) {
+        if (std.mem.eql(u8, action, action_set_app_menu) or std.mem.eql(u8, action, "setApplicationMenu")) {
             try self.setAppMenu(data);
         } else if (std.mem.eql(u8, action, "setDockMenu")) {
             try self.setDockMenu(data);
@@ -89,32 +141,6 @@ pub const MenuBridge = struct {
         bridge_error.sendErrorToJS(self.allocator, action, bridge_err);
     }
 
-    /// Shape parsed from JSON: a single item in an items array.
-    const ParsedItem = struct {
-        id: ?[]const u8 = null,
-        label: ?[]const u8 = null,
-        shortcut: ?[]const u8 = null,
-        icon: ?[]const u8 = null,
-        separator: ?bool = null,
-        /// A standard-behavior item ("copy", "quit", "minimize"): the item is
-        /// wired to the matching AppKit selector with a nil target, so the
-        /// responder chain — not JS — performs it. Cut/copy/paste MUST take
-        /// this path: a JS round-trip cannot reach the field editor or the
-        /// WKWebView's own clipboard actions.
-        role: ?[]const u8 = null,
-    };
-
-    /// Shape parsed from JSON: a top-level menu (bar / dock root).
-    const ParsedMenu = struct {
-        label: ?[]const u8 = null,
-        items: ?[]const ParsedItem = null,
-    };
-
-    /// Shape parsed from JSON for `setAppMenu`.
-    const ParsedAppMenu = struct {
-        menus: ?[]const ParsedMenu = null,
-    };
-
     /// Set the application menu bar
     /// JSON: {"menus": [{"label": "File", "items": [{"id": "new", "label": "New", "shortcut": "cmd+n"}]}]}
     fn setAppMenu(self: *Self, data: []const u8) !void {
@@ -131,10 +157,7 @@ pub const MenuBridge = struct {
         // JSON by hand with arbitrary byte-window heuristics (e.g. "is the
         // label within 100 bytes of the id?"), which misattributed fields in
         // pretty-printed payloads and silently dropped long labels.
-        const parsed = std.json.parseFromSlice(ParsedAppMenu, self.allocator, data, .{
-            .ignore_unknown_fields = true,
-            .allocate = .alloc_always,
-        }) catch return BridgeError.InvalidJSON;
+        const parsed = try parseAppMenu(self.allocator, data);
         defer parsed.deinit();
 
         const NSApplication = macos.getClass("NSApplication");

@@ -6,7 +6,6 @@ const builtin = @import("builtin");
 // the root of more than one module.
 pub const macos = if (builtin.os.tag == .macos) @import("macos.zig") else struct {};
 const BridgeAPI = @import("bridge_api.zig").BridgeAPI;
-const Menu = @import("menu.zig").Menu;
 
 // Re-export io_context so root modules can access it without dual-module conflicts
 pub const io_context = @import("io_context.zig");

@@ -161,6 +161,10 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/menubar.zig"),
     });
 
+    const bridge_menu_module = b.createModule(.{
+        .root_source_file = b.path("src/bridge_menu.zig"),
+    });
+
     const components_module = b.createModule(.{
         .root_source_file = b.path("src/components.zig"),
     });
@@ -923,7 +927,15 @@ pub fn build(b: *std.Build) void {
                     .root_source_file = b.path("test/injected_js_test.zig"),
                     .target = target,
                     .optimize = optimize,
-                    .imports = &.{.{ .name = "js", .module = js_dep.module("js") }},
+                    .imports = &.{
+                        .{ .name = "js", .module = js_dep.module("js") },
+                        // The native half of the menu contract. The test drives
+                        // the real craft-bridge.js and then decodes what it
+                        // posted with the very parser `setAppMenu` uses, so a
+                        // rename on either side fails the build rather than
+                        // silently producing a menu nobody can click (#27, #31).
+                        .{ .name = "../src/bridge_menu.zig", .module = bridge_menu_module },
+                    },
                 }),
             });
             // Passed in by name rather than reached with a relative

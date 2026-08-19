@@ -16,6 +16,7 @@
 const std = @import("std");
 const js = @import("js");
 const testing = std.testing;
+const bridge_menu = @import("../src/bridge_menu.zig");
 
 // Supplied by build.zig as named imports — a test module cannot embed
 // files outside its own package path.
@@ -182,4 +183,97 @@ test "the bridge script parses" {
         error.Throw => return,
         else => return err,
     };
+}
+
+/// The slice of a webview the bridge script touches while it loads, plus a
+/// recorder in place of `webkit.messageHandlers.craft`.
+///
+/// Everything native would do with a posted message begins with these bytes,
+/// so capturing them is capturing the whole JS half of the contract.
+const WEBVIEW_HOST =
+    \\var posted = [];
+    \\window.webkit = { messageHandlers: { craft: { postMessage: function (m) { posted.push(m) } } } };
+    \\window.addEventListener = function () {};
+    \\window.removeEventListener = function () {};
+    \\window.dispatchEvent = function () { return true };
+    \\function CustomEvent(type, init) { this.type = type; this.detail = init && init.detail }
+    \\var document = { readyState: 'complete', addEventListener: function () {} };
+;
+
+test "craft.menu.set posts what bridge_menu.zig's parser reads" {
+    // The one path that matters, end to end and without a window: the real
+    // injected script builds the message, and the real native parser decodes
+    // it. Both halves of the #27 contract mismatch were individually
+    // "covered" — bridge.test.ts hand-built its bridge messages and the zig
+    // menu tests asserted against a struct nothing rendered — so six menu
+    // methods could no-op with a green suite. Only a test that carries one
+    // payload across the boundary can catch that.
+    var fx = try Fixture.init();
+    defer fx.deinit();
+    const ctx = fx.ctx;
+
+    _ = try ctx.evaluate(WEBVIEW_HOST);
+    _ = try ctx.evaluate(BRIDGE);
+    _ = try ctx.evaluate(
+        \\window.craft.menu.set({ menus: [
+        \\  { label: 'Edit', items: [
+        \\    { role: 'copy', label: 'Copy', shortcut: 'cmd+c' },
+        \\    { separator: true },
+        \\    { id: 'find', label: 'Find in Page', shortcut: 'cmd+f', icon: 'search' },
+        \\  ] },
+        \\] });
+    );
+
+    try testing.expectEqualStrings("1", try fx.text("String(posted.length)"));
+
+    // `t` picks the bridge, `a` picks the branch inside it. A wrong `a` is not
+    // an error on the native side, only a log line — hence the shared constant.
+    try testing.expectEqualStrings("menu", try fx.text("posted[0].t"));
+    try testing.expectEqualStrings(bridge_menu.action_set_app_menu, try fx.text("posted[0].a"));
+
+    const payload = try fx.text("posted[0].d");
+    const parsed = try bridge_menu.parseAppMenu(testing.allocator, payload);
+    defer parsed.deinit();
+
+    const menus = parsed.value.menus orelse return error.NoMenusParsed;
+    try testing.expectEqual(@as(usize, 1), menus.len);
+    try testing.expectEqualStrings("Edit", menus[0].label.?);
+
+    const items = menus[0].items orelse return error.NoItemsParsed;
+    try testing.expectEqual(@as(usize, 3), items.len);
+
+    // A role item: native wires it to an AppKit selector with a nil target, so
+    // the responder chain performs it. The id is absent and must stay optional.
+    try testing.expectEqualStrings("copy", items[0].role.?);
+    try testing.expectEqualStrings("Copy", items[0].label.?);
+    try testing.expectEqualStrings("cmd+c", items[0].shortcut.?);
+    try testing.expect(items[0].id == null);
+
+    try testing.expect(items[1].separator.?);
+
+    // An id item: native routes clicks back to the page as `craft:menu:action`.
+    try testing.expectEqualStrings("find", items[2].id.?);
+    try testing.expectEqualStrings("Find in Page", items[2].label.?);
+    try testing.expectEqualStrings("cmd+f", items[2].shortcut.?);
+    try testing.expectEqualStrings("search", items[2].icon.?);
+    try testing.expect(items[2].role == null);
+}
+
+test "an empty menu bar is a parse, not a failure" {
+    // `craft.menu.set()` with no argument sends `{}`. Clearing the bar is a
+    // legitimate thing to ask for, and it must not come back as InvalidJSON —
+    // which would reject the call and leave the previous bar in place.
+    var fx = try Fixture.init();
+    defer fx.deinit();
+    const ctx = fx.ctx;
+
+    _ = try ctx.evaluate(WEBVIEW_HOST);
+    _ = try ctx.evaluate(BRIDGE);
+    _ = try ctx.evaluate("window.craft.menu.set();");
+
+    const payload = try fx.text("posted[0].d");
+    const parsed = try bridge_menu.parseAppMenu(testing.allocator, payload);
+    defer parsed.deinit();
+
+    try testing.expect(parsed.value.menus == null);
 }
