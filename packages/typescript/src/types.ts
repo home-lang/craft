@@ -1063,7 +1063,7 @@ export interface CraftBridgeAPI {
    * so its presence is not a promise that swipes will arrive. See
    * `api/gestures`.
    */
-  gestures?: import('./api/gestures').GesturesAPI
+  gestures?: import('./api/gestures.js').GesturesAPI
 
   /**
    * System tray control (desktop only)

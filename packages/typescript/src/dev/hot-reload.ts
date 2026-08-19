@@ -7,7 +7,7 @@ import { existsSync, readFileSync, watch, type FSWatcher } from 'fs'
 import { extname, join, relative, resolve } from 'path'
 import { EventEmitter } from 'events'
 import type { Server, ServerWebSocket } from 'bun'
-import { secureUUID } from '../bridge/ids'
+import { secureUUID } from '../bridge/ids.js'
 
 /** Per-connection state carried on each Bun WebSocket (set at upgrade). */
 interface HmrSocketData {

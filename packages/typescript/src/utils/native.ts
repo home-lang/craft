@@ -5,7 +5,7 @@
  * have a single seam to mock in tests.
  */
 
-import type { CraftBridgeAPI, CraftEventEmitter } from '../types'
+import type { CraftBridgeAPI, CraftEventEmitter } from '../types.js'
 
 type CraftBridge = CraftBridgeAPI & CraftEventEmitter
 

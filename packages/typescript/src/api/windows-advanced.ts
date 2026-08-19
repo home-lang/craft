@@ -5,7 +5,7 @@
  * @module @craft-native/api/windows-advanced
  */
 
-import { isCraft, getPlatform } from './process'
+import { isCraft, getPlatform } from './process.js'
 
 // ============================================================================
 // Jump Lists

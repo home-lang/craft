@@ -4,8 +4,8 @@
  * @module @craft-native/api/window
  */
 
-import { getBridge } from '../bridge/core'
-import { isWebKitHost, webkitRequest } from '../bridge/webkit-pending'
+import { getBridge } from '../bridge/core.js'
+import { isWebKitHost, webkitRequest } from '../bridge/webkit-pending.js'
 
 // ============================================================================
 // Types

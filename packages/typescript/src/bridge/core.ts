@@ -4,7 +4,7 @@
  */
 
 import { EventEmitter } from 'events'
-import { secureUUID } from './ids'
+import { secureUUID } from './ids.js'
 
 // Ambient types for native bridges injected by the host. These globals are
 // defined by WKWebView (iOS), Android WebView, Electron's contextBridge, and

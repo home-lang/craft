@@ -10,8 +10,8 @@
 // package root, so we don't pull the entire `craft-native` surface
 // (including unrelated stx-templated sidebar files) through the type
 // checker. The public API of the bridge is stable, so this is fine.
-import type { NativeBridge } from '../../typescript/src/bridge/core'
-import { getBridge } from '../../typescript/src/bridge/core'
+import type { NativeBridge } from '../../typescript/src/bridge/core.js'
+import { getBridge } from '../../typescript/src/bridge/core.js'
 import type { TsMap } from 'ts-maps'
 import { createMap, tileLayer } from 'ts-maps'
 import {
@@ -23,12 +23,12 @@ import {
   craftPolylineToPolyline,
   craftRegionToBounds,
   latLngToCraftCoord,
-} from './adapters'
+} from './adapters.js'
 import type {
   MapBridgeEvent,
   TypedMapBridgeRequest,
-} from './bridge-protocol'
-import { BRIDGE_NAMESPACE, mapEventName } from './bridge-protocol'
+} from './bridge-protocol.js'
+import { BRIDGE_NAMESPACE, mapEventName } from './bridge-protocol.js'
 import type {
   Coordinate,
   MapCamera,
@@ -38,8 +38,8 @@ import type {
   MapPolygon,
   MapPolyline,
   MapRegion,
-} from './types'
-import { defaultMapCamera, defaultMapConfiguration } from './types'
+} from './types.js'
+import { defaultMapCamera, defaultMapConfiguration } from './types.js'
 
 // Monotonic counter — same pattern as `components/native.ts` in
 // `craft-native` — so multiple map views created in the same tick

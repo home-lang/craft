@@ -4,7 +4,7 @@
  * Bypasses CORS restrictions when running in Craft
  */
 
-import type { CraftHttpAPI } from '../types'
+import type { CraftHttpAPI } from '../types.js'
 
 /**
  * Result of {@link encodeRequestBody}. `kind` lets the caller decide

@@ -19,7 +19,7 @@ export {
   type ComponentProps,
   type MapViewInstance,
   type MapViewProps,
-} from './MapView'
+} from './MapView.js'
 
 // Type mirrors of the Zig structs.
 export {
@@ -43,7 +43,7 @@ export {
   type MarkerColor,
   type StrokePattern,
   type UserTrackingMode,
-} from './types'
+} from './types.js'
 
 // Adapters (pure fns) for round-tripping between Craft and ts-maps types.
 export {
@@ -60,7 +60,7 @@ export {
   latLngToCraftCoord,
   regionFromBounds,
   type TsMapsCameraOptions,
-} from './adapters'
+} from './adapters.js'
 
 // Bridge protocol constants/types.
 export {
@@ -70,18 +70,18 @@ export {
   type MapBridgeMethod,
   type MapBridgeRequest,
   type TypedMapBridgeRequest,
-} from './bridge-protocol'
+} from './bridge-protocol.js'
 
 // Sandbox-filesystem tile persistence + offline region helpers.
 export {
   createFilesystemBackend,
   type FilesystemBackendOptions,
-} from './FilesystemTileBackend'
+} from './FilesystemTileBackend.js'
 export {
   createFilesystemTileCache,
   saveOfflineRegionToFilesystem,
   type FilesystemOfflineRegionOptions,
-} from './offlineRegion'
+} from './offlineRegion.js'
 
 // Runtime capability probe — tells the host app which renderer the
 // device can realistically drive.
@@ -89,7 +89,7 @@ export {
   probeCapabilities,
   supportsAdvancedRendering,
   type MapRendererCapabilities,
-} from './capabilities'
+} from './capabilities.js'
 
 // createMap is the underlying ts-maps factory; re-export under its original
 // name for parity with the spec which mentions `createMap` as a Craft export.
@@ -105,5 +105,5 @@ export const tsMapsProvider = 'ts_maps' as const
  * Alias preserved for callers that imported the two helpers by spec name.
  * `coordinateFromLatLng(LatLng) -> Coordinate`, `latLngFromCoordinate(Coordinate) -> LatLng`.
  */
-export { latLngToCraftCoord as coordinateFromLatLng } from './adapters'
-export { craftCoordToLatLng as latLngFromCoordinate } from './adapters'
+export { latLngToCraftCoord as coordinateFromLatLng } from './adapters.js'
+export { craftCoordToLatLng as latLngFromCoordinate } from './adapters.js'

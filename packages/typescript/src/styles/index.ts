@@ -12,12 +12,12 @@ export {
   style,
   generateConfig,
   buildCSS
-} from './headwind'
+} from './headwind.js'
 export type {
   ClassValue,
   VariantConfig,
   HeadwindConfig
-} from './headwind'
+} from './headwind.js'
 
 // Sidebar styles (Tahoe, Arc, OrbStack)
 export {
@@ -27,7 +27,7 @@ export {
   sidebarUtils,
   sidebarCSSVariables,
   getSidebarStyle
-} from './sidebars'
+} from './sidebars.js'
 
 // Sidebar HTML templates
 export {
@@ -38,20 +38,20 @@ export {
   arcDemoData,
   orbstackDemoData,
   getFullPageHTML
-} from './sidebar-templates'
+} from './sidebar-templates.js'
 export type {
   SidebarItemData,
   SidebarSectionData,
   SidebarData
-} from './sidebar-templates'
+} from './sidebar-templates.js'
 
 // Re-export cx as clsx alias for familiarity
-export { cx as clsx } from './headwind'
+export { cx as clsx } from './headwind.js'
 
 // Re-export sidebar defaults
-import { tahoeStyles, arcStyles, orbstackStyles } from './sidebars'
-import { renderTahoeSidebar, renderArcSidebar, renderOrbStackSidebar } from './sidebar-templates'
-import { tw, cx, variants } from './headwind'
+import { tahoeStyles, arcStyles, orbstackStyles } from './sidebars.js'
+import { renderTahoeSidebar, renderArcSidebar, renderOrbStackSidebar } from './sidebar-templates.js'
+import { tw, cx, variants } from './headwind.js'
 
 export const styles: {
   tw: typeof tw;

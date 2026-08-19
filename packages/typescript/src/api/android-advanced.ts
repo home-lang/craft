@@ -5,7 +5,7 @@
  * @module @craft-native/api/android-advanced
  */
 
-import { isCraft, getPlatform } from './process'
+import { isCraft, getPlatform } from './process.js'
 
 // ============================================================================
 // Material You / Dynamic Colors

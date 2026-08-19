@@ -23,7 +23,7 @@
  * ```
  */
 
-import { secureUUID } from '../bridge/ids'
+import { secureUUID } from '../bridge/ids.js'
 
 /** localStorage key for the persisted web-fallback device id. */
 const WEB_DEVICE_ID_KEY = '__craft_web_device_id__'

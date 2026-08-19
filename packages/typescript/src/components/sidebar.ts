@@ -11,16 +11,16 @@
  * @module @craft-native/components/sidebar
  */
 
-import { getBridge } from '../bridge/core'
+import { getBridge } from '../bridge/core.js'
 
 // ============================================================================
 // Types
 // ============================================================================
 
 // Shared with `api/sidebar`; see `../sidebar-types`.
-export type { ContextMenuItem, SidebarItem, SidebarSection } from '../sidebar-types'
+export type { ContextMenuItem, SidebarItem, SidebarSection } from '../sidebar-types.js'
 
-import type { SidebarItem, SidebarSection } from '../sidebar-types'
+import type { SidebarItem, SidebarSection } from '../sidebar-types.js'
 
 export type SidebarStyle = 'tahoe' | 'arc' | 'orbstack' | 'custom'
 

@@ -17,8 +17,8 @@ import type {
   MapPolygon,
   MapPolyline,
   MapRegion,
-} from './types'
-import { markerColorHex, strokePatternDashes } from './types'
+} from './types.js'
+import { markerColorHex, strokePatternDashes } from './types.js'
 
 // ---------------------------------------------------------------------------
 // Coordinates

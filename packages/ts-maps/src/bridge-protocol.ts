@@ -14,7 +14,7 @@ import type {
   MapPolygon,
   MapPolyline,
   MapRegion,
-} from './types'
+} from './types.js'
 
 /**
  * Namespace used when emitting and listening for bridge messages. Matches

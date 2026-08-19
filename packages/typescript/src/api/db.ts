@@ -27,8 +27,8 @@
  */
 
 import { EventEmitter } from 'events'
-import { getBridge } from '../bridge/core'
-import type { CraftDatabaseAPI } from '../types'
+import { getBridge } from '../bridge/core.js'
+import type { CraftDatabaseAPI } from '../types.js'
 
 /**
  * Send a request through the unified `NativeBridge`. Replaces the legacy

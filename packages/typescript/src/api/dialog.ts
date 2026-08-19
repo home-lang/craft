@@ -4,8 +4,8 @@
  * @module @craft-native/api/dialog
  */
 
-import { getBridge } from '../bridge/core'
-import { isWebKitHost, webkitRequest } from '../bridge/webkit-pending'
+import { getBridge } from '../bridge/core.js'
+import { isWebKitHost, webkitRequest } from '../bridge/webkit-pending.js'
 
 /**
  * Default timeout for *file-system* dialog round-trips (open/save).

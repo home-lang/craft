@@ -4,7 +4,7 @@
  * @module @craft-native/api/tray
  */
 
-import { getBridge } from '../bridge/core'
+import { getBridge } from '../bridge/core.js'
 
 // ============================================================================
 // Types

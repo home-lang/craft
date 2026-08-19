@@ -11,9 +11,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
-import { app as appApi } from '../api/app';
-import { tray as trayApi } from '../api/tray';
-import { windowManager } from '../api/window';
+import { app as appApi } from '../api/app.js';
+import { tray as trayApi } from '../api/tray.js';
+import { windowManager } from '../api/window.js';
 
 // ============================================
 // Types
