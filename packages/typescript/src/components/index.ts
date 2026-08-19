@@ -35,7 +35,7 @@ export {
   tahoeStyle,
   arcStyle,
   orbstackStyle
-} from './sidebar'
+} from './sidebar.js'
 export type {
   SidebarItem,
   SidebarSection,
@@ -48,7 +48,7 @@ export type {
   SidebarEventType,
   SidebarEventMap,
   SidebarEventHandler
-} from './sidebar'
+} from './sidebar.js'
 
 // ============================================================================
 // Native UI Components
@@ -93,7 +93,7 @@ export {
   // Touch Bar
   setTouchBar,
   updateTouchBarItem
-} from './native'
+} from './native.js'
 export type {
   ComponentProps,
   ComponentInstance,
@@ -117,7 +117,7 @@ export type {
   ToolbarConfig,
   TouchBarItem,
   TouchBarConfig
-} from './native'
+} from './native.js'
 
 // ============================================================================
 // Style Types

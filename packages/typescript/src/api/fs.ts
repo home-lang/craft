@@ -24,8 +24,8 @@
  * ```
  */
 
-import { getBridge } from '../bridge/core'
-import type { CraftFileSystemAPI } from '../types'
+import { getBridge } from '../bridge/core.js'
+import type { CraftFileSystemAPI } from '../types.js'
 
 /**
  * Get the host-injected legacy file-system bridge, or null. The legacy

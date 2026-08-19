@@ -5,7 +5,7 @@
 
 import { writable, derived, readable, get, type Writable, type Readable } from 'svelte/store';
 import { onMount, onDestroy } from 'svelte';
-import { windowManager } from '../api/window';
+import { windowManager } from '../api/window.js';
 
 // ============================================
 // Types

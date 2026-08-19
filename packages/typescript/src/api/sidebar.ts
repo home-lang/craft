@@ -5,7 +5,7 @@
  * @module @craft-native/api/sidebar
  */
 
-import { getPlatform, type Platform } from './process'
+import { getPlatform, type Platform } from './process.js'
 
 // ============================================================================
 // Types
@@ -13,10 +13,10 @@ import { getPlatform, type Platform } from './process'
 
 // `SidebarItem` and `SidebarSection` are shared with `components/sidebar` —
 // see `../sidebar-types` for why they are no longer declared per-module.
-export type { SidebarItem, SidebarSection } from '../sidebar-types'
-export { isSidebarItemDisabled } from '../sidebar-types'
+export type { SidebarItem, SidebarSection } from '../sidebar-types.js'
+export { isSidebarItemDisabled } from '../sidebar-types.js'
 
-import type { SidebarItem, SidebarSection } from '../sidebar-types'
+import type { SidebarItem, SidebarSection } from '../sidebar-types.js'
 
 export interface SidebarConfig {
   /** Sidebar width in pixels */

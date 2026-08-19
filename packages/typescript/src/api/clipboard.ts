@@ -4,8 +4,8 @@
  * @module @craft-native/api/clipboard
  */
 
-import { getBridge } from '../bridge/core'
-import { isWebKitHost, postWebKit, webkitRequest } from '../bridge/webkit-pending'
+import { getBridge } from '../bridge/core.js'
+import { isWebKitHost, postWebKit, webkitRequest } from '../bridge/webkit-pending.js'
 
 /** Default timeout for callback-style clipboard reads. */
 const CLIPBOARD_READ_TIMEOUT_MS = 5000

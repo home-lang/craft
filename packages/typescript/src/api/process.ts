@@ -3,7 +3,7 @@
  * Provides process management and system information
  */
 
-import { getBridge } from '../bridge/core'
+import { getBridge } from '../bridge/core.js'
 
 /**
  * Send a request through the unified `NativeBridge`. Replaces the legacy

@@ -71,6 +71,49 @@ function assertNoTestDeclarations(packageDir: string): void {
   }
 }
 
+/**
+ * Every relative specifier in a shipped declaration must carry a file
+ * extension.
+ *
+ * TypeScript only enforces this on the *consumer* side, under
+ * `moduleResolution: node16` or `nodenext` — which is what a modern Node
+ * project uses. Emit is happy either way, so `dist/index.d.ts` shipped 15
+ * extensionless re-exports and every such consumer got:
+ *
+ *     error TS2834: Relative import paths need explicit file extensions in
+ *     ECMAScript imports when '--moduleResolution' is 'node16' or 'nodenext'
+ *
+ * followed by TS2305 on symbols the package genuinely exports. Nothing in the
+ * repo noticed, because the repo builds itself with `moduleResolution:
+ * bundler`, where extensionless is fine.
+ */
+function assertDeclarationsCarryExtensions(packageDir: string): void {
+  const dist = join(packageDir, 'dist')
+  if (!existsSync(dist))
+    return
+
+  // `from './x'` / `import('./x')`, capturing the specifier.
+  const specifier = /(?:from|import)\s*\(?\s*['"](\.[^'"]*)['"]/g
+
+  const stack = [dist]
+  while (stack.length > 0) {
+    const dir = stack.pop()!
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        stack.push(path)
+        continue
+      }
+      if (!/\.d\.(?:ts|cts|mts)$/.test(path))
+        continue
+      for (const match of readFileSync(path, 'utf-8').matchAll(specifier)) {
+        if (!/\.(?:js|cjs|mjs|json)$/.test(match[1]))
+          fail(`Declaration ${path} imports "${match[1]}" without a file extension, which does not resolve under moduleResolution node16/nodenext`)
+      }
+    }
+  }
+}
+
 function verifyExportTargets(pkg: PackageJson, packageDir: string): void {
   const visit = (value: any): void => {
     if (typeof value === 'string' && value.startsWith('./'))
@@ -103,6 +146,7 @@ function verifyPackage(relativePath: string): void {
   verifyBinTargets(pkg, packageDir)
   verifyExportTargets(pkg, packageDir)
   assertNoTestDeclarations(packageDir)
+  assertDeclarationsCarryExtensions(packageDir)
 }
 
 for (const packagePath of [

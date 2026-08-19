@@ -3,7 +3,7 @@
  * Provides cryptographic operations through the Craft bridge
  */
 
-import type { CraftCryptoAPI } from '../types'
+import type { CraftCryptoAPI } from '../types.js'
 
 /**
  * Error type for cryptographic failures (malformed input, decode errors, etc.).

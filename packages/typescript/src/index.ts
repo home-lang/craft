@@ -8,8 +8,8 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
-import { craftBinaryNotFoundMessage, resolveCraftBinary } from './binary-resolver'
-import type { AppConfig, WindowOptions } from './types'
+import { craftBinaryNotFoundMessage, resolveCraftBinary } from './binary-resolver.js'
+import type { AppConfig, WindowOptions } from './types.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -61,30 +61,30 @@ export function parseCraftVersionOutput(output: string): string {
 }
 
 // Export packaging API
-export { packageApp, pack, type PackageConfig, type PackageResult } from './package'
+export { packageApp, pack, type PackageConfig, type PackageResult } from './package.js'
 
 // Export binary resolution. Craft ships through the pantry registry, and this is
 // the single source of truth for finding the native binary (PATH, or CRAFT_BIN
 // for local builds). Anything that spawns craft itself — the stx desktop
 // package, for instance — must resolve it the same way rather than probing paths
 // of its own.
-export { craftBinaryNotFoundMessage, resolveCraftBinary } from './binary-resolver'
+export { craftBinaryNotFoundMessage, resolveCraftBinary } from './binary-resolver.js'
 
 // Export utilities
-export * from './utils'
+export * from './utils/index.js'
 
 // Export API modules
-export * from './api'
+export * from './api/index.js'
 
-// Namespace export so consumers can also do `import { components } from '...'`
+// Namespace export so consumers can also do `import { components } from '....js'`
 // and reach every symbol from `./components` without name clashes against the
 // API surface. The flat (selective) re-exports below are kept for backwards
 // compatibility, but new code should prefer `components.X` to avoid surprises
 // when new exports are added on either side.
-export * as components from './components'
+export * as components from './components/index.js'
 
 // Export component abstractions (React Native-style primitives)
-// Use explicit exports to avoid conflicts with names from './api':
+// Use explicit exports to avoid conflicts with names from './api/index.js':
 // Excluded duplicates: Sidebar, createSidebar, SidebarItem, SidebarSection,
 // SidebarConfig, TouchBarItem, TableColumn, Platform
 export {
@@ -125,7 +125,7 @@ export {
   // Animated & StyleSheet
   StyleSheet,
   Animated,
-} from './components'
+} from './components/index.js'
 export type {
   // Sidebar types (excluding duplicates with api)
   ContextMenuItem,
@@ -187,29 +187,29 @@ export type {
   // Events
   LayoutEvent,
   ScrollEvent,
-} from './components'
+} from './components/index.js'
 
 // Export styling utilities (Headwind CSS integration + Sidebar styles)
-export * from './styles/headwind'
-export * from './styles'
+export * from './styles/headwind.js'
+export * from './styles/index.js'
 
 // Export framework-specific optimizations
-export * from './optimizations'
+export * from './optimizations/index.js'
 
 // Export auto-updater (delta/differential update support)
-export * as updater from './updater'
+export * as updater from './updater/index.js'
 
 // Also export the updater surface top-level. An app that self-updates needs the
 // class and the manifest builder by name; reaching them only through the
 // namespace left them untyped for anything re-exporting this package.
-export { AutoUpdater, generateUpdateManifest } from './updater'
+export { AutoUpdater, generateUpdateManifest } from './updater/index.js'
 export type {
   UpdateInfo as UpdateManifest,
   UpdateProgress,
   UpdaterConfig,
   UpdaterEvent,
   PlatformUpdate,
-} from './updater'
+} from './updater/index.js'
 
 /**
  * Decide whether to enable dev defaults (hot-reload + devtools). The
@@ -556,4 +556,4 @@ export type {
   WindowsConfig,
   LinuxConfig,
   CraftAppConfig,
-} from './types'
+} from './types.js'

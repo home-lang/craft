@@ -4,7 +4,7 @@
  * @module @craft-native/components/native
  */
 
-import { getBridge } from '../bridge/core'
+import { getBridge } from '../bridge/core.js'
 
 // Monotonically increasing counter ensures IDs stay unique even when multiple
 // components are created in the same millisecond — `Date.now()` alone collides.

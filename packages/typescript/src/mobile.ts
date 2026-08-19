@@ -5,4 +5,4 @@
  * application. The root SDK also contains desktop packaging and process APIs,
  * which intentionally target Bun and must not enter a browser bundle.
  */
-export * from './api/mobile'
+export * from './api/mobile.js'

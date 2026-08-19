@@ -19,8 +19,8 @@ import {
   type InjectionKey,
   type Ref,
 } from 'vue';
-import { app as appApi } from '../api/app';
-import { windowManager } from '../api/window';
+import { app as appApi } from '../api/app.js';
+import { windowManager } from '../api/window.js';
 
 // ============================================
 // Types

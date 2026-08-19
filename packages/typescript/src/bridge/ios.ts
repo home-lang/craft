@@ -3,7 +3,7 @@
  * Complete iOS native bridge with WebView, permissions, haptics, and platform APIs
  */
 
-import { secureId } from './ids'
+import { secureId } from './ids.js'
 
 // Types
 export interface IOSWebViewConfig {

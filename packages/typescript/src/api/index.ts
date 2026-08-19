@@ -10,7 +10,7 @@ export {
   window,
   createWindow,
   Window
-} from './window'
+} from './window.js'
 export type {
   WindowPosition,
   WindowSize,
@@ -20,7 +20,7 @@ export type {
   WindowEventType,
   WindowEventMap,
   WindowEventHandler
-} from './window'
+} from './window.js'
 
 // Tray/Menubar API - System tray and menubar apps
 export {
@@ -34,7 +34,7 @@ export {
   menuItem,
   checkbox,
   submenu
-} from './tray'
+} from './tray.js'
 export type {
   MenuItem,
   TrayClickEvent,
@@ -43,7 +43,7 @@ export type {
   TrayEventType,
   TrayEventMap,
   TrayEventHandler
-} from './tray'
+} from './tray.js'
 
 // App API - Application lifecycle and system integration
 export {
@@ -65,7 +65,7 @@ export {
   notify,
   registerShortcut,
   unregisterShortcut
-} from './app'
+} from './app.js'
 export type {
   AppInfo,
   SystemPreferences,
@@ -76,19 +76,19 @@ export type {
   AppEventMap,
   AppEventHandler,
   ShortcutHandler
-} from './app'
+} from './app.js'
 
 // File System API
-export { fs, readBinaryFile, writeBinaryFile, stat, copy, move, watch } from './fs'
-export type { FileStats } from './fs'
+export { fs, readBinaryFile, writeBinaryFile, stat, copy, move, watch } from './fs.js'
+export type { FileStats } from './fs.js'
 
 // Database API
-export { db, openDatabase, Database, KeyValueStore } from './db'
-export type { ExecuteResult, TableColumn } from './db'
+export { db, openDatabase, Database, KeyValueStore } from './db.js'
+export type { ExecuteResult, TableColumn } from './db.js'
 
 // HTTP Client API
-export { http, HttpClient, WebSocketClient, createClient, HttpError } from './http'
-export type { HttpClientOptions, RequestOptions, HttpResponse, WebSocketOptions } from './http'
+export { http, HttpClient, WebSocketClient, createClient, HttpError } from './http.js'
+export type { HttpClientOptions, RequestOptions, HttpResponse, WebSocketOptions } from './http.js'
 
 // Crypto API
 export {
@@ -99,7 +99,7 @@ export {
   timingSafeEqual,
   hashPassword,
   verifyPassword
-} from './crypto'
+} from './crypto.js'
 
 // Process API
 export {
@@ -118,8 +118,8 @@ export {
   exit,
   argv,
   open
-} from './process'
-export type { Platform, SystemInfo, ExecOptions, ExecResult, SpawnOptions } from './process'
+} from './process.js'
+export type { Platform, SystemInfo, ExecOptions, ExecResult, SpawnOptions } from './process.js'
 
 // Mobile API - Unified cross-platform mobile features
 export {
@@ -134,7 +134,7 @@ export {
   lifecycle,
   notifications,
   notifications as notification
-} from './mobile'
+} from './mobile.js'
 export type {
   DeviceInfo,
   DeviceCapabilities,
@@ -150,7 +150,7 @@ export type {
   ShareOptions,
   AppState,
   NotificationOptions as MobileNotificationOptions
-} from './mobile'
+} from './mobile.js'
 
 // iOS Advanced Features
 export {
@@ -162,7 +162,7 @@ export {
   appIntents,
   tipKit,
   focusFilters
-} from './ios-advanced'
+} from './ios-advanced.js'
 export type {
   CarPlayTemplateType,
   CarPlayListItem,
@@ -185,7 +185,7 @@ export type {
   Tip,
   FocusStatus,
   FocusFilter
-} from './ios-advanced'
+} from './ios-advanced.js'
 
 // Android Advanced Features
 export {
@@ -197,7 +197,7 @@ export {
   appLanguage,
   widgets as androidWidgets,
   playBilling
-} from './android-advanced'
+} from './android-advanced.js'
 export type {
   MaterialYouColors,
   PhotoPickerMediaType,
@@ -213,7 +213,7 @@ export type {
   WidgetData,
   PlayProduct,
   PlayPurchase
-} from './android-advanced'
+} from './android-advanced.js'
 
 // macOS Advanced Features
 export {
@@ -226,7 +226,7 @@ export {
   quickActions,
   shareExtension,
   windowManagement
-} from './macos-advanced'
+} from './macos-advanced.js'
 export type {
   TouchBarItemType,
   TouchBarButton,
@@ -247,7 +247,7 @@ export type {
   SpotlightItem,
   QuickAction,
   WindowTabGroup
-} from './macos-advanced'
+} from './macos-advanced.js'
 
 // Windows Advanced Features
 export {
@@ -260,7 +260,7 @@ export {
   shareTarget,
   startupTask,
   secondaryTiles
-} from './windows-advanced'
+} from './windows-advanced.js'
 export type {
   JumpListTask,
   JumpListCategory,
@@ -275,7 +275,7 @@ export type {
   UpdateInfo,
   SharedDataItem,
   SecondaryTile
-} from './windows-advanced'
+} from './windows-advanced.js'
 
 // Dialog API - Native file pickers and alerts
 export {
@@ -286,7 +286,7 @@ export {
   showAlert,
   showConfirm,
   showPrompt
-} from './dialog'
+} from './dialog.js'
 export type {
   FileFilter,
   OpenDialogOptions,
@@ -296,7 +296,7 @@ export type {
   ConfirmOptions,
   OpenDialogResult,
   SaveDialogResult
-} from './dialog'
+} from './dialog.js'
 
 // Clipboard API - System clipboard access
 export {
@@ -305,20 +305,20 @@ export {
   readText,
   writeHTML,
   readHTML
-} from './clipboard'
+} from './clipboard.js'
 export type {
   ClipboardFormat,
   ClipboardData
-} from './clipboard'
+} from './clipboard.js'
 
 // Media API - Camera and microphone access
-export { media } from './media'
+export { media } from './media.js'
 export type {
   MediaDeviceInfo,
   CameraOptions as MediaCameraOptions,
   MicrophoneOptions,
   MediaStreamOptions
-} from './media'
+} from './media.js'
 
 // Cross-Platform Sidebar API (macOS, Windows, Linux)
 export {
@@ -327,7 +327,7 @@ export {
   createFileSidebar,
   createSettingsSidebar,
   sidebar
-} from './sidebar'
+} from './sidebar.js'
 export type {
   SidebarItem,
   SidebarSection,
@@ -337,31 +337,31 @@ export type {
   LinuxSidebarConfig,
   SidebarSelectEvent,
   SidebarSearchEvent
-} from './sidebar'
+} from './sidebar.js'
 
 // Spaces API - native switcher for Arc-style sidebar spaces
 export {
   spaces,
   createSpacesSidebar,
   hasNativeSpaces
-} from './spaces'
+} from './spaces.js'
 export type {
   SpaceDescriptor,
   SpacesSidebarOptions,
   SpacesSidebarHandle,
   NativeUIAPI
-} from './spaces'
+} from './spaces.js'
 
 // Gestures API - real trackpad swipe phases from the host's NSEvent
 export {
   gestures,
   onSwipe,
   hasNativeGestures
-} from './gestures'
+} from './gestures.js'
 export type {
   SwipeAxis,
   SwipePhase,
   SwipeEvent,
   SwipeListener,
   Unsubscribe
-} from './gestures'
+} from './gestures.js'

@@ -28,7 +28,7 @@ import type {
   TileCacheOptions,
 } from 'ts-maps'
 import { saveOfflineRegion, TileCache } from 'ts-maps'
-import { createFilesystemBackend } from './FilesystemTileBackend'
+import { createFilesystemBackend } from './FilesystemTileBackend.js'
 
 export type OfflineBoundsLike =
   | { west: number, south: number, east: number, north: number }

@@ -3,7 +3,7 @@
  * Complete Android native bridge with WebView, permissions, and platform APIs
  */
 
-import { secureId } from './ids'
+import { secureId } from './ids.js'
 
 // Types
 export interface AndroidWebViewConfig {
