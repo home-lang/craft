@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "target": "esnext",
-    "lib": ["esnext"],
+    "lib": [
+      "esnext"
+    ],
     "moduleDetection": "force",
     "module": "esnext",
     "moduleResolution": "bundler",
@@ -19,8 +21,13 @@
     "verbatimModuleSyntax": true,
     "skipDefaultLibCheck": true,
     "paths": {
-      "craft-native": ["./packages/typescript/src/index.ts"]
+      "craft-native": [
+        "./packages/typescript/src/index.ts"
+      ]
     },
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": [
+      "bun"
+    ]
   }
 }
