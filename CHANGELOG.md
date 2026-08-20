@@ -1,5 +1,46 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.67...v0.0.68)
+
+## 🚀 Features
+
+- **macos**: give the default menu bar an Edit, App and Window menu (#35) ([dc71b29](https://github.com/craft-native/craft/commit/dc71b29)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#35](https://github.com/craft-native/craft/issues/35), [#35](https://github.com/craft-native/craft/issues/35))
+
+## 🐛 Bug Fixes
+
+- **types**: name the bun types the compiler stopped finding on its own ([da3d131](https://github.com/craft-native/craft/commit/da3d131)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **docs**: use the config keys bunpress actually has ([9b9f81d](https://github.com/craft-native/craft/commit/9b9f81d)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **release**: stop shipping the wrong binaries, and delete the dead notifier (#43) ([14c3d54](https://github.com/craft-native/craft/commit/14c3d54)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#43](https://github.com/craft-native/craft/issues/43), [#43](https://github.com/craft-native/craft/issues/43))
+- **sdk**: ship declarations that resolve under node16/nodenext (#42) ([055d289](https://github.com/craft-native/craft/commit/055d289)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#42](https://github.com/craft-native/craft/issues/42), [#42](https://github.com/craft-native/craft/issues/42))
+- **ci**: let the benchmark job comment on pull requests (#41) ([98b5f6d](https://github.com/craft-native/craft/commit/98b5f6d)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#41](https://github.com/craft-native/craft/issues/41), [#41](https://github.com/craft-native/craft/issues/41))
+- **build**: keep test declarations out of the published SDK (#40) ([14bce5b](https://github.com/craft-native/craft/commit/14bce5b)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#40](https://github.com/craft-native/craft/issues/40), [#40](https://github.com/craft-native/craft/issues/40))
+- **ci**: unblock the three failing native lifecycle legs (#37) ([d8a19ed](https://github.com/craft-native/craft/commit/d8a19ed)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#37](https://github.com/craft-native/craft/issues/37), [#37](https://github.com/craft-native/craft/issues/37))
+- **db**: bind SQLITE_TRANSIENT directly instead of through asm stubs (#38) ([b64c9d2](https://github.com/craft-native/craft/commit/b64c9d2)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#38](https://github.com/craft-native/craft/issues/38), [#38](https://github.com/craft-native/craft/issues/38))
+- **menu**: give bridge-built items a live target, and roles for standard behaviors (#29) ([1884215](https://github.com/craft-native/craft/commit/1884215)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#29](https://github.com/craft-native/craft/issues/29), [#29](https://github.com/craft-native/craft/issues/29))
+
+## ♻️ Code Refactoring
+
+- **menu**: retire the inert menu implementations, test the real path (#34) ([fe99495](https://github.com/craft-native/craft/commit/fe99495)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#34](https://github.com/craft-native/craft/issues/34), [#34](https://github.com/craft-native/craft/issues/34))
+
+## 📚 Documentation
+
+- **menu**: delete the dead NativeMenus class, document the real menu API (#36) ([b6fea1c](https://github.com/craft-native/craft/commit/b6fea1c)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#36](https://github.com/craft-native/craft/issues/36), [#36](https://github.com/craft-native/craft/issues/36))
+
+## 🤖 Continuous Integration
+
+- pin the first-party Zig dependencies to commits (#39) ([d695897](https://github.com/craft-native/craft/commit/d695897)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#39](https://github.com/craft-native/craft/issues/39), [#39](https://github.com/craft-native/craft/issues/39))
+
+## 🧹 Chores
+
+- release v0.0.68 ([f1badea](https://github.com/craft-native/craft/commit/f1badea)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **deps**: bunpress 0.2.13 ([10afcc4](https://github.com/craft-native/craft/commit/10afcc4)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **deps**: move the framework wrappers to TypeScript 7 ([2c3b616](https://github.com/craft-native/craft/commit/2c3b616)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _Glenn Michael Torregosa <gtorregosa@gmail.com>_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.66...v0.0.67)
 
 ## 🐛 Bug Fixes
