@@ -1,5 +1,21 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.68...v0.0.69)
+
+## 🐛 Bug Fixes
+
+- **macos**: stop pretending to move the traffic lights ([603f1a1](https://github.com/craft-native/craft/commit/603f1a1)) _(by Chris <chrisbreuer93@gmail.com>)_
+- **deps**: finish the TypeScript 7 move across the workspace (#44) ([794ea7b](https://github.com/craft-native/craft/commit/794ea7b)) _(by Glenn Michael Torregosa <gtorregosa@gmail.com>)_ ([#44](https://github.com/craft-native/craft/issues/44), [#44](https://github.com/craft-native/craft/issues/44))
+
+## 🧹 Chores
+
+- release v0.0.69 ([df35b6b](https://github.com/craft-native/craft/commit/df35b6b)) _(by Chris <chrisbreuer93@gmail.com>)_
+
+## Contributors
+
+- _Chris <chrisbreuer93@gmail.com>_
+- _Glenn Michael Torregosa <gtorregosa@gmail.com>_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.67...v0.0.68)
 
 ## 🚀 Features
