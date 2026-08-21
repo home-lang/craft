@@ -422,10 +422,25 @@ pub const NativeUIBridge = struct {
             if (comptime builtin.mode == .debug)
                 std.debug.print("[LiquidGlass] Set NSSplitViewController as window content view controller\n", .{});
 
-            // CRITICAL: Reposition traffic lights to float over the sidebar (macOS Tahoe style)
-            // The traffic lights should be 13px from the top of the window
-            // With full-size content view, position them at 13px from top
-            const traffic_light_y: f64 = 787.0; // 800 (window height) - 13
+            // Reposition the traffic lights to float over the sidebar.
+            //
+            // The height is read from the window rather than assumed. It used
+            // to be written `const traffic_light_y: f64 = 787.0; // 800
+            // (window height) - 13`, which is only right for a window that
+            // happens to be 800pt tall; every other size put the buttons off
+            // the intended row, and the further from 800 the worse.
+            //
+            // Whether any of this takes effect is a separate question, and the
+            // answer on the titlebar-hidden path is no: rebuilding that one
+            // with deliberately different constants produced pixel-identical
+            // output, because AppKit re-lays out the standard buttons after
+            // window configuration and overwrites a one-shot origin. That code
+            // has been removed from `macos.zig`. This path is the native-sidebar
+            // bridge and is not exercised by a plain titlebar-hidden window, so
+            // it is corrected rather than deleted — if it is dead too, it is at
+            // least no longer dead AND wrong.
+            const window_frame = macos.msgSendRect(window, "frame");
+            const traffic_light_y: f64 = window_frame.size.height - 13.0;
 
             const closeButton = macos.msgSend1(window, "standardWindowButton:", @as(c_ulong, 0));
             if (closeButton != null) {

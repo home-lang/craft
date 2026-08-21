@@ -642,28 +642,27 @@ pub fn createWindowWithStyle(title: []const u8, width: u32, height: u32, html: ?
         // This makes the titlebar truly invisible - required for macOS Tahoe/Settings look
         _ = msgSend1(window, "setTitlebarSeparatorStyle:", @as(c_long, 2)); // NSWindowTitlebarSeparatorStyleNone
 
-        // CRITICAL: Position traffic lights in the sidebar (Tahoe/Settings style).
-        // Web-sidebar material windows draw custom sidebar/back/forward controls
-        // to the right of these, from the close button's x.
-        const trafficLightTopInset: f64 = if (style.web_sidebar_material) 32.0 else 28.0;
-
-        // Close button (red) - NSWindowCloseButton = 0
-        const closeButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 0));
-        if (closeButton != null) {
-            _ = msgSend2(closeButton, "setFrameOrigin:", @as(f64, 20.0), @as(f64, @as(f64, @floatFromInt(height)) - trafficLightTopInset));
-        }
-
-        // Minimize button (yellow) - NSWindowMiniaturizeButton = 1
-        const miniButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 1));
-        if (miniButton != null) {
-            _ = msgSend2(miniButton, "setFrameOrigin:", @as(f64, 40.0), @as(f64, @as(f64, @floatFromInt(height)) - trafficLightTopInset));
-        }
-
-        // Zoom button (green) - NSWindowZoomButton = 2
-        const zoomButton = msgSend1(window, "standardWindowButton:", @as(c_ulong, 2));
-        if (zoomButton != null) {
-            _ = msgSend2(zoomButton, "setFrameOrigin:", @as(f64, 60.0), @as(f64, @as(f64, @floatFromInt(height)) - trafficLightTopInset));
-        }
+        // The traffic lights are left where AppKit puts them, deliberately.
+        //
+        // This block used to call `setFrameOrigin:` on each standard window
+        // button — 20/40/60 across, `height - 28` up — and none of it had any
+        // effect. Proven by experiment rather than argued: rebuilding with
+        // 60/80/100 and measuring the rendered window at 2x produced pixel-
+        // identical output. AppKit re-lays out the standard buttons after
+        // window configuration, so a one-shot origin set at creation is
+        // overwritten before anything is drawn. Moving them for real needs a
+        // layout hook — an NSWindow subclass, or a titlebar accessory view —
+        // not three messages here.
+        //
+        // What the system actually draws, measured on a titlebar-hidden window:
+        // 12pt discs, 20pt apart, the leftmost 10pt from the window's left
+        // edge and 8pt below its top. That is macOS's own placement for this
+        // style, so an app that hides its titlebar still gets real, correctly
+        // positioned window controls — which is the point.
+        //
+        // A web sidebar that wants to reserve room for them should do it in
+        // its own layout. `@stacksjs/components`' SidebarHeader takes
+        // `windowControls="native"` for exactly this.
     }
 
     // Configure toolbar style and vibrancy (skip in benchmark mode for faster startup)
@@ -2793,9 +2792,14 @@ fn titlebarBandHeight(window: objc.id, themeFrame: objc.id) f64 {
 /// mirrors an already-top-relative y a second time. The two errors cancel
 /// exactly while the buttons sit at their default position (the band is 32 and
 /// the button is centred in it: 2*9 + 14 == 32), which is why it looked correct
-/// for so long. Move the traffic lights — craft does, in `createWindowWithStyle`
-/// and again in the native-UI bridge — and the control lands at the far edge:
-/// measured at y = -6 on an 800pt window against a correct 772.
+/// for so long. Move the traffic lights — the native-UI bridge still tries to —
+/// and the control lands at the far edge: measured at y = -6 on an 800pt window
+/// against a correct 772.
+///
+/// `createWindowWithStyle` no longer tries: its `setFrameOrigin:` calls were
+/// measured to have no effect at all, since AppKit re-lays out the standard
+/// buttons after window configuration. Anchoring to the band rather than to the
+/// buttons is what makes this function immune to either fact.
 ///
 /// Anchoring to the band instead is immune to where the buttons are, agrees
 /// with today's value to the point in every case where today's value was right,
