@@ -178,6 +178,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('private class CraftNativeModalView(context: Context) : FrameLayout(context)')
       expect(nativeActivity).toContain('blocker.setOnTouchListener { _, _ -> true }')
       expect(nativeActivity).toContain('setSelection(selected, false)')
+      expect(nativeActivity).toContain('onItemSelectedListener = null')
+      expect(nativeActivity).toContain('Both operations can synchronously dispatch an Android selection')
       expect(nativeActivity).toContain('progressTintList')
       expect(nativeActivity).toContain('roundToInt()')
       expect(nativeActivity).toContain('val requested = props.optDouble("value", minimum)')

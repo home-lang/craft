@@ -131,6 +131,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('"nativeEvent": ["value": option.value, "index": row]')
     expect(android).toContain('"Picker" -> (previous as? Spinner ?: Spinner(this)).apply')
     expect(android).toContain('setSelection(selected, false)')
+    expect(android).toContain('onItemSelectedListener = null')
+    expect(android).toContain('Both operations can synchronously dispatch an Android selection')
     expect(android).toContain('var suppressInitialSelection = true')
     expect(android).toContain('if (suppressInitialSelection) return')
     expect(android).toContain('post { suppressInitialSelection = false }')

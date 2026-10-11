@@ -1448,14 +1448,18 @@ class MainActivity : AppCompatActivity() {
                     val value = optionProps?.optString("value").takeIf { !it.isNullOrBlank() } ?: label
                     value to label
                 }
+                val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
+                if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
+                // Detach the old listener before replacing the adapter or selection.
+                // Both operations can synchronously dispatch an Android selection
+                // callback during reconciliation, but neither is user input.
+                onItemSelectedListener = null
                 adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_item, options.map { it.second }).also {
                     it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
                 }
                 val requested = props.optString("selectedValue").ifBlank { props.optString("value") }
                 val selected = options.indexOfFirst { it.first == requested }.takeIf { it >= 0 } ?: 0
                 isEnabled = !props.optBoolean("disabled", false)
-                val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
-                if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
                 // Mounting a controlled picker must not look like a user
                 // change. Android may dispatch the initial adapter selection
                 // during the first layout pass; iOS only reports a choice
