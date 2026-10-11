@@ -1287,6 +1287,7 @@ class MainActivity : AppCompatActivity() {
         val reusableInput = previous as? EditText
         val control = when (type) {
             "Text" -> ((previous as? TextView)?.takeUnless { it is Button || it is EditText } ?: TextView(this)).apply {
+                includeFontPadding = false
                 maxLines = props.optInt("numberOfLines", 0).takeIf { it > 0 } ?: Int.MAX_VALUE
                 ellipsize = when (props.optString("ellipsizeMode")) {
                     "head" -> TextUtils.TruncateAt.START
@@ -1297,6 +1298,7 @@ class MainActivity : AppCompatActivity() {
                 configureText(this, childText(children), style)
             }
             "Link" -> ((previous as? TextView)?.takeUnless { it is Button } ?: TextView(this)).apply {
+                includeFontPadding = false
                 configureText(this, props.optString("title").ifBlank { childText(children) }, style)
                 val linkColor = props.optString("color").takeIf { it.isNotBlank() } ?: style.optString("color")
                 setTextColor(color(linkColor, Color.rgb(33, 150, 243)))

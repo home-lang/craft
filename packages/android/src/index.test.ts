@@ -139,6 +139,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('gap.toDouble() / density.toDouble()')
       expect(nativeActivity).toContain('"Image" -> (previous as? ImageView')
       expect(nativeActivity).toContain('isAllCaps = false')
+      expect(nativeActivity).toContain('includeFontPadding = false')
       expect(nativeActivity).toContain('imageJobs.remove(view)?.cancel(true)')
       expect(nativeActivity).toContain('if (imageSources[view] != uri) return@runOnUiThread')
       expect(nativeActivity).toContain('current.ifBlank { view.tag?.toString() ?: "Image" }')
