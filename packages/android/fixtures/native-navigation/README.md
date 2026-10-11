@@ -28,7 +28,9 @@ opened.
 The capability fixture also starts an emulator-local HTTP endpoint and sends a
 text-body request through the advertised `fetch` capability. It checks the
 authorization header, response status, headers and body, using the same bounded
-request/response contract as the maintained iOS host.
+request/response contract as the maintained iOS host. Invalid methods, body
+types, and header values are rejected before the local endpoint is contacted,
+keeping malformed calls consistent across both native hosts.
 The shared Home route uses ordinary top-level variables because the pinned
 native compiler emits client scripts as-is. The host supplies `craft` and calls
 the explicit `globalThis.__stxNativeUnmount` marker when a screen closes;
