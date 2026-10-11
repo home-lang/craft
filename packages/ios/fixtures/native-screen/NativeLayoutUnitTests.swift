@@ -102,6 +102,35 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(centered.textAlignment, .center)
     }
 
+    func testKeyboardFrameUpdatesAndRestoresTheAdditionalSafeArea() {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        controller.view.layoutIfNeeded()
+        let keyboardFrame = CGRect(x: 0, y: 500, width: 390, height: 344)
+        let userInfo: [AnyHashable: Any] = [
+            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: keyboardFrame),
+            UIResponder.keyboardAnimationDurationUserInfoKey: 0,
+            UIResponder.keyboardAnimationCurveUserInfoKey: 0,
+        ]
+
+        NotificationCenter.default.post(
+            name: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil,
+            userInfo: userInfo
+        )
+        controller.view.layoutIfNeeded()
+        XCTAssertEqual(controller.additionalSafeAreaInsets.bottom, 344, accuracy: 0.5)
+
+        NotificationCenter.default.post(
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil,
+            userInfo: userInfo
+        )
+        controller.view.layoutIfNeeded()
+        XCTAssertEqual(controller.additionalSafeAreaInsets.bottom, 0, accuracy: 0.5)
+    }
+
     func testRoundedFullIsClampedToHalfTheShortestSide() throws {
         let controller = screen(box("root", style: ["flexDirection": "row", "alignItems": "center", "gap": 8], [
             box("circle", style: ["width": 48, "height": 48, "borderRadius": 9999]),

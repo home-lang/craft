@@ -296,6 +296,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('view.post { screens.lastOrNull()?.takeIf { it.active }?.let(::emitLayoutEvents) }')
     expect(ios).toContain('UIResponder.keyboardWillChangeFrameNotification')
     expect(ios).toContain('self.additionalSafeAreaInsets.bottom = inset')
+    expect(iosLayoutUnitTests).toContain('testKeyboardFrameUpdatesAndRestoresTheAdditionalSafeArea')
+    expect(iosReadme).toContain("Keyboard frame changes update the native controller's additional safe area")
   })
 
   it('keeps reverse row scroll containers horizontal on both hosts', () => {
