@@ -36,33 +36,31 @@ let nameMultiline = false
 let panelStyled = true
 let panelStyleStatus = ''
 let textWidthUnset = false
-const navigationName = state('Ada')
-const navigationCount = state(0)
-const navigationLifecycle = state('Lifecycle pending')
-const navigationRows = state([
+const navigationName = 'Ada'
+let navigationCount = 0
+let navigationLifecycle = 'Lifecycle pending'
+let navigationRows = [
   { id: 'a', label: 'Ada row' },
   { id: 'b', label: 'Bea row' },
-])
-const navigationRowSelection = state('none')
+]
+let navigationRowSelection = 'none'
 let navigationRowsReordered = false
 
-onMount(function() {
-  globalThis.craft.storage.remove('native-navigation-details-destroyed')
-})
+globalThis.craft.storage.remove('native-navigation-details-destroyed')
 
 function incrementNavigation() {
-  navigationCount.update(function(value) { return value + 1 })
+  navigationCount += 1
 }
 
 function reorderNavigationRows() {
-  navigationRows.set([
+  navigationRows = [
     { id: 'b', label: 'Bea row updated' },
     { id: 'c', label: 'Cy row' },
-  ])
+  ]
 }
 
 function selectNavigationRow(id) {
-  navigationRowSelection.set(id)
+  navigationRowSelection = id
 }
 
 function updateNavigationDraft(id, event) {
@@ -74,7 +72,7 @@ function updateNavigationDraft(id, event) {
 
 async function verifyNavigationLifecycle() {
   const marker = await globalThis.craft.storage.get('native-navigation-details-destroyed')
-  navigationLifecycle.set(marker ? `Disposed ${marker}` : 'Lifecycle pending')
+  navigationLifecycle = marker ? `Disposed ${marker}` : 'Lifecycle pending'
 }
 
 function linkAccessibilityState() {
@@ -279,7 +277,7 @@ function toggleLayoutWidth() {
 }
 
 function openDetails() {
-  globalThis.craft.navigation.push('details', { name: navigationName(), count: navigationCount() })
+  globalThis.craft.navigation.push('details', { name: navigationName, count: navigationCount })
 }
 
 function openCapabilities() {
@@ -291,18 +289,18 @@ function openCapabilities() {
   <SafeAreaView class="p-4">
     <ScrollView testID="native-root-scroll" style={{"flex":1}}>
     <Text testID="home-title">Home</Text>
-    <Text testID="keyed-list-status" :text="'Selected: ' + navigationRowSelection()" />
+    <Text testID="keyed-list-status" :text="'Selected: ' + navigationRowSelection" />
     <View :for="row in navigationRows" :key="row.id" style={{"height":52,"flexDirection":"row","gap":4}}>
       <Text :text="row.label" style={{"width":100}} />
       <TextInput placeholder="Draft" style={{"width":100}} @input="updateNavigationDraft(row.id, $event)" />
       <Button @click="selectNavigationRow(row.id)">Select row</Button>
     </View>
     <Button testID="keyed-list-reorder" @click="reorderNavigationRows()">Reorder rows</Button>
-    <Text testID="navigation-home-state" :text="'Home state: ' + navigationName() + '/' + navigationCount()" />
+    <Text testID="navigation-home-state" :text="'Home state: ' + navigationName + '/' + navigationCount" />
     <Button testID="navigation-increment" @click="incrementNavigation()">Increment navigation state</Button>
     <Button testID="navigation-open-details" @click="openDetails()">Open navigation details</Button>
     <Button testID="navigation-check-lifecycle" @click="verifyNavigationLifecycle()">Check details lifecycle</Button>
-    <Text testID="navigation-lifecycle" :text="navigationLifecycle()" />
+    <Text testID="navigation-lifecycle" :text="navigationLifecycle" />
     <Button testID="open-capabilities" onPress={openCapabilities}>Open capabilities</Button>
     <Button testID="disabled-button" disabled>Disabled</Button>
     <Text testID="null-width-text" style={{"width":textWidthUnset ? null : 160,"alignSelf":"flex-start"}}>intrinsic</Text>

@@ -1,6 +1,6 @@
-<script client>
-const name = state(String(globalThis.craft.route.params.name ?? ''))
-const count = state(Number(globalThis.craft.route.params.count ?? 0))
+<script>
+let name = String(globalThis.craft.route.params.name ?? '')
+let count = Number(globalThis.craft.route.params.count ?? 0)
 let people = Array.from({ length: 40 }, (_, index) => ({ id: `person-${index}`, name: `Person ${index}` }))
 let listEvents = 0
 let rowLayouts = 0
@@ -41,22 +41,22 @@ function goBack() {
 }
 
 function replaceWithSummary() {
-  globalThis.craft.navigation.replace('summary', { name: name(), count: count() })
+  globalThis.craft.navigation.replace('summary', { name, count })
 }
 
 function incrementDetails() {
-  count.update(function(value) { return value + 1 })
+  count += 1
 }
 
-onDestroy(function() {
-  globalThis.craft.storage.set('native-navigation-details-destroyed', `${name()}/${count()}`)
-})
+globalThis.__stxNativeUnmount = function() {
+  globalThis.craft.storage.set('native-navigation-details-destroyed', `${name}/${count}`)
+}
 </script>
 
 <template>
   <View class="p-4">
-    <Text testID="details-title" :text="'Details for ' + name()" />
-    <Text testID="details-count" :text="'Count: ' + count()" />
+    <Text testID="details-title" :text="'Details for ' + name" />
+    <Text testID="details-count" :text="'Count: ' + count" />
     <Button testID="details-increment" @click="incrementDetails()">Increment details state</Button>
     <Text testID="people-count">People: {people.length}; events: {listEvents}</Text>
     <FlatList
