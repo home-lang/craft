@@ -522,8 +522,13 @@ describe('native renderer component contract', () => {
 
   it('keeps account navigation buttons compatible with the release SDK', () => {
     expect(ios).toContain('let item = UIBarButtonItem(customView: button)')
-    expect(ios).not.toContain('hidesSharedBackground')
-    expect(ios).not.toContain('sharesBackground')
+    // iOS 26 bar-item APIs only behind a compiler guard: older SDKs in the
+    // release matrix lack them, and without them iOS 26 draws the two
+    // circles as tinted ovals on one glass platter.
+    const guarded = '#if compiler(>=6.2)\n        if #available(iOS 26.0, *) { item.hidesSharedBackground = true; item.sharesBackground = false }\n        #endif'
+    expect(ios).toContain(guarded)
+    expect(ios.split('hidesSharedBackground').length - 1).toBe(1)
+    expect(ios.split('sharesBackground').length - 1).toBe(1)
   })
 
   it('keeps FlatList gesture callbacks on the shared scroll payload', () => {

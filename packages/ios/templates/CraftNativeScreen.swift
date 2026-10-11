@@ -1822,9 +1822,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
         }
         let item = UIBarButtonItem(customView: button)
-        // Keep the custom-view item compatible with the Xcode SDKs used by
-        // Craft's release matrix; iOS 26-only bar-item APIs are not required
-        // for the account surface itself.
+        // iOS 26 groups adjacent bar items on one glass platter and tints
+        // their custom views with it: the two 44-point circles came out as
+        // solid accent ovals inside a capsule, unlike the web screens' bar.
+        // The button draws its own surface, so it opts out of the platter.
+        // Guarded by compiler too, for the older SDKs in the release matrix.
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) { item.hidesSharedBackground = true; item.sharesBackground = false }
+        #endif
         return item
     }
 
