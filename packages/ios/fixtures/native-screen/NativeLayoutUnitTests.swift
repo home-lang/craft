@@ -368,4 +368,103 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(controller.navigationItem.rightBarButtonItems?.count ?? 0, 0)
         XCTAssertEqual(controller.navigationItem.title, "Today")
     }
+
+    func testAProgressFillTakesItsShareOnceItsGrowArrives() throws {
+        // HQ's week bar: the shares arrive as a style binding after the first
+        // render, 78 to the fill and 22 to the rest of the track.
+        let controller = screen(box("root", style: ["flex": 1], [[
+            "id": "scroll", "type": "ScrollView", "props": ["testID": "scroll"], "style": ["flex": 1],
+            "children": [
+                box("card", style: ["marginHorizontal": 16, "padding": 16, "borderRadius": 16], [
+                    text("label", "3 / 5 sessions"),
+                    box("track", style: ["flexDirection": "row", "overflow": "hidden", "marginTop": 12, "height": 8, "borderRadius": 9999], [
+                        box("fill", style: ["height": 8, "backgroundColor": "#2563eb", "borderRadius": 9999]),
+                        box("rest", style: ["height": 8]),
+                    ]),
+                ]),
+            ],
+        ]]))
+        XCTAssertEqual(try frame("fill", in: controller).width, 0, accuracy: 0.5)
+        try controller.applyMutation([
+            "version": 1, "batchId": "grow-1", "baseRevision": 0, "revision": 1,
+            "operations": [
+                ["op": "updateNode", "id": "fill", "patch": ["style": ["flexGrow": 78, "flexShrink": 1, "flexBasis": 0]]],
+                ["op": "updateNode", "id": "rest", "patch": ["style": ["flexGrow": 22, "flexShrink": 1, "flexBasis": 0]]],
+            ],
+        ])
+        settle(controller)
+        let track = try frame("track", in: controller)
+        XCTAssertEqual(track.width, 390 - 32 - 32, accuracy: 0.5)
+        XCTAssertEqual(try frame("fill", in: controller).width, track.width * 0.78, accuracy: 1)
+        XCTAssertEqual(try frame("rest", in: controller).minX, track.minX + track.width * 0.78, accuracy: 1)
+    }
+
+    /// A Calendar-like screen: a large title over a scroll view whose first
+    /// child, the week strip, sticks under the bar.
+    private func stickyHeaderScreen() -> [String: Any] {
+        box("root", style: ["flex": 1], [[
+            "id": "scroll", "type": "ScrollView", "props": ["testID": "scroll", "stickyHeaderIndices": [0]], "style": ["flex": 1],
+            "children": [
+                box("week", style: ["height": 120, "backgroundColor": "#f8fafc"]),
+                box("summary", style: ["height": 100, "marginTop": 4, "backgroundColor": "#ffffff"]),
+                box("monday", style: ["height": 600]),
+            ],
+        ]])
+    }
+
+    /// As Craft's hybrid shell shows a tab: the bar hidden until the screen
+    /// asks for one, in a window, with the screen's first render before or
+    /// after it appears.
+    private func largeTitleScreen(renderFirst: Bool) throws -> (CraftNativeScreenController, UINavigationController, UIWindow) {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let navigation = UINavigationController(rootViewController: controller)
+        navigation.setNavigationBarHidden(true, animated: false)
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        controller.loadViewIfNeeded()
+        controller.evaluateScript("craft.navigation.setOptions({ title: 'Calendar', largeTitle: true })")
+        if renderFirst { controller.render(stickyHeaderScreen()) }
+        window.rootViewController = navigation
+        window.makeKeyAndVisible()
+        settle(controller)
+        if !renderFirst { controller.render(stickyHeaderScreen()) }
+        settle(controller)
+        return (controller, navigation, window)
+    }
+
+    private func assertContentStartsBelowTheBar(_ controller: CraftNativeScreenController, _ navigation: UINavigationController) throws {
+        let bar = navigation.navigationBar.convert(navigation.navigationBar.bounds, to: controller.view)
+        let week = try frame("week", in: controller)
+        let summary = try frame("summary", in: controller)
+        let scroll = try XCTUnwrap(find("scroll", below: controller.view) as? UIScrollView)
+        XCTAssertGreaterThanOrEqual(week.minY, bar.maxY - 0.5, "the week strip starts below the large title")
+        XCTAssertEqual(summary.minY, week.maxY + 4, accuracy: 0.5, "the summary follows the strip, not under it")
+        XCTAssertEqual(scroll.contentOffset.y, -scroll.adjustedContentInset.top, accuracy: 0.5)
+
+        // Scrolled, the strip sticks under the bar, drawn over the content.
+        scroll.setContentOffset(CGPoint(x: 0, y: 300 - scroll.adjustedContentInset.top), animated: false)
+        settle(controller)
+        let stuck = try frame("week", in: controller)
+        let collapsed = navigation.navigationBar.convert(navigation.navigationBar.bounds, to: controller.view)
+        XCTAssertEqual(stuck.minY, collapsed.maxY, accuracy: 1)
+        let weekView = try XCTUnwrap(find("week", below: controller.view))
+        XCTAssertTrue(weekView.superview?.subviews.last === weekView)
+        XCTAssertGreaterThan(weekView.layer.zPosition, 0)
+    }
+
+    func testALargeTitleScreenRenderedBeforeItAppearsStartsBelowTheBar() throws {
+        let (controller, navigation, window) = try largeTitleScreen(renderFirst: true)
+        defer { window.isHidden = true }
+        try assertContentStartsBelowTheBar(controller, navigation)
+    }
+
+    func testALargeTitleScreenRenderedAfterItAppearsStartsBelowTheBar() throws {
+        // The first render switches the screen edge to edge under a bar that
+        // is already showing: the scroll view's inset grows from nothing
+        // while it rests at the top.
+        let (controller, navigation, window) = try largeTitleScreen(renderFirst: false)
+        defer { window.isHidden = true }
+        try assertContentStartsBelowTheBar(controller, navigation)
+    }
 }
