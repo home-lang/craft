@@ -325,7 +325,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('stack.rowGap = number(style["rowGap"]) ?? gap')
     expect(ios).toContain('stack.columnGap = number(style["columnGap"]) ?? gap')
     expect(android).toContain('val crossGap = if (orientation == HORIZONTAL) rowGap else columnGap')
-    expect(android).toContain('crossOffset += line.cross + crossGap')
+    expect(android).toContain('crossOffset += line.cross + crossBetween')
   })
 
   it('keeps intrinsic grid tracks equal across hosts', () => {
@@ -362,6 +362,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val flexShrink: Double? = null')
     expect(android).toContain('it.style.flexShrink ?: defaultFlexShrink(it.view)')
     expect(android).toContain('view is TextView && view !is Button && view !is EditText && orientation == HORIZONTAL')
+  })
+
+  it('distributes wrapped flex lines with alignContent on both hosts', () => {
+    expect(ios).toContain('var alignContent = "flex-start"')
+    expect(ios).toContain('case "space-between": crossBetween = free / CGFloat(lineCrosses.count - 1) + crossGap')
+    expect(android).toContain('private var alignContent = "flex-start"')
+    expect(android).toContain('"space-between" -> crossBetween = crossFree / (lines.size - 1) + crossGap')
+    expect(android).toContain('"stretch" -> {')
   })
 
   it('resolves percentage lengths against the native parent on both hosts', () => {

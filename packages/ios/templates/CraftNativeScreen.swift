@@ -241,6 +241,7 @@ private final class CraftNativeFlowView: UIStackView {
     var pressBaseOpacity: CGFloat = 1
     var wrap = false { didSet { if wrap != oldValue { invalidateMeasurements() } } }
     var alignItems = "stretch" { didSet { alignment = alignmentValue; if alignItems != oldValue { invalidateMeasurements() } } }
+    var alignContent = "flex-start" { didSet { if alignContent != oldValue { invalidateMeasurements() } } }
     var justifyContent = "flex-start" { didSet { distribution = distributionValue; if justifyContent != oldValue { invalidateMeasurements() } } }
     var gap: CGFloat = 0 { didSet { spacing = gap; if gap != oldValue { invalidateMeasurements() } } }
     var rowGap: CGFloat? { didSet { if rowGap != oldValue { invalidateMeasurements() } } }
@@ -641,11 +642,29 @@ private final class CraftNativeFlowView: UIStackView {
         }
 
         let contentMain = definiteMain ?? (lineMains.max() ?? 0)
-        let contentCross = definiteCross
+        var contentCross = definiteCross
             ?? (lineCrosses.reduce(0, +) + CGFloat(max(0, lineCrosses.count - 1)) * crossGap)
+        var crossLeading: CGFloat = 0
+        var crossBetween = crossGap
+        if wrap, let definiteCross, lineCrosses.count > 1 {
+            let free = max(0, definiteCross - (lineCrosses.reduce(0, +) + CGFloat(lineCrosses.count - 1) * crossGap))
+            switch alignContent {
+            case "center": crossLeading = free / 2
+            case "flex-end": crossLeading = free
+            case "space-between": crossBetween = free / CGFloat(lineCrosses.count - 1) + crossGap
+            case "space-around":
+                crossBetween = free / CGFloat(lineCrosses.count) + crossGap
+                crossLeading = free / CGFloat(lineCrosses.count * 2)
+            case "stretch":
+                let extra = free / CGFloat(lineCrosses.count)
+                lineCrosses = lineCrosses.map { $0 + extra }
+            default: break
+            }
+            contentCross = definiteCross
+        }
 
         if place {
-            var crossOffset: CGFloat = 0
+            var crossOffset = crossLeading
             for (lineIndex, line) in lines.enumerated() {
                 let free = max(0, contentMain - lineMains[lineIndex])
                 let count = line.count
@@ -676,7 +695,7 @@ private final class CraftNativeFlowView: UIStackView {
                     frames.append((item.view, frame))
                     mainOffset += item.mainMargins + item.main + mainGap + between
                 }
-                crossOffset += lineCross + crossGap
+                crossOffset += lineCross + crossBetween
             }
         }
         return horizontal ? CGSize(width: contentMain, height: contentCross) : CGSize(width: contentCross, height: contentMain)
@@ -2919,6 +2938,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         stack.axis = direction == "row" || direction == "row-reverse" ? .horizontal : .vertical
         stack.wrap = style["flexWrap"] as? String == "wrap" || style["flexWrap"] as? Bool == true
         stack.alignItems = style["alignItems"] as? String ?? "stretch"
+        stack.alignContent = style["alignContent"] as? String ?? "flex-start"
         stack.justifyContent = style["justifyContent"] as? String ?? "flex-start"
         let gap = number(style["gap"]) ?? 0
         stack.gap = gap
