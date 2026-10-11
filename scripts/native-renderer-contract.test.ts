@@ -403,6 +403,11 @@ describe('native renderer component contract', () => {
     expect(android).toContain('entry.style.alignSelf ?: alignItems')
   })
 
+  it('uses a zero basis for positive flex shorthand on both hosts', () => {
+    expect(ios).toContain('flexBasis = CraftNativeLength(raw["flexBasis"]) ?? flex.flatMap { $0 > 0 ? .points(0) : nil }')
+    expect(android).toContain('flex?.takeIf { it > 0.0 }?.let { CraftNativeLength(points = 0) }')
+  })
+
   it('aligns omitted flex-shrink defaults for labels and scroll hosts', () => {
     expect(ios).toContain('defaultShrink = horizontal ? 1 : 0')
     expect(android).toContain('val flexShrink: Double? = null')
