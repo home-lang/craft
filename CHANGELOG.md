@@ -1,5 +1,46 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.128...v0.0.129)
+
+## 🐛 Bug Fixes
+
+- resolve map types through the declared first-party dependency ([8b47f2f](https://github.com/craft-native/craft/commit/8b47f2f)) _(by Chris Breuer)_
+- update iOS badges without changing notification authorization ([191b751](https://github.com/craft-native/craft/commit/191b751)) _(by Chris Breuer)_
+- **native**: dispose replaced iOS screen runtime ([0bf2354](https://github.com/craft-native/craft/commit/0bf2354)) _(by glennmichael123)_
+- **ios**: dispose replaced native screen runtime ([2745dbf](https://github.com/craft-native/craft/commit/2745dbf)) _(by glennmichael123)_
+- **native**: accept shared lifecycle bundle marker ([5a024d2](https://github.com/craft-native/craft/commit/5a024d2)) _(by glennmichael123)_
+- **native**: merge incremental node patches ([73caef2](https://github.com/craft-native/craft/commit/73caef2)) _(by glennmichael123)_
+- **native**: keep lifecycle bundle guard compatible ([9d59529](https://github.com/craft-native/craft/commit/9d59529)) _(by glennmichael123)_
+- **native**: dispose screen runtimes on navigation teardown ([994fd89](https://github.com/craft-native/craft/commit/994fd89)) _(by glennmichael123)_
+- **native**: stabilize disabled long press navigation ([55e710f](https://github.com/craft-native/craft/commit/55e710f)) _(by glennmichael123)_
+- **native**: preserve disabled pressable state ([d686a88](https://github.com/craft-native/craft/commit/d686a88)) _(by glennmichael123)_
+- **native**: make pressables programmatically clickable ([80644cd](https://github.com/craft-native/craft/commit/80644cd)) _(by glennmichael123)_
+- **ios**: contain native JavaScript exceptions ([893dbf8](https://github.com/craft-native/craft/commit/893dbf8)) _(by glennmichael123)_
+- **ci**: use portable mobile diagnostics watchdog ([19c1930](https://github.com/craft-native/craft/commit/19c1930)) _(by glennmichael123)_
+- **ci**: bound simulator diagnostics ([f294f72](https://github.com/craft-native/craft/commit/f294f72)) _(by glennmichael123)_
+- **ci**: bound emulator diagnostics ([077a8f7](https://github.com/craft-native/craft/commit/077a8f7)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: prove keyed list focus retention ([4bb33c3](https://github.com/craft-native/craft/commit/4bb33c3)) _(by glennmichael123)_
+- **native**: stabilize shared navigation fixture runtime ([44ef8fe](https://github.com/craft-native/craft/commit/44ef8fe)) _(by glennmichael123)_
+- **native**: cover Android navigation lifecycle ([43948f8](https://github.com/craft-native/craft/commit/43948f8)) _(by glennmichael123)_
+- **native**: stabilize navigation fixture assertions ([229a9dd](https://github.com/craft-native/craft/commit/229a9dd)) _(by glennmichael123)_
+- **native**: add navigation lifecycle fixtures ([1d28304](https://github.com/craft-native/craft/commit/1d28304)) _(by glennmichael123)_
+- **native**: verify shared lifecycle bundle ([8420f9d](https://github.com/craft-native/craft/commit/8420f9d)) _(by glennmichael123)_
+- **native**: stabilize mobile fixture toggles ([4825b41](https://github.com/craft-native/craft/commit/4825b41)) _(by glennmichael123)_
+- **native**: stabilize long press and outer scrolling ([cbb1fa1](https://github.com/craft-native/craft/commit/cbb1fa1)) _(by glennmichael123)_
+- **native**: harden mobile gesture timing ([b828979](https://github.com/craft-native/craft/commit/b828979)) _(by glennmichael123)_
+- **native**: stabilize mobile fixture scrolling ([9161d9e](https://github.com/craft-native/craft/commit/9161d9e)) _(by glennmichael123)_
+- **native**: stabilize mobile navigation fixtures ([702d338](https://github.com/craft-native/craft/commit/702d338)) _(by glennmichael123)_
+- **android**: attach native list fixture to activity ([dc172b2](https://github.com/craft-native/craft/commit/dc172b2)) _(by glennmichael123)_
+- **ci**: preserve mobile runner diagnostics ([7234854](https://github.com/craft-native/craft/commit/7234854)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.127...v0.0.128)
 
 ## 🚀 Features
