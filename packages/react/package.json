@@ -45,6 +45,6 @@
     "@types/react": "^18.2.0",
     "react": "^18.2.0",
     "tsup": "^8.0.0",
-    "typescript": "^7.0.2"
+    "typescript": "7.1.0-dev.20261011.1"
   }
 }
