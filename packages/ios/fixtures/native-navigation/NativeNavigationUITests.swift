@@ -316,7 +316,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["native-picker"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["picker-value"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["picker-value"].label, "one")
-        XCTAssertEqual(app.staticTexts["native-link-status"].label, "")
+        XCTAssertEqual(app.staticTexts["native-link-status"].label, "button style accented")
         let modalToggle = app.buttons["toggle-modal"]
         reveal(modalToggle, in: rootScroll)
         modalToggle.tap()

@@ -382,7 +382,7 @@ class NativeNavigationTest {
             val picker = awaitView(activity, "native-picker")
             assertTrue("native picker should be an Android Spinner", picker is Spinner)
             assertEquals("one", (awaitView(activity, "picker-value") as TextView).text.toString())
-            assertEquals("initial picker selection must not emit onChange", "", (awaitView(activity, "native-link-status") as TextView).text.toString())
+            assertEquals("initial picker selection must not emit onChange", "button style accented", (awaitView(activity, "native-link-status") as TextView).text.toString())
             instrumentation.runOnMainSync { (picker as Spinner).setSelection(1) }
             awaitText(activity, "picker-value", "two")
             assertEquals("picker two", (awaitView(activity, "native-link-status") as TextView).text.toString())

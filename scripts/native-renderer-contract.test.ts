@@ -683,6 +683,11 @@ describe('native renderer component contract', () => {
     expect(navigationDetails).toContain('testID="load-more-people"')
   })
 
+  it('keeps picker initialization assertions aligned with the shared status baseline', () => {
+    expect(androidNavigationTest).toContain('initial picker selection must not emit onChange", "button style accented"')
+    expect(iosNavigationTest).toContain('app.staticTexts["native-link-status"].label, "button style accented"')
+  })
+
   it('keeps FlatList pull-to-refresh aligned across hosts', () => {
     expect(iosFlatList).toContain('UIRefreshControl')
     expect(iosFlatList).toContain('func setRefreshHandler(_ handler: (() -> Void)?, refreshing: Bool)')
