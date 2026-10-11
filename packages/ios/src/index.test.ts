@@ -63,6 +63,7 @@ describe('Craft iOS builder', () => {
     expect(guide).toContain('`ScrollView` and `FlatList` emit the scroll callbacks described above, accept')
     expect(nativeSwift).toContain('platform: "ios"')
     expect(nativeSwift).toContain('mutationProtocolVersion: 1')
+    expect(nativeSwift).toContain('jsContext.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: [])')
     expect(nativeSwift).toContain('capabilityProtocolVersion: \\(craftNativeCapabilityProtocolVersion)')
     expect(nativeSwift).toContain('capabilityTimeoutMs: \\(craftNativeCapabilityTimeoutMilliseconds)')
     expect(nativeSwift).toContain('"code": "TIMEOUT"')

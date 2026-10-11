@@ -42,6 +42,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('receiveSafely(current, message.string)')
       expect(nativeActivity).toContain('Native STX message failed for $route')
       expect(nativeActivity).toContain('mutationProtocolVersion: 1')
+      expect(nativeActivity).toContain('globalThis.__stxNativeUnmount && globalThis.__stxNativeUnmount()')
       expect(nativeActivity).toContain("platform: 'android'")
       expect(nativeActivity).toContain('capabilityProtocolVersion: $CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION')
       expect(nativeActivity).toContain('capabilityTimeoutMs: $CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS')

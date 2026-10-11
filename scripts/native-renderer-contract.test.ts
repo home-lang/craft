@@ -613,9 +613,10 @@ describe('native renderer component contract', () => {
 
   it('proves shared-runtime keyed rows through the maintained iOS host', () => {
     expect(navigationHome).toContain("globalThis.craft.storage.remove('native-navigation-details-destroyed')")
-    expect(navigationHome).not.toContain('state(')
-    expect(navigationDetails).toContain('globalThis.__stxNativeUnmount = function()')
-    expect(navigationDetails).not.toContain('onDestroy(')
+    expect(navigationHome).toContain('const navigationRows = state([')
+    expect(navigationHome).toContain('navigationRows.set([')
+    expect(navigationDetails).toContain('const people = state(')
+    expect(navigationDetails).toContain('onDestroy(() => globalThis.craft.storage.set(')
     expect(navigationHome).toContain('<View :for="row in navigationRows" :key="row.id"')
     expect(navigationHome).toContain('@input="updateNavigationDraft(row.id, $event)"')
     expect(navigationHome).toContain('@click="selectNavigationRow(row.id)"')
