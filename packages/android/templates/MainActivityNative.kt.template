@@ -1500,10 +1500,14 @@ class MainActivity : AppCompatActivity() {
             "Switch" -> (previous as? Switch ?: Switch(this)).apply {
                 setOnCheckedChangeListener(null)
                 val requestedValue = props.opt("value")
-                isChecked = if (requestedValue != null && requestedValue != JSONObject.NULL) {
-                    props.optBoolean("value")
-                } else {
-                    props.optBoolean("checked", false)
+                val requestedChecked = props.opt("checked")
+                isChecked = when {
+                    requestedValue != null && requestedValue != JSONObject.NULL -> props.optBoolean("value")
+                    requestedChecked == null || requestedChecked == JSONObject.NULL -> false
+                    requestedChecked is Boolean -> requestedChecked
+                    requestedChecked is Number -> requestedChecked.toDouble() != 0.0
+                    requestedChecked is String -> requestedChecked.isBlank() || requestedChecked.equals("true", ignoreCase = true)
+                    else -> props.optBoolean("checked", false)
                 }
                 isEnabled = !props.optBoolean("disabled", false)
                 props.optJSONObject("trackColor")?.let { track ->

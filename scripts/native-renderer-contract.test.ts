@@ -340,6 +340,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('parent.setChildStyle(view, style, resources.displayMetrics.density)')
     expect(android).toContain('parent.requestLayout()')
     expect(android).toContain('A reused View may still carry a')
+    expect(android).toContain('val requestedChecked = props.opt("checked")')
+    expect(android).toContain('requestedChecked is String -> requestedChecked.isBlank()')
     expect(android).not.toContain('(child.layoutParams?.width ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }')
     expect(android).not.toContain('(child.layoutParams?.height ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }')
   })
