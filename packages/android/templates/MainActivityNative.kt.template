@@ -48,6 +48,7 @@ import android.widget.Switch
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import androidx.core.content.ContextCompat
 import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.WindowInsetsCompat
@@ -533,7 +534,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     }
 }
 
-private class CraftNativeScrollView(context: Context) : FrameLayout(context) {
+private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context) {
     val content = CraftNativeFlexLayout(context)
     private val vertical = ScrollView(context)
     private val horizontal = HorizontalScrollView(context)
@@ -543,13 +544,29 @@ private class CraftNativeScrollView(context: Context) : FrameLayout(context) {
     private var alwaysBounceVertical = true
     private var alwaysBounceHorizontal = true
     private var keyboardShouldPersistTaps = "never"
+    private var refreshHandler: (() -> Unit)? = null
 
     init {
         vertical.isNestedScrollingEnabled = true
         horizontal.isNestedScrollingEnabled = true
         vertical.isFillViewport = true
         horizontal.isFillViewport = true
+        setOnRefreshListener { refreshHandler?.invoke() }
+        isEnabled = false
         setHorizontal(false)
+    }
+
+    fun setRefreshHandler(handler: (() -> Unit)?, refreshing: Boolean) {
+        refreshHandler = handler
+        isEnabled = handler != null
+        isRefreshing = handler != null && refreshing
+        if (handler == null) isRefreshing = false
+    }
+
+    override fun onDetachedFromWindow() {
+        refreshHandler = null
+        isRefreshing = false
+        super.onDetachedFromWindow()
     }
 
     fun setHorizontal(value: Boolean) {
@@ -1568,6 +1585,10 @@ class MainActivity : AppCompatActivity() {
                     props.optBoolean("alwaysBounceHorizontal", horizontal),
                 )
                 setPagingEnabled(props.optBoolean("pagingEnabled", false))
+                val refreshHandler = events.optString("onRefresh").takeIf { it.isNotBlank() }?.let { handler ->
+                    { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
+                }
+                setRefreshHandler(refreshHandler, props.optBoolean("refreshing", false))
                 val onScroll = events.optString("onScroll")
                 if (onScroll.isNotBlank()) screen.scrollHandlers[this] = onScroll else screen.scrollHandlers.remove(this)
                 val onBegin = events.optString("onScrollBeginDrag")
@@ -2371,6 +2392,7 @@ class MainActivity : AppCompatActivity() {
             releaseFlatList(screen, it, preservingInputDrafts)
         }
         released.filterIsInstance<CraftNativeModalView>().forEach { it.resetForTeardown() }
+        released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }
         releaseImages(released)
         released.filterIsInstance<EditText>().forEach {
             inputHintDefaults.remove(it)

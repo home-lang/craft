@@ -143,6 +143,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('"cover" -> ImageView.ScaleType.CENTER_CROP')
       expect(nativeActivity).toContain('view.clearColorFilter()')
       expect(nativeActivity).toContain('"ScrollView" -> (previous as? CraftNativeScrollView')
+      expect(nativeActivity).toContain('private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context)')
+      expect(nativeActivity).toContain('setRefreshHandler(refreshHandler, props.optBoolean("refreshing", false))')
       expect(nativeActivity).toContain('"FlatList" -> (previous as? CraftNativeRefreshableFlatList')
       expect(nativeActivity).toContain('inputType = inputTypeFor(props)')
       expect(nativeActivity).toContain('imeOptions = imeOptionsFor(props)')

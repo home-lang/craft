@@ -28,6 +28,7 @@ import android.widget.Switch
 import android.widget.TextView
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -106,7 +107,7 @@ class NativeNavigationTest {
         instrumentation.runOnMainSync { view.performClick() }
     }
 
-    private fun pullToRefresh(host: CraftNativeRefreshableFlatList) {
+    private fun pullToRefresh(host: SwipeRefreshLayout) {
         val downTime = SystemClock.uptimeMillis()
         val x = host.width / 2f
         val startY = 2f
@@ -530,16 +531,16 @@ class NativeNavigationTest {
             assertEquals("Count: 2", (awaitView(activity, "details-count") as TextView).text.toString())
             click(activity, "details-increment")
             awaitText(activity, "details-count", "Count: 3")
-            val peopleHost = awaitView(activity, "people-list") as CraftNativeRefreshableFlatList
-            val people = peopleHost.list
-            assertTrue("FlatList refresh host did not enable pull-to-refresh", peopleHost.isEnabled)
+            val peopleHost = awaitView(activity, "people-list") as SwipeRefreshLayout
+            val people = findType(peopleHost, ScrollView::class.java)!!
+            assertTrue("ScrollView refresh host did not enable pull-to-refresh", peopleHost.isEnabled)
             pullToRefresh(peopleHost)
             awaitText(activity, "people-count", "People: 40; events: 1")
             val peopleHeader = awaitView(activity, "people-header") as TextView
-            assertTrue("FlatList contentContainerStyle did not add top padding", peopleHeader.top >= people.top + (8 * density).toInt())
+            assertTrue("ScrollView contentContainerStyle did not add top padding", peopleHeader.top >= people.top + (8 * density).toInt())
             val peopleLayouts = awaitView(activity, "people-layout-status") as TextView
             val initialRowLayouts = peopleLayouts.text.toString().substringAfterLast(": ").toInt()
-            assertTrue("FlatList rows did not report layout", initialRowLayouts > 0)
+            assertTrue("ScrollView rows did not report layout", initialRowLayouts > 0)
             var peopleHeaderInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { peopleHeaderInfo = peopleHeader.createAccessibilityNodeInfo() }
             assertTrue("FlatList header did not expose heading semantics", peopleHeaderInfo?.isHeading == true)
@@ -555,7 +556,7 @@ class NativeNavigationTest {
             assertSame("keyed list update replaced a focused input", personInput, awaitView(activity, "person-input-person-0"))
             assertEquals("draft", personInput.text.toString())
             assertTrue("keyed list update dropped input focus", personInput.isFocused)
-            instrumentation.runOnMainSync { people.scrollToPosition(people.adapter!!.itemCount - 1) }
+            click(activity, "load-more-people")
             awaitText(activity, "people-count", "People: 41; events: 3")
             awaitLayoutIncrease(activity, "people-layout-status", initialRowLayouts)
             click(activity, "clear-people")
