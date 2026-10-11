@@ -1733,6 +1733,15 @@ class MainActivity : AppCompatActivity() {
         }
         next[identity] = control
         applyViewStyle(control, style)
+        if (type == "ActivityIndicator") {
+            val animating = props.optBoolean("animating", true)
+            val hidesWhenStopped = props.optBoolean("hidesWhenStopped", true)
+            control.visibility = if (style.optString("display") == "none" || (!animating && hidesWhenStopped)) {
+                View.GONE
+            } else {
+                View.VISIBLE
+            }
+        }
         if (type == "Modal" && !props.optBoolean("visible", false)) control.visibility = View.GONE
         val width = style.optDouble("width", Double.NaN).takeUnless { it.isNaN() }?.let(::dp)
         val height = style.optDouble("height", Double.NaN).takeUnless { it.isNaN() }?.let(::dp)

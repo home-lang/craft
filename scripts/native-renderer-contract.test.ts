@@ -505,6 +505,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('is Number -> (requestedSize.toDouble() / 24.0).toFloat().coerceAtLeast(0.5f)')
     expect(android).toContain('isIndeterminate = animating')
     expect(android).toContain('props.optBoolean("hidesWhenStopped", true)')
+    expect(android).toContain('if (style.optString("display") == "none" || (!animating && hidesWhenStopped))')
   })
 
   it('snaps controlled slider values on initial render across hosts', () => {

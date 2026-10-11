@@ -103,7 +103,7 @@ label intrinsically multiline.
 `ActivityIndicator` accepts `color`, `animating`, `hidesWhenStopped`, and
 `size` (`small`, `large`, or a numeric point/unit value). The native host keeps
 the indicator visible when animation is stopped only when `hidesWhenStopped` is
-false.
+false; shared `display: 'none'` still takes precedence on both hosts.
 `Image.alt` supplies the native accessibility label when an explicit
 `accessibilityLabel` is not provided.
 
