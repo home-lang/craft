@@ -249,7 +249,7 @@ jobs:
 
           missing=""
           for name in APPLE_CERTIFICATE_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY KEYCHAIN_PASSWORD APPLE_ID APPLE_APP_PASSWORD APPLE_TEAM_ID; do
-            value="$(bunx --bun buddy env:get "$name" --file .env.production 2>/dev/null || true)"
+            value="$(bun node_modules/@stacksjs/buddy/dist/cli.js env:get "$name" --file .env.production)"
 
             if [ -z "$value" ]; then
               missing="$missing $name"

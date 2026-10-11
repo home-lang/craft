@@ -18,6 +18,29 @@ const stxCompilerCommit = 'ea143297fa6fa473d8edd75ce5bd150f3662cba9'
 const needs = (job: Job) => typeof job.needs === 'string' ? [job.needs] : job.needs ?? []
 const steps = (job: Job) => job.steps?.map(step => step.run ?? '').join('\n') ?? ''
 
+test('macOS signing reads credentials from the declared Stacks CLI, not the shared buddy binary', () => {
+  const loader = release.jobs.pantry.steps?.find(step => step.name === 'Load macOS release credentials')?.run
+  expect(loader).toBeTruthy()
+  const dir = mkdtempSync(join(tmpdir(), 'craft-signing-cli-'))
+  const executable = join(dir, 'bun')
+  const output = join(dir, 'github-env')
+  try {
+    writeFileSync(executable, '#!/bin/sh\n[ "$1" = "node_modules/@stacksjs/buddy/dist/cli.js" ] || exit 22\n[ "$2" = "env:get" ] || exit 23\nprintf "fixture-value"\n')
+    chmodSync(executable, 0o755)
+    const env = { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_ENV: output, DOTENV_PRIVATE_KEY_PRODUCTION: 'fixture-key' }
+    const success = Bun.spawnSync(['bash', '-euo', 'pipefail', '-c', loader!], { env })
+    expect(success.exitCode).toBe(0)
+    expect(readFileSync(output, 'utf8')).toContain('APPLE_TEAM_ID=fixture-value\nSIGNING_AVAILABLE=true')
+    // A failed getter must stop before its diagnostic can be written as a secret.
+    writeFileSync(executable, '#!/bin/sh\nprintf "getter failed"\nexit 17\n')
+    writeFileSync(output, '')
+    const failure = Bun.spawnSync(['bash', '-euo', 'pipefail', '-c', loader!], { env })
+    expect(failure.exitCode).not.toBe(0)
+    expect(readFileSync(output, 'utf8')).toBe('')
+  }
+  finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
 test('mobile device jobs use the same pinned stx compiler', () => {
   const workflow = Bun.YAML.parse(readFileSync(join(import.meta.dir, '../.github/workflows/mobile-e2e.yml'), 'utf8')) as { jobs: Record<string, Job> }
   const compilerCheckouts = Object.values(workflow.jobs).flatMap(job => job.steps ?? []).filter((step) => {
