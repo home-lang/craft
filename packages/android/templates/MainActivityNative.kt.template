@@ -734,7 +734,10 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     }
 
     fun setVisible(visible: Boolean, opacity: Float, animationType: String?) {
-        if (renderedVisible == visible && visibility == if (visible) View.VISIBLE else View.GONE) return
+        if (renderedVisible == visible && visibility == if (visible) View.VISIBLE else View.GONE) {
+            if (visible && alpha != opacity) alpha = opacity
+            return
+        }
         val wasVisible = renderedVisible && visibility == View.VISIBLE
         renderedVisible = visible
         animationGeneration += 1

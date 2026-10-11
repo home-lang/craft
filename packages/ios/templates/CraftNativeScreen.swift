@@ -796,7 +796,10 @@ private final class CraftNativeModalView: UIView {
     required init?(coder: NSCoder) { nil }
 
     func setVisible(_ visible: Bool, opacity: CGFloat, animationType: String?) {
-        guard renderedVisible != visible || isHidden != !visible else { return }
+        if renderedVisible == visible && isHidden == !visible {
+            if visible, alpha != opacity { alpha = opacity }
+            return
+        }
         let wasVisible = renderedVisible && !isHidden
         renderedVisible = visible
         animationGeneration += 1
