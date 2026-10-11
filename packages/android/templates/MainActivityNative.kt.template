@@ -1237,8 +1237,28 @@ class MainActivity : AppCompatActivity() {
             val document = screen.mutations.node(target) ?: return false
             if (!screen.controls.containsKey("id:$target")) return false
             makeView(screen, document, target, screen.controls)
+            val updated = screen.controls["id:$target"] ?: return false
+            if (!updateParentLayoutStyle(updated, document.optJSONObject("style") ?: JSONObject())) return false
         }
         return true
+    }
+
+    /**
+     * Targeted mutations bypass the parent's child reconciliation. Rebind the
+     * updated node's layout style explicitly so removing a width/height (or
+     * changing flex participation) invalidates the native parent's metrics.
+     */
+    private fun updateParentLayoutStyle(view: View, style: JSONObject): Boolean {
+        var parent = view.parent
+        while (parent != null) {
+            if (parent is CraftNativeFlexLayout) {
+                parent.setChildStyle(view, style, resources.displayMetrics.density)
+                parent.requestLayout()
+                return true
+            }
+            parent = parent.parent
+        }
+        return false
     }
 
     private fun renderCommitted(screen: Screen, document: JSONObject) {

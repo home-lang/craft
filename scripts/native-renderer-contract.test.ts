@@ -335,6 +335,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('.put("layout", JSONObject()')
   })
 
+  it('rebinds Android targeted style mutations to the parent layout', () => {
+    expect(android).toContain('updateParentLayoutStyle(updated, document.optJSONObject("style") ?: JSONObject())')
+    expect(android).toContain('parent.setChildStyle(view, style, resources.displayMetrics.density)')
+    expect(android).toContain('parent.requestLayout()')
+  })
+
   it('keeps the native root inside each host safe area', () => {
     expect(ios).toContain('view.safeAreaLayoutGuide.topAnchor')
     expect(ios).toContain('view.safeAreaLayoutGuide.bottomAnchor')

@@ -166,6 +166,18 @@ class NativeNavigationTest {
         throw AssertionError("Timed out waiting for $id layout count to exceed $baseline")
     }
 
+    private fun awaitWidthDecrease(view: View, from: Int, amount: Int, density: Float) {
+        repeat(75) {
+            var settled = false
+            instrumentation.runOnMainSync {
+                settled = view.width < from - (amount * density).toInt()
+            }
+            if (settled) return
+            SystemClock.sleep(100)
+        }
+        throw AssertionError("width did not settle below ${from - (amount * density).toInt()}, was ${view.width}")
+    }
+
     private fun assertNoWebView(activity: MainActivity) {
         var present = false
         instrumentation.runOnMainSync { present = containsWebView(activity.window.decorView) }
@@ -357,11 +369,7 @@ class NativeNavigationTest {
             val explicitTextWidth = nullWidthText.width
             assertTrue("explicit text width was not applied", explicitTextWidth > (150 * density).toInt())
             click(activity, "toggle-null-width")
-            repeat(20) {
-                if (nullWidthText.width < explicitTextWidth - (20 * density).toInt()) return@repeat
-                SystemClock.sleep(100)
-            }
-            assertTrue("null width should restore intrinsic text sizing", nullWidthText.width < explicitTextWidth - (20 * density).toInt())
+            awaitWidthDecrease(nullWidthText, explicitTextWidth, 20, density)
             val percentWidth = awaitView(activity, "percent-width")
             assertEquals((120 * density).toInt(), percentWidth.width)
             val toggle = awaitView(activity, "native-switch")
