@@ -336,7 +336,7 @@ class NativeNavigationTest {
             instrumentation.runOnMainSync { styleInfo = styleToggle.createAccessibilityNodeInfo() }
             assertTrue("selected accessibility state should start clear", styleInfo?.isSelected == false)
             click(activity, "toggle-button-style")
-            assertEquals("button style accented", (awaitView(activity, "native-link-status") as TextView).text.toString())
+            awaitText(activity, "native-link-status", "button style accented")
             val accentedButton = awaitView(activity, "toggle-button-style") as Button
             assertEquals(Color.rgb(0xef, 0x44, 0x44), accentedButton.currentTextColor)
             instrumentation.runOnMainSync { styleInfo = accentedButton.createAccessibilityNodeInfo() }

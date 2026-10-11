@@ -42,6 +42,9 @@ The image control also verifies that an explicit `null` tint style clears the
 previous native color filter during an incremental update.
 The shared name field is controlled, so its value and caret remain stable
 while the native renderer applies each change on both hosts.
+The style and accessibility checks wait for their mutation-driven status text
+before inspecting the updated native control, so the fixture does not race the
+asynchronous JavaScript-to-view reconciliation.
 Test identities stay in Android view tags, leaving visible text available to
 accessibility services unless a label or value is explicitly supplied.
 Returning to a retained route reapplies native theme defaults before it becomes

@@ -659,6 +659,7 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('awaitText(activity, "native-link-status", "link pressed")')
     expect(androidNavigationTest).toContain('awaitText(activity, "native-link-status", "panel pressed")')
     expect(androidNavigationTest).toContain('awaitText(activity, "native-link-status", "pressable pressed")')
+    expect(androidNavigationTest).toContain('awaitText(activity, "native-link-status", "button style accented")')
     expect(androidNavigationTest).toContain('awaitText(activity, "long-press-status", "panel long pressed")')
     expect(androidNavigationTest).toContain('awaitText(activity, "long-press-status", "long press disabled")')
     expect(androidNavigationTest).toContain('awaitText(activity, "long-press-status", "long press enabled")')
