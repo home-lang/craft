@@ -1833,7 +1833,11 @@ class MainActivity : AppCompatActivity() {
             val child = children.opt(index)
             val childView = when (child) {
                 is JSONObject -> makeView(screen, child, "$path.$index", next, previousControls)
-                is String -> TextView(this).apply { text = child; setTextColor(defaultTextColor) }
+                is String -> TextView(this).apply {
+                    includeFontPadding = false
+                    text = child
+                    setTextColor(defaultTextColor)
+                }
                 else -> null
             }
             if (childView != null) desired.add(childView)

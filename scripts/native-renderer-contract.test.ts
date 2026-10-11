@@ -99,6 +99,7 @@ describe('native renderer component contract', () => {
   it('keeps native text intrinsic height free of Android font padding', () => {
     expect(ios).toContain('case let label as UILabel:')
     expect(android).toContain('includeFontPadding = false')
+    expect(android).toContain('is String -> TextView(this).apply {')
   })
 
   it('keeps justified text alignment active across hosts', () => {
