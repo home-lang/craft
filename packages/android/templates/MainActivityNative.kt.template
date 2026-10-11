@@ -1365,9 +1365,15 @@ class MainActivity : AppCompatActivity() {
                 isEnabled = !props.optBoolean("disabled", false)
                 val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
+                // Mounting a controlled picker must not look like a user
+                // change. Android may dispatch the initial adapter selection
+                // during the first layout pass; iOS only reports a choice
+                // after the picker is interacted with.
+                var suppressInitialSelection = true
                 onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                     override fun onNothingSelected(parent: AdapterView<*>?) = Unit
                     override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                        if (suppressInitialSelection) return
                         val current = screen.handlers[this@apply] ?: return
                         val option = options.getOrNull(position) ?: return
                         send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject()
@@ -1375,6 +1381,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 setSelection(selected, false)
+                post { suppressInitialSelection = false }
             }
             "Modal" -> (previous as? CraftNativeModalView ?: CraftNativeModalView(this)).apply {
                 transparent = props.optBoolean("transparent", false)
