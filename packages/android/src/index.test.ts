@@ -197,6 +197,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('screen.mutations.node("root")?.let { renderCommitted(screen, it) }')
       expect(nativeActivity).toContain('private fun refreshInputDefaultsForTraitChange()')
       expect(nativeActivity).toContain('val probe = EditText(this)')
+      expect(nativeActivity).toContain('send(screen, "APPEARANCE", JSONObject().put("colorScheme", colorScheme()))')
+      expect(nativeActivity).toContain('Configuration.UI_MODE_NIGHT_MASK')
       expect(readFileSync(join(native, 'app/src/main/AndroidManifest.xml'), 'utf8'))
         .toContain('screenLayout|keyboardHidden|uiMode')
       expect(nativeActivity).toContain('imageLoadStartHandlers')

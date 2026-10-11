@@ -1117,6 +1117,9 @@ class MainActivity : AppCompatActivity() {
         refreshInputDefaultsForTraitChange()
         screens.lastOrNull()?.let { screen ->
             refreshScreenTheme(screen)
+            if (screen.active) {
+                send(screen, "APPEARANCE", JSONObject().put("colorScheme", colorScheme()))
+            }
         }
     }
 
@@ -1136,6 +1139,10 @@ class MainActivity : AppCompatActivity() {
         root.setBackgroundColor(background)
         defaultTextColor = if (Color.luminance(background) < 0.5) Color.WHITE else Color.BLACK
     }
+
+    private fun colorScheme(): String = if (
+        resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    ) "dark" else "light"
 
     private fun refreshInputDefaultsForTraitChange() {
         if (inputHintDefaults.isEmpty() && inputHighlightDefaults.isEmpty()) return

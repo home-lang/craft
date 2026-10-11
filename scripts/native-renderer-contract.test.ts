@@ -809,6 +809,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val probe = EditText(this)')
   })
 
+  it('publishes dynamic color-scheme changes to the native runtime on both hosts', () => {
+    expect(ios).toContain('send(type: "APPEARANCE", payload: ["colorScheme": colorScheme])')
+    expect(android).toContain('send(screen, "APPEARANCE", JSONObject().put("colorScheme", colorScheme()))')
+    expect(android).toContain('Configuration.UI_MODE_NIGHT_MASK')
+  })
+
   it('rebinds unchanged virtualized rows when theme traits change', () => {
     expect(iosFlatList).toContain('func refreshThemeDefaults()')
     expect(iosFlatList).toContain('snapshot.reconfigureItems(identities)')
