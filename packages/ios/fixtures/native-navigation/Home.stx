@@ -393,6 +393,9 @@ function openCapabilities() {
       <Text testID="layout-stretch" style={{"width":100,"height":24,"alignSelf":"stretch"}}>wrapped</Text>
       <View testID="layout-absolute" style={{"position":"absolute","right":8,"bottom":8,"width":12,"height":12,"backgroundColor":"#abcdef"}} />
     </View>
+    <View testID="percent-wrap" style={{"width":240,"height":28,"backgroundColor":"#2f4050"}}>
+      <Text testID="percent-width" style={{"width":"50%","height":20}}>half width</Text>
+    </View>
     <Text testID="layout-status">{layoutWidth > 0 ? `Layout width: ${layoutWidth}` : 'layout pending'}</Text>
     <Button testID="toggle-layout-width" onPress={toggleLayoutWidth}>Toggle layout width</Button>
     <Button testID="toggle-input-colors" onPress={toggleInputColors}>Toggle input colors</Button>

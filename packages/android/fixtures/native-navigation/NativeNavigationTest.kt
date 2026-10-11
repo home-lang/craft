@@ -358,6 +358,8 @@ class NativeNavigationTest {
                 SystemClock.sleep(100)
             }
             assertTrue("null width should restore intrinsic text sizing", nullWidthText.width < explicitTextWidth - (20 * density).toInt())
+            val percentWidth = awaitView(activity, "percent-width")
+            assertEquals((120 * density).toInt(), percentWidth.width)
             val toggle = awaitView(activity, "native-switch")
             assertTrue("native switch should be an Android Switch", toggle is Switch)
             val nativeSwitch = toggle as Switch

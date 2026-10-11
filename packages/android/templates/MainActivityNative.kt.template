@@ -72,13 +72,31 @@ import kotlin.math.roundToInt
 
 private const val CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS = 30_000L
 
+private data class CraftNativeLength(
+    val points: Int? = null,
+    val fraction: Double? = null,
+) {
+    fun resolve(base: Int?): Int? = points ?: fraction?.let { value -> base?.let { max(0, (it * value).roundToInt()) } }
+
+    companion object {
+        fun from(value: Any?, density: Float): CraftNativeLength? {
+            if (value == null || value == JSONObject.NULL) return null
+            if (value is Number) return CraftNativeLength(points = (value.toDouble() * density).roundToInt())
+            val text = value.toString().trim()
+            if (text.endsWith('%')) return text.dropLast(1).toDoubleOrNull()?.let { CraftNativeLength(fraction = it / 100) }
+            if (text.endsWith("px")) return text.dropLast(2).toDoubleOrNull()?.let { CraftNativeLength(points = (it * density).roundToInt()) }
+            return text.toDoubleOrNull()?.let { CraftNativeLength(points = (it * density).roundToInt()) }
+        }
+    }
+}
+
 private data class CraftNativeLayoutStyle(
-    val width: Int? = null,
-    val height: Int? = null,
-    val minWidth: Int? = null,
-    val maxWidth: Int? = null,
-    val minHeight: Int? = null,
-    val maxHeight: Int? = null,
+    val width: CraftNativeLength? = null,
+    val height: CraftNativeLength? = null,
+    val minWidth: CraftNativeLength? = null,
+    val maxWidth: CraftNativeLength? = null,
+    val minHeight: CraftNativeLength? = null,
+    val maxHeight: CraftNativeLength? = null,
     val position: String = "relative",
     val top: Int? = null,
     val right: Int? = null,
@@ -87,18 +105,19 @@ private data class CraftNativeLayoutStyle(
     val alignSelf: String? = null,
     val flexGrow: Double = 0.0,
     val flexShrink: Double = 0.0,
-    val flexBasis: Int? = null,
+    val flexBasis: CraftNativeLength? = null,
 ) {
     companion object {
         fun from(raw: JSONObject, density: Float): CraftNativeLayoutStyle {
+            fun length(name: String): CraftNativeLength? = CraftNativeLength.from(raw.opt(name), density)
             fun number(name: String): Int? {
                 if (!raw.has(name) || raw.isNull(name)) return null
-                return raw.optDouble(name, Double.NaN).takeUnless { it.isNaN() }?.let { (it * density).toInt() }
+                return raw.optDouble(name, Double.NaN).takeUnless { it.isNaN() }?.let { (it * density).roundToInt() }
             }
             return CraftNativeLayoutStyle(
-                width = number("width"), height = number("height"),
-                minWidth = number("minWidth"), maxWidth = number("maxWidth"),
-                minHeight = number("minHeight"), maxHeight = number("maxHeight"),
+                width = length("width"), height = length("height"),
+                minWidth = length("minWidth"), maxWidth = length("maxWidth"),
+                minHeight = length("minHeight"), maxHeight = length("maxHeight"),
                 position = raw.opt("position")
                     ?.takeUnless { it == JSONObject.NULL }
                     ?.toString()
@@ -111,7 +130,7 @@ private data class CraftNativeLayoutStyle(
                     ?.takeIf { it.isNotBlank() },
                 flexGrow = raw.optDouble("flexGrow", raw.optDouble("flex", 0.0)),
                 flexShrink = raw.optDouble("flexShrink", 0.0),
-                flexBasis = number("flexBasis"),
+                flexBasis = length("flexBasis"),
             )
         }
     }
@@ -294,25 +313,27 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     }
 
     private fun measureChildWidth(child: View, style: CraftNativeLayoutStyle, available: Int, margins: Int): Int {
-        val flexBasis = if (orientation == HORIZONTAL) style.flexBasis else null
-        val explicit = style.width ?: flexBasis
+        val base = max(0, available - margins)
+        val flexBasis = if (orientation == HORIZONTAL) style.flexBasis?.resolve(base) else null
+        val explicit = style.width?.resolve(base) ?: flexBasis
             ?: (child.layoutParams?.width ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }
-        val target = explicit ?: max(0, available - margins)
+        val target = explicit ?: base
         val spec = if (explicit != null) View.MeasureSpec.makeMeasureSpec(target, View.MeasureSpec.EXACTLY)
-        else View.MeasureSpec.makeMeasureSpec(max(0, available - margins), View.MeasureSpec.AT_MOST)
+        else View.MeasureSpec.makeMeasureSpec(base, View.MeasureSpec.AT_MOST)
         child.measure(spec, View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-        return clamp(if (explicit != null) target else child.measuredWidth, style.minWidth, style.maxWidth)
+        return clamp(if (explicit != null) target else child.measuredWidth, style.minWidth?.resolve(base), style.maxWidth?.resolve(base))
     }
 
     private fun measureChildHeight(child: View, style: CraftNativeLayoutStyle, available: Int, margins: Int): Int {
-        val flexBasis = if (orientation == VERTICAL) style.flexBasis else null
-        val explicit = style.height ?: flexBasis
+        val base = max(0, available - margins)
+        val flexBasis = if (orientation == VERTICAL) style.flexBasis?.resolve(base) else null
+        val explicit = style.height?.resolve(base) ?: flexBasis
             ?: (child.layoutParams?.height ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }
-        val target = explicit ?: max(0, available - margins)
+        val target = explicit ?: base
         val spec = if (explicit != null) View.MeasureSpec.makeMeasureSpec(target, View.MeasureSpec.EXACTLY)
-        else View.MeasureSpec.makeMeasureSpec(max(0, available - margins), View.MeasureSpec.AT_MOST)
+        else View.MeasureSpec.makeMeasureSpec(base, View.MeasureSpec.AT_MOST)
         child.measure(child.measuredWidth.let { View.MeasureSpec.makeMeasureSpec(max(0, it), View.MeasureSpec.EXACTLY) }, spec)
-        return clamp(if (explicit != null) target else child.measuredHeight, style.minHeight, style.maxHeight)
+        return clamp(if (explicit != null) target else child.measuredHeight, style.minHeight?.resolve(base), style.maxHeight?.resolve(base))
     }
 
     private fun clamp(value: Int, lower: Int?, upper: Int?): Int {
@@ -413,9 +434,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 val base = if (orientation == HORIZONTAL) line.entries[index].width else line.entries[index].height
                 val primary = if (totalFactor > 0) max(0, (base + rawFree * factors[index] / totalFactor).toInt()) else base
                 val constrained = if (orientation == HORIZONTAL) {
-                    clamp(primary, line.entries[index].style.minWidth, line.entries[index].style.maxWidth)
+                    clamp(primary, line.entries[index].style.minWidth?.resolve(contentWidth), line.entries[index].style.maxWidth?.resolve(contentWidth))
                 } else {
-                    clamp(primary, line.entries[index].style.minHeight, line.entries[index].style.maxHeight)
+                    clamp(primary, line.entries[index].style.minHeight?.resolve(contentHeight), line.entries[index].style.maxHeight?.resolve(contentHeight))
                 }
                 val lp = line.entries[index].view.layoutParams as? MarginLayoutParams
                 val margins = if (orientation == HORIZONTAL) (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
@@ -447,9 +468,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 val primary = if (orientation == HORIZONTAL) entry.width else entry.height
                 val distributed = if (totalFactor > 0) max(0, (primary + rawFree * factors[index] / totalFactor).toInt()) else primary
                 val distributedPrimary = if (orientation == HORIZONTAL) {
-                    clamp(distributed, entry.style.minWidth, entry.style.maxWidth)
+                    clamp(distributed, entry.style.minWidth?.resolve(contentWidth), entry.style.maxWidth?.resolve(contentWidth))
                 } else {
-                    clamp(distributed, entry.style.minHeight, entry.style.maxHeight)
+                    clamp(distributed, entry.style.minHeight?.resolve(contentHeight), entry.style.maxHeight?.resolve(contentHeight))
                 }
                 val w = if (orientation == HORIZONTAL) distributedPrimary else crossSize
                 val h = if (orientation == HORIZONTAL) crossSize else distributedPrimary
