@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.132...v0.0.133)
+
+## 🐛 Bug Fixes
+
+- **ios**: draw account bar buttons as their own circles on iOS 26 ([6db8540](https://github.com/craft-native/craft/commit/6db8540)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.131...v0.0.132)
 
 ## 🐛 Bug Fixes
