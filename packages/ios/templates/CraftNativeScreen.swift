@@ -1672,6 +1672,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let action = UIAction { [weak self] _ in
             self?.send(type: "EVENT", payload: ["handlerName": "navButton", "nativeEvent": ["id": id]])
         }
+        if spec["variant"] as? String == "accent" || spec["variant"] as? String == "account" {
+            return accountNavigationButton(spec, action: action)
+        }
         let item: UIBarButtonItem
         if let symbol = spec["symbol"] as? String, let image = UIImage(systemName: symbol) {
             item = UIBarButtonItem(image: image, primaryAction: action)
@@ -1704,6 +1707,61 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 item.image = round.withRenderingMode(.alwaysOriginal)
             }
         }
+        return item
+    }
+
+    /// Shared account/chat controls: the same 44-point target, independent
+    /// circular surface and unread indicator on every native screen.
+    private func accountNavigationButton(_ spec: [String: Any], action: UIAction) -> UIBarButtonItem {
+        let button = UIButton(type: .custom)
+        button.addAction(action, for: .touchUpInside)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([button.widthAnchor.constraint(equalToConstant: 44), button.heightAnchor.constraint(equalToConstant: 44)])
+        let accent = spec["variant"] as? String == "accent"
+        button.backgroundColor = UIColor { traits in
+            if traits.userInterfaceStyle == .dark { return UIColor(red: 0.15, green: 0.39, blue: 0.92, alpha: accent ? 0.24 : 0.12) }
+            return UIColor(red: 0.15, green: 0.39, blue: 0.92, alpha: 0.08)
+        }
+        button.layer.cornerRadius = 22
+        button.tintColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.58, green: 0.77, blue: 0.99, alpha: 1) : UIColor(red: 0.11, green: 0.30, blue: 0.85, alpha: 1) }
+        button.setTitleColor(button.tintColor, for: .normal)
+        button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
+        if let title = spec["title"] as? String, !title.isEmpty { button.setTitle(title, for: .normal) }
+        else if let symbol = spec["symbol"] as? String { button.setImage(UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .regular)), for: .normal) }
+        button.accessibilityIdentifier = spec["id"] as? String
+        button.accessibilityLabel = spec["accessibilityLabel"] as? String
+        if let value = spec["badge"] as? NSNumber, value.intValue > 0 {
+            let dot = spec["badgeStyle"] as? String == "dot"
+            let badge = UILabel()
+            badge.text = dot ? nil : value.intValue > 99 ? "99+" : String(value.intValue)
+            badge.font = .systemFont(ofSize: 10, weight: .bold)
+            badge.textColor = .white
+            badge.textAlignment = .center
+            badge.backgroundColor = dot ? .systemRed : .systemBlue
+            badge.clipsToBounds = true
+            let size: CGFloat = dot ? 9 : 18
+            badge.layer.cornerRadius = size / 2
+            badge.frame = CGRect(x: 44 - size, y: 0, width: size, height: size)
+            badge.isAccessibilityElement = false
+            button.addSubview(badge)
+            button.accessibilityValue = "\(value.intValue) unread"
+        }
+        if let source = spec["image"] as? String, let url = URL(string: source), url.scheme == "https" {
+            loadBarImage(url) { [weak button] image in
+                guard let button, let image else { return }
+                let size = CGSize(width: 36, height: 36)
+                let round = UIGraphicsImageRenderer(size: size).image { _ in
+                    UIBezierPath(ovalIn: CGRect(origin: .zero, size: size)).addClip()
+                    let scale = max(size.width / image.size.width, size.height / image.size.height)
+                    let drawn = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+                    image.draw(in: CGRect(x: (size.width - drawn.width) / 2, y: (size.height - drawn.height) / 2, width: drawn.width, height: drawn.height))
+                }
+                button.setTitle(nil, for: .normal)
+                button.setImage(round.withRenderingMode(.alwaysOriginal), for: .normal)
+            }
+        }
+        let item = UIBarButtonItem(customView: button)
+        if #available(iOS 26.0, *) { item.hidesSharedBackground = true; item.sharesBackground = false }
         return item
     }
 
@@ -1742,6 +1800,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             rootTopToSafeArea?.isActive = !edgeToEdge
             rootTopToView?.isActive = edgeToEdge
         }
+        scroll?.contentInsetAdjustmentBehavior = edgeToEdge ? .automatic : .never
         guard scroll !== trackedScrollView else { return }
         trackedScrollView = scroll
         setContentScrollView(scroll, for: .top)
@@ -1771,6 +1830,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             queue: .main
         ) { [weak self] notification in
             self?.applyKeyboardSafeArea(notification, hidden: true)
+        })
+        lifecycleObservers.append(NotificationCenter.default.addObserver(
+            forName: CraftSnapshots.changed,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let name = notification.userInfo?["name"] as? String else { return }
+            self?.send(type: "SNAPSHOT_CHANGED", payload: ["name": name])
         })
         sendAppState(CraftNativeActions.currentAppState())
         deepLinkListener = DeepLinkManager.shared.addNativeListener { [weak self] url, initial in

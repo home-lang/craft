@@ -288,6 +288,32 @@ final class NativeLayoutUnitTests: XCTestCase {
         controller.evaluateScript("console.log('layout test', { ok: true }, undefined); console.error(new Error('logged'))")
     }
 
+    func testSharedAccountAndChatButtonsKeepTheirOwnSurfacesAndBadges() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let navigation = UINavigationController(rootViewController: controller)
+        navigation.loadViewIfNeeded()
+        controller.loadViewIfNeeded()
+        controller.evaluateScript("""
+            craft.navigation.setOptions({title: 'Today', largeTitle: true, rightButtons: [
+                {id: 'messages', symbol: 'bubble.left', variant: 'accent', badge: 3, accessibilityLabel: 'Messages'},
+                {id: 'me', title: 'CB', variant: 'account', badge: 1, badgeStyle: 'dot', accessibilityLabel: 'Me'}
+            ]});
+        """)
+        let items = try XCTUnwrap(controller.navigationItem.rightBarButtonItems)
+        let buttons = items.compactMap { $0.customView as? UIButton }
+        XCTAssertEqual(buttons.count, 2)
+        let chat = try XCTUnwrap(buttons.first { $0.accessibilityIdentifier == "messages" })
+        let account = try XCTUnwrap(buttons.first { $0.accessibilityIdentifier == "me" })
+        XCTAssertEqual(chat.accessibilityValue, "3 unread")
+        XCTAssertEqual(account.title(for: .normal), "CB")
+        XCTAssertEqual(account.accessibilityLabel, "Me")
+        XCTAssertEqual(chat.layer.cornerRadius, 22)
+        XCTAssertEqual(account.layer.cornerRadius, 22)
+        if #available(iOS 26.0, *) {
+            XCTAssertTrue(items.allSatisfy { $0.hidesSharedBackground && !$0.sharesBackground })
+        }
+    }
+
     func testNavigationOptionsSetTheBarAndTheRootTitleIsNeverUndefined() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         let navigation = UINavigationController(rootViewController: controller)

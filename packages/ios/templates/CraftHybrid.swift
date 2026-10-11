@@ -573,13 +573,10 @@ final class CraftHybrid: NSObject {
         // `craft.snapshots` (CraftSnapshots, CraftNativeActions.swift).
         case .snapshotSet(let name, let json):
             CraftSnapshots.write(name, json: json) { ok in
-                if ok { NotificationCenter.default.post(name: Self.snapshotChanged, object: nil, userInfo: ["name": name]) }
-                else { NSLog("[craft hybrid] snapshot %@ was not written: not a snapshot name, or not JSON", name) }
+                if !ok { NSLog("[craft hybrid] snapshot %@ was not written: not a snapshot name, or not JSON", name) }
             }
         case .snapshotRemove(let name):
-            CraftSnapshots.write(name, json: nil) { _ in
-                NotificationCenter.default.post(name: Self.snapshotChanged, object: nil, userInfo: ["name": name])
-            }
+            CraftSnapshots.write(name, json: nil)
         case .snapshotClear:
             let names = CraftSnapshots.directory
                 .flatMap { try? FileManager.default.contentsOfDirectory(atPath: $0.path) }?
@@ -604,7 +601,7 @@ final class CraftHybrid: NSObject {
     }
 
     /// Posted when the page wrote or removed a snapshot (`userInfo["name"]`).
-    static let snapshotChanged = Notification.Name("craftSnapshotChanged")
+    static let snapshotChanged = CraftSnapshots.changed
 
     // MARK: Tabs and links
 

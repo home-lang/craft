@@ -680,6 +680,7 @@ extension CraftNativeActions {
 /// (`snapshots.set` in the mobile API) and a native screen reads them
 /// synchronously before its first render, or writes its own.
 enum CraftSnapshots {
+    static let changed = Notification.Name("craftSnapshotChanged")
     private static let queue = DispatchQueue(label: "dev.craft.snapshots", qos: .utility)
     private static let lock = NSLock()
     /// Writes not on disk yet, so a read right after a write sees it.
@@ -742,7 +743,10 @@ enum CraftSnapshots {
             lock.lock()
             if let current = pending[name], current == json { pending.removeValue(forKey: name) }
             lock.unlock()
-            DispatchQueue.main.async { completion?(ok) }
+            DispatchQueue.main.async {
+                if ok { NotificationCenter.default.post(name: changed, object: nil, userInfo: ["name": name]) }
+                completion?(ok)
+            }
         }
     }
 }
