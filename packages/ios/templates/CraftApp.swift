@@ -5809,14 +5809,23 @@ struct CraftWebView: UIViewRepresentable {
 
         // MARK: - App Badge
         private func setBadgeCount(_ count: Int, callbackId: String?) {
-            UNUserNotificationCenter.current().requestAuthorization(options: .badge) { granted, _ in
-                if granted {
-                    DispatchQueue.main.async {
-                        UIApplication.shared.applicationIconBadgeNumber = count
-                        self.resolveCallback(callbackId, result: true)
+            // Changing a badge must not ask for a badge-only authorization:
+            // notification permission belongs to the explicit registration
+            // flow, which requests alerts, badges and sounds together.
+            DispatchQueue.main.async {
+                if #available(iOS 16.0, *) {
+                    UNUserNotificationCenter.current().setBadgeCount(count) { [weak self] error in
+                        DispatchQueue.main.async {
+                            if let error {
+                                self?.rejectCallback(callbackId, error: error.localizedDescription)
+                            } else {
+                                self?.resolveCallback(callbackId, result: true)
+                            }
+                        }
                     }
                 } else {
-                    self.rejectCallback(callbackId, error: "Badge permission denied")
+                    UIApplication.shared.applicationIconBadgeNumber = count
+                    self.resolveCallback(callbackId, result: true)
                 }
             }
         }

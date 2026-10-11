@@ -1220,6 +1220,17 @@ describe('Craft iOS builder', () => {
     expect(handle.slice(0, handle.indexOf('\n    }\n'))).toContain('sendToWeb("craftNotificationReceived"')
   })
 
+  it('updates badges without replacing full notification authorization with a badge-only request', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-badge-authorization-'))
+    await init({ name: 'WildLoop', bundleId: 'org.wildloop.app', output })
+    const swift = readFileSync(join(output, 'Sources', 'WildLoopApp.swift'), 'utf8')
+    const badge = swift.slice(swift.indexOf('private func setBadgeCount('), swift.indexOf('// MARK: - App Review'))
+    expect(badge).not.toContain('requestAuthorization')
+    expect(badge).toContain('UNUserNotificationCenter.current().setBadgeCount(count)')
+    const registration = swift.slice(swift.indexOf('private func registerPushNotifications('), swift.indexOf('@objc private func receivePushToken('))
+    expect(registration).toContain('requestAuthorization(options: [.alert, .badge, .sound])')
+  })
+
   it('schedules a local notification with the data the page gave it', async () => {
     // #258: `data` never reached userInfo, so a tap on a scheduled
     // notification handed the page {} and it had nothing to route on.
