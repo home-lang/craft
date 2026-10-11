@@ -22,10 +22,13 @@ layout events to increase after recycled rows are materialized, rather than
 assuming a fixed callback count.
 
 The navigation section also verifies the shared runtime lifecycle: a pushed
-details screen gets fresh state, `onDestroy` runs after the Android Back path,
-and replacement disposes the outgoing screen before the new route is opened.
-The shared Home route keeps its signal declarations in `<script client>` so the
-pinned native compiler emits the client runtime used by both hosts.
+details screen gets fresh state, the unmount marker runs after the Android Back
+path, and replacement disposes the outgoing screen before the new route is
+opened.
+The shared Home route uses ordinary top-level variables because the pinned
+native compiler emits client scripts as-is. The host supplies `craft` and calls
+the explicit `globalThis.__stxNativeUnmount` marker when a screen closes;
+fixtures must not rely on injected `state`, `onMount`, or `onDestroy` helpers.
 The native form coverage also keeps a keyed input's draft while changing its
 single-line/multiline mode, recreating the incompatible platform control, and
 the iOS fixture runs the same mode-transition and recycled-row assertions.

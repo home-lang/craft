@@ -27,6 +27,20 @@ craft android build --output ./android --native-bundle ./native-screen.js
 Native mode does not accept a web distribution or development-server URL. The
 bundle must be local at build time.
 
+## Native script and lifecycle semantics
+
+The native compiler emits each route's client script as-is. Use ordinary
+top-level variables and functions in `<script>` blocks; those variables are
+tracked by the native runtime after event handlers and timers mutate them.
+Native scripts receive the `globalThis.craft` route, navigation, storage, and
+capability APIs from the host, but the compiler does not inject browser-only
+helpers such as `state`, `onMount`, or `onDestroy`.
+
+When a route needs teardown work, assign a function to
+`globalThis.__stxNativeUnmount`. Craft invokes that marker before a native
+screen is removed or replaced. Keep cleanup there rather than relying on a
+framework lifecycle helper that is unavailable in native bundles.
+
 ## Current component contract
 
 | STX primitive | iOS | Android |
