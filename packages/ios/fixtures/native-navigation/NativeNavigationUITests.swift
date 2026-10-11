@@ -314,6 +314,7 @@ final class NativeNavigationUITests: XCTestCase {
 
         XCTAssertTrue(app.activityIndicators["native-indicator"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.activityIndicators["stopped-indicator"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.activityIndicators["hidden-indicator"].isHittable)
 
         let wrapped = app.otherElements["layout-wrap"]
         XCTAssertTrue(wrapped.waitForExistence(timeout: 5))

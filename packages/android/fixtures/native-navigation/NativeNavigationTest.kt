@@ -435,6 +435,8 @@ class NativeNavigationTest {
             assertTrue("stopped indicator should stay visible when requested", stoppedIndicator.isShown)
             assertTrue("stopped indicator should not animate", !stoppedIndicator.isIndeterminate)
             assertEquals(0.75f, stoppedIndicator.scaleX)
+            val hiddenIndicator = awaitView(activity, "hidden-indicator") as ProgressBar
+            assertEquals("hidesWhenStopped should hide a stopped indicator", View.GONE, hiddenIndicator.visibility)
             val wrapped = awaitView(activity, "layout-wrap") as LinearLayout
             assertEquals("Layout width: 240", (awaitView(activity, "layout-status") as TextView).text.toString())
             click(activity, "toggle-layout-width")
