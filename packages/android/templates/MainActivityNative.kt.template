@@ -1306,6 +1306,7 @@ class MainActivity : AppCompatActivity() {
             }
             "Button" -> (previous as? Button ?: Button(this)).apply {
                 val title = props.optString("title").ifBlank { childText(children) }
+                isAllCaps = false
                 configureText(this, title, style)
                 props.optString("color").takeIf { it.isNotBlank() }?.let { setTextColor(color(it, defaultTextColor)) }
                 isEnabled = !props.optBoolean("disabled", false)

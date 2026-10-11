@@ -91,6 +91,11 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`Text` supports positive `numberOfLines` values')
   })
 
+  it('preserves authored button label casing across hosts', () => {
+    expect(ios).toContain('buttonTitleAttributes(style, color: titleColor, font: font, forceUnderline: type == "Link")')
+    expect(android).toContain('isAllCaps = false')
+  })
+
   it('keeps justified text alignment active across hosts', () => {
     expect(ios).toContain('case "justify": return .justified')
     expect(android).toContain('import android.text.Layout')
