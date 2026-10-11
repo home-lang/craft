@@ -132,6 +132,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('flexGrow')
       expect(nativeActivity).toContain('totalFactor')
       expect(nativeActivity).toContain('entry.style.alignSelf ?: alignItems')
+      expect(nativeActivity).toContain('it.isNotBlank() && it != "auto"')
       expect(nativeActivity).toContain('View.MeasureSpec.UNSPECIFIED')
       expect(nativeActivity).toContain('gap.toDouble() / density.toDouble()')
       expect(nativeActivity).toContain('"Image" -> (previous as? ImageView')

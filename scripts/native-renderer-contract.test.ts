@@ -397,6 +397,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('clamp(distributed, entry.style.minHeight?.resolve(contentHeight), entry.style.maxHeight?.resolve(contentHeight))')
   })
 
+  it('inherits parent alignment when alignSelf is auto on both hosts', () => {
+    expect(ios).toContain('alignSelf = align == "auto" ? nil : align')
+    expect(android).toContain('it.isNotBlank() && it != "auto"')
+    expect(android).toContain('entry.style.alignSelf ?: alignItems')
+  })
+
   it('aligns omitted flex-shrink defaults for labels and scroll hosts', () => {
     expect(ios).toContain('defaultShrink = horizontal ? 1 : 0')
     expect(android).toContain('val flexShrink: Double? = null')
