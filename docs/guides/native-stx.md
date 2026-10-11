@@ -35,6 +35,10 @@ blocks; bindings update native controls through the mutation protocol. Native
 scripts also receive the `globalThis.craft` route, navigation, storage, and
 capability APIs from the host.
 
+The maintained Mobile E2E workflow checks out one exact stx compiler commit for
+both simulator hosts. Update the iOS and Android refs together; the workflow
+contract test rejects compiler skew between them.
+
 Use `onMount` and `onDestroy` for route-scoped lifecycle work. Craft disposes
 the screen runtime before a native screen is removed or replaced, so effects,
 capability requests, and registered cleanup callbacks do not leak into the
