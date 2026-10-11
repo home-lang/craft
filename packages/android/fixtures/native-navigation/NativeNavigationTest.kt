@@ -471,6 +471,11 @@ class NativeNavigationTest {
             awaitText(activity, "image-status", "image loaded")
             assertTrue("image source recovery did not decode", unsupported.drawable != null)
             assertEquals("image error metadata was not cleared on recovery", "Unsupported image", unsupported.contentDescription.toString())
+            click(activity, "clear-image-source")
+            awaitText(activity, "image-error-count", "2")
+            click(activity, "toggle-image-tint")
+            awaitText(activity, "image-status", "image tint on")
+            assertEquals("missing image errors should be deduplicated", "2", (awaitView(activity, "image-error-count") as TextView).text.toString())
             assertNoWebView(activity)
 
             instrumentation.runOnMainSync {

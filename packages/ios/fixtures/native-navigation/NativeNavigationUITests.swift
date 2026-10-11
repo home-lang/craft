@@ -178,6 +178,11 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["image tint off"].waitForExistence(timeout: 5))
         let unsupportedValue = (app.images["unsupported-image"].value as? String) ?? ""
         XCTAssertEqual(unsupportedValue.components(separatedBy: "Unsupported image source").count - 1, 0)
+        app.buttons["clear-image-source"].tap()
+        XCTAssertTrue(waitForLabel(app.staticTexts["image-error-count"], "2"))
+        app.buttons["toggle-image-tint"].tap()
+        XCTAssertTrue(app.staticTexts["image tint on"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["image-error-count"].label, "2")
         let styleToggle = app.buttons["toggle-button-style"]
         XCTAssertFalse(styleToggle.isSelected)
         styleToggle.tap()
