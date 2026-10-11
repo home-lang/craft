@@ -49,9 +49,10 @@ accessibility services unless a label or value is explicitly supplied.
 Returning to a retained route reapplies native theme defaults before it becomes
 visible, so a dark-mode change while another route is open cannot leave stale
 colors behind.
-CI uses the stx compiler (`stx native compile`) pinned at `6151b9e73c`. Its
-external checkout uses `bun install --no-save` because Pantry's Bun 1.3.14
-cannot frozen-install the pinned lockfile; the compiler installs an initial
+CI uses `@stacksjs/stx` (`stx native compile`) pinned at
+`ea143297fa6fa473d8edd75ce5bd150f3662cba9`. For an unreleased sibling
+checkout, set `STX_CLI=../stx/packages/stx/bin/cli.ts`; there is no separate
+`stx-native` package or compiler to install. The compiler installs an initial
 tree atomically before sending incremental keyed mutations.
 
 `--prepare-only` compiles the `.stx` bundle and generates the Android fixture

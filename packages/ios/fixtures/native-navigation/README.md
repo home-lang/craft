@@ -32,20 +32,22 @@ The UI gate locates the keyed row input relative to its row label and scrolls
 controls into the root viewport before interacting, so unrelated fields and
 screen-height changes cannot silently change which native control is tested.
 
-From the Craft repository, with the sibling stx checkout at or after
-`6151b9e73c` (where the compiler became `stx native compile`):
+From the Craft repository, with `@stacksjs/stx` available as `stx` (the
+maintained CI checkout is pinned to
+`ea143297fa6fa473d8edd75ce5bd150f3662cba9`):
 
 ```bash
 bun packages/ios/scripts/test-native-navigation.ts
 ```
 
-The script verifies that the compiler emitted mutation-protocol support,
+The script invokes `stx native compile` from the shared `@stacksjs/stx`
+repository and verifies that it emitted mutation-protocol support,
 generates a temporary iOS app, boots an available simulator, and runs
 `NativeNavigationUITests.swift`. CI pins the stx compiler commit and
-runs the same script on iOS and Android. Its external checkout is installed
-with `bun install --no-save` because Pantry's Bun 1.3.14 cannot frozen-install
-the pinned lockfile. The pinned compiler sends the initial tree as one atomic
-render, then uses keyed mutations for later updates.
+runs the same script on iOS and Android. For an unreleased sibling checkout,
+set `STX_CLI=../stx/packages/stx/bin/cli.ts`; do not install a separate
+`stx-native` package. The pinned compiler sends the initial tree as one
+atomic render, then uses keyed mutations for later updates.
 
 `--prepare-only` compiles the `.stx` bundle and generates the Xcode fixture
 without requiring an installed or bootable simulator. Set

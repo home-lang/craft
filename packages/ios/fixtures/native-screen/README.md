@@ -2,14 +2,18 @@
 
 This `.stx` screen exercises the UIKit + JavaScriptCore host without creating a `WKWebView`. It covers a button update, text input, device info, clipboard read/write, an invalid argument, and haptics.
 
-From the Craft repository, with a sibling stx checkout:
+From the Craft repository, with `@stacksjs/stx`'s `stx` CLI available:
 
 ```bash
-bun ../stx/packages/stx/bin/cli.ts native compile packages/ios/fixtures/native-screen/Screen.stx --format bundle --output /tmp/craft-native-screen.js
+stx native compile packages/ios/fixtures/native-screen/Screen.stx --format bundle --output /tmp/craft-native-screen.js
 craft ios init NativeSmoke --renderer native --output /tmp/craft-native-smoke
 craft ios build --output /tmp/craft-native-smoke --native-bundle /tmp/craft-native-screen.js
 craft ios run --output /tmp/craft-native-smoke --simulator
 ```
+
+When testing an unreleased sibling checkout, set `STX_CLI=../stx/packages/stx/bin/cli.ts`
+for Craft's fixture scripts; do not install or invoke a separate `stx-native`
+package.
 
 For the enabled run, set `enableHaptics` and `enableClipboard` to `true` in `/tmp/craft-native-smoke/craft.config.json` before building. Type a name, write it to the clipboard, and read it back. “Write invalid value” should show `INVALID_ARGUMENT`; “Play haptic” should show `Haptic accepted` (the simulator cannot physically vibrate). For the disabled run, set both flags to `false`, rebuild and reinstall. Clipboard and haptic taps should show `CAPABILITY_DISABLED`, while device info should still show `iPhone`.
 
