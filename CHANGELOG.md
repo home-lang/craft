@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.131...v0.0.132)
+
+## 🐛 Bug Fixes
+
+- **release**: resolve the Stacks CLI for signing credentials ([32fb1bc](https://github.com/craft-native/craft/commit/32fb1bc)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.130...v0.0.131)
 
 ## 🐛 Bug Fixes
