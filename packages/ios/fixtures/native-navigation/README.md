@@ -28,6 +28,9 @@ line distribution available through the shared `alignContent` contract.
 The form path carries a keyed draft across a single-line/multiline input mode
 change even though UIKit must replace the underlying control class. Keyed
 ScrollView rows retain their drafts while the collection is reordered.
+The UI gate locates the keyed row input relative to its row label and scrolls
+controls into the root viewport before interacting, so unrelated fields and
+screen-height changes cannot silently change which native control is tested.
 
 From the Craft repository, with the sibling stx checkout at or after
 `6151b9e73c` (where the compiler became `stx native compile`):

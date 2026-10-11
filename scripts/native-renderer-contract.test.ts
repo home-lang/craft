@@ -42,6 +42,12 @@ const COMPONENTS: Array<[string, string, string]> = [
 ]
 
 describe('native renderer component contract', () => {
+  it('keeps device navigation tests independent of global field order and viewport position', () => {
+    expect(iosNavigationTest).toContain('private func reveal(_ element: XCUIElement, in scroll: XCUIElement')
+    expect(iosNavigationTest).toContain('app.textFields.allElementsBoundByIndex.min')
+    expect(iosNavigationTest).not.toContain('app.textFields.element(boundBy: 1)')
+  })
+
   it('keeps the same host-neutral controls on iOS and Android', () => {
     for (const [name, iosMarker, androidMarker] of COMPONENTS) {
       expect(ios, `${name} missing from iOS renderer`).toContain(iosMarker)
@@ -722,8 +728,8 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('@input="updateNavigationDraft(row.id, $event)"')
     expect(navigationHome).toContain('@click="selectNavigationRow(row.id)"')
     expect(iosNavigationTest).toContain('testSharedRuntimeKeyedForPreservesNativeRowState')
-    expect(iosNavigationTest).toContain('let beaInput = app.textFields.element(boundBy: 1)')
-    expect(iosNavigationTest).toContain('app.textFields.firstMatch.typeText("!")')
+    expect(iosNavigationTest).toContain('app.textFields.allElementsBoundByIndex.min')
+    expect(iosNavigationTest).toContain('beaInput.typeText("!")')
     expect(iosNavigationTest).toContain('value as? String, "draft!"')
     expect(iosNavigationTest).toContain('keyed reconciliation replaced the list scroll host')
   })
@@ -767,7 +773,7 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('awaitText(activity, "long-press-status", "long press enabled")')
     expect(androidNavigationTest).toContain('awaitText(activity, "image-status", "image tint off")')
     expect(androidNavigationTest).toContain('SystemClock.uptimeMillis()')
-    expect(iosNavigationTest).toContain('panel style toggle should remain visible near the top of the native fixture')
+    expect(iosNavigationTest).toContain('reveal(panelStyleToggle, in: rootScroll)')
     expect(android).toContain('control.setOnClickListener {')
     expect(android).toContain('val disabled = props.optBoolean("disabled", false) || state?.optBoolean("disabled", false) == true')
     expect(iosLayoutUnitTests).toContain('private func waitForSnapshotFile(')

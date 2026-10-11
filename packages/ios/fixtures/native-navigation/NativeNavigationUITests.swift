@@ -37,6 +37,16 @@ final class NativeNavigationUITests: XCTestCase {
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
+    private func reveal(_ element: XCUIElement, in scroll: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(element.waitForExistence(timeout: 10), "missing control before scrolling", file: file, line: line)
+        for _ in 0..<12 {
+            if element.isHittable { return }
+            if element.frame.midY < scroll.frame.midY { scroll.swipeDown() }
+            else { scroll.swipeUp() }
+        }
+        XCTAssertTrue(element.isHittable, "control remained outside the native scroll viewport", file: file, line: line)
+    }
+
     private func openCapabilities(_ app: XCUIApplication) {
         XCTAssertTrue(app.buttons["open-capabilities"].waitForExistence(timeout: 15))
         app.buttons["open-capabilities"].tap()
@@ -131,11 +141,13 @@ final class NativeNavigationUITests: XCTestCase {
 
         let scroll = app.scrollViews["native-root-scroll"]
         let status = app.staticTexts["keyed-list-status"]
-        let beaInput = app.textFields.element(boundBy: 1)
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
-        XCTAssertTrue(beaInput.waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Ada row"].exists)
-        XCTAssertTrue(app.staticTexts["Bea row"].exists)
+        let beaLabel = app.staticTexts["Bea row"]
+        XCTAssertTrue(beaLabel.exists)
+        let beaInput = try XCTUnwrap(app.textFields.allElementsBoundByIndex.min {
+            abs($0.frame.midY - beaLabel.frame.midY) < abs($1.frame.midY - beaLabel.frame.midY)
+        })
 
         beaInput.tap()
         beaInput.typeText("draft")
@@ -143,9 +155,9 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Bea row updated"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Cy row"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Ada row"].exists)
-        XCTAssertEqual(app.textFields.firstMatch.value as? String, "draft")
-        app.textFields.firstMatch.typeText("!")
-        XCTAssertEqual(app.textFields.firstMatch.value as? String, "draft!")
+        XCTAssertEqual(beaInput.value as? String, "draft")
+        beaInput.typeText("!")
+        XCTAssertEqual(beaInput.value as? String, "draft!")
         app.buttons.matching(NSPredicate(format: "label == %@", "Select row")).firstMatch.tap()
         XCTAssertTrue(waitForLabel(status, "Selected: b"))
         XCTAssertTrue(scroll.exists, "keyed reconciliation replaced the list scroll host")
@@ -171,26 +183,33 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["native-caption"].label, "Image taps: 1")
         XCTAssertTrue(app.images["unsupported-image"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["image failed"].waitForExistence(timeout: 5))
-        app.buttons["toggle-image-source"].tap()
+        let imageSourceToggle = app.buttons["toggle-image-source"]
+        reveal(imageSourceToggle, in: rootScroll)
+        imageSourceToggle.tap()
         XCTAssertTrue(app.staticTexts["image loaded"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.images["unsupported-image"].label, "Unsupported image")
-        app.buttons["toggle-image-tint"].tap()
+        let imageTintToggle = app.buttons["toggle-image-tint"]
+        reveal(imageTintToggle, in: rootScroll)
+        imageTintToggle.tap()
         XCTAssertTrue(app.staticTexts["image tint off"].waitForExistence(timeout: 5))
         let unsupportedValue = (app.images["unsupported-image"].value as? String) ?? ""
         XCTAssertEqual(unsupportedValue.components(separatedBy: "Unsupported image source").count - 1, 0)
-        app.buttons["clear-image-source"].tap()
+        let clearImageSource = app.buttons["clear-image-source"]
+        reveal(clearImageSource, in: rootScroll)
+        clearImageSource.tap()
         XCTAssertTrue(waitForLabel(app.staticTexts["image-error-count"], "2"))
-        app.buttons["toggle-image-tint"].tap()
+        reveal(imageTintToggle, in: rootScroll)
+        imageTintToggle.tap()
         XCTAssertTrue(app.staticTexts["image tint on"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["image-error-count"].label, "2")
         let styleToggle = app.buttons["toggle-button-style"]
+        reveal(styleToggle, in: rootScroll)
         XCTAssertFalse(styleToggle.isSelected)
         styleToggle.tap()
         XCTAssertTrue(app.staticTexts["button style accented"].waitForExistence(timeout: 5))
         XCTAssertTrue(styleToggle.isSelected)
         let panelStyleToggle = app.buttons["toggle-panel-style"]
-        XCTAssertTrue(panelStyleToggle.waitForExistence(timeout: 5))
-        XCTAssertTrue(panelStyleToggle.isHittable, "panel style toggle should remain visible near the top of the native fixture")
+        reveal(panelStyleToggle, in: rootScroll)
         panelStyleToggle.tap()
         XCTAssertTrue(app.staticTexts["panel style off"].waitForExistence(timeout: 5))
         panelStyleToggle.tap()
@@ -200,8 +219,7 @@ final class NativeNavigationUITests: XCTestCase {
         let explicitTextWidth = nullWidthText.frame.width
         XCTAssertGreaterThan(explicitTextWidth, 150)
         let nullWidthToggle = app.buttons["toggle-null-width"]
-        XCTAssertTrue(nullWidthToggle.waitForExistence(timeout: 5))
-        XCTAssertTrue(nullWidthToggle.isHittable, "null-width toggle should remain visible near the top of the native fixture")
+        reveal(nullWidthToggle, in: rootScroll)
         nullWidthToggle.tap()
         XCTAssertTrue(waitForLayoutDecrease(nullWidthText, from: explicitTextWidth), "null width should restore intrinsic text sizing")
         let scrollEnd = app.staticTexts["scroll-end"]
@@ -235,13 +253,13 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertGreaterThan(reverseColumnFirst.frame.minY, reverseColumnSecond.frame.minY, "column-reverse did not invert the main axis")
 
         let link = app.buttons["native-link"]
-        XCTAssertTrue(link.waitForExistence(timeout: 5))
+        reveal(link, in: rootScroll)
         XCTAssertEqual(link.label, "Open native link")
         XCTAssertEqual(link.value as? String, "ready")
         link.tap()
         XCTAssertTrue(app.staticTexts["link pressed"].waitForExistence(timeout: 5))
         let accessibilityToggle = app.buttons["toggle-link-accessibility"]
-        XCTAssertTrue(accessibilityToggle.waitForExistence(timeout: 5))
+        reveal(accessibilityToggle, in: rootScroll)
         accessibilityToggle.tap()
         XCTAssertTrue(app.staticTexts["link accessibility disabled"].waitForExistence(timeout: 5))
         XCTAssertFalse(link.isEnabled)
@@ -249,17 +267,19 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["link accessibility enabled"].waitForExistence(timeout: 5))
 
         let panel = app.otherElements["native-panel"]
-        XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        reveal(panel, in: rootScroll)
         panel.tap()
         XCTAssertTrue(app.staticTexts["panel pressed"].waitForExistence(timeout: 5))
-        app.buttons["toggle-panel-accessibility"].tap()
+        let panelAccessibilityToggle = app.buttons["toggle-panel-accessibility"]
+        reveal(panelAccessibilityToggle, in: rootScroll)
+        panelAccessibilityToggle.tap()
         XCTAssertTrue(app.staticTexts["panel accessibility disabled"].waitForExistence(timeout: 5))
-        app.buttons["toggle-panel-accessibility"].tap()
+        panelAccessibilityToggle.tap()
         XCTAssertTrue(app.staticTexts["panel accessibility enabled"].waitForExistence(timeout: 5))
         panel.tap()
         XCTAssertTrue(app.staticTexts["panel pressed"].waitForExistence(timeout: 5))
         let pressable = app.otherElements["native-pressable"]
-        XCTAssertTrue(pressable.waitForExistence(timeout: 5))
+        reveal(pressable, in: rootScroll)
         pressable.tap()
         XCTAssertTrue(app.staticTexts["pressable pressed"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["pressable-lifecycle"].label, "Press lifecycle: 1/1")
@@ -267,13 +287,15 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(disabledPressable.waitForExistence(timeout: 5))
         XCTAssertFalse(disabledPressable.isEnabled)
         let longPressPanel = app.otherElements["long-press-panel"]
-        XCTAssertTrue(longPressPanel.waitForExistence(timeout: 5))
+        reveal(longPressPanel, in: rootScroll)
         longPressPanel.press(forDuration: 1)
         XCTAssertTrue(app.staticTexts["panel long pressed"].waitForExistence(timeout: 5))
-        app.buttons["toggle-long-press-accessibility"].tap()
+        let longPressAccessibilityToggle = app.buttons["toggle-long-press-accessibility"]
+        reveal(longPressAccessibilityToggle, in: rootScroll)
+        longPressAccessibilityToggle.tap()
         XCTAssertTrue(app.staticTexts["long press disabled"].waitForExistence(timeout: 5))
         XCTAssertFalse(longPressPanel.isHittable)
-        app.buttons["toggle-long-press-accessibility"].tap()
+        longPressAccessibilityToggle.tap()
         XCTAssertTrue(app.staticTexts["long press enabled"].waitForExistence(timeout: 5))
         longPressPanel.press(forDuration: 1)
         XCTAssertTrue(app.staticTexts["panel long pressed"].waitForExistence(timeout: 5))
@@ -283,7 +305,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["justified-text"].waitForExistence(timeout: 5))
 
         let toggle = app.switches["native-switch"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        reveal(toggle, in: rootScroll)
         XCTAssertEqual(toggle.value as? String, "0")
         XCTAssertTrue(toggle.isEnabled)
         XCTAssertEqual(app.switches["nullable-switch"].value as? String, "1")
@@ -295,18 +317,20 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["picker-value"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["picker-value"].label, "one")
         XCTAssertEqual(app.staticTexts["native-link-status"].label, "")
-        app.buttons["toggle-modal"].tap()
+        let modalToggle = app.buttons["toggle-modal"]
+        reveal(modalToggle, in: rootScroll)
+        modalToggle.tap()
         XCTAssertTrue(app.otherElements["native-modal"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["modal-content"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["modal shown"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["modal-opacity"].label, "1")
         app.buttons["toggle-modal-opacity"].tap()
         XCTAssertTrue(waitForLabel(app.staticTexts["modal-opacity"], "0.45"))
-        app.buttons["toggle-modal"].tap()
+        modalToggle.tap()
         XCTAssertTrue(app.staticTexts["modal dismissed"].waitForExistence(timeout: 5))
 
         let slider = app.sliders["native-slider"]
-        XCTAssertTrue(slider.waitForExistence(timeout: 5))
+        reveal(slider, in: rootScroll)
         slider.adjust(toNormalizedSliderPosition: 0.8)
         XCTAssertTrue(app.staticTexts["slider moved"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["slider-value"].label, "0.8")
@@ -321,7 +345,9 @@ final class NativeNavigationUITests: XCTestCase {
         let wrapped = app.otherElements["layout-wrap"]
         XCTAssertTrue(wrapped.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Layout width: 240"].waitForExistence(timeout: 5), "native onLayout did not report a frame")
-        app.buttons["toggle-layout-width"].tap()
+        let layoutWidthToggle = app.buttons["toggle-layout-width"]
+        reveal(layoutWidthToggle, in: rootScroll)
+        layoutWidthToggle.tap()
         XCTAssertTrue(app.staticTexts["Layout width: 180"].waitForExistence(timeout: 5), "native onLayout did not report the responsive width")
         let bounded = app.staticTexts["layout-min"]
         XCTAssertTrue(bounded.exists)
@@ -335,7 +361,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertLessThanOrEqual(absolute.frame.maxY, wrapped.frame.maxY - 8)
 
         let field = app.textFields["name-input"]
-        XCTAssertTrue(field.waitForExistence(timeout: 15))
+        reveal(field, in: rootScroll)
         XCTAssertTrue(field.isEnabled)
         let notes = app.textViews["notes-input"]
         XCTAssertTrue(notes.waitForExistence(timeout: 5), "multiline TextInput did not render as UITextView")
@@ -347,10 +373,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(readonly.value as? String, "Read only")
         let password = app.secureTextFields["password-input"]
         XCTAssertTrue(password.waitForExistence(timeout: 5))
-        app.buttons["toggle-input-colors"].tap()
+        let inputColorsToggle = app.buttons["toggle-input-colors"]
+        reveal(inputColorsToggle, in: rootScroll)
+        inputColorsToggle.tap()
         XCTAssertTrue(app.staticTexts["input colors off"].waitForExistence(timeout: 5))
         XCTAssertTrue(field.exists, "removing input colors replaced the native field")
-        app.buttons["toggle-input-colors"].tap()
+        inputColorsToggle.tap()
         XCTAssertTrue(app.staticTexts["input colors on"].waitForExistence(timeout: 5))
         XCTAssertTrue(field.exists, "restoring input colors replaced the native field")
         field.tap()
@@ -368,29 +396,35 @@ final class NativeNavigationUITests: XCTestCase {
         let nameEndEditings = app.staticTexts["name-end-editings"]
         XCTAssertTrue(nameEndEditings.waitForExistence(timeout: 5))
         XCTAssertEqual(nameEndEditings.label, "End edits: 1")
-        app.buttons["toggle-name-mode"].tap()
+        let nameModeToggle = app.buttons["toggle-name-mode"]
+        reveal(nameModeToggle, in: rootScroll)
+        nameModeToggle.tap()
         let multilineField = app.textViews["name-input"]
         XCTAssertTrue(multilineField.waitForExistence(timeout: 5))
         XCTAssertEqual(multilineField.value as? String, "Ada")
         XCTAssertEqual(app.staticTexts["name-mode"].label, "multiline")
-        app.buttons["toggle-name-mode"].tap()
+        nameModeToggle.tap()
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         XCTAssertEqual(field.value as? String, "Ada")
         XCTAssertEqual(app.staticTexts["name-mode"].label, "single-line")
         notes.typeText("Note")
         notes.typeText("\n")
         XCTAssertEqual(app.staticTexts["name-submits"].label, "Submits: 2")
-        app.buttons["increment"].tap()
+        let increment = app.buttons["increment"]
+        reveal(increment, in: rootScroll)
+        increment.tap()
         let notesBlurs = app.staticTexts["notes-blurs"]
         XCTAssertTrue(notesBlurs.waitForExistence(timeout: 5))
         XCTAssertEqual(notesBlurs.label, "Notes blurs: 1")
         let notesEndEditings = app.staticTexts["notes-end-editings"]
         XCTAssertTrue(notesEndEditings.waitForExistence(timeout: 5))
         XCTAssertEqual(notesEndEditings.label, "Notes end edits: 1")
-        app.buttons["increment"].tap()
+        increment.tap()
         XCTAssertEqual(app.staticTexts["count"].label, "Count: 2")
 
-        app.buttons["open-details"].tap()
+        let openDetails = app.buttons["open-details"]
+        reveal(openDetails, in: rootScroll)
+        openDetails.tap()
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.staticTexts["details-title"].label, "Details for Ada")
         XCTAssertEqual(app.staticTexts["details-count"].label, "Count: 2")
@@ -437,13 +471,15 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(field.value as? String, "Ada")
         XCTAssertEqual(app.staticTexts["count"].label, "Count: 2")
 
-        app.buttons["open-details"].tap()
+        reveal(openDetails, in: rootScroll)
+        openDetails.tap()
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
         app.buttons["details-back"].tap()
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         XCTAssertEqual(field.value as? String, "Ada")
 
-        app.buttons["open-details"].tap()
+        reveal(openDetails, in: rootScroll)
+        openDetails.tap()
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.navigationBars.buttons.firstMatch.waitForExistence(timeout: 5))
         for y in [0.2, 0.5, 0.8] where !field.exists {
@@ -455,7 +491,8 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5), "edge-swipe did not navigate back")
         XCTAssertEqual(field.value as? String, "Ada")
 
-        app.buttons["open-details"].tap()
+        reveal(openDetails, in: rootScroll)
+        openDetails.tap()
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
         app.buttons["open-summary"].tap()
         XCTAssertTrue(app.staticTexts["summary-title"].waitForExistence(timeout: 10))
