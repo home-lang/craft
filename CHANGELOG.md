@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.130...v0.0.131)
+
+## 🐛 Bug Fixes
+
+- **deps**: build SDK releases with the patched Go compiler ([701fcc6](https://github.com/craft-native/craft/commit/701fcc6)) _(by Chris)_
+
+## 🧪 Tests
+
+- **ios**: cover a sticky header under a large title and grow patches ([af1ff79](https://github.com/craft-native/craft/commit/af1ff79)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.129...v0.0.130)
 
 ## 🚀 Features
