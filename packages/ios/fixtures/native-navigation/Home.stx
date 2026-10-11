@@ -37,42 +37,42 @@ let panelStyled = true
 let panelStyleStatus = ''
 let textWidthUnset = false
 const navigationName = 'Ada'
-let navigationCount = 0
-let navigationLifecycle = 'Lifecycle pending'
-let navigationRows = [
+const navigationCount = state(0)
+const navigationLifecycle = state('Lifecycle pending')
+const navigationRows = state([
   { id: 'a', label: 'Ada row' },
   { id: 'b', label: 'Bea row' },
-]
-let navigationRowSelection = 'none'
-let navigationRowsReordered = false
+])
+const navigationRowSelection = state('none')
+const navigationRowsReordered = state(false)
 
 globalThis.craft.storage.remove('native-navigation-details-destroyed')
 
 function incrementNavigation() {
-  navigationCount += 1
+  navigationCount.update(value => value + 1)
 }
 
 function reorderNavigationRows() {
-  navigationRows = [
+  navigationRows.set([
     { id: 'b', label: 'Bea row updated' },
     { id: 'c', label: 'Cy row' },
-  ]
+  ])
 }
 
 function selectNavigationRow(id) {
-  navigationRowSelection = id
+  navigationRowSelection.set(id)
 }
 
 function updateNavigationDraft(id, event) {
-  if (id === 'b' && event.text === 'draft' && !navigationRowsReordered) {
-    navigationRowsReordered = true
+  if (id === 'b' && event.text === 'draft' && !navigationRowsReordered()) {
+    navigationRowsReordered.set(true)
     reorderNavigationRows()
   }
 }
 
 async function verifyNavigationLifecycle() {
   const marker = await globalThis.craft.storage.get('native-navigation-details-destroyed')
-  navigationLifecycle = marker ? `Disposed ${marker}` : 'Lifecycle pending'
+  navigationLifecycle.set(marker ? `Disposed ${marker}` : 'Lifecycle pending')
 }
 
 function linkAccessibilityState() {
@@ -277,7 +277,7 @@ function toggleLayoutWidth() {
 }
 
 function openDetails() {
-  globalThis.craft.navigation.push('details', { name: navigationName, count: navigationCount })
+  globalThis.craft.navigation.push('details', { name: navigationName, count: navigationCount() })
 }
 
 function openCapabilities() {

@@ -1,38 +1,38 @@
 <script>
 let name = String(globalThis.craft.route.params.name ?? '')
-let count = Number(globalThis.craft.route.params.count ?? 0)
-let people = Array.from({ length: 40 }, (_, index) => ({ id: `person-${index}`, name: `Person ${index}` }))
-let listEvents = 0
-let rowLayouts = 0
-let peopleRefreshing = false
+const count = state(Number(globalThis.craft.route.params.count ?? 0))
+const people = state(Array.from({ length: 40 }, (_, index) => ({ id: `person-${index}`, name: `Person ${index}` })))
+const listEvents = state(0)
+const rowLayouts = state(0)
+const peopleRefreshing = state(false)
 
 function captureRowLayout() {
-  rowLayouts += 1
+  rowLayouts.update(value => value + 1)
 }
 
 function shufflePeople() {
-  people = [people[1], { ...people[0], name: 'Person zero updated' }, ...people.slice(2)]
-  listEvents += 1
+  people.update(items => [items[1], { ...items[0], name: 'Person zero updated' }, ...items.slice(2)])
+  listEvents.update(value => value + 1)
 }
 
 function clearPeople() {
-  people = []
-  listEvents += 1
+  people.set([])
+  listEvents.update(value => value + 1)
 }
 
 function loadMorePeople() {
-  if (people.length !== 40)
+  if (people().length !== 40)
     return
-  const index = people.length
-  people = [...people, { id: `person-${index}`, name: `Person ${index}` }]
-  listEvents += 1
+  const index = people().length
+  people.update(items => [...items, { id: `person-${index}`, name: `Person ${index}` }])
+  listEvents.update(value => value + 1)
 }
 
 function refreshPeople() {
-  peopleRefreshing = true
+  peopleRefreshing.set(true)
   setTimeout(() => {
-    peopleRefreshing = false
-    listEvents += 1
+    peopleRefreshing.set(false)
+    listEvents.update(value => value + 1)
   }, 50)
 }
 
@@ -41,16 +41,14 @@ function goBack() {
 }
 
 function replaceWithSummary() {
-  globalThis.craft.navigation.replace('summary', { name, count })
+  globalThis.craft.navigation.replace('summary', { name, count: count() })
 }
 
 function incrementDetails() {
-  count += 1
+  count.update(value => value + 1)
 }
 
-globalThis.__stxNativeUnmount = function() {
-  globalThis.craft.storage.set('native-navigation-details-destroyed', `${name}/${count}`)
-}
+onDestroy(() => globalThis.craft.storage.set('native-navigation-details-destroyed', `${name}/${count()}`))
 </script>
 
 <template>
