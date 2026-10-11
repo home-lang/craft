@@ -107,8 +107,10 @@ snapping. `Image` reports load lifecycle events and structured failures.
 `FlatList` uses
 `RecyclerView`, stable IDs, and `DiffUtil` for keyed recycling, grids,
 horizontal and inverted layouts, list chrome, and end-reached pagination.
-Flex items support `flex`, `flexGrow`, `flexShrink`, and numeric `flexBasis` for
-main-axis space distribution while preserving gaps and margins.
+Flex items support `flex`, `flexGrow`, `flexShrink`, and numeric or percentage
+`flexBasis` for main-axis space distribution while preserving gaps and margins.
+Numeric lengths and percentage widths/heights resolve against the native parent
+content box, keeping responsive sizing aligned with the iOS renderer.
 Push, replace, and back preserve the
 previous screen's views and JavaScript state; Android's system back button pops
 the route. Native mode accepts neither `--html-path` nor `--dev-server`. Its

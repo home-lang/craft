@@ -81,6 +81,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('stack.wrap = style["flexWrap"] as? String == "wrap"')
     expect(nativeSwift).toContain('craftLayoutStyle.position == "absolute"')
     expect(nativeSwift).toContain('style.minWidth')
+    expect(nativeSwift).toContain('case .percent(let fraction): return base.map { max(0, $0 * fraction) }')
     expect(nativeSwift).toContain('marginTop: CGFloat')
     expect(nativeSwift).toContain('items[$1].mainMargins')
     expect(nativeSwift).toContain('let elevation = max(0, number(style["elevation"]) ?? 0)')
