@@ -339,6 +339,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('updateParentLayoutStyle(updated, document.optJSONObject("style") ?: JSONObject())')
     expect(android).toContain('parent.setChildStyle(view, style, resources.displayMetrics.density)')
     expect(android).toContain('parent.requestLayout()')
+    expect(android).toContain('A reused View may still carry a')
+    expect(android).not.toContain('(child.layoutParams?.width ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }')
+    expect(android).not.toContain('(child.layoutParams?.height ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }')
   })
 
   it('keeps the native root inside each host safe area', () => {

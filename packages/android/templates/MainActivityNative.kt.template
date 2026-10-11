@@ -324,8 +324,10 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private fun measureChildWidth(child: View, style: CraftNativeLayoutStyle, available: Int, margins: Int): Int {
         val base = max(0, available - margins)
         val flexBasis = if (orientation == HORIZONTAL) style.flexBasis?.resolve(base) else null
+        // The STX style is authoritative. A reused View may still carry a
+        // previous fixed LayoutParams width after a reactive width is removed;
+        // using that value here prevents intrinsic sizing from being restored.
         val explicit = style.width?.resolve(base) ?: flexBasis
-            ?: (child.layoutParams?.width ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }
         val target = explicit ?: base
         val spec = if (explicit != null) View.MeasureSpec.makeMeasureSpec(target, View.MeasureSpec.EXACTLY)
         else View.MeasureSpec.makeMeasureSpec(base, View.MeasureSpec.AT_MOST)
@@ -336,8 +338,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private fun measureChildHeight(child: View, style: CraftNativeLayoutStyle, available: Int, margins: Int): Int {
         val base = max(0, available - margins)
         val flexBasis = if (orientation == VERTICAL) style.flexBasis?.resolve(base) else null
+        // Match width measurement: do not let stale native LayoutParams keep
+        // a removed reactive height fixed.
         val explicit = style.height?.resolve(base) ?: flexBasis
-            ?: (child.layoutParams?.height ?: ViewGroup.LayoutParams.WRAP_CONTENT).takeIf { it >= 0 }
         val target = explicit ?: base
         val spec = if (explicit != null) View.MeasureSpec.makeMeasureSpec(target, View.MeasureSpec.EXACTLY)
         else View.MeasureSpec.makeMeasureSpec(base, View.MeasureSpec.AT_MOST)
