@@ -401,7 +401,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('imageJobs.remove(view)?.cancel(true)')
     expect(android).toContain('if (imageSources[view] != uri) return@runOnUiThread')
     expect(android).toContain('"cover" -> ImageView.ScaleType.CENTER_CROP')
+    expect(android).toContain('if (style.isNull("tintColor"))')
     expect(android).toContain('view.clearColorFilter()')
+  })
+
+  it('keeps account navigation buttons compatible with the release SDK', () => {
+    expect(ios).toContain('let item = UIBarButtonItem(customView: button)')
+    expect(ios).not.toContain('hidesSharedBackground')
+    expect(ios).not.toContain('sharesBackground')
   })
 
   it('keeps FlatList gesture callbacks on the shared scroll payload', () => {

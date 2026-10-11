@@ -1811,8 +1811,13 @@ class MainActivity : AppCompatActivity() {
         view.clipToOutline = style.optString("overflow") == "hidden"
         if (view is ViewGroup) view.clipChildren = style.optString("overflow") == "hidden"
         if (view is ImageView) {
-            style.optString("tintColor").takeIf { it.isNotBlank() }?.let { view.setColorFilter(color(it, Color.TRANSPARENT)) }
-                ?: view.clearColorFilter()
+            if (style.isNull("tintColor")) {
+                view.clearColorFilter()
+            } else {
+                style.optString("tintColor").takeIf { it.isNotBlank() }
+                    ?.let { view.setColorFilter(color(it, Color.TRANSPARENT)) }
+                    ?: view.clearColorFilter()
+            }
         }
     }
 

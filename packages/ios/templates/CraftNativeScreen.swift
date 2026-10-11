@@ -1761,7 +1761,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             }
         }
         let item = UIBarButtonItem(customView: button)
-        if #available(iOS 26.0, *) { item.hidesSharedBackground = true; item.sharesBackground = false }
+        // Keep the custom-view item compatible with the Xcode SDKs used by
+        // Craft's release matrix; iOS 26-only bar-item APIs are not required
+        // for the account surface itself.
         return item
     }
 
