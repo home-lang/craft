@@ -715,6 +715,7 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     val content = CraftNativeFlexLayout(context)
     private val blocker = View(context)
     private var renderedVisible = false
+    private var animationGeneration = 0
     var onRequestClose: (() -> Unit)? = null
 
     var transparent: Boolean = false
@@ -734,19 +735,44 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
 
     fun setVisible(visible: Boolean, opacity: Float, animationType: String?) {
         if (renderedVisible == visible && visibility == if (visible) View.VISIBLE else View.GONE) return
+        val wasVisible = renderedVisible && visibility == View.VISIBLE
         renderedVisible = visible
+        animationGeneration += 1
+        val generation = animationGeneration
+        animate().cancel()
         if (!visible) {
-            animate().cancel()
-            alpha = 0f
-            visibility = View.GONE
+            if (animationType == "slide" && wasVisible) {
+                val distance = max(height, (parent as? View)?.height ?: resources.displayMetrics.heightPixels).toFloat()
+                animate().translationY(distance).alpha(0f).setDuration(240L).withEndAction {
+                    if (animationGeneration != generation) return@withEndAction
+                    visibility = View.GONE
+                    translationY = 0f
+                    alpha = 0f
+                }.start()
+            } else {
+                alpha = 0f
+                translationY = 0f
+                visibility = View.GONE
+            }
             return
         }
         visibility = View.VISIBLE
         if (animationType == "none") {
+            translationY = 0f
             alpha = opacity
+        } else if (animationType == "slide") {
+            alpha = opacity
+            translationY = max(height, (parent as? View)?.height ?: resources.displayMetrics.heightPixels).toFloat()
+            post {
+                if (animationGeneration != generation || visibility != View.VISIBLE) return@post
+                val distance = max(height, (parent as? View)?.height ?: resources.displayMetrics.heightPixels).toFloat()
+                translationY = distance
+                animate().translationY(0f).setDuration(240L).start()
+            }
         } else {
+            translationY = 0f
             alpha = 0f
-            animate().alpha(opacity).setDuration(if (animationType == "slide") 240L else 180L).start()
+            animate().alpha(opacity).setDuration(180L).start()
         }
     }
 }

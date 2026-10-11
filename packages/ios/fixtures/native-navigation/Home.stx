@@ -385,7 +385,7 @@ function openCapabilities() {
     </select>
     <Text testID="picker-value">{pickerValue}</Text>
     <Button testID="toggle-modal" onPress={toggleModal}>Toggle modal</Button>
-    <Modal testID="native-modal" visible={modalVisible} transparent animationType="fade" onShow={modalShown} onDismiss={modalDismissed} onRequestClose={modalRequested}>
+    <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" onShow={modalShown} onDismiss={modalDismissed} onRequestClose={modalRequested}>
       <Text testID="modal-content">Modal content</Text>
     </Modal>
     <Text testID="modal-status">{modalStatus}</Text>

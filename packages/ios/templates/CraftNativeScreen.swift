@@ -775,6 +775,7 @@ private final class CraftNativeModalView: UIView {
     let contentStack = CraftNativeFlowView()
     private let blocker = UIView()
     private var renderedVisible = false
+    private var animationGeneration = 0
     var onRequestClose: (() -> Void)?
 
     var transparent = false {
@@ -796,18 +797,47 @@ private final class CraftNativeModalView: UIView {
 
     func setVisible(_ visible: Bool, opacity: CGFloat, animationType: String?) {
         guard renderedVisible != visible || isHidden != !visible else { return }
+        let wasVisible = renderedVisible && !isHidden
         renderedVisible = visible
+        animationGeneration += 1
+        let generation = animationGeneration
+        layer.removeAllAnimations()
         guard visible else {
-            isHidden = true
-            alpha = 0
+            if animationType == "slide" && wasVisible {
+                let distance = max(bounds.height, superview?.bounds.height ?? UIScreen.main.bounds.height)
+                UIView.animate(withDuration: 0.24, animations: {
+                    self.transform = CGAffineTransform(translationX: 0, y: distance)
+                    self.alpha = 0
+                }, completion: { _ in
+                    guard self.animationGeneration == generation else { return }
+                    self.isHidden = true
+                    self.transform = .identity
+                })
+            } else {
+                isHidden = true
+                transform = .identity
+                alpha = 0
+            }
             return
         }
         isHidden = false
         if animationType == "none" {
+            transform = .identity
             alpha = opacity
+        } else if animationType == "slide" {
+            let distance = max(bounds.height, superview?.bounds.height ?? UIScreen.main.bounds.height)
+            transform = CGAffineTransform(translationX: 0, y: distance)
+            alpha = opacity
+            DispatchQueue.main.async {
+                guard self.animationGeneration == generation, !self.isHidden else { return }
+                let distance = max(self.bounds.height, self.superview?.bounds.height ?? UIScreen.main.bounds.height)
+                self.transform = CGAffineTransform(translationX: 0, y: distance)
+                UIView.animate(withDuration: 0.24) { self.transform = .identity }
+            }
         } else {
+            transform = .identity
             alpha = 0
-            UIView.animate(withDuration: animationType == "slide" ? 0.24 : 0.18) { self.alpha = opacity }
+            UIView.animate(withDuration: 0.18) { self.alpha = opacity }
         }
     }
 

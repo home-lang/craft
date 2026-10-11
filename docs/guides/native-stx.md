@@ -89,7 +89,8 @@ primitive, accepts `value`/`selectedValue`, and sends the selected option's
 `Modal` is parent-scoped: `visible` controls a native blocking layer around its
 children, `transparent` removes the dimming scrim, and hidden modals do not
 participate in layout or touch handling. `animationType` accepts `none`,
-`fade`, or `slide`; `onShow` and `onDismiss` fire on visibility transitions,
+`fade`, or `slide`; `slide` enters from and exits toward the bottom edge on
+both hosts. `onShow` and `onDismiss` fire on visibility transitions,
 and `onRequestClose` fires when Android back or the modal blocker requests a
 close. The default WebView renderer remains unchanged.
 `Text` supports positive `numberOfLines` values and `ellipsizeMode` (`head`,
