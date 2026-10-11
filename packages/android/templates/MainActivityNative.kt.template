@@ -778,6 +778,15 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
             animate().alpha(opacity).setDuration(180L).start()
         }
     }
+
+    fun resetForTeardown() {
+        animationGeneration += 1
+        animate().cancel()
+        visibility = View.GONE
+        translationY = 0f
+        alpha = 0f
+        onRequestClose = null
+    }
 }
 
 private data class LayoutBounds(
@@ -2351,6 +2360,7 @@ class MainActivity : AppCompatActivity() {
         released.filterIsInstance<CraftNativeFlatList>().filterNot { nestedLists.contains(it) }.forEach {
             releaseFlatList(screen, it, preservingInputDrafts)
         }
+        released.filterIsInstance<CraftNativeModalView>().forEach { it.resetForTeardown() }
         releaseImages(released)
         released.filterIsInstance<EditText>().forEach {
             inputHintDefaults.remove(it)

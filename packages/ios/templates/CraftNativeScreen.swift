@@ -844,6 +844,15 @@ private final class CraftNativeModalView: UIView {
         }
     }
 
+    func resetForTeardown() {
+        animationGeneration += 1
+        layer.removeAllAnimations()
+        isHidden = true
+        transform = .identity
+        alpha = 0
+        onRequestClose = nil
+    }
+
     @objc private func blockerTapped() { onRequestClose?() }
 
     override func layoutSubviews() {
@@ -2684,6 +2693,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if let owner = node.protocolId { flatListOwners = flatListOwners.filter { $0.value != owner } }
         }
         let id = ObjectIdentifier(node.view)
+        if let modal = node.view as? CraftNativeModalView { modal.resetForTeardown() }
         handlers.removeValue(forKey: id)
         pressInHandlers.removeValue(forKey: id)
         pressOutHandlers.removeValue(forKey: id)
