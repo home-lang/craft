@@ -1,5 +1,86 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.129...v0.0.130)
+
+## 🚀 Features
+
+- **native**: distribute wrapped flex lines ([192bfa8](https://github.com/craft-native/craft/commit/192bfa8)) _(by glennmichael123)_
+- **android**: resolve native percentage lengths ([6bc8e09](https://github.com/craft-native/craft/commit/6bc8e09)) _(by glennmichael123)_
+- **android**: add native screen fetch capability (#1992) ([931e811](https://github.com/craft-native/craft/commit/931e811)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+
+## 🐛 Bug Fixes
+
+- **ios**: retry a hybrid page stuck on the offline page behind a native screen ([3def809](https://github.com/craft-native/craft/commit/3def809)) _(by Chris)_
+- **native**: suppress Android picker reconciliation events (#1992) ([1dfe46c](https://github.com/craft-native/craft/commit/1dfe46c)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **native**: normalize Android switch boolean props (#1992) ([bd4d64f](https://github.com/craft-native/craft/commit/bd4d64f)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **native**: restore intrinsic Android sizing after style removal (#1992) ([468ba5b](https://github.com/craft-native/craft/commit/468ba5b)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **android**: refresh targeted layout styles ([3550e88](https://github.com/craft-native/craft/commit/3550e88)) _(by glennmichael123)_
+- **native**: expose initial Android color scheme ([e1dd737](https://github.com/craft-native/craft/commit/e1dd737)) _(by glennmichael123)_
+- **native**: normalize raw text child metrics ([8c1b17f](https://github.com/craft-native/craft/commit/8c1b17f)) _(by glennmichael123)_
+- **native**: align text intrinsic metrics ([35d5b95](https://github.com/craft-native/craft/commit/35d5b95)) _(by glennmichael123)_
+- **native**: publish Android appearance changes ([83a661d](https://github.com/craft-native/craft/commit/83a661d)) _(by glennmichael123)_
+- **native**: preserve button label casing ([8de493a](https://github.com/craft-native/craft/commit/8de493a)) _(by glennmichael123)_
+- **native**: clamp negative flex growth ([3a7b517](https://github.com/craft-native/craft/commit/3a7b517)) _(by glennmichael123)_
+- **native**: align flex shorthand basis across hosts ([6359ce4](https://github.com/craft-native/craft/commit/6359ce4)) _(by glennmichael123)_
+- **native**: inherit parent alignment for auto align-self ([ee408fa](https://github.com/craft-native/craft/commit/ee408fa)) _(by glennmichael123)_
+- **native**: correct pinned stx commit (#1992) ([f6ac120](https://github.com/craft-native/craft/commit/f6ac120)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **android**: add ScrollView refresh parity ([f146da3](https://github.com/craft-native/craft/commit/f146da3)) _(by glennmichael123)_
+- **native**: preserve stopped indicator visibility ([b5cfc3f](https://github.com/craft-native/craft/commit/b5cfc3f)) _(by glennmichael123)_
+- **native**: pin leaf-safe stx compiler (#1992) ([8133674](https://github.com/craft-native/craft/commit/8133674)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **native**: honor modal display styles ([36b5ce4](https://github.com/craft-native/craft/commit/36b5ce4)) _(by glennmichael123)_
+- **native**: deduplicate missing image errors ([6e92eb4](https://github.com/craft-native/craft/commit/6e92eb4)) _(by glennmichael123)_
+- **native**: cancel modal animations on teardown ([1feb2e9](https://github.com/craft-native/craft/commit/1feb2e9)) _(by glennmichael123)_
+- **native**: reconcile modal opacity updates ([b6e90ac](https://github.com/craft-native/craft/commit/b6e90ac)) _(by glennmichael123)_
+- **native**: animate modal slide transitions ([f9c6f3a](https://github.com/craft-native/craft/commit/f9c6f3a)) _(by glennmichael123)_
+- **native**: pin shared stx runtime compiler (#1992) ([53fed91](https://github.com/craft-native/craft/commit/53fed91)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **native**: suppress initial picker changes ([cef6dcb](https://github.com/craft-native/craft/commit/cef6dcb)) _(by glennmichael123)_
+- **android**: align default flex shrink behavior ([94a4b30](https://github.com/craft-native/craft/commit/94a4b30)) _(by glennmichael123)_
+- **native**: make fixture style resets explicit ([ca0ab51](https://github.com/craft-native/craft/commit/ca0ab51)) _(by glennmichael123)_
+- **native**: harden mobile tint and SDK tests ([a7afb1f](https://github.com/craft-native/craft/commit/a7afb1f)) _(by glennmichael123)_
+- **native**: keep image and account controls portable ([5b3df62](https://github.com/craft-native/craft/commit/5b3df62)) _(by glennmichael123)_
+- **native**: align navigation fixture with runtime ([d1dfd37](https://github.com/craft-native/craft/commit/d1dfd37)) _(by glennmichael123)_
+- synchronize native account headers and unread controls ([b20ad33](https://github.com/craft-native/craft/commit/b20ad33)) _(by Chris)_
+
+## ♻️ Code Refactoring
+
+- **native**: use shared stx screen bindings (#1992) ([fd8763f](https://github.com/craft-native/craft/commit/fd8763f)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+
+## 📚 Documentation
+
+- **native**: align stx compiler guidance ([37edfc5](https://github.com/craft-native/craft/commit/37edfc5)) _(by glennmichael123)_
+- **native**: describe wrapped layout parity ([69992c0](https://github.com/craft-native/craft/commit/69992c0)) _(by glennmichael123)_
+- **native**: describe script lifecycle contract ([f8a3305](https://github.com/craft-native/craft/commit/f8a3305)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: align picker baseline assertions (#1992) ([c439515](https://github.com/craft-native/craft/commit/c439515)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **native**: stabilize simulator control targeting (#1992) ([d73315c](https://github.com/craft-native/craft/commit/d73315c)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **native**: cover ScrollView refresh fixtures ([78646e0](https://github.com/craft-native/craft/commit/78646e0)) _(by glennmichael123)_
+- **native**: cover hidden activity indicator styles ([164663a](https://github.com/craft-native/craft/commit/164663a)) _(by glennmichael123)_
+- **native**: cover hidden activity indicators ([730f6b9](https://github.com/craft-native/craft/commit/730f6b9)) _(by glennmichael123)_
+- **native**: cover missing image source deduplication ([e8faa60](https://github.com/craft-native/craft/commit/e8faa60)) _(by glennmichael123)_
+- **native**: cover modal opacity reconciliation ([68db9b5](https://github.com/craft-native/craft/commit/68db9b5)) _(by glennmichael123)_
+- **native**: verify wrapped line distribution ([19351ee](https://github.com/craft-native/craft/commit/19351ee)) _(by glennmichael123)_
+- **native**: document percentage layout parity ([4837c78](https://github.com/craft-native/craft/commit/4837c78)) _(by glennmichael123)_
+- **native**: lock shared lifecycle bridge contract ([cc9fa52](https://github.com/craft-native/craft/commit/cc9fa52)) _(by glennmichael123)_
+- **native**: exercise shared signal lifecycle (#1992) ([d82db4c](https://github.com/craft-native/craft/commit/d82db4c)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **android**: await native style mutations ([faa019c](https://github.com/craft-native/craft/commit/faa019c)) _(by glennmichael123)_
+- **ios**: cover keyboard safe area updates ([db4859a](https://github.com/craft-native/craft/commit/db4859a)) _(by glennmichael123)_
+- **ios**: cover native fetch validation ([b468e95](https://github.com/craft-native/craft/commit/b468e95)) _(by glennmichael123)_
+- **android**: cover native fetch validation ([c524d74](https://github.com/craft-native/craft/commit/c524d74)) _(by glennmichael123)_
+- **native**: cover reverse flex directions ([aab9040](https://github.com/craft-native/craft/commit/aab9040)) _(by glennmichael123)_
+
+## 📦 Build System
+
+- **native**: pin grid-style compiler (#1992) ([59f4807](https://github.com/craft-native/craft/commit/59f4807)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **native**: pin false-prop compiler (#1992) ([f967b91](https://github.com/craft-native/craft/commit/f967b91)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **native**: pin shared event compiler (#1992) ([9d323fb](https://github.com/craft-native/craft/commit/9d323fb)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+
+## Contributors
+
+- _Chris_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.128...v0.0.129)
 
 ## 🐛 Bug Fixes
