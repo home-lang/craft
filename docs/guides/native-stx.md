@@ -38,6 +38,8 @@ capability APIs from the host.
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
+The current pair is pinned to `0483ccf31b709ce1b3f31fdd27c073cc51c84df7`,
+which carries ordinary native event aliases and preserves Modal child content.
 
 Use `onMount` and `onDestroy` for route-scoped lifecycle work. Craft disposes
 the screen runtime before a native screen is removed or replaced, so effects,
