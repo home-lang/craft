@@ -122,6 +122,10 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<option value="one">One</option>')
     expect(navigationHome).toContain('onRequestClose={modalRequested}')
     expect(navigationHome).toContain('onShow={modalShown}')
+    expect(navigationHome).toContain('style={{"opacity": modalOpacity}}')
+    expect(navigationHome).toContain('testID="toggle-modal-opacity"')
+    expect(androidNavigationTest).toContain('visible modal opacity should update in place')
+    expect(iosNavigationTest).toContain('waitForLabel(app.staticTexts["modal-opacity"], "0.45")')
     expect(guide).toContain('| `Picker` | `UIPickerView` | `Spinner` |')
   })
 

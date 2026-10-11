@@ -294,6 +294,9 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["native-modal"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["modal-content"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["modal shown"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["modal-opacity"].label, "1")
+        app.buttons["toggle-modal-opacity"].tap()
+        XCTAssertTrue(waitForLabel(app.staticTexts["modal-opacity"], "0.45"))
         app.buttons["toggle-modal"].tap()
         XCTAssertTrue(app.staticTexts["modal dismissed"].waitForExistence(timeout: 5))
 

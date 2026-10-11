@@ -20,6 +20,7 @@ let switchValue = false
 let pickerValue = 'one'
 let modalVisible = false
 let modalStatus = ''
+let modalOpacity = 1
 let sliderValue = 0.5
 let sliderCompletions = 0
 let layoutWidth = 0
@@ -259,6 +260,10 @@ function modalRequested() {
   modalVisible = false
 }
 
+function toggleModalOpacity() {
+  modalOpacity = modalOpacity === 1 ? 0.45 : 1
+}
+
 function moveSlider(event) {
   sliderValue = event.value
   status = 'slider moved'
@@ -385,8 +390,10 @@ function openCapabilities() {
     </select>
     <Text testID="picker-value">{pickerValue}</Text>
     <Button testID="toggle-modal" onPress={toggleModal}>Toggle modal</Button>
-    <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" onShow={modalShown} onDismiss={modalDismissed} onRequestClose={modalRequested}>
+    <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} onShow={modalShown} onDismiss={modalDismissed} onRequestClose={modalRequested}>
       <Text testID="modal-content">Modal content</Text>
+      <Button testID="toggle-modal-opacity" onPress={toggleModalOpacity}>Toggle modal opacity</Button>
+      <Text testID="modal-opacity">{modalOpacity}</Text>
     </Modal>
     <Text testID="modal-status">{modalStatus}</Text>
     <Slider testID="native-slider" minimumValue={0} maximumValue={1} step={0.1} value={sliderValue} minimumTrackTintColor="#22c55e" maximumTrackTintColor="#64748b" thumbTintColor="#16a34a" onValueChange={moveSlider} onSlidingComplete={finishSlider} />
