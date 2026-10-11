@@ -79,6 +79,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('UIResponder.keyboardWillChangeFrameNotification')
     expect(nativeSwift).toContain('self.additionalSafeAreaInsets.bottom = inset')
     expect(nativeSwift).toContain('stack.wrap = style["flexWrap"] as? String == "wrap"')
+    expect(nativeSwift).toContain('defaultShrink = horizontal ? 1 : 0')
     expect(nativeSwift).toContain('craftLayoutStyle.position == "absolute"')
     expect(nativeSwift).toContain('style.minWidth')
     expect(nativeSwift).toContain('case .percent(let fraction): return base.map { max(0, $0 * fraction) }')

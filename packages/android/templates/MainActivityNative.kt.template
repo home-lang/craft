@@ -104,7 +104,7 @@ private data class CraftNativeLayoutStyle(
     val left: Int? = null,
     val alignSelf: String? = null,
     val flexGrow: Double = 0.0,
-    val flexShrink: Double = 0.0,
+    val flexShrink: Double? = null,
     val flexBasis: CraftNativeLength? = null,
 ) {
     companion object {
@@ -114,6 +114,11 @@ private data class CraftNativeLayoutStyle(
                 if (!raw.has(name) || raw.isNull(name)) return null
                 return raw.optDouble(name, Double.NaN).takeUnless { it.isNaN() }?.let { (it * density).roundToInt() }
             }
+            fun decimal(name: String): Double? {
+                if (!raw.has(name) || raw.isNull(name)) return null
+                return raw.optDouble(name, Double.NaN).takeUnless { it.isNaN() }
+            }
+            val flex = decimal("flex")
             return CraftNativeLayoutStyle(
                 width = length("width"), height = length("height"),
                 minWidth = length("minWidth"), maxWidth = length("maxWidth"),
@@ -128,8 +133,8 @@ private data class CraftNativeLayoutStyle(
                     ?.takeUnless { it == JSONObject.NULL }
                     ?.toString()
                     ?.takeIf { it.isNotBlank() },
-                flexGrow = raw.optDouble("flexGrow", raw.optDouble("flex", 0.0)),
-                flexShrink = raw.optDouble("flexShrink", 0.0),
+                flexGrow = decimal("flexGrow") ?: flex ?: 0.0,
+                flexShrink = decimal("flexShrink") ?: flex?.let { if (it != 0.0) 1.0 else 0.0 },
                 flexBasis = length("flexBasis"),
             )
         }
@@ -343,6 +348,12 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         return result
     }
 
+    private fun defaultFlexShrink(view: View): Double = when {
+        view is ScrollView || view is HorizontalScrollView -> 1.0
+        view is TextView && view !is Button && view !is EditText && orientation == HORIZONTAL -> 1.0
+        else -> 0.0
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
         val width = View.MeasureSpec.getSize(widthMeasureSpec).takeUnless { widthMode == View.MeasureSpec.UNSPECIFIED } ?: 1_000_000
@@ -428,7 +439,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         var crossOffset = if (orientation == HORIZONTAL) paddingTop else paddingLeft
         for (line in lines) {
             val rawFree = availableMain - line.main
-            val factors = line.entries.map { if (rawFree >= 0) it.style.flexGrow else it.style.flexShrink }
+            val factors = line.entries.map { if (rawFree >= 0) it.style.flexGrow else it.style.flexShrink ?: defaultFlexShrink(it.view) }
             val totalFactor = factors.sum()
             val distributedMain = line.entries.indices.sumOf { index ->
                 val base = if (orientation == HORIZONTAL) line.entries[index].width else line.entries[index].height

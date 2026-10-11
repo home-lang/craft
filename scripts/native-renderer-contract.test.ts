@@ -357,6 +357,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('clamp(distributed, entry.style.minHeight?.resolve(contentHeight), entry.style.maxHeight?.resolve(contentHeight))')
   })
 
+  it('aligns omitted flex-shrink defaults for labels and scroll hosts', () => {
+    expect(ios).toContain('defaultShrink = horizontal ? 1 : 0')
+    expect(android).toContain('val flexShrink: Double? = null')
+    expect(android).toContain('it.style.flexShrink ?: defaultFlexShrink(it.view)')
+    expect(android).toContain('view is TextView && view !is Button && view !is EditText && orientation == HORIZONTAL')
+  })
+
   it('resolves percentage lengths against the native parent on both hosts', () => {
     expect(navigationHome).toContain('style={{"width":"50%","height":20}}')
     expect(ios).toContain('case .percent(let fraction): return base.map { max(0, $0 * fraction) }')
