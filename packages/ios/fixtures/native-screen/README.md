@@ -13,7 +13,7 @@ craft ios run --output /tmp/craft-native-smoke --simulator
 
 For the enabled run, set `enableHaptics` and `enableClipboard` to `true` in `/tmp/craft-native-smoke/craft.config.json` before building. Type a name, write it to the clipboard, and read it back. “Write invalid value” should show `INVALID_ARGUMENT`; “Play haptic” should show `Haptic accepted` (the simulator cannot physically vibrate). For the disabled run, set both flags to `false`, rebuild and reinstall. Clipboard and haptic taps should show `CAPABILITY_DISABLED`, while device info should still show `iPhone`.
 
-The native mode is opt-in. The generated `Sources/CraftNativeScreen.swift` creates UIKit controls directly; `Sources/NativeSmokeApp.swift` selects that host when `renderer` is `native`. The existing WebView path remains the default for other apps.
+The native mode is opt-in. The generated `Sources/CraftNativeScreen.swift` creates UIKit controls directly; `Sources/NativeSmokeApp.swift` selects that host when `renderer` is `native`. The existing WebView path remains the default for other apps. The unit suite also checks that malformed native `fetch` options (relative URLs, GET bodies, non-string bodies, and non-string headers) are rejected before any network request, matching the Android host.
 
 ## Renderer regression tests
 

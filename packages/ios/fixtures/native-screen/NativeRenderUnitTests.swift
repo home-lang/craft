@@ -22,6 +22,13 @@ final class NativeRenderUnitTests: XCTestCase {
         }
     }
 
+    private func assertInvalidFetch(_ options: [String: Any], line: UInt = #line) async {
+        guard case .failure(let error) = await capability("Network", "fetch", [options]) else {
+            return XCTFail("malformed fetch options unexpectedly succeeded", file: #filePath, line: line)
+        }
+        XCTAssertEqual(error.code, "INVALID_ARGUMENT", file: #filePath, line: line)
+    }
+
     private func batch(
         _ revision: Int,
         _ operations: [[String: Any]],
@@ -172,6 +179,24 @@ final class NativeRenderUnitTests: XCTestCase {
             return XCTFail("database query failed")
         }
         XCTAssertEqual(first["name"] as? String, "Grace")
+    }
+
+    func testFetchRejectsMalformedOptionsBeforeOpeningNetwork() async {
+        XCTAssertTrue(CraftNativeActions.capabilities(config: CraftConfig()).contains("fetch"))
+        await assertInvalidFetch(["url": "/api/activities"])
+        await assertInvalidFetch([
+            "url": "http://127.0.0.1/api/activities",
+            "method": "GET",
+            "body": "not allowed",
+        ])
+        await assertInvalidFetch([
+            "url": "http://127.0.0.1/api/activities",
+            "body": 42,
+        ])
+        await assertInvalidFetch([
+            "url": "http://127.0.0.1/api/activities",
+            "headers": ["X-Native-Test": 42],
+        ])
     }
 
     func testUnkeyedChildrenReusePositionAndRemovedChildrenDetach() throws {

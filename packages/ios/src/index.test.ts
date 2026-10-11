@@ -212,6 +212,8 @@ describe('Craft iOS builder', () => {
     expect(actionsSwift).toContain('task?.cancel()')
     expect(actionsSwift).toContain('"fetch needs an absolute http or https URL"')
     expect(actionsSwift).toContain('"A GET or HEAD request cannot have a body"')
+    expect(actionsSwift).toContain('"fetch header values must be strings"')
+    expect(actionsSwift).toContain('"fetch body must be a string"')
     expect(actionsSwift).toContain('failure("RESPONSE_TOO_LARGE"')
     expect(actionsSwift).toContain('"status": http.statusCode,')
     expect(actionsSwift).toContain('"body": String(decoding: body, as: UTF8.self),')
