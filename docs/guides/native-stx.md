@@ -29,17 +29,16 @@ bundle must be local at build time.
 
 ## Native script and lifecycle semantics
 
-The native compiler emits each route's client script as-is. Use ordinary
-top-level variables and functions in `<script>` blocks; those variables are
-tracked by the native runtime after event handlers and timers mutate them.
-Native scripts receive the `globalThis.craft` route, navigation, storage, and
-capability APIs from the host, but the compiler does not inject browser-only
-helpers such as `state`, `onMount`, or `onDestroy`.
+The native compiler runs each route's client script through the shared stx
+signals runtime. Use `state`, `derived`, and `effect` in ordinary `<script>`
+blocks; bindings update native controls through the mutation protocol. Native
+scripts also receive the `globalThis.craft` route, navigation, storage, and
+capability APIs from the host.
 
-When a route needs teardown work, assign a function to
-`globalThis.__stxNativeUnmount`. Craft invokes that marker before a native
-screen is removed or replaced. Keep cleanup there rather than relying on a
-framework lifecycle helper that is unavailable in native bundles.
+Use `onMount` and `onDestroy` for route-scoped lifecycle work. Craft disposes
+the screen runtime before a native screen is removed or replaced, so effects,
+capability requests, and registered cleanup callbacks do not leak into the
+next route.
 
 ## Current component contract
 
