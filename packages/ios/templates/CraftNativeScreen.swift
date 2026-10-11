@@ -1981,6 +1981,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                     "version": craftNativeMutationProtocolVersion,
                 ]
                 if let operationIndex = failure.operationIndex { error["operationIndex"] = operationIndex }
+                // In the log as well: the screen redraws itself on this, so
+                // nothing on screen says a batch was refused.
+                CraftNativeConsole.write("error", category: screenName(), message: "mutation \(error["batchId"] ?? "") refused: \(failure.code) \(failure.message)")
                 send(type: "MUTATION_ERROR", payload: error)
             } catch {
                 send(type: "MUTATION_ERROR", payload: [

@@ -862,6 +862,16 @@ describe('Craft iOS builder', () => {
     const fallback = swift.slice(swift.indexOf('private func loadBundledFallback(in webView: WKWebView) {'), swift.indexOf('private func returnFromBundledFallback('))
     expect(fallback).toContain('loadBundledPage(in: webView)')
     expect(swift).toContain('private func retryRemote() {')
+    // Behind a hybrid app's native screen nobody sees the offline page's
+    // Retry, so the shell retries the page itself, backing off, until it
+    // loads; a page that loads resets the backoff.
+    expect(fallback).toContain('retryHiddenFallbackLater()')
+    const hidden = swift.slice(swift.indexOf('private func retryHiddenFallbackLater() {'), swift.indexOf('private func returnFromBundledFallback('))
+    expect(hidden).toContain('CraftHybrid.shared.isEnabled, !CraftHybrid.shared.webIsVisible')
+    expect(hidden).toContain('min(30.0, 2.0 * pow(2.0')
+    expect(hidden).toContain('self.returnFromBundledFallback(because:')
+    const finished = swift.slice(swift.indexOf('func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {'), swift.indexOf('func webView(_ webView: WKWebView, decidePolicyFor navigationAction'))
+    expect(finished).toContain('hiddenFallbackRetries = 0')
   })
 
   it('picks offline-page text that reads on the background', () => {

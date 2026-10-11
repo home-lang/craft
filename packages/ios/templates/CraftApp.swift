@@ -1470,6 +1470,11 @@ struct CraftWebView: UIViewRepresentable {
         private var pendingCallbackId: String?
         private var pendingPushCallbackId: String?
         private var loadedBundledFallback = false
+        /// Tries at the app's own page while it waits on the offline page out
+        /// of sight, behind a hybrid app's native screen; reset by a page that
+        /// loads.
+        private var hiddenFallbackRetries = 0
+        private var hiddenFallbackRetry: DispatchWorkItem?
         /// Whether the current document's bridge has announced itself.
         private var documentReady = false
         /// Reloads after the content process dies, budgeted per burst.
@@ -2594,7 +2599,10 @@ struct CraftWebView: UIViewRepresentable {
             CraftChrome.shared.pageFinished()
             CraftChrome.shared.publishLayout()
             guard isTrustedURL(webView.url) else { return }
-            if !loadedBundledFallback { lastPageURL = webView.url }
+            if !loadedBundledFallback {
+                lastPageURL = webView.url
+                hiddenFallbackRetries = 0
+            }
             // The bridge is a document-start user script, so it is normally
             // here long before this. A document that came without it is given
             // it now, the way every page used to be, so no page is ever worse
@@ -2703,6 +2711,7 @@ struct CraftWebView: UIViewRepresentable {
         private func showOfflinePage(in webView: WKWebView) {
             if config.devServerURL != nil { loadedBundledFallback = true }
             loadBundledPage(in: webView)
+            retryHiddenFallbackLater()
         }
 
         /// Whether Info.plist declares WKAppBoundDomains.
@@ -2823,6 +2832,32 @@ struct CraftWebView: UIViewRepresentable {
             guard !loadedBundledFallback, config.devServerURL != nil else { return }
             loadedBundledFallback = true
             loadBundledPage(in: webView)
+            retryHiddenFallbackLater()
+        }
+
+        /// The offline page behind a hybrid app's native screen.
+        ///
+        /// Nobody sees its Retry there, and the page still has work to do
+        /// behind the screen: sending a signed-out person to sign in, keeping
+        /// the shared sign-in and snapshots current. A launch whose first load
+        /// timed out (a slow network, a server still starting) left the page
+        /// on the offline copy until the app next came to the foreground, and
+        /// a signed-out person on a native screen that waits for the page. So
+        /// the shell tries the page again itself, backing off from 2 to 30
+        /// seconds; once the web view is on screen, its Retry is the person's.
+        private func retryHiddenFallbackLater() {
+            guard loadedBundledFallback, CraftHybrid.shared.isEnabled, !CraftHybrid.shared.webIsVisible else { return }
+            hiddenFallbackRetry?.cancel()
+            let delay = min(30.0, 2.0 * pow(2.0, Double(min(hiddenFallbackRetries, 4))))
+            hiddenFallbackRetries += 1
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, self.loadedBundledFallback, !CraftHybrid.shared.webIsVisible else { return }
+                // In the background, coming back to the foreground retries.
+                guard UIApplication.shared.applicationState == .active else { return }
+                self.returnFromBundledFallback(because: "the page behind a native screen was on the offline page")
+            }
+            hiddenFallbackRetry = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
         }
 
         /// Leave the bundled copy for the remote origin again (#252).
