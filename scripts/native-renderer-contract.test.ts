@@ -120,8 +120,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('.put("value", option.first).put("index", position)')
     expect(navigationHome).toContain('<select testID="native-picker"')
     expect(navigationHome).toContain('<option value="one">One</option>')
-    expect(navigationHome).toContain('onRequestClose={modalRequested}')
-    expect(navigationHome).toContain('onShow={modalShown}')
+    expect(navigationHome).toContain('@request-close="modalRequested()"')
+    expect(navigationHome).toContain('@show="modalShown()"')
     expect(navigationHome).toContain('testID="clear-image-source"')
     expect(navigationHome).toContain('testID="image-error-count"')
     expect(navigationHome).toContain('testID="hidden-indicator"')
@@ -343,6 +343,15 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val contentStyle = JSONObject(style.toString()).apply')
     expect(android).toContain('props.optJSONObject("contentContainerStyle")')
     expect(android).toContain('reconcileChildren(screen, content, children, path, next, contentStyle, previousControls)')
+  })
+
+  it('keeps ScrollView pull-to-refresh controlled on both hosts', () => {
+    expect(ios).toContain('scroll.setRefreshHandler(nonEmptyHandler(events["onRefresh"]).map')
+    expect(ios).toContain('refreshing: props["refreshing"] as? Bool == true')
+    expect(android).toContain('private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context)')
+    expect(android).toContain('fun setRefreshHandler(handler: (() -> Unit)?, refreshing: Boolean)')
+    expect(android).toContain('setRefreshHandler(refreshHandler, props.optBoolean("refreshing", false))')
+    expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }')
   })
 
   it('applies FlatList content container padding on both hosts', () => {
@@ -619,12 +628,15 @@ describe('native renderer component contract', () => {
     expect(androidFlatList).toContain('RecyclerView.SCROLL_STATE_SETTLING')
   })
 
-  it('falls back from null FlatList thresholds consistently', () => {
+  it('keeps the maintained navigation fixture on the host-neutral keyed ScrollView path', () => {
     expect(android).toContain('props.opt("onEndReachedThreshold")')
     expect(android).toContain('takeUnless { it == JSONObject.NULL }')
     expect(android).toContain('props.optDouble("threshold", 0.1)')
-    expect(navigationDetails).toContain('onEndReachedThreshold={null}')
-    expect(navigationDetails).toContain('threshold={0.8}')
+    expect(navigationDetails).toContain('<ScrollView')
+    expect(navigationDetails).toContain(':for="(item, index) in people"')
+    expect(navigationDetails).toContain(':key="item.id"')
+    expect(navigationDetails).toContain(':text="\'People: \' + people().length + \'; events: \' + listEvents"')
+    expect(navigationDetails).toContain('testID="load-more-people"')
   })
 
   it('keeps FlatList pull-to-refresh aligned across hosts', () => {
@@ -660,13 +672,13 @@ describe('native renderer component contract', () => {
     const details = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/Details.stx'), 'utf8')
     const iosTests = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/NativeNavigationUITests.swift'), 'utf8')
     const androidTests = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeNavigationTest.kt'), 'utf8')
-    expect(details).toContain('onLayout={captureRowLayout}')
-    expect(details).toContain('onRefresh={refreshPeople}')
+    expect(details).toContain('@layout="captureRowLayout()"')
+    expect(details).toContain('@refresh="refreshPeople()"')
     expect(details).toContain('refreshing={peopleRefreshing}')
-    expect(iosTests).toContain('FlatList pull-to-refresh did not invoke onRefresh')
+    expect(iosTests).toContain('ScrollView pull-to-refresh did not invoke onRefresh')
     expect(androidTests).toContain('pullToRefresh(peopleHost)')
     expect(details).toContain('testID="people-layout-status"')
-    expect(iosTests).toContain('FlatList did not report a row layout after recycling')
+    expect(iosTests).toContain('ScrollView did not report a row layout after insertion')
     expect(androidTests).toContain('awaitLayoutIncrease(activity, "people-layout-status", initialRowLayouts)')
     expect(androidTests).not.toContain('Rows laid out: ${initialRowLayouts + 1}')
     expect(iosNavigationScript).toContain("const prepareOnly = process.argv.includes('--prepare-only')")

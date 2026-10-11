@@ -394,14 +394,14 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.staticTexts["details-title"].label, "Details for Ada")
         XCTAssertEqual(app.staticTexts["details-count"].label, "Count: 2")
-        let people = app.collectionViews["people-list"]
+        let people = app.scrollViews["people-list"]
         XCTAssertTrue(people.waitForExistence(timeout: 10))
         let peopleCount = app.staticTexts["people-count"]
         people.swipeDown()
-        XCTAssertTrue(waitForLabel(peopleCount, "People: 40; events: 1"), "FlatList pull-to-refresh did not invoke onRefresh")
+        XCTAssertTrue(waitForLabel(peopleCount, "People: 40; events: 1"), "ScrollView pull-to-refresh did not invoke onRefresh")
         let peopleHeader = app.staticTexts["people-header"]
         XCTAssertTrue(peopleHeader.waitForExistence(timeout: 5))
-        XCTAssertGreaterThanOrEqual(peopleHeader.frame.minY, people.frame.minY + 8, "FlatList contentContainerStyle did not add top padding")
+        XCTAssertGreaterThanOrEqual(peopleHeader.frame.minY, people.frame.minY + 8, "ScrollView contentContainerStyle did not add top padding")
         let peopleLayouts = app.staticTexts["people-layout-status"]
         XCTAssertTrue(peopleLayouts.waitForExistence(timeout: 5))
         let initialRowLayouts = Int(peopleLayouts.label.split(separator: ":").last ?? "0") ?? 0
@@ -414,16 +414,14 @@ final class NativeNavigationUITests: XCTestCase {
         let firstPerson = app.staticTexts["person-label-person-0"]
         XCTAssertTrue(waitForLabel(firstPerson, "1: Person zero updated"))
         XCTAssertEqual(personInput.value as? String, "draft")
-        for _ in 0..<30 where peopleCount.label == "People: 40; events: 2" {
-            people.swipeUp()
-        }
+        app.buttons["load-more-people"].tap()
         XCTAssertTrue(
             waitForLabel(peopleCount, "People: 41; events: 3"),
-            "FlatList did not report its data end; found \(peopleCount.label)"
+            "ScrollView load-more action did not update its data; found \(peopleCount.label)"
         )
         XCTAssertTrue(
             waitForLayoutIncrease(peopleLayouts, from: initialRowLayouts),
-            "FlatList did not report a row layout after recycling; found \(peopleLayouts.label)"
+            "ScrollView did not report a row layout after insertion; found \(peopleLayouts.label)"
         )
         people.swipeDown()
         let recycledPersonInput = app.textFields["person-input-person-0"]

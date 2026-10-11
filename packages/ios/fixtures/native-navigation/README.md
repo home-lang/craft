@@ -1,6 +1,6 @@
 # WebView-free native navigation fixture
 
-The three `.stx` screens and `native.config.json` exercise a native push with parameters, an in-app back action, UIKit's back button and edge-swipe, and replace. Home owns a keyboard-configured `TextInput`, `Picker`, submit counter, counter, and keyed `FlatList`; the list covers two-column recycling, header/footer/empty content, row moves, focused-input retention, `onEndReached`, and controlled pull-to-refresh. The native list unit fixture also verifies scroll, drag, momentum, and refresh-control callback forwarding. Returning home must reveal the same values, not a freshly compiled screen. The simulator test also checks that the app exposes no WebView.
+The three `.stx` screens and `native.config.json` exercise a native push with parameters, an in-app back action, UIKit's back button and edge-swipe, and replace. Home owns a keyboard-configured `TextInput`, `Picker`, submit counter, counter, and keyed `ScrollView`; the details list covers row moves, focused-input retention, insertion, empty content, and controlled pull-to-refresh. The native list unit fixture separately verifies virtualized `FlatList` scroll, drag, momentum, recycling, and refresh-control forwarding. Returning home must reveal the same values, not a freshly compiled screen. The simulator test also checks that the app exposes no WebView.
 
 `testSharedRuntimePushBackReplaceLifecycleAndStateIsolation` is the focused
 navigation gate. It uses the shared runtime's state and lifecycle APIs to verify
@@ -17,7 +17,8 @@ CRAFT_NATIVE_NAVIGATION_TEST=testSharedRuntimePushBackReplaceLifecycleAndStateIs
 
 Keyed row replacement releases the previous native root before the new row type
 is hosted, so old event, image, and pull-to-refresh handlers cannot leak across
-reuse.
+reuse. Both native hosts attach the details screen's `ScrollView` refresh
+handler to the platform refresh control.
 Returning to a retained route also reapplies native theme defaults before the
 controller appears, keeping dark-mode colors current after navigation.
 Keyboard frame changes update the controller's additional safe area, keeping the
@@ -26,7 +27,7 @@ The fixture also exercises parent-relative percentage sizing and keeps wrapped
 line distribution available through the shared `alignContent` contract.
 The form path carries a keyed draft across a single-line/multiline input mode
 change even though UIKit must replace the underlying control class. Keyed
-FlatList inputs retain their drafts when rows recycle off-screen and return.
+ScrollView rows retain their drafts while the collection is reordered.
 
 From the Craft repository, with the sibling stx checkout at or after
 `6151b9e73c` (where the compiler became `stx native compile`):
