@@ -3208,8 +3208,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let uri = (source as? String) ?? (source as? [String: Any])?["uri"] as? String
         let id = ObjectIdentifier(view)
         guard let uri, !uri.isEmpty else {
+            if imageSources[id] == "" { return }
             imageTasks.removeValue(forKey: id)?.cancel()
-            imageSources.removeValue(forKey: id)
+            imageSources[id] = ""
             imageFailure(view, uri: nil, message: "Image source is missing")
             return
         }

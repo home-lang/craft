@@ -1981,8 +1981,9 @@ class MainActivity : AppCompatActivity() {
             else -> ""
         }
         if (uri.isBlank()) {
+            if (imageSources[view] == "") return
             imageJobs.remove(view)?.cancel(true)
-            imageSources.remove(view)
+            imageSources[view] = ""
             imageErrors[view] = "Image source is missing"
             view.setImageDrawable(null)
             imageFailure(screen, view, uri, "Image source is missing")
