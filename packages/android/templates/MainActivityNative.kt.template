@@ -1048,6 +1048,7 @@ class MainActivity : AppCompatActivity() {
                 capabilityTimeoutMs: $CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS,
                 capabilities: ${capabilities.names()},
                 initialAppState: ${JSONObject.quote(nativeAppState)},
+                colorScheme: ${JSONObject.quote(colorScheme())},
                 postMessage: function(value) { port.postMessage(value); },
                 onMessage: function(callback) { port.onmessage = function(event) { callback(event.data); }; }
               };
@@ -1061,6 +1062,7 @@ class MainActivity : AppCompatActivity() {
               capabilityTimeoutMs: $CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS,
               capabilities: ${capabilities.names()},
               initialAppState: ${JSONObject.quote(nativeAppState)},
+              colorScheme: ${JSONObject.quote(colorScheme())},
               postMessage: function(value) { console.log(${JSONObject.quote(prefix)} + value); },
               onMessage: function(callback) { globalThis.__stxNativeCallback = callback; }
             };

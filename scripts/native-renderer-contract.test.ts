@@ -819,6 +819,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('send(type: "APPEARANCE", payload: ["colorScheme": colorScheme])')
     expect(android).toContain('send(screen, "APPEARANCE", JSONObject().put("colorScheme", colorScheme()))')
     expect(android).toContain('Configuration.UI_MODE_NIGHT_MASK')
+    expect(android).toContain('colorScheme: ${JSONObject.quote(colorScheme())}')
   })
 
   it('rebinds unchanged virtualized rows when theme traits change', () => {
