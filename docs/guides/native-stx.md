@@ -186,13 +186,17 @@ the only mutation path that intentionally performs a full native render.
 The shared style subset is deliberately smaller than the public `ViewStyle`
 type:
 
-- numeric `width`, `height`, `minWidth`, `maxWidth`, `minHeight`, and `maxHeight`;
+- numeric or percentage `width`, `height`, `minWidth`, `maxWidth`, `minHeight`,
+  and `maxHeight` (percentages resolve against the parent's content box);
 - `flexDirection` (`row`, `column`, and their reverse forms), `alignItems`,
   `alignSelf`, `justifyContent`, `flexWrap: 'wrap'`, `gap`, `rowGap`, and
   `columnGap`;
-- `flex`, `flexGrow`, `flexShrink`, and numeric `flexBasis` distribute
+- `flex`, `flexGrow`, `flexShrink`, and numeric or percentage `flexBasis` distribute
   remaining or overflowing main-axis space per flex line while preserving
   gaps and margins;
+- wrapped containers support `alignContent` (`flex-start`, `center`,
+  `flex-end`, `space-between`, `space-around`, and `stretch`) for cross-axis
+  line distribution;
 - `display: 'grid'` with equal tracks from numeric `gridTemplateColumns` (or
   CSS-shaped `repeat(N, 1fr)` text), plus numeric `gridAutoRows`; grid children
   fill their track by default, pack in source order, and honor `alignSelf`,
@@ -218,12 +222,13 @@ Explicit `null` image style values are treated as unset, so a prop-level
 
 Colors use platform color syntax; hexadecimal colors are portable. Dimensions,
 spacing, and font sizes are points on iOS and density-independent units on
-Android. Both hosts use the same line-breaking, gap, min/max clamping, absolute
-inset, grid-track, and stretch/center/flex-end rules; text and image intrinsic
+Android. Both hosts use the same line-breaking, gap, min/max clamping, percentage
+resolution, wrapped-line distribution, absolute inset, grid-track, and
+stretch/center/flex-end rules; text and image intrinsic
 sizes are measured by the host-native control, and `Button`/`Link` text uses the
 same font, color, alignment, and decoration styles as `Text`. Generated hosts
-pin the native screen root to the platform safe-area insets. Percentage
-dimensions, transforms, and shadows remain outside the native renderer
+pin the native screen root to the platform safe-area insets. Transforms and
+shadows remain outside the native renderer
 contract. Unsupported values are ignored rather than interpreted as CSS. Explicit `null`
 layout values, including `alignSelf` and `position`, clear the previous value
 and restore the host default during reconciliation.

@@ -22,6 +22,8 @@ Returning to a retained route also reapplies native theme defaults before the
 controller appears, keeping dark-mode colors current after navigation.
 Keyboard frame changes update the controller's additional safe area, keeping the
 focused form controls and their `onLayout` measurements responsive.
+The fixture also exercises parent-relative percentage sizing and keeps wrapped
+line distribution available through the shared `alignContent` contract.
 The form path carries a keyed draft across a single-line/multiline input mode
 change even though UIKit must replace the underlying control class. Keyed
 FlatList inputs retain their drafts when rows recycle off-screen and return.
