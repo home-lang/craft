@@ -1,43 +1,43 @@
 <script>
-let name = ''
-let count = 0
-let imageTaps = 0
-let submits = 0
-let nameFocuses = 0
-let notesFocusText = ''
-let nameBlurs = 0
-let nameEndEditings = 0
-let notesBlurs = 0
-let notesEndEditings = 0
-let status = ''
-let pressIns = 0
-let pressOuts = 0
-let linkAccessibilityDisabled = false
-let panelAccessibilityDisabled = false
-let longPressStatus = ''
-let longPressAccessibilityDisabled = false
-let switchValue = false
-let pickerValue = 'one'
-let modalVisible = false
-let modalStatus = ''
-let modalOpacity = 1
-let sliderValue = 0.5
-let sliderCompletions = 0
-let layoutWidth = 0
-let layoutWide = true
-let imageStatus = ''
-let imageErrorStatus = ''
-let imageFailureCount = 0
-let imageTinted = true
-let imageSource = 'http://example.com/image.png'
-let validImageSource = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
-let buttonAccent = false
-let inputColors = true
-let inputStyleStatus = ''
-let nameMultiline = false
-let panelStyled = true
-let panelStyleStatus = ''
-let textWidthUnset = false
+const name = state('')
+const count = state(0)
+const imageTaps = state(0)
+const submits = state(0)
+const nameFocuses = state(0)
+const notesFocusText = state('')
+const nameBlurs = state(0)
+const nameEndEditings = state(0)
+const notesBlurs = state(0)
+const notesEndEditings = state(0)
+const status = state('')
+const pressIns = state(0)
+const pressOuts = state(0)
+const linkAccessibilityDisabled = state(false)
+const panelAccessibilityDisabled = state(false)
+const longPressStatus = state('')
+const longPressAccessibilityDisabled = state(false)
+const switchValue = state(false)
+const pickerValue = state('one')
+const modalVisible = state(false)
+const modalStatus = state('')
+const modalOpacity = state(1)
+const sliderValue = state(0.5)
+const sliderCompletions = state(0)
+const layoutWidth = state(0)
+const layoutWide = state(true)
+const imageStatus = state('')
+const imageErrorStatus = state('')
+const imageFailureCount = state(0)
+const imageTinted = state(true)
+const imageSource = state('http://example.com/image.png')
+const validImageSource = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+const buttonAccent = state(false)
+const inputColors = state(true)
+const inputStyleStatus = state('')
+const nameMultiline = state(false)
+const panelStyled = state(true)
+const panelStyleStatus = state('')
+const textWidthUnset = state(false)
 const navigationName = 'Ada'
 const navigationCount = state(0)
 const navigationLifecycle = state('Lifecycle pending')
@@ -78,23 +78,23 @@ async function verifyNavigationLifecycle() {
 }
 
 function linkAccessibilityState() {
-  return { disabled: linkAccessibilityDisabled }
+  return { disabled: linkAccessibilityDisabled() }
 }
 
 function panelAccessibilityState() {
-  return { disabled: panelAccessibilityDisabled }
+  return { disabled: panelAccessibilityDisabled() }
 }
 
 function longPressAccessibilityState() {
-  return { disabled: longPressAccessibilityDisabled }
+  return { disabled: longPressAccessibilityDisabled() }
 }
 
 function buttonAccessibilityState() {
-  return { selected: buttonAccent }
+  return { selected: buttonAccent() }
 }
 
 function switchAccessibilityState() {
-  return { checked: switchValue }
+  return { checked: switchValue() }
 }
 
 function switchTrackColor() {
@@ -106,187 +106,187 @@ function validImage() {
 }
 
 function currentImage() {
-  return { uri: imageSource }
+  return { uri: imageSource() }
 }
 
 function changeName(event) {
-  name = event.text
+  name.set(event.text)
 }
 
 function focusName() {
-  nameFocuses += 1
+  nameFocuses.update(value => value + 1)
 }
 
 function focusNotes(event) {
-  notesFocusText = event.text
+  notesFocusText.set(event.text)
 }
 
 function increment() {
-  count += 1
+  count.update(value => value + 1)
 }
 
 function tapImage() {
-  imageTaps += 1
+  imageTaps.update(value => value + 1)
 }
 
 function imageLoadStart() {
-  imageStatus = 'image loading'
+  imageStatus.set('image loading')
 }
 
 function imageLoaded() {
-  imageStatus = 'image loaded'
+  imageStatus.set('image loaded')
 }
 
 function imageFailed() {
-  imageErrorStatus = 'image failed'
-  imageFailureCount += 1
+  imageErrorStatus.set('image failed')
+  imageFailureCount.update(value => value + 1)
 }
 
 function toggleImageSource() {
-  imageSource = imageSource.startsWith('http') ? validImageSource : 'http://example.com/image.png'
-  imageStatus = ''
-  imageErrorStatus = ''
+  imageSource.set(imageSource().startsWith('http') ? validImageSource : 'http://example.com/image.png')
+  imageStatus.set('')
+  imageErrorStatus.set('')
 }
 
 function clearImageSource() {
-  imageSource = ''
-  imageStatus = ''
-  imageErrorStatus = ''
+  imageSource.set('')
+  imageStatus.set('')
+  imageErrorStatus.set('')
 }
 
 function toggleImageTint() {
-  imageTinted = !imageTinted
-  imageStatus = imageTinted ? 'image tint on' : 'image tint off'
+  imageTinted.update(value => !value)
+  imageStatus.set(imageTinted() ? 'image tint on' : 'image tint off')
 }
 
 function toggleButtonAccent() {
-  buttonAccent = !buttonAccent
-  status = buttonAccent ? 'button style accented' : 'button style default'
+  buttonAccent.update(value => !value)
+  status.set(buttonAccent() ? 'button style accented' : 'button style default')
 }
 
 function toggleInputColors() {
-  inputColors = !inputColors
-  inputStyleStatus = inputColors ? 'input colors on' : 'input colors off'
+  inputColors.update(value => !value)
+  inputStyleStatus.set(inputColors() ? 'input colors on' : 'input colors off')
 }
 
 function toggleNameMode() {
-  nameMultiline = !nameMultiline
+  nameMultiline.update(value => !value)
 }
 
 function togglePanelStyle() {
-  panelStyled = !panelStyled
-  panelStyleStatus = panelStyled ? 'panel style on' : 'panel style off'
+  panelStyled.update(value => !value)
+  panelStyleStatus.set(panelStyled() ? 'panel style on' : 'panel style off')
 }
 
 function toggleTextWidth() {
-  textWidthUnset = !textWidthUnset
+  textWidthUnset.update(value => !value)
 }
 
 function submitName() {
-  submits += 1
+  submits.update(value => value + 1)
 }
 
 function blurName() {
-  nameBlurs += 1
+  nameBlurs.update(value => value + 1)
 }
 
 function endNameEditing() {
-  nameEndEditings += 1
+  nameEndEditings.update(value => value + 1)
 }
 
 function blurNotes() {
-  notesBlurs += 1
+  notesBlurs.update(value => value + 1)
 }
 
 function endNotesEditing() {
-  notesEndEditings += 1
+  notesEndEditings.update(value => value + 1)
 }
 
 function setStatus(value) {
-  status = value
+  status.set(value)
 }
 
 function toggleLinkAccessibility() {
-  linkAccessibilityDisabled = !linkAccessibilityDisabled
-  status = linkAccessibilityDisabled ? 'link accessibility disabled' : 'link accessibility enabled'
+  linkAccessibilityDisabled.update(value => !value)
+  status.set(linkAccessibilityDisabled() ? 'link accessibility disabled' : 'link accessibility enabled')
 }
 
 function togglePanelAccessibility() {
-  panelAccessibilityDisabled = !panelAccessibilityDisabled
-  status = panelAccessibilityDisabled ? 'panel accessibility disabled' : 'panel accessibility enabled'
+  panelAccessibilityDisabled.update(value => !value)
+  status.set(panelAccessibilityDisabled() ? 'panel accessibility disabled' : 'panel accessibility enabled')
 }
 
 function pressPanel() {
-  status = 'panel pressed'
+  status.set('panel pressed')
 }
 
 function pressNativePressable() {
-  status = 'pressable pressed'
+  status.set('pressable pressed')
 }
 
 function pressNativePressableIn() {
-  pressIns += 1
+  pressIns.update(value => value + 1)
 }
 
 function pressNativePressableOut() {
-  pressOuts += 1
+  pressOuts.update(value => value + 1)
 }
 
 function pressPanelLong() {
-  longPressStatus = 'panel long pressed'
+  longPressStatus.set('panel long pressed')
 }
 
 function toggleLongPressAccessibility() {
-  longPressAccessibilityDisabled = !longPressAccessibilityDisabled
-  longPressStatus = longPressAccessibilityDisabled ? 'long press disabled' : 'long press enabled'
+  longPressAccessibilityDisabled.update(value => !value)
+  longPressStatus.set(longPressAccessibilityDisabled() ? 'long press disabled' : 'long press enabled')
 }
 
 function toggleSwitch(event) {
-  switchValue = event.value
-  status = switchValue ? 'switch on' : 'switch off'
+  switchValue.set(event.value)
+  status.set(switchValue() ? 'switch on' : 'switch off')
 }
 
 function choosePicker(event) {
-  pickerValue = event.value
-  status = `picker ${pickerValue}`
+  pickerValue.set(event.value)
+  status.set(`picker ${pickerValue()}`)
 }
 
 function toggleModal() {
-  modalVisible = !modalVisible
+  modalVisible.update(value => !value)
 }
 
 function modalShown() {
-  modalStatus = 'modal shown'
+  modalStatus.set('modal shown')
 }
 
 function modalDismissed() {
-  modalStatus = 'modal dismissed'
+  modalStatus.set('modal dismissed')
 }
 
 function modalRequested() {
-  modalStatus = 'modal requested'
-  modalVisible = false
+  modalStatus.set('modal requested')
+  modalVisible.set(false)
 }
 
 function toggleModalOpacity() {
-  modalOpacity = modalOpacity === 1 ? 0.45 : 1
+  modalOpacity.update(value => value === 1 ? 0.45 : 1)
 }
 
 function moveSlider(event) {
-  sliderValue = event.value
-  status = 'slider moved'
+  sliderValue.set(event.value)
+  status.set('slider moved')
 }
 
 function finishSlider() {
-  sliderCompletions += 1
+  sliderCompletions.update(value => value + 1)
 }
 
 function captureLayout(event) {
-  layoutWidth = event.layout.width
+  layoutWidth.set(event.layout.width)
 }
 
 function toggleLayoutWidth() {
-  layoutWide = !layoutWide
+  layoutWide.update(value => !value)
 }
 
 function openDetails() {
@@ -299,7 +299,7 @@ function openCapabilities() {
 </script>
 
 <template>
-  <SafeAreaView class="p-4">
+  <SafeAreaView testID="root" class="p-4">
     <ScrollView testID="native-root-scroll" style={{"flex":1}}>
     <Text testID="home-title">Home</Text>
     <Text testID="keyed-list-status" :text="'Selected: ' + navigationRowSelection" />
@@ -314,12 +314,12 @@ function openCapabilities() {
     <Button testID="navigation-open-details" @click="openDetails()">Open navigation details</Button>
     <Button testID="navigation-check-lifecycle" @click="verifyNavigationLifecycle()">Check details lifecycle</Button>
     <Text testID="navigation-lifecycle" :text="navigationLifecycle" />
-    <Button testID="open-capabilities" onPress={openCapabilities}>Open capabilities</Button>
+    <Button testID="open-capabilities" @click="openCapabilities()">Open capabilities</Button>
     <Button testID="disabled-button" disabled>Disabled</Button>
     <Text testID="null-width-text" style={{"width":textWidthUnset ? null : 160,"alignSelf":"flex-start"}}>intrinsic</Text>
-    <Button testID="toggle-null-width" onPress={toggleTextWidth}>Toggle null width</Button>
-    <Button testID="toggle-panel-style" onPress={togglePanelStyle}>Toggle panel style</Button>
-    <Text testID="panel-style-status">{panelStyleStatus}</Text>
+    <Button testID="toggle-null-width" @click="toggleTextWidth()">Toggle null width</Button>
+    <Button testID="toggle-panel-style" @click="togglePanelStyle()">Toggle panel style</Button>
+    <Text testID="panel-style-status" :text="panelStyleStatus" />
     <View testID="dynamic-style-box" style={{"width":120,"height":24,"backgroundColor":panelStyled ? "#334455" : null,"borderWidth":panelStyled ? 2 : null,"borderColor":panelStyled ? "#abcdef" : null}} />
     <ScrollView testID="native-scroll" keyboardDismissMode="on-drag" keyboardShouldPersistTaps="handled" contentContainerStyle={{"paddingTop":12}} style={{"height":72,"gap":4}}>
       <Image
@@ -327,27 +327,27 @@ function openCapabilities() {
         source={validImage()}
         accessibilityLabel="Native pixel"
         accessibilityRole="image"
-        onPress={tapImage}
-        onLoadStart={imageLoadStart}
-        onLoad={imageLoaded}
-        onLoadEnd={imageLoaded}
+        @click="tapImage()"
+        @load-start="imageLoadStart()"
+        @load="imageLoaded()"
+        @load-end="imageLoaded()"
         style={{"width":24,"height":24,"resizeMode":"cover","tintColor":imageTinted ? "#2563eb" : null}}
       />
-      <Text testID="native-caption">Image taps: {imageTaps}</Text>
-      <Text testID="image-status">{imageStatus}</Text>
-      <Text testID="image-error-status">{imageErrorStatus}</Text>
+      <Text testID="native-caption" :text="'Image taps: ' + imageTaps" />
+      <Text testID="image-status" :text="imageStatus" />
+      <Text testID="image-error-status" :text="imageErrorStatus" />
       <Image
         testID="unsupported-image"
         source={currentImage()}
         accessibilityLabel="Unsupported image"
-        onLoad={imageLoaded}
-        onLoadEnd={imageLoaded}
-        onError={imageFailed}
+        @load="imageLoaded()"
+        @load-end="imageLoaded()"
+        @error="imageFailed()"
         style={{"width":16,"height":16}}
       />
-      <Button testID="toggle-image-source" onPress={toggleImageSource}>Toggle image source</Button>
-      <Button testID="clear-image-source" onPress={clearImageSource}>Clear image source</Button>
-      <Text testID="image-error-count">{imageFailureCount}</Text>
+      <Button testID="toggle-image-source" @click="toggleImageSource()">Toggle image source</Button>
+      <Button testID="clear-image-source" @click="clearImageSource()">Clear image source</Button>
+      <Text testID="image-error-count" :text="imageFailureCount" />
       <View testID="reverse-column" style={{"flexDirection":"column-reverse","width":120,"height":48,"backgroundColor":"#556677"}}>
         <Text testID="reverse-column-first">top source</Text>
         <Text testID="reverse-column-second">bottom source</Text>
@@ -378,42 +378,42 @@ function openCapabilities() {
       <Text testID="flex-grow-first" style={{"width":40,"flexGrow":1}}>grow</Text>
       <Text testID="flex-grow-second" style={{"width":40}}>fixed</Text>
     </View>
-    <Link testID="native-link" accessibilityHint="Opens status" accessibilityValue="ready" accessibilityState={linkAccessibilityState()} onPress={() => setStatus('link pressed')}>Open native link</Link>
-    <Text testID="native-link-status">{status}</Text>
-    <Button testID="toggle-link-accessibility" onPress={toggleLinkAccessibility}>Toggle link accessibility</Button>
-    <View testID="native-panel" accessibilityState={panelAccessibilityState()} onPress={pressPanel} style={{"height":24}}><Text>Native panel</Text></View>
-    <Pressable testID="native-pressable" onPress={pressNativePressable} onPressIn={pressNativePressableIn} onPressOut={pressNativePressableOut} style={{"height":24}}><Text>Native pressable</Text></Pressable>
-    <Text testID="pressable-lifecycle">Press lifecycle: {pressIns}/{pressOuts}</Text>
-    <Pressable testID="disabled-pressable" disabled onPress={pressNativePressable} style={{"height":24}}><Text>Disabled pressable</Text></Pressable>
-    <Button testID="toggle-panel-accessibility" onPress={togglePanelAccessibility}>Toggle panel accessibility</Button>
-    <View testID="long-press-panel" accessibilityState={longPressAccessibilityState()} onLongPress={pressPanelLong} style={{"height":24}}><Text>Long press panel</Text></View>
-    <Button testID="toggle-long-press-accessibility" onPress={toggleLongPressAccessibility}>Toggle long press accessibility</Button>
-    <Text testID="long-press-status">{longPressStatus}</Text>
-    <Button testID="toggle-button-style" accessibilityState={buttonAccessibilityState()} onPress={toggleButtonAccent} style={{"color":buttonAccent ? "#ef4444" : "#22c55e","fontSize":buttonAccent ? 22 : 16}}>Toggle button style</Button>
-    <Button testID="toggle-image-tint" onPress={toggleImageTint}>Toggle image tint</Button>
-    <Switch testID="native-switch" value={switchValue} accessibilityState={switchAccessibilityState()} trackColor={switchTrackColor()} thumbColor="#ffffff" ios_backgroundColor="#475569" onValueChange={toggleSwitch} />
-    <Switch testID="nullable-switch" value={null} checked={true} />
-    <select testID="native-picker" value={pickerValue} onChange={choosePicker}>
+    <Text testID="native-link" accessibilityHint="Opens status" accessibilityValue="ready" accessibilityState={linkAccessibilityState()} @click="setStatus('link pressed')">Open native link</Text>
+    <Text testID="native-link-status" :text="status" />
+    <Button testID="toggle-link-accessibility" @click="toggleLinkAccessibility()">Toggle link accessibility</Button>
+    <View testID="native-panel" accessibilityState={panelAccessibilityState()} @click="pressPanel()" style={{"height":24}}><Text>Native panel</Text></View>
+    <Pressable testID="native-pressable" @click="pressNativePressable()" @press-in="pressNativePressableIn()" @press-out="pressNativePressableOut()" style={{"height":24}}><Text>Native pressable</Text></Pressable>
+    <Text testID="pressable-lifecycle" :text="'Press lifecycle: ' + pressIns + '/' + pressOuts" />
+    <Pressable testID="disabled-pressable" disabled @click="pressNativePressable()" style={{"height":24}}><Text>Disabled pressable</Text></Pressable>
+    <Button testID="toggle-panel-accessibility" @click="togglePanelAccessibility()">Toggle panel accessibility</Button>
+    <View testID="long-press-panel" accessibilityState={longPressAccessibilityState()} @longpress="pressPanelLong()" style={{"height":24}}><Text>Long press panel</Text></View>
+    <Button testID="toggle-long-press-accessibility" @click="toggleLongPressAccessibility()">Toggle long press accessibility</Button>
+    <Text testID="long-press-status" :text="longPressStatus" />
+    <Button testID="toggle-button-style" accessibilityState={buttonAccessibilityState()} @click="toggleButtonAccent()" style={{"color":buttonAccent ? "#ef4444" : "#22c55e","fontSize":buttonAccent ? 22 : 16}}>Toggle button style</Button>
+    <Button testID="toggle-image-tint" @click="toggleImageTint()">Toggle image tint</Button>
+    <Switch testID="native-switch" value={switchValue} accessibilityState={switchAccessibilityState()} trackColor={switchTrackColor()} thumbColor="#ffffff" ios_backgroundColor="#475569" @value-change="toggleSwitch($event)" />
+    <Switch testID="nullable-switch" :value="null" :checked="true" />
+    <select testID="native-picker" :value="pickerValue" @change="choosePicker($event)">
       <option value="one">One</option>
       <option value="two">Two</option>
       <option value="three">Three</option>
     </select>
-    <Text testID="picker-value">{pickerValue}</Text>
-    <Button testID="toggle-modal" onPress={toggleModal}>Toggle modal</Button>
-    <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} onShow={modalShown} onDismiss={modalDismissed} onRequestClose={modalRequested}>
+    <Text testID="picker-value" :text="pickerValue" />
+    <Button testID="toggle-modal" @click="toggleModal()">Toggle modal</Button>
+    <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} @show="modalShown()" @dismiss="modalDismissed()" @request-close="modalRequested()">
       <Text testID="modal-content">Modal content</Text>
-      <Button testID="toggle-modal-opacity" onPress={toggleModalOpacity}>Toggle modal opacity</Button>
-      <Text testID="modal-opacity">{modalOpacity}</Text>
+      <Button testID="toggle-modal-opacity" @click="toggleModalOpacity()">Toggle modal opacity</Button>
+      <Text testID="modal-opacity" :text="modalOpacity" />
     </Modal>
-    <Text testID="modal-status">{modalStatus}</Text>
-    <Slider testID="native-slider" minimumValue={0} maximumValue={1} step={0.1} value={sliderValue} minimumTrackTintColor="#22c55e" maximumTrackTintColor="#64748b" thumbTintColor="#16a34a" onValueChange={moveSlider} onSlidingComplete={finishSlider} />
-    <Text testID="slider-value">{sliderValue}</Text>
-    <Text testID="slider-completions">Slider completions: {sliderCompletions}</Text>
+    <Text testID="modal-status" :text="modalStatus" />
+    <Slider testID="native-slider" minimumValue={0} maximumValue={1} step={0.1} value={sliderValue} minimumTrackTintColor="#22c55e" maximumTrackTintColor="#64748b" thumbTintColor="#16a34a" @value-change="moveSlider($event)" @sliding-complete="finishSlider()" />
+    <Text testID="slider-value" :text="sliderValue" />
+    <Text testID="slider-completions" :text="'Slider completions: ' + sliderCompletions" />
     <ActivityIndicator testID="native-indicator" color="#22c55e" size="large" />
-    <ActivityIndicator testID="stopped-indicator" color="#ef4444" size="small" animating={false} hidesWhenStopped={false} />
-    <ActivityIndicator testID="hidden-indicator" color="#ef4444" size="small" animating={false} hidesWhenStopped />
+    <ActivityIndicator testID="stopped-indicator" color="#ef4444" size="small" :animating="false" :hides-when-stopped="false" />
+    <ActivityIndicator testID="hidden-indicator" color="#ef4444" size="small" :animating="false" hidesWhenStopped />
     <ActivityIndicator testID="display-none-indicator" style={{"display":"none"}} />
-    <View testID="layout-wrap" onLayout={captureLayout} style={{"width":layoutWide ? 240 : 180,"height":90,"flexDirection":"row","flexWrap":"wrap","gap":4,"padding":4,"alignItems":"stretch","backgroundColor":"#223344"}}>
+    <View testID="layout-wrap" @layout="captureLayout($event)" style={{"width":layoutWide ? 240 : 180,"height":90,"flexDirection":"row","flexWrap":"wrap","gap":4,"padding":4,"alignItems":"stretch","backgroundColor":"#223344"}}>
       <Text testID="layout-min" style={{"width":200,"minWidth":120,"maxWidth":140,"height":24}}>bounded</Text>
       <Text testID="layout-stretch" style={{"width":100,"height":24,"alignSelf":"stretch"}}>wrapped</Text>
       <View testID="layout-absolute" style={{"position":"absolute","right":8,"bottom":8,"width":12,"height":12,"backgroundColor":"#abcdef"}} />
@@ -421,27 +421,27 @@ function openCapabilities() {
     <View testID="percent-wrap" style={{"width":240,"height":28,"backgroundColor":"#2f4050"}}>
       <Text testID="percent-width" style={{"width":"50%","height":20}}>half width</Text>
     </View>
-    <Text testID="layout-status">{layoutWidth > 0 ? `Layout width: ${layoutWidth}` : 'layout pending'}</Text>
-    <Button testID="toggle-layout-width" onPress={toggleLayoutWidth}>Toggle layout width</Button>
-    <Button testID="toggle-input-colors" onPress={toggleInputColors}>Toggle input colors</Button>
-    <Text testID="input-style-status">{inputStyleStatus}</Text>
-    <Button testID="toggle-name-mode" onPress={toggleNameMode}>Toggle name mode</Button>
-    <Text testID="name-mode">{nameMultiline ? 'multiline' : 'single-line'}</Text>
-    <TextInput testID="name-input" value={name} multiline={nameMultiline} placeholder="Your name" placeholderTextColor={inputColors ? "#94a3b8" : undefined} selectionColor={inputColors ? "#22c55e" : undefined} maxLength={8} keyboardType="email-address" returnKeyType="done" onChange={changeName} onFocus={focusName} onSubmitEditing={submitName} onBlur={blurName} onEndEditing={endNameEditing} />
-    <TextInput testID="notes-input" multiline numberOfLines={3} maxLength={24} defaultValue="Draft" placeholder="Notes" placeholderTextColor={inputColors ? "#94a3b8" : undefined} selectionColor={inputColors ? "#22c55e" : undefined} onFocus={focusNotes} onSubmitEditing={submitName} onBlur={blurNotes} onEndEditing={endNotesEditing} />
-    <TextInput testID="readonly-input" editable={false} defaultValue="Read only" />
+    <Text testID="layout-status" :text="layoutWidth > 0 ? 'Layout width: ' + layoutWidth : 'layout pending'" />
+    <Button testID="toggle-layout-width" @click="toggleLayoutWidth()">Toggle layout width</Button>
+    <Button testID="toggle-input-colors" @click="toggleInputColors()">Toggle input colors</Button>
+    <Text testID="input-style-status" :text="inputStyleStatus" />
+    <Button testID="toggle-name-mode" @click="toggleNameMode()">Toggle name mode</Button>
+    <Text testID="name-mode" :text="nameMultiline ? 'multiline' : 'single-line'" />
+    <TextInput testID="name-input" value={name} multiline={nameMultiline} placeholder="Your name" placeholderTextColor={inputColors ? "#94a3b8" : undefined} selectionColor={inputColors ? "#22c55e" : undefined} maxLength={8} keyboardType="email-address" returnKeyType="done" @input="changeName($event)" @focus="focusName()" @submit-editing="submitName()" @blur="blurName()" @end-editing="endNameEditing()" />
+    <TextInput testID="notes-input" multiline numberOfLines={3} maxLength={24} defaultValue="Draft" placeholder="Notes" placeholderTextColor={inputColors ? "#94a3b8" : undefined} selectionColor={inputColors ? "#22c55e" : undefined} @focus="focusNotes($event)" @submit-editing="submitName()" @blur="blurNotes()" @end-editing="endNotesEditing()" />
+    <TextInput testID="readonly-input" :editable="false" defaultValue="Read only" />
     <TextInput testID="password-input" secureTextEntry defaultValue="secret" />
-    <Text testID="greeting">Hello {name}</Text>
-    <Text testID="name-submits">Submits: {submits}</Text>
-    <Text testID="name-focuses">Focuses: {nameFocuses}</Text>
-    <Text testID="notes-focus-text">Notes focus: {notesFocusText}</Text>
-    <Text testID="name-blurs">Blurs: {nameBlurs}</Text>
-    <Text testID="name-end-editings">End edits: {nameEndEditings}</Text>
-    <Text testID="notes-blurs">Notes blurs: {notesBlurs}</Text>
-    <Text testID="notes-end-editings">Notes end edits: {notesEndEditings}</Text>
-    <Button testID="increment" onPress={increment}>Increment</Button>
-    <Text testID="count">Count: {count}</Text>
-    <Button testID="open-details" onPress={openDetails}>Open details</Button>
+    <Text testID="greeting" :text="'Hello ' + name" />
+    <Text testID="name-submits" :text="'Submits: ' + submits" />
+    <Text testID="name-focuses" :text="'Focuses: ' + nameFocuses" />
+    <Text testID="notes-focus-text" :text="'Notes focus: ' + notesFocusText" />
+    <Text testID="name-blurs" :text="'Blurs: ' + nameBlurs" />
+    <Text testID="name-end-editings" :text="'End edits: ' + nameEndEditings" />
+    <Text testID="notes-blurs" :text="'Notes blurs: ' + notesBlurs" />
+    <Text testID="notes-end-editings" :text="'Notes end edits: ' + notesEndEditings" />
+    <Button testID="increment" @click="increment()">Increment</Button>
+    <Text testID="count" :text="'Count: ' + count" />
+    <Button testID="open-details" @click="openDetails()">Open details</Button>
     </ScrollView>
   </SafeAreaView>
 </template>

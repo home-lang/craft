@@ -1,9 +1,9 @@
 <script>
-let status = 'Ready'
-let appState = globalThis.craft.lifecycle.getState()
+const status = state('Ready')
+const appState = state(globalThis.craft.lifecycle.getState())
 
 globalThis.craft.lifecycle.onStateChange(function(state) {
-  appState = state
+  appState.set(state)
 })
 
 async function saveData() {
@@ -12,10 +12,10 @@ async function saveData() {
     await globalThis.craft.db.execute('CREATE TABLE IF NOT EXISTS native_e2e_people (name TEXT NOT NULL)')
     await globalThis.craft.db.execute('DELETE FROM native_e2e_people')
     await globalThis.craft.db.execute('INSERT INTO native_e2e_people (name) VALUES (?)', ['Grace'])
-    status = 'Saved Ada and Grace'
+    status.set('Saved Ada and Grace')
   }
   catch (error) {
-    status = `Save error ${error.code || 'UNKNOWN'}: ${error.message}`
+    status.set(`Save error ${error.code || 'UNKNOWN'}: ${error.message}`)
   }
 }
 
@@ -23,10 +23,10 @@ async function loadData() {
   try {
     const profile = await globalThis.craft.storage.get('native-e2e-profile')
     const rows = await globalThis.craft.db.query('SELECT name FROM native_e2e_people')
-    status = `Loaded ${profile.name} and ${rows[0].name}`
+    status.set(`Loaded ${profile.name} and ${rows[0].name}`)
   }
   catch (error) {
-    status = `Load error ${error.code || 'UNKNOWN'}: ${error.message}`
+    status.set(`Load error ${error.code || 'UNKNOWN'}: ${error.message}`)
   }
 }
 
@@ -43,10 +43,10 @@ async function testNotifications() {
     const remaining = await globalThis.craft.notifications.pending()
     const found = scheduled.some(function(item) { return item.id === 'native-e2e-reminder' })
     const removed = !remaining.some(function(item) { return item.id === 'native-e2e-reminder' })
-    status = `Notifications ${found && removed ? 'scheduled and cancelled' : 'failed'}`
+    status.set(`Notifications ${found && removed ? 'scheduled and cancelled' : 'failed'}`)
   }
   catch (error) {
-    status = `Notification error ${error.code || 'UNKNOWN'}: ${error.message}`
+    status.set(`Notification error ${error.code || 'UNKNOWN'}: ${error.message}`)
   }
 }
 
@@ -57,10 +57,10 @@ async function testSecureStorage() {
     await globalThis.craft.secureStorage.delete('native-e2e-secret')
     await globalThis.craft.biometrics.isAvailable()
     await globalThis.craft.biometrics.getBiometricType()
-    status = value === 'keychain-value' ? 'Secure storage roundtrip' : 'Secure storage failed'
+    status.set(value === 'keychain-value' ? 'Secure storage roundtrip' : 'Secure storage failed')
   }
   catch (error) {
-    status = `Secure storage error ${error.code || 'UNKNOWN'}: ${error.message}`
+    status.set(`Secure storage error ${error.code || 'UNKNOWN'}: ${error.message}`)
   }
 }
 </script>
@@ -68,12 +68,12 @@ async function testSecureStorage() {
 <template>
   <View class="p-4">
     <Text testID="capabilities-title">Native capabilities</Text>
-    <Text testID="capabilities-platform">Platform: {globalThis.craft.platform}</Text>
-    <Text testID="capabilities-state">App state: {appState}</Text>
-    <Text testID="capabilities-status">{status}</Text>
-    <Button testID="save-capabilities" onPress={saveData}>Save persistent data</Button>
-    <Button testID="load-capabilities" onPress={loadData}>Load persistent data</Button>
-    <Button testID="test-notifications" onPress={testNotifications}>Test notifications</Button>
-    <Button testID="test-secure-storage" onPress={testSecureStorage}>Test secure storage</Button>
+    <Text testID="capabilities-platform" :text="'Platform: ' + globalThis.craft.platform" />
+    <Text testID="capabilities-state" :text="'App state: ' + appState" />
+    <Text testID="capabilities-status" :text="status" />
+    <Button testID="save-capabilities" @click="saveData()">Save persistent data</Button>
+    <Button testID="load-capabilities" @click="loadData()">Load persistent data</Button>
+    <Button testID="test-notifications" @click="testNotifications()">Test notifications</Button>
+    <Button testID="test-secure-storage" @click="testSecureStorage()">Test secure storage</Button>
   </View>
 </template>

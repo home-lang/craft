@@ -1,5 +1,5 @@
 <script>
-let name = String(globalThis.craft.route.params.name ?? '')
+const name = String(globalThis.craft.route.params.name ?? '')
 const count = state(Number(globalThis.craft.route.params.count ?? 0))
 const people = state(Array.from({ length: 40 }, (_, index) => ({ id: `person-${index}`, name: `Person ${index}` })))
 const listEvents = state(0)
@@ -56,34 +56,28 @@ onDestroy(() => globalThis.craft.storage.set('native-navigation-details-destroye
     <Text testID="details-title" :text="'Details for ' + name" />
     <Text testID="details-count" :text="'Count: ' + count" />
     <Button testID="details-increment" @click="incrementDetails()">Increment details state</Button>
-    <Text testID="people-count">People: {people.length}; events: {listEvents}</Text>
-    <FlatList
+    <Text testID="people-count" :text="'People: ' + people().length + '; events: ' + listEvents" />
+    <ScrollView
       testID="people-list"
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{"paddingTop":8}}
-      data={people}
-      keyExtractor={item.id}
-      numColumns={2}
-      onEndReached={loadMorePeople}
-      onEndReachedThreshold={null}
-      onRefresh={refreshPeople}
+      @refresh="refreshPeople()"
       refreshing={peopleRefreshing}
-      threshold={0.8}
       style={{"height":160}}
     >
-      <Text listRole="header" accessibilityRole="header" testID="people-header">People directory</Text>
-      <View listRole="item" accessibilityLabel={item.name} onLayout={captureRowLayout}>
-        <Text testID={'person-label-' + item.id}>{index}: {item.name}</Text>
-        <TextInput testID={'person-input-' + item.id} placeholder="Note" />
+      <Text accessibilityRole="header" testID="people-header">People directory</Text>
+      <View :for="(item, index) in people" :key="item.id" :accessibility-label="item.name" @layout="captureRowLayout()">
+        <Text :test-id="'person-label-' + item.id" :text="index + ': ' + item.name" />
+        <TextInput :test-id="'person-input-' + item.id" placeholder="Note" />
       </View>
-      <View listRole="separator" style={{"height":1,"backgroundColor":"#abcdef"}} />
-      <Text listRole="empty" testID="people-empty">Nobody here</Text>
-      <Text listRole="footer" testID="people-footer">End of people</Text>
-    </FlatList>
-    <Text testID="people-layout-status">Rows laid out: {rowLayouts}</Text>
-    <Button testID="shuffle-people" onPress={shufflePeople}>Shuffle people</Button>
-    <Button testID="clear-people" onPress={clearPeople}>Clear people</Button>
+      <Text :if="people().length === 0" testID="people-empty">Nobody here</Text>
+      <Text testID="people-footer">End of people</Text>
+    </ScrollView>
+    <Text testID="people-layout-status" :text="'Rows laid out: ' + rowLayouts" />
+    <Button testID="load-more-people" @click="loadMorePeople()">Load more people</Button>
+    <Button testID="shuffle-people" @click="shufflePeople()">Shuffle people</Button>
+    <Button testID="clear-people" @click="clearPeople()">Clear people</Button>
     <Button testID="details-back" @click="goBack()">Back in app</Button>
     <Button testID="open-summary" @click="replaceWithSummary()">Show summary</Button>
   </View>
