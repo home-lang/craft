@@ -353,6 +353,12 @@ function openCapabilities() {
       <Text testID="grid-second">grid two</Text>
       <Text testID="grid-third">grid three</Text>
     </View>
+    <View testID="align-content-wrap" style={{"width":120,"height":96,"flexDirection":"row","flexWrap":"wrap","alignContent":"space-between","backgroundColor":"#243444"}}>
+      <View testID="align-content-first" style={{"width":60,"height":20,"backgroundColor":"#6b7280"}} />
+      <View testID="align-content-second" style={{"width":60,"height":20,"backgroundColor":"#9ca3af"}} />
+      <View testID="align-content-third" style={{"width":60,"height":20,"backgroundColor":"#d1d5db"}} />
+      <View testID="align-content-fourth" style={{"width":60,"height":20,"backgroundColor":"#f3f4f6"}} />
+    </View>
     <View testID="flex-grow-wrap" style={{"flexDirection":"row","width":240,"height":32,"gap":4,"backgroundColor":"#445566"}}>
       <Text testID="flex-grow-first" style={{"width":40,"flexGrow":1}}>grow</Text>
       <Text testID="flex-grow-second" style={{"width":40}}>fixed</Text>
