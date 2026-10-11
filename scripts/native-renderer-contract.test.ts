@@ -627,6 +627,7 @@ describe('native renderer component contract', () => {
   it('keeps reverse flex directions covered on both native hosts', () => {
     expect(navigationHome).toContain('testID="reverse-column"')
     expect(navigationHome).toContain('flexDirection":"column-reverse"')
+    expect(navigationHome).toContain('tintColor":imageTinted ? "#2563eb" : null')
     expect(iosNavigationTest).toContain('column-reverse did not invert the main axis')
     expect(androidNavigationTest).toContain('column-reverse did not invert the main axis')
     expect(android).toContain('if (style.optString("flexDirection").endsWith("-reverse")) desired.reverse()')

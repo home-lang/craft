@@ -32,6 +32,8 @@ fixtures must not rely on injected `state`, `onMount`, or `onDestroy` helpers.
 The native form coverage also keeps a keyed input's draft while changing its
 single-line/multiline mode, recreating the incompatible platform control, and
 the iOS fixture runs the same mode-transition and recycled-row assertions.
+The image control also verifies that an explicit `null` tint style clears the
+previous native color filter during an incremental update.
 The shared name field is controlled, so its value and caret remain stable
 while the native renderer applies each change on both hosts.
 Test identities stay in Android view tags, leaving visible text available to
