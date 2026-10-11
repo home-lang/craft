@@ -137,6 +137,19 @@ class NativeNavigationTest {
         throw AssertionError("Timed out waiting for $id to read $expected")
     }
 
+    private fun awaitImageTintCleared(activity: MainActivity, id: String): ImageView {
+        repeat(75) {
+            var matching: ImageView? = null
+            instrumentation.runOnMainSync {
+                val view = find(activity.window.decorView, id)
+                if (view is ImageView && view.colorFilter == null) matching = view
+            }
+            if (matching != null) return matching!!
+            SystemClock.sleep(100)
+        }
+        throw AssertionError("Timed out waiting for $id tint to clear")
+    }
+
     private fun awaitLayoutIncrease(activity: MainActivity, id: String, baseline: Int): TextView {
         repeat(75) {
             var matching: TextView? = null
@@ -315,8 +328,7 @@ class NativeNavigationTest {
             awaitText(activity, "long-press-status", "panel long pressed")
             click(activity, "toggle-image-tint")
             awaitText(activity, "image-status", "image tint off")
-            val tintedImage = awaitView(activity, "native-image") as ImageView
-            assertTrue("image tint did not clear on style update", tintedImage.colorFilter == null)
+            awaitImageTintCleared(activity, "native-image")
             val tintedUnsupported = awaitView(activity, "unsupported-image") as ImageView
             assertEquals(1, tintedUnsupported.contentDescription.toString().split("Unsupported image source").size - 1)
             val styleToggle = awaitView(activity, "toggle-button-style") as Button

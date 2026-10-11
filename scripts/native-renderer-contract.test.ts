@@ -188,7 +188,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('screen.suppressedTextChanges.remove(it)')
     expect(android).toContain('val requestedValue = props.opt("value")')
     expect(android).toContain('props.optBoolean("checked", false)')
-    expect(android).toContain('style.optString("tintColor").takeIf { it.isNotBlank() }')
+    expect(android).toContain('val tint = style.opt("tintColor") as? String')
     expect(android).toContain('style.optDouble("lineHeight", Double.NaN)')
     expect(android).toContain('field.setSelection(minOf(boundedStart, boundedEnd), maxOf(boundedStart, boundedEnd))')
     expect(android).toContain('if (seekBar.progress != snappedProgress)')
@@ -401,7 +401,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('imageJobs.remove(view)?.cancel(true)')
     expect(android).toContain('if (imageSources[view] != uri) return@runOnUiThread')
     expect(android).toContain('"cover" -> ImageView.ScaleType.CENTER_CROP')
-    expect(android).toContain('if (style.isNull("tintColor"))')
+    expect(android).toContain('val tint = style.opt("tintColor") as? String')
+    expect(android).toContain('tint == "null" || tint == "undefined"')
     expect(android).toContain('view.clearColorFilter()')
   })
 

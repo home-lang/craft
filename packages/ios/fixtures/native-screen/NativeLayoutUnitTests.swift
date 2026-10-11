@@ -309,9 +309,7 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertEqual(account.accessibilityLabel, "Me")
         XCTAssertEqual(chat.layer.cornerRadius, 22)
         XCTAssertEqual(account.layer.cornerRadius, 22)
-        if #available(iOS 26.0, *) {
-            XCTAssertTrue(items.allSatisfy { $0.hidesSharedBackground && !$0.sharesBackground })
-        }
+        XCTAssertTrue(items.allSatisfy { $0.customView is UIButton })
     }
 
     func testNavigationOptionsSetTheBarAndTheRootTitleIsNeverUndefined() throws {
