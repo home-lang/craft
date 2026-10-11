@@ -408,6 +408,11 @@ describe('native renderer component contract', () => {
     expect(android).toContain('flex?.takeIf { it > 0.0 }?.let { CraftNativeLength(points = 0) }')
   })
 
+  it('clamps negative flex growth to zero on both hosts', () => {
+    expect(ios).toContain('flexGrow = number(raw["flexGrow"]) ?? flex.map { max(0, $0) } ?? 0')
+    expect(android).toContain('flex?.coerceAtLeast(0.0) ?: 0.0')
+  })
+
   it('aligns omitted flex-shrink defaults for labels and scroll hosts', () => {
     expect(ios).toContain('defaultShrink = horizontal ? 1 : 0')
     expect(android).toContain('val flexShrink: Double? = null')

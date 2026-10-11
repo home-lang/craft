@@ -134,7 +134,7 @@ private data class CraftNativeLayoutStyle(
                     ?.takeUnless { it == JSONObject.NULL }
                     ?.toString()
                     ?.takeIf { it.isNotBlank() && it != "auto" },
-                flexGrow = decimal("flexGrow") ?: flex ?: 0.0,
+                flexGrow = decimal("flexGrow") ?: flex?.coerceAtLeast(0.0) ?: 0.0,
                 flexShrink = decimal("flexShrink") ?: flex?.let { if (it != 0.0) 1.0 else 0.0 },
                 flexBasis = length("flexBasis")
                     ?: flex?.takeIf { it > 0.0 }?.let { CraftNativeLength(points = 0) },
