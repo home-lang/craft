@@ -36,6 +36,7 @@ try {
       enableLocalNotifications: true,
       enableSecureStorage: true,
       enableBiometric: true,
+      enableLocalNetwork: true,
       urlSchemes: ['craft-native-test'],
     },
     runtimeDir: null,

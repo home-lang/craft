@@ -24,9 +24,16 @@ import androidx.security.crypto.MasterKey
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
+import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
+import java.net.SocketTimeoutException
+import java.net.URL
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+
+private const val CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+private const val CRAFT_NATIVE_FETCH_TIMEOUT_MS = 30_000
 
 internal const val CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION = 1
 
@@ -58,14 +65,16 @@ internal class CraftNativeCapabilities(
     }
     private val notificationStorage = activity.getSharedPreferences("craft-native-notifications", Context.MODE_PRIVATE)
     private val databaseExecutor = Executors.newSingleThreadExecutor()
+    private val networkExecutor = Executors.newCachedThreadPool()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
+    private val fetchConnections = ConcurrentHashMap<String, HttpURLConnection>()
     private var database: SQLiteDatabase? = null
     private val biometricPrompts = ConcurrentHashMap<String, BiometricPrompt>()
 
     init { restoreNotifications() }
 
     fun names(): JSONArray = JSONArray().apply {
-        listOf("device", "clipboard", "haptics", "storage", "lifecycle").forEach(::put)
+        listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch").forEach(::put)
         if (config.optBoolean("enableBiometric")) put("biometric")
         if (config.optBoolean("enableSecureStorage")) put("secureStorage")
         if (config.optBoolean("enableLocalDatabase")) put("database")
@@ -105,21 +114,114 @@ internal class CraftNativeCapabilities(
                 else failure("UNKNOWN_ACTION", "Unsupported Lifecycle method"), completion)
             "DeepLinks" -> complete(requestToken, deepLinks(method), completion)
             "Notifications" -> notifications(requestToken, method, args, completion)
+            "Network" -> {
+                if (method != "fetch") {
+                    complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Network method"), completion)
+                } else networkExecutor.execute {
+                    complete(requestToken, fetch(requestToken, args), completion)
+                }
+            }
             else -> complete(requestToken, activity.performImmediateCapability(module, method, args), completion)
         }
     }
 
     fun cancel(requestToken: String) {
         cancelled.add(requestToken)
+        fetchConnections.remove(requestToken)?.disconnect()
         biometricPrompts.remove(requestToken)?.cancelAuthentication()
     }
 
     fun close() {
         databaseExecutor.shutdownNow()
+        networkExecutor.shutdownNow()
+        fetchConnections.values.forEach(HttpURLConnection::disconnect)
+        fetchConnections.clear()
         database?.close()
         database = null
         biometricPrompts.values.forEach { it.cancelAuthentication() }
         biometricPrompts.clear()
+    }
+
+    /** The same bounded text-only fetch contract as the maintained iOS host. */
+    private fun fetch(requestToken: String, args: JSONArray): CraftNativeCapabilityResult {
+        val options = args.optJSONObject(0)
+            ?: return failure("INVALID_ARGUMENT", "fetch needs an options object")
+        val address = options.optString("url").trim()
+        val url = runCatching { URL(address) }.getOrNull()
+            ?: return failure("INVALID_ARGUMENT", "fetch needs an absolute http or https URL")
+        if (url.protocol.lowercase() !in setOf("http", "https") || url.host.isBlank())
+            return failure("INVALID_ARGUMENT", "fetch needs an absolute http or https URL")
+
+        val method = options.optString("method", "GET").uppercase()
+        if (method.isBlank() || method.any { !it.isLetter() || it.code > 127 })
+            return failure("INVALID_ARGUMENT", "fetch method must be an HTTP token")
+        val bodyValue = options.opt("body")
+        val body = when (bodyValue) {
+            null, JSONObject.NULL -> null
+            is String -> bodyValue
+            else -> return failure("INVALID_ARGUMENT", "fetch body must be a string")
+        }
+        if (body != null && method in setOf("GET", "HEAD"))
+            return failure("INVALID_ARGUMENT", "A GET or HEAD request cannot have a body")
+
+        val connection = try {
+            (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = method
+                connectTimeout = CRAFT_NATIVE_FETCH_TIMEOUT_MS
+                readTimeout = CRAFT_NATIVE_FETCH_TIMEOUT_MS
+                instanceFollowRedirects = true
+                options.optJSONObject("headers")?.let { headers ->
+                    for (name in headers.keys()) {
+                        val value = headers.opt(name)
+                        if (value !is String) throw IllegalArgumentException("fetch header values must be strings")
+                        setRequestProperty(name, value)
+                    }
+                }
+                if (body != null) doOutput = true
+            }
+        } catch (error: IllegalArgumentException) {
+            return failure("INVALID_ARGUMENT", error.message ?: "fetch request is invalid")
+        } catch (error: Exception) {
+            return failure("NETWORK_ERROR", error.message ?: "Network request failed")
+        }
+        fetchConnections[requestToken] = connection
+        if (cancelled.contains(requestToken)) {
+            fetchConnections.remove(requestToken)?.disconnect()
+            return failure("CANCELLED", "Network request was cancelled")
+        }
+        return try {
+            if (body != null) connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val status = connection.responseCode
+            val input = if (status >= 400) connection.errorStream else connection.inputStream
+            val output = ByteArrayOutputStream()
+            input?.use { stream ->
+                val chunk = ByteArray(8192)
+                while (true) {
+                    val count = stream.read(chunk)
+                    if (count < 0) break
+                    if (output.size() + count > CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES)
+                        return failure("RESPONSE_TOO_LARGE", "fetch responses are limited to $CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES bytes")
+                    output.write(chunk, 0, count)
+                }
+            }
+            val headers = JSONObject()
+            connection.headerFields.forEach { (name, values) ->
+                if (name != null && !values.isNullOrEmpty()) headers.put(name.lowercase(), values.joinToString(", "))
+            }
+            success(JSONObject()
+                .put("url", connection.url.toString())
+                .put("status", status)
+                .put("statusText", connection.responseMessage ?: "")
+                .put("headers", headers)
+                .put("redirected", connection.url != url)
+                .put("body", output.toString(Charsets.UTF_8.name())))
+        } catch (error: SocketTimeoutException) {
+            failure("TIMEOUT", error.message ?: "Network request timed out")
+        } catch (error: Exception) {
+            failure("NETWORK_ERROR", error.message ?: "Network request failed")
+        } finally {
+            fetchConnections.remove(requestToken)?.disconnect()
+        }
     }
 
     private fun complete(

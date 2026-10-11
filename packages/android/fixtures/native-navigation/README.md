@@ -25,6 +25,10 @@ The navigation section also verifies the shared runtime lifecycle: a pushed
 details screen gets fresh state, the unmount marker runs after the Android Back
 path, and replacement disposes the outgoing screen before the new route is
 opened.
+The capability fixture also starts an emulator-local HTTP endpoint and sends a
+text-body request through the advertised `fetch` capability. It checks the
+authorization header, response status, headers and body, using the same bounded
+request/response contract as the maintained iOS host.
 The shared Home route uses ordinary top-level variables because the pinned
 native compiler emits client scripts as-is. The host supplies `craft` and calls
 the explicit `globalThis.__stxNativeUnmount` marker when a screen closes;

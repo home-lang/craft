@@ -3,9 +3,11 @@ package dev.craft.navigationtest
 import android.content.Intent
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import java.net.ServerSocket
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -38,6 +40,75 @@ class NativeCapabilitiesTest {
         }
         assertTrue("native capability did not settle", latch.await(10, TimeUnit.SECONDS))
         return requireNotNull(answer)
+    }
+
+    @Test
+    fun fetchUsesTheSameTextProtocolAsTheIosHost() {
+        val server = ServerSocket(0)
+        val received = mutableListOf<String>()
+        val serving = thread(name = "native-fetch-fixture") {
+            server.accept().use { socket ->
+                val reader = socket.getInputStream().bufferedReader()
+                val lines = mutableListOf<String>()
+                while (true) {
+                    val line = reader.readLine()
+                    if (line.isNullOrEmpty()) break
+                    lines += line
+                }
+                val length = lines.firstOrNull { it.startsWith("Content-Length:", ignoreCase = true) }
+                    ?.substringAfter(':')?.trim()?.toIntOrNull() ?: 0
+                val body = CharArray(length)
+                var offset = 0
+                while (offset < length) {
+                    val count = reader.read(body, offset, length - offset)
+                    if (count < 0) break
+                    offset += count
+                }
+                received += lines.joinToString("\n") + "\n\n" + String(body, 0, offset)
+                val response = "{\"activity\":{\"id\":42}}"
+                socket.getOutputStream().bufferedWriter().use { writer ->
+                    writer.write("HTTP/1.1 201 Created\r\n")
+                    writer.write("Content-Type: application/json\r\n")
+                    writer.write("X-Native-Test: android\r\n")
+                    writer.write("Content-Length: ${response.toByteArray().size}\r\n")
+                    writer.write("Connection: close\r\n\r\n")
+                    writer.write(response)
+                }
+            }
+        }
+        val activity = instrumentation.startActivitySync(
+            Intent(instrumentation.targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        val capabilities = CraftNativeCapabilities(activity, JSONObject())
+        try {
+            assertTrue(capabilities.names().toString().contains("fetch"))
+            assertEquals("INVALID_ARGUMENT", call(capabilities, "Network", "fetch", JSONArray()
+                .put(JSONObject().put("url", "/api/activities"))).code)
+
+            val result = call(capabilities, "Network", "fetch", JSONArray().put(JSONObject()
+                .put("url", "http://127.0.0.1:${server.localPort}/api/activities")
+                .put("method", "POST")
+                .put("headers", JSONObject()
+                    .put("Authorization", "Bearer native-token")
+                    .put("Content-Type", "application/json"))
+                .put("body", "{\"distance\":5}")))
+            assertNull(result.code)
+            val response = result.data as JSONObject
+            assertEquals(201, response.getInt("status"))
+            assertEquals("Created", response.getString("statusText"))
+            assertEquals("android", response.getJSONObject("headers").getString("x-native-test"))
+            assertEquals("{\"activity\":{\"id\":42}}", response.getString("body"))
+            serving.join(5_000)
+            assertTrue(received.single().contains("authorization: Bearer native-token", ignoreCase = true))
+            assertTrue(received.single().endsWith("{\"distance\":5}"))
+        }
+        finally {
+            server.close()
+            capabilities.close()
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
     }
 
     @Test
