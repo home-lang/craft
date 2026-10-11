@@ -251,6 +251,11 @@ class NativeNavigationTest {
             val growFirst = awaitView(activity, "flex-grow-first")
             val growSecond = awaitView(activity, "flex-grow-second")
             assertTrue("flexGrow did not consume remaining main-axis space", growFirst.width > growSecond.width)
+            val reverseColumn = awaitView(activity, "reverse-column") as LinearLayout
+            val reverseColumnFirst = awaitView(activity, "reverse-column-first")
+            val reverseColumnSecond = awaitView(activity, "reverse-column-second")
+            assertEquals(LinearLayout.VERTICAL, reverseColumn.orientation)
+            assertTrue("column-reverse did not invert the main axis", reverseColumnFirst.top > reverseColumnSecond.top)
             val link = awaitView(activity, "native-link")
             assertTrue("native link should be a TextView", link is TextView)
             assertEquals("Open native link", (link as TextView).text.toString())

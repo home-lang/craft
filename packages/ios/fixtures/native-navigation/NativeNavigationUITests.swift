@@ -219,6 +219,11 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(growFirst.waitForExistence(timeout: 5))
         XCTAssertTrue(growSecond.exists)
         XCTAssertGreaterThan(growFirst.frame.width, growSecond.frame.width, "flexGrow did not consume remaining main-axis space")
+        let reverseColumnFirst = app.staticTexts["reverse-column-first"]
+        let reverseColumnSecond = app.staticTexts["reverse-column-second"]
+        XCTAssertTrue(reverseColumnFirst.waitForExistence(timeout: 5))
+        XCTAssertTrue(reverseColumnSecond.exists)
+        XCTAssertGreaterThan(reverseColumnFirst.frame.minY, reverseColumnSecond.frame.minY, "column-reverse did not invert the main axis")
 
         let link = app.buttons["native-link"]
         XCTAssertTrue(link.waitForExistence(timeout: 5))
