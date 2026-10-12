@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.148...v0.0.149)
+
+## 🚀 Features
+
+- native screens can pop to the first screen of their stack ([ff8996e](https://github.com/craft-native/craft/commit/ff8996e)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.147...v0.0.148)
 
 ## 🚀 Features
