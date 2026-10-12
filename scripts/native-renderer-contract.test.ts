@@ -74,6 +74,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('strokeCap = when (props.optString("strokeLinecap"))')
     expect(android).toContain('strokeJoin = when (props.optString("strokeLinejoin"))')
     expect(android).toContain('DashPathEffect(pattern.toFloatArray(), 0f)')
+    expect(android).toContain('SvgPaint().merge(drawing)')
     expect(guide).toContain('`Svg` is DOM-free in native mode')
     expect(guide).toContain('line\ncaps, joins, and dash patterns')
   })

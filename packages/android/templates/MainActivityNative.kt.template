@@ -218,7 +218,7 @@ private class CraftNativeSvgView(context: Context) : View(context) {
         canvas.translate((width - box.first * scale) / 2f, (height - box.second * scale) / 2f)
         canvas.scale(scale, scale)
         canvas.translate(-box.third, -box.fourth)
-        drawNodes(canvas, drawing.optJSONArray("children") ?: JSONArray(), SvgPaint())
+        drawNodes(canvas, drawing.optJSONArray("children") ?: JSONArray(), SvgPaint().merge(drawing))
         canvas.restore()
     }
 

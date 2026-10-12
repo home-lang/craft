@@ -184,6 +184,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('View.OnLayoutChangeListener')
       expect(nativeActivity).toContain('view.addOnLayoutChangeListener(listener)')
       expect(nativeActivity).toContain('view.removeOnLayoutChangeListener(listener)')
+      expect(nativeActivity).toContain('drawNodes(canvas, drawing.optJSONArray("children") ?: JSONArray(), SvgPaint().merge(drawing))')
       expect(nativeActivity).toContain('control.onLayoutChanged = { if (screen.active) emitLayoutEvents(screen) }')
       expect(nativeActivity).toContain('released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }')
       expect(nativeActivity).toContain('"Picker" -> (previous as? Spinner ?: Spinner(this)).apply')
