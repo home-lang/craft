@@ -235,7 +235,7 @@ describe('Craft iOS builder', () => {
     expect(actionsSwift).toContain('import LocalAuthentication')
     expect(actionsSwift).toContain('import Security')
     // fetch: a URLSession task per request token, cancelled with the request.
-    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch"]')
+    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog"]')
     expect(actionsSwift).toContain('case ("Network", "fetch"):')
     expect(actionsSwift).toContain('let craftNativeFetchTimeoutSeconds: TimeInterval = 30')
     expect(actionsSwift).toContain('fetchTasks[requestToken] = task')
@@ -701,6 +701,16 @@ describe('Craft iOS builder', () => {
     expect(actions).toContain('guard config.enableHealthKit else {')
     expect(actions).toContain('CraftHealth.shared.perform(method: method, args: args)')
     expect(actions).toContain('if config.enableHealthKit { values.append("health") }')
+  })
+
+  it('asks a native screen\'s questions with the system\'s own alerts and sheets', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-dialog-'))
+    await init({ runtimeDir: null, name: 'Ask', bundleId: 'com.example.ask', output })
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    expect(actions).toContain('"fetch", "dialog"]')
+    expect(actions).toContain('case ("Dialog", _):')
+    for (const call of ['CraftDialogs.alert(body, from: nil)', 'CraftDialogs.confirm(body, from: nil)', 'CraftDialogs.actionSheet(body, from: nil)'])
+      expect(actions).toContain(call)
   })
 
   it('keeps a default when a caller passes undefined, and the app reads a partial config over its defaults', async () => {

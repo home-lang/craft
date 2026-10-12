@@ -38,7 +38,7 @@ enum CraftNativeActions {
     private static let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
     static func capabilities(config: CraftConfig) -> [String] {
-        var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch"]
+        var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog"]
         if config.enableBiometric { values.append("biometric") }
         if config.enableSecureStorage { values.append("secureStorage") }
         if config.enableLocalDatabase { values.append("database") }
@@ -145,6 +145,23 @@ enum CraftNativeActions {
                 return
             }
             databaseQueue.async { complete(requestToken, database(method: method, args: args), completion) }
+            return
+        case ("Dialog", _):
+            // The system's own alert, confirmation and action sheet, the same
+            // ones a page gets (CraftNativeUI.swift), over the native screen.
+            let body = args.first as? [String: Any] ?? [:]
+            DispatchQueue.main.async {
+                switch method {
+                case "alert":
+                    CraftDialogs.alert(body, from: nil) { complete(requestToken, .success(NSNull()), completion) }
+                case "confirm":
+                    CraftDialogs.confirm(body, from: nil) { complete(requestToken, .success($0), completion) }
+                case "actionSheet":
+                    CraftDialogs.actionSheet(body, from: nil) { complete(requestToken, .success($0 ?? NSNull()), completion) }
+                default:
+                    complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Dialog method"), completion)
+                }
+            }
             return
         case ("Health", _):
             // Apple Health, the same as a page's `craft.health` (CraftHealth.swift).
