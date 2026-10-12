@@ -3274,6 +3274,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if navigationController?.topViewController === self {
                 navigationController?.popViewController(animated: true)
             }
+        case "NAVIGATE_POP_TO_ROOT":
+            // Back to the first screen of this screen's stack in one move: a
+            // finished task (a saved workout) closes the way it was reached.
+            if navigationController?.topViewController === self {
+                navigationController?.popToRootViewController(animated: true)
+            }
         case "API_REQUEST":
             guard let id = message["id"] as? String else { return }
             let args = payload["args"] as? [Any] ?? []

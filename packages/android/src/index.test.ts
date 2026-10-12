@@ -301,6 +301,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('style.optString("flexDirection").endsWith("-reverse")')
       expect(nativeActivity).toContain('style.optString("flexDirection") in setOf("row", "row-reverse")')
       expect(nativeActivity).toContain('Unsupported image source')
+      expect(nativeActivity).toContain('"NAVIGATE_POP_TO_ROOT" -> if (screens.lastOrNull() === screen) popToRoot()')
       expect(nativeActivity).toContain('if (!current.contains(message))')
       expect(nativeActivity).toContain('joinToString(", ")')
       expect(nativeActivity).toContain('screen.controls.putAll(next)')

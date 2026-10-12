@@ -1882,6 +1882,7 @@ class MainActivity : AppCompatActivity() {
                 openScreen(route, payload.optJSONObject("params") ?: JSONObject())
             }
             "NAVIGATE_BACK" -> if (screens.lastOrNull() === screen) back()
+            "NAVIGATE_POP_TO_ROOT" -> if (screens.lastOrNull() === screen) popToRoot()
             "API_REQUEST" -> answerAPI(screen, message, payload)
             "API_CANCEL" -> {
                 val id = payload.optString("requestId")
@@ -3195,6 +3196,12 @@ class MainActivity : AppCompatActivity() {
             val script = "globalThis.__stxNativeCallback && globalThis.__stxNativeCallback(${JSONObject.quote(message.toString())})"
             screen.isolate.evaluateJavaScriptAsync(script)
         }
+    }
+
+    /** Back to the first screen in one move. */
+    private fun popToRoot() {
+        while (screens.size > 1) closeScreen(screens.removeAt(screens.lastIndex))
+        show(screens.last())
     }
 
     private fun back() {
