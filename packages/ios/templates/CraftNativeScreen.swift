@@ -1,9 +1,11 @@
 import Foundation
 import AVFoundation
 import AVKit
+import CryptoKit
 import Darwin
 import JavaScriptCore
 import OSLog
+import Security
 import SwiftUI
 import UIKit
 
@@ -2461,6 +2463,89 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         jsContext.setObject(snapshotSet, forKeyedSubscript: "craftNativeSnapshotSet" as NSString)
         jsContext.setObject(secureGet, forKeyedSubscript: "craftNativeSecureGet" as NSString)
         jsContext.setObject(setOptions, forKeyedSubscript: "craftNativeSetOptions" as NSString)
+        // `crypto` for code shared with the page (a sign-in's nonce and its
+        // SHA-256): JavaScriptCore has none. Random bytes from the system's
+        // generator, digests from CryptoKit, both as hex.
+        let randomBytes: @convention(block) (Int) -> String? = { count in
+            guard count >= 0, count <= 65_536 else { return nil }
+            var bytes = [UInt8](repeating: 0, count: count)
+            guard count == 0 || SecRandomCopyBytes(kSecRandomDefault, count, &bytes) == errSecSuccess else { return nil }
+            return bytes.map { String(format: "%02x", $0) }.joined()
+        }
+        let digest: @convention(block) (String, String) -> String? = { algorithm, hex in
+            var data = Data(capacity: hex.count / 2)
+            var index = hex.startIndex
+            while index < hex.endIndex {
+                let next = hex.index(index, offsetBy: 2, limitedBy: hex.endIndex) ?? hex.endIndex
+                guard let byte = UInt8(hex[index..<next], radix: 16) else { return nil }
+                data.append(byte)
+                index = next
+            }
+            let bytes: [UInt8]
+            switch algorithm.uppercased() {
+            case "SHA-1": bytes = Array(Insecure.SHA1.hash(data: data))
+            case "SHA-256": bytes = Array(SHA256.hash(data: data))
+            case "SHA-384": bytes = Array(SHA384.hash(data: data))
+            case "SHA-512": bytes = Array(SHA512.hash(data: data))
+            default: return nil
+            }
+            return bytes.map { String(format: "%02x", $0) }.joined()
+        }
+        jsContext.setObject(randomBytes, forKeyedSubscript: "craftNativeRandomBytes" as NSString)
+        jsContext.setObject(digest, forKeyedSubscript: "craftNativeDigest" as NSString)
+        jsContext.evaluateScript("""
+            (function() {
+                var cryptoObject = globalThis.crypto || {};
+                function hexToBytes(hex) {
+                    var bytes = new Uint8Array(hex.length / 2);
+                    for (var i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+                    return bytes;
+                }
+                function toHex(bytes) {
+                    var out = '';
+                    for (var i = 0; i < bytes.length; i++) out += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16);
+                    return out;
+                }
+                function viewOf(data) {
+                    if (data instanceof ArrayBuffer) return new Uint8Array(data);
+                    if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+                    throw new TypeError('crypto.subtle.digest needs an ArrayBuffer or a typed array');
+                }
+                if (typeof cryptoObject.getRandomValues !== 'function') {
+                    cryptoObject.getRandomValues = function(array) {
+                        if (!ArrayBuffer.isView(array)) throw new TypeError('crypto.getRandomValues needs a typed array');
+                        var hex = craftNativeRandomBytes(array.byteLength);
+                        if (hex == null) throw new Error('No random bytes from the system');
+                        new Uint8Array(array.buffer, array.byteOffset, array.byteLength).set(hexToBytes(hex));
+                        return array;
+                    };
+                }
+                if (typeof cryptoObject.randomUUID !== 'function') {
+                    cryptoObject.randomUUID = function() {
+                        var b = cryptoObject.getRandomValues(new Uint8Array(16));
+                        b[6] = (b[6] & 0x0f) | 0x40;
+                        b[8] = (b[8] & 0x3f) | 0x80;
+                        var h = toHex(b);
+                        return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+                    };
+                }
+                if (!cryptoObject.subtle || typeof cryptoObject.subtle.digest !== 'function') {
+                    cryptoObject.subtle = Object.assign(cryptoObject.subtle || {}, {
+                        digest: function(algorithm, data) {
+                            try {
+                                var name = typeof algorithm === 'string' ? algorithm : algorithm && algorithm.name;
+                                var out = craftNativeDigest(String(name || ''), toHex(viewOf(data)));
+                                if (out == null) return Promise.reject(new Error('Unsupported digest: ' + name));
+                                return Promise.resolve(hexToBytes(out).buffer);
+                            } catch (error) {
+                                return Promise.reject(error);
+                            }
+                        }
+                    });
+                }
+                globalThis.crypto = cryptoObject;
+            })();
+        """)
         jsContext.evaluateScript("""
             (function() {
                 function text(value) {

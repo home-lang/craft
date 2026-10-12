@@ -390,6 +390,74 @@ extension CraftBrowser: ASWebAuthenticationPresentationContextProviding {
     }
 }
 
+// MARK: - Sign in with Apple
+
+struct CraftSignInWithAppleError: Error {
+    let code: String
+    let message: String
+}
+
+/// `craft.signInWithApple`: the system's Sign in with Apple sheet, for a page
+/// and for a native screen alike. Answers with Apple's user id, the name and
+/// email when Apple shares them (the first time only), the identity token and
+/// the one-use authorization code a server redeems at Apple. `nonce` is what
+/// the caller wants written into the identity token (its SHA-256, by
+/// convention).
+final class CraftSignInWithApple: NSObject {
+    static let shared = CraftSignInWithApple()
+
+    private var completion: ((Result<[String: Any], CraftSignInWithAppleError>) -> Void)?
+    private var controller: ASAuthorizationController?
+
+    func signIn(nonce: String?, completion: @escaping (Result<[String: Any], CraftSignInWithAppleError>) -> Void) {
+        // One sheet at a time: a second request answers the first.
+        self.completion?(.failure(CraftSignInWithAppleError(code: "CANCELLED", message: "Another sign-in started")))
+        self.completion = completion
+        let request = ASAuthorizationAppleIDProvider().createRequest()
+        request.requestedScopes = [.fullName, .email]
+        if let nonce, !nonce.isEmpty { request.nonce = nonce }
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        controller.delegate = self
+        controller.presentationContextProvider = self
+        self.controller = controller
+        controller.performRequests()
+    }
+
+    private func finish(_ result: Result<[String: Any], CraftSignInWithAppleError>) {
+        let completion = self.completion
+        self.completion = nil
+        controller = nil
+        completion?(result)
+    }
+}
+
+extension CraftSignInWithApple: ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+            finish(.failure(CraftSignInWithAppleError(code: "SIGN_IN_FAILED", message: "Apple answered without an Apple ID")))
+            return
+        }
+        var result: [String: Any] = ["userId": credential.user]
+        if let email = credential.email { result["email"] = email }
+        let name = [credential.fullName?.givenName, credential.fullName?.familyName].compactMap { $0 }.joined(separator: " ")
+        if !name.isEmpty { result["name"] = name }
+        if let token = credential.identityToken.flatMap({ String(data: $0, encoding: .utf8) }) { result["identityToken"] = token }
+        // One use, five minutes: the server redeems it at Apple's token
+        // endpoint and so reads the identity straight from Apple.
+        if let code = credential.authorizationCode.flatMap({ String(data: $0, encoding: .utf8) }) { result["authorizationCode"] = code }
+        finish(.success(result))
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        let cancelled = (error as? ASAuthorizationError)?.code == .canceled
+        finish(.failure(CraftSignInWithAppleError(code: cancelled ? "CANCELLED" : "SIGN_IN_FAILED", message: error.localizedDescription)))
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        CraftPresenter.keyWindow() ?? ASPresentationAnchor()
+    }
+}
+
 // MARK: - SF Symbols
 
 /// `craft.symbols.image`: an SF Symbol drawn to a PNG data URL, so a page can

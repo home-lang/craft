@@ -1210,10 +1210,42 @@ describe('Craft iOS builder', () => {
       .toContain('<key>com.apple.developer.applesignin</key>\n    <array>\n        <string>Default</string>\n    </array>')
     expect(renderEntitlements({ appName: 'HQ', bundleId: 'training.hq.app' })).not.toContain('applesignin')
     const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftApp.swift'), 'utf8')
+    // One sheet for a page and a native screen alike (CraftNativeUI.swift).
+    const service = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeUI.swift'), 'utf8')
     expect(swift).toContain(`return this._invoke('signInWithApple', nonce ? {nonce: nonce} : {});`)
     expect(swift).toContain('signInWithApple(nonce: body["nonce"] as? String, callbackId: callbackId)')
-    expect(swift).toContain('if let nonce, !nonce.isEmpty { request.nonce = nonce }')
-    expect(swift).toContain('result["authorizationCode"] = codeString')
+    expect(swift).toContain('CraftSignInWithApple.shared.signIn(nonce: nonce)')
+    expect(swift).not.toContain('extension CraftWebView.Coordinator: ASAuthorizationControllerDelegate')
+    expect(service).toContain('if let nonce, !nonce.isEmpty { request.nonce = nonce }')
+    expect(service).toContain('result["authorizationCode"] = code')
+    expect(service).toContain('code: cancelled ? "CANCELLED" : "SIGN_IN_FAILED"')
+  })
+
+  it('lets a native screen sign in: Apple, the web sign-in sheet, a session the page shares, and crypto', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-sign-in-'))
+    await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableSocialAuth: true, nativeScreens: { '/m/login': 'Login' }, shareStorage: { auth_token: 'auth.token' } } as any })
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+
+    expect(actions).toContain('values.append("browser")')
+    expect(actions).toContain('if config.enableSocialAuth { values.append("appleSignIn") }')
+    expect(actions).toContain('case ("Browser", "open"):')
+    expect(actions).toContain('CraftBrowser.shared.open(url, mode: options["mode"] as? String ?? "safari"')
+    expect(actions).toContain('case ("Auth", "signInWithApple"):')
+    // A native screen writing a shared key hands it to the page.
+    expect(actions).toContain('CraftHybrid.shared.nativeWroteShared(nativeKey: key')
+    expect(hybrid).toContain('func nativeWroteShared(nativeKey: String, value: String?)')
+    expect(hybrid).toContain('window.__craftHybrid.adopt(')
+    expect(hybrid).toContain("window.dispatchEvent(new CustomEvent('craftsharedstorage'")
+    // Kept until the page reports the write back as its own, then dropped.
+    expect(hybrid).toContain('pendingShared.removeValue(forKey: key)')
+    expect(hybrid).toContain('if direction == "load" { flushShared() }')
+    // crypto, which JavaScriptCore lacks: the system's random bytes, CryptoKit's digests.
+    expect(screen).toContain('SecRandomCopyBytes(kSecRandomDefault, count, &bytes)')
+    expect(screen).toContain('case "SHA-256": bytes = Array(SHA256.hash(data: data))')
+    expect(screen).toContain('cryptoObject.getRandomValues = function(array)')
+    expect(screen).toContain('cryptoObject.subtle = Object.assign(')
   })
 
   it('gives every Swift-only call that waits on a framework callback a deadline', async () => {

@@ -45,6 +45,9 @@ enum CraftNativeActions {
         if config.enableDeepLinks { values.append("deepLinks") }
         if config.enableLocalNotifications { values.append("notifications") }
         if config.enableHealthKit { values.append("health") }
+        // The in-app browser and the system's web sign-in sheet (CraftBrowser).
+        values.append("browser")
+        if config.enableSocialAuth { values.append("appleSignIn") }
         return values
     }
 
@@ -117,6 +120,11 @@ enum CraftNativeActions {
                 return
             }
             sync = secureStorage(method: method, args: args)
+            // A key the web page shares (`shareStorage`): the page gets it too,
+            // so a sign-in on a native screen signs the page in.
+            if case .success = sync, ["set", "remove", "delete"].contains(method), let key = args.first as? String {
+                CraftHybrid.shared.nativeWroteShared(nativeKey: key, value: method == "set" ? args.count > 1 ? args[1] as? String : nil : nil)
+            }
         case ("Biometrics", "isAvailable"):
             sync = config.enableBiometric ? .success(biometricContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)) : failure("CAPABILITY_DISABLED", "Biometric authentication is disabled")
         case ("Biometrics", "getBiometricType"):
@@ -145,6 +153,32 @@ enum CraftNativeActions {
                 return
             }
             databaseQueue.async { complete(requestToken, database(method: method, args: args), completion) }
+            return
+        case ("Browser", "open"):
+            // SFSafariViewController, or for `mode: 'auth'` the system's web
+            // sign-in sheet, the same as a page's `craft.browser.open`.
+            guard let address = args.first as? String, let url = URL(string: address) else {
+                complete(requestToken, failure("INVALID_ARGUMENT", "Browser.open needs a URL it can parse"), completion)
+                return
+            }
+            let options = args.count > 1 ? args[1] as? [String: Any] ?? [:] : [:]
+            DispatchQueue.main.async {
+                CraftBrowser.shared.open(url, mode: options["mode"] as? String ?? "safari", callbackScheme: options["callbackScheme"] as? String, from: nil) { answer in
+                    complete(requestToken, .success(answer), completion)
+                }
+            }
+            return
+        case ("Auth", "signInWithApple"):
+            guard config.enableSocialAuth else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Social sign-in is disabled"), completion)
+                return
+            }
+            let options = args.first as? [String: Any] ?? [:]
+            DispatchQueue.main.async {
+                CraftSignInWithApple.shared.signIn(nonce: options["nonce"] as? String) { result in
+                    complete(requestToken, result.mapError { CraftNativeActionError(code: $0.code, message: $0.message) }.map { $0 as Any }, completion)
+                }
+            }
             return
         case ("Dialog", _):
             // The system's own alert, confirmation and action sheet, the same

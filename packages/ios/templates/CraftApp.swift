@@ -6694,17 +6694,14 @@ struct CraftWebView: UIViewRepresentable {
 
         // MARK: - Social Auth (Apple Sign In)
         private func signInWithApple(nonce: String?, callbackId: String?) {
+            // The same sheet a native screen asks for (CraftNativeUI.swift).
             DispatchQueue.main.async {
-                self.pendingCallbackId = callbackId
-                let provider = ASAuthorizationAppleIDProvider()
-                let request = provider.createRequest()
-                request.requestedScopes = [.fullName, .email]
-                if let nonce, !nonce.isEmpty { request.nonce = nonce }
-
-                let controller = ASAuthorizationController(authorizationRequests: [request])
-                controller.delegate = self
-                controller.presentationContextProvider = self
-                controller.performRequests()
+                CraftSignInWithApple.shared.signIn(nonce: nonce) { [weak self] result in
+                    switch result {
+                    case .success(let value): self?.resolveCallback(callbackId, result: value)
+                    case .failure(let failure): self?.rejectCallback(callbackId, error: failure.message, code: failure.code)
+                    }
+                }
             }
         }
 
@@ -7965,56 +7962,6 @@ extension CraftWebView.Coordinator: UIDocumentPickerDelegate {
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
         rejectCallback(pendingCallbackId, error: "Cancelled")
         pendingCallbackId = nil
-    }
-}
-
-// MARK: - Apple Sign In Delegate
-extension CraftWebView.Coordinator: ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
-            let userId = appleIDCredential.user
-            let email = appleIDCredential.email
-            let fullName = appleIDCredential.fullName
-
-            var name = ""
-            if let givenName = fullName?.givenName {
-                name = givenName
-            }
-            if let familyName = fullName?.familyName {
-                name += (name.isEmpty ? "" : " ") + familyName
-            }
-
-            var result: [String: Any] = ["userId": userId]
-            if let email = email { result["email"] = email }
-            if !name.isEmpty { result["name"] = name }
-
-            if let identityToken = appleIDCredential.identityToken,
-               let tokenString = String(data: identityToken, encoding: .utf8) {
-                result["identityToken"] = tokenString
-            }
-            // One use, five minutes: the server redeems it at Apple's token
-            // endpoint and so reads the identity straight from Apple.
-            if let authorizationCode = appleIDCredential.authorizationCode,
-               let codeString = String(data: authorizationCode, encoding: .utf8) {
-                result["authorizationCode"] = codeString
-            }
-
-            resolveCallback(pendingCallbackId, result: result)
-        }
-        pendingCallbackId = nil
-    }
-
-    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        rejectCallback(pendingCallbackId, error: error.localizedDescription)
-        pendingCallbackId = nil
-    }
-
-    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first else {
-            return UIWindow()
-        }
-        return window
     }
 }
 

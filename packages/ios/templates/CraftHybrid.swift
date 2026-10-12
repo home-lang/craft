@@ -247,7 +247,32 @@ final class CraftHybrid: NSObject {
     fileprivate(set) var pageDepth = 0
     fileprivate(set) var pageReady = false
 
+    /// Shared keys a native screen wrote, by the page's own key (NSNull for a
+    /// removal), until the page has them: it reports each back as its own
+    /// write, which is when it leaves this list.
+    private var pendingShared: [String: Any] = [:]
+
     private override init() {}
+
+    /// A native screen wrote a key the page shares (`shareStorage`, named
+    /// here by its native name): both Keychain copies, and the page's own
+    /// storage, now if it is loaded or when it next loads. Nothing for a key
+    /// the config does not share.
+    func nativeWroteShared(nativeKey: String, value: String?) {
+        guard let webKey = config.shareStorage?.first(where: { $0.value == nativeKey })?.key else { return }
+        CraftHybridKeychain.set(nativeKey, value: value)
+        DispatchQueue.main.async {
+            self.pendingShared[webKey] = value ?? NSNull()
+            self.flushShared()
+        }
+    }
+
+    private func flushShared() {
+        guard pageReady, let webView, !pendingShared.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: pendingShared),
+              let json = String(data: data, encoding: .utf8) else { return }
+        webView.evaluateJavaScript("window.__craftHybrid && window.__craftHybrid.adopt && window.__craftHybrid.adopt(\(json))")
+    }
 
     static var bundleURL: URL? {
         Bundle.main.url(forResource: "native-screen", withExtension: "js", subdirectory: "dist")
@@ -511,8 +536,26 @@ final class CraftHybrid: NSObject {
         SHARE.forEach(share);
       }
 
+      // A shared key a native screen wrote (a sign-in there): into this
+      // page's storage, which reports it back as the page's own write, and
+      // a `craftsharedstorage` event for whoever holds it in memory.
+      function adopt(values) {
+        Object.keys(values || {}).forEach(function (key) {
+          if (SHARE.indexOf(key) < 0) return;
+          var value = values[key];
+          try {
+            window.sessionStorage.removeItem(key);
+            if (value === null) window.localStorage.removeItem(key);
+            else window.localStorage.setItem(key, String(value));
+          } catch (e) {}
+          share(key);
+          try { window.dispatchEvent(new CustomEvent('craftsharedstorage', { detail: { key: key, value: value } })); } catch (e) {}
+        });
+      }
+
       window.__craftHybrid = {
         match: function (url) { var path = local(url); return path === null ? null : match(path); },
+        adopt: adopt,
         // The shell's own navigation: never handed back to it, and without
         // the page's slide, since the shell animates the push itself.
         // Answers once the page has drawn `path` (its router settles before
@@ -593,12 +636,15 @@ final class CraftHybrid: NSObject {
             for name in names { CraftSnapshots.write(name, json: nil) }
         case .shareStorage(let key, let value):
             guard let nativeKey = config.shareStorage?[key] else { return }
+            // The page's own write, or its echo of one a native screen made.
+            pendingShared.removeValue(forKey: key)
             CraftHybridKeychain.set(nativeKey, value: value)
         case .navigated(let path, let direction, let depth, let byHost):
             pagePath = path
             pageDepth = depth
             if direction == "load" { pageReady = true }
             controller?.pageNavigated(path: path, direction: direction, depth: depth, byHost: byHost)
+            if direction == "load" { flushShared() }
         case .navigateNative(let path, let replace):
             controller?.showNative(path: path, replace: replace)
         case .open(let path):
