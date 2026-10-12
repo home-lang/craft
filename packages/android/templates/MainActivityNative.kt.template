@@ -13,6 +13,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
@@ -217,16 +218,36 @@ private class CraftNativeSvgView(context: Context) : View(context) {
         setMeasuredDimension(resolveSize(width, widthMeasureSpec), resolveSize(height, heightMeasureSpec))
     }
 
+    /** viewBox units to the view's pixels, set by each draw. */
+    private val viewTransform = Matrix()
+    private val inverseTransform = Matrix()
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val box = viewBox() ?: return
         if (box.first <= 0 || box.second <= 0) return
-        val scale = min(width.toFloat() / box.first, height.toFloat() / box.second)
-        if (!scale.isFinite() || scale <= 0f) return
+        // Centred at one scale (SVG's default, `xMidYMid meet`), or each axis
+        // stretched to fill (`preserveAspectRatio="none"`).
+        val stretch = drawing.optJSONObject("props")?.optString("preserveAspectRatio")?.trim() == "none"
+        var sx = width.toFloat() / box.first
+        var sy = height.toFloat() / box.second
+        var dx = 0f
+        var dy = 0f
+        if (!stretch) {
+            val scale = min(sx, sy)
+            sx = scale
+            sy = scale
+            dx = (width - box.first * scale) / 2f
+            dy = (height - box.second * scale) / 2f
+        }
+        if (!sx.isFinite() || !sy.isFinite() || sx <= 0f || sy <= 0f) return
+        viewTransform.reset()
+        viewTransform.postTranslate(-box.third, -box.fourth)
+        viewTransform.postScale(sx, sy)
+        viewTransform.postTranslate(dx, dy)
+        viewTransform.invert(inverseTransform)
         canvas.save()
-        canvas.translate((width - box.first * scale) / 2f, (height - box.second * scale) / 2f)
-        canvas.scale(scale, scale)
-        canvas.translate(-box.third, -box.fourth)
+        canvas.concat(viewTransform)
         drawNodes(canvas, drawing.optJSONArray("children") ?: JSONArray(), SvgPaint().merge(drawing))
         canvas.restore()
     }
@@ -310,7 +331,17 @@ private class CraftNativeSvgView(context: Context) : View(context) {
                     }
                 }
             }
-            canvas.drawPath(path, stroke)
+            // `vector-effect="non-scaling-stroke"`: the stroke is in the view's
+            // pixels, so a stretched chart's line keeps its width.
+            if (props.optString("vectorEffect") == "non-scaling-stroke") {
+                val line = Path(path).apply { transform(viewTransform) }
+                canvas.save()
+                canvas.concat(inverseTransform)
+                canvas.drawPath(line, stroke)
+                canvas.restore()
+            } else {
+                canvas.drawPath(path, stroke)
+            }
         }
     }
 

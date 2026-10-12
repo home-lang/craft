@@ -112,6 +112,11 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('flatListOwners[id] ?? svgOwners[id] ?? id')
     expect(nativeSwift).toContain('path.addCurve(to: point(i + 5), controlPoint1: point(i + 1), controlPoint2: point(i + 3))')
     expect(nativeSwift).toContain('size.width * box.height / box.width')
+    // A chart stretched to its box (preserveAspectRatio="none") keeps its
+    // strokes' width (vector-effect="non-scaling-stroke").
+    expect(nativeSwift).toContain('if preserveAspectRatio?.trimmingCharacters(in: .whitespaces) != "none" {')
+    expect(nativeSwift).toContain('["vectorEffect"] as? String == "non-scaling-stroke"')
+    expect(nativeSwift).toContain('context.concatenate(viewTransform.inverted())')
     // A linear gradient (stx bg-gradient-to-*) is drawn under the subviews.
     expect(nativeSwift).toContain('private final class CraftNativeGradientLayer: CAGradientLayer')
     expect(nativeSwift).toContain('direction: style["gradientDirection"] as? String')

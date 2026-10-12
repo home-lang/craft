@@ -1789,14 +1789,36 @@ private final class CraftNativeSvgView: UIView {
         }
     }
 
+    /// viewBox units to the view's points, set by each draw.
+    private var viewTransform = CGAffineTransform.identity
+
+    /// viewBox to view: centred at one scale (SVG's default, `xMidYMid meet`),
+    /// or each axis stretched to fill (`preserveAspectRatio="none"`), as a
+    /// chart a page sizes to its width and a fixed height asks for.
+    static func transform(box: CGRect, bounds: CGSize, preserveAspectRatio: String?) -> CGAffineTransform? {
+        var sx = bounds.width / box.width
+        var sy = bounds.height / box.height
+        var dx: CGFloat = 0
+        var dy: CGFloat = 0
+        if preserveAspectRatio?.trimmingCharacters(in: .whitespaces) != "none" {
+            let scale = min(sx, sy)
+            sx = scale
+            sy = scale
+            dx = (bounds.width - box.width * scale) / 2
+            dy = (bounds.height - box.height * scale) / 2
+        }
+        guard sx.isFinite, sy.isFinite, sx > 0, sy > 0 else { return nil }
+        return CGAffineTransform(translationX: dx, y: dy).scaledBy(x: sx, y: sy).translatedBy(x: -box.minX, y: -box.minY)
+    }
+
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
+        viewTransform = .identity
         if let box = viewBox {
-            let scale = min(bounds.width / box.width, bounds.height / box.height)
-            guard scale.isFinite, scale > 0 else { return }
-            context.translateBy(x: (bounds.width - box.width * scale) / 2, y: (bounds.height - box.height * scale) / 2)
-            context.scaleBy(x: scale, y: scale)
-            context.translateBy(x: -box.minX, y: -box.minY)
+            let props = drawing["props"] as? [String: Any] ?? [:]
+            guard let transform = CraftNativeSvgView.transform(box: box, bounds: bounds.size, preserveAspectRatio: props["preserveAspectRatio"] as? String) else { return }
+            viewTransform = transform
+            context.concatenate(transform)
         }
         draw(children: drawing["children"] as? [Any] ?? [], paint: Paint().merged(drawing), in: context)
     }
@@ -1820,12 +1842,25 @@ private final class CraftNativeSvgView: UIView {
                     path.fill()
                 }
                 if let stroke = own.resolve(own.stroke), own.strokeWidth > 0 {
+                    // `vector-effect="non-scaling-stroke"`: the stroke is in the
+                    // view's points, so a stretched chart's line keeps its width
+                    // and a round cap stays a round dot.
+                    let nonScaling = (shape["props"] as? [String: Any])?["vectorEffect"] as? String == "non-scaling-stroke"
+                    let line: UIBezierPath
+                    if nonScaling, let copy = path.copy() as? UIBezierPath {
+                        copy.apply(viewTransform)
+                        context.concatenate(viewTransform.inverted())
+                        line = copy
+                    }
+                    else {
+                        line = path
+                    }
                     stroke.setStroke()
-                    path.lineWidth = own.strokeWidth
-                    path.lineCapStyle = own.linecap == "round" ? .round : own.linecap == "square" ? .square : .butt
-                    path.lineJoinStyle = own.linejoin == "round" ? .round : own.linejoin == "bevel" ? .bevel : .miter
-                    if let dashes = own.dashes, !dashes.isEmpty { path.setLineDash(dashes, count: dashes.count, phase: 0) }
-                    path.stroke()
+                    line.lineWidth = own.strokeWidth
+                    line.lineCapStyle = own.linecap == "round" ? .round : own.linecap == "square" ? .square : .butt
+                    line.lineJoinStyle = own.linejoin == "round" ? .round : own.linejoin == "bevel" ? .bevel : .miter
+                    if let dashes = own.dashes, !dashes.isEmpty { line.setLineDash(dashes, count: dashes.count, phase: 0) }
+                    line.stroke()
                 }
                 context.restoreGState()
             }
