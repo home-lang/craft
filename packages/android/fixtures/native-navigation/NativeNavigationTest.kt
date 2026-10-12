@@ -411,7 +411,7 @@ class NativeNavigationTest {
             val justifiedText = awaitView(activity, "justified-text") as TextView
             assertEquals("justified text should use the Android inter-word mode", Layout.JUSTIFICATION_MODE_INTER_WORD, justifiedText.justificationMode)
             instrumentation.runOnMainSync { nativeSwitch.performClick() }
-            assertEquals("switch on", (awaitView(activity, "native-link-status") as TextView).text.toString())
+            awaitText(activity, "native-link-status", "switch on")
             var switchInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { switchInfo = nativeSwitch.createAccessibilityNodeInfo() }
             assertTrue("checked accessibility state was not exposed", switchInfo?.isChecked == true)

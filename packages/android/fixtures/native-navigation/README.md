@@ -44,6 +44,9 @@ while the native renderer applies each change on both hosts.
 The style and accessibility checks wait for their mutation-driven status text
 before inspecting the updated native control, so the fixture does not race the
 asynchronous JavaScript-to-view reconciliation.
+Native control events are asynchronous too; assertions that observe event-driven
+status use `awaitText` rather than reading the view immediately after a platform
+click or selection.
 Test identities stay in Android view tags, leaving visible text available to
 accessibility services unless a label or value is explicitly supplied.
 Returning to a retained route reapplies native theme defaults before it becomes

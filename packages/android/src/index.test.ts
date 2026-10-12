@@ -175,6 +175,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('"Slider" -> (previous as? SeekBar ?: SeekBar(this))')
       expect(nativeActivity).toContain('onSlidingComplete')
       expect(nativeActivity).toContain('"Picker" -> (previous as? Spinner ?: Spinner(this)).apply')
+      expect(nativeActivity).toContain('setOnCheckedChangeListener { _, checked ->')
+      expect(nativeActivity).toContain('JSONObject().put("value", checked)')
       expect(nativeActivity).toContain('private class CraftNativeModalView(context: Context) : FrameLayout(context)')
       expect(nativeActivity).toContain('if (event.action == MotionEvent.ACTION_UP) requestClose()')
       expect(nativeActivity).toContain('setSelection(selected, false)')
