@@ -2023,13 +2023,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         button.addAction(action, for: .touchUpInside)
         button.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([button.widthAnchor.constraint(equalToConstant: 44), button.heightAnchor.constraint(equalToConstant: 44)])
+        // The system's own fills and blue, as Apple's apps draw a bar's round
+        // buttons: they follow light, dark and Increase Contrast by themselves.
         let accent = spec["variant"] as? String == "accent"
-        button.backgroundColor = UIColor { traits in
-            if traits.userInterfaceStyle == .dark { return UIColor(red: 0.15, green: 0.39, blue: 0.92, alpha: accent ? 0.24 : 0.12) }
-            return UIColor(red: 0.15, green: 0.39, blue: 0.92, alpha: 0.08)
-        }
+        button.backgroundColor = accent ? UIColor.systemBlue.withAlphaComponent(0.15) : .tertiarySystemFill
         button.layer.cornerRadius = 22
-        button.tintColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 0.58, green: 0.77, blue: 0.99, alpha: 1) : UIColor(red: 0.11, green: 0.30, blue: 0.85, alpha: 1) }
+        button.tintColor = .systemBlue
         button.setTitleColor(button.tintColor, for: .normal)
         button.titleLabel?.font = .systemFont(ofSize: 13, weight: .semibold)
         if let title = spec["title"] as? String, !title.isEmpty { button.setTitle(title, for: .normal) }

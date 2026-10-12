@@ -1106,6 +1106,13 @@ describe('Craft iOS builder', () => {
     expect(entitlements).toContain('<key>com.apple.developer.associated-domains</key>\n    <array>\n        <string>applinks:hq.training</string>\n    </array>')
   })
 
+  it('draws a native bar\'s round buttons in the system\'s own fills and blue', () => {
+    const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
+    const button = swift.slice(swift.indexOf('private func accountNavigationButton'))
+    expect(button).toContain('button.backgroundColor = accent ? UIColor.systemBlue.withAlphaComponent(0.15) : .tertiarySystemFill')
+    expect(button).toContain('button.tintColor = .systemBlue')
+  })
+
   it('signs in with Apple natively: the entitlement, a page nonce, and the code for the server', () => {
     // Without the entitlement ASAuthorizationController fails before any
     // sheet shows. The nonce ties Apple's identity token to the page that
