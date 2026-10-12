@@ -1091,6 +1091,12 @@ private final class CraftNativeFlowView: UIStackView {
             case "stretch":
                 let extra = free / CGFloat(lineCrosses.count)
                 lineCrosses = lineCrosses.map { $0 + extra }
+                for (lineIndex, line) in lines.enumerated() {
+                    for index in line where items[index].fixedCross == nil && items[index].align == "stretch" {
+                        let item = items[index]
+                        items[index].cross = clamp(lineCrosses[lineIndex] - item.crossMargins, item.minCross, item.maxCross)
+                    }
+                }
             default: break
             }
             contentCross = definiteCross

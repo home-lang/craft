@@ -169,6 +169,22 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertLessThan(try frame("small", in: controller).width, 200)
     }
 
+    func testAlignContentStretchExpandsAutoCrossSizes() throws {
+        let controller = screen(box("root", style: [
+            "width": 120, "height": 96, "flexDirection": "row", "flexWrap": "wrap", "alignContent": "stretch"
+        ], [
+            text("first", "first", style: ["width": 60]),
+            text("second", "second", style: ["width": 60]),
+            text("third", "third", style: ["width": 60]),
+            text("fourth", "fourth", style: ["width": 60]),
+        ]), width: 120)
+        let first = try frame("first", in: controller)
+        let third = try frame("third", in: controller)
+        XCTAssertGreaterThan(first.height, 35)
+        XCTAssertEqual(first.height, third.height, accuracy: 1)
+        XCTAssertGreaterThan(third.minY, first.minY + 35)
+    }
+
     func testANonScrollingFlatListTakesItsRowsHeightInsideAMarginedParent() throws {
         func row(_ index: Int) -> [String: Any] {
             box("row-\(index)", style: ["flexDirection": "row", "gap": 12, "padding": 12], props: ["listRole": "item", "key": "row-\(index)"], [

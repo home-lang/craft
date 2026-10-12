@@ -663,6 +663,8 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="align-content-wrap"')
     expect(iosNavigationTest).toContain('alignContent did not distribute wrapped lines')
     expect(androidNavigationTest).toContain('alignContent did not distribute wrapped lines')
+    expect(ios).toContain('items[index].cross = clamp(lineCrosses[lineIndex] - item.crossMargins, item.minCross, item.maxCross)')
+    expect(iosLayoutUnitTests).toContain('testAlignContentStretchExpandsAutoCrossSizes')
   })
 
   it('resolves percentage lengths against the native parent on both hosts', () => {
