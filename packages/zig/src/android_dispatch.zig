@@ -277,6 +277,11 @@ const natives = [_]jni.JNINativeMethod{
         .fnPtr = @ptrCast(&nativeFlexRow),
     },
     .{
+        .name = "nativeFlexLineBreaks",
+        .signature = "(FFI[F[F)[F",
+        .fnPtr = @ptrCast(&nativeFlexLineBreaks),
+    },
+    .{
         .name = "nativeCrossAxisPosition",
         .signature = "(FFFFI)F",
         .fnPtr = @ptrCast(&nativeCrossAxisPosition),
@@ -879,6 +884,41 @@ fn nativeFlexRow(
     @memcpy(flattened[0..count], widths);
     @memcpy(flattened[count..], positions);
     return j.newFloatArray(flattened) catch |err| fellThrough("flexRow", err, @as(jni.jobject, null));
+}
+
+/// `nativeFlexLineBreaks(...)` — the Android entry point for shared wrapped
+/// flex line formation. The float result keeps this seam on the existing JNI
+/// array helpers; Kotlin converts the integral line ids back to Int values.
+fn nativeFlexLineBreaks(
+    env: jni.JNIEnv,
+    _: jni.jobject,
+    available: jni.jfloat,
+    gap: jni.jfloat,
+    wrap: jni.jint,
+    basis_array: jni.jobject,
+    margins_array: jni.jobject,
+) callconv(.c) jni.jobject {
+    const j = Jni.init(env);
+    var arena = std.heap.ArenaAllocator.init(backing);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const basis = j.floatArrayToOwned(allocator, basis_array) catch |err| return fellThrough("flexLineBreaks", err, @as(jni.jobject, null));
+    const margins = j.floatArrayToOwned(allocator, margins_array) catch |err| return fellThrough("flexLineBreaks", err, @as(jni.jobject, null));
+    const count = basis.len;
+    if (count == 0 or margins.len != count * 2) return fellThrough("flexLineBreaks", error.InvalidArgument, @as(jni.jobject, null));
+    const items = allocator.alloc(native_layout.FlexLineItem, count) catch |err| return fellThrough("flexLineBreaks", err, @as(jni.jobject, null));
+    for (items, 0..) |*item, index| {
+        item.* = .{
+            .basis = basis[index],
+            .margin_start = margins[index * 2],
+            .margin_end = margins[index * 2 + 1],
+        };
+    }
+    const line_ids = allocator.alloc(jni.jfloat, count) catch |err| return fellThrough("flexLineBreaks", err, @as(jni.jobject, null));
+    const ids = allocator.alloc(i32, count) catch |err| return fellThrough("flexLineBreaks", err, @as(jni.jobject, null));
+    if (native_layout.craft_native_flex_line_breaks(available, gap, @intCast(@max(wrap, 0)), items.ptr, count, ids.ptr) <= 0) return null;
+    for (ids, 0..) |id, index| line_ids[index] = @floatFromInt(id);
+    return j.newFloatArray(line_ids) catch |err| fellThrough("flexLineBreaks", err, @as(jni.jobject, null));
 }
 
 /// `nativeCrossAxisPosition(...)` — the Android entry point for the shared
@@ -3289,7 +3329,7 @@ test "the registered natives name methods the Kotlin actually declares" {
     // A descriptor is checked by the JVM at registration, so a wrong one fails
     // at load rather than at call — but only if the *name* matches something.
     // These two strings are the contract with CraftBridge.kt.
-    try testing.expectEqual(@as(usize, 106), natives.len);
+    try testing.expectEqual(@as(usize, 107), natives.len);
     try testing.expectEqualStrings("nativeGetDeviceInfo", std.mem.span(natives[0].name));
 
     // And the class they bind to is the fixed one, not the templated bridge.

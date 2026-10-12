@@ -35,6 +35,7 @@ import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import org.json.JSONArray
+import kotlin.math.roundToInt
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
@@ -242,6 +243,13 @@ object CraftNative {
         max: FloatArray,
         margins: FloatArray,
     ): FloatArray?
+    private external fun nativeFlexLineBreaks(
+        available: Float,
+        gap: Float,
+        wrap: Int,
+        basis: FloatArray,
+        margins: FloatArray,
+    ): FloatArray?
     private external fun nativeCrossAxisPosition(
         available: Float,
         size: Float,
@@ -439,6 +447,19 @@ object CraftNative {
             // corresponding main-axis positions in the second half.
             nativeFlexRow(available, gap, justify, basis, grow, shrink, min, max, margins)
                 ?.takeIf { it.size >= basis.size && it.all { value -> value.isFinite() } }
+        } catch (e: UnsatisfiedLinkError) {
+            null
+        }
+    }
+
+    /** Form wrapped flex lines in Zig, or null for the Kotlin fallback. */
+    fun flexLines(available: Float, gap: Float, wrap: Boolean, basis: FloatArray, margins: FloatArray): IntArray? {
+        if (!isAvailable) return null
+        return try {
+            nativeFlexLineBreaks(available, gap, if (wrap) 1 else 0, basis, margins)
+                ?.takeIf { it.size >= basis.size && it.all { value -> value.isFinite() } }
+                ?.map { it.roundToInt() }
+                ?.toIntArray()
         } catch (e: UnsatisfiedLinkError) {
             null
         }

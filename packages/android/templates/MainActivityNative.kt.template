@@ -408,7 +408,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val gap = if (orientation == HORIZONTAL) columnGap else rowGap
         val lines = mutableListOf<Line>()
         val absolute = mutableListOf<Entry>()
-        var line = Line()
+        val pending = mutableListOf<Entry>()
         for (index in 0 until childCount) {
             val child = getChildAt(index)
             if (child.visibility == GONE) continue
@@ -430,18 +430,42 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val childHeight = measureChildHeight(child, style, height - paddingTop - paddingBottom, verticalMargins)
             val entry = Entry(child, style, childWidth, childHeight)
             if (style.position == "absolute") { absolute += entry; continue }
-            val childMain = (if (orientation == HORIZONTAL) childWidth + horizontalMargins else childHeight + verticalMargins)
-            val childCross = (if (orientation == HORIZONTAL) childHeight + verticalMargins else childWidth + horizontalMargins)
-            val next = if (line.entries.isEmpty()) childMain else line.main + gap + childMain
-            if (wrap && line.entries.isNotEmpty() && next > availableMain) {
-                lines += line
-                line = Line()
-            }
-            line.entries += entry
-            line.main = if (line.entries.size == 1) childMain else line.main + gap + childMain
-            line.cross = max(line.cross, childCross)
+            pending += entry
         }
-        if (line.entries.isNotEmpty()) lines += line
+        if (pending.isNotEmpty()) {
+            val basis = pending.map { entry ->
+                if (orientation == HORIZONTAL) entry.width.toFloat() else entry.height.toFloat()
+            }.toFloatArray()
+            val margins = pending.flatMap { entry ->
+                val lp = entry.view.layoutParams as? MarginLayoutParams
+                if (orientation == HORIZONTAL) listOf((lp?.leftMargin ?: 0).toFloat(), (lp?.rightMargin ?: 0).toFloat())
+                else listOf((lp?.topMargin ?: 0).toFloat(), (lp?.bottomMargin ?: 0).toFloat())
+            }.toFloatArray()
+            val sharedLineIds = CraftNative.flexLines(availableMain.toFloat(), gap.toFloat(), wrap, basis, margins)
+            val lineIds = sharedLineIds?.takeIf { ids ->
+                ids.size >= pending.size && ids.firstOrNull() == 0 && ids.zipWithNext().all { (left, right) -> right >= left }
+            }
+            var line = Line()
+            pending.forEachIndexed { index, entry ->
+                val childMain = if (orientation == HORIZONTAL) entry.width + (margins[index * 2] + margins[index * 2 + 1]).roundToInt()
+                else entry.height + (margins[index * 2] + margins[index * 2 + 1]).roundToInt()
+                val lp = entry.view.layoutParams as? MarginLayoutParams
+                val crossMargins = if (orientation == HORIZONTAL) (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
+                else (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
+                val childCross = if (orientation == HORIZONTAL) entry.height + crossMargins else entry.width + crossMargins
+                if (index > 0 && lineIds != null && lineIds[index] != lineIds[index - 1]) {
+                    lines += line
+                    line = Line()
+                } else if (index > 0 && lineIds == null && wrap && line.entries.isNotEmpty() && line.main + gap + childMain > availableMain) {
+                    lines += line
+                    line = Line()
+                }
+                line.entries += entry
+                line.main = if (line.entries.size == 1) childMain else line.main + gap + childMain
+                line.cross = max(line.cross, childCross)
+            }
+            if (line.entries.isNotEmpty()) lines += line
+        }
         return lines to absolute
     }
 
