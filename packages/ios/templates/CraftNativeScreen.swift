@@ -1310,8 +1310,11 @@ private final class CraftNativeGradientLayer: CAGradientLayer {
         layer.follow(view)
         guard existing == nil else { return }
         view.layer.insertSublayer(layer, at: 0)
+        // The layer's bounds, not the view's: UIKit does not promise KVO for
+        // UIView.bounds, and a screen laid out by frame never reported it, so
+        // every gradient stayed zero-sized. CALayer's own bounds always do.
         layer.observations = [
-            view.observe(\.bounds) { [weak layer] view, _ in layer?.follow(view) },
+            view.layer.observe(\.bounds) { [weak layer, weak view] _, _ in if let view { layer?.follow(view) } },
             view.layer.observe(\.cornerRadius) { [weak layer, weak view] _, _ in if let view { layer?.follow(view) } },
         ]
     }
@@ -2744,7 +2747,6 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 return textView
             }
             let field = UITextField()
-            field.borderStyle = .roundedRect
             field.addTarget(self, action: #selector(textChanged(_:)), for: .editingChanged)
             field.addTarget(self, action: #selector(textFocused(_:)), for: .editingDidBegin)
             field.addTarget(self, action: #selector(textBlurred(_:)), for: .editingDidEnd)
@@ -3282,6 +3284,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         updateDimension(width, constraint: &node.widthConstraint, anchor: view.widthAnchor)
         updateDimension(height, constraint: &node.heightConstraint, anchor: view.heightAnchor)
         view.backgroundColor = color(style["backgroundColor"]) ?? .clear
+        // A field the style dresses itself (`border-0`, a border or a
+        // background, as a search field inside its own pill is) draws no
+        // system box of its own; a bare one keeps the rounded rectangle.
+        if let field = view as? UITextField {
+            field.borderStyle = style["borderWidth"] != nil || style["backgroundColor"] != nil ? .none : .roundedRect
+        }
         CraftNativeGradientLayer.apply(
             to: view,
             direction: style["gradientDirection"] as? String,

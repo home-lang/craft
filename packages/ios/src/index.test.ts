@@ -1127,6 +1127,14 @@ describe('Craft iOS builder', () => {
     expect(entitlements).toContain('<key>com.apple.developer.associated-domains</key>\n    <array>\n        <string>applinks:hq.training</string>\n    </array>')
   })
 
+  it('sizes a gradient with its view and lets a styled field drop the system box', () => {
+    const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
+    // UIView.bounds is not KVO-observable in general; a frame-laid-out view never reported it.
+    expect(swift).toContain('view.layer.observe(\\.bounds) { [weak layer, weak view] _, _ in if let view { layer?.follow(view) } }')
+    expect(swift).not.toContain('view.observe(\\.bounds)')
+    expect(swift).toContain('field.borderStyle = style["borderWidth"] != nil || style["backgroundColor"] != nil ? .none : .roundedRect')
+  })
+
   it('draws a native bar\'s round buttons in the system\'s own fills and blue', () => {
     const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
     const button = swift.slice(swift.indexOf('private func accountNavigationButton'))
