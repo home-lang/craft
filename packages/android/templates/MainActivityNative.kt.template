@@ -759,10 +759,16 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 val align = entry.style.alignSelf ?: alignItems
                 val crossLeading = if (orientation == HORIZONTAL) lp?.topMargin ?: 0 else lp?.leftMargin ?: 0
                 val crossTrailing = if (orientation == HORIZONTAL) lp?.bottomMargin ?: 0 else lp?.rightMargin ?: 0
-                val crossAvailable = max(0, line.cross - crossLeading - crossTrailing)
-                val crossPosition = when (align) {
-                    "center" -> crossLeading + (crossAvailable - crossSize) / 2
-                    "flex-end" -> line.cross - crossTrailing - crossSize
+                val alignment = when (align) {
+                    "center" -> 1
+                    "flex-end" -> 2
+                    else -> 0
+                }
+                val crossPosition = CraftNative.crossAxisPosition(
+                    line.cross.toFloat(), crossSize.toFloat(), crossLeading.toFloat(), crossTrailing.toFloat(), alignment
+                )?.roundToInt() ?: when (alignment) {
+                    1 -> crossLeading + (line.cross - crossLeading - crossTrailing - crossSize) / 2
+                    2 -> line.cross - crossTrailing - crossSize
                     else -> crossLeading
                 }
                 // Shared positions now cover every justification; the old

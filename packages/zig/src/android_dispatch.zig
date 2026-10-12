@@ -277,6 +277,11 @@ const natives = [_]jni.JNINativeMethod{
         .fnPtr = @ptrCast(&nativeFlexRow),
     },
     .{
+        .name = "nativeCrossAxisPosition",
+        .signature = "(FFFFI)F",
+        .fnPtr = @ptrCast(&nativeCrossAxisPosition),
+    },
+    .{
         .name = "nativeGrid",
         .signature = "(FFIFF[F[F[F[F[F[F[F[F[F[F)[F",
         .fnPtr = @ptrCast(&nativeGrid),
@@ -874,6 +879,27 @@ fn nativeFlexRow(
     @memcpy(flattened[0..count], widths);
     @memcpy(flattened[count..], positions);
     return j.newFloatArray(flattened) catch |err| fellThrough("flexRow", err, @as(jni.jobject, null));
+}
+
+/// `nativeCrossAxisPosition(...)` — the Android entry point for the shared
+/// cross-axis flex alignment rule. Kotlin catches an absent symbol for older
+/// runtimes and keeps its local calculation as the fallback.
+fn nativeCrossAxisPosition(
+    _: jni.JNIEnv,
+    _: jni.jobject,
+    available: jni.jfloat,
+    size: jni.jfloat,
+    leading: jni.jfloat,
+    trailing: jni.jfloat,
+    alignment: jni.jint,
+) callconv(.c) jni.jfloat {
+    return native_layout.craft_native_cross_axis_position(
+        available,
+        size,
+        leading,
+        trailing,
+        @intCast(@max(alignment, 0)),
+    );
 }
 
 /// `nativeGrid(...)` — equal-track grid frames shared with the iOS host.
@@ -3263,7 +3289,7 @@ test "the registered natives name methods the Kotlin actually declares" {
     // A descriptor is checked by the JVM at registration, so a wrong one fails
     // at load rather than at call — but only if the *name* matches something.
     // These two strings are the contract with CraftBridge.kt.
-    try testing.expectEqual(@as(usize, 105), natives.len);
+    try testing.expectEqual(@as(usize, 106), natives.len);
     try testing.expectEqualStrings("nativeGetDeviceInfo", std.mem.span(natives[0].name));
 
     // And the class they bind to is the fixed one, not the templated bridge.

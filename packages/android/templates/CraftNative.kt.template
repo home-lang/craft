@@ -242,6 +242,13 @@ object CraftNative {
         max: FloatArray,
         margins: FloatArray,
     ): FloatArray?
+    private external fun nativeCrossAxisPosition(
+        available: Float,
+        size: Float,
+        leading: Float,
+        trailing: Float,
+        alignment: Int,
+    ): Float
     private external fun nativeGrid(
         availableWidth: Float,
         availableHeight: Float,
@@ -432,6 +439,17 @@ object CraftNative {
             // corresponding main-axis positions in the second half.
             nativeFlexRow(available, gap, justify, basis, grow, shrink, min, max, margins)
                 ?.takeIf { it.size >= basis.size && it.all { value -> value.isFinite() } }
+        } catch (e: UnsatisfiedLinkError) {
+            null
+        }
+    }
+
+    /** Resolve one flex item's cross-axis offset in Zig, or null for fallback. */
+    fun crossAxisPosition(available: Float, size: Float, leading: Float, trailing: Float, alignment: Int): Float? {
+        if (!isAvailable) return null
+        return try {
+            nativeCrossAxisPosition(available, size, leading, trailing, alignment)
+                .takeIf { it.isFinite() }
         } catch (e: UnsatisfiedLinkError) {
             null
         }
