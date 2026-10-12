@@ -1793,18 +1793,27 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         button.accessibilityLabel = spec["accessibilityLabel"] as? String
         if let value = spec["badge"] as? NSNumber, value.intValue > 0 {
             let dot = spec["badgeStyle"] as? String == "dot"
-            let badge = UILabel()
-            badge.text = dot ? nil : value.intValue > 99 ? "99+" : String(value.intValue)
-            badge.font = .systemFont(ofSize: 10, weight: .bold)
-            badge.textColor = .white
-            badge.textAlignment = .center
-            badge.backgroundColor = dot ? .systemRed : .systemBlue
-            badge.clipsToBounds = true
             let size: CGFloat = dot ? 9 : 18
-            badge.layer.cornerRadius = size / 2
-            badge.frame = CGRect(x: 44 - size, y: 0, width: size, height: size)
-            badge.isAccessibilityElement = false
-            button.addSubview(badge)
+            // The fill is a tinted symbol, not a background colour: on iOS 26
+            // a bar item's custom view keeps its tint but drew a plain
+            // backgroundColor white, so the red unread dot came out white
+            // (invisible in light mode) and the count lost its blue.
+            let fill = UIImageView(image: UIImage(systemName: "circle.fill"))
+            fill.tintColor = dot ? .systemRed : .systemBlue
+            fill.contentMode = .scaleToFill
+            fill.frame = CGRect(x: 44 - size, y: 0, width: size, height: size)
+            fill.isAccessibilityElement = false
+            button.addSubview(fill)
+            if !dot {
+                let count = UILabel(frame: fill.frame)
+                count.text = value.intValue > 99 ? "99+" : String(value.intValue)
+                count.font = .systemFont(ofSize: 10, weight: .bold)
+                count.textColor = .white
+                count.textAlignment = .center
+                count.adjustsFontSizeToFitWidth = true
+                count.isAccessibilityElement = false
+                button.addSubview(count)
+            }
             button.accessibilityValue = "\(value.intValue) unread"
         }
         if let source = spec["image"] as? String, let url = URL(string: source), url.scheme == "https" {

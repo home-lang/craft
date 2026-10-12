@@ -473,6 +473,10 @@ struct CraftApp: App {
                         CraftTabBarView()
                         CraftSplashView(background: appState.config.resolvedBackgroundColor)
                     }
+                    // The keyboard covers the tab bar, as it does UIKit's: the
+                    // stack kept out of the keyboard's way and carried the bar
+                    // up above it, over the field being typed in.
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
                 } else {
                     // The page's own chrome, drawn natively over it: the tab
                     // bar the page asks for, and the splash until it is ready.
@@ -483,6 +487,7 @@ struct CraftApp: App {
                         CraftTabBarView()
                         CraftSplashView(background: appState.config.resolvedBackgroundColor)
                     }
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
                 }
             }
                 .preferredColorScheme(appState.config.colorScheme)

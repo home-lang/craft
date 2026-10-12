@@ -529,6 +529,15 @@ describe('native renderer component contract', () => {
     expect(ios).toContain(guarded)
     expect(ios.split('hidesSharedBackground').length - 1).toBe(1)
     expect(ios.split('sharesBackground').length - 1).toBe(1)
+    // The unread dot and count are tinted symbols: iOS 26 drew a bar
+    // item's plain backgroundColor white.
+    expect(ios).toContain('let fill = UIImageView(image: UIImage(systemName: "circle.fill"))')
+    expect(ios).toContain('fill.tintColor = dot ? .systemRed : .systemBlue')
+  })
+
+  it('lets the keyboard cover the tab bar rather than carry it up', () => {
+    const app = readFileSync(join(root, 'packages/ios/templates/CraftApp.swift'), 'utf8')
+    expect(app.split('.ignoresSafeArea(.keyboard, edges: .bottom)').length - 1).toBe(2)
   })
 
   it('keeps FlatList gesture callbacks on the shared scroll payload', () => {
