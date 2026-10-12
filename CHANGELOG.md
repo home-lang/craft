@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.134...v0.0.135)
+
+## 🚀 Features
+
+- **mobile**: screen brightness for pages that dim the backlight ([97eeb5d](https://github.com/craft-native/craft/commit/97eeb5d)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.133...v0.0.134)
 
 ## 🐛 Bug Fixes
