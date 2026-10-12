@@ -417,6 +417,7 @@ object CraftNative {
     fun flexRow(
         available: Float,
         gap: Float,
+        justify: Int,
         basis: FloatArray,
         grow: FloatArray,
         shrink: FloatArray,
@@ -428,7 +429,7 @@ object CraftNative {
         return try {
             // The shared result stores widths in the first half and the
             // corresponding main-axis positions in the second half.
-            nativeFlexRow(available, gap, basis, grow, shrink, min, max, margins)
+            nativeFlexRow(available, gap, justify, basis, grow, shrink, min, max, margins)
                 ?.takeIf { it.size >= basis.size }
         } catch (e: UnsatisfiedLinkError) {
             null

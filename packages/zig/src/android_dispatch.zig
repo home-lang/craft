@@ -273,7 +273,7 @@ const natives = [_]jni.JNINativeMethod{
     },
     .{
         .name = "nativeFlexRow",
-        .signature = "(FF[F[F[F[F[F[F)[F",
+        .signature = "(FFI[F[F[F[F[F[F)[F",
         .fnPtr = @ptrCast(&nativeFlexRow),
     },
     .{
@@ -829,6 +829,7 @@ fn nativeFlexRow(
     _: jni.jobject,
     available: jni.jfloat,
     gap: jni.jfloat,
+    justify: jni.jint,
     basis_array: jni.jobject,
     grow_array: jni.jobject,
     shrink_array: jni.jobject,
@@ -866,7 +867,7 @@ fn nativeFlexRow(
     }
     const widths = allocator.alloc(jni.jfloat, count) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
     const positions = allocator.alloc(jni.jfloat, count) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
-    if (native_layout.craft_native_flex_row(available, gap, items.ptr, count, widths.ptr, positions.ptr) != 0) {
+    if (native_layout.craft_native_flex_row_justified(available, gap, @intCast(@max(justify, 0)), items.ptr, count, widths.ptr, positions.ptr) != 0) {
         return null;
     }
     const flattened = allocator.alloc(jni.jfloat, count * 2) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));

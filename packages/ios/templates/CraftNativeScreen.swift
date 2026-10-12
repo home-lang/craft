@@ -36,15 +36,15 @@ private enum CraftNativeFlexBridge {
     }
 
     private typealias Function = @convention(c) (
-        Float, Float, UnsafeRawPointer, Int, UnsafeMutableRawPointer, UnsafeMutableRawPointer
+        Float, Float, UInt32, UnsafeRawPointer, Int, UnsafeMutableRawPointer, UnsafeMutableRawPointer
     ) -> Int32
 
     private static let function: Function? = {
-        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_flex_row") else { return nil }
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_flex_row_justified") else { return nil }
         return unsafeBitCast(symbol, to: Function.self)
     }()
 
-    static func widths(available: CGFloat, gap: CGFloat, items: [(basis: CGFloat, grow: CGFloat, shrink: CGFloat, min: CGFloat?, max: CGFloat?, leading: CGFloat, trailing: CGFloat)]) -> [(width: CGFloat, position: CGFloat)]? {
+    static func widths(available: CGFloat, gap: CGFloat, justify: UInt32, items: [(basis: CGFloat, grow: CGFloat, shrink: CGFloat, min: CGFloat?, max: CGFloat?, leading: CGFloat, trailing: CGFloat)]) -> [(width: CGFloat, position: CGFloat)]? {
         guard let function, !items.isEmpty else { return nil }
         var input = items.map { item in
             Item(
@@ -58,12 +58,23 @@ private enum CraftNativeFlexBridge {
         let status = input.withUnsafeBufferPointer { inputBuffer in
             output.withUnsafeMutableBufferPointer { outputBuffer in
                 positions.withUnsafeMutableBufferPointer { positionBuffer in
-                    function(Float(available), Float(gap), UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!), UnsafeMutableRawPointer(positionBuffer.baseAddress!))
+                    function(Float(available), Float(gap), justify, UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!), UnsafeMutableRawPointer(positionBuffer.baseAddress!))
                 }
             }
         }
         guard status == 0 else { return nil }
         return zip(output, positions).map { (width: CGFloat($0), position: CGFloat($1)) }
+    }
+}
+
+private func craftNativeJustifyCode(_ value: String) -> UInt32 {
+    switch value {
+    case "center": return 1
+    case "flex-end": return 2
+    case "space-between": return 3
+    case "space-around": return 4
+    case "space-evenly": return 5
+    default: return 0
     }
 }
 
@@ -987,6 +998,7 @@ private final class CraftNativeFlowView: UIStackView {
             let sharedWidths = CraftNativeFlexBridge.widths(
                 available: lineMain,
                 gap: mainGap,
+                justify: craftNativeJustifyCode(justifyContent),
                 items: line.map { index in
                     let item = items[index]
                     return (item.basis, item.grow, item.shrink, item.minMain, item.maxMain, item.mainLeading, item.mainTrailing)

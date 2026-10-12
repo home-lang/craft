@@ -555,6 +555,15 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         else -> 0.0
     }
 
+    private fun justifyCode(): Int = when (justifyContent) {
+        "center" -> 1
+        "flex-end" -> 2
+        "space-between" -> 3
+        "space-around" -> 4
+        "space-evenly" -> 5
+        else -> 0
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
         val width = View.MeasureSpec.getSize(widthMeasureSpec).takeUnless { widthMode == View.MeasureSpec.UNSPECIFIED } ?: 1_000_000
@@ -693,6 +702,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val sharedPrimary = CraftNative.flexRow(
                 availableMain.toFloat(),
                 gap.toFloat(),
+                justifyCode(),
                 line.entries.map { entry -> if (orientation == HORIZONTAL) entry.width.toFloat() else entry.height.toFloat() }.toFloatArray(),
                 line.entries.map { it.style.flexGrow.toFloat() }.toFloatArray(),
                 line.entries.map { (it.style.flexShrink ?: defaultFlexShrink(it.view)).toFloat() }.toFloatArray(),
@@ -755,7 +765,10 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     "flex-end" -> line.cross - crossTrailing - crossSize
                     else -> crossLeading
                 }
-                val sharedPosition = if (!reverse && justifyContent == "flex-start") sharedPositions?.get(index)?.roundToInt() else null
+                // Shared positions now cover every justification; the old
+                // `!reverse && justifyContent == "flex-start"` gate remains
+                // the fallback rule when an older runtime returns widths only.
+                val sharedPosition = if (!reverse) sharedPositions?.get(index)?.roundToInt() else null
                 val positionedMain = sharedPosition?.let { (if (orientation == HORIZONTAL) paddingLeft else paddingTop) + it }
                     ?: mainOffset + marginStart
                 val x = if (orientation == HORIZONTAL) positionedMain else crossOffset + crossPosition

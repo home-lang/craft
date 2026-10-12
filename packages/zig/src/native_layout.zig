@@ -168,6 +168,33 @@ pub export fn craft_native_flex_row(
     widths: [*]f32,
     positions: [*]f32,
 ) callconv(.c) c_int {
+    return craftNativeFlexRow(available, gap, 0, items, item_count, widths, positions);
+}
+
+/// ABI v2 flex row distribution. `justify` is 0=start, 1=center, 2=end,
+/// 3=space-between, 4=space-around, or 5=space-evenly. The original export
+/// remains available for older hosts and keeps start justification.
+pub export fn craft_native_flex_row_justified(
+    available: f32,
+    gap: f32,
+    justify: u32,
+    items: [*]const FlexItem,
+    item_count: usize,
+    widths: [*]f32,
+    positions: [*]f32,
+) callconv(.c) c_int {
+    return craftNativeFlexRow(available, gap, justify, items, item_count, widths, positions);
+}
+
+fn craftNativeFlexRow(
+    available: f32,
+    gap: f32,
+    justify: u32,
+    items: [*]const FlexItem,
+    item_count: usize,
+    widths: [*]f32,
+    positions: [*]f32,
+) c_int {
     if (item_count == 0) return 0;
 
     const safe_available = finiteNonNegative(available);
@@ -183,7 +210,7 @@ pub export fn craft_native_flex_row(
     }
 
     const free = safe_available - basis_total;
-    var offset: f32 = 0;
+    var used = safe_gap * @as(f32, @floatFromInt(item_count - 1));
     for (items[0..item_count], 0..) |item, index| {
         const basis = finiteNonNegative(item.basis);
         const raw = if (free > 0)
@@ -193,12 +220,37 @@ pub export fn craft_native_flex_row(
         else
             basis;
         const width = clampBounds(raw, item.min, item.max);
+        used += width + finiteNonNegative(item.margin_start) + finiteNonNegative(item.margin_end);
+        widths[index] = width;
+    }
+
+    const remaining = @max(0, safe_available - used);
+    var leading_space: f32 = 0;
+    var between_space: f32 = 0;
+    switch (justify) {
+        1 => leading_space = remaining / 2,
+        2 => leading_space = remaining,
+        3 => {
+            if (item_count > 1) between_space = remaining / @as(f32, @floatFromInt(item_count - 1));
+        },
+        4 => {
+            leading_space = remaining / @as(f32, @floatFromInt(item_count * 2));
+            between_space = remaining / @as(f32, @floatFromInt(item_count));
+        },
+        5 => {
+            leading_space = remaining / @as(f32, @floatFromInt(item_count + 1));
+            between_space = leading_space;
+        },
+        else => {},
+    }
+
+    var offset = leading_space;
+    for (items[0..item_count], 0..) |item, index| {
         const leading = finiteNonNegative(item.margin_start);
         const trailing = finiteNonNegative(item.margin_end);
         positions[index] = offset + leading;
-        widths[index] = width;
-        offset += leading + width + trailing;
-        if (index + 1 < item_count) offset += safe_gap;
+        offset += leading + widths[index] + trailing;
+        if (index + 1 < item_count) offset += safe_gap + between_space;
     }
     return 0;
 }
@@ -589,6 +641,19 @@ test "exports the shared flex row contract with margins and bounds" {
     try std.testing.expectApproxEqAbs(@as(f32, 80.6667), widths[1], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 5), positions[0], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 95), positions[1], 0.001);
+}
+
+test "exports justified flex positions" {
+    const items = [_]FlexItem{
+        .{ .basis = 20, .grow = 0, .shrink = 0, .min = -1, .max = -1, .margin_start = 0, .margin_end = 0 },
+        .{ .basis = 20, .grow = 0, .shrink = 0, .min = -1, .max = -1, .margin_start = 0, .margin_end = 0 },
+    };
+    var widths: [2]f32 = undefined;
+    var positions: [2]f32 = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_flex_row_justified(100, 10, 1, &items, items.len, &widths, &positions));
+    try std.testing.expectApproxEqAbs(@as(f32, 20), widths[0], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 25), positions[0], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 55), positions[1], 0.001);
 }
 
 test "exports equal-track grid frames with intrinsic rows and alignment" {
