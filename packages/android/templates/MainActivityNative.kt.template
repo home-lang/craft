@@ -443,7 +443,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             }.toFloatArray()
             val sharedLineIds = CraftNative.flexLines(availableMain.toFloat(), gap.toFloat(), wrap, basis, margins)
             val lineIds = sharedLineIds?.takeIf { ids ->
-                ids.size >= pending.size && ids.firstOrNull() == 0 && ids.zipWithNext().all { (left, right) -> right >= left }
+                ids.size >= pending.size && ids.firstOrNull() == 0 &&
+                    ids.indices.drop(1).all { index -> ids[index] >= ids[index - 1] }
             }
             var line = Line()
             pending.forEachIndexed { index, entry ->

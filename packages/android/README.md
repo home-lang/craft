@@ -120,6 +120,8 @@ same shrink defaults as the iOS renderer; buttons and editable fields retain
 their intrinsic width unless explicitly configured.
 Wrapped containers also honor `alignContent` (`center`, `flex-end`,
 `space-between`, `space-around`, and `stretch`) consistently across hosts.
+Shared wrapped-line IDs are accepted only when they are complete and monotonic;
+invalid bridge data falls back to the host layout implementation.
 Push, replace, and back preserve the
 previous screen's views and JavaScript state; Android's system back button pops
 the route. Native mode accepts neither `--html-path` nor `--dev-server`. Its

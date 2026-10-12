@@ -673,6 +673,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('private var alignContent = "flex-start"')
     expect(android).toContain('"space-between" -> crossBetween = crossFree / (lines.size - 1) + crossGap')
     expect(android).toContain('"stretch" -> {')
+    expect(android).toContain('ids.indices.drop(1).all { index -> ids[index] >= ids[index - 1] }')
     expect(navigationHome).toContain('testID="align-content-wrap"')
     expect(navigationHome).toContain('testID="align-content-stretch-wrap"')
     expect(iosNavigationTest).toContain('alignContent did not distribute wrapped lines')
