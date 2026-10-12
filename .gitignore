@@ -14,7 +14,8 @@ packages/typescript/native/
 *~
 
 # Node.js
-node_modules/
+# Without the slash: a worktree links node_modules rather than holding the directory.
+node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
