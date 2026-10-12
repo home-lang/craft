@@ -277,6 +277,11 @@ const natives = [_]jni.JNINativeMethod{
         .fnPtr = @ptrCast(&nativeFlexRow),
     },
     .{
+        .name = "nativeGrid",
+        .signature = "(FFIFF[F[F[F[F[F[F[F[F[F[F)[F",
+        .fnPtr = @ptrCast(&nativeGrid),
+    },
+    .{
         .name = "nativeClipboardRead",
         .signature = "(Landroid/app/Activity;)Ljava/lang/String;",
         .fnPtr = @ptrCast(&nativeClipboardRead),
@@ -836,18 +841,18 @@ fn nativeFlexRow(
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const basis = j.floatArrayToOwned(allocator, basis_array) catch |err| return fellThrough("flexRow", err, null);
-    const grow = j.floatArrayToOwned(allocator, grow_array) catch |err| return fellThrough("flexRow", err, null);
-    const shrink = j.floatArrayToOwned(allocator, shrink_array) catch |err| return fellThrough("flexRow", err, null);
-    const minimum = j.floatArrayToOwned(allocator, min_array) catch |err| return fellThrough("flexRow", err, null);
-    const maximum = j.floatArrayToOwned(allocator, max_array) catch |err| return fellThrough("flexRow", err, null);
-    const margins = j.floatArrayToOwned(allocator, margins_array) catch |err| return fellThrough("flexRow", err, null);
+    const basis = j.floatArrayToOwned(allocator, basis_array) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
+    const grow = j.floatArrayToOwned(allocator, grow_array) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
+    const shrink = j.floatArrayToOwned(allocator, shrink_array) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
+    const minimum = j.floatArrayToOwned(allocator, min_array) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
+    const maximum = j.floatArrayToOwned(allocator, max_array) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
+    const margins = j.floatArrayToOwned(allocator, margins_array) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
     const count = basis.len;
     if (grow.len != count or shrink.len != count or minimum.len != count or maximum.len != count or margins.len != count * 2) {
-        return fellThrough("flexRow", error.InvalidArgument, null);
+        return fellThrough("flexRow", error.InvalidArgument, @as(jni.jobject, null));
     }
 
-    const items = allocator.alloc(native_layout.FlexItem, count) catch |err| return fellThrough("flexRow", err, null);
+    const items = allocator.alloc(native_layout.FlexItem, count) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
     for (items, 0..) |*item, index| {
         item.* = .{
             .basis = basis[index],
@@ -859,12 +864,83 @@ fn nativeFlexRow(
             .margin_end = margins[index * 2 + 1],
         };
     }
-    const widths = allocator.alloc(jni.jfloat, count) catch |err| return fellThrough("flexRow", err, null);
-    const positions = allocator.alloc(jni.jfloat, count) catch |err| return fellThrough("flexRow", err, null);
+    const widths = allocator.alloc(jni.jfloat, count) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
+    const positions = allocator.alloc(jni.jfloat, count) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
     if (native_layout.craft_native_flex_row(available, gap, items.ptr, count, widths.ptr, positions.ptr) != 0) {
         return null;
     }
-    return j.newFloatArray(widths) catch |err| fellThrough("flexRow", err, null);
+    return j.newFloatArray(widths) catch |err| fellThrough("flexRow", err, @as(jni.jobject, null));
+}
+
+/// `nativeGrid(...)` — equal-track grid frames shared with the iOS host.
+fn nativeGrid(
+    env: jni.JNIEnv,
+    _: jni.jobject,
+    available_width: jni.jfloat,
+    available_height: jni.jfloat,
+    columns: jni.jint,
+    column_gap: jni.jfloat,
+    row_gap: jni.jfloat,
+    intrinsic_width_array: jni.jobject,
+    intrinsic_height_array: jni.jobject,
+    explicit_width_array: jni.jobject,
+    explicit_height_array: jni.jobject,
+    min_width_array: jni.jobject,
+    max_width_array: jni.jobject,
+    min_height_array: jni.jobject,
+    max_height_array: jni.jobject,
+    margins_array: jni.jobject,
+    flags_array: jni.jobject,
+) callconv(.c) jni.jobject {
+    const j = Jni.init(env);
+    var arena = std.heap.ArenaAllocator.init(backing);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const null_object = @as(jni.jobject, null);
+    const intrinsic_width = j.floatArrayToOwned(allocator, intrinsic_width_array) catch |err| return fellThrough("grid", err, null_object);
+    const intrinsic_height = j.floatArrayToOwned(allocator, intrinsic_height_array) catch |err| return fellThrough("grid", err, null_object);
+    const explicit_width = j.floatArrayToOwned(allocator, explicit_width_array) catch |err| return fellThrough("grid", err, null_object);
+    const explicit_height = j.floatArrayToOwned(allocator, explicit_height_array) catch |err| return fellThrough("grid", err, null_object);
+    const min_width = j.floatArrayToOwned(allocator, min_width_array) catch |err| return fellThrough("grid", err, null_object);
+    const max_width = j.floatArrayToOwned(allocator, max_width_array) catch |err| return fellThrough("grid", err, null_object);
+    const min_height = j.floatArrayToOwned(allocator, min_height_array) catch |err| return fellThrough("grid", err, null_object);
+    const max_height = j.floatArrayToOwned(allocator, max_height_array) catch |err| return fellThrough("grid", err, null_object);
+    const margins = j.floatArrayToOwned(allocator, margins_array) catch |err| return fellThrough("grid", err, null_object);
+    const flags = j.floatArrayToOwned(allocator, flags_array) catch |err| return fellThrough("grid", err, null_object);
+    const count = intrinsic_width.len;
+    if (intrinsic_height.len != count or explicit_width.len != count or explicit_height.len != count or min_width.len != count or max_width.len != count or min_height.len != count or max_height.len != count or margins.len != count * 4 or flags.len != count * 2) {
+        return fellThrough("grid", error.InvalidArgument, null_object);
+    }
+    const items = allocator.alloc(native_layout.GridItem, count) catch |err| return fellThrough("grid", err, null_object);
+    for (items, 0..) |*item, index| {
+        const alignment = flags[index * 2 + 1];
+        item.* = .{
+            .intrinsic_width = intrinsic_width[index],
+            .intrinsic_height = intrinsic_height[index],
+            .explicit_width = explicit_width[index],
+            .explicit_height = explicit_height[index],
+            .min_width = min_width[index],
+            .max_width = max_width[index],
+            .min_height = min_height[index],
+            .max_height = max_height[index],
+            .margin_left = margins[index * 4],
+            .margin_right = margins[index * 4 + 1],
+            .margin_top = margins[index * 4 + 2],
+            .margin_bottom = margins[index * 4 + 3],
+            .stretch = if (flags[index * 2] >= 0.5) 1 else 0,
+            .alignment = if (alignment >= 2) 2 else if (alignment >= 1) 1 else 0,
+        };
+    }
+    const output = allocator.alloc(native_layout.Frame, count) catch |err| return fellThrough("grid", err, null_object);
+    if (native_layout.craft_native_grid(available_width, available_height, @intCast(@max(columns, 1)), column_gap, row_gap, items.ptr, count, output.ptr) != 0) return null;
+    const flattened = allocator.alloc(jni.jfloat, count * 4) catch |err| return fellThrough("grid", err, null_object);
+    for (output, 0..) |frame, index| {
+        flattened[index * 4] = frame.x;
+        flattened[index * 4 + 1] = frame.y;
+        flattened[index * 4 + 2] = frame.width;
+        flattened[index * 4 + 3] = frame.height;
+    }
+    return j.newFloatArray(flattened) catch |err| fellThrough("grid", err, null_object);
 }
 
 /// `nativeClipboardRead(activity)`.
@@ -3183,7 +3259,7 @@ test "the registered natives name methods the Kotlin actually declares" {
     // A descriptor is checked by the JVM at registration, so a wrong one fails
     // at load rather than at call — but only if the *name* matches something.
     // These two strings are the contract with CraftBridge.kt.
-    try testing.expectEqual(@as(usize, 103), natives.len);
+    try testing.expectEqual(@as(usize, 105), natives.len);
     try testing.expectEqualStrings("nativeGetDeviceInfo", std.mem.span(natives[0].name));
 
     // And the class they bind to is the fixed one, not the templated bridge.

@@ -634,6 +634,7 @@ fn builtinDescriptor(kotlin_type: []const u8) ?[]const u8 {
         .{ "Float", "F" },
         .{ "Double", "D" },
         .{ "ByteArray", "[B" },
+        .{ "FloatArray", "[F" },
         .{ "String", "Ljava/lang/String;" },
         .{ "Unit", "V" },
     };

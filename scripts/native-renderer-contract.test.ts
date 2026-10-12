@@ -61,6 +61,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('CraftNative.flexRow(')
     expect(android).toContain('sharedPrimary?.get(index)')
     expect(android).toContain('Float.NaN')
+    expect(android).toContain('CraftNative.grid(')
+    expect(android).toContain('sharedFrames[offset + 3]')
   })
 
   it('keeps device navigation tests independent of global field order and viewport position', () => {

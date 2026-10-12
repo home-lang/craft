@@ -588,36 +588,66 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         if (grid) {
             val layout = gridLayout(width, height)
-            var rowTop = paddingTop
-            for ((rowIndex, row) in layout.rows.withIndex()) {
-                val rowHeight = layout.rowHeights[rowIndex]
-                for ((column, entry) in row.withIndex()) {
-                    val align = entry.style.alignSelf ?: alignItems
-                    val lp = entry.view.layoutParams as? MarginLayoutParams
-                    val marginLeft = lp?.leftMargin ?: 0
-                    val marginRight = lp?.rightMargin ?: 0
-                    val marginTop = lp?.topMargin ?: 0
-                    val marginBottom = lp?.bottomMargin ?: 0
-                    val availableWidth = max(0, layout.cellWidth - marginLeft - marginRight)
-                    val availableHeight = max(0, rowHeight - marginTop - marginBottom)
-                    val childWidth = if (align == "stretch" && entry.style.width == null) availableWidth else min(availableWidth, entry.width)
-                    val childHeight = if (align == "stretch" && entry.style.height == null) availableHeight else min(availableHeight, entry.height)
-                    val x = paddingLeft + column * (layout.cellWidth + columnGap) + marginLeft + when (align) {
-                        "center" -> (availableWidth - childWidth) / 2
-                        "flex-end" -> availableWidth - childWidth
-                        else -> 0
-                    }
-                    val y = rowTop + marginTop + when (align) {
-                        "center" -> (availableHeight - childHeight) / 2
-                        "flex-end" -> availableHeight - childHeight
-                        else -> 0
-                    }
-                    entry.view.layout(x, y, x + childWidth, y + childHeight)
-                }
-                rowTop += rowHeight + rowGap
-            }
             val contentWidth = width - paddingLeft - paddingRight
             val contentHeight = height - paddingTop - paddingBottom
+            val flow = layout.rows.flatten()
+            val sharedFrames = CraftNative.grid(
+                contentWidth.toFloat(), contentHeight.toFloat(), gridColumns, columnGap.toFloat(), rowGap.toFloat(),
+                flow.map { it.width.toFloat() }.toFloatArray(), flow.map { it.height.toFloat() }.toFloatArray(),
+                flow.map { it.style.width?.resolve(layout.cellWidth)?.toFloat() ?: Float.NaN }.toFloatArray(),
+                flow.map { it.style.height?.resolve(null)?.toFloat() ?: Float.NaN }.toFloatArray(),
+                flow.map { it.style.minWidth?.resolve(layout.cellWidth)?.toFloat() ?: Float.NaN }.toFloatArray(),
+                flow.map { it.style.maxWidth?.resolve(layout.cellWidth)?.toFloat() ?: Float.NaN }.toFloatArray(),
+                flow.map { it.style.minHeight?.resolve(null)?.toFloat() ?: Float.NaN }.toFloatArray(),
+                flow.map { it.style.maxHeight?.resolve(null)?.toFloat() ?: Float.NaN }.toFloatArray(),
+                flow.flatMap {
+                    val lp = it.view.layoutParams as? MarginLayoutParams
+                    listOf((lp?.leftMargin ?: 0).toFloat(), (lp?.rightMargin ?: 0).toFloat(), (lp?.topMargin ?: 0).toFloat(), (lp?.bottomMargin ?: 0).toFloat())
+                }.toFloatArray(),
+                flow.flatMap {
+                    val align = it.style.alignSelf ?: alignItems
+                    listOf(if (align == "stretch") 1f else 0f, if (align == "center") 1f else if (align == "flex-end") 2f else 0f)
+                }.toFloatArray(),
+            )
+            if (sharedFrames != null) {
+                for ((index, entry) in flow.withIndex()) {
+                    val offset = index * 4
+                    val x = paddingLeft + sharedFrames[offset].roundToInt()
+                    val y = paddingTop + sharedFrames[offset + 1].roundToInt()
+                    val childWidth = sharedFrames[offset + 2].roundToInt()
+                    val childHeight = sharedFrames[offset + 3].roundToInt()
+                    entry.view.layout(x, y, x + childWidth, y + childHeight)
+                }
+            } else {
+                var rowTop = paddingTop
+                for ((rowIndex, row) in layout.rows.withIndex()) {
+                    val rowHeight = layout.rowHeights[rowIndex]
+                    for ((column, entry) in row.withIndex()) {
+                        val align = entry.style.alignSelf ?: alignItems
+                        val lp = entry.view.layoutParams as? MarginLayoutParams
+                        val marginLeft = lp?.leftMargin ?: 0
+                        val marginRight = lp?.rightMargin ?: 0
+                        val marginTop = lp?.topMargin ?: 0
+                        val marginBottom = lp?.bottomMargin ?: 0
+                        val availableWidth = max(0, layout.cellWidth - marginLeft - marginRight)
+                        val availableHeight = max(0, rowHeight - marginTop - marginBottom)
+                        val childWidth = if (align == "stretch" && entry.style.width == null) availableWidth else min(availableWidth, entry.width)
+                        val childHeight = if (align == "stretch" && entry.style.height == null) availableHeight else min(availableHeight, entry.height)
+                        val x = paddingLeft + column * (layout.cellWidth + columnGap) + marginLeft + when (align) {
+                            "center" -> (availableWidth - childWidth) / 2
+                            "flex-end" -> availableWidth - childWidth
+                            else -> 0
+                        }
+                        val y = rowTop + marginTop + when (align) {
+                            "center" -> (availableHeight - childHeight) / 2
+                            "flex-end" -> availableHeight - childHeight
+                            else -> 0
+                        }
+                        entry.view.layout(x, y, x + childWidth, y + childHeight)
+                    }
+                    rowTop += rowHeight + rowGap
+                }
+            }
             for (entry in layout.absolute) {
                 if (entry.view is CraftNativeModalView && entry.view.visibility == View.VISIBLE) entry.view.bringToFront()
                 val childWidth = if (entry.style.left != null && entry.style.right != null) contentWidth - entry.style.left!! - entry.style.right!! else entry.width
