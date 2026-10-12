@@ -10,6 +10,7 @@
         "@stacksjs/bunpress": "^0.2.13",
         "@stacksjs/env": "^0.72.50",
         "better-dx": "^0.2.38",
+        "buddy-bot": "^0.9.17",
       },
     },
     "benchmarks": {
@@ -498,6 +499,8 @@
 
     "better-dx": ["better-dx@0.2.38", "", { "dependencies": { "@buddysh/buddy": "^0.11.13", "@stacksjs/bumpx": "^0.2.14", "@stacksjs/bunpress": "^0.2.8", "@stacksjs/clapp": "^0.2.12", "@stacksjs/clarity": "^0.3.31", "@stacksjs/gitlint": "^0.1.7", "@stacksjs/logsmith": "^0.2.6", "@types/bun": "^1.3.14", "bun-git-hooks": "^0.3.2", "bun-plugin-dtsx": "^0.11.10", "bunfig": "^0.15.15", "pickier": "^0.1.67", "ts-error-handling": "^0.1.3", "typescript": "7.1.0-dev.20261011.1" } }, "sha512-ewOtXp5r5xxrlwqKTN8aJ/uk/Ra1hofyPdN+feue+jM6ICZe6IwiVS1CRGobPhu4I7mLObzDmB7mmeCeP3svsg=="],
 
+    "buddy-bot": ["buddy-bot@0.9.27", "", { "dependencies": { "prompts": "^2.4.2", "ts-pantry": "^0.11.19" }, "bin": { "buddy-bot": "./dist/bin/cli.js" } }, "sha512-vog9xkkxix/n+6lJd6etL0mgla4goCyW4aTkPs1AsAk3j3EzH1J4mRPQWzPFCifUg5M9AnL0rXZJRo2vj8cOkw=="],
+
     "bun-git-hooks": ["bun-git-hooks@0.3.2", "", { "bin": { "git-hooks": "./dist/bin/cli.js", "bun-git-hooks": "./dist/bin/cli.js" } }, "sha512-cHkmB7sxmtPNekzG0nGXqbN8Q+dZf4muvV4eCB8dBCduW1DHR+4YulKinPUk/C6Rogy+JMyL1ysVVVWwZobwZw=="],
 
     "bun-plugin-auto-imports": ["bun-plugin-auto-imports@0.4.1", "", {}, "sha512-S/+M76UtZc+1SBpqLKOmFXuEVBDnEBqjwnD3dsbHQao8vV+C46uN0JMQNJUZLdhR35KChZh1mHVJuiNqBrOSXQ=="],
@@ -745,6 +748,8 @@
     "better-dx/@stacksjs/bumpx": ["@stacksjs/bumpx@0.2.17", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "@stacksjs/logsmith": "^0.2.6", "bunfig": "^0.15.6" }, "bin": { "bumpx": "./dist/bin/cli.js" } }, "sha512-ZcjaBGDQErOOIiVbbg9EI1BbdCP/+kBbh55yHkDtcCYt9ifYHxhC/xE65f80e14/00yUr/56oPK+1g7am40GaQ=="],
 
     "better-dx/@stacksjs/logsmith": ["@stacksjs/logsmith@0.2.11", "", { "dependencies": { "@stacksjs/clapp": "^0.2.0", "bunfig": "^0.15.6", "pickier": "^0.1.9" }, "bin": { "@stacksjs/logsmith": "./dist/bin/cli.js", "logsmith": "./dist/bin/cli.js" } }, "sha512-wqqAxewpsHVDzpC+IRy+yYyGXGlv1j5GCqYTh8fL7d3LLhnRPN72PEQywM357burtORvdkFHfOzk3Ih1SMvuiw=="],
+
+    "buddy-bot/ts-pantry": ["ts-pantry@0.11.79", "", { "bin": { "ts-pantry": "./dist/bin/cli.js" } }, "sha512-dADnHozPpXuWyyawyxFZjgfeMqgJhUWBhnA8RGnADPQtOdUwO5gj5SaNqEQfuuylKhzcPf1wvVM94hGPaZ9doA=="],
 
     "@stacksjs/actions/@stacksjs/stx/@stacksjs/desktop": ["@stacksjs/desktop@0.2.219", "", { "dependencies": { "craft-native": ">=0.0.55" } }, "sha512-giBwNLtnu49wUA4oY1anPiPY+qzCzvJkLsViDZboBBfdE2v+c7t8y8JPE4Xta4gLTPaorEfrvGT6OxUMPoZHFg=="],
 
