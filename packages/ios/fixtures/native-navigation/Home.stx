@@ -413,6 +413,12 @@ function openCapabilities() {
       <View testID="align-content-third" style={{"width":60,"height":20,"backgroundColor":"#d1d5db"}} />
       <View testID="align-content-fourth" style={{"width":60,"height":20,"backgroundColor":"#f3f4f6"}} />
     </View>
+    <View testID="align-content-stretch-wrap" style={{"width":120,"height":96,"flexDirection":"row","flexWrap":"wrap","alignContent":"stretch","backgroundColor":"#1f2937"}}>
+      <Text testID="align-stretch-first" style={{"width":60}}>stretch one</Text>
+      <Text testID="align-stretch-second" style={{"width":60}}>stretch two</Text>
+      <Text testID="align-stretch-third" style={{"width":60}}>stretch three</Text>
+      <Text testID="align-stretch-fourth" style={{"width":60}}>stretch four</Text>
+    </View>
     <View testID="flex-grow-wrap" style={{"flexDirection":"row","width":240,"height":32,"gap":4,"backgroundColor":"#445566"}}>
       <Text testID="flex-grow-first" style={{"width":40,"flexGrow":1}}>grow</Text>
       <Text testID="flex-grow-second" style={{"width":40}}>fixed</Text>

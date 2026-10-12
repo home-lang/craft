@@ -247,6 +247,12 @@ final class NativeNavigationUITests: XCTestCase {
         let alignThird = app.otherElements["align-content-third"]
         XCTAssertTrue(alignFirst.waitForExistence(timeout: 5) && alignThird.exists)
         XCTAssertGreaterThan(alignThird.frame.minY - alignFirst.frame.minY, 50, "alignContent did not distribute wrapped lines")
+        let stretch = app.otherElements["align-content-stretch-wrap"]
+        let stretchFirst = app.staticTexts["align-stretch-first"]
+        let stretchThird = app.staticTexts["align-stretch-third"]
+        XCTAssertTrue(stretch.waitForExistence(timeout: 5) && stretchFirst.exists && stretchThird.exists)
+        XCTAssertGreaterThan(stretchFirst.frame.height, 35, "alignContent stretch did not expand the first line")
+        XCTAssertGreaterThan(stretchThird.frame.minY, stretchFirst.frame.minY + 35, "alignContent stretch did not expand the line height")
         let growFirst = app.staticTexts["flex-grow-first"]
         let growSecond = app.staticTexts["flex-grow-second"]
         XCTAssertTrue(growFirst.waitForExistence(timeout: 5))
