@@ -109,6 +109,9 @@ pub const EventRegistrationToken = extern struct {
 
 // Constants
 pub const S_OK: HRESULT = 0;
+/// Another apartment model was already chosen on this thread.
+pub const RPC_E_CHANGED_MODE: HRESULT = @as(i32, @bitCast(@as(u32, 0x8001_0106)));
+pub const COINIT_APARTMENTTHREADED: DWORD = 0x2;
 pub const WS_OVERLAPPEDWINDOW: DWORD = 0x00CF0000;
 pub const WS_VISIBLE: DWORD = 0x10000000;
 pub const WS_POPUP: DWORD = 0x80000000;
@@ -194,6 +197,7 @@ pub extern "user32" fn GetMonitorInfoW(hMonitor: *anyopaque, lpmi: *MONITORINFO)
 pub extern "kernel32" fn GetModuleHandleW(lpModuleName: ?LPCWSTR) callconv(.c) ?HINSTANCE;
 pub extern "kernel32" fn Sleep(dwMilliseconds: DWORD) callconv(.c) void;
 pub extern "ole32" fn CoTaskMemFree(pv: ?*anyopaque) callconv(.c) void;
+pub extern "ole32" fn CoInitializeEx(pvReserved: ?*anyopaque, dwCoInit: DWORD) callconv(.c) HRESULT;
 
 // ============================================================================
 // WebView2 COM vtable interfaces
@@ -1072,6 +1076,36 @@ const CreateCoreWebView2EnvironmentWithOptionsFn = *const fn (
 
 var webview2_create_fn: ?CreateCoreWebView2EnvironmentWithOptionsFn = null;
 
+/// Whether the call below has already put this thread in an apartment.
+threadlocal var com_initialized = false;
+
+/// Put the calling thread in a COM apartment, which WebView2 requires.
+///
+/// `CreateCoreWebView2EnvironmentWithOptions` fails with `CO_E_NOTINITIALIZED`
+/// (0x800401f0) when the calling thread has no apartment, and nothing in craft
+/// used to create one: `ole32` was linked for `CoTaskMemFree` alone. So on
+/// Windows the environment never came up, and the process exited before a
+/// window existed.
+///
+/// An STA, because WebView2 hosts UI on the thread that pumps messages and
+/// that is the apartment Edge expects. Two non-`S_OK` results are still fine:
+/// `S_FALSE` means the thread already had an apartment, and
+/// `RPC_E_CHANGED_MODE` means an embedder got here first and chose an MTA,
+/// which is theirs to choose and which WebView2 can still work in.
+///
+/// There is deliberately no matching `CoUninitialize`. The apartment has to
+/// outlive every webview created on the thread, and the only point at which
+/// that is true is process exit, which tears it down regardless.
+fn ensureComInitialized() void {
+    if (com_initialized) return;
+    const hr = CoInitializeEx(null, COINIT_APARTMENTTHREADED);
+    if (!succeeded(hr) and hr != RPC_E_CHANGED_MODE) {
+        std.debug.print("[WebView2] CoInitializeEx failed: 0x{x}\n", .{@as(u32, @bitCast(hr))});
+        return;
+    }
+    com_initialized = true;
+}
+
 /// Dynamically load WebView2Loader.dll and resolve CreateCoreWebView2EnvironmentWithOptions.
 /// Returns null if WebView2 runtime is not installed.
 fn loadWebView2() ?CreateCoreWebView2EnvironmentWithOptionsFn {
@@ -1762,6 +1796,11 @@ pub const Window = struct {
     y: i32,
 
     pub fn create(options: @import("api.zig").WindowOptions) !Window {
+        // Before anything asks WebView2 for an environment. See
+        // ensureComInitialized: without an apartment on this thread, creation
+        // fails with CO_E_NOTINITIALIZED and no window is ever created.
+        ensureComInitialized();
+
         const hInstance = GetModuleHandleW(null) orelse return error.WindowCreationFailed;
 
         // Register window class if not already done
