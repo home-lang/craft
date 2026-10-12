@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.147...v0.0.148)
+
+## 🚀 Features
+
+- **ios**: native screens show and steer the Music app ([60ff38a](https://github.com/craft-native/craft/commit/60ff38a)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.146...v0.0.147)
 
 ## 🚀 Features
