@@ -6,6 +6,7 @@ const root = join(import.meta.dir, '..')
 const ios = readFileSync(join(root, 'packages/ios/templates/CraftNativeScreen.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
+const androidDispatch = readFileSync(join(root, 'packages/zig/src/android_dispatch.zig'), 'utf8')
 const androidFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeFlatList.kt.template'), 'utf8')
 const androidRefreshableFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeRefreshableFlatList.kt.template'), 'utf8')
 const androidNavigationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeNavigationTest.kt'), 'utf8')
@@ -55,6 +56,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('import Darwin')
     expect(ios).toContain('craft_native_flex_row')
     expect(ios).toContain('CraftNativeFlexBridge.widths')
+    expect(ios).toContain('craft_native_grid')
+    expect(ios).toContain('CraftNativeGridBridge.frames')
     expect(android).toContain('CraftNative.flexRow(')
     expect(android).toContain('sharedPrimary?.get(index)')
     expect(android).toContain('Float.NaN')
@@ -156,6 +159,11 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('host-neutral layout contract')
     expect(guide).toContain('platform-specific measurement')
     expect(guide).toContain('must not fork the distribution rules')
+  })
+
+  it('keeps the Android flex bridge fallback typed as a JNI object', () => {
+    expect(androidDispatch).toContain('fellThrough("flexRow", err, @as(jni.jobject, null))')
+    expect(androidDispatch).not.toContain('fellThrough("flexRow", err, null)')
   })
 
   it('keeps platform README primitive inventories complete', () => {

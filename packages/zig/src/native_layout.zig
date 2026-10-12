@@ -86,8 +86,8 @@ pub const GridItem = extern struct {
     margin_right: f32,
     margin_top: f32,
     margin_bottom: f32,
-    stretch: u8,
-    alignment: u8,
+    stretch: u32,
+    alignment: u32,
 };
 
 /// Resolve an equal-track grid in content coordinates for native hosts.

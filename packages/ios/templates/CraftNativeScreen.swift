@@ -67,6 +67,71 @@ private enum CraftNativeFlexBridge {
     }
 }
 
+private enum CraftNativeGridBridge {
+    private struct Item {
+        var intrinsicWidth: Float
+        var intrinsicHeight: Float
+        var explicitWidth: Float
+        var explicitHeight: Float
+        var minWidth: Float
+        var maxWidth: Float
+        var minHeight: Float
+        var maxHeight: Float
+        var marginLeft: Float
+        var marginRight: Float
+        var marginTop: Float
+        var marginBottom: Float
+        var stretch: UInt32
+        var alignment: UInt32
+    }
+
+    private struct Frame {
+        var x: Float
+        var y: Float
+        var width: Float
+        var height: Float
+    }
+
+    private typealias Function = @convention(c) (
+        Float, Float, UInt32, Float, Float, UnsafePointer<Item>, Int, UnsafeMutablePointer<Frame>
+    ) -> Int32
+
+    private static let function: Function? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_grid") else { return nil }
+        return unsafeBitCast(symbol, to: Function.self)
+    }()
+
+    static func frames(
+        availableWidth: CGFloat,
+        availableHeight: CGFloat,
+        columns: Int,
+        columnGap: CGFloat,
+        rowGap: CGFloat,
+        items: [(intrinsicWidth: CGFloat, intrinsicHeight: CGFloat, explicitWidth: CGFloat?, explicitHeight: CGFloat?, minWidth: CGFloat?, maxWidth: CGFloat?, minHeight: CGFloat?, maxHeight: CGFloat?, marginLeft: CGFloat, marginRight: CGFloat, marginTop: CGFloat, marginBottom: CGFloat, stretch: Bool, alignment: UInt32)]
+    ) -> [(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat)]? {
+        guard let function, !items.isEmpty else { return nil }
+        var input = items.map { item in
+            Item(
+                intrinsicWidth: Float(item.intrinsicWidth), intrinsicHeight: Float(item.intrinsicHeight),
+                explicitWidth: item.explicitWidth.map(Float.init) ?? .nan, explicitHeight: item.explicitHeight.map(Float.init) ?? .nan,
+                minWidth: item.minWidth.map(Float.init) ?? .nan, maxWidth: item.maxWidth.map(Float.init) ?? .nan,
+                minHeight: item.minHeight.map(Float.init) ?? .nan, maxHeight: item.maxHeight.map(Float.init) ?? .nan,
+                marginLeft: Float(item.marginLeft), marginRight: Float(item.marginRight),
+                marginTop: Float(item.marginTop), marginBottom: Float(item.marginBottom),
+                stretch: item.stretch ? 1 : 0, alignment: item.alignment
+            )
+        }
+        var output = [Frame](repeating: Frame(x: 0, y: 0, width: 0, height: 0), count: input.count)
+        let status = input.withUnsafeBufferPointer { inputBuffer in
+            output.withUnsafeMutableBufferPointer { outputBuffer in
+                function(Float(availableWidth), Float(availableHeight), UInt32(max(1, columns)), Float(columnGap), Float(rowGap), inputBuffer.baseAddress!, input.count, outputBuffer.baseAddress!)
+            }
+        }
+        guard status == 0 else { return nil }
+        return output.map { (CGFloat($0.x), CGFloat($0.y), CGFloat($0.width), CGFloat($0.height)) }
+    }
+}
+
 private final class CraftNativeVideoView: UIView {
     private let playerController = AVPlayerViewController()
     private var player: AVPlayer?
@@ -1080,7 +1145,35 @@ private final class CraftNativeFlowView: UIStackView {
         }
         let width = innerWidth ?? (CGFloat(columns) * cellWidth + gaps)
         let height = rowHeights.reduce(0, +) + CGFloat(max(0, rowHeights.count - 1)) * verticalGap
+        let sharedFrames = CraftNativeGridBridge.frames(
+            availableWidth: innerWidth ?? width,
+            availableHeight: innerHeight ?? height,
+            columns: columns,
+            columnGap: horizontalGap,
+            rowGap: verticalGap,
+            items: children.enumerated().map { index, child in
+                let style = child.craftLayoutStyle
+                let align = style.alignSelf ?? alignItems
+                let size = sizes[index]
+                let alignment: UInt32 = align == "center" ? 1 : align == "flex-end" ? 2 : 0
+                return (
+                    size.width, size.height,
+                    style.width?.resolve(cellWidth), style.height?.resolve(nil),
+                    style.minWidth?.resolve(cellWidth), style.maxWidth?.resolve(cellWidth),
+                    style.minHeight?.resolve(nil), style.maxHeight?.resolve(nil),
+                    style.marginLeft, style.marginRight, style.marginTop, style.marginBottom,
+                    align == "stretch", alignment
+                )
+            }
+        )
         if place {
+            if let sharedFrames {
+                for (index, child) in children.enumerated() {
+                    let frame = sharedFrames[index]
+                    frames.append((child, CGRect(x: padding.left + frame.x, y: padding.top + frame.y, width: frame.width, height: frame.height)))
+                }
+                return CGSize(width: width, height: innerHeight ?? height)
+            }
             var rowTop = padding.top
             for (index, child) in children.enumerated() {
                 let style = child.craftLayoutStyle
