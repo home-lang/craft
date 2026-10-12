@@ -300,6 +300,11 @@ class NativeNavigationTest {
             val growFirst = awaitView(activity, "flex-grow-first")
             val growSecond = awaitView(activity, "flex-grow-second")
             assertTrue("flexGrow did not consume remaining main-axis space", growFirst.width > growSecond.width)
+            val justifyCenter = awaitView(activity, "justify-center-wrap")
+            val justifyCenterFirst = awaitView(activity, "justify-center-first")
+            val justifyCenterSecond = awaitView(activity, "justify-center-second")
+            assertTrue("shared justify-center position was not applied", justifyCenterFirst.left > justifyCenter.left + (20 * density).toInt())
+            assertTrue("shared justify-center gap was not applied", justifyCenterSecond.left > justifyCenterFirst.right)
             val reverseColumn = awaitView(activity, "reverse-column") as LinearLayout
             val reverseColumnFirst = awaitView(activity, "reverse-column-first")
             val reverseColumnSecond = awaitView(activity, "reverse-column-second")

@@ -249,6 +249,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(growFirst.waitForExistence(timeout: 5))
         XCTAssertTrue(growSecond.exists)
         XCTAssertGreaterThan(growFirst.frame.width, growSecond.frame.width, "flexGrow did not consume remaining main-axis space")
+        let justifyCenter = app.otherElements["justify-center-wrap"]
+        let justifyCenterFirst = app.staticTexts["justify-center-first"]
+        let justifyCenterSecond = app.staticTexts["justify-center-second"]
+        XCTAssertTrue(justifyCenter.waitForExistence(timeout: 5) && justifyCenterFirst.exists && justifyCenterSecond.exists)
+        XCTAssertGreaterThan(justifyCenterFirst.frame.minX, justifyCenter.frame.minX + 20, "shared justify-center position was not applied")
+        XCTAssertGreaterThan(justifyCenterSecond.frame.minX, justifyCenterFirst.frame.maxX, "shared justify-center gap was not applied")
         let reverseColumnFirst = app.staticTexts["reverse-column-first"]
         let reverseColumnSecond = app.staticTexts["reverse-column-second"]
         XCTAssertTrue(reverseColumnFirst.waitForExistence(timeout: 5))

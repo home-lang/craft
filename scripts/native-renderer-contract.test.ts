@@ -176,6 +176,11 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('must not fork the distribution rules')
   })
 
+  it('keeps Android flex justification aligned across the Kotlin and JNI seams', () => {
+    expect(androidNative).toContain('private external fun nativeFlexRow(\n        available: Float,\n        gap: Float,\n        justify: Int,')
+    expect(androidDispatch).toContain('.signature = "(FFI[F[F[F[F[F[F)[F"')
+  })
+
   it('keeps the Android flex bridge fallback typed as a JNI object', () => {
     expect(androidDispatch).toContain('fellThrough("flexRow", err, @as(jni.jobject, null))')
     expect(androidDispatch).not.toContain('fellThrough("flexRow", err, null)')
@@ -968,6 +973,13 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('column-reverse did not invert the main axis')
     expect(android).toContain('if (style.optString("flexDirection").endsWith("-reverse")) desired.reverse()')
     expect(ios).toContain('if (style["flexDirection"] as? String)?.hasSuffix("-reverse") == true')
+  })
+
+  it('exercises shared non-reverse justify positions in the maintained fixture', () => {
+    expect(navigationHome).toContain('testID="justify-center-wrap"')
+    expect(navigationHome).toContain('"justifyContent":"center"')
+    expect(iosNavigationTest).toContain('shared justify-center position was not applied')
+    expect(androidNavigationTest).toContain('shared justify-center position was not applied')
   })
 
   it('retains keyed iOS input drafts while FlatList rows recycle', () => {

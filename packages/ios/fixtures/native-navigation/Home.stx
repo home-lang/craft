@@ -416,6 +416,10 @@ function openCapabilities() {
       <Text testID="flex-grow-first" style={{"width":40,"flexGrow":1}}>grow</Text>
       <Text testID="flex-grow-second" style={{"width":40}}>fixed</Text>
     </View>
+    <View testID="justify-center-wrap" style={{"flexDirection":"row","justifyContent":"center","gap":4,"width":240,"height":32,"backgroundColor":"#3d4f61"}}>
+      <Text testID="justify-center-first" style={{"width":40}}>center one</Text>
+      <Text testID="justify-center-second" style={{"width":40}}>center two</Text>
+    </View>
     <Text testID="native-link" accessibilityHint="Opens status" accessibilityValue="ready" accessibilityState={linkAccessibilityState()} @click="setStatus('link pressed')">Open native link</Text>
     <Text testID="native-link-status" :text="status" />
     <Button testID="toggle-link-accessibility" @click="toggleLinkAccessibility()">Toggle link accessibility</Button>

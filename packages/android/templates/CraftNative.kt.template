@@ -234,6 +234,7 @@ object CraftNative {
     private external fun nativeFlexRow(
         available: Float,
         gap: Float,
+        justify: Int,
         basis: FloatArray,
         grow: FloatArray,
         shrink: FloatArray,
