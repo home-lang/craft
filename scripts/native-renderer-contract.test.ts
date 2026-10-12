@@ -52,7 +52,9 @@ const COMPONENTS: Array<[string, string, string]> = [
 describe('native renderer component contract', () => {
   it('exports the flat flex ABI for mobile hosts', () => {
     expect(nativeLayout).toContain('pub const FlexItem = extern struct')
+    expect(nativeLayout).toContain('pub const FlexLineItem = extern struct')
     expect(nativeLayout).toContain('pub export fn craft_native_flex_row(')
+    expect(nativeLayout).toContain('pub export fn craft_native_flex_line_breaks(')
     expect(nativeLayout).toContain('pub const GridItem = extern struct')
     expect(nativeLayout).toContain('pub const Frame = extern struct')
     expect(nativeLayout).toContain('pub export fn craft_native_grid(')
@@ -63,6 +65,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('import Darwin')
     expect(ios).toContain('craft_native_flex_row')
     expect(ios).toContain('CraftNativeFlexBridge.widths')
+    expect(ios).toContain('CraftNativeFlexLineBridge.lines')
     expect(ios).toContain('craft_native_grid')
     expect(ios).toContain('CraftNativeGridBridge.frames')
     expect(ios).toContain('CraftNativeCrossAxisBridge.position')

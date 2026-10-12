@@ -78,6 +78,36 @@ private func craftNativeJustifyCode(_ value: String) -> UInt32 {
     }
 }
 
+private enum CraftNativeFlexLineBridge {
+    private struct Item {
+        var basis: Float
+        var marginStart: Float
+        var marginEnd: Float
+    }
+
+    private typealias Function = @convention(c) (
+        Float, Float, UInt32, UnsafeRawPointer, Int, UnsafeMutableRawPointer
+    ) -> Int32
+
+    private static let function: Function? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_flex_line_breaks") else { return nil }
+        return unsafeBitCast(symbol, to: Function.self)
+    }()
+
+    static func lines(available: CGFloat, gap: CGFloat, wrap: Bool, items: [(basis: CGFloat, leading: CGFloat, trailing: CGFloat)]) -> [Int]? {
+        guard let function, !items.isEmpty else { return nil }
+        var input = items.map { Item(basis: Float($0.basis), marginStart: Float($0.leading), marginEnd: Float($0.trailing)) }
+        var output = [Int32](repeating: 0, count: input.count)
+        let status = input.withUnsafeBufferPointer { inputBuffer in
+            output.withUnsafeMutableBufferPointer { outputBuffer in
+                function(Float(available), Float(gap), wrap ? 1 : 0, UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!))
+            }
+        }
+        guard status > 0 else { return nil }
+        return output.map(Int.init)
+    }
+}
+
 /// Optional bridge to the shared cross-axis alignment rule. The local rule is
 /// retained for runtimes built before this symbol was exported.
 private enum CraftNativeCrossAxisBridge {
@@ -990,20 +1020,34 @@ private final class CraftNativeFlowView: UIStackView {
         // Lines: one, or as many as wrapping needs.
         var lines: [Range<Int>] = []
         let lineLimit = definiteMain ?? roomMain
-        var start = 0
-        var used: CGFloat = 0
-        for index in items.indices {
-            let size = items[index].basis + items[index].mainMargins
-            let next = index == start ? size : used + mainGap + size
-            if wrap, index > start, next > lineLimit {
+        if let lineIds = CraftNativeFlexLineBridge.lines(
+            available: lineLimit,
+            gap: mainGap,
+            wrap: wrap,
+            items: items.map { ($0.basis, $0.mainLeading, $0.mainTrailing) }
+        ) {
+            var start = 0
+            for index in 1..<items.count where lineIds[index] != lineIds[index - 1] {
                 lines.append(start..<index)
                 start = index
-                used = size
-            } else {
-                used = next
             }
+            lines.append(start..<items.count)
+        } else {
+            var start = 0
+            var used: CGFloat = 0
+            for index in items.indices {
+                let size = items[index].basis + items[index].mainMargins
+                let next = index == start ? size : used + mainGap + size
+                if wrap, index > start, next > lineLimit {
+                    lines.append(start..<index)
+                    start = index
+                    used = size
+                } else {
+                    used = next
+                }
+            }
+            if start < items.count { lines.append(start..<items.count) }
         }
-        if start < items.count { lines.append(start..<items.count) }
 
         var lineMains: [CGFloat] = []
         var lineCrosses: [CGFloat] = []

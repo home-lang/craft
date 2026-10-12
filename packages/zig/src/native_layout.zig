@@ -73,6 +73,14 @@ pub const FlexItem = extern struct {
     margin_end: f32,
 };
 
+/// C-compatible input for shared flex line formation. Cross-axis measurement
+/// stays on the host; line breaks depend only on these main-axis values.
+pub const FlexLineItem = extern struct {
+    basis: f32,
+    margin_start: f32,
+    margin_end: f32,
+};
+
 /// C-compatible input for equal-track native grids. A negative or NaN
 /// dimension means "use intrinsic"; `stretch` is 1 for the host's stretch
 /// alignment and `alignment` is 0=start, 1=center, or 2=end.
@@ -191,6 +199,35 @@ pub export fn craft_native_cross_axis_position(
         2 => safe_available - safe_margin_end - safe_size,
         else => safe_margin_start,
     };
+}
+
+/// Form wrapped flex lines. `wrap` is 0 for one line or non-zero to break
+/// before an item that would exceed `available`; the return value is the line
+/// count, and `line_ids` receives one zero-based line id per item.
+pub export fn craft_native_flex_line_breaks(
+    available: f32,
+    gap: f32,
+    wrap: u32,
+    items: [*]const FlexLineItem,
+    item_count: usize,
+    line_ids: [*]i32,
+) callconv(.c) c_int {
+    if (item_count == 0) return 0;
+    const safe_available = finiteNonNegative(available);
+    const safe_gap = finiteNonNegative(gap);
+    var line_id: i32 = 0;
+    var used: f32 = 0;
+    for (items[0..item_count], 0..) |item, index| {
+        const item_size = finiteNonNegative(item.basis) + finiteNonNegative(item.margin_start) + finiteNonNegative(item.margin_end);
+        if (wrap != 0 and index > 0 and used + safe_gap + item_size > safe_available) {
+            line_id += 1;
+            used = item_size;
+        } else {
+            used = if (index == 0) item_size else used + safe_gap + item_size;
+        }
+        line_ids[index] = line_id;
+    }
+    return line_id + 1;
 }
 
 /// ABI v2 flex row distribution. `justify` is 0=start, 1=center, 2=end,
@@ -683,6 +720,21 @@ test "exports shared cross-axis alignment positions" {
     try std.testing.expectApproxEqAbs(@as(f32, 34), craft_native_cross_axis_position(100, 30, 7, 9, 1), 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 61), craft_native_cross_axis_position(100, 30, 7, 9, 2), 0.001);
     try std.testing.expect(std.math.isFinite(craft_native_cross_axis_position(std.math.inf(f32), std.math.nan(f32), -1, std.math.inf(f32), 1)));
+}
+
+test "exports wrapped flex line breaks" {
+    const items = [_]FlexLineItem{
+        .{ .basis = 40, .margin_start = 2, .margin_end = 2 },
+        .{ .basis = 50, .margin_start = 0, .margin_end = 0 },
+        .{ .basis = 20, .margin_start = 1, .margin_end = 1 },
+    };
+    var line_ids: [3]i32 = undefined;
+    try std.testing.expectEqual(@as(c_int, 2), craft_native_flex_line_breaks(100, 5, 1, &items, items.len, &line_ids));
+    try std.testing.expectEqual(@as(i32, 0), line_ids[0]);
+    try std.testing.expectEqual(@as(i32, 0), line_ids[1]);
+    try std.testing.expectEqual(@as(i32, 1), line_ids[2]);
+    try std.testing.expectEqual(@as(c_int, 1), craft_native_flex_line_breaks(100, 5, 0, &items, items.len, &line_ids));
+    try std.testing.expectEqual(@as(i32, 0), line_ids[2]);
 }
 
 test "sanitizes non-finite flex inputs" {
