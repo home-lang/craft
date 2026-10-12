@@ -538,8 +538,10 @@ final class CraftHybrid: NSObject {
 
       // A shared key a native screen wrote (a sign-in there): into this
       // page's storage, which reports it back as the page's own write, and
-      // a `craftsharedstorage` event for whoever holds it in memory.
-      function adopt(values) {
+      // a `craftsharedstorage` event for whoever holds it in memory. Named
+      // apart from the router's adopt: function declarations hoist, so a
+      // second `adopt` replaced the first and the router went unwrapped.
+      function adoptShared(values) {
         Object.keys(values || {}).forEach(function (key) {
           if (SHARE.indexOf(key) < 0) return;
           var value = values[key];
@@ -555,7 +557,7 @@ final class CraftHybrid: NSObject {
 
       window.__craftHybrid = {
         match: function (url) { var path = local(url); return path === null ? null : match(path); },
-        adopt: adopt,
+        adopt: adoptShared,
         // The shell's own navigation: never handed back to it, and without
         // the page's slide, since the shell animates the push itself.
         // Answers once the page has drawn `path` (its router settles before
