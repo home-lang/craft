@@ -847,6 +847,22 @@ private data class LayoutBounds(
     val height: Double,
 )
 
+/**
+ * Android's default spinner style is indeterminate-only, so assigning
+ * `isIndeterminate = false` to it is silently ignored. Use a determinate
+ * ProgressBar style and carry over the platform spinner drawable instead;
+ * that preserves the native look while allowing `animating={false}` to be a
+ * genuinely stopped control.
+ */
+private class CraftNativeActivityIndicator(context: Context) :
+    android.widget.ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal) {
+    init {
+        val spinner = android.widget.ProgressBar(context).indeterminateDrawable
+        indeterminateDrawable = spinner
+        progressDrawable = spinner?.constantState?.newDrawable()?.mutate() ?: spinner
+    }
+}
+
 /** WebView-free host for a route bundle compiled by `stx native compile`. */
 class MainActivity : AppCompatActivity() {
     private class Screen(
@@ -1632,7 +1648,7 @@ class MainActivity : AppCompatActivity() {
                     }
                 })
             }
-            "ActivityIndicator" -> (previous as? android.widget.ProgressBar ?: android.widget.ProgressBar(this)).apply {
+            "ActivityIndicator" -> (previous as? CraftNativeActivityIndicator ?: CraftNativeActivityIndicator(this)).apply {
                 val requestedSize = props.opt("size")
                 val scale = when (requestedSize) {
                     "large" -> 1.35f

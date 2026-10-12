@@ -540,6 +540,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('view.clearColorFilter()')
   })
 
+  it('lets stopped Android activity indicators leave the indeterminate-only spinner style', () => {
+    expect(android).toContain('private class CraftNativeActivityIndicator(context: Context)')
+    expect(android).toContain('android.R.attr.progressBarStyleHorizontal')
+    expect(android).toContain('progressDrawable = spinner?.constantState?.newDrawable()?.mutate() ?: spinner')
+    expect(android).toContain('previous as? CraftNativeActivityIndicator ?: CraftNativeActivityIndicator(this)')
+    expect(android).toContain('isIndeterminate = animating')
+  })
+
   it('keeps account navigation buttons compatible with the release SDK', () => {
     expect(ios).toContain('let item = UIBarButtonItem(customView: button)')
     // iOS 26 bar-item APIs only behind a compiler guard: older SDKs in the

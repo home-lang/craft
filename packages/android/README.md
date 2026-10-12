@@ -103,7 +103,9 @@ with `onValueChange` or `onChange`. `Modal` is parent-scoped and supports
 `visible`, `transparent`, `animationType`, `onShow`, `onDismiss`, and
 `onRequestClose` for Android back handling. `Switch` supports state-aware `trackColor`
 and `thumbColor`, while `Slider` supports track/thumb tint props and `step`
-snapping. `Image` reports load lifecycle events and structured failures.
+snapping. `ActivityIndicator` keeps a visible stopped indicator genuinely
+non-animated when `animating={false}` and `hidesWhenStopped={false}`. `Image`
+reports load lifecycle events and structured failures.
 `FlatList` uses
 `RecyclerView`, stable IDs, and `DiffUtil` for keyed recycling, grids,
 horizontal and inverted layouts, list chrome, and end-reached pagination.
