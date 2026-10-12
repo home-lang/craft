@@ -588,6 +588,15 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         else -> 0
     }
 
+    private fun alignContentCode(): Int = when (alignContent) {
+        "center" -> 1
+        "flex-end" -> 2
+        "space-between" -> 3
+        "space-around" -> 4
+        "stretch" -> 5
+        else -> 0
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
         val width = View.MeasureSpec.getSize(widthMeasureSpec).takeUnless { widthMode == View.MeasureSpec.UNSPECIFIED } ?: 1_000_000
@@ -705,8 +714,14 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val crossFree = max(0, availableCross - totalCross)
         var crossLeading = 0
         var crossBetween = crossGap
+        val sharedCross = if (wrap && lines.size > 1) {
+            CraftNative.flexLineDistribution(
+                availableCross.toFloat(), crossGap.toFloat(), alignContentCode(), lines.map { it.cross.toFloat() }.toFloatArray()
+            )
+        } else null
+        sharedCross?.second?.forEachIndexed { index, size -> lines[index].cross = size.roundToInt() }
         if (wrap && lines.size > 1) {
-            when (alignContent) {
+            if (sharedCross == null) when (alignContent) {
                 "center" -> crossLeading = crossFree / 2
                 "flex-end" -> crossLeading = crossFree
                 "space-between" -> crossBetween = crossFree / (lines.size - 1) + crossGap
@@ -721,7 +736,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             }
         }
         var crossOffset = (if (orientation == HORIZONTAL) paddingTop else paddingLeft) + crossLeading
-        for (line in lines) {
+        for ((lineIndex, line) in lines.withIndex()) {
+            val lineOffset = sharedCross?.first?.get(lineIndex)?.roundToInt()?.let { (if (orientation == HORIZONTAL) paddingTop else paddingLeft) + it } ?: crossOffset
             val rawFree = availableMain - line.main
             val sharedPrimary = CraftNative.flexRow(
                 availableMain.toFloat(),
@@ -801,8 +817,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 val sharedPosition = if (!reverse) sharedPositions?.get(index)?.roundToInt() else null
                 val positionedMain = sharedPosition?.let { (if (orientation == HORIZONTAL) paddingLeft else paddingTop) + it }
                     ?: mainOffset + marginStart
-                val x = if (orientation == HORIZONTAL) positionedMain else crossOffset + crossPosition
-                val y = if (orientation == HORIZONTAL) crossOffset + crossPosition else positionedMain
+                val x = if (orientation == HORIZONTAL) positionedMain else lineOffset + crossPosition
+                val y = if (orientation == HORIZONTAL) lineOffset + crossPosition else positionedMain
                 val distributedPrimary = sharedPrimary?.get(index)?.roundToInt() ?: run {
                     val primary = if (orientation == HORIZONTAL) entry.width else entry.height
                     val factor = if (rawFree >= 0) entry.style.flexGrow else entry.style.flexShrink ?: defaultFlexShrink(entry.view)
@@ -819,7 +835,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 entry.view.layout(x, y, x + w, y + h)
                 if (sharedPosition == null) mainOffset += distributedPrimary + marginStart + marginEnd + gap + between
             }
-            crossOffset += line.cross + crossBetween
+            if (sharedCross == null) crossOffset += line.cross + crossBetween
         }
         for (entry in absolute) {
             if (entry.view is CraftNativeModalView && entry.view.visibility == View.VISIBLE) entry.view.bringToFront()

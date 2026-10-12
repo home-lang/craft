@@ -250,6 +250,12 @@ object CraftNative {
         basis: FloatArray,
         margins: FloatArray,
     ): FloatArray?
+    private external fun nativeFlexLineDistribution(
+        available: Float,
+        gap: Float,
+        alignment: Int,
+        lineCrosses: FloatArray,
+    ): FloatArray?
     private external fun nativeCrossAxisPosition(
         available: Float,
         size: Float,
@@ -460,6 +466,20 @@ object CraftNative {
                 ?.takeIf { it.size >= basis.size && it.all { value -> value.isFinite() } }
                 ?.map { it.roundToInt() }
                 ?.toIntArray()
+        } catch (e: UnsatisfiedLinkError) {
+            null
+        }
+    }
+
+    /** Distribute wrapped flex lines in Zig, or null for the Kotlin fallback. */
+    fun flexLineDistribution(available: Float, gap: Float, alignment: Int, lineCrosses: FloatArray): Pair<FloatArray, FloatArray>? {
+        if (!isAvailable || lineCrosses.isEmpty()) return null
+        return try {
+            nativeFlexLineDistribution(available, gap, alignment, lineCrosses)
+                ?.takeIf { it.size >= lineCrosses.size * 2 && it.all { value -> value.isFinite() } }
+                ?.let { flattened ->
+                    flattened.copyOfRange(0, lineCrosses.size) to flattened.copyOfRange(lineCrosses.size, lineCrosses.size * 2)
+                }
         } catch (e: UnsatisfiedLinkError) {
             null
         }
