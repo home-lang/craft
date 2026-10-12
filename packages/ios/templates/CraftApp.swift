@@ -2225,7 +2225,7 @@ struct CraftWebView: UIViewRepresentable {
             // MARK: - Social Auth
             case "signInWithApple":
                 if config.enableSocialAuth {
-                    signInWithApple(callbackId: callbackId)
+                    signInWithApple(nonce: body["nonce"] as? String, callbackId: callbackId)
                 } else {
                     rejectCallback(callbackId, error: "Social sign-in is disabled", code: "CAPABILITY_DISABLED")
                 }
@@ -3584,8 +3584,13 @@ struct CraftWebView: UIViewRepresentable {
                 restorePurchases: function() {
                     return this._invoke('restorePurchases');
                 },
-                signInWithApple: function() {
-                    return this._invoke('signInWithApple');
+                // `nonce` is the SHA-256 of a one-time value the page keeps;
+                // Apple writes it into the identity token, so the server can
+                // tie the sign-in to that page. The answer carries Apple's
+                // one-use authorizationCode for the server to redeem.
+                signInWithApple: function(options) {
+                    var nonce = options && typeof options.nonce === 'string' ? options.nonce : undefined;
+                    return this._invoke('signInWithApple', nonce ? {nonce: nonce} : {});
                 },
                 signInWithGoogle: function() {
                     return Promise.reject(new Error('Google Sign-In is unavailable on iOS'));
@@ -6605,12 +6610,13 @@ struct CraftWebView: UIViewRepresentable {
         }
 
         // MARK: - Social Auth (Apple Sign In)
-        private func signInWithApple(callbackId: String?) {
+        private func signInWithApple(nonce: String?, callbackId: String?) {
             DispatchQueue.main.async {
                 self.pendingCallbackId = callbackId
                 let provider = ASAuthorizationAppleIDProvider()
                 let request = provider.createRequest()
                 request.requestedScopes = [.fullName, .email]
+                if let nonce, !nonce.isEmpty { request.nonce = nonce }
 
                 let controller = ASAuthorizationController(authorizationRequests: [request])
                 controller.delegate = self
@@ -8232,6 +8238,12 @@ extension CraftWebView.Coordinator: ASAuthorizationControllerDelegate, ASAuthori
             if let identityToken = appleIDCredential.identityToken,
                let tokenString = String(data: identityToken, encoding: .utf8) {
                 result["identityToken"] = tokenString
+            }
+            // One use, five minutes: the server redeems it at Apple's token
+            // endpoint and so reads the identity straight from Apple.
+            if let authorizationCode = appleIDCredential.authorizationCode,
+               let codeString = String(data: authorizationCode, encoding: .utf8) {
+                result["authorizationCode"] = codeString
             }
 
             resolveCallback(pendingCallbackId, result: result)

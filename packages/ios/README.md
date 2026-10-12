@@ -322,9 +322,11 @@ console.log(file.name, file.data); // base64 encoded
 await window.craft.downloadFile('https://example.com/file.pdf', 'document.pdf');
 await window.craft.saveFile('data:text/plain;base64,SGVsbG8=', 'hello.txt', 'text/plain');
 
-// Social Auth (Apple Sign In)
-const user = await window.craft.signInWithApple();
-console.log(user.userId, user.email, user.fullName, user.identityToken);
+// Social Auth (Apple Sign In). Needs `enableSocialAuth`, which also adds the
+// Sign in with Apple entitlement. Pass the SHA-256 of a one-time nonce and
+// send `authorizationCode` (with the raw nonce) to your server to redeem.
+const user = await window.craft.signInWithApple({ nonce: sha256Hex(rawNonce) });
+console.log(user.userId, user.email, user.name, user.identityToken, user.authorizationCode);
 
 // Audio Recording
 await window.craft.startAudioRecording();

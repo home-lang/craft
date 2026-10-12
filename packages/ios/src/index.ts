@@ -633,6 +633,9 @@ export function renderEntitlements(config: CraftConfig): string {
   if (config.enablePushNotifications) {
     entries.push('    <key>aps-environment</key>\n    <string>$(CRAFT_APNS_ENVIRONMENT)</string>')
   }
+  if (config.enableSocialAuth) {
+    entries.push('    <key>com.apple.developer.applesignin</key>\n    <array>\n        <string>Default</string>\n    </array>')
+  }
   if (config.enableSecureStorage) {
     entries.push('    <key>keychain-access-groups</key>\n    <array>\n        <string>$(AppIdentifierPrefix)$(CFBundleIdentifier)</string>\n    </array>')
   }

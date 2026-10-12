@@ -401,9 +401,11 @@ export interface CraftBridge {
 
   /**
    * Sign in with Apple (iOS only)
+   * @param options.nonce The SHA-256 (hex) of a one-time value the page keeps;
+   *   Apple writes it into the identity token's `nonce` claim.
    * @returns User credentials
    */
-  signInWithApple(): Promise<AppleUser>;
+  signInWithApple(options?: { nonce?: string }): Promise<AppleUser>;
 
   /**
    * Sign in with Google (Android only)
@@ -1547,9 +1549,13 @@ export interface PurchaseResult {
 
 export interface AppleUser {
   userId: string;
+  /** Only on the first sign-in to this app; Apple never sends it again. */
   email?: string;
-  fullName?: string;
+  /** Only on the first sign-in to this app, as "Given Family". */
+  name?: string;
   identityToken: string;
+  /** Apple's one-use code (five minutes) for the server to redeem at its token endpoint. */
+  authorizationCode?: string;
 }
 
 export interface GoogleUser {

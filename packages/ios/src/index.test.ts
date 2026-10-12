@@ -1106,6 +1106,20 @@ describe('Craft iOS builder', () => {
     expect(entitlements).toContain('<key>com.apple.developer.associated-domains</key>\n    <array>\n        <string>applinks:hq.training</string>\n    </array>')
   })
 
+  it('signs in with Apple natively: the entitlement, a page nonce, and the code for the server', () => {
+    // Without the entitlement ASAuthorizationController fails before any
+    // sheet shows. The nonce ties Apple's identity token to the page that
+    // asked, and the authorizationCode is what a server redeems at Apple.
+    expect(renderEntitlements({ appName: 'HQ', bundleId: 'training.hq.app', enableSocialAuth: true }))
+      .toContain('<key>com.apple.developer.applesignin</key>\n    <array>\n        <string>Default</string>\n    </array>')
+    expect(renderEntitlements({ appName: 'HQ', bundleId: 'training.hq.app' })).not.toContain('applesignin')
+    const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftApp.swift'), 'utf8')
+    expect(swift).toContain(`return this._invoke('signInWithApple', nonce ? {nonce: nonce} : {});`)
+    expect(swift).toContain('signInWithApple(nonce: body["nonce"] as? String, callbackId: callbackId)')
+    expect(swift).toContain('if let nonce, !nonce.isEmpty { request.nonce = nonce }')
+    expect(swift).toContain('result["authorizationCode"] = codeString')
+  })
+
   it('gives every Swift-only call that waits on a framework callback a deadline', async () => {
     // #224: each of these is answered only by Swift, on both runtimes, and
     // only by a framework callback no person is waiting on. Nothing settled
