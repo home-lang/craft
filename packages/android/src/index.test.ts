@@ -187,6 +187,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('drawNodes(canvas, drawing.optJSONArray("children") ?: JSONArray(), SvgPaint().merge(drawing))')
       expect(nativeActivity).toContain('val dashes: List<Float>')
       expect(nativeActivity).toContain('DashPathEffect(pattern, 0f)')
+      expect(nativeActivity).toContain('val pattern: FloatArray')
       expect(nativeActivity).toContain('control.onLayoutChanged = { if (screen.active) emitLayoutEvents(screen) }')
       expect(nativeActivity).toContain('released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }')
       expect(nativeActivity).toContain('"Picker" -> (previous as? Spinner ?: Spinner(this)).apply')

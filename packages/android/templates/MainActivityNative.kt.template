@@ -292,7 +292,11 @@ private class CraftNativeSvgView(context: Context) : View(context) {
                     }
                     if (dashes.isNotEmpty()) {
                         val dashPattern = dashes.toFloatArray()
-                        val pattern = if (dashPattern.size % 2 == 1) dashPattern + dashPattern else dashPattern
+                        val pattern: FloatArray = if (dashPattern.size % 2 == 1) {
+                            FloatArray(dashPattern.size * 2) { index -> dashPattern[index % dashPattern.size] }
+                        } else {
+                            dashPattern
+                        }
                         pathEffect = DashPathEffect(pattern, 0f)
                     }
                 }
