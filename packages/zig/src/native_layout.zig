@@ -35,6 +35,10 @@ pub const Style = struct {
     min_height: ?f32 = null,
     max_height: ?f32 = null,
     gap: f32 = 0,
+    grid: bool = false,
+    grid_columns: u32 = 1,
+    row_gap: f32 = 0,
+    column_gap: f32 = 0,
 };
 
 pub const Node = struct {
@@ -52,10 +56,10 @@ pub const LayoutError = error{
 /// A child consumes `flex_basis`, then its explicit main-axis size, then zero.
 /// Positive remaining space is distributed by `flex_grow`; negative remaining
 /// space is removed by `flex_shrink * basis`. Both results honor the child's
-/// min/max bounds. Cross-axis sizing uses the child's explicit size or the
-/// parent size, also honoring cross-axis bounds. Text and other intrinsic
-/// measurements are intentionally absent: a host callback can provide those
-/// bases without leaking UIKit or Android concepts into this module.
+/// min/max bounds. A grid parent uses equal columns and max-content row tracks
+/// from explicit child heights; `row_gap` and `column_gap` are independent.
+/// Text and other intrinsic measurements are intentionally absent: a host
+/// callback can provide those bases without leaking UIKit or Android concepts.
 pub fn layout(root: Node, viewport: Size, frames: []Frame) LayoutError!usize {
     if (frames.len == 0) return error.FrameBufferTooSmall;
     return layoutNode(root, viewport, 0, 0, 0, frames);
@@ -76,6 +80,7 @@ fn layoutNode(
     frames[frame_index] = .{ .x = x, .y = y, .width = width, .height = height };
 
     if (node.children.len == 0) return frame_index + 1;
+    if (node.style.grid) return layoutGrid(node, width, height, x, y, frame_index, frames);
 
     const main_size = if (node.style.direction == .row) width else height;
     const gap = @max(0, node.style.gap);
@@ -112,6 +117,54 @@ fn layoutNode(
         main_offset += child_main + if (index + 1 < node.children.len) gap else 0;
     }
     return next_index;
+}
+
+fn layoutGrid(
+    node: Node,
+    width: f32,
+    height: f32,
+    x: f32,
+    y: f32,
+    frame_index: usize,
+    frames: []Frame,
+) LayoutError!usize {
+    const columns = @max(@as(u32, 1), node.style.grid_columns);
+    const column_count: usize = @intCast(columns);
+    const column_gap = @max(0, node.style.column_gap);
+    const row_gap = @max(0, node.style.row_gap);
+    const available_width = @max(0, width - column_gap * @as(f32, @floatFromInt(column_count - 1)));
+    const cell_width = available_width / @as(f32, @floatFromInt(column_count));
+    var next_index = frame_index + 1;
+    var row_y = y;
+    for (node.children, 0..) |child, index| {
+        const row = index / column_count;
+        const column = index % column_count;
+        const row_height = gridRowHeight(node, row, column_count);
+        const child_width = clampMain(child, .row, child.style.width orelse cell_width);
+        const child_height = if (child.style.height == null and child.style.flex_basis == null)
+            row_height
+        else
+            clamp(child.style.height orelse child.style.flex_basis orelse 0, child.style.min_height, child.style.max_height);
+        const child_x = x + @as(f32, @floatFromInt(column)) * (cell_width + column_gap);
+        const child_y = row_y;
+        next_index = try layoutNode(child, .{ .width = child_width, .height = child_height }, child_x, child_y, next_index, frames);
+        if (column + 1 == column_count or index + 1 == node.children.len) {
+            row_y += row_height + row_gap;
+        }
+    }
+    _ = height;
+    return next_index;
+}
+
+fn gridRowHeight(node: Node, row: usize, column_count: usize) f32 {
+    const start = row * column_count;
+    const end = @min(node.children.len, start + column_count);
+    var height: f32 = 0;
+    for (node.children[start..end]) |child| {
+        const child_height = child.style.height orelse child.style.flex_basis orelse 0;
+        height = @max(height, clamp(child_height, child.style.min_height, child.style.max_height));
+    }
+    return height;
 }
 
 fn childMainBasis(node: Node, parent_direction: Axis) f32 {
@@ -238,4 +291,25 @@ test "clamps positive flex growth to a maximum" {
     _ = try layout(root, .{ .width = 140, .height = 20 }, &frames);
     try std.testing.expectEqual(@as(f32, 40), frames[1].width);
     try std.testing.expectEqual(@as(f32, 70), frames[2].width);
+}
+
+test "places equal grid tracks and max-content rows" {
+    const children = [_]Node{
+        .{ .style = .{ .height = 20 } },
+        .{ .style = .{ .height = 30 } },
+        .{ .style = .{ .height = 10 } },
+    };
+    const root = Node{
+        .style = .{ .grid = true, .grid_columns = 2, .width = 100, .height = 100, .column_gap = 10, .row_gap = 5 },
+        .children = &children,
+    };
+    var frames: [4]Frame = undefined;
+
+    _ = try layout(root, .{ .width = 100, .height = 100 }, &frames);
+    try std.testing.expectEqual(@as(f32, 45), frames[1].width);
+    try std.testing.expectEqual(@as(f32, 0), frames[1].x);
+    try std.testing.expectEqual(@as(f32, 55), frames[2].x);
+    try std.testing.expectEqual(@as(f32, 20), frames[1].height);
+    try std.testing.expectEqual(@as(f32, 30), frames[2].height);
+    try std.testing.expectEqual(@as(f32, 35), frames[3].y);
 }

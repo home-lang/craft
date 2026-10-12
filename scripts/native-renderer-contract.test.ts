@@ -56,14 +56,29 @@ describe('native renderer component contract', () => {
     }
   })
 
+  it('keeps SVG drawing primitives available on both native hosts', () => {
+    for (const [name, iosMarker, androidMarker] of [
+      ['Svg', 'case "Svg":', '"Svg" ->'],
+      ['G', 'case "G":', '"G" ->'],
+      ['SvgText', 'case "SvgText":', '"SvgText" ->'],
+    ] as const) {
+      expect(ios, `${name} missing from iOS renderer`).toContain(iosMarker)
+      expect(android, `${name} missing from Android renderer`).toContain(androidMarker)
+    }
+  })
+
   it('keeps the shared layout core explicit', () => {
     expect(nativeLayout).toContain('pub const Axis = enum')
     expect(nativeLayout).toContain('flex_shrink: f32')
     expect(nativeLayout).toContain('min_width: ?f32')
     expect(nativeLayout).toContain('max_height: ?f32')
     expect(nativeLayout).toContain('gap: f32')
+    expect(nativeLayout).toContain('grid_columns: u32')
+    expect(nativeLayout).toContain('column_gap: f32')
+    expect(nativeLayout).toContain('fn layoutGrid(')
     expect(guide).toContain('host-neutral layout contract')
-    expect(guide).toContain('platform-specific measurement must not fork the distribution rules')
+    expect(guide).toContain('platform-specific measurement')
+    expect(guide).toContain('must not fork the distribution rules')
   })
 
   it('keeps platform README primitive inventories complete', () => {
