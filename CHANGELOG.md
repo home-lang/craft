@@ -1,5 +1,20 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.141...v0.0.142)
+
+## 🚀 Features
+
+- **native**: svg stretches to its box and keeps non-scaling strokes ([31cd291](https://github.com/craft-native/craft/commit/31cd291)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **android**: validate shared flex line ids ([3a90f3e](https://github.com/craft-native/craft/commit/3a90f3e)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.140...v0.0.141)
 
 ## 🚀 Features
