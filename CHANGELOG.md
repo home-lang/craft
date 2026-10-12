@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.133...v0.0.134)
+
+## 🐛 Bug Fixes
+
+- **ios**: keyboard covers the tab bar; unread badges keep their colour ([df05963](https://github.com/craft-native/craft/commit/df05963)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.132...v0.0.133)
 
 ## 🐛 Bug Fixes
