@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.139...v0.0.140)
+
+## 🐛 Bug Fixes
+
+- **ios**: gradients follow their view's size, and a styled text field draws no system box ([9ad3e48](https://github.com/craft-native/craft/commit/9ad3e48)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.138...v0.0.139)
 
 ## 🚀 Features
