@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import AVKit
+import Darwin
 import JavaScriptCore
 import OSLog
 import SwiftUI
@@ -18,6 +19,52 @@ private func craftNativeGridColumnCount(_ value: Any?) -> Int {
     }
     let tracks = trimmed.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" })
     return max(1, tracks.count)
+}
+
+/// Optional bridge to the shared Zig flex rule. Native hosts retain their
+/// local implementation when no Craft runtime is linked (the normal SDK
+/// fallback), while runtime-backed apps get one cross-platform calculation.
+private enum CraftNativeFlexBridge {
+    private struct Item {
+        var basis: Float
+        var grow: Float
+        var shrink: Float
+        var min: Float
+        var max: Float
+        var marginStart: Float
+        var marginEnd: Float
+    }
+
+    private typealias Function = @convention(c) (
+        Float, Float, UnsafePointer<Item>, Int, UnsafeMutablePointer<Float>, UnsafeMutablePointer<Float>
+    ) -> Int32
+
+    private static let function: Function? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_flex_row") else { return nil }
+        return unsafeBitCast(symbol, to: Function.self)
+    }()
+
+    static func widths(available: CGFloat, gap: CGFloat, items: [(basis: CGFloat, grow: CGFloat, shrink: CGFloat, min: CGFloat?, max: CGFloat?, leading: CGFloat, trailing: CGFloat)]) -> [CGFloat]? {
+        guard let function, !items.isEmpty else { return nil }
+        var input = items.map { item in
+            Item(
+                basis: Float(item.basis), grow: Float(item.grow), shrink: Float(item.shrink),
+                min: item.min.map(Float.init) ?? .nan, max: item.max.map(Float.init) ?? .nan,
+                marginStart: Float(item.leading), marginEnd: Float(item.trailing)
+            )
+        }
+        var output = [Float](repeating: 0, count: input.count)
+        var positions = [Float](repeating: 0, count: input.count)
+        let status = input.withUnsafeBufferPointer { inputBuffer in
+            output.withUnsafeMutableBufferPointer { outputBuffer in
+                positions.withUnsafeMutableBufferPointer { positionBuffer in
+                    function(Float(available), Float(gap), inputBuffer.baseAddress!, input.count, outputBuffer.baseAddress!, positionBuffer.baseAddress!)
+                }
+            }
+        }
+        guard status == 0 else { return nil }
+        return output.map(CGFloat.init)
+    }
 }
 
 private final class CraftNativeVideoView: UIView {
@@ -870,21 +917,33 @@ private final class CraftNativeFlowView: UIStackView {
             // A row sized by its content is as wide as that content, up to the
             // room it has; a column sized by its content is as tall as it is.
             let lineMain = definiteMain ?? (horizontal ? min(hypothetical, roomMain) : hypothetical)
-            let free = lineMain - hypothetical
-            if free > 0 {
-                let total = line.reduce(0) { $0 + items[$1].grow }
-                for index in line {
-                    let share = total > 0 ? free * items[index].grow / total : 0
-                    items[index].main = clamp(items[index].basis + share, items[index].minMain, items[index].maxMain)
+            let sharedWidths = CraftNativeFlexBridge.widths(
+                available: lineMain,
+                gap: mainGap,
+                items: line.map { index in
+                    let item = items[index]
+                    return (item.basis, item.grow, item.shrink, item.minMain, item.maxMain, item.mainLeading, item.mainTrailing)
                 }
-            } else if free < 0 {
-                let total = line.reduce(0) { $0 + items[$1].shrink * items[$1].basis }
-                for index in line {
-                    let share = total > 0 ? -free * items[index].shrink * items[index].basis / total : 0
-                    items[index].main = clamp(items[index].basis - share, items[index].minMain, items[index].maxMain)
-                }
+            )
+            if let sharedWidths {
+                for (offset, index) in line.enumerated() { items[index].main = sharedWidths[offset] }
             } else {
-                for index in line { items[index].main = items[index].basis }
+                let free = lineMain - hypothetical
+                if free > 0 {
+                    let total = line.reduce(0) { $0 + items[$1].grow }
+                    for index in line {
+                        let share = total > 0 ? free * items[index].grow / total : 0
+                        items[index].main = clamp(items[index].basis + share, items[index].minMain, items[index].maxMain)
+                    }
+                } else if free < 0 {
+                    let total = line.reduce(0) { $0 + items[$1].shrink * items[$1].basis }
+                    for index in line {
+                        let share = total > 0 ? -free * items[index].shrink * items[index].basis / total : 0
+                        items[index].main = clamp(items[index].basis - share, items[index].minMain, items[index].maxMain)
+                    }
+                } else {
+                    for index in line { items[index].main = items[index].basis }
+                }
             }
 
             var lineCross: CGFloat = 0

@@ -50,6 +50,9 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('margin_start: f32')
     expect(nativeLayout).toContain('shrink_total')
     expect(nativeLayout).toContain('clampBounds')
+    expect(ios).toContain('import Darwin')
+    expect(ios).toContain('craft_native_flex_row')
+    expect(ios).toContain('CraftNativeFlexBridge.widths')
   })
 
   it('keeps device navigation tests independent of global field order and viewport position', () => {

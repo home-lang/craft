@@ -272,6 +272,12 @@ contract. Unsupported values are ignored rather than interpreted as CSS. Explici
 layout values, including `alignSelf` and `position`, clear the previous value
 and restore the host default during reconciliation.
 
+When the Craft Zig runtime is linked, the mobile hosts use its flat
+`craft_native_flex_row` ABI for one-line main-axis distribution. The ABI carries
+basis, grow, shrink, margins, and min/max bounds without exposing UIKit or
+Android types; an SDK-only project keeps the equivalent host fallback until a
+runtime is installed.
+
 Scroll content is measured with an unbounded scroll-axis constraint, so intrinsic
 text and image sizes contribute to the content extent instead of collapsing to
 zero when the viewport supplies an unspecified size.
