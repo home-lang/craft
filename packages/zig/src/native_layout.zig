@@ -16,7 +16,10 @@ pub const Size = struct {
     height: f32,
 };
 
-pub const Frame = struct {
+/// C-compatible output frame shared by the iOS and Android grid bridges.
+/// Keep this extern: hosts allocate a flat array and the exported ABI writes
+/// these four floats directly into it.
+pub const Frame = extern struct {
     x: f32,
     y: f32,
     width: f32,
