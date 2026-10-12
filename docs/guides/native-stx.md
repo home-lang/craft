@@ -274,9 +274,10 @@ and restore the host default during reconciliation.
 
 When the Craft Zig runtime is linked, the mobile hosts use its flat
 `craft_native_flex_row` ABI for one-line main-axis distribution and
-`craft_native_cross_axis_position` for each item's cross-axis alignment. The ABI carries
-basis, grow, shrink, margins, and min/max bounds without exposing UIKit or
-Android types; an SDK-only project keeps the equivalent host fallback until a
+`craft_native_flex_line_breaks`/`craft_native_flex_line_distribution` for wrapped
+lines, plus `craft_native_cross_axis_position` for each item's cross-axis
+alignment. These ABIs carry only plain numeric data—never UIKit or Android
+types—so an SDK-only project can keep the equivalent host fallback until a
 runtime is installed.
 
 The same runtime also exports `craft_native_grid` for equal-track grids. It

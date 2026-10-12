@@ -200,6 +200,8 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('host-neutral layout contract')
     expect(guide).toContain('platform-specific measurement')
     expect(guide).toContain('must not fork the distribution rules')
+    expect(guide).toContain('craft_native_flex_line_breaks')
+    expect(guide).toContain('craft_native_flex_line_distribution')
     expect(guide).toContain('non-finite widths, positions, and frames')
   })
 

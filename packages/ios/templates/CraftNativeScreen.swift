@@ -131,7 +131,7 @@ private enum CraftNativeFlexLineDistributionBridge {
             }
         }
         guard status == 0, offsets.allSatisfy({ $0.isFinite }), sizes.allSatisfy({ $0.isFinite }) else { return nil }
-        return (offsets.map(CGFloat.init), sizes.map(CGFloat.init))
+        return (offsets.map { CGFloat($0) }, sizes.map { CGFloat($0) })
     }
 }
 
