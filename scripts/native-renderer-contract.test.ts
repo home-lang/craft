@@ -84,6 +84,13 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('line\ncaps, joins, and dash patterns')
   })
 
+  it('keeps Android SVG text sizes as Kotlin floats in both prop branches', () => {
+    expect(android).toContain(
+      'val size = (if (props.has("fontSize")) props.optDouble("fontSize", 12.0) else nodeStyle.optDouble("fontSize", 12.0))',
+    )
+    expect(android).toContain('textSize = size')
+  })
+
   it('keeps native video playback available on both hosts', () => {
     expect(ios).toContain('CraftNativeVideoView')
     expect(ios).toContain('AVPlayerViewController')
