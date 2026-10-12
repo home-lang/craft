@@ -1,5 +1,16 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.135...v0.0.136)
+
+## 🐛 Bug Fixes
+
+- **ios**: move the page to a native root's path after it reloaded above it ([f97d9f7](https://github.com/craft-native/craft/commit/f97d9f7)) _(by Chris)_
+- **ios**: end the web view at the keyboard ([15c63b3](https://github.com/craft-native/craft/commit/15c63b3)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.134...v0.0.135)
 
 ## 🚀 Features
