@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.143...v0.0.144)
+
+## 🚀 Features
+
+- **ios**: craft.music shows and steers what the Music app is playing ([6acc94b](https://github.com/craft-native/craft/commit/6acc94b)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.142...v0.0.143)
 
 ## 🚀 Features
