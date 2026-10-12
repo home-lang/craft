@@ -9,6 +9,7 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
@@ -247,7 +248,8 @@ private class CraftNativeSvgView(context: Context) : View(context) {
     }
 
     private fun drawPath(canvas: Canvas, node: JSONObject, style: SvgPaint) {
-        val geometry = node.optJSONObject("props")?.optJSONArray("geometry") ?: return
+        val props = node.optJSONObject("props") ?: JSONObject()
+        val geometry = props.optJSONArray("geometry") ?: return
         val path = Path()
         var index = 0
         while (index < geometry.length()) {
@@ -274,6 +276,23 @@ private class CraftNativeSvgView(context: Context) : View(context) {
                 alpha = (style.opacity * 255f).roundToInt().coerceIn(0, 255)
                 this.style = Paint.Style.STROKE
                 strokeWidth = style.strokeWidth
+                strokeCap = when (props.optString("strokeLinecap")) {
+                    "round" -> Paint.Cap.ROUND
+                    "square" -> Paint.Cap.SQUARE
+                    else -> Paint.Cap.BUTT
+                }
+                strokeJoin = when (props.optString("strokeLinejoin")) {
+                    "round" -> Paint.Join.ROUND
+                    "bevel" -> Paint.Join.BEVEL
+                    else -> Paint.Join.MITER
+                }
+                props.optJSONArray("strokeDasharray")?.let { values ->
+                    val dashes = (0 until values.length()).mapNotNull { values.optDouble(it, Double.NaN).takeUnless { value -> value.isNaN() }?.toFloat() }
+                    if (dashes.isNotEmpty()) {
+                        val pattern = if (dashes.size % 2 == 1) dashes + dashes else dashes
+                        pathEffect = DashPathEffect(pattern.toFloatArray(), 0f)
+                    }
+                }
             }
             canvas.drawPath(path, stroke)
         }

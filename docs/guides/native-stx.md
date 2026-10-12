@@ -70,6 +70,8 @@ next route.
 | `Slider` | `UISlider` | `SeekBar` |
 | `ActivityIndicator` | `UIActivityIndicatorView` | `ProgressBar` |
 | `Image` | `UIImageView` | `ImageView` |
+| `Svg` | `CraftNativeSvgView` | `CraftNativeSvgView` |
+| `G`, `SvgText` | drawn inside `CraftNativeSvgView` | drawn inside `CraftNativeSvgView` |
 | `ScrollView` | `UIScrollView` | `ScrollView` or `HorizontalScrollView` |
 | `FlatList` | `UICollectionView` | `RecyclerView` |
 
@@ -116,6 +118,12 @@ the indicator visible when animation is stopped only when `hidesWhenStopped` is
 false; shared `display: 'none'` still takes precedence on both hosts.
 `Image.alt` supplies the native accessibility label when an explicit
 `accessibilityLabel` is not provided.
+
+`Svg` is DOM-free in native mode: the compiler emits geometry commands for
+shape nodes, `G` inherits fill/stroke paint, and `SvgText` draws text in the
+same viewBox. Both hosts preserve inherited opacity, fill/stroke colors, line
+caps, joins, and dash patterns; an SVG string that requires DOM APIs remains a
+WebView concern.
 
 `key` is scoped to sibling nodes. `testID` is also accepted as an identity for
 existing screens. Unkeyed children reconcile by position. A rerender updates an

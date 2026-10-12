@@ -67,6 +67,17 @@ describe('native renderer component contract', () => {
     }
   })
 
+  it('keeps SVG stroke semantics aligned across hosts', () => {
+    expect(ios).toContain('path.lineCapStyle')
+    expect(ios).toContain('path.lineJoinStyle')
+    expect(ios).toContain('path.setLineDash')
+    expect(android).toContain('strokeCap = when (props.optString("strokeLinecap"))')
+    expect(android).toContain('strokeJoin = when (props.optString("strokeLinejoin"))')
+    expect(android).toContain('DashPathEffect(pattern.toFloatArray(), 0f)')
+    expect(guide).toContain('`Svg` is DOM-free in native mode')
+    expect(guide).toContain('line\ncaps, joins, and dash patterns')
+  })
+
   it('keeps the shared layout core explicit', () => {
     expect(nativeLayout).toContain('pub const Axis = enum')
     expect(nativeLayout).toContain('flex_shrink: f32')
