@@ -8438,7 +8438,7 @@ final class CraftZigRuntime: NSObject {
 enum CraftWebServices {
     private static var waiting: [String: (Result<Any, CraftNativeActionError>) -> Void] = [:]
     /// Coordinator events a native screen hears too.
-    static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError"]
+    static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftMusicChange"]
     static let event = Notification.Name("craftWebServicesEvent")
 
     static var isAvailable: Bool { CraftSwiftShim.coordinator != nil }

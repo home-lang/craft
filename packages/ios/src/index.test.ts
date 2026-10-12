@@ -1294,8 +1294,20 @@ describe('Craft iOS builder', () => {
     expect(app).toContain('if CraftWebServices.resolve(id, result: result) { return }')
     expect(app).toContain('if CraftWebServices.reject(id, message: error, code: code) { return }')
     expect(app).toContain('CraftWebServices.forward(event, data: data)')
-    expect(app).toContain('static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError"]')
+    expect(app).toContain('static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftMusicChange"]')
     expect(screen).toContain('self?.send(type: "CRAFT_EVENT", payload: ["event": name')
+  })
+
+  it('lends native screens the page\'s Music app bridge', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-music-'))
+    await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableAppleMusic: true, nativeScreens: { '/m/go/:id': 'Go' } } as any })
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
+    expect(actions).toContain('if config.enableAppleMusic && config.renderer != "native" { values.append("music") }')
+    expect(actions).toContain('"getNowPlaying": "musicGetNowPlaying", "control": "musicControl", "observe": "musicObserve"')
+    // Its changes reach every native screen, as the page hears them.
+    expect(app).toContain('"craftMusicChange"]')
+    expect(app).toContain('self?.sendToWeb("craftMusicChange", data: snapshot)')
   })
 
   it('draws the inputs a native sign-in screen needs: autofill, padding, the next field, a date picker', () => {

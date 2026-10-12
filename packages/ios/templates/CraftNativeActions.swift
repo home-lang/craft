@@ -59,6 +59,8 @@ enum CraftNativeActions {
         // GPS and the route recording are the web view's coordinator's
         // (CraftWebServices), so a native-only app, which has none, has none.
         if config.enableGeolocation && config.renderer != "native" { values.append("geolocation") }
+        // The Music app's song and transport are the coordinator's too.
+        if config.enableAppleMusic && config.renderer != "native" { values.append("music") }
         return values
     }
 
@@ -266,6 +268,24 @@ enum CraftNativeActions {
             ]
             guard let action = actions[method] else {
                 complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Location method"), completion)
+                return
+            }
+            CraftWebServices.perform(action: action, body: args.first as? [String: Any] ?? [:]) { complete(requestToken, $0, completion) }
+            return
+        case ("Music", _):
+            // The page's own Music app bridge (CraftMusic.swift), in the web
+            // view's coordinator: one observer, whose changes reach the page
+            // and every native screen as `craftMusicChange`.
+            guard config.enableAppleMusic else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Apple Music is disabled"), completion)
+                return
+            }
+            let actions = [
+                "getAuthorizationStatus": "musicGetAuthorization", "requestAuthorization": "musicRequestAuthorization",
+                "getNowPlaying": "musicGetNowPlaying", "control": "musicControl", "observe": "musicObserve",
+            ]
+            guard let action = actions[method] else {
+                complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Music method"), completion)
                 return
             }
             CraftWebServices.perform(action: action, body: args.first as? [String: Any] ?? [:]) { complete(requestToken, $0, completion) }
