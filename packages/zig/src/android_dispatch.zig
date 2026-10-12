@@ -869,7 +869,10 @@ fn nativeFlexRow(
     if (native_layout.craft_native_flex_row(available, gap, items.ptr, count, widths.ptr, positions.ptr) != 0) {
         return null;
     }
-    return j.newFloatArray(widths) catch |err| fellThrough("flexRow", err, @as(jni.jobject, null));
+    const flattened = allocator.alloc(jni.jfloat, count * 2) catch |err| return fellThrough("flexRow", err, @as(jni.jobject, null));
+    @memcpy(flattened[0..count], widths);
+    @memcpy(flattened[count..], positions);
+    return j.newFloatArray(flattened) catch |err| fellThrough("flexRow", err, @as(jni.jobject, null));
 }
 
 /// `nativeGrid(...)` — equal-track grid frames shared with the iOS host.

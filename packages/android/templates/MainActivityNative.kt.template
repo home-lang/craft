@@ -359,9 +359,11 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var grid = false
     private var gridColumns = 1
     private var gridAutoRows: Int? = null
+    private var reverse = false
 
     fun configure(style: JSONObject, density: Float) {
         orientation = if (style.optString("flexDirection") in setOf("row", "row-reverse")) HORIZONTAL else VERTICAL
+        reverse = style.optString("flexDirection").endsWith("-reverse")
         wrap = style.optString("flexWrap") == "wrap" || style.optBoolean("flexWrap", false)
         alignItems = style.optString("alignItems", "stretch")
         alignContent = style.optString("alignContent", "flex-start")
@@ -708,6 +710,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     else listOf((lp?.topMargin ?: 0).toFloat(), (lp?.bottomMargin ?: 0).toFloat())
                 }.toFloatArray(),
             )
+            val sharedPositions = sharedPrimary?.takeIf { it.size == line.entries.size * 2 }
             val distributedMain = if (sharedPrimary != null) {
                 line.entries.indices.sumOf { index ->
                     val lp = line.entries[index].view.layoutParams as? MarginLayoutParams
@@ -752,8 +755,11 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     "flex-end" -> line.cross - crossTrailing - crossSize
                     else -> crossLeading
                 }
-                val x = if (orientation == HORIZONTAL) mainOffset + marginStart else crossOffset + crossPosition
-                val y = if (orientation == HORIZONTAL) crossOffset + crossPosition else mainOffset + marginStart
+                val sharedPosition = if (!reverse && justifyContent == "flex-start") sharedPositions?.get(index)?.roundToInt() else null
+                val positionedMain = sharedPosition?.let { (if (orientation == HORIZONTAL) paddingLeft else paddingTop) + it }
+                    ?: mainOffset + marginStart
+                val x = if (orientation == HORIZONTAL) positionedMain else crossOffset + crossPosition
+                val y = if (orientation == HORIZONTAL) crossOffset + crossPosition else positionedMain
                 val distributedPrimary = sharedPrimary?.get(index)?.roundToInt() ?: run {
                     val primary = if (orientation == HORIZONTAL) entry.width else entry.height
                     val factor = if (rawFree >= 0) entry.style.flexGrow else entry.style.flexShrink ?: defaultFlexShrink(entry.view)
@@ -768,7 +774,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 val w = if (orientation == HORIZONTAL) distributedPrimary else crossSize
                 val h = if (orientation == HORIZONTAL) crossSize else distributedPrimary
                 entry.view.layout(x, y, x + w, y + h)
-                mainOffset += distributedPrimary + marginStart + marginEnd + gap + between
+                if (sharedPosition == null) mainOffset += distributedPrimary + marginStart + marginEnd + gap + between
             }
             crossOffset += line.cross + crossBetween
         }

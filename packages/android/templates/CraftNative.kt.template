@@ -426,6 +426,8 @@ object CraftNative {
     ): FloatArray? {
         if (!isAvailable) return null
         return try {
+            // The shared result stores widths in the first half and the
+            // corresponding main-axis positions in the second half.
             nativeFlexRow(available, gap, basis, grow, shrink, min, max, margins)
         } catch (e: UnsatisfiedLinkError) {
             null

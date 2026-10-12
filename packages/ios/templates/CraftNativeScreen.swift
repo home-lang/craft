@@ -44,7 +44,7 @@ private enum CraftNativeFlexBridge {
         return unsafeBitCast(symbol, to: Function.self)
     }()
 
-    static func widths(available: CGFloat, gap: CGFloat, items: [(basis: CGFloat, grow: CGFloat, shrink: CGFloat, min: CGFloat?, max: CGFloat?, leading: CGFloat, trailing: CGFloat)]) -> [CGFloat]? {
+    static func widths(available: CGFloat, gap: CGFloat, items: [(basis: CGFloat, grow: CGFloat, shrink: CGFloat, min: CGFloat?, max: CGFloat?, leading: CGFloat, trailing: CGFloat)]) -> [(width: CGFloat, position: CGFloat)]? {
         guard let function, !items.isEmpty else { return nil }
         var input = items.map { item in
             Item(
@@ -63,7 +63,7 @@ private enum CraftNativeFlexBridge {
             }
         }
         guard status == 0 else { return nil }
-        return output.map(CGFloat.init)
+        return zip(output, positions).map { (width: CGFloat($0), position: CGFloat($1)) }
     }
 }
 
@@ -636,6 +636,7 @@ private final class CraftNativeFlowView: UIStackView {
     var grid = false { didSet { if grid != oldValue { invalidateMeasurements() } } }
     var gridColumns = 1 { didSet { if gridColumns != oldValue { invalidateMeasurements() } } }
     var gridAutoRows: CGFloat? { didSet { if gridAutoRows != oldValue { invalidateMeasurements() } } }
+    var reverse = false { didSet { if reverse != oldValue { invalidateMeasurements() } } }
     var padding = UIEdgeInsets.zero {
         didSet {
             layoutMargins = padding
@@ -976,6 +977,7 @@ private final class CraftNativeFlowView: UIStackView {
 
         var lineMains: [CGFloat] = []
         var lineCrosses: [CGFloat] = []
+        var sharedLines: [[(width: CGFloat, position: CGFloat)]?] = []
         for line in lines {
             let gaps = CGFloat(max(0, line.count - 1)) * mainGap
             let hypothetical = line.reduce(0) { $0 + items[$1].basis + items[$1].mainMargins } + gaps
@@ -990,8 +992,9 @@ private final class CraftNativeFlowView: UIStackView {
                     return (item.basis, item.grow, item.shrink, item.minMain, item.maxMain, item.mainLeading, item.mainTrailing)
                 }
             )
+            sharedLines.append(sharedWidths)
             if let sharedWidths {
-                for (offset, index) in line.enumerated() { items[index].main = sharedWidths[offset] }
+                for (offset, index) in line.enumerated() { items[index].main = sharedWidths[offset].width }
             } else {
                 let free = lineMain - hypothetical
                 if free > 0 {
@@ -1078,8 +1081,10 @@ private final class CraftNativeFlowView: UIStackView {
                 default: leading = 0; between = 0
                 }
                 let lineCross = lineCrosses[lineIndex]
+                let sharedLine = sharedLines[lineIndex]
+                let useSharedPositions = !reverse && justifyContent == "flex-start" && sharedLine != nil
                 var mainOffset = leading
-                for index in line {
+                for (offset, index) in line.enumerated() {
                     let item = items[index]
                     let crossPosition: CGFloat
                     switch item.align {
@@ -1087,12 +1092,14 @@ private final class CraftNativeFlowView: UIStackView {
                     case "flex-end": crossPosition = lineCross - item.crossTrailing - item.cross
                     default: crossPosition = item.crossLeading
                     }
-                    let mainPosition = mainOffset + item.mainLeading
+                    let mainPosition = useSharedPositions
+                        ? (sharedLine?[offset].position ?? (mainOffset + item.mainLeading))
+                        : mainOffset + item.mainLeading
                     let frame = horizontal
                         ? CGRect(x: padding.left + mainPosition, y: padding.top + crossOffset + crossPosition, width: item.main, height: item.cross)
                         : CGRect(x: padding.left + crossOffset + crossPosition, y: padding.top + mainPosition, width: item.cross, height: item.main)
                     frames.append((item.view, frame))
-                    mainOffset += item.mainMargins + item.main + mainGap + between
+                    if !useSharedPositions { mainOffset += item.mainMargins + item.main + mainGap + between }
                 }
                 crossOffset += lineCross + crossBetween
             }
@@ -3812,6 +3819,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func configureStack(_ stack: CraftNativeFlowView, style: [String: Any]) {
         let direction = style["flexDirection"] as? String
         stack.axis = direction == "row" || direction == "row-reverse" ? .horizontal : .vertical
+        stack.reverse = direction?.hasSuffix("-reverse") == true
         stack.wrap = style["flexWrap"] as? String == "wrap" || style["flexWrap"] as? Bool == true
         stack.alignItems = style["alignItems"] as? String ?? "stretch"
         stack.alignContent = style["alignContent"] as? String ?? "flex-start"
