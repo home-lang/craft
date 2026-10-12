@@ -72,7 +72,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('!reverse && justifyContent == "flex-start"')
     expect(android).toContain('!reverse && justifyContent == "flex-start"')
     expect(androidNative).toContain('?.takeIf { it.size >= basis.size && it.all { value -> value.isFinite() } }')
-    expect(androidNative).toContain('?.takeIf { it.size >= intrinsicWidth.size * 4 }')
+    expect(androidNative).toContain('?.takeIf { it.size >= intrinsicWidth.size * 4 && it.all { value -> value.isFinite() } }')
     expect(android).toContain('Float.NaN')
     expect(android).toContain('CraftNative.grid(')
     expect(android).toContain('sharedFrames[offset + 3]')
@@ -181,6 +181,8 @@ describe('native renderer component contract', () => {
     expect(androidDispatch).toContain('.signature = "(FFI[F[F[F[F[F[F)[F"')
     expect(androidNative).toContain('it.all { value -> value.isFinite() }')
     expect(ios).toContain('output.allSatisfy({ $0.isFinite })')
+    expect(androidNative).toContain('it.size >= intrinsicWidth.size * 4 && it.all { value -> value.isFinite() }')
+    expect(ios).toContain('frame.x.isFinite && frame.y.isFinite && frame.width.isFinite && frame.height.isFinite')
   })
 
   it('keeps the Android flex bridge fallback typed as a JNI object', () => {

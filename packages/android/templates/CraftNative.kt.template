@@ -458,7 +458,7 @@ object CraftNative {
         if (!isAvailable) return null
         return try {
             nativeGrid(availableWidth, availableHeight, columns, columnGap, rowGap, intrinsicWidth, intrinsicHeight, explicitWidth, explicitHeight, minWidth, maxWidth, minHeight, maxHeight, margins, flags)
-                ?.takeIf { it.size >= intrinsicWidth.size * 4 }
+                ?.takeIf { it.size >= intrinsicWidth.size * 4 && it.all { value -> value.isFinite() } }
         } catch (e: UnsatisfiedLinkError) {
             null
         }

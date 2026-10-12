@@ -138,7 +138,9 @@ private enum CraftNativeGridBridge {
                 function(Float(availableWidth), Float(availableHeight), UInt32(max(1, columns)), Float(columnGap), Float(rowGap), UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!))
             }
         }
-        guard status == 0 else { return nil }
+        guard status == 0, output.allSatisfy({ frame in
+            frame.x.isFinite && frame.y.isFinite && frame.width.isFinite && frame.height.isFinite
+        }) else { return nil }
         return output.map { (CGFloat($0.x), CGFloat($0.y), CGFloat($0.width), CGFloat($0.height)) }
     }
 }

@@ -452,8 +452,8 @@ fn finiteNonNegative(value: f32) f32 {
 
 fn clampBounds(value: f32, lower: f32, upper: f32) f32 {
     var result = finiteNonNegative(value);
-    if (!std.math.isNan(lower) and lower >= 0) result = @max(result, lower);
-    if (!std.math.isNan(upper) and upper >= 0) result = @min(result, upper);
+    if (std.math.isFinite(lower) and lower >= 0) result = @max(result, lower);
+    if (std.math.isFinite(upper) and upper >= 0) result = @min(result, upper);
     return result;
 }
 
@@ -684,4 +684,14 @@ test "exports equal-track grid frames with intrinsic rows and alignment" {
     try std.testing.expectApproxEqAbs(@as(f32, 45), frames[1].width, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 25), frames[2].y, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 40), frames[2].width, 0.001);
+}
+
+test "sanitizes non-finite grid bounds" {
+    const items = [_]GridItem{
+        .{ .intrinsic_width = 12, .intrinsic_height = 8, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.inf(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 0, .alignment = 0 },
+    };
+    var frames: [1]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_grid(100, 40, 1, 0, 0, &items, items.len, &frames));
+    try std.testing.expect(std.math.isFinite(frames[0].width));
+    try std.testing.expect(std.math.isFinite(frames[0].height));
 }
