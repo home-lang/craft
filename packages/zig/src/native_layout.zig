@@ -39,6 +39,10 @@ pub const Style = struct {
     margin_right: f32 = 0,
     margin_bottom: f32 = 0,
     margin_left: f32 = 0,
+    padding_top: f32 = 0,
+    padding_right: f32 = 0,
+    padding_bottom: f32 = 0,
+    padding_left: f32 = 0,
     grid: bool = false,
     grid_columns: u32 = 1,
     row_gap: f32 = 0,
@@ -85,9 +89,13 @@ fn layoutNode(
     frames[frame_index] = .{ .x = x, .y = y, .width = width, .height = height };
 
     if (node.children.len == 0) return frame_index + 1;
-    if (node.style.grid) return layoutGrid(node, width, height, x, y, frame_index, frames);
+    const content_width = @max(0, width - node.style.padding_left - node.style.padding_right);
+    const content_height = @max(0, height - node.style.padding_top - node.style.padding_bottom);
+    const content_x = x + node.style.padding_left;
+    const content_y = y + node.style.padding_top;
+    if (node.style.grid) return layoutGrid(node, content_width, content_height, content_x, content_y, frame_index, frames);
 
-    const main_size = if (node.style.direction == .row) width else height;
+    const main_size = if (node.style.direction == .row) content_width else content_height;
     const gap = @max(0, node.style.gap);
     const gap_count = if (node.children.len > 1) node.children.len - 1 else 0;
     const gap_total = gap * @as(f32, @floatFromInt(gap_count));
@@ -111,14 +119,14 @@ fn layoutNode(
             clampMain(child, node.style.direction, basis - if (shrink_total > 0) (-free) * positiveShrink(child.style.flex_shrink) * basis / shrink_total else 0)
         else
             clampMain(child, node.style.direction, basis);
-        const child_cross = childCrossSize(child, node.style.direction, width, height);
+        const child_cross = childCrossSize(child, node.style.direction, content_width, content_height);
         const leading_margin = mainLeadingMargin(child, node.style.direction);
         const child_size = if (node.style.direction == .row)
             Size{ .width = child_main, .height = child_cross }
         else
             Size{ .width = child_cross, .height = child_main };
-        const child_x = if (node.style.direction == .row) x + main_offset + leading_margin else x + crossLeadingMargin(child, node.style.direction);
-        const child_y = if (node.style.direction == .row) y + crossLeadingMargin(child, node.style.direction) else y + main_offset + leading_margin;
+        const child_x = if (node.style.direction == .row) content_x + main_offset + leading_margin else content_x + crossLeadingMargin(child, node.style.direction);
+        const child_y = if (node.style.direction == .row) content_y + crossLeadingMargin(child, node.style.direction) else content_y + main_offset + leading_margin;
         next_index = try layoutNode(child, child_size, child_x, child_y, next_index, frames);
         main_offset += mainMargins(child, node.style.direction) + child_main + if (index + 1 < node.children.len) gap else 0;
     }
@@ -376,4 +384,31 @@ test "accounts for per-edge margins in flex and grid frames" {
     try std.testing.expectEqual(@as(f32, 4), grid_frames[1].y);
     try std.testing.expectEqual(@as(f32, 40), grid_frames[1].width);
     try std.testing.expectEqual(@as(f32, 10), grid_frames[1].height);
+}
+
+test "insets flex and grid children by parent padding" {
+    const children = [_]Node{
+        .{ .style = .{ .flex_basis = 20 } },
+        .{ .style = .{ .flex_basis = 20 } },
+    };
+    const flex_root = Node{
+        .style = .{ .direction = .row, .width = 100, .height = 40, .padding_left = 8, .padding_top = 4, .padding_right = 12, .padding_bottom = 6 },
+        .children = &children,
+    };
+    var flex_frames: [3]Frame = undefined;
+    _ = try layout(flex_root, .{ .width = 100, .height = 40 }, &flex_frames);
+    try std.testing.expectEqual(@as(f32, 8), flex_frames[1].x);
+    try std.testing.expectEqual(@as(f32, 4), flex_frames[1].y);
+    try std.testing.expectEqual(@as(f32, 30), flex_frames[1].height);
+
+    const grid_children = [_]Node{.{ .style = .{ .height = 10 } }};
+    const grid_root = Node{
+        .style = .{ .grid = true, .grid_columns = 1, .width = 80, .height = 40, .padding_left = 5, .padding_top = 3, .padding_right = 7, .padding_bottom = 4 },
+        .children = &grid_children,
+    };
+    var grid_frames: [2]Frame = undefined;
+    _ = try layout(grid_root, .{ .width = 80, .height = 40 }, &grid_frames);
+    try std.testing.expectEqual(@as(f32, 5), grid_frames[1].x);
+    try std.testing.expectEqual(@as(f32, 3), grid_frames[1].y);
+    try std.testing.expectEqual(@as(f32, 68), grid_frames[1].width);
 }
