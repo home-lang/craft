@@ -1961,6 +1961,9 @@ class MainActivity : AppCompatActivity() {
                 reconcileChildren(screen, this, children, path, next, style, previousControls)
             }
         }
+        if (control is CraftNativeFlexLayout) {
+            control.onLayoutChanged = { if (screen.active) emitLayoutEvents(screen) }
+        }
         val pressInHandler = events.optString("onPressIn").takeIf { it.isNotBlank() }
         val pressOutHandler = events.optString("onPressOut").takeIf { it.isNotBlank() }
         if (pressInHandler != null) screen.pressInHandlers[control] = pressInHandler else screen.pressInHandlers.remove(control)
@@ -2706,6 +2709,7 @@ class MainActivity : AppCompatActivity() {
             releaseFlatList(screen, it, preservingInputDrafts)
         }
         released.filterIsInstance<CraftNativeModalView>().forEach { it.resetForTeardown() }
+        released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }
         released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }
         releaseImages(released)
         released.filterIsInstance<EditText>().forEach {

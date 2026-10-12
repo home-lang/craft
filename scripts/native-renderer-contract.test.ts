@@ -384,6 +384,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('View.OnLayoutChangeListener')
     expect(android).toContain('view.addOnLayoutChangeListener(listener)')
     expect(android).toContain('view.removeOnLayoutChangeListener(listener)')
+    expect(android).toContain('control.onLayoutChanged = { if (screen.active) emitLayoutEvents(screen) }')
+    expect(android).toContain('released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }')
     expect(ios).toContain('"nativeEvent": ["layout": [')
     expect(android).toContain('.put("layout", JSONObject()')
   })
