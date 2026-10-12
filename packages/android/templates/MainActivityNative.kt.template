@@ -1289,6 +1289,14 @@ class MainActivity : AppCompatActivity() {
             val updated = screen.controls["id:$target"] ?: return false
             if (!updateParentLayoutStyle(updated, document.optJSONObject("style") ?: JSONObject())) return false
         }
+        if (applied.isNotEmpty()) {
+            // A targeted style patch can finish after the parent's current
+            // layout pass. Schedule one final traversal so responsive
+            // onLayout consumers observe the settled frame, not just the
+            // pre-patch bounds.
+            screen.view.requestLayout()
+            screen.view.post { if (screen.active) emitLayoutEvents(screen) }
+        }
         return true
     }
 

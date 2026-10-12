@@ -352,6 +352,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('lastLayoutFrames[id] != frame')
     expect(android).toContain('events.optString("onLayout")')
     expect(android).toContain('lastLayoutBounds[view] != bounds')
+    expect(android).toContain('screen.view.post { if (screen.active) emitLayoutEvents(screen) }')
     expect(ios).toContain('"nativeEvent": ["layout": [')
     expect(android).toContain('.put("layout", JSONObject()')
   })

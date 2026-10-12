@@ -178,6 +178,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('onSlidingComplete')
       expect(nativeActivity).toContain('setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener')
       expect(nativeActivity).toContain('JSONObject().put("value", value)')
+      expect(nativeActivity).toContain('screen.view.post { if (screen.active) emitLayoutEvents(screen) }')
       expect(nativeActivity).toContain('"Picker" -> (previous as? Spinner ?: Spinner(this)).apply')
       expect(nativeActivity).toContain('setOnCheckedChangeListener { _, checked ->')
       expect(nativeActivity).toContain('JSONObject().put("value", checked)')
