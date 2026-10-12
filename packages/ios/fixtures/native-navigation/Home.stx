@@ -420,6 +420,10 @@ function openCapabilities() {
       <Text testID="justify-center-first" style={{"width":40}}>center one</Text>
       <Text testID="justify-center-second" style={{"width":40}}>center two</Text>
     </View>
+    <View testID="justify-between-wrap" style={{"flexDirection":"row","justifyContent":"space-between","width":240,"height":32,"backgroundColor":"#4f3d61"}}>
+      <Text testID="justify-between-first" style={{"width":40}}>between one</Text>
+      <Text testID="justify-between-second" style={{"width":40}}>between two</Text>
+    </View>
     <Text testID="native-link" accessibilityHint="Opens status" accessibilityValue="ready" accessibilityState={linkAccessibilityState()} @click="setStatus('link pressed')">Open native link</Text>
     <Text testID="native-link-status" :text="status" />
     <Button testID="toggle-link-accessibility" @click="toggleLinkAccessibility()">Toggle link accessibility</Button>

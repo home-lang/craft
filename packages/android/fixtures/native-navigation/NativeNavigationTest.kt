@@ -305,6 +305,11 @@ class NativeNavigationTest {
             val justifyCenterSecond = awaitView(activity, "justify-center-second")
             assertTrue("shared justify-center position was not applied", justifyCenterFirst.left > justifyCenter.left + (20 * density).toInt())
             assertTrue("shared justify-center gap was not applied", justifyCenterSecond.left > justifyCenterFirst.right)
+            val justifyBetween = awaitView(activity, "justify-between-wrap")
+            val justifyBetweenFirst = awaitView(activity, "justify-between-first")
+            val justifyBetweenSecond = awaitView(activity, "justify-between-second")
+            assertTrue("shared space-between leading position was not applied", justifyBetweenFirst.left <= justifyBetween.left + (20 * density).toInt())
+            assertTrue("shared space-between trailing position was not applied", justifyBetweenSecond.right >= justifyBetween.right - (20 * density).toInt())
             val reverseColumn = awaitView(activity, "reverse-column") as LinearLayout
             val reverseColumnFirst = awaitView(activity, "reverse-column-first")
             val reverseColumnSecond = awaitView(activity, "reverse-column-second")

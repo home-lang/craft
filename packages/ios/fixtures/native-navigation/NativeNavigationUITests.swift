@@ -255,6 +255,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(justifyCenter.waitForExistence(timeout: 5) && justifyCenterFirst.exists && justifyCenterSecond.exists)
         XCTAssertGreaterThan(justifyCenterFirst.frame.minX, justifyCenter.frame.minX + 20, "shared justify-center position was not applied")
         XCTAssertGreaterThan(justifyCenterSecond.frame.minX, justifyCenterFirst.frame.maxX, "shared justify-center gap was not applied")
+        let justifyBetween = app.otherElements["justify-between-wrap"]
+        let justifyBetweenFirst = app.staticTexts["justify-between-first"]
+        let justifyBetweenSecond = app.staticTexts["justify-between-second"]
+        XCTAssertTrue(justifyBetween.waitForExistence(timeout: 5) && justifyBetweenFirst.exists && justifyBetweenSecond.exists)
+        XCTAssertLessThanOrEqual(justifyBetweenFirst.frame.minX, justifyBetween.frame.minX + 20, "shared space-between leading position was not applied")
+        XCTAssertGreaterThanOrEqual(justifyBetweenSecond.frame.maxX, justifyBetween.frame.maxX - 20, "shared space-between trailing position was not applied")
         let reverseColumnFirst = app.staticTexts["reverse-column-first"]
         let reverseColumnSecond = app.staticTexts["reverse-column-second"]
         XCTAssertTrue(reverseColumnFirst.waitForExistence(timeout: 5))

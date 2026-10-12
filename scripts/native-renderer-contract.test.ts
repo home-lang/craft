@@ -978,8 +978,12 @@ describe('native renderer component contract', () => {
   it('exercises shared non-reverse justify positions in the maintained fixture', () => {
     expect(navigationHome).toContain('testID="justify-center-wrap"')
     expect(navigationHome).toContain('"justifyContent":"center"')
+    expect(navigationHome).toContain('testID="justify-between-wrap"')
+    expect(navigationHome).toContain('"justifyContent":"space-between"')
     expect(iosNavigationTest).toContain('shared justify-center position was not applied')
     expect(androidNavigationTest).toContain('shared justify-center position was not applied')
+    expect(iosNavigationTest).toContain('shared space-between trailing position was not applied')
+    expect(androidNavigationTest).toContain('shared space-between trailing position was not applied')
   })
 
   it('retains keyed iOS input drafts while FlatList rows recycle', () => {
