@@ -54,9 +54,10 @@ visible, so a dark-mode change while another route is open cannot leave stale
 colors behind.
 CI uses `@stacksjs/stx` (`stx native compile`) pinned at
 `ef97de5f441628ccf9d4644c19d53eef321a5278`. For an unreleased sibling
-checkout, set `STX_CLI=../stx/packages/stx/bin/cli.ts`; there is no separate
-`stx-native` package or compiler to install. The compiler installs an initial
-tree atomically before sending incremental keyed mutations.
+checkout, set `STX_CLI=../stx/packages/stx/bin/cli.ts`; native support is part
+of `@stacksjs/stx`, so do not install the historical `stx-native` package or
+compiler. The compiler installs an initial tree atomically before sending
+incremental keyed mutations.
 
 `--prepare-only` compiles the `.stx` bundle and generates the Android fixture
 without needing an emulator. Set `CRAFT_KEEP_ANDROID_NATIVE_PROJECT=1` to keep

@@ -3342,7 +3342,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func explicitKey(_ node: [String: Any], props: [String: Any]) -> String? {
-        // The current stx native compiler emits key in props; accept the IR
+        // The current @stacksjs/stx native compiler emits key in props; accept the IR
         // field too so keyed children keep working when the compiler adopts it.
         [node["id"], node["key"], props["key"], props["testID"]]
             .compactMap { $0 as? String }

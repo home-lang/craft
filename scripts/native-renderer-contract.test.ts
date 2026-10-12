@@ -22,6 +22,9 @@ const guide = readFileSync(join(root, 'docs/guides/native-stx.md'), 'utf8')
 const nativeLayout = readFileSync(join(root, 'packages/zig/src/native_layout.zig'), 'utf8')
 const iosReadme = readFileSync(join(root, 'packages/ios/README.md'), 'utf8')
 const androidReadme = readFileSync(join(root, 'packages/android/README.md'), 'utf8')
+const iosNavigationReadme = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/README.md'), 'utf8')
+const androidNavigationReadme = readFileSync(join(root, 'packages/android/fixtures/native-navigation/README.md'), 'utf8')
+const iosScreenReadme = readFileSync(join(root, 'packages/ios/fixtures/native-screen/README.md'), 'utf8')
 
 /** One host-neutral vocabulary, asserted against every generated renderer. */
 const COMPONENTS: Array<[string, string, string]> = [
@@ -173,6 +176,14 @@ describe('native renderer component contract', () => {
     for (const component of COMPONENTS.map(([name]) => `\`${name}\``)) {
       expect(iosReadme, `${component} missing from iOS README`).toContain(component)
       expect(androidReadme, `${component} missing from Android README`).toContain(component)
+    }
+  })
+
+  it('documents native support as part of the shared stx package', () => {
+    for (const readme of [iosNavigationReadme, androidNavigationReadme, iosScreenReadme]) {
+      expect(readme).toContain('@stacksjs/stx')
+      expect(readme).toContain('historical `stx-native` package')
+      expect(readme).toContain('compiler')
     }
   })
 

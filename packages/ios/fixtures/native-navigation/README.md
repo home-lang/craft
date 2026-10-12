@@ -45,9 +45,10 @@ repository and verifies that it emitted mutation-protocol support,
 generates a temporary iOS app, boots an available simulator, and runs
 `NativeNavigationUITests.swift`. CI pins the stx compiler commit and
 runs the same script on iOS and Android. For an unreleased sibling checkout,
-set `STX_CLI=../stx/packages/stx/bin/cli.ts`; do not install a separate
-`stx-native` package. The pinned compiler sends the initial tree as one
-atomic render, then uses keyed mutations for later updates.
+set `STX_CLI=../stx/packages/stx/bin/cli.ts`; native support is part of
+`@stacksjs/stx`, so do not install the historical `stx-native` package or
+compiler. The pinned compiler sends the initial tree as one atomic render,
+then uses keyed mutations for later updates.
 
 `--prepare-only` compiles the `.stx` bundle and generates the Xcode fixture
 without requiring an installed or bootable simulator. Set

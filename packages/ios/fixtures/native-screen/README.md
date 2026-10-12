@@ -12,8 +12,8 @@ craft ios run --output /tmp/craft-native-smoke --simulator
 ```
 
 When testing an unreleased sibling checkout, set `STX_CLI=../stx/packages/stx/bin/cli.ts`
-for Craft's fixture scripts; do not install or invoke a separate `stx-native`
-package.
+for Craft's fixture scripts. Native support is part of `@stacksjs/stx`; do not
+install or invoke the historical `stx-native` package or compiler.
 
 For the enabled run, set `enableHaptics` and `enableClipboard` to `true` in `/tmp/craft-native-smoke/craft.config.json` before building. Type a name, write it to the clipboard, and read it back. “Write invalid value” should show `INVALID_ARGUMENT`; “Play haptic” should show `Haptic accepted` (the simulator cannot physically vibrate). For the disabled run, set both flags to `false`, rebuild and reinstall. Clipboard and haptic taps should show `CAPABILITY_DISABLED`, while device info should still show `iPhone`.
 
