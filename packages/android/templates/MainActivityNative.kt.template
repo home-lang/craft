@@ -1941,13 +1941,14 @@ class MainActivity : AppCompatActivity() {
         if (!screen.active) return
         val observer = screen.view.viewTreeObserver
         if (observer.isAlive) {
-            val listener = object : ViewTreeObserver.OnGlobalLayoutListener {
-                override fun onGlobalLayout() {
-                    if (observer.isAlive) observer.removeOnGlobalLayoutListener(this)
+            val listener = object : ViewTreeObserver.OnPreDrawListener {
+                override fun onPreDraw(): Boolean {
+                    if (observer.isAlive) observer.removeOnPreDrawListener(this)
                     if (screen.active) emitLayoutEvents(screen)
+                    return true
                 }
             }
-            observer.addOnGlobalLayoutListener(listener)
+            observer.addOnPreDrawListener(listener)
         }
         screen.view.requestLayout()
         // A tree that is already settled may not produce a global-layout
