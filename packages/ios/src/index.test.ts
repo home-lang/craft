@@ -582,6 +582,8 @@ describe('Craft iOS builder', () => {
     expect(source).toContain('"layout": [')
     expect(source).toContain('frame.minX')
     expect(source).toContain('frame.width')
+    expect(source).toContain('CraftNativeGridBridge.frames')
+    expect(source).toContain('UnsafeRawPointer')
   })
 
   it('sizes intrinsic native grids from flow children only', async () => {

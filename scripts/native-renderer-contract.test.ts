@@ -58,6 +58,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('CraftNativeFlexBridge.widths')
     expect(ios).toContain('craft_native_grid')
     expect(ios).toContain('CraftNativeGridBridge.frames')
+    expect(ios).toContain('UnsafeMutableRawPointer')
     expect(android).toContain('CraftNative.flexRow(')
     expect(android).toContain('sharedPrimary?.get(index)')
     expect(android).toContain('Float.NaN')

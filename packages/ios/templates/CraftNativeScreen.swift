@@ -36,7 +36,7 @@ private enum CraftNativeFlexBridge {
     }
 
     private typealias Function = @convention(c) (
-        Float, Float, UnsafePointer<Item>, Int, UnsafeMutablePointer<Float>, UnsafeMutablePointer<Float>
+        Float, Float, UnsafeRawPointer, Int, UnsafeMutableRawPointer, UnsafeMutableRawPointer
     ) -> Int32
 
     private static let function: Function? = {
@@ -58,7 +58,7 @@ private enum CraftNativeFlexBridge {
         let status = input.withUnsafeBufferPointer { inputBuffer in
             output.withUnsafeMutableBufferPointer { outputBuffer in
                 positions.withUnsafeMutableBufferPointer { positionBuffer in
-                    function(Float(available), Float(gap), inputBuffer.baseAddress!, input.count, outputBuffer.baseAddress!, positionBuffer.baseAddress!)
+                    function(Float(available), Float(gap), UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!), UnsafeMutableRawPointer(positionBuffer.baseAddress!))
                 }
             }
         }
@@ -93,7 +93,7 @@ private enum CraftNativeGridBridge {
     }
 
     private typealias Function = @convention(c) (
-        Float, Float, UInt32, Float, Float, UnsafePointer<Item>, Int, UnsafeMutablePointer<Frame>
+        Float, Float, UInt32, Float, Float, UnsafeRawPointer, Int, UnsafeMutableRawPointer
     ) -> Int32
 
     private static let function: Function? = {
@@ -124,7 +124,7 @@ private enum CraftNativeGridBridge {
         var output = [Frame](repeating: Frame(x: 0, y: 0, width: 0, height: 0), count: input.count)
         let status = input.withUnsafeBufferPointer { inputBuffer in
             output.withUnsafeMutableBufferPointer { outputBuffer in
-                function(Float(availableWidth), Float(availableHeight), UInt32(max(1, columns)), Float(columnGap), Float(rowGap), inputBuffer.baseAddress!, input.count, outputBuffer.baseAddress!)
+                function(Float(availableWidth), Float(availableHeight), UInt32(max(1, columns)), Float(columnGap), Float(rowGap), UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!))
             }
         }
         guard status == 0 else { return nil }
