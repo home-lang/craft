@@ -96,12 +96,17 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`Video` uses the platform player')
   })
 
-  it('keeps the iOS AudioContext subset wired to the native host', () => {
+  it('keeps the native AudioContext subset wired to both hosts', () => {
     expect(ios).toContain('private final class CraftNativeAudio')
     expect(ios).toContain('AVAudioSourceNode')
     expect(ios).toContain('globalThis.AudioContext = AudioContext')
     expect(ios).toContain('case "AUDIO":')
     expect(ios).toContain('audio.close()')
+    expect(android).toContain('private class CraftNativeAudio')
+    expect(android).toContain('AudioTrack')
+    expect(android).toContain('globalThis.AudioContext = AudioContext')
+    expect(android).toContain('"AUDIO" -> screen.audio.handle(payload)')
+    expect(android).toContain('audio.close()')
     expect(guide).toContain('`createOscillator()`, `createGain()`')
   })
 

@@ -6,6 +6,9 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.AudioFormat
+import android.media.AudioTrack
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
@@ -76,7 +79,10 @@ import java.util.concurrent.Future
 import java.util.UUID
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.PI
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
+import kotlin.math.sin
 
 private const val CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS = 30_000L
 
@@ -1089,6 +1095,121 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
     }
 }
 
+/** The oscillator/gain subset of Web Audio used by native STX screens. */
+private class CraftNativeAudio {
+    private class OscillatorState {
+        @Volatile var frequency = 440.0
+        @Volatile var phase = 0.0
+        @Volatile var active = false
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private val oscillators = mutableMapOf<String, OscillatorState>()
+    private val gains = mutableMapOf<String, Double>()
+    private val connections = mutableMapOf<String, String?>()
+    private var track: AudioTrack? = null
+    @Volatile private var running = false
+    private var renderThread: Thread? = null
+
+    @Synchronized fun handle(payload: JSONObject) {
+        when (payload.optString("action")) {
+            "createContext" -> Unit
+            "createOscillator" -> {
+                val id = payload.optString("nodeId")
+                if (id.isNotBlank()) oscillators.putIfAbsent(id, OscillatorState()).also {
+                    oscillators[id]?.frequency = payload.optDouble("frequency", 440.0).coerceAtLeast(0.0)
+                }
+            }
+            "createGain" -> {
+                val id = payload.optString("nodeId")
+                if (id.isNotBlank()) gains[id] = payload.optDouble("gain", 1.0).coerceAtLeast(0.0)
+            }
+            "connect" -> {
+                val source = payload.optString("sourceId")
+                if (source in oscillators) connections[source] = payload.optString("destinationId").takeUnless { it == "destination" }
+            }
+            "frequency" -> oscillators[payload.optString("nodeId")]?.frequency = payload.optDouble("value", 0.0).coerceAtLeast(0.0)
+            "gain" -> gains[payload.optString("nodeId")] = payload.optDouble("value", 0.0).coerceAtLeast(0.0)
+            "start", "stop" -> {
+                val state = oscillators[payload.optString("nodeId")] ?: return
+                ensureTrack()
+                val active = payload.optString("action") == "start"
+                val delay = (payload.optDouble("delay", 0.0).coerceAtLeast(0.0) * 1000).roundToLong()
+                handler.postDelayed({ state.active = active }, delay)
+            }
+            "close" -> close()
+        }
+    }
+
+    @Synchronized fun close() {
+        oscillators.values.forEach { it.active = false }
+        oscillators.clear()
+        gains.clear()
+        connections.clear()
+        running = false
+        renderThread?.interrupt()
+        renderThread = null
+        track?.let { output ->
+            runCatching {
+                output.pause()
+                output.flush()
+                output.release()
+            }
+        }
+        track = null
+    }
+
+    @Synchronized private fun ensureTrack() {
+        if (track != null) return
+        val sampleRate = 44_100
+        val minBuffer = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT)
+        val format = AudioFormat.Builder()
+            .setSampleRate(sampleRate)
+            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+            .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+            .build()
+        val attributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_MEDIA)
+            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+            .build()
+        val created = AudioTrack.Builder()
+            .setAudioAttributes(attributes)
+            .setAudioFormat(format)
+            .setBufferSizeInBytes(max(minBuffer, sampleRate / 4))
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .build()
+        track = created
+        running = true
+        created.play()
+        renderThread = Thread({ render(created, sampleRate) }, "craft-native-audio").also { it.start() }
+    }
+
+    private fun render(output: AudioTrack, sampleRate: Int) {
+        val buffer = ShortArray(1024 * 2)
+        while (running && !Thread.currentThread().isInterrupted) {
+            val snapshot = synchronized(this) {
+                oscillators.mapValues { (id, state) ->
+                    Triple(state, connections[id]?.let { gains[it] ?: 1.0 } ?: 1.0, state.active)
+                }
+            }
+            for (frame in 0 until 1024) {
+                var sample = 0.0
+                snapshot.forEach { (_, value) ->
+                    val (state, gain, active) = value
+                    if (!active) return@forEach
+                    sample += sin(state.phase) * gain
+                    state.phase += 2 * PI * state.frequency / sampleRate
+                    if (state.phase >= 2 * PI) state.phase -= 2 * PI
+                }
+                val value = (sample.coerceIn(-1.0, 1.0) * Short.MAX_VALUE).toInt().toShort()
+                buffer[frame * 2] = value
+                buffer[frame * 2 + 1] = value
+            }
+            if (output.write(buffer, 0, buffer.size, AudioTrack.WRITE_BLOCKING) < 0) break
+        }
+    }
+}
+
 /** WebView-free host for a route bundle compiled by `stx native compile`. */
 class MainActivity : AppCompatActivity() {
     private class Screen(
@@ -1135,11 +1256,13 @@ class MainActivity : AppCompatActivity() {
         val capabilityScope = UUID.randomUUID().toString()
         val pendingCapabilities = mutableSetOf<String>()
         val capabilityTimeouts = mutableMapOf<String, Runnable>()
+        val audio = CraftNativeAudio()
         var active = true
 
         fun close() {
             if (!active) return
             active = false
+            audio.close()
             val finish = {
                 port?.close()
                 isolate.close()
@@ -1313,6 +1436,75 @@ class MainActivity : AppCompatActivity() {
             globalThis.__stxNativeRoute = ${route?.let { JSONObject.quote(it) } ?: "undefined"};
             globalThis.__stxNativeParams = ${params};
         """.trimIndent()
+        val audioPrelude = """
+            (function() {
+              if (typeof globalThis.AudioContext !== 'function') {
+                var nextAudioId = 0;
+                function audioMessage(payload) {
+                  globalThis.__stxNativeBridge.postMessage({ type: 'AUDIO', payload: payload });
+                }
+                function audioParam(contextId, nodeId, action, initial) {
+                  var current = Number(initial) || 0;
+                  var param = {};
+                  Object.defineProperty(param, 'value', {
+                    configurable: true,
+                    enumerable: true,
+                    get: function() { return current; },
+                    set: function(value) {
+                      current = Number(value) || 0;
+                      audioMessage({ action: action, contextId: contextId, nodeId: nodeId, value: current });
+                    }
+                  });
+                  param.setValueAtTime = function(value) { param.value = value; return param; };
+                  param.linearRampToValueAtTime = function(value) { param.value = value; return param; };
+                  return param;
+                }
+                function AudioContext() {
+                  this._id = 'audio-' + (++nextAudioId);
+                  this._started = Date.now() / 1000;
+                  this.state = 'running';
+                  this.destination = { _contextId: this._id, _nodeId: 'destination' };
+                  audioMessage({ action: 'createContext', contextId: this._id });
+                }
+                Object.defineProperty(AudioContext.prototype, 'currentTime', {
+                  get: function() { return Date.now() / 1000 - this._started; }
+                });
+                AudioContext.prototype.createOscillator = function() {
+                  var context = this;
+                  var node = { _contextId: context._id, _nodeId: context._id + '-osc-' + (++nextAudioId) };
+                  node.frequency = audioParam(context._id, node._nodeId, 'frequency', 440);
+                  node.connect = function(destination) {
+                    audioMessage({ action: 'connect', contextId: context._id, sourceId: node._nodeId, destinationId: destination && destination._nodeId || 'destination' });
+                    return destination;
+                  };
+                  node.start = function(when) {
+                    audioMessage({ action: 'start', contextId: context._id, nodeId: node._nodeId, delay: Math.max(0, (Number(when) || 0) - context.currentTime) });
+                  };
+                  node.stop = function(when) {
+                    audioMessage({ action: 'stop', contextId: context._id, nodeId: node._nodeId, delay: Math.max(0, (Number(when) || 0) - context.currentTime) });
+                  };
+                  audioMessage({ action: 'createOscillator', contextId: context._id, nodeId: node._nodeId, frequency: node.frequency.value });
+                  return node;
+                };
+                AudioContext.prototype.createGain = function() {
+                  var context = this;
+                  var node = { _contextId: context._id, _nodeId: context._id + '-gain-' + (++nextAudioId) };
+                  node.gain = audioParam(context._id, node._nodeId, 'gain', 1);
+                  node.connect = function(destination) {
+                    audioMessage({ action: 'connect', contextId: context._id, sourceId: node._nodeId, destinationId: destination && destination._nodeId || 'destination' });
+                    return destination;
+                  };
+                  audioMessage({ action: 'createGain', contextId: context._id, nodeId: node._nodeId, gain: node.gain.value });
+                  return node;
+                };
+                AudioContext.prototype.resume = function() { this.state = 'running'; return Promise.resolve(); };
+                AudioContext.prototype.suspend = function() { this.state = 'suspended'; return Promise.resolve(); };
+                AudioContext.prototype.close = function() { this.state = 'closed'; audioMessage({ action: 'close', contextId: this._id }); return Promise.resolve(); };
+                globalThis.AudioContext = AudioContext;
+                globalThis.webkitAudioContext = AudioContext;
+              }
+            })()
+        """.trimIndent()
         val prelude = if (useMessagePorts) """
             (async function() {
               const port = await android.getNamedPort('craft');
@@ -1328,6 +1520,7 @@ class MainActivity : AppCompatActivity() {
                 postMessage: function(value) { port.postMessage(value); },
                 onMessage: function(callback) { port.onmessage = function(event) { callback(event.data); }; }
               };
+              $audioPrelude
             })()
         """.trimIndent() else """
             $routePrelude
@@ -1342,6 +1535,7 @@ class MainActivity : AppCompatActivity() {
               postMessage: function(value) { console.log(${JSONObject.quote(prefix)} + value); },
               onMessage: function(callback) { globalThis.__stxNativeCallback = callback; }
             };
+            $audioPrelude
         """.trimIndent()
         val setup = isolate.evaluateJavaScriptAsync(prelude)
         setup.addListener({
@@ -1479,6 +1673,7 @@ class MainActivity : AppCompatActivity() {
                     capabilities.cancel(token)
                 }
             }
+            "AUDIO" -> screen.audio.handle(payload)
         }
     }
 
