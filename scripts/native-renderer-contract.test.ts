@@ -131,9 +131,9 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps SVG stroke semantics aligned across hosts', () => {
-    expect(ios).toContain('path.lineCapStyle')
-    expect(ios).toContain('path.lineJoinStyle')
-    expect(ios).toContain('path.setLineDash')
+    expect(ios).toContain('line.lineCapStyle')
+    expect(ios).toContain('line.lineJoinStyle')
+    expect(ios).toContain('line.setLineDash')
     expect(android).toContain('strokeCap = when (props.optString("strokeLinecap"))')
     expect(android).toContain('strokeJoin = when (props.optString("strokeLinejoin"))')
     expect(android).toContain('val dashes: List<Float>')

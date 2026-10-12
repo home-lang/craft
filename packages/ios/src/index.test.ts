@@ -116,6 +116,9 @@ describe('Craft iOS builder', () => {
     // strokes' width (vector-effect="non-scaling-stroke").
     expect(nativeSwift).toContain('if preserveAspectRatio?.trimmingCharacters(in: .whitespaces) != "none" {')
     expect(nativeSwift).toContain('["vectorEffect"] as? String == "non-scaling-stroke"')
+    expect(nativeSwift).toContain('line.lineCapStyle = own.linecap')
+    expect(nativeSwift).toContain('line.lineJoinStyle = own.linejoin')
+    expect(nativeSwift).toContain('line.setLineDash(dashes, count: dashes.count, phase: 0)')
     expect(nativeSwift).toContain('context.concatenate(viewTransform.inverted())')
     // A linear gradient (stx bg-gradient-to-*) is drawn under the subviews.
     expect(nativeSwift).toContain('private final class CraftNativeGradientLayer: CAGradientLayer')
