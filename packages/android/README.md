@@ -97,7 +97,7 @@ craft android build --native-bundle ../native-screen.js
 ```
 
 Native mode maps STX `View`, `SafeAreaView`, `Text`, `Button`, `Link`,
-`Pressable`, `TouchableOpacity`, `TouchableHighlight`, `TextInput`, `Picker`, `Modal`, `Switch`, `Slider`, `ActivityIndicator`, `Image`, `ScrollView`,
+`Pressable`, `TouchableOpacity`, `TouchableHighlight`, `TextInput`, `Picker`, `Modal`, `Switch`, `Slider`, `ActivityIndicator`, `Image`, `Video`, `ScrollView`,
 and `FlatList` to Android views. `Picker` renders `<select>`/`<option>` values
 with `onValueChange` or `onChange`. `Modal` is parent-scoped and supports
 `visible`, `transparent`, `animationType`, `onShow`, `onDismiss`, and
@@ -105,7 +105,9 @@ with `onValueChange` or `onChange`. `Modal` is parent-scoped and supports
 and `thumbColor`, while `Slider` supports track/thumb tint props and `step`
 snapping. `ActivityIndicator` keeps a visible stopped indicator genuinely
 non-animated when `animating={false}` and `hidesWhenStopped={false}`. `Image`
-reports load lifecycle events and structured failures.
+reports load lifecycle events and structured failures. `Video` uses the native
+`VideoView` for URI playback with autoplay, pause, looping, mute, controls, and
+resize-mode props.
 `FlatList` uses
 `RecyclerView`, stable IDs, and `DiffUtil` for keyed recycling, grids,
 horizontal and inverted layouts, list chrome, and end-reached pagination.

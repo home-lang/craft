@@ -70,6 +70,7 @@ next route.
 | `Slider` | `UISlider` | `SeekBar` |
 | `ActivityIndicator` | `UIActivityIndicatorView` | `ProgressBar` |
 | `Image` | `UIImageView` | `ImageView` |
+| `Video` | `CraftNativeVideoView` (`AVPlayerLayer`) | `CraftNativeVideoView` (`VideoView`) |
 | `Svg` | `CraftNativeSvgView` | `CraftNativeSvgView` |
 | `G`, `SvgText` | drawn inside `CraftNativeSvgView` | drawn inside `CraftNativeSvgView` |
 | `ScrollView` | `UIScrollView` | `ScrollView` or `HorizontalScrollView` |
@@ -118,6 +119,12 @@ the indicator visible when animation is stopped only when `hidesWhenStopped` is
 false; shared `display: 'none'` still takes precedence on both hosts.
 `Image.alt` supplies the native accessibility label when an explicit
 `accessibilityLabel` is not provided.
+
+`Video` uses the platform player in native mode. Its `source` accepts a URI
+string or `{ uri }`, while `autoplay`/`autoPlay`, `paused`, `loop`, `muted`,
+`controls`, and `resizeMode` configure playback without creating a DOM video
+element. The native player is stopped when its node is removed or replaced;
+unsupported or empty sources remain inert instead of falling back to a WebView.
 
 `Svg` is DOM-free in native mode: the compiler emits geometry commands for
 shape nodes, `G` inherits fill/stroke paint, and `SvgText` draws text in the
