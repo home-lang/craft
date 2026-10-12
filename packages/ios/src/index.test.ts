@@ -1255,6 +1255,7 @@ describe('Craft iOS builder', () => {
     const services = readFileSync(join(output, 'Sources', 'CraftNativeServices.swift'), 'utf8')
     const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
     const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
+    const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
 
     expect(actions).toContain('"speech", "audio", "eventStream", "linking"]')
     expect(actions).toContain('if config.enablePushNotifications { values.append("push") }')
@@ -1274,6 +1275,10 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('send(type: "SCREEN_FOCUS", payload: ["focused": visible])')
     expect(screen).toContain('send(type: "ROUTE_PARAMS", payload: ["params": params])')
     // A finished task closes to the first screen of its stack.
+    // A screen can ask the tab bar away while it shows; the next one says again.
+    expect(screen).toContain('if let hidden = options["tabBarHidden"] as? Bool {')
+    expect(screen).toContain('CraftChrome.shared.setHiddenByScreen(tabBarHidden)')
+    expect(app).toContain('func setHiddenByScreen(_ hidden: Bool) {')
     expect(screen).toContain('case "NAVIGATE_POP_TO_ROOT":')
     expect(screen).toContain('navigationController?.popToRootViewController(animated: true)')
     expect(hybrid).toContain('(stacks[tab]?.viewControllers.first as? CraftNativeScreenController)?.receiveRouteParams(params(for: raw, match))')

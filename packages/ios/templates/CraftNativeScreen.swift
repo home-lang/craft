@@ -2335,7 +2335,19 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             // a screen that hid its own.
             navigationController?.setNavigationBarHidden(false, animated: animated)
         }
+        // Each screen says whether it wants the tab bar, so one that hid it
+        // never leaves it hidden for the next.
+        CraftChrome.shared.setHiddenByScreen(tabBarHidden)
         refreshTraitDefaults()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        // Popped (or its stack dismissed) while the bar was away: it comes
+        // back for whatever shows next, a web page included.
+        if tabBarHidden, isMovingFromParent || isBeingDismissed || navigationController?.isBeingDismissed == true {
+            CraftChrome.shared.setHiddenByScreen(false)
+        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -2852,6 +2864,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var rootTopToSafeArea: NSLayoutConstraint?
     private var rootTopToView: NSLayoutConstraint?
     private var navigationBarHidden: Bool?
+    /// The app's tab bar away while this screen shows (`tabBarHidden`).
+    private var tabBarHidden = false
     private var prefersLargeTitle: Bool?
 
     /// Whether this screen asked for a bar of its own through `setOptions`: a
@@ -2878,6 +2892,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             navigationItem.largeTitleDisplayMode = largeTitle ? .always : .never
             if largeTitle { navigationController?.navigationBar.prefersLargeTitles = true }
             trackContentScrollView()
+        }
+        if let hidden = options["tabBarHidden"] as? Bool {
+            tabBarHidden = hidden
+            if navigationController?.topViewController === self, view.window != nil {
+                CraftChrome.shared.setHiddenByScreen(hidden)
+            }
         }
         if let hidden = options["hidden"] as? Bool {
             navigationBarHidden = hidden

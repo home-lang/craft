@@ -566,6 +566,18 @@ final class CraftChrome: ObservableObject {
         tabBarVisible = true
     }
 
+    /// A native screen that wants the whole screen (a workout under way) asks
+    /// the bar away while it shows (`tabBarHidden`, CraftNativeScreen.swift);
+    /// the next screen shown says again. The page's own hideTabBar is apart.
+    private(set) var hiddenByScreen = false
+    func setHiddenByScreen(_ hidden: Bool) {
+        guard hiddenByScreen != hidden else { return }
+        hiddenByScreen = hidden
+        pendingHide?.cancel()
+        withAnimation(Self.motion(.easeInOut(duration: 0.2))) { tabBarVisible = !hidden && !tabs.isEmpty }
+        publishLayout()
+    }
+
     /// However the page behaves, the splash is gone after `seconds`
     /// (`splashMaxSeconds`, three by default). It used to be ten: a page that
     /// never painted held a logo on screen for ten seconds, which reads as a
@@ -595,7 +607,7 @@ final class CraftChrome: ObservableObject {
                 let dark = (body["tintDark"] as? String).flatMap { UIColor(hex: $0) }
                 tint = light.map { light in dark.map { dark in UIColor { $0.userInterfaceStyle == .dark ? dark : light } } ?? light }
             }
-            withAnimation(Self.motion(.easeOut(duration: 0.2))) { tabBarVisible = !tabs.isEmpty }
+            withAnimation(Self.motion(.easeOut(duration: 0.2))) { tabBarVisible = !tabs.isEmpty && !hiddenByScreen }
             publishLayout()
         case "selectTab":
             if let id = body["id"] as? String, id != selected {
