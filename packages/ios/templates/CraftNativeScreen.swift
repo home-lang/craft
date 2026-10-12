@@ -27,10 +27,12 @@ private final class CraftNativeVideoView: UIView {
     private var endObserver: NSObjectProtocol?
     private var loops = false
 
-    override init(frame: CGRect) {
-        super.init(frame: frame)
+    init(host: UIViewController) {
+        super.init(frame: .zero)
         clipsToBounds = true
+        host.addChild(playerController)
         addSubview(playerController.view)
+        playerController.didMove(toParent: host)
     }
 
     required init?(coder: NSCoder) {
@@ -91,6 +93,11 @@ private final class CraftNativeVideoView: UIView {
         player = nil
         playerController.player = nil
         sourceURI = ""
+        if playerController.parent != nil {
+            playerController.willMove(toParent: nil)
+            playerController.view.removeFromSuperview()
+            playerController.removeFromParent()
+        }
     }
 
     deinit { stop() }
@@ -2898,7 +2905,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "Image":
             return UIImageView()
         case "Video":
-            return CraftNativeVideoView()
+            return CraftNativeVideoView(host: self)
         case "Icon":
             let icon = CraftNativeIconView()
             icon.contentMode = .scaleAspectFit
