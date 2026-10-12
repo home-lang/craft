@@ -535,8 +535,25 @@ final class CraftChrome: ObservableObject {
     private var occupied: CGFloat = 0
     private var pendingHide: DispatchWorkItem?
     private var splashDeadline: DispatchWorkItem?
+    /// The keyboard is up and covers the tab bar, so the page need not leave
+    /// room for it: the web view ends at the keyboard (CraftHybrid's webHost).
+    private var keyboardUp = false
 
-    private init() {}
+    private init() {
+        let center = NotificationCenter.default
+        center.addObserver(forName: UIResponder.keyboardWillShowNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.keyboardChanged(up: true)
+        }
+        center.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.keyboardChanged(up: false)
+        }
+    }
+
+    private func keyboardChanged(up: Bool) {
+        guard up != keyboardUp else { return }
+        keyboardUp = up
+        publishLayout()
+    }
 
     /// The tab bar from `tabs` in craft.config.json, there before the page
     /// loads; the page's own `tabBar` message replaces it later. `splash`
@@ -685,7 +702,7 @@ final class CraftChrome: ObservableObject {
     /// The bar's height as `--craft-tab-bar-height`, so the page leaves room
     /// for it, and as an event for anything that measures.
     func publishLayout() {
-        let height = tabBarVisible ? Int(occupied) : 0
+        let height = tabBarVisible && !keyboardUp ? Int(occupied) : 0
         CraftHybrid.shared.tabBarCovers(CGFloat(height))
         let script = "document.documentElement.style.setProperty('--craft-tab-bar-height','\(height)px');window.dispatchEvent(new CustomEvent('craftTabBarLayout',{detail:{height:\(height)}}));"
         DispatchQueue.main.async { [weak self] in self?.webView?.evaluateJavaScript(script, completionHandler: nil) }

@@ -540,6 +540,15 @@ describe('native renderer component contract', () => {
     expect(app.split('.ignoresSafeArea(.keyboard, edges: .bottom)').length - 1).toBe(2)
   })
 
+  it('ends the hybrid web view at the keyboard, so sticky headers stay on screen', () => {
+    const hybrid = readFileSync(join(root, 'packages/ios/templates/CraftHybrid.swift'), 'utf8')
+    const app = readFileSync(join(root, 'packages/ios/templates/CraftApp.swift'), 'utf8')
+    expect(hybrid).toContain('webHost.safeAreaRegions = [.keyboard]')
+    expect(hybrid).toContain('CraftWebView(config: config).ignoresSafeArea(.container)')
+    // The tab bar is covered while the keyboard is up, so the page stops leaving room for it.
+    expect(app).toContain('let height = tabBarVisible && !keyboardUp ? Int(occupied) : 0')
+  })
+
   it('keeps FlatList gesture callbacks on the shared scroll payload', () => {
     for (const callback of ['onScroll', 'onScrollBeginDrag', 'onScrollEndDrag', 'onMomentumScrollBegin', 'onMomentumScrollEnd']) {
       const iosCallback = callback === 'onScroll' ? 'onScrollEvent' : callback

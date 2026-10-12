@@ -752,7 +752,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
 
     init(config: CraftConfig) {
         self.config = config
-        webHost = UIHostingController(rootView: AnyView(CraftWebView(config: config).ignoresSafeArea()))
+        // Edge to edge, but not under the keyboard: the web view ends at its
+        // top. Under it, WebKit scrolled the page's layout viewport to show a
+        // focused field and carried every sticky header off the screen.
+        webHost = UIHostingController(rootView: AnyView(CraftWebView(config: config).ignoresSafeArea(.container)))
         super.init(nibName: nil, bundle: nil)
         hybrid.controller = self
     }
@@ -784,7 +787,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         guard !webAttached else { return }
         webAttached = true
         webHost.view.backgroundColor = config.resolvedBackgroundColor
-        if #available(iOS 16.4, *) { webHost.safeAreaRegions = [] }
+        if #available(iOS 16.4, *) { webHost.safeAreaRegions = [.keyboard] }
         if let slot = visibleStack?.topViewController as? CraftHybridWebSlot, slot.isViewLoaded {
             moveWeb(to: slot, in: slot.view)
         } else {
