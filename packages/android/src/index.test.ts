@@ -183,6 +183,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).not.toContain('if (type == "Modal" && !props.optBoolean("visible", false)) control.visibility = View.GONE')
       expect(nativeActivity).toContain('style.has("display") && style.optString("display") != "none"')
       expect(nativeActivity).toContain('if (view !is CraftNativeModalView)')
+      expect(nativeActivity).toContain('props.optBoolean("visible", false)')
       expect(nativeActivity).toContain('progressTintList')
       expect(nativeActivity).toContain('roundToInt()')
       expect(nativeActivity).toContain('val requested = props.optDouble("value", minimum)')

@@ -2565,7 +2565,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "Modal":
             let modal = result as! CraftNativeModalView
             modal.transparent = props["transparent"] as? Bool == true
-            let visible = props["visible"] as? Bool == true && style["display"] as? String != "none"
+            let visible: Bool
+            if let propVisible = props["visible"] as? Bool {
+                // An explicit visible prop owns modal visibility. The
+                // binding runtime may leave a stale display:none style
+                // from the previous hidden state when it patches props.
+                visible = propVisible
+            } else {
+                let display = style["display"] as? String
+                visible = display != nil && display != "none"
+            }
             let modalID = ObjectIdentifier(modal)
             let wasVisible = modalVisibility[modalID]
             modalVisibility[modalID] = visible
