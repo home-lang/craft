@@ -1500,7 +1500,14 @@ class MainActivity : AppCompatActivity() {
                 if (wasVisible != visible && (visible || wasVisible == true)) {
                     val lifecycleHandler = if (visible) events.optString("onShow") else events.optString("onDismiss")
                     if (lifecycleHandler.isNotBlank()) {
-                        send(screen, "EVENT", JSONObject().put("handlerName", lifecycleHandler).put("nativeEvent", JSONObject()))
+                        // Deliver lifecycle callbacks after reconciliation returns to
+                        // the queue; the handler may immediately schedule another
+                        // render against this native view.
+                        post {
+                            if (screen.active && screen.modalVisibility[this] == visible) {
+                                send(screen, "EVENT", JSONObject().put("handlerName", lifecycleHandler).put("nativeEvent", JSONObject()))
+                            }
+                        }
                     }
                 }
             }

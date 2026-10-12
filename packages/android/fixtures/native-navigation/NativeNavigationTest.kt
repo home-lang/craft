@@ -396,6 +396,7 @@ class NativeNavigationTest {
             }
             assertEquals("modal should become visible", View.VISIBLE, modal.visibility)
             assertEquals("Modal content", (awaitView(activity, "modal-content") as TextView).text.toString())
+            // onShow is delivered after native reconciliation returns to the queue.
             assertEquals("modal shown", (awaitView(activity, "modal-status") as TextView).text.toString())
             assertEquals("1", (awaitView(activity, "modal-opacity") as TextView).text.toString())
             click(activity, "toggle-modal-opacity")

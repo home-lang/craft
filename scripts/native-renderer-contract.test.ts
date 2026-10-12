@@ -189,6 +189,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val visible = if (props.has("visible"))')
     expect(android).toContain('props.optBoolean("visible", false)')
     expect(android).toContain('props.has("visible")')
+    expect(android).toContain('if (screen.active && screen.modalVisibility[this] == visible)')
     expect(android).toContain('animate().translationY(0f).setDuration(240L).start()')
     expect(android).toContain('animate().translationY(distance).alpha(0f).setDuration(240L)')
     expect(android).toContain('blocker.setOnTouchListener { _, _ -> true }')
