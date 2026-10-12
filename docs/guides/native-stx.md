@@ -281,7 +281,9 @@ runtime is installed.
 The same runtime also exports `craft_native_grid` for equal-track grids. It
 accepts intrinsic measurements and alignment as plain data, leaving platform
 views responsible only for measurement and mounting; hosts may fall back to
-their local grid path when no runtime is linked.
+their local grid path when no runtime is linked. Both bridges reject
+non-finite widths, positions, and frames from a malformed runtime payload and
+take that same local fallback, so one bad value cannot poison native layout.
 
 Scroll content is measured with an unbounded scroll-axis constraint, so intrinsic
 text and image sizes contribute to the content extent instead of collapsing to

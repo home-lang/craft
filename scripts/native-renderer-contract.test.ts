@@ -182,6 +182,7 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('host-neutral layout contract')
     expect(guide).toContain('platform-specific measurement')
     expect(guide).toContain('must not fork the distribution rules')
+    expect(guide).toContain('non-finite widths, positions, and frames')
   })
 
   it('keeps Android flex justification aligned across the Kotlin and JNI seams', () => {
