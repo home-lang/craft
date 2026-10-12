@@ -1950,6 +1950,7 @@ class MainActivity : AppCompatActivity() {
             }
             observer.addOnPreDrawListener(listener)
         }
+        screen.view.forceLayout()
         screen.view.requestLayout()
         // A tree that is already settled may not produce a global-layout
         // callback; keep the event path live for that case as well.
@@ -1963,15 +1964,23 @@ class MainActivity : AppCompatActivity() {
      */
     private fun updateParentLayoutStyle(view: View, style: JSONObject): Boolean {
         var parent = view.parent
+        var found = false
         while (parent != null) {
-            if (parent is CraftNativeFlexLayout) {
-                parent.setChildStyle(view, style, resources.displayMetrics.density)
-                parent.requestLayout()
-                return true
+            when (parent) {
+                is CraftNativeFlexLayout -> {
+                    if (!found) parent.setChildStyle(view, style, resources.displayMetrics.density)
+                    parent.forceLayout()
+                    parent.requestLayout()
+                    found = true
+                }
+                is CraftNativeScrollView -> {
+                    parent.forceLayout()
+                    parent.requestLayout()
+                }
             }
             parent = parent.parent
         }
-        return false
+        return found
     }
 
     private fun renderCommitted(screen: Screen, document: JSONObject) {
