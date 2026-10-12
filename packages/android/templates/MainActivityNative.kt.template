@@ -760,10 +760,11 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     }
 
     fun requestClose() {
+        val handler = onRequestClose ?: return
         dismissSuppressedByRequest = true
         isClickable = false
         blocker.isEnabled = false
-        onRequestClose?.invoke()
+        handler()
     }
 
     fun consumeDismissSuppression(): Boolean {

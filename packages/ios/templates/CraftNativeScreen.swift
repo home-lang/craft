@@ -858,9 +858,10 @@ private final class CraftNativeModalView: UIView {
     }
 
     func requestClose() {
+        guard let onRequestClose else { return }
         dismissSuppressedByRequest = true
         isUserInteractionEnabled = false
-        onRequestClose?()
+        onRequestClose()
     }
 
     func consumeDismissSuppression() -> Bool {
