@@ -333,6 +333,23 @@ function openCapabilities() {
         @load-end="imageLoaded()"
         style={{"width":24,"height":24,"resizeMode":"cover","tintColor":imageTinted ? "#2563eb" : null}}
       />
+      <svg
+        testID="native-svg"
+        viewBox="0 0 24 24"
+        width="24"
+        height="24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        accessibilityLabel="Native vector"
+      >
+        <g stroke="#2563eb">
+          <path d="M4 12h16" />
+          <text x="12" y="21" text-anchor="middle" fill="#111827" stroke="none" font-size="4">SVG</text>
+        </g>
+      </svg>
       <Text testID="native-caption" :text="'Image taps: ' + imageTaps" />
       <Text testID="image-status" :text="imageStatus" />
       <Text testID="image-error-status" :text="imageErrorStatus" />
