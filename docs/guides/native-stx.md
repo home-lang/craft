@@ -70,7 +70,7 @@ next route.
 | `Slider` | `UISlider` | `SeekBar` |
 | `ActivityIndicator` | `UIActivityIndicatorView` | `ProgressBar` |
 | `Image` | `UIImageView` | `ImageView` |
-| `Video` | `CraftNativeVideoView` (`AVPlayerLayer`) | `CraftNativeVideoView` (`VideoView`) |
+| `Video` | `CraftNativeVideoView` (`AVPlayerViewController`) | `CraftNativeVideoView` (`VideoView`) |
 | `Svg` | `CraftNativeSvgView` | `CraftNativeSvgView` |
 | `G`, `SvgText` | drawn inside `CraftNativeSvgView` | drawn inside `CraftNativeSvgView` |
 | `ScrollView` | `UIScrollView` | `ScrollView` or `HorizontalScrollView` |

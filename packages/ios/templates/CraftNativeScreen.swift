@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import AVKit
 import JavaScriptCore
 import OSLog
 import SwiftUI
@@ -20,26 +21,30 @@ private func craftNativeGridColumnCount(_ value: Any?) -> Int {
 }
 
 private final class CraftNativeVideoView: UIView {
+    private let playerController = AVPlayerViewController()
     private var player: AVPlayer?
     private var sourceURI = ""
     private var endObserver: NSObjectProtocol?
     private var loops = false
 
-    override class var layerClass: AnyClass { AVPlayerLayer.self }
-
     override init(frame: CGRect) {
         super.init(frame: frame)
         clipsToBounds = true
+        addSubview(playerController.view)
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         clipsToBounds = true
+        addSubview(playerController.view)
     }
 
-    private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        playerController.view.frame = bounds
+    }
 
-    func configure(source: Any?, autoplay: Bool, paused: Bool, loop: Bool, muted: Bool, resizeMode: String?) {
+    func configure(source: Any?, autoplay: Bool, paused: Bool, loop: Bool, muted: Bool, controls: Bool, resizeMode: String?) {
         let uri = (source as? String) ?? (source as? [String: Any])?["uri"] as? String ?? ""
         if uri != sourceURI {
             if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
@@ -49,16 +54,17 @@ private final class CraftNativeVideoView: UIView {
             sourceURI = uri
             loops = false
             guard let url = URL(string: uri), !uri.isEmpty, url.scheme != nil else {
-                playerLayer.player = nil
+                playerController.player = nil
                 return
             }
             let next = AVPlayer(url: url)
             player = next
-            playerLayer.player = next
+            playerController.player = next
         }
         guard let player else { return }
         player.isMuted = muted
-        playerLayer.videoGravity = resizeMode == "cover" ? .resizeAspectFill
+        playerController.showsPlaybackControls = controls
+        playerController.videoGravity = resizeMode == "cover" ? .resizeAspectFill
             : resizeMode == "stretch" ? .resize
             : .resizeAspect
         if loops != loop {
@@ -83,7 +89,7 @@ private final class CraftNativeVideoView: UIView {
         if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
         endObserver = nil
         player = nil
-        playerLayer.player = nil
+        playerController.player = nil
         sourceURI = ""
     }
 
@@ -2782,6 +2788,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 paused: (props["paused"] as? Bool) == true,
                 loop: (props["loop"] as? Bool) == true,
                 muted: (props["muted"] as? Bool) == true,
+                controls: (props["controls"] as? Bool) == true,
                 resizeMode: style["resizeMode"] as? String ?? props["resizeMode"] as? String
             )
         case "ScrollView":

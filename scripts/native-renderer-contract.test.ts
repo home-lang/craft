@@ -84,7 +84,7 @@ describe('native renderer component contract', () => {
 
   it('keeps native video playback available on both hosts', () => {
     expect(ios).toContain('CraftNativeVideoView')
-    expect(ios).toContain('AVPlayerLayer')
+    expect(ios).toContain('AVPlayerViewController')
     expect(ios).toContain('AVPlayerItemDidPlayToEndTime')
     expect(android).toContain('CraftNativeVideoView')
     expect(android).toContain('VideoView')
