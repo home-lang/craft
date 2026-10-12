@@ -96,7 +96,16 @@ pub const Crypto = struct {
         _ = self;
         var seed: [32]u8 = undefined;
         compat.randomBytes(&seed);
-        const kp = try std.crypto.dh.X25519.KeyPair.create(seed);
+        // 0.17 calls this operation `generateDeterministic` and returns an
+        // error union. Zig's 0.18 development line keeps the operation but
+        // proves the identity-element check internally, so the return value
+        // is no longer fallible. Keep both toolchains source-compatible and
+        // preserve the old check when it exists.
+        const generated = std.crypto.dh.X25519.KeyPair.generateDeterministic(seed);
+        const kp = switch (@typeInfo(@TypeOf(generated))) {
+            .error_union => generated catch |err| return err,
+            else => generated,
+        };
 
         return KeyPair{
             .public_key = kp.public_key,
@@ -188,4 +197,13 @@ test "SHA-256 hashing" {
         }
     }
     try std.testing.expect(!all_zeros);
+}
+
+test "X25519 key generation and exchange" {
+    var crypto = Crypto.init(std.testing.allocator);
+    const alice = try crypto.generateX25519KeyPair();
+    const bob = try crypto.generateX25519KeyPair();
+    const shared = try crypto.x25519(alice.secret_key, bob.public_key);
+    const zero = std.mem.zeroes([32]u8);
+    try std.testing.expect(!std.mem.eql(u8, &shared, &zero));
 }
