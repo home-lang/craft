@@ -1,5 +1,22 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.136...v0.0.137)
+
+## 🚀 Features
+
+- **zig**: sign in with Apple takes the page's nonce and answers with Apple's code ([93770aa](https://github.com/craft-native/craft/commit/93770aa)) _(by Chris)_
+- **ios**: sign in with Apple hands back a code for the server, tied to a nonce ([068c485](https://github.com/craft-native/craft/commit/068c485)) _(by Chris)_
+- **ios**: linear gradients on native screens ([3edff37](https://github.com/craft-native/craft/commit/3edff37)) _(by Chris)_
+- **ios**: draw svg on native screens ([20b0397](https://github.com/craft-native/craft/commit/20b0397)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **ios**: native buttons keep the padding their style asks for ([2d90b61](https://github.com/craft-native/craft/commit/2d90b61)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.135...v0.0.136)
 
 ## 🐛 Bug Fixes
