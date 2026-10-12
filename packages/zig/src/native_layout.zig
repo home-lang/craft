@@ -80,8 +80,8 @@ fn layoutNode(
 ) LayoutError!usize {
     if (frame_index >= frames.len) return error.FrameBufferTooSmall;
 
-    const width = node.style.width orelse available.width;
-    const height = node.style.height orelse available.height;
+    const width = if (frame_index == 0) node.style.width orelse available.width else available.width;
+    const height = if (frame_index == 0) node.style.height orelse available.height else available.height;
     frames[frame_index] = .{ .x = x, .y = y, .width = width, .height = height };
 
     if (node.children.len == 0) return frame_index + 1;
@@ -146,11 +146,13 @@ fn layoutGrid(
         const row = index / column_count;
         const column = index % column_count;
         const row_height = gridRowHeight(node, row, column_count);
-        const child_width = clampMain(child, .row, child.style.width orelse @max(0, cell_width - horizontalMargins(child)));
+        const child_available_width = @max(0, cell_width - horizontalMargins(child));
+        const child_width = clampMain(child, .row, @min(child_available_width, child.style.width orelse child_available_width));
+        const available_height = @max(0, row_height - verticalMargins(child));
         const child_height = if (child.style.height == null and child.style.flex_basis == null)
-            @max(0, row_height - verticalMargins(child))
+            available_height
         else
-            clamp(child.style.height orelse child.style.flex_basis orelse 0, child.style.min_height, child.style.max_height);
+            clamp(@min(available_height, child.style.height orelse child.style.flex_basis orelse 0), child.style.min_height, child.style.max_height);
         const child_x = x + @as(f32, @floatFromInt(column)) * (cell_width + column_gap) + child.style.margin_left;
         const child_y = row_y + child.style.margin_top;
         next_index = try layoutNode(child, .{ .width = child_width, .height = child_height }, child_x, child_y, next_index, frames);
@@ -362,7 +364,7 @@ test "accounts for per-edge margins in flex and grid frames" {
     try std.testing.expectEqual(@as(f32, 32), flex_frames[2].x);
 
     const grid_children = [_]Node{
-        .{ .style = .{ .height = 10, .margin_left = 2, .margin_right = 3, .margin_top = 4, .margin_bottom = 5 } },
+        .{ .style = .{ .width = 60, .height = 10, .margin_left = 2, .margin_right = 3, .margin_top = 4, .margin_bottom = 5 } },
     };
     const grid_root = Node{
         .style = .{ .grid = true, .grid_columns = 2, .width = 100, .height = 40, .column_gap = 10 },
