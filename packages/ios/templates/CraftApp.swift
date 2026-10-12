@@ -1105,6 +1105,8 @@ struct CraftConfig: Codable {
     var enablePDFViewer: Bool = false
     var enableAR: Bool = false
     var enableMLKit: Bool = false
+    /// The Music app's song and transport through `craft.music` (CraftMusic.swift).
+    var enableAppleMusic: Bool = false
     var devServerURL: String? = nil
     var trustedOrigins: [String] = []
     /// The longest the launch splash stays up when the page neither says it is
@@ -2162,6 +2164,43 @@ struct CraftWebView: UIViewRepresentable {
                 } else {
                     rejectCallback(callbackId, error: "setBrightness was called without the values it needs", code: "INVALID_ARGUMENT")
                 }
+            // MARK: - Apple Music (CraftMusic.swift)
+            // Gated on enableAppleMusic. Only musicRequestAuthorization asks
+            // the person anything; the rest answer from what is allowed.
+            case "musicGetAuthorization":
+                if config.enableAppleMusic {
+                    DispatchQueue.main.async { self.resolveCallback(callbackId, result: CraftMusic.shared.authorization) }
+                } else {
+                    rejectCallback(callbackId, error: "Apple Music is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "musicRequestAuthorization":
+                if config.enableAppleMusic {
+                    DispatchQueue.main.async {
+                        CraftMusic.shared.requestAuthorization { [weak self] status in self?.resolveCallback(callbackId, result: status) }
+                    }
+                } else {
+                    rejectCallback(callbackId, error: "Apple Music is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "musicGetNowPlaying":
+                if config.enableAppleMusic {
+                    DispatchQueue.main.async { self.resolveCallback(callbackId, result: CraftMusic.shared.snapshot()) }
+                } else {
+                    rejectCallback(callbackId, error: "Apple Music is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "musicControl":
+                if !config.enableAppleMusic {
+                    rejectCallback(callbackId, error: "Apple Music is disabled", code: "CAPABILITY_DISABLED")
+                } else if let command = body["command"] as? String {
+                    musicControl(command, restartAfter: (body["restartAfter"] as? NSNumber)?.doubleValue, callbackId: callbackId)
+                } else {
+                    rejectCallback(callbackId, error: "musicControl was called without a command", code: "INVALID_ARGUMENT")
+                }
+            case "musicObserve":
+                if config.enableAppleMusic {
+                    musicObserve(body["enabled"] as? Bool ?? true, callbackId: callbackId)
+                } else {
+                    rejectCallback(callbackId, error: "Apple Music is disabled", code: "CAPABILITY_DISABLED")
+                }
             // MARK: - Orientation Lock
             case "lockOrientation":
                 if config.enableOrientationLock {
@@ -3146,6 +3185,7 @@ struct CraftWebView: UIViewRepresentable {
                     deepLinks: \(config.enableDeepLinks),
                     flashlight: true,
                     brightness: true,
+                    music: \(config.enableAppleMusic),
                     speech: true,
                     network: true,
                     deviceInfo: true,
@@ -4684,6 +4724,7 @@ struct CraftWebView: UIViewRepresentable {
                 // still open; these wait for the answer instead.
                 var personFacing = {
                     requestHealthAuthorization: true,
+                    musicRequestAuthorization: true,
                     requestPermission: true,
                     signInWithApple: true,
                     dialogAlert: true,
@@ -4880,6 +4921,23 @@ struct CraftWebView: UIViewRepresentable {
                         options = options || {};
                         return craft._invoke('getHealthSleepIntervals', {startDate: options.startDate, endDate: options.endDate});
                     }
+                };
+                // The Music app's song and transport. Nothing is read until
+                // requestAuthorization() has been allowed; observe(true) makes
+                // every change arrive as a craftMusicChange event.
+                craft.music = {
+                    getAuthorizationStatus: function() { return craft._invoke('musicGetAuthorization'); },
+                    requestAuthorization: function() { return craft._invoke('musicRequestAuthorization'); },
+                    getNowPlaying: function() { return craft._invoke('musicGetNowPlaying'); },
+                    play: function() { return craft._invoke('musicControl', {command: 'play'}); },
+                    pause: function() { return craft._invoke('musicControl', {command: 'pause'}); },
+                    togglePlayPause: function() { return craft._invoke('musicControl', {command: 'togglePlayPause'}); },
+                    skipToNext: function() { return craft._invoke('musicControl', {command: 'skipToNext'}); },
+                    skipToPrevious: function(options) {
+                        var restartAfter = options && typeof options.restartAfter === 'number' ? options.restartAfter : null;
+                        return craft._invoke('musicControl', {command: 'skipToPrevious', restartAfter: restartAfter});
+                    },
+                    observe: function(enabled) { return craft._invoke('musicObserve', {enabled: enabled !== false}); }
                 };
                 craft.liveActivity = {
                     start: function(options) { return craft._invoke('startLiveActivity', options || {}); },
@@ -6930,6 +6988,29 @@ struct CraftWebView: UIViewRepresentable {
 
         private func getHealthSleepIntervals(startDate: Double?, endDate: Double?, callbackId: String?) {
             CraftHealth.shared.getSleepIntervals(startDate: startDate, endDate: endDate) { [weak self] in self?.answer(callbackId, $0) }
+        }
+
+        // MARK: - Apple Music
+        // The player itself is CraftMusic.swift.
+        private func musicControl(_ command: String, restartAfter: Double?, callbackId: String?) {
+            DispatchQueue.main.async {
+                CraftMusic.shared.control(command, restartAfter: restartAfter) { [weak self] result in
+                    switch result {
+                    case .success(let snapshot): self?.resolveCallback(callbackId, result: snapshot)
+                    case .failure(let failure): self?.rejectCallback(callbackId, error: failure.message, code: failure.code)
+                    }
+                }
+            }
+        }
+
+        /// Every change of song or playback state reaches the page as
+        /// `craftMusicChange`, carrying the same snapshot musicGetNowPlaying
+        /// answers with.
+        private func musicObserve(_ enabled: Bool, callbackId: String?) {
+            DispatchQueue.main.async {
+                CraftMusic.shared.observe(enabled ? { [weak self] snapshot in self?.sendToWeb("craftMusicChange", data: snapshot) } : nil)
+                self.resolveCallback(callbackId, result: enabled)
+            }
         }
 
         // MARK: - Live Activities

@@ -148,7 +148,14 @@ const dispatch_end = "func webView(";
 /// getHealthWorkouts and getHealthDailyStatistics before them they are
 /// HKSampleQuery result handlers that went into Swift first; they fall through
 /// to the shim, which serves them. Not a regression: no action left Zig.
-const max_not_yet_migrated: usize = 34;
+/// 39 when the spec gained the Apple Music bridge: musicGetAuthorization,
+/// musicRequestAuthorization, musicGetNowPlaying, musicControl and
+/// musicObserve. They drive MPMusicPlayerController.systemMusicPlayer and
+/// MPMediaLibrary's consent prompt, and push craftMusicChange from
+/// MediaPlayer's notifications, all through CraftMusic.swift; like the health
+/// reads they went into Swift first and fall through to the shim, which
+/// serves them. Not a regression: no action left Zig.
+const max_not_yet_migrated: usize = 39;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.

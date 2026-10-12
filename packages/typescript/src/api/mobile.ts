@@ -1568,6 +1568,199 @@ export const speech = {
   },
 }
 
+/*
+ * Apple Music: what the Music app is playing, and its transport.
+ *
+ * iOS only, and only Apple Music: the bridge drives
+ * MPMusicPlayerController.systemMusicPlayer, which is the Music app's queue.
+ * iOS gives no app the controls of another player, so while Spotify or a
+ * podcast app plays, the song fields are null and `otherAudioPlaying` is true.
+ *
+ * Nothing is read before `requestAuthorization()`, which shows iOS's media
+ * library prompt once; call it when the person asks to see their music, never
+ * on load. Off a phone (a browser, Android) `isAvailable()` is false and every
+ * call answers a snapshot with `available: false` without doing anything.
+ */
+export type MusicAuthorization = 'authorized' | 'denied' | 'restricted' | 'notDetermined' | 'unavailable'
+
+export type MusicPlaybackState = 'stopped' | 'playing' | 'paused' | 'interrupted' | 'seekingForward' | 'seekingBackward' | 'unknown'
+
+export interface NowPlaying {
+  /** False where there is no Music app to ask: a browser, Android, an app built without `enableAppleMusic`. */
+  available: boolean
+  authorization: MusicAuthorization
+  /** `appleMusic`, or `simulated` for the simulator's stand-in; null without access. */
+  source: 'appleMusic' | 'simulated' | null
+  playbackState: MusicPlaybackState
+  isPlaying: boolean
+  itemId: string | null
+  title: string | null
+  artist: string | null
+  album: string | null
+  /** Seconds. */
+  duration: number | null
+  /** Seconds into the song at `timestamp`. */
+  position: number | null
+  /** A small square JPEG (120 px) as a data URL, when the song has artwork. */
+  artworkDataURL: string | null
+  /** Some app is playing audio, Apple Music included: read it beside `isPlaying`. */
+  otherAudioPlaying: boolean
+  /** When the snapshot was taken, in ms since the epoch. */
+  timestamp: number
+}
+
+export interface MusicSkipOptions {
+  /**
+   * Past this many seconds into a song, go back to its start instead of the
+   * previous song, as the Music app's own button does. 3 by default; 0
+   * always goes to the previous song.
+   */
+  restartAfter?: number
+}
+
+export type MusicMethod = 'getAuthorizationStatus' | 'requestAuthorization' | 'getNowPlaying' | 'play' | 'pause' | 'togglePlayPause' | 'skipToNext' | 'skipToPrevious' | 'observe'
+
+const MUSIC_AUTHORIZATIONS: readonly MusicAuthorization[] = ['authorized', 'denied', 'restricted', 'notDetermined', 'unavailable']
+const MUSIC_STATES: readonly MusicPlaybackState[] = ['stopped', 'playing', 'paused', 'interrupted', 'seekingForward', 'seekingBackward', 'unknown']
+
+function musicAuthorization(value: unknown): MusicAuthorization {
+  return MUSIC_AUTHORIZATIONS.includes(value as MusicAuthorization) ? value as MusicAuthorization : 'unavailable'
+}
+
+function musicText(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null
+}
+
+function musicSeconds(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
+}
+
+/** A snapshot from native, made safe to render whatever an older or newer build sent. */
+export function normalizeNowPlaying(value: unknown): NowPlaying {
+  const raw = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>
+  const playbackState = MUSIC_STATES.includes(raw.playbackState as MusicPlaybackState) ? raw.playbackState as MusicPlaybackState : 'unknown'
+  const artwork = musicText(raw.artworkDataURL)
+  return {
+    available: raw.available !== false && Object.keys(raw).length > 0,
+    authorization: musicAuthorization(raw.authorization),
+    source: raw.source === 'appleMusic' || raw.source === 'simulated' ? raw.source : null,
+    playbackState,
+    isPlaying: raw.isPlaying === true,
+    itemId: musicText(raw.itemId),
+    title: musicText(raw.title),
+    artist: musicText(raw.artist),
+    album: musicText(raw.album),
+    duration: musicSeconds(raw.duration),
+    position: musicSeconds(raw.position),
+    // Only an image the bridge drew; never a URL a page could be pointed at.
+    artworkDataURL: artwork && artwork.startsWith('data:image/') ? artwork : null,
+    otherAudioPlaying: raw.otherAudioPlaying === true,
+    timestamp: typeof raw.timestamp === 'number' && Number.isFinite(raw.timestamp) ? raw.timestamp : Date.now(),
+  }
+}
+
+function nothingPlaying(): NowPlaying {
+  return normalizeNowPlaying({ available: false, authorization: 'unavailable' })
+}
+
+function nativeMusic(): any {
+  const craft = getCraftRoot()
+  if (!craft?.music || craft.capabilities?.music === false) return undefined
+  return craft.music
+}
+
+interface MusicWatch {
+  listeners: Set<(nowPlaying: NowPlaying) => void>
+  stop: (() => void) | null
+}
+
+const musicWatch: MusicWatch = { listeners: new Set(), stop: null }
+
+function startMusicWatch(native: any): void {
+  if (musicWatch.stop || typeof window === 'undefined') return
+  const onChange = (event: Event) => {
+    const nowPlaying = normalizeNowPlaying((event as CustomEvent<unknown>).detail)
+    for (const listener of [...musicWatch.listeners]) {
+      try {
+        listener(nowPlaying)
+      }
+      catch {}
+    }
+  }
+  window.addEventListener('craftMusicChange', onChange)
+  void Promise.resolve(native.observe?.(true)).catch(() => {})
+  musicWatch.stop = () => {
+    window.removeEventListener('craftMusicChange', onChange)
+    void Promise.resolve(native.observe?.(false)).catch(() => {})
+  }
+}
+
+async function musicCommand(method: 'play' | 'pause' | 'togglePlayPause' | 'skipToNext' | 'skipToPrevious', options?: MusicSkipOptions): Promise<NowPlaying> {
+  const native = nativeMusic()
+  if (typeof native?.[method] !== 'function') return nothingPlaying()
+  return normalizeNowPlaying(await native[method](options))
+}
+
+export const music = {
+  /** Whether this app can show and steer the Music app. */
+  isAvailable(): boolean {
+    return typeof nativeMusic()?.getNowPlaying === 'function'
+  },
+
+  /** Whether this app build answers `method`; an older build may lack one. */
+  supports(method: MusicMethod): boolean {
+    return typeof nativeMusic()?.[method] === 'function'
+  },
+
+  /** Where access stands, without asking. `unavailable` off a phone. */
+  async getAuthorizationStatus(): Promise<MusicAuthorization> {
+    const native = nativeMusic()
+    if (typeof native?.getAuthorizationStatus !== 'function') return 'unavailable'
+    return musicAuthorization(await native.getAuthorizationStatus())
+  },
+
+  /**
+   * Ask for media library access: iOS's prompt the first time, its
+   * remembered answer after that. Call it from the person's own tap.
+   */
+  async requestAuthorization(): Promise<MusicAuthorization> {
+    const native = nativeMusic()
+    if (typeof native?.requestAuthorization !== 'function') return 'unavailable'
+    return musicAuthorization(await native.requestAuthorization())
+  },
+
+  /** The song, its artwork and the playback state, as one snapshot. */
+  async getNowPlaying(): Promise<NowPlaying> {
+    const native = nativeMusic()
+    if (typeof native?.getNowPlaying !== 'function') return nothingPlaying()
+    return normalizeNowPlaying(await native.getNowPlaying())
+  },
+
+  /** Each resolves with the snapshot once the Music app has moved. */
+  play: (): Promise<NowPlaying> => musicCommand('play'),
+  pause: (): Promise<NowPlaying> => musicCommand('pause'),
+  togglePlayPause: (): Promise<NowPlaying> => musicCommand('togglePlayPause'),
+  skipToNext: (): Promise<NowPlaying> => musicCommand('skipToNext'),
+  skipToPrevious: (options: MusicSkipOptions = {}): Promise<NowPlaying> => musicCommand('skipToPrevious', options),
+
+  /**
+   * Hear every change of song or playback state, pushed by native rather
+   * than polled. The first listener starts native observation and the last
+   * one to leave stops it. Off a phone it never fires.
+   */
+  onChange(callback: (nowPlaying: NowPlaying) => void): () => void {
+    const native = nativeMusic()
+    if (typeof native?.observe !== 'function') return () => {}
+    musicWatch.listeners.add(callback)
+    startMusicWatch(native)
+    return () => {
+      if (!musicWatch.listeners.delete(callback) || musicWatch.listeners.size > 0) return
+      musicWatch.stop?.()
+      musicWatch.stop = null
+    }
+  },
+}
+
 export const deepLinks = {
   async getInitialURL(): Promise<string | null> {
     return normalizeDeepLinkURL(await getCraftRoot()?.deepLinks?.getInitialURL?.())
@@ -2587,6 +2780,7 @@ const mobile: {
   keepAwake: typeof keepAwake
   brightness: typeof brightness
   speech: typeof speech
+  music: typeof music
   deepLinks: typeof deepLinks
   network: typeof network
   appReview: typeof appReview
@@ -2621,6 +2815,7 @@ const mobile: {
   keepAwake: keepAwake,
   brightness: brightness,
   speech: speech,
+  music: music,
   deepLinks: deepLinks,
   network: network,
   appReview: appReview,

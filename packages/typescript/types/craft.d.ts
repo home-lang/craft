@@ -620,6 +620,12 @@ export interface CraftBridge {
   speech: CraftSpeech;
 
   /**
+   * The Music app's song and transport (iOS, `enableAppleMusic`). Sees and
+   * steers Apple Music only: iOS gives no app another player's controls.
+   */
+  music?: CraftMusic;
+
+  /**
    * Lock screen orientation
    * @param orientation - 'portrait' or 'landscape'
    */
@@ -1228,6 +1234,55 @@ export interface CraftSpeechOptions {
   interrupt?: boolean;
 }
 
+/** Whether the person has let the app see their music. `unavailable` off a phone. */
+export type CraftMusicAuthorization = 'authorized' | 'denied' | 'restricted' | 'notDetermined' | 'unavailable';
+
+export type CraftMusicPlaybackState = 'stopped' | 'playing' | 'paused' | 'interrupted' | 'seekingForward' | 'seekingBackward' | 'unknown';
+
+/**
+ * What the Music app is playing. Every song field is null without access, with
+ * nothing queued, and while another app (Spotify, a podcast) plays - then
+ * `otherAudioPlaying` is true.
+ */
+export interface CraftNowPlaying {
+  /** False off a phone, where there is no Music app to ask. */
+  available: boolean;
+  authorization: CraftMusicAuthorization;
+  /** `appleMusic`, or `simulated` for the simulator's stand-in; null without access. */
+  source: 'appleMusic' | 'simulated' | null;
+  playbackState: CraftMusicPlaybackState;
+  isPlaying: boolean;
+  itemId: string | null;
+  title: string | null;
+  artist: string | null;
+  album: string | null;
+  /** Seconds. */
+  duration: number | null;
+  /** Seconds into the song when the snapshot was taken (`timestamp`). */
+  position: number | null;
+  /** A small square JPEG (120 px) as a data URL, when the song has artwork. */
+  artworkDataURL: string | null;
+  /** Some app is playing audio: Apple Music included, so read it beside `isPlaying`. */
+  otherAudioPlaying: boolean;
+  /** When the snapshot was taken, in ms since the epoch. */
+  timestamp: number;
+}
+
+export interface CraftMusic {
+  getAuthorizationStatus(): Promise<CraftMusicAuthorization>;
+  /** Shows iOS's media library prompt the first time; after that answers from memory. */
+  requestAuthorization(): Promise<CraftMusicAuthorization>;
+  getNowPlaying(): Promise<CraftNowPlaying>;
+  play(): Promise<CraftNowPlaying>;
+  pause(): Promise<CraftNowPlaying>;
+  togglePlayPause(): Promise<CraftNowPlaying>;
+  skipToNext(): Promise<CraftNowPlaying>;
+  /** Like the Music app: past `restartAfter` seconds (3) it restarts the song; 0 always goes back. */
+  skipToPrevious(options?: { restartAfter?: number }): Promise<CraftNowPlaying>;
+  /** Start (or stop) `craftMusicChange` events, each carrying a CraftNowPlaying. */
+  observe(enabled?: boolean): Promise<boolean>;
+}
+
 export interface CraftSpeech {
   /**
    * Speak `text`. Settles when the utterance ends: `true` when it was spoken,
@@ -1266,6 +1321,8 @@ export interface CraftCapabilities {
   flashlight: boolean;
   /** Screen brightness through `craft.getBrightness` / `craft.setBrightness`. */
   brightness?: boolean;
+  /** The Music app's song and transport through `craft.music` (iOS, `enableAppleMusic`). */
+  music?: boolean;
   /** Native text-to-speech through `craft.speech`. */
   speech: boolean;
   network: boolean;

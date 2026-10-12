@@ -78,6 +78,20 @@ export interface CraftConfig {
   enablePDFViewer?: boolean
   enableAR?: boolean
   enableMLKit?: boolean
+  /**
+   * Show and control what the Music app is playing (`craft.music`, through
+   * MPMusicPlayerController.systemMusicPlayer). Only Apple Music: iOS gives
+   * no app the controls of another player such as Spotify. iOS asks the
+   * person for media library access the first time the page calls
+   * `craft.music.requestAuthorization()`, never at launch.
+   */
+  enableAppleMusic?: boolean
+  /**
+   * Purpose strings in the app's own words, by Info.plist key
+   * (`{ NSAppleMusicUsageDescription: 'Shows the song playing during a workout.' }`).
+   * Each replaces the generic sentence Craft writes for that key.
+   */
+  usageDescriptions?: Record<string, string>
   devServerURL?: string
   iosVersion?: string
   watchosVersion?: string
@@ -435,6 +449,7 @@ const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
   enablePDFViewer: false,
   enableAR: false,
   enableMLKit: false,
+  enableAppleMusic: false,
   iosVersion: '16.0',
   watchosVersion: '9.0',
   teamId: '',
@@ -488,7 +503,7 @@ export function renderAppearance(config: Pick<CraftConfig, 'appearance' | 'darkM
 /**
  * Purpose strings the shell needs whatever the app turns on. CraftApp.swift is
  * one binary that links Speech, AVFoundation, Photos, CoreLocation, Contacts,
- * EventKit, CoreMotion, CoreBluetooth and LocalAuthentication, and App Store
+ * EventKit, CoreMotion, CoreBluetooth, LocalAuthentication and MediaPlayer, and App Store
  * Connect checks the binary, not the config: a build without these keys is
  * refused with ITMS-90683 ("Missing purpose string in Info.plist"). A feature
  * that is off never asks, so the string is never shown; it only has to exist.
@@ -504,6 +519,7 @@ const LINKED_PURPOSES: Record<string, string> = {
   NSBluetoothAlwaysUsageDescription: 'Bluetooth',
   NSMotionUsageDescription: 'motion data',
   NSFaceIDUsageDescription: 'Face ID',
+  NSAppleMusicUsageDescription: 'your music',
 }
 
 export function renderUsageDescriptions(config: CraftConfig): string {
@@ -523,10 +539,14 @@ export function renderUsageDescriptions(config: CraftConfig): string {
     [config.enableHealthKit, 'NSHealthShareUsageDescription', `${config.appName} reads health data you choose to share.`],
     [config.enableHealthKit, 'NSHealthUpdateUsageDescription', `${config.appName} writes health data only with your permission.`],
     [config.enableBiometric, 'NSFaceIDUsageDescription', `${config.appName} uses Face ID to protect your account.`],
+    [config.enableAppleMusic, 'NSAppleMusicUsageDescription', `${config.appName} shows and controls the music playing in the Music app.`],
   ]
+  const own = config.usageDescriptions ?? {}
 
   return entries
     .map(([enabled, key, value]): [string, string] | null => {
+      const custom = own[key]?.trim()
+      if (custom) return [key, custom]
       if (enabled) return [key, value]
       const linked = LINKED_PURPOSES[key]
       return linked ? [key, `${config.appName} asks for ${linked} only in a feature that needs it.`] : null
@@ -1160,6 +1180,7 @@ export async function init(options: InitOptions): Promise<void> {
   cpSync(join(TEMPLATES_DIR, 'CraftNativeFlatList.swift'), join(output, 'Sources', 'CraftNativeFlatList.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeActions.swift'), join(output, 'Sources', 'CraftNativeActions.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftHealth.swift'), join(output, 'Sources', 'CraftHealth.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftMusic.swift'), join(output, 'Sources', 'CraftMusic.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeMutation.swift'), join(output, 'Sources', 'CraftNativeMutation.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeUI.swift'), join(output, 'Sources', 'CraftNativeUI.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftHybrid.swift'), join(output, 'Sources', 'CraftHybrid.swift'))

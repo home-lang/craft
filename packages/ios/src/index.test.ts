@@ -327,6 +327,21 @@ describe('Craft iOS builder', () => {
     expect(renderBackgroundModes(config)).toContain('<string>location</string>')
   })
 
+  it('explains Apple Music access, in the app\'s own words when it gives them', () => {
+    const config = { appName: 'HQ.training', bundleId: 'training.hq.app' }
+    // The shell links MediaPlayer, so the key is always there (ITMS-90683).
+    expect(renderUsageDescriptions(config)).toContain('<key>NSAppleMusicUsageDescription</key>\n    <string>HQ.training asks for your music only in a feature that needs it.</string>')
+    expect(renderUsageDescriptions({ ...config, enableAppleMusic: true })).toContain('<string>HQ.training shows and controls the music playing in the Music app.</string>')
+    const own = renderUsageDescriptions({
+      ...config,
+      enableAppleMusic: true,
+      usageDescriptions: { NSAppleMusicUsageDescription: 'Shows the song you\'re training to & lets you skip it.', NSCameraUsageDescription: '  ' },
+    })
+    expect(own).toContain('<key>NSAppleMusicUsageDescription</key>\n    <string>Shows the song you&apos;re training to &amp; lets you skip it.</string>')
+    // A blank override is no override.
+    expect(own).toContain('<string>HQ.training asks for the camera only in a feature that needs it.</string>')
+  })
+
   it('declares the app-bound domains a service worker needs, with the dev server among them', () => {
     expect(renderAppBoundDomains({ appName: 'HQ', bundleId: 'training.hq.app' })).toBe('')
     // Unset: the origins the bridge already trusts.

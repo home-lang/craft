@@ -24,7 +24,7 @@ import type {
   LiveActivityHandle,
   LiveActivityOptions,
 } from '../api/mobile'
-import mobile, { biometrics, brightness, bridgeNotification, health, normalizeDeepLinkURL, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
+import mobile, { biometrics, brightness, bridgeNotification, health, music, normalizeDeepLinkURL, normalizeNowPlaying, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
 
 describe('Mobile deep links', () => {
   it('normalizes native payloads to the public string contract', () => {
@@ -802,5 +802,117 @@ describe('Mobile native UI', () => {
   it('lists the new namespaces on the default export', () => {
     for (const name of ['dialog', 'contextMenu', 'browser', 'symbols', 'statusBar', 'chrome', 'refresh', 'background', 'appearance'])
       expect(typeof (mobile as any)[name]).toBe('object')
+  })
+})
+
+/** The Music app as the bridge presents it, recording what it was asked. */
+function fakeMusicApp(options: { authorization?: string, capability?: boolean } = {}) {
+  const calls: string[] = []
+  const events = new EventTarget()
+  let authorization = options.authorization ?? 'notDetermined'
+  let playing = false
+  let song = 0
+  const songs = ['Intervals', 'Long Way Home', 'Cooldown']
+  const snapshot = () => authorization === 'authorized'
+    ? { available: true, authorization, source: 'simulated', playbackState: playing ? 'playing' : 'paused', isPlaying: playing, itemId: `s${song}`, title: songs[song], artist: 'The Pacers', album: null, duration: 214, position: 12.5, artworkDataURL: 'data:image/jpeg;base64,AAAA', otherAudioPlaying: playing, timestamp: 1 }
+    : { available: true, authorization, source: null, playbackState: 'unknown', isPlaying: false, itemId: null, title: null, artist: null, album: null, duration: null, position: null, artworkDataURL: null, otherAudioPlaying: false, timestamp: 1 }
+  const command = (name: string, change: () => void) => async (opts?: unknown) => {
+    calls.push(opts ? `${name} ${JSON.stringify(opts)}` : name)
+    change()
+    return snapshot()
+  }
+  const window = {
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+    craft: {
+      capabilities: { music: options.capability ?? true },
+      music: {
+        getAuthorizationStatus: async () => authorization,
+        requestAuthorization: async () => {
+          calls.push('requestAuthorization')
+          authorization = 'authorized'
+          return authorization
+        },
+        getNowPlaying: async () => snapshot(),
+        play: command('play', () => { playing = true }),
+        pause: command('pause', () => { playing = false }),
+        togglePlayPause: command('togglePlayPause', () => { playing = !playing }),
+        skipToNext: command('skipToNext', () => { song = (song + 1) % songs.length }),
+        skipToPrevious: command('skipToPrevious', () => { song = (song + songs.length - 1) % songs.length }),
+        observe: async (enabled: boolean) => {
+          calls.push(`observe ${enabled}`)
+          return enabled
+        },
+      },
+    },
+  }
+  const push = () => events.dispatchEvent(Object.assign(new Event('craftMusicChange'), { detail: snapshot() }))
+  return { window, calls, push, skip: () => { song = (song + 1) % songs.length } }
+}
+
+describe('music', () => {
+  it('reads nothing until access is allowed, then shows the song', async () => {
+    const app = fakeMusicApp()
+    await withWindow(app.window, async () => {
+      expect(music.isAvailable()).toBe(true)
+      expect(await music.getAuthorizationStatus()).toBe('notDetermined')
+      const before = await music.getNowPlaying()
+      expect(before).toMatchObject({ available: true, authorization: 'notDetermined', title: null, isPlaying: false })
+      expect(await music.requestAuthorization()).toBe('authorized')
+      expect(await music.getNowPlaying()).toMatchObject({ title: 'Intervals', artist: 'The Pacers', duration: 214, source: 'simulated' })
+    })
+  })
+
+  it('plays, pauses, toggles and skips through the bridge', async () => {
+    const app = fakeMusicApp({ authorization: 'authorized' })
+    await withWindow(app.window, async () => {
+      expect((await music.play()).isPlaying).toBe(true)
+      expect((await music.togglePlayPause()).isPlaying).toBe(false)
+      expect((await music.skipToNext()).title).toBe('Long Way Home')
+      expect((await music.skipToPrevious({ restartAfter: 0 })).title).toBe('Intervals')
+      await music.pause()
+      expect(app.calls).toEqual(['play', 'togglePlayPause', 'skipToNext', 'skipToPrevious {"restartAfter":0}', 'pause'])
+    })
+  })
+
+  it('pushes changes to every listener and observes only while someone listens', async () => {
+    const app = fakeMusicApp({ authorization: 'authorized' })
+    await withWindow(app.window, async () => {
+      const heard: string[] = []
+      const other: string[] = []
+      const stop = music.onChange(now => heard.push(now.title ?? ''))
+      const stopOther = music.onChange(now => other.push(now.title ?? ''))
+      app.skip()
+      app.push()
+      stop()
+      app.skip()
+      app.push()
+      stopOther()
+      app.push()
+      expect(heard).toEqual(['Long Way Home'])
+      expect(other).toEqual(['Long Way Home', 'Cooldown'])
+      await Promise.resolve()
+      expect(app.calls).toEqual(['observe true', 'observe false'])
+    })
+  })
+
+  it('does nothing off a phone, or in an app built without it', async () => {
+    for (const window of [{}, fakeMusicApp({ capability: false }).window]) {
+      await withWindow(window, async () => {
+        expect(music.isAvailable()).toBe(false)
+        expect(music.supports('play')).toBe(false)
+        expect(await music.getAuthorizationStatus()).toBe('unavailable')
+        expect(await music.requestAuthorization()).toBe('unavailable')
+        expect(await music.play()).toMatchObject({ available: false, authorization: 'unavailable', title: null })
+        const stop = music.onChange(() => { throw new Error('never') })
+        stop()
+      })
+    }
+  })
+
+  it('keeps a snapshot safe to render whatever native sent', () => {
+    const now = normalizeNowPlaying({ authorization: 'authorized', playbackState: 'warping', title: '  ', duration: -4, artworkDataURL: 'https://example.com/a.jpg', isPlaying: 'yes' })
+    expect(now).toMatchObject({ available: true, playbackState: 'unknown', title: null, duration: null, artworkDataURL: null, isPlaying: false })
+    expect(normalizeNowPlaying(null)).toMatchObject({ available: false, authorization: 'unavailable' })
   })
 })

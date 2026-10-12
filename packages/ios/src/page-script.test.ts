@@ -811,3 +811,72 @@ describe('craft.speech', () => {
     expect(template).toContain('setActive(false, options: .notifyOthersOnDeactivation)')
   })
 })
+
+describe('craft.music', () => {
+  // The Music app's song and transport (CraftMusic.swift). Each call is one
+  // posted action that native answers with the status or a snapshot.
+  it('posts each call as the action native answers, and settles with its answer', async () => {
+    const { craft, last, answer } = loadPage()
+    const snapshot = { available: true, authorization: 'authorized', title: 'Intervals', isPlaying: true }
+
+    const status = craft.music.getAuthorizationStatus()
+    answer('musicGetAuthorization', 'notDetermined')
+    expect(await status).toBe('notDetermined')
+
+    const nowPlaying = craft.music.getNowPlaying()
+    answer('musicGetNowPlaying', snapshot)
+    expect(await nowPlaying).toEqual(snapshot)
+
+    for (const command of ['play', 'pause', 'togglePlayPause', 'skipToNext'] as const) {
+      const done = craft.music[command]()
+      expect(last('musicControl')).toMatchObject({ command })
+      answer('musicControl', snapshot)
+      expect(await done).toEqual(snapshot)
+    }
+
+    const back = craft.music.skipToPrevious({ restartAfter: 0 })
+    expect(last('musicControl')).toMatchObject({ command: 'skipToPrevious', restartAfter: 0 })
+    answer('musicControl', snapshot)
+    await back
+    void craft.music.skipToPrevious()
+    expect(last('musicControl')).toMatchObject({ command: 'skipToPrevious', restartAfter: null })
+    answer('musicControl', snapshot)
+
+    const observing = craft.music.observe()
+    expect(last('musicObserve')).toMatchObject({ enabled: true })
+    answer('musicObserve', true)
+    expect(await observing).toBe(true)
+    void craft.music.observe(false)
+    expect(last('musicObserve')).toMatchObject({ enabled: false })
+    answer('musicObserve', false)
+  })
+
+  it('waits on the media library prompt for as long as the person takes', async () => {
+    const { craft, answer } = loadPage()
+    const asked = craft.music.requestAuthorization()
+    // No 30-second timeout: the person may read the prompt for longer.
+    expect([...pageTimers].length).toBe(0)
+    answer('musicRequestAuthorization', 'authorized')
+    expect(await asked).toBe('authorized')
+  })
+
+  it('hands a build without the capability the refusal native sends', async () => {
+    const { craft, refuse } = loadPage()
+    const nowPlaying = craft.music.getNowPlaying()
+    refuse('musicGetNowPlaying', 'Apple Music is disabled', 'CAPABILITY_DISABLED')
+    await expect(nowPlaying).rejects.toMatchObject({ code: 'CAPABILITY_DISABLED' })
+  })
+
+  it('reads nothing before access, drives the system player, and pushes its changes', () => {
+    const music = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftMusic.swift'), 'utf8')
+    expect(template).toContain('music: \\(config.enableAppleMusic)')
+    expect(template).toContain('self?.sendToWeb("craftMusicChange", data: snapshot)')
+    expect(music).toContain('MPMusicPlayerController.systemMusicPlayer')
+    expect(music).toContain('guard isAuthorized else { return result }')
+    expect(music).toContain('MPMediaLibrary.requestAuthorization')
+    expect(music).toContain('player.beginGeneratingPlaybackNotifications()')
+    expect(music).toContain('.MPMusicPlayerControllerNowPlayingItemDidChange, .MPMusicPlayerControllerPlaybackStateDidChange')
+    // The stand-in never ships to a device.
+    expect(music).toMatch(/#if targetEnvironment\(simulator\)\n\s+if UserDefaults\.standard\.bool\(forKey: "CraftFakeMusicPlayer"\)/)
+  })
+})

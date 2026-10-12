@@ -178,6 +178,7 @@ Edit `craft.config.json` in your iOS project:
   "enableBluetooth": true,
   "enableNFC": true,
   "enableHealthKit": false,
+  "enableAppleMusic": false,
   "enableScreenCapture": true,
   "iosVersion": "15.0",
   "teamId": ""
@@ -187,6 +188,18 @@ Edit `craft.config.json` in your iOS project:
 The app name is shown as written (`"HQ.training"` is fine); the Xcode
 project, target and Swift types use a PascalCase identifier made from it
 (`HQTraining`). A key left out of the file keeps its default.
+
+Purpose strings in your own words, by Info.plist key (each replaces Craft's
+generic sentence; the keys for frameworks the shell links are always written,
+since App Store Connect checks the binary):
+
+```json
+{
+  "usageDescriptions": {
+    "NSAppleMusicUsageDescription": "Shows the song playing during a workout and lets you pause or skip it."
+  }
+}
+```
 
 Appearance and navigation:
 
@@ -519,6 +532,31 @@ window.craft.setKeepAwake(false); // Allow screen dimming
 // in the background.
 const level = await window.craft.getBrightness();   // 0.62
 await window.craft.setBrightness(0.1);              // resolves with what the screen reports
+
+// Apple Music (enableAppleMusic): what the Music app is playing, and its
+// transport, through MPMusicPlayerController.systemMusicPlayer. Only Apple
+// Music: iOS gives no app another player's controls, so while Spotify or a
+// podcast app plays, the song fields are null and otherAudioPlaying is true.
+// Nothing is read until the person allows media library access, which only
+// requestAuthorization() asks for (call it from their tap, never at launch).
+// Word the prompt with usageDescriptions.NSAppleMusicUsageDescription.
+await window.craft.music.requestAuthorization(); // 'authorized' | 'denied' | 'restricted' | 'notDetermined'
+const now = await window.craft.music.getNowPlaying();
+// { available, authorization, source: 'appleMusic', playbackState: 'playing', isPlaying,
+//   itemId, title, artist, album, duration, position, timestamp,
+//   artworkDataURL: 'data:image/jpeg;base64,…' (120 px, or null), otherAudioPlaying }
+await window.craft.music.togglePlayPause(); // play() / pause() too; each resolves with the snapshot
+await window.craft.music.skipToNext();
+await window.craft.music.skipToPrevious({ restartAfter: 3 }); // like Music's own button; 0 = always previous
+await window.craft.music.observe(true); // then every change arrives as craftMusicChange
+window.addEventListener('craftMusicChange', (event) => render(event.detail));
+// Or `import { music } from 'craft-native/mobile'`: music.onChange(callback)
+// observes while anyone listens, and off a phone every call answers
+// { available: false } without doing anything.
+// The simulator's Music app has nothing to play: launch with
+// `-CraftFakeMusicPlayer YES` (or `simctl spawn <device> defaults write <bundle id>
+// CraftFakeMusicPlayer -bool YES`) for three made-up songs that play and skip.
+// Simulator builds only; a device always talks to the Music app.
 
 // Speech: short spoken cues that duck the person's music instead of stopping
 // it, and play with the silent switch on. Always available (no config flag).
