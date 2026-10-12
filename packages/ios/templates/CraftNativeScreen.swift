@@ -108,6 +108,33 @@ private enum CraftNativeFlexLineBridge {
     }
 }
 
+private enum CraftNativeFlexLineDistributionBridge {
+    private typealias Function = @convention(c) (
+        Float, Float, UInt32, UnsafeRawPointer, Int, UnsafeMutableRawPointer, UnsafeMutableRawPointer
+    ) -> Int32
+
+    private static let function: Function? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_flex_line_distribution") else { return nil }
+        return unsafeBitCast(symbol, to: Function.self)
+    }()
+
+    static func distribute(available: CGFloat, gap: CGFloat, alignment: UInt32, lineCrosses: [CGFloat]) -> (offsets: [CGFloat], sizes: [CGFloat])? {
+        guard let function, !lineCrosses.isEmpty else { return nil }
+        var input = lineCrosses.map(Float.init)
+        var offsets = [Float](repeating: 0, count: input.count)
+        var sizes = [Float](repeating: 0, count: input.count)
+        let status = input.withUnsafeBufferPointer { inputBuffer in
+            offsets.withUnsafeMutableBufferPointer { offsetBuffer in
+                sizes.withUnsafeMutableBufferPointer { sizeBuffer in
+                    function(Float(available), Float(gap), alignment, UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(offsetBuffer.baseAddress!), UnsafeMutableRawPointer(sizeBuffer.baseAddress!))
+                }
+            }
+        }
+        guard status == 0, offsets.allSatisfy({ $0.isFinite }), sizes.allSatisfy({ $0.isFinite }) else { return nil }
+        return (offsets.map(CGFloat.init), sizes.map(CGFloat.init))
+    }
+}
+
 /// Optional bridge to the shared cross-axis alignment rule. The local rule is
 /// retained for runtimes built before this symbol was exported.
 private enum CraftNativeCrossAxisBridge {
@@ -1123,25 +1150,50 @@ private final class CraftNativeFlowView: UIStackView {
             ?? (lineCrosses.reduce(0, +) + CGFloat(max(0, lineCrosses.count - 1)) * crossGap)
         var crossLeading: CGFloat = 0
         var crossBetween = crossGap
+        var sharedCrossOffsets: [CGFloat]? = nil
         if wrap, let definiteCross, lineCrosses.count > 1 {
-            let free = max(0, definiteCross - (lineCrosses.reduce(0, +) + CGFloat(lineCrosses.count - 1) * crossGap))
-            switch alignContent {
-            case "center": crossLeading = free / 2
-            case "flex-end": crossLeading = free
-            case "space-between": crossBetween = free / CGFloat(lineCrosses.count - 1) + crossGap
-            case "space-around":
-                crossBetween = free / CGFloat(lineCrosses.count) + crossGap
-                crossLeading = free / CGFloat(lineCrosses.count * 2)
-            case "stretch":
-                let extra = free / CGFloat(lineCrosses.count)
-                lineCrosses = lineCrosses.map { $0 + extra }
+            let alignment: UInt32 = switch alignContent {
+            case "center": 1
+            case "flex-end": 2
+            case "space-between": 3
+            case "space-around": 4
+            case "stretch": 5
+            default: 0
+            }
+            if let distributed = CraftNativeFlexLineDistributionBridge.distribute(
+                available: definiteCross,
+                gap: crossGap,
+                alignment: alignment,
+                lineCrosses: lineCrosses
+            ) {
+                sharedCrossOffsets = distributed.offsets
+                lineCrosses = distributed.sizes
                 for (lineIndex, line) in lines.enumerated() {
                     for index in line where items[index].fixedCross == nil && items[index].align == "stretch" {
                         let item = items[index]
                         items[index].cross = clamp(lineCrosses[lineIndex] - item.crossMargins, item.minCross, item.maxCross)
                     }
                 }
-            default: break
+            } else {
+                let free = max(0, definiteCross - (lineCrosses.reduce(0, +) + CGFloat(lineCrosses.count - 1) * crossGap))
+                switch alignContent {
+                case "center": crossLeading = free / 2
+                case "flex-end": crossLeading = free
+                case "space-between": crossBetween = free / CGFloat(lineCrosses.count - 1) + crossGap
+                case "space-around":
+                    crossBetween = free / CGFloat(lineCrosses.count) + crossGap
+                    crossLeading = free / CGFloat(lineCrosses.count * 2)
+                case "stretch":
+                    let extra = free / CGFloat(lineCrosses.count)
+                    lineCrosses = lineCrosses.map { $0 + extra }
+                    for (lineIndex, line) in lines.enumerated() {
+                        for index in line where items[index].fixedCross == nil && items[index].align == "stretch" {
+                            let item = items[index]
+                            items[index].cross = clamp(lineCrosses[lineIndex] - item.crossMargins, item.minCross, item.maxCross)
+                        }
+                    }
+                default: break
+                }
             }
             contentCross = definiteCross
         }
@@ -1162,6 +1214,7 @@ private final class CraftNativeFlowView: UIStackView {
                 default: leading = 0; between = 0
                 }
                 let lineCross = lineCrosses[lineIndex]
+                let lineOffset = sharedCrossOffsets?[lineIndex] ?? crossOffset
                 let sharedLine = sharedLines[lineIndex]
                     let useSharedPositions = !reverse && sharedLine != nil
                 var mainOffset = leading
@@ -1185,12 +1238,12 @@ private final class CraftNativeFlowView: UIStackView {
                         ? (sharedLine?[offset].position ?? (mainOffset + item.mainLeading))
                         : mainOffset + item.mainLeading
                     let frame = horizontal
-                        ? CGRect(x: padding.left + mainPosition, y: padding.top + crossOffset + crossPosition, width: item.main, height: item.cross)
-                        : CGRect(x: padding.left + crossOffset + crossPosition, y: padding.top + mainPosition, width: item.cross, height: item.main)
+                        ? CGRect(x: padding.left + mainPosition, y: padding.top + lineOffset + crossPosition, width: item.main, height: item.cross)
+                        : CGRect(x: padding.left + lineOffset + crossPosition, y: padding.top + mainPosition, width: item.cross, height: item.main)
                     frames.append((item.view, frame))
                     if !useSharedPositions { mainOffset += item.mainMargins + item.main + mainGap + between }
                 }
-                crossOffset += lineCross + crossBetween
+                if sharedCrossOffsets == nil { crossOffset += lineCross + crossBetween }
             }
         }
         return horizontal ? CGSize(width: contentMain, height: contentCross) : CGSize(width: contentCross, height: contentMain)

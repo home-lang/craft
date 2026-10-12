@@ -230,6 +230,54 @@ pub export fn craft_native_flex_line_breaks(
     return line_id + 1;
 }
 
+/// Distribute wrapped flex lines in the cross axis. `alignment` is 0=start,
+/// 1=center, 2=end, 3=space-between, 4=space-around, or 5=stretch.
+pub export fn craft_native_flex_line_distribution(
+    available: f32,
+    gap: f32,
+    alignment: u32,
+    line_crosses: [*]const f32,
+    line_count: usize,
+    offsets: [*]f32,
+    sizes: [*]f32,
+) callconv(.c) c_int {
+    if (line_count == 0) return 0;
+    const safe_available = finiteNonNegative(available);
+    const safe_gap = finiteNonNegative(gap);
+    var total: f32 = 0;
+    for (line_crosses[0..line_count]) |line_cross| total += finiteNonNegative(line_cross);
+    total += safe_gap * @as(f32, @floatFromInt(line_count - 1));
+    const free = @max(0, safe_available - total);
+    var leading: f32 = 0;
+    var between = safe_gap;
+    switch (alignment) {
+        1 => leading = free / 2,
+        2 => leading = free,
+        3 => {
+            if (line_count > 1) between = safe_gap + free / @as(f32, @floatFromInt(line_count - 1));
+        },
+        4 => {
+            leading = free / @as(f32, @floatFromInt(line_count * 2));
+            between = safe_gap + free / @as(f32, @floatFromInt(line_count));
+        },
+        5 => {
+            const extra = free / @as(f32, @floatFromInt(line_count));
+            for (line_crosses[0..line_count], 0..) |line_cross, index| sizes[index] = finiteNonNegative(line_cross) + extra;
+        },
+        else => {},
+    }
+    if (alignment != 5) {
+        for (line_crosses[0..line_count], 0..) |line_cross, index| sizes[index] = finiteNonNegative(line_cross);
+    }
+    var offset = leading;
+    for (0..line_count) |index| {
+        offsets[index] = offset;
+        offset += sizes[index];
+        if (index + 1 < line_count) offset += between;
+    }
+    return 0;
+}
+
 /// ABI v2 flex row distribution. `justify` is 0=start, 1=center, 2=end,
 /// 3=space-between, 4=space-around, or 5=space-evenly. The original export
 /// remains available for older hosts and keeps start justification.
@@ -735,6 +783,20 @@ test "exports wrapped flex line breaks" {
     try std.testing.expectEqual(@as(i32, 1), line_ids[2]);
     try std.testing.expectEqual(@as(c_int, 1), craft_native_flex_line_breaks(100, 5, 0, &items, items.len, &line_ids));
     try std.testing.expectEqual(@as(i32, 0), line_ids[2]);
+}
+
+test "exports wrapped flex line distribution" {
+    const line_crosses = [_]f32{ 20, 30 };
+    var offsets: [2]f32 = undefined;
+    var sizes: [2]f32 = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_flex_line_distribution(100, 5, 3, &line_crosses, line_crosses.len, &offsets, &sizes));
+    try std.testing.expectApproxEqAbs(@as(f32, 0), offsets[0], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 70), offsets[1], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 20), sizes[0], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 30), sizes[1], 0.001);
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_flex_line_distribution(100, 5, 5, &line_crosses, line_crosses.len, &offsets, &sizes));
+    try std.testing.expectApproxEqAbs(@as(f32, 42.5), sizes[0], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 52.5), sizes[1], 0.001);
 }
 
 test "sanitizes non-finite flex inputs" {
