@@ -58,6 +58,64 @@ pub const LayoutError = error{
     FrameBufferTooSmall,
 };
 
+/// C-compatible input for the host bridge's one-line flex distribution.
+/// `min` and `max` use a negative value to mean "unset".
+pub const FlexItem = extern struct {
+    basis: f32,
+    grow: f32,
+    shrink: f32,
+    min: f32,
+    max: f32,
+    margin_start: f32,
+    margin_end: f32,
+};
+
+/// Distribute one flex line in content coordinates for native hosts.
+/// Margins and gaps consume space; free space follows grow or shrink*basis;
+/// each result is clamped to its bounds. Return 0 for success.
+pub export fn craft_native_flex_row(
+    available: f32,
+    gap: f32,
+    items: [*]const FlexItem,
+    item_count: usize,
+    widths: [*]f32,
+    positions: [*]f32,
+) callconv(.c) c_int {
+    if (item_count == 0) return 0;
+
+    const safe_available = finiteNonNegative(available);
+    const safe_gap = finiteNonNegative(gap);
+    var basis_total = safe_gap * @as(f32, @floatFromInt(item_count - 1));
+    var grow_total: f32 = 0;
+    var shrink_total: f32 = 0;
+    for (items[0..item_count]) |item| {
+        const basis = finiteNonNegative(item.basis);
+        basis_total += basis + finiteNonNegative(item.margin_start) + finiteNonNegative(item.margin_end);
+        grow_total += positiveGrow(item.grow);
+        shrink_total += positiveShrink(item.shrink) * basis;
+    }
+
+    const free = safe_available - basis_total;
+    var offset: f32 = 0;
+    for (items[0..item_count], 0..) |item, index| {
+        const basis = finiteNonNegative(item.basis);
+        const raw = if (free > 0)
+            basis + if (grow_total > 0) free * positiveGrow(item.grow) / grow_total else 0
+        else if (free < 0)
+            basis - if (shrink_total > 0) (-free) * positiveShrink(item.shrink) * basis / shrink_total else 0
+        else
+            basis;
+        const width = clampBounds(raw, item.min, item.max);
+        const leading = finiteNonNegative(item.margin_start);
+        const trailing = finiteNonNegative(item.margin_end);
+        positions[index] = offset + leading;
+        widths[index] = width;
+        offset += leading + width + trailing;
+        if (index + 1 < item_count) offset += safe_gap;
+    }
+    return 0;
+}
+
 /// Computes a tree's absolute frames without importing any platform type.
 ///
 /// The root uses its explicit size when present and otherwise the viewport.
@@ -249,6 +307,17 @@ fn clamp(value: f32, lower: ?f32, upper: ?f32) f32 {
     return result;
 }
 
+fn finiteNonNegative(value: f32) f32 {
+    return if (std.math.isNan(value) or value < 0) 0 else value;
+}
+
+fn clampBounds(value: f32, lower: f32, upper: f32) f32 {
+    var result = finiteNonNegative(value);
+    if (!std.math.isNan(lower) and lower >= 0) result = @max(result, lower);
+    if (!std.math.isNan(upper) and upper >= 0) result = @min(result, upper);
+    return result;
+}
+
 test "distributes positive flex grow from a shared basis" {
     const children = [_]Node{
         .{ .style = .{ .flex_basis = 40, .flex_grow = 1 } },
@@ -411,4 +480,18 @@ test "insets flex and grid children by parent padding" {
     try std.testing.expectEqual(@as(f32, 5), grid_frames[1].x);
     try std.testing.expectEqual(@as(f32, 3), grid_frames[1].y);
     try std.testing.expectEqual(@as(f32, 68), grid_frames[1].width);
+}
+
+test "exports the shared flex row contract with margins and bounds" {
+    const items = [_]FlexItem{
+        .{ .basis = 40, .grow = 1, .shrink = 1, .min = 30, .max = 70, .margin_start = 5, .margin_end = 7 },
+        .{ .basis = 20, .grow = 2, .shrink = 1, .min = -1, .max = -1, .margin_start = 3, .margin_end = 4 },
+    };
+    var widths: [2]f32 = undefined;
+    var positions: [2]f32 = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_flex_row(180, 10, &items, items.len, &widths, &positions));
+    try std.testing.expectApproxEqAbs(@as(f32, 70), widths[0], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 80.6667), widths[1], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 5), positions[0], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 95), positions[1], 0.001);
 }

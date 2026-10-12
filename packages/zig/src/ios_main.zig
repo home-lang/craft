@@ -2,6 +2,11 @@ const std = @import("std");
 const ios = @import("ios.zig");
 const mobile = @import("mobile.zig");
 const objc_runtime = @import("objc_runtime.zig");
+// Keep the host-neutral flex ABI reachable from the iOS static library.
+const native_layout = @import("native_layout.zig");
+comptime {
+    _ = native_layout;
+}
 
 /// iOS Main Entry Point
 ///

@@ -44,6 +44,14 @@ const COMPONENTS: Array<[string, string, string]> = [
 ]
 
 describe('native renderer component contract', () => {
+  it('exports the flat flex ABI for mobile hosts', () => {
+    expect(nativeLayout).toContain('pub const FlexItem = extern struct')
+    expect(nativeLayout).toContain('pub export fn craft_native_flex_row(')
+    expect(nativeLayout).toContain('margin_start: f32')
+    expect(nativeLayout).toContain('shrink_total')
+    expect(nativeLayout).toContain('clampBounds')
+  })
+
   it('keeps device navigation tests independent of global field order and viewport position', () => {
     expect(iosNavigationTest).toContain('private func reveal(_ element: XCUIElement, in scroll: XCUIElement')
     expect(iosNavigationTest).toContain('app.textFields.allElementsBoundByIndex.min')

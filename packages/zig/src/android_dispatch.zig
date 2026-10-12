@@ -72,6 +72,11 @@ const screen = @import("bridge_android_screen.zig");
 const files = @import("bridge_android_files.zig");
 const locationstore = @import("bridge_android_locationstore.zig");
 const main_thread = @import("android_main_thread.zig");
+// Keep the host-neutral flex ABI reachable from the Android shared library.
+const native_layout = @import("native_layout.zig");
+comptime {
+    _ = native_layout;
+}
 
 const Jni = jni.Jni;
 
