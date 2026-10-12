@@ -138,6 +138,24 @@ class NativeNavigationTest {
         throw AssertionError("Timed out waiting for $id to read $expected")
     }
 
+    private fun awaitProgressBar(
+        activity: MainActivity,
+        id: String,
+        expected: String,
+        predicate: (ProgressBar) -> Boolean,
+    ): ProgressBar {
+        repeat(75) {
+            var matching: ProgressBar? = null
+            instrumentation.runOnMainSync {
+                val view = find(activity.window.decorView, id)
+                if (view is ProgressBar && predicate(view)) matching = view
+            }
+            if (matching != null) return matching!!
+            SystemClock.sleep(100)
+        }
+        throw AssertionError("Timed out waiting for $id to be $expected")
+    }
+
     private fun awaitImageTintCleared(activity: MainActivity, id: String): ImageView {
         repeat(75) {
             var matching: ImageView? = null
@@ -441,13 +459,15 @@ class NativeNavigationTest {
             }
             awaitText(activity, "slider-completions", "Slider completions: 1")
             assertTrue("native indicator should be a ProgressBar", awaitView(activity, "native-indicator") is ProgressBar)
-            val stoppedIndicator = awaitView(activity, "stopped-indicator") as ProgressBar
+            val stoppedIndicator = awaitProgressBar(activity, "stopped-indicator", "visible and stopped") {
+                it.isShown && !it.isIndeterminate
+            }
             assertTrue("stopped indicator should stay visible when requested", stoppedIndicator.isShown)
             assertTrue("stopped indicator should not animate", !stoppedIndicator.isIndeterminate)
             assertEquals(0.75f, stoppedIndicator.scaleX)
-            val hiddenIndicator = awaitView(activity, "hidden-indicator") as ProgressBar
+            val hiddenIndicator = awaitProgressBar(activity, "hidden-indicator", "hidden") { it.visibility == View.GONE }
             assertEquals("hidesWhenStopped should hide a stopped indicator", View.GONE, hiddenIndicator.visibility)
-            val displayNoneIndicator = awaitView(activity, "display-none-indicator") as ProgressBar
+            val displayNoneIndicator = awaitProgressBar(activity, "display-none-indicator", "hidden") { it.visibility == View.GONE }
             assertEquals("display:none should hide an activity indicator", View.GONE, displayNoneIndicator.visibility)
             val wrapped = awaitView(activity, "layout-wrap") as LinearLayout
             assertEquals("Layout width: 240", (awaitView(activity, "layout-status") as TextView).text.toString())

@@ -46,7 +46,7 @@ before inspecting the updated native control, so the fixture does not race the
 asynchronous JavaScript-to-view reconciliation.
 Native control events are asynchronous too; assertions that observe event-driven
 status use `awaitText` rather than reading the view immediately after a platform
-click, selection, or slider movement.
+click, selection, slider movement, or a visual-property update.
 Test identities stay in Android view tags, leaving visible text available to
 accessibility services unless a label or value is explicitly supplied.
 Returning to a retained route reapplies native theme defaults before it becomes

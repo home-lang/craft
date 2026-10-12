@@ -171,6 +171,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('selectionColor')
       expect(nativeActivity).toContain('"ActivityIndicator" ->')
       expect(nativeActivity).toContain('indeterminateTintList')
+      expect(nativeActivity).toContain('isIndeterminate = animating')
+      expect(nativeActivity).toContain('hidesWhenStopped')
       expect(nativeActivity).toContain('isEnabled = !props.optBoolean("disabled", false)')
       expect(nativeActivity).toContain('"Slider" -> (previous as? SeekBar ?: SeekBar(this))')
       expect(nativeActivity).toContain('onSlidingComplete')
