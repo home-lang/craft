@@ -2140,6 +2140,15 @@ struct CraftWebView: UIViewRepresentable {
                 } else {
                     rejectCallback(callbackId, error: "Keep awake is disabled", code: "CAPABILITY_DISABLED")
                 }
+            // MARK: - Screen Brightness
+            case "getBrightness":
+                getBrightness(callbackId: callbackId)
+            case "setBrightness":
+                if let level = (body["level"] as? NSNumber)?.doubleValue, level.isFinite {
+                    setBrightness(level, callbackId: callbackId)
+                } else {
+                    rejectCallback(callbackId, error: "setBrightness was called without the values it needs", code: "INVALID_ARGUMENT")
+                }
             // MARK: - Orientation Lock
             case "lockOrientation":
                 if config.enableOrientationLock {
@@ -3102,6 +3111,7 @@ struct CraftWebView: UIViewRepresentable {
                     orientationLock: \(config.enableOrientationLock),
                     deepLinks: \(config.enableDeepLinks),
                     flashlight: true,
+                    brightness: true,
                     speech: true,
                     network: true,
                     deviceInfo: true,
@@ -4036,6 +4046,25 @@ struct CraftWebView: UIViewRepresentable {
                     var self = this;
                     var id = 'cb_' + (++this._callbackId);
                     window.webkit.messageHandlers.craft.postMessage({action: 'setKeepAwake', enabled: enabled, callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+
+                // Screen brightness, 0 to 1. Each resolves with the level the
+                // screen then reports.
+                getBrightness: function() {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'getBrightness', callbackId: id});
+                    return new Promise(function(resolve, reject) {
+                        self._callbacks[id] = {resolve: resolve, reject: reject};
+                    });
+                },
+                setBrightness: function(level) {
+                    var self = this;
+                    var id = 'cb_' + (++this._callbackId);
+                    window.webkit.messageHandlers.craft.postMessage({action: 'setBrightness', level: level, callbackId: id});
                     return new Promise(function(resolve, reject) {
                         self._callbacks[id] = {resolve: resolve, reject: reject};
                     });
@@ -6233,6 +6262,25 @@ struct CraftWebView: UIViewRepresentable {
                 UIApplication.shared.isIdleTimerDisabled = enabled
                 self.isKeepingAwake = enabled
                 self.resolveCallback(callbackId, result: enabled)
+            }
+        }
+
+        // MARK: - Screen Brightness
+        //
+        // The device's backlight, 0 to 1. It is system-wide, not the app's:
+        // a page that dims it reads it first and puts it back - when it is
+        // done, and when the app leaves the foreground (@stacksjs/mobile's
+        // screen API does both off the page's visibility).
+        private func getBrightness(callbackId: String?) {
+            DispatchQueue.main.async {
+                self.resolveCallback(callbackId, result: Double(UIScreen.main.brightness))
+            }
+        }
+
+        private func setBrightness(_ level: Double, callbackId: String?) {
+            DispatchQueue.main.async {
+                UIScreen.main.brightness = CGFloat(min(max(level, 0), 1))
+                self.resolveCallback(callbackId, result: Double(UIScreen.main.brightness))
             }
         }
 

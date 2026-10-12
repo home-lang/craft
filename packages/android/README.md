@@ -456,6 +456,14 @@ await window.craft.restorePurchases();
 window.craft.setKeepAwake(true);  // Prevent screen dimming
 window.craft.setKeepAwake(false); // Allow screen dimming
 
+// Screen brightness, 0 to 1: always available (no config flag, no permission).
+// A window-level override, so it ends with the window; resetBrightness hands the
+// screen back to the system, auto-brightness included. `brightness` from
+// 'craft-native/mobile' wraps all three.
+const level = await window.craft.getBrightness();
+await window.craft.setBrightness(0.1);
+await window.craft.resetBrightness();
+
 // Speech: short spoken cues through TextToSpeech, with transient may-duck audio
 // focus so the person's music dips instead of stopping. Always available (no
 // config flag). A device with no TTS engine resolves false.

@@ -1426,6 +1426,93 @@ function speechRate(rate: number | undefined): number {
  * where there is no speech at all it answers `false` rather than throwing, so
  * a cue never breaks the flow around it.
  */
+/*
+ * Screen brightness.
+ *
+ * For a page that shows very little for a long time - a workout's big timer,
+ * a boarding pass - and wants the backlight down (or up) while it does. On
+ * iOS the brightness is the device's, not the app's, so it outlives the page
+ * unless something puts it back: `restore()` does, and so does the page going
+ * out of view (the app sent to the background, the screen locked). Coming
+ * back re-applies the level the page asked for. Android scopes the change to
+ * the app's window and `restore()` hands the screen back to the system,
+ * auto-brightness included.
+ *
+ * Off a phone there is no backlight to set: `isAvailable()` is false and the
+ * calls resolve `null` without doing anything.
+ */
+interface BrightnessState {
+  /** The person's own level, read before the first change. */
+  original: number | null
+  /** What the page asked for, re-applied when it comes back into view. */
+  wanted: number | null
+  unwatch: (() => void) | null
+}
+
+const brightnessState: BrightnessState = { original: null, wanted: null, unwatch: null }
+
+function brightnessLevel(level: unknown): number | null {
+  const value = Number(level)
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : null
+}
+
+async function putBrightnessBack(craft: any): Promise<void> {
+  if (typeof craft?.resetBrightness === 'function') await craft.resetBrightness()
+  else if (brightnessState.original !== null) await craft.setBrightness(brightnessState.original)
+}
+
+function watchBrightnessVisibility(): void {
+  if (brightnessState.unwatch || typeof document === 'undefined') return
+  const onVisibility = () => {
+    const craft = getCraftRoot()
+    if (!craft?.setBrightness || brightnessState.wanted === null) return
+    if (document.visibilityState === 'hidden') void putBrightnessBack(craft).catch(() => {})
+    else void craft.setBrightness(brightnessState.wanted).catch(() => {})
+  }
+  document.addEventListener('visibilitychange', onVisibility)
+  brightnessState.unwatch = () => document.removeEventListener('visibilitychange', onVisibility)
+}
+
+export const brightness = {
+  isAvailable(): boolean {
+    return typeof getCraftRoot()?.setBrightness === 'function'
+  },
+
+  /** The screen's brightness, 0 to 1, or null where there is none to read. */
+  async get(): Promise<number | null> {
+    const craft = getCraftRoot()
+    if (typeof craft?.getBrightness !== 'function') return null
+    return brightnessLevel(await craft.getBrightness())
+  },
+
+  /**
+   * Set the brightness, 0 to 1 (clamped). The first call since the last
+   * `restore()` remembers the person's own level to go back to. Resolves with
+   * the level the screen reports, or null off a phone.
+   */
+  async set(level: number): Promise<number | null> {
+    const craft = getCraftRoot()
+    const wanted = brightnessLevel(level)
+    if (typeof craft?.setBrightness !== 'function' || wanted === null) return null
+    if (brightnessState.wanted === null && typeof craft.getBrightness === 'function')
+      brightnessState.original = brightnessLevel(await craft.getBrightness())
+    brightnessState.wanted = wanted
+    watchBrightnessVisibility()
+    return brightnessLevel(await craft.setBrightness(wanted))
+  },
+
+  /** Put the person's own brightness back. Safe to call when nothing was set. */
+  async restore(): Promise<void> {
+    const craft = getCraftRoot()
+    const held = brightnessState.wanted !== null
+    brightnessState.wanted = null
+    brightnessState.unwatch?.()
+    brightnessState.unwatch = null
+    if (held && typeof craft?.setBrightness === 'function') await putBrightnessBack(craft)
+    brightnessState.original = null
+  },
+}
+
 export const speech = {
   isAvailable(): boolean {
     return Boolean(getCraftRoot()?.speech?.speak) || getWebSpeech() !== undefined
@@ -2426,6 +2513,7 @@ const mobile: {
   lifecycle: typeof lifecycle
   notifications: typeof notifications
   keepAwake: typeof keepAwake
+  brightness: typeof brightness
   speech: typeof speech
   deepLinks: typeof deepLinks
   network: typeof network
@@ -2459,6 +2547,7 @@ const mobile: {
   lifecycle: lifecycle,
   notifications: notifications,
   keepAwake: keepAwake,
+  brightness: brightness,
   speech: speech,
   deepLinks: deepLinks,
   network: network,

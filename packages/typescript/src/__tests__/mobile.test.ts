@@ -24,7 +24,7 @@ import type {
   LiveActivityHandle,
   LiveActivityOptions,
 } from '../api/mobile'
-import mobile, { biometrics, bridgeNotification, normalizeDeepLinkURL, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
+import mobile, { biometrics, brightness, bridgeNotification, normalizeDeepLinkURL, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
 
 describe('Mobile deep links', () => {
   it('normalizes native payloads to the public string contract', () => {
@@ -344,6 +344,69 @@ describe('Mobile speech', () => {
 
   it('is on the default mobile export beside keepAwake', () => {
     expect(mobile.speech).toBe(speech)
+  })
+})
+
+/** A craft root with a backlight, recording what it was asked. */
+function fakeBacklight(start: number, options: { reset?: boolean } = {}) {
+  const calls: string[] = []
+  let level = start
+  const craft: Record<string, unknown> = {
+    getBrightness: async () => { calls.push('get'); return level },
+    setBrightness: async (next: number) => { calls.push(`set ${next}`); level = Math.min(1, Math.max(0, next)); return level },
+  }
+  if (options.reset) craft.resetBrightness = async () => { calls.push('reset'); level = start; return level }
+  return { window: { craft }, calls, level: () => level }
+}
+
+describe('brightness', () => {
+  it('dims, then puts the person\'s own level back', async () => {
+    const screen = fakeBacklight(0.8)
+    await withWindow(screen.window, async () => {
+      expect(brightness.isAvailable()).toBe(true)
+      expect(await brightness.set(0.1)).toBe(0.1)
+      expect(await brightness.set(0.05)).toBe(0.05)
+      await brightness.restore()
+      expect(screen.level()).toBe(0.8)
+      // The level to go back to is read once, before the first change.
+      expect(screen.calls).toEqual(['get', 'set 0.1', 'set 0.05', 'set 0.8'])
+    })
+  })
+
+  it('hands the screen back to the system where the platform can (Android)', async () => {
+    const screen = fakeBacklight(0.6, { reset: true })
+    await withWindow(screen.window, async () => {
+      await brightness.set(0.2)
+      await brightness.restore()
+      expect(screen.calls.at(-1)).toBe('reset')
+    })
+  })
+
+  it('clamps the level and refuses what is not a number', async () => {
+    const screen = fakeBacklight(0.5)
+    await withWindow(screen.window, async () => {
+      expect(await brightness.set(3)).toBe(1)
+      expect(await brightness.set(Number.NaN)).toBe(null)
+      await brightness.restore()
+    })
+  })
+
+  it('does nothing off a phone, and restore is safe with nothing set', async () => {
+    await withWindow({}, async () => {
+      expect(brightness.isAvailable()).toBe(false)
+      expect(await brightness.get()).toBe(null)
+      expect(await brightness.set(0.1)).toBe(null)
+      await brightness.restore()
+    })
+    const screen = fakeBacklight(0.4)
+    await withWindow(screen.window, async () => {
+      await brightness.restore()
+      expect(screen.calls).toEqual([])
+    })
+  })
+
+  it('is on the default mobile export', () => {
+    expect(mobile.brightness).toBe(brightness)
   })
 })
 

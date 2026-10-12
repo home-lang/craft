@@ -135,8 +135,10 @@ const zig_sources = [_][]const u8{
 /// dynamic voice-action methods tracked in #169; 28 after removing the two
 /// app-badge no-ops tracked in #148; 31 when #190 added the three runtime
 /// permission methods whose Activity callback state belongs to CraftBridge;
-/// 33 when speak and stopSpeaking arrived in the Kotlin first, as iOS's did.
-const max_not_yet_migrated: usize = 33;
+/// 33 when speak and stopSpeaking arrived in the Kotlin first, as iOS's did;
+/// 36 when getBrightness, setBrightness and resetBrightness did, for a page
+/// that dims the screen while it shows little (a workout's big timer).
+const max_not_yet_migrated: usize = 36;
 
 /// Every `@JavascriptInterface fun <name>(` in the Kotlin bridge.
 ///
@@ -338,6 +340,15 @@ const deliberate_deferrals = [_]Deferral{
     // also touch, so the pair moves together or not at all.
     .{ .action = "speak", .reason = "parks each call on a TextToSpeech engine and UtteranceProgressListener held in CraftBridge fields" },
     .{ .action = "stopSpeaking", .reason = "cancels the same engine, queue and audio focus that speak holds; the pair moves together" },
+
+    // ---- Screen brightness, which arrived in the Kotlin first --------
+    //
+    // The three share `brightnessOverride`, a CraftBridge field that
+    // getBrightness answers from while the page holds an override; the
+    // natives cannot reach it, so the trio moves together or not at all.
+    .{ .action = "getBrightness", .reason = "answers from the brightnessOverride field the natives cannot reach" },
+    .{ .action = "setBrightness", .reason = "writes that same field before queueing the window change; the trio moves together" },
+    .{ .action = "resetBrightness", .reason = "clears the same field; migrating one leaves the others answering a stale override" },
 
     // The auth-persistence trio shares one timestamp in Kotlin-configured
     // EncryptedSharedPreferences. It now survives process death, but migrating

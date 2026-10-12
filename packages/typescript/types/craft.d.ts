@@ -600,6 +600,15 @@ export interface CraftBridge {
    */
   setKeepAwake(enabled: boolean): void;
 
+  /** The screen's brightness, 0 to 1. */
+  getBrightness?(): Promise<number>;
+
+  /** Set the screen's brightness, 0 to 1 (clamped); resolves with the level the screen reports. */
+  setBrightness?(level: number): Promise<number>;
+
+  /** Android: release the app's brightness override, auto-brightness included. */
+  resetBrightness?(): Promise<number>;
+
   /**
    * Native text-to-speech for short spoken cues.
    *
@@ -1253,6 +1262,8 @@ export interface CraftCapabilities {
   orientationLock: boolean;
   deepLinks: boolean;
   flashlight: boolean;
+  /** Screen brightness through `craft.getBrightness` / `craft.setBrightness`. */
+  brightness?: boolean;
   /** Native text-to-speech through `craft.speech`. */
   speech: boolean;
   network: boolean;

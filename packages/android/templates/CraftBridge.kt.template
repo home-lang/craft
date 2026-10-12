@@ -418,6 +418,7 @@ class CraftBridge(
                     appReview: true,
                     flashlight: {{ENABLE_CAMERA}} && ${hasFlashlight()},
                     speech: true,
+                    brightness: true,
                     openURL: true,
                     vibrationPattern: true,
                     appState: true,
@@ -685,6 +686,18 @@ class CraftBridge(
                 // Keep Awake
                 setKeepAwake: function(enabled) {
                     return CraftAndroid.setKeepAwake(enabled);
+                },
+
+                // Screen brightness, 0 to 1. resetBrightness hands the screen
+                // back to the system setting (auto-brightness included).
+                getBrightness: function() {
+                    return Promise.resolve().then(function() { return CraftAndroid.getBrightness(); });
+                },
+                setBrightness: function(level) {
+                    return Promise.resolve().then(function() { return CraftAndroid.setBrightness(Number(level)); });
+                },
+                resetBrightness: function() {
+                    return Promise.resolve().then(function() { return CraftAndroid.resetBrightness(); });
                 },
 
                 // Orientation Lock
@@ -3626,6 +3639,49 @@ class CraftBridge(
         evaluatePromiseJavascript(
             "window._craftRestoreReject && window._craftRestoreReject(${jsQuote(message)})"
         )
+    }
+
+    // ==================== Screen Brightness ====================
+    //
+    // The window's own brightness override (WindowManager.LayoutParams
+    // .screenBrightness): no permission, and it lasts only while this window
+    // is in front, so leaving the app hands the screen back by itself.
+    // resetBrightness releases it, which also gives auto-brightness back -
+    // setting the old system level instead would freeze it there.
+    @Volatile private var brightnessOverride: Float? = null
+
+    @JavascriptInterface
+    fun getBrightness(): Double {
+        brightnessOverride?.let { return it.toDouble() }
+        return try {
+            Settings.System.getInt(activity.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255.0
+        } catch (e: Exception) {
+            0.5
+        }
+    }
+
+    @JavascriptInterface
+    fun setBrightness(level: Double): Double {
+        if (!level.isFinite()) return getBrightness()
+        val clamped = level.coerceIn(0.0, 1.0).toFloat()
+        brightnessOverride = clamped
+        activity.runOnUiThread {
+            val params = activity.window.attributes
+            params.screenBrightness = clamped
+            activity.window.attributes = params
+        }
+        return clamped.toDouble()
+    }
+
+    @JavascriptInterface
+    fun resetBrightness(): Double {
+        brightnessOverride = null
+        activity.runOnUiThread {
+            val params = activity.window.attributes
+            params.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            activity.window.attributes = params
+        }
+        return getBrightness()
     }
 
     // ==================== Keep Awake ====================

@@ -505,6 +505,13 @@ await window.craft.restorePurchases();
 window.craft.setKeepAwake(true);  // Prevent screen dimming
 window.craft.setKeepAwake(false); // Allow screen dimming
 
+// Screen brightness, 0 to 1: always available (no config flag). It is the
+// device's backlight, so put it back: `brightness` from 'craft-native/mobile'
+// remembers the person's level, restores it, and releases it while the app is
+// in the background.
+const level = await window.craft.getBrightness();   // 0.62
+await window.craft.setBrightness(0.1);              // resolves with what the screen reports
+
 // Speech: short spoken cues that duck the person's music instead of stopping
 // it, and play with the silent switch on. Always available (no config flag).
 // Resolves when the utterance ends: true if spoken, false if stopped or

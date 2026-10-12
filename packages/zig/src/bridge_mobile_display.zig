@@ -10,8 +10,10 @@ const objc = objc_runtime.objc;
 const Id = objc.id;
 const is_darwin = builtin.target.os.tag.isDarwin();
 
-/// The `mobile` display group: the app icon's badge, the idle timer, and the
-/// two orientation actions.
+/// The `mobile` display group: the app icon's badge, the idle timer, the two
+/// orientation actions, and the screen's brightness (`getBrightness` /
+/// `setBrightness`, for a page that dims the backlight while it shows little -
+/// a workout's big timer - and puts it back afterwards).
 ///
 /// These five arrived together because they are the ones whose Swift arms are
 /// *reachable but not reliable*, and the difference between them is worth
@@ -64,6 +66,8 @@ pub const A = struct {
     pub const set_keep_awake = "setKeepAwake";
     pub const lock_orientation = "lockOrientation";
     pub const unlock_orientation = "unlockOrientation";
+    pub const get_brightness = "getBrightness";
+    pub const set_brightness = "setBrightness";
 };
 
 pub const capability_actions = [_]capabilities.ActionDecl{
@@ -82,6 +86,8 @@ pub const capability_actions = [_]capabilities.ActionDecl{
         .status = .unavailable,
         .reason = "nothing to unlock: no orientation lock is ever installed",
     },
+    .{ .name = A.get_brightness, .reply = .result },
+    .{ .name = A.set_brightness, .reply = .result },
 };
 
 pub const DisplayBridge = struct {
@@ -106,6 +112,10 @@ pub const DisplayBridge = struct {
             try self.lockOrientation(data);
         } else if (std.mem.eql(u8, action, A.unlock_orientation)) {
             try self.unlockOrientation();
+        } else if (std.mem.eql(u8, action, A.get_brightness)) {
+            try self.getBrightness();
+        } else if (std.mem.eql(u8, action, A.set_brightness)) {
+            try self.setBrightness(data);
         } else {
             return bridge_error.BridgeError.UnknownAction;
         }
@@ -156,6 +166,28 @@ pub const DisplayBridge = struct {
             A.set_keep_awake,
             if (observed) "true" else "false",
         );
+    }
+
+    /// The screen's brightness, 0 to 1, as UIKit reports it.
+    ///
+    /// For a page that dims the screen and has to put it back: it reads this
+    /// first and restores it afterwards. `UIScreen.brightness` is the
+    /// device-wide backlight, not a per-app setting, so a page that changes it
+    /// owns putting it back - when it is done, and when the app goes to the
+    /// background (`@stacksjs/mobile`'s screen API does both off the page's
+    /// visibility).
+    fn getBrightness(self: *Self) !void {
+        try replyBrightness(self.allocator, A.get_brightness, try readBrightness());
+    }
+
+    /// `{"level":0..1}` in, the level UIKit then reports out.
+    ///
+    /// Clamped rather than refused at the ends: 1.2 from a page doing
+    /// arithmetic means "as bright as it goes". Anything that is not a finite
+    /// number is refused - NaN reaching UIKit is undefined, not dim.
+    fn setBrightness(self: *Self, data: []const u8) !void {
+        const level = try brightnessFrom(self.allocator, data);
+        try replyBrightness(self.allocator, A.set_brightness, try applyBrightness(level));
     }
 
     /// Validates the orientation, then refuses.
@@ -471,6 +503,65 @@ fn keepAwakeFrom(allocator: std.mem.Allocator, data: []const u8) !bool {
     };
 }
 
+/// `{"level":<number>}`, clamped to 0..1.
+fn brightnessFrom(allocator: std.mem.Allocator, data: []const u8) !f64 {
+    var parsed = std.json.parseFromSlice(std.json.Value, allocator, data, .{}) catch
+        return bridge_error.BridgeError.InvalidJSON;
+    defer parsed.deinit();
+
+    const root = switch (parsed.value) {
+        .object => |obj| obj,
+        else => return bridge_error.BridgeError.InvalidJSON,
+    };
+
+    const level: f64 = switch (root.get("level") orelse return bridge_error.BridgeError.MissingData) {
+        .float => |f| f,
+        .integer => |n| @floatFromInt(n),
+        else => return bridge_error.BridgeError.InvalidParameter,
+    };
+    if (!std.math.isFinite(level)) return bridge_error.BridgeError.InvalidParameter;
+    return std.math.clamp(level, 0.0, 1.0);
+}
+
+/// A brightness as the bare JSON number the page resolves with, to three
+/// places: UIKit reports the backlight in finer steps than anyone can see.
+fn replyBrightness(allocator: std.mem.Allocator, action: []const u8, level: f64) !void {
+    var buf: [32]u8 = undefined;
+    const text = try std.fmt.bufPrint(&buf, "{d}", .{@round(level * 1000.0) / 1000.0});
+    bridge_error.sendResultToJS(allocator, action, text);
+}
+
+/// `[UIScreen mainScreen]`.
+fn mainScreen() !objc.id {
+    if (!builtin.target.os.tag.isDarwin()) return error.UnsupportedPlatform;
+    const UIScreenClass = objc.objc_getClass("UIScreen") orelse return error.ClassNotFound;
+    const sel_main = objc.sel_registerName("mainScreen") orelse return error.SelectorNotFound;
+    const screen = objc.msgSendId(UIScreenClass, sel_main);
+    if (screen == null) return error.NoMainScreen;
+    return screen;
+}
+
+/// `UIScreen.brightness`, a CGFloat - a double on every 64-bit target, and
+/// returned in a floating-point register, which plain `objc_msgSend` handles on
+/// arm64 and x86_64 alike (`_fpret` is only for `long double` there).
+fn readBrightness() !f64 {
+    const screen = try mainScreen();
+    const sel_get = objc.sel_registerName("brightness") orelse return error.SelectorNotFound;
+    const GetFn = *const fn (objc.id, objc.SEL) callconv(.c) f64;
+    const get: GetFn = @ptrCast(&objc.objc_msgSend);
+    return get(screen, sel_get);
+}
+
+/// Set the backlight, then report what UIKit says it now is.
+fn applyBrightness(level: f64) !f64 {
+    const screen = try mainScreen();
+    const sel_set = objc.sel_registerName("setBrightness:") orelse return error.SelectorNotFound;
+    const SetFn = *const fn (objc.id, objc.SEL, f64) callconv(.c) void;
+    const set: SetFn = @ptrCast(&objc.objc_msgSend);
+    set(screen, sel_set, level);
+    return readBrightness();
+}
+
 /// The orientations Swift's switch recognizes.
 ///
 /// Five, not the two `packages/typescript/types/craft.d.ts:528` publishes —
@@ -667,7 +758,7 @@ test "the declared table and the dispatcher serve the same actions" {
     // A table and a dispatch chain that disagree is the failure the whole
     // capabilities mechanism exists to make impossible, and it is cheapest to
     // catch here rather than from a page whose promise never settles.
-    try testing.expectEqual(@as(usize, 5), capability_actions.len);
+    try testing.expectEqual(@as(usize, 7), capability_actions.len);
 
     const payloads = [_][]const u8{
         "{\"count\":3}",
@@ -675,6 +766,8 @@ test "the declared table and the dispatcher serve the same actions" {
         "{\"enabled\":true}",
         "{\"orientation\":\"portrait\"}",
         "{}",
+        "{}",
+        "{\"level\":0.5}",
     };
     try testing.expectEqual(capability_actions.len, payloads.len);
 
@@ -789,6 +882,20 @@ test "keep-awake reads a boolean and only a boolean" {
         bridge_error.BridgeError.InvalidParameter,
         keepAwakeFrom(testing.allocator, "{\"enabled\":\"true\"}"),
     );
+}
+
+test "a brightness level is a number, clamped to the backlight's range" {
+    try testing.expectEqual(@as(f64, 0.25), try brightnessFrom(testing.allocator, "{\"level\":0.25}"));
+    try testing.expectEqual(@as(f64, 1), try brightnessFrom(testing.allocator, "{\"level\":1}"));
+    try testing.expectEqual(@as(f64, 1), try brightnessFrom(testing.allocator, "{\"level\":1.7}"));
+    try testing.expectEqual(@as(f64, 0), try brightnessFrom(testing.allocator, "{\"level\":-0.2}"));
+}
+
+test "a brightness that is not a number is refused, not guessed" {
+    try testing.expectError(bridge_error.BridgeError.MissingData, brightnessFrom(testing.allocator, "{}"));
+    try testing.expectError(bridge_error.BridgeError.InvalidParameter, brightnessFrom(testing.allocator, "{\"level\":\"dim\"}"));
+    try testing.expectError(bridge_error.BridgeError.InvalidParameter, brightnessFrom(testing.allocator, "{\"level\":null}"));
+    try testing.expectError(bridge_error.BridgeError.InvalidJSON, brightnessFrom(testing.allocator, "0.5"));
 }
 
 test "the orientation names are the ones the Swift switch recognizes" {
