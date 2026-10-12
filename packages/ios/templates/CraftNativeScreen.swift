@@ -78,6 +78,23 @@ private func craftNativeJustifyCode(_ value: String) -> UInt32 {
     }
 }
 
+/// Optional bridge to the shared cross-axis alignment rule. The local rule is
+/// retained for runtimes built before this symbol was exported.
+private enum CraftNativeCrossAxisBridge {
+    private typealias Function = @convention(c) (Float, Float, Float, Float, UInt32) -> Float
+
+    private static let function: Function? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_cross_axis_position") else { return nil }
+        return unsafeBitCast(symbol, to: Function.self)
+    }()
+
+    static func position(available: CGFloat, size: CGFloat, leading: CGFloat, trailing: CGFloat, alignment: UInt32) -> CGFloat? {
+        guard let function else { return nil }
+        let result = function(Float(available), Float(size), Float(leading), Float(trailing), alignment)
+        return result.isFinite ? CGFloat(result) : nil
+    }
+}
+
 private enum CraftNativeGridBridge {
     private struct Item {
         var intrinsicWidth: Float
@@ -1100,12 +1117,20 @@ private final class CraftNativeFlowView: UIStackView {
                 var mainOffset = leading
                 for (offset, index) in line.enumerated() {
                     let item = items[index]
-                    let crossPosition: CGFloat
-                    switch item.align {
-                    case "center": crossPosition = item.crossLeading + (lineCross - item.crossMargins - item.cross) / 2
-                    case "flex-end": crossPosition = lineCross - item.crossTrailing - item.cross
-                    default: crossPosition = item.crossLeading
-                    }
+                    let alignment = item.align == "center" ? UInt32(1) : item.align == "flex-end" ? UInt32(2) : UInt32(0)
+                    let crossPosition = CraftNativeCrossAxisBridge.position(
+                        available: lineCross,
+                        size: item.cross,
+                        leading: item.crossLeading,
+                        trailing: item.crossTrailing,
+                        alignment: alignment
+                    ) ?? {
+                        switch alignment {
+                        case 1: return item.crossLeading + (lineCross - item.crossMargins - item.cross) / 2
+                        case 2: return lineCross - item.crossTrailing - item.cross
+                        default: return item.crossLeading
+                        }
+                    }()
                     let mainPosition = useSharedPositions
                         ? (sharedLine?[offset].position ?? (mainOffset + item.mainLeading))
                         : mainOffset + item.mainLeading

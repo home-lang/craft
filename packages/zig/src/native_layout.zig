@@ -171,6 +171,28 @@ pub export fn craft_native_flex_row(
     return craftNativeFlexRow(available, gap, 0, items, item_count, widths, positions);
 }
 
+/// Resolve one flex item's cross-axis offset. `alignment` is 0=start,
+/// 1=center, or 2=end. Margins are part of the available cross-axis space.
+/// Keeping this calculation in the shared core prevents host-specific drift
+/// when a child is larger than its flex line.
+pub export fn craft_native_cross_axis_position(
+    available: f32,
+    size: f32,
+    margin_start: f32,
+    margin_end: f32,
+    alignment: u32,
+) callconv(.c) f32 {
+    const safe_available = finiteNonNegative(available);
+    const safe_size = finiteNonNegative(size);
+    const safe_margin_start = finiteNonNegative(margin_start);
+    const safe_margin_end = finiteNonNegative(margin_end);
+    return switch (alignment) {
+        1 => safe_margin_start + (safe_available - safe_margin_start - safe_margin_end - safe_size) / 2,
+        2 => safe_available - safe_margin_end - safe_size,
+        else => safe_margin_start,
+    };
+}
+
 /// ABI v2 flex row distribution. `justify` is 0=start, 1=center, 2=end,
 /// 3=space-between, 4=space-around, or 5=space-evenly. The original export
 /// remains available for older hosts and keeps start justification.
@@ -654,6 +676,13 @@ test "exports justified flex positions" {
     try std.testing.expectApproxEqAbs(@as(f32, 20), widths[0], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 25), positions[0], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 55), positions[1], 0.001);
+}
+
+test "exports shared cross-axis alignment positions" {
+    try std.testing.expectApproxEqAbs(@as(f32, 7), craft_native_cross_axis_position(100, 30, 7, 9, 0), 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 34), craft_native_cross_axis_position(100, 30, 7, 9, 1), 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 61), craft_native_cross_axis_position(100, 30, 7, 9, 2), 0.001);
+    try std.testing.expect(std.math.isFinite(craft_native_cross_axis_position(std.math.inf(f32), std.math.nan(f32), -1, std.math.inf(f32), 1)));
 }
 
 test "sanitizes non-finite flex inputs" {
