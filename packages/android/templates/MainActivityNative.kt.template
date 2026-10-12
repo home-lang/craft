@@ -287,10 +287,13 @@ private class CraftNativeSvgView(context: Context) : View(context) {
                     else -> Paint.Join.MITER
                 }
                 props.optJSONArray("strokeDasharray")?.let { values ->
-                    val dashes = (0 until values.length()).mapNotNull { values.optDouble(it, Double.NaN).takeUnless { value -> value.isNaN() }?.toFloat() }
+                    val dashes: List<Float> = (0 until values.length()).mapNotNull {
+                        values.optDouble(it, Double.NaN).takeUnless { value -> value.isNaN() }?.toFloat()
+                    }
                     if (dashes.isNotEmpty()) {
-                        val pattern = if (dashes.size % 2 == 1) dashes + dashes else dashes
-                        pathEffect = DashPathEffect(pattern.toFloatArray(), 0f)
+                        val dashPattern = dashes.toFloatArray()
+                        val pattern = if (dashPattern.size % 2 == 1) dashPattern + dashPattern else dashPattern
+                        pathEffect = DashPathEffect(pattern, 0f)
                     }
                 }
             }
