@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.145...v0.0.146)
+
+## 🐛 Bug Fixes
+
+- **ios**: the simulator's music stand-in plays from launch, as other audio ([b65695d](https://github.com/craft-native/craft/commit/b65695d)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.144...v0.0.145)
 
 ## 🚀 Features
