@@ -18,6 +18,7 @@ const androidNavigationScript = readFileSync(join(root, 'packages/android/script
 const iosNativeUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeRenderUnitTests.swift'), 'utf8')
 const iosLayoutUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeLayoutUnitTests.swift'), 'utf8')
 const guide = readFileSync(join(root, 'docs/guides/native-stx.md'), 'utf8')
+const nativeLayout = readFileSync(join(root, 'packages/zig/src/native_layout.zig'), 'utf8')
 const iosReadme = readFileSync(join(root, 'packages/ios/README.md'), 'utf8')
 const androidReadme = readFileSync(join(root, 'packages/android/README.md'), 'utf8')
 
@@ -53,6 +54,16 @@ describe('native renderer component contract', () => {
       expect(ios, `${name} missing from iOS renderer`).toContain(iosMarker)
       expect(android, `${name} missing from Android renderer`).toContain(androidMarker)
     }
+  })
+
+  it('keeps the shared layout core explicit', () => {
+    expect(nativeLayout).toContain('pub const Axis = enum')
+    expect(nativeLayout).toContain('flex_shrink: f32')
+    expect(nativeLayout).toContain('min_width: ?f32')
+    expect(nativeLayout).toContain('max_height: ?f32')
+    expect(nativeLayout).toContain('gap: f32')
+    expect(guide).toContain('host-neutral layout contract')
+    expect(guide).toContain('platform-specific measurement must not fork the distribution rules')
   })
 
   it('keeps platform README primitive inventories complete', () => {
@@ -355,6 +366,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('ViewTreeObserver.OnGlobalLayoutListener')
     expect(android).toContain('observer.removeOnGlobalLayoutListener(this)')
     expect(android).toContain('screen.view.postOnAnimation { if (screen.active) emitLayoutEvents(screen) }')
+    expect(android).toContain('View.OnLayoutChangeListener')
+    expect(android).toContain('view.addOnLayoutChangeListener(listener)')
+    expect(android).toContain('view.removeOnLayoutChangeListener(listener)')
     expect(ios).toContain('"nativeEvent": ["layout": [')
     expect(android).toContain('.put("layout", JSONObject()')
   })

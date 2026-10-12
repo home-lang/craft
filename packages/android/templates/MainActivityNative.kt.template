@@ -901,6 +901,7 @@ class MainActivity : AppCompatActivity() {
         val modalVisibility = mutableMapOf<View, Boolean>()
         val modalCloseHandlers = mutableMapOf<View, String>()
         val layoutHandlers = mutableMapOf<View, String>()
+        val layoutListeners = mutableMapOf<View, View.OnLayoutChangeListener>()
         val lastLayoutBounds = mutableMapOf<View, LayoutBounds>()
         val flatListRows = mutableMapOf<CraftNativeFlatList, MutableMap<String, MutableMap<String, View>>>()
         val flatListOwners = mutableMapOf<String, String>()
@@ -1877,9 +1878,11 @@ class MainActivity : AppCompatActivity() {
         if (layoutHandler.isNotBlank()) {
             if (screen.layoutHandlers[control] != layoutHandler) screen.lastLayoutBounds.remove(control)
             screen.layoutHandlers[control] = layoutHandler
+            ensureLayoutListener(screen, control)
         } else {
             screen.layoutHandlers.remove(control)
             screen.lastLayoutBounds.remove(control)
+            screen.layoutListeners.remove(control)?.let(control::removeOnLayoutChangeListener)
         }
         if (control is ImageView) imageErrors[control]?.let { message ->
             val current = control.contentDescription?.toString().orEmpty()
@@ -2087,6 +2090,15 @@ class MainActivity : AppCompatActivity() {
                 view.setColorFilter(color(tint, Color.TRANSPARENT))
             }
         }
+    }
+
+    private fun ensureLayoutListener(screen: Screen, view: View) {
+        if (screen.layoutListeners.containsKey(view)) return
+        val listener = View.OnLayoutChangeListener { changed, left, top, right, bottom, _, _, _, _ ->
+            if (screen.active) emitLayoutEvent(screen, changed, left, top, right, bottom)
+        }
+        screen.layoutListeners[view] = listener
+        view.addOnLayoutChangeListener(listener)
     }
 
     private fun configureText(view: TextView, value: String, style: JSONObject) {
@@ -2445,14 +2457,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun emitLayoutEvents(screen: Screen, view: View) {
+        emitLayoutEvent(screen, view, view.left, view.top, view.right, view.bottom)
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) emitLayoutEvents(screen, view.getChildAt(index))
+        }
+    }
+
+    private fun emitLayoutEvent(screen: Screen, view: View, left: Int, top: Int, right: Int, bottom: Int) {
         val handler = screen.layoutHandlers[view]
         if (handler != null && view.isShown) {
             val density = resources.displayMetrics.density
             val bounds = LayoutBounds(
-                x = view.left.toDouble() / density.toDouble(),
-                y = view.top.toDouble() / density.toDouble(),
-                width = view.width.toDouble() / density.toDouble(),
-                height = view.height.toDouble() / density.toDouble(),
+                x = left.toDouble() / density.toDouble(),
+                y = top.toDouble() / density.toDouble(),
+                width = (right - left).toDouble() / density.toDouble(),
+                height = (bottom - top).toDouble() / density.toDouble(),
             )
             if (screen.lastLayoutBounds[view] != bounds) {
                 screen.lastLayoutBounds[view] = bounds
@@ -2464,9 +2483,6 @@ class MainActivity : AppCompatActivity() {
                         .put("width", bounds.width)
                         .put("height", bounds.height))))
             }
-        }
-        if (view is ViewGroup) {
-            for (index in 0 until view.childCount) emitLayoutEvents(screen, view.getChildAt(index))
         }
     }
 
@@ -2547,6 +2563,10 @@ class MainActivity : AppCompatActivity() {
         screen.pressOutHandlers.keys.removeAll(released)
         screen.longPressHandlers.keys.removeAll(released)
         screen.layoutHandlers.keys.removeAll(released)
+        screen.layoutListeners.forEach { (view, listener) ->
+            if (view in released) view.removeOnLayoutChangeListener(listener)
+        }
+        screen.layoutListeners.keys.removeAll(released)
         screen.lastLayoutBounds.keys.removeAll(released)
         screen.scrollHandlers.keys.removeAll(released)
         screen.scrollBeginHandlers.keys.removeAll(released)
