@@ -1868,6 +1868,11 @@ export interface CraftAppearanceEvent extends CustomEvent {
   detail: CraftAppearance;
 }
 
+/** The Music app changed song or playback state (`craft.music.observe(true)`). iOS. */
+export interface CraftMusicChangeEvent extends CustomEvent {
+  detail: CraftNowPlaying;
+}
+
 /** The app came back to the foreground. iOS. */
 export interface CraftResumeEvent extends CustomEvent {
   detail: { backgroundedMs: number };
@@ -1916,6 +1921,8 @@ declare global {
     craftSiriShortcut: CraftSiriShortcutEvent;
     craftTabBarLayout: CraftTabBarLayoutEvent;
     craftAppearance: CraftAppearanceEvent;
+    // iOS, after `craft.music.observe(true)`.
+    craftMusicChange: CraftMusicChangeEvent;
     craftResume: CraftResumeEvent;
     craftMemoryWarning: CustomEvent<Record<string, never>>;
     craftSilentPush: CraftBackgroundWorkEvent;

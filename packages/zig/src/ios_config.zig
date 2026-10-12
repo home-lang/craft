@@ -73,6 +73,7 @@ const is_darwin = builtin.target.os.tag.isDarwin();
 /// `darkMode` is a `Bool` too but gates nothing, so it is absent here and
 /// present in `required_keys` — the decode needs it, the gate does not.
 pub const Feature = enum {
+    apple_music,
     ar,
     audio_recording,
     background_location,
@@ -119,6 +120,7 @@ pub const Feature = enum {
     /// visibly.
     pub fn jsonKey(self: Feature) []const u8 {
         return switch (self) {
+            .apple_music => "enableAppleMusic",
             .ar => "enableAR",
             .audio_recording => "enableAudioRecording",
             .background_location => "enableBackgroundLocation",
