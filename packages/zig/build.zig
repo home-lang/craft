@@ -181,6 +181,17 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/mobile.zig"),
     });
 
+    const native_layout_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/native_layout.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const run_native_layout_tests = b.addRunArtifact(native_layout_tests);
+    const native_layout_step = b.step("test-native-layout", "Run the host-neutral native layout spike tests");
+    native_layout_step.dependOn(&run_native_layout_tests.step);
+
     // Rooted at `src/ios.zig`, which reaches `src/mobile.zig` through its own
     // relative import — so this module owns both files and must not be mixed
     // with `mobile_module` in one compilation.

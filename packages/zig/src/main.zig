@@ -24,6 +24,10 @@ pub const desktop_linux = if (builtin.os.tag == .linux) @import("linux.zig") els
 pub const desktop_windows = if (builtin.os.tag == .windows) @import("windows.zig") else struct {};
 pub const js_runtime = @import("js_runtime.zig");
 
+/// Host-neutral native layout spike. Platform hosts may consume these frames
+/// without importing UIKit, Android, or text-measurement implementation types.
+pub const native_layout = @import("native_layout.zig");
+
 // Re-export iOS module (available on all platforms for cross-compilation)
 pub const ios = @import("ios.zig");
 pub const mobile = @import("mobile.zig");
