@@ -231,6 +231,16 @@ object CraftNative {
     private external fun nativeGetDeviceInfo(activity: Activity): String?
     private external fun nativeGetMemoryUsage(): String?
     private external fun nativeLog(message: String): Boolean
+    private external fun nativeFlexRow(
+        available: Float,
+        gap: Float,
+        basis: FloatArray,
+        grow: FloatArray,
+        shrink: FloatArray,
+        min: FloatArray,
+        max: FloatArray,
+        margins: FloatArray,
+    ): FloatArray?
     private external fun nativeClipboardRead(activity: Activity): String?
     private external fun nativeClipboardWrite(activity: Activity, text: String): Boolean
     private external fun nativeOpenUrl(activity: Activity, url: String): Boolean
@@ -383,6 +393,25 @@ object CraftNative {
             nativeLog(message)
         } catch (e: UnsatisfiedLinkError) {
             false
+        }
+    }
+
+    /** Resolve a flex line in Zig, or null for the Kotlin fallback. */
+    fun flexRow(
+        available: Float,
+        gap: Float,
+        basis: FloatArray,
+        grow: FloatArray,
+        shrink: FloatArray,
+        min: FloatArray,
+        max: FloatArray,
+        margins: FloatArray,
+    ): FloatArray? {
+        if (!isAvailable) return null
+        return try {
+            nativeFlexRow(available, gap, basis, grow, shrink, min, max, margins)
+        } catch (e: UnsatisfiedLinkError) {
+            null
         }
     }
 

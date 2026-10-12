@@ -71,6 +71,7 @@ import androidx.javascriptengine.Message
 import androidx.javascriptengine.MessagePort
 import androidx.javascriptengine.MessagePortClient
 import com.google.common.util.concurrent.ListenableFuture
+import com.craft.runtime.CraftNative
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URL
@@ -657,21 +658,50 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         var crossOffset = (if (orientation == HORIZONTAL) paddingTop else paddingLeft) + crossLeading
         for (line in lines) {
             val rawFree = availableMain - line.main
-            val factors = line.entries.map { if (rawFree >= 0) it.style.flexGrow else it.style.flexShrink ?: defaultFlexShrink(it.view) }
-            val totalFactor = factors.sum()
-            val distributedMain = line.entries.indices.sumOf { index ->
-                val base = if (orientation == HORIZONTAL) line.entries[index].width else line.entries[index].height
-                val primary = if (totalFactor > 0) max(0, (base + rawFree * factors[index] / totalFactor).toInt()) else base
-                val constrained = if (orientation == HORIZONTAL) {
-                    clamp(primary, line.entries[index].style.minWidth?.resolve(contentWidth), line.entries[index].style.maxWidth?.resolve(contentWidth))
-                } else {
-                    clamp(primary, line.entries[index].style.minHeight?.resolve(contentHeight), line.entries[index].style.maxHeight?.resolve(contentHeight))
-                }
-                val lp = line.entries[index].view.layoutParams as? MarginLayoutParams
-                val margins = if (orientation == HORIZONTAL) (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
+            val sharedPrimary = CraftNative.flexRow(
+                availableMain.toFloat(),
+                gap.toFloat(),
+                line.entries.map { entry -> if (orientation == HORIZONTAL) entry.width.toFloat() else entry.height.toFloat() }.toFloatArray(),
+                line.entries.map { it.style.flexGrow.toFloat() }.toFloatArray(),
+                line.entries.map { (it.style.flexShrink ?: defaultFlexShrink(it.view)).toFloat() }.toFloatArray(),
+                line.entries.map {
+                    (if (orientation == HORIZONTAL) it.style.minWidth?.resolve(contentWidth) else it.style.minHeight?.resolve(contentHeight))?.toFloat()
+                        ?: Float.NaN
+                }.toFloatArray(),
+                line.entries.map {
+                    (if (orientation == HORIZONTAL) it.style.maxWidth?.resolve(contentWidth) else it.style.maxHeight?.resolve(contentHeight))?.toFloat()
+                        ?: Float.NaN
+                }.toFloatArray(),
+                line.entries.flatMap { entry ->
+                    val lp = entry.view.layoutParams as? MarginLayoutParams
+                    if (orientation == HORIZONTAL) listOf((lp?.leftMargin ?: 0).toFloat(), (lp?.rightMargin ?: 0).toFloat())
+                    else listOf((lp?.topMargin ?: 0).toFloat(), (lp?.bottomMargin ?: 0).toFloat())
+                }.toFloatArray(),
+            )
+            val distributedMain = if (sharedPrimary != null) {
+                line.entries.indices.sumOf { index ->
+                    val lp = line.entries[index].view.layoutParams as? MarginLayoutParams
+                    val margins = if (orientation == HORIZONTAL) (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
                     else (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
-                constrained + margins
-            } + max(0, line.entries.size - 1) * gap
+                    sharedPrimary[index].roundToInt() + margins
+                } + max(0, line.entries.size - 1) * gap
+            } else {
+                val factors = line.entries.map { if (rawFree >= 0) it.style.flexGrow else it.style.flexShrink ?: defaultFlexShrink(it.view) }
+                val totalFactor = factors.sum()
+                line.entries.indices.sumOf { index ->
+                    val base = if (orientation == HORIZONTAL) line.entries[index].width else line.entries[index].height
+                    val primary = if (totalFactor > 0) max(0, (base + rawFree * factors[index] / totalFactor).toInt()) else base
+                    val constrained = if (orientation == HORIZONTAL) {
+                        clamp(primary, line.entries[index].style.minWidth?.resolve(contentWidth), line.entries[index].style.maxWidth?.resolve(contentWidth))
+                    } else {
+                        clamp(primary, line.entries[index].style.minHeight?.resolve(contentHeight), line.entries[index].style.maxHeight?.resolve(contentHeight))
+                    }
+                    val lp = line.entries[index].view.layoutParams as? MarginLayoutParams
+                    val margins = if (orientation == HORIZONTAL) (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
+                        else (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
+                    constrained + margins
+                } + max(0, line.entries.size - 1) * gap
+            }
             val free = max(0, availableMain - distributedMain)
             val (leading, between) = distribution(free, line.entries.size)
             var mainOffset = if (orientation == HORIZONTAL) paddingLeft else paddingTop
@@ -694,12 +724,16 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 }
                 val x = if (orientation == HORIZONTAL) mainOffset + marginStart else crossOffset + crossPosition
                 val y = if (orientation == HORIZONTAL) crossOffset + crossPosition else mainOffset + marginStart
-                val primary = if (orientation == HORIZONTAL) entry.width else entry.height
-                val distributed = if (totalFactor > 0) max(0, (primary + rawFree * factors[index] / totalFactor).toInt()) else primary
-                val distributedPrimary = if (orientation == HORIZONTAL) {
-                    clamp(distributed, entry.style.minWidth?.resolve(contentWidth), entry.style.maxWidth?.resolve(contentWidth))
-                } else {
-                    clamp(distributed, entry.style.minHeight?.resolve(contentHeight), entry.style.maxHeight?.resolve(contentHeight))
+                val distributedPrimary = sharedPrimary?.get(index)?.roundToInt() ?: run {
+                    val primary = if (orientation == HORIZONTAL) entry.width else entry.height
+                    val factor = if (rawFree >= 0) entry.style.flexGrow else entry.style.flexShrink ?: defaultFlexShrink(entry.view)
+                    val totalFactor = line.entries.sumOf { if (rawFree >= 0) it.style.flexGrow else it.style.flexShrink ?: defaultFlexShrink(it.view) }
+                    val distributed = if (totalFactor > 0) max(0, (primary + rawFree * factor / totalFactor).toInt()) else primary
+                    if (orientation == HORIZONTAL) {
+                        clamp(distributed, entry.style.minWidth?.resolve(contentWidth), entry.style.maxWidth?.resolve(contentWidth))
+                    } else {
+                        clamp(distributed, entry.style.minHeight?.resolve(contentHeight), entry.style.maxHeight?.resolve(contentHeight))
+                    }
                 }
                 val w = if (orientation == HORIZONTAL) distributedPrimary else crossSize
                 val h = if (orientation == HORIZONTAL) crossSize else distributedPrimary

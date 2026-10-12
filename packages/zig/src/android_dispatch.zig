@@ -272,6 +272,11 @@ const natives = [_]jni.JNINativeMethod{
         .fnPtr = @ptrCast(&nativeLog),
     },
     .{
+        .name = "nativeFlexRow",
+        .signature = "(FF[F[F[F[F[F[F)[F",
+        .fnPtr = @ptrCast(&nativeFlexRow),
+    },
+    .{
         .name = "nativeClipboardRead",
         .signature = "(Landroid/app/Activity;)Ljava/lang/String;",
         .fnPtr = @ptrCast(&nativeClipboardRead),
@@ -810,6 +815,56 @@ fn nativeLog(env: jni.JNIEnv, _: jni.jobject, message: jni.jstring) callconv(.c)
         return jni.JNI_FALSE;
     };
     return jni.JNI_TRUE;
+}
+
+/// `nativeFlexRow(...)` — the Android entry point for the shared Zig flex
+/// rule. A null result deliberately means "use the Kotlin host fallback".
+fn nativeFlexRow(
+    env: jni.JNIEnv,
+    _: jni.jobject,
+    available: jni.jfloat,
+    gap: jni.jfloat,
+    basis_array: jni.jobject,
+    grow_array: jni.jobject,
+    shrink_array: jni.jobject,
+    min_array: jni.jobject,
+    max_array: jni.jobject,
+    margins_array: jni.jobject,
+) callconv(.c) jni.jobject {
+    const j = Jni.init(env);
+    var arena = std.heap.ArenaAllocator.init(backing);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    const basis = j.floatArrayToOwned(allocator, basis_array) catch |err| return fellThrough("flexRow", err, null);
+    const grow = j.floatArrayToOwned(allocator, grow_array) catch |err| return fellThrough("flexRow", err, null);
+    const shrink = j.floatArrayToOwned(allocator, shrink_array) catch |err| return fellThrough("flexRow", err, null);
+    const minimum = j.floatArrayToOwned(allocator, min_array) catch |err| return fellThrough("flexRow", err, null);
+    const maximum = j.floatArrayToOwned(allocator, max_array) catch |err| return fellThrough("flexRow", err, null);
+    const margins = j.floatArrayToOwned(allocator, margins_array) catch |err| return fellThrough("flexRow", err, null);
+    const count = basis.len;
+    if (grow.len != count or shrink.len != count or minimum.len != count or maximum.len != count or margins.len != count * 2) {
+        return fellThrough("flexRow", error.InvalidArgument, null);
+    }
+
+    const items = allocator.alloc(native_layout.FlexItem, count) catch |err| return fellThrough("flexRow", err, null);
+    for (items, 0..) |*item, index| {
+        item.* = .{
+            .basis = basis[index],
+            .grow = grow[index],
+            .shrink = shrink[index],
+            .min = minimum[index],
+            .max = maximum[index],
+            .margin_start = margins[index * 2],
+            .margin_end = margins[index * 2 + 1],
+        };
+    }
+    const widths = allocator.alloc(jni.jfloat, count) catch |err| return fellThrough("flexRow", err, null);
+    const positions = allocator.alloc(jni.jfloat, count) catch |err| return fellThrough("flexRow", err, null);
+    if (native_layout.craft_native_flex_row(available, gap, items.ptr, count, widths.ptr, positions.ptr) != 0) {
+        return null;
+    }
+    return j.newFloatArray(widths) catch |err| fellThrough("flexRow", err, null);
 }
 
 /// `nativeClipboardRead(activity)`.

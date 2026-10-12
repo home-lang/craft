@@ -314,10 +314,10 @@ pub const JNINativeInterface = extern struct {
 
     ReleaseStringUTFChars: JniFn, // 170
 
-    // 171-214 are the array functions. None is called: nothing in this bridge
-    // passes a Java array yet. They are declared anyway because `RegisterNatives`
-    // sits behind them and a member's position is its offset — there is no way
-    // to reach 215 without transcribing every step to it.
+    // 171-214 are the array functions. The bridge uses byte, long, and float
+    // arrays, and they are declared in full because `RegisterNatives` sits
+    // behind them and a member's position is its offset — there is no way to
+    // reach 215 without transcribing every step to it.
     GetArrayLength: JniFn, // 171
     NewObjectArray: JniFn,
     GetObjectArrayElement: JniFn,
@@ -777,6 +777,34 @@ pub const Jni = struct {
         set(self.env, array, 0, @intCast(values.len), values.ptr);
         try self.check();
         return array;
+    }
+
+    pub fn newFloatArray(self: Self, values: []const jfloat) JniError!jobject {
+        const new: *const fn (JNIEnv, jsize) callconv(.c) jobject =
+            @ptrCast(self.table().NewFloatArray orelse return JniError.NotFound);
+        const array = new(self.env, @intCast(values.len)) orelse {
+            try self.check();
+            return JniError.OutOfMemory;
+        };
+        if (values.len == 0) return array;
+        const set: *const fn (JNIEnv, jobject, jsize, jsize, [*]const jfloat) callconv(.c) void =
+            @ptrCast(self.table().SetFloatArrayRegion orelse return JniError.NotFound);
+        set(self.env, array, 0, @intCast(values.len), values.ptr);
+        try self.check();
+        return array;
+    }
+
+    pub fn floatArrayToOwned(self: Self, allocator: std.mem.Allocator, array: jobject) JniError![]jfloat {
+        if (array == null) return JniError.NullReference;
+        const len = try self.arrayLength(array);
+        const values = allocator.alloc(jfloat, len) catch return JniError.OutOfMemory;
+        errdefer allocator.free(values);
+        if (len == 0) return values;
+        const get: *const fn (JNIEnv, jobject, jsize, jsize, [*]jfloat) callconv(.c) void =
+            @ptrCast(self.table().GetFloatArrayRegion orelse return JniError.NotFound);
+        get(self.env, array, 0, @intCast(len), values.ptr);
+        try self.check();
+        return values;
     }
 
     /// `new <element_class>[len]`, every slot null.
