@@ -360,6 +360,7 @@ describe('native renderer component contract', () => {
   it('keeps the native root inside each host safe area', () => {
     expect(ios).toContain('view.safeAreaLayoutGuide.topAnchor')
     expect(ios).toContain('view.safeAreaLayoutGuide.bottomAnchor')
+    expect(ios).toContain('if rootStyle["flex"] == nil, rootStyle["height"] == nil { rootStyle["flex"] = 1 }')
     expect(android).toContain('setOnApplyWindowInsetsListener(root)')
     expect(android).toContain('WindowInsetsCompat.Type.systemBars()')
     expect(android).toContain('view.requestLayout()')

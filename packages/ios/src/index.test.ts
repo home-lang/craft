@@ -156,6 +156,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('image.withRenderingMode(tintedImages.contains(ObjectIdentifier(view)) ? .alwaysTemplate : .alwaysOriginal)')
     expect(nativeSwift).toContain('case "cover": return .scaleAspectFill')
     expect(nativeSwift).toContain('private func restoreFocus(_ focused: UIView?)')
+    expect(nativeSwift).toContain('if rootStyle["flex"] == nil, rootStyle["height"] == nil { rootStyle["flex"] = 1 }')
     expect(nativeSwift).toContain('_ = focused.becomeFirstResponder()')
     expect(nativeSwift).toContain('let focused = firstResponder(in: rootStack)')
     expect(nativeSwift).toContain('private weak var lastFocusedInput: UIView?')

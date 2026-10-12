@@ -2402,7 +2402,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             child.removeFromSuperview()
         }
         if next.view.superview !== rootStack { rootStack.addArrangedSubview(next.view) }
-        rootStack.setLayoutStyle(next.style, for: next.view)
+        // A native screen root fills the safe-area viewport unless the bundle
+        // explicitly sizes it. Without this default, an unstyled SafeAreaView
+        // measures to its scroll content and leaves no viewport to scroll.
+        var rootStyle = next.style
+        if rootStyle["flex"] == nil, rootStyle["height"] == nil { rootStyle["flex"] = 1 }
+        rootStack.setLayoutStyle(rootStyle, for: next.view)
         rootStack.invalidateMeasurements()
         renderedRoot = next
         trackContentScrollView()
