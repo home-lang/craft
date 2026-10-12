@@ -267,6 +267,8 @@ class NativeNavigationTest {
             assertTrue(title is TextView)
             assertEquals(Color.WHITE, (title as TextView).currentTextColor)
             assertEquals("Text accessibility should use visible content, not its test identity", null, title.contentDescription)
+            click(activity, "native-audio-context")
+            awaitText(activity, "audio-context-status", "AudioContext ready")
             val disabled = awaitView(activity, "disabled-button") as Button
             assertFalse(disabled.isEnabled)
             val styled = awaitView(activity, "styled-row") as LinearLayout

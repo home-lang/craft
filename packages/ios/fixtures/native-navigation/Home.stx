@@ -41,6 +41,7 @@ const textWidthUnset = state(false)
 const navigationName = 'Ada'
 const navigationCount = state(0)
 const navigationLifecycle = state('Lifecycle pending')
+const audioContextStatus = state('AudioContext pending')
 const navigationRows = state([
   { id: 'a', label: 'Ada row' },
   { id: 'b', label: 'Bea row' },
@@ -75,6 +76,22 @@ function updateNavigationDraft(id, event) {
 async function verifyNavigationLifecycle() {
   const marker = await globalThis.craft.storage.get('native-navigation-details-destroyed')
   navigationLifecycle.set(marker ? `Disposed ${marker}` : 'Lifecycle pending')
+}
+
+function verifyAudioContext() {
+  try {
+    const context = new AudioContext()
+    const oscillator = context.createOscillator()
+    const gain = context.createGain()
+    oscillator.connect(gain)
+    gain.connect(context.destination)
+    oscillator.frequency.value = 220
+    gain.gain.value = 0
+    context.close()
+    audioContextStatus.set('AudioContext ready')
+  } catch (error) {
+    audioContextStatus.set('AudioContext failed')
+  }
 }
 
 function linkAccessibilityState() {
@@ -314,6 +331,8 @@ function openCapabilities() {
     <Button testID="navigation-open-details" @click="openDetails()">Open navigation details</Button>
     <Button testID="navigation-check-lifecycle" @click="verifyNavigationLifecycle()">Check details lifecycle</Button>
     <Text testID="navigation-lifecycle" :text="navigationLifecycle" />
+    <Button testID="native-audio-context" @click="verifyAudioContext()">Check audio context</Button>
+    <Text testID="audio-context-status" :text="audioContextStatus" />
     <Button testID="open-capabilities" @click="openCapabilities()">Open capabilities</Button>
     <Button testID="disabled-button" disabled>Disabled</Button>
     <Text testID="null-width-text" style={{"width":textWidthUnset ? null : 160,"alignSelf":"flex-start"}}>intrinsic</Text>
