@@ -1,5 +1,16 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.137...v0.0.138)
+
+## 🐛 Bug Fixes
+
+- **ios**: native bar buttons in the system's own fills and blue ([6aed18f](https://github.com/craft-native/craft/commit/6aed18f)) _(by Chris)_
+- drop the node_modules links a worktree release committed ([78fc83c](https://github.com/craft-native/craft/commit/78fc83c)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.136...v0.0.137)
 
 ## 🚀 Features
