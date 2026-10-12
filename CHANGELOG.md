@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.149...v0.0.150)
+
+## 🚀 Features
+
+- **ios**: a native screen can ask the tab bar away while it shows ([2454eac](https://github.com/craft-native/craft/commit/2454eac)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.148...v0.0.149)
 
 ## 🚀 Features
