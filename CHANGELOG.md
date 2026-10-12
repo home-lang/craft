@@ -1,5 +1,26 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.142...v0.0.143)
+
+## 🚀 Features
+
+- **ios**: native screens can ask with the system's alerts and sheets ([dac85bd](https://github.com/craft-native/craft/commit/dac85bd)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **android**: invalidate native layout ancestors ([6d28f3e](https://github.com/craft-native/craft/commit/6d28f3e)) _(by glennmichael123)_
+- **android**: emit layout events after native layout ([1064262](https://github.com/craft-native/craft/commit/1064262)) _(by glennmichael123)_
+- **native**: preserve keyed rows and layout events ([096e111](https://github.com/craft-native/craft/commit/096e111)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: align iOS SVG stroke contract ([b1d4432](https://github.com/craft-native/craft/commit/b1d4432)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.141...v0.0.142)
 
 ## 🚀 Features
