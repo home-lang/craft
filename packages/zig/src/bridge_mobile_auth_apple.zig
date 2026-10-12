@@ -25,8 +25,8 @@
 //!
 //! ## The reply
 //!
-//! `{"userId":…}` always, plus `email`, `name` and `identityToken` only when
-//! present — the spec builds the dictionary conditionally and this reproduces
+//! `{"userId":…}` always, plus `email`, `name`, `identityToken` and
+//! `authorizationCode` only when present — the spec builds the dictionary conditionally and this reproduces
 //! that, because a page distinguishing "Apple withheld the email" from
 //! `"email": ""` is reading a real difference. `name` is `givenName` and
 //! `familyName` joined by a space, omitting whichever is absent, and omitted
@@ -35,6 +35,14 @@
 //! Apple sends `email` and `fullName` **only on the first authorization** for
 //! an app. Every later sign-in omits them, which is the API's design and not a
 //! failure — another reason the fields are omitted rather than emptied.
+//!
+//! ## The nonce
+//!
+//! `{"nonce":"<sha256 hex>"}` sets the request's `nonce`, which Apple writes
+//! into the identity token, so a server redeeming `authorizationCode` can tie
+//! the sign-in to the page that asked. Absent or null asks without one, as the
+//! spec does; any other value is the page's mistake and is rejected rather
+//! than dropped.
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -90,10 +98,13 @@ pub const AppleAuthBridge = struct {
     pub fn deinit(_: *Self) void {}
 
     pub fn handleMessage(self: *Self, action: []const u8, data: []const u8) !void {
-        _ = data;
         const route = routeFor(action) orelse return BridgeError.UnknownAction;
         switch (route) {
-            .sign_in => try self.signInWithApple(),
+            .sign_in => {
+                const nonce = try readNonce(self.allocator, data);
+                defer if (nonce) |n| self.allocator.free(n);
+                try self.signInWithApple(nonce);
+            },
         }
     }
 
@@ -101,8 +112,7 @@ pub const AppleAuthBridge = struct {
     ///
     /// Every fallible step runs before `ios_async.acquire`, so no error path
     /// sits between leasing a slot and handing the controller its delegate.
-    fn signInWithApple(self: *Self) !void {
-        _ = self;
+    fn signInWithApple(self: *Self, nonce: ?[]const u8) !void {
         if (!is_darwin) return error.UnsupportedPlatform;
 
         const ProviderClass = objc.objc_getClass("ASAuthorizationAppleIDProvider") orelse
@@ -129,6 +139,10 @@ pub const AppleAuthBridge = struct {
         if (request == null) return BridgeError.NativeCallFailed;
 
         if (try requestedScopes()) |scopes| objc.msgSendVoid1(request, sel_scopes, scopes);
+        if (nonce) |n| {
+            const sel_nonce = objc.sel_registerName("setNonce:") orelse return error.SelectorNotFound;
+            objc.msgSendVoid1(request, sel_nonce, try objc.createNSString(n, self.allocator));
+        }
 
         const requests = try arrayOf(request);
         const controller = objc.msgSendId1(objc.msgSendId(ControllerClass, sel_alloc), sel_init_reqs, requests);
@@ -356,7 +370,35 @@ const Credential = struct {
     given_name: ?[]const u8 = null,
     family_name: ?[]const u8 = null,
     identity_token: ?[]const u8 = null,
+    authorization_code: ?[]const u8 = null,
 };
+
+/// The request's nonce from the page's `{"nonce":…}`: null when absent, null
+/// or the body is empty, the string otherwise (owned by the caller).
+///
+/// Pure, so the host tests pin what the page may send.
+fn readNonce(allocator: std.mem.Allocator, data: []const u8) !?[]u8 {
+    if (std.mem.trim(u8, data, " \t\r\n").len == 0) return null;
+    var parsed = std.json.parseFromSlice(std.json.Value, allocator, data, .{}) catch |err| switch (err) {
+        error.OutOfMemory => return err,
+        else => return BridgeError.InvalidJSON,
+    };
+    defer parsed.deinit();
+
+    const object = switch (parsed.value) {
+        .object => |o| o,
+        else => return BridgeError.InvalidJSON,
+    };
+    const value = object.get("nonce") orelse return null;
+    return switch (value) {
+        .null => null,
+        .string => |s| if (s.len == 0 or s.len > 256)
+            BridgeError.InvalidParameter
+        else
+            allocator.dupe(u8, s) catch BridgeError.AllocationFailed,
+        else => BridgeError.InvalidParameter,
+    };
+}
 
 fn appendJsonString(allocator: std.mem.Allocator, out: *std.ArrayListUnmanaged(u8), s: []const u8) !void {
     try out.append(allocator, '"');
@@ -390,6 +432,11 @@ fn appendCredential(allocator: std.mem.Allocator, out: *std.ArrayListUnmanaged(u
     if (c.identity_token) |t| {
         try out.appendSlice(allocator, ",\"identityToken\":");
         try appendJsonString(allocator, out, t);
+    }
+
+    if (c.authorization_code) |code| {
+        try out.appendSlice(allocator, ",\"authorizationCode\":");
+        try appendJsonString(allocator, out, code);
     }
     try out.append(allocator, '}');
 }
@@ -425,12 +472,17 @@ fn shapeCredential(allocator: std.mem.Allocator, authorization: Id) ![]u8 {
     const token_data = objc.msgSendId(credential, sel_token);
     const token = dataUtf8(token_data);
 
+    // One use, five minutes: the server redeems it at Apple's token endpoint.
+    const sel_code = objc.sel_registerName("authorizationCode") orelse return error.SelectorNotFound;
+    const code = dataUtf8(objc.msgSendId(credential, sel_code));
+
     try appendCredential(allocator, &out, .{
         .user_id = user_id,
         .email = email,
         .given_name = given,
         .family_name = family,
         .identity_token = token,
+        .authorization_code = code,
     });
     return out.toOwnedSlice(allocator);
 }
@@ -553,4 +605,27 @@ test "the presentation anchor is object-returning, not void" {
     try testing.expectEqualStrings("@@:@", ios_delegate.enc.object_one_object);
     try testing.expect(ios_delegate.enc.object_one_object[0] == '@');
     try testing.expect(ios_delegate.enc.void_one_object[0] == 'v');
+}
+
+test "the page's nonce reaches the request, and nothing else does" {
+    const allocator = testing.allocator;
+    try testing.expect((try readNonce(allocator, "")) == null);
+    try testing.expect((try readNonce(allocator, "{}")) == null);
+    try testing.expect((try readNonce(allocator, "{\"nonce\":null}")) == null);
+
+    const nonce = (try readNonce(allocator, "{\"nonce\":\"3f2a\"}")).?;
+    defer allocator.free(nonce);
+    try testing.expectEqualStrings("3f2a", nonce);
+
+    try testing.expectError(BridgeError.InvalidParameter, readNonce(allocator, "{\"nonce\":\"\"}"));
+    try testing.expectError(BridgeError.InvalidParameter, readNonce(allocator, "{\"nonce\":42}"));
+    try testing.expectError(BridgeError.InvalidJSON, readNonce(allocator, "[1]"));
+}
+
+test "the reply carries Apple's code for the server when Apple sent one" {
+    const allocator = testing.allocator;
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    defer out.deinit(allocator);
+    try appendCredential(allocator, &out, .{ .user_id = "001234.abc", .identity_token = "jwt", .authorization_code = "c0de" });
+    try testing.expectEqualStrings("{\"userId\":\"001234.abc\",\"identityToken\":\"jwt\",\"authorizationCode\":\"c0de\"}", out.items);
 }
