@@ -133,6 +133,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('setSelection(selected, false)')
     expect(android).toContain('onItemSelectedListener = null')
     expect(android).toContain('Both operations can synchronously dispatch an Android selection')
+    expect(android).not.toContain('if (type == "Modal" && !props.optBoolean("visible", false)) control.visibility = View.GONE')
     expect(android).toContain('var suppressInitialSelection = true')
     expect(android).toContain('if (suppressInitialSelection) return')
     expect(android).toContain('post { suppressInitialSelection = false }')

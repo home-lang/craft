@@ -180,6 +180,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('setSelection(selected, false)')
       expect(nativeActivity).toContain('onItemSelectedListener = null')
       expect(nativeActivity).toContain('Both operations can synchronously dispatch an Android selection')
+      expect(nativeActivity).not.toContain('if (type == "Modal" && !props.optBoolean("visible", false)) control.visibility = View.GONE')
       expect(nativeActivity).toContain('progressTintList')
       expect(nativeActivity).toContain('roundToInt()')
       expect(nativeActivity).toContain('val requested = props.optDouble("value", minimum)')
