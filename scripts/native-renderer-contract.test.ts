@@ -156,8 +156,10 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('app.staticTexts["image-error-count"].label, "2"')
     expect(navigationHome).toContain('style={{"opacity": modalOpacity}}')
     expect(navigationHome).toContain('testID="toggle-modal-opacity"')
+    expect(androidNavigationTest).toContain('assertEquals("1", (awaitView(activity, "modal-opacity") as TextView).text.toString())')
     expect(androidNavigationTest).toContain('visible modal opacity should update in place')
     expect(iosNavigationTest).toContain('waitForLabel(app.staticTexts["modal-opacity"], "0.45")')
+    expect(iosNavigationTest).toContain('app.staticTexts["modal-opacity"].label, "1"')
     expect(guide).toContain('| `Picker` | `UIPickerView` | `Spinner` |')
   })
 
