@@ -156,6 +156,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('AVPlayerViewController')
     expect(ios).toContain('host.addChild(playerController)')
     expect(ios).toContain('playerController.removeFromParent()')
+    expect(ios).toContain('"Video", "TextInput"')
     expect(ios).toContain('AVPlayerItemDidPlayToEndTime')
     expect(android).toContain('CraftNativeVideoView')
     expect(android).toContain('VideoView')
@@ -1040,6 +1041,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val inputIdentities = mutableMapOf<EditText, String>()')
     expect(android).toContain('if (!preservingInputDrafts) identity?.let(screen.drafts::remove)')
     expect(android).toContain('releaseViewState(screen, controls.values.toList(), preservingInputDrafts = true)')
+  })
+
+  it('prefers authored keys over compiler ids when reconciling native rows', () => {
+    expect(ios).toContain('[node["key"], props["key"], props["testID"], node["id"]]')
+    expect(iosFlatList).toContain('[node["key"], props["key"], props["testID"], node["id"]]')
+    expect(android).toContain('screen.lastLayoutBounds.remove(updated)')
   })
 
   it('releases replaced iOS row roots when a keyed identity changes type', () => {

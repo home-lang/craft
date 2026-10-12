@@ -525,7 +525,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
 
     private static func identity(for node: [String: Any]) -> String? {
         let props = node["props"] as? [String: Any] ?? [:]
-        return [node["id"], node["key"], props["key"], props["testID"]]
+        return [node["key"], props["key"], props["testID"], node["id"]]
             .compactMap { $0 as? String }
             .first { !$0.isEmpty }
     }

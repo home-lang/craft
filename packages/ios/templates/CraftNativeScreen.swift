@@ -3528,7 +3528,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func explicitKey(_ node: [String: Any], props: [String: Any]) -> String? {
         // The current @stacksjs/stx native compiler emits key in props; accept the IR
         // field too so keyed children keep working when the compiler adopts it.
-        [node["id"], node["key"], props["key"], props["testID"]]
+        [node["key"], props["key"], props["testID"], node["id"]]
             .compactMap { $0 as? String }
             .first { !$0.isEmpty }
     }
@@ -4328,7 +4328,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             view.accessibilityValue = nil
         }
         let role = props["accessibilityRole"] as? String
-        view.isAccessibilityElement = role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Image", "TextInput", "Picker", "Switch", "Slider"].contains(type))
+        view.isAccessibilityElement = role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Image", "Video", "TextInput", "Picker", "Switch", "Slider"].contains(type))
         var traits: UIAccessibilityTraits = []
         switch role ?? type.lowercased() {
         case "button": traits.insert(.button)

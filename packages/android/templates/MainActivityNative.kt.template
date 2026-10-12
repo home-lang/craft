@@ -1928,6 +1928,7 @@ class MainActivity : AppCompatActivity() {
             if (!screen.controls.containsKey("id:$target")) return false
             makeView(screen, document, target, screen.controls)
             val updated = screen.controls["id:$target"] ?: return false
+            screen.lastLayoutBounds.remove(updated)
             if (!updateParentLayoutStyle(updated, document.optJSONObject("style") ?: JSONObject())) return false
         }
         if (applied.isNotEmpty()) {
