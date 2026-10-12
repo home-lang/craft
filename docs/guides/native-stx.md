@@ -38,7 +38,7 @@ capability APIs from the host.
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
-The current pair is pinned to `ef97de5f44`,
+The current pair is pinned to `ef97de5f441628ccf9d4644c19d53eef321a5278`,
 which carries ordinary native event aliases and preserves Modal child content.
 
 Use `onMount` and `onDestroy` for route-scoped lifecycle work. Craft disposes
