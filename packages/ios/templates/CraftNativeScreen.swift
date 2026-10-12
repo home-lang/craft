@@ -1127,6 +1127,159 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
 
 /// Text with padding of its own: the padding is inside the label, around
 /// the text, and counts in its measured size.
+/// A vector drawing (stx `svg.ts`): an `Svg` node and the shapes below it,
+/// replayed from each shape's `geometry` commands - 0 move, 1 line, 2 cubic,
+/// 3 quadratic, 4 close, in viewBox units - and scaled to the view. Paint is
+/// inherited down the tree as SVG does; `dark:` classes arrive already
+/// resolved for the appearance, so a redraw is all a theme change needs.
+private final class CraftNativeSvgView: UIView {
+    var drawing: [String: Any] = [:] {
+        didSet { setNeedsDisplay() }
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        backgroundColor = .clear
+        contentMode = .redraw
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    var viewBox: CGRect? {
+        let props = drawing["props"] as? [String: Any] ?? [:]
+        guard let box = props["viewBox"] as? [Any], box.count == 4 else { return nil }
+        let n = box.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+        guard n.count == 4, n[2] > 0, n[3] > 0 else { return nil }
+        return CGRect(x: n[0], y: n[1], width: n[2], height: n[3])
+    }
+
+    override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric) }
+
+    /// Height from the viewBox's proportions, when no style gave one.
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        guard let box = viewBox, size.width > 0, size.width < CraftNativeFlexLayout.unbounded else { return CGSize(width: 0, height: 0) }
+        return CGSize(width: size.width, height: size.width * box.height / box.width)
+    }
+
+    private struct Paint {
+        var fill: String? = "#000000"
+        var stroke: String?
+        var strokeWidth: CGFloat = 1
+        var color: String? = "#000000"
+        var opacity: CGFloat = 1
+        var linecap: String?
+        var linejoin: String?
+        var dashes: [CGFloat]?
+
+        func merged(_ node: [String: Any]) -> Paint {
+            var next = self
+            let props = node["props"] as? [String: Any] ?? [:]
+            let style = node["style"] as? [String: Any] ?? [:]
+            if let color = style["color"] as? String { next.color = color }
+            if let fill = style["fill"] as? String ?? props["fill"] as? String { next.fill = fill }
+            if let stroke = style["stroke"] as? String ?? props["stroke"] as? String { next.stroke = stroke }
+            if let width = (style["strokeWidth"] as? NSNumber ?? props["strokeWidth"] as? NSNumber) { next.strokeWidth = CGFloat(truncating: width) }
+            if let opacity = props["opacity"] as? NSNumber ?? style["opacity"] as? NSNumber { next.opacity *= CGFloat(truncating: opacity) }
+            if let cap = props["strokeLinecap"] as? String { next.linecap = cap }
+            if let join = props["strokeLinejoin"] as? String { next.linejoin = join }
+            if let dashes = props["strokeDasharray"] as? [Any] { next.dashes = dashes.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } } }
+            return next
+        }
+
+        func resolve(_ value: String?) -> UIColor? {
+            guard let value, value != "none", value != "transparent" else { return nil }
+            let text = value == "currentColor" ? (color ?? "#000000") : value
+            return UIColor(css: text) ?? UIColor(hex: text)
+        }
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let context = UIGraphicsGetCurrentContext() else { return }
+        if let box = viewBox {
+            let scale = min(bounds.width / box.width, bounds.height / box.height)
+            guard scale.isFinite, scale > 0 else { return }
+            context.translateBy(x: (bounds.width - box.width * scale) / 2, y: (bounds.height - box.height * scale) / 2)
+            context.scaleBy(x: scale, y: scale)
+            context.translateBy(x: -box.minX, y: -box.minY)
+        }
+        draw(children: drawing["children"] as? [Any] ?? [], paint: Paint().merged(drawing), in: context)
+    }
+
+    private func draw(children: [Any], paint: Paint, in context: CGContext) {
+        for case let shape as [String: Any] in children {
+            let style = shape["style"] as? [String: Any] ?? [:]
+            if style["display"] as? String == "none" { continue }
+            let own = paint.merged(shape)
+            switch shape["type"] as? String {
+            case "G":
+                draw(children: shape["children"] as? [Any] ?? [], paint: own, in: context)
+            case "SvgText":
+                drawText(shape, paint: own)
+            default:
+                guard let path = CraftNativeSvgView.path((shape["props"] as? [String: Any])?["geometry"]) else { continue }
+                context.saveGState()
+                context.setAlpha(own.opacity)
+                if let fill = own.resolve(own.fill) {
+                    fill.setFill()
+                    path.fill()
+                }
+                if let stroke = own.resolve(own.stroke), own.strokeWidth > 0 {
+                    stroke.setStroke()
+                    path.lineWidth = own.strokeWidth
+                    path.lineCapStyle = own.linecap == "round" ? .round : own.linecap == "square" ? .square : .butt
+                    path.lineJoinStyle = own.linejoin == "round" ? .round : own.linejoin == "bevel" ? .bevel : .miter
+                    if let dashes = own.dashes, !dashes.isEmpty { path.setLineDash(dashes, count: dashes.count, phase: 0) }
+                    path.stroke()
+                }
+                context.restoreGState()
+            }
+        }
+    }
+
+    private func drawText(_ node: [String: Any], paint: Paint) {
+        let text = (node["children"] as? [Any] ?? []).compactMap { $0 as? String }.joined()
+        guard !text.isEmpty else { return }
+        let props = node["props"] as? [String: Any] ?? [:]
+        let style = node["style"] as? [String: Any] ?? [:]
+        let size = CGFloat(truncating: props["fontSize"] as? NSNumber ?? style["fontSize"] as? NSNumber ?? 12)
+        let weight: UIFont.Weight = (props["fontWeight"] as? String ?? style["fontWeight"] as? String).map { ["500": .medium, "600": .semibold, "700": .bold, "bold": .bold][$0] ?? .regular } ?? .regular
+        let string = NSAttributedString(string: text, attributes: [
+            .font: UIFont.systemFont(ofSize: size, weight: weight),
+            .foregroundColor: paint.resolve(paint.fill) ?? UIColor.label,
+        ])
+        var x = CGFloat(truncating: props["x"] as? NSNumber ?? 0)
+        let y = CGFloat(truncating: props["y"] as? NSNumber ?? 0)
+        switch props["textAnchor"] as? String {
+        case "middle": x -= string.size().width / 2
+        case "end": x -= string.size().width
+        default: break
+        }
+        // y is the baseline, as in SVG.
+        string.draw(at: CGPoint(x: x, y: y - UIFont.systemFont(ofSize: size).ascender))
+    }
+
+    static func path(_ value: Any?) -> UIBezierPath? {
+        guard let list = value as? [Any] else { return nil }
+        let n = list.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } }
+        guard !n.isEmpty, n.count == list.count else { return nil }
+        let path = UIBezierPath()
+        var i = 0
+        func point(_ at: Int) -> CGPoint { CGPoint(x: n[at], y: n[at + 1]) }
+        while i < n.count {
+            switch Int(n[i]) {
+            case 0 where i + 2 < n.count: path.move(to: point(i + 1)); i += 3
+            case 1 where i + 2 < n.count: path.addLine(to: point(i + 1)); i += 3
+            case 2 where i + 6 < n.count: path.addCurve(to: point(i + 5), controlPoint1: point(i + 1), controlPoint2: point(i + 3)); i += 7
+            case 3 where i + 4 < n.count: path.addQuadCurve(to: point(i + 3), controlPoint: point(i + 1)); i += 5
+            case 4: path.close(); i += 1
+            default: return path
+            }
+        }
+        return path
+    }
+}
+
 private final class CraftNativeLabel: UILabel {
     var insets = UIEdgeInsets.zero {
         didSet {
@@ -1283,6 +1436,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private weak var lastFocusedInput: UIView?
     private var flatListRows: [ObjectIdentifier: [String: RenderedNode]] = [:]
     private var flatListOwners: [String: String] = [:]
+    /// A drawing's shapes are not views: a change to one redraws its `Svg`.
+    private var svgOwners: [String: String] = [:]
     private let mutationDocument = CraftNativeMutationDocument()
     private let capabilityScope = UUID().uuidString
     private var pendingCapabilityRequests = Set<String>()
@@ -2118,7 +2273,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let focused = firstResponder(in: rootStack) ?? lastFocusedInput
         var applied = Set<String>()
         for id in ids {
-            let target = flatListOwners[id] ?? id
+            let target = flatListOwners[id] ?? svgOwners[id] ?? id
             guard applied.insert(target).inserted else { continue }
             guard let document = mutationDocument.node(target), let previous = renderedNode(target) else { return false }
             let next = reconcile(document, identity: previous.identity, path: target, previous: previous)
@@ -2388,6 +2543,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             } else {
                 indicator.startAnimating()
             }
+        case "Svg":
+            let drawing = result as! CraftNativeSvgView
+            let owner = current.protocolId ?? path
+            svgOwners = svgOwners.filter { $0.value != owner }
+            for child in children { registerSvgOwnership(child, owner: owner) }
+            let previousBox = drawing.viewBox
+            drawing.drawing = node
+            if drawing.viewBox != previousBox { CraftNativeFlexLayout.invalidateAncestors(of: drawing) }
+            current.children = []
         case "Icon":
             configureIcon(result as! UIImageView, props: props, style: style)
         case "Image":
@@ -2524,6 +2688,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return CraftNativeScrollView()
         case "FlatList":
             return CraftNativeFlatList()
+        case "Svg":
+            return CraftNativeSvgView()
         case "View", "SafeAreaView":
             return CraftNativeFlowView()
         case "TouchableOpacity", "TouchableHighlight", "Pressable":
@@ -2689,6 +2855,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
+    private func registerSvgOwnership(_ node: Any, owner: String) {
+        guard let node = node as? [String: Any] else { return }
+        if let id = node["id"] as? String, !id.isEmpty { svgOwners[id] = owner }
+        for child in node["children"] as? [Any] ?? [] { registerSvgOwnership(child, owner: owner) }
+    }
+
     private func detach(_ node: RenderedNode, from stack: CraftNativeFlowView) {
         forgetHandlers(node)
         if node.type == "Modal" {
@@ -2709,6 +2881,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             flatListRows.removeValue(forKey: listKey)
             if let owner = node.protocolId { flatListOwners = flatListOwners.filter { $0.value != owner } }
         }
+        if node.view is CraftNativeSvgView, let owner = node.protocolId { svgOwners = svgOwners.filter { $0.value != owner } }
         let id = ObjectIdentifier(node.view)
         if let modal = node.view as? CraftNativeModalView { modal.resetForTeardown() }
         handlers.removeValue(forKey: id)

@@ -105,6 +105,13 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('slider.value = snappedSliderValue(value, for: slider)')
     expect(nativeSwift).toContain('events["onSlidingComplete"]')
     expect(nativeSwift).toContain('case "Picker":')
+    // Vector drawing (stx svg.ts): an Svg draws its shapes' geometry
+    // commands, and a change to a shape redraws its Svg.
+    expect(nativeSwift).toContain('private final class CraftNativeSvgView: UIView')
+    expect(nativeSwift).toContain('case "Svg":')
+    expect(nativeSwift).toContain('flatListOwners[id] ?? svgOwners[id] ?? id')
+    expect(nativeSwift).toContain('path.addCurve(to: point(i + 5), controlPoint1: point(i + 1), controlPoint2: point(i + 3))')
+    expect(nativeSwift).toContain('size.width * box.height / box.width')
     expect(nativeSwift).toContain('UIPickerViewDataSource, UIPickerViewDelegate')
     expect(nativeSwift).toContain('pickerOptions[pickerID] = options')
     expect(nativeSwift).toContain('private final class CraftNativeModalView: UIView')
