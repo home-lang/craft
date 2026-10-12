@@ -539,6 +539,14 @@ final class CraftHybrid: NSObject {
             }, function () { arriving = null; finish(); });
           });
         },
+        // Put the page at `path` in place of where it is, without a step in
+        // its history: the shell is back at a native screen and the page
+        // behind it had no history left to go back through (it reloaded).
+        reset: function (path) {
+          if (!(navigate && current && current.__craftHybrid)) { location.replace(path); return Promise.resolve(false); }
+          hostNav = path;
+          return Promise.resolve(navigate(path, { instant: true, replace: true }));
+        },
         setBase: function (value) { base = typeof value === 'number' ? value : null; },
         // Back to `target` in the page's stack, after the shell popped the
         // entries above it.
@@ -665,6 +673,11 @@ final class CraftHybrid: NSObject {
     func setPageBase(_ depth: Int?) {
         let value = depth.map(String.init) ?? "null"
         webView?.evaluateJavaScript("window.__craftHybrid && window.__craftHybrid.setBase(\(value))", completionHandler: nil)
+    }
+
+    func pageReset(to path: String) {
+        guard let data = try? JSONSerialization.data(withJSONObject: [path]), let json = String(data: data, encoding: .utf8) else { return }
+        webView?.evaluateJavaScript("window.__craftHybrid && window.__craftHybrid.reset && window.__craftHybrid.reset(\(json)[0])", completionHandler: nil)
     }
 
     func pageBack(to depth: Int) {
@@ -1111,6 +1124,16 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         // pop removed.
         if let depth = removed.compactMap({ ($0 as? CraftHybridWebSlot)?.depth }).min() {
             hybrid.pageBack(to: depth - 1)
+        }
+        // Back at a tab's native root while the page, with no history left
+        // to go back through (it reloaded on the screen just popped), still
+        // shows that screen: it moves to the root's path. Left there, the
+        // next screen opened from the root was pushed on top of it and named
+        // it in its Back button ("Me" instead of "Today").
+        if !removed.isEmpty, !(viewController is CraftHybridWebSlot), navigationController.viewControllers.first === viewController,
+           let rootPath = nativePaths[ObjectIdentifier(viewController)], !rootPath.contains(":"), hybrid.pageDepth == 0,
+           let pagePath = hybrid.pagePath, CraftHybridRoutes.normalize(pagePath) != CraftHybridRoutes.normalize(rootPath) {
+            hybrid.pageReset(to: rootPath)
         }
         guard navigationController === visibleStack else { return }
         if let slot = viewController as? CraftHybridWebSlot { adoptWeb(into: slot) } else { parkWeb() }

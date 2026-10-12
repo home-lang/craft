@@ -222,6 +222,15 @@ describe('hybrid page script', () => {
     expect(page.posts.at(-1).type).toBe('navigateNative')
   })
 
+  it('resets the page to a path in place of its own, for the shell', async () => {
+    // Back at a native root after the page reloaded on the screen above it.
+    const page = loadPage()
+    await page.window.__craftHybrid.reset('/m')
+    expect(page.routerCalls.at(-1)).toEqual(['navigate', '/m', { instant: true, replace: true }])
+    // Not handed back to the shell as a native navigation.
+    expect(page.posts.some((post: any) => post.type === 'navigateNative')).toBe(false)
+  })
+
   it('answers the shell once the page has drawn the path, or when it went nowhere', async () => {
     const page = loadPage()
     let drawn = false

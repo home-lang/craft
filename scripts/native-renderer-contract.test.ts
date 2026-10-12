@@ -549,6 +549,12 @@ describe('native renderer component contract', () => {
     expect(app).toContain('let height = tabBarVisible && !keyboardUp ? Int(occupied) : 0')
   })
 
+  it('moves the page to a native root\'s path when it has no history left to go back through', () => {
+    const hybrid = readFileSync(join(root, 'packages/ios/templates/CraftHybrid.swift'), 'utf8')
+    expect(hybrid).toContain('hybrid.pageReset(to: rootPath)')
+    expect(hybrid).toContain('hybrid.pageDepth == 0')
+  })
+
   it('keeps FlatList gesture callbacks on the shared scroll payload', () => {
     for (const callback of ['onScroll', 'onScrollBeginDrag', 'onScrollEndDrag', 'onMomentumScrollBegin', 'onMomentumScrollEnd']) {
       const iosCallback = callback === 'onScroll' ? 'onScrollEvent' : callback
