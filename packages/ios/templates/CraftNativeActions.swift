@@ -44,6 +44,7 @@ enum CraftNativeActions {
         if config.enableLocalDatabase { values.append("database") }
         if config.enableDeepLinks { values.append("deepLinks") }
         if config.enableLocalNotifications { values.append("notifications") }
+        if config.enableHealthKit { values.append("health") }
         return values
     }
 
@@ -144,6 +145,16 @@ enum CraftNativeActions {
                 return
             }
             databaseQueue.async { complete(requestToken, database(method: method, args: args), completion) }
+            return
+        case ("Health", _):
+            // Apple Health, the same as a page's `craft.health` (CraftHealth.swift).
+            guard config.enableHealthKit else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "HealthKit is disabled"), completion)
+                return
+            }
+            CraftHealth.shared.perform(method: method, args: args) { result in
+                complete(requestToken, result.mapError { CraftNativeActionError(code: $0.code, message: $0.message) }, completion)
+            }
             return
         case ("Notifications", _):
             guard config.enableLocalNotifications else {

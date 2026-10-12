@@ -629,7 +629,8 @@ describe('Craft iOS builder', () => {
   it('reads Apple Health workouts and daily values, each with the statistic its type has', async () => {
     const output = mkdtempSync(join(tmpdir(), 'craft-ios-health-'))
     await init({ runtimeDir: null, name: 'Health', bundleId: 'com.example.health', output, config: { enableHealthKit: true } })
-    const swift = readFileSync(join(output, 'Sources', 'HealthApp.swift'), 'utf8')
+    // The page's bridge lives in the app; the HealthKit reads it calls, in CraftHealth.swift.
+    const swift = readFileSync(join(output, 'Sources', 'HealthApp.swift'), 'utf8') + readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')
 
     expect(swift).toContain("getWorkouts: function(options) {")
     expect(swift).toContain("craft._invoke('getHealthWorkouts'")
@@ -656,7 +657,7 @@ describe('Craft iOS builder', () => {
   it('reads heart rate through the day and the night\'s sleep stages', async () => {
     const output = mkdtempSync(join(tmpdir(), 'craft-ios-heart-'))
     await init({ runtimeDir: null, name: 'Heart', bundleId: 'com.example.heart', output, config: { enableHealthKit: true } })
-    const swift = readFileSync(join(output, 'Sources', 'HeartApp.swift'), 'utf8')
+    const swift = readFileSync(join(output, 'Sources', 'HeartApp.swift'), 'utf8') + readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')
 
     expect(swift).toContain("getHeartRateSamples: function(options) {")
     expect(swift).toContain("craft._invoke('getHealthHeartRateSamples', {startDate: options.startDate, endDate: options.endDate, limit: options.limit})")
@@ -670,8 +671,28 @@ describe('Craft iOS builder', () => {
     // Time in bed and awake are stages of a night, not sleep.
     expect(swift).toContain('"asleep": !notAsleep.contains(sample.value)')
     // Both are read under the grants requestAuthorization already asks for.
-    expect(swift).toContain('case "heartRate":\n                    if let heartType = HKQuantityType.quantityType(forIdentifier: .heartRate)')
-    expect(swift).toContain('case "sleep":\n                    if let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)')
+    expect(swift).toMatch(/case "heartRate":\n\s+if let heartType = HKQuantityType\.quantityType\(forIdentifier: \.heartRate\)/)
+    expect(swift).toMatch(/case "sleep":\n\s+if let sleepType = HKObjectType\.categoryType\(forIdentifier: \.sleepAnalysis\)/)
+  })
+
+  it('answers a native screen\'s Apple Health reads from the same service the page uses', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-health-'))
+    await init({ runtimeDir: null, name: 'Pulse', bundleId: 'com.example.pulse', output, config: { enableHealthKit: true } })
+    const app = readFileSync(join(output, 'Sources', 'PulseApp.swift'), 'utf8')
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const health = readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')
+
+    // One HealthKit store and one implementation, shared by both callers.
+    expect(health).toContain('static let shared = CraftHealth()')
+    for (const method of ['requestAuthorization', 'getData', 'saveWorkout', 'getWorkouts', 'getDailyStatistics', 'getHeartRateSamples', 'getSleepIntervals'])
+      expect(health).toContain(`case "${method}":`)
+    expect(app).toContain('CraftHealth.shared.getWorkouts(')
+    expect(app).not.toContain('HKHealthStore()')
+    // A native screen reaches it as the `Health` module, gated like the page is.
+    expect(actions).toContain('case ("Health", _):')
+    expect(actions).toContain('guard config.enableHealthKit else {')
+    expect(actions).toContain('CraftHealth.shared.perform(method: method, args: args)')
+    expect(actions).toContain('if config.enableHealthKit { values.append("health") }')
   })
 
   it('keeps a default when a caller passes undefined, and the app reads a partial config over its defaults', async () => {
@@ -779,7 +800,7 @@ describe('Craft iOS builder', () => {
     expect(swift.split('activities.first(where: { $0.id == activityId })')).toHaveLength(3)
     expect(swift).toContain('endLiveActivity(body: body, callbackId: callbackId)')
     expect(swift).toContain('saveHealthWorkout')
-    expect(swift).toContain('HKWorkoutRouteBuilder')
+    expect(readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')).toContain('HKWorkoutRouteBuilder')
     expect(plist).toContain('NSSupportsLiveActivities')
     expect(existsSync(join(output, 'Shared', 'CraftActivityAttributes.swift'))).toBe(true)
     expect(existsSync(join(output, 'WidgetExtension', 'WildLoopLiveActivity.swift'))).toBe(true)
