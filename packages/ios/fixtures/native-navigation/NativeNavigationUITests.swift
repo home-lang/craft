@@ -176,6 +176,7 @@ final class NativeNavigationUITests: XCTestCase {
         let svg = app.otherElements["native-svg"]
         XCTAssertTrue(svg.waitForExistence(timeout: 5), "SVG fixture did not mount as a native view")
         XCTAssertEqual(svg.label, "Native vector", "SVG accessibility metadata did not survive native mounting")
+        XCTAssertTrue(app.otherElements["native-video"].waitForExistence(timeout: 5), "Video fixture did not mount as a native view")
         XCTAssertGreaterThanOrEqual(image.frame.minY, scroll.frame.minY + 12, "ScrollView contentContainerStyle did not add top padding")
         XCTAssertEqual(app.staticTexts["home-title"].label, "Home")
         app.buttons["native-audio-context"].tap()
