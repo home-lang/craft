@@ -1280,6 +1280,53 @@ private final class CraftNativeSvgView: UIView {
     }
 }
 
+/// A view's linear gradient (stx `bg-gradient-to-br from-* via-* to-*`), kept
+/// as its first sublayer - under its subviews - and following its bounds and
+/// corners as they change.
+private final class CraftNativeGradientLayer: CAGradientLayer {
+    private var observations: [NSKeyValueObservation] = []
+
+    static func apply(to view: UIView, direction: String?, colors: [UIColor?]) {
+        let existing = view.layer.sublayers?.first as? CraftNativeGradientLayer
+        guard let direction, let from = colors[0], let to = colors[2] else {
+            existing?.removeFromSuperlayer()
+            return
+        }
+        let layer = existing ?? CraftNativeGradientLayer()
+        layer.colors = [from, colors[1], to].compactMap { $0?.cgColor }
+        let points: (CGPoint, CGPoint)
+        switch direction {
+        case "to-t": points = (CGPoint(x: 0.5, y: 1), CGPoint(x: 0.5, y: 0))
+        case "to-tr": points = (CGPoint(x: 0, y: 1), CGPoint(x: 1, y: 0))
+        case "to-r": points = (CGPoint(x: 0, y: 0.5), CGPoint(x: 1, y: 0.5))
+        case "to-br": points = (CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 1))
+        case "to-bl": points = (CGPoint(x: 1, y: 0), CGPoint(x: 0, y: 1))
+        case "to-l": points = (CGPoint(x: 1, y: 0.5), CGPoint(x: 0, y: 0.5))
+        case "to-tl": points = (CGPoint(x: 1, y: 1), CGPoint(x: 0, y: 0))
+        default: points = (CGPoint(x: 0.5, y: 0), CGPoint(x: 0.5, y: 1))
+        }
+        layer.startPoint = points.0
+        layer.endPoint = points.1
+        layer.follow(view)
+        guard existing == nil else { return }
+        view.layer.insertSublayer(layer, at: 0)
+        layer.observations = [
+            view.observe(\.bounds) { [weak layer] view, _ in layer?.follow(view) },
+            view.layer.observe(\.cornerRadius) { [weak layer, weak view] _, _ in if let view { layer?.follow(view) } },
+        ]
+    }
+
+    private func follow(_ view: UIView) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        frame = view.bounds
+        cornerRadius = view.layer.cornerRadius
+        maskedCorners = view.layer.maskedCorners
+        masksToBounds = cornerRadius > 0
+        CATransaction.commit()
+    }
+}
+
 /// A button that keeps the padding its style asks for (`px-4 py-2`). A bare
 /// UIButton sizes to its title and ignores it, so a styled button drew as a
 /// pill with its label touching the edges. The padding is added to its size
@@ -3236,6 +3283,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         updateDimension(width, constraint: &node.widthConstraint, anchor: view.widthAnchor)
         updateDimension(height, constraint: &node.heightConstraint, anchor: view.heightAnchor)
         view.backgroundColor = color(style["backgroundColor"]) ?? .clear
+        CraftNativeGradientLayer.apply(
+            to: view,
+            direction: style["gradientDirection"] as? String,
+            colors: [color(style["gradientFrom"]), color(style["gradientVia"]), color(style["gradientTo"])]
+        )
         view.alpha = number(style["opacity"]) ?? 1
         view.isHidden = style["display"] as? String == "none"
         view.craftRequestedCornerRadius = number(style["borderRadius"])

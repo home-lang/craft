@@ -112,6 +112,9 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('flatListOwners[id] ?? svgOwners[id] ?? id')
     expect(nativeSwift).toContain('path.addCurve(to: point(i + 5), controlPoint1: point(i + 1), controlPoint2: point(i + 3))')
     expect(nativeSwift).toContain('size.width * box.height / box.width')
+    // A linear gradient (stx bg-gradient-to-*) is drawn under the subviews.
+    expect(nativeSwift).toContain('private final class CraftNativeGradientLayer: CAGradientLayer')
+    expect(nativeSwift).toContain('direction: style["gradientDirection"] as? String')
     // A styled button keeps its padding (px-4 py-2) instead of hugging its label.
     expect(nativeSwift).toContain('private final class CraftNativeButton: UIButton')
     expect(nativeSwift).toContain('let button = CraftNativeButton(type: .system)')
