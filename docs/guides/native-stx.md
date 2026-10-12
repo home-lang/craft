@@ -278,6 +278,11 @@ basis, grow, shrink, margins, and min/max bounds without exposing UIKit or
 Android types; an SDK-only project keeps the equivalent host fallback until a
 runtime is installed.
 
+The same runtime also exports `craft_native_grid` for equal-track grids. It
+accepts intrinsic measurements and alignment as plain data, leaving platform
+views responsible only for measurement and mounting; hosts may fall back to
+their local grid path when no runtime is linked.
+
 Scroll content is measured with an unbounded scroll-axis constraint, so intrinsic
 text and image sizes contribute to the content extent instead of collapsing to
 zero when the viewport supplies an unspecified size.

@@ -47,6 +47,8 @@ describe('native renderer component contract', () => {
   it('exports the flat flex ABI for mobile hosts', () => {
     expect(nativeLayout).toContain('pub const FlexItem = extern struct')
     expect(nativeLayout).toContain('pub export fn craft_native_flex_row(')
+    expect(nativeLayout).toContain('pub const GridItem = extern struct')
+    expect(nativeLayout).toContain('pub export fn craft_native_grid(')
     expect(nativeLayout).toContain('margin_start: f32')
     expect(nativeLayout).toContain('shrink_total')
     expect(nativeLayout).toContain('clampBounds')

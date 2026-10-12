@@ -70,6 +70,90 @@ pub const FlexItem = extern struct {
     margin_end: f32,
 };
 
+/// C-compatible input for equal-track native grids. A negative or NaN
+/// dimension means "use intrinsic"; `stretch` is 1 for the host's stretch
+/// alignment and `alignment` is 0=start, 1=center, or 2=end.
+pub const GridItem = extern struct {
+    intrinsic_width: f32,
+    intrinsic_height: f32,
+    explicit_width: f32,
+    explicit_height: f32,
+    min_width: f32,
+    max_width: f32,
+    min_height: f32,
+    max_height: f32,
+    margin_left: f32,
+    margin_right: f32,
+    margin_top: f32,
+    margin_bottom: f32,
+    stretch: u8,
+    alignment: u8,
+};
+
+/// Resolve an equal-track grid in content coordinates for native hosts.
+pub export fn craft_native_grid(
+    available_width: f32,
+    available_height: f32,
+    columns: u32,
+    column_gap: f32,
+    row_gap: f32,
+    items: [*]const GridItem,
+    item_count: usize,
+    frames: [*]Frame,
+) callconv(.c) c_int {
+    if (item_count == 0) return 0;
+    const column_count = @max(@as(usize, 1), @as(usize, @intCast(columns)));
+    const width = finiteNonNegative(available_width);
+    const height = finiteNonNegative(available_height);
+    const safe_column_gap = finiteNonNegative(column_gap);
+    const safe_row_gap = finiteNonNegative(row_gap);
+    const cell_width = @max(0, width - safe_column_gap * @as(f32, @floatFromInt(column_count - 1))) /
+        @as(f32, @floatFromInt(column_count));
+
+    const row_count = (item_count + column_count - 1) / column_count;
+    for (0..row_count) |row| {
+        var row_height: f32 = 0;
+        const start = row * column_count;
+        const end = @min(item_count, start + column_count);
+        for (items[start..end]) |item| {
+            const intrinsic = optionalDimension(item.explicit_height, item.intrinsic_height);
+            row_height = @max(row_height, clampBounds(intrinsic, item.min_height, item.max_height) + finiteNonNegative(item.margin_top) + finiteNonNegative(item.margin_bottom));
+        }
+        var row_y: f32 = 0;
+        for (0..row) |prior| {
+            const prior_start = prior * column_count;
+            const prior_end = @min(item_count, prior_start + column_count);
+            var prior_height: f32 = 0;
+            for (items[prior_start..prior_end]) |item| {
+                const intrinsic = optionalDimension(item.explicit_height, item.intrinsic_height);
+                prior_height = @max(prior_height, clampBounds(intrinsic, item.min_height, item.max_height) + finiteNonNegative(item.margin_top) + finiteNonNegative(item.margin_bottom));
+            }
+            row_y += prior_height + safe_row_gap;
+        }
+        for (items[start..end], start..) |item, index| {
+            const column = index % column_count;
+            const available_item_width = @max(0, cell_width - finiteNonNegative(item.margin_left) - finiteNonNegative(item.margin_right));
+            const requested_width = optionalDimension(item.explicit_width, item.intrinsic_width);
+            const item_width = clampBounds(@min(available_item_width, if (item.stretch == 1 and isUnset(item.explicit_width)) available_item_width else requested_width), item.min_width, item.max_width);
+            const available_item_height = @max(0, row_height - finiteNonNegative(item.margin_top) - finiteNonNegative(item.margin_bottom));
+            const requested_height = optionalDimension(item.explicit_height, item.intrinsic_height);
+            const item_height = clampBounds(@min(available_item_height, if (item.stretch == 1 and isUnset(item.explicit_height)) available_item_height else requested_height), item.min_height, item.max_height);
+            const horizontal_space = @max(0, available_item_width - item_width);
+            const vertical_space = @max(0, available_item_height - item_height);
+            const align_x = if (item.alignment == 1) horizontal_space / 2 else if (item.alignment == 2) horizontal_space else 0;
+            const align_y = if (item.alignment == 1) vertical_space / 2 else if (item.alignment == 2) vertical_space else 0;
+            frames[index] = .{
+                .x = @as(f32, @floatFromInt(column)) * (cell_width + safe_column_gap) + finiteNonNegative(item.margin_left) + align_x,
+                .y = row_y + finiteNonNegative(item.margin_top) + align_y,
+                .width = item_width,
+                .height = item_height,
+            };
+        }
+    }
+    _ = height;
+    return 0;
+}
+
 /// Distribute one flex line in content coordinates for native hosts.
 /// Margins and gaps consume space; free space follows grow or shrink*basis;
 /// each result is clamped to its bounds. Return 0 for success.
@@ -318,6 +402,14 @@ fn clampBounds(value: f32, lower: f32, upper: f32) f32 {
     return result;
 }
 
+fn isUnset(value: f32) bool {
+    return std.math.isNan(value) or value < 0;
+}
+
+fn optionalDimension(explicit: f32, intrinsic: f32) f32 {
+    return finiteNonNegative(if (isUnset(explicit)) intrinsic else explicit);
+}
+
 test "distributes positive flex grow from a shared basis" {
     const children = [_]Node{
         .{ .style = .{ .flex_basis = 40, .flex_grow = 1 } },
@@ -494,4 +586,20 @@ test "exports the shared flex row contract with margins and bounds" {
     try std.testing.expectApproxEqAbs(@as(f32, 80.6667), widths[1], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 5), positions[0], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 95), positions[1], 0.001);
+}
+
+test "exports equal-track grid frames with intrinsic rows and alignment" {
+    const items = [_]GridItem{
+        .{ .intrinsic_width = 20, .intrinsic_height = 12, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.nan(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 2, .margin_right = 3, .margin_top = 1, .margin_bottom = 2, .stretch = 0, .alignment = 1 },
+        .{ .intrinsic_width = 10, .intrinsic_height = 20, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.nan(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 1, .alignment = 0 },
+        .{ .intrinsic_width = 30, .intrinsic_height = 10, .explicit_width = 40, .explicit_height = 10, .min_width = std.math.nan(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 0, .alignment = 2 },
+    };
+    var frames: [3]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_grid(100, 80, 2, 10, 5, &items, items.len, &frames));
+    try std.testing.expectApproxEqAbs(@as(f32, 12), frames[0].x, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 20), frames[0].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 55), frames[1].x, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 45), frames[1].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 25), frames[2].y, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), frames[2].width, 0.001);
 }
