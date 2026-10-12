@@ -108,18 +108,68 @@ private final class CraftNativeVideoView: UIView {
 /// implementation, so the screen installs a compatible surface and routes the
 /// graph to one AVAudioEngine source node per oscillator.
 private final class CraftNativeAudio {
+    private struct ParameterEvent {
+        let time: Double
+        let value: Double
+        let ramp: Bool
+    }
+
+    private final class Parameter {
+        private let lock = NSLock()
+        private var current: Double
+        private var events: [ParameterEvent] = []
+
+        init(_ value: Double) {
+            current = value
+        }
+
+        func set(_ value: Double) {
+            lock.lock(); defer { lock.unlock() }
+            current = value
+            events.removeAll()
+        }
+
+        func schedule(_ value: Double, at time: Double, ramp: Bool) {
+            lock.lock(); defer { lock.unlock() }
+            events.append(ParameterEvent(time: max(0, time), value: value, ramp: ramp))
+            events.sort { $0.time < $1.time }
+        }
+
+        func value(at time: Double) -> Double {
+            lock.lock(); defer { lock.unlock() }
+            var previousTime = 0.0
+            var previousValue = current
+            for event in events {
+                if time < event.time {
+                    guard event.ramp, event.time > previousTime else { return previousValue }
+                    let fraction = (time - previousTime) / (event.time - previousTime)
+                    return previousValue + (event.value - previousValue) * fraction
+                }
+                previousTime = event.time
+                previousValue = event.value
+            }
+            return previousValue
+        }
+    }
+
     private final class OscillatorState {
         let lock = NSLock()
-        var frequency = 440.0
-        var gain = 1.0
+        let frequency = Parameter(440)
+        var gain = Parameter(1)
         var phase = 0.0
         var active = false
+        let contextStart: TimeInterval
+
+        init(contextStart: TimeInterval) {
+            self.contextStart = contextStart
+        }
     }
 
     private let engine = AVAudioEngine()
     private var format: AVAudioFormat?
-    private var sources: [String: (state: OscillatorState, node: AVAudioSourceNode, gainID: String?)] = [:]
-    private var gains: [String: Double] = [:]
+    private var sources: [String: (state: OscillatorState, node: AVAudioSourceNode)] = [:]
+    private var gains: [String: Parameter] = [:]
+    private var contextStarts: [String: TimeInterval] = [:]
     private var closed = false
 
     func handle(_ payload: [String: Any]) {
@@ -127,28 +177,37 @@ private final class CraftNativeAudio {
         switch action {
         case "createContext":
             closed = false
+            if let contextID = payload["contextId"] as? String {
+                contextStarts[contextID] = Date().timeIntervalSince1970
+            }
         case "createOscillator":
             guard let id = payload["nodeId"] as? String else { return }
-            createOscillator(id: id, frequency: number(payload["frequency"]) ?? 440)
+            let contextStart = (payload["contextId"] as? String).flatMap { contextStarts[$0] } ?? Date().timeIntervalSince1970
+            createOscillator(id: id, frequency: number(payload["frequency"]) ?? 440, contextStart: contextStart)
         case "createGain":
             guard let id = payload["nodeId"] as? String else { return }
-            gains[id] = number(payload["gain"]) ?? 1
-            updateOscillatorGains(for: id)
+            gains[id] = Parameter(number(payload["gain"]) ?? 1)
         case "connect":
             guard let sourceID = payload["sourceId"] as? String else { return }
             let destinationID = payload["destinationId"] as? String
             if var source = sources[sourceID] {
-                source.gainID = destinationID == "destination" ? nil : destinationID
+                source.state.lock.lock()
+                source.state.gain = destinationID.flatMap { gains[$0] } ?? Parameter(1)
+                source.state.lock.unlock()
                 sources[sourceID] = source
-                source.state.gain = destinationID.flatMap { gains[$0] } ?? 1
             }
         case "frequency":
             guard let id = payload["nodeId"] as? String, let value = number(payload["value"]), let source = sources[id] else { return }
-            source.state.lock.lock(); source.state.frequency = max(0, value); source.state.lock.unlock()
+            source.state.frequency.set(max(0, value))
+        case "frequencyAtTime", "frequencyRampToTime":
+            guard let id = payload["nodeId"] as? String, let value = number(payload["value"]), let time = number(payload["time"]), let source = sources[id] else { return }
+            source.state.frequency.schedule(max(0, value), at: time, ramp: action == "frequencyRampToTime")
         case "gain":
             guard let id = payload["nodeId"] as? String, let value = number(payload["value"]) else { return }
-            gains[id] = max(0, value)
-            updateOscillatorGains(for: id)
+            gains[id]?.set(max(0, value))
+        case "gainAtTime", "gainRampToTime":
+            guard let id = payload["nodeId"] as? String, let value = number(payload["value"]), let time = number(payload["time"]) else { return }
+            gains[id]?.schedule(max(0, value), at: time, ramp: action == "gainRampToTime")
         case "start", "stop":
             guard let id = payload["nodeId"] as? String, let source = sources[id] else { return }
             if action == "start" { start(source.state, after: max(0, number(payload["delay"]) ?? 0)) }
@@ -169,14 +228,15 @@ private final class CraftNativeAudio {
         }
         sources.removeAll()
         gains.removeAll()
+        contextStarts.removeAll()
         engine.stop()
     }
 
-    private func createOscillator(id: String, frequency: Double) {
+    private func createOscillator(id: String, frequency: Double, contextStart: TimeInterval) {
         guard sources[id] == nil else { return }
         guard let format = audioFormat() else { return }
-        let state = OscillatorState()
-        state.frequency = max(0, frequency)
+        let state = OscillatorState(contextStart: contextStart)
+        state.frequency.set(max(0, frequency))
         let node = AVAudioSourceNode(format: format) { _, _, frameCount, audioBufferList in
             let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
             state.lock.lock()
@@ -185,13 +245,16 @@ private final class CraftNativeAudio {
             let gain = state.gain
             var phase = state.phase
             state.lock.unlock()
-            let increment = 2 * Double.pi * frequency / format.sampleRate
+            let startTime = max(0, Date().timeIntervalSince1970 - state.contextStart)
             for buffer in buffers {
                 guard let data = buffer.mData else { continue }
                 let samples = data.assumingMemoryBound(to: Float.self)
                 for frame in 0..<Int(frameCount) {
-                    samples[frame] = active ? Float(sin(phase) * gain) : 0
-                    phase += increment
+                    let frameTime = startTime + Double(frame) / format.sampleRate
+                    let frameFrequency = frequency.value(at: frameTime)
+                    let frameGain = gain.value(at: frameTime)
+                    samples[frame] = active ? Float(sin(phase) * frameGain) : 0
+                    phase += 2 * Double.pi * frameFrequency / format.sampleRate
                     if phase >= 2 * Double.pi { phase -= 2 * Double.pi }
                 }
             }
@@ -200,7 +263,7 @@ private final class CraftNativeAudio {
         }
         engine.attach(node)
         engine.connect(node, to: engine.mainMixerNode, format: format)
-        sources[id] = (state, node, nil)
+        sources[id] = (state, node)
     }
 
     private func audioFormat() -> AVAudioFormat? {
@@ -208,13 +271,6 @@ private final class CraftNativeAudio {
         let created = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)
         format = created
         return created
-    }
-
-    private func updateOscillatorGains(for gainID: String) {
-        let value = gains[gainID] ?? 1
-        for source in sources.values where source.gainID == gainID {
-            source.state.lock.lock(); source.state.gain = value; source.state.lock.unlock()
-        }
     }
 
     private func start(_ state: OscillatorState, after delay: Double) {
@@ -2159,8 +2215,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                                 audioMessage({ action: action, contextId: contextId, nodeId: nodeId, value: current });
                             }
                         });
-                        param.setValueAtTime = function(value) { param.value = value; return param; };
-                        param.linearRampToValueAtTime = function(value) { param.value = value; return param; };
+                        function schedule(value, when, ramp) {
+                            current = Number(value) || 0;
+                            var time = Number(when);
+                            audioMessage({ action: action + (ramp ? 'RampToTime' : 'AtTime'), contextId: contextId, nodeId: nodeId, value: current, time: isFinite(time) ? Math.max(0, time) : 0 });
+                        }
+                        param.setValueAtTime = function(value, when) { schedule(value, when, false); return param; };
+                        param.linearRampToValueAtTime = function(value, when) { schedule(value, when, true); return param; };
                         return param;
                     }
                     function AudioContext() {

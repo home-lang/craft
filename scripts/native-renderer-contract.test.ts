@@ -98,6 +98,9 @@ describe('native renderer component contract', () => {
 
   it('keeps the native AudioContext subset wired to both hosts', () => {
     expect(ios).toContain('private final class CraftNativeAudio')
+    expect(ios).toContain('case "frequencyAtTime", "frequencyRampToTime":')
+    expect(ios).toContain('case "gainAtTime", "gainRampToTime":')
+    expect(ios).toContain("param.linearRampToValueAtTime = function(value, when)")
     expect(ios).toContain('AVAudioSourceNode')
     expect(ios).toContain('globalThis.AudioContext = AudioContext')
     expect(ios).toContain('case "AUDIO":')
@@ -219,6 +222,8 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="image-error-count"')
     expect(navigationHome).toContain('testID="native-audio-context"')
     expect(navigationHome).toContain('const context = new AudioContext()')
+    expect(navigationHome).toContain('oscillator.frequency.linearRampToValueAtTime')
+    expect(navigationHome).toContain('gain.gain.setValueAtTime')
     expect(iosNavigationTest).toContain('app.buttons["native-audio-context"].tap()')
     expect(androidNavigationTest).toContain('click(activity, "native-audio-context")')
     expect(navigationHome).toContain('<svg\n        testID="native-svg"')

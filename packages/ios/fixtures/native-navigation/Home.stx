@@ -85,8 +85,10 @@ function verifyAudioContext() {
     const gain = context.createGain()
     oscillator.connect(gain)
     gain.connect(context.destination)
-    oscillator.frequency.value = 220
-    gain.gain.value = 0
+    oscillator.frequency.setValueAtTime(220, context.currentTime)
+    oscillator.frequency.linearRampToValueAtTime(220, context.currentTime + 0.05)
+    gain.gain.setValueAtTime(0, context.currentTime)
+    gain.gain.linearRampToValueAtTime(0, context.currentTime + 0.05)
     context.close()
     audioContextStatus.set('AudioContext ready')
   } catch (error) {
