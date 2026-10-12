@@ -429,6 +429,7 @@ object CraftNative {
             // The shared result stores widths in the first half and the
             // corresponding main-axis positions in the second half.
             nativeFlexRow(available, gap, basis, grow, shrink, min, max, margins)
+                ?.takeIf { it.size >= basis.size }
         } catch (e: UnsatisfiedLinkError) {
             null
         }
@@ -455,6 +456,7 @@ object CraftNative {
         if (!isAvailable) return null
         return try {
             nativeGrid(availableWidth, availableHeight, columns, columnGap, rowGap, intrinsicWidth, intrinsicHeight, explicitWidth, explicitHeight, minWidth, maxWidth, minHeight, maxHeight, margins, flags)
+                ?.takeIf { it.size >= intrinsicWidth.size * 4 }
         } catch (e: UnsatisfiedLinkError) {
             null
         }
