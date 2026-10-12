@@ -96,6 +96,15 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`Video` uses the platform player')
   })
 
+  it('keeps the iOS AudioContext subset wired to the native host', () => {
+    expect(ios).toContain('private final class CraftNativeAudio')
+    expect(ios).toContain('AVAudioSourceNode')
+    expect(ios).toContain('globalThis.AudioContext = AudioContext')
+    expect(ios).toContain('case "AUDIO":')
+    expect(ios).toContain('audio.close()')
+    expect(guide).toContain('`createOscillator()`, `createGain()`')
+  })
+
   it('keeps the shared layout core explicit', () => {
     expect(nativeLayout).toContain('pub const Axis = enum')
     expect(nativeLayout).toContain('flex_shrink: f32')

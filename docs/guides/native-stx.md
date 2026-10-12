@@ -126,6 +126,14 @@ string or `{ uri }`, while `autoplay`/`autoPlay`, `paused`, `loop`, `muted`,
 element. The native player is stopped when its node is removed or replaced;
 unsupported or empty sources remain inert instead of falling back to a WebView.
 
+Native iOS screens also expose the AudioContext subset used by the native
+breathwork path: `createOscillator()`, `createGain()`, `connect()`, the
+`frequency` and `gain` AudioParams, `start()`/`stop()` scheduling, and
+`resume()`/`close()`. The host synthesizes these nodes with `AVAudioEngine` and
+tears them down with the screen. Android does not claim this capability yet;
+keep an AudioContext-dependent screen on the WebView path there until its
+`AudioTrack`/Oboe host is shipped and covered by the same contract.
+
 `Svg` is DOM-free in native mode: the compiler emits geometry commands for
 shape nodes, `G` inherits fill/stroke paint, and `SvgText` draws text in the
 same viewBox. Both hosts preserve inherited opacity, fill/stroke colors, line
