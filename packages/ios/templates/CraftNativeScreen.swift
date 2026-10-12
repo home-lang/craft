@@ -1280,6 +1280,49 @@ private final class CraftNativeSvgView: UIView {
     }
 }
 
+/// A button that keeps the padding its style asks for (`px-4 py-2`). A bare
+/// UIButton sizes to its title and ignores it, so a styled button drew as a
+/// pill with its label touching the edges. The padding is added to its size
+/// and the label laid out inside it, at the alignment the style asked for.
+private final class CraftNativeButton: UIButton {
+    var padding: UIEdgeInsets = .zero {
+        didSet {
+            guard padding != oldValue else { return }
+            invalidateIntrinsicContentSize()
+            setNeedsLayout()
+        }
+    }
+
+    override var intrinsicContentSize: CGSize {
+        let size = super.intrinsicContentSize
+        return CGSize(width: size.width + padding.left + padding.right, height: size.height + padding.top + padding.bottom)
+    }
+
+    override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let inner = super.sizeThatFits(CGSize(
+            width: max(0, size.width - padding.left - padding.right),
+            height: max(0, size.height - padding.top - padding.bottom)
+        ))
+        return CGSize(width: inner.width + padding.left + padding.right, height: inner.height + padding.top + padding.bottom)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard padding != .zero, let label = titleLabel else { return }
+        let area = bounds.inset(by: padding)
+        let fitted = label.sizeThatFits(area.size)
+        let width = min(ceil(fitted.width), area.width)
+        let height = min(ceil(fitted.height), area.height)
+        let x: CGFloat
+        switch contentHorizontalAlignment {
+        case .left, .leading: x = area.minX
+        case .right, .trailing: x = area.maxX - width
+        default: x = area.midX - width / 2
+        }
+        label.frame = CGRect(x: x, y: area.midY - height / 2, width: width, height: height)
+    }
+}
+
 private final class CraftNativeLabel: UILabel {
     var insets = UIEdgeInsets.zero {
         didSet {
@@ -2383,6 +2426,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 attributes: buttonTitleAttributes(style, color: titleColor, font: font, forceUnderline: type == "Link")
             ), for: .normal)
             button.contentHorizontalAlignment = buttonAlignment(style["textAlign"])
+            (button as? CraftNativeButton)?.padding = paddingInsets(style)
             button.isEnabled = props["disabled"] as? Bool != true
             updateHandler(nonEmptyHandler(events["onPress"]) ?? nonEmptyHandler(events["onClick"]), for: button)
         case "TextInput":
@@ -2644,7 +2688,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             label.numberOfLines = 0
             return label
         case "Button", "Link":
-            let button = UIButton(type: .system)
+            let button = CraftNativeButton(type: .system)
             button.addTarget(self, action: #selector(buttonPressed(_:)), for: .touchUpInside)
             return button
         case "TextInput":

@@ -112,6 +112,10 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('flatListOwners[id] ?? svgOwners[id] ?? id')
     expect(nativeSwift).toContain('path.addCurve(to: point(i + 5), controlPoint1: point(i + 1), controlPoint2: point(i + 3))')
     expect(nativeSwift).toContain('size.width * box.height / box.width')
+    // A styled button keeps its padding (px-4 py-2) instead of hugging its label.
+    expect(nativeSwift).toContain('private final class CraftNativeButton: UIButton')
+    expect(nativeSwift).toContain('let button = CraftNativeButton(type: .system)')
+    expect(nativeSwift).toContain('(button as? CraftNativeButton)?.padding = paddingInsets(style)')
     expect(nativeSwift).toContain('UIPickerViewDataSource, UIPickerViewDelegate')
     expect(nativeSwift).toContain('pickerOptions[pickerID] = options')
     expect(nativeSwift).toContain('private final class CraftNativeModalView: UIView')
