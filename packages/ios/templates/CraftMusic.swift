@@ -31,6 +31,11 @@ protocol CraftMusicPlayer: AnyObject {
     var currentPlaybackTime: TimeInterval { get }
     /// Called on main whenever the song or the playback state changes.
     var onChange: (() -> Void)? { get set }
+    /// Sound this player makes that iOS cannot see as another app's: only
+    /// the simulator's stand-in, which plays nothing yet should read like
+    /// the Music app playing. Read before access is allowed, so the real
+    /// player answers false without touching the Music app.
+    var soundsLikeOtherAudio: Bool { get }
     func play()
     func pause()
     func skipToNextItem()
@@ -139,7 +144,7 @@ final class CraftMusic {
         var result: [String: Any] = [
             "available": true,
             "authorization": authorization,
-            "otherAudioPlaying": AVAudioSession.sharedInstance().isOtherAudioPlaying,
+            "otherAudioPlaying": AVAudioSession.sharedInstance().isOtherAudioPlaying || player.soundsLikeOtherAudio,
             "timestamp": Int(Date().timeIntervalSince1970 * 1000),
             "source": NSNull(),
             "playbackState": "unknown",
@@ -277,6 +282,7 @@ final class CraftMusic {
 /// `MPMusicPlayerController.systemMusicPlayer`: the Music app's queue.
 final class CraftSystemMusicPlayer: CraftMusicPlayer {
     let source = "appleMusic"
+    let soundsLikeOtherAudio = false
     var onChange: (() -> Void)?
     private var observers: [NSObjectProtocol] = []
     private var player: MPMusicPlayerController { MPMusicPlayerController.systemMusicPlayer }
@@ -330,8 +336,9 @@ final class CraftSystemMusicPlayer: CraftMusicPlayer {
 
 // MARK: - The simulator's stand-in
 
-/// Three made-up songs that play, pause and skip like the Music app, so the
-/// bridge, the page's bar and its events can be tried in the simulator.
+/// Three made-up songs that play (from launch), pause and skip like the Music
+/// app, and count as other audio while they play, so the
+/// bridge, a page's offer, its bar and its events can be tried in the simulator.
 /// Never used on a device (see `CraftMusic.makePlayer`).
 final class CraftFakeMusicPlayer: CraftMusicPlayer {
     let source = "simulated"
@@ -344,10 +351,14 @@ final class CraftFakeMusicPlayer: CraftMusicPlayer {
         ("Cooldown", "Recovery Club", "Easy Days", 187, 0.33),
     ]
     private var index = 0
-    private var state: MPMusicPlaybackState = .paused
+    /// Playing from the start, as when someone opens the app with music on:
+    /// that is what a page offering its controls waits for.
+    private var state: MPMusicPlaybackState = .playing
     /// Where the song was when it last started or stopped, and when that was.
     private var offset: TimeInterval = 0
-    private var startedAt: Date?
+    private var startedAt: Date? = Date()
+
+    var soundsLikeOtherAudio: Bool { state == .playing }
 
     var item: CraftMusicItem? {
         let song = songs[index]

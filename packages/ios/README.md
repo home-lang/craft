@@ -555,7 +555,7 @@ window.addEventListener('craftMusicChange', (event) => render(event.detail));
 // { available: false } without doing anything.
 // The simulator's Music app has nothing to play: launch with
 // `-CraftFakeMusicPlayer YES` (or `simctl spawn <device> defaults write <bundle id>
-// CraftFakeMusicPlayer -bool YES`) for three made-up songs that play and skip.
+// CraftFakeMusicPlayer -bool YES`) for three made-up songs that play (counting as other audio) and skip.
 // Simulator builds only; a device always talks to the Music app.
 
 // Speech: short spoken cues that duck the person's music instead of stopping
