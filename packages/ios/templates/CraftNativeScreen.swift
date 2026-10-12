@@ -62,7 +62,7 @@ private enum CraftNativeFlexBridge {
                 }
             }
         }
-        guard status == 0 else { return nil }
+        guard status == 0, output.allSatisfy({ $0.isFinite }), positions.allSatisfy({ $0.isFinite }) else { return nil }
         return zip(output, positions).map { (width: CGFloat($0), position: CGFloat($1)) }
     }
 }

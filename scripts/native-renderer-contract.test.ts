@@ -71,7 +71,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('sharedLine?[offset].position')
     expect(ios).toContain('!reverse && justifyContent == "flex-start"')
     expect(android).toContain('!reverse && justifyContent == "flex-start"')
-    expect(androidNative).toContain('?.takeIf { it.size >= basis.size }')
+    expect(androidNative).toContain('?.takeIf { it.size >= basis.size && it.all { value -> value.isFinite() } }')
     expect(androidNative).toContain('?.takeIf { it.size >= intrinsicWidth.size * 4 }')
     expect(android).toContain('Float.NaN')
     expect(android).toContain('CraftNative.grid(')
@@ -179,6 +179,8 @@ describe('native renderer component contract', () => {
   it('keeps Android flex justification aligned across the Kotlin and JNI seams', () => {
     expect(androidNative).toContain('private external fun nativeFlexRow(\n        available: Float,\n        gap: Float,\n        justify: Int,')
     expect(androidDispatch).toContain('.signature = "(FFI[F[F[F[F[F[F)[F"')
+    expect(androidNative).toContain('it.all { value -> value.isFinite() }')
+    expect(ios).toContain('output.allSatisfy({ $0.isFinite })')
   })
 
   it('keeps the Android flex bridge fallback typed as a JNI object', () => {

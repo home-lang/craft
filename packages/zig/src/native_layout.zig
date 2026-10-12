@@ -447,7 +447,7 @@ fn clamp(value: f32, lower: ?f32, upper: ?f32) f32 {
 }
 
 fn finiteNonNegative(value: f32) f32 {
-    return if (std.math.isNan(value) or value < 0) 0 else value;
+    return if (!std.math.isFinite(value) or value < 0) 0 else value;
 }
 
 fn clampBounds(value: f32, lower: f32, upper: f32) f32 {
@@ -654,6 +654,20 @@ test "exports justified flex positions" {
     try std.testing.expectApproxEqAbs(@as(f32, 20), widths[0], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 25), positions[0], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 55), positions[1], 0.001);
+}
+
+test "sanitizes non-finite flex inputs" {
+    const items = [_]FlexItem{
+        .{ .basis = std.math.inf(f32), .grow = 0, .shrink = 0, .min = -1, .max = -1, .margin_start = 0, .margin_end = 0 },
+        .{ .basis = 20, .grow = 0, .shrink = 0, .min = -1, .max = -1, .margin_start = 0, .margin_end = 0 },
+    };
+    var widths: [2]f32 = undefined;
+    var positions: [2]f32 = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_flex_row_justified(std.math.inf(f32), std.math.inf(f32), 3, &items, items.len, &widths, &positions));
+    try std.testing.expectEqual(@as(f32, 0), widths[0]);
+    try std.testing.expectEqual(@as(f32, 20), widths[1]);
+    try std.testing.expect(std.math.isFinite(positions[0]));
+    try std.testing.expect(std.math.isFinite(positions[1]));
 }
 
 test "exports equal-track grid frames with intrinsic rows and alignment" {
