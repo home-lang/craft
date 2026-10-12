@@ -913,11 +913,18 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         return nav
     }
 
+    /// A native screen's route params for `path`: the pattern's and the
+    /// query's, and the path itself.
+    private func params(for path: String, _ match: CraftHybridRoutes.Match) -> [String: Any] {
+        var params: [String: Any] = match.params
+        params["path"] = path
+        return params
+    }
+
     /// The entry for a path: its native screen, or a web entry.
     private func entry(for path: String, isTabRoot: Bool, depth: Int?, params extra: [String: Any] = [:]) -> UIViewController {
         if let match = hybrid.routes.match(path) {
-            var params: [String: Any] = match.params
-            params["path"] = path
+            var params = self.params(for: path, match)
             extra.forEach { params[$0.key] = $0.value }
             let screen = CraftNativeScreenController(config: config, routeName: match.screen, routeParams: params)
             screen.hybridEvents = self
@@ -930,6 +937,12 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     private func show(tab id: String, rootPath: String? = nil) {
         cancelPendingTab()
         let nav = stacks[id] ?? makeStack(tab: id, rootPath: rootPath ?? (id.isEmpty ? hybrid.startPath : id))
+        // A stack is hidden and shown rather than moved, so UIKit tells its
+        // screens nothing: the shell says which went away and which is back.
+        if id != currentTab {
+            (visibleStack?.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(false)
+            (nav.topViewController as? CraftNativeScreenController)?.screenVisibilityChanged(true)
+        }
         currentTab = id
         for (key, other) in stacks { other.view.isHidden = key != id }
         view.bringSubviewToFront(nav.view)
@@ -996,6 +1009,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             if let nav = stacks[tab], nav.viewControllers.count > 1 {
                 nav.popToRootViewController(animated: !fromLink)
             }
+            // `/m/store?coach=5`: the tab's own screen, with the query.
+            (stacks[tab]?.viewControllers.first as? CraftNativeScreenController)?.receiveRouteParams(params(for: raw, match))
             return
         }
         if fromLink, let owner = CraftHybridRoutes.tab(owning: match.path, among: tabs), owner != currentTab {
@@ -1004,6 +1019,9 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         guard let nav = visibleStack ?? stacks.values.first else { return }
         if let existing = nav.viewControllers.last(where: { nativePaths[ObjectIdentifier($0)] == match.path }) {
             if existing !== nav.topViewController { nav.popToViewController(existing, animated: true) }
+            // Opened again, perhaps with another query (`?person=8`): the
+            // screen hears the params it was opened with this time.
+            (existing as? CraftNativeScreenController)?.receiveRouteParams(params(for: raw, match))
             return
         }
         let screen = entry(for: raw, isTabRoot: false, depth: nil)
@@ -1068,6 +1086,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             guard top is CraftHybridWebSlot else { return }
             if let existing = nav.viewControllers.last(where: { nativePaths[ObjectIdentifier($0)] == match.path }) {
                 nav.popToViewController(existing, animated: direction != "pop")
+                (existing as? CraftNativeScreenController)?.receiveRouteParams(params(for: path, match))
             } else if !((top as? CraftHybridWebSlot)?.isTabRoot ?? false) {
                 nav.pushViewController(entry(for: path, isTabRoot: false, depth: nil), animated: true)
             }

@@ -226,7 +226,15 @@ private final class CraftNativeVideoView: UIView {
     private var player: AVPlayer?
     private var sourceURI = ""
     private var endObserver: NSObjectProtocol?
+    private var statusObservation: NSKeyValueObservation?
+    private var playingObservation: NSKeyValueObservation?
+    private var timeObserver: Any?
     private var loops = false
+    private var wasPlaying: Bool?
+    /// The screen's handlers by event name (`onEnd`, `onPlay`, `onPause`,
+    /// `onProgress`, `onLoad`, `onError`), and how an event reaches them.
+    var handlers: [String: String] = [:]
+    var emit: ((_ handler: String, _ nativeEvent: [String: Any]) -> Void)?
 
     init(host: UIViewController) {
         super.init(frame: .zero)
@@ -247,13 +255,35 @@ private final class CraftNativeVideoView: UIView {
         playerController.view.frame = bounds
     }
 
+    private func fire(_ event: String, _ nativeEvent: [String: Any] = [:]) {
+        guard let handler = handlers[event], !handler.isEmpty else { return }
+        emit?(handler, nativeEvent)
+    }
+
+    private func seconds(_ time: CMTime?) -> Double {
+        guard let time, time.isNumeric else { return 0 }
+        let value = CMTimeGetSeconds(time)
+        return value.isFinite ? value : 0
+    }
+
+    private func detachPlayer() {
+        if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
+        endObserver = nil
+        statusObservation?.invalidate()
+        statusObservation = nil
+        playingObservation?.invalidate()
+        playingObservation = nil
+        if let timeObserver, let player { player.removeTimeObserver(timeObserver) }
+        timeObserver = nil
+        wasPlaying = nil
+        player?.pause()
+        player = nil
+    }
+
     func configure(source: Any?, autoplay: Bool, paused: Bool, loop: Bool, muted: Bool, controls: Bool, resizeMode: String?) {
         let uri = (source as? String) ?? (source as? [String: Any])?["uri"] as? String ?? ""
         if uri != sourceURI {
-            if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
-            endObserver = nil
-            player?.pause()
-            player = nil
+            detachPlayer()
             sourceURI = uri
             loops = false
             guard let url = URL(string: uri), !uri.isEmpty, url.scheme != nil else {
@@ -263,6 +293,7 @@ private final class CraftNativeVideoView: UIView {
             let next = AVPlayer(url: url)
             player = next
             playerController.player = next
+            observe(next)
         }
         guard let player else { return }
         player.isMuted = muted
@@ -270,28 +301,53 @@ private final class CraftNativeVideoView: UIView {
         playerController.videoGravity = resizeMode == "cover" ? .resizeAspectFill
             : resizeMode == "stretch" ? .resize
             : .resizeAspect
-        if loops != loop {
-            if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
-            endObserver = nil
-            loops = loop
-            if loop, let item = player.currentItem {
-                endObserver = NotificationCenter.default.addObserver(
-                    forName: .AVPlayerItemDidPlayToEndTime,
-                    object: item,
-                    queue: .main
-                ) { [weak player] _ in
-                    player?.seek(to: .zero) { _ in player?.play() }
-                }
-            }
-        }
+        loops = loop
         if paused || !autoplay { player.pause() } else { player.play() }
     }
 
+    /// Load, play and pause, time, the end and failure, as the web's video
+    /// element reports them, so `@ended` and `@timeupdate` work as on the page.
+    private func observe(_ player: AVPlayer) {
+        if let item = player.currentItem {
+            statusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+                DispatchQueue.main.async {
+                    guard let self, self.player?.currentItem === item else { return }
+                    switch item.status {
+                    case .readyToPlay: self.fire("onLoad", ["duration": self.seconds(item.duration)])
+                    case .failed: self.fire("onError", ["message": item.error?.localizedDescription ?? "The video could not be played"])
+                    default: break
+                    }
+                }
+            }
+            endObserver = NotificationCenter.default.addObserver(
+                forName: .AVPlayerItemDidPlayToEndTime,
+                object: item,
+                queue: .main
+            ) { [weak self, weak player] _ in
+                guard let self else { return }
+                self.fire("onEnd")
+                if self.loops { player?.seek(to: .zero) { _ in player?.play() } }
+            }
+        }
+        playingObservation = player.observe(\.timeControlStatus, options: [.new]) { [weak self] player, _ in
+            DispatchQueue.main.async {
+                guard let self, self.player === player, player.timeControlStatus != .waitingToPlayAtSpecifiedRate else { return }
+                let playing = player.timeControlStatus == .playing
+                guard playing != self.wasPlaying else { return }
+                // Paused before it ever played is where it starts, not news.
+                if self.wasPlaying == nil && !playing { self.wasPlaying = false; return }
+                self.wasPlaying = playing
+                self.fire(playing ? "onPlay" : "onPause")
+            }
+        }
+        timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.5, preferredTimescale: 600), queue: .main) { [weak self, weak player] time in
+            guard let self, let player, player.timeControlStatus == .playing else { return }
+            self.fire("onProgress", ["currentTime": self.seconds(time), "duration": self.seconds(player.currentItem?.duration)])
+        }
+    }
+
     func stop() {
-        player?.pause()
-        if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
-        endObserver = nil
-        player = nil
+        detachPlayer()
         playerController.player = nil
         sourceURI = ""
         if playerController.parent != nil {
@@ -2035,6 +2091,35 @@ private final class CraftNativeLabel: UILabel {
     }
 }
 
+/// A one-line TextInput. Its style's padding is where the text and the
+/// placeholder start, as in a web input; UITextField has no padding of its own.
+final class CraftNativeTextField: UITextField {
+    var padding = UIEdgeInsets.zero {
+        didSet {
+            guard padding != oldValue else { return }
+            invalidateIntrinsicContentSize()
+            setNeedsLayout()
+        }
+    }
+
+    override func textRect(forBounds bounds: CGRect) -> CGRect {
+        super.textRect(forBounds: bounds.inset(by: padding))
+    }
+
+    override func editingRect(forBounds bounds: CGRect) -> CGRect {
+        super.editingRect(forBounds: bounds.inset(by: padding))
+    }
+
+    override func placeholderRect(forBounds bounds: CGRect) -> CGRect {
+        super.placeholderRect(forBounds: bounds.inset(by: padding))
+    }
+
+    override var intrinsicContentSize: CGSize {
+        let size = super.intrinsicContentSize
+        return CGSize(width: size.width + padding.left + padding.right, height: size.height + padding.top + padding.bottom)
+    }
+}
+
 private final class CraftNativeFlexSpacer: UIView {}
 
 /// An SF Symbol leaf. Its natural size is the symbol's, or a 20 pt square
@@ -2121,7 +2206,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private let config: CraftConfig
     private let routeName: String?
-    private let routeParams: [String: Any]
+    private(set) var routeParams: [String: Any]
     private let jsContext = JSContext()!
     private let rootStack = CraftNativeFlowView()
     private var handlers: [ObjectIdentifier: String] = [:]
@@ -2165,6 +2250,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var svgOwners: [String: String] = [:]
     private let mutationDocument = CraftNativeMutationDocument()
     private let audio = CraftNativeAudio()
+    /// `craft.audio`'s sounds and the streaming responses this screen reads.
+    private let sounds = CraftNativeSounds()
+    private let streams = CraftNativeEventStreams()
+    /// A request a screen-owned module answers, by request token, and how to
+    /// call it off when it times out or is cancelled.
+    private var screenRequestCancellers: [String: () -> Void] = [:]
+    /// Shown at least once: a later appearance is the screen coming back.
+    private var hasAppeared = false
+    /// Whether the script was last told the screen is on screen.
+    private var reportedVisible = false
     private let capabilityScope = UUID().uuidString
     private var pendingCapabilityRequests = Set<String>()
     private var pendingCapabilityDeadlines: [String: DispatchWorkItem] = [:]
@@ -2172,6 +2267,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var lifecycleObservers: [NSObjectProtocol] = []
     private var deepLinkListener: UUID?
     private var keyboardSafeAreaInset: CGFloat = 0
+    /// Where the keyboard is on the screen while it is up, in screen coordinates.
+    private var keyboardScreenFrame: CGRect?
     /// The hybrid shell (CraftHybrid.swift), when this screen is one of a web
     /// app's native screens: told of the first frame, of a first frame that
     /// could not be drawn, and of `craft.navigation.open(path)`.
@@ -2241,11 +2338,45 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         refreshTraitDefaults()
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        screenVisibilityChanged(true)
+    }
+
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         if isMovingFromParent || navigationController?.viewControllers.contains(where: { $0 === self }) == false {
             disposeRuntime()
+        } else {
+            screenVisibilityChanged(false)
         }
+    }
+
+    /// The screen came on screen or went off it: a screen pushed over it was
+    /// popped, or the hybrid shell switched to or away from its tab (which
+    /// hides a stack rather than moving it, so UIKit says nothing). The first
+    /// appearance is the screen's mount, not news; every later one is
+    /// `SCREEN_FOCUS { focused: true }`, and going away is `focused: false`.
+    func screenVisibilityChanged(_ visible: Bool) {
+        guard !runtimeDisposed, visible != reportedVisible else { return }
+        reportedVisible = visible
+        if visible, !hasAppeared {
+            hasAppeared = true
+            return
+        }
+        send(type: "SCREEN_FOCUS", payload: ["focused": visible])
+    }
+
+    /// New params for the screen already showing a path: opened again with
+    /// another query (`/m/messages?person=8`), or a tab's root opened with
+    /// one (`/m/store?coach=5`). The script's `craft.route.params` changes
+    /// and it hears `ROUTE_PARAMS`; before the script has run, it simply
+    /// starts with them.
+    func receiveRouteParams(_ params: [String: Any]) {
+        routeParams = params
+        guard isViewLoaded, !runtimeDisposed else { return }
+        jsContext.setObject(params as NSDictionary, forKeyedSubscript: "__stxNativeParams" as NSString)
+        send(type: "ROUTE_PARAMS", payload: ["params": params])
     }
 
     private func disposeRuntime() {
@@ -2253,6 +2384,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         runtimeDisposed = true
         jsContext.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: [])
         audio.close()
+        sounds.close()
+        streams.close()
+        screenRequestCancellers.values.forEach { $0() }
+        screenRequestCancellers.removeAll()
     }
 
     private func refreshTraitDefaults() {
@@ -2950,6 +3085,30 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             guard let name = notification.userInfo?["name"] as? String else { return }
             self?.send(type: "SNAPSHOT_CHANGED", payload: ["name": name])
         })
+        if config.enablePushNotifications {
+            // A new device token (iOS hands one out after a reinstall or a
+            // restore): every screen's `craft.push.onToken` hears it.
+            lifecycleObservers.append(NotificationCenter.default.addObserver(
+                forName: .craftPushToken,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                guard let token = notification.object as? String else { return }
+                self?.send(type: "PUSH_TOKEN", payload: ["token": token])
+            })
+        }
+        // The coordinator's location events (a watch, a recording's fixes):
+        // to this screen's script as the page's own CustomEvents.
+        lifecycleObservers.append(NotificationCenter.default.addObserver(
+            forName: CraftWebServices.event,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let name = notification.userInfo?["event"] as? String else { return }
+            self?.send(type: "CRAFT_EVENT", payload: ["event": name, "detail": notification.userInfo?["detail"] ?? [:]])
+        })
+        sounds.emit = { [weak self] payload in self?.send(type: "SOUND_EVENT", payload: payload) }
+        streams.emit = { [weak self] payload in self?.send(type: "NETWORK_STREAM", payload: payload) }
         sendAppState(CraftNativeActions.currentAppState())
         deepLinkListener = DeepLinkManager.shared.addNativeListener { [weak self] url, initial in
             guard let self = self, self.navigationController?.topViewController === self else { return }
@@ -2961,22 +3120,72 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func applyKeyboardSafeArea(_ notification: Notification, hidden: Bool = false) {
         let inset: CGFloat
+        let keyboardFrame: CGRect?
         if hidden {
             inset = 0
+            keyboardFrame = nil
         } else if let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
-            let keyboardFrame = view.convert(frame.cgRectValue, from: nil)
-            inset = max(0, view.bounds.intersection(keyboardFrame).height - view.safeAreaInsets.bottom)
+            keyboardFrame = frame.cgRectValue
+            let local = view.convert(frame.cgRectValue, from: nil)
+            // The safe area without the keyboard's own share, which an earlier
+            // change of the keyboard's height added to it.
+            inset = max(0, view.bounds.intersection(local).height - (view.safeAreaInsets.bottom - additionalSafeAreaInsets.bottom))
         } else {
             return
         }
-        guard abs(inset - keyboardSafeAreaInset) > 0.5 else { return }
-        keyboardSafeAreaInset = inset
         let duration = (notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?.doubleValue ?? 0.25
         let curve = (notification.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber)?.uintValue ?? 7
+        let changed = abs(inset - keyboardSafeAreaInset) > 0.5
+        keyboardSafeAreaInset = inset
+        keyboardScreenFrame = keyboardFrame
         UIView.animate(withDuration: duration, delay: 0, options: UIView.AnimationOptions(rawValue: UInt(curve << 16))) {
-            self.additionalSafeAreaInsets.bottom = inset
-            self.view.layoutIfNeeded()
+            if changed {
+                self.additionalSafeAreaInsets.bottom = inset
+                self.view.layoutIfNeeded()
+            }
+            self.insetScrollViewsForKeyboard()
+            self.scrollFocusedInputIntoView(animated: false)
         }
+    }
+
+    /// A scroll view the keyboard still covers part of (one that does not end
+    /// at the screen's bottom edge, or a keyboard taller than the safe area
+    /// took account of) insets its content by that much, so everything in it
+    /// can be scrolled above the keyboard. Internal for XCTest.
+    func insetScrollViewsForKeyboard() {
+        var scrolls: [UIScrollView] = []
+        func collect(_ node: RenderedNode?) {
+            guard let node else { return }
+            if let scroll = node.view as? CraftNativeScrollView, scroll.isVertical { scrolls.append(scroll) }
+            node.children.forEach(collect)
+        }
+        collect(renderedRoot)
+        for scroll in scrolls {
+            var overlap: CGFloat = 0
+            if let keyboard = keyboardScreenFrame, let window = scroll.window {
+                let frame = scroll.convert(scroll.bounds, to: window)
+                overlap = max(0, frame.maxY - window.convert(keyboard, from: nil).minY)
+            }
+            if abs(scroll.contentInset.bottom - overlap) > 0.5 { scroll.contentInset.bottom = overlap }
+            if abs(scroll.verticalScrollIndicatorInsets.bottom - overlap) > 0.5 { scroll.verticalScrollIndicatorInsets.bottom = overlap }
+        }
+    }
+
+    /// The focused field, scrolled into the part of its scroll view the
+    /// keyboard leaves, with a little room around it.
+    func scrollFocusedInputIntoView(animated: Bool) {
+        guard let input = firstResponder(in: rootStack) else { return }
+        scrollIntoView(input, animated: animated)
+    }
+
+    /// `input`, scrolled into the visible part of the scroll view it is in.
+    /// Internal for XCTest.
+    func scrollIntoView(_ input: UIView, animated: Bool) {
+        var ancestor = input.superview
+        while let current = ancestor, !(current is CraftNativeScrollView) { ancestor = current.superview }
+        guard let scroll = ancestor as? CraftNativeScrollView, scroll.isVertical else { return }
+        let rect = input.convert(input.bounds, to: scroll).insetBy(dx: 0, dy: -16)
+        scroll.scrollRectToVisible(rect, animated: animated)
     }
 
     private func sendAppState(_ state: String) {
@@ -3073,6 +3282,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let deadline = DispatchWorkItem { [weak self] in
                 guard let self = self, self.pendingCapabilityRequests.remove(requestToken) != nil else { return }
                 self.pendingCapabilityDeadlines.removeValue(forKey: requestToken)
+                self.screenRequestCancellers.removeValue(forKey: requestToken)?()
                 CraftNativeActions.cancel(requestToken: requestToken)
                 self.send(type: "API_ERROR", payload: [
                     "version": craftNativeCapabilityProtocolVersion,
@@ -3086,16 +3296,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 deadline: .now() + .milliseconds(craftNativeCapabilityTimeoutMilliseconds),
                 execute: deadline
             )
-            CraftNativeActions.perform(
-                requestToken: requestToken,
-                version: payload["version"] as? Int ?? craftNativeCapabilityProtocolVersion,
-                module: payload["module"] as? String ?? "",
-                method: payload["method"] as? String ?? "",
-                args: args,
-                config: config
-            ) { [weak self] answer in
+            let module = payload["module"] as? String ?? ""
+            let method = payload["method"] as? String ?? ""
+            let reply: (Result<Any, CraftNativeActionError>) -> Void = { [weak self] answer in
                 guard let self = self, self.pendingCapabilityRequests.remove(requestToken) != nil else { return }
                 self.pendingCapabilityDeadlines.removeValue(forKey: requestToken)?.cancel()
+                self.screenRequestCancellers.removeValue(forKey: requestToken)
                 switch answer {
                 case .success(let data):
                     self.send(type: "API_RESPONSE", payload: [
@@ -3112,17 +3318,81 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                     ], correlationId: id)
                 }
             }
+            if performOnScreen(module: module, method: method, args: args, requestToken: requestToken, reply: reply) { return }
+            CraftNativeActions.perform(
+                requestToken: requestToken,
+                version: payload["version"] as? Int ?? craftNativeCapabilityProtocolVersion,
+                module: module,
+                method: method,
+                args: args,
+                config: config,
+                completion: reply
+            )
         case "API_CANCEL":
             guard let id = payload["requestId"] as? String else { return }
             let requestToken = "\(capabilityScope)/\(id)"
             pendingCapabilityRequests.remove(requestToken)
             pendingCapabilityDeadlines.removeValue(forKey: requestToken)?.cancel()
+            screenRequestCancellers.removeValue(forKey: requestToken)?()
             CraftNativeActions.cancel(requestToken: requestToken)
         case "AUDIO":
             audio.handle(payload)
         default:
             break
         }
+    }
+
+    /// The modules whose work belongs to this screen and ends with it:
+    /// `craft.audio`'s sounds and streaming `fetch`. False for any other
+    /// module, which CraftNativeActions serves.
+    private func performOnScreen(
+        module: String,
+        method: String,
+        args: [Any],
+        requestToken: String,
+        reply: @escaping (Result<Any, CraftNativeActionError>) -> Void
+    ) -> Bool {
+        func number(_ index: Int, _ key: String? = nil) -> Double {
+            guard args.count > index else { return 0 }
+            if let key { return ((args[index] as? [String: Any])?[key] as? NSNumber)?.doubleValue ?? 0 }
+            return (args[index] as? NSNumber)?.doubleValue ?? 0
+        }
+        let id = args.first as? String ?? ""
+        switch (module, method) {
+        case ("Network", "stream"):
+            let options = args.first as? [String: Any] ?? [:]
+            let streamId = options["id"] as? String ?? ""
+            screenRequestCancellers[requestToken] = { [weak self] in self?.streams.cancel(id: streamId) }
+            streams.open(id: streamId, options: options, answer: reply)
+        case ("Network", "cancelStream"):
+            streams.cancel(id: id)
+            reply(.success(true))
+        case ("Audio", "play"):
+            guard args.count > 1, let address = args[1] as? String, let url = URL(string: address), url.scheme != nil, !id.isEmpty else {
+                reply(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "audio.play needs a URL")))
+                return true
+            }
+            screenRequestCancellers[requestToken] = { [weak self] in self?.sounds.stop(id: id, fadeOut: 0) }
+            sounds.play(id: id, url: url, options: args.count > 2 ? args[2] as? [String: Any] ?? [:] : [:], answer: reply)
+        case ("Audio", "pause"):
+            sounds.pause(id: id)
+            reply(.success(true))
+        case ("Audio", "resume"):
+            sounds.resume(id: id)
+            reply(.success(true))
+        case ("Audio", "setVolume"):
+            sounds.setVolume(id: id, volume: number(1), fade: number(2, "fade") / 1000)
+            reply(.success(true))
+        case ("Audio", "stop"):
+            sounds.stop(id: id, fadeOut: number(1, "fadeOut") / 1000)
+            reply(.success(true))
+        case ("Audio", "stopAll"):
+            sounds.stopAll(fadeOut: number(0, "fadeOut") / 1000)
+            reply(.success(true))
+        default:
+            return false
+        }
+        return true
     }
 
     /// Runs script in the screen's JavaScript context. Internal for
@@ -3306,6 +3576,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 textMaxLengths.removeValue(forKey: fieldId)
             }
             field.delegate = self
+            (field as? CraftNativeTextField)?.padding = paddingInsets(style)
             field.textColor = color(style["color"]) ?? .label
             field.font = textFont(style, default: .systemFont(ofSize: 16))
             field.textAlignment = textAlignment(style["textAlign"])
@@ -3323,6 +3594,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if field.autocapitalizationType != desiredCapitalization { field.autocapitalizationType = desiredCapitalization }
             let desiredEnabled = props["editable"] as? Bool != false
             if field.isEnabled != desiredEnabled { field.isEnabled = desiredEnabled }
+            applyAutofill(to: field, props: props)
             if let value = props["value"] as? String {
                 updateField(field, value: value)
             } else if previous?.view !== field {
@@ -3355,6 +3627,25 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 picker.selectRow(0, inComponent: 0, animated: false)
             }
             picker.isUserInteractionEnabled = props["disabled"] as? Bool != true
+            updateHandler(nonEmptyHandler(events["onValueChange"]) ?? nonEmptyHandler(events["onChange"]), for: picker)
+        case "DatePicker":
+            let picker = result as! UIDatePicker
+            let mode = Self.datePickerMode(props["mode"])
+            if picker.datePickerMode != mode { picker.datePickerMode = mode }
+            let display: UIDatePickerStyle = props["display"] as? String == "inline" ? .inline
+                : props["display"] as? String == "wheels" || props["display"] as? String == "spinner" ? .wheels
+                : .compact
+            if picker.preferredDatePickerStyle != display { picker.preferredDatePickerStyle = display }
+            // UIKit takes an interval that divides an hour, and ignores others.
+            let interval = (props["minuteInterval"] as? NSNumber)?.intValue ?? 1
+            picker.minuteInterval = (1...30).contains(interval) && 60 % interval == 0 ? interval : 1
+            picker.minimumDate = Self.pickerDate(props["minimumDate"])
+            picker.maximumDate = Self.pickerDate(props["maximumDate"])
+            if let date = Self.pickerDate(props["value"]), abs(picker.date.timeIntervalSince(date)) >= 1 {
+                picker.setDate(date, animated: false)
+            }
+            picker.tintColor = color(props["color"]) ?? color(style["color"])
+            picker.isEnabled = props["disabled"] as? Bool != true
             updateHandler(nonEmptyHandler(events["onValueChange"]) ?? nonEmptyHandler(events["onChange"]), for: picker)
         case "Modal":
             let modal = result as! CraftNativeModalView
@@ -3474,8 +3765,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "Video":
             let video = result as! CraftNativeVideoView
             let autoplay = (props["autoplay"] as? Bool) == true || (props["autoPlay"] as? Bool) == true
+            video.handlers = events
+            video.emit = { [weak self] handler, nativeEvent in
+                self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": nativeEvent])
+            }
             video.configure(
-                source: props["source"],
+                source: props["source"] ?? props["src"],
                 autoplay: autoplay,
                 paused: (props["paused"] as? Bool) == true,
                 loop: (props["loop"] as? Bool) == true,
@@ -3533,7 +3828,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             reconcileChildren(children, in: stack, parent: current, path: path, style: style)
         }
         updateLongPressHandler(props["disabled"] as? Bool == true ? nil : events["onLongPress"], for: result)
-        if type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" {
+        if type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" {
             let disabled = props["disabled"] as? Bool == true
             updatePressHandler(disabled ? nil : nonEmptyHandler(events["onPress"]) ?? nonEmptyHandler(events["onClick"]), for: result)
             updatePressFeedback(
@@ -3563,7 +3858,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 textView.delegate = self
                 return textView
             }
-            let field = UITextField()
+            let field = CraftNativeTextField()
             field.addTarget(self, action: #selector(textChanged(_:)), for: .editingChanged)
             field.addTarget(self, action: #selector(textFocused(_:)), for: .editingDidBegin)
             field.addTarget(self, action: #selector(textBlurred(_:)), for: .editingDidEnd)
@@ -3573,6 +3868,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let picker = UIPickerView()
             picker.dataSource = self
             picker.delegate = self
+            return picker
+        case "DatePicker":
+            let picker = UIDatePicker()
+            picker.preferredDatePickerStyle = .compact
+            picker.addTarget(self, action: #selector(datePicked(_:)), for: .valueChanged)
             return picker
         case "Modal":
             return CraftNativeModalView()
@@ -4005,6 +4305,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         textView.autocapitalizationType = capitalizationType(props["autoCapitalize"])
         textView.isSecureTextEntry = props["secureTextEntry"] as? Bool == true
         textView.isEditable = props["editable"] as? Bool != false
+        applyAutofill(to: textView, props: props)
+        // The style's padding is where the text starts, as in a web textarea.
+        let padding = paddingInsets(style)
+        if padding != .zero {
+            if textView.textContainerInset != padding { textView.textContainerInset = padding }
+            textView.textContainer.lineFragmentPadding = 0
+        }
         textView.isScrollEnabled = false
         if let numberOfLines = (props["numberOfLines"] as? NSNumber)?.intValue, numberOfLines > 0 {
             textView.textContainer.maximumNumberOfLines = numberOfLines
@@ -4318,6 +4625,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
+    /// An image the screen downloads: https anywhere, and http only from this
+    /// machine (localhost, 127.0.0.1, ::1, *.localhost), the development
+    /// server the app's ATS exception already allows. Internal for XCTest.
+    static func loadsImage(from url: URL) -> Bool {
+        let scheme = url.scheme?.lowercased()
+        if scheme == "https" { return true }
+        guard scheme == "http", let host = url.host?.lowercased() else { return false }
+        let bare = host.hasPrefix("[") && host.hasSuffix("]") ? String(host.dropFirst().dropLast()) : host
+        return ["localhost", "127.0.0.1", "::1"].contains(bare) || bare.hasSuffix(".localhost")
+    }
+
     private func updateImage(_ view: UIImageView, source: Any?) {
         let uri = (source as? String) ?? (source as? [String: Any])?["uri"] as? String
         let id = ObjectIdentifier(view)
@@ -4348,7 +4666,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             emitImageEvent(view, handler: imageLoadEndHandlers[id])
             return
         }
-        if let url = URL(string: uri), url.scheme == "https" {
+        if let url = URL(string: uri), Self.loadsImage(from: url) {
             let task = URLSession.shared.dataTask(with: url) { [weak self, weak view] data, _, _ in
                 guard let self, let view else { return }
                 DispatchQueue.main.async {
@@ -4471,6 +4789,31 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
+    /// Return on a `returnKeyType="next"` field the screen does not handle
+    /// itself (no `@submit`) goes to the next field down the screen, keeping
+    /// the keyboard up. Every other Return ends editing and fires `@submit`.
+    func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        guard textField.returnKeyType == .next, submitHandlers[ObjectIdentifier(textField)] == nil,
+              let next = inputAfter(textField) else { return true }
+        next.becomeFirstResponder()
+        return false
+    }
+
+    /// The editable field after `input` in the screen's document order.
+    /// Internal for XCTest.
+    func inputAfter(_ input: UIView) -> UIView? {
+        var inputs: [UIView] = []
+        func collect(_ node: RenderedNode?) {
+            guard let node else { return }
+            if let field = node.view as? UITextField, field.isEnabled, !field.isHidden { inputs.append(field) }
+            if let textView = node.view as? UITextView, textView.isEditable, !textView.isHidden { inputs.append(textView) }
+            node.children.forEach(collect)
+        }
+        collect(renderedRoot)
+        guard let index = inputs.firstIndex(where: { $0 === input }), index + 1 < inputs.count else { return nil }
+        return inputs[index + 1]
+    }
+
     func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
         guard let maxLength = textMaxLengths[ObjectIdentifier(textField)],
               let current = textField.text,
@@ -4499,6 +4842,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     func textViewDidBeginEditing(_ textView: UITextView) {
         lastFocusedInput = textView
+        if keyboardScreenFrame != nil { DispatchQueue.main.async { self.scrollFocusedInputIntoView(animated: true) } }
         guard let handler = focusHandlers[ObjectIdentifier(textView)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": textView.text ?? ""]])
     }
@@ -4539,6 +4883,66 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": value]])
     }
 
+    /// `@change` on a DatePicker: the value as `<input type="date|time|
+    /// datetime-local">` writes it, in local time, with the moment as ISO and
+    /// milliseconds for code that wants those.
+    @objc private func datePicked(_ sender: UIDatePicker) {
+        guard let handler = handlers[ObjectIdentifier(sender)] else { return }
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": Self.datePickerEvent(sender.date, mode: sender.datePickerMode)])
+    }
+
+    static func datePickerEvent(_ date: Date, mode: UIDatePicker.Mode) -> [String: Any] {
+        let local = DateFormatter()
+        local.locale = Locale(identifier: "en_US_POSIX")
+        local.calendar = Calendar(identifier: .gregorian)
+        local.timeZone = .current
+        local.dateFormat = mode == .date ? "yyyy-MM-dd" : mode == .time ? "HH:mm" : "yyyy-MM-dd'T'HH:mm"
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return [
+            "value": local.string(from: date),
+            "iso": iso.string(from: date),
+            "timestamp": (date.timeIntervalSince1970 * 1000).rounded(),
+        ]
+    }
+
+    static func datePickerMode(_ value: Any?) -> UIDatePicker.Mode {
+        switch value as? String {
+        case "time": return .time
+        case "datetime", "dateAndTime", "datetime-local": return .dateAndTime
+        case "countdown": return .countDownTimer
+        default: return .date
+        }
+    }
+
+    /// A DatePicker's value: `2026-10-12` (that day), `07:30` (today at that
+    /// time), `2026-10-12T07:30` (local), a full ISO 8601 string, or
+    /// milliseconds since 1970. Nil for anything else.
+    static func pickerDate(_ value: Any?) -> Date? {
+        if let number = value as? NSNumber, !(value is Bool) { return Date(timeIntervalSince1970: number.doubleValue / 1000) }
+        guard let text = (value as? String)?.trimmingCharacters(in: .whitespaces), !text.isEmpty else { return nil }
+        let local = DateFormatter()
+        local.locale = Locale(identifier: "en_US_POSIX")
+        local.calendar = Calendar(identifier: .gregorian)
+        local.timeZone = .current
+        for format in ["HH:mm", "HH:mm:ss"] {
+            local.dateFormat = format
+            if let time = local.date(from: text) {
+                let parts = Calendar.current.dateComponents([.hour, .minute, .second], from: time)
+                return Calendar.current.date(bySettingHour: parts.hour ?? 0, minute: parts.minute ?? 0, second: parts.second ?? 0, of: Date())
+            }
+        }
+        for format in ["yyyy-MM-dd", "yyyy-MM-dd'T'HH:mm", "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss.SSS"] {
+            local.dateFormat = format
+            if let date = local.date(from: text) { return date }
+        }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: text) { return date }
+        iso.formatOptions = [.withInternetDateTime]
+        return iso.date(from: text)
+    }
+
     @objc private func sliderFinished(_ sender: UISlider) {
         guard let handler = sliderCompleteHandlers[ObjectIdentifier(sender)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": snappedSliderValue(sender.value, for: sender)]])
@@ -4567,6 +4971,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     @objc private func textFocused(_ sender: UITextField) {
         lastFocusedInput = sender
+        // Moving between fields does not move the keyboard, so nothing else
+        // brings the next one up from under it.
+        if keyboardScreenFrame != nil { DispatchQueue.main.async { self.scrollFocusedInputIntoView(animated: true) } }
         guard let handler = focusHandlers[ObjectIdentifier(sender)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": sender.text ?? ""]])
     }
@@ -4677,7 +5084,63 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "url": return .URL
         case "web-search": return .webSearch
         case "visible-password": return .asciiCapable
+        case "ascii-capable": return .asciiCapable
+        case "numbers-and-punctuation": return .numbersAndPunctuation
+        case "name-phone-pad": return .namePhonePad
+        case "twitter": return .twitter
         default: return .default
+        }
+    }
+
+    /// What the field holds, for the system's autofill: `textContentType` in
+    /// UITextContentType's names (`username`, `password`, `newPassword`,
+    /// `oneTimeCode`...), or `autoComplete` in HTML's (`current-password`,
+    /// `one-time-code`, `email`). A password field without it gets no
+    /// Passwords suggestion above the keyboard.
+    static func textContentType(_ props: [String: Any]) -> UITextContentType? {
+        let raw = (props["textContentType"] as? String) ?? (props["autoComplete"] as? String) ?? (props["autocomplete"] as? String)
+        guard let raw, !raw.isEmpty else { return nil }
+        let key = raw.replacingOccurrences(of: "-", with: "").replacingOccurrences(of: "_", with: "").lowercased()
+        switch key {
+        case "username": return .username
+        case "nickname": return .nickname
+        case "password", "currentpassword": return .password
+        case "newpassword": return .newPassword
+        case "onetimecode": return .oneTimeCode
+        case "emailaddress", "email": return .emailAddress
+        case "telephonenumber", "tel", "phone": return .telephoneNumber
+        case "name": return .name
+        case "givenname", "firstname": return .givenName
+        case "middlename", "additionalname": return .middleName
+        case "familyname", "lastname": return .familyName
+        case "nameprefix", "honorificprefix": return .namePrefix
+        case "namesuffix", "honorificsuffix": return .nameSuffix
+        case "organizationname", "organization": return .organizationName
+        case "jobtitle", "organizationtitle": return .jobTitle
+        case "url": return .URL
+        case "fullstreetaddress", "streetaddress": return .fullStreetAddress
+        case "streetaddressline1", "addressline1": return .streetAddressLine1
+        case "streetaddressline2", "addressline2": return .streetAddressLine2
+        case "addresscity", "addresslevel2": return .addressCity
+        case "addressstate", "addresslevel1": return .addressState
+        case "addresscityandstate": return .addressCityAndState
+        case "postalcode": return .postalCode
+        case "countryname", "country": return .countryName
+        case "location": return .location
+        case "creditcardnumber", "ccnumber": return .creditCardNumber
+        default: return nil
+        }
+    }
+
+    private func applyAutofill(to input: UITextInputTraits & UIView, props: [String: Any]) {
+        let type = Self.textContentType(props)
+        let rules = (props["passwordRules"] as? String).flatMap { $0.isEmpty ? nil : UITextInputPasswordRules(descriptor: $0) }
+        if let field = input as? UITextField {
+            if field.textContentType != type { field.textContentType = type }
+            if field.passwordRules?.passwordRulesDescriptor != rules?.passwordRulesDescriptor { field.passwordRules = rules }
+        } else if let textView = input as? UITextView {
+            if textView.textContentType != type { textView.textContentType = type }
+            if textView.passwordRules?.passwordRulesDescriptor != rules?.passwordRulesDescriptor { textView.passwordRules = rules }
         }
     }
 
@@ -4688,6 +5151,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "next": return .next
         case "search": return .search
         case "send": return .send
+        case "join": return .join
+        case "route": return .route
+        case "continue": return .continue
+        case "emergency-call": return .emergencyCall
         default: return .default
         }
     }

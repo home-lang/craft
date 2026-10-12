@@ -743,4 +743,174 @@ final class NativeRenderUnitTests: XCTestCase {
 
         XCTAssertTrue(list.visibleItemIdentities.contains(retainedAnchor))
     }
+
+    /// A window in the test host's scene: one made with only a frame is in
+    /// no scene, so nothing in it can take the keyboard.
+    private func hostWindow() throws -> UIWindow {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        return window
+    }
+
+    func testImagesLoadOverHttpOnlyFromThisMachine() {
+        for address in ["https://example.com/a.png", "http://localhost:3130/assets/a.png", "http://127.0.0.1:3130/a.png", "http://[::1]:3130/a.png", "http://hq.localhost/a.png"] {
+            XCTAssertTrue(CraftNativeScreenController.loadsImage(from: URL(string: address)!), address)
+        }
+        for address in ["http://example.com/a.png", "http://localhost.example.com/a.png", "ftp://localhost/a.png", "file:///tmp/a.png"] {
+            XCTAssertFalse(CraftNativeScreenController.loadsImage(from: URL(string: address)!), address)
+        }
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([[
+            "type": "Image", "props": ["key": "local", "source": ["uri": "http://localhost:9/missing.png"]]
+        ]]))
+        let image = find(UIImageView.self, key: "local", below: controller.view)
+        XCTAssertNotEqual(image?.accessibilityValue, "Unsupported image source")
+    }
+
+    func testTextInputsPadTheirTextAndAskForAutofill() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([
+            ["type": "TextInput", "props": ["key": "email", "textContentType": "username", "placeholder": "Email"], "style": ["paddingHorizontal": 16, "height": 48, "width": 300]],
+            ["type": "TextInput", "props": ["key": "password", "autoComplete": "current-password", "secureTextEntry": true], "style": ["paddingLeft": 12, "paddingRight": 4]],
+            ["type": "TextInput", "props": ["key": "code", "textContentType": "oneTimeCode", "keyboardType": "number-pad"]],
+            ["type": "TextInput", "props": ["key": "notes", "multiline": true], "style": ["padding": 10]],
+        ]))
+        let email = try XCTUnwrap(find(CraftNativeTextField.self, key: "email", below: controller.view))
+        let password = try XCTUnwrap(find(CraftNativeTextField.self, key: "password", below: controller.view))
+        let code = try XCTUnwrap(find(CraftNativeTextField.self, key: "code", below: controller.view))
+        let notes = try XCTUnwrap(find(UITextView.self, key: "notes", below: controller.view))
+        XCTAssertEqual(email.padding, UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16))
+        let bounds = CGRect(x: 0, y: 0, width: 300, height: 48)
+        XCTAssertGreaterThanOrEqual(email.textRect(forBounds: bounds).minX, 16)
+        XCTAssertGreaterThanOrEqual(email.placeholderRect(forBounds: bounds).minX, 16)
+        XCTAssertLessThanOrEqual(email.editingRect(forBounds: bounds).maxX, 284)
+        XCTAssertEqual(email.textContentType, .username)
+        XCTAssertEqual(password.textContentType, .password)
+        XCTAssertTrue(password.isSecureTextEntry)
+        XCTAssertEqual(password.padding.left, 12)
+        XCTAssertEqual(code.textContentType, .oneTimeCode)
+        XCTAssertEqual(code.keyboardType, .numberPad)
+        XCTAssertEqual(notes.textContainerInset, UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10))
+        XCTAssertEqual(CraftNativeScreenController.textContentType(["autoComplete": "new-password"]), .newPassword)
+        XCTAssertEqual(CraftNativeScreenController.textContentType(["textContentType": "emailAddress"]), .emailAddress)
+        XCTAssertNil(CraftNativeScreenController.textContentType(["autoComplete": "off"]))
+    }
+
+    func testReturnOnANextFieldMovesToTheNextOne() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([
+            ["type": "TextInput", "props": ["key": "email", "returnKeyType": "next"]],
+            ["type": "Text", "props": ["key": "between"], "children": ["Password"]],
+            ["type": "TextInput", "props": ["key": "password", "returnKeyType": "go"], "events": ["onSubmitEditing": "signIn"]],
+        ]))
+        let email = try XCTUnwrap(find(UITextField.self, key: "email", below: controller.view))
+        let password = try XCTUnwrap(find(UITextField.self, key: "password", below: controller.view))
+        XCTAssertTrue(controller.inputAfter(email) === password)
+        XCTAssertNil(controller.inputAfter(password))
+        // Return stays in the form (the keyboard is kept), and focus moves on.
+        XCTAssertFalse(controller.textFieldShouldReturn(email))
+        // `go` with a handler of its own ends editing and fires it, as before.
+        XCTAssertTrue(controller.textFieldShouldReturn(password))
+    }
+
+    func testAScrollViewInsetsForTheKeyboardAndShowsTheFocusedField() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([[
+            "type": "ScrollView", "props": ["key": "form"], "style": ["flex": 1],
+            "children": [
+                ["type": "View", "props": ["key": "spacer"], "style": ["height": 700]],
+                ["type": "TextInput", "props": ["key": "password"], "style": ["height": 44]],
+            ],
+        ]]))
+        controller.view.layoutIfNeeded()
+        let scroll = try XCTUnwrap(find(UIScrollView.self, key: "form", below: controller.view))
+        let password = try XCTUnwrap(find(UITextField.self, key: "password", below: controller.view))
+        let keyboard = CGRect(x: 0, y: 500, width: 390, height: 344)
+        NotificationCenter.default.post(name: UIResponder.keyboardWillChangeFrameNotification, object: nil, userInfo: [
+            UIResponder.keyboardFrameEndUserInfoKey: NSValue(cgRect: keyboard),
+            UIResponder.keyboardAnimationDurationUserInfoKey: 0,
+            UIResponder.keyboardAnimationCurveUserInfoKey: 0,
+        ])
+        controller.view.layoutIfNeeded()
+        // The focused field scrolls into view (focus itself needs a running
+        // keyboard, which a unit test host does not have).
+        controller.scrollIntoView(password, animated: false)
+        // Whatever the shrunken safe area does not cover, the inset does, and
+        // the field sits above the keyboard.
+        let field = password.convert(password.bounds, to: window)
+        XCTAssertLessThanOrEqual(field.maxY, keyboard.minY + 0.5)
+        XCTAssertGreaterThanOrEqual(scroll.contentInset.bottom, 0)
+        NotificationCenter.default.post(name: UIResponder.keyboardWillHideNotification, object: nil, userInfo: [
+            UIResponder.keyboardAnimationDurationUserInfoKey: 0,
+            UIResponder.keyboardAnimationCurveUserInfoKey: 0,
+        ])
+        XCTAssertEqual(scroll.contentInset.bottom, 0)
+    }
+
+    func testADatePickerPicksADayOrAClassTime() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([
+            ["type": "DatePicker", "props": ["key": "time", "mode": "time", "value": "07:30", "minuteInterval": 5], "events": ["onValueChange": "picked"]],
+            ["type": "DatePicker", "props": ["key": "day", "value": "2026-10-12", "minimumDate": "2026-10-01", "maximumDate": "2026-12-31"]],
+        ]))
+        let time = try XCTUnwrap(find(UIDatePicker.self, key: "time", below: controller.view))
+        let day = try XCTUnwrap(find(UIDatePicker.self, key: "day", below: controller.view))
+        XCTAssertEqual(time.datePickerMode, .time)
+        XCTAssertEqual(time.preferredDatePickerStyle, .compact)
+        XCTAssertEqual(time.minuteInterval, 5)
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: time.date)
+        XCTAssertEqual(parts.hour, 7)
+        XCTAssertEqual(parts.minute, 30)
+        XCTAssertEqual(day.datePickerMode, .date)
+        XCTAssertEqual(CraftNativeScreenController.datePickerEvent(day.date, mode: .date)["value"] as? String, "2026-10-12")
+        XCTAssertNotNil(day.minimumDate)
+        XCTAssertEqual(CraftNativeScreenController.datePickerEvent(time.date, mode: .time)["value"] as? String, "07:30")
+        XCTAssertEqual(CraftNativeScreenController.pickerDate("2026-10-12T07:30:00Z")?.timeIntervalSince1970, 1_791_790_200)
+        XCTAssertEqual(CraftNativeScreenController.pickerDate(1_791_790_200_000 as NSNumber)?.timeIntervalSince1970, 1_791_790_200)
+        XCTAssertNil(CraftNativeScreenController.pickerDate("soon"))
+    }
+
+    func testTheScriptHearsNewParamsAndTheScreenComingBack() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig(), routeName: "Messages", routeParams: ["person": "4"])
+        controller.loadViewIfNeeded()
+        controller.evaluateScript("globalThis.__heard = []; globalThis.__stxNativeCallback = function(json) { var m = JSON.parse(json); if (m.type === 'ROUTE_PARAMS' || m.type === 'SCREEN_FOCUS') __heard.push(m.type + ':' + (m.type === 'ROUTE_PARAMS' ? m.payload.params.person : m.payload.focused)); };")
+        controller.receiveRouteParams(["person": "8", "path": "/m/messages?person=8"])
+        XCTAssertEqual(controller.evaluateScript("__stxNativeParams.person")?.toString(), "8")
+        // The first showing is the mount; after that, away and back are news.
+        controller.screenVisibilityChanged(true)
+        controller.screenVisibilityChanged(false)
+        controller.screenVisibilityChanged(true)
+        controller.screenVisibilityChanged(true)
+        XCTAssertEqual(controller.evaluateScript("__heard.join('|')")?.toString(), "ROUTE_PARAMS:8|SCREEN_FOCUS:false|SCREEN_FOCUS:true")
+    }
+
+    func testAVideoTakesItsSourceFromSrcToo() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([[
+            "type": "Video", "props": ["key": "clip", "src": "https://example.com/a.mp4", "controls": true], "style": ["height": 200], "events": ["onEnd": "ended"]
+        ]]))
+        XCTAssertNotNil(find(UIView.self, key: "clip", below: controller.view))
+    }
+
+    func testDecodesStreamedTextAcrossSplitCharacters() {
+        let bytes = Array("data: đ✓\n".utf8)
+        let (first, rest) = CraftNativeEventStreams.decodeUTF8(Data(bytes[0..<7]))
+        XCTAssertEqual(first, "data: ")
+        let (second, tail) = CraftNativeEventStreams.decodeUTF8(rest + Data(bytes[7...]))
+        XCTAssertEqual(first + second, "data: đ✓\n")
+        XCTAssertTrue(tail.isEmpty)
+    }
 }

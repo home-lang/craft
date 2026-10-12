@@ -5174,6 +5174,8 @@ struct CraftWebView: UIViewRepresentable {
         // MARK: - Callback Helpers
         private func resolveCallback(_ callbackId: String?, result: Any) {
             guard let id = callbackId else { return }
+            // A native screen's call (CraftWebServices): answered in Swift.
+            if CraftWebServices.resolve(id, result: result) { return }
             let resultStr: String
             do {
                 let data = try JSONSerialization.data(withJSONObject: result, options: [.fragmentsAllowed])
@@ -5196,6 +5198,7 @@ struct CraftWebView: UIViewRepresentable {
 
         private func rejectCallback(_ callbackId: String?, error: String, code: String = "CRAFT_ERROR") {
             guard let id = callbackId else { return }
+            if CraftWebServices.reject(id, message: error, code: code) { return }
             // A hand-off rejection goes back through Zig's error route, so the
             // page's promise *rejects*. Delivering it as a result would run the
             // app's then-branch with an error-shaped object — fabricated
@@ -7883,6 +7886,7 @@ struct CraftWebView: UIViewRepresentable {
 
         // MARK: - Web Communication
         private func sendToWeb(_ event: String, data: [String: Any]) {
+            CraftWebServices.forward(event, data: data)
             guard let webView = webView else { return }
             do {
                 let jsonData = try JSONSerialization.data(withJSONObject: data)
@@ -8417,6 +8421,58 @@ final class CraftZigRuntime: NSObject {
               let n = Int64(callbackId.dropFirst(3))
         else { return -1 }
         return n
+    }
+}
+
+/// The page's services that live in the web view's coordinator, for native
+/// screens: GPS (one fix, a watch, and the route recording that keeps going
+/// in the background and survives a relaunch). A native screen asks with a
+/// callback id of the form "native:<uuid>", which the reply helpers answer
+/// here instead of in the page, and the coordinator's location events reach
+/// every native screen as well as the page. One recorder for both, so a run
+/// started on a page can be followed on a native screen.
+///
+/// The coordinator exists wherever the web view does: always in a hybrid app.
+/// Calls go to the Swift dispatcher; a build that links the Zig runtime keeps
+/// the page's calls on Zig.
+enum CraftWebServices {
+    private static var waiting: [String: (Result<Any, CraftNativeActionError>) -> Void] = [:]
+    /// Coordinator events a native screen hears too.
+    static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError"]
+    static let event = Notification.Name("craftWebServicesEvent")
+
+    static var isAvailable: Bool { CraftSwiftShim.coordinator != nil }
+
+    static func perform(action: String, body: [String: Any], completion: @escaping (Result<Any, CraftNativeActionError>) -> Void) {
+        DispatchQueue.main.async {
+            guard let coordinator = CraftSwiftShim.coordinator else {
+                completion(.failure(CraftNativeActionError(code: "CAPABILITY_DISABLED", message: "\(action) needs the app's web view, which this app does not have")))
+                return
+            }
+            let id = "native:\(UUID().uuidString)"
+            waiting[id] = completion
+            coordinator.dispatch(action: action, body: body, callbackId: id)
+        }
+    }
+
+    /// True when `id` was a native screen's, which then has its answer.
+    static func resolve(_ id: String, result: Any) -> Bool {
+        guard id.hasPrefix("native:") else { return false }
+        DispatchQueue.main.async { waiting.removeValue(forKey: id)?(.success(result)) }
+        return true
+    }
+
+    static func reject(_ id: String, message: String, code: String) -> Bool {
+        guard id.hasPrefix("native:") else { return false }
+        DispatchQueue.main.async { waiting.removeValue(forKey: id)?(.failure(CraftNativeActionError(code: code, message: message))) }
+        return true
+    }
+
+    static func forward(_ name: String, data: [String: Any]) {
+        guard forwardedEvents.contains(name) else { return }
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: event, object: nil, userInfo: ["event": name, "detail": data])
+        }
     }
 }
 

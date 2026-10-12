@@ -38,7 +38,9 @@ enum CraftNativeActions {
     private static let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
     static func capabilities(config: CraftConfig) -> [String] {
-        var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog"]
+        // `speech`, `audio` (background sound) and `eventStream` (a fetch read
+        // as it arrives) need nothing the app has to declare.
+        var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking"]
         if config.enableBiometric { values.append("biometric") }
         if config.enableSecureStorage { values.append("secureStorage") }
         if config.enableLocalDatabase { values.append("database") }
@@ -48,6 +50,15 @@ enum CraftNativeActions {
         // The in-app browser and the system's web sign-in sheet (CraftBrowser).
         values.append("browser")
         if config.enableSocialAuth { values.append("appleSignIn") }
+        if config.enablePushNotifications { values.append("push") }
+        if config.enableShare { values.append("share") }
+        // The screen's brightness and the status bar's style need nothing
+        // declared; keeping the screen awake is the app's choice.
+        values.append(contentsOf: ["brightness", "statusBar"])
+        if config.enableKeepAwake { values.append("keepAwake") }
+        // GPS and the route recording are the web view's coordinator's
+        // (CraftWebServices), so a native-only app, which has none, has none.
+        if config.enableGeolocation && config.renderer != "native" { values.append("geolocation") }
         return values
     }
 
@@ -205,6 +216,131 @@ enum CraftNativeActions {
             }
             CraftHealth.shared.perform(method: method, args: args) { result in
                 complete(requestToken, result.mapError { CraftNativeActionError(code: $0.code, message: $0.message) }, completion)
+            }
+            return
+        case ("KeepAwake", "set"):
+            guard config.enableKeepAwake else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Keep awake is disabled"), completion)
+                return
+            }
+            let enabled = args.first as? Bool ?? true
+            DispatchQueue.main.async {
+                UIApplication.shared.isIdleTimerDisabled = enabled
+                complete(requestToken, .success(enabled), completion)
+            }
+            return
+        case ("Brightness", "get"):
+            DispatchQueue.main.async { complete(requestToken, .success(Double(UIScreen.main.brightness)), completion) }
+            return
+        case ("Brightness", "set"):
+            // The device's backlight, system-wide: a screen that dims it reads
+            // it first and puts it back, as @stacksjs/mobile's brightness does.
+            guard let level = (args.first as? NSNumber)?.doubleValue, level.isFinite else {
+                complete(requestToken, failure("INVALID_ARGUMENT", "Brightness.set needs a level from 0 to 1"), completion)
+                return
+            }
+            DispatchQueue.main.async {
+                UIScreen.main.brightness = CGFloat(min(max(level, 0), 1))
+                complete(requestToken, .success(Double(UIScreen.main.brightness)), completion)
+            }
+            return
+        case ("StatusBar", "setStyle"):
+            let style = args.first as? String ?? "default"
+            DispatchQueue.main.async {
+                complete(requestToken, .success(CraftStatusBar.setStyle(style == "light" || style == "dark" ? style : "default")), completion)
+            }
+            return
+        case ("Location", _):
+            // The page's own GPS and route recorder, in the web view's
+            // coordinator: one recorder, which keeps recording in the
+            // background and survives a relaunch, whichever side started it.
+            guard config.enableGeolocation else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Geolocation is disabled"), completion)
+                return
+            }
+            let actions = [
+                "getCurrentPosition": "getCurrentPosition", "watchPosition": "watchPosition", "clearWatch": "clearWatch",
+                "startRecording": "startLocationRecording", "pauseRecording": "pauseLocationRecording",
+                "resumeRecording": "resumeLocationRecording", "stopRecording": "stopLocationRecording",
+                "getRecordingState": "getLocationRecordingState", "readRecording": "readLocationRecording",
+            ]
+            guard let action = actions[method] else {
+                complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Location method"), completion)
+                return
+            }
+            CraftWebServices.perform(action: action, body: args.first as? [String: Any] ?? [:]) { complete(requestToken, $0, completion) }
+            return
+        case ("Linking", "openURL"), ("Linking", "canOpenURL"):
+            // Another app or the system: `webcal:` subscriptions, `mailto:`,
+            // `tel:`, the App Store, this app's page in Settings
+            // (`UIApplication.openSettingsURLString`, which is `app-settings:`).
+            guard let address = args.first as? String, let url = URL(string: address), url.scheme != nil else {
+                complete(requestToken, failure("INVALID_ARGUMENT", "Linking.\(method) needs a URL it can parse"), completion)
+                return
+            }
+            DispatchQueue.main.async {
+                if method == "canOpenURL" {
+                    complete(requestToken, .success(UIApplication.shared.canOpenURL(url)), completion)
+                } else {
+                    UIApplication.shared.open(url) { complete(requestToken, .success($0), completion) }
+                }
+            }
+            return
+        case ("Share", "share"):
+            guard config.enableShare else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Sharing is disabled"), completion)
+                return
+            }
+            let options = args.first as? [String: Any] ?? [:]
+            DispatchQueue.main.async {
+                CraftNativeShare.share(options) { complete(requestToken, $0, completion) }
+            }
+            return
+        case ("Speech", "speak"):
+            // Settles when the words have been said (true) or were cut off
+            // (false), as the page's `craft.speech.speak` does.
+            guard let text = args.first as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                complete(requestToken, failure("INVALID_ARGUMENT", "speech.speak needs some text to say"), completion)
+                return
+            }
+            let options = args.count > 1 ? args[1] as? [String: Any] ?? [:] : [:]
+            DispatchQueue.main.async {
+                CraftNativeSpeech.shared.speak(
+                    text,
+                    language: options["language"] as? String,
+                    rate: (options["rate"] as? NSNumber)?.doubleValue,
+                    interrupt: options["interrupt"] as? Bool ?? true
+                ) { spoken in complete(requestToken, .success(spoken), completion) }
+            }
+            return
+        case ("Speech", "stop"):
+            DispatchQueue.main.async {
+                CraftNativeSpeech.shared.stop()
+                complete(requestToken, .success(true), completion)
+            }
+            return
+        case ("Push", _):
+            guard config.enablePushNotifications else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Push notifications are disabled"), completion)
+                return
+            }
+            switch method {
+            case "getPermissionStatus":
+                CraftNativePush.status { complete(requestToken, .success($0), completion) }
+            case "requestPermission":
+                CraftNativePush.requestPermission { complete(requestToken, .success($0), completion) }
+            case "register":
+                CraftNativePush.register { complete(requestToken, $0, completion) }
+            case "openSettings":
+                DispatchQueue.main.async {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else {
+                        complete(requestToken, .success(false), completion)
+                        return
+                    }
+                    UIApplication.shared.open(url) { complete(requestToken, .success($0), completion) }
+                }
+            default:
+                complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Push method"), completion)
             }
             return
         case ("Notifications", _):

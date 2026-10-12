@@ -2094,6 +2094,21 @@ class MainActivity : AppCompatActivity() {
                 maxLines = if (multiline) props.optInt("numberOfLines", Int.MAX_VALUE).coerceAtLeast(1) else 1
                 isEnabled = props.optBoolean("editable", true)
                 configureTextStyle(this, style)
+                // The style's padding is where the text starts, as on iOS and
+                // the web; without one the field keeps its own.
+                if (listOf("padding", "paddingHorizontal", "paddingVertical", "paddingLeft", "paddingRight", "paddingTop", "paddingBottom").any { style.has(it) }) {
+                    val density = resources.displayMetrics.density
+                    val all = style.optDouble("padding", 0.0)
+                    val horizontal = style.optDouble("paddingHorizontal", all)
+                    val vertical = style.optDouble("paddingVertical", all)
+                    setPadding(
+                        (style.optDouble("paddingLeft", horizontal) * density).toInt(),
+                        (style.optDouble("paddingTop", vertical) * density).toInt(),
+                        (style.optDouble("paddingRight", horizontal) * density).toInt(),
+                        (style.optDouble("paddingBottom", vertical) * density).toInt(),
+                    )
+                }
+                autofillHintFor(props)?.let { setAutofillHints(it) }
                 val controlledValue = props.opt("value")?.takeUnless { it == JSONObject.NULL }?.toString()
                 if (controlledValue != null && text.toString() != controlledValue) {
                     screen.suppressedTextChanges.add(this)
@@ -2989,6 +3004,24 @@ class MainActivity : AppCompatActivity() {
         val correction = if (props.optBoolean("autoCorrect", true)) InputType.TYPE_TEXT_FLAG_AUTO_CORRECT else 0
         val secure = if (props.optBoolean("secureTextEntry", false)) InputType.TYPE_TEXT_VARIATION_PASSWORD else 0
         return (if (keyboard == 0) base else keyboard) or capitalization or correction or secure
+    }
+
+    /// The autofill hint for `textContentType` (iOS's names) or `autoComplete`
+    /// (HTML's), so a password manager fills the field.
+    private fun autofillHintFor(props: JSONObject): String? {
+        val raw = props.optString("textContentType").ifBlank { props.optString("autoComplete") }
+        return when (raw.replace("-", "").replace("_", "").lowercase()) {
+            "username" -> View.AUTOFILL_HINT_USERNAME
+            "password", "currentpassword" -> View.AUTOFILL_HINT_PASSWORD
+            "newpassword" -> "newPassword"
+            "onetimecode" -> "smsOTPCode"
+            "emailaddress", "email" -> View.AUTOFILL_HINT_EMAIL_ADDRESS
+            "telephonenumber", "tel", "phone" -> View.AUTOFILL_HINT_PHONE
+            "name" -> View.AUTOFILL_HINT_NAME
+            "postalcode" -> View.AUTOFILL_HINT_POSTAL_CODE
+            "fullstreetaddress", "streetaddress" -> View.AUTOFILL_HINT_POSTAL_ADDRESS
+            else -> null
+        }
     }
 
     private fun imeOptionsFor(props: JSONObject): Int = when (props.optString("returnKeyType")) {
