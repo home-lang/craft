@@ -35,6 +35,10 @@ pub const Style = struct {
     min_height: ?f32 = null,
     max_height: ?f32 = null,
     gap: f32 = 0,
+    margin_top: f32 = 0,
+    margin_right: f32 = 0,
+    margin_bottom: f32 = 0,
+    margin_left: f32 = 0,
     grid: bool = false,
     grid_columns: u32 = 1,
     row_gap: f32 = 0,
@@ -56,8 +60,9 @@ pub const LayoutError = error{
 /// A child consumes `flex_basis`, then its explicit main-axis size, then zero.
 /// Positive remaining space is distributed by `flex_grow`; negative remaining
 /// space is removed by `flex_shrink * basis`. Both results honor the child's
-/// min/max bounds. A grid parent uses equal columns and max-content row tracks
-/// from explicit child heights; `row_gap` and `column_gap` are independent.
+/// margins and min/max bounds. A grid parent uses equal columns and max-content
+/// row tracks from explicit child heights; `row_gap` and `column_gap` are
+/// independent.
 /// Text and other intrinsic measurements are intentionally absent: a host
 /// callback can provide those bases without leaking UIKit or Android concepts.
 pub fn layout(root: Node, viewport: Size, frames: []Frame) LayoutError!usize {
@@ -90,7 +95,7 @@ fn layoutNode(
     var grow_total: f32 = 0;
     var shrink_total: f32 = 0;
     for (node.children) |child| {
-        basis_total += childMainBasis(child, node.style.direction);
+        basis_total += childMainBasis(child, node.style.direction) + mainMargins(child, node.style.direction);
         grow_total += positiveGrow(child.style.flex_grow);
         shrink_total += positiveShrink(child.style.flex_shrink) * childMainBasis(child, node.style.direction);
     }
@@ -107,14 +112,15 @@ fn layoutNode(
         else
             clampMain(child, node.style.direction, basis);
         const child_cross = childCrossSize(child, node.style.direction, width, height);
+        const leading_margin = mainLeadingMargin(child, node.style.direction);
         const child_size = if (node.style.direction == .row)
             Size{ .width = child_main, .height = child_cross }
         else
             Size{ .width = child_cross, .height = child_main };
-        const child_x = if (node.style.direction == .row) x + main_offset else x;
-        const child_y = if (node.style.direction == .row) y else y + main_offset;
+        const child_x = if (node.style.direction == .row) x + main_offset + leading_margin else x + crossLeadingMargin(child, node.style.direction);
+        const child_y = if (node.style.direction == .row) y + crossLeadingMargin(child, node.style.direction) else y + main_offset + leading_margin;
         next_index = try layoutNode(child, child_size, child_x, child_y, next_index, frames);
-        main_offset += child_main + if (index + 1 < node.children.len) gap else 0;
+        main_offset += mainMargins(child, node.style.direction) + child_main + if (index + 1 < node.children.len) gap else 0;
     }
     return next_index;
 }
@@ -140,13 +146,13 @@ fn layoutGrid(
         const row = index / column_count;
         const column = index % column_count;
         const row_height = gridRowHeight(node, row, column_count);
-        const child_width = clampMain(child, .row, child.style.width orelse cell_width);
+        const child_width = clampMain(child, .row, child.style.width orelse @max(0, cell_width - horizontalMargins(child)));
         const child_height = if (child.style.height == null and child.style.flex_basis == null)
-            row_height
+            @max(0, row_height - verticalMargins(child))
         else
             clamp(child.style.height orelse child.style.flex_basis orelse 0, child.style.min_height, child.style.max_height);
-        const child_x = x + @as(f32, @floatFromInt(column)) * (cell_width + column_gap);
-        const child_y = row_y;
+        const child_x = x + @as(f32, @floatFromInt(column)) * (cell_width + column_gap) + child.style.margin_left;
+        const child_y = row_y + child.style.margin_top;
         next_index = try layoutNode(child, .{ .width = child_width, .height = child_height }, child_x, child_y, next_index, frames);
         if (column + 1 == column_count or index + 1 == node.children.len) {
             row_y += row_height + row_gap;
@@ -162,7 +168,7 @@ fn gridRowHeight(node: Node, row: usize, column_count: usize) f32 {
     var height: f32 = 0;
     for (node.children[start..end]) |child| {
         const child_height = child.style.height orelse child.style.flex_basis orelse 0;
-        height = @max(height, clamp(child_height, child.style.min_height, child.style.max_height));
+        height = @max(height, clamp(child_height, child.style.min_height, child.style.max_height) + verticalMargins(child));
     }
     return height;
 }
@@ -173,10 +179,35 @@ fn childMainBasis(node: Node, parent_direction: Axis) f32 {
 }
 
 fn childCrossSize(node: Node, parent_direction: Axis, parent_width: f32, parent_height: f32) f32 {
-    return if (parent_direction == .row)
-        clampCross(node, parent_direction, node.style.height orelse parent_height)
+    if (parent_direction == .row) {
+        const available = @max(0, parent_height - verticalMargins(node));
+        return clampCross(node, parent_direction, node.style.height orelse available);
+    }
+    const available = @max(0, parent_width - horizontalMargins(node));
+    return clampCross(node, parent_direction, node.style.width orelse available);
+}
+
+fn mainLeadingMargin(node: Node, direction: Axis) f32 {
+    return if (direction == .row) node.style.margin_left else node.style.margin_top;
+}
+
+fn crossLeadingMargin(node: Node, direction: Axis) f32 {
+    return if (direction == .row) node.style.margin_top else node.style.margin_left;
+}
+
+fn mainMargins(node: Node, direction: Axis) f32 {
+    return if (direction == .row)
+        node.style.margin_left + node.style.margin_right
     else
-        clampCross(node, parent_direction, node.style.width orelse parent_width);
+        node.style.margin_top + node.style.margin_bottom;
+}
+
+fn horizontalMargins(node: Node) f32 {
+    return node.style.margin_left + node.style.margin_right;
+}
+
+fn verticalMargins(node: Node) f32 {
+    return node.style.margin_top + node.style.margin_bottom;
 }
 
 fn positiveGrow(value: f32) f32 {
@@ -312,4 +343,35 @@ test "places equal grid tracks and max-content rows" {
     try std.testing.expectEqual(@as(f32, 20), frames[1].height);
     try std.testing.expectEqual(@as(f32, 30), frames[2].height);
     try std.testing.expectEqual(@as(f32, 35), frames[3].y);
+}
+
+test "accounts for per-edge margins in flex and grid frames" {
+    const flex_children = [_]Node{
+        .{ .style = .{ .flex_basis = 20, .margin_left = 5, .margin_right = 7, .margin_top = 3, .margin_bottom = 4 } },
+        .{ .style = .{ .flex_basis = 20 } },
+    };
+    const flex_root = Node{
+        .style = .{ .direction = .row, .width = 100, .height = 40 },
+        .children = &flex_children,
+    };
+    var flex_frames: [3]Frame = undefined;
+    _ = try layout(flex_root, .{ .width = 100, .height = 40 }, &flex_frames);
+    try std.testing.expectEqual(@as(f32, 5), flex_frames[1].x);
+    try std.testing.expectEqual(@as(f32, 3), flex_frames[1].y);
+    try std.testing.expectEqual(@as(f32, 33), flex_frames[1].height);
+    try std.testing.expectEqual(@as(f32, 32), flex_frames[2].x);
+
+    const grid_children = [_]Node{
+        .{ .style = .{ .height = 10, .margin_left = 2, .margin_right = 3, .margin_top = 4, .margin_bottom = 5 } },
+    };
+    const grid_root = Node{
+        .style = .{ .grid = true, .grid_columns = 2, .width = 100, .height = 40, .column_gap = 10 },
+        .children = &grid_children,
+    };
+    var grid_frames: [2]Frame = undefined;
+    _ = try layout(grid_root, .{ .width = 100, .height = 40 }, &grid_frames);
+    try std.testing.expectEqual(@as(f32, 2), grid_frames[1].x);
+    try std.testing.expectEqual(@as(f32, 4), grid_frames[1].y);
+    try std.testing.expectEqual(@as(f32, 40), grid_frames[1].width);
+    try std.testing.expectEqual(@as(f32, 10), grid_frames[1].height);
 }
