@@ -1482,7 +1482,13 @@ class MainActivity : AppCompatActivity() {
                 transparent = props.optBoolean("transparent", false)
                 content.configure(style, resources.displayMetrics.density)
                 reconcileChildren(screen, content, children, path, next, style, previousControls)
-                val visible = props.optBoolean("visible", false) && style.optString("display") != "none"
+                // Dynamic :visible bindings arrive as a display style mutation;
+                // static visible props remain authoritative when present.
+                val visible = if (props.has("visible")) {
+                    props.optBoolean("visible", false) && style.optString("display") != "none"
+                } else {
+                    style.has("display") && style.optString("display") != "none"
+                }
                 val wasVisible = screen.modalVisibility[this]
                 screen.modalVisibility[this] = visible
                 val requestClose = events.optString("onRequestClose")
