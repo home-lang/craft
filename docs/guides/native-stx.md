@@ -128,7 +128,9 @@ unsupported or empty sources remain inert instead of falling back to a WebView.
 
 Native screens expose the AudioContext subset used by the native breathwork
 path: `createOscillator()`, `createGain()`, `connect()`, the `frequency` and
-`gain` AudioParams, `start()`/`stop()` scheduling, and `resume()`/`close()`.
+`gain` AudioParams (including `setValueAtTime()` and
+`linearRampToValueAtTime()`), `start()`/`stop()` scheduling, and
+`resume()`/`close()`.
 The iOS host synthesizes these nodes with `AVAudioEngine`; Android mixes them
 through `AudioTrack`. Both hosts tear the graph down with the screen. This is a
 deliberate subset, not a claim of full Web Audio coverage: filters, buffers,

@@ -1097,39 +1097,89 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
 
 /** The oscillator/gain subset of Web Audio used by native STX screens. */
 private class CraftNativeAudio {
+    private data class ParameterEvent(val time: Double, val value: Double, val ramp: Boolean)
+
+    private class Parameter(initial: Double) {
+        private var current = initial
+        private val events = mutableListOf<ParameterEvent>()
+
+        @Synchronized fun set(value: Double) {
+            current = value
+            events.clear()
+        }
+
+        @Synchronized fun schedule(value: Double, time: Double, ramp: Boolean) {
+            events += ParameterEvent(time.coerceAtLeast(0.0), value, ramp)
+            events.sortBy { it.time }
+        }
+
+        @Synchronized fun valueAt(time: Double): Double {
+            var previousTime = 0.0
+            var previousValue = current
+            for (event in events) {
+                if (time < event.time) {
+                    if (!event.ramp || event.time <= previousTime) return previousValue
+                    val fraction = (time - previousTime) / (event.time - previousTime)
+                    return previousValue + (event.value - previousValue) * fraction
+                }
+                previousTime = event.time
+                previousValue = event.value
+            }
+            return previousValue
+        }
+    }
+
     private class OscillatorState {
-        @Volatile var frequency = 440.0
+        val frequency = Parameter(440.0)
+        @Volatile var gain = Parameter(1.0)
         @Volatile var phase = 0.0
         @Volatile var active = false
+        var contextStart = 0.0
     }
 
     private val handler = Handler(Looper.getMainLooper())
     private val oscillators = mutableMapOf<String, OscillatorState>()
-    private val gains = mutableMapOf<String, Double>()
-    private val connections = mutableMapOf<String, String?>()
+    private val gains = mutableMapOf<String, Parameter>()
+    private val contextStarts = mutableMapOf<String, Double>()
     private var track: AudioTrack? = null
     @Volatile private var running = false
     private var renderThread: Thread? = null
 
     @Synchronized fun handle(payload: JSONObject) {
         when (payload.optString("action")) {
-            "createContext" -> Unit
+            "createContext" -> {
+                payload.optString("contextId").takeIf { it.isNotBlank() }?.let {
+                    contextStarts[it] = System.nanoTime() / 1_000_000_000.0
+                }
+            }
             "createOscillator" -> {
                 val id = payload.optString("nodeId")
                 if (id.isNotBlank()) oscillators.putIfAbsent(id, OscillatorState()).also {
-                    oscillators[id]?.frequency = payload.optDouble("frequency", 440.0).coerceAtLeast(0.0)
+                    oscillators[id]?.contextStart = contextStarts[payload.optString("contextId")]
+                        ?: (System.nanoTime() / 1_000_000_000.0)
+                    oscillators[id]?.frequency?.set(payload.optDouble("frequency", 440.0).coerceAtLeast(0.0))
                 }
             }
             "createGain" -> {
                 val id = payload.optString("nodeId")
-                if (id.isNotBlank()) gains[id] = payload.optDouble("gain", 1.0).coerceAtLeast(0.0)
+                if (id.isNotBlank()) gains[id] = Parameter(payload.optDouble("gain", 1.0).coerceAtLeast(0.0))
             }
             "connect" -> {
                 val source = payload.optString("sourceId")
-                if (source in oscillators) connections[source] = payload.optString("destinationId").takeUnless { it == "destination" }
+                oscillators[source]?.gain = gains[payload.optString("destinationId")] ?: Parameter(1.0)
             }
-            "frequency" -> oscillators[payload.optString("nodeId")]?.frequency = payload.optDouble("value", 0.0).coerceAtLeast(0.0)
-            "gain" -> gains[payload.optString("nodeId")] = payload.optDouble("value", 0.0).coerceAtLeast(0.0)
+            "frequency" -> oscillators[payload.optString("nodeId")]?.frequency?.set(payload.optDouble("value", 0.0).coerceAtLeast(0.0))
+            "frequencyAtTime", "frequencyRampToTime" -> oscillators[payload.optString("nodeId")]?.frequency?.schedule(
+                payload.optDouble("value", 0.0).coerceAtLeast(0.0),
+                payload.optDouble("time", 0.0),
+                payload.optString("action") == "frequencyRampToTime",
+            )
+            "gain" -> gains[payload.optString("nodeId")]?.set(payload.optDouble("value", 0.0).coerceAtLeast(0.0))
+            "gainAtTime", "gainRampToTime" -> gains[payload.optString("nodeId")]?.schedule(
+                payload.optDouble("value", 0.0).coerceAtLeast(0.0),
+                payload.optDouble("time", 0.0),
+                payload.optString("action") == "gainRampToTime",
+            )
             "start", "stop" -> {
                 val state = oscillators[payload.optString("nodeId")] ?: return
                 ensureTrack()
@@ -1145,7 +1195,7 @@ private class CraftNativeAudio {
         oscillators.values.forEach { it.active = false }
         oscillators.clear()
         gains.clear()
-        connections.clear()
+        contextStarts.clear()
         running = false
         renderThread?.interrupt()
         renderThread = null
@@ -1189,16 +1239,19 @@ private class CraftNativeAudio {
         while (running && !Thread.currentThread().isInterrupted) {
             val snapshot = synchronized(this) {
                 oscillators.mapValues { (id, state) ->
-                    Triple(state, connections[id]?.let { gains[it] ?: 1.0 } ?: 1.0, state.active)
+                    Triple(state, state.gain, state.active)
                 }
             }
+            val now = System.nanoTime() / 1_000_000_000.0
             for (frame in 0 until 1024) {
                 var sample = 0.0
                 snapshot.forEach { (_, value) ->
                     val (state, gain, active) = value
                     if (!active) return@forEach
-                    sample += sin(state.phase) * gain
-                    state.phase += 2 * PI * state.frequency / sampleRate
+                    val time = (now - state.contextStart).coerceAtLeast(0.0) + frame.toDouble() / sampleRate
+                    val frequency = state.frequency.valueAt(time)
+                    sample += sin(state.phase) * gain.valueAt(time)
+                    state.phase += 2 * PI * frequency / sampleRate
                     if (state.phase >= 2 * PI) state.phase -= 2 * PI
                 }
                 val value = (sample.coerceIn(-1.0, 1.0) * Short.MAX_VALUE).toInt().toShort()
@@ -1455,8 +1508,13 @@ class MainActivity : AppCompatActivity() {
                       audioMessage({ action: action, contextId: contextId, nodeId: nodeId, value: current });
                     }
                   });
-                  param.setValueAtTime = function(value) { param.value = value; return param; };
-                  param.linearRampToValueAtTime = function(value) { param.value = value; return param; };
+                  function schedule(value, when, ramp) {
+                    current = Number(value) || 0;
+                    var time = Number(when);
+                    audioMessage({ action: action + (ramp ? 'RampToTime' : 'AtTime'), contextId: contextId, nodeId: nodeId, value: current, time: isFinite(time) ? Math.max(0, time) : 0 });
+                  }
+                  param.setValueAtTime = function(value, when) { schedule(value, when, false); return param; };
+                  param.linearRampToValueAtTime = function(value, when) { schedule(value, when, true); return param; };
                   return param;
                 }
                 function AudioContext() {
