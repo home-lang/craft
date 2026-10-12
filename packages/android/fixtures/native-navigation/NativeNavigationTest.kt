@@ -502,6 +502,7 @@ class NativeNavigationTest {
             assertScrolls(nativeScroller)
             assertTrue("Image did not render as ImageView", image is ImageView)
             assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)
+            assertEquals("Native vector", svg.contentDescription?.toString(), "SVG accessibility metadata did not survive native mounting")
             assertTrue("Image data did not decode", (image as ImageView).drawable != null)
             assertEquals("Native pixel", image.contentDescription.toString())
             awaitText(activity, "image-status", "image loaded")

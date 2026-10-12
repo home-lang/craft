@@ -82,7 +82,8 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('private func reveal(_ element: XCUIElement, in scroll: XCUIElement')
     expect(iosNavigationTest).toContain('app.textFields.allElementsBoundByIndex.min')
     expect(iosNavigationTest).not.toContain('app.textFields.element(boundBy: 1)')
-    expect(iosNavigationTest).toContain('app.otherElements["native-svg"].waitForExistence')
+    expect(iosNavigationTest).toContain('let svg = app.otherElements["native-svg"]')
+    expect(iosNavigationTest).toContain('svg.waitForExistence(timeout: 5)')
     expect(androidNavigationTest).toContain('assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)')
   })
 
@@ -102,6 +103,10 @@ describe('native renderer component contract', () => {
       expect(ios, `${name} missing from iOS renderer`).toContain(iosMarker)
       expect(android, `${name} missing from Android renderer`).toContain(androidMarker)
     }
+    expect(navigationHome).toContain('<g stroke="#2563eb">')
+    expect(navigationHome).toContain('<text x="12" y="21"')
+    expect(iosNavigationTest).toContain('SVG accessibility metadata did not survive native mounting')
+    expect(androidNavigationTest).toContain('SVG accessibility metadata did not survive native mounting')
   })
 
   it('keeps SVG stroke semantics aligned across hosts', () => {
