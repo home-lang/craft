@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.138...v0.0.139)
+
+## 🚀 Features
+
+- **ios**: read heart-rate samples and sleep intervals from Apple Health ([1377336](https://github.com/craft-native/craft/commit/1377336)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.137...v0.0.138)
 
 ## 🐛 Bug Fixes
