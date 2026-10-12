@@ -1,5 +1,103 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.140...v0.0.141)
+
+## 🚀 Features
+
+- **ios**: native screens read Apple Health through the Health module ([99295b4](https://github.com/craft-native/craft/commit/99295b4)) _(by Chris)_
+- **native**: share flex justification positions ([47e36ff](https://github.com/craft-native/craft/commit/47e36ff)) _(by glennmichael123)_
+- **native**: consume shared flex positions ([eebf3d6](https://github.com/craft-native/craft/commit/eebf3d6)) _(by glennmichael123)_
+- **android**: consume shared grid layout bridge ([1dd7df0](https://github.com/craft-native/craft/commit/1dd7df0)) _(by glennmichael123)_
+- **ios**: consume shared grid layout bridge ([19004b2](https://github.com/craft-native/craft/commit/19004b2)) _(by glennmichael123)_
+- **native**: expose shared grid layout bridge ([c3b6ea9](https://github.com/craft-native/craft/commit/c3b6ea9)) _(by glennmichael123)_
+- **android**: consume shared flex layout bridge ([7a44ff6](https://github.com/craft-native/craft/commit/7a44ff6)) _(by glennmichael123)_
+- **ios**: consume shared flex layout bridge ([2819e1f](https://github.com/craft-native/craft/commit/2819e1f)) _(by glennmichael123)_
+- **native**: expose shared flex row bridge ([0659fd5](https://github.com/craft-native/craft/commit/0659fd5)) _(by glennmichael123)_
+- **native**: add padding to shared layout core ([6346098](https://github.com/craft-native/craft/commit/6346098)) _(by glennmichael123)_
+- **android**: expose native audio context subset ([b6c8b83](https://github.com/craft-native/craft/commit/b6c8b83)) _(by glennmichael123)_
+- **ios**: expose native audio context subset ([a77882c](https://github.com/craft-native/craft/commit/a77882c)) _(by glennmichael123)_
+- **native**: add cross-platform video primitive ([ebc06d7](https://github.com/craft-native/craft/commit/ebc06d7)) _(by glennmichael123)_
+- **native**: share flex and grid margins ([6495a39](https://github.com/craft-native/craft/commit/6495a39)) _(by glennmichael123)_
+- **native**: add shared grid and svg rendering ([3a5d431](https://github.com/craft-native/craft/commit/3a5d431)) _(by glennmichael123)_
+- **native**: share bounded flex layout semantics ([3407983](https://github.com/craft-native/craft/commit/3407983)) _(by glennmichael123)_
+- **native**: add host-neutral flex layout spike ([2691f5f](https://github.com/craft-native/craft/commit/2691f5f)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **android**: share flex line distribution ([86bc0f2](https://github.com/craft-native/craft/commit/86bc0f2)) _(by glennmichael123)_
+- **native**: share flex line distribution ([b051466](https://github.com/craft-native/craft/commit/b051466)) _(by glennmichael123)_
+- **android**: share flex line formation ([89ab52e](https://github.com/craft-native/craft/commit/89ab52e)) _(by glennmichael123)_
+- **native**: share flex line formation ([9e95e13](https://github.com/craft-native/craft/commit/9e95e13)) _(by glennmichael123)_
+- **ios**: stretch wrapped flex lines ([11ce19c](https://github.com/craft-native/craft/commit/11ce19c)) _(by glennmichael123)_
+- **native**: use shared flex positions ([d91de53](https://github.com/craft-native/craft/commit/d91de53)) _(by glennmichael123)_
+- **android**: share cross-axis alignment ([f36e2e2](https://github.com/craft-native/craft/commit/f36e2e2)) _(by glennmichael123)_
+- **native**: share flex cross-axis alignment ([995a17b](https://github.com/craft-native/craft/commit/995a17b)) _(by glennmichael123)_
+- **native**: reject non-finite grid results ([2cd06e0](https://github.com/craft-native/craft/commit/2cd06e0)) _(by glennmichael123)_
+- **native**: reject non-finite flex results ([35955ba](https://github.com/craft-native/craft/commit/35955ba)) _(by glennmichael123)_
+- **android**: fall back on malformed layout results ([a0c58a0](https://github.com/craft-native/craft/commit/a0c58a0)) _(by glennmichael123)_
+- **native**: make layout frames c-compatible ([0cc3507](https://github.com/craft-native/craft/commit/0cc3507)) _(by glennmichael123)_
+- **ios**: use raw pointers for layout ABI ([faf8c89](https://github.com/craft-native/craft/commit/faf8c89)) _(by glennmichael123)_
+- **android**: coerce SVG text sizes to Float ([0370676](https://github.com/craft-native/craft/commit/0370676)) _(by glennmichael123)_
+- **crypto**: support evolving X25519 key generation ([c1e47cf](https://github.com/craft-native/craft/commit/c1e47cf)) _(by glennmichael123)_
+- **android**: schedule native audio parameters ([2890fef](https://github.com/craft-native/craft/commit/2890fef)) _(by glennmichael123)_
+- **ios**: schedule native audio parameters ([0a64634](https://github.com/craft-native/craft/commit/0a64634)) _(by glennmichael123)_
+- **native**: contain iOS video controllers ([4df7493](https://github.com/craft-native/craft/commit/4df7493)) _(by glennmichael123)_
+- **native**: add iOS video controls ([08c27d5](https://github.com/craft-native/craft/commit/08c27d5)) _(by glennmichael123)_
+- **native**: constrain grid children to cells ([eb696d8](https://github.com/craft-native/craft/commit/eb696d8)) _(by glennmichael123)_
+- **android**: type repeated SVG dash patterns ([f2a4b81](https://github.com/craft-native/craft/commit/f2a4b81)) _(by glennmichael123)_
+- **android**: type SVG dash patterns ([bdcd993](https://github.com/craft-native/craft/commit/bdcd993)) _(by glennmichael123)_
+- **android**: inherit svg root paint ([e4cbcd3](https://github.com/craft-native/craft/commit/e4cbcd3)) _(by glennmichael123)_
+- **native**: align svg stroke semantics ([dc816e7](https://github.com/craft-native/craft/commit/dc816e7)) _(by glennmichael123)_
+- **android**: emit nested flex layout events ([86fc789](https://github.com/craft-native/craft/commit/86fc789)) _(by glennmichael123)_
+- **android**: emit layout after traversal ([8bab3f6](https://github.com/craft-native/craft/commit/8bab3f6)) _(by glennmichael123)_
+- **ci**: declare buddy-bot test dependency ([19763f2](https://github.com/craft-native/craft/commit/19763f2)) _(by glennmichael123)_
+- **android**: flush targeted layout events ([f520a5f](https://github.com/craft-native/craft/commit/f520a5f)) _(by glennmichael123)_
+- **android**: allow stopped native indicators ([fdce000](https://github.com/craft-native/craft/commit/fdce000)) _(by glennmichael123)_
+- **native**: keep modal close without a handler inert ([c3cf7c3](https://github.com/craft-native/craft/commit/c3cf7c3)) _(by glennmichael123)_
+- **native**: release modal touch capture on close ([e4c6992](https://github.com/craft-native/craft/commit/e4c6992)) _(by glennmichael123)_
+- **native**: preserve modal close request lifecycle ([c7677ea](https://github.com/craft-native/craft/commit/c7677ea)) _(by glennmichael123)_
+- **native**: use the full stx compiler pin ([650e588](https://github.com/craft-native/craft/commit/650e588)) _(by glennmichael123)_
+- **ios**: constrain native screen roots to viewport ([a463780](https://github.com/craft-native/craft/commit/a463780)) _(by glennmichael123)_
+- **native**: defer Android modal lifecycle events ([7147260](https://github.com/craft-native/craft/commit/7147260)) _(by glennmichael123)_
+- **native**: honor modal visibility props across hosts ([fc1f25f](https://github.com/craft-native/craft/commit/fc1f25f)) _(by glennmichael123)_
+- **native**: honor Android modal display mutations (#1992) ([d252c1d](https://github.com/craft-native/craft/commit/d252c1d)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **native**: protect Android modal visibility (#1992) ([bff881a](https://github.com/craft-native/craft/commit/bff881a)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+- **native**: honor Android modal visibility mutations (#1992) ([791281c](https://github.com/craft-native/craft/commit/791281c)) _(by glennmichael123)_ ([#1992](https://github.com/craft-native/craft/issues/1992))
+
+## 📚 Documentation
+
+- **native**: describe shared flex line ABI ([aba3dcd](https://github.com/craft-native/craft/commit/aba3dcd)) _(by glennmichael123)_
+- **native**: document fixture and ABI parity ([578b3c8](https://github.com/craft-native/craft/commit/578b3c8)) _(by glennmichael123)_
+- **native**: clarify shared stx compiler ownership ([76e9fc2](https://github.com/craft-native/craft/commit/76e9fc2)) _(by glennmichael123)_
+- **native**: document video primitive ([60579c3](https://github.com/craft-native/craft/commit/60579c3)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: cover stretched flex lines ([30829c9](https://github.com/craft-native/craft/commit/30829c9)) _(by glennmichael123)_
+- **native**: make video fixture network free ([fcffd43](https://github.com/craft-native/craft/commit/fcffd43)) _(by glennmichael123)_
+- **ci**: pin shared stx compiler ([fefde90](https://github.com/craft-native/craft/commit/fefde90)) _(by glennmichael123)_
+- **native**: mount video in acceptance fixtures ([e63aeaf](https://github.com/craft-native/craft/commit/e63aeaf)) _(by glennmichael123)_
+- **native**: verify SVG tree accessibility ([f6c7e7e](https://github.com/craft-native/craft/commit/f6c7e7e)) _(by glennmichael123)_
+- **native**: cover space-between positions ([b4275c2](https://github.com/craft-native/craft/commit/b4275c2)) _(by glennmichael123)_
+- **native**: cover shared justify positions ([8b92797](https://github.com/craft-native/craft/commit/8b92797)) _(by glennmichael123)_
+- **native**: exercise audio context lifecycle ([c3f60b9](https://github.com/craft-native/craft/commit/c3f60b9)) _(by glennmichael123)_
+- **native**: assert svg host mounting ([f2969ba](https://github.com/craft-native/craft/commit/f2969ba)) _(by glennmichael123)_
+- **native**: cover svg primitives in navigation fixture ([c633e25](https://github.com/craft-native/craft/commit/c633e25)) _(by glennmichael123)_
+- **android**: await activity indicator reconciliation ([bb0289d](https://github.com/craft-native/craft/commit/bb0289d)) _(by glennmichael123)_
+- **android**: await native slider reconciliation ([d2dd13e](https://github.com/craft-native/craft/commit/d2dd13e)) _(by glennmichael123)_
+- **android**: await native switch reconciliation ([2967030](https://github.com/craft-native/craft/commit/2967030)) _(by glennmichael123)_
+- **native**: align numeric label parity ([4727375](https://github.com/craft-native/craft/commit/4727375)) _(by glennmichael123)_
+
+## 🧹 Chores
+
+- **native**: pin Craft to the handler-ordering fix ([bf1362e](https://github.com/craft-native/craft/commit/bf1362e)) _(by glennmichael123)_
+- **native**: pin Craft to current stx compiler ([92231ac](https://github.com/craft-native/craft/commit/92231ac)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.139...v0.0.140)
 
 ## 🐛 Bug Fixes
