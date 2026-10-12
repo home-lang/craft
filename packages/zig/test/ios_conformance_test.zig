@@ -143,7 +143,12 @@ const dispatch_end = "func webView(";
 /// or touches the web view's own chrome, so they went into Swift first, the
 /// same way as every action before them; they fall through to the shim, which
 /// serves them. Not a regression: no action left Zig.
-const max_not_yet_migrated: usize = 32;
+/// 34 when the spec gained getHealthHeartRateSamples and
+/// getHealthSleepIntervals, the reads behind an all-day heart-rate chart. Like
+/// getHealthWorkouts and getHealthDailyStatistics before them they are
+/// HKSampleQuery result handlers that went into Swift first; they fall through
+/// to the shim, which serves them. Not a regression: no action left Zig.
+const max_not_yet_migrated: usize = 34;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.

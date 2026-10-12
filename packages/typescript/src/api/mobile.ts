@@ -2237,7 +2237,65 @@ export interface HealthDailyValue {
   unit: string
 }
 
+export interface HealthSampleQuery {
+  /** Epoch milliseconds. Defaults to a day before `endDate`. */
+  startDate?: number
+  /** Epoch milliseconds. Defaults to now. */
+  endDate?: number
+}
+
+export interface HealthHeartRateQuery extends HealthSampleQuery {
+  /** At most this many, oldest first. Defaults to 10000, capped at 50000. */
+  limit?: number
+}
+
+/** One heart-rate reading from Apple Health, in beats per minute. */
+export interface HealthHeartRateSample {
+  bpm: number
+  /** Epoch milliseconds. */
+  startDate: number
+  /** Epoch milliseconds; the same as `startDate` for a single reading. */
+  endDate: number
+  /** The app that wrote it, e.g. the watch's own name. */
+  sourceName: string
+  /** The device that measured it, when the source says ("Apple Watch"). */
+  deviceName?: string
+  deviceModel?: string
+  /** A series of readings (a watch workout) also carries its count, lowest and highest. */
+  count?: number
+  min?: number
+  max?: number
+  /** What the wearer was doing, when the watch says. */
+  motionContext?: 'sedentary' | 'active'
+}
+
+/** A sleep analysis stage: in bed, awake, or asleep (staged or not). */
+export type HealthSleepStage = 'inBed' | 'awake' | 'asleep' | 'core' | 'deep' | 'rem'
+
+/** One stretch of a night as a source recorded it. */
+export interface HealthSleepInterval {
+  /** Epoch milliseconds. */
+  startDate: number
+  /** Epoch milliseconds. */
+  endDate: number
+  stage: HealthSleepStage
+  /** Every asleep stage; false for time in bed and time awake. */
+  asleep: boolean
+  sourceName: string
+  deviceName?: string
+}
+
+/** The health reads a host may or may not have, depending on the app build it runs in. */
+export type HealthReadMethod = 'getWorkouts' | 'getDailyStatistics' | 'getHeartRateSamples' | 'getSleepIntervals'
+
 export const health = {
+  /**
+   * Whether this app build answers `method`. An app installed before a read
+   * existed has none, so a page checks before offering what needs it.
+   */
+  supports(method: HealthReadMethod): boolean {
+    return typeof getCraftRoot()?.health?.[method] === 'function'
+  },
   /**
    * Ask for the health data a page needs. `{ write: false }` asks to read
    * only, for an app that never writes back; by default it may also save
@@ -2269,6 +2327,18 @@ export const health = {
     const craft = getCraftRoot()
     if (!craft?.health?.getDailyStatistics) throw new Error('Daily health statistics are unavailable')
     return craft.health.getDailyStatistics(type, options)
+  },
+  /** Every heart-rate reading between two instants, oldest first. iOS only for now. */
+  async getHeartRateSamples(options: HealthHeartRateQuery = {}): Promise<HealthHeartRateSample[]> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.getHeartRateSamples) throw new Error('Reading heart-rate samples is unavailable')
+    return craft.health.getHeartRateSamples(options)
+  },
+  /** Sleep between two instants, oldest first: time in bed and each asleep or awake stage. iOS only for now. */
+  async getSleepIntervals(options: HealthSampleQuery = {}): Promise<HealthSleepInterval[]> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.getSleepIntervals) throw new Error('Reading sleep intervals is unavailable')
+    return craft.health.getSleepIntervals(options)
   },
 }
 
@@ -2475,6 +2545,8 @@ interface CraftMobileBridge {
     saveWorkout(workout: HealthWorkout): Promise<HealthWorkoutResult>
     getWorkouts?(options: HealthWorkoutQuery): Promise<HealthWorkoutSample[]>
     getDailyStatistics?(type: HealthDailyType, options: HealthDataOptions): Promise<HealthDailyValue[]>
+    getHeartRateSamples?(options: HealthHeartRateQuery): Promise<HealthHeartRateSample[]>
+    getSleepIntervals?(options: HealthSampleQuery): Promise<HealthSleepInterval[]>
   }
   liveActivity?: {
     start(options: LiveActivityOptions): Promise<{ id: string }>

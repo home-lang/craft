@@ -647,6 +647,27 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain("var timeout = personFacing[action] ? null : setTimeout(")
   })
 
+  it('reads heart rate through the day and the night\'s sleep stages', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-heart-'))
+    await init({ runtimeDir: null, name: 'Heart', bundleId: 'com.example.heart', output, config: { enableHealthKit: true } })
+    const swift = readFileSync(join(output, 'Sources', 'HeartApp.swift'), 'utf8')
+
+    expect(swift).toContain("getHeartRateSamples: function(options) {")
+    expect(swift).toContain("craft._invoke('getHealthHeartRateSamples', {startDate: options.startDate, endDate: options.endDate, limit: options.limit})")
+    expect(swift).toContain("getSleepIntervals: function(options) {")
+    expect(swift).toContain("craft._invoke('getHealthSleepIntervals', {startDate: options.startDate, endDate: options.endDate})")
+    expect(swift).toContain('case "getHealthHeartRateSamples":')
+    expect(swift).toContain('case "getHealthSleepIntervals":')
+    // Readings come back as they were taken, with the device that took them.
+    expect(swift).toContain('HKSampleQuery(sampleType: heartType, predicate: predicate, limit: cap, sortDescriptors: [oldestFirst])')
+    expect(swift).toContain('item["deviceName"] = device')
+    // Time in bed and awake are stages of a night, not sleep.
+    expect(swift).toContain('"asleep": !notAsleep.contains(sample.value)')
+    // Both are read under the grants requestAuthorization already asks for.
+    expect(swift).toContain('case "heartRate":\n                    if let heartType = HKQuantityType.quantityType(forIdentifier: .heartRate)')
+    expect(swift).toContain('case "sleep":\n                    if let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis)')
+  })
+
   it('keeps a default when a caller passes undefined, and the app reads a partial config over its defaults', async () => {
     const output = mkdtempSync(join(tmpdir(), 'craft-ios-undefined-'))
     await init({ runtimeDir: null, name: 'Partial', bundleId: 'com.example.partial', output, config: { darkMode: undefined, enableHaptics: true } })

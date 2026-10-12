@@ -2358,6 +2358,27 @@ struct CraftWebView: UIViewRepresentable {
                 } else {
                     rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
                 }
+            case "getHealthHeartRateSamples":
+                if config.enableHealthKit {
+                    getHealthHeartRateSamples(
+                        startDate: body["startDate"] as? Double,
+                        endDate: body["endDate"] as? Double,
+                        limit: body["limit"] as? Int,
+                        callbackId: callbackId
+                    )
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "getHealthSleepIntervals":
+                if config.enableHealthKit {
+                    getHealthSleepIntervals(
+                        startDate: body["startDate"] as? Double,
+                        endDate: body["endDate"] as? Double,
+                        callbackId: callbackId
+                    )
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
 
             // MARK: - Live Activities
             case "startLiveActivity":
@@ -4854,6 +4875,14 @@ struct CraftWebView: UIViewRepresentable {
                     getDailyStatistics: function(type, options) {
                         options = options || {};
                         return craft._invoke('getHealthDailyStatistics', {type: type, startDate: options.startDate, endDate: options.endDate});
+                    },
+                    getHeartRateSamples: function(options) {
+                        options = options || {};
+                        return craft._invoke('getHealthHeartRateSamples', {startDate: options.startDate, endDate: options.endDate, limit: options.limit});
+                    },
+                    getSleepIntervals: function(options) {
+                        options = options || {};
+                        return craft._invoke('getHealthSleepIntervals', {startDate: options.startDate, endDate: options.endDate});
                     }
                 };
                 craft.liveActivity = {
@@ -7256,6 +7285,117 @@ struct CraftWebView: UIViewRepresentable {
                     ])
                 }
                 self?.resolveCallback(callbackId, result: days)
+            }
+            healthStore.execute(query)
+        }
+
+        /// Every heart-rate reading between two instants, oldest first: the
+        /// beats per minute, when it was taken, and the app and device that
+        /// wrote it. A watch's workout readings can arrive as one series
+        /// sample; those also carry their count, lowest and highest.
+        private func getHealthHeartRateSamples(startDate: Double?, endDate: Double?, limit: Int?, callbackId: String?) {
+            guard let healthStore = healthStore else {
+                rejectCallback(callbackId, error: "HealthKit not available")
+                return
+            }
+            guard let heartType = HKQuantityType.quantityType(forIdentifier: .heartRate) else {
+                rejectCallback(callbackId, error: "Heart rate is unavailable")
+                return
+            }
+
+            let end = endDate.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
+            let start = startDate.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Calendar.current.date(byAdding: .day, value: -1, to: end)!
+            let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+            let oldestFirst = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+            let cap = max(1, min(limit ?? 10_000, 50_000))
+
+            let query = HKSampleQuery(sampleType: heartType, predicate: predicate, limit: cap, sortDescriptors: [oldestFirst]) { [weak self] _, samples, error in
+                if let error = error, (error as? HKError)?.code != .errorNoData {
+                    self?.rejectCallback(callbackId, error: error.localizedDescription)
+                    return
+                }
+
+                let bpm = HKUnit.count().unitDivided(by: .minute())
+                let rows: [[String: Any]] = (samples as? [HKQuantitySample] ?? []).map { sample in
+                    var item: [String: Any] = [
+                        "bpm": sample.quantity.doubleValue(for: bpm),
+                        "startDate": sample.startDate.timeIntervalSince1970 * 1000,
+                        "endDate": sample.endDate.timeIntervalSince1970 * 1000,
+                        "sourceName": sample.sourceRevision.source.name,
+                    ]
+                    if let device = sample.device?.name { item["deviceName"] = device }
+                    if let model = sample.device?.model { item["deviceModel"] = model }
+                    if let series = sample as? HKDiscreteQuantitySample, series.count > 1 {
+                        item["count"] = series.count
+                        item["min"] = series.minimumQuantity.doubleValue(for: bpm)
+                        item["max"] = series.maximumQuantity.doubleValue(for: bpm)
+                    }
+                    if let raw = sample.metadata?[HKMetadataKeyHeartRateMotionContext] as? NSNumber {
+                        switch HKHeartRateMotionContext(rawValue: raw.intValue) {
+                        case .sedentary: item["motionContext"] = "sedentary"
+                        case .active: item["motionContext"] = "active"
+                        default: break
+                        }
+                    }
+                    return item
+                }
+                self?.resolveCallback(callbackId, result: rows)
+            }
+            healthStore.execute(query)
+        }
+
+        /// A stable name for each sleep analysis value: in bed, awake, or one
+        /// of the asleep stages (`asleep` when the source does not stage it).
+        private static func sleepStageName(_ value: Int) -> String {
+            switch HKCategoryValueSleepAnalysis(rawValue: value) {
+            case .inBed: return "inBed"
+            case .awake: return "awake"
+            case .asleepCore: return "core"
+            case .asleepDeep: return "deep"
+            case .asleepREM: return "rem"
+            default: return "asleep"
+            }
+        }
+
+        /// Sleep between two instants, oldest first, as the sources wrote it:
+        /// time in bed and every asleep or awake stretch, each with its stage
+        /// and whether it counts as asleep, so a page can mark the night.
+        private func getHealthSleepIntervals(startDate: Double?, endDate: Double?, callbackId: String?) {
+            guard let healthStore = healthStore else {
+                rejectCallback(callbackId, error: "HealthKit not available")
+                return
+            }
+            guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
+                rejectCallback(callbackId, error: "Sleep data is unavailable")
+                return
+            }
+
+            let end = endDate.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
+            let start = startDate.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Calendar.current.date(byAdding: .day, value: -1, to: end)!
+            // Any interval that overlaps the range, so a night that began
+            // before it still counts.
+            let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+            let oldestFirst = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+
+            let query = HKSampleQuery(sampleType: sleepType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: [oldestFirst]) { [weak self] _, samples, error in
+                if let error = error, (error as? HKError)?.code != .errorNoData {
+                    self?.rejectCallback(callbackId, error: error.localizedDescription)
+                    return
+                }
+
+                let notAsleep: Set<Int> = [HKCategoryValueSleepAnalysis.inBed.rawValue, HKCategoryValueSleepAnalysis.awake.rawValue]
+                let rows: [[String: Any]] = (samples as? [HKCategorySample] ?? []).map { sample in
+                    var item: [String: Any] = [
+                        "startDate": sample.startDate.timeIntervalSince1970 * 1000,
+                        "endDate": sample.endDate.timeIntervalSince1970 * 1000,
+                        "stage": Self.sleepStageName(sample.value),
+                        "asleep": !notAsleep.contains(sample.value),
+                        "sourceName": sample.sourceRevision.source.name,
+                    ]
+                    if let device = sample.device?.name { item["deviceName"] = device }
+                    return item
+                }
+                self?.resolveCallback(callbackId, result: rows)
             }
             healthStore.execute(query)
         }

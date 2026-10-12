@@ -24,7 +24,7 @@ import type {
   LiveActivityHandle,
   LiveActivityOptions,
 } from '../api/mobile'
-import mobile, { biometrics, brightness, bridgeNotification, normalizeDeepLinkURL, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
+import mobile, { biometrics, brightness, bridgeNotification, health, normalizeDeepLinkURL, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
 
 describe('Mobile deep links', () => {
   it('normalizes native payloads to the public string contract', () => {
@@ -358,6 +358,40 @@ function fakeBacklight(start: number, options: { reset?: boolean } = {}) {
   if (options.reset) craft.resetBrightness = async () => { calls.push('reset'); level = start; return level }
   return { window: { craft }, calls, level: () => level }
 }
+
+describe('health reads', () => {
+  it('reads heart rate and sleep through the bridge, passing the range on', async () => {
+    const calls: unknown[][] = []
+    const reading = { bpm: 52, startDate: 1000, endDate: 1000, sourceName: 'Watch', deviceName: 'Apple Watch' }
+    const night = { startDate: 0, endDate: 3600000, stage: 'deep', asleep: true, sourceName: 'Watch' }
+    await withWindow({
+      craft: {
+        health: {
+          getHeartRateSamples: async (options: unknown) => { calls.push(['hr', options]); return [reading] },
+          getSleepIntervals: async (options: unknown) => { calls.push(['sleep', options]); return [night] },
+        },
+      },
+    }, async () => {
+      expect(health.supports('getHeartRateSamples')).toBe(true)
+      expect(health.supports('getSleepIntervals')).toBe(true)
+      expect(health.supports('getWorkouts')).toBe(false)
+      expect(await health.getHeartRateSamples({ startDate: 0, endDate: 5000, limit: 100 })).toEqual([reading])
+      expect(await health.getSleepIntervals({ startDate: 0, endDate: 5000 })).toEqual([night as any])
+      expect(calls).toEqual([['hr', { startDate: 0, endDate: 5000, limit: 100 }], ['sleep', { startDate: 0, endDate: 5000 }]])
+    })
+  })
+
+  it('says an older app cannot, and refuses rather than answering nothing', async () => {
+    await withWindow({ craft: { health: {} } }, async () => {
+      expect(health.supports('getHeartRateSamples')).toBe(false)
+      await expect(health.getHeartRateSamples()).rejects.toThrow('unavailable')
+      await expect(health.getSleepIntervals()).rejects.toThrow('unavailable')
+    })
+    await withWindow({}, async () => {
+      expect(health.supports('getSleepIntervals')).toBe(false)
+    })
+  })
+})
 
 describe('brightness', () => {
   it('dims, then puts the person\'s own level back', async () => {
