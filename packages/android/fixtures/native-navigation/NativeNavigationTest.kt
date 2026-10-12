@@ -483,11 +483,13 @@ class NativeNavigationTest {
             assertTrue("wrapped child did not wrap", bounded.top < awaitView(activity, "layout-stretch").top)
             val scroll = awaitView(activity, "native-scroll")
             val image = awaitView(activity, "native-image")
+            val svg = awaitView(activity, "native-svg")
             assertTrue("ScrollView did not render an Android ScrollView", containsType(scroll, ScrollView::class.java))
             val nativeScroller = findType(scroll, ScrollView::class.java)!!
             assertTrue("ScrollView contentContainerStyle did not add top padding", image.top >= nativeScroller.top + (12 * density).toInt())
             assertScrolls(nativeScroller)
             assertTrue("Image did not render as ImageView", image is ImageView)
+            assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)
             assertTrue("Image data did not decode", (image as ImageView).drawable != null)
             assertEquals("Native pixel", image.contentDescription.toString())
             awaitText(activity, "image-status", "image loaded")

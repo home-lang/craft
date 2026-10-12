@@ -48,6 +48,8 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('private func reveal(_ element: XCUIElement, in scroll: XCUIElement')
     expect(iosNavigationTest).toContain('app.textFields.allElementsBoundByIndex.min')
     expect(iosNavigationTest).not.toContain('app.textFields.element(boundBy: 1)')
+    expect(iosNavigationTest).toContain('app.otherElements["native-svg"].waitForExistence')
+    expect(androidNavigationTest).toContain('assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)')
   })
 
   it('keeps the same host-neutral controls on iOS and Android', () => {
