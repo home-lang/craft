@@ -1113,7 +1113,7 @@ private final class CraftNativeFlowView: UIStackView {
                 }
                 let lineCross = lineCrosses[lineIndex]
                 let sharedLine = sharedLines[lineIndex]
-                let useSharedPositions = !reverse && justifyContent == "flex-start" && sharedLine != nil
+                    let useSharedPositions = !reverse && sharedLine != nil
                 var mainOffset = leading
                 for (offset, index) in line.enumerated() {
                     let item = items[index]

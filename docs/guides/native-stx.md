@@ -44,10 +44,10 @@ which carries ordinary native event aliases and preserves Modal child content.
 The host-neutral layout contract lives in Craft's Zig runtime at
 `packages/zig/src/native_layout.zig`. It defines the shared row/column flex
 and equal-track grid rules for basis, positive growth, negative shrink, gap,
-per-edge margins, parent padding, min/max bounds, and row/column gaps while
-leaving intrinsic measurement (especially text) to the platform host. UIKit and Android adapters
-must preserve these values when mounting the resulting frames; platform-specific measurement
-must not fork the distribution rules.
+per-edge margins, parent padding, min/max bounds, row/column gaps, justification,
+and cross-axis alignment while leaving intrinsic measurement (especially text) to
+the platform host. UIKit and Android adapters must preserve these values when
+mounting the resulting frames; platform-specific measurement must not fork the distribution rules.
 
 Use `onMount` and `onDestroy` for route-scoped lifecycle work. Craft disposes
 the screen runtime before a native screen is removed or replaced, so effects,
@@ -273,7 +273,8 @@ layout values, including `alignSelf` and `position`, clear the previous value
 and restore the host default during reconciliation.
 
 When the Craft Zig runtime is linked, the mobile hosts use its flat
-`craft_native_flex_row` ABI for one-line main-axis distribution. The ABI carries
+`craft_native_flex_row` ABI for one-line main-axis distribution and
+`craft_native_cross_axis_position` for each item's cross-axis alignment. The ABI carries
 basis, grow, shrink, margins, and min/max bounds without exposing UIKit or
 Android types; an SDK-only project keeps the equivalent host fallback until a
 runtime is installed.

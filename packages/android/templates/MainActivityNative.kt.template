@@ -771,9 +771,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     2 -> line.cross - crossTrailing - crossSize
                     else -> crossLeading
                 }
-                // Shared positions now cover every justification; the old
-                // `!reverse && justifyContent == "flex-start"` gate remains
-                // the fallback rule when an older runtime returns widths only.
+                // Shared positions cover every non-reverse justification; the
+                // local main-axis rule remains the fallback for old runtimes
+                // that return widths only.
                 val sharedPosition = if (!reverse) sharedPositions?.get(index)?.roundToInt() else null
                 val positionedMain = sharedPosition?.let { (if (orientation == HORIZONTAL) paddingLeft else paddingTop) + it }
                     ?: mainOffset + marginStart
