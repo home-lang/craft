@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.144...v0.0.145)
+
+## 🚀 Features
+
+- **ios**: native screens can sign in ([513702a](https://github.com/craft-native/craft/commit/513702a)) _(by Chris)_
+
+## 🧪 Tests
+
+- **ios**: mirror enableAppleMusic in Zig's config and type craftMusicChange ([716ea8f](https://github.com/craft-native/craft/commit/716ea8f)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.143...v0.0.144)
 
 ## 🚀 Features
