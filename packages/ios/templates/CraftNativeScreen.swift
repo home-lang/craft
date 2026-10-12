@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 import JavaScriptCore
 import OSLog
 import SwiftUI
@@ -16,6 +17,77 @@ private func craftNativeGridColumnCount(_ value: Any?) -> Int {
     }
     let tracks = trimmed.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" })
     return max(1, tracks.count)
+}
+
+private final class CraftNativeVideoView: UIView {
+    private var player: AVPlayer?
+    private var sourceURI = ""
+    private var endObserver: NSObjectProtocol?
+    private var loops = false
+
+    override class var layerClass: AnyClass { AVPlayerLayer.self }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        clipsToBounds = true
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        clipsToBounds = true
+    }
+
+    private var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+
+    func configure(source: Any?, autoplay: Bool, paused: Bool, loop: Bool, muted: Bool, resizeMode: String?) {
+        let uri = (source as? String) ?? (source as? [String: Any])?["uri"] as? String ?? ""
+        if uri != sourceURI {
+            if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
+            endObserver = nil
+            player?.pause()
+            player = nil
+            sourceURI = uri
+            loops = false
+            guard let url = URL(string: uri), !uri.isEmpty, url.scheme != nil else {
+                playerLayer.player = nil
+                return
+            }
+            let next = AVPlayer(url: url)
+            player = next
+            playerLayer.player = next
+        }
+        guard let player else { return }
+        player.isMuted = muted
+        playerLayer.videoGravity = resizeMode == "cover" ? .resizeAspectFill
+            : resizeMode == "stretch" ? .resize
+            : .resizeAspect
+        if loops != loop {
+            if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
+            endObserver = nil
+            loops = loop
+            if loop, let item = player.currentItem {
+                endObserver = NotificationCenter.default.addObserver(
+                    forName: .AVPlayerItemDidPlayToEndTime,
+                    object: item,
+                    queue: .main
+                ) { [weak player] _ in
+                    player?.seek(to: .zero) { _ in player?.play() }
+                }
+            }
+        }
+        if paused || !autoplay { player.pause() } else { player.play() }
+    }
+
+    func stop() {
+        player?.pause()
+        if let observer = endObserver { NotificationCenter.default.removeObserver(observer) }
+        endObserver = nil
+        player = nil
+        playerLayer.player = nil
+        sourceURI = ""
+    }
+
+    deinit { stop() }
 }
 
 /// A WebView-free host for the first stx native vertical slice. The bundled
@@ -2701,6 +2773,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updateAuxiliaryHandler(events["onLoadEnd"], in: &imageLoadEndHandlers, for: image)
             updateAuxiliaryHandler(events["onError"], in: &imageErrorHandlers, for: image)
             updateImage(image, source: props["source"])
+        case "Video":
+            let video = result as! CraftNativeVideoView
+            let autoplay = (props["autoplay"] as? Bool) == true || (props["autoPlay"] as? Bool) == true
+            video.configure(
+                source: props["source"],
+                autoplay: autoplay,
+                paused: (props["paused"] as? Bool) == true,
+                loop: (props["loop"] as? Bool) == true,
+                muted: (props["muted"] as? Bool) == true,
+                resizeMode: style["resizeMode"] as? String ?? props["resizeMode"] as? String
+            )
         case "ScrollView":
             let scroll = result as! CraftNativeScrollView
             let flexDirection = style["flexDirection"] as? String
@@ -2807,6 +2890,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return UIActivityIndicatorView(style: .medium)
         case "Image":
             return UIImageView()
+        case "Video":
+            return CraftNativeVideoView()
         case "Icon":
             let icon = CraftNativeIconView()
             icon.contentMode = .scaleAspectFit
@@ -3050,6 +3135,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         imageLoadHandlers.removeValue(forKey: id)
         imageLoadEndHandlers.removeValue(forKey: id)
         imageErrorHandlers.removeValue(forKey: id)
+        if let video = node.view as? CraftNativeVideoView { video.stop() }
         for child in node.children { forgetHandlers(child, preservingInputDrafts: preservingInputDrafts) }
     }
 

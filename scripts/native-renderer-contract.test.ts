@@ -38,6 +38,7 @@ const COMPONENTS: Array<[string, string, string]> = [
   ['Modal', 'case "Modal":', '"Modal" ->'],
   ['ActivityIndicator', 'case "ActivityIndicator":', '"ActivityIndicator" ->'],
   ['Image', 'case "Image":', '"Image" ->'],
+  ['Video', 'case "Video":', '"Video" ->'],
   ['ScrollView', 'case "ScrollView":', '"ScrollView" ->'],
   ['FlatList', 'case "FlatList":', '"FlatList" ->'],
 ]
@@ -79,6 +80,16 @@ describe('native renderer component contract', () => {
     expect(android).toContain('SvgPaint().merge(drawing)')
     expect(guide).toContain('`Svg` is DOM-free in native mode')
     expect(guide).toContain('line\ncaps, joins, and dash patterns')
+  })
+
+  it('keeps native video playback available on both hosts', () => {
+    expect(ios).toContain('CraftNativeVideoView')
+    expect(ios).toContain('AVPlayerLayer')
+    expect(ios).toContain('AVPlayerItemDidPlayToEndTime')
+    expect(android).toContain('CraftNativeVideoView')
+    expect(android).toContain('VideoView')
+    expect(android).toContain('mediaPlayer.isLooping = shouldLoop')
+    expect(guide).toContain('`Video` uses the platform player')
   })
 
   it('keeps the shared layout core explicit', () => {

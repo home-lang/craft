@@ -51,6 +51,8 @@ import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.MediaController
+import android.widget.VideoView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -1045,6 +1047,48 @@ private class CraftNativeActivityIndicator(context: Context) :
     }
 }
 
+private class CraftNativeVideoView(context: Context) : VideoView(context) {
+    private var sourceUri = ""
+    private var shouldLoop = false
+    private var shouldPlay = false
+    private var muted = false
+
+    fun configure(source: Any?, autoplay: Boolean, paused: Boolean, loop: Boolean, muted: Boolean, controls: Boolean) {
+        val uri = when (source) {
+            is String -> source
+            is JSONObject -> source.optString("uri")
+            else -> ""
+        }
+        shouldLoop = loop
+        shouldPlay = autoplay && !paused
+        this.muted = muted
+        setMediaController(if (controls) MediaController(context).also { it.setAnchorView(this) } else null)
+        if (uri != sourceUri) {
+            sourceUri = uri
+            stopPlayback()
+            if (uri.isBlank()) return
+            setVideoURI(Uri.parse(uri))
+            setOnPreparedListener { mediaPlayer ->
+                mediaPlayer.isLooping = shouldLoop
+                val volume = if (this.muted) 0f else 1f
+                mediaPlayer.setVolume(volume, volume)
+                if (shouldPlay) start()
+            }
+            setOnCompletionListener { if (shouldLoop && !isPlaying) start() }
+        }
+        if (uri.isBlank()) return
+        runCatching {
+            if (shouldPlay && !isPlaying) start()
+            else if (!shouldPlay && isPlaying) pause()
+        }
+    }
+
+    fun stop() {
+        stopPlayback()
+        sourceUri = ""
+    }
+}
+
 /** WebView-free host for a route bundle compiled by `stx native compile`. */
 class MainActivity : AppCompatActivity() {
     private class Screen(
@@ -1885,6 +1929,16 @@ class MainActivity : AppCompatActivity() {
                 val onError = events.optString("onError")
                 if (onError.isNotBlank()) screen.imageErrorHandlers[this] = onError else screen.imageErrorHandlers.remove(this)
                 updateImage(screen, this, props.opt("source"))
+            }
+            "Video" -> (previous as? CraftNativeVideoView ?: CraftNativeVideoView(this)).apply {
+                configure(
+                    source = props.opt("source"),
+                    autoplay = props.optBoolean("autoplay", props.optBoolean("autoPlay", false)),
+                    paused = props.optBoolean("paused", false),
+                    loop = props.optBoolean("loop", false),
+                    muted = props.optBoolean("muted", false),
+                    controls = props.optBoolean("controls", false),
+                )
             }
             "Svg" -> (previous as? CraftNativeSvgView ?: CraftNativeSvgView(this)).apply {
                 drawing = node
@@ -2735,6 +2789,7 @@ class MainActivity : AppCompatActivity() {
             releaseFlatList(screen, it, preservingInputDrafts)
         }
         released.filterIsInstance<CraftNativeModalView>().forEach { it.resetForTeardown() }
+        released.filterIsInstance<CraftNativeVideoView>().forEach { it.stop() }
         released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }
         released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }
         releaseImages(released)
