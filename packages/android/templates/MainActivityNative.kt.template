@@ -34,6 +34,7 @@ import android.text.InputType
 import android.text.Layout
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -1290,14 +1291,27 @@ class MainActivity : AppCompatActivity() {
             if (!updateParentLayoutStyle(updated, document.optJSONObject("style") ?: JSONObject())) return false
         }
         if (applied.isNotEmpty()) {
-            // A targeted style patch can finish after the parent's current
-            // layout pass. Schedule one final traversal so responsive
-            // onLayout consumers observe the settled frame, not just the
-            // pre-patch bounds.
-            screen.view.requestLayout()
-            screen.view.post { if (screen.active) emitLayoutEvents(screen) }
+            scheduleLayoutEvents(screen)
         }
         return true
+    }
+
+    private fun scheduleLayoutEvents(screen: Screen) {
+        if (!screen.active) return
+        val observer = screen.view.viewTreeObserver
+        if (observer.isAlive) {
+            val listener = object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    if (observer.isAlive) observer.removeOnGlobalLayoutListener(this)
+                    if (screen.active) emitLayoutEvents(screen)
+                }
+            }
+            observer.addOnGlobalLayoutListener(listener)
+        }
+        screen.view.requestLayout()
+        // A tree that is already settled may not produce a global-layout
+        // callback; keep the event path live for that case as well.
+        screen.view.postOnAnimation { if (screen.active) emitLayoutEvents(screen) }
     }
 
     /**
