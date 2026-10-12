@@ -28,6 +28,7 @@ import android.util.Base64
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.text.InputType
 import android.text.Layout
@@ -736,6 +737,7 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     val content = CraftNativeFlexLayout(context)
     private val blocker = View(context)
     private var renderedVisible = false
+    private var dismissSuppressedByRequest = false
     private var animationGeneration = 0
     var onRequestClose: (() -> Unit)? = null
 
@@ -748,10 +750,28 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     init {
         isClickable = true
         blocker.isClickable = true
-        blocker.setOnTouchListener { _, _ -> true }
+        blocker.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_UP) requestClose()
+            true
+        }
         blocker.setBackgroundColor(Color.argb(82, 0, 0, 0))
         addView(blocker, LayoutParams(-1, -1))
         addView(content, LayoutParams(-1, -1))
+    }
+
+    fun requestClose() {
+        dismissSuppressedByRequest = true
+        onRequestClose?.invoke()
+    }
+
+    fun consumeDismissSuppression(): Boolean {
+        val suppressed = dismissSuppressedByRequest
+        dismissSuppressedByRequest = false
+        return suppressed
+    }
+
+    fun clearDismissSuppression() {
+        dismissSuppressedByRequest = false
     }
 
     fun setVisible(visible: Boolean, opacity: Float, animationType: String?) {
@@ -806,6 +826,7 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
         visibility = View.GONE
         translationY = 0f
         alpha = 0f
+        dismissSuppressedByRequest = false
         onRequestClose = null
     }
 }
@@ -1496,10 +1517,17 @@ class MainActivity : AppCompatActivity() {
                 screen.modalVisibility[this] = visible
                 val requestClose = events.optString("onRequestClose")
                 if (requestClose.isNotBlank()) screen.modalCloseHandlers[this] = requestClose else screen.modalCloseHandlers.remove(this)
+                onRequestClose = if (requestClose.isNotBlank()) {
+                    { send(screen, "EVENT", JSONObject().put("handlerName", requestClose).put("nativeEvent", JSONObject())) }
+                } else {
+                    null
+                }
                 setVisible(visible, style.optDouble("opacity", 1.0).toFloat(), props.optString("animationType").ifBlank { null })
+                if (visible) clearDismissSuppression()
+                val suppressDismiss = !visible && consumeDismissSuppression()
                 if (wasVisible != visible && (visible || wasVisible == true)) {
                     val lifecycleHandler = if (visible) events.optString("onShow") else events.optString("onDismiss")
-                    if (lifecycleHandler.isNotBlank()) {
+                    if (lifecycleHandler.isNotBlank() && !suppressDismiss) {
                         // Deliver lifecycle callbacks after reconciliation returns to
                         // the queue; the handler may immediately schedule another
                         // render against this native view.
@@ -2532,9 +2560,7 @@ class MainActivity : AppCompatActivity() {
         val screen = screens.lastOrNull() ?: return back()
         val modal = screen.modalVisibility.entries.lastOrNull { (view, visible) -> visible && view.visibility == View.VISIBLE }
         if (modal != null) {
-            screen.modalCloseHandlers[modal.key]?.let { handler ->
-                send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject()))
-            }
+            (modal.key as? CraftNativeModalView)?.requestClose()
             return
         }
         back()

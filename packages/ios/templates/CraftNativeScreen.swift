@@ -775,6 +775,7 @@ private final class CraftNativeModalView: UIView {
     let contentStack = CraftNativeFlowView()
     private let blocker = UIView()
     private var renderedVisible = false
+    private var dismissSuppressedByRequest = false
     private var animationGeneration = 0
     var onRequestClose: (() -> Void)?
 
@@ -850,10 +851,24 @@ private final class CraftNativeModalView: UIView {
         isHidden = true
         transform = .identity
         alpha = 0
+        dismissSuppressedByRequest = false
         onRequestClose = nil
     }
 
-    @objc private func blockerTapped() { onRequestClose?() }
+    func requestClose() {
+        dismissSuppressedByRequest = true
+        onRequestClose?()
+    }
+
+    func consumeDismissSuppression() -> Bool {
+        let suppressed = dismissSuppressedByRequest
+        dismissSuppressedByRequest = false
+        return suppressed
+    }
+
+    func clearDismissSuppression() { dismissSuppressedByRequest = false }
+
+    @objc private func blockerTapped() { requestClose() }
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -2587,9 +2602,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             modal.onRequestClose = nonEmptyHandler(events["onRequestClose"]).map { handler in
                 { [weak self] in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
             }
+            if visible { modal.clearDismissSuppression() }
+            let suppressDismiss = !visible && modal.consumeDismissSuppression()
             if wasVisible != visible, visible || wasVisible == true {
                 let lifecycleHandler = visible ? events["onShow"] : events["onDismiss"]
-                if let lifecycleHandler = nonEmptyHandler(lifecycleHandler) {
+                if let lifecycleHandler = nonEmptyHandler(lifecycleHandler), !suppressDismiss {
                     send(type: "EVENT", payload: ["handlerName": lifecycleHandler, "nativeEvent": [:]])
                 }
             }
