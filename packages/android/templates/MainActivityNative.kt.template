@@ -761,6 +761,8 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
 
     fun requestClose() {
         dismissSuppressedByRequest = true
+        isClickable = false
+        blocker.isEnabled = false
         onRequestClose?.invoke()
     }
 
@@ -775,6 +777,10 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     }
 
     fun setVisible(visible: Boolean, opacity: Float, animationType: String?) {
+        if (visible) {
+            isClickable = true
+            blocker.isEnabled = true
+        }
         if (renderedVisible == visible && visibility == if (visible) View.VISIBLE else View.GONE) {
             if (visible && alpha != opacity) alpha = opacity
             return
@@ -826,6 +832,8 @@ private class CraftNativeModalView(context: Context) : FrameLayout(context) {
         visibility = View.GONE
         translationY = 0f
         alpha = 0f
+        isClickable = true
+        blocker.isEnabled = true
         dismissSuppressedByRequest = false
         onRequestClose = null
     }

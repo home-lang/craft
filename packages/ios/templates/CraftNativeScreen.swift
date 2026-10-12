@@ -797,6 +797,7 @@ private final class CraftNativeModalView: UIView {
     required init?(coder: NSCoder) { nil }
 
     func setVisible(_ visible: Bool, opacity: CGFloat, animationType: String?) {
+        if visible { isUserInteractionEnabled = true }
         if renderedVisible == visible && isHidden == !visible {
             if visible, alpha != opacity { alpha = opacity }
             return
@@ -851,12 +852,14 @@ private final class CraftNativeModalView: UIView {
         isHidden = true
         transform = .identity
         alpha = 0
+        isUserInteractionEnabled = true
         dismissSuppressedByRequest = false
         onRequestClose = nil
     }
 
     func requestClose() {
         dismissSuppressedByRequest = true
+        isUserInteractionEnabled = false
         onRequestClose?()
     }
 
