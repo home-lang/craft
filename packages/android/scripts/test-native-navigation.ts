@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path'
 import { build, init } from '../src/index'
 
 const fixture = resolve(import.meta.dir, '../../ios/fixtures/native-navigation')
-// The stx CLI (`stx native compile`), from a sibling stx checkout unless CI pins one.
+// The @stacksjs/stx CLI (`stx native compile`), from a sibling checkout unless CI pins one.
 const stxCli = process.env.STX_CLI || resolve(import.meta.dir, '../../../../stx/packages/stx/bin/cli.ts')
 const workspace = mkdtempSync(join(tmpdir(), 'craft-android-native-navigation-'))
 const output = join(workspace, 'NativeNavigation')

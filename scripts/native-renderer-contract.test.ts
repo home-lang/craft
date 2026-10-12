@@ -26,6 +26,7 @@ const androidReadme = readFileSync(join(root, 'packages/android/README.md'), 'ut
 const iosNavigationReadme = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/README.md'), 'utf8')
 const androidNavigationReadme = readFileSync(join(root, 'packages/android/fixtures/native-navigation/README.md'), 'utf8')
 const iosScreenReadme = readFileSync(join(root, 'packages/ios/fixtures/native-screen/README.md'), 'utf8')
+const mobileE2EWorkflow = readFileSync(join(root, '.github/workflows/mobile-e2e.yml'), 'utf8')
 
 /** One host-neutral vocabulary, asserted against every generated renderer. */
 const COMPONENTS: Array<[string, string, string]> = [
@@ -212,6 +213,14 @@ describe('native renderer component contract', () => {
       expect(readme).toContain('historical `stx-native` package')
       expect(readme).toContain('compiler')
     }
+  })
+
+  it('pins one @stacksjs/stx compiler revision across mobile E2E hosts', () => {
+    const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: ([0-9a-f]{40})/g)].map(match => match[1])
+    expect(refs).toHaveLength(2)
+    expect(new Set(refs).size).toBe(1)
+    expect(mobileE2EWorkflow).toContain('stx native compile')
+    expect(mobileE2EWorkflow).not.toContain('stx-native')
   })
 
   it('uses image alt text as the native accessibility fallback', () => {

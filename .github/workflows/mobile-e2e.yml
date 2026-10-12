@@ -125,7 +125,7 @@ jobs:
         run: bun packages/ios/scripts/test-native-render.ts
 
       # The multi-screen fixture is compiled from real .stx sources. Pin the
-      # stx compiler (`stx native compile`) so this job cannot silently change
+      # @stacksjs/stx compiler (`stx native compile`) so this job cannot silently change
       # underneath us. This release also carries a Bun-compatible lockfile.
       - name: Checkout stx compiler
         uses: actions/checkout@v6
@@ -265,7 +265,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Checkout stx compiler for Android
+      - name: Checkout @stacksjs/stx compiler for Android
         uses: actions/checkout@v6
         with:
           repository: stacksjs/stx
@@ -274,7 +274,7 @@ jobs:
 
       - name: Install Android stx compiler dependencies
         working-directory: .stx-compiler
-        # Keep this external compiler install aligned with the iOS job.
+        # Keep this @stacksjs/stx compiler install aligned with the iOS job.
         run: bun install --no-save
 
       - name: Cache Zig artifacts

@@ -5,7 +5,7 @@ import { bootSimulator, build, init, pickSimulator } from '../src/index'
 import { addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from './insert-project-targets'
 
 const fixture = join(import.meta.dir, '..', 'fixtures', 'native-navigation')
-// The stx CLI (`stx native compile`), from a sibling stx checkout unless CI pins one.
+// The @stacksjs/stx CLI (`stx native compile`), from a sibling checkout unless CI pins one.
 const stxCli = process.env.STX_CLI || resolve(import.meta.dir, '../../../../stx/packages/stx/bin/cli.ts')
 const workspace = mkdtempSync(join(tmpdir(), 'craft-native-navigation-'))
 const output = join(workspace, 'NativeNavigation')
