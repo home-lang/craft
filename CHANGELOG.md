@@ -1,5 +1,19 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.146...v0.0.147)
+
+## 🚀 Features
+
+- **ios**: native screens hear they are back, and get the page's services ([9c3931c](https://github.com/craft-native/craft/commit/9c3931c)) _(by Chris)_
+
+## 🐛 Bug Fixes
+
+- **ios**: the page's router is wrapped again after native sign-in ([5d7ac70](https://github.com/craft-native/craft/commit/5d7ac70)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.145...v0.0.146)
 
 ## 🐛 Bug Fixes
