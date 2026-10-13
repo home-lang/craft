@@ -157,7 +157,8 @@ Native screens also expose `craft.files` when the host advertises the
 created by that capability. `FormData` is available on this path; `fetch`
 builds its multipart body natively from text fields and those owned files, so
 image bytes do not cross the Android JavaScript bridge as base64. The browser
-renderer keeps using the ordinary web `File`/`FormData` implementations.
+renderer keeps using the ordinary web `File`/`FormData` implementations. Owned
+files survive Activity recreation and stale cache entries are swept after a day.
 
 `FlatList` item roots receive the same `onLayout` callback as ordinary native
 views when rows are materialized or recycled.

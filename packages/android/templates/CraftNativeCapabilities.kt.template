@@ -93,7 +93,10 @@ internal class CraftNativeCapabilities(
         val completion: (CraftNativeCapabilityResult) -> Unit,
     )
 
-    init { restoreNotifications() }
+    init {
+        restoreNotifications()
+        sweepFiles()
+    }
 
     fun names(): JSONArray = JSONArray().apply {
         listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "files").forEach(::put)
@@ -167,7 +170,6 @@ internal class CraftNativeCapabilities(
         fetchConnections.values.forEach(HttpURLConnection::disconnect)
         fetchConnections.clear()
         pendingFilePick = null
-        fileRoot.deleteRecursively()
         database?.close()
         database = null
         biometricPrompts.values.forEach { it.cancelAuthentication() }
@@ -481,6 +483,13 @@ internal class CraftNativeCapabilities(
         .put("name", file.name)
         .put("type", type)
         .put("size", file.length())
+
+    private fun sweepFiles() {
+        val cutoff = System.currentTimeMillis() - 24L * 60L * 60L * 1000L
+        fileRoot.listFiles()?.forEach { file ->
+            if (file.lastModified() < cutoff) file.deleteRecursively()
+        }
+    }
 
     private fun ownedFile(path: String): File? {
         if (path.isBlank()) return null

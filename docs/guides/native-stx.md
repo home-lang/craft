@@ -713,8 +713,9 @@ capability methods only where persistence or native lifecycle behavior is
 needed; browser-rendered apps continue using their existing web fallbacks.
 
 The `files` capability keeps picked, downloaded, and generated files in an
-app-owned temporary directory. `craft.files.remove` rejects paths outside
-that directory. When the host advertises `files`, its `FormData`
+app-owned temporary directory that survives Activity recreation; stale entries
+are swept after a day. `craft.files.remove` rejects paths outside that
+directory. When the host advertises `files`, its `FormData`
 implementation accepts text fields and those file descriptors;
 `Network.fetch` assembles the multipart body natively, so file bytes do not
 pass through JavaScriptCore as base64. Without that capability, native
