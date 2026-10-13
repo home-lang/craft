@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { init, restoreShell } from './index'
+import type { SimulatorStep } from './testing'
 import { createNativeMutationValidator, initSimulatorDriver, serializeSimulatorSteps } from './testing'
 
 const folders: string[] = []
@@ -55,6 +56,29 @@ describe('package-owned iOS shells', () => {
     expect(() => serializeSimulatorSteps([{ command: 'tapxy', x: 2, y: 0 }])).toThrow()
     expect(() => serializeSimulatorSteps([{ command: 'wait', seconds: NaN }])).toThrow()
     expect(() => serializeSimulatorSteps([{ command: 'typeid', id: 'two words', text: 'x' }])).toThrow()
+  })
+
+  it('serializes guarded steps and exact label checks', () => {
+    expect(serializeSimulatorSteps([
+      { command: 'ifid', id: 'welcome-skip', step: { command: 'tapid', text: 'welcome-skip' } },
+      { command: 'ifid', id: 'consent', step: { command: 'ifid', id: 'consent-agree', step: { command: 'expect', text: 'Agree', seconds: 5 } } },
+      { command: 'labelid', id: 'cart-count', text: '2 items' },
+    ])).toBe('ifid welcome-skip tapid welcome-skip\nifid consent ifid consent-agree expect Agree | 5\nlabelid cart-count 2 items\n')
+    expect(() => serializeSimulatorSteps([{ command: 'ifid', id: 'two words', step: { command: 'launch' } }])).toThrow()
+    expect(() => serializeSimulatorSteps([{ command: 'ifid', id: 'x', step: { command: 'tap', text: 'a\nterminate' } }])).toThrow()
+    expect(() => serializeSimulatorSteps([{ command: 'labelid', id: '', text: 'x' }])).toThrow()
+  })
+
+  it('handles every typed command in the driver template', () => {
+    const output = folder()
+    initSimulatorDriver({ output, bundleId: 'org.example.app' })
+    const source = readFileSync(join(output, 'UITests/DriverTests.swift'), 'utf8')
+    const handled = new Set([...source.matchAll(/case "([a-z]+)"/g)].map(match => match[1]))
+    const commands: SimulatorStep['command'][] = ['launch', 'activate', 'terminate', 'home', 'back', 'return', 'unlabelled', 'background', 'wait', 'delay', 'net', 'swipe', 'tabbar', 'tapxy', 'field', 'typeid', 'labelid', 'expect', 'expectexact', 'expectid', 'tap', 'tapif', 'tapid', 'tapexact', 'type', 'absent', 'absentid', 'selected', 'tab', 'scrollto', 'dismiss', 'log', 'shot', 'tree', 'audit', 'exec', 'openurl', 'ifid']
+    expect(commands.filter(command => !handled.has(command))).toEqual([])
+    // ifid re-enters the same dispatcher, so a guarded command is any command.
+    expect(source).toContain('func run(_ line: String)')
+    expect(source).toMatch(/case "ifid":[\s\S]*?run\(rest\[1\]\)/)
   })
 
   const macTest = process.platform === 'darwin' ? it : it.skip

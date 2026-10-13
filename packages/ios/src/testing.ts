@@ -70,11 +70,13 @@ export type SimulatorStep =
   | { command: 'tabbar', state: 'shown' | 'hidden' }
   | { command: 'tapxy', x: number, y: number }
   | { command: 'field', index: number, text: string }
-  | { command: 'typeid', id: string, text: string }
+  | { command: 'typeid' | 'labelid', id: string, text: string }
   | { command: 'expect' | 'expectexact' | 'expectid', text: string, seconds?: number }
   | { command: 'tap' | 'tapif' | 'tapid' | 'tapexact' | 'type' | 'absent' | 'absentid' | 'selected' | 'tab' | 'scrollto' | 'dismiss' | 'log', text: string }
   | { command: 'shot' | 'tree' | 'audit' | 'exec', name: string }
   | { command: 'openurl', url: string }
+  /** Runs `step` only when the element with this identifier is there (a screen shown the first time). */
+  | { command: 'ifid', id: string, step: SimulatorStep }
 
 /** Typed journeys use the same wire protocol as existing line-based scripts. */
 export function serializeSimulatorSteps(steps: readonly SimulatorStep[]): string {
@@ -86,9 +88,10 @@ export function serializeSimulatorSteps(steps: readonly SimulatorStep[]): string
     if (!value || /\s/.test(value)) throw new Error('Simulator identifiers must be nonempty single tokens')
     return value
   }
-  return steps.map((step) => {
+  const line = (step: SimulatorStep): string => {
     let arg = ''
-    if ('seconds' in step && !('text' in step)) arg = String(number(step.seconds!))
+    if ('step' in step) arg = `${token(step.id)} ${line(step.step)}`
+    else if ('seconds' in step && !('text' in step)) arg = String(number(step.seconds!))
     else if ('milliseconds' in step) arg = String(number(step.milliseconds))
     else if ('state' in step) arg = step.state
     else if ('direction' in step) arg = step.direction
@@ -112,7 +115,8 @@ export function serializeSimulatorSteps(steps: readonly SimulatorStep[]): string
     else if ('url' in step) arg = step.url
     if (/[\r\n]/.test(arg)) throw new Error('Simulator arguments cannot contain newlines')
     return `${step.command}${arg ? ` ${arg}` : ''}`
-  }).join('\n') + '\n'
+  }
+  return `${steps.map(line).join('\n')}\n`
 }
 
 export interface NativeValidationResult {

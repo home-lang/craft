@@ -26,6 +26,7 @@ import XCTest
 ///   expectexact <label> [| secs]  a button or text whose label is exactly this
 ///   absent <text>         logs PASS when no element contains text
 ///   expectid <id> [| secs] / absentid <id>   the same by accessibility identifier (testID)
+///   labelid <id> <text>   that element's label is exactly text (a count, a status)
 ///   tabbar shown|hidden   the native tab bar (Today, Calendar, …) can be tapped, or not
 ///   selected <tab>        the tab bar's selected button is this one
 ///   tab <name>            tap a tab bar button
@@ -34,6 +35,7 @@ import XCTest
 ///   audit <name>          accessibility audit (element descriptions, Dynamic Type, contrast); logs each issue
 ///   unlabelled            logs every hittable button without a label (FAIL if any)
 ///   dismiss [label]       a system prompt's button (default Not Now: "Save Password?")
+///   ifid <id> <command…>  runs the command only when that element is there (a screen shown the first time)
 ///   log <text>
 ///
 /// Checks log `PASS …` / `FAIL …` lines into driver.log; matrix.sh counts them.
@@ -153,153 +155,167 @@ final class DriverTests: XCTestCase {
         for raw in script.split(separator: "\n") {
             let line = raw.trimmingCharacters(in: .whitespaces)
             if line.isEmpty || line.hasPrefix("#") { continue }
-            let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
-            let command = parts[0]
-            let arg = parts.count > 1 ? parts[1] : ""
-            switch command {
-            case "launch": app.launch()
-            case "activate": app.activate()
-            case "terminate": app.terminate()
-            case "home": XCUIDevice.shared.press(.home)
-            case "background":
-                XCUIDevice.shared.press(.home)
-                Thread.sleep(forTimeInterval: Double(arg) ?? 3)
-                app.activate()
-            case "wait": Thread.sleep(forTimeInterval: Double(arg) ?? 1)
-            case "net": _ = get("/\(arg)"); note("net \(arg)")
-            case "delay": _ = get("/delay?ms=\(arg)"); note("delay \(arg)ms")
-            case "exec":
-                let out = get("/exec?name=\(arg)", timeout: 180).flatMap { String(data: $0, encoding: .utf8) } ?? "no answer"
-                note("exec \(arg): \(out.trimmingCharacters(in: .whitespacesAndNewlines))")
-            case "openurl":
-                if let url = URL(string: arg) {
-                    XCUIDevice.shared.system.open(url)
-                    answerOpenPrompt()
-                    note("openurl \(arg)")
-                }
-            case "shot":
-                let shot = XCUIScreen.main.screenshot()
-                post("/save?name=\(arg).png", shot.pngRepresentation)
-            case "tree":
-                post("/save?name=\(arg).txt", Data(app.debugDescription.utf8))
-            case "tap":
-                if let target = waitFor(arg, 10) { press(target); note("tap \(arg): ok") }
-                else { XCTFail("Element not found"); note("FAIL tap \(arg): NOT FOUND") }
-            case "tapif":
-                if let target = element(containing: arg), target.isHittable { press(target); note("tapif \(arg): tapped") }
-                else { note("tapif \(arg): not shown") }
-            case "tapexact":
-                if let target = poll(10, { exact(arg) }) { press(target); note("tapexact \(arg): ok") }
-                else { XCTFail("Element not found"); note("FAIL tapexact \(arg): NOT FOUND") }
-            case "tapid":
-                let target = app.descendants(matching: .any)[arg]
-                if target.waitForExistence(timeout: 10) { press(target); note("tapid \(arg): ok") }
-                else { XCTFail("Element not found"); note("FAIL tapid \(arg): NOT FOUND") }
-            case "tapxy":
-                let xy = arg.split(separator: " ").compactMap { Double($0) }
-                if xy.count == 2 && xy.allSatisfy({ $0 >= 0 && $0 <= 1 }) {
-                    app.coordinate(withNormalizedOffset: CGVector(dx: xy[0], dy: xy[1])).tap()
-                } else { XCTFail("tapxy needs two coordinates between 0 and 1") }
-            case "back":
-                let bar = app.navigationBars.buttons.firstMatch
-                if bar.exists && bar.isHittable { bar.tap(); note("back: bar button") }
-                else {
-                    let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5))
-                    start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
-                    note("back: edge swipe")
-                }
-            case "type": app.typeText(arg)
-            case "return": app.typeText(XCUIKeyboardKey.return.rawValue); note("return")
-            case "typeid":
-                let idParts = arg.split(separator: " ", maxSplits: 1).map(String.init)
-                let target = app.descendants(matching: .any)[idParts[0]]
-                if target.waitForExistence(timeout: 10) {
-                    target.tap()
-                    Thread.sleep(forTimeInterval: 0.8)
-                    app.typeText(idParts.count > 1 ? idParts[1] : "")
-                    note("typeid \(idParts[0]): ok")
-                } else { XCTFail("Element not found"); note("FAIL typeid \(idParts[0]): NOT FOUND") }
-            case "field":
-                let fieldParts = arg.split(separator: " ", maxSplits: 1).map(String.init)
-                let index = Int(fieldParts[0]) ?? 0
-                let fields = app.textFields.allElementsBoundByIndex + app.secureTextFields.allElementsBoundByIndex
-                if index >= 0 && index < fields.count {
-                    fields[index].tap()
-                    Thread.sleep(forTimeInterval: 0.6)
-                    app.typeText(fieldParts.count > 1 ? fieldParts[1] : "")
-                    note("field \(index): ok")
-                } else { XCTFail("Element not found"); note("FAIL field \(index): NOT FOUND (\(fields.count) fields)") }
-            case "expect":
-                let (text, seconds) = split(arg)
-                check(waitFor(text, seconds) != nil, "expect \(text)")
-            case "expectexact":
-                let (text, seconds) = split(arg)
-                check(poll(seconds, { exact(text) }) != nil, "expectexact \(text)")
-            case "expectid":
-                let (id, seconds) = split(arg)
-                check(app.descendants(matching: .any)[id].waitForExistence(timeout: seconds), "expectid \(id)")
-            case "absentid":
-                check(!app.descendants(matching: .any)[arg].exists, "absentid \(arg)")
-            case "absent":
-                check(element(containing: arg) == nil, "absent \(arg)")
-            case "tabbar":
-                let want = arg != "hidden"
-                let end = Date().addingTimeInterval(5)
-                var shown = tabBarShown()
-                while shown != want && Date() < end { Thread.sleep(forTimeInterval: 0.5); shown = tabBarShown() }
-                check(shown == want, "tabbar \(arg)")
-            case "selected":
-                check(poll(5, { tabButton(arg).flatMap { $0.isSelected ? $0 : nil } }) != nil, "selected \(arg)")
-            case "tab":
-                if let button = poll(10, { tabButton(arg) }) { button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap(); note("tab \(arg): ok") }
-                else { XCTFail("Element not found"); note("FAIL tab \(arg): NOT FOUND") }
-            case "scrollto":
-                var found = element(containing: arg)
-                var swipes = 0
-                while (found == nil || !(found!.isHittable)) && swipes < 8 {
-                    app.swipeUp()
-                    swipes += 1
-                    found = element(containing: arg)
-                }
-                check(found != nil && found!.isHittable, "scrollto \(arg)")
-            case "swipe":
-                switch arg {
-                case "up": app.swipeUp()
-                case "down": app.swipeDown()
-                case "left": app.swipeLeft()
-                default: app.swipeRight()
-                }
-            case "audit":
-                var issues: [String] = []
-                do {
-                    try app.performAccessibilityAudit(for: [.sufficientElementDescription, .dynamicType, .contrast, .hitRegion]) { issue in
-                        let label = issue.element?.label ?? ""
-                        let id = issue.element?.identifier ?? ""
-                        issues.append("\(issue.auditType.rawValue) \(issue.compactDescription) [\(label)|\(id)]")
-                        return true
-                    }
-                } catch { issues.append("audit error \(error)") }
-                post("/save?name=audit-\(arg).txt", Data(issues.joined(separator: "\n").utf8))
-                note("AUDIT \(arg): \(issues.count) issue(s)")
-            case "unlabelled":
-                let buttons = app.buttons.allElementsBoundByIndex.filter { $0.exists && $0.isHittable && $0.label.trimmingCharacters(in: .whitespaces).isEmpty }
-                let where_ = buttons.prefix(5).map { "\(Int($0.frame.midX)),\(Int($0.frame.midY)) id=\($0.identifier)" }.joined(separator: "; ")
-                check(buttons.isEmpty, "unlabelled buttons \(arg) \(buttons.count) \(where_)")
-            case "dismiss":
-                // A system prompt over the app ("Save Password?" → Not Now), wherever iOS shows it.
-                let label = arg.isEmpty ? "Not Now" : arg
-                let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-                let candidates = [app.buttons[label], springboard.buttons[label]]
-                let end = Date().addingTimeInterval(6)
-                var done = false
-                while !done && Date() < end {
-                    if let button = candidates.first(where: { $0.exists && $0.isHittable }) { button.tap(); done = true }
-                    else { Thread.sleep(forTimeInterval: 0.5) }
-                }
-                note("dismiss \(label): \(done ? "tapped" : "none shown")")
-            case "log": note(arg)
-            default: XCTFail("Unknown command \(command)"); note("FAIL unknown command \(command)")
+            run(line)
+        }
+    }
+
+    func run(_ line: String) {
+        let parts = line.split(separator: " ", maxSplits: 1).map(String.init)
+        let command = parts[0]
+        let arg = parts.count > 1 ? parts[1] : ""
+        switch command {
+        case "ifid":
+            let rest = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            if rest.count == 2, app.descendants(matching: .any)[rest[0]].waitForExistence(timeout: 3) { note("ifid \(rest[0]): shown"); run(rest[1]) }
+            else { note("ifid \(rest.first ?? ""): not shown") }
+        case "launch": app.launch()
+        case "activate": app.activate()
+        case "terminate": app.terminate()
+        case "home": XCUIDevice.shared.press(.home)
+        case "background":
+            XCUIDevice.shared.press(.home)
+            Thread.sleep(forTimeInterval: Double(arg) ?? 3)
+            app.activate()
+        case "wait": Thread.sleep(forTimeInterval: Double(arg) ?? 1)
+        case "net": _ = get("/\(arg)"); note("net \(arg)")
+        case "delay": _ = get("/delay?ms=\(arg)"); note("delay \(arg)ms")
+        case "exec":
+            let out = get("/exec?name=\(arg)", timeout: 180).flatMap { String(data: $0, encoding: .utf8) } ?? "no answer"
+            note("exec \(arg): \(out.trimmingCharacters(in: .whitespacesAndNewlines))")
+        case "openurl":
+            if let url = URL(string: arg) {
+                XCUIDevice.shared.system.open(url)
+                answerOpenPrompt()
+                note("openurl \(arg)")
             }
+        case "shot":
+            let shot = XCUIScreen.main.screenshot()
+            post("/save?name=\(arg).png", shot.pngRepresentation)
+        case "tree":
+            post("/save?name=\(arg).txt", Data(app.debugDescription.utf8))
+        case "tap":
+            if let target = waitFor(arg, 10) { press(target); note("tap \(arg): ok") }
+            else { XCTFail("Element not found"); note("FAIL tap \(arg): NOT FOUND") }
+        case "tapif":
+            if let target = element(containing: arg), target.isHittable { press(target); note("tapif \(arg): tapped") }
+            else { note("tapif \(arg): not shown") }
+        case "tapexact":
+            if let target = poll(10, { exact(arg) }) { press(target); note("tapexact \(arg): ok") }
+            else { XCTFail("Element not found"); note("FAIL tapexact \(arg): NOT FOUND") }
+        case "tapid":
+            let target = app.descendants(matching: .any)[arg]
+            if target.waitForExistence(timeout: 10) { press(target); note("tapid \(arg): ok") }
+            else { XCTFail("Element not found"); note("FAIL tapid \(arg): NOT FOUND") }
+        case "tapxy":
+            let xy = arg.split(separator: " ").compactMap { Double($0) }
+            if xy.count == 2 && xy.allSatisfy({ $0 >= 0 && $0 <= 1 }) {
+                app.coordinate(withNormalizedOffset: CGVector(dx: xy[0], dy: xy[1])).tap()
+            } else { XCTFail("tapxy needs two coordinates between 0 and 1") }
+        case "back":
+            let bar = app.navigationBars.buttons.firstMatch
+            if bar.exists && bar.isHittable { bar.tap(); note("back: bar button") }
+            else {
+                let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.5))
+                start.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+                note("back: edge swipe")
+            }
+        case "type": app.typeText(arg)
+        case "return": app.typeText(XCUIKeyboardKey.return.rawValue); note("return")
+        case "typeid":
+            let idParts = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            let target = app.descendants(matching: .any)[idParts[0]]
+            if target.waitForExistence(timeout: 10) {
+                target.tap()
+                Thread.sleep(forTimeInterval: 0.8)
+                app.typeText(idParts.count > 1 ? idParts[1] : "")
+                note("typeid \(idParts[0]): ok")
+            } else { XCTFail("Element not found"); note("FAIL typeid \(idParts[0]): NOT FOUND") }
+        case "field":
+            let fieldParts = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            let index = Int(fieldParts[0]) ?? 0
+            let fields = app.textFields.allElementsBoundByIndex + app.secureTextFields.allElementsBoundByIndex
+            if index >= 0 && index < fields.count {
+                fields[index].tap()
+                Thread.sleep(forTimeInterval: 0.6)
+                app.typeText(fieldParts.count > 1 ? fieldParts[1] : "")
+                note("field \(index): ok")
+            } else { XCTFail("Element not found"); note("FAIL field \(index): NOT FOUND (\(fields.count) fields)") }
+        case "expect":
+            let (text, seconds) = split(arg)
+            check(waitFor(text, seconds) != nil, "expect \(text)")
+        case "expectexact":
+            let (text, seconds) = split(arg)
+            check(poll(seconds, { exact(text) }) != nil, "expectexact \(text)")
+        case "expectid":
+            let (id, seconds) = split(arg)
+            check(app.descendants(matching: .any)[id].waitForExistence(timeout: seconds), "expectid \(id)")
+        case "labelid":
+            let idParts = arg.split(separator: " ", maxSplits: 1).map(String.init)
+            let target = app.descendants(matching: .any)[idParts[0]]
+            let want = idParts.count > 1 ? idParts[1] : ""
+            let seen = target.waitForExistence(timeout: 5) ? target.label : "(missing)"
+            check(seen == want, "labelid \(idParts[0]) \(want) (saw \(seen))")
+        case "absentid":
+            check(!app.descendants(matching: .any)[arg].exists, "absentid \(arg)")
+        case "absent":
+            check(element(containing: arg) == nil, "absent \(arg)")
+        case "tabbar":
+            let want = arg != "hidden"
+            let end = Date().addingTimeInterval(5)
+            var shown = tabBarShown()
+            while shown != want && Date() < end { Thread.sleep(forTimeInterval: 0.5); shown = tabBarShown() }
+            check(shown == want, "tabbar \(arg)")
+        case "selected":
+            check(poll(5, { tabButton(arg).flatMap { $0.isSelected ? $0 : nil } }) != nil, "selected \(arg)")
+        case "tab":
+            if let button = poll(10, { tabButton(arg) }) { button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap(); note("tab \(arg): ok") }
+            else { XCTFail("Element not found"); note("FAIL tab \(arg): NOT FOUND") }
+        case "scrollto":
+            var found = element(containing: arg)
+            var swipes = 0
+            while (found == nil || !(found!.isHittable)) && swipes < 8 {
+                app.swipeUp()
+                swipes += 1
+                found = element(containing: arg)
+            }
+            check(found != nil && found!.isHittable, "scrollto \(arg)")
+        case "swipe":
+            switch arg {
+            case "up": app.swipeUp()
+            case "down": app.swipeDown()
+            case "left": app.swipeLeft()
+            default: app.swipeRight()
+            }
+        case "audit":
+            var issues: [String] = []
+            do {
+                try app.performAccessibilityAudit(for: [.sufficientElementDescription, .dynamicType, .contrast, .hitRegion]) { issue in
+                    let label = issue.element?.label ?? ""
+                    let id = issue.element?.identifier ?? ""
+                    issues.append("\(issue.auditType.rawValue) \(issue.compactDescription) [\(label)|\(id)]")
+                    return true
+                }
+            } catch { issues.append("audit error \(error)") }
+            post("/save?name=audit-\(arg).txt", Data(issues.joined(separator: "\n").utf8))
+            note("AUDIT \(arg): \(issues.count) issue(s)")
+        case "unlabelled":
+            let buttons = app.buttons.allElementsBoundByIndex.filter { $0.exists && $0.isHittable && $0.label.trimmingCharacters(in: .whitespaces).isEmpty }
+            let where_ = buttons.prefix(5).map { "\(Int($0.frame.midX)),\(Int($0.frame.midY)) id=\($0.identifier)" }.joined(separator: "; ")
+            check(buttons.isEmpty, "unlabelled buttons \(arg) \(buttons.count) \(where_)")
+        case "dismiss":
+            // A system prompt over the app ("Save Password?" → Not Now), wherever iOS shows it.
+            let label = arg.isEmpty ? "Not Now" : arg
+            let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+            let candidates = [app.buttons[label], springboard.buttons[label]]
+            let end = Date().addingTimeInterval(6)
+            var done = false
+            while !done && Date() < end {
+                if let button = candidates.first(where: { $0.exists && $0.isHittable }) { button.tap(); done = true }
+                else { Thread.sleep(forTimeInterval: 0.5) }
+            }
+            note("dismiss \(label): \(done ? "tapped" : "none shown")")
+        case "log": note(arg)
+        default: XCTFail("Unknown command \(command)"); note("FAIL unknown command \(command)")
         }
     }
 }
