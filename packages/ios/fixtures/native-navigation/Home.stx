@@ -21,6 +21,8 @@ const pickerValue = state('one')
 const dateValue = state('2026-10-12')
 const timeValue = state('07:30')
 const countdownValue = state('01:30:00')
+const checkboxValue = state(false)
+const checkboxStatus = state('checkbox pending')
 const dateEventStatus = state('date event pending')
 const modalVisible = state(false)
 const modalStatus = state('')
@@ -289,6 +291,11 @@ function chooseCountdown(event) {
   dateEventStatus.set(event.iso === 'PT5400S' && event.timestamp === 5400000 ? `${event.value}|duration complete` : 'countdown event incomplete')
 }
 
+function chooseCheckbox(event) {
+  checkboxValue.set(event.value)
+  checkboxStatus.set(event.value ? 'checkbox on' : 'checkbox off')
+}
+
 function toggleModal() {
   modalVisible.update(value => !value)
 }
@@ -481,6 +488,8 @@ function openCapabilities() {
     <Text testID="time-value" :text="timeValue" />
     <DatePicker testID="native-countdown" mode="countdown" value="01:30:00" @value-change="chooseCountdown($event)" />
     <Text testID="countdown-value" :text="countdownValue" />
+    <Checkbox testID="native-checkbox" label="Accept terms" :value="checkboxValue" @value-change="chooseCheckbox($event)" />
+    <Text testID="checkbox-status" :text="checkboxStatus" />
     <Text testID="date-event-status" :text="dateEventStatus" />
     <Button testID="toggle-modal" @click="toggleModal()">Toggle modal</Button>
     <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} @show="modalShown()" @dismiss="modalDismissed()" @request-close="modalRequested()">

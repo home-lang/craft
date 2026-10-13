@@ -17,6 +17,7 @@ import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import android.webkit.WebView
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.DatePicker
 import android.widget.EditText
 import android.widget.ImageView
@@ -451,6 +452,11 @@ class NativeNavigationTest {
             instrumentation.runOnMainSync { nativeCountdown.minute = 31 }
             awaitText(activity, "countdown-value", "01:31:00")
             awaitText(activity, "date-event-status", "01:31:00|duration complete")
+            val checkbox = awaitView(activity, "native-checkbox")
+            assertTrue("native checkbox should be an Android CheckBox", checkbox is CheckBox)
+            assertFalse("native checkbox should start unchecked", (checkbox as CheckBox).isChecked)
+            instrumentation.runOnMainSync { checkbox.performClick() }
+            awaitText(activity, "checkbox-status", "checkbox on")
             val modal = awaitView(activity, "native-modal")
             assertTrue("native modal should be a container", modal is ViewGroup)
             assertEquals("modal should start hidden", View.GONE, modal.visibility)
