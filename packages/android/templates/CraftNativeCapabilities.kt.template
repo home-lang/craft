@@ -12,8 +12,10 @@ import android.database.sqlite.SQLiteCursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteQuery
 import android.database.sqlite.SQLiteStatement
+import android.graphics.Bitmap
 import android.os.Build
 import android.net.Uri
+import android.provider.MediaStore
 import android.util.Base64
 import androidx.core.content.ContextCompat
 import androidx.biometric.BiometricManager
@@ -25,15 +27,19 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.SocketTimeoutException
 import java.net.URL
+import java.net.URLConnection
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 private const val CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 private const val CRAFT_NATIVE_FETCH_TIMEOUT_MS = 30_000
+private const val CRAFT_NATIVE_FILE_PICK_REQUEST = 4101
 
 internal const val CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION = 1
 
@@ -68,13 +74,21 @@ internal class CraftNativeCapabilities(
     private val networkExecutor = Executors.newCachedThreadPool()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
     private val fetchConnections = ConcurrentHashMap<String, HttpURLConnection>()
+    private val fileRoot by lazy { File(activity.cacheDir, "craft-files").apply { mkdirs() } }
+    private var pendingFilePick: PendingFilePick? = null
     private var database: SQLiteDatabase? = null
     private val biometricPrompts = ConcurrentHashMap<String, BiometricPrompt>()
+
+    private data class PendingFilePick(
+        val requestToken: String,
+        val source: String,
+        val completion: (CraftNativeCapabilityResult) -> Unit,
+    )
 
     init { restoreNotifications() }
 
     fun names(): JSONArray = JSONArray().apply {
-        listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch").forEach(::put)
+        listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "files").forEach(::put)
         if (config.optBoolean("enableBiometric")) put("biometric")
         if (config.optBoolean("enableSecureStorage")) put("secureStorage")
         if (config.optBoolean("enableLocalDatabase")) put("database")
@@ -121,6 +135,13 @@ internal class CraftNativeCapabilities(
                     complete(requestToken, fetch(requestToken, args), completion)
                 }
             }
+            "Files" -> when (method) {
+                "pickImage" -> pickImage(requestToken, args, completion)
+                "download", "write", "remove" -> networkExecutor.execute {
+                    complete(requestToken, files(method, args), completion)
+                }
+                else -> complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Files method"), completion)
+            }
             else -> complete(requestToken, activity.performImmediateCapability(module, method, args), completion)
         }
     }
@@ -128,6 +149,7 @@ internal class CraftNativeCapabilities(
     fun cancel(requestToken: String) {
         cancelled.add(requestToken)
         fetchConnections.remove(requestToken)?.disconnect()
+        if (pendingFilePick?.requestToken == requestToken) pendingFilePick = null
         biometricPrompts.remove(requestToken)?.cancelAuthentication()
     }
 
@@ -136,6 +158,8 @@ internal class CraftNativeCapabilities(
         networkExecutor.shutdownNow()
         fetchConnections.values.forEach(HttpURLConnection::disconnect)
         fetchConnections.clear()
+        pendingFilePick = null
+        fileRoot.deleteRecursively()
         database?.close()
         database = null
         biometricPrompts.values.forEach { it.cancelAuthentication() }
@@ -155,14 +179,20 @@ internal class CraftNativeCapabilities(
         val method = options.optString("method", "GET").uppercase()
         if (method.isBlank() || method.any { !it.isLetter() || it.code > 127 })
             return failure("INVALID_ARGUMENT", "fetch method must be an HTTP token")
+        val form = options.optJSONArray("form")
         val bodyValue = options.opt("body")
+        if (form != null && bodyValue != null && bodyValue != JSONObject.NULL)
+            return failure("INVALID_ARGUMENT", "fetch cannot have both form and body")
         val body = when (bodyValue) {
             null, JSONObject.NULL -> null
             is String -> bodyValue
             else -> return failure("INVALID_ARGUMENT", "fetch body must be a string")
         }
-        if (body != null && method in setOf("GET", "HEAD"))
+        if ((body != null || form != null) && method in setOf("GET", "HEAD"))
             return failure("INVALID_ARGUMENT", "A GET or HEAD request cannot have a body")
+
+        val multipart = form?.let { multipart(it) }
+        if (multipart is FileResult.Failure) return failure(multipart.code, multipart.message)
 
         val connection = try {
             (url.openConnection() as HttpURLConnection).apply {
@@ -177,7 +207,8 @@ internal class CraftNativeCapabilities(
                         setRequestProperty(name, value)
                     }
                 }
-                if (body != null) doOutput = true
+                if (body != null || multipart is FileResult.Multipart) doOutput = true
+                if (multipart is FileResult.Multipart) setRequestProperty("Content-Type", "multipart/form-data; boundary=${multipart.boundary}")
             }
         } catch (error: IllegalArgumentException) {
             return failure("INVALID_ARGUMENT", error.message ?: "fetch request is invalid")
@@ -191,6 +222,7 @@ internal class CraftNativeCapabilities(
         }
         return try {
             if (body != null) connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            if (multipart is FileResult.Multipart) connection.outputStream.use { it.write(multipart.body) }
             val status = connection.responseCode
             val input = if (status >= 400) connection.errorStream else connection.inputStream
             val output = ByteArrayOutputStream()
@@ -223,6 +255,197 @@ internal class CraftNativeCapabilities(
             fetchConnections.remove(requestToken)?.disconnect()
         }
     }
+
+    private sealed interface FileResult {
+        data class Multipart(val body: ByteArray, val boundary: String) : FileResult
+        data class Failure(val code: String, val message: String) : FileResult
+    }
+
+    private fun multipart(parts: JSONArray): FileResult {
+        val boundary = "craft-${UUID.randomUUID()}"
+        val body = ByteArrayOutputStream()
+        fun append(value: String) { body.write(value.toByteArray(Charsets.UTF_8)) }
+        for (index in 0 until parts.length()) {
+            val part = parts.optJSONObject(index) ?: return FileResult.Failure("INVALID_ARGUMENT", "A form part must be an object")
+            val name = part.optString("name")
+            if (name.isBlank()) return FileResult.Failure("INVALID_ARGUMENT", "A form part needs a name")
+            append("--$boundary\r\n")
+            val path = part.optString("path")
+            if (path.isNotBlank()) {
+                val file = ownedFile(path) ?: return FileResult.Failure("INVALID_ARGUMENT", "A form file must be one craft.files made, and still there")
+                val bytes = runCatching { file.readBytes() }.getOrElse {
+                    return FileResult.Failure("INVALID_ARGUMENT", "A form file could not be read")
+                }
+                if (bytes.size > CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES)
+                    return FileResult.Failure("REQUEST_TOO_LARGE", "form files are limited to $CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES bytes")
+                val filename = safeFileName(part.optString("filename").ifBlank { file.name })
+                val type = part.optString("type").ifBlank { URLConnection.guessContentTypeFromName(filename) ?: "application/octet-stream" }
+                append("Content-Disposition: form-data; name=\"${quoted(name)}\"; filename=\"${quoted(filename)}\"\r\n")
+                append("Content-Type: ${headerValue(type)}\r\n\r\n")
+                body.write(bytes)
+                append("\r\n")
+            } else {
+                append("Content-Disposition: form-data; name=\"${quoted(name)}\"\r\n\r\n")
+                append(part.optString("value"))
+                append("\r\n")
+            }
+        }
+        append("--$boundary--\r\n")
+        return FileResult.Multipart(body.toByteArray(), boundary)
+    }
+
+    private fun files(method: String, args: JSONArray): CraftNativeCapabilityResult = when (method) {
+        "write" -> {
+            val name = args.optString(0).trim()
+            if (name.isBlank()) return failure("INVALID_ARGUMENT", "files.write needs a file name")
+            val data = args.optString(1, "")
+            val options = args.optJSONObject(2) ?: JSONObject()
+            val bytes = if (options.optString("encoding") == "base64") {
+                runCatching { Base64.decode(data, Base64.DEFAULT) }.getOrElse { return failure("INVALID_ARGUMENT", "files.write base64 is invalid") }
+            } else data.toByteArray(Charsets.UTF_8)
+            store(bytes, name, options.optString("type").ifBlank { URLConnection.guessContentTypeFromName(name) ?: "application/octet-stream" })
+        }
+        "remove" -> {
+            val file = ownedFile(args.optString(0)) ?: return failure("INVALID_ARGUMENT", "files.remove needs a file made by craft.files")
+            success(file.delete())
+        }
+        "download" -> download(args)
+        else -> failure("UNKNOWN_ACTION", "Unsupported Files method")
+    }
+
+    private fun download(args: JSONArray): CraftNativeCapabilityResult {
+        val address = args.optString(0).trim()
+        val url = validURL(address) ?: return failure("INVALID_ARGUMENT", "files.download needs an absolute http or https URL")
+        val options = args.optJSONObject(1) ?: JSONObject()
+        val connection = try {
+            (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = CRAFT_NATIVE_FETCH_TIMEOUT_MS
+                readTimeout = CRAFT_NATIVE_FETCH_TIMEOUT_MS
+                options.optJSONObject("headers")?.let { headers ->
+                    for (name in headers.keys()) {
+                        val value = headers.opt(name)
+                        if (value !is String) throw IllegalArgumentException("files.download header values must be strings")
+                        setRequestProperty(name, value)
+                    }
+                }
+            }
+        } catch (error: IllegalArgumentException) {
+            return failure("INVALID_ARGUMENT", error.message ?: "files.download request is invalid")
+        } catch (error: Exception) {
+            return failure("NETWORK_ERROR", error.message ?: "File download failed")
+        }
+        return try {
+            val status = connection.responseCode
+            if (status !in 200..299) return failure("NETWORK_ERROR", "files.download returned HTTP $status")
+            val name = options.optString("name").ifBlank { connection.url.path.substringAfterLast('/').ifBlank { "download" } }
+            val file = File(fileRoot, UUID.randomUUID().toString()).apply { mkdirs() }.resolve(safeFileName(name))
+            connection.inputStream.use { input -> FileOutputStream(file).use { output -> input.copyTo(output) } }
+            success(descriptor(file, connection.contentType ?: "application/octet-stream"))
+        } catch (error: SocketTimeoutException) {
+            failure("TIMEOUT", error.message ?: "File download timed out")
+        } catch (error: Exception) {
+            failure("NETWORK_ERROR", error.message ?: "File download failed")
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun pickImage(
+        requestToken: String,
+        args: JSONArray,
+        completion: (CraftNativeCapabilityResult) -> Unit,
+    ) {
+        activity.runOnUiThread {
+            if (pendingFilePick != null) {
+                complete(requestToken, failure("BUSY", "Another file picker is already open"), completion)
+                return@runOnUiThread
+            }
+            val options = args.optJSONObject(0) ?: JSONObject()
+            val source = options.optString("source", "library")
+            if (source == "camera" && !config.optBoolean("enableCamera")) {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Camera is disabled"), completion)
+                return@runOnUiThread
+            }
+            pendingFilePick = PendingFilePick(requestToken, source, completion)
+            val intent = if (source == "camera") Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+            else Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "image/*"
+            }
+            try {
+                activity.startActivityForResult(intent, CRAFT_NATIVE_FILE_PICK_REQUEST)
+            } catch (error: Exception) {
+                pendingFilePick = null
+                complete(requestToken, failure("PICKER_UNAVAILABLE", error.message ?: "Image picker could not be opened"), completion)
+            }
+        }
+    }
+
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode != CRAFT_NATIVE_FILE_PICK_REQUEST) return false
+        val pending = pendingFilePick ?: return true
+        pendingFilePick = null
+        if (resultCode != android.app.Activity.RESULT_OK) {
+            complete(pending.requestToken, success(JSONObject.NULL), pending.completion)
+            return true
+        }
+        val descriptor = if (pending.source == "camera") {
+            val bitmap = data?.extras?.get("data") as? Bitmap
+            if (bitmap == null) null else {
+                val file = File(fileRoot, UUID.randomUUID().toString()).apply { mkdirs() }.resolve("photo.jpg")
+                runCatching { FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) } }.getOrNull()
+                descriptor(file, "image/jpeg")
+            }
+        } else {
+            val uri = data?.data
+            uri?.let { copyUri(it) }
+        }
+        complete(pending.requestToken, descriptor?.let(::success) ?: failure("PICKER_FAILED", "The selected image could not be read"), pending.completion)
+        return true
+    }
+
+    private fun copyUri(uri: Uri): JSONObject? {
+        val name = activity.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+            if (it.moveToFirst()) it.getString(0) else null
+        } ?: "photo"
+        val type = activity.contentResolver.getType(uri) ?: "image/*"
+        val file = File(fileRoot, UUID.randomUUID().toString()).apply { mkdirs() }.resolve(safeFileName(name))
+        return runCatching {
+            activity.contentResolver.openInputStream(uri)?.use { input -> FileOutputStream(file).use { output -> input.copyTo(output) } }
+                ?: return null
+            descriptor(file, type)
+        }.getOrNull()
+    }
+
+    private fun store(bytes: ByteArray, name: String, type: String): CraftNativeCapabilityResult {
+        if (bytes.size > CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES) return failure("REQUEST_TOO_LARGE", "files are limited to $CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES bytes")
+        val file = File(fileRoot, UUID.randomUUID().toString()).apply { mkdirs() }.resolve(safeFileName(name))
+        return runCatching { file.writeBytes(bytes); success(descriptor(file, type)) }
+            .getOrElse { failure("WRITE_ERROR", it.message ?: "File could not be written") }
+    }
+
+    private fun descriptor(file: File, type: String): JSONObject = JSONObject()
+        .put("path", file.absolutePath)
+        .put("name", file.name)
+        .put("type", type)
+        .put("size", file.length())
+
+    private fun ownedFile(path: String): File? {
+        if (path.isBlank()) return null
+        val root = runCatching { fileRoot.canonicalFile }.getOrNull() ?: return null
+        val file = runCatching { File(path).canonicalFile }.getOrNull() ?: return null
+        return file.takeIf { it.path.startsWith(root.path + File.separator) }
+    }
+
+    private fun safeFileName(raw: String): String {
+        val name = raw.substringAfterLast('/').substringAfterLast('\\').trim()
+        return name.ifBlank { "file" }.replace(Regex("[\\\\/:*?\"<>|\\r\\n]"), "_")
+    }
+
+    private fun quoted(value: String): String = value.replace("\\", "%5C").replace("\"", "%22").replace("\r", "%0D").replace("\n", "%0A")
+    private fun headerValue(value: String): String = value.replace("\r", "").replace("\n", "")
+    private fun validURL(raw: String): URL? = runCatching { URL(raw) }.getOrNull()?.takeIf { it.protocol.lowercase() in setOf("http", "https") && it.host.isNotBlank() }
 
     private fun complete(
         requestToken: String,

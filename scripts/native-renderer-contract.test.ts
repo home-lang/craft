@@ -7,6 +7,7 @@ const ios = readFileSync(join(root, 'packages/ios/templates/CraftNativeScreen.sw
 const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
+const androidCapabilities = readFileSync(join(root, 'packages/android/templates/CraftNativeCapabilities.kt.template'), 'utf8')
 const androidNative = readFileSync(join(root, 'packages/android/templates/CraftNative.kt.template'), 'utf8')
 const androidDispatch = readFileSync(join(root, 'packages/zig/src/android_dispatch.zig'), 'utf8')
 const androidFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeFlatList.kt.template'), 'utf8')
@@ -1306,5 +1307,14 @@ describe('native renderer component contract', () => {
     expect(hybrid).toContain('scroll.alwaysBounceHorizontal || scroll.contentSize.width > scroll.bounds.width + 1')
     expect(hybrid).toContain('gestureRecognizer !== nav.interactivePopGestureRecognizer')
     expect(hybrid).toContain('if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }')
+  })
+
+  it('keeps Android native file uploads on the owned-file multipart path', () => {
+    expect(androidCapabilities).toContain('listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "files")')
+    expect(androidCapabilities).toContain('private fun multipart(parts: JSONArray): FileResult')
+    expect(androidCapabilities).toContain('A form file must be one craft.files made, and still there')
+    expect(androidCapabilities).toContain('Intent.ACTION_OPEN_DOCUMENT')
+    expect(androidCapabilities).toContain('private fun ownedFile(path: String): File?')
+    expect(android).toContain('capabilities.onActivityResult(requestCode, resultCode, data)')
   })
 })

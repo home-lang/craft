@@ -122,6 +122,69 @@ class NativeCapabilitiesTest {
     }
 
     @Test
+    fun nativeFilesStayOwnedAndUploadAsMultipart() {
+        val server = ServerSocket(0)
+        var received = ""
+        val serving = thread(name = "native-upload-fixture") {
+            server.accept().use { socket ->
+                val reader = socket.getInputStream().bufferedReader()
+                val lines = mutableListOf<String>()
+                while (true) {
+                    val line = reader.readLine()
+                    if (line.isNullOrEmpty()) break
+                    lines += line
+                }
+                val length = lines.firstOrNull { it.startsWith("Content-Length:", ignoreCase = true) }
+                    ?.substringAfter(':')?.trim()?.toIntOrNull() ?: 0
+                val body = CharArray(length)
+                var offset = 0
+                while (offset < length) {
+                    val count = reader.read(body, offset, length - offset)
+                    if (count < 0) break
+                    offset += count
+                }
+                received = lines.joinToString("\n") + "\n\n" + String(body, 0, offset)
+                socket.getOutputStream().bufferedWriter().use { writer ->
+                    writer.write("HTTP/1.1 201 Created\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                }
+            }
+        }
+        val activity = instrumentation.startActivitySync(
+            Intent(instrumentation.targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        val capabilities = CraftNativeCapabilities(activity, JSONObject())
+        try {
+            assertTrue(capabilities.names().toString().contains("files"))
+            val file = call(capabilities, "Files", "write", JSONArray()
+                .put("photo.txt")
+                .put("photo bytes")
+                .put(JSONObject().put("type", "text/plain"))).data as JSONObject
+            assertTrue(file.getString("path").contains("craft-files"))
+            assertEquals("INVALID_ARGUMENT", call(capabilities, "Files", "remove", JSONArray().put("/tmp/not-owned.txt")).code)
+
+            val result = call(capabilities, "Network", "fetch", JSONArray().put(JSONObject()
+                .put("url", "http://127.0.0.1:${server.localPort}/upload")
+                .put("method", "POST")
+                .put("form", JSONArray()
+                    .put(JSONObject().put("name", "caption").put("value", "native"))
+                    .put(JSONObject().put("name", "photo").put("path", file.getString("path")).put("filename", "photo.txt").put("type", "text/plain")))))
+            assertNull(result.code)
+            assertEquals(201, (result.data as JSONObject).getInt("status"))
+            serving.join(5_000)
+            assertTrue(received.contains("name=\"caption\""))
+            assertTrue(received.contains("name=\"photo\"; filename=\"photo.txt\""))
+            assertTrue(received.contains("photo bytes"))
+        }
+        finally {
+            server.close()
+            capabilities.close()
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
     fun persistsStorageAndCommittedDatabaseTransactionsAcrossHosts() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(
