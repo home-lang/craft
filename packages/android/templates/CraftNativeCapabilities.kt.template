@@ -146,7 +146,7 @@ internal class CraftNativeCapabilities(
             "Files" -> when (method) {
                 "pickImage" -> pickImage(requestToken, args, completion)
                 "download", "write", "remove" -> networkExecutor.execute {
-                    complete(requestToken, files(method, args), completion)
+                    complete(requestToken, files(requestToken, method, args), completion)
                 }
                 else -> complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Files method"), completion)
             }
@@ -302,7 +302,7 @@ internal class CraftNativeCapabilities(
         return FileResult.Multipart(body.toByteArray(), boundary)
     }
 
-    private fun files(method: String, args: JSONArray): CraftNativeCapabilityResult = when (method) {
+    private fun files(requestToken: String, method: String, args: JSONArray): CraftNativeCapabilityResult = when (method) {
         "write" -> {
             val name = args.optString(0).trim()
             if (name.isBlank()) return failure("INVALID_ARGUMENT", "files.write needs a file name")
@@ -320,11 +320,11 @@ internal class CraftNativeCapabilities(
             val file = ownedFile(args.optString(0)) ?: return failure("INVALID_ARGUMENT", "files.remove needs a file made by craft.files")
             success(file.delete())
         }
-        "download" -> download(args)
+        "download" -> download(requestToken, args)
         else -> failure("UNKNOWN_ACTION", "Unsupported Files method")
     }
 
-    private fun download(args: JSONArray): CraftNativeCapabilityResult {
+    private fun download(requestToken: String, args: JSONArray): CraftNativeCapabilityResult {
         val address = args.optString(0).trim()
         val url = validURL(address) ?: return failure("INVALID_ARGUMENT", "files.download needs an absolute http or https URL")
         val options = args.optJSONObject(1) ?: JSONObject()
@@ -346,18 +346,33 @@ internal class CraftNativeCapabilities(
         } catch (error: Exception) {
             return failure("NETWORK_ERROR", error.message ?: "File download failed")
         }
+        fetchConnections[requestToken] = connection
+        if (cancelled.contains(requestToken)) {
+            fetchConnections.remove(requestToken)?.disconnect()
+            return failure("CANCELLED", "File download was cancelled")
+        }
         return try {
             val status = connection.responseCode
             if (status !in 200..299) return failure("NETWORK_ERROR", "files.download returned HTTP $status")
             val name = options.optString("name").ifBlank { connection.url.path.substringAfterLast('/').ifBlank { "download" } }
             val file = File(fileRoot, UUID.randomUUID().toString()).apply { mkdirs() }.resolve(safeFileName(name))
-            connection.inputStream.use { input -> FileOutputStream(file).use { output -> input.copyTo(output) } }
+            connection.inputStream.use { input -> FileOutputStream(file).use { output ->
+                val buffer = ByteArray(8192)
+                while (true) {
+                    if (cancelled.contains(requestToken)) return failure("CANCELLED", "File download was cancelled")
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    output.write(buffer, 0, count)
+                }
+            } }
             success(descriptor(file, connection.contentType ?: "application/octet-stream"))
         } catch (error: SocketTimeoutException) {
             failure("TIMEOUT", error.message ?: "File download timed out")
         } catch (error: Exception) {
-            failure("NETWORK_ERROR", error.message ?: "File download failed")
+            if (cancelled.contains(requestToken)) failure("CANCELLED", "File download was cancelled")
+            else failure("NETWORK_ERROR", error.message ?: "File download failed")
         } finally {
+            fetchConnections.remove(requestToken)?.disconnect()
             connection.disconnect()
         }
     }

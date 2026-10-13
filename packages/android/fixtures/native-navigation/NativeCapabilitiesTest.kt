@@ -166,6 +166,7 @@ class NativeCapabilitiesTest {
                 .put("invalid.txt")
                 .put("data")
                 .put(JSONObject().put("encoding", "hex"))).code)
+            assertEquals("INVALID_ARGUMENT", call(capabilities, "Files", "download", JSONArray().put("file:///tmp/not-http" )).code)
 
             val result = call(capabilities, "Network", "fetch", JSONArray().put(JSONObject()
                 .put("url", "http://127.0.0.1:${server.localPort}/upload")
