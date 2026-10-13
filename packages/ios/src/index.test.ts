@@ -696,6 +696,11 @@ describe('Craft iOS builder', () => {
     for (const identifier of ['.dietaryEnergyConsumed', '.dietaryProtein', '.dietaryCarbohydrates', '.dietaryFatTotal'])
       expect(swift).toContain(identifier)
     expect(swift).toContain('case "dietaryEnergy", "dietaryProtein", "dietaryCarbohydrates", "dietaryFat":')
+    expect(swift).toContain('if !readOnly { shareTypes.insert(dietaryType) }')
+    expect(swift).toContain('saveData: function(type, value, options) {')
+    expect(swift).toContain("craft._invoke('saveHealthData', {type: type, value: value, startDate: options.startDate, endDate: options.endDate})")
+    expect(swift).toContain('HKQuantitySample(')
+    expect(swift).toContain('Unknown health data type: \\(type)')
     expect(swift).toContain('HKStatisticsCollectionQuery(')
     expect(swift).toContain('"id": workout.uuid.uuidString')
     // A reader asks to read only, and the sheet a person is reading is never
@@ -759,7 +764,7 @@ describe('Craft iOS builder', () => {
 
     // One HealthKit store and one implementation, shared by both callers.
     expect(health).toContain('static let shared = CraftHealth()')
-    for (const method of ['requestAuthorization', 'getData', 'saveWorkout', 'getWorkouts', 'getDailyStatistics', 'getHeartRateSamples', 'getSleepIntervals', 'saveMindfulSession', 'getMindfulSessions'])
+    for (const method of ['requestAuthorization', 'getData', 'saveData', 'saveWorkout', 'getWorkouts', 'getDailyStatistics', 'getHeartRateSamples', 'getSleepIntervals', 'saveMindfulSession', 'getMindfulSessions'])
       expect(health).toContain(`case "${method}":`)
     expect(app).toContain('CraftHealth.shared.getWorkouts(')
     expect(app).not.toContain('HKHealthStore()')

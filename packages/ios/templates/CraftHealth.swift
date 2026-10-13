@@ -32,6 +32,13 @@ final class CraftHealth {
         case "getData":
             guard let type = args.first as? String else { return completion(.failure(CraftHealthError(message: "getData needs a type", code: "INVALID_ARGUMENT"))) }
             getData(type: type, startDate: options(1)["startDate"] as? Double, endDate: options(1)["endDate"] as? Double, completion: completion)
+        case "saveData":
+            guard let type = args.first as? String,
+                  args.count > 1,
+                  let value = (args[1] as? NSNumber)?.doubleValue else {
+                return completion(.failure(CraftHealthError(message: "saveData needs a type and numeric value", code: "INVALID_ARGUMENT")))
+            }
+            saveData(type: type, value: value, options: options(2), completion: completion)
         case "saveWorkout":
             saveWorkout(body: options(0), completion: completion)
         case "getWorkouts":
@@ -120,12 +127,15 @@ final class CraftHealth {
                 }
             case "dietaryEnergy", "dietaryProtein", "dietaryCarbohydrates", "dietaryFat":
                 // What a food log (MyFitnessPal, Lose It!, Cronometer...)
-                // writes to Apple Health: read only, never written back.
+                // writes to Apple Health. Request the write grant too unless
+                // the caller explicitly asked for a read-only authorization.
                 if let dietaryType = Self.healthQuantity(type)?.type {
                     readTypes.insert(dietaryType)
+                    if !readOnly { shareTypes.insert(dietaryType) }
                 }
             default:
-                break
+                completion(.failure(CraftHealthError(message: "Unknown health data type: \(type)", code: "INVALID_ARGUMENT")))
+                return
             }
         }
 
@@ -177,6 +187,42 @@ final class CraftHealth {
         }
 
         healthStore.execute(query)
+    }
+
+    /// Save one quantity sample, primarily a food-log entry. Dates are epoch
+    /// milliseconds; an omitted range records an instantaneous sample now.
+    func saveData(type: String, value: Double, options: [String: Any], completion: @escaping Completion) {
+        guard let healthStore = healthStore else {
+            completion(.failure(CraftHealthError(message: "HealthKit not available")))
+            return
+        }
+        guard value.isFinite, value >= 0 else {
+            completion(.failure(CraftHealthError(message: "saveData needs a finite, non-negative value", code: "INVALID_ARGUMENT")))
+            return
+        }
+        guard let spec = Self.healthQuantity(type), let qType = spec.type else {
+            completion(.failure(CraftHealthError(message: "Unknown health data type: \(type)", code: "INVALID_ARGUMENT")))
+            return
+        }
+        let startValue = options["startDate"] as? Double ?? Date().timeIntervalSince1970 * 1000
+        let endValue = options["endDate"] as? Double ?? startValue
+        guard startValue.isFinite, endValue.isFinite, endValue >= startValue else {
+            completion(.failure(CraftHealthError(message: "saveData needs a valid date range", code: "INVALID_ARGUMENT")))
+            return
+        }
+        let sample = HKQuantitySample(
+            type: qType,
+            quantity: HKQuantity(unit: spec.unit, doubleValue: value),
+            start: Date(timeIntervalSince1970: startValue / 1000),
+            end: Date(timeIntervalSince1970: endValue / 1000)
+        )
+        healthStore.save(sample) { success, error in
+            if success {
+                completion(.success(["id": sample.uuid.uuidString]))
+            } else {
+                completion(.failure(CraftHealthError(message: error?.localizedDescription ?? "Health data could not be saved")))
+            }
+        }
     }
 
     func saveWorkout(body: [String: Any], completion: @escaping Completion) {

@@ -2526,6 +2526,21 @@ struct CraftWebView: UIViewRepresentable {
                 } else {
                     rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
                 }
+            case "saveHealthData":
+                if config.enableHealthKit {
+                    guard let dataType = body["type"] as? String,
+                          let value = (body["value"] as? NSNumber)?.doubleValue else {
+                        rejectCallback(callbackId, error: "saveHealthData was called without a type and numeric value", code: "INVALID_ARGUMENT")
+                        break
+                    }
+                    CraftHealth.shared.saveData(
+                        type: dataType,
+                        value: value,
+                        options: body
+                    ) { [weak self] in self?.answer(callbackId, $0) }
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
             case "saveHealthWorkout":
                 if config.enableHealthKit {
                     saveHealthWorkout(body: body, callbackId: callbackId)
@@ -5088,6 +5103,10 @@ struct CraftWebView: UIViewRepresentable {
                     getData: function(type, options) {
                         options = options || {};
                         return craft._invoke('getHealthData', {type: type, startDate: options.startDate, endDate: options.endDate});
+                    },
+                    saveData: function(type, value, options) {
+                        options = options || {};
+                        return craft._invoke('saveHealthData', {type: type, value: value, startDate: options.startDate, endDate: options.endDate});
                     },
                     saveWorkout: function(workout) { return craft._invoke('saveHealthWorkout', workout || {}); },
                     getWorkouts: function(options) {
