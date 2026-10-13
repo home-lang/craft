@@ -1383,6 +1383,13 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('device.appearance = original == .dark ? .light : .dark')
   })
 
+  it('keeps fractional grid geometry covered by both maintained fixtures', () => {
+    expect(navigationHome).toContain('testID="grid-fractional-wrap"')
+    expect(navigationHome).toContain('gridTemplateColumns":"repeat(3, 1fr)"')
+    expect(androidNavigationTest).toContain('fractional grid columns overlapped')
+    expect(iosNavigationTest).toContain('fractional grid tracks diverged')
+  })
+
   it('publishes dynamic color-scheme changes to the native runtime on both hosts', () => {
     expect(ios).toContain('send(type: "APPEARANCE", payload: ["colorScheme": colorScheme])')
     expect(android).toContain('send(screen, "APPEARANCE", JSONObject().put("colorScheme", colorScheme()))')

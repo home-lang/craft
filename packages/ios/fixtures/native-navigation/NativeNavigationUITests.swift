@@ -270,6 +270,14 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(gridFirst.frame.minY, gridSecond.frame.minY, accuracy: 2, "grid tracks did not share a row")
         XCTAssertGreaterThan(gridSecond.frame.minX, gridFirst.frame.minX, "grid columns did not lay out side by side")
         XCTAssertGreaterThan(gridThird.frame.minY, gridFirst.frame.minY, "grid rows did not advance after the first track")
+        let fractionalGrid = app.otherElements["grid-fractional-wrap"]
+        let fractionalFirst = app.otherElements["grid-fractional-first"]
+        let fractionalSecond = app.otherElements["grid-fractional-second"]
+        let fractionalThird = app.otherElements["grid-fractional-third"]
+        XCTAssertTrue(fractionalGrid.waitForExistence(timeout: 5) && fractionalFirst.exists && fractionalSecond.exists && fractionalThird.exists)
+        XCTAssertEqual(fractionalFirst.frame.width, fractionalSecond.frame.width, accuracy: 1, "fractional grid tracks diverged")
+        XCTAssertGreaterThan(fractionalSecond.frame.minX, fractionalFirst.frame.maxX, "fractional grid columns overlapped")
+        XCTAssertLessThanOrEqual(fractionalThird.frame.maxX, fractionalGrid.frame.maxX + 1, "fractional grid overflowed its container")
         let gridAlign = app.otherElements["grid-align-wrap"]
         let gridAlignFirst = app.otherElements["grid-align-first"]
         let gridAlignThird = app.otherElements["grid-align-third"]

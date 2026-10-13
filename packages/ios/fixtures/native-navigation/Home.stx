@@ -474,6 +474,11 @@ function captureSectionScroll() {
       <Text testID="grid-second">grid two</Text>
       <Text testID="grid-third">grid three</Text>
     </View>
+    <View testID="grid-fractional-wrap" style={{"display":"grid","gridTemplateColumns":"repeat(3, 1fr)","columnGap":4,"width":121,"height":32,"backgroundColor":"#164e63"}}>
+      <View testID="grid-fractional-first" style={{"height":20,"backgroundColor":"#67e8f9"}} />
+      <View testID="grid-fractional-second" style={{"height":20,"backgroundColor":"#22d3ee"}} />
+      <View testID="grid-fractional-third" style={{"height":20,"backgroundColor":"#06b6d4"}} />
+    </View>
     <View testID="grid-align-wrap" style={{"display":"grid","gridTemplateColumns":"repeat(2, 1fr)","gridAutoRows":20,"columnGap":4,"rowGap":4,"width":120,"height":96,"alignContent":"center","backgroundColor":"#3b2f4a"}}>
       <View testID="grid-align-first" style={{"height":20,"backgroundColor":"#a78bfa"}} />
       <View testID="grid-align-second" style={{"height":20,"backgroundColor":"#c4b5fd"}} />
