@@ -1586,11 +1586,11 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
         val text = value?.toString()?.trim().orEmpty()
         if (text.isBlank() || text == JSONObject.NULL.toString()) return null
         text.toDoubleOrNull()?.takeIf { it.isFinite() }?.let { return it.coerceIn(0.0, maxCountdownSeconds.toDouble()).roundToInt() }
-        val parts = text.split(':').mapNotNull { it.toDoubleOrNull() }
+        val parts = text.split(':')
         if (parts.size != 2 && parts.size != 3) return null
-        val hours = parts[0]
-        val minutes = parts[1]
-        val seconds = if (parts.size == 3) parts[2] else 0.0
+        val hours = parts[0].toDoubleOrNull() ?: return null
+        val minutes = parts[1].toDoubleOrNull() ?: return null
+        val seconds = if (parts.size == 3) parts[2].toDoubleOrNull() ?: return null else 0.0
         if (hours < 0 || minutes !in 0.0..<60.0 || seconds !in 0.0..<60.0) return null
         return (hours * 3600 + minutes * 60 + seconds).coerceIn(0.0, maxCountdownSeconds.toDouble()).roundToInt()
     }

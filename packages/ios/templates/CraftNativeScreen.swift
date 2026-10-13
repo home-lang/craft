@@ -5237,11 +5237,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if let number = value as? NSNumber, !(value is Bool) { return min(maximum, max(0, number.doubleValue)) }
         guard let text = (value as? String)?.trimmingCharacters(in: .whitespaces), !text.isEmpty else { return nil }
         if let seconds = Double(text), seconds.isFinite { return min(maximum, max(0, seconds)) }
-        let parts = text.split(separator: ":").compactMap { Double($0) }
-        guard parts.count == 2 || parts.count == 3 else { return nil }
-        let hours = parts[0]
-        let minutes = parts[1]
-        let seconds = parts.count == 3 ? parts[2] : 0
+        let parts = text.split(separator: ":")
+        guard parts.count == 2 || parts.count == 3,
+              let hours = Double(parts[0]),
+              let minutes = Double(parts[1]) else { return nil }
+        let seconds = parts.count == 3 ? (Double(parts[2]) ?? -1) : 0
         guard hours >= 0, minutes >= 0, minutes < 60, seconds >= 0, seconds < 60 else { return nil }
         return min(maximum, hours * 3600 + minutes * 60 + seconds)
     }

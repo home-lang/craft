@@ -916,6 +916,7 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(CraftNativeScreenController.pickerDate("2026-10-12T07:30:00Z")?.timeIntervalSince1970, 1_791_790_200)
         XCTAssertEqual(CraftNativeScreenController.pickerDate(1_791_790_200_000 as NSNumber)?.timeIntervalSince1970, 1_791_790_200)
         XCTAssertNil(CraftNativeScreenController.pickerDate("soon"))
+        XCTAssertNil(CraftNativeScreenController.countdownDuration("1:x:3"))
     }
 
     func testTheScriptHearsNewParamsAndTheScreenComingBack() throws {

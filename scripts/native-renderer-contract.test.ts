@@ -494,6 +494,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('+ countdownSecond')
     expect(android).toContain('"iso", "PT${seconds}S"')
     expect(androidNavigationTest).toContain('"01:31:45"')
+    expect(android).toContain('val hours = parts[0].toDoubleOrNull() ?: return null')
+    expect(ios).toContain('let parts = text.split(separator: ":")')
+    expect(ios).toContain('let seconds = parts.count == 3 ? (Double(parts[2]) ?? -1) : 0')
     expect(guide).toContain('Countdown values are durations')
   })
 
