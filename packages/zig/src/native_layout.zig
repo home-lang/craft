@@ -1409,6 +1409,18 @@ test "distributes leftover grid rows with align content" {
     try std.testing.expectApproxEqAbs(@as(f32, 52), frames[1].y, 0.001);
 }
 
+test "distributes auto rows with grid align content" {
+    const items = [_]GridItem{
+        .{ .intrinsic_width = 20, .intrinsic_height = 4, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.nan(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 0, .alignment = 0 },
+        .{ .intrinsic_width = 20, .intrinsic_height = 4, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.nan(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 0, .alignment = 0 },
+    };
+    var frames: [2]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_grid_auto_rows_aligned(100, 100, 1, 0, 4, 1, 16, &items, items.len, &frames));
+    try std.testing.expectApproxEqAbs(@as(f32, 32), frames[0].y, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 52), frames[1].y, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 4), frames[0].height, 0.001);
+}
+
 test "sanitizes non-finite grid bounds" {
     const items = [_]GridItem{
         .{ .intrinsic_width = 12, .intrinsic_height = 8, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.inf(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 0, .alignment = 0 },

@@ -773,6 +773,7 @@ describe('native renderer component contract', () => {
 
   it('keeps grid alignContent in the shared layout core', () => {
     expect(nativeLayout).toContain('test "distributes leftover grid rows with align content"')
+    expect(nativeLayout).toContain('test "distributes auto rows with grid align content"')
     expect(nativeLayout).toContain('switch (align_content)')
     expect(nativeLayout).toContain('row_extra = free_rows')
     expect(ios).toContain('craft_native_grid_aligned')
