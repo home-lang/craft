@@ -575,6 +575,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('updateParentLayoutStyle(updated, document.optJSONObject("style") ?: JSONObject())')
     expect(android).toContain('parent.setChildStyle(view, style, resources.displayMetrics.density)')
     expect(android).toContain('parent.requestLayout()')
+    expect(android).toContain('screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)\n        // A full render can change a view\'s custom layout style')
     expect(android).toContain('A reused View may still carry a')
     expect(android).toContain('val requestedChecked = props.opt("checked")')
     expect(android).toContain('requestedChecked is String -> requestedChecked.isBlank()')

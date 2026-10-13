@@ -2020,6 +2020,10 @@ class MainActivity : AppCompatActivity() {
         screen.controls.putAll(next)
         screen.handlers.keys.retainAll(retainedViews(screen))
         screen.view.setChildStyle(tree, document.optJSONObject("style") ?: JSONObject(), resources.displayMetrics.density)
+        // A full render can change a view's custom layout style without
+        // changing the root bounds. Ensure native @layout observers still see
+        // the settled child frame after the next traversal.
+        scheduleLayoutEvents(screen)
     }
 
     private fun clearRenderedTree(screen: Screen) {
