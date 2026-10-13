@@ -2737,7 +2737,12 @@ class MainActivity : AppCompatActivity() {
                         (style.optDouble("paddingBottom", vertical) * density).toInt(),
                     )
                 }
-                autofillHintFor(props)?.let { setAutofillHints(it) }
+                // Reused EditTexts must forget the previous field's hint as
+                // well as accept a new one. Otherwise a password manager can
+                // offer credentials in a field whose props no longer ask for
+                // them after keyed reconciliation.
+                val autofillHint = autofillHintFor(props)
+                if (autofillHint == null) setAutofillHints(*emptyArray()) else setAutofillHints(autofillHint)
                 val controlledValue = props.opt("value")?.takeUnless { it == JSONObject.NULL }?.toString()
                 if (controlledValue != null && text.toString() != controlledValue) {
                     screen.suppressedTextChanges.add(this)
@@ -3943,14 +3948,30 @@ class MainActivity : AppCompatActivity() {
         val raw = props.optString("textContentType").ifBlank { props.optString("autoComplete") }
         return when (raw.replace("-", "").replace("_", "").lowercase()) {
             "username" -> View.AUTOFILL_HINT_USERNAME
+            "nickname" -> "personNickname"
             "password", "currentpassword" -> View.AUTOFILL_HINT_PASSWORD
             "newpassword" -> "newPassword"
             "onetimecode" -> "smsOTPCode"
             "emailaddress", "email" -> View.AUTOFILL_HINT_EMAIL_ADDRESS
             "telephonenumber", "tel", "phone" -> View.AUTOFILL_HINT_PHONE
             "name" -> View.AUTOFILL_HINT_NAME
+            "givenname", "firstname" -> "personGivenName"
+            "middlename", "additionalname" -> "personMiddleName"
+            "familyname", "lastname" -> "personFamilyName"
+            "nameprefix", "honorificprefix" -> "personNamePrefix"
+            "namesuffix", "honorificsuffix" -> "personNameSuffix"
+            "organizationname", "organization" -> "organizationName"
+            "jobtitle", "organizationtitle" -> "jobTitle"
+            "url" -> "url"
             "postalcode" -> View.AUTOFILL_HINT_POSTAL_CODE
             "fullstreetaddress", "streetaddress" -> View.AUTOFILL_HINT_POSTAL_ADDRESS
+            "streetaddressline1", "addressline1" -> "streetAddress"
+            "streetaddressline2", "addressline2" -> "streetAddressLine2"
+            "addresscity", "addresslevel2" -> "addressLocality"
+            "addressstate", "addresslevel1" -> "addressRegion"
+            "countryname", "country" -> "addressCountry"
+            "location" -> "location"
+            "creditcardnumber", "ccnumber" -> "creditCardNumber"
             else -> null
         }
     }
@@ -3961,6 +3982,11 @@ class MainActivity : AppCompatActivity() {
         "next" -> EditorInfo.IME_ACTION_NEXT
         "search" -> EditorInfo.IME_ACTION_SEARCH
         "send" -> EditorInfo.IME_ACTION_SEND
+        // Android has no separate JOIN, ROUTE, CONTINUE, or EMERGENCY_CALL
+        // action. GO/NEXT are the closest platform actions and still expose
+        // an actionable IME key instead of silently falling back to NONE.
+        "join", "route", "emergency-call" -> EditorInfo.IME_ACTION_GO
+        "continue" -> EditorInfo.IME_ACTION_NEXT
         else -> EditorInfo.IME_ACTION_NONE
     }
 
