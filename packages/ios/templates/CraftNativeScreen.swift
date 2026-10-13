@@ -1374,6 +1374,9 @@ private class CraftNativeFlowView: UIStackView {
             case "space-around":
                 rowLeading = gridFree / CGFloat(rowHeights.count * 2)
                 rowBetween += gridFree / CGFloat(rowHeights.count)
+            case "space-evenly":
+                rowLeading = gridFree / CGFloat(rowHeights.count + 1)
+                rowBetween += gridFree / CGFloat(rowHeights.count + 1)
             case "stretch": rowExtra = gridFree / CGFloat(max(1, rowHeights.count))
             default: break
             }

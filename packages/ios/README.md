@@ -144,6 +144,11 @@ the [Native STX guide](../../docs/guides/native-stx.md). On macOS,
 `bun packages/ios/scripts/test-native-render.ts` runs the renderer's unit and
 simulator UI tests.
 
+The iOS host uses the shared layout ABI when it is available and retains a
+local fallback for older runtimes. Both paths implement wrapped-line and grid
+`alignContent`, including `space-evenly`, so a missing optional shared symbol
+does not change placement semantics.
+
 For multiple native screens, configure named `.stx` routes and an initial screen in `native.config.json` (see [`fixtures/native-navigation`](./fixtures/native-navigation)). Compile without a positional file: `stx native compile --format bundle --output ./screen.js`. A screen can call `craft.navigation.push('details', { id: 7 })`, `.replace('home')`, or `.back()`; the destination reads `craft.route.params`. Craft uses a native navigation stack, so the back button and edge-swipe reveal the existing controller and retain its JavaScript and input state. `bun packages/ios/scripts/test-native-navigation.ts` compiles the fixture and runs its simulator test; the default WebView renderer is unchanged.
 
 The optional Liquid Glass tab-bar styling is compiler-gated for Xcode 26/Swift 6.2 and later. Older SDKs compile the same tab bar with the material fallback, so generated projects remain buildable on Xcode 16.

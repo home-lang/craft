@@ -791,6 +791,7 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('row_extra = free_rows')
     expect(ios).toContain('craft_native_grid_aligned')
     expect(ios).toContain('alignContent: craftNativeAlignContentCode(alignContent)')
+    expect(ios).toContain('case "space-evenly":\n                rowLeading = gridFree / CGFloat(rowHeights.count + 1)')
     expect(android).toContain('alignContentCode(),')
     expect(androidNative).toContain('nativeGridAutoRowsAligned(')
     expect(androidNative).toContain('nativeGridAligned(')
