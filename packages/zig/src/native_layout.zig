@@ -147,7 +147,24 @@ pub export fn craft_native_grid(
     item_count: usize,
     frames: [*]Frame,
 ) callconv(.c) c_int {
-    return craftNativeGridWithAutoRows(available_width, available_height, columns, column_gap, row_gap, std.math.nan(f32), items, item_count, frames);
+    return craftNativeGridWithAutoRows(available_width, available_height, columns, column_gap, row_gap, 0, std.math.nan(f32), items, item_count, frames);
+}
+
+/// Resolve equal-track grid frames while distributing leftover block-axis
+/// space between the generated rows. The original symbol remains available
+/// for older hosts and is equivalent to `align_content = 0`.
+pub export fn craft_native_grid_aligned(
+    available_width: f32,
+    available_height: f32,
+    columns: u32,
+    column_gap: f32,
+    row_gap: f32,
+    align_content: u32,
+    items: [*]const GridItem,
+    item_count: usize,
+    frames: [*]Frame,
+) callconv(.c) c_int {
+    return craftNativeGridWithAutoRows(available_width, available_height, columns, column_gap, row_gap, align_content, std.math.nan(f32), items, item_count, frames);
 }
 
 /// Resolve an equal-track grid with a host-provided `grid-auto-rows` minimum.
@@ -164,7 +181,23 @@ pub export fn craft_native_grid_auto_rows(
     item_count: usize,
     frames: [*]Frame,
 ) callconv(.c) c_int {
-    return craftNativeGridWithAutoRows(available_width, available_height, columns, column_gap, row_gap, auto_row_height, items, item_count, frames);
+    return craftNativeGridWithAutoRows(available_width, available_height, columns, column_gap, row_gap, 0, auto_row_height, items, item_count, frames);
+}
+
+/// Auto-row variant of `craft_native_grid_aligned`.
+pub export fn craft_native_grid_auto_rows_aligned(
+    available_width: f32,
+    available_height: f32,
+    columns: u32,
+    column_gap: f32,
+    row_gap: f32,
+    align_content: u32,
+    auto_row_height: f32,
+    items: [*]const GridItem,
+    item_count: usize,
+    frames: [*]Frame,
+) callconv(.c) c_int {
+    return craftNativeGridWithAutoRows(available_width, available_height, columns, column_gap, row_gap, align_content, auto_row_height, items, item_count, frames);
 }
 
 fn craftNativeGridWithAutoRows(
@@ -173,6 +206,7 @@ fn craftNativeGridWithAutoRows(
     columns: u32,
     column_gap: f32,
     row_gap: f32,
+    align_content: u32,
     auto_row_height: f32,
     items: [*]const GridItem,
     item_count: usize,
@@ -189,25 +223,33 @@ fn craftNativeGridWithAutoRows(
         @as(f32, @floatFromInt(column_count));
 
     const row_count = (item_count + column_count - 1) / column_count;
+    var total_rows: f32 = 0;
     for (0..row_count) |row| {
-        var row_height: f32 = 0;
+        total_rows += gridItemRowHeight(items, item_count, column_count, row, safe_auto_row_height);
+    }
+    const gap_total = safe_row_gap * @as(f32, @floatFromInt(if (row_count > 1) row_count - 1 else 0));
+    const free_rows = @max(0, height - total_rows - gap_total);
+    var row_leading: f32 = 0;
+    var row_between = safe_row_gap;
+    var row_extra: f32 = 0;
+    switch (align_content) {
+        1 => row_leading = free_rows / 2,
+        2 => row_leading = free_rows,
+        3 => {
+            if (row_count > 1) row_between += free_rows / @as(f32, @floatFromInt(row_count - 1));
+        },
+        4 => {
+            row_leading = free_rows / @as(f32, @floatFromInt(row_count * 2));
+            row_between += free_rows / @as(f32, @floatFromInt(row_count));
+        },
+        5 => row_extra = free_rows / @as(f32, @floatFromInt(row_count)),
+        else => {},
+    }
+    var row_y = row_leading;
+    for (0..row_count) |row| {
+        const row_height = gridItemRowHeight(items, item_count, column_count, row, safe_auto_row_height) + row_extra;
         const start = row * column_count;
         const end = @min(item_count, start + column_count);
-        for (items[start..end]) |item| {
-            const intrinsic = optionalDimension(item.explicit_height, item.intrinsic_height);
-            row_height = @max(row_height, safe_auto_row_height, clampBounds(intrinsic, item.min_height, item.max_height) + finiteNonNegative(item.margin_top) + finiteNonNegative(item.margin_bottom));
-        }
-        var row_y: f32 = 0;
-        for (0..row) |prior| {
-            const prior_start = prior * column_count;
-            const prior_end = @min(item_count, prior_start + column_count);
-            var prior_height: f32 = 0;
-            for (items[prior_start..prior_end]) |item| {
-                const intrinsic = optionalDimension(item.explicit_height, item.intrinsic_height);
-                prior_height = @max(prior_height, safe_auto_row_height, clampBounds(intrinsic, item.min_height, item.max_height) + finiteNonNegative(item.margin_top) + finiteNonNegative(item.margin_bottom));
-            }
-            row_y += prior_height + safe_row_gap;
-        }
         for (items[start..end], start..) |item, index| {
             const column = index % column_count;
             const available_item_width = @max(0, cell_width - finiteNonNegative(item.margin_left) - finiteNonNegative(item.margin_right));
@@ -227,9 +269,20 @@ fn craftNativeGridWithAutoRows(
                 .height = item_height,
             };
         }
+        row_y += row_height + row_between;
     }
-    _ = height;
     return 0;
+}
+
+fn gridItemRowHeight(items: [*]const GridItem, item_count: usize, column_count: usize, row: usize, auto_row_height: f32) f32 {
+    var row_height: f32 = 0;
+    const start = row * column_count;
+    const end = @min(item_count, start + column_count);
+    for (items[start..end]) |item| {
+        const intrinsic = optionalDimension(item.explicit_height, item.intrinsic_height);
+        row_height = @max(row_height, auto_row_height, clampBounds(intrinsic, item.min_height, item.max_height) + finiteNonNegative(item.margin_top) + finiteNonNegative(item.margin_bottom));
+    }
+    return row_height;
 }
 
 /// Distribute one flex line in content coordinates for native hosts.
@@ -1343,6 +1396,17 @@ test "exports equal-track grid frames with intrinsic rows and alignment" {
     try std.testing.expectApproxEqAbs(@as(f32, 45), frames[1].width, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 25), frames[2].y, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 40), frames[2].width, 0.001);
+}
+
+test "distributes leftover grid rows with align content" {
+    const items = [_]GridItem{
+        .{ .intrinsic_width = 20, .intrinsic_height = 10, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.nan(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 0, .alignment = 0 },
+        .{ .intrinsic_width = 20, .intrinsic_height = 10, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.nan(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 0, .alignment = 0 },
+    };
+    var frames: [2]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_grid_aligned(100, 100, 1, 0, 4, 1, &items, items.len, &frames));
+    try std.testing.expectApproxEqAbs(@as(f32, 38), frames[0].y, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 52), frames[1].y, 0.001);
 }
 
 test "sanitizes non-finite grid bounds" {

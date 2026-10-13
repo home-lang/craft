@@ -82,7 +82,9 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('pub const GridItem = extern struct')
     expect(nativeLayout).toContain('pub const Frame = extern struct')
     expect(nativeLayout).toContain('pub export fn craft_native_grid(')
+    expect(nativeLayout).toContain('pub export fn craft_native_grid_aligned(')
     expect(nativeLayout).toContain('pub export fn craft_native_grid_auto_rows(')
+    expect(nativeLayout).toContain('pub export fn craft_native_grid_auto_rows_aligned(')
     expect(nativeLayout).toContain('pub export fn craft_native_cross_axis_position(')
     expect(nativeLayout).toContain('margin_start: f32')
     expect(nativeLayout).toContain('shrink_total')
@@ -767,6 +769,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('gridAutoRows = CraftNativeLength.from(style.opt("gridAutoRows"), density)')
     expect(android).toContain('gridAutoRows?.resolve(contentHeight)?.toFloat()')
     expect(android).toContain('gridAutoRows?.resolve(height - paddingTop - paddingBottom)')
+  })
+
+  it('keeps grid alignContent in the shared layout core', () => {
+    expect(nativeLayout).toContain('test "distributes leftover grid rows with align content"')
+    expect(nativeLayout).toContain('switch (align_content)')
+    expect(nativeLayout).toContain('row_extra = free_rows')
   })
 
   it('keeps per-edge margins in native flex and grid layout', () => {
