@@ -772,6 +772,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     listOf(if (align == "stretch") 1f else 0f, if (align == "center") 1f else if (align == "flex-end") 2f else 0f)
                 }.toFloatArray(),
                 gridAutoRows?.resolve(contentHeight)?.toFloat(),
+                alignContentCode(),
             )
             if (sharedFrames != null) {
                 for ((index, entry) in flow.withIndex()) {

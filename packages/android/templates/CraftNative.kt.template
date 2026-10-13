@@ -298,6 +298,43 @@ object CraftNative {
         margins: FloatArray,
         flags: FloatArray,
     ): FloatArray?
+    private external fun nativeGridAligned(
+        availableWidth: Float,
+        availableHeight: Float,
+        columns: Int,
+        columnGap: Float,
+        rowGap: Float,
+        alignContent: Int,
+        intrinsicWidth: FloatArray,
+        intrinsicHeight: FloatArray,
+        explicitWidth: FloatArray,
+        explicitHeight: FloatArray,
+        minWidth: FloatArray,
+        maxWidth: FloatArray,
+        minHeight: FloatArray,
+        maxHeight: FloatArray,
+        margins: FloatArray,
+        flags: FloatArray,
+    ): FloatArray?
+    private external fun nativeGridAutoRowsAligned(
+        availableWidth: Float,
+        availableHeight: Float,
+        columns: Int,
+        columnGap: Float,
+        rowGap: Float,
+        alignContent: Int,
+        autoRowHeight: Float,
+        intrinsicWidth: FloatArray,
+        intrinsicHeight: FloatArray,
+        explicitWidth: FloatArray,
+        explicitHeight: FloatArray,
+        minWidth: FloatArray,
+        maxWidth: FloatArray,
+        minHeight: FloatArray,
+        maxHeight: FloatArray,
+        margins: FloatArray,
+        flags: FloatArray,
+    ): FloatArray?
     private external fun nativeClipboardRead(activity: Activity): String?
     private external fun nativeClipboardWrite(activity: Activity, text: String): Boolean
     private external fun nativeOpenUrl(activity: Activity, url: String): Boolean
@@ -532,13 +569,14 @@ object CraftNative {
         margins: FloatArray,
         flags: FloatArray,
         autoRowHeight: Float? = null,
+        alignContent: Int = 0,
     ): FloatArray? {
         if (!isAvailable) return null
         return try {
             if (autoRowHeight != null) {
-                nativeGridAutoRows(availableWidth, availableHeight, columns, columnGap, rowGap, autoRowHeight, intrinsicWidth, intrinsicHeight, explicitWidth, explicitHeight, minWidth, maxWidth, minHeight, maxHeight, margins, flags)
+                nativeGridAutoRowsAligned(availableWidth, availableHeight, columns, columnGap, rowGap, alignContent, autoRowHeight, intrinsicWidth, intrinsicHeight, explicitWidth, explicitHeight, minWidth, maxWidth, minHeight, maxHeight, margins, flags)
             } else {
-                nativeGrid(availableWidth, availableHeight, columns, columnGap, rowGap, intrinsicWidth, intrinsicHeight, explicitWidth, explicitHeight, minWidth, maxWidth, minHeight, maxHeight, margins, flags)
+                nativeGridAligned(availableWidth, availableHeight, columns, columnGap, rowGap, alignContent, intrinsicWidth, intrinsicHeight, explicitWidth, explicitHeight, minWidth, maxWidth, minHeight, maxHeight, margins, flags)
             }
                 ?.takeIf { it.size >= intrinsicWidth.size * 4 && it.all { value -> value.isFinite() } }
         } catch (e: UnsatisfiedLinkError) {

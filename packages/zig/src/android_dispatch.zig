@@ -302,6 +302,16 @@ const natives = [_]jni.JNINativeMethod{
         .fnPtr = @ptrCast(&nativeGridAutoRows),
     },
     .{
+        .name = "nativeGridAligned",
+        .signature = "(FFIFFI[F[F[F[F[F[F[F[F[F[F)[F",
+        .fnPtr = @ptrCast(&nativeGridAligned),
+    },
+    .{
+        .name = "nativeGridAutoRowsAligned",
+        .signature = "(FFIFFIF[F[F[F[F[F[F[F[F[F[F)[F",
+        .fnPtr = @ptrCast(&nativeGridAutoRowsAligned),
+    },
+    .{
         .name = "nativeClipboardRead",
         .signature = "(Landroid/app/Activity;)Ljava/lang/String;",
         .fnPtr = @ptrCast(&nativeClipboardRead),
@@ -997,7 +1007,7 @@ fn nativeGrid(
     margins_array: jni.jobject,
     flags_array: jni.jobject,
 ) callconv(.c) jni.jobject {
-    return nativeGridImpl(env, available_width, available_height, columns, column_gap, row_gap, std.math.nan(jni.jfloat), intrinsic_width_array, intrinsic_height_array, explicit_width_array, explicit_height_array, min_width_array, max_width_array, min_height_array, max_height_array, margins_array, flags_array);
+    return nativeGridImpl(env, available_width, available_height, columns, column_gap, row_gap, 0, std.math.nan(jni.jfloat), intrinsic_width_array, intrinsic_height_array, explicit_width_array, explicit_height_array, min_width_array, max_width_array, min_height_array, max_height_array, margins_array, flags_array);
 }
 
 /// `nativeGridAutoRows(...)` — grid frames with a shared auto-row minimum.
@@ -1021,7 +1031,56 @@ fn nativeGridAutoRows(
     margins_array: jni.jobject,
     flags_array: jni.jobject,
 ) callconv(.c) jni.jobject {
-    return nativeGridImpl(env, available_width, available_height, columns, column_gap, row_gap, auto_row_height, intrinsic_width_array, intrinsic_height_array, explicit_width_array, explicit_height_array, min_width_array, max_width_array, min_height_array, max_height_array, margins_array, flags_array);
+    return nativeGridImpl(env, available_width, available_height, columns, column_gap, row_gap, 0, auto_row_height, intrinsic_width_array, intrinsic_height_array, explicit_width_array, explicit_height_array, min_width_array, max_width_array, min_height_array, max_height_array, margins_array, flags_array);
+}
+
+/// `nativeGridAligned(...)` — equal-track grid frames with shared row alignment.
+fn nativeGridAligned(
+    env: jni.JNIEnv,
+    _: jni.jobject,
+    available_width: jni.jfloat,
+    available_height: jni.jfloat,
+    columns: jni.jint,
+    column_gap: jni.jfloat,
+    row_gap: jni.jfloat,
+    align_content: jni.jint,
+    intrinsic_width_array: jni.jobject,
+    intrinsic_height_array: jni.jobject,
+    explicit_width_array: jni.jobject,
+    explicit_height_array: jni.jobject,
+    min_width_array: jni.jobject,
+    max_width_array: jni.jobject,
+    min_height_array: jni.jobject,
+    max_height_array: jni.jobject,
+    margins_array: jni.jobject,
+    flags_array: jni.jobject,
+) callconv(.c) jni.jobject {
+    return nativeGridImpl(env, available_width, available_height, columns, column_gap, row_gap, align_content, std.math.nan(jni.jfloat), intrinsic_width_array, intrinsic_height_array, explicit_width_array, explicit_height_array, min_width_array, max_width_array, min_height_array, max_height_array, margins_array, flags_array);
+}
+
+/// `nativeGridAutoRowsAligned(...)` — aligned grid frames with an auto-row minimum.
+fn nativeGridAutoRowsAligned(
+    env: jni.JNIEnv,
+    _: jni.jobject,
+    available_width: jni.jfloat,
+    available_height: jni.jfloat,
+    columns: jni.jint,
+    column_gap: jni.jfloat,
+    row_gap: jni.jfloat,
+    align_content: jni.jint,
+    auto_row_height: jni.jfloat,
+    intrinsic_width_array: jni.jobject,
+    intrinsic_height_array: jni.jobject,
+    explicit_width_array: jni.jobject,
+    explicit_height_array: jni.jobject,
+    min_width_array: jni.jobject,
+    max_width_array: jni.jobject,
+    min_height_array: jni.jobject,
+    max_height_array: jni.jobject,
+    margins_array: jni.jobject,
+    flags_array: jni.jobject,
+) callconv(.c) jni.jobject {
+    return nativeGridImpl(env, available_width, available_height, columns, column_gap, row_gap, align_content, auto_row_height, intrinsic_width_array, intrinsic_height_array, explicit_width_array, explicit_height_array, min_width_array, max_width_array, min_height_array, max_height_array, margins_array, flags_array);
 }
 
 fn nativeGridImpl(
@@ -1031,6 +1090,7 @@ fn nativeGridImpl(
     columns: jni.jint,
     column_gap: jni.jfloat,
     row_gap: jni.jfloat,
+    align_content: jni.jint,
     auto_row_height: jni.jfloat,
     intrinsic_width_array: jni.jobject,
     intrinsic_height_array: jni.jobject,
@@ -1083,7 +1143,7 @@ fn nativeGridImpl(
         };
     }
     const output = allocator.alloc(native_layout.Frame, count) catch |err| return fellThrough("grid", err, null_object);
-    if (native_layout.craft_native_grid_auto_rows(available_width, available_height, @intCast(@max(columns, 1)), column_gap, row_gap, auto_row_height, items.ptr, count, output.ptr) != 0) return null;
+    if (native_layout.craft_native_grid_auto_rows_aligned(available_width, available_height, @intCast(@max(columns, 1)), column_gap, row_gap, @intCast(@max(align_content, 0)), auto_row_height, items.ptr, count, output.ptr) != 0) return null;
     const flattened = allocator.alloc(jni.jfloat, count * 4) catch |err| return fellThrough("grid", err, null_object);
     for (output, 0..) |frame, index| {
         flattened[index * 4] = frame.x;

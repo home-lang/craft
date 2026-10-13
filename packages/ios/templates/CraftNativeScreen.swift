@@ -185,6 +185,12 @@ private enum CraftNativeGridBridge {
     private typealias AutoRowsFunction = @convention(c) (
         Float, Float, UInt32, Float, Float, Float, UnsafeRawPointer, Int, UnsafeMutableRawPointer
     ) -> Int32
+    private typealias AlignedFunction = @convention(c) (
+        Float, Float, UInt32, Float, Float, UInt32, UnsafeRawPointer, Int, UnsafeMutableRawPointer
+    ) -> Int32
+    private typealias AutoRowsAlignedFunction = @convention(c) (
+        Float, Float, UInt32, Float, Float, UInt32, Float, UnsafeRawPointer, Int, UnsafeMutableRawPointer
+    ) -> Int32
 
     private static let function: Function? = {
         guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_grid") else { return nil }
@@ -194,6 +200,14 @@ private enum CraftNativeGridBridge {
         guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_grid_auto_rows") else { return nil }
         return unsafeBitCast(symbol, to: AutoRowsFunction.self)
     }()
+    private static let alignedFunction: AlignedFunction? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_grid_aligned") else { return nil }
+        return unsafeBitCast(symbol, to: AlignedFunction.self)
+    }()
+    private static let autoRowsAlignedFunction: AutoRowsAlignedFunction? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_grid_auto_rows_aligned") else { return nil }
+        return unsafeBitCast(symbol, to: AutoRowsAlignedFunction.self)
+    }()
 
     static func frames(
         availableWidth: CGFloat,
@@ -202,7 +216,8 @@ private enum CraftNativeGridBridge {
         columnGap: CGFloat,
         rowGap: CGFloat,
         items: [(intrinsicWidth: CGFloat, intrinsicHeight: CGFloat, explicitWidth: CGFloat?, explicitHeight: CGFloat?, minWidth: CGFloat?, maxWidth: CGFloat?, minHeight: CGFloat?, maxHeight: CGFloat?, marginLeft: CGFloat, marginRight: CGFloat, marginTop: CGFloat, marginBottom: CGFloat, stretch: Bool, alignment: UInt32)],
-        autoRowHeight: CGFloat? = nil
+        autoRowHeight: CGFloat? = nil,
+        alignContent: UInt32 = 0
     ) -> [(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat)]? {
         guard !items.isEmpty else { return nil }
         if autoRowHeight != nil, autoRowsFunction == nil { return nil }
@@ -222,7 +237,13 @@ private enum CraftNativeGridBridge {
         let status = input.withUnsafeBufferPointer { inputBuffer in
             output.withUnsafeMutableBufferPointer { outputBuffer in
                 if let autoRowHeight, let autoRowsFunction {
+                    if alignContent != 0, let autoRowsAlignedFunction {
+                        return autoRowsAlignedFunction(Float(availableWidth), Float(availableHeight), UInt32(max(1, columns)), Float(columnGap), Float(rowGap), alignContent, Float(autoRowHeight), UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!))
+                    }
                     return autoRowsFunction(Float(availableWidth), Float(availableHeight), UInt32(max(1, columns)), Float(columnGap), Float(rowGap), Float(autoRowHeight), UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!))
+                }
+                if alignContent != 0, let alignedFunction {
+                    return alignedFunction(Float(availableWidth), Float(availableHeight), UInt32(max(1, columns)), Float(columnGap), Float(rowGap), alignContent, UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!))
                 }
                 guard let function else { return Int32(-1) }
                 return function(Float(availableWidth), Float(availableHeight), UInt32(max(1, columns)), Float(columnGap), Float(rowGap), UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!))
@@ -232,6 +253,17 @@ private enum CraftNativeGridBridge {
             frame.x.isFinite && frame.y.isFinite && frame.width.isFinite && frame.height.isFinite
         }) else { return nil }
         return output.map { (CGFloat($0.x), CGFloat($0.y), CGFloat($0.width), CGFloat($0.height)) }
+    }
+}
+
+private func craftNativeAlignContentCode(_ value: String) -> UInt32 {
+    switch value {
+    case "center": return 1
+    case "flex-end": return 2
+    case "space-between": return 3
+    case "space-around": return 4
+    case "stretch": return 5
+    default: return 0
     }
 }
 
@@ -1279,7 +1311,8 @@ private class CraftNativeFlowView: UIStackView {
                     align == "stretch", alignment
                 )
             },
-            autoRowHeight: gridAutoRows.map { $0.resolve(innerHeight) ?? 0 }
+            autoRowHeight: gridAutoRows.map { $0.resolve(innerHeight) ?? 0 },
+            alignContent: craftNativeAlignContentCode(alignContent)
         )
         if place {
             if let sharedFrames {

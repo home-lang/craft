@@ -775,6 +775,13 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('test "distributes leftover grid rows with align content"')
     expect(nativeLayout).toContain('switch (align_content)')
     expect(nativeLayout).toContain('row_extra = free_rows')
+    expect(ios).toContain('craft_native_grid_aligned')
+    expect(ios).toContain('alignContent: craftNativeAlignContentCode(alignContent)')
+    expect(android).toContain('alignContentCode(),')
+    expect(androidNative).toContain('nativeGridAutoRowsAligned(')
+    expect(androidNative).toContain('nativeGridAligned(')
+    expect(androidDispatch).toContain('.name = "nativeGridAligned"')
+    expect(androidDispatch).toContain('.name = "nativeGridAutoRowsAligned"')
   })
 
   it('keeps per-edge margins in native flex and grid layout', () => {
