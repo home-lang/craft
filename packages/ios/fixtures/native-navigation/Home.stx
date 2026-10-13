@@ -473,6 +473,7 @@ function captureSectionScroll() {
       <View testID="grid-align-second" style={{"height":20,"backgroundColor":"#c4b5fd"}} />
       <View testID="grid-align-third" style={{"height":20,"backgroundColor":"#ddd6fe"}} />
     </View>
+    <View testID="aspect-ratio-box" style={{"width":100,"aspectRatio":2,"backgroundColor":"#7c3aed"}} />
     <View testID="align-content-wrap" style={{"width":120,"height":96,"flexDirection":"row","flexWrap":"wrap","alignContent":"space-between","backgroundColor":"#243444"}}>
       <View testID="align-content-first" style={{"width":60,"height":20,"backgroundColor":"#6b7280"}} />
       <View testID="align-content-second" style={{"width":60,"height":20,"backgroundColor":"#9ca3af"}} />
