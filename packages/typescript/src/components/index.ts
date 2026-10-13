@@ -141,9 +141,9 @@ export interface FlexStyle {
   flexWrap?: 'nowrap' | 'wrap' | 'wrap-reverse'
   /** Justify content (main axis) */
   justifyContent?: 'flex-start' | 'flex-end' | 'center' | 'space-between' | 'space-around' | 'space-evenly'
-  /** Align items (cross axis) */
+  /** Align items (cross axis); baseline aligns text-bearing children by their first baseline */
   alignItems?: 'flex-start' | 'flex-end' | 'center' | 'stretch' | 'baseline'
-  /** Align self (override parent alignItems) */
+  /** Align self (override parent alignItems), including first-baseline alignment */
   alignSelf?: 'auto' | 'flex-start' | 'flex-end' | 'center' | 'stretch' | 'baseline'
   /** Align content (multi-line) */
   alignContent?: 'flex-start' | 'flex-end' | 'center' | 'stretch' | 'space-between' | 'space-around' | 'space-evenly'

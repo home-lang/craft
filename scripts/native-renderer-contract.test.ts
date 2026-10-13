@@ -1400,6 +1400,16 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('alignSelf flex-end did not move the child to the line end')
   })
 
+  it('keeps baseline flex alignment implemented and fixture-covered on both hosts', () => {
+    expect(ios).toContain('private static func firstBaseline(_ view: UIView, cross: CGFloat)')
+    expect(ios).toContain('if item.align == "baseline", let baseline')
+    expect(android).toContain('private fun baselineOffset(view: View, cross: Int): Int')
+    expect(android).toContain('if (align == "baseline" && baseline != null)')
+    expect(navigationHome).toContain('"alignItems":"baseline"')
+    expect(iosNavigationTest).toContain('baseline alignment did not lower the smaller label')
+    expect(androidNavigationTest).toContain('baseline alignment did not lower the smaller label')
+  })
+
   it('retains keyed iOS input drafts while FlatList rows recycle', () => {
     expect(ios).toContain('self.forgetHandlers(row, preservingInputDrafts: true)')
     expect(ios).toContain('private func forgetHandlers(_ node: RenderedNode, preservingInputDrafts: Bool = false)')

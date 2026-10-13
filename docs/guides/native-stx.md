@@ -288,6 +288,9 @@ type:
 - `flexDirection` (`row`, `column`, and their reverse forms), `alignItems`,
   `alignSelf`, `justifyContent`, `flexWrap: 'wrap'`, `gap`, `rowGap`, and
   `columnGap`;
+
+- baseline alignment uses each text view's first baseline; non-text views use
+  their bottom edge as the fallback;
 - `flex`, `flexGrow`, `flexShrink`, and numeric or percentage `flexBasis` distribute
   remaining or overflowing main-axis space per flex line while preserving
   gaps and margins;
