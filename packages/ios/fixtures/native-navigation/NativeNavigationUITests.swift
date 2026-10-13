@@ -187,6 +187,10 @@ final class NativeNavigationUITests: XCTestCase {
         let icon = app.images["native-icon"]
         XCTAssertTrue(icon.waitForExistence(timeout: 5), "Icon fixture did not mount as a native image view")
         XCTAssertEqual(icon.label, "Native icon")
+        let sectionList = app.scrollViews["native-section-list"]
+        XCTAssertTrue(sectionList.waitForExistence(timeout: 5), "SectionList fixture did not mount as a native scroll view")
+        XCTAssertTrue(app.staticTexts["native-section-header"].waitForExistence(timeout: 5), "SectionList header did not reconcile")
+        XCTAssertTrue(app.staticTexts["native-section-row"].waitForExistence(timeout: 5), "SectionList row did not reconcile")
         XCTAssertTrue(app.otherElements["native-video"].waitForExistence(timeout: 5), "Video fixture did not mount as a native view")
         XCTAssertGreaterThanOrEqual(image.frame.minY, scroll.frame.minY + 12, "ScrollView contentContainerStyle did not add top padding")
         XCTAssertEqual(app.staticTexts["home-title"].label, "Home")

@@ -566,6 +566,7 @@ class NativeNavigationTest {
             val svg = awaitView(activity, "native-svg")
             val icon = awaitView(activity, "native-icon")
             val video = awaitView(activity, "native-video")
+            val sectionList = awaitView(activity, "native-section-list")
             assertTrue("ScrollView did not render an Android ScrollView", containsType(scroll, ScrollView::class.java))
             val nativeScroller = findType(scroll, ScrollView::class.java)!!
             assertTrue("ScrollView contentContainerStyle did not add top padding", image.top >= nativeScroller.top + (12 * density).toInt())
@@ -585,6 +586,9 @@ class NativeNavigationTest {
             var iconInfo: AccessibilityNodeInfo? = null
             instrumentation.runOnMainSync { iconInfo = icon.createAccessibilityNodeInfo() }
             assertEquals(ImageView::class.java.name, iconInfo?.className?.toString())
+            assertTrue("SectionList did not render an Android ScrollView", containsType(sectionList, ScrollView::class.java))
+            assertTrue("SectionList header did not reconcile", awaitView(activity, "native-section-header") is TextView)
+            assertTrue("SectionList row did not reconcile", awaitView(activity, "native-section-row") is TextView)
             assertEquals("CraftNativeVideoView", video.javaClass.simpleName)
             assertTrue("Image data did not decode", (image as ImageView).drawable != null)
             assertEquals("Native pixel", image.contentDescription.toString())
