@@ -1452,6 +1452,11 @@ class MainActivity : AppCompatActivity() {
         val inputIdentities = mutableMapOf<EditText, String>()
         val suppressedTextChanges = mutableSetOf<EditText>()
         val controls = mutableMapOf<String, View>()
+        // Protocol ids identify mutation targets; authored keys identify the
+        // retained view. Keep both mappings so a targeted update can recover
+        // the original tree path without manufacturing a detached view.
+        val nodeViews = mutableMapOf<String, View>()
+        val nodePaths = mutableMapOf<String, String>()
         val handlers = mutableMapOf<View, String>()
         val pressInHandlers = mutableMapOf<View, String>()
         val pressOutHandlers = mutableMapOf<View, String>()
@@ -1941,9 +1946,10 @@ class MainActivity : AppCompatActivity() {
             val target = screen.flatListOwners[id] ?: id
             if (!applied.add(target)) continue
             val document = screen.mutations.node(target) ?: return false
-            if (!screen.controls.containsKey("id:$target")) return false
-            makeView(screen, document, target, screen.controls)
-            val updated = screen.controls["id:$target"] ?: return false
+            val path = screen.nodePaths[target] ?: return false
+            if (screen.nodeViews[target] == null) return false
+            makeView(screen, document, path, screen.controls)
+            val updated = screen.nodeViews[target] ?: return false
             screen.lastLayoutBounds.remove(updated)
             if (!updateParentLayoutStyle(updated, document.optJSONObject("style") ?: JSONObject())) return false
         }
@@ -2001,6 +2007,8 @@ class MainActivity : AppCompatActivity() {
     private fun renderCommitted(screen: Screen, document: JSONObject) {
         // Keep live controls (especially the focused EditText) across renders.
         val next = mutableMapOf<String, View>()
+        screen.nodeViews.clear()
+        screen.nodePaths.clear()
         val tree = makeView(screen, document, "root", next)
         if (screen.view.getChildAt(0) !== tree) {
             (tree.parent as? ViewGroup)?.removeView(tree)
@@ -2018,6 +2026,8 @@ class MainActivity : AppCompatActivity() {
         releaseViewState(screen, retainedViews(screen).toList())
         screen.view.removeAllViews()
         screen.controls.clear()
+        screen.nodeViews.clear()
+        screen.nodePaths.clear()
         screen.handlers.clear()
         screen.flatListRows.clear()
         screen.flatListOwners.clear()
@@ -2584,6 +2594,10 @@ class MainActivity : AppCompatActivity() {
             if (!current.contains(message)) {
                 control.contentDescription = listOf(current, message).filter { it.isNotBlank() }.joinToString(", ")
             }
+        }
+        protocolId?.let {
+            screen.nodeViews[it] = control
+            screen.nodePaths[it] = path
         }
         next[identity] = control
         applyViewStyle(control, style)
@@ -3354,6 +3368,8 @@ class MainActivity : AppCompatActivity() {
         screen.pendingCapabilities.clear()
         releaseViewState(screen, retainedViews(screen).toList())
         screen.controls.clear()
+        screen.nodeViews.clear()
+        screen.nodePaths.clear()
         screen.handlers.clear()
         screen.pressInHandlers.clear()
         screen.pressOutHandlers.clear()

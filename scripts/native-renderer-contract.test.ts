@@ -567,6 +567,11 @@ describe('native renderer component contract', () => {
   })
 
   it('rebinds Android targeted style mutations to the parent layout', () => {
+    expect(android).toContain('val nodeViews = mutableMapOf<String, View>()')
+    expect(android).toContain('val nodePaths = mutableMapOf<String, String>()')
+    expect(android).toContain('val path = screen.nodePaths[target] ?: return false')
+    expect(android).toContain('makeView(screen, document, path, screen.controls)')
+    expect(android).toContain('val updated = screen.nodeViews[target] ?: return false')
     expect(android).toContain('updateParentLayoutStyle(updated, document.optJSONObject("style") ?: JSONObject())')
     expect(android).toContain('parent.setChildStyle(view, style, resources.displayMetrics.density)')
     expect(android).toContain('parent.requestLayout()')
