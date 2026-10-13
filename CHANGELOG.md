@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.151...v0.0.152)
+
+## 🚀 Features
+
+- **ios**: craft.heartRate reads a Bluetooth heart-rate strap ([9f57c7b](https://github.com/craft-native/craft/commit/9f57c7b)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.150...v0.0.151)
 
 ## 🚀 Features
