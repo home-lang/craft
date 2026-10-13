@@ -211,6 +211,13 @@ sudo apt-get install libwebkit2gtk-4.1-dev
 Download and install WebView2 Runtime from Microsoft:
 <https://developer.microsoft.com/en-us/microsoft-edge/webview2/>
 
+Craft initializes the Windows UI thread as a single-threaded COM apartment
+before it creates the WebView2 environment and keeps that apartment alive until
+the WebView2 controllers are released. If a shipped binary reports
+`CO_E_NOTINITIALIZED` (`0x800401f0`) while creating its environment, update the
+Craft runtime; that error means the binary predates the COM initialization
+guard, not that the WebView2 runtime is missing.
+
 ### macOS: Permission issues
 
 If you see permission errors when running:
