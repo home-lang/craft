@@ -539,11 +539,14 @@ enum CraftNativeFlexLayout {
             // Text takes the width it needs up to the room there is, and
             // wraps or truncates inside it rather than widening its parent.
             let limit = width ?? maxWidth
-            let natural = label.sizeThatFits(CGSize(width: limit, height: unbounded))
-            let resolvedWidth = width ?? min(ceil(natural.width), limit)
+            // Ask for max-content before asking for the wrapped height. A
+            // constrained sizeThatFits call can return min-content (the
+            // longest word), which collapses shrink-to-fit bubbles and pills.
+            let maxContent = label.sizeThatFits(CGSize(width: unbounded, height: unbounded))
+            let resolvedWidth = width ?? min(ceil(maxContent.width), limit)
             let resolvedHeight = height ?? ceil(resolvedWidth < limit
                 ? label.sizeThatFits(CGSize(width: resolvedWidth, height: unbounded)).height
-                : natural.height)
+                : maxContent.height)
             return CGSize(width: resolvedWidth, height: resolvedHeight)
         case let image as UIImageView where image.image == nil:
             return CGSize(width: width ?? 0, height: height ?? 0)

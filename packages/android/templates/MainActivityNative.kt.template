@@ -578,11 +578,28 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         // previous fixed LayoutParams width after a reactive width is removed;
         // using that value here prevents intrinsic sizing from being restored.
         val explicit = style.width?.resolve(base) ?: flexBasis
-        val target = explicit ?: base
-        val spec = if (explicit != null) View.MeasureSpec.makeMeasureSpec(target, View.MeasureSpec.EXACTLY)
-        else View.MeasureSpec.makeMeasureSpec(base, View.MeasureSpec.AT_MOST)
-        child.measure(spec, View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-        return clamp(if (explicit != null) target else child.measuredWidth, style.minWidth?.resolve(base), style.maxWidth?.resolve(base))
+        if (explicit != null) {
+            child.measure(
+                View.MeasureSpec.makeMeasureSpec(explicit, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            )
+            return clamp(explicit, style.minWidth?.resolve(base), style.maxWidth?.resolve(base))
+        }
+        // Measure text and nested flex containers at max-content first. An
+        // AT_MOST spec equal to the available room can make Android report the
+        // longest-word (min-content) width for a wrapping TextView, collapsing
+        // shrink-to-fit bubbles and pills before the parent can clamp them.
+        val intrinsicSpec = if (child is TextView && child !is EditText) 1_000_000 else base
+        child.measure(
+            View.MeasureSpec.makeMeasureSpec(intrinsicSpec, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        val target = clamp(min(base, child.measuredWidth), style.minWidth?.resolve(base), style.maxWidth?.resolve(base))
+        child.measure(
+            View.MeasureSpec.makeMeasureSpec(target, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        return target
     }
 
     private fun measureChildHeight(child: View, style: CraftNativeLayoutStyle, available: Int, margins: Int): Int {

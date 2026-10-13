@@ -294,6 +294,13 @@ describe('native renderer component contract', () => {
     expect(android).toContain('is String -> TextView(this).apply {')
   })
 
+  it('measures shrink-to-fit text from max-content before wrapping on both hosts', () => {
+    expect(android).toContain('val intrinsicSpec = if (child is TextView && child !is EditText) 1_000_000 else base')
+    expect(android).toContain('longest-word (min-content) width')
+    expect(ios).toContain('let maxContent = label.sizeThatFits(CGSize(width: unbounded, height: unbounded))')
+    expect(ios).toContain('collapses shrink-to-fit bubbles and pills')
+  })
+
   it('keeps justified text alignment active across hosts', () => {
     expect(ios).toContain('case "justify": return .justified')
     expect(android).toContain('import android.text.Layout')

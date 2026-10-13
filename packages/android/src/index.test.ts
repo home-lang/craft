@@ -183,6 +183,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('observer.addOnPreDrawListener(listener)')
       expect(nativeActivity).toContain('screen.view.postOnAnimation { if (screen.active) emitLayoutEvents(screen) }')
       expect(nativeActivity).toContain('screen.view.forceLayout()')
+      expect(nativeActivity).toContain('MeasureSpec.makeMeasureSpec(intrinsicSpec, View.MeasureSpec.AT_MOST)')
+      expect(nativeActivity).toContain('longest-word (min-content) width')
       expect(nativeActivity).toContain('view.forceLayout()\n        view.requestLayout()\n        while (parent != null)')
       expect(nativeActivity).toContain('parent.forceLayout()')
       expect(nativeActivity).toContain('(parent as? View)?.let')

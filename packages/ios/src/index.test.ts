@@ -607,6 +607,8 @@ describe('Craft iOS builder', () => {
     expect(source).toContain('frame.width')
     expect(source).toContain('CraftNativeGridBridge.frames')
     expect(source).toContain('UnsafeRawPointer')
+    expect(source).toContain('let maxContent = label.sizeThatFits(CGSize(width: unbounded, height: unbounded))')
+    expect(source).toContain('collapses shrink-to-fit bubbles and pills')
   })
 
   it('sizes intrinsic native grids from flow children only', async () => {
