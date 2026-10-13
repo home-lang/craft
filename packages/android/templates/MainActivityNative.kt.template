@@ -974,6 +974,53 @@ private class CraftNativeImageBackgroundView(context: Context) : FrameLayout(con
     }
 }
 
+/** A flex container that responds to the activity's IME inset. */
+private class CraftNativeKeyboardAvoidingView(context: Context) : FrameLayout(context) {
+    val content = CraftNativeFlexLayout(context)
+    private var behavior = "padding"
+    private var keyboardVerticalOffset = 0
+    private var keyboardInset = 0
+    private var basePadding = intArrayOf(0, 0, 0, 0)
+
+    init {
+        addView(content, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+
+    fun configure(props: JSONObject, style: JSONObject, density: Float) {
+        behavior = props.optString("behavior", "padding").takeIf { it in setOf("height", "position", "padding") } ?: "padding"
+        keyboardVerticalOffset = (props.optDouble("keyboardVerticalOffset", 0.0) * density).roundToInt()
+        content.configure(style, density)
+        basePadding = intArrayOf(content.paddingLeft, content.paddingTop, content.paddingRight, content.paddingBottom)
+        applyKeyboardInset()
+    }
+
+    fun setKeyboardInset(inset: Int) {
+        if (keyboardInset == inset) return
+        keyboardInset = max(0, inset)
+        applyKeyboardInset()
+    }
+
+    private fun effectiveInset(): Int = max(0, keyboardInset - keyboardVerticalOffset)
+
+    private fun applyKeyboardInset() {
+        val inset = effectiveInset()
+        translationY = if (behavior == "position") -inset.toFloat() else 0f
+        val bottom = if (behavior == "padding") basePadding[3] + inset else basePadding[3]
+        content.setPadding(basePadding[0], basePadding[1], basePadding[2], bottom)
+        requestLayout()
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val inset = effectiveInset()
+        val adjustedHeight = if (behavior == "height" && inset > 0 && MeasureSpec.getMode(heightMeasureSpec) != MeasureSpec.UNSPECIFIED) {
+            MeasureSpec.makeMeasureSpec(max(0, MeasureSpec.getSize(heightMeasureSpec) - inset), MeasureSpec.getMode(heightMeasureSpec))
+        } else {
+            heightMeasureSpec
+        }
+        super.onMeasure(widthMeasureSpec, adjustedHeight)
+    }
+}
+
 private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context) {
     val content = CraftNativeFlexLayout(context)
     private val vertical = ScrollView(context)
@@ -1794,6 +1841,7 @@ class MainActivity : AppCompatActivity() {
     private val inputHintDefaults = mutableMapOf<EditText, ColorStateList>()
     private val inputHighlightDefaults = mutableMapOf<EditText, Int>()
     private val defaultBackgrounds = mutableMapOf<View, Drawable?>()
+    private var keyboardInset = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         applyConfiguredAppearance()
@@ -1805,7 +1853,10 @@ class MainActivity : AppCompatActivity() {
         root = findViewById(R.id.native_root)
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val safe = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            keyboardInset = max(0, ime.bottom - safe.bottom)
             view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+            updateKeyboardAvoidingViews()
             view.requestLayout()
             view.post { screens.lastOrNull()?.takeIf { it.active }?.let(::emitLayoutEvents) }
             insets
@@ -2823,6 +2874,11 @@ class MainActivity : AppCompatActivity() {
                 configureContainer(this, style)
                 reconcileChildren(screen, this, children, path, next, style, previousControls)
             }
+            "KeyboardAvoidingView" -> (previous as? CraftNativeKeyboardAvoidingView ?: CraftNativeKeyboardAvoidingView(this)).apply {
+                configure(props, style, resources.displayMetrics.density)
+                setKeyboardInset(keyboardInset)
+                reconcileChildren(screen, content, children, path, next, style, previousControls)
+            }
             else -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 configureContainer(this, style)
                 reconcileChildren(screen, this, children, path, next, style, previousControls)
@@ -2830,12 +2886,14 @@ class MainActivity : AppCompatActivity() {
         }
         if (control is CraftNativeFlexLayout) {
             control.onLayoutChanged = { if (screen.active) emitLayoutEvents(screen) }
+        } else if (control is CraftNativeKeyboardAvoidingView) {
+            control.content.onLayoutChanged = { if (screen.active) emitLayoutEvents(screen) }
         }
         val pressInHandler = events.optString("onPressIn").takeIf { it.isNotBlank() }
         val pressOutHandler = events.optString("onPressOut").takeIf { it.isNotBlank() }
         if (pressInHandler != null) screen.pressInHandlers[control] = pressInHandler else screen.pressInHandlers.remove(control)
         if (pressOutHandler != null) screen.pressOutHandlers[control] = pressOutHandler else screen.pressOutHandlers.remove(control)
-        if (type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator") {
+        if (type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "KeyboardAvoidingView") {
             val handler = events.optString("onPress").ifBlank { events.optString("onClick") }
             val disabled = props.optBoolean("disabled", false)
             val hasPressLifecycle = pressInHandler != null || pressOutHandler != null
@@ -2980,6 +3038,7 @@ class MainActivity : AppCompatActivity() {
         "activityindicator" -> "ActivityIndicator"
         "image" -> "Image"
         "imagebackground" -> "ImageBackground"
+        "keyboardavoidingview" -> "KeyboardAvoidingView"
         "video" -> "Video"
         "icon" -> "Icon"
         "scrollview" -> "ScrollView"
@@ -3555,6 +3614,14 @@ class MainActivity : AppCompatActivity() {
         emitLayoutEvents(screen, screen.view)
     }
 
+    private fun updateKeyboardAvoidingViews() {
+        fun visit(view: View) {
+            (view as? CraftNativeKeyboardAvoidingView)?.setKeyboardInset(keyboardInset)
+            if (view is ViewGroup) for (index in 0 until view.childCount) visit(view.getChildAt(index))
+        }
+        if (::root.isInitialized) visit(root)
+    }
+
     private fun emitLayoutEvents(screen: Screen, view: View) {
         emitLayoutEvent(screen, view, view.left, view.top, view.right, view.bottom)
         if (view is ViewGroup) {
@@ -3664,6 +3731,7 @@ class MainActivity : AppCompatActivity() {
         released.filterIsInstance<CraftNativeModalView>().forEach { it.resetForTeardown() }
         released.filterIsInstance<CraftNativeVideoView>().forEach { it.stop() }
         released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }
+        released.filterIsInstance<CraftNativeKeyboardAvoidingView>().forEach { it.content.onLayoutChanged = null }
         released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }
         releaseImages(released)
         released.filterIsInstance<EditText>().forEach {

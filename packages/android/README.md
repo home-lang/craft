@@ -112,6 +112,8 @@ reports load lifecycle events and structured failures. `Video` uses the native
 resize-mode props.
 `ImageBackground` loads an image behind ordinary native children while
 preserving the shared flex layout contract.
+`KeyboardAvoidingView` responds to Android IME insets with `padding`,
+`position`, or `height` behavior and accepts `keyboardVerticalOffset`.
 `Checkbox` accepts controlled `checked`/`value` and `indeterminate`; mixed
 controls expose an Android accessibility state description of `mixed` and
 become checked on their first user toggle.
