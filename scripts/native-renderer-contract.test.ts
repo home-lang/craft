@@ -183,6 +183,13 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`Video` uses the platform player')
   })
 
+  it('keeps Icon host fallbacks explicit and DOM-free', () => {
+    expect(guide).toContain('`Icon` is a native leaf with the shared `symbol`/`name` contract')
+    expect(guide).toContain('Android uses the maintained dependency-free\nglyph map')
+    expect(iosNavigationReadme).toContain('Icon/Video/SVG accessibility survives native mounting')
+    expect(androidNavigationReadme).toContain('`CraftNativeIconView`')
+  })
+
   it('keeps Web Audio wired to both hosts', () => {
     // iOS renders the whole Web Audio graph (CraftWebAudio.swift).
     expect(iosWebAudio).toContain('final class CraftWebAudio')

@@ -14,7 +14,7 @@ bun packages/android/scripts/test-native-navigation.ts
 The instrumentation test checks native control classes, including the `Spinner`
 rendered for the `Picker`, `CraftNativeVideoView` for the network-free native
 `Video` mount, and
-`CraftNativeSvgView` for the grouped SVG fixture, rendered route
+`CraftNativeIconView` for the shared symbol fixture, `CraftNativeSvgView` for the grouped SVG fixture, rendered route
 parameters, push/replace/back (including Android's Back key), retained input
 identity and value, text-input submission, and the absence of any `WebView` in
 the activity view tree. Scroll callbacks are attached to the underlying Android

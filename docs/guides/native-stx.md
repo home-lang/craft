@@ -146,6 +146,12 @@ false; shared `display: 'none'` still takes precedence on both hosts.
 `Image.alt` supplies the native accessibility label when an explicit
 `accessibilityLabel` is not provided.
 
+`Icon` is a native leaf with the shared `symbol`/`name` contract. iOS draws
+SF Symbols through `UIImageView`; Android uses the maintained dependency-free
+glyph map and renders an outlined circle for symbols it does not recognize.
+Both hosts preserve the authored size, color, and accessibility metadata, and
+neither creates a DOM or WebView fallback for an icon.
+
 `Video` uses the platform player in native mode. Its `source` accepts a URI
 string or `{ uri }`, while `autoplay`/`autoPlay`, `paused`, `loop`, `muted`,
 `controls`, and `resizeMode` configure playback without creating a DOM video
