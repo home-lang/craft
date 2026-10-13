@@ -275,7 +275,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(reverseColumnSecond.exists)
         XCTAssertGreaterThan(reverseColumnFirst.frame.minY, reverseColumnSecond.frame.minY, "column-reverse did not invert the main axis")
 
-        let link = app.buttons["native-link"]
+        let link = app.staticTexts["native-link"]
         reveal(link, in: rootScroll)
         XCTAssertEqual(link.label, "Open native link")
         XCTAssertEqual(link.value as? String, "ready")

@@ -431,7 +431,7 @@ function openCapabilities() {
       <Text testID="justify-between-first" style={{"width":40}}>between one</Text>
       <Text testID="justify-between-second" style={{"width":40}}>between two</Text>
     </View>
-    <Link testID="native-link" accessibilityHint="Opens status" accessibilityValue="ready" accessibilityState={linkAccessibilityState()} @click="setStatus('link pressed')">Open native link</Link>
+    <Text testID="native-link" accessibilityHint="Opens status" accessibilityValue="ready" accessibilityState={linkAccessibilityState()} @click="setStatus('link pressed')">Open native link</Text>
     <Text testID="native-link-status" :text="status" />
     <Button testID="toggle-link-accessibility" @click="toggleLinkAccessibility()">Toggle link accessibility</Button>
     <View testID="native-panel" accessibilityState={panelAccessibilityState()} @click="pressPanel()" style={{"height":24}}><Text>Native panel</Text></View>

@@ -102,6 +102,7 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).not.toContain('app.textFields.element(boundBy: 1)')
     expect(iosNavigationTest).toContain('let svg = app.otherElements["native-svg"]')
     expect(iosNavigationTest).toContain('svg.waitForExistence(timeout: 5)')
+    expect(iosNavigationTest).toContain('let link = app.staticTexts["native-link"]')
     expect(androidNavigationTest).toContain('assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)')
   })
 
