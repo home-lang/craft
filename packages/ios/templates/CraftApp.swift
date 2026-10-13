@@ -738,6 +738,18 @@ final class CraftChrome: ObservableObject {
         emit("craftTabSelect", ["id": tab.id])
     }
 
+    /// A completed horizontal swipe selects the adjacent tab. The shell owns
+    /// this path so it works over both native screens and the shared WebView.
+    /// The gesture recognizer yields before calling this for a screen-owned
+    /// horizontal scroll or custom pager.
+    func swipe(to id: String) {
+        guard id != selected, tabs.contains(where: { $0.id == id }) else { return }
+        withAnimation(Self.motion(.spring(response: 0.32, dampingFraction: 0.86))) { selected = id }
+        UISelectionFeedbackGenerator().selectionChanged()
+        guard CraftHybrid.shared.tabTapped(id, reselect: false) else { return }
+        emit("craftTabSelect", ["id": id])
+    }
+
     /// The animation, or none with Reduce Motion on: the selection jumps to
     /// its tab rather than springing there, as UIKit's own controls do.
     static func motion(_ animation: Animation) -> Animation? {

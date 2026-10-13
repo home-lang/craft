@@ -1004,6 +1004,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     private var openingWeb = false
     private var firstFrameLogged = false
     private var tabBarHeight: CGFloat = 0
+    private var tabSwipeRecognizers: [UISwipeGestureRecognizer] = []
 
     init(config: CraftConfig) {
         self.config = config
@@ -1033,6 +1034,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         let tabs = hybrid.tabIds
         let start = CraftHybridRoutes.tab(owning: hybrid.startPath, among: tabs) ?? tabs.first ?? ""
         show(tab: start, rootPath: hybrid.startPath)
+        installTabSwipeGestures()
         if hybrid.hasWeb && hybrid.startsNative {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.attachWeb() }
         }
@@ -1042,6 +1044,42 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     }
 
     private var webAttached = false
+
+    private func installTabSwipeGestures() {
+        guard tabSwipeRecognizers.isEmpty else { return }
+        for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
+            let recognizer = UISwipeGestureRecognizer(target: self, action: #selector(tabSwipeRecognized(_:)))
+            recognizer.direction = direction
+            recognizer.delegate = self
+            recognizer.cancelsTouchesInView = false
+            recognizer.delaysTouchesBegan = false
+            view.addGestureRecognizer(recognizer)
+            tabSwipeRecognizers.append(recognizer)
+        }
+    }
+
+    @objc private func tabSwipeRecognized(_ recognizer: UISwipeGestureRecognizer) {
+        let tabs = hybrid.tabIds
+        guard let index = tabs.firstIndex(of: currentTab), tabs.count > 1 else { return }
+        let next = recognizer.direction == .left ? index + 1 : index - 1
+        guard tabs.indices.contains(next) else { return }
+        CraftChrome.shared.swipe(to: tabs[next])
+    }
+
+    private func horizontalScrollAt(_ point: CGPoint, in root: UIView) -> Bool {
+        let local = root.convert(point, from: view)
+        guard root.bounds.contains(local), let hit = root.hitTest(local, with: nil) else { return false }
+        var candidate: UIView? = hit
+        while let current = candidate {
+            if let scroll = current as? UIScrollView,
+               scroll.isScrollEnabled,
+               scroll.alwaysBounceHorizontal || scroll.contentSize.width > scroll.bounds.width + 1 {
+                return true
+            }
+            candidate = current.superview
+        }
+        return false
+    }
 
     /// The web view joins the screen, behind the native screens, and loads.
     private func attachWeb() {
@@ -1481,6 +1519,11 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     }
 
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        if tabSwipeRecognizers.contains(where: { $0 === gestureRecognizer }) {
+            guard hybrid.tabIds.count > 1, let top = visibleStack?.topViewController else { return false }
+            if let native = top as? CraftNativeScreenController, !native.contentSwipeBack { return false }
+            return !horizontalScrollAt(gestureRecognizer.location(in: view), in: top.view)
+        }
         guard let nav = visibleStack, isPopRecognizer(gestureRecognizer),
               nav.viewControllers.count > 1, nav.transitionCoordinator == nil else { return false }
         if let native = nav.topViewController as? CraftNativeScreenController,

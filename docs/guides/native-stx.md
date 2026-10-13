@@ -590,7 +590,10 @@ all: no `WKWebView` is ever created.
   universal link to the site's host that no screen draws opens in the in-app
   browser. Anything else reaches the screens as `DEEP_LINK`. A link that
   launched the app waits for the shell.
-- Tab taps switch stacks natively. A screen that throws before its first frame
+- Tab taps and completed left/right swipes switch stacks natively. Swipes
+  yield to a horizontal native scroll view or a screen that sets
+  `contentSwipeBack: false`; the tab bar provides selection feedback when a
+  swipe changes tabs. A screen that throws before its first frame
   keeps its own error, since there is no page to stand in for it.
 - GPS (fixes, watches, the background route recorder and its relaunch
   restore) and Apple Music work here too: the app holds the web view's service

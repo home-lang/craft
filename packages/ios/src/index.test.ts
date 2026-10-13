@@ -910,7 +910,7 @@ describe('Craft iOS builder', () => {
     expect(actions).toContain('CraftHaptics.prepare(body["kind"] as? String)')
 
     // UITabBar plays nothing when a tab is tapped, so the shell's bar does not.
-    const tap = swift.slice(swift.indexOf('func tap(_ tab: Tab) {'), swift.indexOf('func hideSplash()'))
+    const tap = swift.slice(swift.indexOf('func tap(_ tab: Tab) {'), swift.indexOf('/// A completed horizontal swipe selects the adjacent tab.'))
     expect(tap.length).toBeGreaterThan(0)
     expect(tap).not.toContain('FeedbackGenerator')
   })
@@ -1333,6 +1333,11 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('if let contentSwipeBack = options["contentSwipeBack"] as? Bool {')
     expect(screen).toContain('private(set) var contentSwipeBack = true')
     expect(hybrid).toContain('!native.contentSwipeBack')
+    expect(hybrid).toContain('private var tabSwipeRecognizers: [UISwipeGestureRecognizer] = []')
+    expect(hybrid).toContain('@objc private func tabSwipeRecognized(_ recognizer: UISwipeGestureRecognizer)')
+    expect(hybrid).toContain('return !horizontalScrollAt(gestureRecognizer.location(in: view), in: top.view)')
+    expect(app).toContain('func swipe(to id: String)')
+    expect(app).toContain('UISelectionFeedbackGenerator().selectionChanged()')
     expect(app).toContain('func setHiddenByScreen(_ hidden: Bool) {')
     expect(screen).toContain('case "NAVIGATE_POP_TO_ROOT":')
     expect(screen).toContain('navigationController?.popToRootViewController(animated: true)')
