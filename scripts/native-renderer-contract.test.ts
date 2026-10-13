@@ -1075,6 +1075,7 @@ describe('native renderer component contract', () => {
     expect(androidFlatListTest).toContain('ActivityScenario.launch(MainActivity::class.java)')
     expect(androidNavigationTest).toContain('awaitText(activity, "input-style-status", "input colors on")')
     expect(androidNavigationTest).toContain('awaitText(activity, "native-link-status", "link pressed")')
+    expect(androidNavigationTest).toContain('awaitText(activity, "modal-status", "modal shown")')
     expect(androidNavigationTest).toContain('awaitText(activity, "native-link-status", "panel pressed")')
     expect(androidNavigationTest).toContain('awaitText(activity, "native-link-status", "pressable pressed")')
     expect(androidNavigationTest).toContain('awaitText(activity, "native-link-status", "button style accented")')
