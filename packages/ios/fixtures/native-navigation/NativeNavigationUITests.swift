@@ -172,6 +172,8 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let image = app.images["native-image"]
         XCTAssertTrue(image.waitForExistence(timeout: 10))
+        let imageBackground = app.images["native-image-background"]
+        XCTAssertTrue(imageBackground.waitForExistence(timeout: 10), "ImageBackground did not mount as a native image container")
         let svg = app.otherElements["native-svg"]
         XCTAssertTrue(svg.waitForExistence(timeout: 5), "SVG fixture did not mount as a native view")
         XCTAssertEqual(svg.label, "Native vector", "SVG accessibility metadata did not survive native mounting")

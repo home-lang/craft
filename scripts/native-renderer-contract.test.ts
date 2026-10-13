@@ -269,6 +269,10 @@ describe('native renderer component contract', () => {
     expect(android).toContain('configureContainer(content, style)')
     expect(android).toContain('imageViews(views)')
     expect(guide).toContain('`ImageBackground` uses the shared image source')
+    expect(navigationHome).toContain('<ImageBackground')
+    expect(navigationHome).toContain('testID="native-image-background-label"')
+    expect(iosNavigationTest).toContain('native-image-background')
+    expect(androidNavigationTest).toContain('CraftNativeImageBackgroundView')
   })
 
   it('applies text transforms to native action labels on both hosts', () => {

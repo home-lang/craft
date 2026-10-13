@@ -380,6 +380,14 @@ function openCapabilities() {
         @load-end="imageLoaded()"
         style={{"width":24,"height":24,"resizeMode":"cover","tintColor":imageTinted ? "#2563eb" : null}}
       />
+      <ImageBackground
+        testID="native-image-background"
+        source={validImage()}
+        accessibilityLabel="Native image background"
+        style={{"width":80,"height":36,"resizeMode":"cover"}}
+      >
+        <Text testID="native-image-background-label" style={{"color":"#ffffff"}}>Background child</Text>
+      </ImageBackground>
       <svg
         testID="native-svg"
         viewBox="0 0 24 24"
