@@ -864,7 +864,55 @@ private final class CraftNativeFlowView: UIStackView {
             return horizontal ? (size.width, size.height) : (size.height, size.width)
         }
 
-        var items: [Item] = children.map { view in
+        var items: [Item] = []
+
+        func fallbackWidths(for line: Range<Int>, available: CGFloat, gap: CGFloat) -> [CGFloat] {
+            let hypothetical = line.reduce(0) { $0 + items[$1].basis + items[$1].mainMargins } + CGFloat(max(0, line.count - 1)) * gap
+            let free = available - hypothetical
+            let growTotal = line.reduce(0) { $0 + items[$1].grow }
+            let shrinkTotal = line.reduce(0) { $0 + items[$1].shrink * items[$1].basis }
+            let growing = free > 0 && growTotal > 0
+            let shrinking = free < 0 && shrinkTotal > 0
+            var widths = line.map { items[$0].basis }
+            guard growing || shrinking else { return widths }
+
+            var frozen = Set<Int>()
+            for _ in 0...line.count {
+                var fixed = CGFloat(max(0, line.count - 1)) * gap
+                var activeBasis: CGFloat = 0
+                var factor: CGFloat = 0
+                for (offset, index) in line.enumerated() {
+                    let item = items[index]
+                    fixed += item.mainMargins
+                    if frozen.contains(offset) {
+                        fixed += widths[offset]
+                    } else {
+                        activeBasis += item.basis
+                        factor += growing ? item.grow : item.shrink * item.basis
+                    }
+                }
+                guard factor > 0 else { break }
+                let remaining = available - fixed - activeBasis
+                var froze = false
+                for (offset, index) in line.enumerated() where !frozen.contains(offset) {
+                    let item = items[index]
+                    let share = growing
+                        ? remaining * item.grow / factor
+                        : -remaining * item.shrink * item.basis / factor
+                    let raw = growing ? item.basis + share : item.basis - share
+                    let clamped = clamp(raw, item.minMain, item.maxMain)
+                    widths[offset] = clamped
+                    if abs(clamped - raw) > 0.0001 {
+                        frozen.insert(offset)
+                        froze = true
+                    }
+                }
+                if !froze { break }
+            }
+            return widths
+        }
+
+        items = children.map { view in
             let style = view.craftLayoutStyle
             let mainLeading = horizontal ? style.marginLeft : style.marginTop
             let mainTrailing = horizontal ? style.marginRight : style.marginBottom
@@ -982,22 +1030,8 @@ private final class CraftNativeFlowView: UIStackView {
             if let sharedWidths {
                 for (offset, index) in line.enumerated() { items[index].main = sharedWidths[offset].width }
             } else {
-                let free = lineMain - hypothetical
-                if free > 0 {
-                    let total = line.reduce(0) { $0 + items[$1].grow }
-                    for index in line {
-                        let share = total > 0 ? free * items[index].grow / total : 0
-                        items[index].main = clamp(items[index].basis + share, items[index].minMain, items[index].maxMain)
-                    }
-                } else if free < 0 {
-                    let total = line.reduce(0) { $0 + items[$1].shrink * items[$1].basis }
-                    for index in line {
-                        let share = total > 0 ? -free * items[index].shrink * items[index].basis / total : 0
-                        items[index].main = clamp(items[index].basis - share, items[index].minMain, items[index].maxMain)
-                    }
-                } else {
-                    for index in line { items[index].main = items[index].basis }
-                }
+                let fallback = fallbackWidths(for: line, available: lineMain, gap: mainGap)
+                for (offset, index) in line.enumerated() { items[index].main = fallback[offset] }
             }
 
             var lineCross: CGFloat = 0

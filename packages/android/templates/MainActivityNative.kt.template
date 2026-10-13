@@ -646,6 +646,68 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         else -> 0
     }
 
+    /** Keep the old-runtime shim on the same bounded-flex water-fill rule as the Zig bridge. */
+    private fun fallbackFlexWidths(line: Line, available: Int, gap: Int): IntArray {
+        val horizontal = orientation == HORIZONTAL
+        val hypothetical = line.entries.sumOf { entry ->
+            val lp = entry.view.layoutParams as? MarginLayoutParams
+            val margins = if (horizontal) (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
+            else (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
+            (if (horizontal) entry.width else entry.height) + margins
+        } + max(0, line.entries.size - 1) * gap
+        val free = available - hypothetical
+        val growTotal = line.entries.sumOf { it.style.flexGrow }
+        val shrinkTotal = line.entries.sumOf {
+            (it.style.flexShrink ?: defaultFlexShrink(it.view)) * (if (horizontal) it.width else it.height)
+        }
+        val growing = free > 0 && growTotal > 0
+        val shrinking = free < 0 && shrinkTotal > 0
+        val widths = IntArray(line.entries.size) { index -> if (horizontal) line.entries[index].width else line.entries[index].height }
+        if (!growing && !shrinking) return widths
+
+        val frozen = BooleanArray(widths.size)
+        repeat(widths.size + 1) {
+            var fixed = max(0, widths.size - 1) * gap.toDouble()
+            var activeBasis = 0.0
+            var factor = 0.0
+            for ((index, entry) in line.entries.withIndex()) {
+                val lp = entry.view.layoutParams as? MarginLayoutParams
+                val margins = if (horizontal) (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
+                else (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
+                fixed += margins
+                if (frozen[index]) fixed += widths[index]
+                else {
+                    val basis = if (horizontal) entry.width else entry.height
+                    activeBasis += basis
+                    factor += if (growing) entry.style.flexGrow
+                    else (entry.style.flexShrink ?: defaultFlexShrink(entry.view)) * basis
+                }
+            }
+            if (factor <= 0) return@repeat
+            val remaining = available - fixed - activeBasis
+            var froze = false
+            for ((index, entry) in line.entries.withIndex()) {
+                if (frozen[index]) continue
+                val basis = (if (horizontal) entry.width else entry.height).toDouble()
+                val share = if (growing) remaining * entry.style.flexGrow / factor
+                else -remaining * (entry.style.flexShrink ?: defaultFlexShrink(entry.view)) * basis / factor
+                val raw = if (growing) basis + share else basis - share
+                val lower = (if (horizontal) entry.style.minWidth else entry.style.minHeight)?.resolve(if (horizontal) width - paddingLeft - paddingRight else height - paddingTop - paddingBottom)
+                val upper = (if (horizontal) entry.style.maxWidth else entry.style.maxHeight)?.resolve(if (horizontal) width - paddingLeft - paddingRight else height - paddingTop - paddingBottom)
+                var bounded = raw
+                if (lower != null) bounded = max(bounded, lower.toDouble())
+                if (upper != null) bounded = min(bounded, upper.toDouble())
+                widths[index] = bounded.roundToInt().coerceAtLeast(0)
+                if (bounded != raw) {
+                    frozen[index] = true
+                    froze = true
+                }
+            }
+            if (!froze) return@repeat
+        }
+        return widths
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
         val width = View.MeasureSpec.getSize(widthMeasureSpec).takeUnless { widthMode == View.MeasureSpec.UNSPECIFIED } ?: 1_000_000
@@ -787,7 +849,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         var crossOffset = (if (orientation == HORIZONTAL) paddingTop else paddingLeft) + crossLeading
         for ((lineIndex, line) in lines.withIndex()) {
             val lineOffset = sharedCross?.first?.get(lineIndex)?.roundToInt()?.let { (if (orientation == HORIZONTAL) paddingTop else paddingLeft) + it } ?: crossOffset
-            val rawFree = availableMain - line.main
+            val fallbackWidths = fallbackFlexWidths(line, availableMain, gap)
             val sharedPrimary = CraftNative.flexRow(
                 availableMain.toFloat(),
                 gap.toFloat(),
@@ -818,16 +880,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     sharedPrimary[index].roundToInt() + margins
                 } + max(0, line.entries.size - 1) * gap
             } else {
-                val factors = line.entries.map { if (rawFree >= 0) it.style.flexGrow else it.style.flexShrink ?: defaultFlexShrink(it.view) }
-                val totalFactor = factors.sum()
                 line.entries.indices.sumOf { index ->
-                    val base = if (orientation == HORIZONTAL) line.entries[index].width else line.entries[index].height
-                    val primary = if (totalFactor > 0) max(0, (base + rawFree * factors[index] / totalFactor).toInt()) else base
-                    val constrained = if (orientation == HORIZONTAL) {
-                        clamp(primary, line.entries[index].style.minWidth?.resolve(contentWidth), line.entries[index].style.maxWidth?.resolve(contentWidth))
-                    } else {
-                        clamp(primary, line.entries[index].style.minHeight?.resolve(contentHeight), line.entries[index].style.maxHeight?.resolve(contentHeight))
-                    }
+                    val constrained = fallbackWidths[index]
                     val lp = line.entries[index].view.layoutParams as? MarginLayoutParams
                     val margins = if (orientation == HORIZONTAL) (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
                         else (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
@@ -868,17 +922,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     ?: mainOffset + marginStart
                 val x = if (orientation == HORIZONTAL) positionedMain else lineOffset + crossPosition
                 val y = if (orientation == HORIZONTAL) lineOffset + crossPosition else positionedMain
-                val distributedPrimary = sharedPrimary?.get(index)?.roundToInt() ?: run {
-                    val primary = if (orientation == HORIZONTAL) entry.width else entry.height
-                    val factor = if (rawFree >= 0) entry.style.flexGrow else entry.style.flexShrink ?: defaultFlexShrink(entry.view)
-                    val totalFactor = line.entries.sumOf { if (rawFree >= 0) it.style.flexGrow else it.style.flexShrink ?: defaultFlexShrink(it.view) }
-                    val distributed = if (totalFactor > 0) max(0, (primary + rawFree * factor / totalFactor).toInt()) else primary
-                    if (orientation == HORIZONTAL) {
-                        clamp(distributed, entry.style.minWidth?.resolve(contentWidth), entry.style.maxWidth?.resolve(contentWidth))
-                    } else {
-                        clamp(distributed, entry.style.minHeight?.resolve(contentHeight), entry.style.maxHeight?.resolve(contentHeight))
-                    }
-                }
+                val distributedPrimary = sharedPrimary?.get(index)?.roundToInt() ?: fallbackWidths[index]
                 val w = if (orientation == HORIZONTAL) distributedPrimary else crossSize
                 val h = if (orientation == HORIZONTAL) crossSize else distributedPrimary
                 entry.view.layout(x, y, x + w, y + h)
