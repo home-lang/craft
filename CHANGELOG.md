@@ -1,5 +1,26 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.159...v0.0.160)
+
+## 🚀 Features
+
+- **ios**: read the day's food from Apple Health (energy, protein, carbohydrate, fat) ([8e78df9](https://github.com/craft-native/craft/commit/8e78df9)) _(by Chris Breuer)_
+- **native**: render icons on Android ([b7c70c9](https://github.com/craft-native/craft/commit/b7c70c9)) _(by glennmichael123)_
+
+## 📚 Documentation
+
+- **native**: specify icon fallback contract ([e5d0fc3](https://github.com/craft-native/craft/commit/e5d0fc3)) _(by glennmichael123)_
+- **native**: document cross-platform icons ([bff162b](https://github.com/craft-native/craft/commit/bff162b)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: exercise dynamic theme fixtures ([f945da0](https://github.com/craft-native/craft/commit/f945da0)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.158...v0.0.159)
 
 ## 🚀 Features
