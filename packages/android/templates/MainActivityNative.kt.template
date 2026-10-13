@@ -930,8 +930,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             }
             val free = max(0, availableMain - distributedMain)
             val (leading, between) = distribution(free, line.entries.size)
-            var mainOffset = if (orientation == HORIZONTAL) paddingLeft else paddingTop
-            mainOffset += leading
+            var mainOffset = (if (orientation == HORIZONTAL) paddingLeft else paddingTop).toFloat() + leading
             for ((index, entry) in line.entries.withIndex()) {
                 val lp = entry.view.layoutParams as? MarginLayoutParams
                 val marginStart = if (orientation == HORIZONTAL) lp?.leftMargin ?: 0 else lp?.topMargin ?: 0
@@ -958,10 +957,10 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 // local main-axis rule remains the fallback for old runtimes
                 // that return widths only.
                 val sharedPosition = if (!reverse) sharedPositions?.get(index)?.roundToInt() else null
-                val positionedMain = sharedPosition?.let { (if (orientation == HORIZONTAL) paddingLeft else paddingTop) + it }
+                val positionedMain = sharedPosition?.let { (if (orientation == HORIZONTAL) paddingLeft else paddingTop).toFloat() + it }
                     ?: mainOffset + marginStart
-                val x = if (orientation == HORIZONTAL) positionedMain else lineOffset + crossPosition
-                val y = if (orientation == HORIZONTAL) lineOffset + crossPosition else positionedMain
+                val x = if (orientation == HORIZONTAL) positionedMain.roundToInt() else lineOffset + crossPosition
+                val y = if (orientation == HORIZONTAL) lineOffset + crossPosition else positionedMain.roundToInt()
                 val distributedPrimary = sharedPrimary?.get(index)?.roundToInt() ?: fallbackWidths[index]
                 val w = if (orientation == HORIZONTAL) distributedPrimary else crossSize
                 val h = if (orientation == HORIZONTAL) crossSize else distributedPrimary
@@ -981,13 +980,16 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         onLayoutChanged?.invoke()
     }
 
-    private fun distribution(free: Int, count: Int): Pair<Int, Int> = when (justifyContent) {
-        "center" -> free / 2 to 0
-        "flex-end" -> free to 0
-        "space-between" -> 0 to if (count > 1) free / (count - 1) else 0
-        "space-around" -> free / (count * 2) to free / count
-        "space-evenly" -> free / (count + 1) to free / (count + 1)
-        else -> 0 to 0
+    private fun distribution(free: Int, count: Int): Pair<Float, Float> {
+        val available = free.toFloat()
+        return when (justifyContent) {
+            "center" -> available / 2f to 0f
+            "flex-end" -> available to 0f
+            "space-between" -> 0f to if (count > 1) available / (count - 1).toFloat() else 0f
+            "space-around" -> available / (count * 2).toFloat() to available / count.toFloat()
+            "space-evenly" -> available / (count + 1).toFloat() to available / (count + 1).toFloat()
+            else -> 0f to 0f
+        }
     }
 }
 

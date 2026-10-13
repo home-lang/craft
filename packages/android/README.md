@@ -140,6 +140,8 @@ across hosts.
 The Android local fallback keeps fractional line and grid spacing until each
 child frame is rounded, matching the shared layout ABI when an older runtime
 does not expose its optional alignment symbols.
+Its flex main-axis fallback applies the same fractional treatment to
+`space-around` and `space-evenly` before rounding positions.
 Shared wrapped-line IDs are accepted only when they are complete and monotonic;
 invalid bridge data falls back to the host layout implementation.
 Push, replace, and back preserve the
