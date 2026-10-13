@@ -110,6 +110,8 @@ non-animated when `animating={false}` and `hidesWhenStopped={false}`. `Image`
 reports load lifecycle events and structured failures. `Video` uses the native
 `VideoView` for URI playback with autoplay, pause, looping, mute, controls, and
 resize-mode props.
+`ImageBackground` loads an image behind ordinary native children while
+preserving the shared flex layout contract.
 `Checkbox` accepts controlled `checked`/`value` and `indeterminate`; mixed
 controls expose an Android accessibility state description of `mixed` and
 become checked on their first user toggle.

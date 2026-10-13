@@ -291,7 +291,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('info.roleDescription')
       expect(nativeActivity).toContain('info.hintText = host.tooltipText')
       expect(nativeActivity).toContain('view.contentDescription = when {')
-      expect(nativeActivity).toContain('?: props.optString("alt").takeIf { type == "Image" && it.isNotBlank() }')
+      expect(nativeActivity).toContain('?: props.optString("alt").takeIf { (type == "Image" || type == "ImageBackground") && it.isNotBlank() }')
       expect(nativeActivity).toContain('else -> null')
       expect(nativeActivity).toContain('IMPORTANT_FOR_ACCESSIBILITY_NO')
       expect(nativeActivity).toContain('} else if (disabled) {\n            view.isEnabled = false')

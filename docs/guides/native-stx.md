@@ -75,6 +75,7 @@ next route.
 | `Slider` | `UISlider` | `SeekBar` |
 | `ActivityIndicator` | `UIActivityIndicatorView` | `ProgressBar` |
 | `Image` | `UIImageView` | `ImageView` |
+| `ImageBackground` | `CraftNativeImageBackgroundView` | `CraftNativeImageBackgroundView` |
 | `Video` | `CraftNativeVideoView` (`AVPlayerViewController`) | `CraftNativeVideoView` (`VideoView`) |
 | `Svg` | `CraftNativeSvgView` | `CraftNativeSvgView` |
 | `G`, `SvgText` | drawn inside `CraftNativeSvgView` | drawn inside `CraftNativeSvgView` |
@@ -112,6 +113,10 @@ primitive, accepts `value`/`selectedValue`, and sends the selected option's
 delivers a boolean `nativeEvent.value` through `onValueChange` or `onChange`.
 An indeterminate checkbox is announced as `mixed` and becomes checked or
 unchecked on the next user toggle.
+`ImageBackground` uses the shared image source and load/error lifecycle while
+mounting ordinary native children in a flex container over the image. Its
+`resizeMode` follows the same `cover`, `contain`, `stretch`, and `center`
+semantics as `Image`.
 `DatePicker` accepts `mode` (`date`, `time`, `datetime`/`datetime-local`, or
 `countdown`), `value`, `minimumDate`, `maximumDate`, `minuteInterval`, and
 `disabled`. Its `onValueChange`/`onChange` event includes a local `value`, an

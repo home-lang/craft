@@ -112,6 +112,9 @@ In Xcode:
 
 ### Experimental WebView-free screen
 
+Native screens also support `ImageBackground`, which loads an image behind
+ordinary native children while preserving the shared flex layout contract.
+
 Keyboard frame changes update the native controller's additional safe area, so
 focused inputs and responsive `onLayout` measurements move with the keyboard.
 
