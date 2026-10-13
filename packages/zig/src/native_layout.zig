@@ -31,6 +31,16 @@ pub const AlignItems = enum {
     stretch,
 };
 
+/// Cross-axis distribution between wrapped flex lines.
+pub const AlignContent = enum {
+    flex_start,
+    center,
+    flex_end,
+    space_between,
+    space_around,
+    stretch,
+};
+
 pub const Size = struct {
     width: f32,
     height: f32,
@@ -62,6 +72,7 @@ pub const Style = struct {
     align_items: AlignItems = .stretch,
     align_self: ?AlignItems = null,
     flex_wrap: bool = false,
+    align_content: AlignContent = .stretch,
     margin_top: f32 = 0,
     margin_right: f32 = 0,
     margin_bottom: f32 = 0,
@@ -582,14 +593,29 @@ fn layoutWrapped(
         line_count += 1;
         start = end;
     }
-    const extra_cross = @max(0, cross_size - cross_total) / @as(f32, @floatFromInt(line_count));
+    const free_cross = @max(0, cross_size - cross_total);
+    var line_extra: f32 = 0;
     var cross_offset: f32 = 0;
+    var cross_between = gap;
+    switch (node.style.align_content) {
+        .center => cross_offset = free_cross / 2,
+        .flex_end => cross_offset = free_cross,
+        .space_between => {
+            if (line_count > 1) cross_between += free_cross / @as(f32, @floatFromInt(line_count - 1));
+        },
+        .space_around => {
+            cross_offset = free_cross / @as(f32, @floatFromInt(line_count * 2));
+            cross_between += free_cross / @as(f32, @floatFromInt(line_count));
+        },
+        .stretch => line_extra = free_cross / @as(f32, @floatFromInt(line_count)),
+        .flex_start => {},
+    }
     var next_index = frame_index + 1;
     start = 0;
     while (start < node.children.len) {
         const end = wrappedLineEnd(node.children, start, direction, main_size, gap);
         const children = node.children[start..end];
-        const line_cross = wrappedLineCross(children, direction) + extra_cross;
+        const line_cross = wrappedLineCross(children, direction) + line_extra;
         const flex = resolveFlex(children, direction, main_size, gap * @as(f32, @floatFromInt(if (children.len > 1) children.len - 1 else 0)));
         var used_main: f32 = gap * @as(f32, @floatFromInt(if (children.len > 1) children.len - 1 else 0));
         for (children) |child| used_main += flex.size(child, childMainBasis(child, direction)) + mainMargins(child, direction);
@@ -620,7 +646,7 @@ fn layoutWrapped(
             main_offset += mainMargins(child, direction) + child_main;
             if (index + 1 < children.len) main_offset += between_space;
         }
-        cross_offset += line_cross + gap;
+        cross_offset += line_cross + cross_between;
         start = end;
     }
     return next_index;
@@ -964,6 +990,23 @@ test "wraps tree children into stretched cross-axis lines" {
     try std.testing.expectApproxEqAbs(@as(f32, 32), frames[2].y, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 64), frames[3].x, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 32), frames[3].y, 0.001);
+}
+
+test "distributes wrapped tree lines with align content" {
+    const children = [_]Node{
+        .{ .style = .{ .width = 60, .height = 10 } },
+        .{ .style = .{ .width = 60, .height = 20 } },
+        .{ .style = .{ .width = 20, .height = 30 } },
+    };
+    const root = Node{
+        .style = .{ .direction = .row, .width = 100, .height = 100, .gap = 4, .flex_wrap = true, .align_content = .center },
+        .children = &children,
+    };
+    var frames: [4]Frame = undefined;
+
+    _ = try layout(root, .{ .width = 100, .height = 100 }, &frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 28), frames[1].y, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 42), frames[2].y, 0.001);
 }
 
 test "uses viewport size when the root is intrinsic" {
