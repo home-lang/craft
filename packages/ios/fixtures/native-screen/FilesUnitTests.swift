@@ -93,6 +93,28 @@ final class FilesUnitTests: XCTestCase {
         try? FileManager.default.removeItem(at: body)
     }
 
+    func testWhatAScreenMadeIsWrittenAsTextOrBytes() throws {
+        guard case .success(let csv) = CraftNativeFiles.write(name: "health-data.csv", data: "date,steps\n2026-10-12,9120\n", options: ["type": "text/csv"]) else {
+            return XCTFail("the CSV was not written")
+        }
+        let info = try XCTUnwrap(csv as? [String: Any])
+        XCTAssertEqual(info["name"] as? String, "health-data.csv")
+        XCTAssertEqual(info["type"] as? String, "text/csv")
+        let path = try XCTUnwrap(info["path"] as? String)
+        XCTAssertEqual(try String(contentsOfFile: path, encoding: .utf8), "date,steps\n2026-10-12,9120\n")
+        CraftNativeFiles.remove(path)
+
+        guard case .success(let png) = CraftNativeFiles.write(name: "dot.png", data: "iVBORw0KGgo=", options: ["encoding": "base64"]) else {
+            return XCTFail("the bytes were not written")
+        }
+        XCTAssertEqual((png as? [String: Any])?["size"] as? Int, 8)
+        CraftNativeFiles.remove((png as? [String: Any])?["path"] as? String ?? "")
+
+        guard case .failure = CraftNativeFiles.write(name: "", data: "x", options: [:]) else { return XCTFail("a file with no name was written") }
+        guard case .failure = CraftNativeFiles.write(name: "x.bin", data: "%%%", options: ["encoding": "base64"]) else { return XCTFail("bad base64 was written") }
+        guard case .failure = CraftNativeFiles.write(name: "x.txt", data: 42, options: [:]) else { return XCTFail("a number was written") }
+    }
+
     func testADownloadIsKeptUnderTheServersName() throws {
         let location = FileManager.default.temporaryDirectory.appendingPathComponent("download-\(UUID().uuidString).tmp")
         try Data("<gpx/>".utf8).write(to: location)

@@ -171,6 +171,16 @@ enum CraftNativeActions {
         case ("Files", "download"):
             download(requestToken: requestToken, args: args, completion: completion)
             return
+        case ("Files", "write"):
+            // Something the screen made (a CSV export) as a file for the
+            // share sheet; the disk work is off the main thread.
+            let name = args.first as? String ?? ""
+            let data = args.count > 1 ? args[1] : nil
+            let options = args.count > 2 ? args[2] as? [String: Any] ?? [:] : [:]
+            DispatchQueue.global(qos: .userInitiated).async {
+                complete(requestToken, CraftNativeFiles.write(name: name, data: data, options: options), completion)
+            }
+            return
         case ("Files", "remove"):
             sync = .success(CraftNativeFiles.remove(args.first as? String ?? ""))
         case ("Lifecycle", "getState"):

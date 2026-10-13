@@ -329,6 +329,40 @@ enum CraftNativeFiles {
         }
     }
 
+    /// What a screen made itself (a CSV export, a route it built) written as
+    /// a file for the share sheet: `data` is text (`encoding: 'utf8'`, the
+    /// default, so a CSV crosses the bridge once and no larger) or base64
+    /// (`encoding: 'base64'`, for bytes). What is already on a server is
+    /// `download`ed instead, straight to disk.
+    static func write(name: String, data: Any?, options: [String: Any]) -> Result<Any, CraftNativeActionError> {
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "files.write needs a file name"))
+        }
+        guard let text = data as? String else {
+            return .failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "files.write needs its contents as a string"))
+        }
+        let bytes: Data
+        switch options["encoding"] as? String ?? "utf8" {
+        case "utf8":
+            bytes = Data(text.utf8)
+        case "base64":
+            guard let decoded = Data(base64Encoded: text.filter { !$0.isWhitespace }) else {
+                return .failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "files.write was given base64 it could not read"))
+            }
+            bytes = decoded
+        default:
+            return .failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "files.write encoding is 'utf8' or 'base64'"))
+        }
+        let type = (options["type"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "application/octet-stream"
+        do {
+            let url = try newFile(named: name)
+            try bytes.write(to: url, options: .atomic)
+            return .success(describe(url, type: type))
+        } catch {
+            return .failure(CraftNativeActionError(code: "WRITE_ERROR", message: error.localizedDescription))
+        }
+    }
+
     /// A refused download: its status and the start of its answer, so the
     /// screen can say what the server said. No file is kept.
     static func refusedDownload(at location: URL?, response: HTTPURLResponse) -> [String: Any] {

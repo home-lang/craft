@@ -1380,7 +1380,7 @@ describe('Craft iOS builder', () => {
     // Always there: the library picker asks no permission; the camera is the app's choice.
     expect(actions).toContain('values.append("files")')
     expect(actions).toContain('if config.enableCamera { values.append("camera") }')
-    for (const call of ['case ("Files", "pickImage"):', 'case ("Files", "download"):', 'case ("Files", "remove"):'])
+    for (const call of ['case ("Files", "pickImage"):', 'case ("Files", "download"):', 'case ("Files", "write"):', 'case ("Files", "remove"):'])
       expect(actions).toContain(call)
     expect(actions).toContain('CraftNativeFiles.pickImage(options, cameraEnabled: config.enableCamera)')
     // The library picker, decoded once at the size wanted, upright, as JPEG.
@@ -1400,6 +1400,12 @@ describe('Craft iOS builder', () => {
     expect(actions).toContain('let task = fetchSession.downloadTask(with: request) { location, response, error in')
     expect(files).toContain('return ["ok": false, "status": response.statusCode, "body": text]')
     expect(files).toContain('response.suggestedFilename')
+    // What the screen made itself (a CSV export) as text, or bytes as base64.
+    expect(files).toContain('static func write(name: String, data: Any?, options: [String: Any])')
+    expect(files).toContain('case "base64":')
+    // The share sheet takes a file craft.files made as it is.
+    const services = readFileSync(join(output, 'Sources', 'CraftNativeServices.swift'), 'utf8')
+    expect(services).toContain('item as? String ?? (item as? [String: Any])?["path"] as? String')
     // A request a person answers is never cut off by the host's deadline.
     expect(screen).toContain('if payload["untimed"] as? Bool != true {')
   })

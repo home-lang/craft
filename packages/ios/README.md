@@ -602,8 +602,12 @@ await fetch('https://example.com/upload', { method: 'POST', body: form });
 // A file for the share sheet (Save to Files, AirDrop, another app), fetched
 // straight to disk with your headers. Not 2xx: { ok: false, status, body }.
 const gpx = await craft.files.download('https://example.com/route.gpx', { headers: { Authorization: 'Bearer …' } });
-if (gpx.ok) await craft.share({ files: [gpx.path] });
+if (gpx.ok) await craft.share({ files: [gpx] });   // a file, or its path
 await craft.files.remove(gpx.path);               // or leave it: tmp, swept after a day
+// Something the screen made itself (a CSV export): text crosses the bridge
+// once, as it is; bytes go as base64 ({ encoding: 'base64' }).
+const csv = await craft.files.write('health-data.csv', 'date,steps\n…', { type: 'text/csv' });
+await craft.share({ files: [csv] });
 
 // Speech: short spoken cues that duck the person's music instead of stopping
 // it, and play with the silent switch on. Always available (no config flag).

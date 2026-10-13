@@ -527,7 +527,11 @@ enum CraftNativeShare {
         if let title = options["title"] as? String, !title.isEmpty { items.append(title) }
         if let text = options["text"] as? String, !text.isEmpty { items.append(text) }
         if let address = options["url"] as? String, let url = URL(string: address) { items.append(url) }
-        for file in options["files"] as? [String] ?? [] {
+        // A path or file URL, or a file craft.files made (`{ path, name }`).
+        let files = (options["files"] as? [Any] ?? []).compactMap { item -> String? in
+            item as? String ?? (item as? [String: Any])?["path"] as? String
+        }
+        for file in files {
             if let url = URL(string: file), url.isFileURL { items.append(url) }
             else if FileManager.default.fileExists(atPath: file) { items.append(URL(fileURLWithPath: file)) }
         }
