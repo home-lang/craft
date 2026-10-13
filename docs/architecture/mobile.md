@@ -467,6 +467,20 @@ templates. Keep that configuration, Xcode metadata and package lockfile from the
 same build; rebuild the complete project after changing capabilities or upgrading
 Craft. Restoration replaces generated Swift; application edits there do not persist.
 
+To make the zero-Swift rule enforceable in an app's own checks, use the source audit
+from the same package. It ignores dependency/build output and the standard Stacks
+generated tree, but fails on any Swift the application owns:
+
+```ts
+import { assertNoApplicationSwiftSources } from 'craft-native/ios'
+
+assertNoApplicationSwiftSources(process.cwd())
+```
+
+Projects that keep generated iOS output somewhere else can pass that path through
+`ignoredPaths`. The audit returns relative paths from `findApplicationSwiftSources`
+when a CI job needs to report them instead of throwing.
+
 ## Simulator tests from TypeScript
 
 The Bun-only `craft-native/ios` entrypoint also exports the reusable XCUITest host:

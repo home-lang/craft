@@ -1261,6 +1261,8 @@ export function restoreShell(output: string): void {
   writeShell(output, config)
 }
 
+export { assertNoApplicationSwiftSources, findApplicationSwiftSources } from './source-audit'
+
 function writeShell(output: string, config: CraftConfig): void {
   if (!config.appName || !/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(config.bundleId))
     throw new Error('The iOS shell needs an appName and a valid bundleId in craft.config.json.')
