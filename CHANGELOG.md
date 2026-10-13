@@ -1,5 +1,24 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.162...v0.0.163)
+
+## 🚀 Features
+
+- **ios**: craft.scheduledWorkouts puts structured workouts on the Apple Watch ([7880ecf](https://github.com/craft-native/craft/commit/7880ecf)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **android**: preserve fractional flex fallback spacing ([d3a09cf](https://github.com/craft-native/craft/commit/d3a09cf)) _(by glennmichael123)_
+- **ios**: map wrapped space-evenly to shared layout ([ae5db7b](https://github.com/craft-native/craft/commit/ae5db7b)) _(by glennmichael123)_
+- **android**: preserve fractional grid fallback spacing ([4f06845](https://github.com/craft-native/craft/commit/4f06845)) _(by glennmichael123)_
+- **ios**: preserve grid space-evenly fallback ([49112bb](https://github.com/craft-native/craft/commit/49112bb)) _(by glennmichael123)_
+- align grid rows evenly across hosts ([b44724c](https://github.com/craft-native/craft/commit/b44724c)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.161...v0.0.162)
 
 ## 🚀 Features
