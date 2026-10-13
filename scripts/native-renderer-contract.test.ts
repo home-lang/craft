@@ -1317,6 +1317,8 @@ describe('native renderer component contract', () => {
     expect(androidCapabilities).toContain('private fun ownedFile(path: String): File?')
     expect(androidCapabilities).toContain("files.write encoding is 'utf8' or 'base64'")
     expect(androidCapabilities).toContain("files.pickImage source is 'library' or 'camera'")
+    expect(androidCapabilities).toContain('private fun writeImage(bitmap: Bitmap, maxPixels: Int, quality: Float, name: String): JSONObject?')
+    expect(androidCapabilities).toContain('CRAFT_NATIVE_FILE_DEFAULT_MAX_PIXELS = 2048')
     expect(android).toContain('capabilities.onActivityResult(requestCode, resultCode, data)')
   })
 })

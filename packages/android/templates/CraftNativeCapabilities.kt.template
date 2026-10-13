@@ -13,6 +13,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteQuery
 import android.database.sqlite.SQLiteStatement
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.net.Uri
 import android.provider.MediaStore
@@ -36,10 +37,15 @@ import java.net.URLConnection
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 private const val CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 private const val CRAFT_NATIVE_FETCH_TIMEOUT_MS = 30_000
 private const val CRAFT_NATIVE_FILE_PICK_REQUEST = 4101
+private const val CRAFT_NATIVE_FILE_DEFAULT_MAX_PIXELS = 2048
+private const val CRAFT_NATIVE_FILE_LARGEST_MAX_PIXELS = 8192
+private const val CRAFT_NATIVE_FILE_DEFAULT_QUALITY = 0.85
 
 internal const val CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION = 1
 
@@ -82,6 +88,8 @@ internal class CraftNativeCapabilities(
     private data class PendingFilePick(
         val requestToken: String,
         val source: String,
+        val maxPixels: Int,
+        val quality: Float,
         val completion: (CraftNativeCapabilityResult) -> Unit,
     )
 
@@ -370,11 +378,15 @@ internal class CraftNativeCapabilities(
                 complete(requestToken, failure("INVALID_ARGUMENT", "files.pickImage source is 'library' or 'camera'"), completion)
                 return@runOnUiThread
             }
+            val maxPixels = options.optInt("maxPixels", CRAFT_NATIVE_FILE_DEFAULT_MAX_PIXELS)
+                .coerceIn(64, CRAFT_NATIVE_FILE_LARGEST_MAX_PIXELS)
+            val quality = options.optDouble("quality", CRAFT_NATIVE_FILE_DEFAULT_QUALITY)
+                .coerceIn(0.1, 1.0).toFloat()
             if (source == "camera" && !config.optBoolean("enableCamera")) {
                 complete(requestToken, failure("CAPABILITY_DISABLED", "Camera is disabled"), completion)
                 return@runOnUiThread
             }
-            pendingFilePick = PendingFilePick(requestToken, source, completion)
+            pendingFilePick = PendingFilePick(requestToken, source, maxPixels, quality, completion)
             val intent = if (source == "camera") Intent(MediaStore.ACTION_IMAGE_CAPTURE)
             else Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                 addCategory(Intent.CATEGORY_OPENABLE)
@@ -399,30 +411,47 @@ internal class CraftNativeCapabilities(
         }
         val descriptor = if (pending.source == "camera") {
             val bitmap = data?.extras?.get("data") as? Bitmap
-            if (bitmap == null) null else {
-                val file = File(fileRoot, UUID.randomUUID().toString()).apply { mkdirs() }.resolve("photo.jpg")
-                runCatching { FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) } }.getOrNull()
-                descriptor(file, "image/jpeg")
-            }
+            bitmap?.let { writeImage(it, pending.maxPixels, pending.quality, "photo.jpg") }
         } else {
             val uri = data?.data
-            uri?.let { copyUri(it) }
+            uri?.let { copyUri(it, pending.maxPixels, pending.quality) }
         }
         complete(pending.requestToken, descriptor?.let(::success) ?: failure("PICKER_FAILED", "The selected image could not be read"), pending.completion)
         return true
     }
 
-    private fun copyUri(uri: Uri): JSONObject? {
+    private fun copyUri(uri: Uri, maxPixels: Int, quality: Float): JSONObject? {
         val name = activity.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
             if (it.moveToFirst()) it.getString(0) else null
         } ?: "photo"
-        val type = activity.contentResolver.getType(uri) ?: "image/*"
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        activity.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (max(bounds.outWidth / sample, bounds.outHeight / sample) > maxPixels * 2) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        val bitmap = activity.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) } ?: return null
+        return writeImage(bitmap, maxPixels, quality, jpegName(name))
+    }
+
+    private fun writeImage(bitmap: Bitmap, maxPixels: Int, quality: Float, name: String): JSONObject? {
+        val longest = max(bitmap.width, bitmap.height)
+        val scale = if (longest > maxPixels) maxPixels.toFloat() / longest else 1f
+        val output = if (scale < 1f) Bitmap.createScaledBitmap(
+            bitmap,
+            (bitmap.width * scale).roundToInt().coerceAtLeast(1),
+            (bitmap.height * scale).roundToInt().coerceAtLeast(1),
+            true,
+        ) else bitmap
         val file = File(fileRoot, UUID.randomUUID().toString()).apply { mkdirs() }.resolve(safeFileName(name))
-        return runCatching {
-            activity.contentResolver.openInputStream(uri)?.use { input -> FileOutputStream(file).use { output -> input.copyTo(output) } }
-                ?: return null
-            descriptor(file, type)
-        }.getOrNull()
+        val width = output.width
+        val height = output.height
+        val written = runCatching {
+            FileOutputStream(file).use { output.compress(Bitmap.CompressFormat.JPEG, (quality * 100).roundToInt(), it) }
+        }.getOrDefault(false)
+        if (output !== bitmap) output.recycle()
+        bitmap.recycle()
+        return if (written) descriptor(file, "image/jpeg").put("width", width).put("height", height) else null
     }
 
     private fun store(bytes: ByteArray, name: String, type: String): CraftNativeCapabilityResult {
@@ -448,6 +477,12 @@ internal class CraftNativeCapabilities(
     private fun safeFileName(raw: String): String {
         val name = raw.substringAfterLast('/').substringAfterLast('\\').trim()
         return name.ifBlank { "file" }.replace(Regex("[\\\\/:*?\"<>|\\r\\n]"), "_")
+    }
+
+    private fun jpegName(raw: String): String {
+        val safe = safeFileName(raw)
+        val base = safe.substringBeforeLast('.', safe).ifBlank { "photo" }
+        return "$base.jpg"
     }
 
     private fun quoted(value: String): String = value.replace("\\", "%5C").replace("\"", "%22").replace("\r", "%0D").replace("\n", "%0A")
