@@ -403,11 +403,14 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var gridColumns = 1
     private var gridAutoRows: CraftNativeLength? = null
     private var reverse = false
+    private var wrapReverse = false
 
     fun configure(style: JSONObject, density: Float) {
         orientation = if (style.optString("flexDirection") in setOf("row", "row-reverse")) HORIZONTAL else VERTICAL
         reverse = style.optString("flexDirection").endsWith("-reverse")
-        wrap = style.optString("flexWrap") == "wrap" || style.optBoolean("flexWrap", false)
+        val flexWrap = style.optString("flexWrap")
+        wrap = flexWrap == "wrap" || flexWrap == "wrap-reverse" || style.optBoolean("flexWrap", false)
+        wrapReverse = flexWrap == "wrap-reverse"
         alignItems = style.optString("alignItems", "stretch")
         alignContent = style.optString("alignContent", "flex-start")
         justifyContent = style.optString("justifyContent", "flex-start")
@@ -895,9 +898,12 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             crossFree / lines.size.toFloat()
         else 0f
         var crossOffset = (if (orientation == HORIZONTAL) paddingTop else paddingLeft).toFloat() + crossLeading
+            val crossOrigin = (if (orientation == HORIZONTAL) paddingTop else paddingLeft).toFloat()
+            val crossExtent = availableCross.toFloat()
         for ((lineIndex, line) in lines.withIndex()) {
             val lineCross = line.cross.toFloat() + stretchExtra
-            val lineOffset = sharedCross?.first?.get(lineIndex)?.let { (if (orientation == HORIZONTAL) paddingTop else paddingLeft).toFloat() + it } ?: crossOffset
+                val lineOffset = sharedCross?.first?.get(lineIndex)?.let { crossOrigin + it } ?: crossOffset
+                val physicalLineOffset = if (wrapReverse && wrap) crossOrigin + crossExtent - (lineOffset - crossOrigin) - lineCross else lineOffset
             val fallbackWidths = fallbackFlexWidths(line, availableMain, gap)
             val sharedPrimary = CraftNative.flexRow(
                 availableMain.toFloat(),
@@ -962,6 +968,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     2 -> lineCross - crossTrailing - crossSize
                     else -> crossLeading
                 }
+                val physicalCrossPosition = if (wrapReverse && wrap) lineCross - crossPosition - crossSize else crossPosition
                 // Shared positions cover every non-reverse justification; the
                 // local main-axis rule remains the fallback for old runtimes
                 // that return widths only.
@@ -970,8 +977,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 val sharedPosition = if (!reverse) sharedPositions?.get(line.entries.size + index) else null
                 val positionedMain = sharedPosition?.let { (if (orientation == HORIZONTAL) paddingLeft else paddingTop).toFloat() + it }
                     ?: mainOffset + marginStart
-                val x = if (orientation == HORIZONTAL) positionedMain.roundToInt() else (lineOffset + crossPosition).roundToInt()
-                val y = if (orientation == HORIZONTAL) (lineOffset + crossPosition).roundToInt() else positionedMain.roundToInt()
+                val x = if (orientation == HORIZONTAL) positionedMain.roundToInt() else (physicalLineOffset + physicalCrossPosition).roundToInt()
+                val y = if (orientation == HORIZONTAL) (physicalLineOffset + physicalCrossPosition).roundToInt() else positionedMain.roundToInt()
                 val distributedPrimary = sharedPrimary?.get(index)?.roundToInt() ?: fallbackWidths[index]
                 val w = if (orientation == HORIZONTAL) distributedPrimary else crossSize
                 val h = if (orientation == HORIZONTAL) crossSize else distributedPrimary

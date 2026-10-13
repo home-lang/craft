@@ -670,6 +670,7 @@ private class CraftNativeFlowView: UIStackView {
     var gridColumns = 1 { didSet { if gridColumns != oldValue { invalidateMeasurements() } } }
     var gridAutoRows: CraftNativeLength? { didSet { if gridAutoRows != oldValue { invalidateMeasurements() } } }
     var reverse = false { didSet { if reverse != oldValue { invalidateMeasurements() } } }
+    var wrapReverse = false { didSet { if wrapReverse != oldValue { invalidateMeasurements() } } }
     var padding = UIEdgeInsets.zero {
         didSet {
             layoutMargins = padding
@@ -1255,6 +1256,8 @@ private class CraftNativeFlowView: UIStackView {
                 }
                 let lineCross = lineCrosses[lineIndex]
                 let lineOffset = sharedCrossOffsets?[lineIndex] ?? crossOffset
+                let crossReversed = wrapReverse && wrap
+                let physicalLineOffset = crossReversed ? contentCross - lineOffset - lineCross : lineOffset
                 let sharedLine = sharedLines[lineIndex]
                     let useSharedPositions = !reverse && sharedLine != nil
                 var mainOffset = leading
@@ -1274,12 +1277,13 @@ private class CraftNativeFlowView: UIStackView {
                         default: return item.crossLeading
                         }
                     }()
+                    let physicalCrossPosition = crossReversed ? lineCross - crossPosition - item.cross : crossPosition
                     let mainPosition = useSharedPositions
                         ? (sharedLine?[offset].position ?? (mainOffset + item.mainLeading))
                         : mainOffset + item.mainLeading
                     let frame = horizontal
-                        ? CGRect(x: padding.left + mainPosition, y: padding.top + lineOffset + crossPosition, width: item.main, height: item.cross)
-                        : CGRect(x: padding.left + lineOffset + crossPosition, y: padding.top + mainPosition, width: item.cross, height: item.main)
+                        ? CGRect(x: padding.left + mainPosition, y: padding.top + physicalLineOffset + physicalCrossPosition, width: item.main, height: item.cross)
+                        : CGRect(x: padding.left + physicalLineOffset + physicalCrossPosition, y: padding.top + mainPosition, width: item.cross, height: item.main)
                     frames.append((item.view, frame))
                     if !useSharedPositions { mainOffset += item.mainMargins + item.main + mainGap + between }
                 }
@@ -4674,7 +4678,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let direction = style["flexDirection"] as? String
         stack.axis = direction == "row" || direction == "row-reverse" ? .horizontal : .vertical
         stack.reverse = direction?.hasSuffix("-reverse") == true
-        stack.wrap = style["flexWrap"] as? String == "wrap" || style["flexWrap"] as? Bool == true
+        let flexWrap = style["flexWrap"] as? String
+        stack.wrap = flexWrap == "wrap" || flexWrap == "wrap-reverse" || style["flexWrap"] as? Bool == true
+        stack.wrapReverse = flexWrap == "wrap-reverse"
         stack.alignItems = style["alignItems"] as? String ?? "stretch"
         stack.alignContent = style["alignContent"] as? String ?? "flex-start"
         stack.justifyContent = style["justifyContent"] as? String ?? "flex-start"
