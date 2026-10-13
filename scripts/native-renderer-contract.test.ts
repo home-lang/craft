@@ -1094,6 +1094,11 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"ScrollView", "SectionList" ->')
     expect(androidBuilderTest).toContain('"ScrollView", "SectionList" -> (previous as? CraftNativeScrollView')
     expect(guide).toContain('`SectionList` currently follows the same native scroll host')
+    expect(navigationHome).toContain('@scroll="captureSectionScroll()"')
+    expect(navigationHome).toContain('testID="native-section-footer"')
+    expect(iosNavigationTest).toContain('sectionList.swipeUp()')
+    expect(iosNavigationTest).toContain('section-scroll-status')
+    expect(androidNavigationTest).toContain('awaitText(activity, "section-scroll-status", "Section scrolls: 1")')
   })
 
   it('keeps picker initialization assertions aligned with the shared status baseline', () => {

@@ -54,6 +54,7 @@ const navigationRows = state([
 ])
 const navigationRowSelection = state('none')
 const navigationRowsReordered = state(false)
+const sectionScrolls = state(0)
 
 globalThis.craft.storage.remove('native-navigation-details-destroyed')
 
@@ -341,6 +342,10 @@ function openDetails() {
 function openCapabilities() {
   globalThis.craft.navigation.push('capabilities')
 }
+
+function captureSectionScroll() {
+  sectionScrolls.set(1)
+}
 </script>
 
 <template>
@@ -443,10 +448,13 @@ function openCapabilities() {
       <View style={{"height":120}} />
       <Text testID="scroll-end">End of native scroll content</Text>
     </ScrollView>
-    <SectionList testID="native-section-list" style={{"height":64,"width":220,"backgroundColor":"#2f4050"}}>
+    <SectionList testID="native-section-list" @scroll="captureSectionScroll()" style={{"height":64,"width":220,"backgroundColor":"#2f4050"}}>
       <Text testID="native-section-header" style={{"fontWeight":"700"}}>Section header</Text>
       <Text testID="native-section-row">Section row</Text>
+      <View style={{"height":96}} />
+      <Text testID="native-section-footer">Section footer</Text>
     </SectionList>
+    <Text testID="section-scroll-status" :text="'Section scrolls: ' + sectionScrolls" />
     <View
       testID="styled-row"
       style={{"flexDirection":"row-reverse","alignItems":"center","justifyContent":"center","gap":6,"paddingHorizontal":10,"paddingVertical":5,"width":240,"height":64,"backgroundColor":"#123456","opacity":0.75,"borderWidth":2,"borderColor":"#abcdef","borderRadius":7,"overflow":"hidden"}}
