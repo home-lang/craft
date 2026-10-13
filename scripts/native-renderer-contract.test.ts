@@ -272,6 +272,11 @@ describe('native renderer component contract', () => {
     expect(androidDispatch).not.toContain('fellThrough("flexRow", err, null)')
   })
 
+  it('reads Android shared flex positions from the result position half', () => {
+    expect(android).toContain('sharedPositions?.get(line.entries.size + index)')
+    expect(android).toContain('The shared result stores widths in the first half')
+  })
+
   it('keeps platform README primitive inventories complete', () => {
     for (const component of COMPONENTS.map(([name]) => `\`${name}\``)) {
       expect(iosReadme, `${component} missing from iOS README`).toContain(component)

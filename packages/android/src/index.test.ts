@@ -136,6 +136,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('alignContent = style.optString("alignContent", "flex-start")')
       expect(nativeActivity).toContain('alignContentCode(),')
       expect(nativeActivity).toContain('crossOffset += lineCross + crossBetween')
+      expect(nativeActivity).toContain('sharedPositions?.get(line.entries.size + index)')
       expect(nativeActivity).toContain('style.position == "absolute"')
       expect(nativeActivity).toContain('style.minWidth')
       expect(nativeActivity).toContain('flexGrow')
