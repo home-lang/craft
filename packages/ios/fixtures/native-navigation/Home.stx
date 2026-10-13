@@ -346,6 +346,9 @@ function openCapabilities() {
 <template>
   <SafeAreaView testID="root" class="p-4">
     <ScrollView testID="native-root-scroll" style={{"flex":1}}>
+    <View testID="theme-probe" class="bg-white dark:bg-slate-950" style={{"height":24}}>
+      <Text testID="theme-probe-label" class="text-slate-900 dark:text-white">Theme probe</Text>
+    </View>
     <Text testID="home-title">Home</Text>
     <View testID="max-content-bubble" style={{"alignSelf":"flex-start","maxWidth":220,"paddingHorizontal":12,"paddingVertical":8,"backgroundColor":"#334155"}}>
       <Text testID="max-content-bubble-text" style={{"color":"#ffffff"}}>Went 4.3 miles</Text>

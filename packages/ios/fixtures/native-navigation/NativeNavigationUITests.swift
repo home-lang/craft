@@ -549,4 +549,21 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(field.value as? String, "Ada")
         XCTAssertEqual(app.staticTexts["count"].label, "Count: 2")
     }
+
+    func testNativeAppearanceReconcilesTraitDefaults() throws {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertFalse(app.webViews.firstMatch.exists, "native appearance fixture created a WebView")
+        let probe = app.otherElements["theme-probe"]
+        XCTAssertTrue(probe.waitForExistence(timeout: 15), "theme probe did not mount")
+        XCTAssertTrue(app.staticTexts["theme-probe-label"].exists, "theme probe label did not mount")
+
+        let device = XCUIDevice.shared
+        let original = device.appearance
+        defer { device.appearance = original }
+        device.appearance = original == .dark ? .light : .dark
+
+        XCTAssertTrue(probe.waitForExistence(timeout: 5), "theme probe disappeared during trait refresh")
+        XCTAssertTrue(app.staticTexts["theme-probe-label"].waitForExistence(timeout: 5), "theme probe label disappeared during trait refresh")
+    }
 }

@@ -1,6 +1,7 @@
 package dev.craft.navigationtest
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -198,6 +199,19 @@ class NativeNavigationTest {
             SystemClock.sleep(100)
         }
         throw AssertionError("width did not settle below ${from - (amount * density).toInt()}, was ${view.width}")
+    }
+
+    private fun backgroundColor(view: View): Int? =
+        (view.background as? GradientDrawable)?.color?.defaultColor
+
+    private fun awaitBackgroundColor(view: View, previous: Int?): Int {
+        repeat(75) {
+            var current: Int? = null
+            instrumentation.runOnMainSync { current = backgroundColor(view) }
+            if (current != null && current != previous) return current!!
+            SystemClock.sleep(100)
+        }
+        throw AssertionError("native theme probe did not change background")
     }
 
     private fun assertNoWebView(activity: MainActivity) {
@@ -693,6 +707,38 @@ class NativeNavigationTest {
             assertSame("Replace kept details on the stack", name, awaitView(activity, "name-input"))
             click(activity, "navigation-check-lifecycle")
             awaitText(activity, "navigation-lifecycle", "Disposed Ada/2")
+        }
+        finally {
+            instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test
+    fun nativeAppearanceReconcilesTraitDefaults() {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        try {
+            val themeProbe = awaitView(activity, "theme-probe")
+            val initialThemeColor = backgroundColor(themeProbe)
+            assertTrue("theme probe did not receive a native background", initialThemeColor != null)
+            val changed = Configuration(activity.resources.configuration)
+            val currentNight = changed.uiMode and Configuration.UI_MODE_NIGHT_MASK
+            val nextNight = if (currentNight == Configuration.UI_MODE_NIGHT_YES) {
+                Configuration.UI_MODE_NIGHT_NO
+            } else {
+                Configuration.UI_MODE_NIGHT_YES
+            }
+            changed.uiMode = (changed.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or nextNight
+            instrumentation.runOnMainSync {
+                activity.resources.updateConfiguration(changed, activity.resources.displayMetrics)
+                activity.onConfigurationChanged(changed)
+            }
+            awaitBackgroundColor(themeProbe, initialThemeColor)
+            assertTrue("theme probe label disappeared during trait refresh", awaitView(activity, "theme-probe-label") is TextView)
         }
         finally {
             instrumentation.runOnMainSync { activity.finishAndRemoveTask() }

@@ -1248,6 +1248,15 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val probe = EditText(this)')
   })
 
+  it('exercises theme trait refresh in both maintained native fixtures', () => {
+    expect(navigationHome).toContain('testID="theme-probe" class="bg-white dark:bg-slate-950"')
+    expect(navigationHome).toContain('testID="theme-probe-label" class="text-slate-900 dark:text-white"')
+    expect(androidNavigationTest).toContain('activity.onConfigurationChanged(changed)')
+    expect(androidNavigationTest).toContain('native theme probe did not change background')
+    expect(iosNavigationTest).toContain('testNativeAppearanceReconcilesTraitDefaults')
+    expect(iosNavigationTest).toContain('device.appearance = original == .dark ? .light : .dark')
+  })
+
   it('publishes dynamic color-scheme changes to the native runtime on both hosts', () => {
     expect(ios).toContain('send(type: "APPEARANCE", payload: ["colorScheme": colorScheme])')
     expect(android).toContain('send(screen, "APPEARANCE", JSONObject().put("colorScheme", colorScheme()))')
