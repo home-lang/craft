@@ -96,7 +96,7 @@ stx native compile --config ../screens/native.config.json --format bundle --outp
 craft android build --native-bundle ../native-screen.js
 ```
 
-Native mode maps STX `View`, `SafeAreaView`, `Text`, `Button`, `Link`,
+Native mode maps STX `View`, `SafeAreaView`, `Text`, `Button`, `Link`, `Icon`,
 `Pressable`, `TouchableOpacity`, `TouchableHighlight`, `Checkbox`, `TextInput`, `Picker`, `DatePicker`, `Modal`, `Switch`, `Slider`, `ActivityIndicator`, `Image`, `Video`, `ScrollView`,
 and `FlatList` to Android views. `Picker` renders `<select>`/`<option>` values
 with `onValueChange` or `onChange`. `DatePicker` uses the platform `DatePicker`
@@ -112,6 +112,9 @@ reports load lifecycle events and structured failures. `Video` uses the native
 resize-mode props.
 `ImageBackground` loads an image behind ordinary native children while
 preserving the shared flex layout contract.
+`Icon` uses the shared symbol/name contract with a dependency-free Android
+glyph map; unknown symbols render a hollow-circle fallback instead of an empty
+native node.
 `KeyboardAvoidingView` responds to Android IME insets with `padding`,
 `position`, or `height` behavior and accepts `keyboardVerticalOffset`.
 `Checkbox` accepts controlled `checked`/`value` and `indeterminate`; mixed

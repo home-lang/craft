@@ -49,6 +49,7 @@ const COMPONENTS: Array<[string, string, string]> = [
   ['DatePicker', 'case "DatePicker":', '"DatePicker" ->'],
   ['Modal', 'case "Modal":', '"Modal" ->'],
   ['ActivityIndicator', 'case "ActivityIndicator":', '"ActivityIndicator" ->'],
+  ['Icon', 'case "Icon":', '"Icon" ->'],
   ['Image', 'case "Image":', '"Image" ->'],
   ['ImageBackground', 'case "ImageBackground":', '"ImageBackground" ->'],
   ['Video', 'case "Video":', '"Video" ->'],
@@ -142,6 +143,7 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('Video fixture did not mount as a native view')
     expect(androidNavigationTest).toContain('CraftNativeVideoView')
     expect(navigationHome).toContain('<Icon testID="native-icon" symbol="sun.max"')
+    expect(iosNavigationTest).toContain('let icon = app.images["native-icon"]')
     expect(androidNavigationTest).toContain('CraftNativeIconView')
   })
 
