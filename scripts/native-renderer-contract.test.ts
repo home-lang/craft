@@ -141,6 +141,8 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('SVG accessibility metadata did not survive native mounting')
     expect(iosNavigationTest).toContain('Video fixture did not mount as a native view')
     expect(androidNavigationTest).toContain('CraftNativeVideoView')
+    expect(navigationHome).toContain('<Icon testID="native-icon" symbol="sun.max"')
+    expect(androidNavigationTest).toContain('CraftNativeIconView')
   })
 
   it('keeps SVG stroke semantics aligned across hosts', () => {

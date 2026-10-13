@@ -1230,6 +1230,25 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
 
 private class CraftNativeFlexSpacer(context: Context) : View(context)
 
+/**
+ * A small, dependency-free native icon surface for Android.
+ *
+ * STX resolves Iconify names to the SF Symbol name that iOS draws. Android
+ * does not ship SF Symbols, so the maintained host uses the corresponding
+ * Unicode glyph for the common cross-platform symbols and a hollow circle for
+ * an unknown symbol. Keeping this as a TextView gives the glyph the same
+ * intrinsic measurement, tint, accessibility, and reconciliation behavior as
+ * the other native leaf controls without adding an icon-font dependency.
+ */
+private class CraftNativeIconView(context: Context) : TextView(context) {
+    init {
+        includeFontPadding = false
+        gravity = Gravity.CENTER
+        setPadding(0, 0, 0, 0)
+        isSingleLine = true
+    }
+}
+
 private class CraftNativeModalView(context: Context) : FrameLayout(context) {
     val content = CraftNativeFlexLayout(context)
     private val blocker = View(context)
@@ -2731,6 +2750,9 @@ class MainActivity : AppCompatActivity() {
                 indeterminateTintList = props.optString("color").takeIf { it.isNotBlank() }
                     ?.let { ColorStateList.valueOf(color(it, Color.WHITE)) }
             }
+            "Icon" -> (previous as? CraftNativeIconView ?: CraftNativeIconView(this)).apply {
+                configureIcon(this, props, style)
+            }
             "Image" -> (previous as? ImageView ?: ImageView(this)).apply {
                 scaleType = when (style.optString("resizeMode").ifBlank { props.optString("resizeMode") }) {
                     "cover" -> ImageView.ScaleType.CENTER_CROP
@@ -3245,6 +3267,59 @@ class MainActivity : AppCompatActivity() {
             else -> value
         }
         configureTextStyle(view, style)
+    }
+
+    private fun configureIcon(view: CraftNativeIconView, props: JSONObject, style: JSONObject) {
+        val symbol = props.optString("symbol").ifBlank { props.optString("name") }
+        view.text = androidIconGlyph(symbol)
+        val size = style.optDouble("fontSize", 20.0).toFloat().coerceAtLeast(1f)
+        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
+        val foreground = style.optString("color").ifBlank { props.optString("color") }
+        view.setTextColor(color(foreground, defaultTextColor))
+        val weight = when (style.optString("fontWeight")) {
+            "bold", "700", "800", "900" -> Typeface.BOLD
+            else -> Typeface.NORMAL
+        }
+        view.typeface = Typeface.create("sans-serif", weight)
+        if (!style.has("width") && !style.has("height")) {
+            val box = dp(size.toDouble())
+            view.minimumWidth = box
+            view.minimumHeight = box
+        }
+    }
+
+    private fun androidIconGlyph(symbol: String): String = when (symbol) {
+        "arrow.left" -> "←"
+        "arrow.right" -> "→"
+        "arrow.up" -> "↑"
+        "arrow.down" -> "↓"
+        "chevron.left" -> "‹"
+        "chevron.right" -> "›"
+        "chevron.up" -> "⌃"
+        "chevron.down" -> "⌄"
+        "plus" -> "+"
+        "minus" -> "−"
+        "xmark" -> "×"
+        "checkmark" -> "✓"
+        "house", "house.fill" -> "⌂"
+        "magnifyingglass" -> "⌕"
+        "gear", "gearshape" -> "⚙"
+        "heart" -> "♡"
+        "heart.fill" -> "♥"
+        "star" -> "☆"
+        "star.fill" -> "★"
+        "sun.max" -> "☼"
+        "moon" -> "☾"
+        "info.circle", "info.circle.fill" -> "ⓘ"
+        "questionmark.circle", "questionmark.circle.fill" -> "?"
+        "exclamationmark.triangle", "exclamationmark.triangle.fill" -> "⚠"
+        "play", "play.fill" -> "▶"
+        "pause", "pause.fill" -> "Ⅱ"
+        "stop", "stop.fill" -> "■"
+        "camera" -> "▣"
+        "circle" -> "○"
+        "circle.fill" -> "●"
+        else -> "○"
     }
 
     private fun configureTextStyle(view: TextView, style: JSONObject) {

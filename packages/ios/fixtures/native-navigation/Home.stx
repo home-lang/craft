@@ -419,6 +419,7 @@ function openCapabilities() {
           <text x="12" y="21" text-anchor="middle" fill="#111827" stroke="none" font-size="4">SVG</text>
         </g>
       </svg>
+      <Icon testID="native-icon" symbol="sun.max" accessibilityLabel="Native icon" style={{"width":24,"height":24,"color":"#f59e0b"}} />
       <Video testID="native-video" source={{"uri":""}} style={{"width":120,"height":68}} />
       <Text testID="native-caption" :text="'Image taps: ' + imageTaps" />
       <Text testID="image-status" :text="imageStatus" />

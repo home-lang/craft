@@ -564,6 +564,7 @@ class NativeNavigationTest {
             val imageBackground = awaitView(activity, "native-image-background")
             val keyboardAvoiding = awaitView(activity, "native-keyboard-avoiding")
             val svg = awaitView(activity, "native-svg")
+            val icon = awaitView(activity, "native-icon")
             val video = awaitView(activity, "native-video")
             assertTrue("ScrollView did not render an Android ScrollView", containsType(scroll, ScrollView::class.java))
             val nativeScroller = findType(scroll, ScrollView::class.java)!!
@@ -578,6 +579,9 @@ class NativeNavigationTest {
             assertTrue("KeyboardAvoidingView child did not reconcile", awaitView(activity, "native-keyboard-avoiding-input") is EditText)
             assertEquals("CraftNativeSvgView", svg.javaClass.simpleName)
             assertEquals("Native vector", svg.contentDescription?.toString(), "SVG accessibility metadata did not survive native mounting")
+            assertEquals("CraftNativeIconView", icon.javaClass.simpleName)
+            assertEquals("Native icon", icon.contentDescription?.toString())
+            assertTrue("Icon fixture should expose a visible glyph", (icon as TextView).text.isNotBlank())
             assertEquals("CraftNativeVideoView", video.javaClass.simpleName)
             assertTrue("Image data did not decode", (image as ImageView).drawable != null)
             assertEquals("Native pixel", image.contentDescription.toString())
