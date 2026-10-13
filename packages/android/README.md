@@ -144,6 +144,8 @@ Its flex main-axis fallback applies the same fractional treatment to
 `space-around` and `space-evenly` before rounding positions.
 Wrapped `alignContent` fallback spacing keeps fractional cross-axis offsets
 until each child frame is rounded as well.
+The `stretch` fallback also carries fractional per-line expansion into the
+child cross-axis frames before rounding.
 Reverse flex directions preserve wrapped line order on the cross axis while
 reversing each line's main-axis children, matching the iOS host.
 Shared wrapped-line IDs are accepted only when they are complete and monotonic;

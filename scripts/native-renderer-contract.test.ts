@@ -759,7 +759,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val crossFree = max(0, availableCross - totalCross).toFloat()')
     expect(android).toContain('var crossLeading = 0f')
     expect(android).toContain('crossFree / (lines.size + 1).toFloat()')
-    expect(android).toContain('crossOffset += line.cross.toFloat() + crossBetween')
+    expect(android).toContain('val stretchExtra = if (sharedCross == null && wrap && lines.size > 1 && alignContent == "stretch")')
+    expect(android).toContain('val lineCross = line.cross.toFloat() + stretchExtra')
+    expect(android).toContain('crossOffset += lineCross + crossBetween')
   })
 
   it('keeps intrinsic grid tracks equal across hosts', () => {
@@ -820,7 +822,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('setMargins(')
     expect(android).toContain('entry.height + (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)')
     expect(android).toContain('val availableWidth = max(0, layout.cellWidth - marginLeft - marginRight)')
-    expect(android).toContain('val crossLeading = if (orientation == HORIZONTAL)')
+    expect(android).toContain('val crossLeading = (if (orientation == HORIZONTAL)')
   })
 
   it('keeps flex distribution inside declared min and max bounds', () => {
@@ -877,7 +879,7 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('6=space-evenly')
     expect(nativeLayout).toContain('test "exports evenly distributed wrapped flex lines"')
     expect(componentTypes).toContain("'space-evenly'")
-    expect(android).toContain('"stretch" -> {')
+    expect(android).toContain('alignContent == "stretch"')
     expect(android).toContain('ids.indices.drop(1).all { index -> ids[index] >= ids[index - 1] }')
     expect(navigationHome).toContain('testID="align-content-wrap"')
     expect(navigationHome).toContain('testID="align-content-stretch-wrap"')
