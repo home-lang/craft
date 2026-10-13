@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.165...v0.0.166)
+
+## 🐛 Bug Fixes
+
+- **ios**: the source-audit re-export names its .js, so the published declarations resolve ([aa9d07f](https://github.com/craft-native/craft/commit/aa9d07f)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.164...v0.0.165)
 
 ## 🚀 Features
