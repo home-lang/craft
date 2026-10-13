@@ -341,6 +341,11 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(crossAxis.waitForExistence(timeout: 5) && crossCenter.exists && crossEnd.exists)
         XCTAssertEqual(crossCenter.frame.midY, crossAxis.frame.midY, accuracy: 3, "alignItems center did not center the child")
         XCTAssertGreaterThan(crossEnd.frame.minY, crossCenter.frame.minY, "alignSelf flex-end did not move the child to the line end")
+        let baseline = app.otherElements["baseline-wrap"]
+        let baselineLarge = app.staticTexts["baseline-large"]
+        let baselineSmall = app.staticTexts["baseline-small"]
+        XCTAssertTrue(baseline.waitForExistence(timeout: 5) && baselineLarge.exists && baselineSmall.exists)
+        XCTAssertLessThan(baselineLarge.frame.minY, baselineSmall.frame.minY, "baseline alignment did not lower the smaller label")
         let reverseColumnFirst = app.staticTexts["reverse-column-first"]
         let reverseColumnSecond = app.staticTexts["reverse-column-second"]
         XCTAssertTrue(reverseColumnFirst.waitForExistence(timeout: 5))

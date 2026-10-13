@@ -990,6 +990,12 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val free = max(0f, availableMain.toFloat() - distributedMain.toFloat())
             val (leading, between) = distribution(free, line.entries.size)
             var mainOffset = (if (orientation == HORIZONTAL) paddingLeft else paddingTop).toFloat() + leading
+            val baseline = if (orientation == HORIZONTAL) {
+                line.entries.filter { (it.style.alignSelf ?: alignItems) == "baseline" }.maxOfOrNull { entry ->
+                    val lp = entry.view.layoutParams as? MarginLayoutParams
+                    (lp?.topMargin ?: 0) + baselineOffset(entry.view, entry.height)
+                }
+            } else null
             for ((index, entry) in line.entries.withIndex()) {
                 val lp = entry.view.layoutParams as? MarginLayoutParams
                 val marginStart = if (orientation == HORIZONTAL) lp?.leftMargin ?: 0 else lp?.topMargin ?: 0
@@ -1000,17 +1006,21 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 val align = entry.style.alignSelf ?: alignItems
                 val crossLeading = (if (orientation == HORIZONTAL) lp?.topMargin ?: 0 else lp?.leftMargin ?: 0).toFloat()
                 val crossTrailing = (if (orientation == HORIZONTAL) lp?.bottomMargin ?: 0 else lp?.rightMargin ?: 0).toFloat()
-                val alignment = when (align) {
-                    "center" -> 1
-                    "flex-end" -> 2
-                    else -> 0
-                }
-                val crossPosition = CraftNative.crossAxisPosition(
-                    lineCross, crossSize.toFloat(), crossLeading, crossTrailing, alignment
-                ) ?: when (alignment) {
-                    1 -> crossLeading + (lineCross - crossLeading - crossTrailing - crossSize) / 2f
-                    2 -> lineCross - crossTrailing - crossSize
-                    else -> crossLeading
+                val crossPosition = if (align == "baseline" && baseline != null) {
+                    baseline - baselineOffset(entry.view, crossSize)
+                } else {
+                    val alignment = when (align) {
+                        "center" -> 1
+                        "flex-end" -> 2
+                        else -> 0
+                    }
+                    CraftNative.crossAxisPosition(
+                        lineCross, crossSize.toFloat(), crossLeading, crossTrailing, alignment
+                    ) ?: when (alignment) {
+                        1 -> crossLeading + (lineCross - crossLeading - crossTrailing - crossSize) / 2f
+                        2 -> lineCross - crossTrailing - crossSize
+                        else -> crossLeading
+                    }
                 }
                 val physicalCrossPosition = if (wrapReverse && wrap) lineCross - crossPosition - crossSize else crossPosition
                 // Shared positions cover every non-reverse justification; the
@@ -1053,6 +1063,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             else -> 0f to 0f
         }
     }
+
+    /** First text baseline in pixels; non-text views align by their bottom. */
+    private fun baselineOffset(view: View, cross: Int): Int = view.baseline.takeIf { it >= 0 }?.coerceIn(0, cross) ?: cross
 }
 
 /** An image-backed flex container with ordinary native children over the image. */

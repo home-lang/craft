@@ -978,6 +978,24 @@ private class CraftNativeFlowView: UIStackView {
         return max(0, result)
     }
 
+    /// The first baseline is the cross-axis anchor for a horizontal baseline
+    /// flex line. Views without a baseline participate at their bottom edge,
+    /// matching the CSS fallback for replaced and non-text elements.
+    private static func firstBaseline(_ view: UIView, cross: CGFloat) -> CGFloat {
+        let baseline: CGFloat?
+        if let label = view as? UILabel {
+            baseline = label.font.ascender
+        } else if let field = view as? UITextField {
+            baseline = field.font?.ascender
+        } else if let textView = view as? UITextView {
+            baseline = textView.font?.ascender
+        } else {
+            baseline = nil
+        }
+        guard let baseline, baseline.isFinite else { return cross }
+        return min(max(0, baseline), cross)
+    }
+
     /// Children that take part in the flow: shown, not a modal overlay.
     private var visibleChildren: [UIView] {
         flowChildren.filter { $0.superview === self && !$0.isHidden && !($0 is CraftNativeModalView) }
@@ -1368,23 +1386,35 @@ private class CraftNativeFlowView: UIStackView {
                 let physicalLineOffset = crossReversed ? contentCross - lineOffset - lineCross : lineOffset
                 let sharedLine = sharedLines[lineIndex]
                     let useSharedPositions = !reverse && sharedLine != nil
+                let baseline = horizontal
+                    ? line.compactMap { index -> CGFloat? in
+                        let item = items[index]
+                        guard item.align == "baseline" else { return nil }
+                        return item.crossLeading + Self.firstBaseline(item.view, cross: item.cross)
+                    }.max()
+                    : nil
                 var mainOffset = leading
                 for (offset, index) in line.enumerated() {
                     let item = items[index]
-                    let alignment = item.align == "center" ? UInt32(1) : item.align == "flex-end" ? UInt32(2) : UInt32(0)
-                    let crossPosition = CraftNativeCrossAxisBridge.position(
-                        available: lineCross,
-                        size: item.cross,
-                        leading: item.crossLeading,
-                        trailing: item.crossTrailing,
-                        alignment: alignment
-                    ) ?? {
-                        switch alignment {
-                        case 1: return item.crossLeading + (lineCross - item.crossMargins - item.cross) / 2
-                        case 2: return lineCross - item.crossTrailing - item.cross
-                        default: return item.crossLeading
-                        }
-                    }()
+                    let crossPosition: CGFloat
+                    if item.align == "baseline", let baseline {
+                        crossPosition = baseline - Self.firstBaseline(item.view, cross: item.cross)
+                    } else {
+                        let alignment = item.align == "center" ? UInt32(1) : item.align == "flex-end" ? UInt32(2) : UInt32(0)
+                        crossPosition = CraftNativeCrossAxisBridge.position(
+                            available: lineCross,
+                            size: item.cross,
+                            leading: item.crossLeading,
+                            trailing: item.crossTrailing,
+                            alignment: alignment
+                        ) ?? {
+                            switch alignment {
+                            case 1: return item.crossLeading + (lineCross - item.crossMargins - item.cross) / 2
+                            case 2: return lineCross - item.crossTrailing - item.cross
+                            default: return item.crossLeading
+                            }
+                        }()
+                    }
                     let physicalCrossPosition = crossReversed ? lineCross - crossPosition - item.cross : crossPosition
                     let mainPosition = useSharedPositions
                         ? (sharedLine?[offset].position ?? (mainOffset + item.mainLeading))

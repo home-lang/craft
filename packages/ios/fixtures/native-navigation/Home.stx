@@ -534,6 +534,10 @@ function captureSectionScroll() {
       <Text testID="cross-axis-center" style={{"width":60,"height":12}}>center</Text>
       <Text testID="cross-axis-end" style={{"width":60,"height":12,"alignSelf":"flex-end"}}>end</Text>
     </View>
+    <View testID="baseline-wrap" style={{"flexDirection":"row","alignItems":"baseline","gap":8,"width":240,"height":48,"backgroundColor":"#2f4050"}}>
+      <Text testID="baseline-large" style={{"fontSize":24}}>Large</Text>
+      <Text testID="baseline-small" style={{"fontSize":12}}>small</Text>
+    </View>
     <Text testID="native-link" accessibilityHint="Opens status" accessibilityValue="ready" accessibilityState={linkAccessibilityState()} @click="setStatus('link pressed')">Open native link</Text>
     <Text testID="native-link-status" :text="status" />
     <Button testID="toggle-link-accessibility" @click="toggleLinkAccessibility()">Toggle link accessibility</Button>

@@ -386,6 +386,10 @@ class NativeNavigationTest {
             val crossEnd = awaitView(activity, "cross-axis-end")
             assertTrue("alignItems center did not center the child", abs(crossCenter.top + crossCenter.height / 2 - (crossAxis.top + crossAxis.height / 2)) <= (3 * density).toInt())
             assertTrue("alignSelf flex-end did not move the child to the line end", crossEnd.top > crossCenter.top)
+            val baseline = awaitView(activity, "baseline-wrap")
+            val baselineLarge = awaitView(activity, "baseline-large")
+            val baselineSmall = awaitView(activity, "baseline-small")
+            assertTrue("baseline alignment did not lower the smaller label", baselineLarge.top < baselineSmall.top)
             val reverseColumn = awaitView(activity, "reverse-column") as LinearLayout
             val reverseColumnFirst = awaitView(activity, "reverse-column-first")
             val reverseColumnSecond = awaitView(activity, "reverse-column-second")
