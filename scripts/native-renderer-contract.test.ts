@@ -782,6 +782,7 @@ describe('native renderer component contract', () => {
     expect(androidNative).toContain('nativeGridAligned(')
     expect(androidDispatch).toContain('.name = "nativeGridAligned"')
     expect(androidDispatch).toContain('.name = "nativeGridAutoRowsAligned"')
+    expect(androidDispatch).toContain('expectEqual(@as(usize, 111), natives.len)')
     expect(ios).toContain('var rowExtra: CGFloat = 0')
     expect(android).toContain('val freeRows = max(0, contentHeight - totalRows - rowGaps)')
   })
