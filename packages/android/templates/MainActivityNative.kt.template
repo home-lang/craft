@@ -960,6 +960,20 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     }
 }
 
+/** An image-backed flex container with ordinary native children over the image. */
+private class CraftNativeImageBackgroundView(context: Context) : FrameLayout(context) {
+    val image = ImageView(context)
+    val content = CraftNativeFlexLayout(context)
+
+    init {
+        clipChildren = true
+        image.scaleType = ImageView.ScaleType.CENTER_CROP
+        image.isClickable = false
+        addView(image, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        addView(content, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    }
+}
+
 private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context) {
     val content = CraftNativeFlexLayout(context)
     private val vertical = ScrollView(context)
@@ -2684,6 +2698,25 @@ class MainActivity : AppCompatActivity() {
                 if (onError.isNotBlank()) screen.imageErrorHandlers[this] = onError else screen.imageErrorHandlers.remove(this)
                 updateImage(screen, this, props.opt("source"))
             }
+            "ImageBackground" -> (previous as? CraftNativeImageBackgroundView ?: CraftNativeImageBackgroundView(this)).apply {
+                image.scaleType = when (style.optString("resizeMode").ifBlank { props.optString("resizeMode") }) {
+                    "cover" -> ImageView.ScaleType.CENTER_CROP
+                    "stretch" -> ImageView.ScaleType.FIT_XY
+                    "center" -> ImageView.ScaleType.CENTER
+                    else -> ImageView.ScaleType.CENTER_INSIDE
+                }
+                val onLoadStart = events.optString("onLoadStart")
+                if (onLoadStart.isNotBlank()) screen.imageLoadStartHandlers[image] = onLoadStart else screen.imageLoadStartHandlers.remove(image)
+                val onLoad = events.optString("onLoad")
+                if (onLoad.isNotBlank()) screen.imageLoadHandlers[image] = onLoad else screen.imageLoadHandlers.remove(image)
+                val onLoadEnd = events.optString("onLoadEnd")
+                if (onLoadEnd.isNotBlank()) screen.imageLoadEndHandlers[image] = onLoadEnd else screen.imageLoadEndHandlers.remove(image)
+                val onError = events.optString("onError")
+                if (onError.isNotBlank()) screen.imageErrorHandlers[image] = onError else screen.imageErrorHandlers.remove(image)
+                updateImage(screen, image, props.opt("source"))
+                configureContainer(content, style)
+                reconcileChildren(screen, content, children, path, next, style, previousControls)
+            }
             "Video" -> (previous as? CraftNativeVideoView ?: CraftNativeVideoView(this)).apply {
                 configure(
                     source = props.opt("source"),
@@ -2884,6 +2917,11 @@ class MainActivity : AppCompatActivity() {
             if (!current.contains(message)) {
                 control.contentDescription = listOf(current, message).filter { it.isNotBlank() }.joinToString(", ")
             }
+        } else if (control is CraftNativeImageBackgroundView) imageErrors[control.image]?.let { message ->
+            val current = control.contentDescription?.toString().orEmpty()
+            if (!current.contains(message)) {
+                control.contentDescription = listOf(current, message).filter { it.isNotBlank() }.joinToString(", ")
+            }
         }
         protocolId?.let {
             screen.nodeViews[it] = control
@@ -2941,6 +2979,7 @@ class MainActivity : AppCompatActivity() {
         "slider" -> "Slider"
         "activityindicator" -> "ActivityIndicator"
         "image" -> "Image"
+        "imagebackground" -> "ImageBackground"
         "video" -> "Video"
         "icon" -> "Icon"
         "scrollview" -> "ScrollView"
@@ -3295,7 +3334,7 @@ class MainActivity : AppCompatActivity() {
     private fun applyAccessibility(view: View, props: JSONObject, type: String, fallbackLabel: String) {
         view.tag = fallbackLabel
         val label = props.optString("accessibilityLabel").takeIf { it.isNotBlank() }
-            ?: props.optString("alt").takeIf { type == "Image" && it.isNotBlank() }
+            ?: props.optString("alt").takeIf { (type == "Image" || type == "ImageBackground") && it.isNotBlank() }
         val value = props.opt("accessibilityValue")?.takeUnless { it == JSONObject.NULL }?.toString()
         view.contentDescription = when {
             label != null && value != null -> "$label, $value"
@@ -3573,8 +3612,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun imageViews(views: Collection<View>): Set<ImageView> = buildSet {
+        fun collect(view: View) {
+            if (view is ImageView) add(view)
+            if (view is ViewGroup) for (index in 0 until view.childCount) collect(view.getChildAt(index))
+        }
+        views.forEach(::collect)
+    }
+
     private fun releaseImages(views: Collection<View>) {
-        views.filterIsInstance<ImageView>().forEach { image ->
+        imageViews(views).forEach { image ->
             imageJobs.remove(image)?.cancel(true)
             imageSources.remove(image)
             imageErrors.remove(image)
@@ -3604,6 +3651,7 @@ class MainActivity : AppCompatActivity() {
         preservingInputDrafts: Boolean = false,
     ) {
         val released = views.toMutableSet()
+        val releasedImages = imageViews(released)
         val refreshableLists = released.filterIsInstance<CraftNativeRefreshableFlatList>()
         val nestedLists = refreshableLists.map { it.list }.toSet()
         released.addAll(nestedLists)
@@ -3647,10 +3695,10 @@ class MainActivity : AppCompatActivity() {
         screen.blurHandlers.keys.removeAll(released)
         screen.endEditingHandlers.keys.removeAll(released)
         screen.submitHandlers.keys.removeAll(released)
-        screen.imageLoadStartHandlers.keys.removeAll(released)
-        screen.imageLoadHandlers.keys.removeAll(released)
-        screen.imageLoadEndHandlers.keys.removeAll(released)
-        screen.imageErrorHandlers.keys.removeAll(released)
+        screen.imageLoadStartHandlers.keys.removeAll(releasedImages)
+        screen.imageLoadHandlers.keys.removeAll(releasedImages)
+        screen.imageLoadEndHandlers.keys.removeAll(releasedImages)
+        screen.imageErrorHandlers.keys.removeAll(releasedImages)
         screen.pressActiveOpacities.keys.removeAll(released)
         screen.pressBaseOpacities.keys.removeAll(released)
         screen.modalVisibility.keys.removeAll(released)

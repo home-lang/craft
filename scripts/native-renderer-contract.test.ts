@@ -47,6 +47,7 @@ const COMPONENTS: Array<[string, string, string]> = [
   ['Modal', 'case "Modal":', '"Modal" ->'],
   ['ActivityIndicator', 'case "ActivityIndicator":', '"ActivityIndicator" ->'],
   ['Image', 'case "Image":', '"Image" ->'],
+  ['ImageBackground', 'case "ImageBackground":', '"ImageBackground" ->'],
   ['Video', 'case "Video":', '"Video" ->'],
   ['ScrollView', 'case "ScrollView":', '"ScrollView" ->'],
   ['FlatList', 'case "FlatList":', '"FlatList" ->'],
@@ -256,9 +257,18 @@ describe('native renderer component contract', () => {
   })
 
   it('uses image alt text as the native accessibility fallback', () => {
-    expect(ios).toContain('(type == "Image" ? props["alt"] as? String : nil)')
-    expect(android).toContain('props.optString("alt").takeIf { type == "Image" && it.isNotBlank() }')
+    expect(ios).toContain('((type == "Image" || type == "ImageBackground") ? props["alt"] as? String : nil)')
+    expect(android).toContain('props.optString("alt").takeIf { (type == "Image" || type == "ImageBackground") && it.isNotBlank() }')
     expect(guide).toContain('`Image.alt` supplies the native accessibility label')
+  })
+
+  it('renders ImageBackground as an image-backed native container', () => {
+    expect(ios).toContain('private final class CraftNativeImageBackgroundView: UIImageView')
+    expect(ios).toContain('configureStack(background.contentStack, style: style)')
+    expect(android).toContain('private class CraftNativeImageBackgroundView(context: Context) : FrameLayout(context)')
+    expect(android).toContain('configureContainer(content, style)')
+    expect(android).toContain('imageViews(views)')
+    expect(guide).toContain('`ImageBackground` uses the shared image source')
   })
 
   it('applies text transforms to native action labels on both hosts', () => {
@@ -893,7 +903,7 @@ describe('native renderer component contract', () => {
   it('preserves image failure accessibility details across reconciliation', () => {
     expect(ios).toContain('private var imageErrors: [ObjectIdentifier: String] = [:]')
     expect(ios).toContain('imageErrors[ObjectIdentifier(view)] = message')
-    expect(ios).toContain('if type == "Image", let message = imageErrors[ObjectIdentifier(view)]')
+    expect(ios).toContain('if (type == "Image" || type == "ImageBackground"), let message = imageErrors[ObjectIdentifier(view)]')
     expect(ios).toContain('if imageSources[id] == "" { return }')
     expect(ios).toContain('imageSources[id] = ""')
     expect(android).toContain('if (control is ImageView) imageErrors[control]?.let')

@@ -1282,6 +1282,29 @@ private final class CraftNativeFlowView: UIStackView {
     }
 }
 
+/// An image-backed flex container. The image stays behind ordinary native
+/// children so `ImageBackground` keeps the same layout and interaction
+/// semantics as a `View` while using the shared image loader.
+private final class CraftNativeImageBackgroundView: UIImageView {
+    let contentStack = CraftNativeFlowView()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = true
+        contentMode = .scaleAspectFill
+        clipsToBounds = true
+        contentStack.backgroundColor = .clear
+        addSubview(contentStack)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        contentStack.frame = bounds
+    }
+}
+
 private final class CraftNativeModalView: UIView {
     let contentStack = CraftNativeFlowView()
     private let blocker = UIView()
@@ -3708,6 +3731,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updateAuxiliaryHandler(events["onLoadEnd"], in: &imageLoadEndHandlers, for: image)
             updateAuxiliaryHandler(events["onError"], in: &imageErrorHandlers, for: image)
             updateImage(image, source: props["source"])
+        case "ImageBackground":
+            let background = result as! CraftNativeImageBackgroundView
+            let requestedResizeMode = style["resizeMode"] as? String ?? props["resizeMode"] as? String
+            background.contentMode = imageContentMode(requestedResizeMode)
+            background.clipsToBounds = background.contentMode == .scaleAspectFill
+            updateAuxiliaryHandler(events["onLoadStart"], in: &imageLoadStartHandlers, for: background)
+            updateAuxiliaryHandler(events["onLoad"], in: &imageLoadHandlers, for: background)
+            updateAuxiliaryHandler(events["onLoadEnd"], in: &imageLoadEndHandlers, for: background)
+            updateAuxiliaryHandler(events["onError"], in: &imageErrorHandlers, for: background)
+            updateImage(background, source: props["source"])
+            configureStack(background.contentStack, style: style)
+            reconcileChildren(children, in: background.contentStack, parent: current, path: path, style: style)
         case "Video":
             let video = result as! CraftNativeVideoView
             let autoplay = (props["autoplay"] as? Bool) == true || (props["autoPlay"] as? Bool) == true
@@ -3841,6 +3876,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return UIActivityIndicatorView(style: .medium)
         case "Image":
             return UIImageView()
+        case "ImageBackground":
+            return CraftNativeImageBackgroundView()
         case "Video":
             return CraftNativeVideoView(host: self)
         case "Icon":
@@ -3877,6 +3914,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "slider": return "Slider"
         case "activityindicator": return "ActivityIndicator"
         case "image": return "Image"
+        case "imagebackground": return "ImageBackground"
         case "video": return "Video"
         case "icon": return "Icon"
         case "scrollview": return "ScrollView"
@@ -4709,7 +4747,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func applyAccessibility(_ props: [String: Any], type: String, to view: UIView) {
         view.accessibilityLabel = (props["accessibilityLabel"] as? String)
-            ?? (type == "Image" ? props["alt"] as? String : nil)
+            ?? ((type == "Image" || type == "ImageBackground") ? props["alt"] as? String : nil)
         view.accessibilityHint = props["accessibilityHint"] as? String
         if let value = props["accessibilityValue"] {
             view.accessibilityValue = (value as? String) ?? (value as? NSNumber)?.stringValue
@@ -4717,7 +4755,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             view.accessibilityValue = nil
         }
         let role = props["accessibilityRole"] as? String
-        view.isAccessibilityElement = role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "Video", "TextInput", "Picker", "Switch", "Slider"].contains(type))
+        view.isAccessibilityElement = role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "ImageBackground", "Video", "TextInput", "Picker", "Switch", "Slider"].contains(type))
         var traits: UIAccessibilityTraits = []
         switch role ?? type.lowercased() {
         case "button", "checkbox": traits.insert(.button)
@@ -4744,7 +4782,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if checkbox.isSelected { traits.insert(.selected) }
             view.accessibilityValue = checkbox.indeterminate ? "mixed" : checkbox.isSelected ? "checked" : "unchecked"
         }
-        if type == "Image", let message = imageErrors[ObjectIdentifier(view)] {
+        if (type == "Image" || type == "ImageBackground"), let message = imageErrors[ObjectIdentifier(view)] {
             let current = view.accessibilityValue
             if current?.contains(message) != true {
                 view.accessibilityValue = [current, message].compactMap { $0 }.joined(separator: ", ")
