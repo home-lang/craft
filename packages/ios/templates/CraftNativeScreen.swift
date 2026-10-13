@@ -389,7 +389,7 @@ struct CraftNativeScreen: UIViewControllerRepresentable {
 /// A length as a style gives it: points, or a percentage of the parent's
 /// content box. A percentage against a size that is not known yet (a column
 /// whose height comes from its content) resolves to nothing, as on the web.
-private enum CraftNativeLength {
+private enum CraftNativeLength: Equatable {
     case points(CGFloat)
     case percent(CGFloat)
 
@@ -606,7 +606,7 @@ private final class CraftNativeFlowView: UIStackView {
     var columnGap: CGFloat? { didSet { if columnGap != oldValue { invalidateMeasurements() } } }
     var grid = false { didSet { if grid != oldValue { invalidateMeasurements() } } }
     var gridColumns = 1 { didSet { if gridColumns != oldValue { invalidateMeasurements() } } }
-    var gridAutoRows: CGFloat? { didSet { if gridAutoRows != oldValue { invalidateMeasurements() } } }
+    var gridAutoRows: CraftNativeLength? { didSet { if gridAutoRows != oldValue { invalidateMeasurements() } } }
     var reverse = false { didSet { if reverse != oldValue { invalidateMeasurements() } } }
     var padding = UIEdgeInsets.zero {
         didSet {

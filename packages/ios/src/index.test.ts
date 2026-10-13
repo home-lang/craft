@@ -619,6 +619,8 @@ describe('Craft iOS builder', () => {
     expect(source).toContain('let flow = children.filter { $0.craftLayoutStyle.position != "absolute" }')
     expect(source).toContain('layoutGrid(flow,')
     expect(source).toContain('gridAutoRows = CraftNativeLength(raw["gridAutoRows"])')
+    expect(source).toContain('private enum CraftNativeLength: Equatable')
+    expect(source).toContain('var gridAutoRows: CraftNativeLength?')
     expect(source).toContain('gridAutoRows == nil ? CraftNativeGridBridge.frames')
     expect(source).toContain('gridAutoRows?.resolve(innerHeight)')
   })

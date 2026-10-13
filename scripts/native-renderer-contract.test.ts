@@ -646,6 +646,8 @@ describe('native renderer component contract', () => {
   it('keeps intrinsic grid tracks equal across hosts', () => {
     expect(ios).toContain('let width = innerWidth ?? (CGFloat(columns) * cellWidth + gaps)')
     expect(ios).toContain('gridAutoRows = CraftNativeLength(raw["gridAutoRows"])')
+    expect(ios).toContain('private enum CraftNativeLength: Equatable')
+    expect(ios).toContain('var gridAutoRows: CraftNativeLength?')
     expect(ios).toContain('gridAutoRows == nil ? CraftNativeGridBridge.frames')
     expect(ios).toContain('gridAutoRows?.resolve(innerHeight)')
     expect(android).toContain('val cellWidth = columnWidths.maxOrNull() ?: 0')
