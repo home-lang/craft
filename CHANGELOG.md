@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.156...v0.0.157)
+
+## 🚀 Features
+
+- **ios**: the simulator driver checks a label exactly and runs a step only when an element is there ([5a26572](https://github.com/craft-native/craft/commit/5a26572)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.155...v0.0.156)
 
 ## 🚀 Features
