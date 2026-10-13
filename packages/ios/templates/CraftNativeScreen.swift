@@ -2186,7 +2186,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        if isMovingFromParent || navigationController?.viewControllers.contains(where: { $0 === self }) == false {
+        // Gone for good only when its stack no longer holds it. UIKit's
+        // `isMovingFromParent` is no witness: a tab's first screen covered
+        // by a push while its own first appearance was still settling (an
+        // app script opening the sign-in screen at launch) reports it true
+        // while still the root of its stack, and the screen's script was
+        // torn down under it, frozen on whatever it showed then.
+        let inStack = navigationController?.viewControllers.contains(where: { $0 === self }) ?? false
+        if !inStack {
             disposeRuntime()
         } else {
             screenVisibilityChanged(false)
