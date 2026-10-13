@@ -1521,7 +1521,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         if tabSwipeRecognizers.contains(where: { $0 === gestureRecognizer }) {
             guard hybrid.tabIds.count > 1, let top = visibleStack?.topViewController else { return false }
-            if let native = top as? CraftNativeScreenController, !native.contentSwipeBack { return false }
+            if let native = top as? CraftNativeScreenController,
+               !native.tabSwipeEnabled || !native.contentSwipeBack { return false }
             return !horizontalScrollAt(gestureRecognizer.location(in: view), in: top.view)
         }
         guard let nav = visibleStack, isPopRecognizer(gestureRecognizer),

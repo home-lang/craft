@@ -2715,7 +2715,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// - `craft.secureStorage.getSync(key)`: the Keychain item the web page's
     ///   `craft.secureStorage.set` wrote.
     /// - `craft.navigation.setOptions({ title, largeTitle, hidden, backTitle,
-    ///   tabBarHidden, contentSwipeBack, rightButtons })`; a right button's
+    ///   tabBarHidden, contentSwipeBack, tabSwipeEnabled, rightButtons })`; a right button's
     ///   tap is the event `navButton`.
     ///
     /// A runtime that assigns `craft.storage` (or the others) afterwards keeps
@@ -2963,6 +2963,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// Whether iOS 26's content-wide back-swipe may begin on this screen.
     /// Setting `contentSwipeBack: false` leaves the 32-point edge gesture.
     private(set) var contentSwipeBack = true
+    /// Whether the shell's horizontal tab switch gesture may begin here.
+    /// This is separate so a screen can keep navigation back while owning its
+    /// own horizontal pager or chart gesture.
+    private(set) var tabSwipeEnabled = true
     private var prefersLargeTitle: Bool?
 
     /// Whether this screen asked for a bar of its own through `setOptions`: a
@@ -3000,6 +3004,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         if let contentSwipeBack = options["contentSwipeBack"] as? Bool {
             self.contentSwipeBack = contentSwipeBack
+        }
+        if let tabSwipeEnabled = options["tabSwipeEnabled"] as? Bool {
+            self.tabSwipeEnabled = tabSwipeEnabled
         }
         if let hidden = options["hidden"] as? Bool {
             navigationBarHidden = hidden

@@ -547,7 +547,9 @@ horizontal `ScrollView` keeps the navigation back-swipe at the 32-point edge;
 swipes across the pager, carousel, or chart remain available to that scroll
 view. A custom horizontal gesture can opt out of iOS 26's content-wide
 back-swipe with `craft.navigation.setOptions({ contentSwipeBack: false })`;
-the edge-only back gesture remains available.
+the edge-only back gesture remains available. A screen that should keep back
+navigation but own the tab gesture can independently set
+`craft.navigation.setOptions({ tabSwipeEnabled: false })`.
 
 ## An all-native iOS app: paths, tabs and an app script
 
@@ -592,7 +594,7 @@ all: no `WKWebView` is ever created.
   launched the app waits for the shell.
 - Tab taps and completed left/right swipes switch stacks natively. Swipes
   yield to a horizontal native scroll view or a screen that sets
-  `contentSwipeBack: false`; the tab bar provides selection feedback when a
+  `contentSwipeBack: false` or `tabSwipeEnabled: false`; the tab bar provides selection feedback when a
   swipe changes tabs. A screen that throws before its first frame
   keeps its own error, since there is no page to stand in for it.
 - GPS (fixes, watches, the background route recorder and its relaunch
