@@ -46,6 +46,7 @@ private const val CRAFT_NATIVE_FILE_PICK_REQUEST = 4101
 private const val CRAFT_NATIVE_FILE_DEFAULT_MAX_PIXELS = 2048
 private const val CRAFT_NATIVE_FILE_LARGEST_MAX_PIXELS = 8192
 private const val CRAFT_NATIVE_FILE_DEFAULT_QUALITY = 0.85
+private const val CRAFT_NATIVE_FILE_ERROR_BODY_BYTES = 64 * 1024
 
 internal const val CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION = 1
 
@@ -355,7 +356,7 @@ internal class CraftNativeCapabilities(
         }
         return try {
             val status = connection.responseCode
-            if (status !in 200..299) return failure("NETWORK_ERROR", "files.download returned HTTP $status")
+            if (status !in 200..299) return refusedDownload(connection, status, requestToken)
             val name = options.optString("name").ifBlank { connection.url.path.substringAfterLast('/').ifBlank { "download" } }
             val file = File(fileRoot, UUID.randomUUID().toString()).apply { mkdirs() }.resolve(safeFileName(name))
             connection.inputStream.use { input -> FileOutputStream(file).use { output ->
@@ -377,6 +378,24 @@ internal class CraftNativeCapabilities(
             fetchConnections.remove(requestToken)?.disconnect()
             connection.disconnect()
         }
+    }
+
+    private fun refusedDownload(
+        connection: HttpURLConnection,
+        status: Int,
+        requestToken: String,
+    ): CraftNativeCapabilityResult {
+        if (cancelled.contains(requestToken)) return failure("CANCELLED", "File download was cancelled")
+        val body = ByteArrayOutputStream()
+        connection.errorStream?.use { input ->
+            val buffer = ByteArray(8192)
+            while (body.size() < CRAFT_NATIVE_FILE_ERROR_BODY_BYTES) {
+                val count = input.read(buffer, 0, minOf(buffer.size, CRAFT_NATIVE_FILE_ERROR_BODY_BYTES - body.size()))
+                if (count < 0) break
+                body.write(buffer, 0, count)
+            }
+        }
+        return success(JSONObject().put("ok", false).put("status", status).put("body", body.toString(Charsets.UTF_8.name())))
     }
 
     private fun pickImage(

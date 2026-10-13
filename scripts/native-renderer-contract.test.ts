@@ -1319,6 +1319,8 @@ describe('native renderer component contract', () => {
     expect(androidCapabilities).toContain("files.pickImage source is 'library' or 'camera'")
     expect(androidCapabilities).toContain('fetchConnections[requestToken] = connection')
     expect(androidCapabilities).toContain('File download was cancelled')
+    expect(androidCapabilities).toContain('private fun refusedDownload(')
+    expect(androidCapabilities).toContain('CRAFT_NATIVE_FILE_ERROR_BODY_BYTES = 64 * 1024')
     expect(androidCapabilities).toContain('private fun sweepFiles()')
     expect(androidCapabilities).not.toContain('fileRoot.deleteRecursively()')
     expect(androidCapabilities).toContain('private fun writeImage(bitmap: Bitmap, maxPixels: Int, quality: Float, name: String): JSONObject?')
