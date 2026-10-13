@@ -4762,6 +4762,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         default: break
         }
+        if let shadow = textShadow(style) { attributes[.shadow] = shadow }
         if let lineHeight = number(style["lineHeight"]) {
             let paragraph = NSMutableParagraphStyle()
             paragraph.minimumLineHeight = lineHeight
@@ -4814,6 +4815,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         default: break
         }
+        if let shadow = textShadow(style) { attributes[.shadow] = shadow }
         if forceUnderline { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
         return attributes
     }
@@ -4843,7 +4845,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         default: break
         }
+        if let shadow = textShadow(style) { attributes[.shadow] = shadow }
         return attributes
+    }
+
+    private func textShadow(_ style: [String: Any]) -> NSShadow? {
+        guard let shadowColor = color(style["textShadowColor"]) else { return nil }
+        let offset = style["textShadowOffset"] as? [String: Any]
+        let shadow = NSShadow()
+        shadow.shadowColor = shadowColor
+        shadow.shadowOffset = CGSize(
+            width: number(offset?["width"]) ?? 0,
+            height: number(offset?["height"]) ?? 0
+        )
+        shadow.shadowBlurRadius = max(0, number(style["textShadowRadius"]) ?? 0)
+        return shadow
     }
 
     private func transformedText(_ text: String, style: [String: Any]) -> String {

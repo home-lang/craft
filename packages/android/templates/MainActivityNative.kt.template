@@ -3425,6 +3425,18 @@ class MainActivity : AppCompatActivity() {
             style.optDouble("lineHeight", Double.NaN).takeUnless { it.isNaN() }?.let { dp(it) - view.textSize } ?: 0f,
             1f
         )
+        val shadowColor = style.optString("textShadowColor").takeIf { it.isNotBlank() }
+        if (shadowColor == null) {
+            view.paint.clearShadowLayer()
+        } else {
+            val offset = style.optJSONObject("textShadowOffset")
+            view.setShadowLayer(
+                dp(style.optDouble("textShadowRadius", 0.0)).toFloat().coerceAtLeast(0f),
+                dp(offset?.optDouble("width", 0.0) ?: 0.0).toFloat(),
+                dp(offset?.optDouble("height", 0.0) ?: 0.0).toFloat(),
+                color(shadowColor, Color.TRANSPARENT),
+            )
+        }
         view.paintFlags = view.paintFlags and Paint.UNDERLINE_TEXT_FLAG.inv() and Paint.STRIKE_THRU_TEXT_FLAG.inv()
         when (style.optString("textDecorationLine")) {
             "underline" -> view.paintFlags = view.paintFlags or Paint.UNDERLINE_TEXT_FLAG

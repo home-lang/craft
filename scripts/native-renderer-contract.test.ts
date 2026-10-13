@@ -974,6 +974,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('view.z = style.optDouble("zIndex", 0.0).toFloat()')
   })
 
+  it('applies and clears text shadows on both native hosts', () => {
+    expect(ios).toContain('if let shadow = textShadow(style) { attributes[.shadow] = shadow }')
+    expect(ios).toContain('shadow.shadowBlurRadius = max(0, number(style["textShadowRadius"]) ?? 0)')
+    expect(android).toContain('view.paint.clearShadowLayer()')
+    expect(android).toContain('view.setShadowLayer(')
+    expect(android).toContain('style.optString("textShadowColor")')
+  })
+
   it('keeps horizontal list rows intrinsically sized across hosts', () => {
     expect(iosFlatList).toContain('flowLayout.scrollDirection = horizontal ? .horizontal : .vertical')
     expect(iosFlatList).toContain('maxWidth: CraftNativeFlexLayout.unbounded,')
