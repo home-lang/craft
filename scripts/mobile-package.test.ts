@@ -21,6 +21,13 @@ for (const platform of ['android', 'ios']) {
       const installed = join(temp, 'node_modules', '@craft-native', platform)
       mkdirSync(installed, { recursive: true })
       run(['tar', '-xzf', join(temp, 'package.tgz'), '--strip-components=1', '-C', installed])
+      if (platform === 'ios') {
+        writeFileSync(join(temp, 'runtime.mts'), `
+import { initSimulatorDriver } from '@craft-native/ios'
+initSimulatorDriver({ output: './driver', bundleId: 'org.example.consumer' })
+`)
+        run([process.execPath, 'runtime.mts'])
+      }
       writeFileSync(join(temp, 'consumer.mts'), `
 import { init, type InitOptions } from '@craft-native/${platform}'
 const options: InitOptions = { name: 'Consumer', output: '/tmp/consumer', runtimeDir: null }
@@ -28,6 +35,16 @@ const result: Promise<void> = init(options)
 // @ts-expect-error name must be a string, even outside the workspace
 init({ name: 42, output: '/tmp/consumer' })
 void result
+${platform === 'ios' ? `
+import { initSimulatorDriver, serializeSimulatorSteps, createNativeMutationValidator, restoreShell } from '@craft-native/ios'
+initSimulatorDriver({ output: '/tmp/driver', bundleId: 'org.example.consumer', tabs: ['Home'] })
+const script: string = serializeSimulatorSteps([{ command: 'launch' }, { command: 'expect', text: 'Home', seconds: 5 }])
+// @ts-expect-error unknown simulator command
+serializeSimulatorSteps([{ command: 'unknown' }])
+// @ts-expect-error seconds must be numeric
+serializeSimulatorSteps([{ command: 'wait', seconds: 'five' }])
+void [script, createNativeMutationValidator, restoreShell]
+` : ''}
 `)
       run([
         process.execPath, join(root, 'packages/typescript/scripts/tsc.ts'),

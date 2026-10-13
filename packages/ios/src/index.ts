@@ -1140,6 +1140,49 @@ export function productName(name: string): string {
   return /^\d/.test(joined) ? `App${joined}` : joined
 }
 
+/** Restore package-owned Swift into an existing project, without changing its Xcode metadata or bundled screens. */
+export function restoreShell(output: string): void {
+  const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8')) as CraftConfig
+  writeShell(output, config)
+}
+
+function writeShell(output: string, config: CraftConfig): void {
+  if (!config.appName || !/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(config.bundleId))
+    throw new Error('The iOS shell needs an appName and a valid bundleId in craft.config.json.')
+  const name = productName(config.appName)
+  mkdirSync(join(output, 'Sources'), { recursive: true })
+  mkdirSync(join(output, 'Shared'), { recursive: true })
+  const swiftTemplate = readFileSync(join(TEMPLATES_DIR, 'CraftApp.swift'), 'utf-8')
+  const swiftSource = swiftTemplate
+    .replace(/CraftApp/g, `${name}App`)
+    .replace(/\{\{BUNDLE_ID\}\}/g, config.bundleId)
+    .replace(/\{\{CRAFT_VERSION\}\}/g, CRAFT_VERSION)
+  writeFileSync(join(output, 'Sources', `${name}App.swift`), swiftSource)
+  cpSync(join(TEMPLATES_DIR, 'CraftNativeScreen.swift'), join(output, 'Sources', 'CraftNativeScreen.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftNativeFlatList.swift'), join(output, 'Sources', 'CraftNativeFlatList.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftNativeActions.swift'), join(output, 'Sources', 'CraftNativeActions.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftHealth.swift'), join(output, 'Sources', 'CraftHealth.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftMusic.swift'), join(output, 'Sources', 'CraftMusic.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftHeartRate.swift'), join(output, 'Sources', 'CraftHeartRate.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftNativeMutation.swift'), join(output, 'Sources', 'CraftNativeMutation.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftNativeUI.swift'), join(output, 'Sources', 'CraftNativeUI.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftNativeServices.swift'), join(output, 'Sources', 'CraftNativeServices.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftNativeFiles.swift'), join(output, 'Sources', 'CraftNativeFiles.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftWebAudio.swift'), join(output, 'Sources', 'CraftWebAudio.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftHybrid.swift'), join(output, 'Sources', 'CraftHybrid.swift'))
+
+  cpSync(join(TEMPLATES_DIR, 'CraftActivityAttributes.swift'), join(output, 'Shared', 'CraftActivityAttributes.swift'))
+  for (const [enabled, folder, template, filename] of [
+    [config.enableLiveActivities, 'WidgetExtension', 'CraftLiveActivityWidget.swift.template', `${name}LiveActivity.swift`],
+    [config.enableWatchApp, 'WatchExtension', 'CraftWatchApp.swift.template', `${name}WatchApp.swift`],
+  ] as const) {
+    if (!enabled) continue
+    mkdirSync(join(output, folder), { recursive: true })
+    const source = readFileSync(join(TEMPLATES_DIR, template), 'utf8').replace(/\{\{APP_NAME\}\}/g, name)
+    writeFileSync(join(output, folder, filename), source)
+  }
+}
+
 export async function init(options: InitOptions): Promise<void> {
   const { name: displayName, bundleId, teamId, output } = options
   const name = productName(displayName)
@@ -1183,25 +1226,7 @@ export async function init(options: InitOptions): Promise<void> {
 
   writeFileSync(join(output, 'craft.config.json'), JSON.stringify(config, null, 2))
 
-  // Copy and customize Swift template
-  const swiftTemplate = readFileSync(join(TEMPLATES_DIR, 'CraftApp.swift'), 'utf-8')
-  const swiftSource = swiftTemplate
-    .replace(/CraftApp/g, `${name}App`)
-    .replace(/\{\{BUNDLE_ID\}\}/g, finalBundleId)
-    .replace(/\{\{CRAFT_VERSION\}\}/g, CRAFT_VERSION)
-  writeFileSync(join(output, 'Sources', `${name}App.swift`), swiftSource)
-  cpSync(join(TEMPLATES_DIR, 'CraftNativeScreen.swift'), join(output, 'Sources', 'CraftNativeScreen.swift'))
-  cpSync(join(TEMPLATES_DIR, 'CraftNativeFlatList.swift'), join(output, 'Sources', 'CraftNativeFlatList.swift'))
-  cpSync(join(TEMPLATES_DIR, 'CraftNativeActions.swift'), join(output, 'Sources', 'CraftNativeActions.swift'))
-  cpSync(join(TEMPLATES_DIR, 'CraftHealth.swift'), join(output, 'Sources', 'CraftHealth.swift'))
-  cpSync(join(TEMPLATES_DIR, 'CraftMusic.swift'), join(output, 'Sources', 'CraftMusic.swift'))
-  cpSync(join(TEMPLATES_DIR, 'CraftHeartRate.swift'), join(output, 'Sources', 'CraftHeartRate.swift'))
-  cpSync(join(TEMPLATES_DIR, 'CraftNativeMutation.swift'), join(output, 'Sources', 'CraftNativeMutation.swift'))
-  cpSync(join(TEMPLATES_DIR, 'CraftNativeUI.swift'), join(output, 'Sources', 'CraftNativeUI.swift'))
-  cpSync(join(TEMPLATES_DIR, 'CraftNativeServices.swift'), join(output, 'Sources', 'CraftNativeServices.swift'))
-  cpSync(join(TEMPLATES_DIR, 'CraftNativeFiles.swift'), join(output, 'Sources', 'CraftNativeFiles.swift'))
-  cpSync(join(TEMPLATES_DIR, 'CraftWebAudio.swift'), join(output, 'Sources', 'CraftWebAudio.swift'))
-  cpSync(join(TEMPLATES_DIR, 'CraftHybrid.swift'), join(output, 'Sources', 'CraftHybrid.swift'))
+  writeShell(output, config)
 
   // Generate Info.plist
   const infoPlistTemplate = readFileSync(join(TEMPLATES_DIR, 'Info.plist.template'), 'utf-8')
@@ -1309,19 +1334,12 @@ export async function init(options: InitOptions): Promise<void> {
   writeFileSync(join(output, 'Craft.entitlements'), renderEntitlements(config))
   writeFileSync(join(output, 'PrivacyInfo.xcprivacy'), renderPrivacyManifest(config))
   renderAssetCatalog(output, config)
-  cpSync(join(TEMPLATES_DIR, 'CraftActivityAttributes.swift'), join(output, 'Shared', 'CraftActivityAttributes.swift'))
   if (config.enableLiveActivities) {
     mkdirSync(join(output, 'WidgetExtension'), { recursive: true })
-    const widgetSource = readFileSync(join(TEMPLATES_DIR, 'CraftLiveActivityWidget.swift.template'), 'utf8')
-      .replace(/\{\{APP_NAME\}\}/g, name)
-    writeFileSync(join(output, 'WidgetExtension', `${name}LiveActivity.swift`), widgetSource)
     const widgetInfo = readFileSync(join(TEMPLATES_DIR, 'WidgetExtension.Info.plist'), 'utf8')
     writeFileSync(join(output, 'WidgetExtension', 'Info.plist'), widgetInfo)
   }
   if (config.enableWatchApp) {
-    const watchSource = readFileSync(join(TEMPLATES_DIR, 'CraftWatchApp.swift.template'), 'utf8')
-      .replace(/\{\{APP_NAME\}\}/g, name)
-    writeFileSync(join(output, 'WatchExtension', `${name}WatchApp.swift`), watchSource)
     const watchInfo = readFileSync(join(TEMPLATES_DIR, 'WatchApp.Info.plist.template'), 'utf8')
       .replace(/\{\{APP_NAME\}\}/g, xmlEscape(displayName))
       .replace(/\{\{BUNDLE_ID\}\}/g, finalBundleId)
@@ -1675,3 +1693,6 @@ else {
     console.log('  4. Click Run (▶️)')
   }
 }
+
+export { createNativeMutationValidator, initSimulatorDriver, serializeSimulatorSteps } from './testing.js'
+export type { NativeMutationValidator, NativeValidationResult, SimulatorDriverOptions, SimulatorStep } from './testing.js'

@@ -441,3 +441,64 @@ MyApp/
 - [PLATFORM*SUPPORT.md](../../packages/zig/PLATFORM*SUPPORT.md) - Platform feature matrix
 - [ios*template.zig](../../packages/zig/src/ios*template.zig) - iOS project template
 - [android*template.zig](../../packages/zig/src/android_template.zig) - Android project template
+
+## Package-owned native shells
+
+Applications author TypeScript and STX. Craft publishes its Swift shell templates
+inside `craft-native` (`dist/ios/templates`) and `@craft-native/ios` (`templates`).
+The iOS builder generates sources from typed `CraftConfig`; generated Swift is
+build output, including the optional watch and live activity extensions.
+Configure capabilities, appearance, tabs, storage sharing, privacy and deployment
+targets through TypeScript. Add reusable native capabilities to Craft and expose
+typed bridge methods instead of patching an application's generated Swift.
+
+An Xcode Cloud application may retain its Xcode project, configuration, assets
+and compiled STX bundle in Git for project discovery, while ignoring `*.swift`.
+After installing the locked dependencies, its `ci_scripts/ci_post_clone.sh` can
+restore sources without regenerating the project or compiling application screens:
+
+```ts
+import { restoreShell } from 'craft-native/ios'
+restoreShell('storage/framework/mobile/ios')
+```
+
+`restoreShell` uses the project's `craft.config.json` and the installed package's
+templates. Keep that configuration, Xcode metadata and package lockfile from the
+same build; rebuild the complete project after changing capabilities or upgrading
+Craft. Restoration replaces generated Swift; application edits there do not persist.
+
+## Simulator tests from TypeScript
+
+The Bun-only `craft-native/ios` entrypoint also exports the reusable XCUITest host:
+
+```ts
+import { initSimulatorDriver, serializeSimulatorSteps } from 'craft-native/ios'
+
+initSimulatorDriver({
+  output: 'storage/framework/mobile/ios-driver',
+  bundleId: 'org.example.app',
+  tabs: ['Today', 'Calendar'],
+  controlUrl: 'http://127.0.0.1:3401',
+})
+const script = serializeSimulatorSteps([
+  { command: 'launch' },
+  { command: 'expect', text: 'Today', seconds: 10 },
+  { command: 'net', state: 'offline' },
+  { command: 'tab', text: 'Calendar' },
+])
+```
+
+Generate its Xcode project with xcodegen, then `xcodebuild build-for-testing` and
+`test-without-building` on an iOS 17+ simulator. Serve `script` at `/script` on the
+control URL. The driver posts `/note` and `/save?name=…` evidence and supports the
+existing line-based journey protocol; network and hook steps require the control
+server to implement those endpoints. Override the control URL per run through
+`TEST_RUNNER_CRAFT_TEST_CONTROL`. Failed checks fail XCTest while allowing the
+remaining journey to collect evidence. This harness drives an already installed
+app; it does not install the app or operate a network switch itself.
+
+`createNativeMutationValidator()` compiles Craft's actual Foundation mutation
+host with `swiftc` on macOS. Its `validate(messages)` returns `exitCode`, `stdout`
+and `stderr`; call `dispose()` when finished. This checks native update batches,
+not UIKit layout or device capability behavior. These build/test APIs are Bun-only;
+browser code continues to import `craft-native/mobile`.
