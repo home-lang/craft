@@ -279,7 +279,8 @@ The web view also: shows `alert`, `confirm` and `prompt` as system alerts;
 opens `target=_blank` and `window.open` for the app's own origins in place and
 anything else in `SFSafariViewController`; grants `getUserMedia` to the app's
 own origin without WebKit's extra prompt; dismisses the keyboard with a drag;
-allows picture in picture; ends its user agent with `Craft/<version>
+allows picture in picture; ends its user agent with the builder package's
+resolved `Craft/<version>
 <AppName>/<version>`; brings a page whose content process died back under the
 splash, on the page it was showing, at most three times a minute before
 showing the offline page; and saves its `interactionState` when the app goes to

@@ -11,14 +11,28 @@ import { $ } from 'bun'
 const TEMPLATES_DIR = join(dirname(import.meta.dir), 'templates')
 
 /** This package's version, which the app names in its user agent (`Craft/<version>`). */
-const CRAFT_VERSION: string = (() => {
-  try {
-    return JSON.parse(readFileSync(join(dirname(import.meta.dir), 'package.json'), 'utf8')).version ?? '0.0.0'
+export function resolveCraftVersion(startDir: string = import.meta.dir): string {
+  let directory = resolve(startDir)
+  while (true) {
+    try {
+      const packageJSON = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as {
+        name?: unknown
+        version?: unknown
+      }
+      if (packageJSON.name === '@craft-native/ios' && typeof packageJSON.version === 'string' && packageJSON.version.length > 0)
+        return packageJSON.version
+    }
+    catch {
+      // Keep walking: bundled builds put the module below the package root.
+    }
+    const parent = dirname(directory)
+    if (parent === directory) break
+    directory = parent
   }
-  catch {
-    return '0.0.0'
-  }
-})()
+  return '0.0.0'
+}
+
+const CRAFT_VERSION = resolveCraftVersion()
 
 export type CraftAppearance = 'light' | 'dark' | 'system'
 

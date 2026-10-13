@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'bun:test'
 import { addSchemeBuildTargets, addSchemeTestTargets, insertProjectTargetsBeforeSchemes } from '../scripts/insert-project-targets'
 import {
@@ -24,10 +24,17 @@ import {
   renderAppBoundDomains,
   renderUrlTypes,
   renderWatchEntitlements,
+  resolveCraftVersion,
   syncWebAssets,
 } from './index'
 
 describe('Craft iOS builder', () => {
+  it('resolves the package version from bundled module directories', () => {
+    const version = JSON.parse(readFileSync(join(import.meta.dir, '..', 'package.json'), 'utf8')).version
+    expect(resolveCraftVersion(resolve(import.meta.dir, '..', 'dist', 'ios', 'src'))).toBe(version)
+    expect(resolveCraftVersion(resolve(import.meta.dir, '..', 'dist', 'ios', 'src', 'nested'))).toBe(version)
+  })
+
   it('inserts simulator test targets before the shared schemes block', () => {
     const project = 'targets:\n  App:\n    type: application\n\nschemes:\n  App:\n    build:\n      targets:\n        App: all\n    test:\n      config: Debug\n'
     const result = insertProjectTargetsBeforeSchemes(project, '  AppTests:\n    type: bundle.unit-test')
