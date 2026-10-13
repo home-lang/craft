@@ -1,0 +1,36 @@
+name: {{PROJECT_NAME}}
+options:
+  bundleIdPrefix: {{BUNDLE_PREFIX}}
+  deploymentTarget:
+    iOS: "{{IOS_VERSION}}"
+targets:
+  {{PROJECT_NAME}}Host:
+    type: application
+    platform: iOS
+    sources: [Host]
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: {{BUNDLE_PREFIX}}.host
+      GENERATE_INFOPLIST_FILE: YES
+      INFOPLIST_KEY_UILaunchScreen_Generation: YES
+      SWIFT_VERSION: "5.0"
+      CODE_SIGNING_ALLOWED: NO
+  {{PROJECT_NAME}}UITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    settings:
+      TEST_TARGET_NAME: {{PROJECT_NAME}}Host
+      PRODUCT_BUNDLE_IDENTIFIER: {{BUNDLE_PREFIX}}.uitests
+      GENERATE_INFOPLIST_FILE: YES
+      SWIFT_VERSION: "5.0"
+      CODE_SIGNING_ALLOWED: NO
+    dependencies:
+      - target: {{PROJECT_NAME}}Host
+schemes:
+  {{PROJECT_NAME}}:
+    build:
+      targets:
+        {{PROJECT_NAME}}Host: all
+        {{PROJECT_NAME}}UITests: [test]
+    test:
+      targets: [{{PROJECT_NAME}}UITests]
