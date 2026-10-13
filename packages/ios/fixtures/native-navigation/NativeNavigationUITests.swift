@@ -168,6 +168,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertFalse(app.webViews.firstMatch.exists, "native navigation created a WebView")
         let rootScroll = app.scrollViews["native-root-scroll"]
         XCTAssertTrue(rootScroll.waitForExistence(timeout: 15))
+        let bubble = app.otherElements["max-content-bubble"]
+        let bubbleText = app.staticTexts["max-content-bubble-text"]
+        XCTAssertTrue(bubble.waitForExistence(timeout: 5), "max-content bubble did not mount")
+        XCTAssertTrue(bubbleText.waitForExistence(timeout: 5), "max-content bubble text did not mount")
+        XCTAssertLessThan(bubbleText.frame.height, 30, "text took min-content width and wrapped unexpectedly")
+        XCTAssertGreaterThan(bubble.frame.width, bubbleText.frame.width, "bubble did not retain its authored horizontal padding")
         let scroll = app.scrollViews["native-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let image = app.images["native-image"]

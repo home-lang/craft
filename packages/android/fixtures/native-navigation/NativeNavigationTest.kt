@@ -239,6 +239,10 @@ class NativeNavigationTest {
             val name = awaitView(activity, "name-input")
             val root = awaitView(activity, "root")
             assertTrue("View did not render as LinearLayout", root is LinearLayout)
+            val bubble = awaitView(activity, "max-content-bubble") as ViewGroup
+            val bubbleText = awaitView(activity, "max-content-bubble-text") as TextView
+            assertEquals(1, bubbleText.lineCount, "text took min-content width and wrapped unexpectedly")
+            assertTrue("bubble did not retain its authored horizontal padding", bubble.width > bubbleText.width)
             assertTrue(name is EditText)
             val nameInput = name as EditText
             assertEquals(Color.rgb(0x94, 0xa3, 0xb8), nameInput.hintTextColors.defaultColor)

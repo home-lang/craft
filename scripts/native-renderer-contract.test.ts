@@ -343,6 +343,10 @@ describe('native renderer component contract', () => {
     expect(android).toContain('longest-word (min-content) width')
     expect(ios).toContain('let maxContent = label.sizeThatFits(CGSize(width: unbounded, height: unbounded))')
     expect(ios).toContain('collapses shrink-to-fit bubbles and pills')
+    expect(navigationHome).toContain('testID="max-content-bubble"')
+    expect(navigationHome).toContain('testID="max-content-bubble-text"')
+    expect(iosNavigationTest).toContain('text took min-content width and wrapped unexpectedly')
+    expect(androidNavigationTest).toContain('text took min-content width and wrapped unexpectedly')
   })
 
   it('keeps justified text alignment active across hosts', () => {

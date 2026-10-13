@@ -347,6 +347,9 @@ function openCapabilities() {
   <SafeAreaView testID="root" class="p-4">
     <ScrollView testID="native-root-scroll" style={{"flex":1}}>
     <Text testID="home-title">Home</Text>
+    <View testID="max-content-bubble" style={{"alignSelf":"flex-start","maxWidth":220,"paddingHorizontal":12,"paddingVertical":8,"backgroundColor":"#334155"}}>
+      <Text testID="max-content-bubble-text" style={{"color":"#ffffff"}}>Went 4.3 miles</Text>
+    </View>
     <Text testID="keyed-list-status" :text="'Selected: ' + navigationRowSelection" />
     <View :for="row in navigationRows" :key="row.id" style={{"height":52,"flexDirection":"row","gap":4}}>
       <Text :text="row.label" style={{"width":100}} />
