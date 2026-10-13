@@ -61,6 +61,11 @@ pub const Style = struct {
     direction: Axis = .row,
     width: ?f32 = null,
     height: ?f32 = null,
+    /// Host-measured natural dimensions. These are deliberately plain numbers
+    /// so UIKit and Android can provide font/image metrics without leaking
+    /// platform types into the shared layout core.
+    intrinsic_width: ?f32 = null,
+    intrinsic_height: ?f32 = null,
     aspect_ratio: ?f32 = null,
     flex_basis: ?f32 = null,
     flex_grow: f32 = 0,
@@ -742,7 +747,10 @@ fn wrappedLineEnd(children: []const Node, start: usize, direction: Axis, availab
 fn wrappedLineCross(children: []const Node, direction: Axis) f32 {
     var cross: f32 = 0;
     for (children) |child| {
-        const size = if (direction == .row) child.style.height else child.style.width;
+        const size = if (direction == .row)
+            child.style.height orelse child.style.intrinsic_height
+        else
+            child.style.width orelse child.style.intrinsic_width;
         const margins = if (direction == .row) verticalMargins(child) else horizontalMargins(child);
         cross = @max(cross, (size orelse 0) + margins);
     }
@@ -863,14 +871,14 @@ fn layoutGrid(
             if (child.style.width == null and child.style.height != null) child.style.height.? * ratio else null
         else
             null;
-        const child_width = clampMain(child, .row, @min(child_available_width, child.style.width orelse ratio_width orelse child_available_width));
+        const child_width = clampMain(child, .row, @min(child_available_width, child.style.width orelse ratio_width orelse child.style.intrinsic_width orelse child_available_width));
         const available_height = @max(0, row_height - verticalMargins(child));
         const alignment = effectiveAlignment(child, node.style.align_items);
         const ratio_height = if (validAspectRatio(child.style.aspect_ratio)) |ratio|
             if (child.style.height == null and child.style.width != null) child.style.width.? / ratio else null
         else
             null;
-        const requested_height = child.style.height orelse ratio_height orelse child.style.flex_basis;
+        const requested_height = child.style.height orelse ratio_height orelse child.style.intrinsic_height orelse child.style.flex_basis;
         const child_height = if (requested_height == null and alignment == .stretch)
             available_height
         else
@@ -901,7 +909,7 @@ fn gridRowHeight(node: Node, row: usize, column_count: usize) f32 {
             if (child.style.height == null and child.style.width != null) child.style.width.? / ratio else null
         else
             null;
-        const child_height = child.style.height orelse ratio_height orelse child.style.flex_basis orelse 0;
+        const child_height = child.style.height orelse ratio_height orelse child.style.intrinsic_height orelse child.style.flex_basis orelse 0;
         height = @max(height, clamp(child_height, child.style.min_height, child.style.max_height) + verticalMargins(child));
     }
     return height;
@@ -918,7 +926,8 @@ fn childMainBasis(node: Node, parent_direction: Axis) f32 {
             null
     else
         null;
-    return clampMain(node, parent_direction, node.style.flex_basis orelse explicit orelse ratio_size orelse 0);
+    const intrinsic = if (parent_direction == .row) node.style.intrinsic_width else node.style.intrinsic_height;
+    return clampMain(node, parent_direction, node.style.flex_basis orelse explicit orelse ratio_size orelse intrinsic orelse 0);
 }
 
 fn childCrossSize(node: Node, parent_direction: Axis, parent_width: f32, parent_height: f32, parent_alignment: AlignItems) f32 {
@@ -928,14 +937,14 @@ fn childCrossSize(node: Node, parent_direction: Axis, parent_width: f32, parent_
             if (node.style.height == null and node.style.width != null) node.style.width.? / ratio else null
         else
             null;
-        return clampCross(node, parent_direction, node.style.height orelse ratio_size orelse if (effectiveAlignment(node, parent_alignment) == .stretch) available else 0);
+        return clampCross(node, parent_direction, node.style.height orelse ratio_size orelse node.style.intrinsic_height orelse if (effectiveAlignment(node, parent_alignment) == .stretch) available else 0);
     }
     const available = @max(0, parent_width - horizontalMargins(node));
     const ratio_size = if (validAspectRatio(node.style.aspect_ratio)) |ratio|
         if (node.style.width == null and node.style.height != null) node.style.height.? * ratio else null
     else
         null;
-    return clampCross(node, parent_direction, node.style.width orelse ratio_size orelse if (effectiveAlignment(node, parent_alignment) == .stretch) available else 0);
+    return clampCross(node, parent_direction, node.style.width orelse ratio_size orelse node.style.intrinsic_width orelse if (effectiveAlignment(node, parent_alignment) == .stretch) available else 0);
 }
 
 fn validAspectRatio(ratio: ?f32) ?f32 {
@@ -1180,6 +1189,51 @@ test "uses viewport size when the root is intrinsic" {
     try std.testing.expectEqual(@as(usize, 1), count);
     try std.testing.expectEqual(@as(f32, 320), frames[0].width);
     try std.testing.expectEqual(@as(f32, 640), frames[0].height);
+}
+
+test "uses host-measured intrinsic dimensions in flex, wrap, and grid trees" {
+    const flex_children = [_]Node{
+        .{ .style = .{ .intrinsic_width = 42, .intrinsic_height = 12 } },
+        .{ .style = .{ .intrinsic_width = 18, .intrinsic_height = 8 } },
+    };
+    const flex_root = Node{
+        .style = .{ .direction = .row, .width = 100, .height = 40, .gap = 4, .align_items = .flex_start },
+        .children = &flex_children,
+    };
+    var flex_frames: [3]Frame = undefined;
+    _ = try layout(flex_root, .{ .width = 100, .height = 40 }, &flex_frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 42), flex_frames[1].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 12), flex_frames[1].height, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 46), flex_frames[2].x, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 18), flex_frames[2].width, 0.001);
+
+    const wrapped_children = [_]Node{
+        .{ .style = .{ .intrinsic_width = 40, .intrinsic_height = 10 } },
+        .{ .style = .{ .intrinsic_width = 30, .intrinsic_height = 12 } },
+    };
+    const wrapped_root = Node{
+        .style = .{ .direction = .row, .width = 60, .height = 40, .gap = 4, .flex_wrap = true, .align_items = .flex_start },
+        .children = &wrapped_children,
+    };
+    var wrapped_frames: [3]Frame = undefined;
+    _ = try layout(wrapped_root, .{ .width = 60, .height = 40 }, &wrapped_frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), wrapped_frames[1].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 14), wrapped_frames[2].y, 0.001);
+
+    const grid_children = [_]Node{
+        .{ .style = .{ .intrinsic_width = 20, .intrinsic_height = 11 } },
+        .{ .style = .{ .intrinsic_width = 30, .intrinsic_height = 15 } },
+    };
+    const grid_root = Node{
+        .style = .{ .grid = true, .grid_columns = 2, .width = 100, .height = 60, .align_items = .flex_start },
+        .children = &grid_children,
+    };
+    var grid_frames: [3]Frame = undefined;
+    _ = try layout(grid_root, .{ .width = 100, .height = 60 }, &grid_frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 20), grid_frames[1].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 11), grid_frames[1].height, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 30), grid_frames[2].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 15), grid_frames[2].height, 0.001);
 }
 
 test "sanitizes non-finite tree dimensions" {

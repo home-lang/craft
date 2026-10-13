@@ -137,14 +137,17 @@ describe('native renderer component contract', () => {
   it('keeps the host-neutral tree layout spike public and platform-free', () => {
     expect(zigMain).toContain('pub const native_layout = @import("native_layout.zig")')
     expect(nativeLayout).toContain('pub const Style = struct')
+    expect(nativeLayout).toContain('intrinsic_width: ?f32 = null')
+    expect(nativeLayout).toContain('intrinsic_height: ?f32 = null')
     expect(nativeLayout).toContain('pub const Node = struct')
     expect(nativeLayout).toContain('pub fn layout(root: Node, viewport: Size, frames: []Frame)')
     expect(nativeLayout).toContain('test "recurses across row and column axes without host concepts"')
+    expect(nativeLayout).toContain('test "uses host-measured intrinsic dimensions in flex, wrap, and grid trees"')
     expect(nativeLayout).toContain('Text and other intrinsic measurements are intentionally absent')
     expect(nativeLayout).not.toContain('@import("UIKit")')
     expect(nativeLayout).not.toContain('@import("Android")')
     expect(guide).toContain('The same module contains the #334 tree-layout spike')
-    expect(guide).toContain('remain a host callback instead of being smuggled into Zig')
+    expect(guide).toContain('measurement remain callbacks at the boundary')
   })
 
   it('keeps device navigation tests independent of global field order and viewport position', () => {

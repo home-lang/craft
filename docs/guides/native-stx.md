@@ -58,12 +58,13 @@ the shared core so leftover space between rows cannot drift between UIKit and
 Android; platform-specific measurement must not fork the distribution rules.
 
 The same module contains the #334 tree-layout spike: `Node`, `Style`, and
-`layout` compute a host-free flat frame list for a complete tree. The maintained
-mobile hosts currently consume the smaller flat C/JNI exports while that tree
-boundary is evaluated; this is deliberate, so intrinsic text measurement can
-remain a host callback instead of being smuggled into Zig. The next step for
-the spike is to carry measured bases into that tree API and mount its frames in
-both hosts, not to create a second platform-specific layout implementation.
+`layout` compute a host-free flat frame list for a complete tree. `Style` accepts
+host-measured intrinsic width and height as plain numbers, so font and image
+measurement remain callbacks at the boundary rather than becoming UIKit or
+Android dependencies in Zig. The maintained mobile hosts currently consume the
+smaller flat C/JNI exports while that tree boundary is evaluated; the next step
+is wiring those measured bases and frames into both hosts, not creating a second
+platform-specific layout implementation.
 
 Use `onMount` and `onDestroy` for route-scoped lifecycle work. Craft disposes
 the screen runtime before a native screen is removed or replaced, so effects,
