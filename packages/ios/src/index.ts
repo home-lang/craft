@@ -1261,7 +1261,7 @@ export function restoreShell(output: string): void {
   writeShell(output, config)
 }
 
-export { assertNoApplicationSwiftSources, findApplicationSwiftSources } from './source-audit'
+export { assertNoApplicationSwiftSources, findApplicationSwiftSources } from './source-audit.js'
 
 function writeShell(output: string, config: CraftConfig): void {
   if (!config.appName || !/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(config.bundleId))
