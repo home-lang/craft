@@ -1457,6 +1457,19 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         return popRecognizers(of: nav).contains { $0 === recognizer }
     }
 
+    private func nativeScreenContainsHorizontalScroll(_ screen: CraftNativeScreenController) -> Bool {
+        guard let root = screen.viewIfLoaded else { return false }
+        func visit(_ view: UIView) -> Bool {
+            if let scroll = view as? UIScrollView,
+               scroll.isScrollEnabled,
+               scroll.alwaysBounceHorizontal || scroll.contentSize.width > scroll.bounds.width + 1 {
+                return true
+            }
+            return view.subviews.contains(where: visit)
+        }
+        return visit(root)
+    }
+
     /// The edge swipe goes ahead of the web view's own gestures, which
     /// otherwise hold every touch over the page until the page has answered it.
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
@@ -1470,6 +1483,12 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard let nav = visibleStack, isPopRecognizer(gestureRecognizer),
               nav.viewControllers.count > 1, nav.transitionCoordinator == nil else { return false }
+        if let native = nav.topViewController as? CraftNativeScreenController,
+           gestureRecognizer !== nav.interactivePopGestureRecognizer,
+           nativeScreenContainsHorizontalScroll(native) {
+            let moved = (gestureRecognizer as? UIPanGestureRecognizer)?.translation(in: nav.view).x ?? 0
+            if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }
+        }
         guard let slot = nav.topViewController as? CraftHybridWebSlot else { return true }
         // Over the page, only from its left edge: a swipe across the page is
         // the page's (a carousel, a slider).

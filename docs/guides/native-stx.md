@@ -511,7 +511,10 @@ it is compiled for either native host.
 stack. A pushed route receives `craft.route.params`; returning to an earlier
 route reveals its existing native tree and JavaScript state. Native events are
 delivered only to the top route, and route teardown removes its subscriptions
-and cancels its in-flight requests.
+and cancels its in-flight requests. On iOS, a native screen that contains a
+horizontal `ScrollView` keeps the navigation back-swipe at the 32-point edge;
+swipes across the pager, carousel, or chart remain available to that scroll
+view.
 
 ## An all-native iOS app: paths, tabs and an app script
 

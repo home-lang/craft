@@ -1299,4 +1299,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('alwaysBounceHorizontal')
     expect(android).toContain('setAlwaysBounce(')
   })
+
+  it('keeps native horizontal scroll gestures ahead of iOS content back-swipe', () => {
+    const hybrid = readFileSync(join(root, 'packages/ios/templates/CraftHybrid.swift'), 'utf8')
+    expect(hybrid).toContain('nativeScreenContainsHorizontalScroll')
+    expect(hybrid).toContain('scroll.alwaysBounceHorizontal || scroll.contentSize.width > scroll.bounds.width + 1')
+    expect(hybrid).toContain('gestureRecognizer !== nav.interactivePopGestureRecognizer')
+    expect(hybrid).toContain('if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }')
+  })
 })
