@@ -60,6 +60,7 @@ pub const Style = struct {
     direction: Axis = .row,
     width: ?f32 = null,
     height: ?f32 = null,
+    aspect_ratio: ?f32 = null,
     flex_basis: ?f32 = null,
     flex_grow: f32 = 0,
     flex_shrink: f32 = 0,
@@ -844,10 +845,18 @@ fn layoutGrid(
         const column = index % column_count;
         const row_height = gridRowHeight(node, row, column_count);
         const child_available_width = @max(0, cell_width - horizontalMargins(child));
-        const child_width = clampMain(child, .row, @min(child_available_width, child.style.width orelse child_available_width));
+        const ratio_width = if (validAspectRatio(child.style.aspect_ratio)) |ratio|
+            if (child.style.width == null and child.style.height != null) child.style.height.? * ratio else null
+        else
+            null;
+        const child_width = clampMain(child, .row, @min(child_available_width, child.style.width orelse ratio_width orelse child_available_width));
         const available_height = @max(0, row_height - verticalMargins(child));
         const alignment = effectiveAlignment(child, node.style.align_items);
-        const requested_height = child.style.height orelse child.style.flex_basis;
+        const ratio_height = if (validAspectRatio(child.style.aspect_ratio)) |ratio|
+            if (child.style.height == null and child.style.width != null) child.style.width.? / ratio else null
+        else
+            null;
+        const requested_height = child.style.height orelse ratio_height orelse child.style.flex_basis;
         const child_height = if (requested_height == null and alignment == .stretch)
             available_height
         else
@@ -874,7 +883,11 @@ fn gridRowHeight(node: Node, row: usize, column_count: usize) f32 {
     const end = @min(node.children.len, start + column_count);
     var height: f32 = 0;
     for (node.children[start..end]) |child| {
-        const child_height = child.style.height orelse child.style.flex_basis orelse 0;
+        const ratio_height = if (validAspectRatio(child.style.aspect_ratio)) |ratio|
+            if (child.style.height == null and child.style.width != null) child.style.width.? / ratio else null
+        else
+            null;
+        const child_height = child.style.height orelse ratio_height orelse child.style.flex_basis orelse 0;
         height = @max(height, clamp(child_height, child.style.min_height, child.style.max_height) + verticalMargins(child));
     }
     return height;
@@ -882,16 +895,40 @@ fn gridRowHeight(node: Node, row: usize, column_count: usize) f32 {
 
 fn childMainBasis(node: Node, parent_direction: Axis) f32 {
     const explicit = if (parent_direction == .row) node.style.width else node.style.height;
-    return clampMain(node, parent_direction, node.style.flex_basis orelse explicit orelse 0);
+    const ratio_size = if (validAspectRatio(node.style.aspect_ratio)) |ratio|
+        if (parent_direction == .row and explicit == null and node.style.height != null)
+            node.style.height.? * ratio
+        else if (parent_direction == .column and explicit == null and node.style.width != null)
+            node.style.width.? / ratio
+        else
+            null
+    else
+        null;
+    return clampMain(node, parent_direction, node.style.flex_basis orelse explicit orelse ratio_size orelse 0);
 }
 
 fn childCrossSize(node: Node, parent_direction: Axis, parent_width: f32, parent_height: f32, parent_alignment: AlignItems) f32 {
     if (parent_direction == .row) {
         const available = @max(0, parent_height - verticalMargins(node));
-        return clampCross(node, parent_direction, node.style.height orelse if (effectiveAlignment(node, parent_alignment) == .stretch) available else 0);
+        const ratio_size = if (validAspectRatio(node.style.aspect_ratio)) |ratio|
+            if (node.style.height == null and node.style.width != null) node.style.width.? / ratio else null
+        else
+            null;
+        return clampCross(node, parent_direction, node.style.height orelse ratio_size orelse if (effectiveAlignment(node, parent_alignment) == .stretch) available else 0);
     }
     const available = @max(0, parent_width - horizontalMargins(node));
-    return clampCross(node, parent_direction, node.style.width orelse if (effectiveAlignment(node, parent_alignment) == .stretch) available else 0);
+    const ratio_size = if (validAspectRatio(node.style.aspect_ratio)) |ratio|
+        if (node.style.width == null and node.style.height != null) node.style.height.? * ratio else null
+    else
+        null;
+    return clampCross(node, parent_direction, node.style.width orelse ratio_size orelse if (effectiveAlignment(node, parent_alignment) == .stretch) available else 0);
+}
+
+fn validAspectRatio(ratio: ?f32) ?f32 {
+    if (ratio) |value| {
+        if (std.math.isFinite(value) and value > 0) return value;
+    }
+    return null;
 }
 
 fn effectiveAlignment(node: Node, parent_alignment: AlignItems) AlignItems {
@@ -1010,6 +1047,32 @@ test "distributes positive flex grow from a shared basis" {
     try std.testing.expectApproxEqAbs(@as(f32, 80), frames[2].x, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 100), frames[2].width, 0.001);
     try std.testing.expectEqual(@as(f32, 48), frames[1].height);
+}
+
+test "derives aspect ratio dimensions in flex and grid trees" {
+    const flex_children = [_]Node{
+        .{ .style = .{ .width = 40, .aspect_ratio = 2 } },
+    };
+    const flex_root = Node{
+        .style = .{ .direction = .row, .width = 100, .height = 40, .align_items = .flex_start },
+        .children = &flex_children,
+    };
+    var flex_frames: [2]Frame = undefined;
+    _ = try layout(flex_root, .{ .width = 100, .height = 40 }, &flex_frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), flex_frames[1].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 20), flex_frames[1].height, 0.001);
+
+    const grid_children = [_]Node{
+        .{ .style = .{ .width = 40, .aspect_ratio = 2 } },
+    };
+    const grid_root = Node{
+        .style = .{ .grid = true, .grid_columns = 1, .width = 100, .height = 60 },
+        .children = &grid_children,
+    };
+    var grid_frames: [2]Frame = undefined;
+    _ = try layout(grid_root, .{ .width = 100, .height = 60 }, &grid_frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), grid_frames[1].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 20), grid_frames[1].height, 0.001);
 }
 
 test "positions tree children with justify content" {

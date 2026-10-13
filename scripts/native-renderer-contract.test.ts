@@ -777,6 +777,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val aspectRatio: Double? = null')
     expect(android).toContain('style.aspectRatio?.let { ratio -> style.width?.resolve(base)?.div(ratio)')
     expect(android).toContain('style.aspectRatio?.let { ratio -> style.height?.resolve(base)?.times(ratio)')
+    expect(nativeLayout).toContain('aspect_ratio: ?f32 = null')
+    expect(nativeLayout).toContain('test "derives aspect ratio dimensions in flex and grid trees"')
+    expect(guide).toContain('`aspectRatio` derives a missing width or height')
   })
 
   it('keeps grid alignContent in the shared layout core', () => {
