@@ -982,6 +982,15 @@ describe('native renderer component contract', () => {
     expect(android).toContain('style.optString("textShadowColor")')
   })
 
+  it('maps text decoration style and color on both native hosts', () => {
+    expect(ios).toContain('addTextDecorationAttributes(style, to: &attributes)')
+    expect(ios).toContain('attributes[.underlineColor] = decorationColor')
+    expect(ios).toContain('case "dotted": return [.single, .patternDot]')
+    expect(android).toContain('CraftTextDecorationSpan(')
+    expect(android).toContain('style.optString("textDecorationStyle").ifBlank { "solid" }')
+    expect(android).toContain('style.optString("textDecorationColor")')
+  })
+
   it('keeps horizontal list rows intrinsically sized across hosts', () => {
     expect(iosFlatList).toContain('flowLayout.scrollDirection = horizontal ? .horizontal : .vertical')
     expect(iosFlatList).toContain('maxWidth: CraftNativeFlexLayout.unbounded,')

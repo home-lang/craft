@@ -4754,14 +4754,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         label.textAlignment = textAlignment(style["textAlign"])
         var attributes: [NSAttributedString.Key: Any] = [:]
         if let spacing = number(style["letterSpacing"]) { attributes[.kern] = spacing }
-        switch style["textDecorationLine"] as? String {
-        case "underline": attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-        case "line-through": attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
-        case "underline line-through":
-            attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-            attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
-        default: break
-        }
+        addTextDecorationAttributes(style, to: &attributes)
         if let shadow = textShadow(style) { attributes[.shadow] = shadow }
         if let lineHeight = number(style["lineHeight"]) {
             let paragraph = NSMutableParagraphStyle()
@@ -4807,14 +4800,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             paragraph.maximumLineHeight = lineHeight
             attributes[.paragraphStyle] = paragraph
         }
-        switch style["textDecorationLine"] as? String {
-        case "underline": attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-        case "line-through": attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
-        case "underline line-through":
-            attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-            attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
-        default: break
-        }
+        addTextDecorationAttributes(style, to: &attributes)
         if let shadow = textShadow(style) { attributes[.shadow] = shadow }
         if forceUnderline { attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue }
         return attributes
@@ -4837,14 +4823,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             paragraph.alignment = alignment
             attributes[.paragraphStyle] = paragraph
         }
-        switch style["textDecorationLine"] as? String {
-        case "underline": attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-        case "line-through": attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
-        case "underline line-through":
-            attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-            attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
-        default: break
-        }
+        addTextDecorationAttributes(style, to: &attributes)
         if let shadow = textShadow(style) { attributes[.shadow] = shadow }
         return attributes
     }
@@ -4860,6 +4839,28 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         )
         shadow.shadowBlurRadius = max(0, number(style["textShadowRadius"]) ?? 0)
         return shadow
+    }
+
+    private func addTextDecorationAttributes(_ style: [String: Any], to attributes: inout [NSAttributedString.Key: Any]) {
+        let line = style["textDecorationLine"] as? String
+        let decorationStyle: NSUnderlineStyle = {
+            switch style["textDecorationStyle"] as? String {
+            case "double": return .double
+            case "dotted": return [.single, .patternDot]
+            case "dashed": return [.single, .patternDash]
+            default: return .single
+            }
+        }()
+        let rawStyle = decorationStyle.rawValue
+        let decorationColor = color(style["textDecorationColor"])
+        if line == "underline" || line == "underline line-through" {
+            attributes[.underlineStyle] = rawStyle
+            if let decorationColor { attributes[.underlineColor] = decorationColor }
+        }
+        if line == "line-through" || line == "underline line-through" {
+            attributes[.strikethroughStyle] = rawStyle
+            if let decorationColor { attributes[.strikethroughColor] = decorationColor }
+        }
     }
 
     private func transformedText(_ text: String, style: [String: Any]) -> String {
