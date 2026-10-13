@@ -198,6 +198,7 @@ pub extern "kernel32" fn GetModuleHandleW(lpModuleName: ?LPCWSTR) callconv(.c) ?
 pub extern "kernel32" fn Sleep(dwMilliseconds: DWORD) callconv(.c) void;
 pub extern "ole32" fn CoTaskMemFree(pv: ?*anyopaque) callconv(.c) void;
 pub extern "ole32" fn CoInitializeEx(pvReserved: ?*anyopaque, dwCoInit: DWORD) callconv(.c) HRESULT;
+pub extern "ole32" fn CoUninitialize() callconv(.c) void;
 
 // ============================================================================
 // WebView2 COM vtable interfaces
@@ -1076,34 +1077,67 @@ const CreateCoreWebView2EnvironmentWithOptionsFn = *const fn (
 
 var webview2_create_fn: ?CreateCoreWebView2EnvironmentWithOptionsFn = null;
 
-/// Whether the call below has already put this thread in an apartment.
-threadlocal var com_initialized = false;
+/// Whether an apartment is known to exist on this thread, however it got there.
+threadlocal var com_apartment_present = false;
+
+/// Whether *this* code created it, which is the only case it may undo.
+///
+/// Separate from the flag above because the two differ in exactly the case
+/// that matters: `RPC_E_CHANGED_MODE` says an apartment exists and that this
+/// call did not create it, so treating the two as one would eventually balance
+/// a `CoUninitialize` against a `CoInitializeEx` that never took a reference.
+threadlocal var com_initialized_here = false;
 
 /// Put the calling thread in a COM apartment, which WebView2 requires.
 ///
 /// `CreateCoreWebView2EnvironmentWithOptions` fails with `CO_E_NOTINITIALIZED`
-/// (0x800401f0) when the calling thread has no apartment, and nothing in craft
-/// used to create one: `ole32` was linked for `CoTaskMemFree` alone. So on
-/// Windows the environment never came up, and the process exited before a
-/// window existed.
+/// (0x800401f0) when the calling thread has no apartment, and craft used to
+/// create none: `ole32` was linked for `CoTaskMemFree` alone. An embedder that
+/// spawns craft with `CREATE_NO_WINDOW` gets no console, nothing else
+/// initialises COM on its behalf, and no window is ever created.
 ///
-/// An STA, because WebView2 hosts UI on the thread that pumps messages and
-/// that is the apartment Edge expects. Two non-`S_OK` results are still fine:
-/// `S_FALSE` means the thread already had an apartment, and
-/// `RPC_E_CHANGED_MODE` means an embedder got here first and chose an MTA,
-/// which is theirs to choose and which WebView2 can still work in.
+/// An STA, because WebView2 hosts UI on the thread that pumps messages. The
+/// three outcomes are not the same thing and are not treated as such:
 ///
-/// There is deliberately no matching `CoUninitialize`. The apartment has to
-/// outlive every webview created on the thread, and the only point at which
-/// that is true is process exit, which tears it down regardless.
+///   - `S_OK` — this call created the apartment.
+///   - `S_FALSE` — the thread already had one in the same mode and this call
+///     took a reference on it. Ours to release, like `S_OK`.
+///   - `RPC_E_CHANGED_MODE` — the thread is already in an apartment with a
+///     different concurrency model, so an embedder chose an MTA before craft
+///     got here. Nothing was initialised and nothing may be released, but COM
+///     is usable and the error above cannot occur, so this is not a failure
+///     and craft does not override a choice that is the embedder's to make.
+///     It is reported, because WebView2 expects an STA and that is where to
+///     start looking if it misbehaves.
 fn ensureComInitialized() void {
-    if (com_initialized) return;
+    if (com_apartment_present) return;
+
     const hr = CoInitializeEx(null, COINIT_APARTMENTTHREADED);
-    if (!succeeded(hr) and hr != RPC_E_CHANGED_MODE) {
+    if (hr == RPC_E_CHANGED_MODE) {
+        std.debug.print("[WebView2] COM is already initialised on this thread as an MTA; WebView2 expects an STA\n", .{});
+        com_apartment_present = true;
+        return;
+    }
+    if (!succeeded(hr)) {
         std.debug.print("[WebView2] CoInitializeEx failed: 0x{x}\n", .{@as(u32, @bitCast(hr))});
         return;
     }
-    com_initialized = true;
+
+    com_apartment_present = true;
+    com_initialized_here = true;
+}
+
+/// Release the apartment this thread took, if it took one.
+///
+/// Paired with the call above and run when the message loop ends, which is the
+/// last moment the thread does anything with COM. Guarded by the thread-local,
+/// so a thread that only inherited someone else's apartment — or that never
+/// created a window — releases nothing.
+fn releaseComIfOurs() void {
+    if (!com_initialized_here) return;
+    CoUninitialize();
+    com_initialized_here = false;
+    com_apartment_present = false;
 }
 
 /// Dynamically load WebView2Loader.dll and resolve CreateCoreWebView2EnvironmentWithOptions.
@@ -2248,6 +2282,10 @@ pub const App = struct {
     pub fn run() !void {
         app_running = true;
         defer app_running = false;
+        // Balances the CoInitializeEx that window creation performs on this
+        // thread. After the loop returns the thread pumps nothing further, so
+        // this is the last point at which it is still the apartment's owner.
+        defer releaseComIfOurs();
         var msg: MSG = undefined;
 
         while (GetMessageW(&msg, null, 0, 0) != 0) {
