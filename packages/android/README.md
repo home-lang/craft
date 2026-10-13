@@ -159,6 +159,8 @@ builds its multipart body natively from text fields and those owned files, so
 image bytes do not cross the Android JavaScript bridge as base64. The browser
 renderer keeps using the ordinary web `File`/`FormData` implementations. Owned
 files survive Activity recreation and stale cache entries are swept after a day.
+`files.download` resolves a non-2xx response as `{ ok: false, status, body }`
+instead of turning the server's response into a transport error.
 
 `FlatList` item roots receive the same `onLayout` callback as ordinary native
 views when rows are materialized or recycled.

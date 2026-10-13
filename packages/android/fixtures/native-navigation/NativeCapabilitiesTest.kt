@@ -11,6 +11,7 @@ import kotlin.concurrent.thread
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -124,6 +125,7 @@ class NativeCapabilitiesTest {
     @Test
     fun nativeFilesStayOwnedAndUploadAsMultipart() {
         val server = ServerSocket(0)
+        val errorServer = ServerSocket(0)
         var received = ""
         val serving = thread(name = "native-upload-fixture") {
             server.accept().use { socket ->
@@ -146,6 +148,14 @@ class NativeCapabilitiesTest {
                 received = lines.joinToString("\n") + "\n\n" + String(body, 0, offset)
                 socket.getOutputStream().bufferedWriter().use { writer ->
                     writer.write("HTTP/1.1 201 Created\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                }
+            }
+        }
+        val errorServing = thread(name = "native-download-error-fixture") {
+            errorServer.accept().use { socket ->
+                socket.getInputStream().bufferedReader().readLine()
+                socket.getOutputStream().bufferedWriter().use { writer ->
+                    writer.write("HTTP/1.1 404 Not Found\r\nContent-Length: 7\r\nConnection: close\r\n\r\nmissing")
                 }
             }
         }
@@ -180,9 +190,17 @@ class NativeCapabilitiesTest {
             assertTrue(received.contains("name=\"caption\""))
             assertTrue(received.contains("name=\"photo\"; filename=\"photo.txt\""))
             assertTrue(received.contains("photo bytes"))
+            val refused = call(capabilities, "Files", "download", JSONArray()
+                .put("http://127.0.0.1:${errorServer.localPort}/missing"))
+            assertNull(refused.code)
+            assertFalse((refused.data as JSONObject).getBoolean("ok"))
+            assertEquals(404, (refused.data as JSONObject).getInt("status"))
+            assertEquals("missing", (refused.data as JSONObject).getString("body"))
+            errorServing.join(5_000)
         }
         finally {
             server.close()
+            errorServer.close()
             capabilities.close()
             instrumentation.runOnMainSync { activity.finishAndRemoveTask() }
             instrumentation.waitForIdleSync()

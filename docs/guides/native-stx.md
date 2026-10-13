@@ -720,7 +720,9 @@ implementation accepts text fields and those file descriptors;
 `Network.fetch` assembles the multipart body natively, so file bytes do not
 pass through JavaScriptCore as base64. Without that capability, native
 `FormData` is not installed and the text-only fetch contract below remains
-unchanged.
+unchanged. `craft.files.download` resolves a non-2xx response as
+`{ ok: false, status, body }`; transport failures still reject with the native
+network error codes.
 
 ### Network requests and timers
 
