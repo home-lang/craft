@@ -53,7 +53,7 @@ const COMPONENTS: Array<[string, string, string]> = [
   ['Image', 'case "Image":', '"Image" ->'],
   ['ImageBackground', 'case "ImageBackground":', '"ImageBackground" ->'],
   ['Video', 'case "Video":', '"Video" ->'],
-  ['ScrollView', 'case "ScrollView":', '"ScrollView" ->'],
+  ['ScrollView', 'case "ScrollView"', '"ScrollView"'],
   ['FlatList', 'case "FlatList":', '"FlatList" ->'],
 ]
 
@@ -1084,6 +1084,13 @@ describe('native renderer component contract', () => {
     expect(navigationDetails).toContain(':key="item.id"')
     expect(navigationDetails).toContain(':text="\'People: \' + people().length + \'; events: \' + listEvents"')
     expect(navigationDetails).toContain('testID="load-more-people"')
+  })
+
+  it('keeps SectionList on the maintained native scroll path', () => {
+    expect(navigationHome).toContain('<SectionList testID="native-section-list"')
+    expect(ios).toContain('case "ScrollView", "SectionList":')
+    expect(android).toContain('"ScrollView", "SectionList" ->')
+    expect(guide).toContain('`SectionList` currently follows the same native scroll host')
   })
 
   it('keeps picker initialization assertions aligned with the shared status baseline', () => {

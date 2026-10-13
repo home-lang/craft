@@ -3581,7 +3581,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         current.protocolId = node["id"] as? String
         current.style = style
         result.accessibilityIdentifier = accessibilityIdentifier(node, props: props) ?? path
-        if type != "View" && type != "SafeAreaView" && type != "KeyboardAvoidingView" && type != "ScrollView" && type != "FlatList" && type != "Modal" {
+        if type != "View" && type != "SafeAreaView" && type != "KeyboardAvoidingView" && type != "ScrollView" && type != "SectionList" && type != "FlatList" && type != "Modal" {
             result.setContentHuggingPriority(.required, for: .vertical)
         }
         applyViewStyle(style, to: result, node: current)
@@ -3893,7 +3893,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 controls: (props["controls"] as? Bool) == true,
                 resizeMode: style["resizeMode"] as? String ?? props["resizeMode"] as? String
             )
-        case "ScrollView":
+        case "ScrollView", "SectionList":
             let scroll = result as! CraftNativeScrollView
             let flexDirection = style["flexDirection"] as? String
             let direction = (props["horizontal"] as? Bool) == true
@@ -4020,7 +4020,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let icon = CraftNativeIconView()
             icon.contentMode = .scaleAspectFit
             return icon
-        case "ScrollView":
+        case "ScrollView", "SectionList":
             return CraftNativeScrollView()
         case "FlatList":
             return CraftNativeFlatList()
@@ -4055,6 +4055,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "video": return "Video"
         case "icon": return "Icon"
         case "scrollview": return "ScrollView"
+        case "sectionlist": return "SectionList"
         case "flatlist": return "FlatList"
         case "svg": return "Svg"
         case "touchableopacity": return "TouchableOpacity"

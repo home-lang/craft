@@ -2803,7 +2803,7 @@ class MainActivity : AppCompatActivity() {
             "Svg" -> (previous as? CraftNativeSvgView ?: CraftNativeSvgView(this)).apply {
                 drawing = node
             }
-            "ScrollView" -> (previous as? CraftNativeScrollView ?: CraftNativeScrollView(this)).apply {
+            "ScrollView", "SectionList" -> (previous as? CraftNativeScrollView ?: CraftNativeScrollView(this)).apply {
                 val horizontal = props.optBoolean("horizontal", false) || style.optString("flexDirection") in setOf("row", "row-reverse")
                 setHorizontal(horizontal)
                 setNativeNestedScrollingEnabled(true)
@@ -3064,6 +3064,7 @@ class MainActivity : AppCompatActivity() {
         "video" -> "Video"
         "icon" -> "Icon"
         "scrollview" -> "ScrollView"
+        "sectionlist" -> "SectionList"
         "flatlist" -> "FlatList"
         "svg" -> "Svg"
         "touchableopacity" -> "TouchableOpacity"

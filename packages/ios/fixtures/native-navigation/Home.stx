@@ -443,6 +443,10 @@ function openCapabilities() {
       <View style={{"height":120}} />
       <Text testID="scroll-end">End of native scroll content</Text>
     </ScrollView>
+    <SectionList testID="native-section-list" style={{"height":64,"width":220,"backgroundColor":"#2f4050"}}>
+      <Text testID="native-section-header" style={{"fontWeight":"700"}}>Section header</Text>
+      <Text testID="native-section-row">Section row</Text>
+    </SectionList>
     <View
       testID="styled-row"
       style={{"flexDirection":"row-reverse","alignItems":"center","justifyContent":"center","gap":6,"paddingHorizontal":10,"paddingVertical":5,"width":240,"height":64,"backgroundColor":"#123456","opacity":0.75,"borderWidth":2,"borderColor":"#abcdef","borderRadius":7,"overflow":"hidden"}}

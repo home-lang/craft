@@ -82,6 +82,7 @@ next route.
 | `Svg` | `CraftNativeSvgView` | `CraftNativeSvgView` |
 | `G`, `SvgText` | drawn inside `CraftNativeSvgView` | drawn inside `CraftNativeSvgView` |
 | `ScrollView` | `UIScrollView` | `ScrollView` or `HorizontalScrollView` |
+| `SectionList` | `UIScrollView` (slot fallback) | `ScrollView` or `HorizontalScrollView` (slot fallback) |
 | `FlatList` | `UICollectionView` | `RecyclerView` |
 
 On iOS, `CraftNativeFlowView` remains a `UIStackView` subclass for source and
@@ -242,7 +243,7 @@ Version 1 supports these operations:
 | `moveChild` | `parentId`, `childId`, `index` | Reorders a child within its current parent |
 | `removeNode` | `id` | Removes the node and its descendants |
 
-`View`, `SafeAreaView`, and `ScrollView` are the container node types. Node
+`View`, `SafeAreaView`, `ScrollView`, and `SectionList` are the container node types. Node
 children in `createNode` and `updateNode` may contain text only; node
 relationships use `insertChild`. Indexes are zero-based and may equal the
 current child count when inserting or moving to the end.
@@ -387,7 +388,9 @@ accepts `onRefresh` and controlled
 `refreshing`; pull-to-refresh is backed by UIKit's `UIRefreshControl` on iOS and
 AndroidX `SwipeRefreshLayout` on Android. Use
 `ScrollView` for bounded content and `FlatList` for data sets that need
-recycling.
+recycling. `SectionList` currently follows the same native scroll host as
+`ScrollView` for ordinary `.stx` slot children; grouped, virtualized section
+data should use `FlatList` until the section-data protocol is added.
 
 ## Recycling lists
 
