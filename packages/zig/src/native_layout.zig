@@ -1017,6 +1017,23 @@ test "distributes wrapped tree lines with align content" {
     try std.testing.expectApproxEqAbs(@as(f32, 42), frames[2].y, 0.001);
 }
 
+test "aligns wrapped children using align self" {
+    const children = [_]Node{
+        .{ .style = .{ .width = 60, .height = 10 } },
+        .{ .style = .{ .width = 60, .height = 20 } },
+        .{ .style = .{ .width = 20, .height = 10, .align_self = .flex_end } },
+    };
+    const root = Node{
+        .style = .{ .direction = .row, .width = 100, .height = 80, .gap = 4, .flex_wrap = true, .align_items = .flex_start, .align_content = .flex_start },
+        .children = &children,
+    };
+    var frames: [4]Frame = undefined;
+
+    _ = try layout(root, .{ .width = 100, .height = 80 }, &frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 14), frames[2].y, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 24), frames[3].y, 0.001);
+}
+
 test "uses viewport size when the root is intrinsic" {
     var frames: [1]Frame = undefined;
     const count = try layout(.{}, .{ .width = 320, .height = 640 }, &frames);
