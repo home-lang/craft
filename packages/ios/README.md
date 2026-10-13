@@ -399,6 +399,13 @@ const readings = await health.getHeartRateSamples({ startDate: Date.now() - 8640
 const nights = await health.getSleepIntervals({ startDate: Date.now() - 86400000 })
 // An app built before these reads existed has neither; check first.
 if (health.supports('getHeartRateSamples')) { /* ... */ }
+// Mindful minutes: ask for 'mindful' (with writing allowed), then save a
+// meditation or breathing session. The id is kept as the sample's external
+// UUID, so saving it again keeps the first sample ({ existing: true }).
+await health.requestAuthorization(['mindful'], { write: true })
+await health.saveMindfulSession({ id: 'session-42', startDate: started, endDate: Date.now() })
+// Every app's mindful sessions, oldest first; ownApp marks the ones this app wrote.
+const mindful = await health.getMindfulSessions({ startDate: Date.now() - 7 * 86400000 })
 
 // Screen Capture
 const screenshotBase64 = await window.craft.takeScreenshot();

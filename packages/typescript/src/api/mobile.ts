@@ -2649,9 +2649,11 @@ export type HealthDataType =
   | 'dietaryProtein'
   | 'dietaryCarbohydrates'
   | 'dietaryFat'
+  /** Mindful minutes (meditation, breathing): read with getMindfulSessions, written with saveMindfulSession. */
+  | 'mindful'
 
 /** The types with one value per day. `sleep` is hours asleep, counted on the day you woke. */
-export type HealthDailyType = Exclude<HealthDataType, 'workouts'>
+export type HealthDailyType = Exclude<HealthDataType, 'workouts' | 'mindful'>
 
 export interface HealthAuthorizationOptions {
   /** `false` asks to read only. Default: also allowed to save workouts. */
@@ -2779,8 +2781,53 @@ export interface HealthSleepInterval {
   deviceName?: string
 }
 
-/** The health reads a host may or may not have, depending on the app build it runs in. */
-export type HealthReadMethod = 'getWorkouts' | 'getDailyStatistics' | 'getHeartRateSamples' | 'getSleepIntervals'
+/** A meditation or breathing session to record as mindful minutes. */
+export interface HealthMindfulSession {
+  /**
+   * The app's own id for the session (up to 128 characters), kept as the
+   * sample's external UUID. Saving the same id again keeps the first sample.
+   */
+  id: string
+  /** Epoch milliseconds. */
+  startDate: number
+  /** Epoch milliseconds, after `startDate` and at most a day later. */
+  endDate: number
+}
+
+export interface HealthMindfulSessionResult {
+  /** HealthKit's UUID for the sample. */
+  id: string
+  /** The id it was saved with. */
+  externalId: string
+  /** True when this id was saved before and that sample was kept. */
+  existing: boolean
+}
+
+export interface HealthMindfulSessionQuery extends HealthSampleQuery {
+  /** At most this many, oldest first. Defaults to 1000, capped at 5000. Start defaults to 30 days ago. */
+  limit?: number
+}
+
+/** A mindful session in Apple Health, from any app that writes them. */
+export interface HealthMindfulSample {
+  /** HealthKit's UUID. */
+  id: string
+  /** Epoch milliseconds. */
+  startDate: number
+  /** Epoch milliseconds. */
+  endDate: number
+  durationSeconds: number
+  sourceName: string
+  sourceBundleId: string
+  /** True when this app wrote it. */
+  ownApp: boolean
+  /** The id the writing app saved it with, when it gave one. */
+  externalId?: string
+  deviceName?: string
+}
+
+/** The health reads and writes a host may or may not have, depending on the app build it runs in. */
+export type HealthReadMethod = 'getWorkouts' | 'getDailyStatistics' | 'getHeartRateSamples' | 'getSleepIntervals' | 'saveMindfulSession' | 'getMindfulSessions'
 
 export const health = {
   /**
@@ -2833,6 +2880,22 @@ export const health = {
     const craft = getCraftRoot()
     if (!craft?.health?.getSleepIntervals) throw new Error('Reading sleep intervals is unavailable')
     return craft.health.getSleepIntervals(options)
+  },
+  /**
+   * Record a meditation or breathing session as mindful minutes. Needs the
+   * `mindful` grant with writing allowed. Saving the same `id` again keeps
+   * the first sample. iOS only for now.
+   */
+  async saveMindfulSession(session: HealthMindfulSession): Promise<HealthMindfulSessionResult> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.saveMindfulSession) throw new Error('Saving mindful sessions is unavailable')
+    return craft.health.saveMindfulSession(session)
+  },
+  /** Mindful sessions between two instants, oldest first, each marked `ownApp` when this app wrote it. iOS only for now. */
+  async getMindfulSessions(options: HealthMindfulSessionQuery = {}): Promise<HealthMindfulSample[]> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.getMindfulSessions) throw new Error('Reading mindful sessions is unavailable')
+    return craft.health.getMindfulSessions(options)
   },
 }
 
@@ -3041,6 +3104,8 @@ interface CraftMobileBridge {
     getDailyStatistics?(type: HealthDailyType, options: HealthDataOptions): Promise<HealthDailyValue[]>
     getHeartRateSamples?(options: HealthHeartRateQuery): Promise<HealthHeartRateSample[]>
     getSleepIntervals?(options: HealthSampleQuery): Promise<HealthSleepInterval[]>
+    saveMindfulSession?(session: HealthMindfulSession): Promise<HealthMindfulSessionResult>
+    getMindfulSessions?(options: HealthMindfulSessionQuery): Promise<HealthMindfulSample[]>
   }
   liveActivity?: {
     start(options: LiveActivityOptions): Promise<{ id: string }>

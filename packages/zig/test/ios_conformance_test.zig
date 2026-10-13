@@ -162,7 +162,13 @@ const dispatch_end = "func webView(";
 /// central and push craftHeartRate; like the Music bridge they went into
 /// Swift first and fall through to the shim, which serves them. Not a
 /// regression: no action left Zig.
-const max_not_yet_migrated: usize = 41;
+/// 43 when the spec gained saveHealthMindfulSession and
+/// getHealthMindfulSessions: mindful minutes written to and read from Apple
+/// Health. Like the other health reads they are HKSampleQuery and
+/// HKHealthStore.save result handlers in CraftHealth.swift that went into
+/// Swift first; they fall through to the shim, which serves them. Not a
+/// regression: no action left Zig.
+const max_not_yet_migrated: usize = 43;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.

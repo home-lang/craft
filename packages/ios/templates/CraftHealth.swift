@@ -43,6 +43,10 @@ final class CraftHealth {
             getHeartRateSamples(startDate: options(0)["startDate"] as? Double, endDate: options(0)["endDate"] as? Double, limit: options(0)["limit"] as? Int, completion: completion)
         case "getSleepIntervals":
             getSleepIntervals(startDate: options(0)["startDate"] as? Double, endDate: options(0)["endDate"] as? Double, completion: completion)
+        case "saveMindfulSession":
+            saveMindfulSession(body: options(0), completion: completion)
+        case "getMindfulSessions":
+            getMindfulSessions(startDate: options(0)["startDate"] as? Double, endDate: options(0)["endDate"] as? Double, limit: options(0)["limit"] as? Int, completion: completion)
         default:
             completion(.failure(CraftHealthError(message: "Unsupported Health method", code: "UNKNOWN_ACTION")))
         }
@@ -105,6 +109,14 @@ final class CraftHealth {
             case "sleep":
                 if let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) {
                     readTypes.insert(sleepType)
+                }
+            case "mindful":
+                // Mindful minutes: a meditation or breathing session. Read
+                // to show them, and (unless read only) written by an app
+                // that times them.
+                if let mindfulType = HKObjectType.categoryType(forIdentifier: .mindfulSession) {
+                    readTypes.insert(mindfulType)
+                    shareTypes.insert(mindfulType)
                 }
             case "dietaryEnergy", "dietaryProtein", "dietaryCarbohydrates", "dietaryFat":
                 // What a food log (MyFitnessPal, Lose It!, Cronometer...)
@@ -551,6 +563,106 @@ final class CraftHealth {
                     "asleep": !notAsleep.contains(sample.value),
                     "sourceName": sample.sourceRevision.source.name,
                 ]
+                if let device = sample.device?.name { item["deviceName"] = device }
+                return item
+            }
+            completion(.success(rows))
+        }
+        healthStore.execute(query)
+    }
+
+    /// Saves a mindful session (Mindful Minutes in the Health app): a
+    /// meditation or breathing session that ran from `startDate` to
+    /// `endDate`, epoch milliseconds. `id` is the app's own id for it, kept
+    /// as the sample's external UUID, so saving the same session twice (a
+    /// retry, a second device) keeps the first sample instead of adding
+    /// another: the answer then says `existing: true`.
+    func saveMindfulSession(body: [String: Any], completion: @escaping Completion) {
+        guard let healthStore = healthStore else {
+            completion(.failure(CraftHealthError(message: "HealthKit not available")))
+            return
+        }
+        guard let mindfulType = HKObjectType.categoryType(forIdentifier: .mindfulSession) else {
+            completion(.failure(CraftHealthError(message: "Mindful sessions are unavailable")))
+            return
+        }
+        guard let id = body["id"] as? String, !id.isEmpty, id.count <= 128,
+              let startValue = body["startDate"] as? Double,
+              let endValue = body["endDate"] as? Double,
+              endValue > startValue,
+              endValue - startValue <= 24 * 3600 * 1000 else {
+            completion(.failure(CraftHealthError(message: "A valid id, startDate and endDate (at most a day apart) are required", code: "INVALID_ARGUMENT")))
+            return
+        }
+
+        let start = Date(timeIntervalSince1970: startValue / 1000)
+        let end = Date(timeIntervalSince1970: endValue / 1000)
+        // Only this app's own samples can be the same session.
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID, allowedValues: [id]),
+            HKQuery.predicateForObjects(from: HKSource.default()),
+        ])
+        let lookup = HKSampleQuery(sampleType: mindfulType, predicate: predicate, limit: 1, sortDescriptors: nil) { _, samples, _ in
+            if let kept = samples?.first {
+                completion(.success(["id": kept.uuid.uuidString, "externalId": id, "existing": true]))
+                return
+            }
+            let sample = HKCategorySample(
+                type: mindfulType,
+                value: HKCategoryValue.notApplicable.rawValue,
+                start: start,
+                end: end,
+                metadata: [HKMetadataKeyExternalUUID: id]
+            )
+            healthStore.save(sample) { success, error in
+                if success {
+                    completion(.success(["id": sample.uuid.uuidString, "externalId": id, "existing": false]))
+                } else {
+                    completion(.failure(CraftHealthError(message: error?.localizedDescription ?? "Mindful session could not be saved")))
+                }
+            }
+        }
+        healthStore.execute(lookup)
+    }
+
+    /// Mindful sessions between two instants, oldest first, from every app
+    /// that writes them (the Mindfulness app, Calm, this one). Each says
+    /// whether this app wrote it (`ownApp`) and carries the external id it
+    /// was saved with, so a page can tell its own sessions from the rest.
+    func getMindfulSessions(startDate: Double?, endDate: Double?, limit: Int?, completion: @escaping Completion) {
+        guard let healthStore = healthStore else {
+            completion(.failure(CraftHealthError(message: "HealthKit not available")))
+            return
+        }
+        guard let mindfulType = HKObjectType.categoryType(forIdentifier: .mindfulSession) else {
+            completion(.failure(CraftHealthError(message: "Mindful sessions are unavailable")))
+            return
+        }
+
+        let end = endDate.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
+        let start = startDate.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Calendar.current.date(byAdding: .day, value: -30, to: end)!
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+        let oldestFirst = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+        let cap = max(1, min(limit ?? 1000, 5000))
+        let ownBundle = Bundle.main.bundleIdentifier
+
+        let query = HKSampleQuery(sampleType: mindfulType, predicate: predicate, limit: cap, sortDescriptors: [oldestFirst]) { _, samples, error in
+            if let error = error, (error as? HKError)?.code != .errorNoData {
+                completion(.failure(CraftHealthError(message: error.localizedDescription)))
+                return
+            }
+            let rows: [[String: Any]] = (samples ?? []).map { sample in
+                let source = sample.sourceRevision.source
+                var item: [String: Any] = [
+                    "id": sample.uuid.uuidString,
+                    "startDate": sample.startDate.timeIntervalSince1970 * 1000,
+                    "endDate": sample.endDate.timeIntervalSince1970 * 1000,
+                    "durationSeconds": sample.endDate.timeIntervalSince(sample.startDate),
+                    "sourceName": source.name,
+                    "sourceBundleId": source.bundleIdentifier,
+                    "ownApp": ownBundle != nil && source.bundleIdentifier == ownBundle,
+                ]
+                if let external = sample.metadata?[HKMetadataKeyExternalUUID] as? String { item["externalId"] = external }
                 if let device = sample.device?.name { item["deviceName"] = device }
                 return item
             }

@@ -2548,6 +2548,22 @@ struct CraftWebView: UIViewRepresentable {
                 } else {
                     rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
                 }
+            case "saveHealthMindfulSession":
+                if config.enableHealthKit {
+                    CraftHealth.shared.saveMindfulSession(body: body) { [weak self] in self?.answer(callbackId, $0) }
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "getHealthMindfulSessions":
+                if config.enableHealthKit {
+                    CraftHealth.shared.getMindfulSessions(
+                        startDate: body["startDate"] as? Double,
+                        endDate: body["endDate"] as? Double,
+                        limit: body["limit"] as? Int
+                    ) { [weak self] in self?.answer(callbackId, $0) }
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
 
             // MARK: - Live Activities
             case "startLiveActivity":
@@ -5056,6 +5072,14 @@ struct CraftWebView: UIViewRepresentable {
                     getSleepIntervals: function(options) {
                         options = options || {};
                         return craft._invoke('getHealthSleepIntervals', {startDate: options.startDate, endDate: options.endDate});
+                    },
+                    saveMindfulSession: function(session) {
+                        session = session || {};
+                        return craft._invoke('saveHealthMindfulSession', {id: session.id, startDate: session.startDate, endDate: session.endDate});
+                    },
+                    getMindfulSessions: function(options) {
+                        options = options || {};
+                        return craft._invoke('getHealthMindfulSessions', {startDate: options.startDate, endDate: options.endDate, limit: options.limit});
                     }
                 };
                 // The Music app's song and transport. Nothing is read until

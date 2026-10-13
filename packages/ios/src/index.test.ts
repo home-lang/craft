@@ -717,6 +717,29 @@ describe('Craft iOS builder', () => {
     expect(swift).toMatch(/case "sleep":\n\s+if let sleepType = HKObjectType\.categoryType\(forIdentifier: \.sleepAnalysis\)/)
   })
 
+  it('writes and reads mindful sessions, keeping one sample per session', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-mindful-'))
+    await init({ runtimeDir: null, name: 'Calm', bundleId: 'com.example.calm', output, config: { enableHealthKit: true } })
+    const swift = readFileSync(join(output, 'Sources', 'CalmApp.swift'), 'utf8') + readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')
+
+    expect(swift).toContain("saveMindfulSession: function(session) {")
+    expect(swift).toContain("craft._invoke('saveHealthMindfulSession', {id: session.id, startDate: session.startDate, endDate: session.endDate})")
+    expect(swift).toContain("getMindfulSessions: function(options) {")
+    expect(swift).toContain("craft._invoke('getHealthMindfulSessions', {startDate: options.startDate, endDate: options.endDate, limit: options.limit})")
+    expect(swift).toContain('case "saveHealthMindfulSession":')
+    expect(swift).toContain('case "getHealthMindfulSessions":')
+    // Asked for as `mindful`, readable and (unless read only) writable.
+    expect(swift).toMatch(/case "mindful":\n(\s+\/\/.*\n)*\s+if let mindfulType = HKObjectType\.categoryType\(forIdentifier: \.mindfulSession\) \{\n\s+readTypes\.insert\(mindfulType\)\n\s+shareTypes\.insert\(mindfulType\)/)
+    // The app's id rides along as the external UUID, and a second save of it finds the first.
+    expect(swift).toContain('metadata: [HKMetadataKeyExternalUUID: id]')
+    expect(swift).toContain('HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID, allowedValues: [id])')
+    expect(swift).toContain('HKQuery.predicateForObjects(from: HKSource.default())')
+    expect(swift).toContain('"existing": true')
+    // A read says which samples this app wrote, so a page can skip its own.
+    expect(swift).toContain('"ownApp": ownBundle != nil && source.bundleIdentifier == ownBundle')
+    expect(swift).toContain('item["externalId"] = external')
+  })
+
   it('answers a native screen\'s Apple Health reads from the same service the page uses', async () => {
     const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-health-'))
     await init({ runtimeDir: null, name: 'Pulse', bundleId: 'com.example.pulse', output, config: { enableHealthKit: true } })
@@ -726,7 +749,7 @@ describe('Craft iOS builder', () => {
 
     // One HealthKit store and one implementation, shared by both callers.
     expect(health).toContain('static let shared = CraftHealth()')
-    for (const method of ['requestAuthorization', 'getData', 'saveWorkout', 'getWorkouts', 'getDailyStatistics', 'getHeartRateSamples', 'getSleepIntervals'])
+    for (const method of ['requestAuthorization', 'getData', 'saveWorkout', 'getWorkouts', 'getDailyStatistics', 'getHeartRateSamples', 'getSleepIntervals', 'saveMindfulSession', 'getMindfulSessions'])
       expect(health).toContain(`case "${method}":`)
     expect(app).toContain('CraftHealth.shared.getWorkouts(')
     expect(app).not.toContain('HKHealthStore()')

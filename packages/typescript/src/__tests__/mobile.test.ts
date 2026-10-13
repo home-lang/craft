@@ -381,6 +381,30 @@ describe('health reads', () => {
     })
   })
 
+  it('saves and reads mindful sessions through the bridge', async () => {
+    const calls: unknown[][] = []
+    const sample = { id: 'HK-1', startDate: 0, endDate: 300000, durationSeconds: 300, sourceName: 'HQ', sourceBundleId: 'training.hq.app', ownApp: true, externalId: 'hq-1' }
+    await withWindow({
+      craft: {
+        health: {
+          saveMindfulSession: async (session: unknown) => { calls.push(['save', session]); return { id: 'HK-1', externalId: 'hq-1', existing: false } },
+          getMindfulSessions: async (options: unknown) => { calls.push(['read', options]); return [sample] },
+        },
+      },
+    }, async () => {
+      expect(health.supports('saveMindfulSession')).toBe(true)
+      expect(health.supports('getMindfulSessions')).toBe(true)
+      expect(await health.saveMindfulSession({ id: 'hq-1', startDate: 0, endDate: 300000 })).toEqual({ id: 'HK-1', externalId: 'hq-1', existing: false })
+      expect(await health.getMindfulSessions({ startDate: 0, endDate: 5000, limit: 10 })).toEqual([sample])
+      expect(calls).toEqual([['save', { id: 'hq-1', startDate: 0, endDate: 300000 }], ['read', { startDate: 0, endDate: 5000, limit: 10 }]])
+    })
+    await withWindow({ craft: { health: {} } }, async () => {
+      expect(health.supports('saveMindfulSession')).toBe(false)
+      await expect(health.saveMindfulSession({ id: 'x', startDate: 0, endDate: 1 })).rejects.toThrow('unavailable')
+      await expect(health.getMindfulSessions()).rejects.toThrow('unavailable')
+    })
+  })
+
   it('says an older app cannot, and refuses rather than answering nothing', async () => {
     await withWindow({ craft: { health: {} } }, async () => {
       expect(health.supports('getHeartRateSamples')).toBe(false)
