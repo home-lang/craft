@@ -863,6 +863,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('var alignContent = "flex-start"')
     expect(ios).toContain('case "space-between": crossBetween = free / CGFloat(lineCrosses.count - 1) + crossGap')
     expect(ios).toContain('case "space-evenly":')
+    expect(ios).toContain('case "space-evenly": 6')
     expect(ios).toContain('crossBetween = free / CGFloat(lineCrosses.count + 1) + crossGap')
     expect(android).toContain('private var alignContent = "flex-start"')
     expect(android).toContain('"space-between" -> crossBetween = crossFree / (lines.size - 1) + crossGap')

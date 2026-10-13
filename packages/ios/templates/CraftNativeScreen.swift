@@ -1178,6 +1178,7 @@ private class CraftNativeFlowView: UIStackView {
             case "flex-end": 2
             case "space-between": 3
             case "space-around": 4
+            case "space-evenly": 6
             case "stretch": 5
             default: 0
             }

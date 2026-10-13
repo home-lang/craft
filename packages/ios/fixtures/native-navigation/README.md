@@ -25,7 +25,8 @@ Keyboard frame changes update the controller's additional safe area, keeping the
 focused form controls and their `onLayout` measurements responsive.
 The fixture also exercises parent-relative percentage sizing and keeps wrapped
 line distribution, including `space-evenly`, available through the shared
-`alignContent` contract.
+`alignContent` contract. The iOS host maps `space-evenly` to the shared code
+before falling back locally, so the maintained fixture covers both paths.
 The form path carries a keyed draft across a single-line/multiline input mode
 change even though UIKit must replace the underlying control class. Keyed
 ScrollView rows retain their drafts while the collection is reordered.
