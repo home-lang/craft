@@ -614,6 +614,9 @@ final class CraftChrome: ObservableObject {
     @Published var tabBarVisible = false
     @Published var splashVisible = true
     @Published var tint: UIColor?
+    /// Whether a hybrid page lets the shell claim horizontal swipes for tabs.
+    /// Native screens use their own per-screen `tabSwipeEnabled` option.
+    private(set) var tabSwipeEnabled = true
 
     weak var webView: WKWebView?
     /// What the tab bar covers at the bottom of the screen, in points.
@@ -645,6 +648,7 @@ final class CraftChrome: ObservableObject {
     /// false when the first screen is native and draws itself.
     func configure(tabs configured: [CraftConfig.Tab], selected: String?, splash: Bool) {
         splashVisible = splash
+        tabSwipeEnabled = true
         guard !configured.isEmpty else { return }
         tabs = configured.map { Tab(id: $0.id, title: $0.title, symbol: $0.symbol ?? "circle", badge: nil) }
         self.selected = selected ?? configured.first?.id
@@ -692,6 +696,7 @@ final class CraftChrome: ObservableObject {
                 let dark = (body["tintDark"] as? String).flatMap { UIColor(hex: $0) }
                 tint = light.map { light in dark.map { dark in UIColor { $0.userInterfaceStyle == .dark ? dark : light } } ?? light }
             }
+            if let swipeEnabled = body["swipeEnabled"] as? Bool { tabSwipeEnabled = swipeEnabled }
             withAnimation(Self.motion(.easeOut(duration: 0.2))) { tabBarVisible = !tabs.isEmpty && !hiddenByScreen }
             publishLayout()
         case "selectTab":

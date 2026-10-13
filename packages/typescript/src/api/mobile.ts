@@ -2319,6 +2319,8 @@ export interface NativeTabBarOptions {
   /** The current tab's colour, as `#rrggbb`; the system's label colour if unset. */
   tint?: string
   tintDark?: string
+  /** Whether Craft's horizontal tab-switch gesture may begin over the page. Defaults to true. */
+  swipeEnabled?: boolean
 }
 
 interface ChromeHandler { postMessage: (message: unknown) => void }

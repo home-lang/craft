@@ -909,6 +909,7 @@ describe('Craft iOS builder', () => {
     await init({ runtimeDir: null, name: 'Haptics', bundleId: 'org.example.haptics', output })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const swift = readFileSync(join(output, 'Sources', 'HapticsApp.swift'), 'utf8')
+    const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
 
     // Notifications and selections on their own generators, every impact
     // weight UIKit has, and the generators held rather than made per tap.
@@ -926,6 +927,9 @@ describe('Craft iOS builder', () => {
     const tap = swift.slice(swift.indexOf('func tap(_ tab: Tab) {'), swift.indexOf('/// A completed horizontal swipe selects the adjacent tab.'))
     expect(tap.length).toBeGreaterThan(0)
     expect(tap).not.toContain('FeedbackGenerator')
+    expect(swift).toContain('private(set) var tabSwipeEnabled = true')
+    expect(swift).toContain('if let swipeEnabled = body["swipeEnabled"] as? Bool { tabSwipeEnabled = swipeEnabled }')
+    expect(hybrid).toContain('guard CraftChrome.shared.tabSwipeEnabled else { return false }')
   })
 
   it('seeds each page load\'s callback ids above every id already handed out', async () => {

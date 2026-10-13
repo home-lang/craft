@@ -726,12 +726,12 @@ describe('Mobile native chrome', () => {
     }
     try {
       expect(tabBar.isAvailable()).toBe(true)
-      expect(tabBar.set([{ id: '/m', title: 'Today', symbol: 'sun.max' }], { selected: '/m', tint: '#1d4ed8' })).toBe(true)
+      expect(tabBar.set([{ id: '/m', title: 'Today', symbol: 'sun.max' }], { selected: '/m', tint: '#1d4ed8', swipeEnabled: false })).toBe(true)
       tabBar.select('/m/calendar')
       tabBar.hide()
       splash.hide()
       expect(posted).toEqual([
-        { type: 'tabBar', tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max' }], selected: '/m', tint: '#1d4ed8' },
+        { type: 'tabBar', tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max' }], selected: '/m', tint: '#1d4ed8', swipeEnabled: false },
         { type: 'selectTab', id: '/m/calendar' },
         { type: 'hideTabBar' },
         { type: 'ready' },
