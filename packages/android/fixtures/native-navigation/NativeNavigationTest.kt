@@ -282,6 +282,8 @@ class NativeNavigationTest {
             assertEquals("Draft", (notes as EditText).text.toString())
             assertEquals("Notes", notes.hint.toString())
             assertEquals(Color.rgb(0x22, 0xc5, 0x5e), notes.highlightColor)
+            val inputDecorations = (nameInput.text as? Spanned)?.getSpans(0, nameInput.text.length, ReplacementSpan::class.java).orEmpty()
+            assertTrue("TextInput decoration span was not applied", inputDecorations.isNotEmpty())
             val readonly = awaitView(activity, "readonly-input") as EditText
             assertTrue("editable=false should disable the native input", !readonly.isEnabled)
             assertEquals("Read only", readonly.text.toString())

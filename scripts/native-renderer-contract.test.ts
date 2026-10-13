@@ -990,7 +990,10 @@ describe('native renderer component contract', () => {
     expect(android).toContain('style.optString("textDecorationStyle").ifBlank { "solid" }')
     expect(android).toContain('style.optString("textDecorationColor")')
     expect(navigationHome).toContain('"textDecorationStyle":"dotted"')
+    expect(navigationHome).toContain('testID="name-input"')
+    expect(navigationHome).toContain('"textDecorationStyle":"dashed"')
     expect(androidNavigationTest).toContain('text decoration span was not applied')
+    expect(androidNavigationTest).toContain('TextInput decoration span was not applied')
   })
 
   it('keeps horizontal list rows intrinsically sized across hosts', () => {

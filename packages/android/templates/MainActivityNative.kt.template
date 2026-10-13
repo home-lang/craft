@@ -2625,6 +2625,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 else if (this !== previous && screen.drafts.containsKey(identity)) setText(screen.drafts[identity])
                 else if (this !== previous && props.has("defaultValue") && !props.isNull("defaultValue")) setText(props.optString("defaultValue"))
+                applyTextDecoration(this, style)
                 screen.inputIdentities[this] = identity
                 val handler = events.optString("onChange").ifBlank { events.optString("onChangeText") }
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
