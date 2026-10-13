@@ -66,7 +66,7 @@ describe('native renderer component contract', () => {
   it('delivers HealthKit completions on the main queue for native screens', () => {
     expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
-    expect(iosHealth.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(11)
+    expect(iosHealth.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(13)
   })
 
   it('exports the flat flex ABI for mobile hosts', () => {
@@ -1435,8 +1435,8 @@ describe('native renderer component contract', () => {
 
   it('keeps baseline flex alignment implemented and fixture-covered on both hosts', () => {
     expect(ios).toContain('private static func firstBaseline(_ view: UIView, cross: CGFloat)')
-    expect(ios).toContain('label.insets.top + label.firstBaselineOffsetFromTop')
-    expect(ios).toContain('label.firstBaselineOffsetFromTop')
+    expect(ios).toContain('label.insets.top + label.font.ascender')
+    expect(ios).not.toContain('firstBaselineOffsetFromTop')
     expect(ios).toContain('if item.align == "baseline", let baseline')
     expect(android).toContain('private fun baselineOffset(view: View, cross: Int): Int')
     expect(android).toContain('if (align == "baseline" && baseline != null)')

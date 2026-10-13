@@ -985,12 +985,11 @@ private class CraftNativeFlowView: UIStackView {
         let baseline: CGFloat?
         if let label = view as? CraftNativeLabel {
             // CraftNativeLabel draws inside its inset rect, so include the
-            // authored top padding before asking UIKit for the text baseline.
-            baseline = label.insets.top + label.firstBaselineOffsetFromTop
+            // authored top padding before the font's own baseline (UIKit's
+            // labels expose no measured first-baseline offset).
+            baseline = label.insets.top + label.font.ascender
         } else if let label = view as? UILabel {
-            // UIKit's measured offset tracks multiline and line-break
-            // configuration more accurately than the font ascender alone.
-            baseline = label.firstBaselineOffsetFromTop
+            baseline = label.font.ascender
         } else if let field = view as? UITextField {
             baseline = field.font?.ascender
         } else if let textView = view as? UITextView {
