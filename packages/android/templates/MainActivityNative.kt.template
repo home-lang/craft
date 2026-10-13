@@ -3418,6 +3418,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Match iOS image loading: HTTPS is allowed everywhere, while plain HTTP
+     * is limited to loopback/development hosts. Android's generated manifest
+     * enables cleartext traffic only for the corresponding dev-server or
+     * local-network configurations.
+     */
+    private fun loadsImage(uri: Uri): Boolean {
+        val scheme = uri.scheme?.lowercase() ?: return false
+        if (scheme == "https") return true
+        if (scheme != "http") return false
+        val host = uri.host?.lowercase() ?: return false
+        return host == "localhost" || host == "127.0.0.1" || host == "10.0.2.2" ||
+            host == "::1" || host.endsWith(".localhost")
+    }
+
     private fun updateImage(screen: Screen, view: ImageView, source: Any?) {
         val uri = when (source) {
             is String -> source
@@ -3459,7 +3474,7 @@ class MainActivity : AppCompatActivity() {
             } else imageFailure(screen, view, uri, "Bundled image was not found")
             return
         }
-        if (!uri.startsWith("https://")) {
+        if (!loadsImage(Uri.parse(uri))) {
             imageFailure(screen, view, uri, "Unsupported image source")
             return
         }
