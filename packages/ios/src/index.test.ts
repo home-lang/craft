@@ -74,6 +74,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('DeepLinkManager.shared.addNativeListener')
     expect(nativeSwift).toContain('navigationController?.topViewController === self')
     expect(nativeSwift).toContain('private final class CraftNativeFlowView: UIStackView')
+    expect(nativeSwift).toContain('UIImage(systemName: indeterminate ? "minus.square" : "checkmark.square.fill")')
     expect(nativeSwift).toContain('required init(coder: NSCoder)')
     expect(nativeSwift).toContain('required init?(coder: NSCoder) { nil }')
     expect(nativeSwift).toContain('UIResponder.keyboardWillChangeFrameNotification')

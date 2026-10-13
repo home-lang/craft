@@ -110,6 +110,9 @@ non-animated when `animating={false}` and `hidesWhenStopped={false}`. `Image`
 reports load lifecycle events and structured failures. `Video` uses the native
 `VideoView` for URI playback with autoplay, pause, looping, mute, controls, and
 resize-mode props.
+`Checkbox` accepts controlled `checked`/`value` and `indeterminate`; mixed
+controls expose an Android accessibility state description of `mixed` and
+become checked on their first user toggle.
 `FlatList` uses
 `RecyclerView`, stable IDs, and `DiffUtil` for keyed recycling, grids,
 horizontal and inverted layouts, list chrome, and end-reached pagination.
