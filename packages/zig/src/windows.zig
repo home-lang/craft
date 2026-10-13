@@ -1088,39 +1088,60 @@ threadlocal var com_apartment_present = false;
 /// a `CoUninitialize` against a `CoInitializeEx` that never took a reference.
 threadlocal var com_initialized_here = false;
 
-/// Put the calling thread in a COM apartment, which WebView2 requires.
+/// Put the calling thread in a single-threaded apartment, which WebView2 needs.
 ///
-/// `CreateCoreWebView2EnvironmentWithOptions` fails with `CO_E_NOTINITIALIZED`
-/// (0x800401f0) when the calling thread has no apartment, and craft used to
-/// create none: `ole32` was linked for `CoTaskMemFree` alone. An embedder that
-/// spawns craft with `CREATE_NO_WINDOW` gets no console, nothing else
-/// initialises COM on its behalf, and no window is ever created.
+/// Craft used to create none — `ole32` was linked for `CoTaskMemFree` alone —
+/// and an embedder that spawns it with `CREATE_NO_WINDOW` gets no console,
+/// nothing else initialises COM on its behalf, and
+/// `CreateCoreWebView2EnvironmentWithOptions` fails with
+/// `CO_E_NOTINITIALIZED` before any window exists.
 ///
-/// An STA, because WebView2 hosts UI on the thread that pumps messages. The
-/// three outcomes are not the same thing and are not treated as such:
+/// The apartment model is not a preference here. Microsoft's reference for
+/// that function is explicit:
+///
+///   > The WebView2 environment and all other WebView2 objects are single
+///   > threaded and have dependencies on Windows components that require COM
+///   > to be initialized for a single-threaded apartment. The app is expected
+///   > to run `CoInitializeEx` before running
+///   > `CreateCoreWebView2EnvironmentWithOptions`.
+///
+///   > If `CoInitializeEx` did not run or previously ran with
+///   > `COINIT_MULTITHREADED`, `CreateCoreWebView2EnvironmentWithOptions`
+///   > fails with one of the following errors.
+///   >     CO_E_NOTINITIALIZED — if CoInitializeEx was not called
+///   >     RPC_E_CHANGED_MODE  — if CoInitializeEx was previously called with
+///   >                           COINIT_MULTITHREADED
+///
+/// So each result gets the treatment it deserves:
 ///
 ///   - `S_OK` — this call created the apartment.
 ///   - `S_FALSE` — the thread already had one in the same mode and this call
 ///     took a reference on it. Ours to release, like `S_OK`.
-///   - `RPC_E_CHANGED_MODE` — the thread is already in an apartment with a
-///     different concurrency model, so an embedder chose an MTA before craft
-///     got here. Nothing was initialised and nothing may be released, but COM
-///     is usable and the error above cannot occur, so this is not a failure
-///     and craft does not override a choice that is the embedder's to make.
-///     It is reported, because WebView2 expects an STA and that is where to
-///     start looking if it misbehaves.
-fn ensureComInitialized() void {
+///   - `RPC_E_CHANGED_MODE` — the thread is in a multithreaded apartment.
+///     Nothing was initialised and nothing may be released, and crucially
+///     WebView2 will *not* work here: environment creation fails with this
+///     same code. An earlier version of this carried on and warned, which only
+///     moved the failure later and made it harder to read. It now refuses, so
+///     the thread that is wrong is named at the point it is wrong. Hosting the
+///     webview on a dedicated STA thread would also answer this, and is a
+///     larger change than one call site.
+///   - anything else — initialisation genuinely failed. Refused for the same
+///     reason: continuing only produces `CO_E_NOTINITIALIZED` further along,
+///     where it says less about what went wrong.
+fn ensureComInitialized() !void {
     if (com_apartment_present) return;
 
     const hr = CoInitializeEx(null, COINIT_APARTMENTTHREADED);
     if (hr == RPC_E_CHANGED_MODE) {
-        std.debug.print("[WebView2] COM is already initialised on this thread as an MTA; WebView2 expects an STA\n", .{});
-        com_apartment_present = true;
-        return;
+        std.debug.print(
+            "[WebView2] This thread is in a multithreaded apartment. WebView2 requires a single-threaded apartment and would fail with RPC_E_CHANGED_MODE; create the window on a thread that is an STA, or one craft can initialise.\n",
+            .{},
+        );
+        return error.ComApartmentIsMultithreaded;
     }
     if (!succeeded(hr)) {
         std.debug.print("[WebView2] CoInitializeEx failed: 0x{x}\n", .{@as(u32, @bitCast(hr))});
-        return;
+        return error.ComInitializationFailed;
     }
 
     com_apartment_present = true;
@@ -1830,10 +1851,11 @@ pub const Window = struct {
     y: i32,
 
     pub fn create(options: @import("api.zig").WindowOptions) !Window {
-        // Before anything asks WebView2 for an environment. See
-        // ensureComInitialized: without an apartment on this thread, creation
-        // fails with CO_E_NOTINITIALIZED and no window is ever created.
-        ensureComInitialized();
+        // Before anything asks WebView2 for an environment, and fatal when it
+        // cannot be done: every reason it fails is also a reason environment
+        // creation would fail, so carrying on would only report the same
+        // problem later and less clearly.
+        try ensureComInitialized();
 
         const hInstance = GetModuleHandleW(null) orelse return error.WindowCreationFailed;
 
