@@ -989,6 +989,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('CraftTextDecorationSpan(')
     expect(android).toContain('style.optString("textDecorationStyle").ifBlank { "solid" }')
     expect(android).toContain('style.optString("textDecorationColor")')
+    expect(navigationHome).toContain('"textDecorationStyle":"dotted"')
+    expect(androidNavigationTest).toContain('text decoration span was not applied')
   })
 
   it('keeps horizontal list rows intrinsically sized across hosts', () => {

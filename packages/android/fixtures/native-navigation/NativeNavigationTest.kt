@@ -10,6 +10,8 @@ import android.os.SystemClock
 import android.text.InputFilter
 import android.text.InputType
 import android.text.Layout
+import android.text.Spanned
+import android.text.style.ReplacementSpan
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
@@ -307,7 +309,8 @@ class NativeNavigationTest {
             assertEquals(21f, styledFirst.textSize / density)
             assertTrue(styledFirst.typeface.style and Typeface.BOLD != 0)
             assertTrue(styledFirst.typeface.style and Typeface.ITALIC != 0)
-            assertTrue(styledFirst.paintFlags and Paint.UNDERLINE_TEXT_FLAG != 0)
+            val decorations = (styledFirst.text as? Spanned)?.getSpans(0, styledFirst.text.length, ReplacementSpan::class.java).orEmpty()
+            assertTrue("text decoration span was not applied", decorations.isNotEmpty())
             assertEquals((70 * density).toInt(), styledFirst.layoutParams.width)
             awaitView(activity, "grid-wrap")
             val gridFirst = awaitView(activity, "grid-first")
