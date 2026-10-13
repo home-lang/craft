@@ -503,8 +503,14 @@ fn layoutNode(
 ) LayoutError!usize {
     if (frame_index >= frames.len) return error.FrameBufferTooSmall;
 
-    const width = if (frame_index == 0) node.style.width orelse available.width else available.width;
-    const height = if (frame_index == 0) node.style.height orelse available.height else available.height;
+    const width = if (frame_index == 0)
+        finiteNonNegative(node.style.width orelse available.width)
+    else
+        finiteNonNegative(available.width);
+    const height = if (frame_index == 0)
+        finiteNonNegative(node.style.height orelse available.height)
+    else
+        finiteNonNegative(available.height);
     frames[frame_index] = .{ .x = x, .y = y, .width = width, .height = height };
 
     if (node.children.len == 0) return frame_index + 1;
@@ -904,9 +910,13 @@ fn clampCross(node: Node, direction: Axis, value: f32) f32 {
 }
 
 fn clamp(value: f32, lower: ?f32, upper: ?f32) f32 {
-    var result = @max(0, value);
-    if (lower) |minimum| result = @max(result, minimum);
-    if (upper) |maximum| result = @min(result, maximum);
+    var result = finiteNonNegative(value);
+    if (lower) |minimum| {
+        if (std.math.isFinite(minimum) and minimum >= 0) result = @max(result, minimum);
+    }
+    if (upper) |maximum| {
+        if (std.math.isFinite(maximum) and maximum >= 0) result = @min(result, maximum);
+    }
     return result;
 }
 
@@ -1040,6 +1050,27 @@ test "uses viewport size when the root is intrinsic" {
     try std.testing.expectEqual(@as(usize, 1), count);
     try std.testing.expectEqual(@as(f32, 320), frames[0].width);
     try std.testing.expectEqual(@as(f32, 640), frames[0].height);
+}
+
+test "sanitizes non-finite tree dimensions" {
+    const children = [_]Node{
+        .{ .style = .{ .width = std.math.nan(f32), .height = std.math.inf(f32), .min_width = std.math.nan(f32), .max_height = std.math.inf(f32) } },
+    };
+    const root = Node{
+        .style = .{ .width = std.math.nan(f32), .height = std.math.inf(f32) },
+        .children = &children,
+    };
+    var frames: [2]Frame = undefined;
+
+    _ = try layout(root, .{ .width = 320, .height = 640 }, &frames);
+    for (frames) |frame| {
+        try std.testing.expect(std.math.isFinite(frame.x));
+        try std.testing.expect(std.math.isFinite(frame.y));
+        try std.testing.expect(std.math.isFinite(frame.width));
+        try std.testing.expect(std.math.isFinite(frame.height));
+        try std.testing.expect(frame.width >= 0);
+        try std.testing.expect(frame.height >= 0);
+    }
 }
 
 test "recurses across row and column axes without host concepts" {

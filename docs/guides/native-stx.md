@@ -51,7 +51,8 @@ per-edge margins, parent padding, min/max bounds, row/column gaps, justification
 and cross-axis alignment while leaving intrinsic measurement (especially text) to
 the platform host. Wrapped tree lines honor per-child `alignSelf`, including
 children that override the parent's cross-axis alignment. UIKit and Android adapters must preserve these values when
-mounting the resulting frames; platform-specific measurement must not fork the distribution rules.
+mounting the resulting frames; non-finite or negative dimensions are sanitized
+at the shared boundary, and platform-specific measurement must not fork the distribution rules.
 
 Use `onMount` and `onDestroy` for route-scoped lifecycle work. Craft disposes
 the screen runtime before a native screen is removed or replaced, so effects,

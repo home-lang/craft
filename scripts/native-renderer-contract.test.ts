@@ -72,6 +72,8 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('align_content: AlignContent')
     expect(nativeLayout).toContain('const vertical_offset = switch (alignment)')
     expect(nativeLayout).toContain('test "aligns wrapped children using align self"')
+    expect(nativeLayout).toContain('test "sanitizes non-finite tree dimensions"')
+    expect(nativeLayout).toContain('finiteNonNegative(node.style.width orelse available.width)')
     expect(nativeLayout).toContain('.space_evenly =>')
     expect(nativeLayout).toContain('pub const FlexLineItem = extern struct')
     expect(nativeLayout).toContain('pub export fn craft_native_flex_row(')
