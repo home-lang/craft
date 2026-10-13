@@ -34,7 +34,7 @@ screen-height changes cannot silently change which native control is tested.
 
 From the Craft repository, with `@stacksjs/stx` available as `stx` (the
 maintained CI checkout is pinned to
-`ef97de5f441628ccf9d4644c19d53eef321a5278`):
+`78c6b5759588c9f2c12827e92e370e707d4d9dbc`):
 
 ```bash
 bun packages/ios/scripts/test-native-navigation.ts

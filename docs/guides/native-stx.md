@@ -41,7 +41,7 @@ capability APIs from the host.
 The maintained Mobile E2E workflow checks out one exact stx compiler commit for
 both simulator hosts. Update the iOS and Android refs together; the workflow
 contract test rejects compiler skew between them.
-The current pair is pinned to `ef97de5f441628ccf9d4644c19d53eef321a5278`,
+The current pair is pinned to `78c6b5759588c9f2c12827e92e370e707d4d9dbc`,
 which carries ordinary native event aliases and preserves Modal child content.
 
 The host-neutral layout contract lives in Craft's Zig runtime at

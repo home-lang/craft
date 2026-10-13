@@ -56,7 +56,7 @@ Returning to a retained route reapplies native theme defaults before it becomes
 visible, so a dark-mode change while another route is open cannot leave stale
 colors behind.
 CI uses `@stacksjs/stx` (`stx native compile`) pinned at
-`ef97de5f441628ccf9d4644c19d53eef321a5278`. For an unreleased sibling
+`78c6b5759588c9f2c12827e92e370e707d4d9dbc`. For an unreleased sibling
 checkout, set `STX_CLI=../stx/packages/stx/bin/cli.ts`; native support is part
 of `@stacksjs/stx`, so do not install the historical `stx-native` package or
 compiler. The compiler installs an initial tree atomically before sending
