@@ -22,6 +22,15 @@ pub const JustifyContent = enum {
     space_evenly,
 };
 
+/// Cross-axis alignment for a flex tree. The default stretch behavior keeps
+/// children without an explicit cross size filling the available line.
+pub const AlignItems = enum {
+    flex_start,
+    center,
+    flex_end,
+    stretch,
+};
+
 pub const Size = struct {
     width: f32,
     height: f32,
@@ -50,6 +59,8 @@ pub const Style = struct {
     max_height: ?f32 = null,
     gap: f32 = 0,
     justify_content: JustifyContent = .flex_start,
+    align_items: AlignItems = .stretch,
+    align_self: ?AlignItems = null,
     margin_top: f32 = 0,
     margin_right: f32 = 0,
     margin_bottom: f32 = 0,
@@ -524,14 +535,22 @@ fn layoutNode(
     for (node.children, 0..) |child, index| {
         const basis = childMainBasis(child, node.style.direction);
         const child_main = flex.size(child, basis);
-        const child_cross = childCrossSize(child, node.style.direction, content_width, content_height);
+        const child_cross = childCrossSize(child, node.style.direction, content_width, content_height, node.style.align_items);
+        const child_cross_offset = crossOffset(
+            child,
+            node.style.direction,
+            child_cross,
+            content_width,
+            content_height,
+            node.style.align_items,
+        );
         const leading_margin = mainLeadingMargin(child, node.style.direction);
         const child_size = if (node.style.direction == .row)
             Size{ .width = child_main, .height = child_cross }
         else
             Size{ .width = child_cross, .height = child_main };
-        const child_x = if (node.style.direction == .row) content_x + main_offset + leading_margin else content_x + crossLeadingMargin(child, node.style.direction);
-        const child_y = if (node.style.direction == .row) content_y + crossLeadingMargin(child, node.style.direction) else content_y + main_offset + leading_margin;
+        const child_x = if (node.style.direction == .row) content_x + main_offset + leading_margin else content_x + child_cross_offset;
+        const child_y = if (node.style.direction == .row) content_y + child_cross_offset else content_y + main_offset + leading_margin;
         next_index = try layoutNode(child, child_size, child_x, child_y, next_index, frames);
         main_offset += mainMargins(child, node.style.direction) + child_main + if (index + 1 < node.children.len) between_space else 0;
     }
@@ -662,13 +681,36 @@ fn childMainBasis(node: Node, parent_direction: Axis) f32 {
     return clampMain(node, parent_direction, node.style.flex_basis orelse explicit orelse 0);
 }
 
-fn childCrossSize(node: Node, parent_direction: Axis, parent_width: f32, parent_height: f32) f32 {
+fn childCrossSize(node: Node, parent_direction: Axis, parent_width: f32, parent_height: f32, parent_alignment: AlignItems) f32 {
     if (parent_direction == .row) {
         const available = @max(0, parent_height - verticalMargins(node));
-        return clampCross(node, parent_direction, node.style.height orelse available);
+        return clampCross(node, parent_direction, node.style.height orelse if (effectiveAlignment(node, parent_alignment) == .stretch) available else 0);
     }
     const available = @max(0, parent_width - horizontalMargins(node));
-    return clampCross(node, parent_direction, node.style.width orelse available);
+    return clampCross(node, parent_direction, node.style.width orelse if (effectiveAlignment(node, parent_alignment) == .stretch) available else 0);
+}
+
+fn effectiveAlignment(node: Node, parent_alignment: AlignItems) AlignItems {
+    return node.style.align_self orelse parent_alignment;
+}
+
+fn crossOffset(
+    node: Node,
+    parent_direction: Axis,
+    child_cross: f32,
+    parent_width: f32,
+    parent_height: f32,
+    parent_alignment: AlignItems,
+) f32 {
+    const available = if (parent_direction == .row) parent_height else parent_width;
+    const margin_start = crossLeadingMargin(node, parent_direction);
+    const margin_end = if (parent_direction == .row) node.style.margin_bottom else node.style.margin_right;
+    const free = @max(0, available - margin_start - margin_end - child_cross);
+    return switch (effectiveAlignment(node, parent_alignment)) {
+        .center => margin_start + free / 2,
+        .flex_end => available - margin_end - child_cross,
+        else => margin_start,
+    };
 }
 
 fn mainLeadingMargin(node: Node, direction: Axis) f32 {
@@ -776,6 +818,22 @@ test "positions tree children with justify content" {
     _ = try layout(root, .{ .width = 100, .height = 20 }, &frames);
     try std.testing.expectApproxEqAbs(@as(f32, 20), frames[1].x, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 60), frames[2].x, 0.001);
+}
+
+test "aligns tree children across the cross axis" {
+    const children = [_]Node{
+        .{ .style = .{ .width = 20, .height = 10, .align_self = .center } },
+        .{ .style = .{ .width = 20, .height = 10, .align_self = .flex_end } },
+    };
+    const root = Node{
+        .style = .{ .direction = .row, .width = 100, .height = 40, .align_items = .flex_start },
+        .children = &children,
+    };
+    var frames: [3]Frame = undefined;
+
+    _ = try layout(root, .{ .width = 100, .height = 40 }, &frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 15), frames[1].y, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 30), frames[2].y, 0.001);
 }
 
 test "uses viewport size when the root is intrinsic" {

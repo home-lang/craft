@@ -337,8 +337,10 @@ runtime is installed.
 The same host-neutral layout core models a complete tree's main-axis
 `justifyContent` distribution (`flex-start`, center, `flex-end`,
 `space-between`, `space-around`, and `space-evenly`) for deterministic parity
-tests. Intrinsic text and image measurement remains a host responsibility; the
-shared rule consumes those measurements as numeric bases.
+tests. Cross-axis `alignItems` and per-child `alignSelf` use the same
+host-neutral rule, including the default stretch behavior. Intrinsic text and
+image measurement remains a host responsibility; the shared rule consumes
+those measurements as numeric bases.
 
 The same runtime also exports `craft_native_grid` for equal-track grids. It
 accepts intrinsic measurements and alignment as plain data, leaving platform
