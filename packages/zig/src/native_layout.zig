@@ -29,6 +29,7 @@ pub const AlignItems = enum {
     center,
     flex_end,
     stretch,
+    baseline,
 };
 
 /// Cross-axis distribution between wrapped flex lines.
@@ -66,6 +67,9 @@ pub const Style = struct {
     /// platform types into the shared layout core.
     intrinsic_width: ?f32 = null,
     intrinsic_height: ?f32 = null,
+    /// Host-measured distance from the child's top edge to its text baseline.
+    /// A missing value falls back to the child's bottom edge.
+    baseline: ?f32 = null,
     aspect_ratio: ?f32 = null,
     flex_basis: ?f32 = null,
     flex_grow: f32 = 0,
@@ -595,6 +599,7 @@ fn layoutNode(
     const gap_total = gap * @as(f32, @floatFromInt(gap_count));
     if (node.style.flex_wrap) return layoutWrapped(node, content_width, content_height, content_x, content_y, frame_index, frames);
     const flex = resolveFlex(node.children, node.style.direction, main_size, gap_total);
+    const line_baseline = baselineForChildren(node.children, node.style.direction, content_width, content_height, content_height, node.style.align_items);
     var used_main: f32 = gap_total;
     for (node.children) |child| {
         used_main += flex.size(child, childMainBasis(child, node.style.direction)) + mainMargins(child, node.style.direction);
@@ -631,6 +636,7 @@ fn layoutNode(
             content_width,
             content_height,
             node.style.align_items,
+            line_baseline,
         );
         const leading_margin = mainLeadingMargin(child, node.style.direction);
         const child_size = if (node.style.direction == .row)
@@ -702,6 +708,7 @@ fn layoutWrapped(
         var leading_space: f32 = 0;
         var between_space: f32 = gap;
         distributeJustify(node.style.justify_content, free_main, children.len, &leading_space, &between_space);
+        const line_baseline = baselineForChildren(children, direction, width, height, line_cross, node.style.align_items);
         var main_offset = leading_space;
         for (children, 0..) |child, index| {
             const basis = childMainBasis(child, direction);
@@ -711,9 +718,9 @@ fn layoutWrapped(
             else
                 childCrossSize(child, direction, line_cross, height, node.style.align_items);
             const child_cross_offset = if (direction == .row)
-                crossOffset(child, direction, child_cross, width, line_cross, node.style.align_items)
+                crossOffset(child, direction, child_cross, width, line_cross, node.style.align_items, line_baseline)
             else
-                crossOffset(child, direction, child_cross, line_cross, height, node.style.align_items);
+                crossOffset(child, direction, child_cross, line_cross, height, node.style.align_items, null);
             const leading_margin = mainLeadingMargin(child, direction);
             const child_size = if (direction == .row)
                 Size{ .width = child_main, .height = child_cross }
@@ -965,6 +972,7 @@ fn crossOffset(
     parent_width: f32,
     parent_height: f32,
     parent_alignment: AlignItems,
+    line_baseline: ?f32,
 ) f32 {
     const available = if (parent_direction == .row) parent_height else parent_width;
     const margin_start = crossLeadingMargin(node, parent_direction);
@@ -973,8 +981,32 @@ fn crossOffset(
     return switch (effectiveAlignment(node, parent_alignment)) {
         .center => margin_start + free / 2,
         .flex_end => available - margin_end - child_cross,
+        .baseline => if (parent_direction == .row)
+            @max(margin_start, (line_baseline orelse child_cross) - (node.style.baseline orelse child_cross))
+        else
+            margin_start,
         else => margin_start,
     };
+}
+
+fn baselineForChildren(
+    children: []const Node,
+    direction: Axis,
+    parent_width: f32,
+    parent_height: f32,
+    line_cross: f32,
+    parent_alignment: AlignItems,
+) ?f32 {
+    if (direction != .row) return null;
+    var result: ?f32 = null;
+    for (children) |child| {
+        if (effectiveAlignment(child, parent_alignment) != .baseline) continue;
+        const child_cross = childCrossSize(child, direction, parent_width, parent_height, parent_alignment);
+        const measured = child.style.baseline orelse child_cross;
+        const candidate = child.style.margin_top + @min(line_cross, measured);
+        result = if (result) |current| @max(current, candidate) else candidate;
+    }
+    return result;
 }
 
 fn mainLeadingMargin(node: Node, direction: Axis) f32 {
@@ -1234,6 +1266,22 @@ test "uses host-measured intrinsic dimensions in flex, wrap, and grid trees" {
     try std.testing.expectApproxEqAbs(@as(f32, 11), grid_frames[1].height, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 30), grid_frames[2].width, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 15), grid_frames[2].height, 0.001);
+}
+
+test "aligns baseline children from host measurements" {
+    const children = [_]Node{
+        .{ .style = .{ .intrinsic_width = 20, .intrinsic_height = 20, .baseline = 15 } },
+        .{ .style = .{ .intrinsic_width = 20, .intrinsic_height = 10, .baseline = 7 } },
+    };
+    const root = Node{
+        .style = .{ .direction = .row, .width = 100, .height = 40, .gap = 4, .align_items = .baseline },
+        .children = &children,
+    };
+    var frames: [3]Frame = undefined;
+
+    _ = try layout(root, .{ .width = 100, .height = 40 }, &frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), frames[1].y, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 8), frames[2].y, 0.001);
 }
 
 test "sanitizes non-finite tree dimensions" {

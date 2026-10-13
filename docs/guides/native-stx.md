@@ -64,7 +64,9 @@ measurement remain callbacks at the boundary rather than becoming UIKit or
 Android dependencies in Zig. The maintained mobile hosts currently consume the
 smaller flat C/JNI exports while that tree boundary is evaluated; the next step
 is wiring those measured bases and frames into both hosts, not creating a second
-platform-specific layout implementation.
+platform-specific layout implementation. Baseline alignment follows the same
+boundary: hosts provide the measured distance to a child's baseline, and Zig
+only aligns those numeric metrics.
 
 Use `onMount` and `onDestroy` for route-scoped lifecycle work. Craft disposes
 the screen runtime before a native screen is removed or replaced, so effects,
