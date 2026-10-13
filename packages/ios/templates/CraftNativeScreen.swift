@@ -263,6 +263,7 @@ private func craftNativeAlignContentCode(_ value: String) -> UInt32 {
     case "space-between": return 3
     case "space-around": return 4
     case "stretch": return 5
+    case "space-evenly": return 6
     default: return 0
     }
 }
@@ -1203,6 +1204,9 @@ private class CraftNativeFlowView: UIStackView {
                 case "space-around":
                     crossBetween = free / CGFloat(lineCrosses.count) + crossGap
                     crossLeading = free / CGFloat(lineCrosses.count * 2)
+                case "space-evenly":
+                    crossBetween = free / CGFloat(lineCrosses.count + 1) + crossGap
+                    crossLeading = free / CGFloat(lineCrosses.count + 1)
                 case "stretch":
                     let extra = free / CGFloat(lineCrosses.count)
                     lineCrosses = lineCrosses.map { $0 + extra }
