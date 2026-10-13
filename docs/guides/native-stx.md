@@ -657,6 +657,16 @@ const stopLinks = craft.deepLinks.onLink((link) => console.log(link.url))
 const id = await craft.notifications.schedule({ title: 'Reminder', delay: 60_000 })
 await craft.notifications.cancel(id)
 
+const photo = await craft.files.pickImage({ source: 'library' })
+const form = new FormData()
+form.append('photo', photo)
+const upload = await fetch('https://api.example.com/upload', {
+  method: 'POST',
+  body: form,
+})
+const exportFile = await craft.files.write('route.csv', 'name,distance\nLoop,5', { type: 'text/csv' })
+await craft.files.remove(exportFile.path)
+
 await craft.secureStorage.set('session-token', 'secret')
 const token = await craft.secureStorage.get('session-token')
 await craft.secureStorage.delete('session-token')
@@ -702,6 +712,15 @@ screen, keep the existing `craft-native/mobile` calls and use the nested
 capability methods only where persistence or native lifecycle behavior is
 needed; browser-rendered apps continue using their existing web fallbacks.
 
+The `files` capability keeps picked, downloaded, and generated files in an
+app-owned temporary directory. `craft.files.remove` rejects paths outside
+that directory. When the host advertises `files`, its `FormData`
+implementation accepts text fields and those file descriptors;
+`Network.fetch` assembles the multipart body natively, so file bytes do not
+pass through JavaScriptCore as base64. Without that capability, native
+`FormData` is not installed and the text-only fetch contract below remains
+unchanged.
+
 ### Network requests and timers
 
 JavaScriptCore has no `fetch` and no timers. The iOS host supplies both, and
@@ -727,8 +746,10 @@ needs an App Transport Security exception, as the template has for
 rejected, and a response larger than 8 MB rejects with `RESPONSE_TOO_LARGE`.
 Transport failures reject with a `TypeError` whose `code` is `NETWORK_ERROR` or
 `TIMEOUT`; HTTP error statuses resolve normally with `ok: false`. Streaming
-bodies, `AbortSignal`, `FormData`, and binary bodies are not part of the
-subset. Cookies use the app's shared `HTTPCookieStorage`.
+bodies, `AbortSignal`, and arbitrary binary bodies are not part of the subset.
+`FormData` is supported only when the host advertises `files`; it is limited
+to text fields and files created by `craft.files`. Cookies use the app's
+shared `HTTPCookieStorage`.
 
 `setTimeout` and `clearTimeout` are installed when the context lacks them. The
 callbacks stay in JavaScript, the deadline runs on the main queue, and route

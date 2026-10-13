@@ -151,6 +151,14 @@ after inset or orientation changes. The shared component, capability, list, styl
 image-source, event, accessibility, and reconciliation contract is documented in the
 [Native STX guide](../../docs/guides/native-stx.md).
 
+Native screens also expose `craft.files` when the host advertises the
+`files` capability. `pickImage` returns an app-owned file descriptor,
+`download` and `write` keep bytes on disk, and `remove` accepts only files
+created by that capability. `FormData` is available on this path; `fetch`
+builds its multipart body natively from text fields and those owned files, so
+image bytes do not cross the Android JavaScript bridge as base64. The browser
+renderer keeps using the ordinary web `File`/`FormData` implementations.
+
 `FlatList` item roots receive the same `onLayout` callback as ordinary native
 views when rows are materialized or recycled.
 
