@@ -545,7 +545,9 @@ delivered only to the top route, and route teardown removes its subscriptions
 and cancels its in-flight requests. On iOS, a native screen that contains a
 horizontal `ScrollView` keeps the navigation back-swipe at the 32-point edge;
 swipes across the pager, carousel, or chart remain available to that scroll
-view.
+view. A custom horizontal gesture can opt out of iOS 26's content-wide
+back-swipe with `craft.navigation.setOptions({ contentSwipeBack: false })`;
+the edge-only back gesture remains available.
 
 ## An all-native iOS app: paths, tabs and an app script
 

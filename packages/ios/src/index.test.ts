@@ -1330,6 +1330,9 @@ describe('Craft iOS builder', () => {
     // A screen can ask the tab bar away while it shows; the next one says again.
     expect(screen).toContain('if let hidden = options["tabBarHidden"] as? Bool {')
     expect(screen).toContain('CraftChrome.shared.setHiddenByScreen(tabBarHidden)')
+    expect(screen).toContain('if let contentSwipeBack = options["contentSwipeBack"] as? Bool {')
+    expect(screen).toContain('private(set) var contentSwipeBack = true')
+    expect(hybrid).toContain('!native.contentSwipeBack')
     expect(app).toContain('func setHiddenByScreen(_ hidden: Bool) {')
     expect(screen).toContain('case "NAVIGATE_POP_TO_ROOT":')
     expect(screen).toContain('navigationController?.popToRootViewController(animated: true)')
