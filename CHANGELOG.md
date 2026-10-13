@@ -1,5 +1,67 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.164...v0.0.165)
+
+## 🚀 Features
+
+- **ios**: the simulator's heart-rate strap varies beat to beat ([12c45a8](https://github.com/craft-native/craft/commit/12c45a8)) _(by Chris Breuer)_
+- **ios**: stream Apple Health heart rate as it arrives ([cbb987d](https://github.com/craft-native/craft/commit/cbb987d)) _(by Chris Breuer)_
+- **native**: share baseline flex placement ([fc53a1f](https://github.com/craft-native/craft/commit/fc53a1f)) _(by glennmichael123)_
+- **ios**: audit app-owned Swift sources ([407d766](https://github.com/craft-native/craft/commit/407d766)) _(by glennmichael123)_
+- **native**: propagate dynamic appearance traits ([95f9c1e](https://github.com/craft-native/craft/commit/95f9c1e)) _(by glennmichael123)_
+- **native**: share measured baseline alignment ([4e1e2b3](https://github.com/craft-native/craft/commit/4e1e2b3)) _(by glennmichael123)_
+- **native**: feed intrinsic sizes into shared layout ([e785bef](https://github.com/craft-native/craft/commit/e785bef)) _(by glennmichael123)_
+- **android**: render shared skew transforms ([678ede5](https://github.com/craft-native/craft/commit/678ede5)) _(by glennmichael123)_
+- **ios**: animate native to web tab swipes ([fbbf92f](https://github.com/craft-native/craft/commit/fbbf92f)) _(by glennmichael123)_
+- **native**: apply shared view transforms ([57453a3](https://github.com/craft-native/craft/commit/57453a3)) _(by glennmichael123)_
+- **ios**: make native tab swipes interactive ([89e6f3a](https://github.com/craft-native/craft/commit/89e6f3a)) _(by glennmichael123)_
+- **native**: support per-corner radii ([4aefbed](https://github.com/craft-native/craft/commit/4aefbed)) _(by glennmichael123)_
+- **native**: support per-edge borders ([376fae7](https://github.com/craft-native/craft/commit/376fae7)) _(by glennmichael123)_
+- **native**: honor explicit view shadows ([8a270dd](https://github.com/craft-native/craft/commit/8a270dd)) _(by glennmichael123)_
+- **native**: honor dashed border styles ([ec12890](https://github.com/craft-native/craft/commit/ec12890)) _(by glennmichael123)_
+- **native**: support text decoration styles ([d02ff6b](https://github.com/craft-native/craft/commit/d02ff6b)) _(by glennmichael123)_
+- **ios**: let hybrid tabs opt out of swipes ([305f953](https://github.com/craft-native/craft/commit/305f953)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **ios**: first baselines from the font's ascender, so the iOS host compiles ([4f613ac](https://github.com/craft-native/craft/commit/4f613ac)) _(by Chris Breuer)_
+- **android**: align native text input traits ([ad1fd24](https://github.com/craft-native/craft/commit/ad1fd24)) _(by glennmichael123)_
+- **android**: refresh motion traits while active ([8353901](https://github.com/craft-native/craft/commit/8353901)) _(by glennmichael123)_
+- **android**: report reduced motion trait ([91226f2](https://github.com/craft-native/craft/commit/91226f2)) _(by glennmichael123)_
+- **ios**: measure padded text baselines ([ed3153a](https://github.com/craft-native/craft/commit/ed3153a)) _(by glennmichael123)_
+- **ios**: disambiguate native transform parsing ([0b9d3ba](https://github.com/craft-native/craft/commit/0b9d3ba)) _(by glennmichael123)_
+- **native**: align flex items by baseline ([65109a1](https://github.com/craft-native/craft/commit/65109a1)) _(by glennmichael123)_
+- **ios**: yield native pagers to back swipe ([d9f967b](https://github.com/craft-native/craft/commit/d9f967b)) _(by glennmichael123)_
+- **android**: honor shadow offsets ([b8be9e9](https://github.com/craft-native/craft/commit/b8be9e9)) _(by glennmichael123)_
+- **ios**: recognize slow tab swipes ([d3ddccf](https://github.com/craft-native/craft/commit/d3ddccf)) _(by glennmichael123)_
+- **android**: retain text decoration on inputs ([85a86b6](https://github.com/craft-native/craft/commit/85a86b6)) _(by glennmichael123)_
+- **native**: honor text shadows across hosts ([3b6b294](https://github.com/craft-native/craft/commit/3b6b294)) _(by glennmichael123)_
+- **native**: support reverse flex wrapping ([5d83b74](https://github.com/craft-native/craft/commit/5d83b74)) _(by glennmichael123)_
+- **native**: honor z-index in host views ([1638056](https://github.com/craft-native/craft/commit/1638056)) _(by glennmichael123)_
+- **ios**: resume health callbacks on main queue ([db6bfa3](https://github.com/craft-native/craft/commit/db6bfa3)) _(by glennmichael123)_
+- **android**: preserve large slider ranges ([8d594f9](https://github.com/craft-native/craft/commit/8d594f9)) _(by glennmichael123)_
+- **native**: reject malformed countdown durations ([7d6fcc9](https://github.com/craft-native/craft/commit/7d6fcc9)) _(by glennmichael123)_
+- **ios**: yield tab swipes to web scrolling ([26d39a3](https://github.com/craft-native/craft/commit/26d39a3)) _(by glennmichael123)_
+- **android**: preserve countdown seconds ([83340ad](https://github.com/craft-native/craft/commit/83340ad)) _(by glennmichael123)_
+- **android**: load local development images ([710e6dc](https://github.com/craft-native/craft/commit/710e6dc)) _(by glennmichael123)_
+- **windows**: initialize COM before WebView2 ([83fb00f](https://github.com/craft-native/craft/commit/83fb00f)) _(by glennmichael123)_
+
+## 📚 Documentation
+
+- **native**: scope shared layout tree spike ([5a010d5](https://github.com/craft-native/craft/commit/5a010d5)) _(by glennmichael123)_
+- **native**: document baseline flex alignment ([d01db2a](https://github.com/craft-native/craft/commit/d01db2a)) _(by glennmichael123)_
+- **ios**: document hybrid tab swipe opt-out ([8532d69](https://github.com/craft-native/craft/commit/8532d69)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **windows**: guard WebView2 COM initialization ([e2fc920](https://github.com/craft-native/craft/commit/e2fc920)) _(by glennmichael123)_
+- **native**: cover text decoration fixtures ([d97367f](https://github.com/craft-native/craft/commit/d97367f)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.163...v0.0.164)
 
 ## 🚀 Features
