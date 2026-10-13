@@ -4881,16 +4881,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     /// Countdown values use seconds when numeric, or `HH:mm[:ss]` text.
     static func countdownDuration(_ value: Any?) -> TimeInterval? {
-        if let number = value as? NSNumber, !(value is Bool) { return max(0, number.doubleValue) }
+        let maximum: TimeInterval = 23 * 3600 + 59 * 60 + 59
+        if let number = value as? NSNumber, !(value is Bool) { return min(maximum, max(0, number.doubleValue)) }
         guard let text = (value as? String)?.trimmingCharacters(in: .whitespaces), !text.isEmpty else { return nil }
-        if let seconds = Double(text), seconds.isFinite { return max(0, seconds) }
+        if let seconds = Double(text), seconds.isFinite { return min(maximum, max(0, seconds)) }
         let parts = text.split(separator: ":").compactMap { Double($0) }
         guard parts.count == 2 || parts.count == 3 else { return nil }
-        let hours = parts.count == 3 ? parts[0] : 0
-        let minutes = parts.count == 3 ? parts[1] : parts[0]
-        let seconds = parts.count == 3 ? parts[2] : parts[1]
+        let hours = parts[0]
+        let minutes = parts[1]
+        let seconds = parts.count == 3 ? parts[2] : 0
         guard hours >= 0, minutes >= 0, minutes < 60, seconds >= 0, seconds < 60 else { return nil }
-        return hours * 3600 + minutes * 60 + seconds
+        return min(maximum, hours * 3600 + minutes * 60 + seconds)
     }
 
     /// A DatePicker's value: `2026-10-12` (that day), `07:30` (today at that

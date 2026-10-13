@@ -1301,6 +1301,7 @@ private class CraftNativeActivityIndicator(context: Context) :
 /** Android counterpart to iOS's UIDatePicker-backed native DatePicker. */
 private class CraftNativeDatePickerView(context: Context) : FrameLayout(context) {
     private enum class PickerMode { DATE, TIME, DATE_TIME, COUNTDOWN }
+    private val maxCountdownSeconds = 23 * 3600 + 59 * 60 + 59
 
     private var pickerMode: PickerMode? = null
     private var datePicker: DatePicker? = null
@@ -1453,17 +1454,17 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
     }
 
     private fun countdownSeconds(value: Any?): Int? {
-        if (value is Number && value !is Boolean) return value.toDouble().coerceAtLeast(0.0).roundToInt()
+        if (value is Number && value !is Boolean) return value.toDouble().coerceIn(0.0, maxCountdownSeconds.toDouble()).roundToInt()
         val text = value?.toString()?.trim().orEmpty()
         if (text.isBlank() || text == JSONObject.NULL.toString()) return null
-        text.toDoubleOrNull()?.takeIf { it.isFinite() }?.let { return it.coerceAtLeast(0.0).roundToInt() }
+        text.toDoubleOrNull()?.takeIf { it.isFinite() }?.let { return it.coerceIn(0.0, maxCountdownSeconds.toDouble()).roundToInt() }
         val parts = text.split(':').mapNotNull { it.toDoubleOrNull() }
         if (parts.size != 2 && parts.size != 3) return null
-        val hours = if (parts.size == 3) parts[0] else 0.0
-        val minutes = if (parts.size == 3) parts[1] else parts[0]
-        val seconds = if (parts.size == 3) parts[2] else parts[1]
+        val hours = parts[0]
+        val minutes = parts[1]
+        val seconds = if (parts.size == 3) parts[2] else 0.0
         if (hours < 0 || minutes !in 0.0..<60.0 || seconds !in 0.0..<60.0) return null
-        return (hours * 3600 + minutes * 60 + seconds).roundToInt()
+        return (hours * 3600 + minutes * 60 + seconds).coerceIn(0.0, maxCountdownSeconds.toDouble()).roundToInt()
     }
 }
 
