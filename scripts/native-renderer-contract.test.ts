@@ -756,7 +756,10 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('stack.rowGap = number(style["rowGap"]) ?? gap')
     expect(ios).toContain('stack.columnGap = number(style["columnGap"]) ?? gap')
     expect(android).toContain('val crossGap = if (orientation == HORIZONTAL) rowGap else columnGap')
-    expect(android).toContain('crossOffset += line.cross + crossBetween')
+    expect(android).toContain('val crossFree = max(0, availableCross - totalCross).toFloat()')
+    expect(android).toContain('var crossLeading = 0f')
+    expect(android).toContain('crossFree / (lines.size + 1).toFloat()')
+    expect(android).toContain('crossOffset += line.cross.toFloat() + crossBetween')
   })
 
   it('keeps intrinsic grid tracks equal across hosts', () => {
@@ -868,9 +871,9 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('case "space-evenly": 6')
     expect(ios).toContain('crossBetween = free / CGFloat(lineCrosses.count + 1) + crossGap')
     expect(android).toContain('private var alignContent = "flex-start"')
-    expect(android).toContain('"space-between" -> crossBetween = crossFree / (lines.size - 1) + crossGap')
+    expect(android).toContain('"space-between" -> crossBetween = crossFree / (lines.size - 1).toFloat() + crossGap')
     expect(android).toContain('"space-evenly" -> {')
-    expect(android).toContain('crossBetween = crossFree / (lines.size + 1) + crossGap')
+    expect(android).toContain('crossBetween = crossFree / (lines.size + 1).toFloat() + crossGap')
     expect(nativeLayout).toContain('6=space-evenly')
     expect(nativeLayout).toContain('test "exports evenly distributed wrapped flex lines"')
     expect(componentTypes).toContain("'space-evenly'")

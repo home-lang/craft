@@ -863,9 +863,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val availableMain = if (orientation == HORIZONTAL) contentWidth else contentHeight
         val availableCross = if (orientation == HORIZONTAL) contentHeight else contentWidth
         val totalCross = lines.sumOf { it.cross } + max(0, lines.size - 1) * crossGap
-        val crossFree = max(0, availableCross - totalCross)
-        var crossLeading = 0
-        var crossBetween = crossGap
+        val crossFree = max(0, availableCross - totalCross).toFloat()
+        var crossLeading = 0f
+        var crossBetween = crossGap.toFloat()
         val sharedCross = if (wrap && lines.size > 1) {
             CraftNative.flexLineDistribution(
                 availableCross.toFloat(), crossGap.toFloat(), alignContentCode(), lines.map { it.cross.toFloat() }.toFloatArray()
@@ -874,26 +874,26 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         sharedCross?.second?.forEachIndexed { index, size -> lines[index].cross = size.roundToInt() }
         if (wrap && lines.size > 1) {
             if (sharedCross == null) when (alignContent) {
-                "center" -> crossLeading = crossFree / 2
+                "center" -> crossLeading = crossFree / 2f
                 "flex-end" -> crossLeading = crossFree
-                "space-between" -> crossBetween = crossFree / (lines.size - 1) + crossGap
+                "space-between" -> crossBetween = crossFree / (lines.size - 1).toFloat() + crossGap
                 "space-around" -> {
-                    crossBetween = crossFree / lines.size + crossGap
-                    crossLeading = crossFree / (lines.size * 2)
+                    crossBetween = crossFree / lines.size.toFloat() + crossGap
+                    crossLeading = crossFree / (lines.size * 2).toFloat()
                 }
                 "space-evenly" -> {
-                    crossBetween = crossFree / (lines.size + 1) + crossGap
-                    crossLeading = crossFree / (lines.size + 1)
+                    crossBetween = crossFree / (lines.size + 1).toFloat() + crossGap
+                    crossLeading = crossFree / (lines.size + 1).toFloat()
                 }
                 "stretch" -> {
-                    val extra = crossFree / lines.size
+                    val extra = (crossFree / lines.size.toFloat()).roundToInt()
                     lines.forEach { it.cross += extra }
                 }
             }
         }
-        var crossOffset = (if (orientation == HORIZONTAL) paddingTop else paddingLeft) + crossLeading
+        var crossOffset = (if (orientation == HORIZONTAL) paddingTop else paddingLeft).toFloat() + crossLeading
         for ((lineIndex, line) in lines.withIndex()) {
-            val lineOffset = sharedCross?.first?.get(lineIndex)?.roundToInt()?.let { (if (orientation == HORIZONTAL) paddingTop else paddingLeft) + it } ?: crossOffset
+            val lineOffset = sharedCross?.first?.get(lineIndex)?.let { (if (orientation == HORIZONTAL) paddingTop else paddingLeft).toFloat() + it } ?: crossOffset
             val fallbackWidths = fallbackFlexWidths(line, availableMain, gap)
             val sharedPrimary = CraftNative.flexRow(
                 availableMain.toFloat(),
@@ -964,15 +964,15 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 val sharedPosition = if (!reverse) sharedPositions?.get(index)?.roundToInt() else null
                 val positionedMain = sharedPosition?.let { (if (orientation == HORIZONTAL) paddingLeft else paddingTop).toFloat() + it }
                     ?: mainOffset + marginStart
-                val x = if (orientation == HORIZONTAL) positionedMain.roundToInt() else lineOffset + crossPosition
-                val y = if (orientation == HORIZONTAL) lineOffset + crossPosition else positionedMain.roundToInt()
+                val x = if (orientation == HORIZONTAL) positionedMain.roundToInt() else (lineOffset + crossPosition).roundToInt()
+                val y = if (orientation == HORIZONTAL) (lineOffset + crossPosition).roundToInt() else positionedMain.roundToInt()
                 val distributedPrimary = sharedPrimary?.get(index)?.roundToInt() ?: fallbackWidths[index]
                 val w = if (orientation == HORIZONTAL) distributedPrimary else crossSize
                 val h = if (orientation == HORIZONTAL) crossSize else distributedPrimary
                 entry.view.layout(x, y, x + w, y + h)
                 if (sharedPosition == null) mainOffset += distributedPrimary + marginStart + marginEnd + gap + between
             }
-            if (sharedCross == null) crossOffset += line.cross + crossBetween
+            if (sharedCross == null) crossOffset += line.cross.toFloat() + crossBetween
         }
         for (entry in absolute) {
             if (entry.view is CraftNativeModalView && entry.view.visibility == View.VISIBLE) entry.view.bringToFront()

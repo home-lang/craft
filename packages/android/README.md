@@ -142,6 +142,8 @@ child frame is rounded, matching the shared layout ABI when an older runtime
 does not expose its optional alignment symbols.
 Its flex main-axis fallback applies the same fractional treatment to
 `space-around` and `space-evenly` before rounding positions.
+Wrapped `alignContent` fallback spacing keeps fractional cross-axis offsets
+until each child frame is rounded as well.
 Reverse flex directions preserve wrapped line order on the cross axis while
 reversing each line's main-axis children, matching the iOS host.
 Shared wrapped-line IDs are accepted only when they are complete and monotonic;
