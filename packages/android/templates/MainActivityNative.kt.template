@@ -394,8 +394,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var alignItems = "stretch"
     private var alignContent = "flex-start"
     private var justifyContent = "flex-start"
-    private var rowGap = 0
-    private var columnGap = 0
+    private var rowGap = 0f
+    private var columnGap = 0f
     private var grid = false
     private var gridColumns = 1
     private var gridAutoRows: CraftNativeLength? = null
@@ -408,9 +408,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         alignItems = style.optString("alignItems", "stretch")
         alignContent = style.optString("alignContent", "flex-start")
         justifyContent = style.optString("justifyContent", "flex-start")
-        val gap = (style.optDouble("gap", 0.0) * density).toInt()
-        rowGap = (style.optDouble("rowGap", gap.toDouble() / density.toDouble()) * density).toInt()
-        columnGap = (style.optDouble("columnGap", gap.toDouble() / density.toDouble()) * density).toInt()
+        val gap = style.optDouble("gap", 0.0) * density
+        rowGap = style.optDouble("rowGap", gap / density.toDouble()).toFloat() * density
+        columnGap = style.optDouble("columnGap", gap / density.toDouble()).toFloat() * density
         grid = style.optString("display") == "grid"
         gridColumns = craftNativeGridColumnCount(
             if (style.has("gridTemplateColumns")) style.opt("gridTemplateColumns") else style.opt("gridColumns")
@@ -439,7 +439,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     }
 
     private data class Entry(val view: View, val style: CraftNativeLayoutStyle, val width: Int, val height: Int)
-    private data class Line(val entries: MutableList<Entry> = mutableListOf(), var main: Int = 0, var cross: Int = 0)
+    private data class Line(val entries: MutableList<Entry> = mutableListOf(), var main: Float = 0f, var cross: Float = 0f)
     private data class GridLayout(val rows: List<List<Entry>>, val absolute: List<Entry>, val cellWidth: Float, val rowHeights: List<Float>)
 
     private fun entries(width: Int, height: Int): Pair<List<Line>, List<Entry>> {
@@ -488,8 +488,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             }
             var line = Line()
             pending.forEachIndexed { index, entry ->
-                val childMain = if (orientation == HORIZONTAL) entry.width + (margins[index * 2] + margins[index * 2 + 1]).roundToInt()
-                else entry.height + (margins[index * 2] + margins[index * 2 + 1]).roundToInt()
+                val childMain = if (orientation == HORIZONTAL) entry.width.toFloat() + margins[index * 2] + margins[index * 2 + 1]
+                else entry.height.toFloat() + margins[index * 2] + margins[index * 2 + 1]
                 val lp = entry.view.layoutParams as? MarginLayoutParams
                 val crossMargins = if (orientation == HORIZONTAL) (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
                 else (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
@@ -503,7 +503,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 }
                 line.entries += entry
                 line.main = if (line.entries.size == 1) childMain else line.main + gap + childMain
-                line.cross = max(line.cross, childCross)
+                line.cross = max(line.cross, childCross.toFloat())
             }
             if (line.entries.isNotEmpty()) lines += line
         }
@@ -518,7 +518,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private fun gridLayout(width: Int, height: Int): GridLayout {
         val availableWidth = max(0, width - paddingLeft - paddingRight)
         val gap = columnGap
-        val cellWidth = max(0f, (availableWidth - max(0, gridColumns - 1) * gap).toFloat() / max(1, gridColumns).toFloat())
+        val cellWidth = max(0f, (availableWidth.toFloat() - max(0, gridColumns - 1) * gap) / max(1, gridColumns).toFloat())
         val rows = mutableListOf<MutableList<Entry>>()
         val absolute = mutableListOf<Entry>()
         for (index in 0 until childCount) {
@@ -579,9 +579,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             flowIndex += 1
         }
         val cellWidth = columnWidths.maxOrNull() ?: 0
-        val width = paddingLeft + paddingRight + cellWidth * columns + max(0, columns - 1) * columnGap
+        val width = paddingLeft + paddingRight + cellWidth * columns + (max(0, columns - 1) * columnGap).roundToInt()
         val rowGapTotal = max(0, rowHeights.size - 1) * rowGap
-        val measuredHeight = paddingTop + paddingBottom + rowHeights.sum() + rowGapTotal
+        val measuredHeight = paddingTop + paddingBottom + rowHeights.sum() + rowGapTotal.roundToInt()
         return width to measuredHeight
     }
 
@@ -664,15 +664,15 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     }
 
     /** Keep the old-runtime shim on the same bounded-flex water-fill rule as the Zig bridge. */
-    private fun fallbackFlexWidths(line: Line, available: Int, gap: Int): IntArray {
+    private fun fallbackFlexWidths(line: Line, available: Int, gap: Float): IntArray {
         val horizontal = orientation == HORIZONTAL
         val hypothetical = line.entries.sumOf { entry ->
             val lp = entry.view.layoutParams as? MarginLayoutParams
             val margins = if (horizontal) (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
             else (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
-            (if (horizontal) entry.width else entry.height) + margins
-        } + max(0, line.entries.size - 1) * gap
-        val free = available - hypothetical
+            ((if (horizontal) entry.width else entry.height) + margins).toDouble()
+        } + max(0, line.entries.size - 1) * gap.toDouble()
+        val free = available.toDouble() - hypothetical
         val growTotal = line.entries.sumOf { it.style.flexGrow }
         val shrinkTotal = line.entries.sumOf {
             (it.style.flexShrink ?: defaultFlexShrink(it.view)) * (if (horizontal) it.width else it.height)
@@ -701,7 +701,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 }
             }
             if (factor <= 0) return@repeat
-            val remaining = available - fixed - activeBasis
+            val remaining = available.toDouble() - fixed - activeBasis
             var froze = false
             for ((index, entry) in line.entries.withIndex()) {
                 if (frozen[index]) continue
@@ -740,15 +740,15 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             }
             val layout = gridLayout(width, height)
             val desiredWidth = paddingLeft + paddingRight + (layout.cellWidth * gridColumns + max(0, gridColumns - 1) * columnGap).roundToInt()
-            val desiredHeight = paddingTop + paddingBottom + layout.rowHeights.sum().roundToInt() + max(0, layout.rowHeights.size - 1) * rowGap
+            val desiredHeight = paddingTop + paddingBottom + layout.rowHeights.sum().roundToInt() + (max(0, layout.rowHeights.size - 1) * rowGap).roundToInt()
             setMeasuredDimension(resolveSize(desiredWidth, widthMeasureSpec), resolveSize(desiredHeight, heightMeasureSpec))
             return
         }
         val (lines, absolute) = entries(width, height)
-        val main = lines.maxOfOrNull { it.main } ?: 0
-        val cross = lines.sumOf { it.cross } + max(0, lines.size - 1) * (if (orientation == HORIZONTAL) rowGap else columnGap)
-        val desiredWidth = if (orientation == HORIZONTAL) main else cross
-        val desiredHeight = if (orientation == HORIZONTAL) cross else main
+        val main = lines.maxOfOrNull { it.main } ?: 0f
+        val cross = lines.sumOf { it.cross.toDouble() } + max(0, lines.size - 1) * (if (orientation == HORIZONTAL) rowGap else columnGap).toDouble()
+        val desiredWidth = if (orientation == HORIZONTAL) main.roundToInt() else cross.roundToInt()
+        val desiredHeight = if (orientation == HORIZONTAL) cross.roundToInt() else main.roundToInt()
         val absWidth = absolute.maxOfOrNull { it.width } ?: 0
         val absHeight = absolute.maxOfOrNull { it.height } ?: 0
         setMeasuredDimension(
@@ -766,7 +766,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             // Older runtimes return null for the optional symbol; the local
             // layout below remains the compatibility path in that case.
             val sharedFrames = CraftNative.grid(
-                contentWidth.toFloat(), contentHeight.toFloat(), gridColumns, columnGap.toFloat(), rowGap.toFloat(),
+                contentWidth.toFloat(), contentHeight.toFloat(), gridColumns, columnGap, rowGap,
                 flow.map { it.width.toFloat() }.toFloatArray(), flow.map { it.height.toFloat() }.toFloatArray(),
                 flow.map { it.style.width?.resolve(layout.cellWidth.roundToInt())?.toFloat() ?: Float.NaN }.toFloatArray(),
                 flow.map { it.style.height?.resolve(null)?.toFloat() ?: Float.NaN }.toFloatArray(),
@@ -863,16 +863,16 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val crossGap = if (orientation == HORIZONTAL) rowGap else columnGap
         val availableMain = if (orientation == HORIZONTAL) contentWidth else contentHeight
         val availableCross = if (orientation == HORIZONTAL) contentHeight else contentWidth
-        val totalCross = lines.sumOf { it.cross } + max(0, lines.size - 1) * crossGap
-        val crossFree = max(0, availableCross - totalCross).toFloat()
+        val totalCross = lines.sumOf { it.cross.toDouble() }.toFloat() + max(0, lines.size - 1) * crossGap
+        val crossFree = max(0f, availableCross.toFloat() - totalCross)
         var crossLeading = 0f
-        var crossBetween = crossGap.toFloat()
+        var crossBetween = crossGap
         val sharedCross = if (wrap && lines.size > 1) {
             CraftNative.flexLineDistribution(
-                availableCross.toFloat(), crossGap.toFloat(), alignContentCode(), lines.map { it.cross.toFloat() }.toFloatArray()
+                availableCross.toFloat(), crossGap, alignContentCode(), lines.map { it.cross }.toFloatArray()
             )
         } else null
-        sharedCross?.second?.forEachIndexed { index, size -> lines[index].cross = size.roundToInt() }
+        sharedCross?.second?.forEachIndexed { index, size -> lines[index].cross = size }
         if (wrap && lines.size > 1) {
             if (sharedCross == null) when (alignContent) {
                 "center" -> crossLeading = crossFree / 2f
@@ -898,7 +898,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val fallbackWidths = fallbackFlexWidths(line, availableMain, gap)
             val sharedPrimary = CraftNative.flexRow(
                 availableMain.toFloat(),
-                gap.toFloat(),
+                gap,
                 justifyCode(),
                 line.entries.map { entry -> if (orientation == HORIZONTAL) entry.width.toFloat() else entry.height.toFloat() }.toFloatArray(),
                 line.entries.map { it.style.flexGrow.toFloat() }.toFloatArray(),
@@ -923,8 +923,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     val lp = line.entries[index].view.layoutParams as? MarginLayoutParams
                     val margins = if (orientation == HORIZONTAL) (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
                     else (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
-                    sharedPrimary[index].roundToInt() + margins
-                } + max(0, line.entries.size - 1) * gap
+                    sharedPrimary[index].toDouble() + margins
+                } + max(0, line.entries.size - 1) * gap.toDouble()
             } else {
                 line.entries.indices.sumOf { index ->
                     val constrained = fallbackWidths[index]
@@ -932,9 +932,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     val margins = if (orientation == HORIZONTAL) (lp?.leftMargin ?: 0) + (lp?.rightMargin ?: 0)
                         else (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
                     constrained + margins
-                } + max(0, line.entries.size - 1) * gap
+                }.toDouble() + max(0, line.entries.size - 1) * gap.toDouble()
             }
-            val free = max(0, availableMain - distributedMain)
+            val free = max(0f, availableMain.toFloat() - distributedMain.toFloat())
             val (leading, between) = distribution(free, line.entries.size)
             var mainOffset = (if (orientation == HORIZONTAL) paddingLeft else paddingTop).toFloat() + leading
             for ((index, entry) in line.entries.withIndex()) {
@@ -962,7 +962,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 // Shared positions cover every non-reverse justification; the
                 // local main-axis rule remains the fallback for old runtimes
                 // that return widths only.
-                val sharedPosition = if (!reverse) sharedPositions?.get(index)?.roundToInt() else null
+                val sharedPosition = if (!reverse) sharedPositions?.get(index) else null
                 val positionedMain = sharedPosition?.let { (if (orientation == HORIZONTAL) paddingLeft else paddingTop).toFloat() + it }
                     ?: mainOffset + marginStart
                 val x = if (orientation == HORIZONTAL) positionedMain.roundToInt() else (lineOffset + crossPosition).roundToInt()
@@ -986,8 +986,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         onLayoutChanged?.invoke()
     }
 
-    private fun distribution(free: Int, count: Int): Pair<Float, Float> {
-        val available = free.toFloat()
+    private fun distribution(free: Float, count: Int): Pair<Float, Float> {
+        val available = free
         return when (justifyContent) {
             "center" -> available / 2f to 0f
             "flex-end" -> available to 0f

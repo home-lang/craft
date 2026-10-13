@@ -132,6 +132,8 @@ become checked on their first user toggle.
 horizontal and inverted layouts, list chrome, and end-reached pagination.
 Flex items support `flex`, `flexGrow`, `flexShrink`, and numeric or percentage
 `flexBasis` for main-axis space distribution while preserving gaps and margins.
+`gap`, `rowGap`, and `columnGap` retain fractional density-independent values
+through line distribution and round only the final native frames.
 Numeric lengths and percentage widths/heights resolve against the native parent
 content box, keeping responsive sizing aligned with the iOS renderer.
 When `flexShrink` is omitted, horizontal text labels and scroll hosts use the
