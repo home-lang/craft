@@ -195,8 +195,14 @@ struct CraftRecoveryBudget {
 final class CraftAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        let config = CraftConfig.bundled()
         // Before launch finishes, which is the only time iOS accepts it.
-        CraftBackgroundWork.shared.registerRefresh(CraftConfig.bundled())
+        CraftBackgroundWork.shared.registerRefresh(config)
+        // The shell, the app script and an all-native app's services now,
+        // not when SwiftUI first draws: a launch in the background (a silent
+        // push, a refresh, a route recording's location) draws nothing, and
+        // its events still need someone to hear them.
+        CraftHybrid.shared.configure(config)
         if let shortcut = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
             CraftEventManager.shared.handleShortcut(shortcut)
             // Returning false tells UIKit the launch-time item was handled and
@@ -269,17 +275,58 @@ final class CraftAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
 }
 
 // MARK: - Native Event Manager
+
+/// The app's own events: a notification tapped or arriving, a silent push,
+/// background refresh, a home-screen or Siri shortcut. They go to the page,
+/// or, in an app with an app script (`nativeApp`, CraftHybrid.swift), to that
+/// script as `CRAFT_EVENT { event, detail }` instead. Either way an event
+/// that arrives before its listener can hear it (a tap that launched the app)
+/// waits for it, in order.
 class CraftEventManager {
     static let shared = CraftEventManager()
 
+    /// Who hears the app's events. Undecided until the shell is configured
+    /// at launch, which may be after the first event (a launch shortcut).
+    enum Listener {
+        case undecided
+        case page
+        case appScript
+        /// An all-native app with no app script: nothing hears them.
+        case none
+    }
+
     private weak var webView: WKWebView?
     private var isReady = false
+    private var listener: Listener = .undecided
     private var pendingEvents: [(name: String, data: [String: Any])] = []
+    /// The app script's delivery, once its bundle has run.
+    private var appScriptSink: ((String, [String: Any]) -> Void)?
 
     private init() {}
 
     func setWebView(_ webView: WKWebView) {
         self.webView = webView
+    }
+
+    /// From `CraftHybrid.configure`: whether an app script hears the app's
+    /// events, and whether there is a page to hear them otherwise.
+    func configure(appScript: Bool, page: Bool) {
+        listener = appScript ? .appScript : (page ? .page : .none)
+        guard listener == .none else { return }
+        // Nothing will ever hear what is waiting; iOS gets its answer now
+        // rather than at the background deadline.
+        let events = pendingEvents
+        pendingEvents.removeAll()
+        for event in events { drop(event.name, data: event.data) }
+    }
+
+    /// The app script has run its bundle: whatever waited for it, in order.
+    func appScriptReady(_ sink: @escaping (String, [String: Any]) -> Void) {
+        appScriptSink = sink
+        guard listener == .appScript else { return }
+        let events = pendingEvents
+        pendingEvents.removeAll()
+        for event in events { sink(event.name, event.data) }
     }
 
     func setLoading() {
@@ -288,6 +335,8 @@ class CraftEventManager {
 
     func setReady() {
         isReady = true
+        // Held for the app script, which the page's readiness says nothing about.
+        guard listener != .appScript else { return }
         let events = pendingEvents
         pendingEvents.removeAll()
         for event in events {
@@ -338,13 +387,37 @@ class CraftEventManager {
         return true
     }
 
-    /// Dispatch now if the page can hear it, or hold it until it can.
+    /// Dispatch now if the page (or the app script) can hear it, or hold it
+    /// until it can. The name says "web" for the page it was written for; the
+    /// event names are spelled at its call sites, where the conformance test
+    /// reads the vocabulary from.
     func sendToWeb(_ event: String, data: [String: Any]) {
-        guard isReady, webView != nil else {
-            pendingEvents.append((event, data))
-            return
+        switch listener {
+        case .appScript:
+            guard let appScriptSink else {
+                pendingEvents.append((event, data))
+                // Background work cannot wait for a first frame that a
+                // launch in the background never draws.
+                if event == "craftSilentPush" || event == "craftBackgroundRefresh" { CraftHybrid.shared.backgroundWorkWaiting() }
+                return
+            }
+            appScriptSink(event, data)
+        case .none:
+            drop(event, data: data)
+        case .page, .undecided:
+            guard listener == .page, isReady, webView != nil else {
+                pendingEvents.append((event, data))
+                return
+            }
+            dispatch(event, data: data)
         }
-        dispatch(event, data: data)
+    }
+
+    /// An event no one will hear: logged, and background work it holds is
+    /// answered at once.
+    private func drop(_ event: String, data: [String: Any]) {
+        NSLog("[craft] %@: the app has no page and no app script (nativeApp) to hear it", event)
+        if let id = data["id"] as? String { CraftBackgroundWork.shared.release(id) }
     }
 
     private func dispatch(_ event: String, data: [String: Any]) {
@@ -363,7 +436,9 @@ class CraftEventManager {
 /// The page's share of background time: a silent push (`craftSilentPush`) and
 /// iOS's scheduled app refresh (`craftBackgroundRefresh`). Each holds iOS's
 /// completion until the page calls `craft.background.complete(ok)` (with the
-/// event's `id`, or with none for everything pending), or for 25 seconds.
+/// event's `id`, or with none for everything pending), or for 25 seconds. In
+/// an app with an app script the script hears both and answers the same way,
+/// through the native `Background.complete` (CraftNativeActions.swift).
 ///
 /// The page has to be alive to do the work: when iOS wakes an app it had
 /// suspended, it is; when it launches one it had ended, the event waits for
@@ -398,6 +473,12 @@ final class CraftBackgroundWork {
         } else {
             for id in Array(pending.keys) { end(id, ok: ok) }
         }
+    }
+
+    /// Work no one will do (nothing hears its event): iOS is answered now,
+    /// as the deadline would have.
+    func release(_ id: String) {
+        end(id, ok: nil)
     }
 
     private func end(_ id: String, ok: Bool?) {
@@ -461,11 +542,12 @@ struct CraftApp: App {
     var body: some SwiftUI.Scene {
         WindowGroup {
             Group {
-                if appState.config.renderer == "native" {
-                    CraftNativeScreen(config: appState.config)
-                } else if CraftHybrid.shared.isEnabled {
-                    // Web plus native screens (CraftHybrid.swift): the native
-                    // screen for the start path at once, the page warm behind it.
+                if CraftHybrid.shared.isEnabled {
+                    // Native screens by path, with tabs (CraftHybrid.swift):
+                    // the native screen for the start path at once, and in a
+                    // web app (hybrid) the page warm behind it. An all-native
+                    // app (renderer "native" with nativeScreens) has the same
+                    // shell and no web view at all.
                     ZStack(alignment: .bottom) {
                         CraftColorSchemeObserver()
                         CraftHybridRoot(config: appState.config)
@@ -477,6 +559,9 @@ struct CraftApp: App {
                     // stack kept out of the keyboard's way and carried the bar
                     // up above it, over the field being typed in.
                     .ignoresSafeArea(.keyboard, edges: .bottom)
+                } else if appState.config.renderer == "native" {
+                    // One native screen and its stack: no paths, no tabs.
+                    CraftNativeScreen(config: appState.config)
                 } else {
                     // The page's own chrome, drawn natively over it: the tab
                     // bar the page asks for, and the splash until it is ready.
@@ -927,10 +1012,13 @@ class DeepLinkManager {
         }
 
         // A hybrid app opens a native path's screen itself, and tells the
-        // native screens that listen; every other link is the page's.
+        // native screens that listen; every other link is the page's. An
+        // all-native app has no page: its native screens hear every link.
         if CraftHybrid.shared.isEnabled {
             if CraftHybrid.shared.handleDeepLink(url) {
                 dispatchNative(url, initial: false)
+            } else if !CraftHybrid.shared.hasWeb {
+                if nativeListeners.isEmpty { pendingURLs.append(url) } else { dispatchNative(url, initial: false) }
             } else if isReady && webView != nil {
                 dispatchDeepLink(url, initial: false)
             } else {
@@ -958,7 +1046,8 @@ class DeepLinkManager {
         nativeListeners[token] = listener
         // In a hybrid app the page is the one waiting for the links that
         // arrived early; a native screen hears only native ones, as they come.
-        if CraftHybrid.shared.isEnabled { return token }
+        // An all-native app has no page, so its first screen hears them.
+        if CraftHybrid.shared.isEnabled && CraftHybrid.shared.hasWeb { return token }
         let firstNativeScreen = !hasBeenReady
         hasBeenReady = true
         let urls = pendingURLs
@@ -1027,7 +1116,8 @@ class AppState: ObservableObject {
             self.config = CraftConfig()
         }
         // Before the first frame: the hybrid start screen, and the tab bar
-        // from the config, are decided here.
+        // from the config, are decided here, if the app delegate has not
+        // already (it does at launch; the first call decides).
         CraftHybrid.shared.configure(config)
     }
 }
@@ -1149,6 +1239,9 @@ struct CraftConfig: Codable {
     /// Hybrid: web-storage keys the page's own code writes, mirrored into the
     /// Keychain under another name for native screens (`{"auth_token": "auth.token"}`).
     var shareStorage: [String: String]? = nil
+    /// The bundle route of the app script: a screen-less script that runs for
+    /// the app's whole life and hears the app's events (CraftHybrid.swift).
+    var nativeApp: String? = nil
 
     struct Tab: Codable {
         var id: String
@@ -8500,8 +8593,10 @@ final class CraftZigRuntime: NSObject {
 /// started on a page can be followed on a native screen.
 ///
 /// The coordinator exists wherever the web view does: always in a hybrid app.
-/// Calls go to the Swift dispatcher; a build that links the Zig runtime keeps
-/// the page's calls on Zig.
+/// An app with no web view (renderer "native") has one all the same, without
+/// a web view (`CraftHybrid.configure`), so its native screens have these
+/// services too. Calls go to the Swift dispatcher; a build that links the Zig
+/// runtime keeps the page's calls on Zig.
 enum CraftWebServices {
     private static var waiting: [String: (Result<Any, CraftNativeActionError>) -> Void] = [:]
     /// Coordinator events a native screen hears too.
@@ -8558,7 +8653,8 @@ enum CraftWebServices {
 /// how this codebase accumulated five envelopes.
 @objc(CraftSwiftShim)
 final class CraftSwiftShim: NSObject {
-    /// The coordinator serving hand-offs. Set by `makeCoordinator`.
+    /// The coordinator serving hand-offs. Set by `makeCoordinator`, or in an
+    /// app with no web view by `CraftHybrid.configure`, which holds it.
     static weak var coordinator: CraftWebView.Coordinator?
 
     private typealias DeliverResultFn = @convention(c) (

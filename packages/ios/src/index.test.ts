@@ -1160,7 +1160,7 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('let id = CraftBackgroundWork.shared.hold { ok in')
     expect(swift).toContain('CraftEventManager.shared.sendToWeb("craftSilentPush", data: ["id": id, "payload": CraftEventManager.pageData(userInfo)])')
     expect(swift).toContain('static let deadline: TimeInterval = 25')
-    expect(swift).toContain('CraftBackgroundWork.shared.registerRefresh(CraftConfig.bundled())')
+    expect(swift).toContain('CraftBackgroundWork.shared.registerRefresh(config)')
     expect(swift).toContain('BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: nil)')
     expect(swift).toContain('CraftEventManager.shared.sendToWeb("craftBackgroundRefresh", data: ["id": id])')
     expect(swift).toContain('task.setTaskCompleted(success: ok ?? false)')
@@ -1292,7 +1292,7 @@ describe('Craft iOS builder', () => {
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
     const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
-    expect(actions).toContain('if config.enableGeolocation && config.renderer != "native" { values.append("geolocation") }')
+    expect(actions).toContain('if config.enableGeolocation { values.append("geolocation") }')
     expect(actions).toContain('if config.enableKeepAwake { values.append("keepAwake") }')
     expect(actions).toContain('"startRecording": "startLocationRecording"')
     expect(actions).toContain('CraftWebServices.perform(action: action, body: args.first as? [String: Any] ?? [:])')
@@ -1342,12 +1342,74 @@ describe('Craft iOS builder', () => {
     expect(audio).toContain('AVAudioSession.interruptionNotification')
   })
 
+  it('runs an all-native app with the shell\'s tabs and paths, an app script and the web view\'s services', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-app-'))
+    const bundle = join(output, 'bundle.js')
+    writeFileSync(bundle, '// screens\n')
+    await init({
+      runtimeDir: null,
+      name: 'Gate',
+      bundleId: 'com.example.gate',
+      output,
+      config: {
+        renderer: 'native',
+        devServerURL: 'https://example.com/m',
+        nativeScreens: { '/m': 'Today' },
+        tabs: [{ id: '/m', title: 'Today' }],
+        nativeApp: '__app',
+        nativeBundle: bundle,
+        enablePushNotifications: true,
+        backgroundRefresh: { enabled: true },
+      },
+    })
+    const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
+    const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+
+    // The routed shell for either renderer, ahead of the single-stack screen.
+    expect(app.indexOf('if CraftHybrid.shared.isEnabled {')).toBeLessThan(app.indexOf('} else if appState.config.renderer == "native" {'))
+    expect(hybrid).toContain('hasWeb = config.renderer != "native"')
+    expect(hybrid).toContain('let wanted = !routes.isEmpty')
+    // No web view is ever made without a page.
+    expect(hybrid).toContain('webHost = CraftHybrid.shared.hasWeb')
+    expect(hybrid).toContain('hybrid.openOutside(raw)')
+    // The web view's services, from a coordinator with no web view.
+    expect(hybrid).toContain('let coordinator = CraftWebView.Coordinator(config: config)')
+    expect(hybrid).toContain('CraftSwiftShim.coordinator = coordinator')
+    expect(app).toContain('CraftHybrid.shared.configure(config)')
+
+    // The app script: headless, kept, after the first frame; the app's events go to it.
+    expect(hybrid).toContain('CraftNativeScreenController(config: config, routeName: route, isAppScript: true)')
+    expect(hybrid).toContain('script.loadViewIfNeeded()')
+    expect(hybrid).toContain('self?.hybrid.startAppScript()')
+    expect(hybrid).toContain('CraftEventManager.shared.configure(appScript: appScriptRoute != nil, page: hasWeb)')
+    expect(screen).toContain('CraftEventManager.shared.appScriptReady { [weak self] event, detail in')
+    expect(screen).toContain('self?.send(type: "CRAFT_EVENT", payload: ["event": event, "detail": detail])')
+    expect(screen).toContain('guard isAppScript || navigationController?.topViewController === self else { return }')
+    expect(app).toContain('appScriptSink(event, data)')
+    // Every app event is still spelled at a sendToWeb call.
+    for (const event of ['craftNotificationResponse', 'craftNotificationReceived', 'craftSilentPush', 'craftBackgroundRefresh', 'craftShortcut', 'craftSiriShortcut'])
+      expect(app).toContain(`sendToWeb("${event}"`)
+
+    // What the app script and the screens know of the app, and its answer to background work.
+    expect(screen).toContain('appURL: \\(appURL),')
+    expect(screen).toContain('appVersion: \\(appVersion),')
+    expect(screen).toContain('appBuild: \\(appBuild),')
+    expect(actions).toContain('case ("Background", "complete"):')
+    expect(actions).toContain('CraftBackgroundWork.shared.complete(id: id, ok: ok)')
+    expect(actions).toContain('if config.backgroundRefresh?.enabled == true || config.enablePushNotifications { values.append("background") }')
+    // Every snapshot but the kept ones, from a native screen (a sign-out).
+    expect(screen).toContain('craftNativeSnapshotClear(names, function(ok) {')
+    expect(actions).toContain('static func clear(keeping keep: Set<String> = [], completion: ((Bool) -> Void)? = nil)')
+  })
+
   it('lends native screens the page\'s Music app bridge', async () => {
     const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-music-'))
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableAppleMusic: true, nativeScreens: { '/m/go/:id': 'Go' } } as any })
     const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
-    expect(actions).toContain('if config.enableAppleMusic && config.renderer != "native" { values.append("music") }')
+    expect(actions).toContain('if config.enableAppleMusic { values.append("music") }')
     expect(actions).toContain('"getNowPlaying": "musicGetNowPlaying", "control": "musicControl", "observe": "musicObserve"')
     // Its changes reach every native screen, as the page hears them.
     expect(app).toContain('"craftMusicChange", "craftHeartRate"]')

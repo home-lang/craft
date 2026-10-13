@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'bun:test'
-import { build, hybridConfigProblems, init, isHybrid, matchNativePath, normalizeNativePath } from './index'
+import { build, hasNativeRoutes, hybridConfigProblems, init, isHybrid, matchNativePath, nativeStartPath, normalizeNativePath, usesNativeBundle } from './index'
 
 // Hybrid apps: web plus native screens (CraftHybrid.swift). The shell, the
 // page script it injects and the typescript API each decide which paths are
@@ -386,7 +386,6 @@ describe('hybrid paths in typescript', () => {
 
   it('says what is wrong with a hybrid config', () => {
     expect(hybridConfigProblems({ nativeScreens: TABLE, tabs: [{ id: '/m', title: 'Today' }] })).toEqual([])
-    expect(hybridConfigProblems({ renderer: 'native', nativeScreens: { '/m': 'Today' } })[0]).toContain('renderer: "web"')
     expect(hybridConfigProblems({ nativeScreens: { 'm': 'Today' } })[0]).toContain('absolute path')
     expect(hybridConfigProblems({ nativeScreens: { '/m/': 'Today' } })[0]).toContain('trailing slash')
     expect(hybridConfigProblems({ nativeScreens: { '/m?x=1': 'Today' } })[0]).toContain('query')
@@ -398,6 +397,46 @@ describe('hybrid paths in typescript', () => {
     expect(isHybrid({ nativeScreens: TABLE })).toBe(true)
     expect(isHybrid({ renderer: 'web', nativeScreens: {} })).toBe(false)
     expect(isHybrid({ renderer: 'native', nativeScreens: TABLE })).toBe(false)
+  })
+
+  it('takes an all-native app with routes, tabs and an app script', () => {
+    const native = {
+      renderer: 'native' as const,
+      devServerURL: 'https://hq.training/m',
+      nativeScreens: TABLE,
+      tabs: [{ id: '/m', title: 'Today' }, { id: '/m/calendar', title: 'Calendar' }],
+      nativeApp: '__app',
+    }
+    expect(hybridConfigProblems(native)).toEqual([])
+    expect(hasNativeRoutes(native)).toBe(true)
+    expect(hasNativeRoutes({ nativeScreens: TABLE })).toBe(false)
+    expect(hasNativeRoutes({ renderer: 'native' })).toBe(false)
+    expect(usesNativeBundle({ renderer: 'native' })).toBe(true)
+    expect(usesNativeBundle({ nativeScreens: TABLE })).toBe(true)
+    expect(usesNativeBundle({})).toBe(false)
+    // The start path is devServerURL's path, `/` without one.
+    expect(nativeStartPath({ devServerURL: 'https://hq.training/m/calendar?date=1' })).toBe('/m/calendar?date=1')
+    expect(nativeStartPath({})).toBe('/')
+    expect(nativeStartPath({ devServerURL: 'not a url' })).toBe('/')
+  })
+
+  it('says what is wrong with an all-native app', () => {
+    const base = { renderer: 'native' as const, devServerURL: 'https://hq.training/m', nativeScreens: TABLE }
+    // No web view to fall back to: every tab is a native screen.
+    const tab = hybridConfigProblems({ ...base, tabs: [{ id: '/m', title: 'Today' }, { id: '/me', title: 'Me' }] })
+    expect(tab).toHaveLength(1)
+    expect(tab[0]).toContain('Tab "/me" is not a nativeScreens path')
+    // And so is the start path.
+    expect(hybridConfigProblems({ ...base, devServerURL: 'https://hq.training/' })[0]).toContain('start path "/"')
+    expect(hybridConfigProblems({ ...base, devServerURL: undefined })[0]).toContain('start path "/"')
+    expect(hybridConfigProblems({ ...base, nativeScreens: { ...TABLE, '/': 'Home' }, devServerURL: undefined })).toEqual([])
+    // A hybrid app's tabs and start may be the page's.
+    expect(hybridConfigProblems({ ...base, renderer: 'web', tabs: [{ id: '/me', title: 'Me' }], devServerURL: 'https://hq.training/' })).toEqual([])
+    // The app script names a bundle route, and needs a bundle.
+    expect(hybridConfigProblems({ ...base, nativeApp: '1 bad' })[0]).toContain('nativeApp "1 bad"')
+    expect(hybridConfigProblems({ nativeApp: '__app' })[0]).toContain('nativeScreens or renderer: "native"')
+    expect(hybridConfigProblems({ renderer: 'native', nativeApp: '__app' })).toEqual([])
+    expect(hybridConfigProblems({ nativeScreens: TABLE, nativeApp: '__app' })).toEqual([])
   })
 })
 
@@ -454,6 +493,59 @@ describe('hybrid project generation', () => {
     })).rejects.toThrow('absolute path')
   })
 
+  it('installs an all-native app\'s bundle and passes its app script through', async () => {
+    const output = join(workspace, 'Native')
+    await init({
+      name: 'Native Routes',
+      bundleId: 'dev.craft.hybrid.native',
+      output,
+      runtimeDir: null,
+      config: {
+        renderer: 'native',
+        devServerURL: 'https://hq.training/m',
+        nativeScreens: { '/m': 'Today', '/m/calendar': 'Calendar' },
+        tabs: [{ id: '/m', title: 'Today' }, { id: '/m/calendar', title: 'Calendar' }],
+        nativeApp: '__app',
+        nativeBundle: bundle,
+      },
+    })
+    const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8'))
+    expect(config.renderer).toBe('native')
+    expect(config.nativeApp).toBe('__app')
+    expect(config.devServerURL).toBe('https://hq.training/m')
+    expect(readFileSync(join(output, 'dist', 'native-screen.js'), 'utf8')).toBe(readFileSync(bundle, 'utf8'))
+
+    // A build without --native-bundle installs the config's bundle again.
+    const next = join(workspace, 'native-next.js')
+    writeFileSync(next, '// native next\n')
+    config.nativeBundle = next
+    writeFileSync(join(output, 'craft.config.json'), JSON.stringify(config))
+    await build({ output, generateProject: false, runtimeDir: null })
+    expect(readFileSync(join(output, 'dist', 'native-screen.js'), 'utf8')).toBe('// native next\n')
+    // --native-bundle wins over the config's.
+    const flag = join(workspace, 'native-flag.js')
+    writeFileSync(flag, '// native flag\n')
+    await build({ output, nativeBundlePath: flag, generateProject: false, runtimeDir: null })
+    expect(readFileSync(join(output, 'dist', 'native-screen.js'), 'utf8')).toBe('// native flag\n')
+    // Still no web assets or dev server for a native app.
+    await expect(build({ output, devServer: 'http://localhost:3000', generateProject: false, runtimeDir: null })).rejects.toThrow('--dev-server')
+  })
+
+  it('installs a single-screen native app\'s nativeBundle at init', async () => {
+    const output = join(workspace, 'Single')
+    await init({ name: 'Single', bundleId: 'dev.craft.hybrid.single', output, runtimeDir: null, config: { renderer: 'native', nativeBundle: bundle } })
+    expect(existsSync(join(output, 'dist', 'native-screen.js'))).toBe(true)
+  })
+
+  it('refuses an all-native app whose tab no screen draws', async () => {
+    await expect(init({
+      name: 'BrokenNative',
+      output: join(workspace, 'BrokenNative'),
+      runtimeDir: null,
+      config: { renderer: 'native', devServerURL: 'https://hq.training/m', nativeScreens: { '/m': 'Today' }, tabs: [{ id: '/me', title: 'Me' }] },
+    })).rejects.toThrow('Tab "/me"')
+  })
+
   it('keeps --native-bundle to native and hybrid apps', async () => {
     const output = join(workspace, 'Web')
     await init({ name: 'Web', bundleId: 'dev.craft.hybrid.web', output, runtimeDir: null })
@@ -500,6 +592,11 @@ out["matches"] = (input["paths"] as! [String]).map { path -> Any in
 out["appPaths"] = (input["urls"] as! [String]).map { CraftHybridRoutes.appPath(of: URL(string: $0)!) }
 out["tabs"] = (input["tabPaths"] as! [String]).map { CraftHybridRoutes.tab(owning: $0, among: input["tabIds"] as! [String]).map { $0 as Any } ?? NSNull() }
 
+let site = URL(string: input["site"] as! String)
+out["siteURLs"] = (input["opens"] as! [String]).map { CraftHybridRoutes.siteURL(for: $0, site: site)?.absoluteString as Any? ?? NSNull() }
+out["siteURLsWithoutSite"] = (input["opens"] as! [String]).map { CraftHybridRoutes.siteURL(for: $0, site: nil)?.absoluteString as Any? ?? NSNull() }
+out["onSite"] = (input["links"] as! [String]).map { CraftHybridRoutes.isSite(URL(string: $0)!, site: site) }
+
 func describe(_ message: CraftHybridMessage?) -> String { message.map { "\\($0)" } ?? "nil" }
 out["messages"] = (input["messages"] as! [[String: Any]]).map { describe(CraftHybridMessage.parse($0)) }
 
@@ -534,6 +631,9 @@ print(String(data: try! JSONSerialization.data(withJSONObject: out, options: [.s
     urls: ['hqtraining://m', 'hqtraining://m/calendar?date=1', 'hqtraining:///m/x', 'https://hq.training/m/workout/4', 'https://hq.training', 'http://localhost:3100/m'],
     tabPaths: ['/m', '/m/workout/4', '/m/calendar', '/m/calendar/day', '/me', '/x'],
     tabIds: ['/m', '/m/calendar', '/me'],
+    site: 'https://hq.training/m?x=1#top',
+    opens: ['/terms', '/terms?a=1#b', 'https://example.com/x', 'http://hq.training/y', '//evil.example/x', 'terms', 'mailto:a@b.c'],
+    links: ['https://hq.training/terms', 'http://HQ.training/m', 'https://www.hq.training/', 'hqtraining://terms', 'https://example.com/'],
     messages,
   })], { stderr: 'pipe' })
   if (run.exitCode !== 0) throw new Error(`the Swift probe failed:\n${run.stderr.toString()}`)
@@ -547,6 +647,24 @@ print(String(data: try! JSONSerialization.data(withJSONObject: out, options: [.s
 
   it('turns links into app paths', () => {
     expect(result.appPaths).toEqual(['/m', '/m/calendar?date=1', '/m/x', '/m/workout/4', '/', '/m'])
+  })
+
+  it('opens a path no screen draws on the app\'s site', () => {
+    expect(result.siteURLs).toEqual([
+      'https://hq.training/terms',
+      'https://hq.training/terms?a=1#b',
+      'https://example.com/x',
+      'http://hq.training/y',
+      null,
+      null,
+      null,
+    ])
+    // With no site a path has nowhere to open; a web address still does.
+    expect(result.siteURLsWithoutSite).toEqual([null, null, 'https://example.com/x', 'http://hq.training/y', null, null, null])
+  })
+
+  it('knows a link to the app\'s own site', () => {
+    expect(result.onSite).toEqual([true, true, false, false, false])
   })
 
   it('finds the tab a path belongs to', () => {

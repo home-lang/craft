@@ -70,6 +70,25 @@ const fixtures: CompileFixture[] = [
       shareStorage: { auth_token: 'auth.token' },
     },
   },
+  {
+    // All native with the shell's tabs and paths, no web view, an app
+    // script, and the web view's services from a coordinator without one.
+    name: 'NativeRoutesProbe',
+    bundleId: 'dev.craft.templates.nativeroutes',
+    config: {
+      renderer: 'native',
+      devServerURL: 'https://example.com/m',
+      nativeScreens: { '/m': 'Today', '/m/calendar': 'Calendar', '/m/workout/:id': 'Workout' },
+      tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max' }, { id: '/m/calendar', title: 'Calendar', symbol: 'calendar' }],
+      nativeApp: '__app',
+      enableAppleMusic: true,
+      enableGeolocation: true,
+      enableHealthKit: true,
+      enableHeartRate: true,
+      enablePushNotifications: true,
+      backgroundRefresh: { enabled: true },
+    },
+  },
 ]
 
 /** Push on and nothing else, so the entitlement builds stay quick. */

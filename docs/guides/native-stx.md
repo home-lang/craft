@@ -24,8 +24,11 @@ craft android init MyApp --package com.example.myapp --renderer native --output 
 craft android build --output ./android --native-bundle ./native-screen.js
 ```
 
-Native mode does not accept a web distribution or development-server URL. The
-bundle must be local at build time.
+Native mode does not accept a web distribution (`--html-path`) or a
+development server (`--dev-server`). The bundle must be local at build time:
+`--native-bundle`, or `nativeBundle` in the config, which `init` and every
+`build` install as `dist/native-screen.js`. `devServerURL` in the config is
+still allowed: in native mode it names the app's site (see below).
 
 ## Native script and lifecycle semantics
 
@@ -486,6 +489,117 @@ stack. A pushed route receives `craft.route.params`; returning to an earlier
 route reveals its existing native tree and JavaScript state. Native events are
 delivered only to the top route, and route teardown removes its subscriptions
 and cancels its in-flight requests.
+
+## An all-native iOS app: paths, tabs and an app script
+
+On its own, `renderer: "native"` is one screen and the stack it pushes. Add
+`nativeScreens` (and, optionally, `tabs`) and the app gets the same shell a
+hybrid app has (tab stacks, path routing, deep links) with no web view at
+all: no `WKWebView` is ever created.
+
+```json
+{
+  "renderer": "native",
+  "devServerURL": "https://hq.training/m",
+  "nativeScreens": {
+    "/m": "Today",
+    "/m/calendar": "Calendar",
+    "/m/workout/:id": "Workout"
+  },
+  "tabs": [
+    { "id": "/m", "title": "Today", "symbol": "sun.max" },
+    { "id": "/m/calendar", "title": "Calendar", "symbol": "calendar" }
+  ],
+  "nativeBundle": "./native-screen.js",
+  "nativeApp": "__app"
+}
+```
+
+- `devServerURL` is the app's site. Its path is the path the app starts on
+  (`/` without one), and the bundle reads it as `__stxNativeBridge.appURL`.
+- Every tab id and the start path must be drawn by a native screen; `init` and
+  `build` refuse the config otherwise, because there is no web view to fall
+  back to.
+- `craft.navigation.open(path)` opens a tab (switching to it), a native screen
+  (pushed onto the visible tab, or popped back to if it is already in the
+  stack), or, for a path no screen draws, the in-app browser
+  (`SFSafariViewController`) at that path on the site's origin. A full `http(s)`
+  address on the site's host is treated as its path; one on any other host
+  opens in the in-app browser. With no `devServerURL`, a path no screen draws
+  is logged and ignored.
+- A deep link to a native path opens its screen in the tab that owns it. A
+  universal link to the site's host that no screen draws opens in the in-app
+  browser. Anything else reaches the screens as `DEEP_LINK`. A link that
+  launched the app waits for the shell.
+- Tab taps switch stacks natively. A screen that throws before its first frame
+  keeps its own error, since there is no page to stand in for it.
+- GPS (fixes, watches, the background route recorder and its relaunch
+  restore) and Apple Music work here too: the app holds the web view's service
+  coordinator without a web view, so `geolocation` and `music` are among the
+  capabilities whenever `enableGeolocation` / `enableAppleMusic` are set. The
+  single-screen native app (no `nativeScreens`) gets them as well.
+
+### The app script (`nativeApp`)
+
+`nativeApp` names a bundle route that has no screen (Stacks names it `__app`).
+It runs once for the app's whole life, in its own JavaScriptCore context,
+beside the screens, in a hybrid app or a native one. It is loaded after the
+first screen's first frame is committed, so it never delays it. If background
+work (a silent push or a background refresh) is waiting for it, it is loaded
+at once instead, because a launch in the background draws no frame. Otherwise
+it is loaded 1.5 seconds after launch at the latest.
+
+- It gets every `APP_STATE`, not only while on top of a stack, and no
+  `DEEP_LINK`.
+- The app's events go to it instead of to the page, as the bridge message
+  `CRAFT_EVENT { event, detail }`, which the stx runtime dispatches as a
+  `CustomEvent` on the script's global: `craftNotificationResponse`,
+  `craftNotificationReceived`, `craftSilentPush`, `craftBackgroundRefresh`,
+  `craftShortcut` and `craftSiriShortcut`. Events that arrive before it has run
+  its bundle (a notification tap that launched the app) are held and delivered
+  in order once it has. Without an app script they go to the page as before;
+  an all-native app with neither logs and drops them, and answers any
+  background work at once.
+- `craft.navigation.open(path)` opens in the shell as above, so
+  `craft.navigation.open('/m/workout/5')` opens that screen in the visible tab
+  and a tab path switches tabs. Opens made before the shell exists are held
+  for it. `push`, `replace`, `back`, `popToRoot`, `setOptions` and
+  `tabBarHidden` do nothing: it has no stack and no bar.
+- A failure while loading is logged; nothing falls back.
+- It answers background work with `craft.background.complete(ok, id?)`: the
+  `Background.complete` capability with args `[ok, id?]` (no id finishes
+  everything pending). The `background` capability is present when
+  `backgroundRefresh.enabled` or `enablePushNotifications` is set. The `id`
+  comes in the `craftSilentPush` / `craftBackgroundRefresh` detail; iOS is
+  answered by itself after 25 seconds.
+
+```js
+addEventListener('craftNotificationResponse', (event) => {
+  if (event.detail.path) craft.navigation.open(event.detail.path)
+})
+addEventListener('craftSilentPush', async (event) => {
+  const ok = await sync().then(() => true, () => false)
+  craft.background.complete(ok, event.detail.id)
+})
+```
+
+### What every screen knows of the app
+
+`__stxNativeBridge` carries `appURL` (the `devServerURL`, or `""`),
+`appVersion` (`CFBundleShortVersionString`) and `appBuild`
+(`CFBundleVersion`), beside `platform`, `capabilities`, `initialAppState` and
+`colorScheme`.
+
+### Snapshots
+
+`craft.snapshots.get(name)` (sync) and `craft.snapshots.set(name, value)` (a
+promise) read and write `Application Support/craft-snapshots/<name>.json`, the
+same files a hybrid page's snapshots use. `craft.snapshots.clear(keep?)` (a
+promise) deletes every snapshot except the names in the optional `keep` array,
+for a sign-out: `await craft.snapshots.clear(['app'])`. Every removal reaches
+every screen as `SNAPSHOT_CHANGED`. The host functions survive the runtime
+assigning its own `craft.snapshots` object; a key the runtime defines itself
+wins.
 
 ## Capability bridge
 

@@ -367,7 +367,12 @@ struct CraftNativeScreen: UIViewControllerRepresentable {
     let config: CraftConfig
 
     func makeUIViewController(context: Context) -> UINavigationController {
-        UINavigationController(rootViewController: CraftNativeScreenController(config: config))
+        let screen = CraftNativeScreenController(config: config)
+        // The shell hears the first frame (the app script starts after it)
+        // and `craft.navigation.open`, which has no paths to open here but
+        // web addresses, in the in-app browser.
+        screen.hybridEvents = CraftHybrid.shared
+        return UINavigationController(rootViewController: screen)
     }
 
     func updateUIViewController(_ controller: UINavigationController, context: Context) {}
@@ -2086,11 +2091,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     weak var hybridEvents: CraftHybridScreenEvents?
     private var hybridRendered = false
     private var runtimeDisposed = false
+    /// The app script (`nativeApp`, CraftHybrid.swift): a bundle route with
+    /// no screen, loaded once and never shown, that runs for the app's life.
+    /// It hears every `APP_STATE` and the app's events (`CRAFT_EVENT`), no
+    /// `DEEP_LINK`; it can open paths but not push, pop or style a bar.
+    let isAppScript: Bool
 
-    init(config: CraftConfig, routeName: String? = nil, routeParams: [String: Any] = [:]) {
+    init(config: CraftConfig, routeName: String? = nil, routeParams: [String: Any] = [:], isAppScript: Bool = false) {
         self.config = config
         self.routeName = routeName
         self.routeParams = routeParams
+        self.isAppScript = isAppScript
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -2127,6 +2138,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         setupJavaScript()
         loadBundle()
         observeNativeEvents()
+        if isAppScript {
+            // Its bundle has run, so its listeners are in place: the app's
+            // events that waited for it arrive now, in order.
+            CraftEventManager.shared.appScriptReady { [weak self] event, detail in
+                self?.send(type: "CRAFT_EVENT", payload: ["event": event, "detail": detail])
+            }
+        }
     }
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
@@ -2280,6 +2298,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let capabilities = CraftNativeActions.capabilities(config: config)
         let capabilityData = try? JSONSerialization.data(withJSONObject: capabilities)
         let capabilityJSON = capabilityData.flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        // The app's site and build, as JSON strings: the site an all-native
+        // app's paths and links belong to (`devServerURL`), and the version a
+        // request or a crash report names.
+        let info = Bundle.main.infoDictionary
+        let appURL = Self.jsonString(config.devServerURL ?? "")
+        let appVersion = Self.jsonString(info?["CFBundleShortVersionString"] as? String ?? "")
+        let appBuild = Self.jsonString(info?["CFBundleVersion"] as? String ?? "")
         jsContext.evaluateScript("""
             globalThis.__stxNativeCallback = null;
             globalThis.__stxNativeBridge = {
@@ -2290,6 +2315,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 capabilities: \(capabilityJSON),
                 initialAppState: "\(CraftNativeActions.currentAppState())",
                 colorScheme: "\(colorScheme)",
+                appURL: \(appURL),
+                appVersion: \(appVersion),
+                appBuild: \(appBuild),
                 postMessage: function(message) { craftNativePostMessage(message); },
                 onMessage: function(callback) { globalThis.__stxNativeCallback = callback; }
             };
@@ -2350,6 +2378,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         """)
     }
 
+    /// `value` as a JavaScript string literal (JSON), quotes and all.
+    static func jsonString(_ value: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: [value]),
+              let array = String(data: data, encoding: .utf8), array.count >= 2 else { return "\"\"" }
+        return String(array.dropFirst().dropLast())
+    }
+
     /// `"dark"` or `"light"` for the bundle's `dark:` classes (contract A4):
     /// the window's appearance once there is one, else the app's setting.
     private var colorScheme: String {
@@ -2379,6 +2414,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     ///   asynchronous `craft.storage` uses. `getSync` answers what `get` would.
     /// - `craft.snapshots.get(name)` (sync) and `set(name, value)` (a
     ///   promise): `Application Support/craft-snapshots/<name>.json`.
+    ///   `clear(keep?)` (a promise) deletes every snapshot but the names in
+    ///   `keep`, as a sign-out does; each removal is a `SNAPSHOT_CHANGED`
+    ///   for every screen.
     /// - `craft.secureStorage.getSync(key)`: the Keychain item the web page's
     ///   `craft.secureStorage.set` wrote.
     /// - `craft.navigation.setOptions({ title, largeTitle, hidden, backTitle,
@@ -2405,6 +2443,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 done.call(withArguments: [ok])
             }
         }
+        let snapshotClear: @convention(block) (JSValue, JSValue) -> Void = { keep, done in
+            let names = (keep.isUndefined || keep.isNull ? [] : (keep.toArray() ?? [])).compactMap { $0 as? String }
+            CraftSnapshots.clear(keeping: Set(names)) { ok in
+                done.call(withArguments: [ok])
+            }
+        }
         let config = self.config
         let secureGet: @convention(block) (String) -> String? = { key in
             config.enableSecureStorage ? CraftNativeActions.webSecureValue(forKey: key) : nil
@@ -2419,6 +2463,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         jsContext.setObject(storageSet, forKeyedSubscript: "craftNativeStorageSet" as NSString)
         jsContext.setObject(snapshotGet, forKeyedSubscript: "craftNativeSnapshotGet" as NSString)
         jsContext.setObject(snapshotSet, forKeyedSubscript: "craftNativeSnapshotSet" as NSString)
+        jsContext.setObject(snapshotClear, forKeyedSubscript: "craftNativeSnapshotClear" as NSString)
         jsContext.setObject(secureGet, forKeyedSubscript: "craftNativeSecureGet" as NSString)
         jsContext.setObject(setOptions, forKeyedSubscript: "craftNativeSetOptions" as NSString)
         // `AudioContext` and the rest of Web Audio, rendered natively.
@@ -2568,6 +2613,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                                 else reject(new Error('craft.snapshots.set could not write ' + name));
                             });
                         });
+                    },
+                    // Every snapshot but the names in `keep` (a sign-out).
+                    clear: function(keep) {
+                        var names = Array.isArray(keep) ? keep.map(String) : [];
+                        return new Promise(function(resolve, reject) {
+                            craftNativeSnapshotClear(names, function(ok) {
+                                if (ok) resolve();
+                                else reject(new Error('craft.snapshots.clear could not remove every snapshot'));
+                            });
+                        });
                     }
                 });
                 keep('secureStorage', {
@@ -2623,6 +2678,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// `craft.navigation.setOptions`: this screen's bar. Every key is
     /// optional and only the keys given change.
     private func applyNavigationOptions(_ options: [String: Any]) {
+        // The app script has no screen, so no bar and no tab bar to change.
+        guard !isAppScript else { return }
         if options.keys.contains("title") {
             navigationItem.title = options["title"] as? String
             titleFromOptions = true
@@ -2826,20 +2883,23 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         observe(UIApplication.didBecomeActiveNotification, state: "active")
         observe(UIApplication.willResignActiveNotification, state: "inactive")
         observe(UIApplication.didEnterBackgroundNotification, state: "background")
-        lifecycleObservers.append(NotificationCenter.default.addObserver(
-            forName: UIResponder.keyboardWillChangeFrameNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            self?.applyKeyboardSafeArea(notification)
-        })
-        lifecycleObservers.append(NotificationCenter.default.addObserver(
-            forName: UIResponder.keyboardWillHideNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            self?.applyKeyboardSafeArea(notification, hidden: true)
-        })
+        // The app script has no screen for the keyboard to cover.
+        if !isAppScript {
+            lifecycleObservers.append(NotificationCenter.default.addObserver(
+                forName: UIResponder.keyboardWillChangeFrameNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                self?.applyKeyboardSafeArea(notification)
+            })
+            lifecycleObservers.append(NotificationCenter.default.addObserver(
+                forName: UIResponder.keyboardWillHideNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                self?.applyKeyboardSafeArea(notification, hidden: true)
+            })
+        }
         lifecycleObservers.append(NotificationCenter.default.addObserver(
             forName: CraftSnapshots.changed,
             object: nil,
@@ -2873,6 +2933,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         sounds.emit = { [weak self] payload in self?.send(type: "SOUND_EVENT", payload: payload) }
         streams.emit = { [weak self] payload in self?.send(type: "NETWORK_STREAM", payload: payload) }
         sendAppState(CraftNativeActions.currentAppState())
+        // Links are the screens' to show; the app script hears none.
+        guard !isAppScript else { return }
         deepLinkListener = DeepLinkManager.shared.addNativeListener { [weak self] url, initial in
             guard let self = self, self.navigationController?.topViewController === self else { return }
             var payload = CraftNativeActions.deepLinkData(url)
@@ -2952,7 +3014,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func sendAppState(_ state: String) {
-        guard navigationController?.topViewController === self else { return }
+        // A screen hears it while it is on top of its stack; the app script,
+        // which is on no stack, always.
+        guard isAppScript || navigationController?.topViewController === self else { return }
         send(type: "APP_STATE", payload: ["state": state])
     }
 
@@ -2972,6 +3036,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// is up, and are logged.
     private func hybridFailed(_ message: String) {
         guard !hybridRendered else { return }
+        // The app script draws nothing for anything to stand in for: logged
+        // (by the caller) and left to run on.
+        guard !isAppScript else { return }
         hybridEvents?.nativeScreen(self, didFail: message)
     }
 
@@ -3014,7 +3081,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 ])
             }
         case "NAVIGATE", "NAVIGATE_REPLACE":
-            guard navigationController?.topViewController === self,
+            // A screen's own stack; the app script has none (it opens paths).
+            guard !isAppScript, navigationController?.topViewController === self,
                   let screen = payload["screen"] as? String, !screen.isEmpty,
                   let navigation = navigationController else { return }
             let params = payload["params"] as? [String: Any] ?? [:]
@@ -3034,13 +3102,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             guard let path = payload["path"] as? String, !path.isEmpty else { return }
             hybridEvents?.nativeScreen(self, open: path)
         case "NAVIGATE_BACK":
-            if navigationController?.topViewController === self {
+            if !isAppScript, navigationController?.topViewController === self {
                 navigationController?.popViewController(animated: true)
             }
         case "NAVIGATE_POP_TO_ROOT":
             // Back to the first screen of this screen's stack in one move: a
             // finished task (a saved workout) closes the way it was reached.
-            if navigationController?.topViewController === self {
+            if !isAppScript, navigationController?.topViewController === self {
                 navigationController?.popToRootViewController(animated: true)
             }
         case "API_REQUEST":
@@ -3181,7 +3249,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         renderCommitted(document)
         if !hybridRendered {
             hybridRendered = true
-            hybridEvents?.nativeScreenDidRender(self)
+            // The app script's drawing is never on screen: not a first frame.
+            if !isAppScript { hybridEvents?.nativeScreenDidRender(self) }
         }
     }
 

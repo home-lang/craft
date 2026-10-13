@@ -101,6 +101,14 @@ export interface CraftConfig {
    * Each replaces the generic sentence Craft writes for that key.
    */
   usageDescriptions?: Record<string, string>
+  /**
+   * The app's site. With `renderer: "web"` it is the page the web view loads.
+   * With `renderer: "native"` and `nativeScreens` there is no web view: its
+   * path is the path the app starts on (`/` when unset), and a path no native
+   * screen draws (`craft.navigation.open('/terms')`, or a link to this host)
+   * opens in the in-app browser against its origin. Native screens read it as
+   * `__stxNativeBridge.appURL`.
+   */
   devServerURL?: string
   iosVersion?: string
   watchosVersion?: string
@@ -186,16 +194,32 @@ export interface CraftConfig {
   orientations?: Array<'portrait' | 'landscape-left' | 'landscape-right' | 'portrait-upside-down'>
   deviceFamilies?: Array<'iphone' | 'ipad'>
   /**
-   * Hybrid: app paths drawn as native stx screens instead of in the
-   * web view, each to the screen in the native bundle that draws it, e.g.
-   * `{ "/m": "Today", "/m/calendar": "Calendar" }`. A segment may be a
-   * parameter (`/m/workout/:id`) and the last one `*`. Needs `renderer: "web"`
-   * and `nativeBundle`; every other path stays in the web view, and a path
-   * whose screen is missing or throws falls back to it.
+   * App paths drawn as native stx screens, each to the screen in the native
+   * bundle that draws it, e.g. `{ "/m": "Today", "/m/calendar": "Calendar" }`.
+   * A segment may be a parameter (`/m/workout/:id`) and the last one `*`.
+   * Needs `nativeBundle`.
+   *
+   * With `renderer: "web"` (hybrid) every other path stays in the web view,
+   * and a path whose screen is missing or throws falls back to it.
+   *
+   * With `renderer: "native"` the app is all native, with the same tabs and
+   * path routing and no web view at all: every tab id and the start path (the
+   * path of `devServerURL`) must be a native screen's, and any other path
+   * opens in the in-app browser on the app's site.
    */
   nativeScreens?: Record<string, string>
-  /** Hybrid: the bundle `stx native compile --format bundle` wrote, copied to `dist/native-screen.js`. */
+  /** The bundle `stx native compile --format bundle` wrote, copied to `dist/native-screen.js`. */
   nativeBundle?: string
+  /**
+   * The bundle route of a screen-less script that runs once for the app's
+   * whole life, beside the screens (Stacks names it `__app`). It hears the
+   * app's events (`craftNotificationResponse`, `craftNotificationReceived`,
+   * `craftSilentPush`, `craftBackgroundRefresh`, `craftShortcut`,
+   * `craftSiriShortcut`) as `CRAFT_EVENT` messages instead of the page, every
+   * `APP_STATE`, and can open paths with `craft.navigation.open`. Needs
+   * `nativeScreens` or `renderer: "native"`, and the native bundle.
+   */
+  nativeApp?: string
   /**
    * The native tab bar, shown from the first frame, before the page loads.
    * The page's own `tabBar.set` replaces it later. Each `id` is the tab's
@@ -306,12 +330,36 @@ export function isHybrid(config: Pick<CraftConfig, 'renderer' | 'nativeScreens'>
   return (config.renderer ?? 'web') === 'web' && Object.keys(config.nativeScreens ?? {}).length > 0
 }
 
+/** Whether a config is an all-native app with routes: `renderer: "native"` and `nativeScreens`, tabs and paths with no web view. */
+export function hasNativeRoutes(config: Pick<CraftConfig, 'renderer' | 'nativeScreens'>): boolean {
+  return config.renderer === 'native' && Object.keys(config.nativeScreens ?? {}).length > 0
+}
+
+/** Whether a config draws any native screen, and so needs `dist/native-screen.js`. */
+export function usesNativeBundle(config: Pick<CraftConfig, 'renderer' | 'nativeScreens'>): boolean {
+  return config.renderer === 'native' || Object.keys(config.nativeScreens ?? {}).length > 0
+}
+
+/**
+ * The path the app starts on: the path of `devServerURL` (with its query),
+ * `/` when there is none. The shell reads it the same way
+ * (`CraftHybridRoutes.appPath`).
+ */
+export function nativeStartPath(config: Pick<CraftConfig, 'devServerURL'>): string {
+  if (!config.devServerURL) return '/'
+  try {
+    const url = new URL(config.devServerURL)
+    return `${url.pathname || '/'}${url.search}`
+  }
+  catch {
+    return '/'
+  }
+}
+
 /** What is wrong with a config's hybrid and tab settings, one sentence each. */
-export function hybridConfigProblems(config: Pick<CraftConfig, 'renderer' | 'nativeScreens' | 'tabs' | 'shareStorage'>): string[] {
+export function hybridConfigProblems(config: Pick<CraftConfig, 'renderer' | 'nativeScreens' | 'tabs' | 'shareStorage' | 'devServerURL' | 'nativeApp'>): string[] {
   const problems: string[] = []
   const screens = Object.entries(config.nativeScreens ?? {})
-  if (screens.length && config.renderer === 'native')
-    problems.push('nativeScreens mixes native screens into a web app; it needs renderer: "web" (renderer: "native" is all native already).')
   for (const [pattern, screen] of screens) {
     if (normalizeNativePath(pattern) !== pattern || /[?#]/.test(pattern))
       problems.push(`nativeScreens path "${pattern}" must be an absolute path with no query, hash or trailing slash.`)
@@ -331,6 +379,23 @@ export function hybridConfigProblems(config: Pick<CraftConfig, 'renderer' | 'nat
   for (const [key, target] of Object.entries(config.shareStorage ?? {})) {
     if (!key || typeof target !== 'string' || !target)
       problems.push(`shareStorage "${key}" needs the Keychain key native screens read it under.`)
+  }
+  // All native: there is no web view for a path to fall back to, so every
+  // tab and the start path must be drawn by a native screen.
+  if (hasNativeRoutes(config)) {
+    for (const id of ids) {
+      if (!matchNativePath(config.nativeScreens, id))
+        problems.push(`Tab "${id}" is not a nativeScreens path; with renderer: "native" every tab must be a native screen.`)
+    }
+    const start = nativeStartPath(config)
+    if (!matchNativePath(config.nativeScreens, start))
+      problems.push(`The start path "${start}" (from devServerURL) is not a nativeScreens path; with renderer: "native" the app must start on a native screen.`)
+  }
+  if (config.nativeApp !== undefined) {
+    if (typeof config.nativeApp !== 'string' || !/^[A-Za-z_$][\w$-]*$/.test(config.nativeApp))
+      problems.push(`nativeApp "${String(config.nativeApp)}" must be a route name from the native bundle.`)
+    else if (!usesNativeBundle(config))
+      problems.push('nativeApp runs in the native bundle; it needs nativeScreens or renderer: "native".')
   }
   return problems
 }
@@ -1355,9 +1420,10 @@ export async function init(options: InitOptions): Promise<void> {
   // The bundled page, until the app's own web assets replace it: what shows
   // when the app's remote page cannot be reached.
   writeFileSync(join(output, 'dist', 'index.html'), renderOfflinePage(config))
-  if (isHybrid(config)) {
+  if (usesNativeBundle(config)) {
     if (config.nativeBundle) installNativeBundle(config.nativeBundle, output)
-    else console.warn('   ⚠ nativeScreens is set without nativeBundle: every path opens in the web view until `craft ios build --native-bundle` supplies one.')
+    else if (isHybrid(config)) console.warn('   ⚠ nativeScreens is set without nativeBundle: every path opens in the web view until `craft ios build --native-bundle` supplies one.')
+    else if (hasNativeRoutes(config)) console.warn('   ⚠ nativeScreens is set without nativeBundle: the app has no screens until `craft ios build --native-bundle` supplies one.')
   }
 
   console.log('✅ Project initialized')
@@ -1399,10 +1465,8 @@ export async function build(options: BuildOptions): Promise<void> {
     if (htmlPath || devServer) {
       throw new Error('A native iOS screen cannot use --html-path or --dev-server.')
     }
-    if (nativeBundlePath) {
-      const destination = join(output, 'dist', 'native-screen.js')
-      if (resolve(nativeBundlePath) !== resolve(destination)) cpSync(nativeBundlePath, destination)
-    }
+    const bundle = nativeBundlePath ?? config.nativeBundle
+    if (bundle) installNativeBundle(bundle, output)
     if (!existsSync(join(output, 'dist', 'native-screen.js'))) {
       throw new Error('Native iOS mode needs dist/native-screen.js. Compile a .stx screen with `stx native compile` first.')
     }

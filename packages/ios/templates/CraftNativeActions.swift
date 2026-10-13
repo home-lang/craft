@@ -57,10 +57,14 @@ enum CraftNativeActions {
         values.append(contentsOf: ["brightness", "statusBar"])
         if config.enableKeepAwake { values.append("keepAwake") }
         // GPS and the route recording are the web view's coordinator's
-        // (CraftWebServices), so a native-only app, which has none, has none.
-        if config.enableGeolocation && config.renderer != "native" { values.append("geolocation") }
+        // (CraftWebServices); an app with no web view has the coordinator
+        // all the same (CraftHybrid.configure).
+        if config.enableGeolocation { values.append("geolocation") }
         // The Music app's song and transport are the coordinator's too.
-        if config.enableAppleMusic && config.renderer != "native" { values.append("music") }
+        if config.enableAppleMusic { values.append("music") }
+        // `craft.background.complete(ok, id)`: the answer to a silent push or
+        // a background refresh, which the app script (`nativeApp`) hears.
+        if config.backgroundRefresh?.enabled == true || config.enablePushNotifications { values.append("background") }
         // A heart-rate strap is the app's own service (CraftHeartRate.swift),
         // so it needs no web view.
         if config.enableHeartRate { values.append("heartRate") }
@@ -405,6 +409,21 @@ enum CraftNativeActions {
                 }
             default:
                 complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Push method"), completion)
+            }
+            return
+        case ("Background", "complete"):
+            // The app script's answer to `craftSilentPush` or
+            // `craftBackgroundRefresh`: args `[ok, id?]`, with no id for
+            // everything still pending, as a page's `craft.background.complete`.
+            guard config.backgroundRefresh?.enabled == true || config.enablePushNotifications else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Background work is disabled"), completion)
+                return
+            }
+            let ok = args.first as? Bool ?? true
+            let id = args.count > 1 ? args[1] as? String : nil
+            DispatchQueue.main.async {
+                CraftBackgroundWork.shared.complete(id: id, ok: ok)
+                complete(requestToken, .success(true), completion)
             }
             return
         case ("Notifications", _):
@@ -1080,6 +1099,41 @@ enum CraftSnapshots {
                 completion?(ok)
             }
         }
+    }
+
+    /// Every snapshot there is: on disk, and written but not on disk yet.
+    static func names() -> [String] {
+        var names = Set(directory
+            .flatMap { try? FileManager.default.contentsOfDirectory(atPath: $0.path) }?
+            .filter { $0.hasSuffix(".json") }
+            .map { String($0.dropLast(5)) } ?? [])
+        lock.lock()
+        for (name, json) in pending {
+            if json == nil { names.remove(name) } else { names.insert(name) }
+        }
+        lock.unlock()
+        return names.filter(isValidName).sorted()
+    }
+
+    /// Deletes every snapshot but the ones named in `keep` (a sign-out), each
+    /// as `write(name, json: nil)` does, so each posts `changed`.
+    /// `completion` runs on the main queue: true when every one went.
+    static func clear(keeping keep: Set<String> = [], completion: ((Bool) -> Void)? = nil) {
+        let doomed = names().filter { !keep.contains($0) }
+        guard !doomed.isEmpty else {
+            DispatchQueue.main.async { completion?(true) }
+            return
+        }
+        let group = DispatchGroup()
+        var allRemoved = true
+        for name in doomed {
+            group.enter()
+            write(name, json: nil) { ok in
+                if !ok { allRemoved = false }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) { completion?(allRemoved) }
     }
 }
 

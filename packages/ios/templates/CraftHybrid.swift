@@ -18,6 +18,18 @@ import WebKit
 // reports where it went, and leaves the edge swipe to UIKit while it is at the
 // entry a native screen opened. Nothing in the page has to change for that;
 // craft's typescript mobile API adds `snapshots` and `hybrid` on top.
+//
+// `renderer: "native"` with `nativeScreens` is the same shell with no web
+// view at all (`hasWeb` false): the same tabs, stacks and path routing, every
+// tab and the start path a native screen, and a path no screen draws opened
+// in the in-app browser on the app's site (`devServerURL`). No WKWebView is
+// ever made; the services the web view's coordinator holds (GPS, the route
+// recorder, Apple Music) come from a coordinator with no web view instead.
+//
+// Either way an app may run an app script (`nativeApp`): a bundle route with
+// no screen, loaded once after the first frame and kept for the app's life.
+// It hears the app's events (CraftEventManager) instead of the page, and
+// opens paths through the shell.
 
 /// The `nativeScreens` table: which paths are native, and with what params.
 ///
@@ -128,6 +140,34 @@ struct CraftHybridRoutes {
         return path
     }
 
+    /// Whether a web address is on the app's site: the host of `site`
+    /// (`devServerURL`), over http or https.
+    static func isSite(_ url: URL, site: URL?) -> Bool {
+        let scheme = (url.scheme ?? "").lowercased()
+        guard scheme == "http" || scheme == "https",
+              let host = url.host?.lowercased(), !host.isEmpty,
+              let siteHost = site?.host?.lowercased() else { return false }
+        return host == siteHost
+    }
+
+    /// Where a path no native screen draws opens in an app with no web view:
+    /// a web address as it is, an app path on the origin of `site`. Nil for
+    /// anything else, and for a path when there is no site.
+    static func siteURL(for raw: String, site: URL?) -> URL? {
+        if let url = URL(string: raw), let scheme = url.scheme?.lowercased() {
+            return scheme == "http" || scheme == "https" ? url : nil
+        }
+        // `//host/x` is another host, not a path.
+        guard raw.hasPrefix("/"), !raw.hasPrefix("//"), let site,
+              var origin = URLComponents(url: site, resolvingAgainstBaseURL: false),
+              let scheme = origin.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return nil }
+        origin.percentEncodedPath = ""
+        origin.percentEncodedQuery = nil
+        origin.percentEncodedFragment = nil
+        guard let base = origin.url else { return nil }
+        return URL(string: raw, relativeTo: base)?.absoluteURL
+    }
+
     /// The tab a path belongs to: the tab whose id is the path, or else the
     /// longest tab id that is a whole-segment prefix of it.
     static func tab(owning raw: String, among tabs: [String]) -> String? {
@@ -233,14 +273,37 @@ final class CraftHybrid: NSObject {
 
     private(set) var config = CraftConfig()
     private(set) var routes = CraftHybridRoutes([:])
-    /// Whether this app mixes native screens into its web page.
+    /// Whether this app routes paths to native screens through the shell:
+    /// web plus native screens (hybrid), or all native with paths and tabs.
     private(set) var isEnabled = false
+    /// Whether the app has a web page at all (renderer "web"). False for an
+    /// all-native app, whose shell never makes a web view.
+    private(set) var hasWeb = true
+    /// The app's site (`devServerURL`, http or https): where an all-native
+    /// app opens a path no screen draws, in the in-app browser.
+    private(set) var siteURL: URL?
     /// The path the app opens on: its page's path.
     private(set) var startPath = "/"
     /// Whether that path is a native screen, drawn before the page loads.
     private(set) var startsNative = false
     weak var controller: CraftHybridController?
     weak var webView: WKWebView?
+
+    /// The app script's bundle route (`nativeApp`), when it runs.
+    private(set) var appScriptRoute: String?
+    /// The app script itself, held for the app's life and never shown.
+    private var appScript: CraftNativeScreenController?
+    /// An all-native app's services: the web view's coordinator, with no web
+    /// view, so GPS, the route recorder (and its relaunch restore) and Apple
+    /// Music serve native screens (CraftWebServices). Held here, because
+    /// `CraftSwiftShim.coordinator` is weak.
+    private var services: CraftWebView.Coordinator?
+    private var isConfigured = false
+    /// A single-stack native app's first frame, which starts the app script.
+    private var firstFrameSeen = false
+    /// What waits for the shell: links and opens that arrived before it
+    /// existed (a launch from a notification or a link).
+    private var untilShell: [(CraftHybridController) -> Void] = []
 
     /// Where the page is, as it last said.
     fileprivate(set) var pagePath: String?
@@ -261,6 +324,7 @@ final class CraftHybrid: NSObject {
     func nativeWroteShared(nativeKey: String, value: String?) {
         guard let webKey = config.shareStorage?.first(where: { $0.value == nativeKey })?.key else { return }
         CraftHybridKeychain.set(nativeKey, value: value)
+        guard hasWeb else { return }
         DispatchQueue.main.async {
             self.pendingShared[webKey] = value ?? NSNull()
             self.flushShared()
@@ -279,20 +343,113 @@ final class CraftHybrid: NSObject {
             ?? Bundle.main.url(forResource: "native-screen", withExtension: "js")
     }
 
-    /// From the bundled config, before the first frame: whether the app is
-    /// hybrid, where it starts, and the tab bar it starts with.
+    /// From the bundled config, at launch: whether the shell routes paths,
+    /// whether there is a web view, where it starts, the tab bar it starts
+    /// with, the app script, and an all-native app's services. Once: the app
+    /// delegate calls it at launch and AppState again; the first call decides.
     func configure(_ config: CraftConfig) {
+        guard !isConfigured else { return }
+        isConfigured = true
         self.config = config
+        hasWeb = config.renderer != "native"
+        siteURL = config.devServerURL.flatMap(URL.init(string:)).flatMap { url in
+            ["http", "https"].contains((url.scheme ?? "").lowercased()) ? url : nil
+        }
         routes = CraftHybridRoutes(config.nativeScreens ?? [:])
         startPath = config.devServerURL.flatMap(URL.init(string:)).map(CraftHybridRoutes.appPath(of:)) ?? "/"
         if startPath.isEmpty { startPath = "/" }
-        let wanted = config.renderer == "web" && !routes.isEmpty
+        let wanted = !routes.isEmpty
         if wanted && Self.bundleURL == nil {
-            NSLog("[craft hybrid] nativeScreens are set but dist/native-screen.js is missing; every path opens in the web view")
+            NSLog(hasWeb
+                ? "[craft hybrid] nativeScreens are set but dist/native-screen.js is missing; every path opens in the web view"
+                : "[craft hybrid] nativeScreens are set but dist/native-screen.js is missing; the app has no screens to show")
         }
         isEnabled = wanted && Self.bundleURL != nil
+        if isEnabled, !hasWeb, routes.match(startPath) == nil {
+            // No web view to show it in: the first tab a screen draws.
+            let fallback = (config.tabs ?? []).map(\.id).first { routes.match($0) != nil }
+            NSLog("[craft hybrid] no native screen draws the start path %@ and there is no web view; starting on %@", startPath, fallback ?? "nothing")
+            if let fallback { startPath = fallback }
+        }
         startsNative = isEnabled && routes.match(startPath) != nil
-        CraftChrome.shared.configure(tabs: config.tabs ?? [], selected: tabIds(from: config.tabs ?? []).isEmpty ? nil : CraftHybridRoutes.tab(owning: startPath, among: tabIds(from: config.tabs ?? [])), splash: !startsNative)
+        // The splash waits for a page; an all-native app's first screen draws itself.
+        CraftChrome.shared.configure(tabs: config.tabs ?? [], selected: tabIds(from: config.tabs ?? []).isEmpty ? nil : CraftHybridRoutes.tab(owning: startPath, among: tabIds(from: config.tabs ?? [])), splash: hasWeb && !startsNative)
+
+        let script = config.nativeApp.flatMap { $0.isEmpty ? nil : $0 }
+        appScriptRoute = script != nil && Self.bundleURL != nil && (isEnabled || !hasWeb) ? script : nil
+        if let script, appScriptRoute == nil {
+            NSLog("[craft hybrid] nativeApp %@ does not run: it needs dist/native-screen.js, and nativeScreens or renderer \"native\"", script)
+        }
+        CraftEventManager.shared.configure(appScript: appScriptRoute != nil, page: hasWeb)
+
+        if !hasWeb && services == nil {
+            let coordinator = CraftWebView.Coordinator(config: config)
+            services = coordinator
+            CraftSwiftShim.coordinator = coordinator
+        }
+
+        guard appScriptRoute != nil else { return }
+        // It starts after the first frame (`nativeScreenDidRender`), or as
+        // soon as background work waits for it (`backgroundWorkWaiting`).
+        // This is for the rest: a first screen that is the page's, one that
+        // never draws, a launch in the background with nothing to draw.
+        // (`applicationState` cannot tell those apart here: a scene-based app
+        // is `.background` during launch however it was opened.)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self.startAppScript() }
+    }
+
+    /// A silent push or a background refresh is waiting for the app script,
+    /// with iOS's clock running: it starts now rather than after a frame,
+    /// which a launch in the background never draws.
+    func backgroundWorkWaiting() {
+        guard appScriptRoute != nil, appScript == nil else { return }
+        DispatchQueue.main.async { self.startAppScript() }
+    }
+
+    /// The app script: loaded once, off screen, and kept. Started after the
+    /// first frame is committed, so it never delays it, or at once when
+    /// background work is waiting for it. Its `craft.navigation.open` comes here
+    /// (`nativeScreen(_:open:)`), and so to the shell.
+    func startAppScript() {
+        guard appScript == nil, let route = appScriptRoute else { return }
+        let script = CraftNativeScreenController(config: config, routeName: route, isAppScript: true)
+        script.hybridEvents = self
+        appScript = script
+        script.loadViewIfNeeded()
+        #if DEBUG
+        NSLog("[craft hybrid] app script %@ is running", route)
+        #endif
+    }
+
+    /// The shell is up: what waited for it.
+    func shellReady() {
+        guard let controller else { return }
+        let waiting = untilShell
+        untilShell.removeAll()
+        for work in waiting { work(controller) }
+    }
+
+    /// A path or a web address opened by the app script or a single-stack
+    /// screen: the shell opens it (holding it until the shell exists); an app
+    /// with no shell opens a web address in the in-app browser.
+    func open(_ path: String) {
+        if let controller {
+            controller.open(path)
+        } else if isEnabled {
+            untilShell.append { $0.open(path) }
+        } else {
+            openOutside(path)
+        }
+    }
+
+    /// A path no native screen draws, in an app with no web view, or an
+    /// address on another site: the in-app browser.
+    func openOutside(_ raw: String) {
+        guard let url = CraftHybridRoutes.siteURL(for: raw, site: siteURL) else {
+            NSLog("[craft hybrid] %@ has no native screen, and the app has no site (devServerURL) to open it on", raw)
+            return
+        }
+        CraftBrowser.shared.open(url, mode: "safari", callbackScheme: nil, from: nil) { _ in }
     }
 
     private func tabIds(from tabs: [CraftConfig.Tab]) -> [String] { tabs.map(\.id) }
@@ -303,8 +460,10 @@ final class CraftHybrid: NSObject {
         return shown.isEmpty ? (config.tabs ?? []).map(\.id) : shown
     }
 
-    /// Whether the web view is what the person sees: always, outside hybrid.
+    /// Whether the web view is what the person sees: always in a web app
+    /// outside hybrid, never in an app with no web view.
     var webIsVisible: Bool {
+        guard hasWeb else { return false }
         guard isEnabled else { return true }
         return controller?.webIsVisible ?? !startsNative
     }
@@ -631,11 +790,7 @@ final class CraftHybrid: NSObject {
         case .snapshotRemove(let name):
             CraftSnapshots.write(name, json: nil)
         case .snapshotClear:
-            let names = CraftSnapshots.directory
-                .flatMap { try? FileManager.default.contentsOfDirectory(atPath: $0.path) }?
-                .filter { $0.hasSuffix(".json") }
-                .map { String($0.dropLast(5)) } ?? []
-            for name in names { CraftSnapshots.write(name, json: nil) }
+            CraftSnapshots.clear()
         case .shareStorage(let key, let value):
             guard let nativeKey = config.shareStorage?[key] else { return }
             // The page's own write, or its echo of one a native screen made.
@@ -675,12 +830,26 @@ final class CraftHybrid: NSObject {
         controller?.pageSelectedTab(id)
     }
 
-    /// A deep link to a native path opens the native screen; true when it did.
+    /// A deep link to a native path opens the native screen; in an app with
+    /// no web view, a link to its own site that no screen draws opens in the
+    /// in-app browser. True when the shell took it.
     func handleDeepLink(_ url: URL) -> Bool {
-        guard isEnabled, let controller else { return false }
+        guard isEnabled else { return false }
         let path = CraftHybridRoutes.appPath(of: url)
-        guard routes.match(path) != nil else { return false }
-        controller.showNative(path: path, replace: false, fromLink: true)
+        let native = routes.match(path) != nil
+        let browse = !native && !hasWeb && CraftHybridRoutes.isSite(url, site: siteURL)
+        guard native || browse else { return false }
+        let show: (CraftHybridController) -> Void = { [weak self] controller in
+            if native { controller.showNative(path: path, replace: false, fromLink: true) } else { self?.openOutside(url.absoluteString) }
+        }
+        guard let controller else {
+            // Before the shell: a hybrid app's page has it; an all-native app
+            // opens it once the shell is up (a link that launched the app).
+            guard !hasWeb else { return false }
+            untilShell.append(show)
+            return true
+        }
+        show(controller)
         return true
     }
 
@@ -702,6 +871,7 @@ final class CraftHybrid: NSObject {
             answered = true
             completion(depth)
         }
+        guard hasWeb else { answer(nil); return }
         guard let webView, pageReady, let scheme = webView.url?.scheme, scheme == "http" || scheme == "https" else {
             CraftSwiftShim.coordinator?.loadAppPath(path)
             answer(nil)
@@ -719,17 +889,40 @@ final class CraftHybrid: NSObject {
     }
 
     func setPageBase(_ depth: Int?) {
+        guard hasWeb else { return }
         let value = depth.map(String.init) ?? "null"
         webView?.evaluateJavaScript("window.__craftHybrid && window.__craftHybrid.setBase(\(value))", completionHandler: nil)
     }
 
     func pageReset(to path: String) {
-        guard let data = try? JSONSerialization.data(withJSONObject: [path]), let json = String(data: data, encoding: .utf8) else { return }
+        guard hasWeb, let data = try? JSONSerialization.data(withJSONObject: [path]), let json = String(data: data, encoding: .utf8) else { return }
         webView?.evaluateJavaScript("window.__craftHybrid && window.__craftHybrid.reset && window.__craftHybrid.reset(\(json)[0])", completionHandler: nil)
     }
 
     func pageBack(to depth: Int) {
+        guard hasWeb else { return }
         webView?.evaluateJavaScript("window.__craftHybrid && window.__craftHybrid.backTo(\(max(0, depth)))", completionHandler: nil)
+    }
+}
+
+/// What the app script and a single-stack native app's screens tell the shell.
+extension CraftHybrid: CraftHybridScreenEvents {
+    /// A single-stack app's first frame: the app script starts once it is
+    /// committed. (The routed shell's controller does the same for its own.)
+    func nativeScreenDidRender(_ screen: CraftNativeScreenController) {
+        guard !firstFrameSeen else { return }
+        firstFrameSeen = true
+        CATransaction.setCompletionBlock { [weak self] in self?.startAppScript() }
+    }
+
+    /// The screen keeps its own error; the app script still runs.
+    func nativeScreen(_ screen: CraftNativeScreenController, didFail message: String) {
+        NSLog("[craft hybrid] the native screen could not draw its first frame: %@", message)
+        DispatchQueue.main.async { self.startAppScript() }
+    }
+
+    func nativeScreen(_ screen: CraftNativeScreenController, open path: String) {
+        open(path)
     }
 }
 
@@ -796,7 +989,8 @@ final class CraftHybridWebSlot: UIViewController {
 final class CraftHybridController: UIViewController, UINavigationControllerDelegate, UIGestureRecognizerDelegate, CraftHybridScreenEvents {
     private let config: CraftConfig
     private let hybrid = CraftHybrid.shared
-    private let webHost: UIHostingController<AnyView>
+    /// The web view's host; nil in an all-native app, which never makes one.
+    private let webHost: UIHostingController<AnyView>?
     /// Where the web view waits, behind the screens, while none of them is web.
     private let parking = UIView()
     private var stacks: [String: UINavigationController] = [:]
@@ -816,7 +1010,9 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         // Edge to edge, but not under the keyboard: the web view ends at its
         // top. Under it, WebKit scrolled the page's layout viewport to show a
         // focused field and carried every sticky header off the screen.
-        webHost = UIHostingController(rootView: AnyView(CraftWebView(config: config).ignoresSafeArea(.container)))
+        webHost = CraftHybrid.shared.hasWeb
+            ? UIHostingController(rootView: AnyView(CraftWebView(config: config).ignoresSafeArea(.container)))
+            : nil
         super.init(nibName: nil, bundle: nil)
         hybrid.controller = self
     }
@@ -831,21 +1027,25 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         view.addSubview(parking)
 
         // A native start screen draws first; the web view, whose creation
-        // costs a frame or more, starts loading straight after it.
-        if !hybrid.startsNative { attachWeb() }
+        // costs a frame or more, starts loading straight after it. An
+        // all-native app has none.
+        if hybrid.hasWeb && !hybrid.startsNative { attachWeb() }
         let tabs = hybrid.tabIds
         let start = CraftHybridRoutes.tab(owning: hybrid.startPath, among: tabs) ?? tabs.first ?? ""
         show(tab: start, rootPath: hybrid.startPath)
-        if hybrid.startsNative {
+        if hybrid.hasWeb && hybrid.startsNative {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.attachWeb() }
         }
+        // Links and opens that arrived before the shell, once the start
+        // screen is up.
+        DispatchQueue.main.async { [weak self] in self?.hybrid.shellReady() }
     }
 
     private var webAttached = false
 
     /// The web view joins the screen, behind the native screens, and loads.
     private func attachWeb() {
-        guard !webAttached else { return }
+        guard let webHost, !webAttached else { return }
         webAttached = true
         webHost.view.backgroundColor = config.resolvedBackgroundColor
         if #available(iOS 16.4, *) { webHost.safeAreaRegions = [.keyboard] }
@@ -859,6 +1059,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     /// The web view's controller is the child of whichever controller shows
     /// it: UIKit refuses a child's view in another controller's hierarchy.
     private func moveWeb(to owner: UIViewController, in container: UIView) {
+        guard let webHost else { return }
         if webHost.parent !== owner {
             if webHost.parent != nil {
                 webHost.willMove(toParent: nil)
@@ -888,7 +1089,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     private var visibleStack: UINavigationController? { stacks[currentTab] }
 
     var webIsVisible: Bool {
-        guard let slot = visibleStack?.topViewController as? CraftHybridWebSlot else { return false }
+        guard let webHost, let slot = visibleStack?.topViewController as? CraftHybridWebSlot else { return false }
         return webHost.view.superview === slot.view
     }
 
@@ -931,6 +1132,15 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             nativePaths[ObjectIdentifier(screen)] = match.path
             return screen
         }
+        guard hybrid.hasWeb else {
+            // The config checks rule this out (every tab and the start path
+            // are native screens); an empty screen rather than a web entry
+            // nothing would ever fill.
+            NSLog("[craft hybrid] no native screen draws %@, and the app has no web view", path)
+            let empty = UIViewController()
+            empty.view.backgroundColor = config.resolvedBackgroundColor
+            return empty
+        }
         return CraftHybridWebSlot(path: path, depth: depth, isTabRoot: isTabRoot)
     }
 
@@ -959,7 +1169,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     }
 
     func adoptWeb(into slot: CraftHybridWebSlot) {
-        guard slot.navigationController === visibleStack || visibleStack == nil else { return }
+        guard let webHost, slot.navigationController === visibleStack || visibleStack == nil else { return }
         attachWeb()
         moveWeb(to: slot, in: slot.view)
         webHost.view.alpha = slot.awaitingPage ? 0 : 1
@@ -967,7 +1177,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     }
 
     private func parkWeb() {
-        guard webAttached else { return }
+        guard webAttached, let webHost else { return }
         webHost.view.alpha = 1
         moveWeb(to: self, in: parking)
     }
@@ -975,8 +1185,19 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     // MARK: Opening paths
 
     /// `craft.navigation.open(path)` or `craft.hybrid.open(path)`: a tab, a
-    /// native screen, or the web view pushed over the screen that asked.
+    /// native screen, or the web view pushed over the screen that asked. In
+    /// an app with no web view, a path no screen draws opens in the in-app
+    /// browser on the app's site. A web address on the app's site is its
+    /// path; one anywhere else opens in the in-app browser.
     func open(_ raw: String) {
+        if let url = URL(string: raw), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+            guard CraftHybridRoutes.isSite(url, site: hybrid.siteURL) else {
+                hybrid.openOutside(raw)
+                return
+            }
+            open(CraftHybridRoutes.appPath(of: url))
+            return
+        }
         guard let path = CraftHybridRoutes.normalize(raw) else { return }
         if let tab = hybrid.tabIds.first(where: { CraftHybridRoutes.normalize($0) == path }) {
             selectTabAsIfTapped(tab)
@@ -986,7 +1207,11 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             showNative(path: raw, replace: false)
             return
         }
-        pushWeb(raw)
+        if hybrid.hasWeb {
+            pushWeb(raw)
+        } else {
+            hybrid.openOutside(raw)
+        }
     }
 
     private func selectTabAsIfTapped(_ id: String) {
@@ -1035,7 +1260,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     /// The web view, pushed: the page goes to `path` first, without its own
     /// slide, then the entry slides in over the screen that opened it.
     private func pushWeb(_ path: String) {
-        guard !openingWeb, let nav = visibleStack else { return }
+        guard hybrid.hasWeb, !openingWeb, let nav = visibleStack else { return }
         openingWeb = true
         hybrid.navigatePage(path) { [weak self, weak nav] depth in
             guard let self else { return }
@@ -1056,8 +1281,8 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
 
     private func reveal(_ slot: CraftHybridWebSlot) {
         slot.awaitingPage = false
-        guard webHost.view.superview === slot.view else { return }
-        UIView.animate(withDuration: 0.15) { self.webHost.view.alpha = 1 }
+        guard let webHost, webHost.view.superview === slot.view else { return }
+        UIView.animate(withDuration: 0.15) { webHost.view.alpha = 1 }
     }
 
     /// Back from the web entry on top, as the page's Back at that entry asks.
@@ -1112,6 +1337,11 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             // The root again: a web root is the page's to handle (to its top,
             // then its own first screen).
             return nav.topViewController is CraftHybridWebSlot
+        }
+        // No page to wait for: the tab's own stack, now.
+        guard hybrid.hasWeb else {
+            show(tab: id)
+            return true
         }
         let target = stacks[id]
         let rootIsWeb = target.map { $0.topViewController is CraftHybridWebSlot } ?? (hybrid.routes.match(id) == nil)
@@ -1265,12 +1495,20 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         CATransaction.setCompletionBlock { [weak self] in
             NSLog("[craft hybrid] native first frame %@", path)
             self?.attachWeb()
+            // The app script after the first frame, never before it.
+            self?.hybrid.startAppScript()
         }
         CraftChrome.shared.hideSplash()
     }
 
     func nativeScreen(_ screen: CraftNativeScreenController, didFail message: String) {
         let path = nativePaths[ObjectIdentifier(screen)] ?? hybrid.startPath
+        guard hybrid.hasWeb else {
+            // No web view to open it in: the screen keeps its own error.
+            NSLog("[craft hybrid] native screen for %@ failed (%@); the app has no web view to open it in", path, message)
+            if !firstFrameLogged { DispatchQueue.main.async { [weak self] in self?.hybrid.startAppScript() } }
+            return
+        }
         NSLog("[craft hybrid] native screen for %@ failed (%@); opening it in the web view", path, message)
         DispatchQueue.main.async { [weak self, weak screen] in
             guard let self, let screen, let nav = screen.navigationController else { return }
