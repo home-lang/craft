@@ -1020,6 +1020,14 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="side-border"')
   })
 
+  it('maps per-corner radii on both native hosts', () => {
+    expect(ios).toContain('private func craftRoundedPath(_ rect: CGRect, _ rawRadii: [CGFloat]) -> CGPath')
+    expect(ios).toContain('view.craftRequestedCornerRadii = hasCornerRadii')
+    expect(android).toContain('setCornerRadii(cornerRadii)')
+    expect(android).toContain('addRoundRect(bounds, radii, Path.Direction.CW)')
+    expect(navigationHome).toContain('testID="corner-radii"')
+  })
+
   it('keeps horizontal list rows intrinsically sized across hosts', () => {
     expect(iosFlatList).toContain('flowLayout.scrollDirection = horizontal ? .horizontal : .vertical')
     expect(iosFlatList).toContain('maxWidth: CraftNativeFlexLayout.unbounded,')

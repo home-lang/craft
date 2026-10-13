@@ -1885,7 +1885,7 @@ private class CraftTextDecorationSpan(
 
 private class CraftNativeSideBorderDrawable(
     private val fillColor: Int,
-    private val radius: Float,
+    private val radii: FloatArray,
     private val widths: IntArray,
     private val colors: IntArray,
 ) : Drawable() {
@@ -1895,7 +1895,10 @@ private class CraftNativeSideBorderDrawable(
         val bounds = RectF(this.bounds)
         paint.style = Paint.Style.FILL
         paint.color = fillColor
-        if (Color.alpha(fillColor) > 0) canvas.drawRoundRect(bounds, radius, radius, paint)
+        if (Color.alpha(fillColor) > 0) {
+            val path = Path().apply { addRoundRect(bounds, radii, Path.Direction.CW) }
+            canvas.drawPath(path, paint)
+        }
         val top = widths.getOrElse(0) { 0 }
         val right = widths.getOrElse(1) { 0 }
         val bottom = widths.getOrElse(2) { 0 }
@@ -3395,6 +3398,12 @@ class MainActivity : AppCompatActivity() {
         val sideBorderKeys = listOf("borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth")
         val hasSideBorders = (sideBorderKeys + listOf("borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor")).any(style::has)
         val sideWidths = sideBorderKeys.map { dp(style.optDouble(it, border)) }.toIntArray()
+        val cornerRadiusKeys = listOf("borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius")
+        val hasCornerRadii = cornerRadiusKeys.any(style::has)
+        val cornerRadii = cornerRadiusKeys.flatMap { value ->
+            val radius = dp(style.optDouble(value, radius)).toFloat()
+            listOf(radius, radius)
+        }.toFloatArray()
         val sideColors = listOf("borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor")
             .map { color(style.optString(it).ifBlank { style.optString("borderColor") }, Color.TRANSPARENT) }
             .toIntArray()
@@ -3407,14 +3416,14 @@ class MainActivity : AppCompatActivity() {
             if (hasSideBorders) {
                 view.background = CraftNativeSideBorderDrawable(
                     color(style.optString("backgroundColor"), Color.TRANSPARENT),
-                    dp(radius).toFloat(),
+                    cornerRadii,
                     sideWidths,
                     sideColors,
                 )
             } else {
                 view.background = GradientDrawable().apply {
                     setColor(color(style.optString("backgroundColor"), Color.TRANSPARENT))
-                    cornerRadius = dp(radius).toFloat()
+                    if (hasCornerRadii) setCornerRadii(cornerRadii) else cornerRadius = dp(radius).toFloat()
                     if (border > 0) {
                         val borderColor = color(style.optString("borderColor"), Color.TRANSPARENT)
                         when (style.optString("borderStyle")) {

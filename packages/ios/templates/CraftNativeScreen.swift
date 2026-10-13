@@ -550,8 +550,27 @@ private final class CraftNativeLayoutStyleBox {
 
 private var craftNativeLayoutStyleKey: UInt8 = 0
 private var craftNativeCornerRadiusKey: UInt8 = 0
+private var craftNativeCornerRadiiKey: UInt8 = 0
 private var craftNativeBorderLayerKey: UInt8 = 0
 private var craftNativeSideBorderLayersKey: UInt8 = 0
+
+private func craftRoundedPath(_ rect: CGRect, _ rawRadii: [CGFloat]) -> CGPath {
+    let limit = min(rect.width, rect.height) / 2
+    let radii = (0..<4).map { min(max(0, rawRadii.count > $0 ? rawRadii[$0] : 0), limit) }
+    let path = CGMutablePath()
+    let minX = rect.minX, maxX = rect.maxX, minY = rect.minY, maxY = rect.maxY
+    path.move(to: CGPoint(x: minX + radii[0], y: minY))
+    path.addLine(to: CGPoint(x: maxX - radii[1], y: minY))
+    path.addArc(center: CGPoint(x: maxX - radii[1], y: minY + radii[1]), radius: radii[1], startAngle: -.pi / 2, endAngle: 0, clockwise: false)
+    path.addLine(to: CGPoint(x: maxX, y: maxY - radii[2]))
+    path.addArc(center: CGPoint(x: maxX - radii[2], y: maxY - radii[2]), radius: radii[2], startAngle: 0, endAngle: .pi / 2, clockwise: false)
+    path.addLine(to: CGPoint(x: minX + radii[3], y: maxY))
+    path.addArc(center: CGPoint(x: minX + radii[3], y: maxY - radii[3]), radius: radii[3], startAngle: .pi / 2, endAngle: .pi, clockwise: false)
+    path.addLine(to: CGPoint(x: minX, y: minY + radii[0]))
+    path.addArc(center: CGPoint(x: minX + radii[0], y: minY + radii[0]), radius: radii[0], startAngle: .pi, endAngle: .pi * 1.5, clockwise: false)
+    path.closeSubpath()
+    return path
+}
 
 extension UIView {
     /// The layout style this view's parent reads. It lives on the view, so an
@@ -573,11 +592,28 @@ extension UIView {
         }
     }
 
+    var craftRequestedCornerRadii: [CGFloat]? {
+        get { (objc_getAssociatedObject(self, &craftNativeCornerRadiiKey) as? [NSNumber])?.map { CGFloat(truncating: $0) } }
+        set {
+            objc_setAssociatedObject(self, &craftNativeCornerRadiiKey, newValue?.map { NSNumber(value: Double($0)) }, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            craftApplyCornerRadius()
+        }
+    }
+
     func craftApplyCornerRadius() {
         let requested = craftRequestedCornerRadius ?? 0
         let limit = min(bounds.width, bounds.height) / 2
         let radius = limit > 0 ? min(requested, limit) : min(requested, 9_998)
-        if layer.cornerRadius != radius { layer.cornerRadius = radius }
+        if let radii = craftRequestedCornerRadii {
+            let mask = (layer.mask as? CAShapeLayer) ?? CAShapeLayer()
+            mask.frame = bounds
+            mask.path = craftRoundedPath(bounds, radii)
+            layer.mask = mask
+            layer.cornerRadius = 0
+        } else {
+            layer.mask = nil
+            if layer.cornerRadius != radius { layer.cornerRadius = radius }
+        }
         if let border = objc_getAssociatedObject(self, &craftNativeBorderLayerKey) as? CAShapeLayer {
             border.frame = bounds
             let inset = border.lineWidth / 2
@@ -4788,7 +4824,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         )
         view.alpha = number(style["opacity"]) ?? 1
         view.isHidden = style["display"] as? String == "none"
-        view.craftRequestedCornerRadius = number(style["borderRadius"])
+        let borderRadius = number(style["borderRadius"]) ?? 0
+        let cornerRadiusKeys = ["borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius"]
+        let hasCornerRadii = cornerRadiusKeys.contains { style[$0] != nil }
+        view.craftRequestedCornerRadius = borderRadius
+        view.craftRequestedCornerRadii = hasCornerRadii
+            ? cornerRadiusKeys.map { number(style[$0]) ?? borderRadius }
+            : nil
         let borderWidth = number(style["borderWidth"]) ?? 0
         let borderColor = color(style["borderColor"]) ?? .clear
         let sideWidthKeys = ["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"]
