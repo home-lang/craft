@@ -1199,6 +1199,7 @@ export async function init(options: InitOptions): Promise<void> {
   cpSync(join(TEMPLATES_DIR, 'CraftNativeMutation.swift'), join(output, 'Sources', 'CraftNativeMutation.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeUI.swift'), join(output, 'Sources', 'CraftNativeUI.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeServices.swift'), join(output, 'Sources', 'CraftNativeServices.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftNativeFiles.swift'), join(output, 'Sources', 'CraftNativeFiles.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftWebAudio.swift'), join(output, 'Sources', 'CraftWebAudio.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftHybrid.swift'), join(output, 'Sources', 'CraftHybrid.swift'))
 

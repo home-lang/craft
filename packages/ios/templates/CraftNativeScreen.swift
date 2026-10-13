@@ -3060,11 +3060,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                     "message": "Native API request timed out",
                 ], correlationId: id)
             }
-            pendingCapabilityDeadlines[requestToken] = deadline
-            DispatchQueue.main.asyncAfter(
-                deadline: .now() + .milliseconds(craftNativeCapabilityTimeoutMilliseconds),
-                execute: deadline
-            )
+            // A request a person answers (a share sheet, a dialog, the photo
+            // picker, Face ID) says so (`untimed`, stx's callPersonFacingAPI)
+            // and waits for them: a deadline would answer TIMEOUT while the
+            // sheet is still up and they are still choosing.
+            if payload["untimed"] as? Bool != true {
+                pendingCapabilityDeadlines[requestToken] = deadline
+                DispatchQueue.main.asyncAfter(
+                    deadline: .now() + .milliseconds(craftNativeCapabilityTimeoutMilliseconds),
+                    execute: deadline
+                )
+            }
             let module = payload["module"] as? String ?? ""
             let method = payload["method"] as? String ?? ""
             let reply: (Result<Any, CraftNativeActionError>) -> Void = { [weak self] answer in

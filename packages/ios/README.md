@@ -588,6 +588,23 @@ const { samples } = await window.craft.heartRate.stopRecording(); // [{ timestam
 // <bundle id> CraftFakeHeartRateMonitor -bool YES` stands in a strap ("Simulated
 // HRM") whose readings are encoded and decoded as 0x2A37 payloads. Simulator builds only.
 
+// Files on a native screen (capability `files`, always there): a photo from
+// the library (PHPickerViewController, no permission asked) or the camera
+// (`source: 'camera'`, capability `camera`, needs enableCamera), saved as an
+// upright JPEG with no metadata, no longer than maxPixels (default 2048).
+// Null when the picker was closed. The bytes stay on disk: post the file in a
+// FormData through fetch, or hand its path to the share sheet.
+const photo = await craft.files.pickImage({ maxPixels: 2048, quality: 0.85 });
+// { path, name: 'IMG_1234.jpg', type: 'image/jpeg', size, width, height }
+const form = new FormData();
+form.append('photo', photo);                      // multipart, built natively
+await fetch('https://example.com/upload', { method: 'POST', body: form });
+// A file for the share sheet (Save to Files, AirDrop, another app), fetched
+// straight to disk with your headers. Not 2xx: { ok: false, status, body }.
+const gpx = await craft.files.download('https://example.com/route.gpx', { headers: { Authorization: 'Bearer …' } });
+if (gpx.ok) await craft.share({ files: [gpx.path] });
+await craft.files.remove(gpx.path);               // or leave it: tmp, swept after a day
+
 // Speech: short spoken cues that duck the person's music instead of stopping
 // it, and play with the silent switch on. Always available (no config flag).
 // Resolves when the utterance ends: true if spoken, false if stopped or

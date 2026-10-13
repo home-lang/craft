@@ -1371,6 +1371,39 @@ describe('Craft iOS builder', () => {
     expect(plist).toContain('<string>Gate connects to your heart-rate monitor over Bluetooth to show and record your heart rate during a workout.</string>')
   })
 
+  it('picks a photo, downloads a file and posts a form from a native screen, the bytes kept off the bridge', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-files-'))
+    await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableShare: true, nativeScreens: { '/m/workout/:id/share': 'WorkoutShare' } } as any })
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const files = readFileSync(join(output, 'Sources', 'CraftNativeFiles.swift'), 'utf8')
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    // Always there: the library picker asks no permission; the camera is the app's choice.
+    expect(actions).toContain('values.append("files")')
+    expect(actions).toContain('if config.enableCamera { values.append("camera") }')
+    for (const call of ['case ("Files", "pickImage"):', 'case ("Files", "download"):', 'case ("Files", "remove"):'])
+      expect(actions).toContain(call)
+    expect(actions).toContain('CraftNativeFiles.pickImage(options, cameraEnabled: config.enableCamera)')
+    // The library picker, decoded once at the size wanted, upright, as JPEG.
+    expect(files).toContain('let picker = PHPickerViewController(configuration: configuration)')
+    expect(files).toContain('configuration.filter = .images')
+    expect(files).toContain('kCGImageSourceCreateThumbnailWithTransform: true')
+    expect(files).toContain('kCGImageSourceThumbnailMaxPixelSize: maxPixels')
+    expect(files).toContain('CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil)')
+    expect(files).toContain('picker.sourceType = .camera')
+    expect(files).toContain('done(.success(NSNull()))')
+    // A form's files are read natively, and only files made here.
+    expect(actions).toContain('if let form = options["form"] as? [Any] {')
+    expect(actions).toContain('request.setValue("multipart/form-data; boundary=\\(boundary)", forHTTPHeaderField: "Content-Type")')
+    expect(files).toContain('guard let url = owned(path) else {')
+    expect(files).toContain('Content-Disposition: form-data; name=\\"\\(quoted(name))\\"; filename=\\"\\(quoted(filename))\\"')
+    // A download goes to disk; a refused one keeps no file and says why.
+    expect(actions).toContain('let task = fetchSession.downloadTask(with: request) { location, response, error in')
+    expect(files).toContain('return ["ok": false, "status": response.statusCode, "body": text]')
+    expect(files).toContain('response.suggestedFilename')
+    // A request a person answers is never cut off by the host's deadline.
+    expect(screen).toContain('if payload["untimed"] as? Bool != true {')
+  })
+
   it('keeps a strap\'s readings coming with the screen locked only when the app reads one', () => {
     const config = { appName: 'HQ.training', bundleId: 'training.hq.app' }
     expect(renderBackgroundModes(config)).toBe('')

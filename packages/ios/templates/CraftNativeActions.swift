@@ -26,7 +26,7 @@ enum CraftNativeActions {
     private static let cancellationLock = NSLock()
     private static var cancelledRequests = Set<String>()
     private static var biometricContexts = [String: LAContext]()
-    private static var fetchTasks = [String: URLSessionDataTask]()
+    private static var fetchTasks = [String: URLSessionTask]()
     private static let fetchSession: URLSession = {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = craftNativeFetchTimeoutSeconds
@@ -64,6 +64,12 @@ enum CraftNativeActions {
         // A heart-rate strap is the app's own service (CraftHeartRate.swift),
         // so it needs no web view.
         if config.enableHeartRate { values.append("heartRate") }
+        // Photos picked from the library, files downloaded for the share
+        // sheet and sent in a form (CraftNativeFiles.swift): the photo picker
+        // runs out of process and asks no permission. Taking a photo needs
+        // the camera, which the app declares.
+        values.append("files")
+        if config.enableCamera { values.append("camera") }
         return values
     }
 
@@ -155,6 +161,18 @@ enum CraftNativeActions {
         case ("Network", "fetch"):
             fetch(requestToken: requestToken, args: args, completion: completion)
             return
+        case ("Files", "pickImage"):
+            // A person picks, so the bridge never times it out.
+            let options = args.first as? [String: Any] ?? [:]
+            DispatchQueue.main.async {
+                CraftNativeFiles.pickImage(options, cameraEnabled: config.enableCamera) { complete(requestToken, $0, completion) }
+            }
+            return
+        case ("Files", "download"):
+            download(requestToken: requestToken, args: args, completion: completion)
+            return
+        case ("Files", "remove"):
+            sync = .success(CraftNativeFiles.remove(args.first as? String ?? ""))
         case ("Lifecycle", "getState"):
             sync = .success(currentAppState())
         case ("DeepLinks", "getInitialURL"):
@@ -434,7 +452,21 @@ enum CraftNativeActions {
                 request.setValue(value, forHTTPHeaderField: name)
             }
         }
-        if let body = options["body"] as? String {
+        if let form = options["form"] as? [Any] {
+            // A screen's FormData: text fields, and files craft.files made.
+            guard method != "GET", method != "HEAD" else {
+                complete(requestToken, failure("INVALID_ARGUMENT", "A GET or HEAD request cannot have a body"), completion)
+                return
+            }
+            switch CraftNativeFiles.multipart(form) {
+            case .failure(let error):
+                complete(requestToken, .failure(error), completion)
+                return
+            case .success(let (data, boundary)):
+                request.httpBody = data
+                request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            }
+        } else if let body = options["body"] as? String {
             guard method != "GET", method != "HEAD" else {
                 complete(requestToken, failure("INVALID_ARGUMENT", "A GET or HEAD request cannot have a body"), completion)
                 return
@@ -475,6 +507,62 @@ enum CraftNativeActions {
                 "redirected": http.url.map { $0 != url } ?? false,
                 "body": String(decoding: body, as: UTF8.self),
             ]), completion)
+        }
+        cancellationLock.lock()
+        let alreadyCancelled = cancelledRequests.contains(requestToken)
+        if !alreadyCancelled { fetchTasks[requestToken] = task }
+        cancellationLock.unlock()
+        if !alreadyCancelled { task.resume() }
+    }
+
+    /// `craft.files.download`: a GET straight to a file made here (for the
+    /// share sheet), with the screen's headers, so a large file never passes
+    /// through JavaScriptCore. A refused answer (not 2xx) keeps no file and
+    /// hands back its status and the start of its body. Cancelled like fetch.
+    private static func download(
+        requestToken: String,
+        args: [Any],
+        completion: @escaping (Result<Any, CraftNativeActionError>) -> Void
+    ) {
+        guard let address = args.first as? String,
+              let url = URL(string: address),
+              let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              url.host?.isEmpty == false else {
+            complete(requestToken, failure("INVALID_ARGUMENT", "files.download needs an absolute http or https URL"), completion)
+            return
+        }
+        let options = args.count > 1 ? args[1] as? [String: Any] ?? [:] : [:]
+        var request = URLRequest(url: url, timeoutInterval: craftNativeFetchTimeoutSeconds)
+        request.httpMethod = "GET"
+        if let headers = options["headers"] as? [String: Any] {
+            for (name, value) in headers {
+                guard let value = value as? String else {
+                    complete(requestToken, failure("INVALID_ARGUMENT", "files.download header values must be strings"), completion)
+                    return
+                }
+                request.setValue(value, forHTTPHeaderField: name)
+            }
+        }
+        let name = options["name"] as? String
+        let task = fetchSession.downloadTask(with: request) { location, response, error in
+            cancellationLock.lock()
+            fetchTasks.removeValue(forKey: requestToken)
+            cancellationLock.unlock()
+            if let error = error {
+                let code = (error as? URLError)?.code == .timedOut ? "TIMEOUT" : "NETWORK_ERROR"
+                complete(requestToken, failure(code, error.localizedDescription), completion)
+                return
+            }
+            guard let http = response as? HTTPURLResponse else {
+                complete(requestToken, failure("NETWORK_ERROR", "files.download received a response that is not HTTP"), completion)
+                return
+            }
+            // The system deletes `location` once this returns: keep or read it now.
+            guard (200..<300).contains(http.statusCode), let location else {
+                complete(requestToken, .success(CraftNativeFiles.refusedDownload(at: location, response: http)), completion)
+                return
+            }
+            complete(requestToken, CraftNativeFiles.keepDownload(at: location, response: http, name: name), completion)
         }
         cancellationLock.lock()
         let alreadyCancelled = cancelledRequests.contains(requestToken)
