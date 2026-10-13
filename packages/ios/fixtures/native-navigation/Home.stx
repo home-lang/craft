@@ -489,6 +489,12 @@ function captureSectionScroll() {
       <Text testID="align-stretch-third" style={{"width":60}}>stretch three</Text>
       <Text testID="align-stretch-fourth" style={{"width":60}}>stretch four</Text>
     </View>
+    <View testID="align-content-evenly-wrap" style={{"width":120,"height":96,"flexDirection":"row","flexWrap":"wrap","alignContent":"space-evenly","backgroundColor":"#172554"}}>
+      <View testID="align-evenly-first" style={{"width":60,"height":20,"backgroundColor":"#60a5fa"}} />
+      <View testID="align-evenly-second" style={{"width":60,"height":20,"backgroundColor":"#93c5fd"}} />
+      <View testID="align-evenly-third" style={{"width":60,"height":20,"backgroundColor":"#bfdbfe"}} />
+      <View testID="align-evenly-fourth" style={{"width":60,"height":20,"backgroundColor":"#dbeafe"}} />
+    </View>
     <View testID="flex-grow-wrap" style={{"flexDirection":"row","width":240,"height":32,"gap":4,"backgroundColor":"#445566"}}>
       <Text testID="flex-grow-first" style={{"width":40,"flexGrow":1}}>grow</Text>
       <Text testID="flex-grow-second" style={{"width":40}}>fixed</Text>

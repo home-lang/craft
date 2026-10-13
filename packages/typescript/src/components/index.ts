@@ -146,7 +146,7 @@ export interface FlexStyle {
   /** Align self (override parent alignItems) */
   alignSelf?: 'auto' | 'flex-start' | 'flex-end' | 'center' | 'stretch' | 'baseline'
   /** Align content (multi-line) */
-  alignContent?: 'flex-start' | 'flex-end' | 'center' | 'stretch' | 'space-between' | 'space-around'
+  alignContent?: 'flex-start' | 'flex-end' | 'center' | 'stretch' | 'space-between' | 'space-around' | 'space-evenly'
   /** Gap between items */
   gap?: number
   /** Row gap */
