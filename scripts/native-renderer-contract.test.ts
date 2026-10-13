@@ -785,6 +785,7 @@ describe('native renderer component contract', () => {
 
   it('keeps grid alignContent in the shared layout core', () => {
     expect(nativeLayout).toContain('test "distributes leftover grid rows with align content"')
+    expect(nativeLayout).toContain('test "distributes grid rows evenly with align content"')
     expect(nativeLayout).toContain('test "distributes auto rows with grid align content"')
     expect(nativeLayout).toContain('switch (align_content)')
     expect(nativeLayout).toContain('row_extra = free_rows')
@@ -874,10 +875,13 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('alignContent did not distribute wrapped lines')
     expect(navigationHome).toContain('testID="grid-align-wrap"')
     expect(navigationHome).toContain('testID="grid-aspect-ratio-box" style={{"width":80,"aspectRatio":2')
+    expect(navigationHome).toContain('testID="grid-align-evenly-wrap"')
     expect(navigationHome).toContain('testID="aspect-ratio-box"')
     expect(iosNavigationTest).toContain('grid aspectRatio did not derive height from width')
     expect(iosNavigationTest).toContain('aspectRatio did not derive height from width')
     expect(androidNavigationTest).toContain('gridAspect.height')
+    expect(iosNavigationTest).toContain('grid space-evenly missed the inter-row slot')
+    expect(androidNavigationTest).toContain('grid space-evenly missed the inter-row slot')
     expect(androidNavigationTest).toContain('aspectRatioBox.height')
     expect(iosNavigationTest).toContain('grid alignContent did not center its rows')
     expect(androidNavigationTest).toContain('grid alignContent did not center its rows')

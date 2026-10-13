@@ -279,6 +279,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(gridAspect.waitForExistence(timeout: 5))
         XCTAssertEqual(gridAspect.frame.width, 80, accuracy: 2)
         XCTAssertEqual(gridAspect.frame.height, 40, accuracy: 2, "grid aspectRatio did not derive height from width")
+        let gridEvenly = app.otherElements["grid-align-evenly-wrap"]
+        let gridEvenlyFirst = app.otherElements["grid-evenly-first"]
+        let gridEvenlyThird = app.otherElements["grid-evenly-third"]
+        XCTAssertTrue(gridEvenly.waitForExistence(timeout: 5) && gridEvenlyFirst.exists && gridEvenlyThird.exists)
+        XCTAssertGreaterThan(gridEvenlyFirst.frame.minY - gridEvenly.frame.minY, 10, "grid space-evenly missed the leading slot")
+        XCTAssertGreaterThan(gridEvenlyThird.frame.minY - gridEvenlyFirst.frame.minY, 35, "grid space-evenly missed the inter-row slot")
         let aspectRatioBox = app.otherElements["aspect-ratio-box"]
         XCTAssertTrue(aspectRatioBox.waitForExistence(timeout: 5))
         XCTAssertEqual(aspectRatioBox.frame.width, 100, accuracy: 2)

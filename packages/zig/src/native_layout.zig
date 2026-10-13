@@ -244,6 +244,10 @@ fn craftNativeGridWithAutoRows(
             row_leading = free_rows / @as(f32, @floatFromInt(row_count * 2));
             row_between += free_rows / @as(f32, @floatFromInt(row_count));
         },
+        6 => {
+            row_leading = free_rows / @as(f32, @floatFromInt(row_count + 1));
+            row_between += free_rows / @as(f32, @floatFromInt(row_count + 1));
+        },
         5 => row_extra = free_rows / @as(f32, @floatFromInt(row_count)),
         else => {},
     }
@@ -1491,6 +1495,17 @@ test "distributes leftover grid rows with align content" {
     try std.testing.expectEqual(@as(c_int, 0), craft_native_grid_aligned(100, 100, 1, 0, 4, 1, &items, items.len, &frames));
     try std.testing.expectApproxEqAbs(@as(f32, 38), frames[0].y, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 52), frames[1].y, 0.001);
+}
+
+test "distributes grid rows evenly with align content" {
+    const items = [_]GridItem{
+        .{ .intrinsic_width = 20, .intrinsic_height = 10, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.nan(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 0, .alignment = 0 },
+        .{ .intrinsic_width = 20, .intrinsic_height = 10, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.nan(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 0, .alignment = 0 },
+    };
+    var frames: [2]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_grid_aligned(100, 70, 1, 0, 0, 6, &items, items.len, &frames));
+    try std.testing.expectApproxEqAbs(@as(f32, 16.666), frames[0].y, 0.01);
+    try std.testing.expectApproxEqAbs(@as(f32, 43.333), frames[1].y, 0.01);
 }
 
 test "distributes auto rows with grid align content" {

@@ -476,6 +476,12 @@ function captureSectionScroll() {
     <View testID="grid-aspect-wrap" style={{"display":"grid","gridTemplateColumns":"1fr","width":120,"padding":4,"backgroundColor":"#312e81"}}>
       <View testID="grid-aspect-ratio-box" style={{"width":80,"aspectRatio":2,"backgroundColor":"#c4b5fd"}} />
     </View>
+    <View testID="grid-align-evenly-wrap" style={{"display":"grid","gridTemplateColumns":"repeat(2, 1fr)","gridAutoRows":20,"columnGap":4,"width":120,"height":96,"alignContent":"space-evenly","backgroundColor":"#172554"}}>
+      <View testID="grid-evenly-first" style={{"height":20,"backgroundColor":"#60a5fa"}} />
+      <View testID="grid-evenly-second" style={{"height":20,"backgroundColor":"#93c5fd"}} />
+      <View testID="grid-evenly-third" style={{"height":20,"backgroundColor":"#bfdbfe"}} />
+      <View testID="grid-evenly-fourth" style={{"height":20,"backgroundColor":"#dbeafe"}} />
+    </View>
     <View testID="aspect-ratio-box" style={{"width":100,"aspectRatio":2,"backgroundColor":"#7c3aed"}} />
     <View testID="align-content-wrap" style={{"width":120,"height":96,"flexDirection":"row","flexWrap":"wrap","alignContent":"space-between","backgroundColor":"#243444"}}>
       <View testID="align-content-first" style={{"width":60,"height":20,"backgroundColor":"#6b7280"}} />
