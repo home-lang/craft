@@ -45,11 +45,13 @@ import android.view.ViewTreeObserver
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.DatePicker
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.TimePicker
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.Spinner
@@ -76,6 +78,9 @@ import com.craft.runtime.CraftNative
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.UUID
@@ -1293,6 +1298,136 @@ private class CraftNativeActivityIndicator(context: Context) :
     }
 }
 
+/** Android counterpart to iOS's UIDatePicker-backed native DatePicker. */
+private class CraftNativeDatePickerView(context: Context) : FrameLayout(context) {
+    private enum class PickerMode { DATE, TIME, DATE_TIME, COUNTDOWN }
+
+    private var pickerMode: PickerMode? = null
+    private var datePicker: DatePicker? = null
+    private var timePicker: TimePicker? = null
+    private var minuteInterval = 1
+    private var suppressChanges = true
+    var onValueChanged: (() -> Unit)? = null
+
+    init {
+        isFocusable = true
+    }
+
+    fun configure(props: JSONObject) {
+        val requestedMode = when (props.optString("mode")) {
+            "time" -> PickerMode.TIME
+            "datetime", "dateAndTime", "datetime-local" -> PickerMode.DATE_TIME
+            "countdown" -> PickerMode.COUNTDOWN
+            else -> PickerMode.DATE
+        }
+        if (pickerMode != requestedMode) {
+            pickerMode = requestedMode
+            datePicker = null
+            timePicker = null
+            removeAllViews()
+            val content = LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+            }
+            if (requestedMode == PickerMode.DATE || requestedMode == PickerMode.DATE_TIME) {
+                datePicker = DatePicker(context).also { picker ->
+                    val today = Calendar.getInstance()
+                    picker.init(today.get(Calendar.YEAR), today.get(Calendar.MONTH), today.get(Calendar.DAY_OF_MONTH)) { _, _, _, _ -> changed() }
+                    content.addView(picker, LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ))
+                }
+            }
+            if (requestedMode != PickerMode.DATE) {
+                timePicker = TimePicker(context).also { picker ->
+                    picker.setIs24HourView(true)
+                    picker.setOnTimeChangedListener { _, _, _ -> changed() }
+                    content.addView(picker, LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ))
+                }
+            }
+            addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        }
+
+        suppressChanges = true
+        minuteInterval = props.optInt("minuteInterval", 1).takeIf { it in 1..30 && 60 % it == 0 } ?: 1
+        pickerDate(props.opt("minimumDate"))?.let { datePicker?.minDate = it.timeInMillis }
+        pickerDate(props.opt("maximumDate"))?.let { datePicker?.maxDate = it.timeInMillis }
+        pickerDate(props.opt("value"))?.let { applyDate(it) }
+        val enabled = !props.optBoolean("disabled", false)
+        isEnabled = enabled
+        datePicker?.isEnabled = enabled
+        timePicker?.isEnabled = enabled
+        for (index in 0 until childCount) getChildAt(index).isEnabled = enabled
+        suppressChanges = false
+    }
+
+    fun event(): JSONObject {
+        val current = currentDate()
+        val valueFormat = when (pickerMode) {
+            PickerMode.DATE -> "yyyy-MM-dd"
+            PickerMode.TIME -> "HH:mm"
+            else -> "yyyy-MM-dd'T'HH:mm"
+        }
+        val value = SimpleDateFormat(valueFormat, Locale.US).apply { isLenient = false }.format(current.time)
+        val iso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.US).format(current.time)
+        return JSONObject().put("value", value).put("iso", iso).put("timestamp", current.timeInMillis)
+    }
+
+    private fun changed() {
+        if (suppressChanges) return
+        val picker = timePicker ?: return
+        val snapped = ((picker.minute + minuteInterval / 2) / minuteInterval * minuteInterval).coerceAtMost(59)
+        if (snapped != picker.minute) {
+            suppressChanges = true
+            picker.minute = snapped
+            suppressChanges = false
+        }
+        onValueChanged?.invoke()
+    }
+
+    private fun applyDate(value: Calendar) {
+        datePicker?.updateDate(value.get(Calendar.YEAR), value.get(Calendar.MONTH), value.get(Calendar.DAY_OF_MONTH))
+        timePicker?.hour = value.get(Calendar.HOUR_OF_DAY)
+        timePicker?.minute = value.get(Calendar.MINUTE)
+    }
+
+    private fun currentDate(): Calendar = Calendar.getInstance().also { current ->
+        datePicker?.let {
+            current.set(Calendar.YEAR, it.year)
+            current.set(Calendar.MONTH, it.month)
+            current.set(Calendar.DAY_OF_MONTH, it.dayOfMonth)
+        }
+        timePicker?.let {
+            current.set(Calendar.HOUR_OF_DAY, it.hour)
+            current.set(Calendar.MINUTE, it.minute)
+            current.set(Calendar.SECOND, 0)
+            current.set(Calendar.MILLISECOND, 0)
+        }
+    }
+
+    private fun pickerDate(value: Any?): Calendar? {
+        if (value is Number && value !is Boolean) return Calendar.getInstance().apply { timeInMillis = value.toLong() }
+        val text = value?.toString()?.trim().orEmpty()
+        if (text.isBlank() || text == JSONObject.NULL.toString()) return null
+        val formats = listOf(
+            "HH:mm", "HH:mm:ss", "yyyy-MM-dd", "yyyy-MM-dd'T'HH:mm",
+            "yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss.SSSXXX", "yyyy-MM-dd'T'HH:mm:ssX",
+        )
+        formats.firstNotNullOfOrNull { format ->
+            runCatching {
+                SimpleDateFormat(format, Locale.US).apply { isLenient = false }.parse(text)
+            }.getOrNull()
+        }?.let { parsed ->
+            return Calendar.getInstance().apply { time = parsed }
+        }
+        return null
+    }
+}
+
 private class CraftNativeVideoView(context: Context) : VideoView(context) {
     private var sourceUri = ""
     private var shouldLoop = false
@@ -2314,6 +2449,16 @@ class MainActivity : AppCompatActivity() {
                 setSelection(selected, false)
                 post { suppressInitialSelection = false }
             }
+            "DatePicker" -> (previous as? CraftNativeDatePickerView ?: CraftNativeDatePickerView(this)).apply {
+                configure(props)
+                val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
+                if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
+                onValueChanged = {
+                    screen.handlers[this]?.let { current ->
+                        send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", event()))
+                    }
+                }
+            }
             "Modal" -> (previous as? CraftNativeModalView ?: CraftNativeModalView(this)).apply {
                 transparent = props.optBoolean("transparent", false)
                 content.configure(style, resources.displayMetrics.density)
@@ -2590,7 +2735,7 @@ class MainActivity : AppCompatActivity() {
         val pressOutHandler = events.optString("onPressOut").takeIf { it.isNotBlank() }
         if (pressInHandler != null) screen.pressInHandlers[control] = pressInHandler else screen.pressInHandlers.remove(control)
         if (pressOutHandler != null) screen.pressOutHandlers[control] = pressOutHandler else screen.pressOutHandlers.remove(control)
-        if (type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator") {
+        if (type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator") {
             val handler = events.optString("onPress").ifBlank { events.optString("onClick") }
             val disabled = props.optBoolean("disabled", false)
             val hasPressLifecycle = pressInHandler != null || pressOutHandler != null
@@ -2722,6 +2867,7 @@ class MainActivity : AppCompatActivity() {
         "link" -> "Link"
         "textinput", "input" -> "TextInput"
         "picker", "select" -> "Picker"
+        "datepicker", "date-picker", "date" -> "DatePicker"
         "modal" -> "Modal"
         "switch" -> "Switch"
         "slider" -> "Slider"
@@ -3093,7 +3239,7 @@ class MainActivity : AppCompatActivity() {
         val role = props.optString("accessibilityRole").ifBlank { type.lowercase() }
         val state = props.optJSONObject("accessibilityState")
         val disabled = props.optBoolean("disabled", false) || state?.optBoolean("disabled", false) == true
-        if (type !in setOf("Button", "Link", "TextInput", "Picker", "Modal", "Switch", "Slider", "ActivityIndicator")) {
+        if (type !in setOf("Button", "Link", "TextInput", "Picker", "DatePicker", "Modal", "Switch", "Slider", "ActivityIndicator")) {
             view.isEnabled = !disabled
         } else if (disabled) {
             view.isEnabled = false

@@ -68,6 +68,7 @@ next route.
 | `Pressable`, `TouchableOpacity`, `TouchableHighlight` | `CraftNativeFlowView` | `CraftNativeFlexLayout` |
 | `TextInput` | `UITextField` | `EditText` |
 | `Picker` | `UIPickerView` | `Spinner` |
+| `DatePicker` | `UIDatePicker` | `DatePicker` / `TimePicker` |
 | `Modal` | `CraftNativeModalView` | `CraftNativeModalView` (`FrameLayout`) |
 | `Switch` | `UISwitch` | `Switch` |
 | `Slider` | `UISlider` | `SeekBar` |
@@ -106,6 +107,10 @@ containers block both press and long-press callbacks on both hosts.
 `Picker` renders option children from `<select>`/`<option>` or the native
 primitive, accepts `value`/`selectedValue`, and sends the selected option's
 `value` plus `index` through `onValueChange` or `onChange`.
+`DatePicker` accepts `mode` (`date`, `time`, `datetime`/`datetime-local`, or
+`countdown`), `value`, `minimumDate`, `maximumDate`, `minuteInterval`, and
+`disabled`. Its `onValueChange`/`onChange` event includes a local `value`, an
+ISO timestamp, and the Unix `timestamp` in milliseconds on both native hosts.
 `Modal` is parent-scoped: `visible` controls a native blocking layer around its
 children, `transparent` removes the dimming scrim, and hidden modals do not
 participate in layout or touch handling. `animationType` accepts `none`,

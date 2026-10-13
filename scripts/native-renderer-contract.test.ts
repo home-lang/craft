@@ -42,6 +42,7 @@ const COMPONENTS: Array<[string, string, string]> = [
   ['Slider', 'case "Slider":', '"Slider" ->'],
   ['TextInput', 'case "TextInput":', '"TextInput" ->'],
   ['Picker', 'case "Picker":', '"Picker" ->'],
+  ['DatePicker', 'case "DatePicker":', '"DatePicker" ->'],
   ['Modal', 'case "Modal":', '"Modal" ->'],
   ['ActivityIndicator', 'case "ActivityIndicator":', '"ActivityIndicator" ->'],
   ['Image', 'case "Image":', '"Image" ->'],
@@ -368,6 +369,17 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('waitForLabel(app.staticTexts["modal-opacity"], "0.45")')
     expect(iosNavigationTest).toContain('app.staticTexts["modal-opacity"].label, "1"')
     expect(guide).toContain('| `Picker` | `UIPickerView` | `Spinner` |')
+  })
+
+  it('keeps DatePicker values and change events aligned across hosts', () => {
+    expect(ios).toContain('case "DatePicker":')
+    expect(ios).toContain('UIDatePicker.Mode')
+    expect(ios).toContain('"timestamp": (date.timeIntervalSince1970 * 1000).rounded()')
+    expect(android).toContain('private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)')
+    expect(android).toContain('PickerMode.DATE_TIME')
+    expect(android).toContain('"timestamp", current.timeInMillis')
+    expect(android).toContain('events.optString("onValueChange").ifBlank { events.optString("onChange") }')
+    expect(guide).toContain('| `DatePicker` | `UIDatePicker` | `DatePicker` / `TimePicker` |')
   })
 
   it('keeps Modal visibility and parent blocking aligned across hosts', () => {
@@ -930,7 +942,7 @@ describe('native renderer component contract', () => {
   })
 
   it('restores generic Android pressables when accessibility disabled clears', () => {
-    expect(android).toContain('if (type !in setOf("Button", "Link", "TextInput", "Picker", "Modal", "Switch", "Slider", "ActivityIndicator")) {\n            view.isEnabled = !disabled')
+    expect(android).toContain('if (type !in setOf("Button", "Link", "TextInput", "Picker", "DatePicker", "Modal", "Switch", "Slider", "ActivityIndicator")) {\n            view.isEnabled = !disabled')
   })
 
   it('dismisses the keyboard from native scroll containers on drag', () => {
