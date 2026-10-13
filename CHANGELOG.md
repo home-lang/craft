@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.157...v0.0.158)
+
+## 🐛 Bug Fixes
+
+- **ios**: a tab's first screen covered at launch keeps its script ([1010687](https://github.com/craft-native/craft/commit/1010687)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.156...v0.0.157)
 
 ## 🚀 Features
