@@ -84,6 +84,7 @@ describe('native renderer component contract', () => {
     expect(androidDispatch).toContain('nativeFlexLineBreaks')
     expect(androidDispatch).toContain('nativeFlexLineDistribution')
     expect(androidDispatch).toContain('nativeGridAutoRows')
+    expect(androidDispatch).toContain('signature = "(FFIFFF[F[F[F[F[F[F[F[F[F[F)[F"')
     expect(ios).toContain('UnsafeMutableRawPointer')
     expect(android).toContain('CraftNative.flexRow(')
     expect(android).toContain('sharedPrimary?.get(index)')
