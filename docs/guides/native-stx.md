@@ -344,7 +344,9 @@ those measurements as numeric bases. Wrapped flex trees form lines from the
 same numeric bases, distribute free cross-axis space, and then recurse into
 each child without importing a host view type. `alignContent` controls that
 line distribution with the same start, center, end, between, around, and
-stretch options used by the mobile hosts.
+stretch options used by the mobile hosts. Grid rows use the same cross-axis
+alignment rule, so a shorter child is centered or end-aligned inside an
+intrinsically measured row instead of being forced to its top edge.
 
 The same runtime also exports `craft_native_grid` for equal-track grids. It
 accepts intrinsic measurements and alignment as plain data, leaving platform

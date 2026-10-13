@@ -787,12 +787,20 @@ fn layoutGrid(
         const child_available_width = @max(0, cell_width - horizontalMargins(child));
         const child_width = clampMain(child, .row, @min(child_available_width, child.style.width orelse child_available_width));
         const available_height = @max(0, row_height - verticalMargins(child));
-        const child_height = if (child.style.height == null and child.style.flex_basis == null)
+        const alignment = effectiveAlignment(child, node.style.align_items);
+        const requested_height = child.style.height orelse child.style.flex_basis;
+        const child_height = if (requested_height == null and alignment == .stretch)
             available_height
         else
-            clamp(@min(available_height, child.style.height orelse child.style.flex_basis orelse 0), child.style.min_height, child.style.max_height);
+            clamp(@min(available_height, requested_height orelse 0), child.style.min_height, child.style.max_height);
+        const vertical_space = @max(0, available_height - child_height);
+        const vertical_offset = switch (alignment) {
+            .center => vertical_space / 2,
+            .flex_end => vertical_space,
+            else => 0,
+        };
         const child_x = x + @as(f32, @floatFromInt(column)) * (cell_width + column_gap) + child.style.margin_left;
-        const child_y = row_y + child.style.margin_top;
+        const child_y = row_y + child.style.margin_top + vertical_offset;
         next_index = try layoutNode(child, .{ .width = child_width, .height = child_height }, child_x, child_y, next_index, frames);
         if (column + 1 == column_count or index + 1 == node.children.len) {
             row_y += row_height + row_gap;
@@ -1109,6 +1117,21 @@ test "places equal grid tracks and max-content rows" {
     try std.testing.expectEqual(@as(f32, 20), frames[1].height);
     try std.testing.expectEqual(@as(f32, 30), frames[2].height);
     try std.testing.expectEqual(@as(f32, 35), frames[3].y);
+}
+
+test "aligns shorter grid children inside intrinsic rows" {
+    const children = [_]Node{
+        .{ .style = .{ .height = 30 } },
+        .{ .style = .{ .height = 10 } },
+    };
+    const root = Node{
+        .style = .{ .grid = true, .grid_columns = 2, .width = 100, .height = 40, .align_items = .center },
+        .children = &children,
+    };
+    var frames: [3]Frame = undefined;
+
+    _ = try layout(root, .{ .width = 100, .height = 40 }, &frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 10), frames[2].y, 0.001);
 }
 
 test "accounts for per-edge margins in flex and grid frames" {
