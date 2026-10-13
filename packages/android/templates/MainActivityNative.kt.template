@@ -2359,7 +2359,11 @@ class MainActivity : AppCompatActivity() {
                     else -> false
                 }
                 setOnCheckedChangeListener(null)
-                isChecked = checked || props.optBoolean("indeterminate", false)
+                // Keep the visual checked state separate from indeterminate:
+                // an indeterminate control must announce "mixed" and its next
+                // user toggle should transition to checked, not unchecked.
+                isChecked = checked
+                isActivated = props.optBoolean("indeterminate", false)
                 isEnabled = !props.optBoolean("disabled", false)
                 props.optString("color").takeIf { it.isNotBlank() }?.let { buttonTintList = ColorStateList.valueOf(color(it, defaultTextColor)) }
                 val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
@@ -3308,6 +3312,10 @@ class MainActivity : AppCompatActivity() {
         } else if (disabled) {
             view.isEnabled = false
         }
+        ViewCompat.setStateDescription(
+            view,
+            if (type == "Checkbox" && props.optBoolean("indeterminate", false)) "mixed" else null,
+        )
         ViewCompat.setAccessibilityDelegate(view, object : AccessibilityDelegateCompat() {
             override fun onInitializeAccessibilityNodeInfo(host: View, info: AccessibilityNodeInfoCompat) {
                 super.onInitializeAccessibilityNodeInfo(host, info)

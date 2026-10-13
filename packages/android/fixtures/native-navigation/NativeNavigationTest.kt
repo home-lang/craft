@@ -32,6 +32,7 @@ import android.widget.TimePicker
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import androidx.core.view.ViewCompat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -457,6 +458,12 @@ class NativeNavigationTest {
             assertFalse("native checkbox should start unchecked", (checkbox as CheckBox).isChecked)
             instrumentation.runOnMainSync { checkbox.performClick() }
             awaitText(activity, "checkbox-status", "checkbox on")
+            val indeterminateCheckbox = awaitView(activity, "native-checkbox-indeterminate") as CheckBox
+            assertFalse("indeterminate checkbox should not report checked", indeterminateCheckbox.isChecked)
+            assertTrue("indeterminate checkbox should retain its mixed state", indeterminateCheckbox.isActivated)
+            assertEquals("mixed", ViewCompat.getStateDescription(indeterminateCheckbox))
+            instrumentation.runOnMainSync { indeterminateCheckbox.performClick() }
+            assertTrue("indeterminate checkbox should become checked on first toggle", indeterminateCheckbox.isChecked)
             val modal = awaitView(activity, "native-modal")
             assertTrue("native modal should be a container", modal is ViewGroup)
             assertEquals("modal should start hidden", View.GONE, modal.visibility)

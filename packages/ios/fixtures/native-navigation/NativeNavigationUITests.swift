@@ -186,6 +186,7 @@ final class NativeNavigationUITests: XCTestCase {
         checkbox.tap()
         XCTAssertTrue(app.staticTexts["checkbox-status"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["checkbox-status"].label, "checkbox on")
+        XCTAssertTrue(app.buttons["native-checkbox-indeterminate"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["disabled-button"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["disabled-button"].isEnabled)
         XCTAssertEqual(image.label, "Native pixel")
