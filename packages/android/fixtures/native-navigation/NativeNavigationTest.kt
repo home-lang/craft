@@ -315,7 +315,7 @@ class NativeNavigationTest {
             assertTrue("flexGrow did not consume remaining main-axis space", growFirst.width > growSecond.width)
             val capped = awaitView(activity, "flex-bound-first")
             val redistributed = awaitView(activity, "flex-bound-second")
-            assertEquals((64 * density).toInt(), capped.width, (2 * density).toInt(), "maxWidth did not freeze the capped flex item")
+            assertEquals(64.0 * density, capped.width.toDouble(), 2.0 * density, "maxWidth did not freeze the capped flex item")
             assertTrue("remaining flex space was not redistributed", redistributed.width > capped.width + (40 * density).toInt())
             val justifyCenter = awaitView(activity, "justify-center-wrap")
             val justifyCenterFirst = awaitView(activity, "justify-center-first")
