@@ -180,6 +180,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["home-title"].label, "Home")
         app.buttons["native-audio-context"].tap()
         XCTAssertTrue(app.staticTexts["AudioContext ready"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.datePickers["native-countdown"].waitForExistence(timeout: 5), "countdown DatePicker did not mount natively")
         XCTAssertTrue(app.buttons["disabled-button"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["disabled-button"].isEnabled)
         XCTAssertEqual(image.label, "Native pixel")

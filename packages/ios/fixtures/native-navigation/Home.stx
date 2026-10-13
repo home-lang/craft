@@ -20,6 +20,7 @@ const switchValue = state(false)
 const pickerValue = state('one')
 const dateValue = state('2026-10-12')
 const timeValue = state('07:30')
+const countdownValue = state('01:30:00')
 const dateEventStatus = state('date event pending')
 const modalVisible = state(false)
 const modalStatus = state('')
@@ -283,6 +284,11 @@ function chooseTime(event) {
   dateEventStatus.set(event.iso && event.timestamp > 0 ? `${event.value}|event complete` : 'time event incomplete')
 }
 
+function chooseCountdown(event) {
+  countdownValue.set(event.value)
+  dateEventStatus.set(event.iso === 'PT5400S' && event.timestamp === 5400000 ? `${event.value}|duration complete` : 'countdown event incomplete')
+}
+
 function toggleModal() {
   modalVisible.update(value => !value)
 }
@@ -473,6 +479,8 @@ function openCapabilities() {
     <Text testID="date-value" :text="dateValue" />
     <DatePicker testID="native-time-picker" mode="time" value="07:30" minuteInterval={5} @value-change="chooseTime($event)" />
     <Text testID="time-value" :text="timeValue" />
+    <DatePicker testID="native-countdown" mode="countdown" value="01:30:00" @value-change="chooseCountdown($event)" />
+    <Text testID="countdown-value" :text="countdownValue" />
     <Text testID="date-event-status" :text="dateEventStatus" />
     <Button testID="toggle-modal" @click="toggleModal()">Toggle modal</Button>
     <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} @show="modalShown()" @dismiss="modalDismissed()" @request-close="modalRequested()">

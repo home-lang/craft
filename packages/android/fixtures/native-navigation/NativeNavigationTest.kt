@@ -443,6 +443,14 @@ class NativeNavigationTest {
             instrumentation.runOnMainSync { nativeTimePicker.minute = 33 }
             awaitText(activity, "time-value", "07:35")
             awaitText(activity, "date-event-status", "07:35|event complete")
+            val countdownRoot = awaitView(activity, "native-countdown")
+            val nativeCountdown = findType(countdownRoot, TimePicker::class.java)
+            assertTrue("native countdown should contain an Android TimePicker", nativeCountdown != null)
+            assertEquals(1, nativeCountdown!!.hour)
+            assertEquals(30, nativeCountdown.minute)
+            instrumentation.runOnMainSync { nativeCountdown.minute = 31 }
+            awaitText(activity, "countdown-value", "01:31:00")
+            awaitText(activity, "date-event-status", "01:31:00|duration complete")
             val modal = awaitView(activity, "native-modal")
             assertTrue("native modal should be a container", modal is ViewGroup)
             assertEquals("modal should start hidden", View.GONE, modal.visibility)
