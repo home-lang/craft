@@ -1,5 +1,45 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.160...v0.0.161)
+
+## 🚀 Features
+
+- **ios**: write and read mindful sessions in Apple Health ([7eadd00](https://github.com/craft-native/craft/commit/7eadd00)) _(by Chris Breuer)_
+- **native**: honor aspect ratio in flex sizing ([b866413](https://github.com/craft-native/craft/commit/b866413)) _(by glennmichael123)_
+- **native**: wire grid align content to hosts ([c163d27](https://github.com/craft-native/craft/commit/c163d27)) _(by glennmichael123)_
+- **native**: distribute grid align content ([3fbc81d](https://github.com/craft-native/craft/commit/3fbc81d)) _(by glennmichael123)_
+- **native**: align intrinsic grid children ([03c2f17](https://github.com/craft-native/craft/commit/03c2f17)) _(by glennmichael123)_
+- **native**: share wrapped line alignment ([4d73b38](https://github.com/craft-native/craft/commit/4d73b38)) _(by glennmichael123)_
+- **native**: share wrapped tree flex layout ([627d621](https://github.com/craft-native/craft/commit/627d621)) _(by glennmichael123)_
+- **native**: share cross-axis tree alignment ([0d4664f](https://github.com/craft-native/craft/commit/0d4664f)) _(by glennmichael123)_
+- **native**: share tree justify layout ([f7fb27a](https://github.com/craft-native/craft/commit/f7fb27a)) _(by glennmichael123)_
+- **native**: route SectionList through scroll hosts ([4962103](https://github.com/craft-native/craft/commit/4962103)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- preserve aspect ratios in native grids ([ba8e792](https://github.com/craft-native/craft/commit/ba8e792)) _(by glennmichael123)_
+- **native**: align grid fallback rows ([2b938cb](https://github.com/craft-native/craft/commit/2b938cb)) _(by glennmichael123)_
+- **native**: sanitize tree layout dimensions ([4263b46](https://github.com/craft-native/craft/commit/4263b46)) _(by glennmichael123)_
+- **android**: compile files capability handler ([14d02ac](https://github.com/craft-native/craft/commit/14d02ac)) _(by glennmichael123)_
+- **native**: align icon accessibility ([05dde78](https://github.com/craft-native/craft/commit/05dde78)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: cover aspect ratio sizing ([a0d46f0](https://github.com/craft-native/craft/commit/a0d46f0)) _(by glennmichael123)_
+- **native**: cover aligned auto rows ([934c36a](https://github.com/craft-native/craft/commit/934c36a)) _(by glennmichael123)_
+- **android**: track aligned grid natives ([98881c9](https://github.com/craft-native/craft/commit/98881c9)) _(by glennmichael123)_
+- **native**: cover grid align content ([3808fab](https://github.com/craft-native/craft/commit/3808fab)) _(by glennmichael123)_
+- **native**: cover wrapped align self ([3d8557b](https://github.com/craft-native/craft/commit/3d8557b)) _(by glennmichael123)_
+- **native**: cover cross-axis alignment ([e930da0](https://github.com/craft-native/craft/commit/e930da0)) _(by glennmichael123)_
+- **native**: exercise SectionList scrolling ([3ba78cb](https://github.com/craft-native/craft/commit/3ba78cb)) _(by glennmichael123)_
+- **native**: align SectionList builder contract ([1eb412e](https://github.com/craft-native/craft/commit/1eb412e)) _(by glennmichael123)_
+- **native**: cover SectionList fixtures ([d4515f9](https://github.com/craft-native/craft/commit/d4515f9)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.159...v0.0.160)
 
 ## 🚀 Features
