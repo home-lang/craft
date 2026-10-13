@@ -374,7 +374,8 @@ describe('native renderer component contract', () => {
 
   it('keeps native Checkbox state and change events aligned across hosts', () => {
     expect(ios).toContain('private final class CraftNativeCheckboxButton: UIButton')
-    expect(ios).toContain('checkbox.setImage(UIImage(systemName: indeterminate ? "minus.square" : "square"), for: .normal)')
+    expect(ios).toContain('let uncheckedImage = UIImage(systemName: indeterminate ? "minus.square" : "square")')
+    expect(ios).toContain('UIImage(systemName: indeterminate ? "minus.square" : "checkmark.square.fill")')
     expect(ios).toContain('nativeEvent": ["value": sender.isSelected]')
     expect(android).toContain('"Checkbox" -> (previous as? CheckBox ?: CheckBox(this)).apply')
     expect(android).toContain('props.optBoolean("indeterminate", false)')

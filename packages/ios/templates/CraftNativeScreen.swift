@@ -3475,8 +3475,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 string: transformedLabel,
                 attributes: buttonTitleAttributes(style, color: color(props["color"]) ?? color(style["color"]) ?? .label, font: textFont(style, default: .systemFont(ofSize: 16)))
             ), for: .normal)
-            checkbox.setImage(UIImage(systemName: indeterminate ? "minus.square" : "square"), for: .normal)
-            checkbox.setImage(UIImage(systemName: "checkmark.square.fill"), for: .selected)
+            let uncheckedImage = UIImage(systemName: indeterminate ? "minus.square" : "square")
+            checkbox.setImage(uncheckedImage, for: .normal)
+            checkbox.setImage(
+                UIImage(systemName: indeterminate ? "minus.square" : "checkmark.square.fill"),
+                for: .selected
+            )
             checkbox.tintColor = color(props["color"]) ?? color(style["color"]) ?? .systemBlue
             checkbox.isEnabled = props["disabled"] as? Bool != true
             updateHandler(nonEmptyHandler(events["onValueChange"]) ?? nonEmptyHandler(events["onChange"]), for: checkbox)
