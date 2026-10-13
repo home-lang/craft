@@ -1036,7 +1036,10 @@ describe('native renderer component contract', () => {
     expect(android).toContain('applyTransform(view, style.optJSONArray("transform"))')
     expect(android).toContain('view.translationX += dp(transform.optDouble(key, 0.0)).toFloat()')
     expect(android).toContain('view.rotationY += angleDegrees(transform.opt(key))')
-    expect(navigationHome).toContain('"transform":[{"translateX":4},{"scaleX":0.9},{"rotate":"2deg"}]')
+    expect(android).toContain('"skewX" -> skewX += skewFactor(transform.opt(key))')
+    expect(android).toContain('override fun drawChild(canvas: Canvas, child: View, drawingTime: Long)')
+    expect(android).toContain('CraftNativeSkewTransforms.matrix(child)')
+    expect(navigationHome).toContain('"transform":[{"translateX":4},{"scaleX":0.9},{"rotate":"2deg"},{"skewX":"6deg"},{"skewY":"-3deg"}]')
     expect(androidNavigationTest).toContain('transform translateX was not applied')
   })
 

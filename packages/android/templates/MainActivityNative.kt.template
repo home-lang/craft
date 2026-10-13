@@ -93,6 +93,7 @@ import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.UUID
+import java.util.WeakHashMap
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.PI
@@ -184,6 +185,32 @@ private fun craftNativeGridColumnCount(value: Any?): Int {
         if (count != null) return max(1, count)
     }
     return max(1, trimmed.split(Regex("\\s+")).count { it.isNotBlank() })
+}
+
+/** Android View has no skew setters before API 29; draw the shared skew around the view's center. */
+private object CraftNativeSkewTransforms {
+    private val values = WeakHashMap<View, Pair<Float, Float>>()
+
+    fun set(view: View, x: Float, y: Float) {
+        if (x == 0f && y == 0f) values.remove(view) else values[view] = x to y
+        view.invalidate()
+    }
+
+    fun clear(view: View) {
+        values.remove(view)
+        view.invalidate()
+    }
+
+    fun matrix(view: View): Matrix? {
+        val (x, y) = values[view] ?: return null
+        val pivotX = view.width / 2f
+        val pivotY = view.height / 2f
+        return Matrix().apply {
+            setTranslate(-pivotX, -pivotY)
+            postSkew(x, y)
+            postTranslate(pivotX, pivotY)
+        }
+    }
 }
 
 /** A DOM-free SVG surface for the geometry emitted by the shared STX native protocol. */
@@ -412,6 +439,15 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var gridAutoRows: CraftNativeLength? = null
     private var reverse = false
     private var wrapReverse = false
+
+    override fun drawChild(canvas: Canvas, child: View, drawingTime: Long): Boolean {
+        val skew = CraftNativeSkewTransforms.matrix(child) ?: return super.drawChild(canvas, child, drawingTime)
+        val save = canvas.save()
+        canvas.concat(skew)
+        val drawn = super.drawChild(canvas, child, drawingTime)
+        canvas.restoreToCount(save)
+        return drawn
+    }
 
     fun configure(style: JSONObject, density: Float) {
         orientation = if (style.optString("flexDirection") in setOf("row", "row-reverse")) HORIZONTAL else VERTICAL
@@ -3480,7 +3516,10 @@ class MainActivity : AppCompatActivity() {
         view.rotation = 0f
         view.rotationX = 0f
         view.rotationY = 0f
+        CraftNativeSkewTransforms.clear(view)
         if (transforms == null) return
+        var skewX = 0f
+        var skewY = 0f
         for (index in 0 until transforms.length()) {
             val transform = transforms.optJSONObject(index) ?: continue
             val key = transform.keys().asSequence().firstOrNull() ?: continue
@@ -3493,9 +3532,15 @@ class MainActivity : AppCompatActivity() {
                 "rotate", "rotateZ" -> view.rotation += angleDegrees(transform.opt(key))
                 "rotateX" -> view.rotationX += angleDegrees(transform.opt(key))
                 "rotateY" -> view.rotationY += angleDegrees(transform.opt(key))
+                "skewX" -> skewX += skewFactor(transform.opt(key))
+                "skewY" -> skewY += skewFactor(transform.opt(key))
             }
         }
+        CraftNativeSkewTransforms.set(view, skewX, skewY)
     }
+
+    private fun skewFactor(value: Any?): Float =
+        kotlin.math.tan(angleDegrees(value).toDouble() * PI / 180.0).toFloat()
 
     private fun angleDegrees(value: Any?): Float {
         val text = value?.toString()?.trim() ?: return 0f

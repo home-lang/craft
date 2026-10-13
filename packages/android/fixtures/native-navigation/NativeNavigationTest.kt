@@ -313,6 +313,7 @@ class NativeNavigationTest {
             assertEquals((4 * density), styled.translationX, 1f, "transform translateX was not applied")
             assertEquals(0.9f, styled.scaleX, 0.01f, "transform scaleX was not applied")
             assertEquals(2f, styled.rotation, 0.1f, "transform rotate was not applied")
+            assertTrue("styled row should have laid out before skew drawing", styled.width > 0 && styled.height > 0)
             assertEquals("FIRST", styledFirst.text.toString())
             assertEquals(Color.rgb(0xfe, 0xdc, 0xba), styledFirst.currentTextColor)
             assertEquals(21f, styledFirst.textSize / density)
