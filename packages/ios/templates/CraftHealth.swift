@@ -106,6 +106,12 @@ final class CraftHealth {
                 if let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) {
                     readTypes.insert(sleepType)
                 }
+            case "dietaryEnergy", "dietaryProtein", "dietaryCarbohydrates", "dietaryFat":
+                // What a food log (MyFitnessPal, Lose It!, Cronometer...)
+                // writes to Apple Health: read only, never written back.
+                if let dietaryType = Self.healthQuantity(type)?.type {
+                    readTypes.insert(dietaryType)
+                }
             default:
                 break
             }
@@ -261,6 +267,11 @@ final class CraftHealth {
         case "restingHeartRate": return (HKQuantityType.quantityType(forIdentifier: .restingHeartRate), bpm, .discreteAverage)
         case "heartRateVariability": return (HKQuantityType.quantityType(forIdentifier: .heartRateVariabilitySDNN), .secondUnit(with: .milli), .discreteAverage)
         case "bodyMass": return (HKQuantityType.quantityType(forIdentifier: .bodyMass), .gramUnit(with: .kilo), .mostRecent)
+        // A day's food, summed over every meal any app logged: kcal and grams.
+        case "dietaryEnergy": return (HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed), .kilocalorie(), .cumulativeSum)
+        case "dietaryProtein": return (HKQuantityType.quantityType(forIdentifier: .dietaryProtein), .gram(), .cumulativeSum)
+        case "dietaryCarbohydrates": return (HKQuantityType.quantityType(forIdentifier: .dietaryCarbohydrates), .gram(), .cumulativeSum)
+        case "dietaryFat": return (HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal), .gram(), .cumulativeSum)
         default: return nil
         }
     }

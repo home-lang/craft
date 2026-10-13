@@ -391,6 +391,8 @@ await health.requestAuthorization(['workouts', 'heartRate', 'sleep'], { write: f
 const workouts = await health.getWorkouts({ startDate: Date.now() - 30 * 86400000 })
 // One value per local day: sums, averages, the latest weight, hours asleep.
 const hrv = await health.getDailyStatistics('heartRateVariability', { startDate: Date.now() - 30 * 86400000 })
+// What a food log wrote (MyFitnessPal, Lose It!...): kcal, then grams of protein, carbohydrate and fat, summed per day.
+const eaten = await health.getDailyStatistics('dietaryEnergy', { startDate: Date.now() - 7 * 86400000 })
 // Every heart-rate reading in a range (bpm, start/end, source and device), oldest first.
 const readings = await health.getHeartRateSamples({ startDate: Date.now() - 86400000 })
 // The night as Apple Health recorded it: in bed, awake, and each asleep stage.

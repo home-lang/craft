@@ -2644,6 +2644,11 @@ export type HealthDataType =
   | 'heartRateVariability'
   | 'bodyMass'
   | 'sleep'
+  /** Food logged by any app, per day: kcal eaten, then grams of protein, carbohydrate and fat. Read only. */
+  | 'dietaryEnergy'
+  | 'dietaryProtein'
+  | 'dietaryCarbohydrates'
+  | 'dietaryFat'
 
 /** The types with one value per day. `sleep` is hours asleep, counted on the day you woke. */
 export type HealthDailyType = Exclude<HealthDataType, 'workouts'>

@@ -682,6 +682,10 @@ describe('Craft iOS builder', () => {
     // Every new read type is requested, so a grant covers what is then read.
     for (const identifier of ['.restingHeartRate', '.heartRateVariabilitySDNN', '.bodyMass', '.sleepAnalysis'])
       expect(swift).toContain(identifier)
+    // A food log's day comes in summed, and asking to read it is asking for it.
+    for (const identifier of ['.dietaryEnergyConsumed', '.dietaryProtein', '.dietaryCarbohydrates', '.dietaryFatTotal'])
+      expect(swift).toContain(identifier)
+    expect(swift).toContain('case "dietaryEnergy", "dietaryProtein", "dietaryCarbohydrates", "dietaryFat":')
     expect(swift).toContain('HKStatisticsCollectionQuery(')
     expect(swift).toContain('"id": workout.uuid.uuidString')
     // A reader asks to read only, and the sheet a person is reading is never
