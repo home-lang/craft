@@ -117,6 +117,8 @@ reports load lifecycle events and structured failures. `Video` uses the native
 resize-mode props.
 `ImageBackground` loads an image behind ordinary native children while
 preserving the shared flex layout contract.
+Grid tracks retain fractional widths and row distribution until Android lays
+out the final pixel frames, matching the shared native layout contract.
 `Icon` uses the shared symbol/name contract with a dependency-free Android
 glyph map; unknown symbols render a hollow-circle fallback instead of an empty
 native node.
