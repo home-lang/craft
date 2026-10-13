@@ -1425,10 +1425,13 @@ describe('native renderer component contract', () => {
 
   it('keeps baseline flex alignment implemented and fixture-covered on both hosts', () => {
     expect(ios).toContain('private static func firstBaseline(_ view: UIView, cross: CGFloat)')
+    expect(ios).toContain('label.insets.top + label.firstBaselineOffsetFromTop')
+    expect(ios).toContain('label.firstBaselineOffsetFromTop')
     expect(ios).toContain('if item.align == "baseline", let baseline')
     expect(android).toContain('private fun baselineOffset(view: View, cross: Int): Int')
     expect(android).toContain('if (align == "baseline" && baseline != null)')
     expect(navigationHome).toContain('"alignItems":"baseline"')
+    expect(navigationHome).toContain('"fontSize":12,"paddingTop":4')
     expect(iosNavigationTest).toContain('baseline alignment did not lower the smaller label')
     expect(androidNavigationTest).toContain('baseline alignment did not lower the smaller label')
   })

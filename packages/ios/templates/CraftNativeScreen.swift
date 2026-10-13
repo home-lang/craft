@@ -983,8 +983,14 @@ private class CraftNativeFlowView: UIStackView {
     /// matching the CSS fallback for replaced and non-text elements.
     private static func firstBaseline(_ view: UIView, cross: CGFloat) -> CGFloat {
         let baseline: CGFloat?
-        if let label = view as? UILabel {
-            baseline = label.font.ascender
+        if let label = view as? CraftNativeLabel {
+            // CraftNativeLabel draws inside its inset rect, so include the
+            // authored top padding before asking UIKit for the text baseline.
+            baseline = label.insets.top + label.firstBaselineOffsetFromTop
+        } else if let label = view as? UILabel {
+            // UIKit's measured offset tracks multiline and line-break
+            // configuration more accurately than the font ascender alone.
+            baseline = label.firstBaselineOffsetFromTop
         } else if let field = view as? UITextField {
             baseline = field.font?.ascender
         } else if let textView = view as? UITextView {
