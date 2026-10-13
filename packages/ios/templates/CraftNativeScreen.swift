@@ -1110,6 +1110,10 @@ private class CraftNativeFlowView: UIStackView {
             }
             if start < items.count { lines.append(start..<items.count) }
         }
+        // Reconciliation reverses the child order for the requested main
+        // axis. A wrapped flex container must keep its lines in cross-axis
+        // order, so restore the groups without changing each line's order.
+        if reverse && wrap && lines.count > 1 { lines.reverse() }
 
         var lineMains: [CGFloat] = []
         var lineCrosses: [CGFloat] = []

@@ -506,6 +506,11 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             }
             if (line.entries.isNotEmpty()) lines += line
         }
+        // Reconciliation reverses the child order so the main axis runs in
+        // the requested direction. With wrapping, that also reverses the
+        // line order; flexbox keeps wrap lines in cross-axis order, so restore
+        // the groups while retaining the reversed entries inside each line.
+        if (reverse && wrap && lines.size > 1) lines.reverse()
         return lines to absolute
     }
 

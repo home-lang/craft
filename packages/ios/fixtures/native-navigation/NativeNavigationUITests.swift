@@ -338,6 +338,16 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(reverseColumnFirst.waitForExistence(timeout: 5))
         XCTAssertTrue(reverseColumnSecond.exists)
         XCTAssertGreaterThan(reverseColumnFirst.frame.minY, reverseColumnSecond.frame.minY, "column-reverse did not invert the main axis")
+        let reverseWrap = app.otherElements["reverse-wrap"]
+        let reverseWrapFirst = app.staticTexts["reverse-wrap-first"]
+        let reverseWrapSecond = app.staticTexts["reverse-wrap-second"]
+        let reverseWrapThird = app.staticTexts["reverse-wrap-third"]
+        let reverseWrapFourth = app.staticTexts["reverse-wrap-fourth"]
+        XCTAssertTrue(reverseWrap.waitForExistence(timeout: 5) && reverseWrapFirst.exists && reverseWrapSecond.exists && reverseWrapThird.exists && reverseWrapFourth.exists)
+        XCTAssertGreaterThan(reverseWrapFirst.frame.minX, reverseWrapSecond.frame.minX, "row-reverse did not reverse the first wrapped line")
+        XCTAssertGreaterThan(reverseWrapThird.frame.minX, reverseWrapFourth.frame.minX, "row-reverse did not reverse the second wrapped line")
+        XCTAssertGreaterThan(reverseWrapThird.frame.minY, reverseWrapFirst.frame.minY, "row-reverse reversed wrapped line order")
+        XCTAssertLessThanOrEqual(reverseWrapFourth.frame.maxY, reverseWrap.frame.maxY, "row-reverse wrapped line escaped its container")
 
         let link = app.staticTexts["native-link"]
         reveal(link, in: rootScroll)

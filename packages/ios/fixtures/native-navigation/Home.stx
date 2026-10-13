@@ -445,6 +445,12 @@ function captureSectionScroll() {
         <Text testID="reverse-column-first">top source</Text>
         <Text testID="reverse-column-second">bottom source</Text>
       </View>
+      <View testID="reverse-wrap" style={{"flexDirection":"row-reverse","flexWrap":"wrap","width":120,"height":64,"backgroundColor":"#46515f"}}>
+        <Text testID="reverse-wrap-first" style={{"width":48}}>first</Text>
+        <Text testID="reverse-wrap-second" style={{"width":48}}>second</Text>
+        <Text testID="reverse-wrap-third" style={{"width":48}}>third</Text>
+        <Text testID="reverse-wrap-fourth" style={{"width":48}}>fourth</Text>
+      </View>
       <View style={{"height":120}} />
       <Text testID="scroll-end">End of native scroll content</Text>
     </ScrollView>
