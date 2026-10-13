@@ -1199,6 +1199,14 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('shared space-between trailing position was not applied')
   })
 
+  it('exercises cross-axis alignItems and alignSelf in the maintained fixture', () => {
+    expect(navigationHome).toContain('testID="cross-axis-wrap"')
+    expect(navigationHome).toContain('"alignItems":"center"')
+    expect(navigationHome).toContain('"alignSelf":"flex-end"')
+    expect(iosNavigationTest).toContain('alignItems center did not center the child')
+    expect(androidNavigationTest).toContain('alignSelf flex-end did not move the child to the line end')
+  })
+
   it('retains keyed iOS input drafts while FlatList rows recycle', () => {
     expect(ios).toContain('self.forgetHandlers(row, preservingInputDrafts: true)')
     expect(ios).toContain('private func forgetHandlers(_ node: RenderedNode, preservingInputDrafts: Bool = false)')

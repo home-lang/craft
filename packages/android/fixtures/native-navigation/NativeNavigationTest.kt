@@ -341,6 +341,11 @@ class NativeNavigationTest {
             val justifyBetweenSecond = awaitView(activity, "justify-between-second")
             assertTrue("shared space-between leading position was not applied", justifyBetweenFirst.left <= justifyBetween.left + (20 * density).toInt())
             assertTrue("shared space-between trailing position was not applied", justifyBetweenSecond.right >= justifyBetween.right - (20 * density).toInt())
+            val crossAxis = awaitView(activity, "cross-axis-wrap")
+            val crossCenter = awaitView(activity, "cross-axis-center")
+            val crossEnd = awaitView(activity, "cross-axis-end")
+            assertTrue("alignItems center did not center the child", abs(crossCenter.top + crossCenter.height / 2 - (crossAxis.top + crossAxis.height / 2)) <= (3 * density).toInt())
+            assertTrue("alignSelf flex-end did not move the child to the line end", crossEnd.top > crossCenter.top)
             val reverseColumn = awaitView(activity, "reverse-column") as LinearLayout
             val reverseColumnFirst = awaitView(activity, "reverse-column-first")
             val reverseColumnSecond = awaitView(activity, "reverse-column-second")

@@ -302,6 +302,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(justifyBetween.waitForExistence(timeout: 5) && justifyBetweenFirst.exists && justifyBetweenSecond.exists)
         XCTAssertLessThanOrEqual(justifyBetweenFirst.frame.minX, justifyBetween.frame.minX + 20, "shared space-between leading position was not applied")
         XCTAssertGreaterThanOrEqual(justifyBetweenSecond.frame.maxX, justifyBetween.frame.maxX - 20, "shared space-between trailing position was not applied")
+        let crossAxis = app.otherElements["cross-axis-wrap"]
+        let crossCenter = app.staticTexts["cross-axis-center"]
+        let crossEnd = app.staticTexts["cross-axis-end"]
+        XCTAssertTrue(crossAxis.waitForExistence(timeout: 5) && crossCenter.exists && crossEnd.exists)
+        XCTAssertEqual(crossCenter.frame.midY, crossAxis.frame.midY, accuracy: 3, "alignItems center did not center the child")
+        XCTAssertGreaterThan(crossEnd.frame.minY, crossCenter.frame.minY, "alignSelf flex-end did not move the child to the line end")
         let reverseColumnFirst = app.staticTexts["reverse-column-first"]
         let reverseColumnSecond = app.staticTexts["reverse-column-second"]
         XCTAssertTrue(reverseColumnFirst.waitForExistence(timeout: 5))
