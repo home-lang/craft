@@ -13,12 +13,32 @@ import UserNotifications
 /// `craft.speech` on a native screen: AVSpeechSynthesizer, set up the way the
 /// page's own speech is (CraftApp.swift). The music ducks rather than stops,
 /// the silent switch does not mute a cue, and the session is handed back once
-/// nothing is left to say.
+/// nothing has been said for a moment.
+///
+/// Three things a workout's countdown ("3", "2", "1", a second apart) needs:
+/// - An interrupting cue is never lost. AVSpeechSynthesizer can drop an
+///   utterance handed to it straight after `stopSpeaking(at: .immediate)`,
+///   so a cue that cuts another off speaks on a fresh synthesizer while the
+///   stopped one winds down.
+/// - The session stays claimed for `releaseAfterSilence` after the last word,
+///   so the music ducks once for a countdown instead of swelling back up
+///   between every number, and the next number does not wait on the audio
+///   hardware again.
+/// - Activating and deactivating the session blocks until the hardware
+///   answers, so it happens on a queue of its own, never the main thread the
+///   screens' JavaScript and their timers run on.
 final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
     static let shared = CraftNativeSpeech()
+    /// How long the session is kept after the last word.
+    static let releaseAfterSilence: TimeInterval = 1.5
 
-    private let synthesizer = AVSpeechSynthesizer()
+    private var synthesizer = AVSpeechSynthesizer()
+    /// Synthesizers stopped by an interruption, kept until they report it.
+    private var retired: [AVSpeechSynthesizer] = []
     private var pending: [(utterance: AVSpeechUtterance, done: (Bool) -> Void)] = []
+    private var pendingRelease: DispatchWorkItem?
+    /// The audio session's work, in order. `sessionToRestore` is only touched here.
+    private let sessionQueue = DispatchQueue(label: "dev.craft.native.speech-session")
     private var sessionToRestore: (AVAudioSession.Category, AVAudioSession.Mode, AVAudioSession.CategoryOptions)?
 
     private override init() {
@@ -27,9 +47,12 @@ final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     /// Says `text`; `done` hears true once it was spoken, false when it was
-    /// stopped or interrupted. Main thread.
+    /// stopped or interrupted. With `interrupt` false it waits its turn behind
+    /// what is being said. Main thread.
     func speak(_ text: String, language: String?, rate: Double?, interrupt: Bool, done: @escaping (Bool) -> Void) {
-        if interrupt { cancelPending() }
+        pendingRelease?.cancel()
+        pendingRelease = nil
+        if interrupt, cancelPending() { retireSynthesizer() }
         let utterance = AVSpeechUtterance(string: text)
         utterance.rate = Self.utteranceRate(rate ?? 1)
         // An unknown language finds no voice, and a nil voice is the device's own.
@@ -37,8 +60,14 @@ final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
             utterance.voice = voice
         }
         pending.append((utterance, done))
-        claimSession()
-        synthesizer.speak(utterance)
+        sessionQueue.async {
+            self.claimSession()
+            DispatchQueue.main.async {
+                // Stopped while the session was being set up: say nothing.
+                guard self.pending.contains(where: { $0.utterance === utterance }) else { return }
+                self.synthesizer.speak(utterance)
+            }
+        }
     }
 
     func stop() {
@@ -58,6 +87,14 @@ final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
         return sounding
     }
 
+    /// The stopped synthesizer winds down on its own; the next cue gets a new one.
+    private func retireSynthesizer() {
+        retired.append(synthesizer)
+        let fresh = AVSpeechSynthesizer()
+        fresh.delegate = self
+        synthesizer = fresh
+    }
+
     /// The page's rate, where 1 is normal, on AVSpeechUtterance's scale: the
     /// same mapping as the page's speech, so a cue sounds alike in both.
     static func utteranceRate(_ rate: Double) -> Float {
@@ -69,6 +106,7 @@ final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
         return min(max(mapped, AVSpeechUtteranceMinimumSpeechRate), AVSpeechUtteranceMaximumSpeechRate)
     }
 
+    /// Session queue.
     private func claimSession() {
         guard sessionToRestore == nil else { return }
         let session = AVAudioSession.sharedInstance()
@@ -83,37 +121,52 @@ final class CraftNativeSpeech: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
 
-    private func releaseSessionIfSilent(retry: Bool = true) {
-        guard pending.isEmpty, let previous = sessionToRestore else { return }
-        let session = AVAudioSession.sharedInstance()
-        do {
-            try session.setActive(false, options: .notifyOthersOnDeactivation)
-        } catch {
-            // Busy: the last of the audio has not drained, or the app plays
-            // something of its own. Once more shortly covers the first.
-            if retry {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.releaseSessionIfSilent(retry: false) }
-                return
+    /// Hand the session back once nothing has been said for a moment. Main thread.
+    private func releaseSessionIfSilent(retry: Bool = true, after delay: TimeInterval = CraftNativeSpeech.releaseAfterSilence) {
+        guard pending.isEmpty else { return }
+        pendingRelease?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingRelease = nil
+            guard self.pending.isEmpty, !self.synthesizer.isSpeaking else { return }
+            self.sessionQueue.async {
+                guard let previous = self.sessionToRestore else { return }
+                let session = AVAudioSession.sharedInstance()
+                do {
+                    try session.setActive(false, options: .notifyOthersOnDeactivation)
+                } catch {
+                    // Busy: the last of the audio has not drained, or the app
+                    // plays something of its own. Once more shortly covers the first.
+                    if retry {
+                        DispatchQueue.main.async { self.releaseSessionIfSilent(retry: false, after: 0.5) }
+                        return
+                    }
+                }
+                self.sessionToRestore = nil
+                try? session.setCategory(previous.0, mode: previous.1, options: previous.2)
+                DispatchQueue.main.async { CraftNativeSounds.reclaimSessionIfPlaying() }
             }
         }
-        sessionToRestore = nil
-        try? session.setCategory(previous.0, mode: previous.1, options: previous.2)
-        CraftNativeSounds.reclaimSessionIfPlaying()
+        pendingRelease = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
-    private func finished(_ utterance: AVSpeechUtterance, spoken: Bool) {
+    private func finished(_ synthesizer: AVSpeechSynthesizer, _ utterance: AVSpeechUtterance, spoken: Bool) {
         if let index = pending.firstIndex(where: { $0.utterance === utterance }) {
             pending.remove(at: index).done(spoken)
+        }
+        if synthesizer !== self.synthesizer, !synthesizer.isSpeaking {
+            retired.removeAll { $0 === synthesizer }
         }
         releaseSessionIfSilent()
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { self.finished(utterance, spoken: true) }
+        DispatchQueue.main.async { self.finished(synthesizer, utterance, spoken: true) }
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { self.finished(utterance, spoken: false) }
+        DispatchQueue.main.async { self.finished(synthesizer, utterance, spoken: false) }
     }
 }
 

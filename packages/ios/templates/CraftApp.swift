@@ -1712,14 +1712,22 @@ struct CraftWebView: UIViewRepresentable {
         // Keep awake
         private var isKeepingAwake = false
 
-        // Speech synthesis. One synthesizer for the life of the web view, so a
-        // cue can interrupt the one before it; each utterance it has not
-        // finished yet is held beside the call waiting on it.
+        // Speech synthesis. Each utterance not finished yet is held beside the
+        // call waiting on it. A cue that interrupts one still sounding speaks
+        // on a fresh synthesizer: AVSpeechSynthesizer can drop an utterance
+        // handed to it straight after `stopSpeaking(at: .immediate)`, which
+        // lost the "2" of a "3, 2, 1" countdown. The stopped one is kept in
+        // `retiredSpeechSynthesizers` until it reports the cancel.
         private lazy var speechSynthesizer: AVSpeechSynthesizer = {
             let synthesizer = AVSpeechSynthesizer()
             synthesizer.delegate = self
             return synthesizer
         }()
+        private var retiredSpeechSynthesizers: [AVSpeechSynthesizer] = []
+        /// The session is handed back this long after the last word, so a
+        /// countdown ducks the music once rather than between every number.
+        private static let speechReleaseAfterSilence: TimeInterval = 1.5
+        private var pendingSpeechRelease: DispatchWorkItem?
         private var pendingUtterances: [(utterance: AVSpeechUtterance, callbackId: String?)] = []
         /// What the session was before speech claimed it; nil while speech
         /// does not hold it.
@@ -6715,8 +6723,13 @@ struct CraftWebView: UIViewRepresentable {
 
         private func speak(_ text: String, body: [String: Any], callbackId: String?) {
             DispatchQueue.main.async {
-                if body["interrupt"] as? Bool ?? true {
-                    self.cancelPendingSpeech()
+                self.pendingSpeechRelease?.cancel()
+                self.pendingSpeechRelease = nil
+                if body["interrupt"] as? Bool ?? true, self.cancelPendingSpeech() {
+                    self.retiredSpeechSynthesizers.append(self.speechSynthesizer)
+                    let fresh = AVSpeechSynthesizer()
+                    fresh.delegate = self
+                    self.speechSynthesizer = fresh
                 }
 
                 let utterance = AVSpeechUtterance(string: text)
@@ -6818,8 +6831,20 @@ struct CraftWebView: UIViewRepresentable {
         /// Checked on the main thread, where the queue of utterances lives, and
         /// done on the speech queue after any setup already asked for, so a
         /// cue that arrives meanwhile reclaims the session after this.
-        private func releaseAudioSessionIfSilent(retry: Bool = true) {
+        private func releaseAudioSessionIfSilent(retry: Bool = true, after delay: TimeInterval = Coordinator.speechReleaseAfterSilence) {
             guard pendingUtterances.isEmpty else { return }
+            pendingSpeechRelease?.cancel()
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.pendingSpeechRelease = nil
+                guard self.pendingUtterances.isEmpty, !self.speechSynthesizer.isSpeaking else { return }
+                self.deactivateSpeechAudioSession(retry: retry)
+            }
+            pendingSpeechRelease = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+        }
+
+        private func deactivateSpeechAudioSession(retry: Bool) {
             speechAudioQueue.async {
                 guard let previous = self.speechAudioSessionToRestore else { return }
                 let session = AVAudioSession.sharedInstance()
@@ -6832,8 +6857,8 @@ struct CraftWebView: UIViewRepresentable {
                     // right, and the ducking still ends when the music app
                     // hears nothing more.
                     if retry {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            self.releaseAudioSessionIfSilent(retry: false)
+                        DispatchQueue.main.async {
+                            self.releaseAudioSessionIfSilent(retry: false, after: 0.5)
                         }
                         return
                     }
@@ -6844,10 +6869,13 @@ struct CraftWebView: UIViewRepresentable {
             }
         }
 
-        fileprivate func speechDidEnd(_ utterance: AVSpeechUtterance, spoken: Bool) {
+        fileprivate func speechDidEnd(_ synthesizer: AVSpeechSynthesizer, _ utterance: AVSpeechUtterance, spoken: Bool) {
             if let index = pendingUtterances.firstIndex(where: { $0.utterance === utterance }) {
                 let entry = pendingUtterances.remove(at: index)
                 resolveCallback(entry.callbackId, result: spoken)
+            }
+            if synthesizer !== speechSynthesizer, !synthesizer.isSpeaking {
+                retiredSpeechSynthesizers.removeAll { $0 === synthesizer }
             }
             releaseAudioSessionIfSilent()
         }
@@ -8480,11 +8508,11 @@ extension CraftWebView.Coordinator: WKUIDelegate {
 
 extension CraftWebView.Coordinator: AVSpeechSynthesizerDelegate {
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { self.speechDidEnd(utterance, spoken: true) }
+        DispatchQueue.main.async { self.speechDidEnd(synthesizer, utterance, spoken: true) }
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        DispatchQueue.main.async { self.speechDidEnd(utterance, spoken: false) }
+        DispatchQueue.main.async { self.speechDidEnd(synthesizer, utterance, spoken: false) }
     }
 }
 

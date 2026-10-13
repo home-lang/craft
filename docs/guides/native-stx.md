@@ -571,6 +571,13 @@ In a hybrid app, the same tab gesture also covers the WebView. Pass
 gesture of its own; native screens can still opt out independently with
 `tabSwipeEnabled`.
 
+A screen's content stays inside the safe area. To colour the strips under the
+status bar and the home indicator too, such as a black full-screen timer with
+the bar hidden, set `craft.navigation.setOptions({ hidden: true,
+backgroundColor: '#000000' })`; `backgroundColor: null` gives the app's colour
+back. A `ScrollView` clips what it scrolls to its own frame unless its style
+says `overflow: visible`.
+
 ## An all-native iOS app: paths, tabs and an app script
 
 On its own, `renderer: "native"` is one screen and the stack it pushes. Add

@@ -2694,7 +2694,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func refreshTraitDefaults() {
-        view.backgroundColor = config.resolvedBackgroundColor
+        view.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor
         if let document = mutationDocument.node("root") {
             renderCommitted(document)
         } else {
@@ -2895,8 +2895,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// - `craft.secureStorage.getSync(key)`: the Keychain item the web page's
     ///   `craft.secureStorage.set` wrote.
     /// - `craft.navigation.setOptions({ title, largeTitle, hidden, backTitle,
-    ///   tabBarHidden, contentSwipeBack, tabSwipeEnabled, rightButtons })`; a right button's
-    ///   tap is the event `navButton`.
+    ///   tabBarHidden, contentSwipeBack, tabSwipeEnabled, backgroundColor, rightButtons })`;
+    ///   a right button's tap is the event `navButton`.
     ///
     /// A runtime that assigns `craft.storage` (or the others) afterwards keeps
     /// these: each namespace is a property whose setter adds them back to the
@@ -3148,6 +3148,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// own horizontal pager or chart gesture.
     private(set) var tabSwipeEnabled = true
     private var prefersLargeTitle: Bool?
+    /// The screen's own colour (`backgroundColor`), under the status bar and
+    /// the home indicator too, where its content never reaches: a black
+    /// full-screen timer is black edge to edge. nil is the app's.
+    private var screenBackgroundColor: UIColor?
 
     /// Whether this screen asked for a bar of its own through `setOptions`: a
     /// title, a large title or buttons, and not `hidden`. A tab's root screen
@@ -3187,6 +3191,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         if let tabSwipeEnabled = options["tabSwipeEnabled"] as? Bool {
             self.tabSwipeEnabled = tabSwipeEnabled
+        }
+        if options.keys.contains("backgroundColor") {
+            screenBackgroundColor = color(options["backgroundColor"])
+            view.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor
         }
         if let hidden = options["hidden"] as? Bool {
             navigationBarHidden = hidden
@@ -4923,8 +4931,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             height: number(shadowOffset?["height"]) ?? (elevation * 0.25)
         )
         // A label paints its background inside its own bounds, so a rounded
-        // chip of text clips to its corners.
-        view.clipsToBounds = style["overflow"] as? String == "hidden"
+        // chip of text clips to its corners. A scroll view clips its content
+        // unless told `overflow: visible`, as UIKit's and React Native's do:
+        // unclipped, a screen's content scrolled up over its bar's back
+        // button and down into the home indicator.
+        let overflow = style["overflow"] as? String
+        view.clipsToBounds = overflow == "hidden"
+            || (view is UIScrollView && overflow != "visible")
             || (view is UILabel && (view.craftRequestedCornerRadius ?? 0) > 0)
         view.layer.masksToBounds = view.clipsToBounds
         view.craftLayoutStyle = CraftNativeLayoutStyle(style)

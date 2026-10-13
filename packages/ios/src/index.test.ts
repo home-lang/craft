@@ -1396,6 +1396,21 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('private(set) var contentSwipeBack = true')
     expect(screen).toContain('if let tabSwipeEnabled = options["tabSwipeEnabled"] as? Bool {')
     expect(screen).toContain('private(set) var tabSwipeEnabled = true')
+    // A screen's own colour reaches under the status bar and home indicator,
+    // and survives a change of appearance.
+    expect(screen).toContain('screenBackgroundColor = color(options["backgroundColor"])')
+    expect(screen).toContain('view.backgroundColor = screenBackgroundColor ?? config.resolvedBackgroundColor\n        if let document')
+    // A scroll view clips what it scrolls unless told otherwise.
+    expect(screen).toContain('|| (view is UIScrollView && overflow != "visible")')
+    // Speech: an interrupting cue speaks on a fresh synthesizer (one handed an
+    // utterance right after stopSpeaking can drop it), the session lingers a
+    // moment after the last word, and claiming it never blocks the main thread.
+    expect(services).toContain('if interrupt, cancelPending() { retireSynthesizer() }')
+    expect(services).toContain('static let releaseAfterSilence: TimeInterval = 1.5')
+    expect(services).toContain('sessionQueue.async {\n            self.claimSession()')
+    expect(services).toContain('DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)')
+    expect(app).toContain('if body["interrupt"] as? Bool ?? true, self.cancelPendingSpeech() {')
+    expect(app).toContain('private static let speechReleaseAfterSilence: TimeInterval = 1.5')
     expect(hybrid).toContain('!native.contentSwipeBack')
     // Both iOS pop recognizers must yield to a native horizontal pager unless
     // the gesture starts inside the normal 32pt back-swipe edge.
