@@ -899,6 +899,10 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('alignContent stretch did not expand the first line')
     expect(ios).toContain('items[index].cross = clamp(lineCrosses[lineIndex] - item.crossMargins, item.minCross, item.maxCross)')
     expect(iosLayoutUnitTests).toContain('testAlignContentStretchExpandsAutoCrossSizes')
+    expect(ios).toContain('if reverse && wrap && lines.count > 1 { lines.reverse() }')
+    expect(android).toContain('if (reverse && wrap && lines.size > 1) lines.reverse()')
+    expect(iosNavigationTest).toContain('row-reverse reversed wrapped line order')
+    expect(androidNavigationTest).toContain('row-reverse reversed wrapped line order')
   })
 
   it('resolves percentage lengths against the native parent on both hosts', () => {

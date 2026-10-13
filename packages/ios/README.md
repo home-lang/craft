@@ -148,6 +148,8 @@ The iOS host uses the shared layout ABI when it is available and retains a
 local fallback for older runtimes. Both paths implement wrapped-line and grid
 `alignContent`, including `space-evenly`, so a missing optional shared symbol
 does not change placement semantics.
+Reverse flex directions also retain wrapped line order on the cross axis while
+reversing each line's main-axis children, matching Android's native host.
 
 For multiple native screens, configure named `.stx` routes and an initial screen in `native.config.json` (see [`fixtures/native-navigation`](./fixtures/native-navigation)). Compile without a positional file: `stx native compile --format bundle --output ./screen.js`. A screen can call `craft.navigation.push('details', { id: 7 })`, `.replace('home')`, or `.back()`; the destination reads `craft.route.params`. Craft uses a native navigation stack, so the back button and edge-swipe reveal the existing controller and retain its JavaScript and input state. `bun packages/ios/scripts/test-native-navigation.ts` compiles the fixture and runs its simulator test; the default WebView renderer is unchanged.
 
