@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.150...v0.0.151)
+
+## 🚀 Features
+
+- **ios**: native screens render the whole Web Audio graph ([0917c01](https://github.com/craft-native/craft/commit/0917c01)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.149...v0.0.150)
 
 ## 🚀 Features
