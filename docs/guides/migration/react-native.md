@@ -493,6 +493,17 @@ input:focus {
 }
 ```
 
+For an opt-in native `.stx` screen, use the shared native primitive instead:
+
+```stx
+<KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={24}>
+  <TextInput placeholder="Email" />
+</KeyboardAvoidingView>
+```
+
+`padding`, `position`, and `height` behaviors are implemented by both mobile
+hosts. The WebView fallback remains CSS-driven.
+
 ## Troubleshooting
 
 ### "Cannot find module 'react-native'"

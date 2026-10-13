@@ -62,6 +62,7 @@ next route.
 | STX primitive | iOS | Android |
 | --- | --- | --- |
 | `View`, `SafeAreaView` | `CraftNativeFlowView` | `CraftNativeFlexLayout` (a `LinearLayout`) |
+| `KeyboardAvoidingView` | `CraftNativeKeyboardAvoidingView` | `CraftNativeKeyboardAvoidingView` |
 | `Text` | `UILabel` | `TextView` |
 | `Button` | `UIButton` | `Button` |
 | `Link` | underlined `UIButton` | underlined clickable `TextView` |
@@ -117,6 +118,9 @@ unchecked on the next user toggle.
 mounting ordinary native children in a flex container over the image. Its
 `resizeMode` follows the same `cover`, `contain`, `stretch`, and `center`
 semantics as `Image`.
+`KeyboardAvoidingView` responds to the native keyboard/IME inset. Its
+`behavior` may be `padding`, `position`, or `height`, and
+`keyboardVerticalOffset` subtracts from the overlap on both hosts.
 `DatePicker` accepts `mode` (`date`, `time`, `datetime`/`datetime-local`, or
 `countdown`), `value`, `minimumDate`, `maximumDate`, `minuteInterval`, and
 `disabled`. Its `onValueChange`/`onChange` event includes a local `value`, an

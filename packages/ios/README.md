@@ -114,6 +114,8 @@ In Xcode:
 
 Native screens also support `ImageBackground`, which loads an image behind
 ordinary native children while preserving the shared flex layout contract.
+`KeyboardAvoidingView` also responds to the native keyboard with `padding`,
+`position`, or `height` behavior.
 
 Keyboard frame changes update the native controller's additional safe area, so
 focused inputs and responsive `onLayout` measurements move with the keyboard.

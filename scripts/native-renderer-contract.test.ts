@@ -21,6 +21,7 @@ const androidNavigationScript = readFileSync(join(root, 'packages/android/script
 const iosNativeUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeRenderUnitTests.swift'), 'utf8')
 const iosLayoutUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeLayoutUnitTests.swift'), 'utf8')
 const guide = readFileSync(join(root, 'docs/guides/native-stx.md'), 'utf8')
+const migrationGuide = readFileSync(join(root, 'docs/guides/migration/react-native.md'), 'utf8')
 const nativeLayout = readFileSync(join(root, 'packages/zig/src/native_layout.zig'), 'utf8')
 const iosReadme = readFileSync(join(root, 'packages/ios/README.md'), 'utf8')
 const androidReadme = readFileSync(join(root, 'packages/android/README.md'), 'utf8')
@@ -32,6 +33,7 @@ const mobileE2EWorkflow = readFileSync(join(root, '.github/workflows/mobile-e2e.
 /** One host-neutral vocabulary, asserted against every generated renderer. */
 const COMPONENTS: Array<[string, string, string]> = [
   ['SafeAreaView', 'case "View", "SafeAreaView":', '"View", "SafeAreaView" ->'],
+  ['KeyboardAvoidingView', 'case "KeyboardAvoidingView":', '"KeyboardAvoidingView" ->'],
   ['Text', 'case "Text":', '"Text" ->'],
   ['Button', 'case "Button", "Link":', '"Button" ->'],
   ['Link', 'case "Button", "Link":', '"Link" ->'],
@@ -248,6 +250,11 @@ describe('native renderer component contract', () => {
     }
   })
 
+  it('documents the native keyboard fallback alongside the WebView path', () => {
+    expect(migrationGuide).toContain('<KeyboardAvoidingView behavior="padding"')
+    expect(migrationGuide).toContain('The WebView fallback remains CSS-driven.')
+  })
+
   it('pins one @stacksjs/stx compiler revision across mobile E2E hosts', () => {
     const refs = [...mobileE2EWorkflow.matchAll(/repository: stacksjs\/stx\s+ref: ([0-9a-f]{40})/g)].map(match => match[1])
     expect(refs).toHaveLength(2)
@@ -273,6 +280,22 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="native-image-background-label"')
     expect(iosNavigationTest).toContain('native-image-background')
     expect(androidNavigationTest).toContain('CraftNativeImageBackgroundView')
+  })
+
+  it('keeps KeyboardAvoidingView behavior and IME propagation aligned', () => {
+    expect(ios).toContain('private final class CraftNativeKeyboardAvoidingView: CraftNativeFlowView')
+    expect(ios).toContain('UIResponder.keyboardWillChangeFrameNotification')
+    expect(ios).toContain('keyboard.setKeyboardInset(keyboardSafeAreaInset)')
+    expect(ios).toContain('let globalInset = containsKeyboardAvoidingView() ? 0 : inset')
+    expect(ios).toContain('private func syncGlobalKeyboardSafeArea()')
+    expect(android).toContain('private class CraftNativeKeyboardAvoidingView(context: Context) : FrameLayout(context)')
+    expect(android).toContain('WindowInsetsCompat.Type.ime()')
+    expect(android).toContain('keyboardInset = max(0, ime.bottom - safe.bottom)')
+    expect(android).toContain('behavior == "height"')
+    expect(navigationHome).toContain('<KeyboardAvoidingView')
+    expect(navigationHome).toContain('testID="native-keyboard-avoiding-input"')
+    expect(iosNavigationTest).toContain('native-keyboard-avoiding')
+    expect(androidNavigationTest).toContain('CraftNativeKeyboardAvoidingView')
   })
 
   it('applies text transforms to native action labels on both hosts', () => {
@@ -659,7 +682,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('view.requestLayout()')
     expect(android).toContain('view.post { screens.lastOrNull()?.takeIf { it.active }?.let(::emitLayoutEvents) }')
     expect(ios).toContain('UIResponder.keyboardWillChangeFrameNotification')
-    expect(ios).toContain('self.additionalSafeAreaInsets.bottom = inset')
+    expect(ios).toContain('self.additionalSafeAreaInsets.bottom = globalInset')
     expect(iosLayoutUnitTests).toContain('testKeyboardFrameUpdatesAndRestoresTheAdditionalSafeArea')
     expect(iosReadme).toContain("Keyboard frame changes update the native controller's additional safe area")
   })
