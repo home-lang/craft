@@ -3389,6 +3389,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyViewStyle(view: View, style: JSONObject) {
         view.alpha = style.optDouble("opacity", 1.0).toFloat()
+        applyTransform(view, style.optJSONArray("transform"))
         if (view !is CraftNativeModalView) {
             view.visibility = if (style.optString("display") == "none") View.GONE else View.VISIBLE
         }
@@ -3468,6 +3469,40 @@ class MainActivity : AppCompatActivity() {
             } else {
                 view.setColorFilter(color(tint, Color.TRANSPARENT))
             }
+        }
+    }
+
+    private fun applyTransform(view: View, transforms: JSONArray?) {
+        view.translationX = 0f
+        view.translationY = 0f
+        view.scaleX = 1f
+        view.scaleY = 1f
+        view.rotation = 0f
+        view.rotationX = 0f
+        view.rotationY = 0f
+        if (transforms == null) return
+        for (index in 0 until transforms.length()) {
+            val transform = transforms.optJSONObject(index) ?: continue
+            val key = transform.keys().asSequence().firstOrNull() ?: continue
+            when (key) {
+                "translateX" -> view.translationX += dp(transform.optDouble(key, 0.0)).toFloat()
+                "translateY" -> view.translationY += dp(transform.optDouble(key, 0.0)).toFloat()
+                "scale" -> transform.optDouble(key, 1.0).toFloat().let { view.scaleX *= it; view.scaleY *= it }
+                "scaleX" -> view.scaleX *= transform.optDouble(key, 1.0).toFloat()
+                "scaleY" -> view.scaleY *= transform.optDouble(key, 1.0).toFloat()
+                "rotate", "rotateZ" -> view.rotation += angleDegrees(transform.opt(key))
+                "rotateX" -> view.rotationX += angleDegrees(transform.opt(key))
+                "rotateY" -> view.rotationY += angleDegrees(transform.opt(key))
+            }
+        }
+    }
+
+    private fun angleDegrees(value: Any?): Float {
+        val text = value?.toString()?.trim() ?: return 0f
+        return when {
+            text.endsWith("rad") -> Math.toDegrees(text.dropLast(3).toDoubleOrNull() ?: 0.0).toFloat()
+            text.endsWith("deg") -> text.dropLast(3).toFloatOrNull() ?: 0f
+            else -> text.toFloatOrNull() ?: 0f
         }
     }
 

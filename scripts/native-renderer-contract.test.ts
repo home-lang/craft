@@ -1029,6 +1029,17 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="corner-radii"')
   })
 
+  it('applies shared view transforms on both native hosts', () => {
+    expect(ios).toContain('applyTransform(style["transform"], to: view)')
+    expect(ios).toContain('affine = affine.translatedBy(x: value, y: 0)')
+    expect(ios).toContain('CATransform3DRotate(threeDimensional, value, 1, 0, 0)')
+    expect(android).toContain('applyTransform(view, style.optJSONArray("transform"))')
+    expect(android).toContain('view.translationX += dp(transform.optDouble(key, 0.0)).toFloat()')
+    expect(android).toContain('view.rotationY += angleDegrees(transform.opt(key))')
+    expect(navigationHome).toContain('"transform":[{"translateX":4},{"scaleX":0.9},{"rotate":"2deg"}]')
+    expect(androidNavigationTest).toContain('transform translateX was not applied')
+  })
+
   it('keeps horizontal list rows intrinsically sized across hosts', () => {
     expect(iosFlatList).toContain('flowLayout.scrollDirection = horizontal ? .horizontal : .vertical')
     expect(iosFlatList).toContain('maxWidth: CraftNativeFlexLayout.unbounded,')

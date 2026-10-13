@@ -4842,6 +4842,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             colors: sideColorKeys.map { color(style[$0]) ?? borderColor }
         )
         view.layer.zPosition = number(style["zIndex"]) ?? 0
+        applyTransform(style["transform"], to: view)
         let elevation = max(0, number(style["elevation"]) ?? 0)
         let shadowColor = color(style["shadowColor"]) ?? .black
         let shadowOpacity = min(1, max(0, number(style["shadowOpacity"]) ?? (elevation > 0 ? min(0.28, 0.12 + elevation * 0.02) : 0)))
@@ -4874,6 +4875,46 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             bottom: number(style["paddingBottom"]) ?? vertical,
             right: number(style["paddingRight"]) ?? horizontal
         )
+    }
+
+    private func applyTransform(_ raw: Any?, to view: UIView) {
+        view.transform = .identity
+        view.layer.transform = CATransform3DIdentity
+        guard let transforms = raw as? [[String: Any]] else { return }
+        var affine = CGAffineTransform.identity
+        var threeDimensional = CATransform3DIdentity
+        var hasThreeDimensionalRotation = false
+        for transform in transforms {
+            if let value = number(transform["translateX"]) { affine = affine.translatedBy(x: value, y: 0) }
+            if let value = number(transform["translateY"]) { affine = affine.translatedBy(x: 0, y: value) }
+            if let value = number(transform["scale"]) { affine = affine.scaledBy(x: value, y: value) }
+            if let value = number(transform["scaleX"]) { affine = affine.scaledBy(x: value, y: 1) }
+            if let value = number(transform["scaleY"]) { affine = affine.scaledBy(x: 1, y: value) }
+            if let value = transformAngle(transform["rotate"] ?? transform["rotateZ"]) { affine = affine.rotated(by: value) }
+            if let value = transformAngle(transform["skewX"]) { affine = affine.concatenating(CGAffineTransform(a: 1, b: 0, c: tan(value), d: 1, tx: 0, ty: 0)) }
+            if let value = transformAngle(transform["skewY"]) { affine = affine.concatenating(CGAffineTransform(a: 1, b: tan(value), c: 0, d: 1, tx: 0, ty: 0)) }
+            if let value = transformAngle(transform["rotateX"]) {
+                threeDimensional = CATransform3DRotate(threeDimensional, value, 1, 0, 0)
+                hasThreeDimensionalRotation = true
+            }
+            if let value = transformAngle(transform["rotateY"]) {
+                threeDimensional = CATransform3DRotate(threeDimensional, value, 0, 1, 0)
+                hasThreeDimensionalRotation = true
+            }
+        }
+        if hasThreeDimensionalRotation {
+            view.layer.transform = CATransform3DConcat(CATransform3DMakeAffineTransform(affine), threeDimensional)
+        } else {
+            view.transform = affine
+        }
+    }
+
+    private func transformAngle(_ raw: Any?) -> CGFloat? {
+        if let value = number(raw) { return value }
+        guard let text = raw as? String else { return nil }
+        if text.hasSuffix("rad") { return CGFloat(Double(text.dropLast(3)) ?? 0) }
+        if text.hasSuffix("deg") { return CGFloat((Double(text.dropLast(3)) ?? 0) * .pi / 180) }
+        return Double(text).map(CGFloat.init)
     }
 
     private func configureText(_ label: UILabel, text: String, style: [String: Any]) {
