@@ -996,6 +996,14 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('TextInput decoration span was not applied')
   })
 
+  it('maps dashed and dotted border styles on both native hosts', () => {
+    expect(ios).toContain('fileprivate func craftApplyBorderStyle(_ style: String?, width: CGFloat, color: UIColor)')
+    expect(ios).toContain('border.lineDashPattern = style == "dotted"')
+    expect(android).toContain('"dashed" -> setStroke(dp(border), borderColor, dp(border * 3).toFloat(), dp(border * 2).toFloat())')
+    expect(android).toContain('"dotted" -> setStroke(dp(border), borderColor, dp(border).toFloat(), dp(border * 1.5).toFloat())')
+    expect(navigationHome).toContain('"borderStyle":"dashed"')
+  })
+
   it('keeps horizontal list rows intrinsically sized across hosts', () => {
     expect(iosFlatList).toContain('flowLayout.scrollDirection = horizontal ? .horizontal : .vertical')
     expect(iosFlatList).toContain('maxWidth: CraftNativeFlexLayout.unbounded,')

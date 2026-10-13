@@ -550,6 +550,7 @@ private final class CraftNativeLayoutStyleBox {
 
 private var craftNativeLayoutStyleKey: UInt8 = 0
 private var craftNativeCornerRadiusKey: UInt8 = 0
+private var craftNativeBorderLayerKey: UInt8 = 0
 
 extension UIView {
     /// The layout style this view's parent reads. It lives on the view, so an
@@ -576,6 +577,36 @@ extension UIView {
         let limit = min(bounds.width, bounds.height) / 2
         let radius = limit > 0 ? min(requested, limit) : min(requested, 9_998)
         if layer.cornerRadius != radius { layer.cornerRadius = radius }
+        if let border = objc_getAssociatedObject(self, &craftNativeBorderLayerKey) as? CAShapeLayer {
+            border.frame = bounds
+            let inset = border.lineWidth / 2
+            border.path = UIBezierPath(
+                roundedRect: bounds.insetBy(dx: inset, dy: inset),
+                cornerRadius: max(0, radius - inset)
+            ).cgPath
+        }
+    }
+
+    fileprivate func craftApplyBorderStyle(_ style: String?, width: CGFloat, color: UIColor) {
+        guard width > 0, style == "dashed" || style == "dotted" else {
+            (objc_getAssociatedObject(self, &craftNativeBorderLayerKey) as? CAShapeLayer)?.removeFromSuperlayer()
+            objc_setAssociatedObject(self, &craftNativeBorderLayerKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            layer.borderWidth = width
+            layer.borderColor = color.cgColor
+            return
+        }
+        layer.borderWidth = 0
+        let border = (objc_getAssociatedObject(self, &craftNativeBorderLayerKey) as? CAShapeLayer) ?? CAShapeLayer()
+        border.strokeColor = color.cgColor
+        border.fillColor = nil
+        border.lineWidth = width
+        border.lineDashPattern = style == "dotted"
+            ? [NSNumber(value: Double(width)), NSNumber(value: Double(width * 1.5))]
+            : [NSNumber(value: Double(width * 3)), NSNumber(value: Double(width * 2))]
+        border.contentsScale = window?.screen.scale ?? traitCollection.displayScale
+        if border.superlayer !== layer { layer.addSublayer(border) }
+        objc_setAssociatedObject(self, &craftNativeBorderLayerKey, border, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        craftApplyCornerRadius()
     }
 }
 
@@ -4717,8 +4748,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         view.alpha = number(style["opacity"]) ?? 1
         view.isHidden = style["display"] as? String == "none"
         view.craftRequestedCornerRadius = number(style["borderRadius"])
-        view.layer.borderWidth = number(style["borderWidth"]) ?? 0
-        view.layer.borderColor = (color(style["borderColor"]) ?? .clear).cgColor
+        view.craftApplyBorderStyle(
+            style["borderStyle"] as? String,
+            width: number(style["borderWidth"]) ?? 0,
+            color: color(style["borderColor"]) ?? .clear
+        )
         view.layer.zPosition = number(style["zIndex"]) ?? 0
         let elevation = max(0, number(style["elevation"]) ?? 0)
         view.layer.shadowColor = UIColor.black.cgColor

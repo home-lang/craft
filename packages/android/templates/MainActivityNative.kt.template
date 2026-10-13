@@ -3370,7 +3370,14 @@ class MainActivity : AppCompatActivity() {
             view.background = GradientDrawable().apply {
                 setColor(color(style.optString("backgroundColor"), Color.TRANSPARENT))
                 cornerRadius = dp(radius).toFloat()
-                if (border > 0) setStroke(dp(border), color(style.optString("borderColor"), Color.TRANSPARENT))
+                if (border > 0) {
+                    val borderColor = color(style.optString("borderColor"), Color.TRANSPARENT)
+                    when (style.optString("borderStyle")) {
+                        "dashed" -> setStroke(dp(border), borderColor, dp(border * 3).toFloat(), dp(border * 2).toFloat())
+                        "dotted" -> setStroke(dp(border), borderColor, dp(border).toFloat(), dp(border * 1.5).toFloat())
+                        else -> setStroke(dp(border), borderColor)
+                    }
+                }
             }
         } else view.background = defaultBackground
         view.clipToOutline = style.optString("overflow") == "hidden"
