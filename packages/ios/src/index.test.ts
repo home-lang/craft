@@ -100,7 +100,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).toContain('marginTop: CGFloat')
     expect(nativeSwift).toContain('items[$1].mainMargins')
     expect(nativeSwift).toContain('let elevation = max(0, number(style["elevation"]) ?? 0)')
-    expect(nativeSwift).toContain('view.layer.shadowOpacity = elevation > 0')
+    expect(nativeSwift).toContain('number(style["shadowOpacity"]) ?? (elevation > 0')
     expect(nativeSwift).toContain('flexGrow')
     expect(nativeSwift).toContain('func fallbackWidths(for line: Range<Int>, available: CGFloat, gap: CGFloat)')
     expect(nativeSwift).toContain('frozen.insert(offset)')

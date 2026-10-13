@@ -3382,6 +3382,16 @@ class MainActivity : AppCompatActivity() {
         } else view.background = defaultBackground
         view.clipToOutline = style.optString("overflow") == "hidden"
         if (view is ViewGroup) view.clipChildren = style.optString("overflow") == "hidden"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+            (style.has("shadowColor") || style.has("shadowOpacity") || style.has("shadowRadius"))
+        ) {
+            val shadowOpacity = style.optDouble("shadowOpacity", 1.0).coerceIn(0.0, 1.0)
+            val shadow = color(style.optString("shadowColor"), Color.BLACK)
+            val alphaShadow = Color.argb((Color.alpha(shadow) * shadowOpacity).roundToInt(), Color.red(shadow), Color.green(shadow), Color.blue(shadow))
+            view.outlineAmbientShadowColor = alphaShadow
+            view.outlineSpotShadowColor = alphaShadow
+            view.elevation = max(view.elevation, dp(style.optDouble("shadowRadius", 0.0) * 2.0).toFloat())
+        }
         if (view is ImageView) {
             val tint = style.opt("tintColor") as? String
             if (tint.isNullOrBlank() || tint == "null" || tint == "undefined") {

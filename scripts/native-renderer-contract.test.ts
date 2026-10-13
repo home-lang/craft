@@ -965,7 +965,7 @@ describe('native renderer component contract', () => {
 
   it('keeps elevation visible on both native hosts', () => {
     expect(ios).toContain('let elevation = max(0, number(style["elevation"]) ?? 0)')
-    expect(ios).toContain('view.layer.shadowOpacity = elevation > 0')
+    expect(ios).toContain('number(style["shadowOpacity"]) ?? (elevation > 0')
     expect(android).toContain('view.elevation = dp(style.optDouble("elevation", 0.0)).toFloat()')
   })
 
@@ -1002,6 +1002,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"dashed" -> setStroke(dp(border), borderColor, dp(border * 3).toFloat(), dp(border * 2).toFloat())')
     expect(android).toContain('"dotted" -> setStroke(dp(border), borderColor, dp(border).toFloat(), dp(border * 1.5).toFloat())')
     expect(navigationHome).toContain('"borderStyle":"dashed"')
+  })
+
+  it('maps explicit view shadows while retaining elevation fallback', () => {
+    expect(ios).toContain('let shadowColor = color(style["shadowColor"]) ?? .black')
+    expect(ios).toContain('view.layer.shadowOffset = CGSize(')
+    expect(android).toContain('view.outlineAmbientShadowColor = alphaShadow')
+    expect(android).toContain('style.optDouble("shadowRadius", 0.0) * 2.0')
+    expect(navigationHome).toContain('"shadowOpacity":0.35')
   })
 
   it('keeps horizontal list rows intrinsically sized across hosts', () => {

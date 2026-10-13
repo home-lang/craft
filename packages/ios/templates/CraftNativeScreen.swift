@@ -4755,10 +4755,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         )
         view.layer.zPosition = number(style["zIndex"]) ?? 0
         let elevation = max(0, number(style["elevation"]) ?? 0)
-        view.layer.shadowColor = UIColor.black.cgColor
-        view.layer.shadowOpacity = elevation > 0 ? Float(min(0.28, 0.12 + elevation * 0.02)) : 0
-        view.layer.shadowRadius = elevation * 0.5
-        view.layer.shadowOffset = CGSize(width: 0, height: elevation * 0.25)
+        let shadowColor = color(style["shadowColor"]) ?? .black
+        let shadowOpacity = min(1, max(0, number(style["shadowOpacity"]) ?? (elevation > 0 ? min(0.28, 0.12 + elevation * 0.02) : 0)))
+        let shadowRadius = max(0, number(style["shadowRadius"]) ?? elevation * 0.5)
+        let shadowOffset = style["shadowOffset"] as? [String: Any]
+        view.layer.shadowColor = shadowColor.cgColor
+        view.layer.shadowOpacity = Float(shadowOpacity)
+        view.layer.shadowRadius = shadowRadius
+        view.layer.shadowOffset = CGSize(
+            width: number(shadowOffset?["width"]) ?? 0,
+            height: number(shadowOffset?["height"]) ?? (elevation * 0.25)
+        )
         // A label paints its background inside its own bounds, so a rounded
         // chip of text clips to its corners.
         view.clipsToBounds = style["overflow"] as? String == "hidden"
