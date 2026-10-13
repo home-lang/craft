@@ -145,9 +145,8 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Ada row"].exists)
         let beaLabel = app.staticTexts["Bea row"]
         XCTAssertTrue(beaLabel.exists)
-        let beaInput = try XCTUnwrap(app.textFields.allElementsBoundByIndex.min {
-            abs($0.frame.midY - beaLabel.frame.midY) < abs($1.frame.midY - beaLabel.frame.midY)
-        })
+        let beaInput = app.textFields["navigation-input-b"]
+        XCTAssertTrue(beaInput.waitForExistence(timeout: 5))
 
         beaInput.tap()
         beaInput.typeText("draft")
@@ -190,18 +189,18 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.images["unsupported-image"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["image failed"].waitForExistence(timeout: 5))
         let imageSourceToggle = app.buttons["toggle-image-source"]
-        reveal(imageSourceToggle, in: rootScroll)
+        reveal(imageSourceToggle, in: scroll)
         imageSourceToggle.tap()
         XCTAssertTrue(app.staticTexts["image loaded"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.images["unsupported-image"].label, "Unsupported image")
         let imageTintToggle = app.buttons["toggle-image-tint"]
-        reveal(imageTintToggle, in: rootScroll)
+        reveal(imageTintToggle, in: scroll)
         imageTintToggle.tap()
         XCTAssertTrue(app.staticTexts["image tint off"].waitForExistence(timeout: 5))
         let unsupportedValue = (app.images["unsupported-image"].value as? String) ?? ""
         XCTAssertEqual(unsupportedValue.components(separatedBy: "Unsupported image source").count - 1, 0)
         let clearImageSource = app.buttons["clear-image-source"]
-        reveal(clearImageSource, in: rootScroll)
+        reveal(clearImageSource, in: scroll)
         clearImageSource.tap()
         XCTAssertTrue(waitForLabel(app.staticTexts["image-error-count"], "2"))
         reveal(imageTintToggle, in: rootScroll)

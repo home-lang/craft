@@ -98,7 +98,7 @@ describe('native renderer component contract', () => {
 
   it('keeps device navigation tests independent of global field order and viewport position', () => {
     expect(iosNavigationTest).toContain('private func reveal(_ element: XCUIElement, in scroll: XCUIElement')
-    expect(iosNavigationTest).toContain('app.textFields.allElementsBoundByIndex.min')
+    expect(iosNavigationTest).toContain('app.textFields["navigation-input-b"]')
     expect(iosNavigationTest).not.toContain('app.textFields.element(boundBy: 1)')
     expect(iosNavigationTest).toContain('let svg = app.otherElements["native-svg"]')
     expect(iosNavigationTest).toContain('svg.waitForExistence(timeout: 5)')
@@ -1010,10 +1010,11 @@ describe('native renderer component contract', () => {
     expect(navigationDetails).toContain('const people = state(')
     expect(navigationDetails).toContain('onDestroy(() => globalThis.craft.storage.set(')
     expect(navigationHome).toContain('<View :for="row in navigationRows" :key="row.id"')
+      expect(navigationHome).toContain(":testID=\"'navigation-input-' + row.id\"")
     expect(navigationHome).toContain('@input="updateNavigationDraft(row.id, $event)"')
     expect(navigationHome).toContain('@click="selectNavigationRow(row.id)"')
     expect(iosNavigationTest).toContain('testSharedRuntimeKeyedForPreservesNativeRowState')
-    expect(iosNavigationTest).toContain('app.textFields.allElementsBoundByIndex.min')
+      expect(iosNavigationTest).toContain('app.textFields["navigation-input-b"]')
     expect(iosNavigationTest).toContain('beaInput.typeText("!")')
     expect(iosNavigationTest).toContain('value as? String, "draft!"')
     expect(iosNavigationTest).toContain('keyed reconciliation replaced the list scroll host')

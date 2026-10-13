@@ -242,12 +242,20 @@ private final class CraftNativeVideoView: UIView {
         host.addChild(playerController)
         addSubview(playerController.view)
         playerController.didMove(toParent: host)
+        // Expose the host view as the native Video node. The player controller
+        // owns an accessibility subtree of its own, which otherwise masks the
+        // host's testID and makes the component look like a WebView-backed view
+        // to UI tests and assistive technology.
+        playerController.view.isAccessibilityElement = false
+        playerController.view.accessibilityElementsHidden = true
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         clipsToBounds = true
         addSubview(playerController.view)
+        playerController.view.isAccessibilityElement = false
+        playerController.view.accessibilityElementsHidden = true
     }
 
     override func layoutSubviews() {

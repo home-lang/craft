@@ -939,6 +939,21 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         addView(scroller, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
+    /**
+     * A targeted mutation can change a child's size without reconciling the
+     * scroll content tree. Invalidate both the custom content layout and the
+     * platform scroller so its measured content range is recomputed too.
+     */
+    fun invalidateContentLayout() {
+        content.forceLayout()
+        content.requestLayout()
+        val scroller = if (horizontalMode == true) horizontal else vertical
+        scroller.forceLayout()
+        scroller.requestLayout()
+        forceLayout()
+        requestLayout()
+    }
+
     fun setNativeNestedScrollingEnabled(value: Boolean) {
         vertical.isNestedScrollingEnabled = value
         horizontal.isNestedScrollingEnabled = value
@@ -1975,8 +1990,7 @@ class MainActivity : AppCompatActivity() {
                     found = true
                 }
                 is CraftNativeScrollView -> {
-                    parent.forceLayout()
-                    parent.requestLayout()
+                    parent.invalidateContentLayout()
                 }
             }
             parent = parent.parent
