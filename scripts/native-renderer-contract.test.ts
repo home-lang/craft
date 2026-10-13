@@ -179,6 +179,12 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('line\ncaps, joins, and dash patterns')
   })
 
+  it('gives computed SVG opacity precedence over the raw prop on both hosts', () => {
+    expect(ios).toContain('if let opacity = style["opacity"] as? NSNumber ?? props["opacity"] as? NSNumber')
+    expect(android).toContain('val ownOpacity = value("opacity")?.toFloatOrNull() ?: 1f')
+    expect(android).toContain('opacity = ownOpacity * opacity')
+  })
+
   it('keeps Android SVG text sizes as Kotlin floats in both prop branches', () => {
     expect(android).toContain(
       'val size = (if (props.has("fontSize")) props.optDouble("fontSize", 12.0) else nodeStyle.optDouble("fontSize", 12.0))',

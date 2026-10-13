@@ -1926,7 +1926,9 @@ private final class CraftNativeSvgView: UIView {
             if let fill = style["fill"] as? String ?? props["fill"] as? String { next.fill = fill }
             if let stroke = style["stroke"] as? String ?? props["stroke"] as? String { next.stroke = stroke }
             if let width = (style["strokeWidth"] as? NSNumber ?? props["strokeWidth"] as? NSNumber) { next.strokeWidth = CGFloat(truncating: width) }
-            if let opacity = props["opacity"] as? NSNumber ?? style["opacity"] as? NSNumber { next.opacity *= CGFloat(truncating: opacity) }
+            // Computed style wins over the component prop, matching Android
+            // and the browser's cascade when both provide opacity.
+            if let opacity = style["opacity"] as? NSNumber ?? props["opacity"] as? NSNumber { next.opacity *= CGFloat(truncating: opacity) }
             if let cap = props["strokeLinecap"] as? String { next.linecap = cap }
             if let join = props["strokeLinejoin"] as? String { next.linejoin = join }
             if let dashes = props["strokeDasharray"] as? [Any] { next.dashes = dashes.compactMap { ($0 as? NSNumber).map { CGFloat(truncating: $0) } } }

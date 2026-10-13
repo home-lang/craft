@@ -203,13 +203,16 @@ private class CraftNativeSvgView(context: Context) : View(context) {
                 props.has(name) && !props.isNull(name) -> props.optString(name)
                 else -> null
             }
+            // Keep the cascade explicit: computed style wins over a raw prop
+            // when both provide the same SVG paint value.
             val weight = value("fontWeight")
+            val ownOpacity = value("opacity")?.toFloatOrNull() ?: 1f
             return copy(
                 fill = value("fill") ?: fill,
                 stroke = value("stroke") ?: stroke,
                 strokeWidth = value("strokeWidth")?.toFloatOrNull() ?: strokeWidth,
                 color = value("color") ?: color,
-                opacity = (value("opacity")?.toFloatOrNull() ?: 1f) * opacity,
+                opacity = ownOpacity * opacity,
                 typeface = if (weight in setOf("bold", "700")) Typeface.DEFAULT_BOLD else typeface,
             )
         }
