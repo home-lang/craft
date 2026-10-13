@@ -1539,6 +1539,8 @@ describe('native renderer component contract', () => {
     expect(hybrid).toContain('hit.isDescendant(of: webView) || webView.isDescendant(of: hit)')
     expect(hybrid).toContain('!native.tabSwipeEnabled || !native.contentSwipeBack')
     expect(nativeScreen).toContain('if let tabSwipeEnabled = options["tabSwipeEnabled"] as? Bool {')
+    expect(hybrid).toContain('let recognizer = UIPanGestureRecognizer(target: self, action: #selector(tabSwipeRecognized(_:)))')
+    expect(hybrid).toContain('let delta = abs(translation) >= 32 ? translation : velocity')
     expect(hybrid).toContain('gestureRecognizer !== nav.interactivePopGestureRecognizer')
     expect(hybrid).toContain('if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }')
   })

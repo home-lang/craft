@@ -1004,7 +1004,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     private var openingWeb = false
     private var firstFrameLogged = false
     private var tabBarHeight: CGFloat = 0
-    private var tabSwipeRecognizers: [UISwipeGestureRecognizer] = []
+    private var tabSwipeRecognizers: [UIGestureRecognizer] = []
 
     init(config: CraftConfig) {
         self.config = config
@@ -1047,21 +1047,23 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
 
     private func installTabSwipeGestures() {
         guard tabSwipeRecognizers.isEmpty else { return }
-        for direction in [UISwipeGestureRecognizer.Direction.left, .right] {
-            let recognizer = UISwipeGestureRecognizer(target: self, action: #selector(tabSwipeRecognized(_:)))
-            recognizer.direction = direction
-            recognizer.delegate = self
-            recognizer.cancelsTouchesInView = false
-            recognizer.delaysTouchesBegan = false
-            view.addGestureRecognizer(recognizer)
-            tabSwipeRecognizers.append(recognizer)
-        }
+        let recognizer = UIPanGestureRecognizer(target: self, action: #selector(tabSwipeRecognized(_:)))
+        recognizer.delegate = self
+        recognizer.cancelsTouchesInView = false
+        recognizer.delaysTouchesBegan = false
+        view.addGestureRecognizer(recognizer)
+        tabSwipeRecognizers.append(recognizer)
     }
 
-    @objc private func tabSwipeRecognized(_ recognizer: UISwipeGestureRecognizer) {
+    @objc private func tabSwipeRecognized(_ recognizer: UIPanGestureRecognizer) {
+        guard recognizer.state == .ended else { return }
         let tabs = hybrid.tabIds
         guard let index = tabs.firstIndex(of: currentTab), tabs.count > 1 else { return }
-        let next = recognizer.direction == .left ? index + 1 : index - 1
+        let translation = recognizer.translation(in: view).x
+        let velocity = recognizer.velocity(in: view).x
+        let delta = abs(translation) >= 32 ? translation : velocity
+        guard abs(delta) >= 32 else { return }
+        let next = delta < 0 ? index + 1 : index - 1
         guard tabs.indices.contains(next) else { return }
         CraftChrome.shared.swipe(to: tabs[next])
     }
@@ -1534,6 +1536,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         if tabSwipeRecognizers.contains(where: { $0 === gestureRecognizer }) {
             guard hybrid.tabIds.count > 1, let top = visibleStack?.topViewController else { return false }
             guard CraftChrome.shared.tabSwipeEnabled else { return false }
+            if let pan = gestureRecognizer as? UIPanGestureRecognizer {
+                let velocity = pan.velocity(in: view)
+                guard abs(velocity.x) > abs(velocity.y) else { return false }
+            }
             if let native = top as? CraftNativeScreenController,
                !native.tabSwipeEnabled || !native.contentSwipeBack { return false }
             return !horizontalScrollAt(gestureRecognizer.location(in: view), in: top.view)
