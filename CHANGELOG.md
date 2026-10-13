@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.153...v0.0.154)
+
+## 🚀 Features
+
+- **ios**: native screens write their own files for the share sheet ([4106938](https://github.com/craft-native/craft/commit/4106938)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.152...v0.0.153)
 
 ## 🚀 Features
