@@ -423,6 +423,52 @@ describe('health reads', () => {
     })
   })
 
+  it('streams heart rate as Apple Health receives it, to every listener until it unsubscribes', async () => {
+    const calls: unknown[][] = []
+    const events = new EventTarget()
+    const emit = (detail: unknown) => events.dispatchEvent(Object.assign(new Event('craftHealthHeartRate'), { detail }))
+    const watch = { bpm: 64, startDate: 1000, endDate: 1000, sourceName: 'Apple Watch', deviceName: 'Apple Watch', motionContext: 'sedentary' as const }
+    await withWindow({
+      addEventListener: events.addEventListener.bind(events),
+      removeEventListener: events.removeEventListener.bind(events),
+      craft: {
+        health: {
+          startHeartRateUpdates: async (options: unknown) => { calls.push(['start', options]); return true },
+          stopHeartRateUpdates: async () => { calls.push(['stop']); return true },
+        },
+      },
+    }, async () => {
+      expect(health.supports('startHeartRateUpdates')).toBe(true)
+      expect(health.supports('stopHeartRateUpdates')).toBe(true)
+      const batches: number[][] = []
+      const stop = health.onHeartRate(samples => batches.push(samples.map(sample => sample.bpm)))
+      expect(await health.startHeartRateUpdates({ since: 500 })).toBe(true)
+      expect(await health.startHeartRateUpdates()).toBe(true)
+      emit({ samples: [watch, { ...watch, bpm: 63, startDate: 6000, endDate: 6000 }] })
+      // Nothing that is not a sample, and no call for a batch with none.
+      emit({ samples: [{ bpm: 'x', startDate: 1, endDate: 1 }, null] })
+      emit({})
+      stop()
+      emit({ samples: [watch] })
+      expect(await health.stopHeartRateUpdates()).toBe(true)
+      expect(batches).toEqual([[64, 63]])
+      expect(calls).toEqual([['start', { since: 500 }], ['start', {}], ['stop']])
+    })
+  })
+
+  it('has no stream in a browser or an older app: the calls refuse and onHeartRate never calls', async () => {
+    for (const window of [undefined, { craft: { health: {} } }]) {
+      await withWindow(window, async () => {
+        expect(health.supports('startHeartRateUpdates')).toBe(false)
+        await expect(health.startHeartRateUpdates()).rejects.toThrow('unavailable')
+        await expect(health.stopHeartRateUpdates()).rejects.toThrow('unavailable')
+        const stop = health.onHeartRate(() => { throw new Error('never') })
+        expect(typeof stop).toBe('function')
+        stop()
+      })
+    }
+  })
+
   it('says an older app cannot, and refuses rather than answering nothing', async () => {
     await withWindow({ craft: { health: {} } }, async () => {
       expect(health.supports('getHeartRateSamples')).toBe(false)

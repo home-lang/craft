@@ -1781,6 +1781,17 @@ struct CraftWebView: UIViewRepresentable {
             if config.enableMotionSensors {
                 motionManager = CMMotionManager()
             }
+            if config.enableHealthKit {
+                // Apple Health's heart rate as it arrives
+                // (craft.health.startHeartRateUpdates) reaches the page, and
+                // through sendToWeb every native screen too. False once this
+                // coordinator is gone: native screens still hear it.
+                CraftHealth.shared.pageSink = { [weak self] detail in
+                    guard let self else { return false }
+                    self.sendToWeb("craftHealthHeartRate", data: detail)
+                    return true
+                }
+            }
             if config.enableHeartRate {
                 // The strap's readings and connection changes reach the page,
                 // and through sendToWeb every native screen too. False once
@@ -2636,6 +2647,20 @@ struct CraftWebView: UIViewRepresentable {
                         endDate: body["endDate"] as? Double,
                         limit: body["limit"] as? Int
                     ) { [weak self] in self?.answer(callbackId, $0) }
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
+            // Heart rate as Apple Health receives it: craftHealthHeartRate
+            // events until stopped (CraftHealth.swift).
+            case "startHealthHeartRateUpdates":
+                if config.enableHealthKit {
+                    CraftHealth.shared.startHeartRateUpdates(since: body["since"] as? Double) { [weak self] in self?.answer(callbackId, $0) }
+                } else {
+                    rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
+                }
+            case "stopHealthHeartRateUpdates":
+                if config.enableHealthKit {
+                    CraftHealth.shared.stopHeartRateUpdates { [weak self] in self?.answer(callbackId, $0) }
                 } else {
                     rejectCallback(callbackId, error: "HealthKit is disabled", code: "CAPABILITY_DISABLED")
                 }
@@ -5161,7 +5186,14 @@ struct CraftWebView: UIViewRepresentable {
                     getMindfulSessions: function(options) {
                         options = options || {};
                         return craft._invoke('getHealthMindfulSessions', {startDate: options.startDate, endDate: options.endDate, limit: options.limit});
-                    }
+                    },
+                    // Heart rate as Apple Health receives it, as
+                    // craftHealthHeartRate events ({samples}) until stopped.
+                    startHeartRateUpdates: function(options) {
+                        var since = options && typeof options.since === 'number' ? options.since : null;
+                        return craft._invoke('startHealthHeartRateUpdates', {since: since});
+                    },
+                    stopHeartRateUpdates: function() { return craft._invoke('stopHealthHeartRateUpdates'); }
                 };
                 // The Music app's song and transport. Nothing is read until
                 // requestAuthorization() has been allowed; observe(true) makes
@@ -8721,7 +8753,7 @@ final class CraftZigRuntime: NSObject {
 enum CraftWebServices {
     private static var waiting: [String: (Result<Any, CraftNativeActionError>) -> Void] = [:]
     /// Coordinator events a native screen hears too.
-    static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftMusicChange", "craftHeartRate"]
+    static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftHealthHeartRate", "craftMusicChange", "craftHeartRate"]
     static let event = Notification.Name("craftWebServicesEvent")
 
     static var isAvailable: Bool { CraftSwiftShim.coordinator != nil }

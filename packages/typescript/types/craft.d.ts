@@ -652,6 +652,13 @@ export interface CraftBridge {
   // ==================== Health/Fitness ====================
 
   /**
+   * Apple Health (iOS, `enableHealthKit`). Typed here: asking for access and
+   * heart rate, read and as it arrives. craft-native/mobile's `health` types
+   * the rest (workouts, daily statistics, sleep, mindful sessions).
+   */
+  health?: CraftHealth;
+
+  /**
    * Request health data authorization (iOS)
    * @param types - Data types to request
    */
@@ -1460,6 +1467,40 @@ export interface CraftScheduledWorkouts {
   removeAll(): Promise<number>;
 }
 
+/** One heart-rate sample from Apple Health, in beats per minute. */
+export interface CraftHealthHeartRateSample {
+  bpm: number;
+  /** ms since the epoch. */
+  startDate: number;
+  /** ms since the epoch; the same as `startDate` for a single reading. */
+  endDate: number;
+  /** The app that wrote it, e.g. the watch's own name. */
+  sourceName: string;
+  deviceName?: string;
+  deviceModel?: string;
+  /** A series of readings (a watch workout) also carries its count, lowest and highest. */
+  count?: number;
+  min?: number;
+  max?: number;
+  motionContext?: 'sedentary' | 'active';
+}
+
+export interface CraftHealth {
+  /** `{ write: false }` asks to read only. Waits on the Health sheet for as long as the person takes. */
+  requestAuthorization(types: string[], options?: { write?: boolean }): Promise<boolean>;
+  /** Every heart-rate reading between two instants (ms), oldest first. */
+  getHeartRateSamples?(options?: { startDate?: number, endDate?: number, limit?: number }): Promise<CraftHealthHeartRateSample[]>;
+  /**
+   * Heart rate as Apple Health receives it: the samples since `since` (ms;
+   * two minutes ago by default), then each batch as the watch syncs it, as
+   * `craftHealthHeartRate` events, until `stopHeartRateUpdates()`. Needs the
+   * `heartRate` grant. One stream at a time; starting again replaces it.
+   */
+  startHeartRateUpdates?(options?: { since?: number }): Promise<boolean>;
+  /** True also when no stream ran. */
+  stopHeartRateUpdates?(): Promise<boolean>;
+}
+
 export interface CraftSpeech {
   /**
    * Speak `text`. Settles when the utterance ends: `true` when it was spoken,
@@ -2059,6 +2100,11 @@ export interface CraftHeartRateEvent extends CustomEvent {
   detail: CraftHeartRateEventDetail;
 }
 
+/** New heart-rate samples Apple Health received, oldest first, each once. iOS, after `craft.health.startHeartRateUpdates()`. */
+export interface CraftHealthHeartRateEvent extends CustomEvent {
+  detail: { samples: CraftHealthHeartRateSample[] };
+}
+
 /** The app came back to the foreground. iOS. */
 export interface CraftResumeEvent extends CustomEvent {
   detail: { backgroundedMs: number };
@@ -2111,6 +2157,8 @@ declare global {
     craftMusicChange: CraftMusicChangeEvent;
     // iOS, from `craft.heartRate`.
     craftHeartRate: CraftHeartRateEvent;
+    // iOS, after `craft.health.startHeartRateUpdates()`.
+    craftHealthHeartRate: CraftHealthHeartRateEvent;
     craftResume: CraftResumeEvent;
     craftMemoryWarning: CustomEvent<Record<string, never>>;
     craftSilentPush: CraftBackgroundWorkEvent;

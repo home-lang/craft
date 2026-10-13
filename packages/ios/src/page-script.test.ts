@@ -881,6 +881,36 @@ describe('craft.music', () => {
   })
 })
 
+describe('craft.health heart rate as it arrives', () => {
+  // An anchored HealthKit query (CraftHealth.swift) whose batches arrive as
+  // craftHealthHeartRate events until it is stopped.
+  it('starts from `since`, or lets native default it, and stops', async () => {
+    const { craft, last, answer } = loadPage()
+    const started = craft.health.startHeartRateUpdates({ since: 1700 })
+    expect(last('startHealthHeartRateUpdates')).toMatchObject({ since: 1700 })
+    answer('startHealthHeartRateUpdates', true)
+    expect(await started).toBe(true)
+
+    for (const options of [undefined, {}, { since: 'soon' }]) {
+      void craft.health.startHeartRateUpdates(options)
+      expect(last('startHealthHeartRateUpdates')).toMatchObject({ since: null })
+      answer('startHealthHeartRateUpdates', true)
+    }
+
+    const stopped = craft.health.stopHeartRateUpdates()
+    expect(last('stopHealthHeartRateUpdates').action).toBe('stopHealthHeartRateUpdates')
+    answer('stopHealthHeartRateUpdates', true)
+    expect(await stopped).toBe(true)
+  })
+
+  it('hands a build without HealthKit the refusal native sends', async () => {
+    const { craft, refuse } = loadPage()
+    const started = craft.health.startHeartRateUpdates()
+    refuse('startHealthHeartRateUpdates', 'HealthKit is disabled', 'CAPABILITY_DISABLED')
+    await expect(started).rejects.toMatchObject({ code: 'CAPABILITY_DISABLED' })
+  })
+})
+
 describe('craft.heartRate', () => {
   // A Bluetooth heart-rate strap (CraftHeartRate.swift). Every method is one
   // `heartRate` action naming it, the way a native screen's HeartRate module

@@ -65,6 +65,10 @@ final class CraftHealth {
             saveMindfulSession(body: options(0), completion: completion)
         case "getMindfulSessions":
             getMindfulSessions(startDate: options(0)["startDate"] as? Double, endDate: options(0)["endDate"] as? Double, limit: options(0)["limit"] as? Int, completion: completion)
+        case "startHeartRateUpdates":
+            startHeartRateUpdates(since: options(0)["since"] as? Double, completion: completion)
+        case "stopHeartRateUpdates":
+            stopHeartRateUpdates(completion: completion)
         default:
             completion(.failure(CraftHealthError(message: "Unsupported Health method", code: "UNKNOWN_ACTION")))
         }
@@ -544,39 +548,42 @@ final class CraftHealth {
         let oldestFirst = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
         let cap = max(1, min(limit ?? 10_000, 50_000))
 
-        let query = HKSampleQuery(sampleType: heartType, predicate: predicate, limit: cap, sortDescriptors: [oldestFirst]) { [weak self] _, samples, error in
+        let query = HKSampleQuery(sampleType: heartType, predicate: predicate, limit: cap, sortDescriptors: [oldestFirst]) { _, samples, error in
             if let error = error, (error as? HKError)?.code != .errorNoData {
                 completion(.failure(CraftHealthError(message: error.localizedDescription)))
                 return
             }
-
-            let bpm = HKUnit.count().unitDivided(by: .minute())
-            let rows: [[String: Any]] = (samples as? [HKQuantitySample] ?? []).map { sample in
-                var item: [String: Any] = [
-                    "bpm": sample.quantity.doubleValue(for: bpm),
-                    "startDate": sample.startDate.timeIntervalSince1970 * 1000,
-                    "endDate": sample.endDate.timeIntervalSince1970 * 1000,
-                    "sourceName": sample.sourceRevision.source.name,
-                ]
-                if let device = sample.device?.name { item["deviceName"] = device }
-                if let model = sample.device?.model { item["deviceModel"] = model }
-                if let series = sample as? HKDiscreteQuantitySample, series.count > 1 {
-                    item["count"] = series.count
-                    item["min"] = series.minimumQuantity.doubleValue(for: bpm)
-                    item["max"] = series.maximumQuantity.doubleValue(for: bpm)
-                }
-                if let raw = sample.metadata?[HKMetadataKeyHeartRateMotionContext] as? NSNumber {
-                    switch HKHeartRateMotionContext(rawValue: raw.intValue) {
-                    case .sedentary: item["motionContext"] = "sedentary"
-                    case .active: item["motionContext"] = "active"
-                    default: break
-                    }
-                }
-                return item
-            }
-            completion(.success(rows))
+            completion(.success((samples as? [HKQuantitySample] ?? []).map(Self.heartRateRow)))
         }
         healthStore.execute(query)
+    }
+
+    /// One heart-rate sample as a page sees it, from a read or the stream
+    /// alike: bpm, when, the app and device that wrote it, a series' count,
+    /// lowest and highest, and what the wearer was doing when the watch says.
+    private static func heartRateRow(_ sample: HKQuantitySample) -> [String: Any] {
+        let bpm = HKUnit.count().unitDivided(by: .minute())
+        var item: [String: Any] = [
+            "bpm": sample.quantity.doubleValue(for: bpm),
+            "startDate": sample.startDate.timeIntervalSince1970 * 1000,
+            "endDate": sample.endDate.timeIntervalSince1970 * 1000,
+            "sourceName": sample.sourceRevision.source.name,
+        ]
+        if let device = sample.device?.name { item["deviceName"] = device }
+        if let model = sample.device?.model { item["deviceModel"] = model }
+        if let series = sample as? HKDiscreteQuantitySample, series.count > 1 {
+            item["count"] = series.count
+            item["min"] = series.minimumQuantity.doubleValue(for: bpm)
+            item["max"] = series.maximumQuantity.doubleValue(for: bpm)
+        }
+        if let raw = sample.metadata?[HKMetadataKeyHeartRateMotionContext] as? NSNumber {
+            switch HKHeartRateMotionContext(rawValue: raw.intValue) {
+            case .sedentary: item["motionContext"] = "sedentary"
+            case .active: item["motionContext"] = "active"
+            default: break
+            }
+        }
+        return item
     }
 
     /// A stable name for each sleep analysis value: in bed, awake, or one
@@ -738,4 +745,151 @@ final class CraftHealth {
         healthStore.execute(query)
     }
 
+    // MARK: Heart rate as it arrives
+
+    /// The web view's coordinator, which sends `craftHealthHeartRate` to the
+    /// page and every native screen. False (or unset, in an app without a web
+    /// view) and the event goes to the native screens alone.
+    var pageSink: (([String: Any]) -> Bool)?
+
+    /// The one running stream: an anchored query that hears every heart-rate
+    /// sample HealthKit receives after it starts.
+    private var heartRateQuery: HKAnchoredObjectQuery?
+    /// Samples already sent, so a batch HealthKit repeats is not sent twice.
+    private var heartRateSent: Set<UUID> = []
+    /// Bumped by every start and stop, so a stopped stream's late batch is dropped.
+    private var heartRateStream = 0
+    #if targetEnvironment(simulator)
+    private var simulatedHeartRateTimer: Timer?
+    #endif
+
+    private func onMain(_ work: @escaping () -> Void) {
+        if Thread.isMainThread { work() } else { DispatchQueue.main.async(execute: work) }
+    }
+
+    /// Heart rate as Apple Health receives it, for as long as it runs: every
+    /// sample that starts at or after `since` (epoch ms; two minutes ago by
+    /// default), first what is there already, then each batch as the watch
+    /// syncs it, as `craftHealthHeartRate` events (`{samples}`, oldest first,
+    /// each sample once, in getHeartRateSamples' shape). One stream at a
+    /// time: starting again replaces the running one. Reads under the
+    /// `heartRate` grant. Answers true once the samples already there are
+    /// sent.
+    ///
+    /// Simulator builds with the `CraftFakeHealthHeartRate` default
+    /// (`xcrun simctl spawn booted defaults write <bundle id>
+    /// CraftFakeHealthHeartRate -bool YES`) skip HealthKit and send a made-up
+    /// watch reading every five seconds instead.
+    func startHeartRateUpdates(since: Double?, completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
+        let start = Date(timeIntervalSince1970: (since ?? Date().timeIntervalSince1970 * 1000 - 120_000) / 1000)
+        onMain { [self] in
+            stopHeartRateStream()
+            let stream = heartRateStream
+
+            #if targetEnvironment(simulator)
+            if UserDefaults.standard.bool(forKey: "CraftFakeHealthHeartRate") {
+                startSimulatedHeartRate(stream: stream)
+                completion(.success(true))
+                return
+            }
+            #endif
+
+            guard let healthStore = healthStore else {
+                completion(.failure(CraftHealthError(message: "HealthKit not available")))
+                return
+            }
+            guard let heartType = HKQuantityType.quantityType(forIdentifier: .heartRate) else {
+                completion(.failure(CraftHealthError(message: "Heart rate is unavailable")))
+                return
+            }
+
+            let predicate = HKQuery.predicateForSamples(withStart: start, end: nil, options: .strictStartDate)
+            let query = HKAnchoredObjectQuery(type: heartType, predicate: predicate, anchor: nil, limit: HKObjectQueryNoLimit) { [weak self] _, samples, _, _, error in
+                let rows = (samples as? [HKQuantitySample] ?? []).map { ($0.uuid, Self.heartRateRow($0)) }
+                DispatchQueue.main.async {
+                    // Stopped or replaced before its first batch: it did start.
+                    guard let self, self.heartRateStream == stream else { return completion(.success(true)) }
+                    if let error = error, (error as? HKError)?.code != .errorNoData {
+                        self.stopHeartRateStream()
+                        return completion(.failure(CraftHealthError(message: error.localizedDescription)))
+                    }
+                    self.sendHeartRate(rows)
+                    completion(.success(true))
+                }
+            }
+            query.updateHandler = { [weak self] _, samples, _, _, error in
+                if let error = error {
+                    NSLog("[craft] Apple Health heart rate: %@", error.localizedDescription)
+                    return
+                }
+                let rows = (samples as? [HKQuantitySample] ?? []).map { ($0.uuid, Self.heartRateRow($0)) }
+                DispatchQueue.main.async {
+                    guard let self, self.heartRateStream == stream else { return }
+                    self.sendHeartRate(rows)
+                }
+            }
+            heartRateQuery = query
+            healthStore.execute(query)
+        }
+    }
+
+    /// Stops the stream; true whether or not one was running.
+    func stopHeartRateUpdates(completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
+        onMain { [self] in
+            stopHeartRateStream()
+            completion(.success(true))
+        }
+    }
+
+    /// Main only.
+    private func stopHeartRateStream() {
+        heartRateStream += 1
+        if let query = heartRateQuery { healthStore?.stop(query) }
+        heartRateQuery = nil
+        heartRateSent.removeAll()
+        #if targetEnvironment(simulator)
+        simulatedHeartRateTimer?.invalidate()
+        simulatedHeartRateTimer = nil
+        #endif
+    }
+
+    /// Sends the samples not sent before, oldest first; nothing when none are new. Main only.
+    private func sendHeartRate(_ rows: [(UUID, [String: Any])]) {
+        let fresh = rows
+            .filter { heartRateSent.insert($0.0).inserted }
+            .map { $0.1 }
+            .sorted { ($0["startDate"] as? Double ?? 0) < ($1["startDate"] as? Double ?? 0) }
+        guard !fresh.isEmpty else { return }
+        let detail: [String: Any] = ["samples": fresh]
+        if pageSink?(detail) != true { CraftWebServices.forward("craftHealthHeartRate", data: detail) }
+    }
+
+    /// The simulator's watch: someone settling into slow breathing, about 72
+    /// at first and easing toward 60 over a few minutes, with a small wobble.
+    static func simulatedHeartRate(elapsed: TimeInterval) -> Double {
+        (60 + 12 * exp(-elapsed / 150) + 1.5 * sin(elapsed / 9)).rounded()
+    }
+
+    #if targetEnvironment(simulator)
+    /// One made-up watch reading now and every five seconds after. Main only.
+    private func startSimulatedHeartRate(stream: Int) {
+        let began = Date()
+        let send: () -> Void = { [weak self] in
+            guard let self, self.heartRateStream == stream else { return }
+            let now = Date().timeIntervalSince1970 * 1000
+            self.sendHeartRate([(UUID(), [
+                "bpm": Self.simulatedHeartRate(elapsed: Date().timeIntervalSince(began)),
+                "startDate": now,
+                "endDate": now,
+                "sourceName": "Apple Watch (simulated)",
+                "deviceName": "Apple Watch",
+                "motionContext": "sedentary",
+            ])])
+        }
+        send()
+        simulatedHeartRateTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in send() }
+    }
+    #endif
 }

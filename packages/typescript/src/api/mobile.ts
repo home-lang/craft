@@ -3020,8 +3020,23 @@ export interface HealthMindfulSample {
   deviceName?: string
 }
 
+export interface HealthHeartRateUpdatesOptions {
+  /** Epoch milliseconds: samples that start at or after this. Defaults to two minutes ago. */
+  since?: number
+}
+
 /** The health reads and writes a host may or may not have, depending on the app build it runs in. */
-export type HealthReadMethod = 'getWorkouts' | 'getDailyStatistics' | 'getHeartRateSamples' | 'getSleepIntervals' | 'saveData' | 'saveMindfulSession' | 'getMindfulSessions'
+export type HealthReadMethod = 'getWorkouts' | 'getDailyStatistics' | 'getHeartRateSamples' | 'getSleepIntervals' | 'saveData' | 'saveMindfulSession' | 'getMindfulSessions' | 'startHeartRateUpdates' | 'stopHeartRateUpdates'
+
+/** The samples of one `craftHealthHeartRate` event that look like heart-rate samples. */
+function healthHeartRateSamples(detail: unknown): HealthHeartRateSample[] {
+  const samples = (detail as { samples?: unknown } | null | undefined)?.samples
+  if (!Array.isArray(samples)) return []
+  return samples.filter((sample): sample is HealthHeartRateSample => typeof sample?.bpm === 'number'
+    && Number.isFinite(sample.bpm)
+    && typeof sample.startDate === 'number'
+    && typeof sample.endDate === 'number')
+}
 
 export const health = {
   /**
@@ -3096,6 +3111,40 @@ export const health = {
     const craft = getCraftRoot()
     if (!craft?.health?.getMindfulSessions) throw new Error('Reading mindful sessions is unavailable')
     return craft.health.getMindfulSessions(options)
+  },
+  /**
+   * Heart rate as Apple Health receives it, until `stopHeartRateUpdates()`:
+   * the samples since `since` (two minutes ago by default) first, then each
+   * batch as the watch syncs it, to every `onHeartRate` listener. Needs the
+   * `heartRate` grant. One stream at a time; starting again replaces it.
+   * HealthKit only has what the watch has synced: every few seconds during a
+   * workout or Mindfulness session on the watch, every few minutes otherwise.
+   * iOS only for now.
+   */
+  async startHeartRateUpdates(options: HealthHeartRateUpdatesOptions = {}): Promise<boolean> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.startHeartRateUpdates) throw new Error('Heart-rate updates are unavailable')
+    return Boolean(await craft.health.startHeartRateUpdates(options))
+  },
+  /** Stops the stream `startHeartRateUpdates` started; true also when none ran. */
+  async stopHeartRateUpdates(): Promise<boolean> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.stopHeartRateUpdates) throw new Error('Heart-rate updates are unavailable')
+    return Boolean(await craft.health.stopHeartRateUpdates())
+  },
+  /**
+   * Each batch of new heart-rate samples while `startHeartRateUpdates` runs,
+   * oldest first, every sample once. Returns the unsubscribe; off a phone, or
+   * in a build without the stream, it never calls back.
+   */
+  onHeartRate(callback: (samples: HealthHeartRateSample[]) => void): () => void {
+    if (typeof window === 'undefined' || typeof getCraftRoot()?.health?.startHeartRateUpdates !== 'function') return () => {}
+    const listener = (event: Event) => {
+      const samples = healthHeartRateSamples((event as CustomEvent<unknown>).detail)
+      if (samples.length) callback(samples)
+    }
+    window.addEventListener('craftHealthHeartRate', listener)
+    return () => window.removeEventListener('craftHealthHeartRate', listener)
   },
 }
 
@@ -3307,6 +3356,8 @@ interface CraftMobileBridge {
     getSleepIntervals?(options: HealthSampleQuery): Promise<HealthSleepInterval[]>
     saveMindfulSession?(session: HealthMindfulSession): Promise<HealthMindfulSessionResult>
     getMindfulSessions?(options: HealthMindfulSessionQuery): Promise<HealthMindfulSample[]>
+    startHeartRateUpdates?(options: HealthHeartRateUpdatesOptions): Promise<boolean>
+    stopHeartRateUpdates?(): Promise<boolean>
   }
   liveActivity?: {
     start(options: LiveActivityOptions): Promise<{ id: string }>

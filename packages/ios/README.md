@@ -430,6 +430,23 @@ await health.requestAuthorization(['mindful'], { write: true })
 await health.saveMindfulSession({ id: 'session-42', startDate: started, endDate: Date.now() })
 // Every app's mindful sessions, oldest first; ownApp marks the ones this app wrote.
 const mindful = await health.getMindfulSessions({ startDate: Date.now() - 7 * 86400000 })
+// Heart rate as Apple Health receives it, instead of polling getHeartRateSamples:
+// the samples since `since` (two minutes ago by default) first, then each new
+// batch, oldest first and each sample once, in getHeartRateSamples' shape.
+// Needs the 'heartRate' grant; one stream at a time.
+const stopListening = health.onHeartRate(samples => show(samples[samples.length - 1].bpm))
+await health.startHeartRateUpdates({ since: Date.now() - 60000 })
+// ...
+await health.stopHeartRateUpdates()
+stopListening()
+// HealthKit only has what the watch has synced. During a workout or a
+// Mindfulness session on the Apple Watch that is a reading every few seconds;
+// otherwise the watch measures every few minutes, and so do these. On a page
+// the batches are `craftHealthHeartRate` events ({ samples }); native screens
+// hear them too. In the simulator, the CraftFakeHealthHeartRate default
+// (`xcrun simctl spawn booted defaults write <bundle id> CraftFakeHealthHeartRate -bool YES`)
+// sends a made-up watch reading every 5 s instead: someone settling into slow
+// breathing, from about 72 toward 60 bpm.
 
 // Screen Capture
 const screenshotBase64 = await window.craft.takeScreenshot();

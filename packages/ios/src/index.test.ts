@@ -766,6 +766,42 @@ describe('Craft iOS builder', () => {
     expect(swift).toContain('item["externalId"] = external')
   })
 
+  it('streams Apple Health heart rate as it arrives, to the page and every native screen', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-health-stream-'))
+    await init({ runtimeDir: null, name: 'Breathe', bundleId: 'com.example.breathe', output, config: { enableHealthKit: true } })
+    const app = readFileSync(join(output, 'Sources', 'BreatheApp.swift'), 'utf8')
+    const health = readFileSync(join(output, 'Sources', 'CraftHealth.swift'), 'utf8')
+
+    expect(app).toContain('startHeartRateUpdates: function(options) {')
+    expect(app).toContain("return craft._invoke('startHealthHeartRateUpdates', {since: since});")
+    expect(app).toContain("stopHeartRateUpdates: function() { return craft._invoke('stopHealthHeartRateUpdates'); }")
+    expect(app).toMatch(/case "startHealthHeartRateUpdates":\n\s+if config\.enableHealthKit \{\n\s+CraftHealth\.shared\.startHeartRateUpdates\(since: body\["since"\] as\? Double\)/)
+    expect(app).toMatch(/case "stopHealthHeartRateUpdates":\n\s+if config\.enableHealthKit \{\n\s+CraftHealth\.shared\.stopHeartRateUpdates/)
+    // Batches reach the page, and native screens with or without it.
+    expect(app).toContain('CraftHealth.shared.pageSink = { [weak self] detail in')
+    expect(app).toContain('self.sendToWeb("craftHealthHeartRate", data: detail)')
+    expect(app).toContain('"craftHealthHeartRate", "craftMusicChange", "craftHeartRate"]')
+    expect(health).toContain('if pageSink?(detail) != true { CraftWebServices.forward("craftHealthHeartRate", data: detail) }')
+    // An anchored query from `since` (two minutes ago by default), one at a time.
+    expect(health).toContain('(since ?? Date().timeIntervalSince1970 * 1000 - 120_000) / 1000')
+    expect(health).toContain('HKQuery.predicateForSamples(withStart: start, end: nil, options: .strictStartDate)')
+    expect(health).toContain('HKAnchoredObjectQuery(type: heartType, predicate: predicate, anchor: nil, limit: HKObjectQueryNoLimit)')
+    expect(health).toContain('query.updateHandler = { [weak self] _, samples, _, _, error in')
+    expect(health).toMatch(/onMain \{ \[self\] in\n\s+stopHeartRateStream\(\)/)
+    expect(health).toContain('if let query = heartRateQuery { healthStore?.stop(query) }')
+    // Each sample once, oldest first, in getHeartRateSamples' shape; nothing for an empty batch.
+    expect(health).toContain('.filter { heartRateSent.insert($0.0).inserted }')
+    expect(health).toContain('guard !fresh.isEmpty else { return }')
+    expect(health).toContain('completion(.success((samples as? [HKQuantitySample] ?? []).map(Self.heartRateRow)))')
+    expect(health).toContain('let rows = (samples as? [HKQuantitySample] ?? []).map { ($0.uuid, Self.heartRateRow($0)) }')
+    // A late batch from a stopped stream is dropped.
+    expect(health).toContain('guard let self, self.heartRateStream == stream else { return }')
+    // The simulator's stand-in watch never ships to a device.
+    expect(health).toMatch(/#if targetEnvironment\(simulator\)\n\s+if UserDefaults\.standard\.bool\(forKey: "CraftFakeHealthHeartRate"\)/)
+    expect(health).toContain('"sourceName": "Apple Watch (simulated)",')
+    expect(health).toContain('Timer.scheduledTimer(withTimeInterval: 5, repeats: true)')
+  })
+
   it('answers a native screen\'s Apple Health reads from the same service the page uses', async () => {
     const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-health-'))
     await init({ runtimeDir: null, name: 'Pulse', bundleId: 'com.example.pulse', output, config: { enableHealthKit: true } })
@@ -775,7 +811,7 @@ describe('Craft iOS builder', () => {
 
     // One HealthKit store and one implementation, shared by both callers.
     expect(health).toContain('static let shared = CraftHealth()')
-    for (const method of ['requestAuthorization', 'getData', 'saveData', 'saveWorkout', 'getWorkouts', 'getDailyStatistics', 'getHeartRateSamples', 'getSleepIntervals', 'saveMindfulSession', 'getMindfulSessions'])
+    for (const method of ['requestAuthorization', 'getData', 'saveData', 'saveWorkout', 'getWorkouts', 'getDailyStatistics', 'getHeartRateSamples', 'getSleepIntervals', 'saveMindfulSession', 'getMindfulSessions', 'startHeartRateUpdates', 'stopHeartRateUpdates'])
       expect(health).toContain(`case "${method}":`)
     expect(app).toContain('CraftHealth.shared.getWorkouts(')
     expect(app).not.toContain('HKHealthStore()')
@@ -789,7 +825,7 @@ describe('Craft iOS builder', () => {
     // native-screen JavaScript can resume safely after the sheet/query ends.
     expect(health).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
     expect(health).toContain('DispatchQueue.main.async { completion(result) }')
-    expect(health.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(11)
+    expect(health.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(13)
   })
 
   it('asks a native screen\'s questions with the system\'s own alerts and sheets', async () => {
@@ -1402,7 +1438,7 @@ describe('Craft iOS builder', () => {
     expect(app).toContain('if CraftWebServices.resolve(id, result: result) { return }')
     expect(app).toContain('if CraftWebServices.reject(id, message: error, code: code) { return }')
     expect(app).toContain('CraftWebServices.forward(event, data: data)')
-    expect(app).toContain('static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftMusicChange", "craftHeartRate"]')
+    expect(app).toContain('static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftHealthHeartRate", "craftMusicChange", "craftHeartRate"]')
     expect(screen).toContain('self?.send(type: "CRAFT_EVENT", payload: ["event": name')
   })
 

@@ -176,7 +176,14 @@ const dispatch_end = "func webView(";
 /// CraftScheduledWorkouts.swift; like the heart-rate bridge they went into
 /// Swift first and fall through to the shim, which serves them. Not a
 /// regression: no action left Zig.
-const max_not_yet_migrated: usize = 45;
+/// 46 when the spec gained startHealthHeartRateUpdates and
+/// stopHealthHeartRateUpdates: Apple Health's heart rate as it arrives, an
+/// HKAnchoredObjectQuery in CraftHealth.swift whose batches push
+/// craftHealthHeartRate. saveHealthData had already taken the one spare left
+/// at 45, so the two raise it by one. Like the other health reads they went
+/// into Swift first and fall through to the shim, which serves them. Not a
+/// regression: no action left Zig.
+const max_not_yet_migrated: usize = 46;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.
