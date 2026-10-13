@@ -275,6 +275,10 @@ final class NativeNavigationUITests: XCTestCase {
         let gridAlignThird = app.otherElements["grid-align-third"]
         XCTAssertTrue(gridAlign.waitForExistence(timeout: 5) && gridAlignFirst.exists && gridAlignThird.exists)
         XCTAssertGreaterThan(gridAlignFirst.frame.minY - gridAlign.frame.minY, 20, "grid alignContent did not center its rows")
+        let gridAspect = app.otherElements["grid-aspect-ratio-box"]
+        XCTAssertTrue(gridAspect.waitForExistence(timeout: 5))
+        XCTAssertEqual(gridAspect.frame.width, 80, accuracy: 2)
+        XCTAssertEqual(gridAspect.frame.height, 40, accuracy: 2, "grid aspectRatio did not derive height from width")
         let aspectRatioBox = app.otherElements["aspect-ratio-box"]
         XCTAssertTrue(aspectRatioBox.waitForExistence(timeout: 5))
         XCTAssertEqual(aspectRatioBox.frame.width, 100, accuracy: 2)

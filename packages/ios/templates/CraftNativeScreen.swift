@@ -905,12 +905,13 @@ private class CraftNativeFlowView: UIStackView {
             let content = CGRect(x: padding.left, y: padding.top, width: max(0, size.width - paddingWidth), height: max(0, size.height - paddingHeight))
             for child in children where child.craftLayoutStyle.position == "absolute" {
                 let style = child.craftLayoutStyle
-                let fixedWidth = style.left != nil && style.right != nil
+                var fixedWidth = style.left != nil && style.right != nil
                     ? max(0, content.width - (style.left ?? 0) - (style.right ?? 0))
                     : style.width?.resolve(content.width)
-                let fixedHeight = style.top != nil && style.bottom != nil
+                var fixedHeight = style.top != nil && style.bottom != nil
                     ? max(0, content.height - (style.top ?? 0) - (style.bottom ?? 0))
                     : style.height?.resolve(content.height)
+                (fixedWidth, fixedHeight) = aspectDimensions(style, width: fixedWidth, height: fixedHeight)
                 let measured = CraftNativeFlexLayout.measure(child, width: fixedWidth, height: fixedHeight, maxWidth: content.width, maxHeight: content.height)
                 let x = style.left ?? (style.right.map { content.width - $0 - measured.width } ?? 0)
                 let y = style.top ?? (style.bottom.map { content.height - $0 - measured.height } ?? 0)
@@ -918,6 +919,21 @@ private class CraftNativeFlowView: UIStackView {
             }
         }
         return (size, frames)
+    }
+
+    /// Resolves the missing side of an aspect-ratio box after its parent has
+    /// supplied any definite width or height. Keeping this at the host edge
+    /// lets grid and absolute children follow the same rule as flex items
+    /// without adding platform-specific measurement behavior to native views.
+    private func aspectDimensions(
+        _ style: CraftNativeLayoutStyle,
+        width: CGFloat?,
+        height: CGFloat?
+    ) -> (width: CGFloat?, height: CGFloat?) {
+        guard let ratio = style.aspectRatio else { return (width, height) }
+        if let width, height == nil { return (width, width / ratio) }
+        if let height, width == nil { return (height * ratio, height) }
+        return (width, height)
     }
 
     private func layoutFlex(
@@ -1283,11 +1299,14 @@ private class CraftNativeFlowView: UIStackView {
             let style = child.craftLayoutStyle
             let available = max(0, cellWidth - style.marginLeft - style.marginRight)
             let align = style.alignSelf ?? alignItems
-            let fixedWidth = style.width?.resolve(cellWidth) ?? (align == "stretch" ? available : nil)
+            var fixedWidth = style.width?.resolve(cellWidth)
+            var fixedHeight = style.height?.resolve(nil)
+            if fixedWidth == nil && fixedHeight == nil && align == "stretch" { fixedWidth = available }
+            (fixedWidth, fixedHeight) = aspectDimensions(style, width: fixedWidth, height: fixedHeight)
             let size = CraftNativeFlexLayout.measure(
                 child,
                 width: fixedWidth.map { min($0, available) },
-                height: style.height?.resolve(nil),
+                height: fixedHeight,
                 maxWidth: available,
                 maxHeight: CraftNativeFlexLayout.unbounded
             )
@@ -1311,9 +1330,15 @@ private class CraftNativeFlowView: UIStackView {
                 let align = style.alignSelf ?? alignItems
                 let size = sizes[index]
                 let alignment: UInt32 = align == "center" ? 1 : align == "flex-end" ? 2 : 0
+                var explicitWidth = style.width?.resolve(cellWidth)
+                var explicitHeight = style.height?.resolve(nil)
+                if explicitWidth == nil && explicitHeight == nil && align == "stretch" {
+                    explicitWidth = max(0, cellWidth - style.marginLeft - style.marginRight)
+                }
+                (explicitWidth, explicitHeight) = aspectDimensions(style, width: explicitWidth, height: explicitHeight)
                 return (
                     size.width, size.height,
-                    style.width?.resolve(cellWidth), style.height?.resolve(nil),
+                    explicitWidth, explicitHeight,
                     style.minWidth?.resolve(cellWidth), style.maxWidth?.resolve(cellWidth),
                     style.minHeight?.resolve(nil), style.maxHeight?.resolve(nil),
                     style.marginLeft, style.marginRight, style.marginTop, style.marginBottom,
@@ -1359,7 +1384,7 @@ private class CraftNativeFlowView: UIStackView {
                 let availableWidth = max(0, cellWidth - style.marginLeft - style.marginRight)
                 let availableHeight = max(0, rowHeight - style.marginTop - style.marginBottom)
                 let childWidth = min(availableWidth, size.width)
-                let childHeight = align == "stretch" && style.height == nil ? availableHeight : min(availableHeight, size.height)
+                let childHeight = align == "stretch" && style.height == nil && style.aspectRatio == nil ? availableHeight : min(availableHeight, size.height)
                 let x = padding.left + CGFloat(column) * (cellWidth + horizontalGap) + style.marginLeft
                     + (align == "center" ? (availableWidth - childWidth) / 2 : align == "flex-end" ? availableWidth - childWidth : 0)
                 let y = rowTop + style.marginTop
