@@ -1031,6 +1031,8 @@ describe('native renderer component contract', () => {
 
   it('applies shared view transforms on both native hosts', () => {
     expect(ios).toContain('applyTransform(style["transform"], to: view)')
+    expect(ios).toContain('return Double(text).map { CGFloat($0) }')
+    expect(ios).not.toContain('return Double(text).map(CGFloat.init)')
     expect(ios).toContain('affine = affine.translatedBy(x: value, y: 0)')
     expect(ios).toContain('CATransform3DRotate(threeDimensional, value, 1, 0, 0)')
     expect(android).toContain('applyTransform(view, style.optJSONArray("transform"))')

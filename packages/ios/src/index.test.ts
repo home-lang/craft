@@ -668,6 +668,14 @@ describe('Craft iOS builder', () => {
     expect(source).toContain('snapped.size = CraftNativeFlexLayout.ceiled(frame.size, scale: scale, atLeast: snapped.size)')
   })
 
+  it('keeps transform angle parsing unambiguous for current Swift toolchains', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-transform-angle-'))
+    await init({ runtimeDir: null, name: 'TransformAngle', bundleId: 'org.example.transform-angle', output, config: { renderer: 'native' } })
+    const source = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    expect(source).toContain('return Double(text).map { CGFloat($0) }')
+    expect(source).not.toContain('return Double(text).map(CGFloat.init)')
+  })
+
   it('applies image tinting to every native image source', async () => {
     const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-image-tint-'))
     await init({ runtimeDir: null, name: 'NativeImageTint', bundleId: 'org.example.native-image-tint', output, config: { renderer: 'native' } })

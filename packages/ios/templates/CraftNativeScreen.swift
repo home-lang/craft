@@ -4944,7 +4944,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         guard let text = raw as? String else { return nil }
         if text.hasSuffix("rad") { return CGFloat(Double(text.dropLast(3)) ?? 0) }
         if text.hasSuffix("deg") { return CGFloat((Double(text.dropLast(3)) ?? 0) * .pi / 180) }
-        return Double(text).map(CGFloat.init)
+        // Keep the conversion explicit: newer Swift toolchains see both the
+        // CGFloat(Double) and CGFloat(Float) initializers through map and
+        // reject the overloaded constructor reference.
+        return Double(text).map { CGFloat($0) }
     }
 
     private func configureText(_ label: UILabel, text: String, style: [String: Any]) {
