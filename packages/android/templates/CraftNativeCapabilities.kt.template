@@ -300,9 +300,12 @@ internal class CraftNativeCapabilities(
             if (name.isBlank()) return failure("INVALID_ARGUMENT", "files.write needs a file name")
             val data = args.optString(1, "")
             val options = args.optJSONObject(2) ?: JSONObject()
-            val bytes = if (options.optString("encoding") == "base64") {
-                runCatching { Base64.decode(data, Base64.DEFAULT) }.getOrElse { return failure("INVALID_ARGUMENT", "files.write base64 is invalid") }
-            } else data.toByteArray(Charsets.UTF_8)
+            val bytes = when (options.optString("encoding", "utf8")) {
+                "utf8" -> data.toByteArray(Charsets.UTF_8)
+                "base64" -> runCatching { Base64.decode(data, Base64.DEFAULT) }
+                    .getOrElse { return failure("INVALID_ARGUMENT", "files.write base64 is invalid") }
+                else -> return failure("INVALID_ARGUMENT", "files.write encoding is 'utf8' or 'base64'")
+            }
             store(bytes, name, options.optString("type").ifBlank { URLConnection.guessContentTypeFromName(name) ?: "application/octet-stream" })
         }
         "remove" -> {
@@ -363,6 +366,10 @@ internal class CraftNativeCapabilities(
             }
             val options = args.optJSONObject(0) ?: JSONObject()
             val source = options.optString("source", "library")
+            if (source != "library" && source != "camera") {
+                complete(requestToken, failure("INVALID_ARGUMENT", "files.pickImage source is 'library' or 'camera'"), completion)
+                return@runOnUiThread
+            }
             if (source == "camera" && !config.optBoolean("enableCamera")) {
                 complete(requestToken, failure("CAPABILITY_DISABLED", "Camera is disabled"), completion)
                 return@runOnUiThread

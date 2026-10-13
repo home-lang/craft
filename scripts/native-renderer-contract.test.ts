@@ -1315,6 +1315,8 @@ describe('native renderer component contract', () => {
     expect(androidCapabilities).toContain('A form file must be one craft.files made, and still there')
     expect(androidCapabilities).toContain('Intent.ACTION_OPEN_DOCUMENT')
     expect(androidCapabilities).toContain('private fun ownedFile(path: String): File?')
+    expect(androidCapabilities).toContain("files.write encoding is 'utf8' or 'base64'")
+    expect(androidCapabilities).toContain("files.pickImage source is 'library' or 'camera'")
     expect(android).toContain('capabilities.onActivityResult(requestCode, resultCode, data)')
   })
 })

@@ -162,6 +162,10 @@ class NativeCapabilitiesTest {
                 .put(JSONObject().put("type", "text/plain"))).data as JSONObject
             assertTrue(file.getString("path").contains("craft-files"))
             assertEquals("INVALID_ARGUMENT", call(capabilities, "Files", "remove", JSONArray().put("/tmp/not-owned.txt")).code)
+            assertEquals("INVALID_ARGUMENT", call(capabilities, "Files", "write", JSONArray()
+                .put("invalid.txt")
+                .put("data")
+                .put(JSONObject().put("encoding", "hex"))).code)
 
             val result = call(capabilities, "Network", "fetch", JSONArray().put(JSONObject()
                 .put("url", "http://127.0.0.1:${server.localPort}/upload")
