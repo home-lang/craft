@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.155...v0.0.156)
+
+## 🚀 Features
+
+- **ios**: an all-native app with tabs, paths, an app script and the services the web view held ([39ef8be](https://github.com/craft-native/craft/commit/39ef8be)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.154...v0.0.155)
 
 ## 🚀 Features
