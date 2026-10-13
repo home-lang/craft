@@ -2596,9 +2596,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
         super.traitCollectionDidChange(previousTraitCollection)
-        guard previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle else { return }
+        let colorChanged = previousTraitCollection?.userInterfaceStyle != traitCollection.userInterfaceStyle
+        let textSizeChanged = previousTraitCollection?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory
+        guard colorChanged || textSizeChanged else { return }
         refreshTraitDefaults()
-        send(type: "APPEARANCE", payload: ["colorScheme": colorScheme])
+        sendAppearance()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -2769,6 +2771,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 capabilities: \(capabilityJSON),
                 initialAppState: "\(CraftNativeActions.currentAppState())",
                 colorScheme: "\(colorScheme)",
+                appearance: \(appearanceJSON()),
                 appURL: \(appURL),
                 appVersion: \(appVersion),
                 appBuild: \(appBuild),
@@ -2847,6 +2850,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return style == .dark ? "dark" : "light"
         }
         return config.appearance == "dark" ? "dark" : "light"
+    }
+
+    private func sendAppearance() {
+        let style: UIUserInterfaceStyle = colorScheme == "dark" ? .dark : .light
+        send(type: "APPEARANCE", payload: CraftPageAppearance.snapshot(style: style))
+    }
+
+    private func appearanceJSON() -> String {
+        let style: UIUserInterfaceStyle = colorScheme == "dark" ? .dark : .light
+        guard let data = try? JSONSerialization.data(withJSONObject: CraftPageAppearance.snapshot(style: style)),
+              let json = String(data: data, encoding: .utf8) else { return "{}" }
+        return json
     }
 
     /// The screen's name as its script knows it: the route the host opened,
@@ -3351,6 +3366,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         observe(UIApplication.didBecomeActiveNotification, state: "active")
         observe(UIApplication.willResignActiveNotification, state: "inactive")
         observe(UIApplication.didEnterBackgroundNotification, state: "background")
+        for name in [UIContentSizeCategory.didChangeNotification, UIAccessibility.reduceMotionStatusDidChangeNotification, UIAccessibility.reduceTransparencyStatusDidChangeNotification, .craftColorSchemeChanged] {
+            lifecycleObservers.append(NotificationCenter.default.addObserver(
+                forName: name,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.refreshTraitDefaults()
+                self?.sendAppearance()
+            })
+        }
         // The app script has no screen for the keyboard to cover.
         if !isAppScript {
             lifecycleObservers.append(NotificationCenter.default.addObserver(

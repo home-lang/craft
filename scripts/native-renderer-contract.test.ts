@@ -1538,8 +1538,12 @@ describe('native renderer component contract', () => {
   })
 
   it('publishes dynamic color-scheme changes to the native runtime on both hosts', () => {
-    expect(ios).toContain('send(type: "APPEARANCE", payload: ["colorScheme": colorScheme])')
-    expect(android).toContain('send(screen, "APPEARANCE", JSONObject().put("colorScheme", colorScheme()))')
+    expect(ios).toContain('send(type: "APPEARANCE", payload: CraftPageAppearance.snapshot(style: style))')
+    expect(ios).toContain('appearance: \\(appearanceJSON()),')
+    expect(ios).toContain('UIContentSizeCategory.didChangeNotification')
+    expect(android).toContain('send(screen, "APPEARANCE", appearance())')
+    expect(android).toContain('private fun appearance(): JSONObject')
+    expect(android).toContain('.put("fontScale", (scale * 1000).roundToInt() / 1000.0)')
     expect(android).toContain('Configuration.UI_MODE_NIGHT_MASK')
     expect(android).toContain('colorScheme: ${JSONObject.quote(colorScheme())}')
   })

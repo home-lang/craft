@@ -2286,6 +2286,7 @@ class MainActivity : AppCompatActivity() {
                 capabilities: ${capabilities.names()},
                 initialAppState: ${JSONObject.quote(nativeAppState)},
                 colorScheme: ${JSONObject.quote(colorScheme())},
+                appearance: ${appearance()},
                 postMessage: function(value) { port.postMessage(value); },
                 onMessage: function(callback) { port.onmessage = function(event) { callback(event.data); }; }
               };
@@ -2301,6 +2302,7 @@ class MainActivity : AppCompatActivity() {
               capabilities: ${capabilities.names()},
               initialAppState: ${JSONObject.quote(nativeAppState)},
               colorScheme: ${JSONObject.quote(colorScheme())},
+              appearance: ${appearance()},
               postMessage: function(value) { console.log(${JSONObject.quote(prefix)} + value); },
               onMessage: function(callback) { globalThis.__stxNativeCallback = callback; }
             };
@@ -2359,7 +2361,7 @@ class MainActivity : AppCompatActivity() {
         screens.lastOrNull()?.let { screen ->
             refreshScreenTheme(screen)
             if (screen.active) {
-                send(screen, "APPEARANCE", JSONObject().put("colorScheme", colorScheme()))
+                send(screen, "APPEARANCE", appearance())
             }
         }
     }
@@ -2384,6 +2386,25 @@ class MainActivity : AppCompatActivity() {
     private fun colorScheme(): String = if (
         resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
     ) "dark" else "light"
+
+    private fun appearance(): JSONObject {
+        val scale = resources.configuration.fontScale.toDouble().coerceAtLeast(0.1)
+        val contentSize = when {
+            scale >= 1.5 -> "accessibilityExtraExtraExtraLarge"
+            scale >= 1.35 -> "accessibilityExtraExtraLarge"
+            scale >= 1.2 -> "accessibilityExtraLarge"
+            scale >= 1.1 -> "extraLarge"
+            scale <= 0.85 -> "extraSmall"
+            scale <= 0.92 -> "small"
+            else -> "large"
+        }
+        return JSONObject()
+            .put("contentSizeCategory", contentSize)
+            .put("fontScale", (scale * 1000).roundToInt() / 1000.0)
+            .put("reduceMotion", false)
+            .put("reduceTransparency", false)
+            .put("colorScheme", colorScheme())
+    }
 
     private fun refreshInputDefaultsForTraitChange() {
         if (inputHintDefaults.isEmpty() && inputHighlightDefaults.isEmpty()) return
