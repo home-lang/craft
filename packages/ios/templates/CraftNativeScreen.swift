@@ -551,6 +551,7 @@ private final class CraftNativeLayoutStyleBox {
 private var craftNativeLayoutStyleKey: UInt8 = 0
 private var craftNativeCornerRadiusKey: UInt8 = 0
 private var craftNativeBorderLayerKey: UInt8 = 0
+private var craftNativeSideBorderLayersKey: UInt8 = 0
 
 extension UIView {
     /// The layout style this view's parent reads. It lives on the view, so an
@@ -585,6 +586,16 @@ extension UIView {
                 cornerRadius: max(0, radius - inset)
             ).cgPath
         }
+        if let sides = objc_getAssociatedObject(self, &craftNativeSideBorderLayersKey) as? [CALayer], sides.count == 4 {
+            let top = sides[0].frame.height
+            let right = sides[1].frame.width
+            let bottom = sides[2].frame.height
+            let left = sides[3].frame.width
+            sides[0].frame = CGRect(x: 0, y: 0, width: bounds.width, height: top)
+            sides[1].frame = CGRect(x: max(0, bounds.width - right), y: 0, width: right, height: bounds.height)
+            sides[2].frame = CGRect(x: 0, y: max(0, bounds.height - bottom), width: bounds.width, height: bottom)
+            sides[3].frame = CGRect(x: 0, y: 0, width: left, height: bounds.height)
+        }
     }
 
     fileprivate func craftApplyBorderStyle(_ style: String?, width: CGFloat, color: UIColor) {
@@ -607,6 +618,36 @@ extension UIView {
         if border.superlayer !== layer { layer.addSublayer(border) }
         objc_setAssociatedObject(self, &craftNativeBorderLayerKey, border, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         craftApplyCornerRadius()
+    }
+
+    fileprivate func craftApplySideBorders(_ hasSideBorders: Bool, style: String?, widths: [CGFloat], colors: [UIColor]) {
+        guard hasSideBorders else {
+            (objc_getAssociatedObject(self, &craftNativeSideBorderLayersKey) as? [CALayer])?.forEach { $0.removeFromSuperlayer() }
+            objc_setAssociatedObject(self, &craftNativeSideBorderLayersKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            craftApplyBorderStyle(style, width: widths.first ?? 0, color: colors.first ?? .clear)
+            return
+        }
+        (objc_getAssociatedObject(self, &craftNativeBorderLayerKey) as? CAShapeLayer)?.removeFromSuperlayer()
+        objc_setAssociatedObject(self, &craftNativeBorderLayerKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        layer.borderWidth = 0
+        let top = max(0, widths.count > 0 ? widths[0] : 0)
+        let right = max(0, widths.count > 1 ? widths[1] : 0)
+        let bottom = max(0, widths.count > 2 ? widths[2] : 0)
+        let left = max(0, widths.count > 3 ? widths[3] : 0)
+        let frames = [
+            CGRect(x: 0, y: 0, width: bounds.width, height: top),
+            CGRect(x: max(0, bounds.width - right), y: 0, width: right, height: bounds.height),
+            CGRect(x: 0, y: max(0, bounds.height - bottom), width: bounds.width, height: bottom),
+            CGRect(x: 0, y: 0, width: left, height: bounds.height),
+        ]
+        let layers = frames.enumerated().map { index, frame in
+            let side = CALayer()
+            side.frame = frame
+            side.backgroundColor = (colors.count > index ? colors[index] : .clear).cgColor
+            layer.addSublayer(side)
+            return side
+        }
+        objc_setAssociatedObject(self, &craftNativeSideBorderLayersKey, layers, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 }
 
@@ -4748,10 +4789,15 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         view.alpha = number(style["opacity"]) ?? 1
         view.isHidden = style["display"] as? String == "none"
         view.craftRequestedCornerRadius = number(style["borderRadius"])
-        view.craftApplyBorderStyle(
-            style["borderStyle"] as? String,
-            width: number(style["borderWidth"]) ?? 0,
-            color: color(style["borderColor"]) ?? .clear
+        let borderWidth = number(style["borderWidth"]) ?? 0
+        let borderColor = color(style["borderColor"]) ?? .clear
+        let sideWidthKeys = ["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"]
+        let sideColorKeys = ["borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor"]
+        view.craftApplySideBorders(
+            (sideWidthKeys + sideColorKeys).contains { style[$0] != nil },
+            style: style["borderStyle"] as? String,
+            widths: sideWidthKeys.map { number(style[$0]) ?? borderWidth },
+            colors: sideColorKeys.map { color(style[$0]) ?? borderColor }
         )
         view.layer.zPosition = number(style["zIndex"]) ?? 0
         let elevation = max(0, number(style["elevation"]) ?? 0)

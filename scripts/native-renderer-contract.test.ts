@@ -1012,6 +1012,14 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('"shadowOpacity":0.35')
   })
 
+  it('maps per-edge border widths and colors on both native hosts', () => {
+    expect(ios).toContain('fileprivate func craftApplySideBorders(_ hasSideBorders: Bool')
+    expect(ios).toContain('sideWidthKeys.map { number(style[$0]) ?? borderWidth }')
+    expect(android).toContain('CraftNativeSideBorderDrawable(')
+    expect(android).toContain('borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"')
+    expect(navigationHome).toContain('testID="side-border"')
+  })
+
   it('keeps horizontal list rows intrinsically sized across hosts', () => {
     expect(iosFlatList).toContain('flowLayout.scrollDirection = horizontal ? .horizontal : .vertical')
     expect(iosFlatList).toContain('maxWidth: CraftNativeFlexLayout.unbounded,')

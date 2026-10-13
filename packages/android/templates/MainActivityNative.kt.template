@@ -16,7 +16,10 @@ import android.graphics.DashPathEffect
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.RectF
 import android.graphics.Typeface
+import android.graphics.ColorFilter
+import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
@@ -1880,6 +1883,34 @@ private class CraftTextDecorationSpan(
     }
 }
 
+private class CraftNativeSideBorderDrawable(
+    private val fillColor: Int,
+    private val radius: Float,
+    private val widths: IntArray,
+    private val colors: IntArray,
+) : Drawable() {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    override fun draw(canvas: Canvas) {
+        val bounds = RectF(this.bounds)
+        paint.style = Paint.Style.FILL
+        paint.color = fillColor
+        if (Color.alpha(fillColor) > 0) canvas.drawRoundRect(bounds, radius, radius, paint)
+        val top = widths.getOrElse(0) { 0 }
+        val right = widths.getOrElse(1) { 0 }
+        val bottom = widths.getOrElse(2) { 0 }
+        val left = widths.getOrElse(3) { 0 }
+        if (top > 0) { paint.color = colors.getOrElse(0) { Color.TRANSPARENT }; canvas.drawRect(bounds.left, bounds.top, bounds.right, bounds.top + top, paint) }
+        if (right > 0) { paint.color = colors.getOrElse(1) { Color.TRANSPARENT }; canvas.drawRect(bounds.right - right, bounds.top, bounds.right, bounds.bottom, paint) }
+        if (bottom > 0) { paint.color = colors.getOrElse(2) { Color.TRANSPARENT }; canvas.drawRect(bounds.left, bounds.bottom - bottom, bounds.right, bounds.bottom, paint) }
+        if (left > 0) { paint.color = colors.getOrElse(3) { Color.TRANSPARENT }; canvas.drawRect(bounds.left, bounds.top, bounds.left + left, bounds.bottom, paint) }
+    }
+
+    override fun setAlpha(alpha: Int) { paint.alpha = alpha; invalidateSelf() }
+    override fun setColorFilter(colorFilter: ColorFilter?) { paint.colorFilter = colorFilter; invalidateSelf() }
+    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
+}
+
 /** WebView-free host for a route bundle compiled by `stx native compile`. */
 class MainActivity : AppCompatActivity() {
     private class Screen(
@@ -3361,21 +3392,36 @@ class MainActivity : AppCompatActivity() {
         val background = style.has("backgroundColor") && !style.isNull("backgroundColor")
         val border = style.optDouble("borderWidth", 0.0)
         val radius = style.optDouble("borderRadius", 0.0)
+        val sideBorderKeys = listOf("borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth")
+        val hasSideBorders = (sideBorderKeys + listOf("borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor")).any(style::has)
+        val sideWidths = sideBorderKeys.map { dp(style.optDouble(it, border)) }.toIntArray()
+        val sideColors = listOf("borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor")
+            .map { color(style.optString(it).ifBlank { style.optString("borderColor") }, Color.TRANSPARENT) }
+            .toIntArray()
         val defaultBackground = if (defaultBackgrounds.containsKey(view)) {
             defaultBackgrounds[view]
         } else {
             view.background.also { defaultBackgrounds[view] = it }
         }
-        if (background || border > 0 || radius > 0) {
-            view.background = GradientDrawable().apply {
-                setColor(color(style.optString("backgroundColor"), Color.TRANSPARENT))
-                cornerRadius = dp(radius).toFloat()
-                if (border > 0) {
-                    val borderColor = color(style.optString("borderColor"), Color.TRANSPARENT)
-                    when (style.optString("borderStyle")) {
-                        "dashed" -> setStroke(dp(border), borderColor, dp(border * 3).toFloat(), dp(border * 2).toFloat())
-                        "dotted" -> setStroke(dp(border), borderColor, dp(border).toFloat(), dp(border * 1.5).toFloat())
-                        else -> setStroke(dp(border), borderColor)
+        if (background || border > 0 || radius > 0 || hasSideBorders) {
+            if (hasSideBorders) {
+                view.background = CraftNativeSideBorderDrawable(
+                    color(style.optString("backgroundColor"), Color.TRANSPARENT),
+                    dp(radius).toFloat(),
+                    sideWidths,
+                    sideColors,
+                )
+            } else {
+                view.background = GradientDrawable().apply {
+                    setColor(color(style.optString("backgroundColor"), Color.TRANSPARENT))
+                    cornerRadius = dp(radius).toFloat()
+                    if (border > 0) {
+                        val borderColor = color(style.optString("borderColor"), Color.TRANSPARENT)
+                        when (style.optString("borderStyle")) {
+                            "dashed" -> setStroke(dp(border), borderColor, dp(border * 3).toFloat(), dp(border * 2).toFloat())
+                            "dotted" -> setStroke(dp(border), borderColor, dp(border).toFloat(), dp(border * 1.5).toFloat())
+                            else -> setStroke(dp(border), borderColor)
+                        }
                     }
                 }
             }
