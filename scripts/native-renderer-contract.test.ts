@@ -1470,6 +1470,7 @@ describe('native renderer component contract', () => {
     const nativeScreen = readFileSync(join(root, 'packages/ios/templates/CraftNativeScreen.swift'), 'utf8')
     expect(hybrid).toContain('nativeScreenContainsHorizontalScroll')
     expect(hybrid).toContain('scroll.alwaysBounceHorizontal || scroll.contentSize.width > scroll.bounds.width + 1')
+    expect(hybrid).toContain('hit.isDescendant(of: webView) || webView.isDescendant(of: hit)')
     expect(hybrid).toContain('!native.tabSwipeEnabled || !native.contentSwipeBack')
     expect(nativeScreen).toContain('if let tabSwipeEnabled = options["tabSwipeEnabled"] as? Bool {')
     expect(hybrid).toContain('gestureRecognizer !== nav.interactivePopGestureRecognizer')

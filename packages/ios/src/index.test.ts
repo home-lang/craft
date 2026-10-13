@@ -1346,6 +1346,8 @@ describe('Craft iOS builder', () => {
     expect(hybrid).toContain('private var tabSwipeRecognizers: [UISwipeGestureRecognizer] = []')
     expect(hybrid).toContain('@objc private func tabSwipeRecognized(_ recognizer: UISwipeGestureRecognizer)')
     expect(hybrid).toContain('return !horizontalScrollAt(gestureRecognizer.location(in: view), in: top.view)')
+    expect(hybrid).toContain('hit.isDescendant(of: webView) || webView.isDescendant(of: hit)')
+    expect(hybrid).toContain('scroll.contentSize.width > scroll.bounds.width + 1')
     expect(app).toContain('func swipe(to id: String)')
     expect(app).toContain('UISelectionFeedbackGenerator().selectionChanged()')
     expect(app).toContain('func setHiddenByScreen(_ hidden: Bool) {')

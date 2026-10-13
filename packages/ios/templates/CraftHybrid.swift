@@ -1069,6 +1069,18 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     private func horizontalScrollAt(_ point: CGPoint, in root: UIView) -> Bool {
         let local = root.convert(point, from: view)
         guard root.bounds.contains(local), let hit = root.hitTest(local, with: nil) else { return false }
+        // WKWebView keeps its scrolling UIScrollView below the hosting view
+        // that owns the native slot, so it is not necessarily on the hit
+        // view's superview chain. Treat an overflowing page as its own
+        // horizontal gesture surface before the shell claims the swipe.
+        if let webView = CraftChrome.shared.webView,
+           hit === webView || hit.isDescendant(of: webView) || webView.isDescendant(of: hit) {
+            let scroll = webView.scrollView
+            if scroll.isScrollEnabled,
+               scroll.alwaysBounceHorizontal || scroll.contentSize.width > scroll.bounds.width + 1 {
+                return true
+            }
+        }
         var candidate: UIView? = hit
         while let current = candidate {
             if let scroll = current as? UIScrollView,
