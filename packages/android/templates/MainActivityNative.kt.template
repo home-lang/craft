@@ -45,6 +45,7 @@ import android.view.ViewTreeObserver
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.DatePicker
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -2347,6 +2348,28 @@ class MainActivity : AppCompatActivity() {
                     send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject()))
                 }
             }
+            "Checkbox" -> (previous as? CheckBox ?: CheckBox(this)).apply {
+                text = props.optString("label").ifBlank { childText(children) }
+                configureText(this, text.toString(), style)
+                val requested = props.opt("checked") ?: props.opt("value")
+                val checked = when (requested) {
+                    is Boolean -> requested
+                    is Number -> requested.toDouble() != 0.0
+                    is String -> requested.equals("true", ignoreCase = true) || requested == "1"
+                    else -> false
+                }
+                setOnCheckedChangeListener(null)
+                isChecked = checked || props.optBoolean("indeterminate", false)
+                isEnabled = !props.optBoolean("disabled", false)
+                props.optString("color").takeIf { it.isNotBlank() }?.let { buttonTintList = ColorStateList.valueOf(color(it, defaultTextColor)) }
+                val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
+                if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
+                setOnCheckedChangeListener { _, value ->
+                    screen.handlers[this]?.let { current ->
+                        send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject().put("value", value)))
+                    }
+                }
+            }
             "TextInput" -> (reusableInput?.takeIf { it.isSingleLine == !props.optBoolean("multiline", false) }
                 ?: EditText(this)).apply {
                 val defaultHintColors = inputHintDefaults.getOrPut(this) {
@@ -2905,6 +2928,7 @@ class MainActivity : AppCompatActivity() {
         "text" -> "Text"
         "button" -> "Button"
         "link" -> "Link"
+        "checkbox" -> "Checkbox"
         "textinput", "input" -> "TextInput"
         "picker", "select" -> "Picker"
         "datepicker", "date-picker", "date" -> "DatePicker"
@@ -3279,7 +3303,7 @@ class MainActivity : AppCompatActivity() {
         val role = props.optString("accessibilityRole").ifBlank { type.lowercase() }
         val state = props.optJSONObject("accessibilityState")
         val disabled = props.optBoolean("disabled", false) || state?.optBoolean("disabled", false) == true
-        if (type !in setOf("Button", "Link", "TextInput", "Picker", "DatePicker", "Modal", "Switch", "Slider", "ActivityIndicator")) {
+        if (type !in setOf("Button", "Link", "Checkbox", "TextInput", "Picker", "DatePicker", "Modal", "Switch", "Slider", "ActivityIndicator")) {
             view.isEnabled = !disabled
         } else if (disabled) {
             view.isEnabled = false

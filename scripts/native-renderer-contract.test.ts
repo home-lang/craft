@@ -35,6 +35,7 @@ const COMPONENTS: Array<[string, string, string]> = [
   ['Text', 'case "Text":', '"Text" ->'],
   ['Button', 'case "Button", "Link":', '"Button" ->'],
   ['Link', 'case "Button", "Link":', '"Link" ->'],
+  ['Checkbox', 'case "Checkbox":', '"Checkbox" ->'],
   ['TouchableOpacity', 'case "TouchableOpacity", "TouchableHighlight", "Pressable":', '"TouchableOpacity", "TouchableHighlight", "Pressable" ->'],
   ['TouchableHighlight', 'case "TouchableOpacity", "TouchableHighlight", "Pressable":', '"TouchableOpacity", "TouchableHighlight", "Pressable" ->'],
   ['Pressable', 'case "TouchableOpacity", "TouchableHighlight", "Pressable":', '"TouchableOpacity", "TouchableHighlight", "Pressable" ->'],
@@ -369,6 +370,16 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('waitForLabel(app.staticTexts["modal-opacity"], "0.45")')
     expect(iosNavigationTest).toContain('app.staticTexts["modal-opacity"].label, "1"')
     expect(guide).toContain('| `Picker` | `UIPickerView` | `Spinner` |')
+  })
+
+  it('keeps native Checkbox state and change events aligned across hosts', () => {
+    expect(ios).toContain('private final class CraftNativeCheckboxButton: UIButton')
+    expect(ios).toContain('checkbox.setImage(UIImage(systemName: indeterminate ? "minus.square" : "square"), for: .normal)')
+    expect(ios).toContain('nativeEvent": ["value": sender.isSelected]')
+    expect(android).toContain('"Checkbox" -> (previous as? CheckBox ?: CheckBox(this)).apply')
+    expect(android).toContain('props.optBoolean("indeterminate", false)')
+    expect(android).toContain('nativeEvent", JSONObject().put("value", value)')
+    expect(guide).toContain('| `Checkbox` |')
   })
 
   it('keeps DatePicker values and change events aligned across hosts', () => {
@@ -954,7 +965,7 @@ describe('native renderer component contract', () => {
   })
 
   it('restores generic Android pressables when accessibility disabled clears', () => {
-    expect(android).toContain('if (type !in setOf("Button", "Link", "TextInput", "Picker", "DatePicker", "Modal", "Switch", "Slider", "ActivityIndicator")) {\n            view.isEnabled = !disabled')
+    expect(android).toContain('if (type !in setOf("Button", "Link", "Checkbox", "TextInput", "Picker", "DatePicker", "Modal", "Switch", "Slider", "ActivityIndicator")) {\n            view.isEnabled = !disabled')
   })
 
   it('dismisses the keyboard from native scroll containers on drag', () => {

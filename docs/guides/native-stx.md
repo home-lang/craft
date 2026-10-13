@@ -67,6 +67,7 @@ next route.
 | `Link` | underlined `UIButton` | underlined clickable `TextView` |
 | `Pressable`, `TouchableOpacity`, `TouchableHighlight` | `CraftNativeFlowView` | `CraftNativeFlexLayout` |
 | `TextInput` | `UITextField` | `EditText` |
+| `Checkbox` | `UIButton` with system checkbox symbols | `CheckBox` |
 | `Picker` | `UIPickerView` | `Spinner` |
 | `DatePicker` | `UIDatePicker` | `DatePicker` / `TimePicker` |
 | `Modal` | `CraftNativeModalView` | `CraftNativeModalView` (`FrameLayout`) |
@@ -107,6 +108,10 @@ containers block both press and long-press callbacks on both hosts.
 `Picker` renders option children from `<select>`/`<option>` or the native
 primitive, accepts `value`/`selectedValue`, and sends the selected option's
 `value` plus `index` through `onValueChange` or `onChange`.
+`Checkbox` accepts `checked`/`value`, `indeterminate`, and `disabled`, and
+delivers a boolean `nativeEvent.value` through `onValueChange` or `onChange`.
+An indeterminate checkbox is announced as `mixed` and becomes checked or
+unchecked on the next user toggle.
 `DatePicker` accepts `mode` (`date`, `time`, `datetime`/`datetime-local`, or
 `countdown`), `value`, `minimumDate`, `maximumDate`, `minuteInterval`, and
 `disabled`. Its `onValueChange`/`onChange` event includes a local `value`, an

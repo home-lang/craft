@@ -1938,6 +1938,13 @@ private final class CraftNativeButton: UIButton {
     }
 }
 
+/// A native checkbox button. UIKit has no checkbox control, so use the system
+/// square/checkmark symbols while keeping the control's title and accessibility
+/// state native and keyboard/touch reachable.
+private final class CraftNativeCheckboxButton: UIButton {
+    var indeterminate = false
+}
+
 private final class CraftNativeLabel: UILabel {
     var insets = UIEdgeInsets.zero {
         didSet {
@@ -2114,6 +2121,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var imageSources: [ObjectIdentifier: String] = [:]
     private var imageTasks: [ObjectIdentifier: URLSessionDataTask] = [:]
     private var imageErrors: [ObjectIdentifier: String] = [:]
+    private var checkboxIndeterminate: [ObjectIdentifier: Bool] = [:]
     private var tintedImages = Set<ObjectIdentifier>()
     private var imageLoadStartHandlers: [ObjectIdentifier: String] = [:]
     private var imageLoadHandlers: [ObjectIdentifier: String] = [:]
@@ -3453,6 +3461,25 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             (button as? CraftNativeButton)?.padding = paddingInsets(style)
             button.isEnabled = props["disabled"] as? Bool != true
             updateHandler(nonEmptyHandler(events["onPress"]) ?? nonEmptyHandler(events["onClick"]), for: button)
+        case "Checkbox":
+            let checkbox = result as! CraftNativeCheckboxButton
+            let label = props["label"] as? String ?? children.compactMap { $0 as? String }.joined()
+            let transformedLabel = transformedText(label, style: style)
+            let checked = (props["checked"] as? Bool) ?? (props["value"] as? Bool) ?? false
+            let indeterminate = props["indeterminate"] as? Bool == true
+            checkbox.isSelected = checked
+            checkbox.indeterminate = indeterminate
+            checkboxIndeterminate[ObjectIdentifier(checkbox)] = indeterminate
+            checkbox.setTitle(transformedLabel, for: .normal)
+            checkbox.setAttributedTitle(NSAttributedString(
+                string: transformedLabel,
+                attributes: buttonTitleAttributes(style, color: color(props["color"]) ?? color(style["color"]) ?? .label, font: textFont(style, default: .systemFont(ofSize: 16)))
+            ), for: .normal)
+            checkbox.setImage(UIImage(systemName: indeterminate ? "minus.square" : "square"), for: .normal)
+            checkbox.setImage(UIImage(systemName: "checkmark.square.fill"), for: .selected)
+            checkbox.tintColor = color(props["color"]) ?? color(style["color"]) ?? .systemBlue
+            checkbox.isEnabled = props["disabled"] as? Bool != true
+            updateHandler(nonEmptyHandler(events["onValueChange"]) ?? nonEmptyHandler(events["onChange"]), for: checkbox)
         case "TextInput":
             if let textView = result as? UITextView {
                 inputIdentities[ObjectIdentifier(textView)] = current.identity
@@ -3743,7 +3770,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             reconcileChildren(children, in: stack, parent: current, path: path, style: style)
         }
         updateLongPressHandler(props["disabled"] as? Bool == true ? nil : events["onLongPress"], for: result)
-        if type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" {
+        if type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" {
             let disabled = props["disabled"] as? Bool == true
             updatePressHandler(disabled ? nil : nonEmptyHandler(events["onPress"]) ?? nonEmptyHandler(events["onClick"]), for: result)
             updatePressFeedback(
@@ -3767,6 +3794,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let button = CraftNativeButton(type: .system)
             button.addTarget(self, action: #selector(buttonPressed(_:)), for: .touchUpInside)
             return button
+        case "Checkbox":
+            let checkbox = CraftNativeCheckboxButton(type: .system)
+            checkbox.semanticContentAttribute = .forceLeftToRight
+            checkbox.contentHorizontalAlignment = .leading
+            checkbox.addTarget(self, action: #selector(checkboxPressed(_:)), for: .touchUpInside)
+            return checkbox
         case "TextInput":
             if props["multiline"] as? Bool == true {
                 let textView = CraftNativeTextView()
@@ -3832,6 +3865,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "text": return "Text"
         case "button": return "Button"
         case "link": return "Link"
+        case "checkbox": return "Checkbox"
         case "textinput", "input": return "TextInput"
         case "picker", "select": return "Picker"
         case "modal": return "Modal"
@@ -4081,6 +4115,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         imageLoadHandlers.removeValue(forKey: id)
         imageLoadEndHandlers.removeValue(forKey: id)
         imageErrorHandlers.removeValue(forKey: id)
+        checkboxIndeterminate.removeValue(forKey: id)
         if let video = node.view as? CraftNativeVideoView { video.stop() }
         for child in node.children { forgetHandlers(child, preservingInputDrafts: preservingInputDrafts) }
     }
@@ -4678,10 +4713,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             view.accessibilityValue = nil
         }
         let role = props["accessibilityRole"] as? String
-        view.isAccessibilityElement = role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Image", "Video", "TextInput", "Picker", "Switch", "Slider"].contains(type))
+        view.isAccessibilityElement = role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "Video", "TextInput", "Picker", "Switch", "Slider"].contains(type))
         var traits: UIAccessibilityTraits = []
         switch role ?? type.lowercased() {
-        case "button": traits.insert(.button)
+        case "button", "checkbox": traits.insert(.button)
         case "image": traits.insert(.image)
         case "header": traits.insert(.header)
         case "link": traits.insert(.link)
@@ -4701,6 +4736,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if state["checked"] as? Bool == true { traits.insert(.selected) }
         }
         if let control = view as? UIControl, !control.isEnabled { traits.insert(.notEnabled) }
+        if type == "Checkbox", let checkbox = view as? CraftNativeCheckboxButton {
+            if checkbox.isSelected { traits.insert(.selected) }
+            view.accessibilityValue = checkbox.indeterminate ? "mixed" : checkbox.isSelected ? "checked" : "unchecked"
+        }
         if type == "Image", let message = imageErrors[ObjectIdentifier(view)] {
             let current = view.accessibilityValue
             if current?.contains(message) != true {
@@ -4734,6 +4773,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self, weak focused] in
             self?.restoreFocus(focused)
         }
+    }
+
+    @objc private func checkboxPressed(_ sender: CraftNativeCheckboxButton) {
+        sender.indeterminate = false
+        checkboxIndeterminate[ObjectIdentifier(sender)] = false
+        sender.isSelected.toggle()
+        if let handler = handlers[ObjectIdentifier(sender)] {
+            send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": sender.isSelected]])
+        }
+        applyAccessibility([:], type: "Checkbox", to: sender)
     }
 
     /// Return on a `returnKeyType="next"` field the screen does not handle
