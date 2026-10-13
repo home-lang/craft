@@ -1987,6 +1987,12 @@ class MainActivity : AppCompatActivity() {
     private fun updateParentLayoutStyle(view: View, style: JSONObject): Boolean {
         var parent = view.parent
         var found = false
+        // A targeted style update can arrive while Android considers the
+        // existing traversal settled. Invalidate the node itself as well as
+        // every ancestor, including the platform ScrollView between the
+        // native content layout and CraftNativeScrollView.
+        view.forceLayout()
+        view.requestLayout()
         while (parent != null) {
             when (parent) {
                 is CraftNativeFlexLayout -> {
@@ -1998,6 +2004,10 @@ class MainActivity : AppCompatActivity() {
                 is CraftNativeScrollView -> {
                     parent.invalidateContentLayout()
                 }
+            }
+            (parent as? View)?.let {
+                it.forceLayout()
+                it.requestLayout()
             }
             parent = parent.parent
         }
