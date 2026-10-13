@@ -800,6 +800,9 @@ describe('native renderer component contract', () => {
     expect(androidDispatch).toContain('expectEqual(@as(usize, 111), natives.len)')
     expect(ios).toContain('var rowExtra: CGFloat = 0')
     expect(android).toContain('val freeRows = max(0, contentHeight - totalRows - rowGaps)')
+    expect(android).toContain('var rowLeading = 0f')
+    expect(android).toContain('rowBetween += freeRows / (rowCount + 1).toFloat()')
+    expect(android).toContain('var rowTop = paddingTop.toFloat() + rowLeading')
   })
 
   it('keeps per-edge margins in native flex and grid layout', () => {

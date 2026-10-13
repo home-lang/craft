@@ -137,6 +137,9 @@ their intrinsic width unless explicitly configured.
 Wrapped containers also honor `alignContent` (`center`, `flex-end`,
 `space-between`, `space-around`, `space-evenly`, and `stretch`) consistently
 across hosts.
+The Android local fallback keeps fractional line and grid spacing until each
+child frame is rounded, matching the shared layout ABI when an older runtime
+does not expose its optional alignment symbols.
 Shared wrapped-line IDs are accepted only when they are complete and monotonic;
 invalid bridge data falls back to the host layout implementation.
 Push, replace, and back preserve the

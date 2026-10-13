@@ -791,28 +791,28 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             } else {
                 val totalRows = layout.rowHeights.sum()
                 val rowGaps = max(0, layout.rowHeights.size - 1) * rowGap
-                val freeRows = max(0, contentHeight - totalRows - rowGaps)
+                val freeRows = max(0, contentHeight - totalRows - rowGaps).toFloat()
                 val rowCount = max(1, layout.rowHeights.size)
-                var rowLeading = 0
-                var rowBetween = rowGap
-                var rowExtra = 0
+                var rowLeading = 0f
+                var rowBetween = rowGap.toFloat()
+                var rowExtra = 0f
                 when (alignContentCode()) {
-                    1 -> rowLeading = freeRows / 2
+                    1 -> rowLeading = freeRows / 2f
                     2 -> rowLeading = freeRows
-                    3 -> if (rowCount > 1) rowBetween += freeRows / (rowCount - 1)
+                    3 -> if (rowCount > 1) rowBetween += freeRows / (rowCount - 1).toFloat()
                     4 -> {
-                        rowLeading = freeRows / (rowCount * 2)
-                        rowBetween += freeRows / rowCount
+                        rowLeading = freeRows / (rowCount * 2).toFloat()
+                        rowBetween += freeRows / rowCount.toFloat()
                     }
                     6 -> {
-                        rowLeading = freeRows / (rowCount + 1)
-                        rowBetween += freeRows / (rowCount + 1)
+                        rowLeading = freeRows / (rowCount + 1).toFloat()
+                        rowBetween += freeRows / (rowCount + 1).toFloat()
                     }
-                    5 -> rowExtra = freeRows / rowCount
+                    5 -> rowExtra = freeRows / rowCount.toFloat()
                 }
-                var rowTop = paddingTop + rowLeading
+                var rowTop = paddingTop.toFloat() + rowLeading
                 for ((rowIndex, row) in layout.rows.withIndex()) {
-                    val rowHeight = layout.rowHeights[rowIndex] + rowExtra
+                    val rowHeight = layout.rowHeights[rowIndex].toFloat() + rowExtra
                     for ((column, entry) in row.withIndex()) {
                         val align = entry.style.alignSelf ?: alignItems
                         val lp = entry.view.layoutParams as? MarginLayoutParams
@@ -821,7 +821,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                         val marginTop = lp?.topMargin ?: 0
                         val marginBottom = lp?.bottomMargin ?: 0
                         val availableWidth = max(0, layout.cellWidth - marginLeft - marginRight)
-                        val availableHeight = max(0, rowHeight - marginTop - marginBottom)
+                        val availableHeight = max(0, (rowHeight - marginTop - marginBottom).roundToInt())
                         val childWidth = if (align == "stretch" && entry.style.width == null) availableWidth else min(availableWidth, entry.width)
                         val childHeight = if (align == "stretch" && entry.style.height == null) availableHeight else min(availableHeight, entry.height)
                         val x = paddingLeft + column * (layout.cellWidth + columnGap) + marginLeft + when (align) {
@@ -829,11 +829,11 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                             "flex-end" -> availableWidth - childWidth
                             else -> 0
                         }
-                        val y = rowTop + marginTop + when (align) {
+                        val y = (rowTop + marginTop + when (align) {
                             "center" -> (availableHeight - childHeight) / 2
                             "flex-end" -> availableHeight - childHeight
                             else -> 0
-                        }
+                        }).roundToInt()
                         entry.view.layout(x, y, x + childWidth, y + childHeight)
                     }
                     rowTop += rowHeight + rowBetween
