@@ -262,6 +262,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('send(screen, "APPEARANCE", appearance())')
       expect(nativeActivity).toContain('private fun appearance(): JSONObject')
       expect(nativeActivity).toContain('.put("fontScale", (scale * 1000).roundToInt() / 1000.0)')
+      expect(nativeActivity).toContain('import android.animation.ValueAnimator')
+      expect(nativeActivity).toContain('.put("reduceMotion", !ValueAnimator.areAnimatorsEnabled())')
       expect(nativeActivity).toContain('Configuration.UI_MODE_NIGHT_MASK')
       expect(nativeActivity).toContain('colorScheme: ${JSONObject.quote(colorScheme())}')
       expect(readFileSync(join(native, 'app/src/main/AndroidManifest.xml'), 'utf8'))

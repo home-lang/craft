@@ -1548,6 +1548,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('send(screen, "APPEARANCE", appearance())')
     expect(android).toContain('private fun appearance(): JSONObject')
     expect(android).toContain('.put("fontScale", (scale * 1000).roundToInt() / 1000.0)')
+    expect(android).toContain('import android.animation.ValueAnimator')
+    expect(android).toContain('.put("reduceMotion", !ValueAnimator.areAnimatorsEnabled())')
     expect(android).toContain('Configuration.UI_MODE_NIGHT_MASK')
     expect(android).toContain('colorScheme: ${JSONObject.quote(colorScheme())}')
   })
