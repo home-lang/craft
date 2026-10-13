@@ -135,7 +135,8 @@ When `flexShrink` is omitted, horizontal text labels and scroll hosts use the
 same shrink defaults as the iOS renderer; buttons and editable fields retain
 their intrinsic width unless explicitly configured.
 Wrapped containers also honor `alignContent` (`center`, `flex-end`,
-`space-between`, `space-around`, and `stretch`) consistently across hosts.
+`space-between`, `space-around`, `space-evenly`, and `stretch`) consistently
+across hosts.
 Shared wrapped-line IDs are accepted only when they are complete and monotonic;
 invalid bridge data falls back to the host layout implementation.
 Push, replace, and back preserve the
