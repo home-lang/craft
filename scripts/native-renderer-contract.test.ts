@@ -1573,7 +1573,8 @@ describe('native renderer component contract', () => {
     expect(hybrid).toContain('!(current.topViewController is CraftHybridWebSlot && target.topViewController is CraftHybridWebSlot)')
     expect(hybrid).toContain('target.awaitingPage = false')
     expect(hybrid).toContain('let delta = abs(translation) >= 32 ? translation : velocity')
-    expect(hybrid).toContain('gestureRecognizer !== nav.interactivePopGestureRecognizer')
+    expect(hybrid).toContain('nativeScreenContainsHorizontalScroll(native) {\n            let moved')
+    expect(hybrid).not.toContain('gestureRecognizer !== nav.interactivePopGestureRecognizer,\n           nativeScreenContainsHorizontalScroll(native)')
     expect(hybrid).toContain('if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }')
   })
 

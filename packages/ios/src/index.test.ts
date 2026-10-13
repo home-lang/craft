@@ -1353,6 +1353,10 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('if let tabSwipeEnabled = options["tabSwipeEnabled"] as? Bool {')
     expect(screen).toContain('private(set) var tabSwipeEnabled = true')
     expect(hybrid).toContain('!native.contentSwipeBack')
+    // Both iOS pop recognizers must yield to a native horizontal pager unless
+    // the gesture starts inside the normal 32pt back-swipe edge.
+    expect(hybrid).toContain('nativeScreenContainsHorizontalScroll(native) {\n            let moved')
+    expect(hybrid).not.toContain('gestureRecognizer !== nav.interactivePopGestureRecognizer,\n           nativeScreenContainsHorizontalScroll(native)')
     expect(hybrid).toContain('!native.tabSwipeEnabled || !native.contentSwipeBack')
     expect(hybrid).toContain('private var tabSwipeRecognizers: [UIGestureRecognizer] = []')
     expect(hybrid).toContain('@objc private func tabSwipeRecognized(_ recognizer: UIPanGestureRecognizer)')

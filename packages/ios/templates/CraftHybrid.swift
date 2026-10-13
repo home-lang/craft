@@ -1657,7 +1657,6 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
             return false
         }
         if let native = nav.topViewController as? CraftNativeScreenController,
-           gestureRecognizer !== nav.interactivePopGestureRecognizer,
            nativeScreenContainsHorizontalScroll(native) {
             let moved = (gestureRecognizer as? UIPanGestureRecognizer)?.translation(in: nav.view).x ?? 0
             if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }
