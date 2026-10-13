@@ -388,6 +388,14 @@ function openCapabilities() {
       >
         <Text testID="native-image-background-label" style={{"color":"#ffffff"}}>Background child</Text>
       </ImageBackground>
+      <KeyboardAvoidingView
+        testID="native-keyboard-avoiding"
+        behavior="padding"
+        keyboardVerticalOffset={4}
+        style={{"width":180,"height":48,"backgroundColor":"#1e293b"}}
+      >
+        <TextInput testID="native-keyboard-avoiding-input" placeholder="Keyboard input" />
+      </KeyboardAvoidingView>
       <svg
         testID="native-svg"
         viewBox="0 0 24 24"

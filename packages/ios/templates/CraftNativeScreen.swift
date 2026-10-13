@@ -608,7 +608,7 @@ enum CraftNativeFlexLayout {
 /// grid. It is a UIStackView in name only, so existing callers and tests keep
 /// `axis`, `alignment` and `arrangedSubviews`; the stack view's own
 /// constraints are never created, and every frame comes from `layout`.
-private final class CraftNativeFlowView: UIStackView {
+private class CraftNativeFlowView: UIStackView {
     var pressActiveOpacity: CGFloat?
     var pressBaseOpacity: CGFloat = 1
     var wrap = false { didSet { if wrap != oldValue { invalidateMeasurements() } } }
@@ -1309,6 +1309,72 @@ private final class CraftNativeFlowView: UIStackView {
             }
         }
         return CGSize(width: width, height: innerHeight ?? height)
+    }
+}
+
+/// A flex container that responds to the controller's keyboard overlap.
+/// `padding` keeps the content visible without moving the field; `position`
+/// lifts the whole container; `height` reduces its viewport.
+private final class CraftNativeKeyboardAvoidingView: CraftNativeFlowView {
+    private var authoredPadding = UIEdgeInsets.zero
+    private var keyboardInset: CGFloat = 0
+    private var keyboardVerticalOffset: CGFloat = 0
+    private var keyboardBehavior = "padding"
+    private var appliedHeightInset: CGFloat = 0
+    private var adjustingHeight = false
+
+    func configureKeyboard(props: [String: Any]) {
+        let requestedBehavior = (props["behavior"] as? String) ?? "padding"
+        keyboardBehavior = ["height", "position", "padding"].contains(requestedBehavior) ? requestedBehavior : "padding"
+        keyboardVerticalOffset = (props["keyboardVerticalOffset"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
+        if keyboardBehavior != "height" { appliedHeightInset = 0 }
+        authoredPadding = padding
+        applyKeyboardAvoidance()
+    }
+
+    func setKeyboardInset(_ inset: CGFloat) {
+        guard abs(keyboardInset - inset) > 0.5 else { return }
+        keyboardInset = max(0, inset)
+        applyKeyboardAvoidance()
+    }
+
+    private var effectiveInset: CGFloat { max(0, keyboardInset - keyboardVerticalOffset) }
+
+    private func applyKeyboardAvoidance() {
+        let inset = effectiveInset
+        switch keyboardBehavior {
+        case "position":
+            transform = CGAffineTransform(translationX: 0, y: -inset)
+            padding = authoredPadding
+        case "height":
+            transform = .identity
+            padding = authoredPadding
+        default:
+            transform = .identity
+            padding = UIEdgeInsets(
+                top: authoredPadding.top,
+                left: authoredPadding.left,
+                bottom: authoredPadding.bottom + inset,
+                right: authoredPadding.right
+            )
+        }
+        invalidateMeasurements()
+    }
+
+    override func layoutSubviews() {
+        if keyboardBehavior == "height", !adjustingHeight {
+            let inset = effectiveInset
+            let target = max(0, bounds.height + appliedHeightInset - inset)
+            if abs(target - bounds.height) > 0.5 {
+                adjustingHeight = true
+                appliedHeightInset = inset
+                bounds.size.height = target
+                super.layoutSubviews()
+                adjustingHeight = false
+                return
+            }
+        }
+        super.layoutSubviews()
     }
 }
 
@@ -3090,17 +3156,46 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         let duration = (notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?.doubleValue ?? 0.25
         let curve = (notification.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber)?.uintValue ?? 7
-        let changed = abs(inset - keyboardSafeAreaInset) > 0.5
+        let globalInset = containsKeyboardAvoidingView() ? 0 : inset
+        let safeAreaChanged = abs(additionalSafeAreaInsets.bottom - globalInset) > 0.5
         keyboardSafeAreaInset = inset
         keyboardScreenFrame = keyboardFrame
+        updateKeyboardAvoidingViews()
         UIView.animate(withDuration: duration, delay: 0, options: UIView.AnimationOptions(rawValue: UInt(curve << 16))) {
-            if changed {
-                self.additionalSafeAreaInsets.bottom = inset
+            if safeAreaChanged {
+                self.additionalSafeAreaInsets.bottom = globalInset
                 self.view.layoutIfNeeded()
             }
             self.insetScrollViewsForKeyboard()
             self.scrollFocusedInputIntoView(animated: false)
         }
+    }
+
+    private func updateKeyboardAvoidingViews() {
+        func visit(_ node: RenderedNode?) {
+            guard let node else { return }
+            if let keyboard = node.view as? CraftNativeKeyboardAvoidingView {
+                keyboard.setKeyboardInset(keyboardSafeAreaInset)
+            }
+            node.children.forEach(visit)
+        }
+        visit(renderedRoot)
+    }
+
+    private func containsKeyboardAvoidingView() -> Bool {
+        func visit(_ node: RenderedNode?) -> Bool {
+            guard let node else { return false }
+            if node.view is CraftNativeKeyboardAvoidingView { return true }
+            return node.children.contains(where: visit)
+        }
+        return visit(renderedRoot)
+    }
+
+    private func syncGlobalKeyboardSafeArea() {
+        let globalInset = containsKeyboardAvoidingView() ? 0 : keyboardSafeAreaInset
+        guard abs(additionalSafeAreaInsets.bottom - globalInset) > 0.5 else { return }
+        additionalSafeAreaInsets.bottom = globalInset
+        view.setNeedsLayout()
     }
 
     /// A scroll view the keyboard still covers part of (one that does not end
@@ -3441,6 +3536,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         rootStack.setLayoutStyle(rootStyle, for: next.view)
         rootStack.invalidateMeasurements()
         renderedRoot = next
+        updateKeyboardAvoidingViews()
+        syncGlobalKeyboardSafeArea()
         trackContentScrollView()
         restoreFocus(focused)
     }
@@ -3448,6 +3545,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func clearRenderedTree() {
         if let root = renderedRoot { detach(root, from: rootStack) }
         renderedRoot = nil
+        syncGlobalKeyboardSafeArea()
     }
 
     private func firstResponder(in view: UIView) -> UIView? {
@@ -3482,7 +3580,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         current.protocolId = node["id"] as? String
         current.style = style
         result.accessibilityIdentifier = accessibilityIdentifier(node, props: props) ?? path
-        if type != "View" && type != "SafeAreaView" && type != "ScrollView" && type != "FlatList" && type != "Modal" {
+        if type != "View" && type != "SafeAreaView" && type != "KeyboardAvoidingView" && type != "ScrollView" && type != "FlatList" && type != "Modal" {
             result.setContentHuggingPriority(.required, for: .vertical)
         }
         applyViewStyle(style, to: result, node: current)
@@ -3773,6 +3871,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updateImage(background, source: props["source"])
             configureStack(background.contentStack, style: style)
             reconcileChildren(children, in: background.contentStack, parent: current, path: path, style: style)
+        case "KeyboardAvoidingView":
+            let keyboard = result as! CraftNativeKeyboardAvoidingView
+            configureStack(keyboard, style: style)
+            keyboard.configureKeyboard(props: props)
+            reconcileChildren(children, in: keyboard, parent: current, path: path, style: style)
         case "Video":
             let video = result as! CraftNativeVideoView
             let autoplay = (props["autoplay"] as? Bool) == true || (props["autoPlay"] as? Bool) == true
@@ -3908,6 +4011,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return UIImageView()
         case "ImageBackground":
             return CraftNativeImageBackgroundView(frame: .zero)
+        case "KeyboardAvoidingView":
+            return CraftNativeKeyboardAvoidingView()
         case "Video":
             return CraftNativeVideoView(host: self)
         case "Icon":
@@ -3933,6 +4038,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         switch raw.lowercased() {
         case "view": return "View"
         case "safeareaview": return "SafeAreaView"
+        case "keyboardavoidingview": return "KeyboardAvoidingView"
         case "text": return "Text"
         case "button": return "Button"
         case "link": return "Link"
