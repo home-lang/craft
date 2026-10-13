@@ -1,5 +1,16 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.154...v0.0.155)
+
+## 🚀 Features
+
+- **ios**: restore package-owned Swift shells for cloud builds ([0b1606c](https://github.com/craft-native/craft/commit/0b1606c)) _(by Chris Breuer)_
+- **ios**: ship configurable simulator and mutation test shells ([21d48c9](https://github.com/craft-native/craft/commit/21d48c9)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.153...v0.0.154)
 
 ## 🚀 Features
