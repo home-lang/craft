@@ -254,6 +254,42 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(header.accessibilityTraits.contains(.header))
     }
 
+    func testButtonRowWithoutALabelReadsItsText() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([
+            [
+                "type": "View",
+                "props": ["key": "email-row", "accessibilityRole": "button"],
+                "children": [
+                    ["type": "Image", "props": ["key": "avatar", "accessibilityLabel": "Diego Ruiz"], "children": []],
+                    ["type": "Text", "props": ["key": "name"], "children": ["Diego Ruiz"]],
+                    ["type": "View", "props": ["key": "inner"], "children": [
+                        ["type": "Text", "props": ["key": "email"], "children": ["diego@example.org"]],
+                    ]],
+                    ["type": "Icon", "props": ["key": "chevron", "name": "chevron-right"], "children": []],
+                ],
+            ],
+            [
+                "type": "View",
+                "props": ["key": "labelled", "accessibilityRole": "button", "accessibilityLabel": "Sign out"],
+                "children": [["type": "Text", "props": ["key": "inside"], "children": ["Log out"]]],
+            ],
+            [
+                "type": "View",
+                "props": ["key": "plain"],
+                "children": [["type": "Text", "props": ["key": "loose"], "children": ["Not grouped"]]],
+            ],
+        ]))
+
+        let row = try XCTUnwrap(find(UIView.self, key: "email-row", below: controller.view))
+        XCTAssertTrue(row.isAccessibilityElement)
+        XCTAssertEqual(row.accessibilityLabel, "Diego Ruiz, diego@example.org")
+        XCTAssertTrue(row.accessibilityTraits.contains(.button))
+        XCTAssertEqual(try XCTUnwrap(find(UIView.self, key: "labelled", below: controller.view)).accessibilityLabel, "Sign out")
+        XCTAssertNil(try XCTUnwrap(find(UIView.self, key: "plain", below: controller.view)).accessibilityLabel)
+    }
+
     func testSharedLayoutColorAndTextStylesMapToUIKit() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()

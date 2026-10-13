@@ -653,6 +653,36 @@ private final class CraftNativeFlowView: UIStackView {
 
     required init(coder: NSCoder) { super.init(coder: coder) }
 
+    /// A view made one accessibility element (a row with `accessibilityRole`)
+    /// hides its children from VoiceOver, so with no label of its own it reads
+    /// what they say, in order, as React Native's accessible View does. A
+    /// label given in props always wins.
+    override var accessibilityLabel: String? {
+        get {
+            if let own = super.accessibilityLabel, !own.isEmpty { return own }
+            guard isAccessibilityElement else { return nil }
+            // An avatar labelled with the name beside it is said once.
+            var spoken: [String] = []
+            for part in CraftNativeFlowView.spokenText(in: self) where !spoken.contains(part) { spoken.append(part) }
+            return spoken.isEmpty ? nil : spoken.joined(separator: ", ")
+        }
+        set { super.accessibilityLabel = newValue }
+    }
+
+    private static func spokenText(in view: UIView) -> [String] {
+        var parts: [String] = []
+        for child in view.subviews where !child.isHidden && child.alpha > 0.01 {
+            if child.isAccessibilityElement {
+                // A Text's label is its text (applyAccessibility leaves accessibilityLabel nil).
+                let said = child.accessibilityLabel ?? (child as? UILabel)?.text
+                if let label = said?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty { parts.append(label) }
+            } else {
+                parts.append(contentsOf: spokenText(in: child))
+            }
+        }
+        return parts
+    }
+
     private var alignmentValue: UIStackView.Alignment {
         switch alignItems {
         case "flex-start": return .leading
