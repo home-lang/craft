@@ -360,196 +360,6 @@ private final class CraftNativeVideoView: UIView {
     deinit { stop() }
 }
 
-/// The small Web Audio subset used by native STX screens: oscillator and gain
-/// nodes connected to the context destination. JavaScriptCore has no Web Audio
-/// implementation, so the screen installs a compatible surface and routes the
-/// graph to one AVAudioEngine source node per oscillator.
-private final class CraftNativeAudio {
-    private struct ParameterEvent {
-        let time: Double
-        let value: Double
-        let ramp: Bool
-    }
-
-    private final class Parameter {
-        private let lock = NSLock()
-        private var current: Double
-        private var events: [ParameterEvent] = []
-
-        init(_ value: Double) {
-            current = value
-        }
-
-        func set(_ value: Double) {
-            lock.lock(); defer { lock.unlock() }
-            current = value
-            events.removeAll()
-        }
-
-        func schedule(_ value: Double, at time: Double, ramp: Bool) {
-            lock.lock(); defer { lock.unlock() }
-            events.append(ParameterEvent(time: max(0, time), value: value, ramp: ramp))
-            events.sort { $0.time < $1.time }
-        }
-
-        func value(at time: Double) -> Double {
-            lock.lock(); defer { lock.unlock() }
-            var previousTime = 0.0
-            var previousValue = current
-            for event in events {
-                if time < event.time {
-                    guard event.ramp, event.time > previousTime else { return previousValue }
-                    let fraction = (time - previousTime) / (event.time - previousTime)
-                    return previousValue + (event.value - previousValue) * fraction
-                }
-                previousTime = event.time
-                previousValue = event.value
-            }
-            return previousValue
-        }
-    }
-
-    private final class OscillatorState {
-        let lock = NSLock()
-        let frequency = Parameter(440)
-        var gain = Parameter(1)
-        var phase = 0.0
-        var active = false
-        let contextStart: TimeInterval
-
-        init(contextStart: TimeInterval) {
-            self.contextStart = contextStart
-        }
-    }
-
-    private let engine = AVAudioEngine()
-    private var format: AVAudioFormat?
-    private var sources: [String: (state: OscillatorState, node: AVAudioSourceNode)] = [:]
-    private var gains: [String: Parameter] = [:]
-    private var contextStarts: [String: TimeInterval] = [:]
-    private var closed = false
-
-    func handle(_ payload: [String: Any]) {
-        guard !closed, let action = payload["action"] as? String else { return }
-        switch action {
-        case "createContext":
-            closed = false
-            if let contextID = payload["contextId"] as? String {
-                contextStarts[contextID] = Date().timeIntervalSince1970
-            }
-        case "createOscillator":
-            guard let id = payload["nodeId"] as? String else { return }
-            let contextStart = (payload["contextId"] as? String).flatMap { contextStarts[$0] } ?? Date().timeIntervalSince1970
-            createOscillator(id: id, frequency: number(payload["frequency"]) ?? 440, contextStart: contextStart)
-        case "createGain":
-            guard let id = payload["nodeId"] as? String else { return }
-            gains[id] = Parameter(number(payload["gain"]) ?? 1)
-        case "connect":
-            guard let sourceID = payload["sourceId"] as? String else { return }
-            let destinationID = payload["destinationId"] as? String
-            if var source = sources[sourceID] {
-                source.state.lock.lock()
-                source.state.gain = destinationID.flatMap { gains[$0] } ?? Parameter(1)
-                source.state.lock.unlock()
-                sources[sourceID] = source
-            }
-        case "frequency":
-            guard let id = payload["nodeId"] as? String, let value = number(payload["value"]), let source = sources[id] else { return }
-            source.state.frequency.set(max(0, value))
-        case "frequencyAtTime", "frequencyRampToTime":
-            guard let id = payload["nodeId"] as? String, let value = number(payload["value"]), let time = number(payload["time"]), let source = sources[id] else { return }
-            source.state.frequency.schedule(max(0, value), at: time, ramp: action == "frequencyRampToTime")
-        case "gain":
-            guard let id = payload["nodeId"] as? String, let value = number(payload["value"]) else { return }
-            gains[id]?.set(max(0, value))
-        case "gainAtTime", "gainRampToTime":
-            guard let id = payload["nodeId"] as? String, let value = number(payload["value"]), let time = number(payload["time"]) else { return }
-            gains[id]?.schedule(max(0, value), at: time, ramp: action == "gainRampToTime")
-        case "start", "stop":
-            guard let id = payload["nodeId"] as? String, let source = sources[id] else { return }
-            if action == "start" { start(source.state, after: max(0, number(payload["delay"]) ?? 0)) }
-            else { stop(source.state, after: max(0, number(payload["delay"]) ?? 0)) }
-        case "close":
-            close()
-        default:
-            break
-        }
-    }
-
-    func close() {
-        guard !closed else { return }
-        closed = true
-        sources.values.forEach { source in
-            source.state.lock.lock(); source.state.active = false; source.state.lock.unlock()
-            engine.detach(source.node)
-        }
-        sources.removeAll()
-        gains.removeAll()
-        contextStarts.removeAll()
-        engine.stop()
-    }
-
-    private func createOscillator(id: String, frequency: Double, contextStart: TimeInterval) {
-        guard sources[id] == nil else { return }
-        guard let format = audioFormat() else { return }
-        let state = OscillatorState(contextStart: contextStart)
-        state.frequency.set(max(0, frequency))
-        let node = AVAudioSourceNode(format: format) { _, _, frameCount, audioBufferList in
-            let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
-            state.lock.lock()
-            let active = state.active
-            let frequency = state.frequency
-            let gain = state.gain
-            var phase = state.phase
-            state.lock.unlock()
-            let startTime = max(0, Date().timeIntervalSince1970 - state.contextStart)
-            for buffer in buffers {
-                guard let data = buffer.mData else { continue }
-                let samples = data.assumingMemoryBound(to: Float.self)
-                for frame in 0..<Int(frameCount) {
-                    let frameTime = startTime + Double(frame) / format.sampleRate
-                    let frameFrequency = frequency.value(at: frameTime)
-                    let frameGain = gain.value(at: frameTime)
-                    samples[frame] = active ? Float(sin(phase) * frameGain) : 0
-                    phase += 2 * Double.pi * frameFrequency / format.sampleRate
-                    if phase >= 2 * Double.pi { phase -= 2 * Double.pi }
-                }
-            }
-            state.lock.lock(); state.phase = phase; state.lock.unlock()
-            return noErr
-        }
-        engine.attach(node)
-        engine.connect(node, to: engine.mainMixerNode, format: format)
-        sources[id] = (state, node)
-    }
-
-    private func audioFormat() -> AVAudioFormat? {
-        if let format { return format }
-        let created = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 2)
-        format = created
-        return created
-    }
-
-    private func start(_ state: OscillatorState, after delay: Double) {
-        if !engine.isRunning {
-            try? engine.start()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            state.lock.lock(); state.active = true; state.lock.unlock()
-        }
-    }
-
-    private func stop(_ state: OscillatorState, after delay: Double) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            state.lock.lock(); state.active = false; state.lock.unlock()
-        }
-    }
-
-    private func number(_ value: Any?) -> Double? {
-        (value as? NSNumber).map { $0.doubleValue }
-    }
-}
-
 /// A WebView-free host for the first stx native vertical slice. The bundled
 /// JavaScript sends whole, compiled view trees to UIKit and receives control
 /// events and Craft API replies through JavaScriptCore.
@@ -2249,7 +2059,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// A drawing's shapes are not views: a change to one redraws its `Svg`.
     private var svgOwners: [String: String] = [:]
     private let mutationDocument = CraftNativeMutationDocument()
-    private let audio = CraftNativeAudio()
+    /// The screen's Web Audio (CraftWebAudio.swift): its `AudioContext`s.
+    private let audio = CraftWebAudio()
     /// `craft.audio`'s sounds and the streaming responses this screen reads.
     private let sounds = CraftNativeSounds()
     private let streams = CraftNativeEventStreams()
@@ -2610,6 +2421,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         jsContext.setObject(snapshotSet, forKeyedSubscript: "craftNativeSnapshotSet" as NSString)
         jsContext.setObject(secureGet, forKeyedSubscript: "craftNativeSecureGet" as NSString)
         jsContext.setObject(setOptions, forKeyedSubscript: "craftNativeSetOptions" as NSString)
+        // `AudioContext` and the rest of Web Audio, rendered natively.
+        audio.install(in: jsContext)
         // `crypto` for code shared with the page (a sign-in's nonce and its
         // SHA-256): JavaScriptCore has none. Random bytes from the system's
         // generator, digests from CryptoKit, both as hex.
@@ -2766,76 +2579,6 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 keep('navigation', {
                     setOptions: function(options) { craftNativeSetOptions(JSON.stringify(options || {})); }
                 });
-                if (typeof globalThis.AudioContext !== 'function') {
-                    var nextAudioId = 0;
-                    function audioMessage(payload) {
-                        globalThis.__stxNativeBridge.postMessage({ type: 'AUDIO', payload: payload });
-                    }
-                    function audioParam(contextId, nodeId, action, initial) {
-                        var current = Number(initial) || 0;
-                        var param = {};
-                        Object.defineProperty(param, 'value', {
-                            configurable: true,
-                            enumerable: true,
-                            get: function() { return current; },
-                            set: function(value) {
-                                current = Number(value) || 0;
-                                audioMessage({ action: action, contextId: contextId, nodeId: nodeId, value: current });
-                            }
-                        });
-                        function schedule(value, when, ramp) {
-                            current = Number(value) || 0;
-                            var time = Number(when);
-                            audioMessage({ action: action + (ramp ? 'RampToTime' : 'AtTime'), contextId: contextId, nodeId: nodeId, value: current, time: isFinite(time) ? Math.max(0, time) : 0 });
-                        }
-                        param.setValueAtTime = function(value, when) { schedule(value, when, false); return param; };
-                        param.linearRampToValueAtTime = function(value, when) { schedule(value, when, true); return param; };
-                        return param;
-                    }
-                    function AudioContext() {
-                        this._id = 'audio-' + (++nextAudioId);
-                        this._started = Date.now() / 1000;
-                        this.state = 'running';
-                        this.destination = { _contextId: this._id, _nodeId: 'destination' };
-                        audioMessage({ action: 'createContext', contextId: this._id });
-                    }
-                    Object.defineProperty(AudioContext.prototype, 'currentTime', {
-                        get: function() { return Date.now() / 1000 - this._started; }
-                    });
-                    AudioContext.prototype.createOscillator = function() {
-                        var context = this;
-                        var node = { _contextId: context._id, _nodeId: context._id + '-osc-' + (++nextAudioId) };
-                        node.frequency = audioParam(context._id, node._nodeId, 'frequency', 440);
-                        node.connect = function(destination) {
-                            audioMessage({ action: 'connect', contextId: context._id, sourceId: node._nodeId, destinationId: destination && destination._nodeId || 'destination' });
-                            return destination;
-                        };
-                        node.start = function(when) {
-                            audioMessage({ action: 'start', contextId: context._id, nodeId: node._nodeId, delay: Math.max(0, (Number(when) || 0) - context.currentTime) });
-                        };
-                        node.stop = function(when) {
-                            audioMessage({ action: 'stop', contextId: context._id, nodeId: node._nodeId, delay: Math.max(0, (Number(when) || 0) - context.currentTime) });
-                        };
-                        audioMessage({ action: 'createOscillator', contextId: context._id, nodeId: node._nodeId, frequency: node.frequency.value });
-                        return node;
-                    };
-                    AudioContext.prototype.createGain = function() {
-                        var context = this;
-                        var node = { _contextId: context._id, _nodeId: context._id + '-gain-' + (++nextAudioId) };
-                        node.gain = audioParam(context._id, node._nodeId, 'gain', 1);
-                        node.connect = function(destination) {
-                            audioMessage({ action: 'connect', contextId: context._id, sourceId: node._nodeId, destinationId: destination && destination._nodeId || 'destination' });
-                            return destination;
-                        };
-                        audioMessage({ action: 'createGain', contextId: context._id, nodeId: node._nodeId, gain: node.gain.value });
-                        return node;
-                    };
-                    AudioContext.prototype.resume = function() { this.state = 'running'; return Promise.resolve(); };
-                    AudioContext.prototype.suspend = function() { this.state = 'suspended'; return Promise.resolve(); };
-                    AudioContext.prototype.close = function() { this.state = 'closed'; audioMessage({ action: 'close', contextId: this._id }); return Promise.resolve(); };
-                    globalThis.AudioContext = AudioContext;
-                    globalThis.webkitAudioContext = AudioContext;
-                }
             })();
         """)
     }
@@ -3361,8 +3104,6 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             pendingCapabilityDeadlines.removeValue(forKey: requestToken)?.cancel()
             screenRequestCancellers.removeValue(forKey: requestToken)?()
             CraftNativeActions.cancel(requestToken: requestToken)
-        case "AUDIO":
-            audio.handle(payload)
         default:
             break
         }

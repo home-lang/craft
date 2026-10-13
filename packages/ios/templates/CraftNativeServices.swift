@@ -261,7 +261,7 @@ final class CraftNativeSounds {
     private func remove(_ id: String) {
         guard let sound = sounds.removeValue(forKey: id) else { return }
         sound.end()
-        Self.released()
+        Self.releaseSession()
     }
 
     /// Moves the volume in steps on the main run loop, a 30th of a second
@@ -284,7 +284,10 @@ final class CraftNativeSounds {
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    private static func claimSession(respectSilentSwitch: Bool) {
+    /// Takes the session for one more playing sound. Native screens' Web
+    /// Audio (CraftWebAudio.swift) counts here too, so speech hands the
+    /// session back to whichever of them still plays.
+    static func claimSession(respectSilentSwitch: Bool) {
         playing += 1
         category = respectSilentSwitch ? .ambient : .playback
         let session = AVAudioSession.sharedInstance()
@@ -297,7 +300,7 @@ final class CraftNativeSounds {
         }
     }
 
-    private static func released() {
+    static func releaseSession() {
         playing = max(0, playing - 1)
         guard playing == 0, let previous = sessionToRestore else { return }
         sessionToRestore = nil

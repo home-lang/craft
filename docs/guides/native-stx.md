@@ -126,15 +126,34 @@ string or `{ uri }`, while `autoplay`/`autoPlay`, `paused`, `loop`, `muted`,
 element. The native player is stopped when its node is removed or replaced;
 unsupported or empty sources remain inert instead of falling back to a WebView.
 
-Native screens expose the AudioContext subset used by the native breathwork
-path: `createOscillator()`, `createGain()`, `connect()`, the `frequency` and
-`gain` AudioParams (including `setValueAtTime()` and
-`linearRampToValueAtTime()`), `start()`/`stop()` scheduling, and
-`resume()`/`close()`.
-The iOS host synthesizes these nodes with `AVAudioEngine`; Android mixes them
-through `AudioTrack`. Both hosts tear the graph down with the screen. This is a
-deliberate subset, not a claim of full Web Audio coverage: filters, buffers,
-worklets, and media-element sources still require the WebView renderer.
+Native screens have Web Audio: the standard `AudioContext` API, so code
+written for a page (synthesised music, breath tones, filtered noise) runs
+unchanged. On iOS (`CraftWebAudio.swift`) that is `AudioContext`
+(`currentTime`, `sampleRate`, `state`, `resume()`/`suspend()`/`close()`,
+`statechange`), `AudioParam` (`value`, `setValueAtTime`,
+`linearRampToValueAtTime`, `exponentialRampToValueAtTime`, `setTargetAtTime`,
+`setValueCurveAtTime`, `cancelScheduledValues`, `cancelAndHoldAtTime`, and a
+node connected into a param), `GainNode`, `OscillatorNode` (sine, square,
+sawtooth, triangle, `frequency`, `detune`), `AudioBuffer` and
+`AudioBufferSourceNode` (`loop`, `loopStart`/`loopEnd`, offset, duration,
+`playbackRate`, `detune`), `BiquadFilterNode` (all eight types),
+`DelayNode` (in a feedback cycle too), `DynamicsCompressorNode` and
+`ConvolverNode` (with the spec's normalisation), `connect()`/`disconnect()`,
+`start()`/`stop()` and `onended`.
+
+The graph renders in 128-frame quanta, as the spec describes, inside one
+`AVAudioSourceNode` per context on the screen's `AVAudioEngine`; a step
+sequencer's short-lived nodes are freed once the script lets go of them
+(`FinalizationRegistry`) and they can no longer sound. The convolver runs its
+first 512 taps directly and the rest as partitioned FFT convolution, so it adds
+no latency. Approximations, inaudible for synthesis: square and sawtooth are
+PolyBLEP band-limited rather than wavetables, a biquad takes its coefficients
+once per quantum, the compressor has no look-ahead, and a 4-channel impulse
+response uses its first two channels. The session is `.ambient`, mixing with
+other audio and muted by the silent switch, as a web view's Web Audio is.
+`decodeAudioData` refuses: play a file with `craft.audio`. Android still mixes
+only oscillators and gains through `AudioTrack`. Both hosts tear the graph down
+with the screen.
 
 `Svg` is DOM-free in native mode: the compiler emits geometry commands for
 shape nodes, `G` inherits fill/stroke paint, and `SvgText` draws text in the

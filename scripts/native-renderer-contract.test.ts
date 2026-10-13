@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test'
 
 const root = join(import.meta.dir, '..')
 const ios = readFileSync(join(root, 'packages/ios/templates/CraftNativeScreen.swift'), 'utf8')
+const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
 const androidNative = readFileSync(join(root, 'packages/android/templates/CraftNative.kt.template'), 'utf8')
@@ -164,15 +165,15 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('`Video` uses the platform player')
   })
 
-  it('keeps the native AudioContext subset wired to both hosts', () => {
-    expect(ios).toContain('private final class CraftNativeAudio')
-    expect(ios).toContain('case "frequencyAtTime", "frequencyRampToTime":')
-    expect(ios).toContain('case "gainAtTime", "gainRampToTime":')
-    expect(ios).toContain("param.linearRampToValueAtTime = function(value, when)")
-    expect(ios).toContain('AVAudioSourceNode')
-    expect(ios).toContain('globalThis.AudioContext = AudioContext')
-    expect(ios).toContain('case "AUDIO":')
+  it('keeps Web Audio wired to both hosts', () => {
+    // iOS renders the whole Web Audio graph (CraftWebAudio.swift).
+    expect(iosWebAudio).toContain('final class CraftWebAudio')
+    expect(iosWebAudio).toContain('let source = AVAudioSourceNode(format: format)')
+    expect(iosWebAudio).toContain('globalThis.AudioContext = AudioContext;')
+    expect(iosWebAudio).toContain("BaseAudioContext.prototype.createConvolver = function()")
+    expect(ios).toContain('audio.install(in: jsContext)')
     expect(ios).toContain('audio.close()')
+    // Android mixes oscillators and gains.
     expect(android).toContain('private class CraftNativeAudio')
     expect(android).toContain('"frequencyAtTime", "frequencyRampToTime"')
     expect(android).toContain('"gainAtTime", "gainRampToTime"')
@@ -181,7 +182,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('globalThis.AudioContext = AudioContext')
     expect(android).toContain('"AUDIO" -> screen.audio.handle(payload)')
     expect(android).toContain('audio.close()')
-    expect(guide).toContain('`createOscillator()`, `createGain()`')
+    expect(guide).toContain('Native screens have Web Audio')
+    expect(guide).toContain('Android still mixes\nonly oscillators and gains')
   })
 
   it('keeps the shared layout core explicit', () => {

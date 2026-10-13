@@ -1306,6 +1306,42 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('self?.send(type: "CRAFT_EVENT", payload: ["event": name')
   })
 
+  it('gives native screens Web Audio, rendered on the screen\'s AVAudioEngine', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-web-audio-'))
+    await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { nativeScreens: { '/m/relax/class/:id': 'BreathClass' } } as any })
+    const audio = readFileSync(join(output, 'Sources', 'CraftWebAudio.swift'), 'utf8')
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    const services = readFileSync(join(output, 'Sources', 'CraftNativeServices.swift'), 'utf8')
+    const plist = readFileSync(join(output, 'Info.plist'), 'utf8')
+    // Installed before the bundle runs, and torn down with the screen.
+    expect(screen).toContain('private let audio = CraftWebAudio()')
+    expect(screen).toContain('audio.install(in: jsContext)')
+    expect(screen).toContain('audio.close()')
+    // The old oscillator-only stand-in (and its unreadable AUDIO messages) is gone.
+    expect(screen).not.toContain("type: 'AUDIO'")
+    expect(screen).not.toContain('class CraftNativeAudio')
+    // The graph renders in one source node per context, in 128-frame quanta.
+    expect(audio).toContain('let craftAudioQuantum = 128')
+    expect(audio).toContain('let source = AVAudioSourceNode(format: format)')
+    expect(audio).toContain('engine.connect(source, to: engine.mainMixerNode, format: format)')
+    for (const node of ['CraftAudioGain', 'CraftAudioOscillator', 'CraftAudioBufferSource', 'CraftAudioBiquad', 'CraftAudioDelay', 'CraftAudioCompressor', 'CraftAudioConvolver'])
+      expect(audio).toContain(`final class ${node}: `)
+    for (const call of ['createDynamicsCompressor', 'createConvolver', 'createBuffer', 'createBufferSource', 'createBiquadFilter', 'createDelay', 'exponentialRampToValueAtTime', 'setTargetAtTime', 'cancelScheduledValues', 'cancelAndHoldAtTime', 'setValueCurveAtTime'])
+      expect(audio).toContain(call)
+    // The render thread never blocks on the main thread.
+    expect(audio).toContain('guard os_unfair_lock_trylock(lock) else { return }')
+    // Ambient, as a web view's Web Audio is: mixes with music, the silent
+    // switch mutes it, and no background audio mode is added for it.
+    expect(audio).toContain('CraftNativeSounds.claimSession(respectSilentSwitch: true)')
+    expect(audio).toContain('CraftNativeSounds.releaseSession()')
+    expect(services).toContain('category = respectSilentSwitch ? .ambient : .playback')
+    expect(services).toContain('try session.setCategory(category, mode: .default, options: [.mixWithOthers])')
+    expect(plist).not.toContain('<string>audio</string>')
+    // A route change or an interruption stops AVAudioEngine; it starts again.
+    expect(audio).toContain('forName: .AVAudioEngineConfigurationChange, object: engine')
+    expect(audio).toContain('AVAudioSession.interruptionNotification')
+  })
+
   it('lends native screens the page\'s Music app bridge', async () => {
     const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-music-'))
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableAppleMusic: true, nativeScreens: { '/m/go/:id': 'Go' } } as any })
