@@ -551,6 +551,11 @@ the edge-only back gesture remains available. A screen that should keep back
 navigation but own the tab gesture can independently set
 `craft.navigation.setOptions({ tabSwipeEnabled: false })`.
 
+In a hybrid app, the same tab gesture also covers the WebView. Pass
+`swipeEnabled: false` to `craft.tabBar.set` when the page owns a horizontal
+gesture of its own; native screens can still opt out independently with
+`tabSwipeEnabled`.
+
 ## An all-native iOS app: paths, tabs and an app script
 
 On its own, `renderer: "native"` is one screen and the stack it pushes. Add
@@ -592,7 +597,9 @@ all: no `WKWebView` is ever created.
   universal link to the site's host that no screen draws opens in the in-app
   browser. Anything else reaches the screens as `DEEP_LINK`. A link that
   launched the app waits for the shell.
-- Tab taps and completed left/right swipes switch stacks natively. Swipes
+- Tab taps and completed left/right swipes switch stacks natively. In a hybrid
+  app the gesture works over both native screens and the WebView; the page can
+  disable it with `craft.tabBar.set(tabs, { swipeEnabled: false })`. Swipes
   yield to a horizontal native scroll view or a screen that sets
   `contentSwipeBack: false` or `tabSwipeEnabled: false`; the tab bar provides selection feedback when a
   swipe changes tabs. A screen that throws before its first frame

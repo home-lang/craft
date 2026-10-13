@@ -1488,6 +1488,11 @@ describe('native renderer component contract', () => {
     expect(hybrid).toContain('if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }')
   })
 
+  it('documents the hybrid tab-swipe opt-out', () => {
+    expect(guide).toContain('craft.tabBar.set(tabs, { swipeEnabled: false })')
+    expect(iosReadme).toContain('craft.tabBar.set(tabs, { swipeEnabled: false })')
+  })
+
   it('keeps Android native file uploads on the owned-file multipart path', () => {
     expect(androidCapabilities).toContain('listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "files")')
     expect(androidCapabilities).toContain('private fun multipart(parts: JSONArray): FileResult')
