@@ -270,6 +270,11 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(gridFirst.frame.minY, gridSecond.frame.minY, accuracy: 2, "grid tracks did not share a row")
         XCTAssertGreaterThan(gridSecond.frame.minX, gridFirst.frame.minX, "grid columns did not lay out side by side")
         XCTAssertGreaterThan(gridThird.frame.minY, gridFirst.frame.minY, "grid rows did not advance after the first track")
+        let gridAlign = app.otherElements["grid-align-wrap"]
+        let gridAlignFirst = app.otherElements["grid-align-first"]
+        let gridAlignThird = app.otherElements["grid-align-third"]
+        XCTAssertTrue(gridAlign.waitForExistence(timeout: 5) && gridAlignFirst.exists && gridAlignThird.exists)
+        XCTAssertGreaterThan(gridAlignFirst.frame.minY - gridAlign.frame.minY, 20, "grid alignContent did not center its rows")
         let alignFirst = app.otherElements["align-content-first"]
         let alignThird = app.otherElements["align-content-third"]
         XCTAssertTrue(alignFirst.waitForExistence(timeout: 5) && alignThird.exists)
