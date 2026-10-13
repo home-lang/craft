@@ -97,7 +97,7 @@ craft android build --native-bundle ../native-screen.js
 ```
 
 Native mode maps STX `View`, `SafeAreaView`, `Text`, `Button`, `Link`,
-`Pressable`, `TouchableOpacity`, `TouchableHighlight`, `TextInput`, `Picker`, `DatePicker`, `Modal`, `Switch`, `Slider`, `ActivityIndicator`, `Image`, `Video`, `ScrollView`,
+`Pressable`, `TouchableOpacity`, `TouchableHighlight`, `Checkbox`, `TextInput`, `Picker`, `DatePicker`, `Modal`, `Switch`, `Slider`, `ActivityIndicator`, `Image`, `Video`, `ScrollView`,
 and `FlatList` to Android views. `Picker` renders `<select>`/`<option>` values
 with `onValueChange` or `onChange`. `DatePicker` uses the platform `DatePicker`
 and `TimePicker` controls for date, time, datetime, and countdown modes and
