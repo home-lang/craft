@@ -965,6 +965,11 @@ describe('native renderer component contract', () => {
     expect(android).toContain('view.elevation = dp(style.optDouble("elevation", 0.0)).toFloat()')
   })
 
+  it('applies the public zIndex style on both native hosts', () => {
+    expect(ios).toContain('view.layer.zPosition = number(style["zIndex"]) ?? 0')
+    expect(android).toContain('view.z = style.optDouble("zIndex", 0.0).toFloat()')
+  })
+
   it('keeps horizontal list rows intrinsically sized across hosts', () => {
     expect(iosFlatList).toContain('flowLayout.scrollDirection = horizontal ? .horizontal : .vertical')
     expect(iosFlatList).toContain('maxWidth: CraftNativeFlexLayout.unbounded,')

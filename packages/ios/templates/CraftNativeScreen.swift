@@ -4713,6 +4713,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         view.craftRequestedCornerRadius = number(style["borderRadius"])
         view.layer.borderWidth = number(style["borderWidth"]) ?? 0
         view.layer.borderColor = (color(style["borderColor"]) ?? .clear).cgColor
+        view.layer.zPosition = number(style["zIndex"]) ?? 0
         let elevation = max(0, number(style["elevation"]) ?? 0)
         view.layer.shadowColor = UIColor.black.cgColor
         view.layer.shadowOpacity = elevation > 0 ? Float(min(0.28, 0.12 + elevation * 0.02)) : 0
