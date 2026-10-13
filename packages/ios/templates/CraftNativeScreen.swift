@@ -3552,7 +3552,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             picker.minuteInterval = (1...30).contains(interval) && 60 % interval == 0 ? interval : 1
             picker.minimumDate = Self.pickerDate(props["minimumDate"])
             picker.maximumDate = Self.pickerDate(props["maximumDate"])
-            if let date = Self.pickerDate(props["value"]), abs(picker.date.timeIntervalSince(date)) >= 1 {
+            if mode == .countDownTimer {
+                if let duration = Self.countdownDuration(props["value"]), abs(picker.countDownDuration - duration) >= 1 {
+                    picker.countDownDuration = duration
+                }
+            } else if let date = Self.pickerDate(props["value"]), abs(picker.date.timeIntervalSince(date)) >= 1 {
                 picker.setDate(date, animated: false)
             }
             picker.tintColor = color(props["color"]) ?? color(style["color"])
@@ -4831,7 +4835,24 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// milliseconds for code that wants those.
     @objc private func datePicked(_ sender: UIDatePicker) {
         guard let handler = handlers[ObjectIdentifier(sender)] else { return }
-        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": Self.datePickerEvent(sender.date, mode: sender.datePickerMode)])
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": Self.datePickerEvent(sender)])
+    }
+
+    static func datePickerEvent(_ picker: UIDatePicker) -> [String: Any] {
+        if picker.datePickerMode == .countDownTimer { return countdownEvent(picker.countDownDuration) }
+        return datePickerEvent(picker.date, mode: picker.datePickerMode)
+    }
+
+    static func countdownEvent(_ duration: TimeInterval) -> [String: Any] {
+        let totalSeconds = max(0, Int(duration.rounded()))
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        return [
+            "value": String(format: "%02d:%02d:%02d", hours, minutes, seconds),
+            "iso": "PT\(totalSeconds)S",
+            "timestamp": Double(totalSeconds * 1000),
+        ]
     }
 
     static func datePickerEvent(_ date: Date, mode: UIDatePicker.Mode) -> [String: Any] {
@@ -4856,6 +4877,20 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "countdown": return .countDownTimer
         default: return .date
         }
+    }
+
+    /// Countdown values use seconds when numeric, or `HH:mm[:ss]` text.
+    static func countdownDuration(_ value: Any?) -> TimeInterval? {
+        if let number = value as? NSNumber, !(value is Bool) { return max(0, number.doubleValue) }
+        guard let text = (value as? String)?.trimmingCharacters(in: .whitespaces), !text.isEmpty else { return nil }
+        if let seconds = Double(text), seconds.isFinite { return max(0, seconds) }
+        let parts = text.split(separator: ":").compactMap { Double($0) }
+        guard parts.count == 2 || parts.count == 3 else { return nil }
+        let hours = parts.count == 3 ? parts[0] : 0
+        let minutes = parts.count == 3 ? parts[1] : parts[0]
+        let seconds = parts.count == 3 ? parts[2] : parts[1]
+        guard hours >= 0, minutes >= 0, minutes < 60, seconds >= 0, seconds < 60 else { return nil }
+        return hours * 3600 + minutes * 60 + seconds
     }
 
     /// A DatePicker's value: `2026-10-12` (that day), `07:30` (today at that

@@ -111,6 +111,10 @@ primitive, accepts `value`/`selectedValue`, and sends the selected option's
 `countdown`), `value`, `minimumDate`, `maximumDate`, `minuteInterval`, and
 `disabled`. Its `onValueChange`/`onChange` event includes a local `value`, an
 ISO timestamp, and the Unix `timestamp` in milliseconds on both native hosts.
+Countdown values are durations: numeric values are seconds and text values use
+`HH:mm` or `HH:mm:ss`; their event value is always `HH:mm:ss`, `iso` is an
+ISO-8601 duration such as `PT5400S`, and `timestamp` is the duration in
+milliseconds.
 `Modal` is parent-scoped: `visible` controls a native blocking layer around its
 children, `transparent` removes the dimming scrim, and hidden modals do not
 participate in layout or touch handling. `animationType` accepts `none`,

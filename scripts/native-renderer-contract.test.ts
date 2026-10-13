@@ -382,8 +382,16 @@ describe('native renderer component contract', () => {
     expect(guide).toContain('| `DatePicker` | `UIDatePicker` | `DatePicker` / `TimePicker` |')
     expect(navigationHome).toContain('<DatePicker testID="native-date-picker"')
     expect(navigationHome).toContain('<DatePicker testID="native-time-picker" mode="time"')
+    expect(navigationHome).toContain('<DatePicker testID="native-countdown" mode="countdown"')
     expect(androidNavigationTest).toContain('date picker minimum bound')
     expect(androidNavigationTest).toContain('time picker should contain an Android TimePicker')
+    expect(androidNavigationTest).toContain('native countdown should contain an Android TimePicker')
+    expect(iosNavigationTest).toContain('countdown DatePicker did not mount natively')
+    expect(ios).toContain('if picker.datePickerMode == .countDownTimer { return countdownEvent(picker.countDownDuration) }')
+    expect(ios).toContain('static func countdownDuration(_ value: Any?) -> TimeInterval?')
+    expect(android).toContain('if (pickerMode == PickerMode.COUNTDOWN)')
+    expect(android).toContain('"iso", "PT${seconds}S"')
+    expect(guide).toContain('Countdown values are durations')
   })
 
   it('keeps Modal visibility and parent blocking aligned across hosts', () => {

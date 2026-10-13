@@ -1356,7 +1356,11 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
         minuteInterval = props.optInt("minuteInterval", 1).takeIf { it in 1..30 && 60 % it == 0 } ?: 1
         pickerDate(props.opt("minimumDate"))?.let { datePicker?.minDate = it.timeInMillis }
         pickerDate(props.opt("maximumDate"))?.let { datePicker?.maxDate = it.timeInMillis }
-        pickerDate(props.opt("value"))?.let { applyDate(it) }
+        if (requestedMode == PickerMode.COUNTDOWN) {
+            countdownSeconds(props.opt("value"))?.let { applyCountdown(it) }
+        } else {
+            pickerDate(props.opt("value"))?.let { applyDate(it) }
+        }
         val enabled = !props.optBoolean("disabled", false)
         isEnabled = enabled
         datePicker?.isEnabled = enabled
@@ -1366,6 +1370,13 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
     }
 
     fun event(): JSONObject {
+        if (pickerMode == PickerMode.COUNTDOWN) {
+            val seconds = currentCountdownSeconds()
+            return JSONObject()
+                .put("value", formatCountdown(seconds))
+                .put("iso", "PT${seconds}S")
+                .put("timestamp", seconds * 1000L)
+        }
         val current = currentDate()
         val valueFormat = when (pickerMode) {
             PickerMode.DATE -> "yyyy-MM-dd"
@@ -1394,6 +1405,20 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
         timePicker?.hour = value.get(Calendar.HOUR_OF_DAY)
         timePicker?.minute = value.get(Calendar.MINUTE)
     }
+
+    private fun applyCountdown(seconds: Int) {
+        timePicker?.hour = (seconds / 3600).coerceIn(0, 23)
+        timePicker?.minute = (seconds % 3600 / 60).coerceIn(0, 59)
+    }
+
+    private fun currentCountdownSeconds(): Int = timePicker?.let { it.hour * 3600 + it.minute * 60 } ?: 0
+
+    private fun formatCountdown(seconds: Int): String = "%02d:%02d:%02d".format(
+        Locale.US,
+        seconds / 3600,
+        seconds % 3600 / 60,
+        seconds % 60,
+    )
 
     private fun currentDate(): Calendar = Calendar.getInstance().also { current ->
         datePicker?.let {
@@ -1425,6 +1450,20 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
             return Calendar.getInstance().apply { time = parsed }
         }
         return null
+    }
+
+    private fun countdownSeconds(value: Any?): Int? {
+        if (value is Number && value !is Boolean) return value.toDouble().coerceAtLeast(0.0).roundToInt()
+        val text = value?.toString()?.trim().orEmpty()
+        if (text.isBlank() || text == JSONObject.NULL.toString()) return null
+        text.toDoubleOrNull()?.takeIf { it.isFinite() }?.let { return it.coerceAtLeast(0.0).roundToInt() }
+        val parts = text.split(':').mapNotNull { it.toDoubleOrNull() }
+        if (parts.size != 2 && parts.size != 3) return null
+        val hours = if (parts.size == 3) parts[0] else 0.0
+        val minutes = if (parts.size == 3) parts[1] else parts[0]
+        val seconds = if (parts.size == 3) parts[2] else parts[1]
+        if (hours < 0 || minutes !in 0.0..<60.0 || seconds !in 0.0..<60.0) return null
+        return (hours * 3600 + minutes * 60 + seconds).roundToInt()
     }
 }
 
