@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.152...v0.0.153)
+
+## 🚀 Features
+
+- **ios**: native screens pick photos, download files and post forms ([4fc11a6](https://github.com/craft-native/craft/commit/4fc11a6)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.151...v0.0.152)
 
 ## 🚀 Features
