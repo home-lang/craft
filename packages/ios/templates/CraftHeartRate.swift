@@ -115,7 +115,8 @@ struct CraftHeartRateMeasurement: Equatable {
 /// Simulator builds have no Bluetooth; with the `CraftFakeHeartRateMonitor`
 /// default set (`xcrun simctl spawn booted defaults write <bundle id>
 /// CraftFakeHeartRateMonitor -bool YES`) a made-up strap stands in, whose
-/// readings are encoded as 0x2A37 payloads and decoded like a real one's.
+/// readings are encoded as 0x2A37 payloads and decoded like a real one's. Its
+/// RR intervals vary beat to beat with the breath, as a heart's do.
 ///
 /// Everything runs on main: the central manager delivers there, and every
 /// caller hops there first.
@@ -176,6 +177,9 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     private static let simulatedId = UUID(uuidString: "00000000-0000-4000-8000-00000000180D")!
     private var simulatedTimer: Timer?
     private var simulatedBeat = 0
+    /// Milliseconds since the stand-in connected, and how far its beats reach.
+    private var simulatedElapsed: Double = 0
+    private var simulatedBeatsUntil: Double = 0
 
     // MARK: Entry
 
@@ -566,14 +570,40 @@ final class CraftHeartRate: NSObject, CBCentralManagerDelegate, CBPeripheralDele
         emitState()
         settleConnect(.success(state()))
         simulatedTimer?.invalidate()
+        simulatedElapsed = 0
+        simulatedBeatsUntil = 0
         simulatedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.simulatedBeat += 1
+            self.simulatedElapsed += 1000
             // A steady run with a slow swell, the way a real one drifts.
-            let bpm = 142 + Int((sin(Double(self.simulatedBeat) / 20) * 12).rounded())
-            let interval = 60_000 / Double(bpm)
-            self.received(CraftHeartRateMeasurement.encode(bpm: bpm, sensorContact: true, rrIntervals: [interval]))
+            let rate = 142 + sin(Double(self.simulatedBeat) / 20) * 12
+            var beatsUntil = self.simulatedBeatsUntil
+            let intervals = Self.simulatedIntervals(rate: rate, from: &beatsUntil, until: self.simulatedElapsed)
+            self.simulatedBeatsUntil = beatsUntil
+            guard !intervals.isEmpty else { return }
+            // The rate a strap reports is the one its intervals give.
+            let bpm = Int((60_000 / (intervals.reduce(0, +) / Double(intervals.count))).rounded())
+            self.received(CraftHeartRateMeasurement.encode(bpm: bpm, sensorContact: true, rrIntervals: intervals))
         }
+    }
+
+    /// The beats from `start` (ms) until `end`, each interval in ms: the
+    /// rate's own interval, plus respiratory sinus arrhythmia (beats come
+    /// closer on the in-breath and spread on the out-breath over a ten-second
+    /// breath, ±4% of the interval: ±40 ms at 60 bpm) and a few ms of noise,
+    /// so a heart-rate variability worked out from them means something.
+    /// `start` moves to the last beat.
+    static func simulatedIntervals(rate: Double, from start: inout Double, until end: Double, noise: () -> Double = { Double.random(in: -4...4) }) -> [Double] {
+        let base = 60_000 / rate
+        var intervals: [Double] = []
+        while start < end {
+            let breath = sin(2 * Double.pi * start / 10_000)
+            let interval = base * (1 - 0.04 * breath) + noise()
+            start += interval
+            intervals.append(interval)
+        }
+        return intervals
     }
 
     // MARK: Recording

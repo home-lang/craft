@@ -43,6 +43,21 @@ final class HeartRateUnitTests: XCTestCase {
         XCTAssertEqual(CraftHeartRateMeasurement.parse(CraftHeartRateMeasurement.encode(bpm: 260))?.bpm, 260)
     }
 
+    func testTheSimulatorsBeatsVaryWithTheBreathAndGiveItsRate() {
+        var reached: Double = 0
+        let intervals = CraftHeartRate.simulatedIntervals(rate: 60, from: &reached, until: 30_000, noise: { 0 })
+        XCTAssertGreaterThanOrEqual(reached, 30_000)
+        XCTAssertEqual(intervals.reduce(0, +), reached, accuracy: 0.001)
+        // About a second apart at 60 bpm, closer on the in-breath and wider on the out-breath.
+        let mean = intervals.reduce(0, +) / Double(intervals.count)
+        XCTAssertEqual(mean, 1000, accuracy: 15)
+        XCTAssertGreaterThan((intervals.max() ?? 0) - (intervals.min() ?? 0), 50)
+        XCTAssertLessThan((intervals.max() ?? 0) - (intervals.min() ?? 0), 90)
+        // Successive beats differ, so RMSSD is not zero.
+        let squares = zip(intervals.dropFirst(), intervals).map { ($0 - $1) * ($0 - $1) }
+        XCTAssertGreaterThan((squares.reduce(0, +) / Double(squares.count)).squareRoot(), 5)
+    }
+
     func testTheModuleAnswersOnlyWhenTheAppReadsAStrap() async {
         let off = await withCheckedContinuation { continuation in
             CraftNativeActions.perform(requestToken: UUID().uuidString, version: craftNativeCapabilityProtocolVersion, module: "HeartRate", method: "getState", args: [], config: CraftConfig()) { continuation.resume(returning: $0) }

@@ -642,7 +642,9 @@ const { samples } = await window.craft.heartRate.stopRecording(); // [{ timestam
 // answers { available: false }.
 // The simulator has no Bluetooth: `simctl spawn <device> defaults write
 // <bundle id> CraftFakeHeartRateMonitor -bool YES` stands in a strap ("Simulated
-// HRM") whose readings are encoded and decoded as 0x2A37 payloads. Simulator builds only.
+// HRM") whose readings are encoded and decoded as 0x2A37 payloads, their RR
+// intervals varying beat to beat with a ten-second breath as a heart's do, so a
+// heart-rate variability worked out from them means something. Simulator builds only.
 
 // Apple Watch workouts (enableScheduledWorkouts, iOS 17+): WorkoutKit's
 // WorkoutScheduler puts a structured workout in the paired watch's Workout
