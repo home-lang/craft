@@ -784,9 +784,26 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     entry.view.layout(x, y, x + childWidth, y + childHeight)
                 }
             } else {
-                var rowTop = paddingTop
+                val totalRows = layout.rowHeights.sum()
+                val rowGaps = max(0, layout.rowHeights.size - 1) * rowGap
+                val freeRows = max(0, contentHeight - totalRows - rowGaps)
+                val rowCount = max(1, layout.rowHeights.size)
+                var rowLeading = 0
+                var rowBetween = rowGap
+                var rowExtra = 0
+                when (alignContentCode()) {
+                    1 -> rowLeading = freeRows / 2
+                    2 -> rowLeading = freeRows
+                    3 -> if (rowCount > 1) rowBetween += freeRows / (rowCount - 1)
+                    4 -> {
+                        rowLeading = freeRows / (rowCount * 2)
+                        rowBetween += freeRows / rowCount
+                    }
+                    5 -> rowExtra = freeRows / rowCount
+                }
+                var rowTop = paddingTop + rowLeading
                 for ((rowIndex, row) in layout.rows.withIndex()) {
-                    val rowHeight = layout.rowHeights[rowIndex]
+                    val rowHeight = layout.rowHeights[rowIndex] + rowExtra
                     for ((column, entry) in row.withIndex()) {
                         val align = entry.style.alignSelf ?: alignItems
                         val lp = entry.view.layoutParams as? MarginLayoutParams
@@ -810,7 +827,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                         }
                         entry.view.layout(x, y, x + childWidth, y + childHeight)
                     }
-                    rowTop += rowHeight + rowGap
+                    rowTop += rowHeight + rowBetween
                 }
             }
             for (entry in layout.absolute) {

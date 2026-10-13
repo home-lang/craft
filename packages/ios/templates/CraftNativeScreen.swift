@@ -1322,12 +1322,29 @@ private class CraftNativeFlowView: UIStackView {
                 }
                 return CGSize(width: width, height: innerHeight ?? height)
             }
-            var rowTop = padding.top
+            let gridHeight = innerHeight ?? height
+            let gridGaps = CGFloat(max(0, rowHeights.count - 1)) * verticalGap
+            let gridFree = max(0, gridHeight - rowHeights.reduce(0, +) - gridGaps)
+            var rowLeading: CGFloat = 0
+            var rowBetween = verticalGap
+            var rowExtra: CGFloat = 0
+            switch alignContent {
+            case "center": rowLeading = gridFree / 2
+            case "flex-end": rowLeading = gridFree
+            case "space-between":
+                if rowHeights.count > 1 { rowBetween += gridFree / CGFloat(rowHeights.count - 1) }
+            case "space-around":
+                rowLeading = gridFree / CGFloat(rowHeights.count * 2)
+                rowBetween += gridFree / CGFloat(rowHeights.count)
+            case "stretch": rowExtra = gridFree / CGFloat(max(1, rowHeights.count))
+            default: break
+            }
+            var rowTop = padding.top + rowLeading
             for (index, child) in children.enumerated() {
                 let style = child.craftLayoutStyle
                 let row = index / columns
                 let column = index % columns
-                let rowHeight = rowHeights[row]
+                let rowHeight = rowHeights[row] + rowExtra
                 let size = sizes[index]
                 let align = style.alignSelf ?? alignItems
                 let availableWidth = max(0, cellWidth - style.marginLeft - style.marginRight)
@@ -1339,7 +1356,7 @@ private class CraftNativeFlowView: UIStackView {
                 let y = rowTop + style.marginTop
                     + (align == "center" ? (availableHeight - childHeight) / 2 : align == "flex-end" ? availableHeight - childHeight : 0)
                 frames.append((child, CGRect(x: x, y: y, width: childWidth, height: childHeight)))
-                if column == columns - 1 || index == children.count - 1 { rowTop += rowHeight + verticalGap }
+                if column == columns - 1 || index == children.count - 1 { rowTop += rowHeight + rowBetween }
             }
         }
         return CGSize(width: width, height: innerHeight ?? height)
