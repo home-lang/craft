@@ -109,7 +109,8 @@ emits local `value`, ISO, and millisecond `timestamp` fields. `Modal` is parent-
 `visible`, `transparent`, `animationType`, `onShow`, `onDismiss`, and
 `onRequestClose` for Android back handling. `Switch` supports state-aware `trackColor`
 and `thumbColor`, while `Slider` supports track/thumb tint props and `step`
-snapping. `ActivityIndicator` keeps a visible stopped indicator genuinely
+snapping without collapsing stepped ranges to a fixed pixel-like precision.
+`ActivityIndicator` keeps a visible stopped indicator genuinely
 non-animated when `animating={false}` and `hidesWhenStopped={false}`. `Image`
 reports load lifecycle events and structured failures. `Video` uses the native
 `VideoView` for URI playback with autoplay, pause, looping, mute, controls, and

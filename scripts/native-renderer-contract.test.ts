@@ -392,7 +392,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('slider.value = snappedSliderValue(value, for: slider)')
     expect(ios).toContain('events["onSlidingComplete"]')
     expect(android).toContain('val requested = props.optDouble("value", minimum)')
-    expect(android).toContain('if (seekBar.progress != snappedProgress)')
+    expect(android).toContain('val progressMax = step?.let {')
     expect(android).toContain('onSlidingComplete')
     expect(guide).toContain('`Slider` accepts `minimumTrackTintColor`')
   })
@@ -578,8 +578,6 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val tint = style.opt("tintColor") as? String')
     expect(android).toContain('style.optDouble("lineHeight", Double.NaN)')
     expect(android).toContain('field.setSelection(minOf(boundedStart, boundedEnd), maxOf(boundedStart, boundedEnd))')
-    expect(android).toContain('if (seekBar.progress != snappedProgress)')
-    expect(android).toContain('seekBar.progress = snappedProgress')
     expect(ios).toContain('private var inputDrafts: [String: String] = [:]')
     expect(ios).toContain('inputDrafts[current.identity] ?? props["defaultValue"] as? String')
     expect(ios).toContain('inputIdentities[id].map { inputDrafts[$0] = textView.text ?? "" }')
@@ -1058,8 +1056,17 @@ describe('native renderer component contract', () => {
   it('snaps controlled slider values on initial render across hosts', () => {
     expect(ios).toContain('slider.value = snappedSliderValue(value, for: slider)')
     expect(android).toContain('val requested = props.optDouble("value", minimum)')
-    expect(android).toContain('val value = if (step != null) minimum + ((requested - minimum) / step).roundToInt() * step else requested')
-    expect(android).toContain('progress = (((value - minimum) / (maximum - minimum)) * max).roundToInt()')
+    expect(android).toContain('if (step != null) minimum + ((requested - minimum) / step).roundToInt() * step else requested')
+    expect(android).toContain('val progressMax = step?.let {')
+    expect(android).toContain('ceil((maximum - minimum) / it).toInt().coerceIn(1, 1_000_000)')
+    expect(android).toContain('((value - minimum) / step).roundToInt().coerceIn(0, max)')
+  })
+
+  it('preserves exact Android slider step values for large ranges', () => {
+    expect(android).toContain('minimum + progress * step else')
+    expect(android).toContain('minimum + seekBar.progress * step else')
+    expect(android).toContain('.coerceIn(minimum, maximum)')
+    expect(android).not.toContain('val snappedProgress = (((value - minimum) / (maximum - minimum)) * max)')
   })
 
   it('resets removed accessibility metadata on both hosts', () => {
