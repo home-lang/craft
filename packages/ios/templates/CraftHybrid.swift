@@ -1096,13 +1096,32 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         }
     }
 
-    /// Prepare a mounted native target beside the current stack. Web roots are
-    /// left to the existing route-aware fallback because they share one web
-    /// view and cannot render the next tab until its page route has arrived.
+    /// Prepare a mounted target beside the current stack. Native roots render
+    /// immediately; a web root borrows the shared WebView and stays
+    /// transparent until its page route catches up. Two web roots still use
+    /// the route-aware fallback because one WebView cannot render both pages.
     private func beginInteractiveTabSwipe(to id: String, direction: CGFloat) -> Bool {
         guard let current = visibleStack, let target = stacks[id],
-              !(target.topViewController is CraftHybridWebSlot), current.view !== target.view,
+              current.view !== target.view,
+              !(current.topViewController is CraftHybridWebSlot && target.topViewController is CraftHybridWebSlot),
               view.bounds.width > 0 else { return false }
+        if let slot = target.topViewController as? CraftHybridWebSlot {
+            // There is one shared WebView, so a web-to-web gesture cannot
+            // render two pages at once. A native-to-web gesture can: move the
+            // WebView into the hidden target slot and let its route catch up
+            // while the slot follows the finger. It stays transparent until
+            // the page reports that it reached the target path.
+            slot.awaitingPage = true
+            adoptWeb(into: slot, allowHiddenStack: true)
+            webHost?.view.alpha = 0
+            hybrid.navigatePage(slot.path) { [weak self, weak slot] depth in
+                guard let self, let slot else { return }
+                slot.depth = depth
+                guard self.activeTabSwipeTarget == id,
+                      CraftHybridRoutes.normalize(self.hybrid.pagePath ?? "") == CraftHybridRoutes.normalize(slot.path) else { return }
+                self.reveal(slot)
+            }
+        }
         target.view.isHidden = false
         let width = view.bounds.width
         target.view.frame = view.bounds.offsetBy(dx: direction * width, dy: 0)
@@ -1136,6 +1155,10 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
                 target.view.isHidden = true
                 target.view.frame = self.view.bounds
                 current.view.frame = self.view.bounds
+                if target.topViewController is CraftHybridWebSlot,
+                   current.topViewController is CraftNativeScreenController {
+                    self.parkWeb()
+                }
             }
             completion()
         })
@@ -1294,8 +1317,9 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         pendingTab = nil
     }
 
-    func adoptWeb(into slot: CraftHybridWebSlot) {
-        guard let webHost, slot.navigationController === visibleStack || visibleStack == nil else { return }
+    func adoptWeb(into slot: CraftHybridWebSlot, allowHiddenStack: Bool = false) {
+        guard let webHost,
+              allowHiddenStack || slot.navigationController === visibleStack || visibleStack == nil else { return }
         attachWeb()
         moveWeb(to: slot, in: slot.view)
         webHost.view.alpha = slot.awaitingPage ? 0 : 1
@@ -1421,6 +1445,13 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
 
     func pageNavigated(path: String, direction: String, depth: Int, byHost: Bool) {
         let owner = CraftHybridRoutes.tab(owning: path, among: hybrid.tabIds)
+        if let targetId = activeTabSwipeTarget,
+           let target = stacks[targetId]?.topViewController as? CraftHybridWebSlot,
+           owner == targetId || CraftHybridRoutes.normalize(path) == CraftHybridRoutes.normalize(target.path) {
+            target.depth = depth
+            target.awaitingPage = false
+            reveal(target)
+        }
         if let pending = pendingTab, owner == pending.id || direction == "tab" {
             show(tab: pending.id)
         }

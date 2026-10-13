@@ -1567,6 +1567,8 @@ describe('native renderer component contract', () => {
     expect(chrome).toContain('func beginTabSwipe(to id: String)')
     expect(chrome).toContain('func commitTabSwipe(to id: String)')
     expect(chrome).toContain('func cancelTabSwipe()')
+    expect(hybrid).toContain('!(current.topViewController is CraftHybridWebSlot && target.topViewController is CraftHybridWebSlot)')
+    expect(hybrid).toContain('target.awaitingPage = false')
     expect(hybrid).toContain('let delta = abs(translation) >= 32 ? translation : velocity')
     expect(hybrid).toContain('gestureRecognizer !== nav.interactivePopGestureRecognizer')
     expect(hybrid).toContain('if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }')
