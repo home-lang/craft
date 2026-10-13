@@ -3349,7 +3349,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func reconcile(_ node: [String: Any], identity: String, path: String, previous: RenderedNode?) -> RenderedNode {
-        let type = node["type"] as? String ?? "View"
+        let type = canonicalType(node["type"] as? String ?? "View")
         let props = node["props"] as? [String: Any] ?? [:]
         let style = node["style"] as? [String: Any] ?? [:]
         let events = node["events"] as? [String: String] ?? [:]
@@ -3767,12 +3767,44 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
     }
 
+    private func canonicalType(_ raw: String) -> String {
+        switch raw.lowercased() {
+        case "view": return "View"
+        case "safeareaview": return "SafeAreaView"
+        case "text": return "Text"
+        case "button": return "Button"
+        case "link": return "Link"
+        case "textinput", "input": return "TextInput"
+        case "picker", "select": return "Picker"
+        case "modal": return "Modal"
+        case "switch": return "Switch"
+        case "slider": return "Slider"
+        case "activityindicator": return "ActivityIndicator"
+        case "image": return "Image"
+        case "video": return "Video"
+        case "icon": return "Icon"
+        case "scrollview": return "ScrollView"
+        case "flatlist": return "FlatList"
+        case "svg": return "Svg"
+        case "touchableopacity": return "TouchableOpacity"
+        case "touchablehighlight": return "TouchableHighlight"
+        case "pressable": return "Pressable"
+        default: return raw
+        }
+    }
+
     private func explicitKey(_ node: [String: Any], props: [String: Any]) -> String? {
         // The current @stacksjs/stx native compiler emits key in props; accept the IR
         // field too so keyed children keep working when the compiler adopts it.
-        [node["key"], props["key"], props["testID"], node["id"]]
+        let direct = [node["key"], props["key"], props["testID"]]
             .compactMap { $0 as? String }
             .first { !$0.isEmpty }
+        if let direct { return direct }
+        for child in node["children"] as? [[String: Any]] ?? [] {
+            let childProps = child["props"] as? [String: Any] ?? [:]
+            if let nested = explicitKey(child, props: childProps) { return nested }
+        }
+        return (node["id"] as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     private func accessibilityIdentifier(_ node: [String: Any], props: [String: Any]) -> String? {

@@ -2031,16 +2031,15 @@ class MainActivity : AppCompatActivity() {
         next: MutableMap<String, View>,
         previousControls: Map<String, View> = screen.controls,
     ): View {
-        val type = node.optString("type", "View")
+        val type = canonicalType(node.optString("type", "View"))
         val props = node.optJSONObject("props") ?: JSONObject()
         val style = node.optJSONObject("style") ?: JSONObject()
         val events = node.optJSONObject("events") ?: JSONObject()
         val children = node.optJSONArray("children") ?: JSONArray()
         val protocolId = node.optString("id").takeIf { it.isNotBlank() }
-        val explicitKey = listOf(node.optString("key"), props.optString("key"), props.optString("testID"))
-            .firstOrNull { it.isNotBlank() }
-        val identity = protocolId?.let { "id:$it" }
-            ?: explicitKey?.let { "${path.substringBeforeLast('.', "")}/$it" }
+        val explicitKey = authoredKey(node, props)
+        val identity = explicitKey?.let { "${path.substringBeforeLast('.', "")}/$it" }
+            ?: protocolId?.let { "id:$it" }
             ?: path
         val previous = previousControls[identity]
         val reusableInput = previous as? EditText
@@ -2621,6 +2620,43 @@ class MainActivity : AppCompatActivity() {
             val value = children.opt(index)
             if (value is String) append(value)
         }
+    }
+
+    private fun canonicalType(raw: String): String = when (raw.lowercase()) {
+        "view" -> "View"
+        "safeareaview" -> "SafeAreaView"
+        "text" -> "Text"
+        "button" -> "Button"
+        "link" -> "Link"
+        "textinput", "input" -> "TextInput"
+        "picker", "select" -> "Picker"
+        "modal" -> "Modal"
+        "switch" -> "Switch"
+        "slider" -> "Slider"
+        "activityindicator" -> "ActivityIndicator"
+        "image" -> "Image"
+        "video" -> "Video"
+        "icon" -> "Icon"
+        "scrollview" -> "ScrollView"
+        "flatlist" -> "FlatList"
+        "svg" -> "Svg"
+        "touchableopacity" -> "TouchableOpacity"
+        "touchablehighlight" -> "TouchableHighlight"
+        "pressable" -> "Pressable"
+        else -> raw
+    }
+
+    private fun authoredKey(node: JSONObject, props: JSONObject): String? {
+        val direct = listOf(node.optString("key"), props.optString("key"), props.optString("testID"))
+            .firstOrNull { it.isNotBlank() }
+        if (direct != null) return direct
+        val children = node.optJSONArray("children") ?: return null
+        for (index in 0 until children.length()) {
+            val child = children.optJSONObject(index) ?: continue
+            val childProps = child.optJSONObject("props") ?: JSONObject()
+            authoredKey(child, childProps)?.let { return it }
+        }
+        return node.optString("id").takeIf { it.isNotBlank() }
     }
 
     private fun configureContainer(layout: CraftNativeFlexLayout, style: JSONObject) {

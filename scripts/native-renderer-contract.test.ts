@@ -154,6 +154,8 @@ describe('native renderer component contract', () => {
 
   it('keeps native video playback available on both hosts', () => {
     expect(ios).toContain('CraftNativeVideoView')
+    expect(ios).toContain('case "video": return "Video"')
+    expect(android).toContain('"video" -> "Video"')
     expect(ios).toContain('AVPlayerViewController')
     expect(ios).toContain('host.addChild(playerController)')
     expect(ios).toContain('playerController.removeFromParent()')
@@ -515,7 +517,8 @@ describe('native renderer component contract', () => {
       'pendingCapabilityRequests.forEach { CraftNativeActions.cancel(requestToken: $0) }',
       'lifecycleObservers.forEach(NotificationCenter.default.removeObserver)',
       'jsContext.objectForKeyedSubscript("__stxNativeUnmount")?.call(withArguments: [])',
-      'navigationController?.viewControllers.contains(where: { $0 === self }) == false',
+      'let inStack = navigationController?.viewControllers.contains(where: { $0 === self }) ?? false',
+      'if !inStack {',
       'disposeRuntime()\n                navigation.setViewControllers',
     ]) expect(ios, `${marker} missing from iOS teardown`).toContain(marker)
 
@@ -542,6 +545,8 @@ describe('native renderer component contract', () => {
   it('keeps responsive layout events aligned across hosts', () => {
     expect(ios).toContain('events["onLayout"]')
     expect(ios).toContain('lastLayoutFrames[id] != frame')
+    expect(ios).toContain('for child in node["children"] as? [[String: Any]] ?? []')
+    expect(android).toContain('private fun authoredKey(node: JSONObject, props: JSONObject): String?')
     expect(android).toContain('events.optString("onLayout")')
     expect(android).toContain('lastLayoutBounds[view] != bounds')
     expect(android).toContain('ViewTreeObserver.OnPreDrawListener')
@@ -1051,7 +1056,8 @@ describe('native renderer component contract', () => {
   })
 
   it('prefers authored keys over compiler ids when reconciling native rows', () => {
-    expect(ios).toContain('[node["key"], props["key"], props["testID"], node["id"]]')
+    expect(ios).toContain('let direct = [node["key"], props["key"], props["testID"]]')
+    expect(ios).toContain('for child in node["children"] as? [[String: Any]] ?? []')
     expect(iosFlatList).toContain('[node["key"], props["key"], props["testID"], node["id"]]')
     expect(android).toContain('screen.lastLayoutBounds.remove(updated)')
   })
