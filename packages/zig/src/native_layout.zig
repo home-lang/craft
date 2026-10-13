@@ -11,6 +11,17 @@ pub const Axis = enum {
     column,
 };
 
+/// Main-axis free-space distribution for the host-neutral tree layout.
+/// Platform bridges use the same numeric rule through the flat ABI below.
+pub const JustifyContent = enum {
+    flex_start,
+    center,
+    flex_end,
+    space_between,
+    space_around,
+    space_evenly,
+};
+
 pub const Size = struct {
     width: f32,
     height: f32,
@@ -38,6 +49,7 @@ pub const Style = struct {
     min_height: ?f32 = null,
     max_height: ?f32 = null,
     gap: f32 = 0,
+    justify_content: JustifyContent = .flex_start,
     margin_top: f32 = 0,
     margin_right: f32 = 0,
     margin_bottom: f32 = 0,
@@ -484,8 +496,31 @@ fn layoutNode(
     const gap_count = if (node.children.len > 1) node.children.len - 1 else 0;
     const gap_total = gap * @as(f32, @floatFromInt(gap_count));
     const flex = resolveFlex(node.children, node.style.direction, main_size, gap_total);
+    var used_main: f32 = gap_total;
+    for (node.children) |child| {
+        used_main += flex.size(child, childMainBasis(child, node.style.direction)) + mainMargins(child, node.style.direction);
+    }
+    const free_main = @max(0, main_size - used_main);
+    var leading_space: f32 = 0;
+    var between_space: f32 = gap;
+    switch (node.style.justify_content) {
+        .center => leading_space = free_main / 2,
+        .flex_end => leading_space = free_main,
+        .space_between => {
+            if (gap_count > 0) between_space += free_main / @as(f32, @floatFromInt(gap_count));
+        },
+        .space_around => {
+            leading_space = free_main / @as(f32, @floatFromInt(node.children.len * 2));
+            between_space += free_main / @as(f32, @floatFromInt(node.children.len));
+        },
+        .space_evenly => {
+            leading_space = free_main / @as(f32, @floatFromInt(node.children.len + 1));
+            between_space += leading_space;
+        },
+        .flex_start => {},
+    }
     var next_index = frame_index + 1;
-    var main_offset: f32 = 0;
+    var main_offset: f32 = leading_space;
     for (node.children, 0..) |child, index| {
         const basis = childMainBasis(child, node.style.direction);
         const child_main = flex.size(child, basis);
@@ -498,7 +533,7 @@ fn layoutNode(
         const child_x = if (node.style.direction == .row) content_x + main_offset + leading_margin else content_x + crossLeadingMargin(child, node.style.direction);
         const child_y = if (node.style.direction == .row) content_y + crossLeadingMargin(child, node.style.direction) else content_y + main_offset + leading_margin;
         next_index = try layoutNode(child, child_size, child_x, child_y, next_index, frames);
-        main_offset += mainMargins(child, node.style.direction) + child_main + if (index + 1 < node.children.len) gap else 0;
+        main_offset += mainMargins(child, node.style.direction) + child_main + if (index + 1 < node.children.len) between_space else 0;
     }
     return next_index;
 }
@@ -725,6 +760,22 @@ test "distributes positive flex grow from a shared basis" {
     try std.testing.expectApproxEqAbs(@as(f32, 80), frames[2].x, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 100), frames[2].width, 0.001);
     try std.testing.expectEqual(@as(f32, 48), frames[1].height);
+}
+
+test "positions tree children with justify content" {
+    const children = [_]Node{
+        .{ .style = .{ .flex_basis = 20 } },
+        .{ .style = .{ .flex_basis = 20 } },
+    };
+    const root = Node{
+        .style = .{ .direction = .row, .width = 100, .height = 20, .justify_content = .space_evenly },
+        .children = &children,
+    };
+    var frames: [3]Frame = undefined;
+
+    _ = try layout(root, .{ .width = 100, .height = 20 }, &frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 20), frames[1].x, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 60), frames[2].x, 0.001);
 }
 
 test "uses viewport size when the root is intrinsic" {

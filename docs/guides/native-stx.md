@@ -334,6 +334,12 @@ alignment. These ABIs carry only plain numeric data—never UIKit or Android
 types—so an SDK-only project can keep the equivalent host fallback until a
 runtime is installed.
 
+The same host-neutral layout core models a complete tree's main-axis
+`justifyContent` distribution (`flex-start`, center, `flex-end`,
+`space-between`, `space-around`, and `space-evenly`) for deterministic parity
+tests. Intrinsic text and image measurement remains a host responsibility; the
+shared rule consumes those measurements as numeric bases.
+
 The same runtime also exports `craft_native_grid` for equal-track grids. It
 accepts intrinsic measurements and alignment as plain data, leaving platform
 views responsible only for measurement and mounting; hosts may fall back to

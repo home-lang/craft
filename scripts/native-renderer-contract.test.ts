@@ -62,6 +62,9 @@ const COMPONENTS: Array<[string, string, string]> = [
 describe('native renderer component contract', () => {
   it('exports the flat flex ABI for mobile hosts', () => {
     expect(nativeLayout).toContain('pub const FlexItem = extern struct')
+    expect(nativeLayout).toContain('pub const JustifyContent = enum')
+    expect(nativeLayout).toContain('justify_content: JustifyContent')
+    expect(nativeLayout).toContain('.space_evenly =>')
     expect(nativeLayout).toContain('pub const FlexLineItem = extern struct')
     expect(nativeLayout).toContain('pub export fn craft_native_flex_row(')
     expect(nativeLayout).toContain('pub export fn craft_native_flex_line_breaks(')
