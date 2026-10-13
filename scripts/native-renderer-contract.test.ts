@@ -13,6 +13,7 @@ const androidDispatch = readFileSync(join(root, 'packages/zig/src/android_dispat
 const androidFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeFlatList.kt.template'), 'utf8')
 const androidRefreshableFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeRefreshableFlatList.kt.template'), 'utf8')
 const androidNavigationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeNavigationTest.kt'), 'utf8')
+const androidBuilderTest = readFileSync(join(root, 'packages/android/src/index.test.ts'), 'utf8')
 const androidFlatListTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeFlatListTest.kt'), 'utf8')
 const iosNavigationTest = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/NativeNavigationUITests.swift'), 'utf8')
 const navigationHome = readFileSync(join(root, 'packages/ios/fixtures/native-navigation/Home.stx'), 'utf8')
@@ -1091,6 +1092,7 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('<SectionList testID="native-section-list"')
     expect(ios).toContain('case "ScrollView", "SectionList":')
     expect(android).toContain('"ScrollView", "SectionList" ->')
+    expect(androidBuilderTest).toContain('"ScrollView", "SectionList" -> (previous as? CraftNativeScrollView')
     expect(guide).toContain('`SectionList` currently follows the same native scroll host')
   })
 
