@@ -2057,6 +2057,190 @@ export const heartRate = {
   onState: (callback: (state: HeartRateState) => void): (() => void) => hrSubscribe(heartRateWatch.states, callback),
 }
 
+// ============================================================================
+// Scheduled workouts (Apple Watch, WorkoutKit)
+// ============================================================================
+
+/**
+ * Structured workouts scheduled onto the paired Apple Watch (iOS 17+, an app
+ * built with `enableScheduledWorkouts`): each appears in the watch's Workout
+ * app on its day, with its steps, goals and alerts. Plain JSON in SI units.
+ * In a browser, on Android and in a build without the capability
+ * `isSupported()` answers false and every other call rejects with
+ * `unsupported` (code `UNSUPPORTED`).
+ */
+export type ScheduledWorkoutsAuthorization = 'authorized' | 'denied' | 'notDetermined' | 'restricted' | 'unsupported'
+
+export type AppleWorkoutGoal =
+  | { type: 'open' }
+  | { type: 'time', seconds: number }
+  | { type: 'distance', meters: number }
+  | { type: 'energy', kilocalories: number }
+
+export type AppleWorkoutAlert =
+  /** Beats per minute. */
+  | { type: 'heartRate', min: number, max: number }
+  | { type: 'heartRateZone', zone: number }
+  /** Watts. */
+  | { type: 'power', min: number, max: number }
+  | { type: 'powerZone', zone: number }
+  /** Metres per second (the current speed); a pace range is sent as speed. */
+  | { type: 'speed', min: number, max: number }
+  /** Steps or revolutions per minute. */
+  | { type: 'cadence', min: number, max: number }
+
+export interface AppleWorkoutStep {
+  goal: AppleWorkoutGoal
+  /** Dropped (the step kept) when WorkoutKit refuses it for the activity. */
+  alert?: AppleWorkoutAlert
+  /** Shown on the watch from iOS 18; ignored on 17. At most 64 characters. */
+  displayName?: string
+}
+
+export interface AppleIntervalBlock {
+  /** 1 or more. */
+  iterations: number
+  steps: Array<{ purpose: 'work' | 'recovery', step: AppleWorkoutStep }>
+}
+
+export interface AppleCustomWorkout {
+  /** An HKWorkoutActivityType case name: 'running', 'cycling', 'swimming', 'traditionalStrengthTraining'... */
+  activity: string
+  location: 'indoor' | 'outdoor' | 'unknown'
+  /** Swimming only: a pool swim is scheduled indoor, open water outdoor, when `location` is 'unknown'. */
+  swimmingLocation?: 'pool' | 'openWater'
+  /** Accepted for the record; WorkoutKit takes no pool length (the watch asks when the swim starts). */
+  poolLengthMeters?: number
+  displayName: string
+  warmup?: AppleWorkoutStep
+  cooldown?: AppleWorkoutStep
+  blocks: AppleIntervalBlock[]
+}
+
+export interface AppleWorkoutPlan {
+  /** A UUID; the plan's identity on the watch. */
+  id: string
+  /** The local calendar day, 'YYYY-MM-DD'. */
+  date: string
+  /** Local time of day, 07:00 when not given. */
+  hour?: number
+  minute?: number
+  workout: AppleCustomWorkout
+}
+
+/** A plan on the watch's schedule. */
+export interface ScheduledWorkout {
+  /** Lowercase UUID. */
+  id: string
+  date: string
+  hour?: number
+  minute?: number
+  /** The person has done it. */
+  complete: boolean
+}
+
+export interface ScheduleWorkoutResult {
+  id: string
+  /** Alerts WorkoutKit refused and left out, each by where it was ("block 1 step 2: power alert..."). */
+  droppedAlerts?: string[]
+}
+
+export type ScheduledWorkoutsMethod = 'isSupported' | 'authorization' | 'requestAuthorization' | 'list' | 'schedule' | 'remove' | 'removeAll'
+
+const SCHEDULED_AUTHORIZATIONS: ScheduledWorkoutsAuthorization[] = ['authorized', 'denied', 'notDetermined', 'restricted', 'unsupported']
+
+function nativeScheduledWorkouts(): any {
+  const craft = getCraftRoot()
+  if (!craft?.scheduledWorkouts || craft.capabilities?.scheduledWorkouts !== true) return undefined
+  return craft.scheduledWorkouts
+}
+
+/** The rejection every call but isSupported() gets where nothing can schedule. */
+export function scheduledWorkoutsUnsupported(): Error {
+  return Object.assign(new Error('unsupported'), { code: 'UNSUPPORTED' })
+}
+
+function scheduledAuthorization(value: unknown): ScheduledWorkoutsAuthorization {
+  return SCHEDULED_AUTHORIZATIONS.includes(value as ScheduledWorkoutsAuthorization) ? value as ScheduledWorkoutsAuthorization : 'unsupported'
+}
+
+/** A row of `list()`, or null for one that is not a scheduled plan. */
+export function normalizeScheduledWorkout(value: unknown): ScheduledWorkout | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as Record<string, unknown>
+  if (typeof row.id !== 'string' || !row.id || typeof row.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) return null
+  const out: ScheduledWorkout = { id: row.id.toLowerCase(), date: row.date, complete: row.complete === true }
+  if (typeof row.hour === 'number' && Number.isFinite(row.hour)) out.hour = row.hour
+  if (typeof row.minute === 'number' && Number.isFinite(row.minute)) out.minute = row.minute
+  return out
+}
+
+async function scheduledCall<T>(method: ScheduledWorkoutsMethod, normalize: (value: unknown) => T, ...args: unknown[]): Promise<T> {
+  const native = nativeScheduledWorkouts()
+  if (typeof native?.[method] !== 'function') throw scheduledWorkoutsUnsupported()
+  return normalize(await native[method](...args))
+}
+
+export const scheduledWorkouts = {
+  /** Whether this app build has the bridge at all (not whether this phone can schedule: `isSupported()`). */
+  isAvailable(): boolean {
+    return typeof nativeScheduledWorkouts()?.isSupported === 'function'
+  },
+
+  /** Whether this app build answers `method`; an older build may lack one. */
+  supports(method: ScheduledWorkoutsMethod): boolean {
+    return typeof nativeScheduledWorkouts()?.[method] === 'function'
+  },
+
+  /** iOS 17 or later and WorkoutKit can schedule here; false everywhere else, never rejects. */
+  async isSupported(): Promise<boolean> {
+    const native = nativeScheduledWorkouts()
+    if (typeof native?.isSupported !== 'function') return false
+    try {
+      return await native.isSupported() === true
+    }
+    catch {
+      return false
+    }
+  },
+
+  /** What the person allowed, without asking. */
+  authorization: (): Promise<ScheduledWorkoutsAuthorization> => scheduledCall('authorization', scheduledAuthorization),
+
+  /** iOS's prompt the first time; its remembered answer after that. Call it from the person's tap. */
+  requestAuthorization: (): Promise<ScheduledWorkoutsAuthorization> => scheduledCall('requestAuthorization', scheduledAuthorization),
+
+  /** Every plan on the watch's schedule. */
+  list: (): Promise<ScheduledWorkout[]> => scheduledCall('list', value => Array.isArray(value)
+    ? value.map(normalizeScheduledWorkout).filter((row): row is ScheduledWorkout => row !== null)
+    : []),
+
+  /**
+   * Put a plan on the watch's schedule (again on another day moves it).
+   * Rejects with a message naming what WorkoutKit refused: an activity or a
+   * goal it cannot schedule (an alert it refuses is dropped instead, listed in
+   * `droppedAlerts`), more plans than the watch holds (LIMIT_REACHED), or a
+   * schedule nothing kept, such as no paired watch (NOT_SCHEDULED).
+   */
+  schedule: (plan: AppleWorkoutPlan): Promise<ScheduleWorkoutResult> => {
+    if (!plan || typeof plan !== 'object' || typeof plan.id !== 'string')
+      return Promise.reject(Object.assign(new Error('schedule needs a plan with an id'), { code: 'INVALID_ARGUMENT' }))
+    return scheduledCall('schedule', (value) => {
+      const row = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>
+      const out: ScheduleWorkoutResult = { id: typeof row.id === 'string' ? row.id.toLowerCase() : plan.id.toLowerCase() }
+      if (Array.isArray(row.droppedAlerts) && row.droppedAlerts.length)
+        out.droppedAlerts = row.droppedAlerts.filter((item): item is string => typeof item === 'string')
+      return out
+    }, plan)
+  },
+
+  /** Take a plan off every day it is scheduled; true when there was one. */
+  remove: (id: string): Promise<boolean> => scheduledCall('remove', value => value === true, id),
+
+  /** Clear the schedule; how many plans it held. */
+  removeAll: (): Promise<number> => scheduledCall('removeAll', value => typeof value === 'number' && Number.isFinite(value) ? value : 0),
+}
+
 export const deepLinks = {
   async getInitialURL(): Promise<string | null> {
     return normalizeDeepLinkURL(await getCraftRoot()?.deepLinks?.getInitialURL?.())
@@ -3148,6 +3332,7 @@ const mobile: {
   speech: typeof speech
   music: typeof music
   heartRate: typeof heartRate
+  scheduledWorkouts: typeof scheduledWorkouts
   deepLinks: typeof deepLinks
   network: typeof network
   appReview: typeof appReview
@@ -3184,6 +3369,7 @@ const mobile: {
   speech: speech,
   music: music,
   heartRate: heartRate,
+  scheduledWorkouts: scheduledWorkouts,
   deepLinks: deepLinks,
   network: network,
   appReview: appReview,

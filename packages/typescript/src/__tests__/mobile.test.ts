@@ -24,7 +24,7 @@ import type {
   LiveActivityHandle,
   LiveActivityOptions,
 } from '../api/mobile'
-import mobile, { biometrics, brightness, bridgeNotification, health, heartRate, music, normalizeDeepLinkURL, normalizeHeartRateSamples, normalizeNowPlaying, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
+import mobile, { biometrics, brightness, bridgeNotification, health, heartRate, music, normalizeDeepLinkURL, normalizeScheduledWorkout, scheduledWorkouts, normalizeHeartRateSamples, normalizeNowPlaying, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
 
 describe('Mobile deep links', () => {
   it('normalizes native payloads to the public string contract', () => {
@@ -1048,5 +1048,117 @@ describe('heartRate', () => {
     expect(normalizeHeartRateSamples([{ timestamp: 5, bpm: 300 }, { timestamp: 4, bpm: 61.6, rr: [] }, { bpm: 70 }, null, { timestamp: 4, bpm: 62 }, { timestamp: 2, bpm: 60, rr: [1000] }]))
       .toEqual([{ timestamp: 2, bpm: 60, rr: [1000] }, { timestamp: 4, bpm: 62 }])
     expect(normalizeHeartRateSamples('nope')).toEqual([])
+  })
+})
+
+/** A phone whose app schedules workouts onto a watch, as craft.scheduledWorkouts answers. */
+function fakeWatchApp(options: { capability?: boolean } = {}) {
+  const calls: string[] = []
+  const kept: Array<{ id: string, date: string, hour?: number, minute?: number, complete: boolean }> = []
+  const call = (name: string, answer: (arg?: any) => unknown) => async (arg?: unknown) => {
+    calls.push(arg === undefined ? name : `${name} ${JSON.stringify(arg)}`)
+    return answer(arg)
+  }
+  const window = {
+    addEventListener() {},
+    removeEventListener() {},
+    craft: {
+      capabilities: { scheduledWorkouts: options.capability ?? true },
+      scheduledWorkouts: {
+        isSupported: call('isSupported', () => true),
+        authorization: call('authorization', () => 'notDetermined'),
+        requestAuthorization: call('requestAuthorization', () => 'authorized'),
+        list: call('list', () => [...kept, { id: 'not a row' }, null]),
+        schedule: call('schedule', (plan) => {
+          if (plan.workout.activity === 'curling') throw Object.assign(new Error("WorkoutKit has no activity 'curling'"), { code: 'INVALID_ARGUMENT' })
+          kept.push({ id: plan.id.toUpperCase(), date: plan.date, hour: plan.hour ?? 7, minute: plan.minute ?? 0, complete: false })
+          return { id: plan.id, droppedAlerts: ['block 1 step 1: power alert, which WorkoutKit refuses for running (outdoor)'] }
+        }),
+        remove: call('remove', (id) => {
+          const before = kept.length
+          kept.splice(0, kept.length, ...kept.filter(row => row.id.toLowerCase() !== id))
+          return kept.length < before
+        }),
+        removeAll: call('removeAll', () => kept.splice(0).length),
+      },
+    },
+  }
+  return { window, calls }
+}
+
+const watchPlan = {
+  id: '6f1c2b8e-5a7d-4c3e-9b1a-2d4e6f8a0b1c',
+  date: '2026-10-20',
+  hour: 6,
+  minute: 30,
+  workout: {
+    activity: 'running',
+    location: 'outdoor' as const,
+    displayName: '4 x 1 km',
+    blocks: [{ iterations: 4, steps: [{ purpose: 'work' as const, step: { goal: { type: 'distance' as const, meters: 1000 }, alert: { type: 'power' as const, min: 250, max: 280 } } }] }],
+  },
+}
+
+describe('scheduledWorkouts', () => {
+  it('asks, schedules, lists and removes plans on the watch', async () => {
+    const app = fakeWatchApp()
+    await withWindow(app.window, async () => {
+      expect(scheduledWorkouts.isAvailable()).toBe(true)
+      expect(scheduledWorkouts.supports('removeAll')).toBe(true)
+      expect(await scheduledWorkouts.isSupported()).toBe(true)
+      expect(await scheduledWorkouts.authorization()).toBe('notDetermined')
+      expect(await scheduledWorkouts.requestAuthorization()).toBe('authorized')
+      expect(await scheduledWorkouts.schedule(watchPlan)).toEqual({ id: watchPlan.id, droppedAlerts: ['block 1 step 1: power alert, which WorkoutKit refuses for running (outdoor)'] })
+      // Ids come back lowercase; rows that are not plans are left out.
+      expect(await scheduledWorkouts.list()).toEqual([{ id: watchPlan.id, date: '2026-10-20', hour: 6, minute: 30, complete: false }])
+      expect(await scheduledWorkouts.remove(watchPlan.id)).toBe(true)
+      expect(await scheduledWorkouts.remove(watchPlan.id)).toBe(false)
+      await scheduledWorkouts.schedule({ ...watchPlan, hour: undefined, minute: undefined })
+      expect(await scheduledWorkouts.removeAll()).toBe(1)
+      expect(app.calls[0]).toBe('isSupported')
+      expect(app.calls).toContain(`remove "${watchPlan.id}"`)
+      expect(mobile.scheduledWorkouts).toBe(scheduledWorkouts)
+    })
+  })
+
+  it('passes on what WorkoutKit refused', async () => {
+    const app = fakeWatchApp()
+    await withWindow(app.window, async () => {
+      const refused = scheduledWorkouts.schedule({ ...watchPlan, workout: { ...watchPlan.workout, activity: 'curling' } })
+      await expect(refused).rejects.toMatchObject({ message: "WorkoutKit has no activity 'curling'", code: 'INVALID_ARGUMENT' })
+      await expect(scheduledWorkouts.schedule(null as any)).rejects.toMatchObject({ code: 'INVALID_ARGUMENT' })
+    })
+  })
+
+  it('is unsupported in a browser, on Android and in a build without the capability', async () => {
+    for (const window of [undefined, { craft: { platform: 'android', capabilities: {} } }, fakeWatchApp({ capability: false }).window]) {
+      await withWindow(window, async () => {
+        expect(scheduledWorkouts.isAvailable()).toBe(false)
+        expect(await scheduledWorkouts.isSupported()).toBe(false)
+        for (const call of [
+          () => scheduledWorkouts.authorization(),
+          () => scheduledWorkouts.requestAuthorization(),
+          () => scheduledWorkouts.list(),
+          () => scheduledWorkouts.schedule(watchPlan),
+          () => scheduledWorkouts.remove(watchPlan.id),
+          () => scheduledWorkouts.removeAll(),
+        ])
+          await expect(call()).rejects.toMatchObject({ message: 'unsupported', code: 'UNSUPPORTED' })
+      })
+    }
+  })
+
+  it('answers false rather than rejecting when the phone cannot say', async () => {
+    const app = fakeWatchApp()
+    app.window.craft.scheduledWorkouts.isSupported = async () => { throw new Error('bridge timed out') }
+    await withWindow(app.window, async () => {
+      expect(await scheduledWorkouts.isSupported()).toBe(false)
+    })
+  })
+
+  it('reads list rows defensively', () => {
+    expect(normalizeScheduledWorkout({ id: 'ABC', date: '2026-10-20', complete: 1 })).toEqual({ id: 'abc', date: '2026-10-20', complete: false })
+    expect(normalizeScheduledWorkout({ id: 'abc', date: '20-10-2026' })).toBeNull()
+    expect(normalizeScheduledWorkout('abc')).toBeNull()
   })
 })

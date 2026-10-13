@@ -119,6 +119,17 @@ export interface CraftConfig {
    */
   enableBackgroundAudio?: boolean
   /**
+   * Schedule structured workouts onto the paired Apple Watch through
+   * `craft.scheduledWorkouts` (WorkoutKit's WorkoutScheduler, iOS 17+): each
+   * appears in the watch's Workout app on its day, with its steps, goals and
+   * alerts. Compiles CraftScheduledWorkouts.swift with the
+   * `CRAFT_SCHEDULED_WORKOUTS` condition, so an app without it never links
+   * WorkoutKit; below iOS 17 it is weak-linked and answers unsupported. iOS
+   * asks the person the first time the page calls
+   * `craft.scheduledWorkouts.requestAuthorization()`, never at launch.
+   */
+  enableScheduledWorkouts?: boolean
+  /**
    * Purpose strings in the app's own words, by Info.plist key
    * (`{ NSAppleMusicUsageDescription: 'Shows the song playing during a workout.' }`).
    * Each replaces the generic sentence Craft writes for that key.
@@ -548,6 +559,7 @@ const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
   enableMLKit: false,
   enableAppleMusic: false,
   enableHeartRate: false,
+  enableScheduledWorkouts: false,
   iosVersion: '16.0',
   watchosVersion: '9.0',
   teamId: '',
@@ -802,6 +814,19 @@ export function renderRuntimeSettings(): string {
     '      OTHER_LDFLAGS: "-lcraft-ios -Wl,-u,_craft_ios_handle_action -Wl,-u,_craft_ios_set_webview '
     + '-Wl,-u,_craft_ios_deliver_result -Wl,-u,_craft_ios_deliver_error"',
   ].join('\n')
+}
+
+/**
+ * Build settings a feature adds to the app target. WorkoutKit is compiled in
+ * only for `enableScheduledWorkouts`: CraftScheduledWorkouts.swift imports it
+ * behind the `CRAFT_SCHEDULED_WORKOUTS` condition, so an app that does not
+ * schedule workouts does not link it. `$(inherited)` keeps Debug's `DEBUG`.
+ */
+export function renderFeatureSettings(config: Pick<CraftConfig, 'enableScheduledWorkouts'>): string {
+  const conditions: string[] = []
+  if (config.enableScheduledWorkouts) conditions.push('CRAFT_SCHEDULED_WORKOUTS')
+  if (!conditions.length) return ''
+  return `      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) ${conditions.join(' ')}"`
 }
 
 export function renderPrivacyManifest(config: CraftConfig): string {
@@ -1254,6 +1279,9 @@ function writeShell(output: string, config: CraftConfig): void {
   cpSync(join(TEMPLATES_DIR, 'CraftHealth.swift'), join(output, 'Sources', 'CraftHealth.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftMusic.swift'), join(output, 'Sources', 'CraftMusic.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftHeartRate.swift'), join(output, 'Sources', 'CraftHeartRate.swift'))
+  // Always copied: without enableScheduledWorkouts it compiles to a stub
+  // that answers unsupported, and WorkoutKit is not linked.
+  cpSync(join(TEMPLATES_DIR, 'CraftScheduledWorkouts.swift'), join(output, 'Sources', 'CraftScheduledWorkouts.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeMutation.swift'), join(output, 'Sources', 'CraftNativeMutation.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeUI.swift'), join(output, 'Sources', 'CraftNativeUI.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeServices.swift'), join(output, 'Sources', 'CraftNativeServices.swift'))
@@ -1409,6 +1437,7 @@ export async function init(options: InitOptions): Promise<void> {
 
   const projectYml = projectYmlTemplate
     .replace(/\{\{CRAFT_RUNTIME_SETTINGS\}\}/g, hasRuntime ? renderRuntimeSettings() : '')
+    .replace(/\{\{FEATURE_SETTINGS\}\}/g, renderFeatureSettings(config))
     .replace(/\{\{APP_NAME\}\}/g, name)
     .replace(/\{\{BUNDLE_ID\}\}/g, finalBundleId)
     .replace(/\{\{BUNDLE_ID_PREFIX\}\}/g, bundleIdPrefix)

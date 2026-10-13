@@ -956,3 +956,91 @@ describe('craft.heartRate', () => {
     expect(service).toMatch(/#if targetEnvironment\(simulator\)\n\s+return UserDefaults\.standard\.bool\(forKey: "CraftFakeHeartRateMonitor"\)/)
   })
 })
+
+describe('craft.scheduledWorkouts', () => {
+  // Workouts on the paired Apple Watch (CraftScheduledWorkouts.swift,
+  // WorkoutKit). Every method is one `scheduledWorkouts` action naming it, the
+  // way a native screen's ScheduledWorkouts module calls them; asking to
+  // schedule is its own action, which waits on the person.
+  const plan = {
+    id: '6f1c2b8e-5a7d-4c3e-9b1a-2d4e6f8a0b1c',
+    date: '2026-10-20',
+    hour: 6,
+    minute: 30,
+    workout: {
+      activity: 'running',
+      location: 'outdoor',
+      displayName: '4 x 1 km',
+      warmup: { goal: { type: 'time', seconds: 600 } },
+      blocks: [{ iterations: 4, steps: [
+        { purpose: 'work', step: { goal: { type: 'distance', meters: 1000 }, alert: { type: 'speed', min: 4.1, max: 4.4 } } },
+        { purpose: 'recovery', step: { goal: { type: 'time', seconds: 120 } } },
+      ] }],
+    },
+  }
+
+  it('posts each call as the scheduledWorkouts action with its method and options', async () => {
+    const { craft, last, answer } = loadPage()
+
+    const supported = craft.scheduledWorkouts.isSupported()
+    expect(last('scheduledWorkouts')).toMatchObject({ method: 'isSupported', options: {} })
+    answer('scheduledWorkouts', true)
+    expect(await supported).toBe(true)
+
+    const scheduled = craft.scheduledWorkouts.schedule(plan)
+    expect(last('scheduledWorkouts')).toMatchObject({ method: 'schedule', options: plan })
+    answer('scheduledWorkouts', { id: plan.id })
+    expect(await scheduled).toEqual({ id: plan.id })
+
+    for (const id of [plan.id, { id: plan.id }]) {
+      void craft.scheduledWorkouts.remove(id)
+      expect(last('scheduledWorkouts')).toMatchObject({ method: 'remove', options: { id: plan.id } })
+      answer('scheduledWorkouts', true)
+    }
+
+    for (const method of ['authorization', 'list', 'removeAll']) {
+      const done = craft.scheduledWorkouts[method]()
+      expect(last('scheduledWorkouts')).toMatchObject({ method, options: {} })
+      answer('scheduledWorkouts', { method })
+      expect(await done).toEqual({ method })
+    }
+  })
+
+  it('waits on the scheduling prompt for as long as the person takes', async () => {
+    const { craft, answer } = loadPage()
+    const asked = craft.scheduledWorkouts.requestAuthorization()
+    expect([...pageTimers].length).toBe(0)
+    answer('scheduledWorkoutsRequestAuthorization', 'authorized')
+    expect(await asked).toBe('authorized')
+  })
+
+  it('hands a build without the capability the refusal native sends', async () => {
+    const { craft, refuse } = loadPage()
+    expect(craft.capabilities.scheduledWorkouts).toBe(false)
+    const list = craft.scheduledWorkouts.list()
+    refuse('scheduledWorkouts', 'Scheduled workouts are disabled', 'CAPABILITY_DISABLED')
+    await expect(list).rejects.toMatchObject({ code: 'CAPABILITY_DISABLED' })
+  })
+
+  it('builds WorkoutKit plans, refusing what WorkoutKit refuses and dropping a refused alert', () => {
+    const service = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftScheduledWorkouts.swift'), 'utf8')
+    expect(template).toContain('scheduledWorkouts: \\(config.enableScheduledWorkouts)')
+    expect(template).toContain('case "scheduledWorkouts", "scheduledWorkoutsRequestAuthorization":')
+    // WorkoutKit is imported only behind the build condition.
+    expect(service).toMatch(/#if CRAFT_SCHEDULED_WORKOUTS\nimport HealthKit\nimport WorkoutKit\n#endif/)
+    expect(service).toContain('guard CustomWorkout.supportsActivity(activity) else {')
+    expect(service).toContain('guard CustomWorkout.supportsGoal(parsedGoal.goal, activity: activity, location: location) else {')
+    expect(service).toContain('if CustomWorkout.supportsAlert(parsed.alert, activity: activity, location: location) {')
+    expect(service).toContain('return .success((.speed(range, unit: .metersPerSecond, metric: .current), type))')
+    // The plan id is the WorkoutPlan's; list() answers it lowercase.
+    expect(service).toContain('WorkoutPlan(.custom(custom), id: id)')
+    expect(service).toContain('["id": id.uuidString.lowercased(), "complete": complete]')
+    // schedule() says so when nothing kept the plan (no paired watch).
+    expect(service).toContain('"NOT_SCHEDULED"')
+    expect(service).toContain('WorkoutScheduler.maxAllowedScheduledWorkoutCount')
+    // Step names are iOS 18's.
+    expect(service).toContain('if #available(iOS 18.0, *), let name =')
+    // The stand-in never ships to a device.
+    expect(service).toMatch(/#if targetEnvironment\(simulator\)\n\s+if UserDefaults\.standard\.bool\(forKey: "CraftFakeWorkoutScheduler"\)/)
+  })
+})

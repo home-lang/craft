@@ -8,6 +8,7 @@ import {
   build,
   init,
   installRuntime,
+  renderFeatureSettings,
   renderRuntimeSettings,
   resolveRuntimeDir,
   orderSimulators,
@@ -1463,6 +1464,34 @@ describe('Craft iOS builder', () => {
     // Its changes reach every native screen, as the page hears them.
     expect(app).toContain('"craftMusicChange", "craftHeartRate"]')
     expect(app).toContain('self?.sendToWeb("craftMusicChange", data: snapshot)')
+  })
+
+  it('schedules Apple Watch workouts on the page and on native screens, linking WorkoutKit only when asked', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-scheduled-workouts-'))
+    await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableScheduledWorkouts: true, nativeScreens: { '/m/plan': 'Plan' } } as any })
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
+    expect(existsSync(join(output, 'Sources', 'CraftScheduledWorkouts.swift'))).toBe(true)
+    // The app's own service: a native-only app has it too.
+    expect(actions).toContain('if config.enableScheduledWorkouts { values.append("scheduledWorkouts") }')
+    expect(actions).toContain('case ("ScheduledWorkouts", _):')
+    expect(actions).toContain('CraftScheduledWorkouts.shared.perform(method: method, args: args)')
+    expect(app).toContain('case "scheduledWorkouts", "scheduledWorkoutsRequestAuthorization":')
+    expect(JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8')).enableScheduledWorkouts).toBe(true)
+    // WorkoutKit is compiled in for this app only.
+    expect(readFileSync(join(output, 'project.yml'), 'utf8')).toContain('      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) CRAFT_SCHEDULED_WORKOUTS"')
+
+    const plain = mkdtempSync(join(tmpdir(), 'craft-ios-no-scheduled-workouts-'))
+    await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output: plain })
+    // Still copied, compiled to the stub that answers unsupported.
+    expect(existsSync(join(plain, 'Sources', 'CraftScheduledWorkouts.swift'))).toBe(true)
+    expect(readFileSync(join(plain, 'project.yml'), 'utf8')).not.toContain('CRAFT_SCHEDULED_WORKOUTS')
+  })
+
+  it('adds the scheduled-workouts build condition only for the apps that schedule', () => {
+    expect(renderFeatureSettings({})).toBe('')
+    expect(renderFeatureSettings({ enableScheduledWorkouts: false })).toBe('')
+    expect(renderFeatureSettings({ enableScheduledWorkouts: true })).toBe('      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) CRAFT_SCHEDULED_WORKOUTS"')
   })
 
   it('reads a heart-rate strap on the page and on native screens alike, with no web view needed', async () => {

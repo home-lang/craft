@@ -1212,6 +1212,9 @@ struct CraftConfig: Codable {
     /// A Bluetooth heart-rate strap (or a watch broadcasting its heart rate)
     /// through `craft.heartRate` (CraftHeartRate.swift).
     var enableHeartRate: Bool = false
+    /// Structured workouts scheduled onto the paired Apple Watch through
+    /// `craft.scheduledWorkouts` (CraftScheduledWorkouts.swift, WorkoutKit).
+    var enableScheduledWorkouts: Bool = false
     var devServerURL: String? = nil
     var trustedOrigins: [String] = []
     /// The longest the launch splash stays up when the page neither says it is
@@ -2335,6 +2338,22 @@ struct CraftWebView: UIViewRepresentable {
                         }
                     }
                 }
+            // MARK: - Scheduled workouts (CraftScheduledWorkouts.swift)
+            // Gated on enableScheduledWorkouts. One action for every method,
+            // as a native screen's ScheduledWorkouts module calls them;
+            // asking to schedule has its own, which waits on the person.
+            case "scheduledWorkouts", "scheduledWorkoutsRequestAuthorization":
+                if !config.enableScheduledWorkouts {
+                    rejectCallback(callbackId, error: "Scheduled workouts are disabled", code: "CAPABILITY_DISABLED")
+                } else {
+                    let method = action == "scheduledWorkouts" ? body["method"] as? String ?? "" : "requestAuthorization"
+                    CraftScheduledWorkouts.shared.perform(method: method, args: [body["options"] as? [String: Any] ?? [:]]) { [weak self] result in
+                        switch result {
+                        case .success(let value): self?.resolveCallback(callbackId, result: value)
+                        case .failure(let failure): self?.rejectCallback(callbackId, error: failure.message, code: failure.code)
+                        }
+                    }
+                }
             // MARK: - Orientation Lock
             case "lockOrientation":
                 if config.enableOrientationLock {
@@ -3337,6 +3356,7 @@ struct CraftWebView: UIViewRepresentable {
                     brightness: true,
                     music: \(config.enableAppleMusic),
                     heartRate: \(config.enableHeartRate),
+                    scheduledWorkouts: \(config.enableScheduledWorkouts),
                     speech: true,
                     network: true,
                     deviceInfo: true,
@@ -4877,6 +4897,7 @@ struct CraftWebView: UIViewRepresentable {
                     requestHealthAuthorization: true,
                     musicRequestAuthorization: true,
                     heartRateRequestAuthorization: true,
+                    scheduledWorkoutsRequestAuthorization: true,
                     requestPermission: true,
                     signInWithApple: true,
                     dialogAlert: true,
@@ -5121,6 +5142,22 @@ struct CraftWebView: UIViewRepresentable {
                         stopRecording: function() { return heartRate('stopRecording'); },
                         getRecordingState: function() { return heartRate('getRecordingState'); },
                         readRecording: function(options) { return heartRate('readRecording', {since: options && typeof options.since === 'number' ? options.since : null}); }
+                    };
+                })();
+                // Structured workouts on the paired Apple Watch (WorkoutKit,
+                // iOS 17+): each appears in its Workout app on its day.
+                // schedule(plan) answers {id} or rejects naming what WorkoutKit
+                // refused; list() answers [{id, date, hour, minute, complete}].
+                (function() {
+                    function scheduled(method, options) { return craft._invoke('scheduledWorkouts', {method: method, options: options || {}}); }
+                    craft.scheduledWorkouts = {
+                        isSupported: function() { return scheduled('isSupported'); },
+                        authorization: function() { return scheduled('authorization'); },
+                        requestAuthorization: function() { return craft._invoke('scheduledWorkoutsRequestAuthorization'); },
+                        list: function() { return scheduled('list'); },
+                        schedule: function(plan) { return scheduled('schedule', plan); },
+                        remove: function(id) { return scheduled('remove', {id: typeof id === 'string' ? id : id && id.id}); },
+                        removeAll: function() { return scheduled('removeAll'); }
                     };
                 })();
                 craft.liveActivity = {

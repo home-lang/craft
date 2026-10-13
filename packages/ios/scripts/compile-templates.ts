@@ -36,6 +36,7 @@ const capabilityConfig: Partial<CraftConfig> = {
   enableNFC: true,
   enablePushNotifications: true,
   enableQRScanner: true,
+  enableScheduledWorkouts: true,
   enableSocialAuth: true,
   enableSpeechRecognition: true,
   enableVideoRecording: true,

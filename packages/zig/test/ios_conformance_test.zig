@@ -168,7 +168,15 @@ const dispatch_end = "func webView(";
 /// HKHealthStore.save result handlers in CraftHealth.swift that went into
 /// Swift first; they fall through to the shim, which serves them. Not a
 /// regression: no action left Zig.
-const max_not_yet_migrated: usize = 43;
+/// 45 when the spec gained the Apple Watch scheduled-workouts bridge:
+/// scheduledWorkouts (every method, by name, as a native screen's
+/// ScheduledWorkouts module calls them) and
+/// scheduledWorkoutsRequestAuthorization (its own, so the page waits on iOS's
+/// prompt). They drive WorkoutKit's WorkoutScheduler through
+/// CraftScheduledWorkouts.swift; like the heart-rate bridge they went into
+/// Swift first and fall through to the shim, which serves them. Not a
+/// regression: no action left Zig.
+const max_not_yet_migrated: usize = 45;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.

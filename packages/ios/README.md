@@ -191,6 +191,7 @@ Edit `craft.config.json` in your iOS project:
   "enableAppleMusic": false,
   "enableHeartRate": false,
   "enableBackgroundAudio": false,
+  "enableScheduledWorkouts": false,
   "enableScreenCapture": true,
   "iosVersion": "15.0",
   "teamId": ""
@@ -613,6 +614,47 @@ const { samples } = await window.craft.heartRate.stopRecording(); // [{ timestam
 // The simulator has no Bluetooth: `simctl spawn <device> defaults write
 // <bundle id> CraftFakeHeartRateMonitor -bool YES` stands in a strap ("Simulated
 // HRM") whose readings are encoded and decoded as 0x2A37 payloads. Simulator builds only.
+
+// Apple Watch workouts (enableScheduledWorkouts, iOS 17+): WorkoutKit's
+// WorkoutScheduler puts a structured workout in the paired watch's Workout
+// app on its day. Only an app with the flag compiles in and links WorkoutKit
+// (the CRAFT_SCHEDULED_WORKOUTS build condition); below iOS 17 it is weak-linked
+// and isSupported() answers false. A plan is plain JSON in SI units.
+if (await window.craft.scheduledWorkouts.isSupported()) {
+  await window.craft.scheduledWorkouts.requestAuthorization(); // iOS's prompt once; waits on the person
+  await window.craft.scheduledWorkouts.schedule({
+    id: '6f1c2b8e-5a7d-4c3e-9b1a-2d4e6f8a0b1c', // a UUID: WorkoutPlan's id
+    date: '2026-10-20', hour: 6, minute: 30,    // local; 07:00 without a time
+    workout: {
+      activity: 'running',                      // an HKWorkoutActivityType case name
+      location: 'outdoor',                      // indoor | outdoor | unknown
+      displayName: '4 x 1 km',
+      warmup: { goal: { type: 'time', seconds: 600 } },
+      blocks: [{ iterations: 4, steps: [
+        { purpose: 'work', step: { goal: { type: 'distance', meters: 1000 },
+          alert: { type: 'speed', min: 4.1, max: 4.4 }, displayName: '1 km hard' } }, // step names: iOS 18
+        { purpose: 'recovery', step: { goal: { type: 'time', seconds: 120 } } },
+      ] }],
+      cooldown: { goal: { type: 'open' } },
+    },
+  }); // { id, droppedAlerts? }
+  await window.craft.scheduledWorkouts.list();      // [{ id, date, hour, minute, complete }], ids lowercase
+  await window.craft.scheduledWorkouts.remove(id);  // every day it is on; true when there was one
+  await window.craft.scheduledWorkouts.removeAll(); // how many there were
+}
+// Goals: open, time (seconds), distance (meters), energy (kilocalories).
+// Alerts: heartRate / power / speed (m/s) / cadence { min, max }, heartRateZone /
+// powerZone { zone }. An activity or goal WorkoutKit refuses rejects, naming it
+// (UNSUPPORTED_GOAL, INVALID_ARGUMENT); a refused alert is dropped and named in
+// droppedAlerts. LIMIT_REACHED past WorkoutScheduler.maxAllowedScheduledWorkoutCount;
+// NOT_SCHEDULED when nothing kept the plan (no paired watch); NOT_AUTHORIZED
+// before access. Swimming: CustomWorkout has no swimming location or pool
+// length, so with location 'unknown' a 'pool' swim is indoor, 'openWater' outdoor.
+// Native screens call the same service as the ScheduledWorkouts module
+// (capability `scheduledWorkouts`); or use `scheduledWorkouts` from 'craft-native/mobile'.
+// A simulator never has a watch: `simctl spawn <device> defaults write <bundle id>
+// CraftFakeWorkoutScheduler -bool YES` keeps plans in the app instead (WorkoutKit
+// still builds and checks them). Simulator builds only.
 
 // Files on a native screen (capability `files`, always there): a photo from
 // the library (PHPickerViewController, no permission asked) or the camera

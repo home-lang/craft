@@ -633,6 +633,12 @@ export interface CraftBridge {
   heartRate?: CraftHeartRate;
 
   /**
+   * Structured workouts scheduled onto the paired Apple Watch (iOS 17+,
+   * `enableScheduledWorkouts`, WorkoutKit's WorkoutScheduler).
+   */
+  scheduledWorkouts?: CraftScheduledWorkouts;
+
+  /**
    * Lock screen orientation
    * @param orientation - 'portrait' or 'landscape'
    */
@@ -1387,6 +1393,73 @@ export interface CraftHeartRate {
   readRecording(options?: { since?: number }): Promise<CraftHeartRateSample[]>;
 }
 
+export type CraftScheduledWorkoutsAuthorization = 'authorized' | 'denied' | 'notDetermined' | 'restricted' | 'unsupported';
+
+/**
+ * A plan for the Apple Watch's Workout app: plain JSON, SI units. See
+ * craft-native/mobile's `AppleWorkoutPlan` for each field.
+ */
+export interface CraftAppleWorkoutPlan {
+  /** A UUID. */
+  id: string;
+  /** 'YYYY-MM-DD', local. */
+  date: string;
+  /** Local time of day, 07:00 when not given. */
+  hour?: number;
+  minute?: number;
+  workout: {
+    activity: string;
+    location: 'indoor' | 'outdoor' | 'unknown';
+    swimmingLocation?: 'pool' | 'openWater';
+    poolLengthMeters?: number;
+    displayName: string;
+    warmup?: CraftAppleWorkoutStep;
+    cooldown?: CraftAppleWorkoutStep;
+    blocks: Array<{ iterations: number; steps: Array<{ purpose: 'work' | 'recovery'; step: CraftAppleWorkoutStep }> }>;
+  };
+}
+
+export interface CraftAppleWorkoutStep {
+  goal:
+    | { type: 'open' }
+    | { type: 'time'; seconds: number }
+    | { type: 'distance'; meters: number }
+    | { type: 'energy'; kilocalories: number };
+  alert?:
+    | { type: 'heartRate' | 'power' | 'speed' | 'cadence'; min: number; max: number }
+    | { type: 'heartRateZone' | 'powerZone'; zone: number };
+  /** iOS 18+, at most 64 characters. */
+  displayName?: string;
+}
+
+export interface CraftScheduledWorkout {
+  /** Lowercase UUID. */
+  id: string;
+  date: string;
+  hour?: number;
+  minute?: number;
+  complete: boolean;
+}
+
+export interface CraftScheduledWorkouts {
+  /** iOS 17+ and WorkoutKit can schedule on this phone. */
+  isSupported(): Promise<boolean>;
+  authorization(): Promise<CraftScheduledWorkoutsAuthorization>;
+  /** Shows iOS's prompt the first time; after that answers from memory. */
+  requestAuthorization(): Promise<CraftScheduledWorkoutsAuthorization>;
+  list(): Promise<CraftScheduledWorkout[]>;
+  /**
+   * Rejects naming what WorkoutKit refused (an activity or goal; a refused
+   * alert is dropped and listed in `droppedAlerts`), LIMIT_REACHED, or
+   * NOT_SCHEDULED when nothing kept it (no paired watch).
+   */
+  schedule(plan: CraftAppleWorkoutPlan): Promise<{ id: string; droppedAlerts?: string[] }>;
+  /** Removes every scheduled occurrence of the plan; true when there was one. */
+  remove(id: string): Promise<boolean>;
+  /** How many plans the schedule held. */
+  removeAll(): Promise<number>;
+}
+
 export interface CraftSpeech {
   /**
    * Speak `text`. Settles when the utterance ends: `true` when it was spoken,
@@ -1429,6 +1502,8 @@ export interface CraftCapabilities {
   music?: boolean;
   /** A Bluetooth heart-rate strap through `craft.heartRate` (iOS, `enableHeartRate`). */
   heartRate?: boolean;
+  /** Workouts scheduled onto the Apple Watch through `craft.scheduledWorkouts` (iOS, `enableScheduledWorkouts`). */
+  scheduledWorkouts?: boolean;
   /** Native text-to-speech through `craft.speech`. */
   speech: boolean;
   network: boolean;

@@ -68,6 +68,9 @@ enum CraftNativeActions {
         // A heart-rate strap is the app's own service (CraftHeartRate.swift),
         // so it needs no web view.
         if config.enableHeartRate { values.append("heartRate") }
+        // Workouts on the paired Apple Watch (CraftScheduledWorkouts.swift),
+        // also the app's own service.
+        if config.enableScheduledWorkouts { values.append("scheduledWorkouts") }
         // Photos picked from the library, files downloaded for the share
         // sheet and sent in a form (CraftNativeFiles.swift): the photo picker
         // runs out of process and asks no permission. Taking a photo needs
@@ -335,6 +338,17 @@ enum CraftNativeActions {
                 return
             }
             CraftHeartRate.shared.perform(method: method, args: args) { result in
+                complete(requestToken, result.mapError { CraftNativeActionError(code: $0.code, message: $0.message) }, completion)
+            }
+            return
+        case ("ScheduledWorkouts", _):
+            // Workouts on the paired Apple Watch, the same service as a
+            // page's `craft.scheduledWorkouts` (WorkoutKit's scheduler).
+            guard config.enableScheduledWorkouts else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Scheduled workouts are disabled"), completion)
+                return
+            }
+            CraftScheduledWorkouts.shared.perform(method: method, args: args) { result in
                 complete(requestToken, result.mapError { CraftNativeActionError(code: $0.code, message: $0.message) }, completion)
             }
             return
