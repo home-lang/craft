@@ -186,6 +186,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('hidesWhenStopped')
       expect(nativeActivity).toContain('isEnabled = !props.optBoolean("disabled", false)')
       expect(nativeActivity).toContain('"Slider" -> (previous as? SeekBar ?: SeekBar(this))')
+      expect(nativeActivity).toContain('ceil((maximum - minimum) / it).toLong()')
+      expect(nativeActivity).toContain('.coerceIn(1L, Int.MAX_VALUE.toLong())')
       expect(nativeActivity).toContain('onSlidingComplete')
       expect(nativeActivity).toContain('setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener')
       expect(nativeActivity).toContain('JSONObject().put("value", value)')

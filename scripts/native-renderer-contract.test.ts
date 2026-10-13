@@ -1084,7 +1084,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val requested = props.optDouble("value", minimum)')
     expect(android).toContain('if (step != null) minimum + ((requested - minimum) / step).roundToInt() * step else requested')
     expect(android).toContain('val progressMax = step?.let {')
-    expect(android).toContain('ceil((maximum - minimum) / it).toInt().coerceIn(1, 1_000_000)')
+    expect(android).toContain('ceil((maximum - minimum) / it).toLong()')
+    expect(android).toContain('.coerceIn(1L, Int.MAX_VALUE.toLong())')
     expect(android).toContain('((value - minimum) / step).roundToInt().coerceIn(0, max)')
   })
 

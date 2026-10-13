@@ -2744,7 +2744,12 @@ class MainActivity : AppCompatActivity() {
                 // ranges unable to represent most valid values. Continuous
                 // sliders retain the bounded scale to avoid an enormous max.
                 val progressMax = step?.let {
-                    ceil((maximum - minimum) / it).toInt().coerceIn(1, 1_000_000)
+                    // SeekBar stores progress as an Int. Do not impose a
+                    // smaller arbitrary ceiling: large authored ranges must
+                    // still be able to reach their final stepped value.
+                    ceil((maximum - minimum) / it).toLong()
+                        .coerceIn(1L, Int.MAX_VALUE.toLong())
+                        .toInt()
                 } ?: 1000
                 max = progressMax
                 val requested = props.optDouble("value", minimum)
