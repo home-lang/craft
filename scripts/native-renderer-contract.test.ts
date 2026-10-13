@@ -1009,6 +1009,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('view.layer.shadowOffset = CGSize(')
     expect(android).toContain('view.outlineAmbientShadowColor = alphaShadow')
     expect(android).toContain('style.optDouble("shadowRadius", 0.0) * 2.0')
+    expect(android).toContain('outline.setRoundRect(offsetX, offsetY, target.width + offsetX, target.height + offsetY, shadowRadius)')
     expect(navigationHome).toContain('"shadowOpacity":0.35')
   })
 

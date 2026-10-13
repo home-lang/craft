@@ -17,6 +17,7 @@ import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
 import android.view.accessibility.AccessibilityNodeInfo
 import android.webkit.WebView
 import android.widget.Button
@@ -300,6 +301,9 @@ class NativeNavigationTest {
             val styled = awaitView(activity, "styled-row") as LinearLayout
             val styledFirst = awaitView(activity, "styled-first") as TextView
             val styledSecond = awaitView(activity, "styled-second") as TextView
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                assertTrue("explicit shadow offset did not install an outline", styled.outlineProvider !== ViewOutlineProvider.BACKGROUND)
+            }
             val density = activity.resources.displayMetrics.density
             assertEquals(LinearLayout.HORIZONTAL, styled.orientation)
             assertTrue(styled.indexOfChild(styledSecond) < styled.indexOfChild(styledFirst))
