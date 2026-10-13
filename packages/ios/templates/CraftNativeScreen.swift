@@ -1226,10 +1226,9 @@ private final class CraftNativeFlowView: UIStackView {
         }
         let width = innerWidth ?? (CGFloat(columns) * cellWidth + gaps)
         let height = rowHeights.reduce(0, +) + CGFloat(max(0, rowHeights.count - 1)) * verticalGap
-        // The shared bridge does not carry auto-row sizing yet. Keep this
-        // host-local when the style requests it so both runtimes honor the
-        // same grid contract instead of silently dropping the declaration.
-        let sharedFrames = gridAutoRows == nil ? CraftNativeGridBridge.frames(
+        // Older runtimes return nil for the optional symbol; the local layout
+        // below remains the compatibility path in that case.
+        let sharedFrames = CraftNativeGridBridge.frames(
             availableWidth: innerWidth ?? width,
             availableHeight: innerHeight ?? height,
             columns: columns,
@@ -1248,8 +1247,9 @@ private final class CraftNativeFlowView: UIStackView {
                     style.marginLeft, style.marginRight, style.marginTop, style.marginBottom,
                     align == "stretch", alignment
                 )
-            }
-        ) : nil
+            },
+            autoRowHeight: gridAutoRows.map { $0.resolve(innerHeight) ?? 0 }
+        )
         if place {
             if let sharedFrames {
                 for (index, child) in children.enumerated() {

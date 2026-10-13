@@ -746,10 +746,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val contentWidth = width - paddingLeft - paddingRight
             val contentHeight = height - paddingTop - paddingBottom
             val flow = layout.rows.flatten()
-            // The shared bridge does not carry auto-row sizing yet. Keep this
-            // host-local when the style requests it so both runtimes honor the
-            // same grid contract instead of silently dropping the declaration.
-            val sharedFrames = if (gridAutoRows == null) CraftNative.grid(
+            // Older runtimes return null for the optional symbol; the local
+            // layout below remains the compatibility path in that case.
+            val sharedFrames = CraftNative.grid(
                 contentWidth.toFloat(), contentHeight.toFloat(), gridColumns, columnGap.toFloat(), rowGap.toFloat(),
                 flow.map { it.width.toFloat() }.toFloatArray(), flow.map { it.height.toFloat() }.toFloatArray(),
                 flow.map { it.style.width?.resolve(layout.cellWidth)?.toFloat() ?: Float.NaN }.toFloatArray(),
@@ -766,7 +765,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     val align = it.style.alignSelf ?: alignItems
                     listOf(if (align == "stretch") 1f else 0f, if (align == "center") 1f else if (align == "flex-end") 2f else 0f)
                 }.toFloatArray(),
-            ) else null
+                gridAutoRows?.resolve(contentHeight)?.toFloat(),
+            )
             if (sharedFrames != null) {
                 for ((index, entry) in flow.withIndex()) {
                     val offset = index * 4

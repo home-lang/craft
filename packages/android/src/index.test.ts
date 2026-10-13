@@ -125,7 +125,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('style.width?.resolve(base)')
       expect(nativeActivity).toContain('ViewGroup.LayoutParams.WRAP_CONTENT')
       expect(nativeActivity).toContain('gridAutoRows = CraftNativeLength.from(style.opt("gridAutoRows"), density)')
-      expect(nativeActivity).toContain('if (gridAutoRows == null) CraftNative.grid(')
+      expect(nativeActivity).toContain('gridAutoRows?.resolve(contentHeight)?.toFloat()')
       expect(nativeActivity).toContain('maxLines = props.optInt("numberOfLines", 0).takeIf { it > 0 } ?: Int.MAX_VALUE')
       expect(nativeActivity).toContain('"middle" -> TextUtils.TruncateAt.MIDDLE')
       expect(nativeActivity).toContain('wrap = style.optString("flexWrap") == "wrap"')

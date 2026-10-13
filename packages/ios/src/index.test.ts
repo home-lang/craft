@@ -621,8 +621,7 @@ describe('Craft iOS builder', () => {
     expect(source).toContain('gridAutoRows = CraftNativeLength(raw["gridAutoRows"])')
     expect(source).toContain('private enum CraftNativeLength: Equatable')
     expect(source).toContain('var gridAutoRows: CraftNativeLength?')
-    expect(source).toContain('gridAutoRows == nil ? CraftNativeGridBridge.frames')
-    expect(source).toContain('gridAutoRows?.resolve(innerHeight)')
+    expect(source).toContain('autoRowHeight: gridAutoRows.map { $0.resolve(innerHeight) ?? 0 }')
   })
 
   it('keeps native scroll views\' sticky headers stuck and scrolls to a target', async () => {
