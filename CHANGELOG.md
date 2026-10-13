@@ -1,5 +1,29 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.161...v0.0.162)
+
+## 🚀 Features
+
+- **ios**: keep sound playing with the screen locked (enableBackgroundAudio) ([cebe54b](https://github.com/craft-native/craft/commit/cebe54b)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- align wrapped lines evenly across hosts ([bdabd62](https://github.com/craft-native/craft/commit/bdabd62)) _(by glennmichael123)_
+- add aspect ratios to shared native layout ([15bcbbb](https://github.com/craft-native/craft/commit/15bcbbb)) _(by glennmichael123)_
+
+## 📚 Documentation
+
+- document evenly distributed native lines ([84a44a1](https://github.com/craft-native/craft/commit/84a44a1)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- cover evenly distributed native lines ([61d9f60](https://github.com/craft-native/craft/commit/61d9f60)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.160...v0.0.161)
 
 ## 🚀 Features
