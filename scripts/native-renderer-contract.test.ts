@@ -1313,6 +1313,7 @@ describe('native renderer component contract', () => {
     expect(androidCapabilities).toContain('listOf("device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "files")')
     expect(androidCapabilities).toContain('private fun multipart(parts: JSONArray): FileResult')
     expect(androidCapabilities).toContain('A form file must be one craft.files made, and still there')
+    expect(androidCapabilities).not.toContain('form files are limited to $CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES bytes')
     expect(androidCapabilities).toContain('Intent.ACTION_OPEN_DOCUMENT')
     expect(androidCapabilities).toContain('private fun ownedFile(path: String): File?')
     expect(androidCapabilities).toContain("files.write encoding is 'utf8' or 'base64'")

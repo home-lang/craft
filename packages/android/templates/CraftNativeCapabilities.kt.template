@@ -287,8 +287,6 @@ internal class CraftNativeCapabilities(
                 val bytes = runCatching { file.readBytes() }.getOrElse {
                     return FileResult.Failure("INVALID_ARGUMENT", "A form file could not be read")
                 }
-                if (bytes.size > CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES)
-                    return FileResult.Failure("REQUEST_TOO_LARGE", "form files are limited to $CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES bytes")
                 val filename = safeFileName(part.optString("filename").ifBlank { file.name })
                 val type = part.optString("type").ifBlank { URLConnection.guessContentTypeFromName(filename) ?: "application/octet-stream" }
                 append("Content-Disposition: form-data; name=\"${quoted(name)}\"; filename=\"${quoted(filename)}\"\r\n")
@@ -491,7 +489,6 @@ internal class CraftNativeCapabilities(
     }
 
     private fun store(bytes: ByteArray, name: String, type: String): CraftNativeCapabilityResult {
-        if (bytes.size > CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES) return failure("REQUEST_TOO_LARGE", "files are limited to $CRAFT_NATIVE_FETCH_MAX_RESPONSE_BYTES bytes")
         val file = File(fileRoot, UUID.randomUUID().toString()).apply { mkdirs() }.resolve(safeFileName(name))
         return runCatching { file.writeBytes(bytes); success(descriptor(file, type)) }
             .getOrElse { failure("WRITE_ERROR", it.message ?: "File could not be written") }
