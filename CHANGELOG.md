@@ -1,5 +1,73 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.158...v0.0.159)
+
+## 🚀 Features
+
+- **android**: add native files capability ([2dccbf7](https://github.com/craft-native/craft/commit/2dccbf7)) _(by glennmichael123)_
+- **android**: add keyboard avoiding native view ([78fbf1f](https://github.com/craft-native/craft/commit/78fbf1f)) _(by glennmichael123)_
+- **ios**: add keyboard avoiding native view ([7581945](https://github.com/craft-native/craft/commit/7581945)) _(by glennmichael123)_
+- **native**: add ImageBackground host parity ([751d2d2](https://github.com/craft-native/craft/commit/751d2d2)) _(by glennmichael123)_
+- **native**: add checkbox parity ([6a9d4f1](https://github.com/craft-native/craft/commit/6a9d4f1)) _(by glennmichael123)_
+- **native**: add Android date picker parity ([b17a02d](https://github.com/craft-native/craft/commit/b17a02d)) _(by glennmichael123)_
+- **native**: expose shared grid auto rows ([38879ac](https://github.com/craft-native/craft/commit/38879ac)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **ios**: text wider than its room wraps again ([54d41b0](https://github.com/craft-native/craft/commit/54d41b0)) _(by Chris Breuer)_
+- **android**: align native file size semantics ([775f7fb](https://github.com/craft-native/craft/commit/775f7fb)) _(by glennmichael123)_
+- **android**: align file download responses ([ae567a0](https://github.com/craft-native/craft/commit/ae567a0)) _(by glennmichael123)_
+- **android**: preserve native files across recreation ([74582ec](https://github.com/craft-native/craft/commit/74582ec)) _(by glennmichael123)_
+- **android**: cancel native file downloads ([08c5f8a](https://github.com/craft-native/craft/commit/08c5f8a)) _(by glennmichael123)_
+- **android**: normalize picked native images ([ff97991](https://github.com/craft-native/craft/commit/ff97991)) _(by glennmichael123)_
+- **android**: validate native file inputs ([d307337](https://github.com/craft-native/craft/commit/d307337)) _(by glennmichael123)_
+- **android**: use numeric assertion overload for flex bounds ([ceab1d2](https://github.com/craft-native/craft/commit/ceab1d2)) _(by glennmichael123)_
+- **ios**: resolve builder version from package root ([925d5f5](https://github.com/craft-native/craft/commit/925d5f5)) _(by glennmichael123)_
+- **ios**: keep native horizontal swipes in scroll views ([8ffb340](https://github.com/craft-native/craft/commit/8ffb340)) _(by glennmichael123)_
+- **ios**: checkboxes and ImageBackground compile again ([91fda67](https://github.com/craft-native/craft/commit/91fda67)) _(by Chris Breuer)_
+- **ios**: a native row with a role but no label reads its text to VoiceOver ([bd97d45](https://github.com/craft-native/craft/commit/bd97d45)) _(by Chris Breuer)_
+- **native**: preserve mixed checkbox visuals ([d1aaf1a](https://github.com/craft-native/craft/commit/d1aaf1a)) _(by glennmichael123)_
+- **native**: preserve indeterminate checkbox state ([b6457ca](https://github.com/craft-native/craft/commit/b6457ca)) _(by glennmichael123)_
+- **native**: normalize countdown duration bounds ([ca52873](https://github.com/craft-native/craft/commit/ca52873)) _(by glennmichael123)_
+- **native**: align countdown picker events ([1f7f1d0](https://github.com/craft-native/craft/commit/1f7f1d0)) _(by glennmichael123)_
+- **native**: route auto rows through shared layout ([5cdd4e2](https://github.com/craft-native/craft/commit/5cdd4e2)) _(by glennmichael123)_
+- **ios**: type grid auto rows as native lengths ([82979fc](https://github.com/craft-native/craft/commit/82979fc)) _(by glennmichael123)_
+- **native**: honor grid auto rows across hosts ([67ac2a9](https://github.com/craft-native/craft/commit/67ac2a9)) _(by glennmichael123)_
+- **native**: align fallback flex bounds ([9f890cc](https://github.com/craft-native/craft/commit/9f890cc)) _(by glennmichael123)_
+- **native**: redistribute bounded flex space ([e2d3a36](https://github.com/craft-native/craft/commit/e2d3a36)) _(by glennmichael123)_
+- **native**: measure text from max-content ([af22209](https://github.com/craft-native/craft/commit/af22209)) _(by glennmichael123)_
+- **android**: invalidate targeted layout ancestors ([ddb27e6](https://github.com/craft-native/craft/commit/ddb27e6)) _(by glennmichael123)_
+- **ci**: pin native E2E to Video-capable stx ([2254d63](https://github.com/craft-native/craft/commit/2254d63)) _(by glennmichael123)_
+- **android**: emit layout events after full renders ([270aaa9](https://github.com/craft-native/craft/commit/270aaa9)) _(by glennmichael123)_
+- **android**: preserve targeted mutation view paths ([c2950c7](https://github.com/craft-native/craft/commit/c2950c7)) _(by glennmichael123)_
+- **native**: canonicalize protocol types and row keys ([e928a6c](https://github.com/craft-native/craft/commit/e928a6c)) _(by glennmichael123)_
+- **native**: stabilize maintained mobile fixtures ([9f58823](https://github.com/craft-native/craft/commit/9f58823)) _(by glennmichael123)_
+
+## 📚 Documentation
+
+- **native**: document owned file uploads ([c553301](https://github.com/craft-native/craft/commit/c553301)) _(by glennmichael123)_
+- **native**: document keyboard avoiding parity ([0900e2a](https://github.com/craft-native/craft/commit/0900e2a)) _(by glennmichael123)_
+- **native**: document ImageBackground support ([1d88a3f](https://github.com/craft-native/craft/commit/1d88a3f)) _(by glennmichael123)_
+- **native**: document checkbox parity ([9ebccdb](https://github.com/craft-native/craft/commit/9ebccdb)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **android**: cover file download errors ([c5d7caf](https://github.com/craft-native/craft/commit/c5d7caf)) _(by glennmichael123)_
+- **native**: cover max-content text bubbles ([90ecf54](https://github.com/craft-native/craft/commit/90ecf54)) _(by glennmichael123)_
+- **native**: cover ImageBackground fixtures ([cf26efa](https://github.com/craft-native/craft/commit/cf26efa)) _(by glennmichael123)_
+- **native**: cover mixed checkbox builders ([caf3ae7](https://github.com/craft-native/craft/commit/caf3ae7)) _(by glennmichael123)_
+- **native**: cover checkbox fixtures ([47d562c](https://github.com/craft-native/craft/commit/47d562c)) _(by glennmichael123)_
+- **native**: cover countdown picker fixtures ([5d365ee](https://github.com/craft-native/craft/commit/5d365ee)) _(by glennmichael123)_
+- **native**: cover Android date picker fixture ([ead2462](https://github.com/craft-native/craft/commit/ead2462)) _(by glennmichael123)_
+- **android**: cover auto-row native binding ([c3e3a7b](https://github.com/craft-native/craft/commit/c3e3a7b)) _(by glennmichael123)_
+- **android**: await modal lifecycle events ([2fe18f1](https://github.com/craft-native/craft/commit/2fe18f1)) _(by glennmichael123)_
+- **native**: keep link fixture compiler-safe ([42f2ba6](https://github.com/craft-native/craft/commit/42f2ba6)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.157...v0.0.158)
 
 ## 🐛 Bug Fixes
