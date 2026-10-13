@@ -18,6 +18,9 @@ const longPressStatus = state('')
 const longPressAccessibilityDisabled = state(false)
 const switchValue = state(false)
 const pickerValue = state('one')
+const dateValue = state('2026-10-12')
+const timeValue = state('07:30')
+const dateEventStatus = state('date event pending')
 const modalVisible = state(false)
 const modalStatus = state('')
 const modalOpacity = state(1)
@@ -270,6 +273,16 @@ function choosePicker(event) {
   status.set(`picker ${pickerValue()}`)
 }
 
+function chooseDate(event) {
+  dateValue.set(event.value)
+  dateEventStatus.set(event.iso && event.timestamp > 0 ? `${event.value}|event complete` : 'date event incomplete')
+}
+
+function chooseTime(event) {
+  timeValue.set(event.value)
+  dateEventStatus.set(event.iso && event.timestamp > 0 ? `${event.value}|event complete` : 'time event incomplete')
+}
+
 function toggleModal() {
   modalVisible.update(value => !value)
 }
@@ -456,6 +469,11 @@ function openCapabilities() {
       <option value="three">Three</option>
     </select>
     <Text testID="picker-value" :text="pickerValue" />
+    <DatePicker testID="native-date-picker" value="2026-10-12" minimumDate="2026-10-01" maximumDate="2026-12-31" @value-change="chooseDate($event)" />
+    <Text testID="date-value" :text="dateValue" />
+    <DatePicker testID="native-time-picker" mode="time" value="07:30" minuteInterval={5} @value-change="chooseTime($event)" />
+    <Text testID="time-value" :text="timeValue" />
+    <Text testID="date-event-status" :text="dateEventStatus" />
     <Button testID="toggle-modal" @click="toggleModal()">Toggle modal</Button>
     <Modal testID="native-modal" visible={modalVisible} transparent animationType="slide" style={{"opacity": modalOpacity}} @show="modalShown()" @dismiss="modalDismissed()" @request-close="modalRequested()">
       <Text testID="modal-content">Modal content</Text>

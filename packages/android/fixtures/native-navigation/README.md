@@ -22,6 +22,9 @@ scroller rather than the native wrapper, so nested scroll offsets come from the
 platform control that actually moves. The details `ScrollView` also exercises
 the same swipe-to-refresh and keyed-row insertion path as iOS; the dedicated
 `NativeFlatListTest` continues to cover recycling and virtualized row layout.
+The shared home route also exercises Android's native `DatePicker` and
+`TimePicker`, including date bounds, minute-interval snapping, and the shared
+value/ISO/timestamp event payload.
 
 The navigation section also verifies the shared runtime lifecycle: a pushed
 details screen gets fresh state, the unmount marker runs after the Android Back

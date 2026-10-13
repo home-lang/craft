@@ -17,6 +17,7 @@ import android.view.ViewGroup
 import android.view.accessibility.AccessibilityNodeInfo
 import android.webkit.WebView
 import android.widget.Button
+import android.widget.DatePicker
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -26,6 +27,7 @@ import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.Switch
 import android.widget.TextView
+import android.widget.TimePicker
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
@@ -425,6 +427,22 @@ class NativeNavigationTest {
             instrumentation.runOnMainSync { (picker as Spinner).setSelection(1) }
             awaitText(activity, "picker-value", "two")
             assertEquals("picker two", (awaitView(activity, "native-link-status") as TextView).text.toString())
+            val dateRoot = awaitView(activity, "native-date-picker")
+            val nativeDatePicker = findType(dateRoot, DatePicker::class.java)
+            assertTrue("native date picker should contain an Android DatePicker", nativeDatePicker != null)
+            assertEquals("date picker minimum bound", "2026-10-01", java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date(nativeDatePicker!!.minDate)))
+            assertEquals("date picker maximum bound", "2026-12-31", java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date(nativeDatePicker.maxDate)))
+            instrumentation.runOnMainSync { nativeDatePicker.updateDate(2026, 10, 15) }
+            awaitText(activity, "date-value", "2026-11-15")
+            awaitText(activity, "date-event-status", "2026-11-15|event complete")
+            val timeRoot = awaitView(activity, "native-time-picker")
+            val nativeTimePicker = findType(timeRoot, TimePicker::class.java)
+            assertTrue("native time picker should contain an Android TimePicker", nativeTimePicker != null)
+            assertEquals(7, nativeTimePicker!!.hour)
+            assertEquals(30, nativeTimePicker.minute)
+            instrumentation.runOnMainSync { nativeTimePicker.minute = 33 }
+            awaitText(activity, "time-value", "07:35")
+            awaitText(activity, "date-event-status", "07:35|event complete")
             val modal = awaitView(activity, "native-modal")
             assertTrue("native modal should be a container", modal is ViewGroup)
             assertEquals("modal should start hidden", View.GONE, modal.visibility)

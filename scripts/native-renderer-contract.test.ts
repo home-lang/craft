@@ -380,6 +380,10 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"timestamp", current.timeInMillis')
     expect(android).toContain('events.optString("onValueChange").ifBlank { events.optString("onChange") }')
     expect(guide).toContain('| `DatePicker` | `UIDatePicker` | `DatePicker` / `TimePicker` |')
+    expect(navigationHome).toContain('<DatePicker testID="native-date-picker"')
+    expect(navigationHome).toContain('<DatePicker testID="native-time-picker" mode="time"')
+    expect(androidNavigationTest).toContain('date picker minimum bound')
+    expect(androidNavigationTest).toContain('time picker should contain an Android TimePicker')
   })
 
   it('keeps Modal visibility and parent blocking aligned across hosts', () => {
