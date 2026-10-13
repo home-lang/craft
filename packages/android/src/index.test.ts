@@ -64,6 +64,8 @@ describe('Craft Android builder', () => {
       expect(nativeCapabilities).toContain('fetch body must be a string')
       expect(nativeCapabilities).toContain('A GET or HEAD request cannot have a body')
       expect(nativeCapabilities).toContain('fetch header values must be strings')
+      expect(nativeCapabilities).toContain('private fun files(requestToken: String, method: String, args: JSONArray): CraftNativeCapabilityResult {')
+      expect(nativeCapabilities).not.toContain('private fun files(requestToken: String, method: String, args: JSONArray): CraftNativeCapabilityResult = when')
       expect(nativeCapabilities).toContain('"SecureStorage" -> {')
       expect(nativeCapabilities).toContain('"Biometrics" -> biometrics(requestToken, method, args, completion)')
       expect(nativeCapabilities).toContain('EncryptedSharedPreferences.create(')

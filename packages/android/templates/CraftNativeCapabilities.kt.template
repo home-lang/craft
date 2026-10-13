@@ -303,7 +303,8 @@ internal class CraftNativeCapabilities(
         return FileResult.Multipart(body.toByteArray(), boundary)
     }
 
-    private fun files(requestToken: String, method: String, args: JSONArray): CraftNativeCapabilityResult = when (method) {
+    private fun files(requestToken: String, method: String, args: JSONArray): CraftNativeCapabilityResult {
+        return when (method) {
         "write" -> {
             val name = args.optString(0).trim()
             if (name.isBlank()) return failure("INVALID_ARGUMENT", "files.write needs a file name")
@@ -322,7 +323,8 @@ internal class CraftNativeCapabilities(
             success(file.delete())
         }
         "download" -> download(requestToken, args)
-        else -> failure("UNKNOWN_ACTION", "Unsupported Files method")
+            else -> failure("UNKNOWN_ACTION", "Unsupported Files method")
+        }
     }
 
     private fun download(requestToken: String, args: JSONArray): CraftNativeCapabilityResult {
