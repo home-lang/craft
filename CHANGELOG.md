@@ -1,5 +1,39 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.163...v0.0.164)
+
+## 🚀 Features
+
+- **ios**: keep video on the phone for offline, and play the kept copy ([f6bbeca](https://github.com/craft-native/craft/commit/f6bbeca)) _(by Chris Breuer)_
+- **ios**: allow screens to disable tab swipes ([a7cb229](https://github.com/craft-native/craft/commit/a7cb229)) _(by glennmichael123)_
+- **mobile**: expose HealthKit quantity writes ([da73c82](https://github.com/craft-native/craft/commit/da73c82)) _(by glennmichael123)_
+- **ios**: switch tabs from horizontal swipes ([88303a7](https://github.com/craft-native/craft/commit/88303a7)) _(by glennmichael123)_
+- **ios**: expose app badges to native screens ([d76653a](https://github.com/craft-native/craft/commit/d76653a)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **android**: read shared flex positions correctly ([d80773d](https://github.com/craft-native/craft/commit/d80773d)) _(by glennmichael123)_
+- **native**: align SVG opacity cascade ([253c261](https://github.com/craft-native/craft/commit/253c261)) _(by glennmichael123)_
+- **ios**: write HealthKit quantity samples ([363f643](https://github.com/craft-native/craft/commit/363f643)) _(by glennmichael123)_
+- **ios**: let native screens opt out of content back swipes ([da3dd91](https://github.com/craft-native/craft/commit/da3dd91)) _(by glennmichael123)_
+- **android**: preserve fractional flex gaps ([996c79c](https://github.com/craft-native/craft/commit/996c79c)) _(by glennmichael123)_
+- **android**: preserve fractional grid tracks ([e5e3c5b](https://github.com/craft-native/craft/commit/e5e3c5b)) _(by glennmichael123)_
+- **android**: preserve stepped slider precision ([5c92e2c](https://github.com/craft-native/craft/commit/5c92e2c)) _(by glennmichael123)_
+- **android**: preserve fractional stretch line sizing ([68ef091](https://github.com/craft-native/craft/commit/68ef091)) _(by glennmichael123)_
+- **android**: preserve fractional wrapped cross-axis spacing ([c70fdda](https://github.com/craft-native/craft/commit/c70fdda)) _(by glennmichael123)_
+- **native**: preserve wrapped reverse flex line order ([774e673](https://github.com/craft-native/craft/commit/774e673)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: refresh shrink-to-fit layout contracts ([5c0dc34](https://github.com/craft-native/craft/commit/5c0dc34)) _(by glennmichael123)_
+- **native**: cover fractional grid fixtures ([79af30e](https://github.com/craft-native/craft/commit/79af30e)) _(by glennmichael123)_
+- **native**: lock wrapped reverse flex parity ([0cbc9ee](https://github.com/craft-native/craft/commit/0cbc9ee)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.162...v0.0.163)
 
 ## 🚀 Features
