@@ -573,6 +573,13 @@ pub const App = struct {
             self.allocator.destroy(window);
         }
         self.windows.deinit(self.allocator);
+
+        // Release COM only after every WebView2 controller and webview has
+        // been destroyed. App.run may return while a window is still live
+        // (for example after an explicit quit request).
+        if (comptime builtin.os.tag == .windows) {
+            @import("windows.zig").deinitializeCom();
+        }
     }
 };
 

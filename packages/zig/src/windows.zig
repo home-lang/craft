@@ -193,6 +193,8 @@ pub extern "user32" fn MonitorFromWindow(hWnd: HWND, dwFlags: DWORD) callconv(.c
 pub extern "user32" fn GetMonitorInfoW(hMonitor: *anyopaque, lpmi: *MONITORINFO) callconv(.c) BOOL;
 pub extern "kernel32" fn GetModuleHandleW(lpModuleName: ?LPCWSTR) callconv(.c) ?HINSTANCE;
 pub extern "kernel32" fn Sleep(dwMilliseconds: DWORD) callconv(.c) void;
+pub extern "ole32" fn CoInitializeEx(pvReserved: ?*anyopaque, dwCoInit: DWORD) callconv(.c) HRESULT;
+pub extern "ole32" fn CoUninitialize() callconv(.c) void;
 pub extern "ole32" fn CoTaskMemFree(pv: ?*anyopaque) callconv(.c) void;
 
 // ============================================================================
@@ -1823,6 +1825,12 @@ pub const Window = struct {
         if (SetPropW(hwnd, DEEP_LINK_PROP.ptr, @ptrFromInt(try applicationKey())) == 0)
             return error.DeepLinkIdentityFailed;
 
+        // WebView2 requires an STA COM apartment on the thread that creates
+        // its environment. Keep this process-wide initialization paired with
+        // App.run's shutdown so every window, including windows opened later,
+        // is created on the same initialized UI thread.
+        try initializeCom();
+
         // ----------------------------------------------------------------
         // Async WebView2 initialization
         // ----------------------------------------------------------------
@@ -2223,6 +2231,30 @@ pub const App = struct {
     }
 };
 
+pub const COINIT_APARTMENTTHREADED: DWORD = 0x2;
+const RPC_E_CHANGED_MODE: HRESULT = -2147417850;
+var com_initialized = false;
+
+fn initializeCom() !void {
+    if (com_initialized) return;
+    const hr = CoInitializeEx(null, COINIT_APARTMENTTHREADED);
+    if (hr == RPC_E_CHANGED_MODE) {
+        std.debug.print("[WebView2] COM is already initialized with a non-STA apartment\n", .{});
+        return error.ComInitializationFailed;
+    }
+    if (!succeeded(hr)) {
+        std.debug.print("[WebView2] CoInitializeEx failed: 0x{x}\n", .{@as(u32, @bitCast(hr))});
+        return error.ComInitializationFailed;
+    }
+    com_initialized = true;
+}
+
+pub fn deinitializeCom() void {
+    if (!com_initialized) return;
+    CoUninitialize();
+    com_initialized = false;
+}
+
 /// Evaluate a reply in the authenticated sender, if that webview is still live.
 /// Native callers without a sender use the most recently created live window.
 pub fn evalJS(script: []const u8) !void {
@@ -2286,6 +2318,7 @@ pub fn runApp() void {
     App.run() catch |err| {
         std.debug.print("Error running Windows app: {}\n", .{err});
     };
+    deinitializeCom();
 }
 
 // Notifications using Windows Toast

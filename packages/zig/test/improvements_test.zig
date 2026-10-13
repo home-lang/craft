@@ -13,6 +13,13 @@ const builtin = @import("builtin");
 test "Fix #1: Windows types are defined" {
     const windows = @import("../src/windows.zig");
 
+    // WebView2 requires an initialized STA apartment on its creating thread.
+    // Keep the ole32 entry points and mode visible to the structural test so
+    // a future loader refactor cannot regress to CO_E_NOTINITIALIZED.
+    _ = windows.CoInitializeEx;
+    _ = windows.CoUninitialize;
+    try testing.expectEqual(@as(windows.DWORD, 0x2), windows.COINIT_APARTMENTTHREADED);
+
     // Verify COM vtable types exist
     _ = windows.ICoreWebView2EnvironmentVtbl;
     _ = windows.ICoreWebView2ControllerVtbl;
