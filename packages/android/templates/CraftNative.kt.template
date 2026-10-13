@@ -280,6 +280,24 @@ object CraftNative {
         margins: FloatArray,
         flags: FloatArray,
     ): FloatArray?
+    private external fun nativeGridAutoRows(
+        availableWidth: Float,
+        availableHeight: Float,
+        columns: Int,
+        columnGap: Float,
+        rowGap: Float,
+        autoRowHeight: Float,
+        intrinsicWidth: FloatArray,
+        intrinsicHeight: FloatArray,
+        explicitWidth: FloatArray,
+        explicitHeight: FloatArray,
+        minWidth: FloatArray,
+        maxWidth: FloatArray,
+        minHeight: FloatArray,
+        maxHeight: FloatArray,
+        margins: FloatArray,
+        flags: FloatArray,
+    ): FloatArray?
     private external fun nativeClipboardRead(activity: Activity): String?
     private external fun nativeClipboardWrite(activity: Activity, text: String): Boolean
     private external fun nativeOpenUrl(activity: Activity, url: String): Boolean
@@ -513,10 +531,15 @@ object CraftNative {
         maxHeight: FloatArray,
         margins: FloatArray,
         flags: FloatArray,
+        autoRowHeight: Float? = null,
     ): FloatArray? {
         if (!isAvailable) return null
         return try {
-            nativeGrid(availableWidth, availableHeight, columns, columnGap, rowGap, intrinsicWidth, intrinsicHeight, explicitWidth, explicitHeight, minWidth, maxWidth, minHeight, maxHeight, margins, flags)
+            if (autoRowHeight != null) {
+                nativeGridAutoRows(availableWidth, availableHeight, columns, columnGap, rowGap, autoRowHeight, intrinsicWidth, intrinsicHeight, explicitWidth, explicitHeight, minWidth, maxWidth, minHeight, maxHeight, margins, flags)
+            } else {
+                nativeGrid(availableWidth, availableHeight, columns, columnGap, rowGap, intrinsicWidth, intrinsicHeight, explicitWidth, explicitHeight, minWidth, maxWidth, minHeight, maxHeight, margins, flags)
+            }
                 ?.takeIf { it.size >= intrinsicWidth.size * 4 && it.all { value -> value.isFinite() } }
         } catch (e: UnsatisfiedLinkError) {
             null

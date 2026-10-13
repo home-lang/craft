@@ -182,10 +182,17 @@ private enum CraftNativeGridBridge {
     private typealias Function = @convention(c) (
         Float, Float, UInt32, Float, Float, UnsafeRawPointer, Int, UnsafeMutableRawPointer
     ) -> Int32
+    private typealias AutoRowsFunction = @convention(c) (
+        Float, Float, UInt32, Float, Float, Float, UnsafeRawPointer, Int, UnsafeMutableRawPointer
+    ) -> Int32
 
     private static let function: Function? = {
         guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_grid") else { return nil }
         return unsafeBitCast(symbol, to: Function.self)
+    }()
+    private static let autoRowsFunction: AutoRowsFunction? = {
+        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "craft_native_grid_auto_rows") else { return nil }
+        return unsafeBitCast(symbol, to: AutoRowsFunction.self)
     }()
 
     static func frames(
@@ -194,9 +201,12 @@ private enum CraftNativeGridBridge {
         columns: Int,
         columnGap: CGFloat,
         rowGap: CGFloat,
-        items: [(intrinsicWidth: CGFloat, intrinsicHeight: CGFloat, explicitWidth: CGFloat?, explicitHeight: CGFloat?, minWidth: CGFloat?, maxWidth: CGFloat?, minHeight: CGFloat?, maxHeight: CGFloat?, marginLeft: CGFloat, marginRight: CGFloat, marginTop: CGFloat, marginBottom: CGFloat, stretch: Bool, alignment: UInt32)]
+        items: [(intrinsicWidth: CGFloat, intrinsicHeight: CGFloat, explicitWidth: CGFloat?, explicitHeight: CGFloat?, minWidth: CGFloat?, maxWidth: CGFloat?, minHeight: CGFloat?, maxHeight: CGFloat?, marginLeft: CGFloat, marginRight: CGFloat, marginTop: CGFloat, marginBottom: CGFloat, stretch: Bool, alignment: UInt32)],
+        autoRowHeight: CGFloat? = nil
     ) -> [(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat)]? {
-        guard let function, !items.isEmpty else { return nil }
+        guard !items.isEmpty else { return nil }
+        if autoRowHeight != nil, autoRowsFunction == nil { return nil }
+        if autoRowHeight == nil, function == nil { return nil }
         var input = items.map { item in
             Item(
                 intrinsicWidth: Float(item.intrinsicWidth), intrinsicHeight: Float(item.intrinsicHeight),
@@ -211,7 +221,11 @@ private enum CraftNativeGridBridge {
         var output = [Frame](repeating: Frame(x: 0, y: 0, width: 0, height: 0), count: input.count)
         let status = input.withUnsafeBufferPointer { inputBuffer in
             output.withUnsafeMutableBufferPointer { outputBuffer in
-                function(Float(availableWidth), Float(availableHeight), UInt32(max(1, columns)), Float(columnGap), Float(rowGap), UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!))
+                if let autoRowHeight, let autoRowsFunction {
+                    return autoRowsFunction(Float(availableWidth), Float(availableHeight), UInt32(max(1, columns)), Float(columnGap), Float(rowGap), Float(autoRowHeight), UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!))
+                }
+                guard let function else { return Int32(-1) }
+                return function(Float(availableWidth), Float(availableHeight), UInt32(max(1, columns)), Float(columnGap), Float(rowGap), UnsafeRawPointer(inputBuffer.baseAddress!), input.count, UnsafeMutableRawPointer(outputBuffer.baseAddress!))
             }
         }
         guard status == 0, output.allSatisfy({ frame in

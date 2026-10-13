@@ -112,12 +112,44 @@ pub export fn craft_native_grid(
     item_count: usize,
     frames: [*]Frame,
 ) callconv(.c) c_int {
+    return craftNativeGridWithAutoRows(available_width, available_height, columns, column_gap, row_gap, std.math.nan(f32), items, item_count, frames);
+}
+
+/// Resolve an equal-track grid with a host-provided `grid-auto-rows` minimum.
+/// The separate symbol keeps the original ABI intact for runtimes that do not
+/// ship this optional argument yet.
+pub export fn craft_native_grid_auto_rows(
+    available_width: f32,
+    available_height: f32,
+    columns: u32,
+    column_gap: f32,
+    row_gap: f32,
+    auto_row_height: f32,
+    items: [*]const GridItem,
+    item_count: usize,
+    frames: [*]Frame,
+) callconv(.c) c_int {
+    return craftNativeGridWithAutoRows(available_width, available_height, columns, column_gap, row_gap, auto_row_height, items, item_count, frames);
+}
+
+fn craftNativeGridWithAutoRows(
+    available_width: f32,
+    available_height: f32,
+    columns: u32,
+    column_gap: f32,
+    row_gap: f32,
+    auto_row_height: f32,
+    items: [*]const GridItem,
+    item_count: usize,
+    frames: [*]Frame,
+) c_int {
     if (item_count == 0) return 0;
     const column_count = @max(@as(usize, 1), @as(usize, @intCast(columns)));
     const width = finiteNonNegative(available_width);
     const height = finiteNonNegative(available_height);
     const safe_column_gap = finiteNonNegative(column_gap);
     const safe_row_gap = finiteNonNegative(row_gap);
+    const safe_auto_row_height = finiteNonNegative(auto_row_height);
     const cell_width = @max(0, width - safe_column_gap * @as(f32, @floatFromInt(column_count - 1))) /
         @as(f32, @floatFromInt(column_count));
 
@@ -128,7 +160,7 @@ pub export fn craft_native_grid(
         const end = @min(item_count, start + column_count);
         for (items[start..end]) |item| {
             const intrinsic = optionalDimension(item.explicit_height, item.intrinsic_height);
-            row_height = @max(row_height, clampBounds(intrinsic, item.min_height, item.max_height) + finiteNonNegative(item.margin_top) + finiteNonNegative(item.margin_bottom));
+            row_height = @max(row_height, safe_auto_row_height, clampBounds(intrinsic, item.min_height, item.max_height) + finiteNonNegative(item.margin_top) + finiteNonNegative(item.margin_bottom));
         }
         var row_y: f32 = 0;
         for (0..row) |prior| {
@@ -137,7 +169,7 @@ pub export fn craft_native_grid(
             var prior_height: f32 = 0;
             for (items[prior_start..prior_end]) |item| {
                 const intrinsic = optionalDimension(item.explicit_height, item.intrinsic_height);
-                prior_height = @max(prior_height, clampBounds(intrinsic, item.min_height, item.max_height) + finiteNonNegative(item.margin_top) + finiteNonNegative(item.margin_bottom));
+                prior_height = @max(prior_height, safe_auto_row_height, clampBounds(intrinsic, item.min_height, item.max_height) + finiteNonNegative(item.margin_top) + finiteNonNegative(item.margin_bottom));
             }
             row_y += prior_height + safe_row_gap;
         }
@@ -968,4 +1000,16 @@ test "sanitizes non-finite grid bounds" {
     try std.testing.expectEqual(@as(c_int, 0), craft_native_grid(100, 40, 1, 0, 0, &items, items.len, &frames));
     try std.testing.expect(std.math.isFinite(frames[0].width));
     try std.testing.expect(std.math.isFinite(frames[0].height));
+}
+
+test "applies a shared minimum to every grid auto row" {
+    const items = [_]GridItem{
+        .{ .intrinsic_width = 12, .intrinsic_height = 8, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.nan(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 1, .alignment = 0 },
+        .{ .intrinsic_width = 12, .intrinsic_height = 10, .explicit_width = std.math.nan(f32), .explicit_height = std.math.nan(f32), .min_width = std.math.nan(f32), .max_width = std.math.nan(f32), .min_height = std.math.nan(f32), .max_height = std.math.nan(f32), .margin_left = 0, .margin_right = 0, .margin_top = 0, .margin_bottom = 0, .stretch = 1, .alignment = 0 },
+    };
+    var frames: [2]Frame = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_grid_auto_rows(100, 100, 1, 0, 5, 24, &items, items.len, &frames));
+    try std.testing.expectApproxEqAbs(@as(f32, 24), frames[0].height, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 29), frames[1].y, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 24), frames[1].height, 0.001);
 }
