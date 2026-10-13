@@ -645,8 +645,14 @@ describe('native renderer component contract', () => {
 
   it('keeps intrinsic grid tracks equal across hosts', () => {
     expect(ios).toContain('let width = innerWidth ?? (CGFloat(columns) * cellWidth + gaps)')
+    expect(ios).toContain('gridAutoRows = CraftNativeLength(raw["gridAutoRows"])')
+    expect(ios).toContain('gridAutoRows == nil ? CraftNativeGridBridge.frames')
+    expect(ios).toContain('gridAutoRows?.resolve(innerHeight)')
     expect(android).toContain('val cellWidth = columnWidths.maxOrNull() ?: 0')
     expect(android).toContain('cellWidth * columns')
+    expect(android).toContain('gridAutoRows = CraftNativeLength.from(style.opt("gridAutoRows"), density)')
+    expect(android).toContain('if (gridAutoRows == null) CraftNative.grid(')
+    expect(android).toContain('gridAutoRows?.resolve(height - paddingTop - paddingBottom)')
   })
 
   it('keeps per-edge margins in native flex and grid layout', () => {
@@ -735,7 +741,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('style.has("backgroundColor") && !style.isNull("backgroundColor")')
     expect(android).toContain('style.width?.resolve(base)')
     expect(android).toContain('ViewGroup.LayoutParams.WRAP_CONTENT')
-    expect(android).toContain('gridAutoRows = style.optDouble("gridAutoRows", Double.NaN)')
+    expect(android).toContain('gridAutoRows = CraftNativeLength.from(style.opt("gridAutoRows"), density)')
     expect(android).toContain('raw.opt("alignSelf")')
     expect(android).toContain('raw.opt("position")')
     expect(navigationHome).toContain('style={{"width":textWidthUnset ? null : 160')

@@ -443,7 +443,7 @@ private struct CraftNativeLayoutStyle {
     let marginLeft: CGFloat
     let display: String
     let gridColumns: Int
-    let gridAutoRows: CGFloat?
+    let gridAutoRows: CraftNativeLength?
 
     static let empty = CraftNativeLayoutStyle([:])
 
@@ -478,7 +478,7 @@ private struct CraftNativeLayoutStyle {
         marginLeft = number(raw["marginLeft"]) ?? horizontalMargin
         display = raw["display"] as? String ?? "flex"
         gridColumns = craftNativeGridColumnCount(raw["gridTemplateColumns"] ?? raw["gridColumns"])
-        gridAutoRows = number(raw["gridAutoRows"])
+        gridAutoRows = CraftNativeLength(raw["gridAutoRows"])
     }
 }
 
@@ -1207,12 +1207,15 @@ private final class CraftNativeFlowView: UIStackView {
             )
             sizes.append(size)
             let row = index / columns
-            while rowHeights.count <= row { rowHeights.append(gridAutoRows ?? 0) }
+            while rowHeights.count <= row { rowHeights.append(gridAutoRows?.resolve(innerHeight) ?? 0) }
             rowHeights[row] = max(rowHeights[row], size.height + style.marginTop + style.marginBottom)
         }
         let width = innerWidth ?? (CGFloat(columns) * cellWidth + gaps)
         let height = rowHeights.reduce(0, +) + CGFloat(max(0, rowHeights.count - 1)) * verticalGap
-        let sharedFrames = CraftNativeGridBridge.frames(
+        // The shared bridge does not carry auto-row sizing yet. Keep this
+        // host-local when the style requests it so both runtimes honor the
+        // same grid contract instead of silently dropping the declaration.
+        let sharedFrames = gridAutoRows == nil ? CraftNativeGridBridge.frames(
             availableWidth: innerWidth ?? width,
             availableHeight: innerHeight ?? height,
             columns: columns,
@@ -1232,7 +1235,7 @@ private final class CraftNativeFlowView: UIStackView {
                     align == "stretch", alignment
                 )
             }
-        )
+        ) : nil
         if place {
             if let sharedFrames {
                 for (index, child) in children.enumerated() {
@@ -4325,7 +4328,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         stack.columnGap = number(style["columnGap"]) ?? gap
         stack.grid = style["display"] as? String == "grid"
         stack.gridColumns = craftNativeGridColumnCount(style["gridTemplateColumns"] ?? style["gridColumns"])
-        stack.gridAutoRows = number(style["gridAutoRows"])
+        stack.gridAutoRows = CraftNativeLength(style["gridAutoRows"])
         stack.padding = paddingInsets(style)
         stack.invalidateMeasurements()
     }

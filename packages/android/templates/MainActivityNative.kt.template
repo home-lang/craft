@@ -389,7 +389,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var columnGap = 0
     private var grid = false
     private var gridColumns = 1
-    private var gridAutoRows: Int? = null
+    private var gridAutoRows: CraftNativeLength? = null
     private var reverse = false
 
     fun configure(style: JSONObject, density: Float) {
@@ -406,7 +406,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         gridColumns = craftNativeGridColumnCount(
             if (style.has("gridTemplateColumns")) style.opt("gridTemplateColumns") else style.opt("gridColumns")
         )
-        gridAutoRows = style.optDouble("gridAutoRows", Double.NaN).takeUnless { it.isNaN() }?.let { (it * density).toInt() }
+        gridAutoRows = CraftNativeLength.from(style.opt("gridAutoRows"), density)
         val padding = (style.optDouble("padding", 0.0) * density).toInt()
         val horizontal = (style.optDouble("paddingHorizontal", padding.toDouble() / density.toDouble()) * density).toInt()
         val vertical = (style.optDouble("paddingVertical", padding.toDouble() / density.toDouble()) * density).toInt()
@@ -534,7 +534,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             }
         }
         val rowHeights = rows.map { row ->
-            max(gridAutoRows ?: 0, row.maxOfOrNull { entry ->
+            max(gridAutoRows?.resolve(height - paddingTop - paddingBottom) ?: 0, row.maxOfOrNull { entry ->
                 val lp = entry.view.layoutParams as? MarginLayoutParams
                 entry.height + (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
             } ?: 0)
@@ -559,7 +559,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val childHeight = measureChildHeight(child, style, height, verticalMargins)
             val column = flowIndex % columns
             val row = flowIndex / columns
-            while (rowHeights.size <= row) rowHeights += gridAutoRows ?: 0
+            while (rowHeights.size <= row) rowHeights += gridAutoRows?.resolve(null) ?: 0
             columnWidths[column] = max(columnWidths[column], childWidth + horizontalMargins)
             rowHeights[row] = max(rowHeights[row], childHeight + verticalMargins)
             flowIndex += 1
@@ -746,7 +746,10 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val contentWidth = width - paddingLeft - paddingRight
             val contentHeight = height - paddingTop - paddingBottom
             val flow = layout.rows.flatten()
-            val sharedFrames = CraftNative.grid(
+            // The shared bridge does not carry auto-row sizing yet. Keep this
+            // host-local when the style requests it so both runtimes honor the
+            // same grid contract instead of silently dropping the declaration.
+            val sharedFrames = if (gridAutoRows == null) CraftNative.grid(
                 contentWidth.toFloat(), contentHeight.toFloat(), gridColumns, columnGap.toFloat(), rowGap.toFloat(),
                 flow.map { it.width.toFloat() }.toFloatArray(), flow.map { it.height.toFloat() }.toFloatArray(),
                 flow.map { it.style.width?.resolve(layout.cellWidth)?.toFloat() ?: Float.NaN }.toFloatArray(),
@@ -763,7 +766,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     val align = it.style.alignSelf ?: alignItems
                     listOf(if (align == "stretch") 1f else 0f, if (align == "center") 1f else if (align == "flex-end") 2f else 0f)
                 }.toFloatArray(),
-            )
+            ) else null
             if (sharedFrames != null) {
                 for ((index, entry) in flow.withIndex()) {
                     val offset = index * 4

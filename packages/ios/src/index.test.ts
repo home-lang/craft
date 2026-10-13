@@ -618,6 +618,9 @@ describe('Craft iOS builder', () => {
     const source = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
     expect(source).toContain('let flow = children.filter { $0.craftLayoutStyle.position != "absolute" }')
     expect(source).toContain('layoutGrid(flow,')
+    expect(source).toContain('gridAutoRows = CraftNativeLength(raw["gridAutoRows"])')
+    expect(source).toContain('gridAutoRows == nil ? CraftNativeGridBridge.frames')
+    expect(source).toContain('gridAutoRows?.resolve(innerHeight)')
   })
 
   it('keeps native scroll views\' sticky headers stuck and scrolls to a target', async () => {
