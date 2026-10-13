@@ -110,6 +110,15 @@ export interface CraftConfig {
    */
   enableHeartRate?: boolean
   /**
+   * Keep playing sound with the screen locked or the app in the background:
+   * a sleep soundscape, a meditation timer's ambience. Adds the `audio`
+   * background mode. iOS keeps the app running only while it plays, and App
+   * Review expects audible content, so turn it on only for an app that plays
+   * some (Web Audio on native screens and in the web view, which use the
+   * playback session).
+   */
+  enableBackgroundAudio?: boolean
+  /**
    * Purpose strings in the app's own words, by Info.plist key
    * (`{ NSAppleMusicUsageDescription: 'Shows the song playing during a workout.' }`).
    * Each replaces the generic sentence Craft writes for that key.
@@ -701,6 +710,8 @@ export function renderBackgroundModes(config: CraftConfig): string {
   if (config.enablePushNotifications) modes.add('remote-notification')
   // A strap's readings keep arriving with the screen locked mid-workout.
   if (config.enableHeartRate) modes.add('bluetooth-central')
+  // A soundscape keeps playing with the screen locked (a sleep timer).
+  if (config.enableBackgroundAudio) modes.add('audio')
   if (!modes.size) return ''
 
   return `    <key>UIBackgroundModes</key>\n    <array>\n${plistArray([...modes])}\n    </array>`

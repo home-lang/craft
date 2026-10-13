@@ -336,6 +336,13 @@ describe('Craft iOS builder', () => {
     expect(renderBackgroundModes(config)).toContain('<string>location</string>')
   })
 
+  it('keeps sound playing with the screen locked only when the app asks for it', () => {
+    const config = { appName: 'HQ.training', bundleId: 'training.hq.app' }
+    expect(renderBackgroundModes(config)).toBe('')
+    expect(renderBackgroundModes({ ...config, enableBackgroundAudio: true })).toBe('    <key>UIBackgroundModes</key>\n    <array>\n        <string>audio</string>\n    </array>')
+    expect(renderBackgroundModes({ ...config, enableBackgroundAudio: true, enableHeartRate: true })).toContain('<string>bluetooth-central</string>\n        <string>audio</string>')
+  })
+
   it('explains Apple Music access, in the app\'s own words when it gives them', () => {
     const config = { appName: 'HQ.training', bundleId: 'training.hq.app' }
     // The shell links MediaPlayer, so the key is always there (ITMS-90683).

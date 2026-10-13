@@ -185,6 +185,7 @@ Edit `craft.config.json` in your iOS project:
   "enableHealthKit": false,
   "enableAppleMusic": false,
   "enableHeartRate": false,
+  "enableBackgroundAudio": false,
   "enableScreenCapture": true,
   "iosVersion": "15.0",
   "teamId": ""
@@ -194,6 +195,11 @@ Edit `craft.config.json` in your iOS project:
 The app name is shown as written (`"HQ.training"` is fine); the Xcode
 project, target and Swift types use a PascalCase identifier made from it
 (`HQTraining`). A key left out of the file keeps its default.
+
+`enableBackgroundAudio` adds the `audio` background mode, so a soundscape or a
+meditation's ambience (Web Audio, on the playback session) keeps playing with
+the screen locked; a sleep timer then fades it out on the audio clock. Turn it
+on only for an app that plays sound people listen to: App Review checks.
 
 Purpose strings in your own words, by Info.plist key (each replaces Craft's
 generic sentence; the keys for frameworks the shell links are always written,
