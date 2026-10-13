@@ -341,8 +341,19 @@ private final class CraftNativeVideoView: UIView {
             detachPlayer()
             sourceURI = uri
             loops = false
-            guard let url = URL(string: uri), !uri.isEmpty, url.scheme != nil else {
+            // The copy `craft.media.keep` put on the phone plays in place of
+            // the address, so a kept video plays with no signal.
+            let kept = CraftNativeMedia.local(uri)
+            guard let url = kept ?? URL(string: uri), !uri.isEmpty, kept != nil || url.scheme != nil else {
                 playerController.player = nil
+                // A path with no scheme ("/videos/a.mp4") has nowhere to load
+                // from on a native screen. Say so rather than stay black.
+                if !uri.isEmpty {
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self, self.sourceURI == uri else { return }
+                        self.fire("onError", ["message": "The video address is not a full URL: \(uri)"])
+                    }
+                }
                 return
             }
             let next = AVPlayer(url: url)

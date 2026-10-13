@@ -771,6 +771,24 @@ unchanged. `craft.files.download` resolves a non-2xx response as
 `{ ok: false, status, body }`; transport failures still reject with the native
 network error codes.
 
+The `media` capability (iOS) keeps video and audio on the phone for offline,
+in Application Support rather than the temporary directory, left out of
+iCloud backups. `craft.media.keep(url, { headers })` downloads the file once
+and resolves `{ ok: true, url, path, size }` (a copy already there answers at
+once, and two calls for one address share a download); a non-2xx answer
+resolves `{ ok: false, url, status }` and keeps nothing.
+`craft.media.path(url)` is the kept copy's path or `null`,
+`craft.media.prune(urls)` removes every copy not in `urls` and resolves how
+many went, and `craft.media.usage()` is `{ files, bytes }`. A native `Video`
+given an address with a kept copy plays the copy, so a screen keeps its
+videos and passes the same URLs as before. A `Video` whose source has no
+scheme (`/videos/a.mp4`) cannot load on a native screen and fires `onError`.
+
+```ts
+await craft.media.keep('https://example.com/videos/squat.mp4')
+await craft.media.prune(['https://example.com/videos/squat.mp4'])
+```
+
 ### Network requests and timers
 
 JavaScriptCore has no `fetch` and no timers. The iOS host supplies both, and

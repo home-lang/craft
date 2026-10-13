@@ -1531,6 +1531,29 @@ describe('Craft iOS builder', () => {
     expect(plist).toContain('<string>Gate connects to your heart-rate monitor over Bluetooth to show and record your heart rate during a workout.</string>')
   })
 
+  it('keeps video on the phone for offline and plays the kept copy in a native Video', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-media-'))
+    await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { nativeScreens: { '/m/workout/:id': 'Workout' } } as any })
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const files = readFileSync(join(output, 'Sources', 'CraftNativeFiles.swift'), 'utf8')
+    const screen = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
+    expect(actions).toContain('values.append("media")')
+    for (const call of ['case ("Media", "keep"):', 'case ("Media", "path"):', 'case ("Media", "prune"):', 'case ("Media", "usage"):'])
+      expect(actions).toContain(call)
+    // Kept where iOS does not empty it, out of backups, named by the address.
+    expect(files).toContain('FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)')
+    expect(files).toContain('values.isExcludedFromBackup = true')
+    expect(files).toContain('SHA256.hash(data: Data(address.utf8))')
+    // Moved into place whole, never played half-written; a refusal keeps nothing.
+    expect(files).toContain('try fm.moveItem(at: staging, to: target)')
+    expect(files).toContain('return .success(["ok": false, "url": address, "status": response.statusCode])')
+    // Two screens asking for the same address share one download.
+    expect(actions).toContain('if CraftNativeMedia.join(address, { complete(requestToken, $0, completion) }) { return }')
+    // The Video element plays the kept copy, and says so when an address cannot load.
+    expect(screen).toContain('let kept = CraftNativeMedia.local(uri)')
+    expect(screen).toContain('self.fire("onError", ["message": "The video address is not a full URL: \\(uri)"])')
+  })
+
   it('picks a photo, downloads a file and posts a form from a native screen, the bytes kept off the bridge', async () => {
     const output = mkdtempSync(join(tmpdir(), 'craft-ios-files-'))
     await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableShare: true, nativeScreens: { '/m/workout/:id/share': 'WorkoutShare' } } as any })

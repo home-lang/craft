@@ -76,6 +76,9 @@ enum CraftNativeActions {
         // runs out of process and asks no permission. Taking a photo needs
         // the camera, which the app declares.
         values.append("files")
+        // Video and audio kept on the phone for offline (CraftNativeMedia),
+        // which the native Video element plays in place of the address.
+        values.append("media")
         if config.enableCamera { values.append("camera") }
         return values
     }
@@ -190,6 +193,19 @@ enum CraftNativeActions {
             return
         case ("Files", "remove"):
             sync = .success(CraftNativeFiles.remove(args.first as? String ?? ""))
+        case ("Media", "keep"):
+            keepMedia(requestToken: requestToken, args: args, completion: completion)
+            return
+        case ("Media", "path"):
+            sync = .success(CraftNativeMedia.local(args.first as? String ?? "")?.path ?? NSNull())
+        case ("Media", "prune"):
+            let keep = (args.first as? [Any] ?? []).compactMap { $0 as? String }
+            DispatchQueue.global(qos: .utility).async {
+                complete(requestToken, .success(CraftNativeMedia.prune(keep: keep)), completion)
+            }
+            return
+        case ("Media", "usage"):
+            sync = .success(CraftNativeMedia.usage())
         case ("Lifecycle", "getState"):
             sync = .success(currentAppState())
         case ("DeepLinks", "getInitialURL"):
@@ -625,6 +641,63 @@ enum CraftNativeActions {
         if !alreadyCancelled { fetchTasks[requestToken] = task }
         cancellationLock.unlock()
         if !alreadyCancelled { task.resume() }
+    }
+
+    /// `craft.media.keep`: the file at an address kept on the phone for
+    /// offline, fetched once (a copy already there answers at once, and two
+    /// screens asking at the same time share one download). A refused answer
+    /// (not 2xx) keeps nothing and says its status. Cancelled like fetch.
+    private static func keepMedia(
+        requestToken: String,
+        args: [Any],
+        completion: @escaping (Result<Any, CraftNativeActionError>) -> Void
+    ) {
+        guard let address = args.first as? String,
+              let url = URL(string: address),
+              let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              url.host?.isEmpty == false else {
+            complete(requestToken, failure("INVALID_ARGUMENT", "media.keep needs an absolute http or https URL"), completion)
+            return
+        }
+        if let kept = CraftNativeMedia.local(address) {
+            complete(requestToken, .success(CraftNativeMedia.describe(address, kept)), completion)
+            return
+        }
+        let options = args.count > 1 ? args[1] as? [String: Any] ?? [:] : [:]
+        var request = URLRequest(url: url, timeoutInterval: craftNativeFetchTimeoutSeconds)
+        request.httpMethod = "GET"
+        if let headers = options["headers"] as? [String: Any] {
+            for (name, value) in headers {
+                guard let value = value as? String else {
+                    complete(requestToken, failure("INVALID_ARGUMENT", "media.keep header values must be strings"), completion)
+                    return
+                }
+                request.setValue(value, forHTTPHeaderField: name)
+            }
+        }
+        if CraftNativeMedia.join(address, { complete(requestToken, $0, completion) }) { return }
+        let task = fetchSession.downloadTask(with: request) { location, response, error in
+            cancellationLock.lock()
+            fetchTasks.removeValue(forKey: requestToken)
+            cancellationLock.unlock()
+            if let error = error {
+                let code = (error as? URLError)?.code == .timedOut ? "TIMEOUT" : "NETWORK_ERROR"
+                CraftNativeMedia.finish(address, failure(code, error.localizedDescription))
+                return
+            }
+            guard let http = response as? HTTPURLResponse, let location else {
+                CraftNativeMedia.finish(address, failure("NETWORK_ERROR", "media.keep received a response that is not HTTP"))
+                return
+            }
+            // The system deletes `location` once this returns: move it now.
+            CraftNativeMedia.finish(address, CraftNativeMedia.store(address, at: location, response: http))
+        }
+        cancellationLock.lock()
+        let alreadyCancelled = cancelledRequests.contains(requestToken)
+        if !alreadyCancelled { fetchTasks[requestToken] = task }
+        cancellationLock.unlock()
+        if alreadyCancelled { CraftNativeMedia.finish(address, failure("CANCELLED", "media.keep was cancelled")) }
+        else { task.resume() }
     }
 
     private static func claimInitialDeepLink() -> URL? {

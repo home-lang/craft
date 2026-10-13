@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import ImageIO
 import PhotosUI
@@ -373,5 +374,111 @@ enum CraftNativeFiles {
             text = String(decoding: data, as: UTF8.self)
         }
         return ["ok": false, "status": response.statusCode, "body": text]
+    }
+}
+
+// `craft.media` on a native screen: video and audio kept on the phone for
+// when there is no signal (a gym's basement, a plane). Not tmp/craft-files,
+// which iOS and the sweep above both empty: Application Support/craft-media,
+// left out of iCloud backups because every file can be fetched again. A file
+// is named by its address's SHA-256, so the native `Video` element finds the
+// copy of the URL it was given and plays it instead, with no lookup in
+// JavaScript. The screen decides what to keep (`keep`) and what to drop
+// (`prune`); nothing is evicted behind its back.
+enum CraftNativeMedia {
+    static var root: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return base.appendingPathComponent("craft-media", isDirectory: true)
+    }
+
+    private static let lock = NSLock()
+    /// Addresses being fetched now, so a second `keep` waits for the first.
+    private static var inFlight: [String: [(Result<Any, CraftNativeActionError>) -> Void]] = [:]
+
+    /// Where `address`'s copy lives (whether or not it is there yet). The
+    /// extension is the address's, because AVPlayer reads the type from it.
+    static func file(for address: String) -> URL {
+        let digest = SHA256.hash(data: Data(address.utf8)).map { String(format: "%02x", $0) }.joined()
+        let ext = URL(string: address)?.pathExtension.lowercased() ?? ""
+        let safe = ext.range(of: "^[a-z0-9]{1,5}$", options: .regularExpression) != nil ? ext : "bin"
+        return root.appendingPathComponent("\(digest).\(safe)")
+    }
+
+    /// The copy of `address` on this phone, or nil.
+    static func local(_ address: String) -> URL? {
+        guard !address.isEmpty else { return nil }
+        let url = file(for: address)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    static func describe(_ address: String, _ url: URL) -> [String: Any] {
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        return ["ok": true, "url": address, "path": url.path, "size": size]
+    }
+
+    /// Joins a fetch of `address` already under way; true when one was.
+    static func join(_ address: String, _ done: @escaping (Result<Any, CraftNativeActionError>) -> Void) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if inFlight[address] != nil {
+            inFlight[address]!.append(done)
+            return true
+        }
+        inFlight[address] = [done]
+        return false
+    }
+
+    static func finish(_ address: String, _ result: Result<Any, CraftNativeActionError>) {
+        lock.lock()
+        let waiting = inFlight.removeValue(forKey: address) ?? []
+        lock.unlock()
+        for done in waiting { done(result) }
+    }
+
+    /// A finished download moved into place (atomically, so a half-written
+    /// file is never played), or a refusal with the server's status.
+    static func store(_ address: String, at location: URL, response: HTTPURLResponse) -> Result<Any, CraftNativeActionError> {
+        guard (200..<300).contains(response.statusCode) else {
+            return .success(["ok": false, "url": address, "status": response.statusCode])
+        }
+        let fm = FileManager.default
+        do {
+            var folder = root
+            if !fm.fileExists(atPath: folder.path) {
+                try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+                var values = URLResourceValues()
+                values.isExcludedFromBackup = true
+                try? folder.setResourceValues(values)
+            }
+            let target = file(for: address)
+            let staging = root.appendingPathComponent(UUID().uuidString + ".part")
+            try fm.moveItem(at: location, to: staging)
+            _ = try? fm.removeItem(at: target)
+            try fm.moveItem(at: staging, to: target)
+            return .success(describe(address, target))
+        }
+        catch {
+            return .failure(CraftNativeActionError(code: "IO_ERROR", message: "media.keep could not store the file: \(error.localizedDescription)"))
+        }
+    }
+
+    /// Removes every copy whose address is not in `keep`; answers how many.
+    static func prune(keep: [String]) -> Int {
+        let wanted = Set(keep.map { file(for: $0).lastPathComponent })
+        let files = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
+        var removed = 0
+        for url in files where !wanted.contains(url.lastPathComponent) {
+            if (try? FileManager.default.removeItem(at: url)) != nil { removed += 1 }
+        }
+        return removed
+    }
+
+    /// What the kept copies come to, in bytes, and how many there are.
+    static func usage() -> [String: Any] {
+        let files = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: [.fileSizeKey])) ?? []
+        let kept = files.filter { $0.pathExtension != "part" }
+        let bytes = kept.reduce(0) { $0 + ((try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0) }
+        return ["files": kept.count, "bytes": bytes]
     }
 }
