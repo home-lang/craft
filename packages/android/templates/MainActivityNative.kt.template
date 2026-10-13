@@ -1007,7 +1007,10 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 val crossLeading = (if (orientation == HORIZONTAL) lp?.topMargin ?: 0 else lp?.leftMargin ?: 0).toFloat()
                 val crossTrailing = (if (orientation == HORIZONTAL) lp?.bottomMargin ?: 0 else lp?.rightMargin ?: 0).toFloat()
                 val crossPosition = if (align == "baseline" && baseline != null) {
-                    baseline - baselineOffset(entry.view, crossSize)
+                    val childBaseline = baselineOffset(entry.view, crossSize).toFloat()
+                    CraftNative.crossAxisPosition(
+                        baseline.toFloat(), childBaseline, crossLeading, crossTrailing, 3
+                    ) ?: max(crossLeading, baseline.toFloat() - childBaseline)
                 } else {
                     val alignment = when (align) {
                         "center" -> 1

@@ -317,7 +317,10 @@ pub export fn craft_native_flex_row(
 }
 
 /// Resolve one flex item's cross-axis offset. `alignment` is 0=start,
-/// 1=center, or 2=end. Margins are part of the available cross-axis space.
+/// 1=center, 2=end, or 3=baseline. For baseline, `available` is the line's
+/// baseline, `size` is the child's measured baseline, and `margin_start` is
+/// the child's leading margin. Margins are part of the available cross-axis
+/// space.
 /// Keeping this calculation in the shared core prevents host-specific drift
 /// when a child is larger than its flex line.
 pub export fn craft_native_cross_axis_position(
@@ -334,6 +337,7 @@ pub export fn craft_native_cross_axis_position(
     return switch (alignment) {
         1 => safe_margin_start + (safe_available - safe_margin_start - safe_margin_end - safe_size) / 2,
         2 => safe_available - safe_margin_end - safe_size,
+        3 => @max(safe_margin_start, safe_available - safe_size),
         else => safe_margin_start,
     };
 }
@@ -1244,7 +1248,7 @@ test "uses host-measured intrinsic dimensions in flex, wrap, and grid trees" {
         .{ .style = .{ .intrinsic_width = 30, .intrinsic_height = 12 } },
     };
     const wrapped_root = Node{
-        .style = .{ .direction = .row, .width = 60, .height = 40, .gap = 4, .flex_wrap = true, .align_items = .flex_start },
+        .style = .{ .direction = .row, .width = 60, .height = 40, .gap = 4, .flex_wrap = true, .align_items = .flex_start, .align_content = .flex_start },
         .children = &wrapped_children,
     };
     var wrapped_frames: [3]Frame = undefined;
@@ -1515,6 +1519,8 @@ test "exports shared cross-axis alignment positions" {
     try std.testing.expectApproxEqAbs(@as(f32, 7), craft_native_cross_axis_position(100, 30, 7, 9, 0), 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 34), craft_native_cross_axis_position(100, 30, 7, 9, 1), 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 61), craft_native_cross_axis_position(100, 30, 7, 9, 2), 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 11), craft_native_cross_axis_position(24, 13, 4, 0, 3), 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 4), craft_native_cross_axis_position(10, 13, 4, 0, 3), 0.001);
     try std.testing.expect(std.math.isFinite(craft_native_cross_axis_position(std.math.inf(f32), std.math.nan(f32), -1, std.math.inf(f32), 1)));
 }
 

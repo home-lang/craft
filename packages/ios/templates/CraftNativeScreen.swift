@@ -1404,7 +1404,14 @@ private class CraftNativeFlowView: UIStackView {
                     let item = items[index]
                     let crossPosition: CGFloat
                     if item.align == "baseline", let baseline {
-                        crossPosition = baseline - Self.firstBaseline(item.view, cross: item.cross)
+                        let childBaseline = Self.firstBaseline(item.view, cross: item.cross)
+                        crossPosition = CraftNativeCrossAxisBridge.position(
+                            available: baseline,
+                            size: childBaseline,
+                            leading: item.crossLeading,
+                            trailing: item.crossTrailing,
+                            alignment: 3
+                        ) ?? max(item.crossLeading, baseline - childBaseline)
                     } else {
                         let alignment = item.align == "center" ? UInt32(1) : item.align == "flex-end" ? UInt32(2) : UInt32(0)
                         crossPosition = CraftNativeCrossAxisBridge.position(
