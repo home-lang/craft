@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.166...v0.0.167)
+
+## 🐛 Bug Fixes
+
+- **ios**: every countdown number is spoken, scroll views clip, a screen can colour its safe areas ([37a2050](https://github.com/craft-native/craft/commit/37a2050)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.165...v0.0.166)
 
 ## 🐛 Bug Fixes
