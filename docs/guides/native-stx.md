@@ -50,11 +50,20 @@ and equal-track grid rules for basis, positive growth, negative shrink, gap,
 per-edge margins, parent padding, min/max bounds, row/column gaps, justification,
 and cross-axis alignment while leaving intrinsic measurement (especially text) to
 the platform host. Wrapped tree lines honor per-child `alignSelf`, including
-children that override the parent's cross-axis alignment. UIKit and Android adapters must preserve these values when
-mounting the resulting frames; non-finite or negative dimensions are sanitized
-at the shared boundary. Grid `alignContent`, including grids with an auto-row
-minimum, is also resolved in the shared core so leftover space between rows
-cannot drift between UIKit and Android; platform-specific measurement must not fork the distribution rules.
+children that override the parent's cross-axis alignment. UIKit and Android
+adapters must preserve these values when mounting the resulting frames;
+non-finite or negative dimensions are sanitized at the shared boundary. Grid
+`alignContent`, including grids with an auto-row minimum, is also resolved in
+the shared core so leftover space between rows cannot drift between UIKit and
+Android; platform-specific measurement must not fork the distribution rules.
+
+The same module contains the #334 tree-layout spike: `Node`, `Style`, and
+`layout` compute a host-free flat frame list for a complete tree. The maintained
+mobile hosts currently consume the smaller flat C/JNI exports while that tree
+boundary is evaluated; this is deliberate, so intrinsic text measurement can
+remain a host callback instead of being smuggled into Zig. The next step for
+the spike is to carry measured bases into that tree API and mount its frames in
+both hosts, not to create a second platform-specific layout implementation.
 
 Use `onMount` and `onDestroy` for route-scoped lifecycle work. Craft disposes
 the screen runtime before a native screen is removed or replaced, so effects,

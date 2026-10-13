@@ -26,6 +26,7 @@ const iosLayoutUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native
 const guide = readFileSync(join(root, 'docs/guides/native-stx.md'), 'utf8')
 const migrationGuide = readFileSync(join(root, 'docs/guides/migration/react-native.md'), 'utf8')
 const nativeLayout = readFileSync(join(root, 'packages/zig/src/native_layout.zig'), 'utf8')
+const zigMain = readFileSync(join(root, 'packages/zig/src/main.zig'), 'utf8')
 const componentTypes = readFileSync(join(root, 'packages/typescript/src/components/index.ts'), 'utf8')
 const iosReadme = readFileSync(join(root, 'packages/ios/README.md'), 'utf8')
 const androidReadme = readFileSync(join(root, 'packages/android/README.md'), 'utf8')
@@ -131,6 +132,19 @@ describe('native renderer component contract', () => {
     expect(android).toContain('Float.NaN')
     expect(android).toContain('CraftNative.grid(')
     expect(android).toContain('sharedFrames[offset + 3]')
+  })
+
+  it('keeps the host-neutral tree layout spike public and platform-free', () => {
+    expect(zigMain).toContain('pub const native_layout = @import("native_layout.zig")')
+    expect(nativeLayout).toContain('pub const Style = struct')
+    expect(nativeLayout).toContain('pub const Node = struct')
+    expect(nativeLayout).toContain('pub fn layout(root: Node, viewport: Size, frames: []Frame)')
+    expect(nativeLayout).toContain('test "recurses across row and column axes without host concepts"')
+    expect(nativeLayout).toContain('Text and other intrinsic measurements are intentionally absent')
+    expect(nativeLayout).not.toContain('@import("UIKit")')
+    expect(nativeLayout).not.toContain('@import("Android")')
+    expect(guide).toContain('The same module contains the #334 tree-layout spike')
+    expect(guide).toContain('remain a host callback instead of being smuggled into Zig')
   })
 
   it('keeps device navigation tests independent of global field order and viewport position', () => {
