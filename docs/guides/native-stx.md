@@ -340,7 +340,9 @@ The same host-neutral layout core models a complete tree's main-axis
 tests. Cross-axis `alignItems` and per-child `alignSelf` use the same
 host-neutral rule, including the default stretch behavior. Intrinsic text and
 image measurement remains a host responsibility; the shared rule consumes
-those measurements as numeric bases.
+those measurements as numeric bases. Wrapped flex trees form lines from the
+same numeric bases, distribute free cross-axis space, and then recurse into
+each child without importing a host view type.
 
 The same runtime also exports `craft_native_grid` for equal-track grids. It
 accepts intrinsic measurements and alignment as plain data, leaving platform

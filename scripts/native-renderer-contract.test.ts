@@ -67,6 +67,7 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('justify_content: JustifyContent')
     expect(nativeLayout).toContain('align_items: AlignItems')
     expect(nativeLayout).toContain('align_self: ?AlignItems')
+    expect(nativeLayout).toContain('flex_wrap: bool')
     expect(nativeLayout).toContain('.space_evenly =>')
     expect(nativeLayout).toContain('pub const FlexLineItem = extern struct')
     expect(nativeLayout).toContain('pub export fn craft_native_flex_row(')
