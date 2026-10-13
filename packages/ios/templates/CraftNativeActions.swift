@@ -40,7 +40,7 @@ enum CraftNativeActions {
     static func capabilities(config: CraftConfig) -> [String] {
         // `speech`, `audio` (background sound) and `eventStream` (a fetch read
         // as it arrives) need nothing the app has to declare.
-        var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking"]
+        var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge"]
         if config.enableBiometric { values.append("biometric") }
         if config.enableSecureStorage { values.append("secureStorage") }
         if config.enableLocalDatabase { values.append("database") }
@@ -439,6 +439,19 @@ enum CraftNativeActions {
                 CraftBackgroundWork.shared.complete(id: id, ok: ok)
                 complete(requestToken, .success(true), completion)
             }
+            return
+        case ("Badge", "set"):
+            guard let value = args.first as? NSNumber,
+                  value.doubleValue.isFinite,
+                  value.doubleValue >= 0,
+                  value.doubleValue.rounded() == value.doubleValue else {
+                complete(requestToken, failure("INVALID_ARGUMENT", "Badge.set needs a non-negative whole number"), completion)
+                return
+            }
+            setBadgeCount(value.intValue) { complete(requestToken, $0, completion) }
+            return
+        case ("Badge", "clear"):
+            setBadgeCount(0) { complete(requestToken, $0, completion) }
             return
         case ("Notifications", _):
             guard config.enableLocalNotifications else {
@@ -917,6 +930,30 @@ enum CraftNativeActions {
             }
         default:
             complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Notifications method"), completion)
+        }
+    }
+
+    /// Set the app icon badge without requesting notification authorization.
+    /// Native screens use this same permission-free path as the page bridge.
+    private static func setBadgeCount(
+        _ count: Int,
+        completion: @escaping (Result<Any, CraftNativeActionError>) -> Void
+    ) {
+        DispatchQueue.main.async {
+            if #available(iOS 16.0, *) {
+                UNUserNotificationCenter.current().setBadgeCount(count) { error in
+                    DispatchQueue.main.async {
+                        if let error {
+                            completion(.failure(CraftNativeActionError(code: "NATIVE_CALL_FAILED", message: error.localizedDescription)))
+                        } else {
+                            completion(.success(true))
+                        }
+                    }
+                }
+            } else {
+                UIApplication.shared.applicationIconBadgeNumber = count
+                completion(.success(true))
+            }
         }
     }
 

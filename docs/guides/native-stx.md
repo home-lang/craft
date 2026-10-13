@@ -704,6 +704,12 @@ await craft.secureStorage.delete('session-token')
 const available = await craft.biometrics.isAvailable()
 const biometricType = await craft.biometrics.getBiometricType()
 if (available) await craft.biometrics.authenticate('Unlock WildLoop')
+
+// iOS app-icon badge (the capability is advertised only on iOS).
+if (craft.capabilities.badge) {
+  await craft.badge.set(3)
+  await craft.badge.clear()
+}
 ```
 
 Storage is JSON-serializable and survives process termination. SQLite is stored
@@ -718,7 +724,10 @@ process. The Android receiver is registered only for native-renderer projects.
 explicit configuration gates. `enableSecureStorage` and `enableBiometric` gate
 the corresponding secure-storage and biometric methods. Secure storage accepts
 string values and persists them in the iOS Keychain or Android encrypted
-preferences; a missing key resolves to `null`. Biometric availability is a
+preferences. The `badge` capability is iOS-only and does not request notification
+authorization; `craft.badge.set(count)` and `craft.badge.clear()` update the app
+icon without requiring local notifications.
+A missing key resolves to `null`. Biometric availability is a
 device check, so an enabled simulator or emulator may still report `false`.
 A disabled or unavailable capability rejects with
 `CAPABILITY_DISABLED` or `NOT_SUPPORTED`; malformed keys, SQL, or notification

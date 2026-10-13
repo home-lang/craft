@@ -237,6 +237,8 @@ describe('Craft iOS builder', () => {
     expect(actionsSwift).toContain('case ("Storage", _)')
     expect(actionsSwift).toContain('case ("Database", _)')
     expect(actionsSwift).toContain('case ("Notifications", _)')
+    expect(actionsSwift).toContain('case ("Badge", "set"):')
+    expect(actionsSwift).toContain('case ("Badge", "clear"):')
     expect(actionsSwift).toContain('case ("DeepLinks", "getInitialURL")')
     expect(actionsSwift).toContain('private static func claimInitialDeepLink() -> URL?')
     expect(actionsSwift).toContain('guard !initialDeepLinkClaimed else { return nil }')
@@ -245,7 +247,7 @@ describe('Craft iOS builder', () => {
     expect(actionsSwift).toContain('import LocalAuthentication')
     expect(actionsSwift).toContain('import Security')
     // fetch: a URLSession task per request token, cancelled with the request.
-    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking"]')
+    expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge"]')
     expect(actionsSwift).toContain('case ("Network", "fetch"):')
     expect(actionsSwift).toContain('let craftNativeFetchTimeoutSeconds: TimeInterval = 30')
     expect(actionsSwift).toContain('fetchTasks[requestToken] = task')
@@ -1307,7 +1309,7 @@ describe('Craft iOS builder', () => {
     const hybrid = readFileSync(join(output, 'Sources', 'CraftHybrid.swift'), 'utf8')
     const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
 
-    expect(actions).toContain('"speech", "audio", "eventStream", "linking"]')
+    expect(actions).toContain('"speech", "audio", "eventStream", "linking", "badge"]')
     expect(actions).toContain('if config.enablePushNotifications { values.append("push") }')
     expect(actions).toContain('if config.enableShare { values.append("share") }')
     for (const call of ['case ("Speech", "speak"):', 'case ("Push", _):', 'case ("Linking", "openURL"), ("Linking", "canOpenURL"):', 'case ("Share", "share"):'])
@@ -1730,6 +1732,18 @@ describe('Craft iOS builder', () => {
     expect(badge).toContain('UNUserNotificationCenter.current().setBadgeCount(count)')
     const registration = swift.slice(swift.indexOf('private func registerPushNotifications('), swift.indexOf('@objc private func receivePushToken('))
     expect(registration).toContain('requestAuthorization(options: [.alert, .badge, .sound])')
+  })
+
+  it('gives native screens permission-free app badge controls', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-native-badge-'))
+    await init({ name: 'NativeBadge', bundleId: 'org.example.nativebadge', output, config: { renderer: 'native' } as any })
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const badge = actions.slice(actions.indexOf('private static func setBadgeCount('))
+    expect(actions).toContain('"linking", "badge"]')
+    expect(actions).toContain('case ("Badge", "set"):')
+    expect(actions).toContain('case ("Badge", "clear"):')
+    expect(badge).toContain('UNUserNotificationCenter.current().setBadgeCount(count)')
+    expect(badge).not.toContain('requestAuthorization')
   })
 
   it('schedules a local notification with the data the page gave it', async () => {
