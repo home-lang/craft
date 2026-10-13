@@ -166,8 +166,10 @@ pub export fn craft_native_grid(
 }
 
 /// Distribute one flex line in content coordinates for native hosts.
-/// Margins and gaps consume space; free space follows grow or shrink*basis;
-/// each result is clamped to its bounds. Return 0 for success.
+/// Margins and gaps consume space; free space follows grow or shrink*basis.
+/// Bounds are solved as a water-fill rather than clamped after one pass: when
+/// an item reaches min/max, the remaining free space is redistributed to the
+/// still-flexible items. Return 0 for success.
 pub export fn craft_native_flex_row(
     available: f32,
     gap: f32,
@@ -317,16 +319,17 @@ fn craftNativeFlexRow(
     }
 
     const free = safe_available - basis_total;
+    const mode: FlexMode = if (free > 0 and grow_total > 0)
+        .grow
+    else if (free < 0 and shrink_total > 0)
+        .shrink
+    else
+        .none;
+    const lambda = flexLambda(items[0..item_count], safe_available, safe_gap, mode);
     var used = safe_gap * @as(f32, @floatFromInt(item_count - 1));
     for (items[0..item_count], 0..) |item, index| {
         const basis = finiteNonNegative(item.basis);
-        const raw = if (free > 0)
-            basis + if (grow_total > 0) free * positiveGrow(item.grow) / grow_total else 0
-        else if (free < 0)
-            basis - if (shrink_total > 0) (-free) * positiveShrink(item.shrink) * basis / shrink_total else 0
-        else
-            basis;
-        const width = clampBounds(raw, item.min, item.max);
+        const width = clampBounds(flexRawSize(item, basis, lambda, mode), item.min, item.max);
         used += width + finiteNonNegative(item.margin_start) + finiteNonNegative(item.margin_end);
         widths[index] = width;
     }
@@ -360,6 +363,51 @@ fn craftNativeFlexRow(
         if (index + 1 < item_count) offset += safe_gap + between_space;
     }
     return 0;
+}
+
+const FlexMode = enum { none, grow, shrink };
+
+fn flexRawSize(item: FlexItem, basis: f32, lambda: f32, mode: FlexMode) f32 {
+    return switch (mode) {
+        .grow => basis + lambda * positiveGrow(item.grow),
+        .shrink => basis - lambda * positiveShrink(item.shrink) * basis,
+        .none => basis,
+    };
+}
+
+fn flexUsed(items: []const FlexItem, gap: f32, lambda: f32, mode: FlexMode) f32 {
+    var used = gap * @as(f32, @floatFromInt(if (items.len > 1) items.len - 1 else 0));
+    for (items) |item| {
+        const basis = finiteNonNegative(item.basis);
+        used += clampBounds(flexRawSize(item, basis, lambda, mode), item.min, item.max);
+        used += finiteNonNegative(item.margin_start) + finiteNonNegative(item.margin_end);
+    }
+    return used;
+}
+
+/// Find the scalar that fills (or, when bounds make that impossible, gets as
+/// close as possible to) the available line. This is equivalent to freezing
+/// bounded flex items one at a time, but does not allocate scratch buffers and
+/// therefore remains safe across the C ABI.
+fn flexLambda(items: []const FlexItem, available: f32, gap: f32, mode: FlexMode) f32 {
+    if (mode == .none) return 0;
+    var low: f32 = 0;
+    var high: f32 = if (mode == .shrink) 1 else 1;
+    if (mode == .grow) {
+        var attempts: u8 = 0;
+        while (flexUsed(items, gap, high, mode) < available and attempts < 31) : (attempts += 1) {
+            high *= 2;
+        }
+    }
+    for (0..32) |_| {
+        const mid = (low + high) / 2;
+        if ((mode == .grow and flexUsed(items, gap, mid, mode) < available) or
+            (mode == .shrink and flexUsed(items, gap, mid, mode) > available))
+            low = mid
+        else
+            high = mid;
+    }
+    return (low + high) / 2;
 }
 
 /// Computes a tree's absolute frames without importing any platform type.
@@ -403,26 +451,12 @@ fn layoutNode(
     const gap = @max(0, node.style.gap);
     const gap_count = if (node.children.len > 1) node.children.len - 1 else 0;
     const gap_total = gap * @as(f32, @floatFromInt(gap_count));
-    var basis_total: f32 = gap_total;
-    var grow_total: f32 = 0;
-    var shrink_total: f32 = 0;
-    for (node.children) |child| {
-        basis_total += childMainBasis(child, node.style.direction) + mainMargins(child, node.style.direction);
-        grow_total += positiveGrow(child.style.flex_grow);
-        shrink_total += positiveShrink(child.style.flex_shrink) * childMainBasis(child, node.style.direction);
-    }
-
-    const free = main_size - basis_total;
+    const flex = resolveFlex(node.children, node.style.direction, main_size, gap_total);
     var next_index = frame_index + 1;
     var main_offset: f32 = 0;
     for (node.children, 0..) |child, index| {
         const basis = childMainBasis(child, node.style.direction);
-        const child_main = if (free > 0)
-            clampMain(child, node.style.direction, basis + if (grow_total > 0) free * positiveGrow(child.style.flex_grow) / grow_total else 0)
-        else if (free < 0)
-            clampMain(child, node.style.direction, basis - if (shrink_total > 0) (-free) * positiveShrink(child.style.flex_shrink) * basis / shrink_total else 0)
-        else
-            clampMain(child, node.style.direction, basis);
+        const child_main = flex.size(child, basis);
         const child_cross = childCrossSize(child, node.style.direction, content_width, content_height);
         const leading_margin = mainLeadingMargin(child, node.style.direction);
         const child_size = if (node.style.direction == .row)
@@ -435,6 +469,75 @@ fn layoutNode(
         main_offset += mainMargins(child, node.style.direction) + child_main + if (index + 1 < node.children.len) gap else 0;
     }
     return next_index;
+}
+
+const NodeFlexMode = enum { none, grow, shrink };
+
+const NodeFlexResolution = struct {
+    mode: NodeFlexMode,
+    lambda: f32,
+    direction: Axis,
+
+    fn size(self: NodeFlexResolution, child: Node, basis: f32) f32 {
+        const raw = switch (self.mode) {
+            .grow => basis + self.lambda * positiveGrow(child.style.flex_grow),
+            .shrink => basis - self.lambda * positiveShrink(child.style.flex_shrink) * basis,
+            .none => basis,
+        };
+        return clampMain(child, self.direction, raw);
+    }
+};
+
+fn nodeFlexUsed(children: []const Node, direction: Axis, gap: f32, lambda: f32, mode: NodeFlexMode) f32 {
+    var used = gap * @as(f32, @floatFromInt(if (children.len > 1) children.len - 1 else 0));
+    for (children) |child| {
+        const basis = childMainBasis(child, direction);
+        const raw = switch (mode) {
+            .grow => basis + lambda * positiveGrow(child.style.flex_grow),
+            .shrink => basis - lambda * positiveShrink(child.style.flex_shrink) * basis,
+            .none => basis,
+        };
+        used += clampMain(child, direction, raw) + mainMargins(child, direction);
+    }
+    return used;
+}
+
+fn resolveFlex(children: []const Node, direction: Axis, available: f32, gap: f32) NodeFlexResolution {
+    var basis_total = gap * @as(f32, @floatFromInt(if (children.len > 1) children.len - 1 else 0));
+    var grow_total: f32 = 0;
+    var shrink_total: f32 = 0;
+    for (children) |child| {
+        const basis = childMainBasis(child, direction);
+        basis_total += basis + mainMargins(child, direction);
+        grow_total += positiveGrow(child.style.flex_grow);
+        shrink_total += positiveShrink(child.style.flex_shrink) * basis;
+    }
+    const free = available - basis_total;
+    const mode: NodeFlexMode = if (free > 0 and grow_total > 0)
+        .grow
+    else if (free < 0 and shrink_total > 0)
+        .shrink
+    else
+        .none;
+    if (mode == .none) return .{ .mode = .none, .lambda = 0, .direction = direction };
+
+    var low: f32 = 0;
+    var high: f32 = if (mode == .shrink) 1 else 1;
+    if (mode == .grow) {
+        var attempts: u8 = 0;
+        while (nodeFlexUsed(children, direction, gap, high, mode) < available and attempts < 31) : (attempts += 1) {
+            high *= 2;
+        }
+    }
+    for (0..32) |_| {
+        const mid = (low + high) / 2;
+        if ((mode == .grow and nodeFlexUsed(children, direction, gap, mid, mode) < available) or
+            (mode == .shrink and nodeFlexUsed(children, direction, gap, mid, mode) > available))
+            low = mid
+        else
+            high = mid;
+    }
+    return .{ .mode = mode, .lambda = (low + high) / 2, .direction = direction };
 }
 
 fn layoutGrid(
@@ -586,9 +689,9 @@ test "distributes positive flex grow from a shared basis" {
     const count = try layout(root, .{ .width = 180, .height = 48 }, &frames);
     try std.testing.expectEqual(@as(usize, 3), count);
     try std.testing.expectEqual(@as(f32, 0), frames[1].x);
-    try std.testing.expectEqual(@as(f32, 80), frames[1].width);
-    try std.testing.expectEqual(@as(f32, 80), frames[2].x);
-    try std.testing.expectEqual(@as(f32, 100), frames[2].width);
+    try std.testing.expectApproxEqAbs(@as(f32, 80), frames[1].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 80), frames[2].x, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 100), frames[2].width, 0.001);
     try std.testing.expectEqual(@as(f32, 48), frames[1].height);
 }
 
@@ -636,9 +739,9 @@ test "applies gap and shrink without crossing minimum bounds" {
     var frames: [3]Frame = undefined;
 
     _ = try layout(root, .{ .width = 130, .height = 20 }, &frames);
-    try std.testing.expectEqual(@as(f32, 60), frames[1].width);
-    try std.testing.expectEqual(@as(f32, 60), frames[2].width);
-    try std.testing.expectEqual(@as(f32, 70), frames[2].x);
+    try std.testing.expectApproxEqAbs(@as(f32, 60), frames[1].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 60), frames[2].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 70), frames[2].x, 0.001);
 }
 
 test "clamps positive flex growth to a maximum" {
@@ -653,8 +756,24 @@ test "clamps positive flex growth to a maximum" {
     var frames: [3]Frame = undefined;
 
     _ = try layout(root, .{ .width = 140, .height = 20 }, &frames);
-    try std.testing.expectEqual(@as(f32, 40), frames[1].width);
-    try std.testing.expectEqual(@as(f32, 70), frames[2].width);
+    try std.testing.expectApproxEqAbs(@as(f32, 40), frames[1].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 100), frames[2].width, 0.001);
+}
+
+test "redistributes shrink space after a minimum bound freezes" {
+    const children = [_]Node{
+        .{ .style = .{ .flex_basis = 80, .flex_shrink = 1, .min_width = 70 } },
+        .{ .style = .{ .flex_basis = 80, .flex_shrink = 1 } },
+    };
+    const root = Node{
+        .style = .{ .direction = .row, .width = 100, .height = 20 },
+        .children = &children,
+    };
+    var frames: [3]Frame = undefined;
+
+    _ = try layout(root, .{ .width = 100, .height = 20 }, &frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 70), frames[1].width, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 30), frames[2].width, 0.001);
 }
 
 test "places equal grid tracks and max-content rows" {
@@ -745,7 +864,7 @@ test "exports the shared flex row contract with margins and bounds" {
     var positions: [2]f32 = undefined;
     try std.testing.expectEqual(@as(c_int, 0), craft_native_flex_row(180, 10, &items, items.len, &widths, &positions));
     try std.testing.expectApproxEqAbs(@as(f32, 70), widths[0], 0.001);
-    try std.testing.expectApproxEqAbs(@as(f32, 80.6667), widths[1], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 81), widths[1], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 5), positions[0], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 95), positions[1], 0.001);
 }
@@ -761,6 +880,18 @@ test "exports justified flex positions" {
     try std.testing.expectApproxEqAbs(@as(f32, 20), widths[0], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 25), positions[0], 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 55), positions[1], 0.001);
+}
+
+test "shared flex ABI redistributes after a bound freezes" {
+    const items = [_]FlexItem{
+        .{ .basis = 20, .grow = 1, .shrink = 1, .min = -1, .max = 40, .margin_start = 0, .margin_end = 0 },
+        .{ .basis = 20, .grow = 1, .shrink = 1, .min = -1, .max = -1, .margin_start = 0, .margin_end = 0 },
+    };
+    var widths: [2]f32 = undefined;
+    var positions: [2]f32 = undefined;
+    try std.testing.expectEqual(@as(c_int, 0), craft_native_flex_row_justified(140, 0, 0, &items, items.len, &widths, &positions));
+    try std.testing.expectApproxEqAbs(@as(f32, 40), widths[0], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 100), widths[1], 0.001);
 }
 
 test "exports shared cross-axis alignment positions" {

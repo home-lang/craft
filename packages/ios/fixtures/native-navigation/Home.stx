@@ -423,6 +423,10 @@ function openCapabilities() {
       <Text testID="flex-grow-first" style={{"width":40,"flexGrow":1}}>grow</Text>
       <Text testID="flex-grow-second" style={{"width":40}}>fixed</Text>
     </View>
+    <View testID="flex-bound-wrap" style={{"flexDirection":"row","width":240,"height":32,"gap":4,"backgroundColor":"#526477"}}>
+      <Text testID="flex-bound-first" style={{"width":40,"maxWidth":64,"flexGrow":1}}>capped</Text>
+      <Text testID="flex-bound-second" style={{"width":40,"flexGrow":1}}>redistributed</Text>
+    </View>
     <View testID="justify-center-wrap" style={{"flexDirection":"row","justifyContent":"center","gap":4,"width":240,"height":32,"backgroundColor":"#3d4f61"}}>
       <Text testID="justify-center-first" style={{"width":40}}>center one</Text>
       <Text testID="justify-center-second" style={{"width":40}}>center two</Text>

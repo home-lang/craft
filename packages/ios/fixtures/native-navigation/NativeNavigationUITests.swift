@@ -257,6 +257,11 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(growFirst.waitForExistence(timeout: 5))
         XCTAssertTrue(growSecond.exists)
         XCTAssertGreaterThan(growFirst.frame.width, growSecond.frame.width, "flexGrow did not consume remaining main-axis space")
+        let capped = app.staticTexts["flex-bound-first"]
+        let redistributed = app.staticTexts["flex-bound-second"]
+        XCTAssertTrue(capped.waitForExistence(timeout: 5) && redistributed.exists)
+        XCTAssertEqual(capped.frame.width, 64, accuracy: 2, "maxWidth did not freeze the capped flex item")
+        XCTAssertGreaterThan(redistributed.frame.width, capped.frame.width + 40, "remaining flex space was not redistributed")
         let justifyCenter = app.otherElements["justify-center-wrap"]
         let justifyCenterFirst = app.staticTexts["justify-center-first"]
         let justifyCenterSecond = app.staticTexts["justify-center-second"]

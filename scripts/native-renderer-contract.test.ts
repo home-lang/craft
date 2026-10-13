@@ -663,6 +663,9 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps flex distribution inside declared min and max bounds', () => {
+    expect(nativeLayout).toContain('fn flexLambda(')
+    expect(nativeLayout).toContain('fn nodeFlexUsed(')
+    expect(nativeLayout).toContain('water-fill')
     expect(ios).toContain('let minMain = (horizontal ? style.minWidth : style.minHeight)?.resolve(definiteMain)')
     expect(ios).toContain('let maxMain = (horizontal ? style.maxWidth : style.maxHeight)?.resolve(definiteMain)')
     expect(ios).toContain('items[index].main = clamp(items[index].basis + share, items[index].minMain, items[index].maxMain)')
@@ -670,6 +673,10 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('items[index].cross = clamp(measured.cross, item.minCross, item.maxCross)')
     expect(android).toContain('clamp(primary, line.entries[index].style.minWidth?.resolve(contentWidth), line.entries[index].style.maxWidth?.resolve(contentWidth))')
     expect(android).toContain('clamp(distributed, entry.style.minHeight?.resolve(contentHeight), entry.style.maxHeight?.resolve(contentHeight))')
+    expect(navigationHome).toContain('testID="flex-bound-first"')
+    expect(navigationHome).toContain('"maxWidth":64')
+    expect(iosNavigationTest).toContain('remaining flex space was not redistributed')
+    expect(androidNavigationTest).toContain('remaining flex space was not redistributed')
   })
 
   it('inherits parent alignment when alignSelf is auto on both hosts', () => {
