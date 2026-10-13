@@ -20,7 +20,7 @@ const switchValue = state(false)
 const pickerValue = state('one')
 const dateValue = state('2026-10-12')
 const timeValue = state('07:30')
-const countdownValue = state('01:30:00')
+const countdownValue = state('01:30:45')
 const checkboxValue = state(false)
 const checkboxStatus = state('checkbox pending')
 const dateEventStatus = state('date event pending')
@@ -289,7 +289,7 @@ function chooseTime(event) {
 
 function chooseCountdown(event) {
   countdownValue.set(event.value)
-  dateEventStatus.set(event.iso === 'PT5400S' && event.timestamp === 5400000 ? `${event.value}|duration complete` : 'countdown event incomplete')
+  dateEventStatus.set(event.iso === 'PT5445S' && event.timestamp === 5445000 ? `${event.value}|duration complete` : 'countdown event incomplete')
 }
 
 function chooseCheckbox(event) {
@@ -557,7 +557,7 @@ function captureSectionScroll() {
     <Text testID="date-value" :text="dateValue" />
     <DatePicker testID="native-time-picker" mode="time" value="07:30" minuteInterval={5} @value-change="chooseTime($event)" />
     <Text testID="time-value" :text="timeValue" />
-    <DatePicker testID="native-countdown" mode="countdown" value="01:30:00" @value-change="chooseCountdown($event)" />
+    <DatePicker testID="native-countdown" mode="countdown" value="01:30:45" @value-change="chooseCountdown($event)" />
     <Text testID="countdown-value" :text="countdownValue" />
     <Checkbox testID="native-checkbox" label="Accept terms" :value="checkboxValue" @value-change="chooseCheckbox($event)" />
     <Text testID="checkbox-status" :text="checkboxStatus" />

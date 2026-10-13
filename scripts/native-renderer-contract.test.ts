@@ -489,7 +489,11 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('if picker.datePickerMode == .countDownTimer { return countdownEvent(picker.countDownDuration) }')
     expect(ios).toContain('static func countdownDuration(_ value: Any?) -> TimeInterval?')
     expect(android).toContain('if (pickerMode == PickerMode.COUNTDOWN)')
+    expect(android).toContain('private var countdownSecond = 0')
+    expect(android).toContain('countdownSecond = seconds % 60')
+    expect(android).toContain('+ countdownSecond')
     expect(android).toContain('"iso", "PT${seconds}S"')
+    expect(androidNavigationTest).toContain('"01:31:45"')
     expect(guide).toContain('Countdown values are durations')
   })
 

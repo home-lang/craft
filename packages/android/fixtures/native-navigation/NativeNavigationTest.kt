@@ -510,8 +510,8 @@ class NativeNavigationTest {
             assertEquals(1, nativeCountdown!!.hour)
             assertEquals(30, nativeCountdown.minute)
             instrumentation.runOnMainSync { nativeCountdown.minute = 31 }
-            awaitText(activity, "countdown-value", "01:31:00")
-            awaitText(activity, "date-event-status", "01:31:00|duration complete")
+            awaitText(activity, "countdown-value", "01:31:45")
+            awaitText(activity, "date-event-status", "01:31:45|duration complete")
             val checkbox = awaitView(activity, "native-checkbox")
             assertTrue("native checkbox should be an Android CheckBox", checkbox is CheckBox)
             assertFalse("native checkbox should start unchecked", (checkbox as CheckBox).isChecked)

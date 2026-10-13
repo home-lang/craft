@@ -1432,6 +1432,7 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
     private var datePicker: DatePicker? = null
     private var timePicker: TimePicker? = null
     private var minuteInterval = 1
+    private var countdownSecond = 0
     private var suppressChanges = true
     var onValueChanged: (() -> Unit)? = null
 
@@ -1483,6 +1484,7 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
         pickerDate(props.opt("minimumDate"))?.let { datePicker?.minDate = it.timeInMillis }
         pickerDate(props.opt("maximumDate"))?.let { datePicker?.maxDate = it.timeInMillis }
         if (requestedMode == PickerMode.COUNTDOWN) {
+            countdownSecond = 0
             countdownSeconds(props.opt("value"))?.let { applyCountdown(it) }
         } else {
             pickerDate(props.opt("value"))?.let { applyDate(it) }
@@ -1533,11 +1535,12 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
     }
 
     private fun applyCountdown(seconds: Int) {
+        countdownSecond = seconds % 60
         timePicker?.hour = (seconds / 3600).coerceIn(0, 23)
         timePicker?.minute = (seconds % 3600 / 60).coerceIn(0, 59)
     }
 
-    private fun currentCountdownSeconds(): Int = timePicker?.let { it.hour * 3600 + it.minute * 60 } ?: 0
+    private fun currentCountdownSeconds(): Int = timePicker?.let { it.hour * 3600 + it.minute * 60 + countdownSecond } ?: 0
 
     private fun formatCountdown(seconds: Int): String = "%02d:%02d:%02d".format(
         Locale.US,
