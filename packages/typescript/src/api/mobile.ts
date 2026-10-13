@@ -2828,7 +2828,7 @@ export type HealthDataType =
   | 'heartRateVariability'
   | 'bodyMass'
   | 'sleep'
-  /** Food logged by any app, per day: kcal eaten, then grams of protein, carbohydrate and fat. Read only. */
+  /** Food logged by any app, per day: kcal eaten, then grams of protein, carbohydrate and fat. */
   | 'dietaryEnergy'
   | 'dietaryProtein'
   | 'dietaryCarbohydrates'
@@ -2838,6 +2838,9 @@ export type HealthDataType =
 
 /** The types with one value per day. `sleep` is hours asleep, counted on the day you woke. */
 export type HealthDailyType = Exclude<HealthDataType, 'workouts' | 'mindful'>
+
+/** Quantity types that can be written with `health.saveData()`. */
+export type HealthQuantityType = Exclude<HealthDataType, 'workouts' | 'sleep' | 'mindful'>
 
 export interface HealthAuthorizationOptions {
   /** `false` asks to read only. Default: also allowed to save workouts. */
@@ -2852,6 +2855,11 @@ export interface HealthDataOptions {
 export interface HealthDataResult {
   value: number
   unit: string
+}
+
+export interface HealthDataSaveResult {
+  /** HealthKit's UUID for the saved quantity sample. */
+  id: string
 }
 
 export type HealthWorkoutType = 'running' | 'walking' | 'hiking' | 'cycling'
@@ -3011,7 +3019,7 @@ export interface HealthMindfulSample {
 }
 
 /** The health reads and writes a host may or may not have, depending on the app build it runs in. */
-export type HealthReadMethod = 'getWorkouts' | 'getDailyStatistics' | 'getHeartRateSamples' | 'getSleepIntervals' | 'saveMindfulSession' | 'getMindfulSessions'
+export type HealthReadMethod = 'getWorkouts' | 'getDailyStatistics' | 'getHeartRateSamples' | 'getSleepIntervals' | 'saveData' | 'saveMindfulSession' | 'getMindfulSessions'
 
 export const health = {
   /**
@@ -3035,6 +3043,12 @@ export const health = {
     const craft = getCraftRoot()
     if (!craft?.health?.getData) throw new Error('Health data is unavailable')
     return craft.health.getData(type, options)
+  },
+  /** Save one quantity sample, such as a meal's dietary energy or macros. iOS only for now. */
+  async saveData(type: HealthQuantityType, value: number, options: HealthDataOptions = {}): Promise<HealthDataSaveResult> {
+    const craft = getCraftRoot()
+    if (!craft?.health?.saveData) throw new Error('Saving health data is unavailable')
+    return craft.health.saveData(type, value, options)
   },
   async saveWorkout(workout: HealthWorkout): Promise<HealthWorkoutResult> {
     const craft = getCraftRoot()
@@ -3283,6 +3297,7 @@ interface CraftMobileBridge {
   health?: {
     requestAuthorization(types: HealthDataType[], options?: HealthAuthorizationOptions): Promise<boolean>
     getData(type: HealthDataType, options: HealthDataOptions): Promise<HealthDataResult>
+    saveData?(type: HealthQuantityType, value: number, options: HealthDataOptions): Promise<HealthDataSaveResult>
     saveWorkout(workout: HealthWorkout): Promise<HealthWorkoutResult>
     getWorkouts?(options: HealthWorkoutQuery): Promise<HealthWorkoutSample[]>
     getDailyStatistics?(type: HealthDailyType, options: HealthDataOptions): Promise<HealthDailyValue[]>

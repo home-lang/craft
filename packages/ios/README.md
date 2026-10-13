@@ -407,6 +407,10 @@ const workouts = await health.getWorkouts({ startDate: Date.now() - 30 * 8640000
 const hrv = await health.getDailyStatistics('heartRateVariability', { startDate: Date.now() - 30 * 86400000 })
 // What a food log wrote (MyFitnessPal, Lose It!...): kcal, then grams of protein, carbohydrate and fat, summed per day.
 const eaten = await health.getDailyStatistics('dietaryEnergy', { startDate: Date.now() - 7 * 86400000 })
+// Food logs can write a quantity too; request write access first. The result
+// contains HealthKit's sample id, and the date range defaults to this instant.
+await health.requestAuthorization(['dietaryEnergy', 'dietaryProtein'], { write: true })
+const sample = await health.saveData('dietaryProtein', 28, { startDate: mealStart, endDate: mealEnd })
 // Every heart-rate reading in a range (bpm, start/end, source and device), oldest first.
 const readings = await health.getHeartRateSamples({ startDate: Date.now() - 86400000 })
 // The night as Apple Health recorded it: in bed, awake, and each asleep stage.

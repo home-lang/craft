@@ -360,6 +360,24 @@ function fakeBacklight(start: number, options: { reset?: boolean } = {}) {
 }
 
 describe('health reads', () => {
+  it('saves a quantity through the bridge, including a dietary sample', async () => {
+    const calls: unknown[][] = []
+    await withWindow({
+      craft: {
+        health: {
+          saveData: async (type: unknown, value: unknown, options: unknown) => {
+            calls.push([type, value, options])
+            return { id: 'HK-food-1' }
+          },
+        },
+      },
+    }, async () => {
+      expect(health.supports('saveData')).toBe(true)
+      expect(await health.saveData('dietaryProtein', 28, { startDate: 1000, endDate: 1000 })).toEqual({ id: 'HK-food-1' })
+      expect(calls).toEqual([['dietaryProtein', 28, { startDate: 1000, endDate: 1000 }]])
+    })
+  })
+
   it('reads heart rate and sleep through the bridge, passing the range on', async () => {
     const calls: unknown[][] = []
     const reading = { bpm: 52, startDate: 1000, endDate: 1000, sourceName: 'Watch', deviceName: 'Apple Watch' }
