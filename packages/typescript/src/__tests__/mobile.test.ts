@@ -24,7 +24,7 @@ import type {
   LiveActivityHandle,
   LiveActivityOptions,
 } from '../api/mobile'
-import mobile, { biometrics, brightness, bridgeNotification, health, music, normalizeDeepLinkURL, normalizeNowPlaying, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
+import mobile, { biometrics, brightness, bridgeNotification, health, heartRate, music, normalizeDeepLinkURL, normalizeHeartRateSamples, normalizeNowPlaying, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
 
 describe('Mobile deep links', () => {
   it('normalizes native payloads to the public string contract', () => {
@@ -914,5 +914,115 @@ describe('music', () => {
     const now = normalizeNowPlaying({ authorization: 'authorized', playbackState: 'warping', title: '  ', duration: -4, artworkDataURL: 'https://example.com/a.jpg', isPlaying: 'yes' })
     expect(now).toMatchObject({ available: true, playbackState: 'unknown', title: null, duration: null, artworkDataURL: null, isPlaying: false })
     expect(normalizeNowPlaying(null)).toMatchObject({ available: false, authorization: 'unavailable' })
+  })
+})
+
+/** A phone with a strap nearby: the bridge's calls, answered as CraftHeartRate.swift would. */
+function fakeStrapApp(options: { capability?: boolean } = {}) {
+  const calls: string[] = []
+  const events = new EventTarget()
+  const strap = { id: 'A1B2', name: 'Polar H10', rssi: -51 }
+  let connection = 'disconnected'
+  let recording = { id: null as string | null, active: false, paused: false, startedAt: null as number | null }
+  const samples = [
+    { timestamp: 2000, bpm: 141, rr: [425.8] },
+    { timestamp: 1000, bpm: 140 },
+    { timestamp: 1000, bpm: 139 },
+    { timestamp: 3000, bpm: 0 },
+  ]
+  const state = () => ({ available: true, bluetooth: 'poweredOn', authorization: 'authorized', scanning: false, connection, device: connection === 'disconnected' ? null : strap, lastDevice: strap, bpm: connection === 'connected' ? 140 : null, lastReadingAt: null, recording })
+  const call = (name: string, answer: () => unknown) => async (opts?: unknown) => {
+    calls.push(opts === undefined ? name : `${name} ${JSON.stringify(opts)}`)
+    return answer()
+  }
+  const emit = (detail: unknown) => events.dispatchEvent(Object.assign(new Event('craftHeartRate'), { detail }))
+  const window = {
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+    craft: {
+      capabilities: { heartRate: options.capability ?? true },
+      heartRate: {
+        getState: call('getState', state),
+        requestAuthorization: call('requestAuthorization', () => 'authorized'),
+        scan: call('scan', () => { emit({ type: 'device', device: strap }); return { ...state(), scanning: true } }),
+        stopScan: call('stopScan', state),
+        getDevices: call('getDevices', () => [strap, { name: 'no id' }]),
+        connect: call('connect', () => { connection = 'connected'; return state() }),
+        reconnect: call('reconnect', () => { connection = 'connecting'; return state() }),
+        disconnect: call('disconnect', () => { connection = 'disconnected'; return state() }),
+        startRecording: call('startRecording', () => (recording = { id: 'r1', active: true, paused: false, startedAt: 500 })),
+        pauseRecording: call('pauseRecording', () => (recording = { ...recording, paused: true })),
+        resumeRecording: call('resumeRecording', () => (recording = { ...recording, paused: false })),
+        stopRecording: call('stopRecording', () => ({ ...recording, active: false, samples })),
+        getRecordingState: call('getRecordingState', () => ({ ...recording, sampleCount: 2 })),
+        readRecording: call('readRecording', () => samples),
+      },
+    },
+  }
+  return { window, calls, emit }
+}
+
+describe('heartRate', () => {
+  it('finds a strap, connects to it and records its readings', async () => {
+    const app = fakeStrapApp()
+    await withWindow(app.window, async () => {
+      expect(heartRate.isAvailable()).toBe(true)
+      expect(heartRate.supports('readRecording')).toBe(true)
+      const found: string[] = []
+      const stop = heartRate.onDevice(device => found.push(device.name))
+      expect((await heartRate.scan({ timeout: 10 })).scanning).toBe(true)
+      stop()
+      expect(found).toEqual(['Polar H10'])
+      expect(await heartRate.getDevices()).toEqual([{ id: 'A1B2', name: 'Polar H10', rssi: -51 }])
+      const connected = await heartRate.connect('A1B2')
+      expect(connected).toMatchObject({ connection: 'connected', device: { id: 'A1B2', name: 'Polar H10' }, bpm: 140 })
+      expect((await heartRate.startRecording()).active).toBe(true)
+      expect((await heartRate.pauseRecording()).paused).toBe(true)
+      await heartRate.resumeRecording()
+      expect(await heartRate.readRecording({ since: 0 })).toEqual([{ timestamp: 1000, bpm: 140 }, { timestamp: 2000, bpm: 141, rr: [425.8] }])
+      const done = await heartRate.stopRecording()
+      expect(done.active).toBe(false)
+      expect(done.samples.map(s => s.bpm)).toEqual([140, 141])
+      expect((await heartRate.disconnect({ forget: true })).connection).toBe('disconnected')
+      expect(app.calls).toEqual(['scan {"timeout":10}', 'getDevices', 'connect "A1B2"', 'startRecording', 'pauseRecording', 'resumeRecording', 'readRecording {"since":0}', 'stopRecording', 'disconnect {"forget":true}'])
+    })
+  })
+
+  it('hears readings and state changes while someone listens, and stops listening after', async () => {
+    const app = fakeStrapApp()
+    await withWindow(app.window, async () => {
+      const bpm: number[] = []
+      const states: string[] = []
+      const stopReadings = heartRate.onReading(reading => bpm.push(reading.bpm))
+      const stopStates = heartRate.onState(state => states.push(state.connection))
+      app.emit({ type: 'reading', bpm: 152.4, rrIntervals: [394, 'x', -3], contact: true, energyExpended: null, timestamp: 9, deviceId: 'A1B2' })
+      // A strap that lost the skin reads 0: no heart rate.
+      app.emit({ type: 'reading', bpm: 0, timestamp: 10 })
+      app.emit({ type: 'state', connection: 'reconnecting', bluetooth: 'poweredOn', authorization: 'authorized' })
+      stopReadings()
+      stopStates()
+      app.emit({ type: 'reading', bpm: 150, timestamp: 11 })
+      expect(bpm).toEqual([152])
+      expect(states).toEqual(['reconnecting'])
+    })
+  })
+
+  it('is a no-op in a browser and in a build without the capability', async () => {
+    for (const window of [undefined, fakeStrapApp({ capability: false }).window]) {
+      await withWindow(window, async () => {
+        expect(heartRate.isAvailable()).toBe(false)
+        expect(await heartRate.getState()).toMatchObject({ available: false, connection: 'disconnected', bpm: null })
+        expect(await heartRate.requestAuthorization()).toBe('unavailable')
+        expect(await heartRate.getDevices()).toEqual([])
+        expect(await heartRate.stopRecording()).toMatchObject({ active: false, samples: [] })
+        heartRate.onReading(() => { throw new Error('never') })()
+      })
+    }
+  })
+
+  it('keeps only samples a heart could give, once each, oldest first', () => {
+    expect(normalizeHeartRateSamples([{ timestamp: 5, bpm: 300 }, { timestamp: 4, bpm: 61.6, rr: [] }, { bpm: 70 }, null, { timestamp: 4, bpm: 62 }, { timestamp: 2, bpm: 60, rr: [1000] }]))
+      .toEqual([{ timestamp: 2, bpm: 60, rr: [1000] }, { timestamp: 4, bpm: 62 }])
+    expect(normalizeHeartRateSamples('nope')).toEqual([])
   })
 })

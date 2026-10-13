@@ -179,6 +179,7 @@ Edit `craft.config.json` in your iOS project:
   "enableNFC": true,
   "enableHealthKit": false,
   "enableAppleMusic": false,
+  "enableHeartRate": false,
   "enableScreenCapture": true,
   "iosVersion": "15.0",
   "teamId": ""
@@ -557,6 +558,35 @@ window.addEventListener('craftMusicChange', (event) => render(event.detail));
 // `-CraftFakeMusicPlayer YES` (or `simctl spawn <device> defaults write <bundle id>
 // CraftFakeMusicPlayer -bool YES`) for three made-up songs that play (counting as other audio) and skip.
 // Simulator builds only; a device always talks to the Music app.
+
+// Heart rate (enableHeartRate): a Bluetooth strap, or a watch broadcasting
+// its heart rate, through the standard Heart Rate Service (0x180D) and its
+// Heart Rate Measurement (0x2A37): bpm, sensor contact, energy and RR
+// intervals. The app gets the `bluetooth-central` background mode, so
+// readings keep coming during a workout with the screen locked. iOS asks
+// for Bluetooth on the first scan or connect (or requestAuthorization()); word
+// it with usageDescriptions.NSBluetoothAlwaysUsageDescription.
+window.addEventListener('craftHeartRate', (event) => {
+  // { type: 'device', device: { id, name, rssi } }      a scan found a strap
+  // { type: 'reading', bpm, rrIntervals, contact, energyExpended, timestamp, deviceId }
+  // { type: 'state', connection, bluetooth, device, lastDevice, bpm, ... }
+});
+await window.craft.heartRate.scan({ timeout: 15 });     // straps nearby, and one already connected
+const strap = (await window.craft.heartRate.getDevices())[0]; // strongest signal first
+await window.craft.heartRate.connect(strap.id);  // remembered; rejects TIMEOUT after 15 s while still asking
+await window.craft.heartRate.reconnect();        // next time: the remembered strap, no scan
+// A strap that drops out is asked for again (connection 'reconnecting')
+// until disconnect({ forget }) lets it go.
+await window.craft.heartRate.startRecording();   // every reading kept natively, app closed or not
+await window.craft.heartRate.pauseRecording();   // resumeRecording() / getRecordingState()
+const { samples } = await window.craft.heartRate.stopRecording(); // [{ timestamp, bpm, rr? }]
+// Native screens call the same service as the HeartRate module (capability
+// `heartRate`), and hear the same craftHeartRate events. Or use `heartRate`
+// from 'craft-native/mobile' (onReading, onDevice, onState); off a phone it
+// answers { available: false }.
+// The simulator has no Bluetooth: `simctl spawn <device> defaults write
+// <bundle id> CraftFakeHeartRateMonitor -bool YES` stands in a strap ("Simulated
+// HRM") whose readings are encoded and decoded as 0x2A37 payloads. Simulator builds only.
 
 // Speech: short spoken cues that duck the person's music instead of stopping
 // it, and play with the silent switch on. Always available (no config flag).

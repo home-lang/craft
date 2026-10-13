@@ -61,6 +61,9 @@ enum CraftNativeActions {
         if config.enableGeolocation && config.renderer != "native" { values.append("geolocation") }
         // The Music app's song and transport are the coordinator's too.
         if config.enableAppleMusic && config.renderer != "native" { values.append("music") }
+        // A heart-rate strap is the app's own service (CraftHeartRate.swift),
+        // so it needs no web view.
+        if config.enableHeartRate { values.append("heartRate") }
         return values
     }
 
@@ -289,6 +292,19 @@ enum CraftNativeActions {
                 return
             }
             CraftWebServices.perform(action: action, body: args.first as? [String: Any] ?? [:]) { complete(requestToken, $0, completion) }
+            return
+        case ("HeartRate", _):
+            // A Bluetooth heart-rate strap, the same service as a page's
+            // `craft.heartRate`: one connection and one recording, whichever
+            // side started them. Its events reach every screen as
+            // `craftHeartRate`.
+            guard config.enableHeartRate else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Heart rate is disabled"), completion)
+                return
+            }
+            CraftHeartRate.shared.perform(method: method, args: args) { result in
+                complete(requestToken, result.mapError { CraftNativeActionError(code: $0.code, message: $0.message) }, completion)
+            }
             return
         case ("Linking", "openURL"), ("Linking", "canOpenURL"):
             // Another app or the system: `webcal:` subscriptions, `mailto:`,

@@ -1761,6 +1761,302 @@ export const music = {
   },
 }
 
+/*
+ * A Bluetooth heart-rate strap, or a watch broadcasting its heart rate (the
+ * standard Heart Rate Service every Polar, Garmin and Wahoo strap speaks).
+ *
+ * iOS only (`enableHeartRate`): scan for straps nearby, connect to one (it is
+ * remembered, and `reconnect()` finds it again without a scan), hear each
+ * reading with its RR intervals, and record the readings natively for a
+ * workout: the recording keeps going with the screen locked or the web view
+ * suspended, and survives the app being closed, like the route recording.
+ * Off a phone (a browser, Android) `isAvailable()` is false, the state says
+ * `available: false`, and nothing ever fires.
+ */
+export type HeartRateAuthorization = 'authorized' | 'denied' | 'restricted' | 'notDetermined' | 'unavailable'
+
+export type BluetoothState = 'poweredOn' | 'poweredOff' | 'unauthorized' | 'unsupported' | 'resetting' | 'unknown'
+
+export type HeartRateConnection = 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
+
+export interface HeartRateDevice {
+  id: string
+  name: string
+  /** Signal strength, dBm; 0 for a strap the phone is already connected to. */
+  rssi: number | null
+}
+
+export interface HeartRateRecordingState {
+  id: string | null
+  active: boolean
+  paused: boolean
+  /** ms since the epoch. */
+  startedAt: number | null
+  sampleCount: number | null
+}
+
+export interface HeartRateState {
+  /** False off a phone, in a build without `enableHeartRate`, or on a phone without Bluetooth. */
+  available: boolean
+  bluetooth: BluetoothState
+  authorization: HeartRateAuthorization
+  scanning: boolean
+  connection: HeartRateConnection
+  /** The strap connected, or being connected to. */
+  device: HeartRateDevice | null
+  /** The strap `reconnect()` asks for. */
+  lastDevice: HeartRateDevice | null
+  /** The latest reading while it is fresh (ten seconds), else null. */
+  bpm: number | null
+  lastReadingAt: number | null
+  recording: HeartRateRecordingState
+}
+
+export interface HeartRateReading {
+  bpm: number
+  /** Milliseconds between beats, oldest first; empty when the strap sends none. */
+  rrIntervals: number[]
+  /** Whether the strap touches skin; null when it cannot tell. */
+  contact: boolean | null
+  energyExpended: number | null
+  /** ms since the epoch. */
+  timestamp: number
+  deviceId: string | null
+}
+
+/** A reading as a recording keeps it. */
+export interface HeartRateSample {
+  /** ms since the epoch. */
+  timestamp: number
+  bpm: number
+  /** Milliseconds between beats, when the strap sent them. */
+  rr?: number[]
+}
+
+export type HeartRateMethod = 'getState' | 'requestAuthorization' | 'scan' | 'stopScan' | 'getDevices' | 'connect' | 'reconnect' | 'disconnect'
+  | 'startRecording' | 'pauseRecording' | 'resumeRecording' | 'stopRecording' | 'getRecordingState' | 'readRecording'
+
+const HR_AUTHORIZATIONS: readonly HeartRateAuthorization[] = ['authorized', 'denied', 'restricted', 'notDetermined', 'unavailable']
+const HR_BLUETOOTH: readonly BluetoothState[] = ['poweredOn', 'poweredOff', 'unauthorized', 'unsupported', 'resetting', 'unknown']
+const HR_CONNECTIONS: readonly HeartRateConnection[] = ['disconnected', 'connecting', 'connected', 'reconnecting']
+
+function hrRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+}
+
+function hrNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+/** A heart rate a strap could really give, whole beats. */
+function hrBpm(value: unknown): number | null {
+  const bpm = hrNumber(value)
+  return bpm !== null && bpm >= 20 && bpm <= 250 ? Math.round(bpm) : null
+}
+
+function hrIntervals(value: unknown): number[] {
+  return Array.isArray(value) ? value.filter((ms): ms is number => typeof ms === 'number' && Number.isFinite(ms) && ms > 0 && ms < 5000) : []
+}
+
+export function normalizeHeartRateDevice(value: unknown): HeartRateDevice | null {
+  const raw = hrRecord(value)
+  if (typeof raw.id !== 'string' || !raw.id) return null
+  return { id: raw.id, name: typeof raw.name === 'string' && raw.name.trim() ? raw.name : 'Heart rate monitor', rssi: hrNumber(raw.rssi) }
+}
+
+function normalizeHeartRateRecording(value: unknown): HeartRateRecordingState {
+  const raw = hrRecord(value)
+  return {
+    id: typeof raw.id === 'string' ? raw.id : null,
+    active: raw.active === true,
+    paused: raw.paused === true,
+    startedAt: hrNumber(raw.startedAt),
+    sampleCount: hrNumber(raw.sampleCount),
+  }
+}
+
+/** A state from native, made safe to render whatever an older or newer build sent. */
+export function normalizeHeartRateState(value: unknown): HeartRateState {
+  const raw = hrRecord(value)
+  return {
+    available: raw.available !== false && Object.keys(raw).length > 0,
+    bluetooth: HR_BLUETOOTH.includes(raw.bluetooth as BluetoothState) ? raw.bluetooth as BluetoothState : 'unknown',
+    authorization: HR_AUTHORIZATIONS.includes(raw.authorization as HeartRateAuthorization) ? raw.authorization as HeartRateAuthorization : 'unavailable',
+    scanning: raw.scanning === true,
+    connection: HR_CONNECTIONS.includes(raw.connection as HeartRateConnection) ? raw.connection as HeartRateConnection : 'disconnected',
+    device: normalizeHeartRateDevice(raw.device),
+    lastDevice: normalizeHeartRateDevice(raw.lastDevice),
+    bpm: hrBpm(raw.bpm),
+    lastReadingAt: hrNumber(raw.lastReadingAt),
+    recording: normalizeHeartRateRecording(raw.recording),
+  }
+}
+
+/** A reading event's detail, or null for one that is not a usable reading. */
+export function normalizeHeartRateReading(value: unknown): HeartRateReading | null {
+  const raw = hrRecord(value)
+  const bpm = hrBpm(raw.bpm)
+  if (bpm === null) return null
+  return {
+    bpm,
+    rrIntervals: hrIntervals(raw.rrIntervals),
+    contact: typeof raw.contact === 'boolean' ? raw.contact : null,
+    energyExpended: hrNumber(raw.energyExpended),
+    timestamp: hrNumber(raw.timestamp) ?? Date.now(),
+    deviceId: typeof raw.deviceId === 'string' ? raw.deviceId : null,
+  }
+}
+
+/** A recording's samples, oldest first, one per timestamp, implausible ones left out. */
+export function normalizeHeartRateSamples(value: unknown): HeartRateSample[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<number>()
+  const samples: HeartRateSample[] = []
+  for (const item of value) {
+    const raw = hrRecord(item)
+    const timestamp = hrNumber(raw.timestamp)
+    const bpm = hrBpm(raw.bpm)
+    if (timestamp === null || bpm === null || seen.has(timestamp)) continue
+    seen.add(timestamp)
+    const rr = hrIntervals(raw.rr)
+    samples.push(rr.length ? { timestamp, bpm, rr } : { timestamp, bpm })
+  }
+  return samples.sort((a, b) => a.timestamp - b.timestamp)
+}
+
+function noHeartRate(): HeartRateState {
+  return normalizeHeartRateState({ available: false })
+}
+
+function nativeHeartRate(): any {
+  const craft = getCraftRoot()
+  if (!craft?.heartRate || craft.capabilities?.heartRate === false) return undefined
+  return craft.heartRate
+}
+
+interface HeartRateWatch {
+  readings: Set<(reading: HeartRateReading) => void>
+  devices: Set<(device: HeartRateDevice) => void>
+  states: Set<(state: HeartRateState) => void>
+  stop: (() => void) | null
+}
+
+const heartRateWatch: HeartRateWatch = { readings: new Set(), devices: new Set(), states: new Set(), stop: null }
+
+function hrNotify<T>(listeners: Set<(value: T) => void>, value: T): void {
+  for (const listener of [...listeners]) {
+    try {
+      listener(value)
+    }
+    catch {}
+  }
+}
+
+/** One window listener for every subscriber, there while anyone listens. */
+function hrSubscribe<T>(set: Set<(value: T) => void>, callback: (value: T) => void): () => void {
+  if (!nativeHeartRate() || typeof window === 'undefined') return () => {}
+  set.add(callback)
+  if (!heartRateWatch.stop) {
+    const onEvent = (event: Event) => {
+      const detail = hrRecord((event as CustomEvent<unknown>).detail)
+      if (detail.type === 'reading') {
+        const reading = normalizeHeartRateReading(detail)
+        if (reading) hrNotify(heartRateWatch.readings, reading)
+      }
+      else if (detail.type === 'device') {
+        const device = normalizeHeartRateDevice(detail.device)
+        if (device) hrNotify(heartRateWatch.devices, device)
+      }
+      else if (detail.type === 'state') {
+        hrNotify(heartRateWatch.states, normalizeHeartRateState(detail))
+      }
+    }
+    window.addEventListener('craftHeartRate', onEvent)
+    heartRateWatch.stop = () => window.removeEventListener('craftHeartRate', onEvent)
+  }
+  return () => {
+    if (!set.delete(callback)) return
+    if (heartRateWatch.readings.size + heartRateWatch.devices.size + heartRateWatch.states.size > 0) return
+    heartRateWatch.stop?.()
+    heartRateWatch.stop = null
+  }
+}
+
+async function heartRateCall<T>(method: HeartRateMethod, fallback: () => T, normalize: (value: unknown) => T, ...args: unknown[]): Promise<T> {
+  const native = nativeHeartRate()
+  if (typeof native?.[method] !== 'function') return fallback()
+  return normalize(await native[method](...args))
+}
+
+const noRecording = (): HeartRateRecordingState => normalizeHeartRateRecording({})
+
+export const heartRate = {
+  /** Whether this app can read a heart-rate strap. */
+  isAvailable(): boolean {
+    return typeof nativeHeartRate()?.getState === 'function'
+  },
+
+  /** Whether this app build answers `method`; an older build may lack one. */
+  supports(method: HeartRateMethod): boolean {
+    return typeof nativeHeartRate()?.[method] === 'function'
+  },
+
+  /** Bluetooth, the connection, the strap and its latest reading, without asking anything. */
+  getState: (): Promise<HeartRateState> => heartRateCall('getState', noHeartRate, normalizeHeartRateState),
+
+  /**
+   * Ask for Bluetooth: iOS's prompt the first time, its remembered answer
+   * after that. Scanning and connecting ask too; call this from the person's
+   * tap to ask first.
+   */
+  requestAuthorization: (): Promise<HeartRateAuthorization> => heartRateCall('requestAuthorization', () => 'unavailable' as const,
+    value => HR_AUTHORIZATIONS.includes(value as HeartRateAuthorization) ? value as HeartRateAuthorization : 'unavailable'),
+
+  /** Look for straps for `timeout` seconds (15 by default); `onDevice` hears each one. */
+  scan: (options: { timeout?: number } = {}): Promise<HeartRateState> => heartRateCall('scan', noHeartRate, normalizeHeartRateState, options),
+  stopScan: (): Promise<HeartRateState> => heartRateCall('stopScan', noHeartRate, normalizeHeartRateState),
+
+  /** What the last scan found, strongest signal first. */
+  getDevices: (): Promise<HeartRateDevice[]> => heartRateCall('getDevices', () => [], value => Array.isArray(value)
+    ? value.map(normalizeHeartRateDevice).filter((device): device is HeartRateDevice => device !== null)
+    : []),
+
+  /**
+   * Connect to a strap from `scan` and subscribe to its readings; it is
+   * remembered for `reconnect()`. Rejects with code TIMEOUT when it does not
+   * answer within 15 s, while still asking for it: a strap wakes up when worn.
+   */
+  connect: (id: string): Promise<HeartRateState> => heartRateCall('connect', noHeartRate, normalizeHeartRateState, id),
+
+  /** Ask for the remembered strap again, without waiting for it. */
+  reconnect: (): Promise<HeartRateState> => heartRateCall('reconnect', noHeartRate, normalizeHeartRateState),
+
+  /** Stop asking for the strap; `forget` also drops it from memory. */
+  disconnect: (options: { forget?: boolean } = {}): Promise<HeartRateState> => heartRateCall('disconnect', noHeartRate, normalizeHeartRateState, options),
+
+  /** Keep every reading natively from now on: screen locked, page suspended or app closed. */
+  startRecording: (): Promise<HeartRateRecordingState> => heartRateCall('startRecording', noRecording, normalizeHeartRateRecording),
+  pauseRecording: (): Promise<HeartRateRecordingState> => heartRateCall('pauseRecording', noRecording, normalizeHeartRateRecording),
+  resumeRecording: (): Promise<HeartRateRecordingState> => heartRateCall('resumeRecording', noRecording, normalizeHeartRateRecording),
+
+  /** Ends the recording and hands back every reading it kept. */
+  stopRecording: (): Promise<HeartRateRecordingState & { samples: HeartRateSample[] }> => heartRateCall('stopRecording',
+    () => ({ ...noRecording(), samples: [] }),
+    value => ({ ...normalizeHeartRateRecording(value), samples: normalizeHeartRateSamples(hrRecord(value).samples) })),
+
+  getRecordingState: (): Promise<HeartRateRecordingState> => heartRateCall('getRecordingState', noRecording, normalizeHeartRateRecording),
+
+  /** The recording so far; only what came after `since` (ms) when given. */
+  readRecording: (options: { since?: number } = {}): Promise<HeartRateSample[]> => heartRateCall('readRecording', () => [], normalizeHeartRateSamples, options),
+
+  /** Every reading from the connected strap, about once a second. */
+  onReading: (callback: (reading: HeartRateReading) => void): (() => void) => hrSubscribe(heartRateWatch.readings, callback),
+  /** Each strap a scan finds. */
+  onDevice: (callback: (device: HeartRateDevice) => void): (() => void) => hrSubscribe(heartRateWatch.devices, callback),
+  /** Bluetooth, scanning or the connection changed. */
+  onState: (callback: (state: HeartRateState) => void): (() => void) => hrSubscribe(heartRateWatch.states, callback),
+}
+
 export const deepLinks = {
   async getInitialURL(): Promise<string | null> {
     return normalizeDeepLinkURL(await getCraftRoot()?.deepLinks?.getInitialURL?.())
@@ -2781,6 +3077,7 @@ const mobile: {
   brightness: typeof brightness
   speech: typeof speech
   music: typeof music
+  heartRate: typeof heartRate
   deepLinks: typeof deepLinks
   network: typeof network
   appReview: typeof appReview
@@ -2816,6 +3113,7 @@ const mobile: {
   brightness: brightness,
   speech: speech,
   music: music,
+  heartRate: heartRate,
   deepLinks: deepLinks,
   network: network,
   appReview: appReview,

@@ -155,7 +155,14 @@ const dispatch_end = "func webView(";
 /// MediaPlayer's notifications, all through CraftMusic.swift; like the health
 /// reads they went into Swift first and fall through to the shim, which
 /// serves them. Not a regression: no action left Zig.
-const max_not_yet_migrated: usize = 39;
+/// 41 when the spec gained the heart-rate strap bridge: heartRate (every
+/// method, by name, as a native screen's HeartRate module calls them) and
+/// heartRateRequestAuthorization (its own, so the page waits on iOS's
+/// Bluetooth prompt). They drive CraftHeartRate.swift's CoreBluetooth
+/// central and push craftHeartRate; like the Music bridge they went into
+/// Swift first and fall through to the shim, which serves them. Not a
+/// regression: no action left Zig.
+const max_not_yet_migrated: usize = 41;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.

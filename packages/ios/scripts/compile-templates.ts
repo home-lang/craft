@@ -28,6 +28,7 @@ const capabilityConfig: Partial<CraftConfig> = {
   enableFilePicker: true,
   enableGeolocation: true,
   enableHealthKit: true,
+  enableHeartRate: true,
   enableInAppPurchase: true,
   enableLiveActivities: true,
   enableLocalNotifications: true,

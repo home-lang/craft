@@ -1302,7 +1302,7 @@ describe('Craft iOS builder', () => {
     expect(app).toContain('if CraftWebServices.resolve(id, result: result) { return }')
     expect(app).toContain('if CraftWebServices.reject(id, message: error, code: code) { return }')
     expect(app).toContain('CraftWebServices.forward(event, data: data)')
-    expect(app).toContain('static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftMusicChange"]')
+    expect(app).toContain('static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftMusicChange", "craftHeartRate"]')
     expect(screen).toContain('self?.send(type: "CRAFT_EVENT", payload: ["event": name')
   })
 
@@ -1350,8 +1350,37 @@ describe('Craft iOS builder', () => {
     expect(actions).toContain('if config.enableAppleMusic && config.renderer != "native" { values.append("music") }')
     expect(actions).toContain('"getNowPlaying": "musicGetNowPlaying", "control": "musicControl", "observe": "musicObserve"')
     // Its changes reach every native screen, as the page hears them.
-    expect(app).toContain('"craftMusicChange"]')
+    expect(app).toContain('"craftMusicChange", "craftHeartRate"]')
     expect(app).toContain('self?.sendToWeb("craftMusicChange", data: snapshot)')
+  })
+
+  it('reads a heart-rate strap on the page and on native screens alike, with no web view needed', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-heart-rate-'))
+    await init({ runtimeDir: null, name: 'Gate', bundleId: 'com.example.gate', output, config: { enableHeartRate: true, nativeScreens: { '/m/go/:id': 'Go' } } as any })
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const app = readFileSync(join(output, 'Sources', 'GateApp.swift'), 'utf8')
+    expect(existsSync(join(output, 'Sources', 'CraftHeartRate.swift'))).toBe(true)
+    // The app's own service: a native-only app has it too.
+    expect(actions).toContain('if config.enableHeartRate { values.append("heartRate") }')
+    expect(actions).toContain('case ("HeartRate", _):')
+    expect(actions).toContain('CraftHeartRate.shared.perform(method: method, args: args)')
+    expect(app).toContain('case "heartRate", "heartRateRequestAuthorization":')
+    expect(app).toContain('CraftHeartRate.shared.pageSink = { [weak self] detail in')
+    const plist = readFileSync(join(output, 'Info.plist'), 'utf8')
+    expect(plist).toContain('<string>bluetooth-central</string>')
+    expect(plist).toContain('<string>Gate connects to your heart-rate monitor over Bluetooth to show and record your heart rate during a workout.</string>')
+  })
+
+  it('keeps a strap\'s readings coming with the screen locked only when the app reads one', () => {
+    const config = { appName: 'HQ.training', bundleId: 'training.hq.app' }
+    expect(renderBackgroundModes(config)).toBe('')
+    expect(renderBackgroundModes({ ...config, enableHeartRate: true })).toContain('<string>bluetooth-central</string>')
+    expect(renderBackgroundModes({ ...config, enableBluetooth: true })).toBe('')
+    // The shell links CoreBluetooth either way, so the key is always there.
+    expect(renderUsageDescriptions(config)).toContain('<string>HQ.training asks for Bluetooth only in a feature that needs it.</string>')
+    expect(renderUsageDescriptions({ ...config, enableBluetooth: true })).toContain('<string>HQ.training uses Bluetooth to connect to nearby devices.</string>')
+    expect(renderUsageDescriptions({ ...config, enableHeartRate: true, usageDescriptions: { NSBluetoothAlwaysUsageDescription: 'Shows your heart rate from your strap.' } }))
+      .toContain('<key>NSBluetoothAlwaysUsageDescription</key>\n    <string>Shows your heart rate from your strap.</string>')
   })
 
   it('draws the inputs a native sign-in screen needs: autofill, padding, the next field, a date picker', () => {

@@ -1119,6 +1119,9 @@ struct CraftConfig: Codable {
     var enableMLKit: Bool = false
     /// The Music app's song and transport through `craft.music` (CraftMusic.swift).
     var enableAppleMusic: Bool = false
+    /// A Bluetooth heart-rate strap (or a watch broadcasting its heart rate)
+    /// through `craft.heartRate` (CraftHeartRate.swift).
+    var enableHeartRate: Bool = false
     var devServerURL: String? = nil
     var trustedOrigins: [String] = []
     /// The longest the launch splash stays up when the page neither says it is
@@ -1640,6 +1643,16 @@ struct CraftWebView: UIViewRepresentable {
             }
             if config.enableMotionSensors {
                 motionManager = CMMotionManager()
+            }
+            if config.enableHeartRate {
+                // The strap's readings and connection changes reach the page,
+                // and through sendToWeb every native screen too. False once
+                // this coordinator is gone: native screens still hear them.
+                CraftHeartRate.shared.pageSink = { [weak self] detail in
+                    guard let self else { return false }
+                    self.sendToWeb("craftHeartRate", data: detail)
+                    return true
+                }
             }
             if config.enableWatchApp {
                 setupWatchConnectivity()
@@ -2212,6 +2225,22 @@ struct CraftWebView: UIViewRepresentable {
                     musicObserve(body["enabled"] as? Bool ?? true, callbackId: callbackId)
                 } else {
                     rejectCallback(callbackId, error: "Apple Music is disabled", code: "CAPABILITY_DISABLED")
+                }
+            // MARK: - Heart rate (CraftHeartRate.swift)
+            // Gated on enableHeartRate. One action for every method, as a
+            // native screen's HeartRate module calls them; asking for
+            // Bluetooth has its own, which waits on the person.
+            case "heartRate", "heartRateRequestAuthorization":
+                if !config.enableHeartRate {
+                    rejectCallback(callbackId, error: "Heart rate is disabled", code: "CAPABILITY_DISABLED")
+                } else {
+                    let method = action == "heartRate" ? body["method"] as? String ?? "" : "requestAuthorization"
+                    CraftHeartRate.shared.perform(method: method, args: [body["options"] as? [String: Any] ?? [:]]) { [weak self] result in
+                        switch result {
+                        case .success(let value): self?.resolveCallback(callbackId, result: value)
+                        case .failure(let failure): self?.rejectCallback(callbackId, error: failure.message, code: failure.code)
+                        }
+                    }
                 }
             // MARK: - Orientation Lock
             case "lockOrientation":
@@ -3198,6 +3227,7 @@ struct CraftWebView: UIViewRepresentable {
                     flashlight: true,
                     brightness: true,
                     music: \(config.enableAppleMusic),
+                    heartRate: \(config.enableHeartRate),
                     speech: true,
                     network: true,
                     deviceInfo: true,
@@ -4737,6 +4767,7 @@ struct CraftWebView: UIViewRepresentable {
                 var personFacing = {
                     requestHealthAuthorization: true,
                     musicRequestAuthorization: true,
+                    heartRateRequestAuthorization: true,
                     requestPermission: true,
                     signInWithApple: true,
                     dialogAlert: true,
@@ -4951,6 +4982,30 @@ struct CraftWebView: UIViewRepresentable {
                     },
                     observe: function(enabled) { return craft._invoke('musicObserve', {enabled: enabled !== false}); }
                 };
+                // A Bluetooth heart-rate strap, or a watch broadcasting its
+                // heart rate. Readings, devices found by scan() and connection
+                // changes arrive as craftHeartRate events ({type: 'reading' |
+                // 'device' | 'state'}); startRecording() keeps every reading
+                // natively, screen locked or app closed, until stopRecording().
+                (function() {
+                    function heartRate(method, options) { return craft._invoke('heartRate', {method: method, options: options || {}}); }
+                    craft.heartRate = {
+                        getState: function() { return heartRate('getState'); },
+                        requestAuthorization: function() { return craft._invoke('heartRateRequestAuthorization'); },
+                        scan: function(options) { return heartRate('scan', {timeout: options && typeof options.timeout === 'number' ? options.timeout : null}); },
+                        stopScan: function() { return heartRate('stopScan'); },
+                        getDevices: function() { return heartRate('getDevices'); },
+                        connect: function(id) { return heartRate('connect', {id: typeof id === 'string' ? id : id && id.id}); },
+                        reconnect: function() { return heartRate('reconnect'); },
+                        disconnect: function(options) { return heartRate('disconnect', {forget: !!(options && options.forget)}); },
+                        startRecording: function() { return heartRate('startRecording'); },
+                        pauseRecording: function() { return heartRate('pauseRecording'); },
+                        resumeRecording: function() { return heartRate('resumeRecording'); },
+                        stopRecording: function() { return heartRate('stopRecording'); },
+                        getRecordingState: function() { return heartRate('getRecordingState'); },
+                        readRecording: function(options) { return heartRate('readRecording', {since: options && typeof options.since === 'number' ? options.since : null}); }
+                    };
+                })();
                 craft.liveActivity = {
                     start: function(options) { return craft._invoke('startLiveActivity', options || {}); },
                     update: function(idOrState, state) {
@@ -8450,7 +8505,7 @@ final class CraftZigRuntime: NSObject {
 enum CraftWebServices {
     private static var waiting: [String: (Result<Any, CraftNativeActionError>) -> Void] = [:]
     /// Coordinator events a native screen hears too.
-    static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftMusicChange"]
+    static let forwardedEvents: Set<String> = ["craftLocationUpdate", "craftLocationError", "craftMusicChange", "craftHeartRate"]
     static let event = Notification.Name("craftWebServicesEvent")
 
     static var isAvailable: Bool { CraftSwiftShim.coordinator != nil }

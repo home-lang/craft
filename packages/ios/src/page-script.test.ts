@@ -880,3 +880,79 @@ describe('craft.music', () => {
     expect(music).toMatch(/#if targetEnvironment\(simulator\)\n\s+if UserDefaults\.standard\.bool\(forKey: "CraftFakeMusicPlayer"\)/)
   })
 })
+
+describe('craft.heartRate', () => {
+  // A Bluetooth heart-rate strap (CraftHeartRate.swift). Every method is one
+  // `heartRate` action naming it, the way a native screen's HeartRate module
+  // calls them; asking for Bluetooth is its own action, which waits.
+  it('posts each call as the heartRate action with its method and options', async () => {
+    const { craft, last, answer } = loadPage()
+    const state = { available: true, connection: 'connected', bpm: 141 }
+
+    const now = craft.heartRate.getState()
+    expect(last('heartRate')).toMatchObject({ method: 'getState', options: {} })
+    answer('heartRate', state)
+    expect(await now).toEqual(state)
+
+    void craft.heartRate.scan({ timeout: 8 })
+    expect(last('heartRate')).toMatchObject({ method: 'scan', options: { timeout: 8 } })
+    answer('heartRate', state)
+    void craft.heartRate.scan()
+    expect(last('heartRate')).toMatchObject({ method: 'scan', options: { timeout: null } })
+    answer('heartRate', state)
+
+    for (const id of ['A1B2', { id: 'A1B2' }]) {
+      void craft.heartRate.connect(id)
+      expect(last('heartRate')).toMatchObject({ method: 'connect', options: { id: 'A1B2' } })
+      answer('heartRate', state)
+    }
+    void craft.heartRate.disconnect({ forget: true })
+    expect(last('heartRate')).toMatchObject({ method: 'disconnect', options: { forget: true } })
+    answer('heartRate', state)
+    void craft.heartRate.readRecording({ since: 1700 })
+    expect(last('heartRate')).toMatchObject({ method: 'readRecording', options: { since: 1700 } })
+    answer('heartRate', [])
+
+    for (const method of ['stopScan', 'getDevices', 'reconnect', 'startRecording', 'pauseRecording', 'resumeRecording', 'stopRecording', 'getRecordingState']) {
+      const done = craft.heartRate[method]()
+      expect(last('heartRate')).toMatchObject({ method })
+      answer('heartRate', { method })
+      expect(await done).toEqual({ method })
+    }
+  })
+
+  it('waits on the Bluetooth prompt for as long as the person takes', async () => {
+    const { craft, answer } = loadPage()
+    const asked = craft.heartRate.requestAuthorization()
+    expect([...pageTimers].length).toBe(0)
+    answer('heartRateRequestAuthorization', 'authorized')
+    expect(await asked).toBe('authorized')
+  })
+
+  it('hands a build without the capability the refusal native sends', async () => {
+    const { craft, refuse } = loadPage()
+    expect(craft.capabilities.heartRate).toBe(false)
+    const scan = craft.heartRate.scan()
+    refuse('heartRate', 'Heart rate is disabled', 'CAPABILITY_DISABLED')
+    await expect(scan).rejects.toMatchObject({ code: 'CAPABILITY_DISABLED' })
+  })
+
+  it('reads the standard Heart Rate Service and pushes readings to the page and native screens', () => {
+    const service = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftHeartRate.swift'), 'utf8')
+    expect(template).toContain('heartRate: \\(config.enableHeartRate)')
+    expect(template).toContain('self.sendToWeb("craftHeartRate", data: detail)')
+    expect(template).toContain('"craftMusicChange", "craftHeartRate"]')
+    expect(service).toContain('CBUUID(string: "180D")')
+    expect(service).toContain('CBUUID(string: "2A37")')
+    expect(service).toContain('peripheral.setNotifyValue(true, for: measurement)')
+    // The flags byte decides the width of the rate and what follows it.
+    expect(service).toContain('guard let bpm = flags & 0x01 != 0 ? uint16() : uint8() else { return nil }')
+    expect(service).toContain('while let value = uint16() { intervals.append(Double(value) * 1000 / 1024) }')
+    // A lost strap is asked for again until disconnect().
+    expect(service).toMatch(/if wantsConnection \{\n\s+connection = "reconnecting"\n\s+central\.connect\(peripheral\)/)
+    // Without it the native screens alone hear it.
+    expect(service).toContain('if pageSink?(detail) != true { CraftWebServices.forward("craftHeartRate", data: detail) }')
+    // The stand-in never ships to a device.
+    expect(service).toMatch(/#if targetEnvironment\(simulator\)\n\s+return UserDefaults\.standard\.bool\(forKey: "CraftFakeHeartRateMonitor"\)/)
+  })
+})

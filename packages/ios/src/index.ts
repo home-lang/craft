@@ -87,6 +87,15 @@ export interface CraftConfig {
    */
   enableAppleMusic?: boolean
   /**
+   * Read a Bluetooth heart-rate strap, or a watch broadcasting its heart rate
+   * (the standard Heart Rate Service), through `craft.heartRate`: scan,
+   * connect, live readings with RR intervals, and a recording kept natively.
+   * Adds the `bluetooth-central` background mode, so readings keep coming
+   * during a workout with the screen locked. iOS asks for Bluetooth the first
+   * time the page scans or connects.
+   */
+  enableHeartRate?: boolean
+  /**
    * Purpose strings in the app's own words, by Info.plist key
    * (`{ NSAppleMusicUsageDescription: 'Shows the song playing during a workout.' }`).
    * Each replaces the generic sentence Craft writes for that key.
@@ -450,6 +459,7 @@ const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
   enableAR: false,
   enableMLKit: false,
   enableAppleMusic: false,
+  enableHeartRate: false,
   iosVersion: '16.0',
   watchosVersion: '9.0',
   teamId: '',
@@ -532,7 +542,9 @@ export function renderUsageDescriptions(config: CraftConfig): string {
     [config.enableBackgroundLocation, 'NSLocationAlwaysAndWhenInUseUsageDescription', `${config.appName} continues recording your route when the screen is locked or the app is in the background.`],
     [config.enableContacts, 'NSContactsUsageDescription', `${config.appName} accesses contacts only when you choose a contact feature.`],
     [config.enableCalendar, 'NSCalendarsUsageDescription', `${config.appName} accesses your calendar only when you choose a calendar feature.`],
-    [config.enableBluetooth, 'NSBluetoothAlwaysUsageDescription', `${config.appName} uses Bluetooth to connect to nearby devices.`],
+    [config.enableBluetooth || config.enableHeartRate, 'NSBluetoothAlwaysUsageDescription', config.enableHeartRate
+      ? `${config.appName} connects to your heart-rate monitor over Bluetooth to show and record your heart rate during a workout.`
+      : `${config.appName} uses Bluetooth to connect to nearby devices.`],
     [config.enableMotionSensors, 'NSMotionUsageDescription', `${config.appName} uses motion data for activity features.`],
     [config.enableNFC, 'NFCReaderUsageDescription', `${config.appName} reads NFC tags when you start a scan.`],
     [config.enableLocalNetwork, 'NSLocalNetworkUsageDescription', `${config.appName} connects to your own devices on this network.`],
@@ -608,6 +620,8 @@ export function renderBackgroundModes(config: CraftConfig): string {
   if (config.enableBackgroundLocation) modes.add('location')
   if (config.enableBackgroundTasks) modes.add('processing')
   if (config.enablePushNotifications) modes.add('remote-notification')
+  // A strap's readings keep arriving with the screen locked mid-workout.
+  if (config.enableHeartRate) modes.add('bluetooth-central')
   if (!modes.size) return ''
 
   return `    <key>UIBackgroundModes</key>\n    <array>\n${plistArray([...modes])}\n    </array>`
@@ -1181,6 +1195,7 @@ export async function init(options: InitOptions): Promise<void> {
   cpSync(join(TEMPLATES_DIR, 'CraftNativeActions.swift'), join(output, 'Sources', 'CraftNativeActions.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftHealth.swift'), join(output, 'Sources', 'CraftHealth.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftMusic.swift'), join(output, 'Sources', 'CraftMusic.swift'))
+  cpSync(join(TEMPLATES_DIR, 'CraftHeartRate.swift'), join(output, 'Sources', 'CraftHeartRate.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeMutation.swift'), join(output, 'Sources', 'CraftNativeMutation.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeUI.swift'), join(output, 'Sources', 'CraftNativeUI.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftNativeServices.swift'), join(output, 'Sources', 'CraftNativeServices.swift'))
