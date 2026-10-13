@@ -3526,7 +3526,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             checkbox.setTitle(transformedLabel, for: .normal)
             checkbox.setAttributedTitle(NSAttributedString(
                 string: transformedLabel,
-                attributes: buttonTitleAttributes(style, color: color(props["color"]) ?? color(style["color"]) ?? .label, font: textFont(style, default: .systemFont(ofSize: 16)))
+                attributes: buttonTitleAttributes(style, color: color(props["color"]) ?? color(style["color"]) ?? .label, font: textFont(style, default: .systemFont(ofSize: 16)), forceUnderline: false)
             ), for: .normal)
             let uncheckedImage = UIImage(systemName: indeterminate ? "minus.square" : "square")
             checkbox.setImage(uncheckedImage, for: .normal)
@@ -3907,7 +3907,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "Image":
             return UIImageView()
         case "ImageBackground":
-            return CraftNativeImageBackgroundView()
+            return CraftNativeImageBackgroundView(frame: .zero)
         case "Video":
             return CraftNativeVideoView(host: self)
         case "Icon":
