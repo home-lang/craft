@@ -582,6 +582,9 @@ class NativeNavigationTest {
             assertEquals("CraftNativeIconView", icon.javaClass.simpleName)
             assertEquals("Native icon", icon.contentDescription?.toString())
             assertTrue("Icon fixture should expose a visible glyph", (icon as TextView).text.isNotBlank())
+            var iconInfo: AccessibilityNodeInfo? = null
+            instrumentation.runOnMainSync { iconInfo = icon.createAccessibilityNodeInfo() }
+            assertEquals(ImageView::class.java.name, iconInfo?.className?.toString())
             assertEquals("CraftNativeVideoView", video.javaClass.simpleName)
             assertTrue("Image data did not decode", (image as ImageView).drawable != null)
             assertEquals("Native pixel", image.contentDescription.toString())

@@ -3477,7 +3477,9 @@ class MainActivity : AppCompatActivity() {
             else -> null
         }
         view.tooltipText = props.optString("accessibilityHint").takeIf { it.isNotBlank() }
-        val role = props.optString("accessibilityRole").ifBlank { type.lowercase() }
+        val role = props.optString("accessibilityRole").ifBlank {
+            if (type == "Icon") "image" else type.lowercase()
+        }
         val state = props.optJSONObject("accessibilityState")
         val disabled = props.optBoolean("disabled", false) || state?.optBoolean("disabled", false) == true
         if (type !in setOf("Button", "Link", "Checkbox", "TextInput", "Picker", "DatePicker", "Modal", "Switch", "Slider", "ActivityIndicator")) {

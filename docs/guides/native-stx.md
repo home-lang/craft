@@ -75,6 +75,7 @@ next route.
 | `Switch` | `UISwitch` | `Switch` |
 | `Slider` | `UISlider` | `SeekBar` |
 | `ActivityIndicator` | `UIActivityIndicatorView` | `ProgressBar` |
+| `Icon` | `CraftNativeIconView` (`UIImageView`) | `CraftNativeIconView` (`TextView`) |
 | `Image` | `UIImageView` | `ImageView` |
 | `ImageBackground` | `CraftNativeImageBackgroundView` | `CraftNativeImageBackgroundView` |
 | `Video` | `CraftNativeVideoView` (`AVPlayerViewController`) | `CraftNativeVideoView` (`VideoView`) |

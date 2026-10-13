@@ -185,6 +185,7 @@ describe('native renderer component contract', () => {
 
   it('keeps Icon host fallbacks explicit and DOM-free', () => {
     expect(guide).toContain('`Icon` is a native leaf with the shared `symbol`/`name` contract')
+    expect(guide).toContain('| `Icon` | `CraftNativeIconView` (`UIImageView`) | `CraftNativeIconView` (`TextView`) |')
     expect(guide).toContain('Android uses the maintained dependency-free\nglyph map')
     expect(iosNavigationReadme).toContain('Icon/Video/SVG accessibility survives native mounting')
     expect(androidNavigationReadme).toContain('`CraftNativeIconView`')
