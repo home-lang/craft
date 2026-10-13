@@ -1005,6 +1005,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     private var firstFrameLogged = false
     private var tabBarHeight: CGFloat = 0
     private var tabSwipeRecognizers: [UIGestureRecognizer] = []
+    private var activeTabSwipeTarget: String?
 
     init(config: CraftConfig) {
         self.config = config
@@ -1056,16 +1057,88 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
     }
 
     @objc private func tabSwipeRecognized(_ recognizer: UIPanGestureRecognizer) {
-        guard recognizer.state == .ended else { return }
         let tabs = hybrid.tabIds
         guard let index = tabs.firstIndex(of: currentTab), tabs.count > 1 else { return }
         let translation = recognizer.translation(in: view).x
         let velocity = recognizer.velocity(in: view).x
-        let delta = abs(translation) >= 32 ? translation : velocity
-        guard abs(delta) >= 32 else { return }
-        let next = delta < 0 ? index + 1 : index - 1
-        guard tabs.indices.contains(next) else { return }
-        CraftChrome.shared.swipe(to: tabs[next])
+        switch recognizer.state {
+        case .changed:
+            if activeTabSwipeTarget == nil {
+                let direction = abs(translation) > 1 ? translation : velocity
+                guard abs(direction) > 1 else { return }
+                let next = direction < 0 ? index + 1 : index - 1
+                guard tabs.indices.contains(next), beginInteractiveTabSwipe(to: tabs[next], direction: direction < 0 ? -1 : 1) else { return }
+                activeTabSwipeTarget = tabs[next]
+            }
+            updateInteractiveTabSwipe(translation: translation)
+        case .ended, .cancelled, .failed:
+            guard let target = activeTabSwipeTarget else {
+                guard recognizer.state == .ended else { return }
+                let delta = abs(translation) >= 32 ? translation : velocity
+                guard abs(delta) >= 32 else { return }
+                let next = delta < 0 ? index + 1 : index - 1
+                guard tabs.indices.contains(next) else { return }
+                CraftChrome.shared.swipe(to: tabs[next])
+                return
+            }
+            activeTabSwipeTarget = nil
+            let complete = recognizer.state == .ended && (abs(translation) >= max(32, view.bounds.width * 0.28) || abs(velocity) > 700)
+            finishInteractiveTabSwipe(completed: complete) { [weak self] in
+                guard complete else {
+                    CraftChrome.shared.cancelTabSwipe()
+                    return
+                }
+                CraftChrome.shared.commitTabSwipe(to: target)
+                self?.view.layoutIfNeeded()
+            }
+        default:
+            break
+        }
+    }
+
+    /// Prepare a mounted native target beside the current stack. Web roots are
+    /// left to the existing route-aware fallback because they share one web
+    /// view and cannot render the next tab until its page route has arrived.
+    private func beginInteractiveTabSwipe(to id: String, direction: CGFloat) -> Bool {
+        guard let current = visibleStack, let target = stacks[id],
+              !(target.topViewController is CraftHybridWebSlot), current.view !== target.view,
+              view.bounds.width > 0 else { return false }
+        target.view.isHidden = false
+        let width = view.bounds.width
+        target.view.frame = view.bounds.offsetBy(dx: direction * width, dy: 0)
+        view.bringSubviewToFront(target.view)
+        CraftChrome.shared.beginTabSwipe(to: id)
+        return true
+    }
+
+    private func updateInteractiveTabSwipe(translation: CGFloat) {
+        guard let targetId = activeTabSwipeTarget, let current = visibleStack,
+              let target = stacks[targetId] else { return }
+        let width = max(1, view.bounds.width)
+        let start = target.view.frame.minX >= width * 0.5 ? width : -width
+        let offset = min(width, max(-width, translation))
+        target.view.frame.origin.x = start + offset
+        current.view.frame.origin.x = offset
+    }
+
+    private func finishInteractiveTabSwipe(completed: Bool, completion: @escaping () -> Void) {
+        guard let targetId = activeTabSwipeTarget, let current = visibleStack,
+              let target = stacks[targetId] else { completion(); return }
+        let width = view.bounds.width
+        let direction: CGFloat = target.view.frame.minX >= 0 ? 1 : -1
+        let end = completed ? 0 : direction * width
+        let duration = CraftChrome.motion(.easeOut(duration: completed ? 0.22 : 0.18)) == nil ? 0 : 0.22
+        UIView.animate(withDuration: duration, animations: {
+            target.view.frame.origin.x = end
+            current.view.frame.origin.x = completed ? -direction * width : 0
+        }, completion: { _ in
+            if !completed {
+                target.view.isHidden = true
+                target.view.frame = self.view.bounds
+                current.view.frame = self.view.bounds
+            }
+            completion()
+        })
     }
 
     private func horizontalScrollAt(_ point: CGPoint, in root: UIView) -> Bool {
@@ -1207,6 +1280,7 @@ final class CraftHybridController: UIViewController, UINavigationControllerDeleg
         }
         currentTab = id
         for (key, other) in stacks { other.view.isHidden = key != id }
+        nav.view.frame = view.bounds
         view.bringSubviewToFront(nav.view)
         if let slot = nav.topViewController as? CraftHybridWebSlot, slot.isViewLoaded {
             adoptWeb(into: slot)

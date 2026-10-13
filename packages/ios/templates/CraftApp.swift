@@ -623,6 +623,7 @@ final class CraftChrome: ObservableObject {
     private var occupied: CGFloat = 0
     private var pendingHide: DispatchWorkItem?
     private var splashDeadline: DispatchWorkItem?
+    private var tabSwipePrevious: String?
     /// The keyboard is up and covers the tab bar, so the page need not leave
     /// room for it: the web view ends at the keyboard (CraftHybrid's webHost).
     private var keyboardUp = false
@@ -750,6 +751,29 @@ final class CraftChrome: ObservableObject {
     func swipe(to id: String) {
         guard id != selected, tabs.contains(where: { $0.id == id }) else { return }
         withAnimation(Self.motion(.spring(response: 0.32, dampingFraction: 0.86))) { selected = id }
+        UISelectionFeedbackGenerator().selectionChanged()
+        guard CraftHybrid.shared.tabTapped(id, reselect: false) else { return }
+        emit("craftTabSelect", ["id": id])
+    }
+
+    /// Move the tab indicator with an in-flight native-stack swipe. The
+    /// controller commits or restores this preview when the finger lifts.
+    func beginTabSwipe(to id: String) {
+        guard id != selected, tabs.contains(where: { $0.id == id }) else { return }
+        tabSwipePrevious = selected
+        withAnimation(nil) { selected = id }
+    }
+
+    func cancelTabSwipe() {
+        guard let previous = tabSwipePrevious else { return }
+        tabSwipePrevious = nil
+        withAnimation(nil) { selected = previous }
+    }
+
+    func commitTabSwipe(to id: String) {
+        tabSwipePrevious = nil
+        guard tabs.contains(where: { $0.id == id }) else { return }
+        withAnimation(nil) { selected = id }
         UISelectionFeedbackGenerator().selectionChanged()
         guard CraftHybrid.shared.tabTapped(id, reselect: false) else { return }
         emit("craftTabSelect", ["id": id])
