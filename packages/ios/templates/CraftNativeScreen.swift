@@ -558,7 +558,8 @@ enum CraftNativeFlexLayout {
             // longest word), which collapses shrink-to-fit bubbles and pills.
             let maxContent = label.sizeThatFits(CGSize(width: unbounded, height: unbounded))
             let resolvedWidth = width ?? min(ceil(maxContent.width), limit)
-            let resolvedHeight = height ?? ceil(resolvedWidth < limit
+            // Narrower than max-content (it met the limit): the wrapped height.
+            let resolvedHeight = height ?? ceil(resolvedWidth < ceil(maxContent.width)
                 ? label.sizeThatFits(CGSize(width: resolvedWidth, height: unbounded)).height
                 : maxContent.height)
             return CGSize(width: resolvedWidth, height: resolvedHeight)
