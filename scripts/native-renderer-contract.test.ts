@@ -379,6 +379,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val intrinsicSpec = if (child is TextView && child !is EditText) 1_000_000 else base')
     expect(android).toContain('longest-word (min-content) width')
     expect(ios).toContain('let maxContent = label.sizeThatFits(CGSize(width: unbounded, height: unbounded))')
+    expect(ios).toContain('let resolvedWidth = width ?? min(ceil(maxContent.width), limit)')
     expect(ios).toContain('collapses shrink-to-fit bubbles and pills')
     expect(navigationHome).toContain('testID="max-content-bubble"')
     expect(navigationHome).toContain('testID="max-content-bubble-text"')
