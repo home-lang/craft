@@ -115,6 +115,7 @@ private data class CraftNativeLength(
 private data class CraftNativeLayoutStyle(
     val width: CraftNativeLength? = null,
     val height: CraftNativeLength? = null,
+    val aspectRatio: Double? = null,
     val minWidth: CraftNativeLength? = null,
     val maxWidth: CraftNativeLength? = null,
     val minHeight: CraftNativeLength? = null,
@@ -143,6 +144,7 @@ private data class CraftNativeLayoutStyle(
             val flex = decimal("flex")
             return CraftNativeLayoutStyle(
                 width = length("width"), height = length("height"),
+                aspectRatio = decimal("aspectRatio")?.takeIf { it.isFinite() && it > 0.0 },
                 minWidth = length("minWidth"), maxWidth = length("maxWidth"),
                 minHeight = length("minHeight"), maxHeight = length("maxHeight"),
                 position = raw.opt("position")
@@ -583,7 +585,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         // The STX style is authoritative. A reused View may still carry a
         // previous fixed LayoutParams width after a reactive width is removed;
         // using that value here prevents intrinsic sizing from being restored.
-        val explicit = style.width?.resolve(base) ?: flexBasis
+        val authored = style.width?.resolve(base)
+        val explicit = authored ?: style.aspectRatio?.let { ratio -> style.height?.resolve(base)?.times(ratio)?.roundToInt() } ?: flexBasis
         if (explicit != null) {
             child.measure(
                 View.MeasureSpec.makeMeasureSpec(explicit, View.MeasureSpec.EXACTLY),
@@ -613,7 +616,8 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val flexBasis = if (orientation == VERTICAL) style.flexBasis?.resolve(base) else null
         // Match width measurement: do not let stale native LayoutParams keep
         // a removed reactive height fixed.
-        val explicit = style.height?.resolve(base) ?: flexBasis
+        val authored = style.height?.resolve(base)
+        val explicit = authored ?: style.aspectRatio?.let { ratio -> style.width?.resolve(base)?.div(ratio)?.roundToInt() } ?: flexBasis
         val target = explicit ?: base
         val spec = if (explicit != null) View.MeasureSpec.makeMeasureSpec(target, View.MeasureSpec.EXACTLY)
         else View.MeasureSpec.makeMeasureSpec(base, View.MeasureSpec.AT_MOST)

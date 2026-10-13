@@ -468,6 +468,7 @@ private enum CraftNativeLength: Equatable {
 private struct CraftNativeLayoutStyle {
     let width: CraftNativeLength?
     let height: CraftNativeLength?
+    let aspectRatio: CGFloat?
     let minWidth: CraftNativeLength?
     let maxWidth: CraftNativeLength?
     let minHeight: CraftNativeLength?
@@ -497,6 +498,8 @@ private struct CraftNativeLayoutStyle {
         func number(_ value: Any?) -> CGFloat? { (value as? NSNumber).map { CGFloat(truncating: $0) } }
         width = CraftNativeLength(raw["width"])
         height = CraftNativeLength(raw["height"])
+        let ratio = number(raw["aspectRatio"])
+        aspectRatio = ratio.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
         minWidth = CraftNativeLength(raw["minWidth"])
         maxWidth = CraftNativeLength(raw["maxWidth"])
         minHeight = CraftNativeLength(raw["minHeight"])
@@ -996,8 +999,14 @@ private class CraftNativeFlowView: UIStackView {
             let crossLeading = horizontal ? style.marginTop : style.marginLeft
             let crossTrailing = horizontal ? style.marginBottom : style.marginRight
             let align = style.alignSelf ?? alignItems
-            let explicitMain = (horizontal ? style.width : style.height)?.resolve(definiteMain)
-            let explicitCross = (horizontal ? style.height : style.width)?.resolve(definiteCross)
+            let authoredMain = (horizontal ? style.width : style.height)?.resolve(definiteMain)
+            let authoredCross = (horizontal ? style.height : style.width)?.resolve(definiteCross)
+            let explicitMain = authoredMain ?? style.aspectRatio.flatMap { ratio in
+                authoredCross.map { horizontal ? $0 * ratio : $0 / ratio }
+            }
+            let explicitCross = authoredCross ?? style.aspectRatio.flatMap { ratio in
+                authoredMain.map { horizontal ? $0 / ratio : $0 * ratio }
+            }
             let minMain = (horizontal ? style.minWidth : style.minHeight)?.resolve(definiteMain)
             let maxMain = (horizontal ? style.maxWidth : style.maxHeight)?.resolve(definiteMain)
             let minCross = (horizontal ? style.minHeight : style.minWidth)?.resolve(definiteCross)

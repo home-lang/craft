@@ -771,6 +771,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('gridAutoRows?.resolve(height - paddingTop - paddingBottom)')
   })
 
+  it('derives ratio-constrained flex dimensions on both hosts', () => {
+    expect(ios).toContain('let aspectRatio: CGFloat?')
+    expect(ios).toContain('authoredCross.map { horizontal ? $0 * ratio : $0 / ratio }')
+    expect(android).toContain('val aspectRatio: Double? = null')
+    expect(android).toContain('style.aspectRatio?.let { ratio -> style.width?.resolve(base)?.div(ratio)')
+    expect(android).toContain('style.aspectRatio?.let { ratio -> style.height?.resolve(base)?.times(ratio)')
+  })
+
   it('keeps grid alignContent in the shared layout core', () => {
     expect(nativeLayout).toContain('test "distributes leftover grid rows with align content"')
     expect(nativeLayout).toContain('test "distributes auto rows with grid align content"')
