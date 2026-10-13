@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test'
 
 const root = join(import.meta.dir, '..')
 const ios = readFileSync(join(root, 'packages/ios/templates/CraftNativeScreen.swift'), 'utf8')
+const iosHealth = readFileSync(join(root, 'packages/ios/templates/CraftHealth.swift'), 'utf8')
 const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
@@ -61,6 +62,12 @@ const COMPONENTS: Array<[string, string, string]> = [
 ]
 
 describe('native renderer component contract', () => {
+  it('delivers HealthKit completions on the main queue for native screens', () => {
+    expect(iosHealth).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
+    expect(iosHealth).toContain('DispatchQueue.main.async { completion(result) }')
+    expect(iosHealth.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(11)
+  })
+
   it('exports the flat flex ABI for mobile hosts', () => {
     expect(nativeLayout).toContain('pub const FlexItem = extern struct')
     expect(nativeLayout).toContain('pub const JustifyContent = enum')

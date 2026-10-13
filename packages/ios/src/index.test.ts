@@ -775,6 +775,12 @@ describe('Craft iOS builder', () => {
     expect(actions).toContain('guard config.enableHealthKit else {')
     expect(actions).toContain('CraftHealth.shared.perform(method: method, args: args)')
     expect(actions).toContain('if config.enableHealthKit { values.append("health") }')
+    // HealthKit invokes query and authorization handlers off-main on some OS
+    // versions. Every public entry point normalizes its bridge completion so
+    // native-screen JavaScript can resume safely after the sheet/query ends.
+    expect(health).toContain('private func completeOnMain(_ completion: @escaping Completion) -> Completion')
+    expect(health).toContain('DispatchQueue.main.async { completion(result) }')
+    expect(health.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(11)
   })
 
   it('asks a native screen\'s questions with the system\'s own alerts and sheets', async () => {

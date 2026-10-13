@@ -13,18 +13,29 @@ struct CraftHealthError: Error {
 /// the hybrid's web view, CraftApp.swift) and native screens alike
 /// (`Health` through CraftNativeActions), so a screen drawn natively reads
 /// and writes Apple Health exactly as a page does. One HKHealthStore for the
-/// process, as Apple asks. Every answer arrives through `completion`, on
-/// whatever queue HealthKit answered on; each caller hops to its own.
+/// process, as Apple asks. Every answer is delivered on the main queue so the
+/// native-screen JavaScript bridge can safely resume its pending call.
 final class CraftHealth {
     typealias Completion = (Result<Any, CraftHealthError>) -> Void
 
     static let shared = CraftHealth()
 
+    private func completeOnMain(_ completion: @escaping Completion) -> Completion {
+        { result in
+            if Thread.isMainThread {
+                completion(result)
+            } else {
+                DispatchQueue.main.async { completion(result) }
+            }
+        }
+    }
+
     /// Nil where Apple Health is not on this device (an iPad without it).
     let healthStore: HKHealthStore? = HKHealthStore.isHealthDataAvailable() ? HKHealthStore() : nil
 
     /// A native screen's call (`Health` in CraftNativeActions), by method and arguments as the bridge sends them.
-    func perform(method: String, args: [Any], completion: @escaping Completion) {
+    func perform(method: String, args: [Any], completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
         let options = { (index: Int) in args.count > index ? args[index] as? [String: Any] ?? [:] : [:] }
         switch method {
         case "requestAuthorization":
@@ -59,7 +70,8 @@ final class CraftHealth {
         }
     }
 
-    func requestAuthorization(types: [String], readOnly: Bool = false, completion: @escaping Completion) {
+    func requestAuthorization(types: [String], readOnly: Bool = false, completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
         guard let healthStore = healthStore else {
             completion(.failure(CraftHealthError(message: "HealthKit not available")))
             return
@@ -151,7 +163,8 @@ final class CraftHealth {
         }
     }
 
-    func getData(type: String, startDate: Double?, endDate: Double?, completion: @escaping Completion) {
+    func getData(type: String, startDate: Double?, endDate: Double?, completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
         guard let healthStore = healthStore else {
             completion(.failure(CraftHealthError(message: "HealthKit not available")))
             return
@@ -191,7 +204,8 @@ final class CraftHealth {
 
     /// Save one quantity sample, primarily a food-log entry. Dates are epoch
     /// milliseconds; an omitted range records an instantaneous sample now.
-    func saveData(type: String, value: Double, options: [String: Any], completion: @escaping Completion) {
+    func saveData(type: String, value: Double, options: [String: Any], completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
         guard let healthStore = healthStore else {
             completion(.failure(CraftHealthError(message: "HealthKit not available")))
             return
@@ -225,7 +239,8 @@ final class CraftHealth {
         }
     }
 
-    func saveWorkout(body: [String: Any], completion: @escaping Completion) {
+    func saveWorkout(body: [String: Any], completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
         guard let healthStore = healthStore else {
             completion(.failure(CraftHealthError(message: "HealthKit not available")))
             return
@@ -378,7 +393,8 @@ final class CraftHealth {
 
     /// Workouts in Apple Health — the watch's, and every app's that
     /// writes there — newest first, with the numbers a training log needs.
-    func getWorkouts(startDate: Double?, endDate: Double?, limit: Int?, completion: @escaping Completion) {
+    func getWorkouts(startDate: Double?, endDate: Double?, limit: Int?, completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
         guard let healthStore = healthStore else {
             completion(.failure(CraftHealthError(message: "HealthKit not available")))
             return
@@ -436,7 +452,8 @@ final class CraftHealth {
     /// One value per local day: a sum for steps, energy and distance, an
     /// average for heart rate, resting heart rate and HRV, the latest
     /// weight, and hours asleep for sleep (counted on the day you woke).
-    func getDailyStatistics(type: String, startDate: Double?, endDate: Double?, completion: @escaping Completion) {
+    func getDailyStatistics(type: String, startDate: Double?, endDate: Double?, completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
         guard let healthStore = healthStore else {
             completion(.failure(CraftHealthError(message: "HealthKit not available")))
             return
@@ -510,7 +527,8 @@ final class CraftHealth {
     /// beats per minute, when it was taken, and the app and device that
     /// wrote it. A watch's workout readings can arrive as one series
     /// sample; those also carry their count, lowest and highest.
-    func getHeartRateSamples(startDate: Double?, endDate: Double?, limit: Int?, completion: @escaping Completion) {
+    func getHeartRateSamples(startDate: Double?, endDate: Double?, limit: Int?, completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
         guard let healthStore = healthStore else {
             completion(.failure(CraftHealthError(message: "HealthKit not available")))
             return
@@ -577,7 +595,8 @@ final class CraftHealth {
     /// Sleep between two instants, oldest first, as the sources wrote it:
     /// time in bed and every asleep or awake stretch, each with its stage
     /// and whether it counts as asleep, so a page can mark the night.
-    func getSleepIntervals(startDate: Double?, endDate: Double?, completion: @escaping Completion) {
+    func getSleepIntervals(startDate: Double?, endDate: Double?, completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
         guard let healthStore = healthStore else {
             completion(.failure(CraftHealthError(message: "HealthKit not available")))
             return
@@ -623,7 +642,8 @@ final class CraftHealth {
     /// as the sample's external UUID, so saving the same session twice (a
     /// retry, a second device) keeps the first sample instead of adding
     /// another: the answer then says `existing: true`.
-    func saveMindfulSession(body: [String: Any], completion: @escaping Completion) {
+    func saveMindfulSession(body: [String: Any], completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
         guard let healthStore = healthStore else {
             completion(.failure(CraftHealthError(message: "HealthKit not available")))
             return
@@ -675,7 +695,8 @@ final class CraftHealth {
     /// that writes them (the Mindfulness app, Calm, this one). Each says
     /// whether this app wrote it (`ownApp`) and carries the external id it
     /// was saved with, so a page can tell its own sessions from the rest.
-    func getMindfulSessions(startDate: Double?, endDate: Double?, limit: Int?, completion: @escaping Completion) {
+    func getMindfulSessions(startDate: Double?, endDate: Double?, limit: Int?, completion rawCompletion: @escaping Completion) {
+        let completion = completeOnMain(rawCompletion)
         guard let healthStore = healthStore else {
             completion(.failure(CraftHealthError(message: "HealthKit not available")))
             return
