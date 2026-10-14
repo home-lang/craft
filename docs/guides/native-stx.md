@@ -156,6 +156,10 @@ platform location dot; the host only enables it when the app's existing
 location permission is already granted, and never prompts from a renderer
 pass. Android also forwards `MapView` start/stop lifecycle callbacks as map
 screens attach and detach.
+Coordinates must be finite and within latitude [-90, 90] and longitude
+[-180, 180]; invalid overlay points are ignored. Region spans must be
+positive, no wider than 360 degrees, no taller than 180 degrees, and must not
+cross a pole, so malformed input cannot reach either platform map SDK.
 `KeyboardAvoidingView` responds to the native keyboard/IME inset. Its
 `behavior` may be `padding`, `position`, or `height`, and
 `keyboardVerticalOffset` subtracts from the overlap on both hosts.

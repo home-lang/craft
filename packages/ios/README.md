@@ -74,6 +74,11 @@ views when rows are materialized or recycled.
 bun add craft-native
 ```
 
+## Native map input contract
+
+Map coordinates are finite and range-checked at the native boundary; invalid
+points and pole-crossing regions are ignored on iOS just as on Android.
+
 ## Quick Start
 
 ### 1. Initialize Project
