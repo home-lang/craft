@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.170...v0.0.171)
+
+## 🐛 Bug Fixes
+
+- **ios**: a drawing revealed after the first paint takes its shapes ([c42e969](https://github.com/craft-native/craft/commit/c42e969)) _(by Chris)_
+
+## Contributors
+
+- _Chris_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.169...v0.0.170)
 
 ## 🚀 Features
