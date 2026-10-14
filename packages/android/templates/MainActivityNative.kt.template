@@ -523,7 +523,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         runCatching { map.isMyLocationEnabled = showUserLocation }
         val nextMarkers = mutableMapOf<String, Pair<LatLng, String?>>()
         val nextHandlers = mutableMapOf<String, String>()
-        val nextPolylines = mutableMapOf<String, Pair<List<LatLng>, Int>>()
+        val nextPolylines = mutableMapOf<String, Triple<List<LatLng>, Int, Float>>()
         for (index in 0 until pendingChildren.length()) {
             val child = pendingChildren.optJSONObject(index) ?: continue
             val type = child.optString("type").lowercase()
@@ -540,7 +540,10 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
                         .takeIf { it.isNotBlank() }?.let { nextHandlers[id] = it }
                 }
             } else if (type == "mappolyline" || type == "polyline") {
-                if (points.size > 1) nextPolylines[id] = points to color(props.optString("strokeColor"))
+                if (points.size > 1) {
+                    val width = props.optDouble("strokeWidth", 3.0).toFloat().takeIf { it.isFinite() && it > 0 } ?: 3f
+                    nextPolylines[id] = Triple(points, color(props.optString("strokeColor")), width)
+                }
             }
         }
         markers.keys.filter { nextMarkers[it] == null }.forEach { markers.remove(it)?.remove() }
@@ -558,7 +561,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         polylines.values.forEach { it.remove() }
         polylines.clear()
         for ((id, value) in nextPolylines) {
-            polylines[id] = map.addPolyline(PolylineOptions().addAll(value.first).color(value.second).width(3f))
+            polylines[id] = map.addPolyline(PolylineOptions().addAll(value.first).color(value.second).width(value.third))
         }
         if (pendingProps.optBoolean("fitToBounds", false)) fitToBounds()
         region(pendingProps.optJSONObject("region") ?: pendingProps.optJSONObject("initialRegion"))?.let { bounds ->

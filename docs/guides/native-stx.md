@@ -145,7 +145,8 @@ semantics as `Image`.
 `Map` is the deliberately small native trail-map primitive. Its children may
 be `MapPolyline` or `MapMarker`; each overlay carries a flat latitude,
 longitude `geometry` array, so a signal update changes the existing native map
-without rebuilding the screen. `Map` accepts an explicit `region` (with
+without rebuilding the screen. `MapPolyline` also accepts `strokeColor` and a
+positive `strokeWidth`, which are preserved by both map hosts. `Map` accepts an explicit `region` (with
 `center` and `span`) or `fitToBounds`, and a marker's `onPress` receives
 `nativeEvent.id`. It is backed by MapKit on iOS and the Google Maps SDK on
 Android; the Android template adds that dependency only for screens that opt

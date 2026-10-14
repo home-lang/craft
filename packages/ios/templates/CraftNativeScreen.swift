@@ -431,6 +431,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     private var annotationsByID: [String: MKPointAnnotation] = [:]
     private var overlaysByID: [String: MKPolyline] = [:]
     private var overlayColors: [ObjectIdentifier: UIColor] = [:]
+    private var overlayWidths: [ObjectIdentifier: CGFloat] = [:]
     private(set) var markerHandlers: [String: String] = [:]
     var onMarkerTap: ((String) -> Void)?
 
@@ -501,10 +502,12 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         removeOverlays(Array(overlaysByID.values))
         overlaysByID.removeAll(keepingCapacity: true)
         overlayColors.removeAll(keepingCapacity: true)
+        overlayWidths.removeAll(keepingCapacity: true)
         for (id, value) in nextPolylines {
             let overlay = MKPolyline(coordinates: value.coordinates, count: value.coordinates.count)
             overlaysByID[id] = overlay
             overlayColors[ObjectIdentifier(overlay)] = value.color
+            overlayWidths[ObjectIdentifier(overlay)] = value.width
             addOverlay(overlay)
         }
 
@@ -546,7 +549,7 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
     func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
         let renderer = MKPolylineRenderer(overlay: overlay)
         renderer.strokeColor = overlayColors[ObjectIdentifier(overlay)] ?? .systemBlue
-        renderer.lineWidth = 3
+        renderer.lineWidth = overlayWidths[ObjectIdentifier(overlay)] ?? 3
         return renderer
     }
 
