@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.168...v0.0.169)
+
+## 🚀 Features
+
+- **android**: native app shell around native screens, with Health Connect ([be88e7d](https://github.com/craft-native/craft/commit/be88e7d)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.167...v0.0.168)
 
 ## 🐛 Bug Fixes
