@@ -780,7 +780,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('textFont(style, default: .systemFont(ofSize: 16))')
     expect(ios).toContain('field.font = textFont(style, default: .systemFont(ofSize: 16))')
     expect(ios).toContain('textView.font = textFont(style, default: .systemFont(ofSize: 16))')
-    expect(android).toContain('style.optDouble("fontSize", 16.0)')
+    expect(android).toContain('craftNativeFiniteFloat(style, "fontSize", 16f)')
+    expect(android).toContain('craftNativeFiniteFloat(style, "fontSize", 20f).coerceAtLeast(1f)')
   })
 
   it('keeps TextInput keyboard traits aligned across hosts', () => {

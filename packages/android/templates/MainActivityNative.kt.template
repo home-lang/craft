@@ -4645,7 +4645,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun configureIcon(view: CraftNativeIconView, props: JSONObject, style: JSONObject) {
         val symbol = props.optString("symbol").ifBlank { props.optString("name") }
-        val size = style.optDouble("fontSize", 20.0).toFloat().coerceAtLeast(1f)
+        val size = craftNativeFiniteFloat(style, "fontSize", 20f).coerceAtLeast(1f)
         view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
         val foreground = style.optString("color").ifBlank { props.optString("color") }
         val tint = color(foreground, defaultTextColor)
@@ -4703,7 +4703,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun configureTextStyle(view: TextView, style: JSONObject) {
         view.setTextColor(color(style.optString("color"), defaultTextColor))
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, style.optDouble("fontSize", 16.0).toFloat())
+        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, craftNativeFiniteFloat(style, "fontSize", 16f))
         val weight = when (style.optString("fontWeight")) {
             "bold" -> 700
             "100", "200", "300", "400", "500", "600", "700", "800", "900" -> style.optInt("fontWeight")

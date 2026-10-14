@@ -167,6 +167,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('style.optDouble("letterSpacing", Double.NaN)')
       expect(nativeActivity).toContain('style.optDouble("lineHeight", Double.NaN).takeIf { it.isFinite() }')
       expect(nativeActivity).toContain('craftNativeFiniteDouble(style, "textShadowRadius", 0.0)')
+      expect(nativeActivity).toContain('craftNativeFiniteFloat(style, "fontSize", 16f)')
       expect(nativeActivity).toContain('internal fun craftNativeNonNegativeDouble(style: JSONObject?, name: String, fallback: Double): Double')
       expect(nativeActivity).toContain('val border = craftNativeNonNegativeDouble(style, "borderWidth", 0.0)')
       expect(nativeActivity).toContain('internal fun craftNativeFiniteDouble(style: JSONObject?, name: String, fallback: Double): Double')
