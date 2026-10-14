@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.167...v0.0.168)
+
+## 🐛 Bug Fixes
+
+- **ios**: a screen that starts with its scroll view runs edge to edge, and scroll views stay unclipped ([4f43efd](https://github.com/craft-native/craft/commit/4f43efd)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.166...v0.0.167)
 
 ## 🐛 Bug Fixes
