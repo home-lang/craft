@@ -2117,7 +2117,11 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
     }
 
     private fun pickerDate(value: Any?): Calendar? {
-        if (value is Number && value !is Boolean) return Calendar.getInstance().apply { timeInMillis = value.toLong() }
+        if (value is Number && value !is Boolean) {
+            val milliseconds = value.toDouble()
+            if (!milliseconds.isFinite()) return null
+            return runCatching { Calendar.getInstance().apply { timeInMillis = milliseconds.toLong() } }.getOrNull()
+        }
         val text = value?.toString()?.trim().orEmpty()
         if (text.isBlank() || text == JSONObject.NULL.toString()) return null
         val formats = listOf(

@@ -6077,7 +6077,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// time), `2026-10-12T07:30` (local), a full ISO 8601 string, or
     /// milliseconds since 1970. Nil for anything else.
     static func pickerDate(_ value: Any?) -> Date? {
-        if let number = value as? NSNumber, !(value is Bool) { return Date(timeIntervalSince1970: number.doubleValue / 1000) }
+        if let number = value as? NSNumber, !(value is Bool) {
+            let milliseconds = number.doubleValue
+            guard milliseconds.isFinite else { return nil }
+            return Date(timeIntervalSince1970: milliseconds / 1000)
+        }
         guard let text = (value as? String)?.trimmingCharacters(in: .whitespaces), !text.isEmpty else { return nil }
         let local = DateFormatter()
         local.locale = Locale(identifier: "en_US_POSIX")
