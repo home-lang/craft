@@ -574,7 +574,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
             val points = coordinates(props.optJSONArray("geometry"))
             if (type == "mapmarker" || type == "marker") {
                 points.firstOrNull()?.let { point ->
-                    nextMarkers[id] = point to props.optString("title").takeIf { it.isNotBlank() }
+                    nextMarkers[id] = point to craftNativeOptionalString(props.opt("title"))
                     events.optString("onPress").ifBlank { events.optString("onMarkerPress") }
                         .takeIf { it.isNotBlank() }?.let { nextHandlers[id] = it }
                 }
@@ -3636,15 +3636,15 @@ class MainActivity : AppCompatActivity() {
             }
             "Link" -> ((previous as? TextView)?.takeUnless { it is Button } ?: TextView(this)).apply {
                 includeFontPadding = false
-                configureText(this, props.optString("title").ifBlank { childText(children) }, style)
-                val linkColor = props.optString("color").takeIf { it.isNotBlank() } ?: style.optString("color")
+                configureText(this, craftNativeOptionalString(props.opt("title")) ?: childText(children), style)
+                val linkColor = craftNativeOptionalString(props.opt("color")) ?: craftNativeOptionalString(style.opt("color"))
                 setTextColor(color(linkColor, Color.rgb(33, 150, 243)))
                 paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
                 isEnabled = !props.optBoolean("disabled", false)
                 isClickable = true
                 isFocusable = true
-                val target = listOf(props.optString("href"), props.optString("to"))
-                    .firstOrNull { it.isNotBlank() }
+                val target = listOf(props.opt("href"), props.opt("to"))
+                    .firstNotNullOfOrNull(::craftNativeOptionalString)
                     ?.trim()
                     ?.takeIf { !props.optBoolean("disabled", false) }
                 if (target != null) screen.linkTargets[this] = target else screen.linkTargets.remove(this)
@@ -3667,10 +3667,10 @@ class MainActivity : AppCompatActivity() {
                 minimumHeight = 0
                 setPadding(0, 0, 0, 0)
             }).apply {
-                val title = props.optString("title").ifBlank { childText(children) }
+                val title = craftNativeOptionalString(props.opt("title")) ?: childText(children)
                 isAllCaps = false
                 configureText(this, title, style)
-                props.optString("color").takeIf { it.isNotBlank() }?.let { setTextColor(color(it, defaultTextColor)) }
+                craftNativeOptionalString(props.opt("color"))?.let { setTextColor(color(it, defaultTextColor)) }
                 isEnabled = !props.optBoolean("disabled", false)
                 val handler = events.optString("onPress").ifBlank { events.optString("onClick") }
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
@@ -3680,7 +3680,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             "Checkbox" -> (previous as? CheckBox ?: CheckBox(this)).apply {
-                text = props.optString("label").ifBlank { childText(children) }
+                text = craftNativeOptionalString(props.opt("label")) ?: childText(children)
                 configureText(this, text.toString(), style)
                 val requested = props.opt("checked") ?: props.opt("value")
                 val checked = when (requested) {
@@ -3696,8 +3696,8 @@ class MainActivity : AppCompatActivity() {
                 isChecked = checked
                 isActivated = props.optBoolean("indeterminate", false)
                 isEnabled = !props.optBoolean("disabled", false)
-                val checkboxColor = props.optString("color").takeIf { it.isNotBlank() }
-                    ?: style.optString("color").takeIf { it.isNotBlank() }
+                val checkboxColor = craftNativeOptionalString(props.opt("color"))
+                    ?: craftNativeOptionalString(style.opt("color"))
                 buttonTintList = checkboxColor?.let { ColorStateList.valueOf(color(it, defaultTextColor)) }
                 val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
@@ -3720,13 +3720,13 @@ class MainActivity : AppCompatActivity() {
                     hintTextColors ?: ColorStateList.valueOf(Color.GRAY)
                 }
                 val defaultHighlightColor = inputHighlightDefaults.getOrPut(this) { highlightColor }
-                hint = props.optString("placeholder")
+                hint = craftNativeOptionalString(props.opt("placeholder")).orEmpty()
                 setHintTextColor(
-                    props.optString("placeholderTextColor").takeIf { it.isNotBlank() }
+                    craftNativeOptionalString(props.opt("placeholderTextColor"))
                         ?.let { ColorStateList.valueOf(color(it, Color.GRAY)) }
                         ?: defaultHintColors,
                 )
-                highlightColor = props.optString("selectionColor").takeIf { it.isNotBlank() }
+                highlightColor = craftNativeOptionalString(props.opt("selectionColor"))
                     ?.let { color(it, defaultHighlightColor) }
                     ?: defaultHighlightColor
                 val maxLength = props.optInt("maxLength", 0)
@@ -3845,7 +3845,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     if (label.isBlank()) return@mapNotNull null
                     val optionProps = option.optJSONObject("props")
-                    val value = optionProps?.optString("value").takeIf { !it.isNullOrBlank() } ?: label
+                    val value = craftNativeOptionalString(optionProps?.opt("value")) ?: label
                     value to label
                 }
                 val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
@@ -3857,7 +3857,8 @@ class MainActivity : AppCompatActivity() {
                 adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_item, options.map { it.second }).also {
                     it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
                 }
-                val requested = props.optString("selectedValue").ifBlank { props.optString("value") }
+                val requested = craftNativeOptionalString(props.opt("selectedValue"))
+                    ?: craftNativeOptionalString(props.opt("value")).orEmpty()
                 val selected = options.indexOfFirst { it.first == requested }.takeIf { it >= 0 } ?: 0
                 isEnabled = !props.optBoolean("disabled", false)
                 // Mounting a controlled picker must not look like a user
@@ -3911,7 +3912,7 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     null
                 }
-                setVisible(visible, craftNativeFiniteFloat(style, "opacity", 1f), props.optString("animationType").ifBlank { null })
+                setVisible(visible, craftNativeFiniteFloat(style, "opacity", 1f), craftNativeOptionalString(props.opt("animationType")))
                 if (visible) clearDismissSuppression()
                 val suppressDismiss = !visible && consumeDismissSuppression()
                 if (wasVisible != visible && (visible || wasVisible == true)) {
@@ -4229,8 +4230,8 @@ class MainActivity : AppCompatActivity() {
         if (type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "KeyboardAvoidingView" && type != "StatusBar" && type != "RefreshControl" && type != "Map") {
             val handler = events.optString("onPress").ifBlank { events.optString("onClick") }
             val disabled = props.optBoolean("disabled", false)
-            val target = listOf(props.optString("href"), props.optString("to"))
-                .firstOrNull { it.isNotBlank() }
+            val target = listOf(props.opt("href"), props.opt("to"))
+                .firstNotNullOfOrNull(::craftNativeOptionalString)
                 ?.trim()
                 ?.takeIf { !disabled && type in setOf("TouchableOpacity", "TouchableHighlight", "Pressable") }
             if (target != null) screen.linkTargets[control] = target else screen.linkTargets.remove(control)
@@ -4411,13 +4412,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun craftNativeResizeMode(style: JSONObject, props: JSONObject): String {
-        fun authored(value: Any?): String? = value
-            ?.takeUnless { it == JSONObject.NULL }
-            ?.toString()
-            ?.takeUnless { it == "null" || it == "undefined" }
-            ?.takeIf { it.isNotBlank() }
-        return authored(style.opt("resizeMode")) ?: authored(props.opt("resizeMode")).orEmpty()
+        return craftNativeOptionalString(style.opt("resizeMode"))
+            ?: craftNativeOptionalString(props.opt("resizeMode")).orEmpty()
     }
+
+    private fun craftNativeOptionalString(value: Any?): String? = value
+        ?.takeUnless { it == JSONObject.NULL }
+        ?.toString()
+        ?.takeUnless { it == "null" || it == "undefined" }
+        ?.takeIf { it.isNotBlank() }
 
     private fun flatListScrollEvent(list: CraftNativeFlatList): JSONObject = JSONObject()
         .put("contentOffset", JSONObject()
