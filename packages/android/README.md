@@ -212,7 +212,9 @@ native renderer is a whole app rather than one bundle route:
 
 - a tab bar and a navigation bar (`craft.navigation.setOptions`: title, large
   title, right buttons with badges, `tabBarHidden`), a stack per tab, Android's
-  Back key popping it;
+  Back key popping it; completed left/right swipes switch between tab roots
+  interactively, yield to a horizontal scroll view, and can be disabled per
+  screen with `craft.navigation.setOptions({ tabSwipeEnabled: false })`;
 - `craft.navigation.open(path)` matched in the iOS shell's order (fixed segments
   before parameters), a tab's path selecting its tab, a path no screen draws
   opening the site in a Custom Tab; deep links and tapped notifications route

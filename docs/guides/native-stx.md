@@ -570,7 +570,8 @@ whose own Back steps through it (a tour's questions). A screen that should
 keep back navigation but own the tab gesture can independently set
 `craft.navigation.setOptions({ tabSwipeEnabled: false })`.
 
-In a hybrid app, the same tab gesture also covers the WebView. Pass
+Both maintained native hosts expose the same tab-swipe contract. In a hybrid
+app, the iOS shell's gesture also covers the WebView. Pass
 `swipeEnabled: false` to `craft.tabBar.set` when the page owns a horizontal
 gesture of its own; native screens can still opt out independently with
 `tabSwipeEnabled`.

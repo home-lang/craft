@@ -1694,6 +1694,9 @@ describe('native renderer component contract', () => {
   it('documents the hybrid tab-swipe opt-out', () => {
     expect(guide).toContain('craft.tabBar.set(tabs, { swipeEnabled: false })')
     expect(iosReadme).toContain('craft.tabBar.set(tabs, { swipeEnabled: false })')
+    expect(guide).toContain('Both maintained native hosts expose the same tab-swipe contract')
+    expect(androidReadme).toContain('completed left/right swipes switch between tab roots')
+    expect(androidReadme).toContain('craft.navigation.setOptions({ tabSwipeEnabled: false })')
   })
 
   it('keeps Android native file uploads on the owned-file multipart path', () => {
