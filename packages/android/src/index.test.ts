@@ -230,6 +230,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('view.tooltipText = craftNativeOptionalString(props.opt("accessibilityHint"))')
       expect(nativeActivity).toContain('private fun imageUri(source: Any?): String')
       expect(nativeActivity).toContain('craftNativeOptionalString(source.opt("uri"))')
+      expect(nativeActivity).toContain('is JSONObject -> craftNativeOptionalString(source.opt("uri")).orEmpty()')
       expect(nativeActivity).toContain('val symbol = craftNativeOptionalString(props.opt("symbol"))')
       expect(nativeActivity).toContain('resizeMode = craftNativeResizeMode(style, props)')
       expect(nativeActivity).toContain('indeterminateTintList')

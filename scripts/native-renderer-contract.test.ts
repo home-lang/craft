@@ -371,6 +371,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('?.takeUnless { it == "null" || it == "undefined" }')
     expect(android).toContain('return craftNativeOptionalString(style.opt("resizeMode"))')
     expect(android).toContain('resizeMode = craftNativeResizeMode(style, props)')
+    expect(android).toContain('is JSONObject -> craftNativeOptionalString(source.opt("uri")).orEmpty()')
     expect(guide).toContain('`Video` uses the platform player')
   })
 

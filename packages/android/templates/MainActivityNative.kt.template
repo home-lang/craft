@@ -122,6 +122,12 @@ import kotlin.math.sin
 
 private const val CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS = 30_000L
 
+private fun craftNativeOptionalString(value: Any?): String? = value
+    ?.takeUnless { it == JSONObject.NULL }
+    ?.toString()
+    ?.takeUnless { it == "null" || it == "undefined" }
+    ?.takeIf { it.isNotBlank() }
+
 internal fun craftNativePadding(style: JSONObject?, name: String, fallback: Int, density: Float): Int {
     val value = style?.optDouble(name, Double.NaN) ?: Double.NaN
     val pixels = value * density
@@ -552,7 +558,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         map.uiSettings.isScrollGesturesEnabled = pendingProps.optBoolean("scrollEnabled", true)
         map.uiSettings.isZoomGesturesEnabled = pendingProps.optBoolean("zoomEnabled", true)
         map.uiSettings.isRotateGesturesEnabled = pendingProps.optBoolean("rotateEnabled", false)
-        map.mapType = when (pendingProps.optString("mapType").lowercase()) {
+        map.mapType = when (craftNativeOptionalString(pendingProps.opt("mapType")).orEmpty().lowercase()) {
             "satellite" -> GoogleMap.MAP_TYPE_SATELLITE
             "hybrid" -> GoogleMap.MAP_TYPE_HYBRID
             "terrain" -> GoogleMap.MAP_TYPE_TERRAIN
@@ -2207,7 +2213,7 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
     fun configure(source: Any?, autoplay: Boolean, paused: Boolean, loop: Boolean, muted: Boolean, controls: Boolean, resizeMode: String?) {
         val uri = when (source) {
             is String -> source
-            is JSONObject -> source.optString("uri")
+            is JSONObject -> craftNativeOptionalString(source.opt("uri")).orEmpty()
             else -> ""
         }
         shouldLoop = loop
@@ -4420,12 +4426,6 @@ class MainActivity : AppCompatActivity() {
         return craftNativeOptionalString(style.opt("resizeMode"))
             ?: craftNativeOptionalString(props.opt("resizeMode")).orEmpty()
     }
-
-    private fun craftNativeOptionalString(value: Any?): String? = value
-        ?.takeUnless { it == JSONObject.NULL }
-        ?.toString()
-        ?.takeUnless { it == "null" || it == "undefined" }
-        ?.takeIf { it.isNotBlank() }
 
     private fun flatListScrollEvent(list: CraftNativeFlatList): JSONObject = JSONObject()
         .put("contentOffset", JSONObject()
