@@ -1737,6 +1737,9 @@ describe('native renderer component contract', () => {
   it('keeps the maintained navigation fixture on the host-neutral keyed ScrollView path', () => {
     expect(android).toContain('val authoredThreshold = craftNativeNonNegativeDouble(props, "onEndReachedThreshold", threshold)')
     expect(android).toContain('endReachedThreshold = authoredThreshold')
+    expect(navigationHome).toContain('testID="native-root-overlay"')
+    expect(iosNavigationTest).toContain('root absolute sibling moved with ScrollView content')
+    expect(androidNavigationTest).toContain('root absolute sibling moved with ScrollView content')
     expect(navigationDetails).toContain('<ScrollView')
     expect(navigationDetails).toContain(':for="(item, index) in people"')
     expect(navigationDetails).toContain(':key="item.id"')

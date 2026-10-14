@@ -245,6 +245,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertFalse(app.webViews.firstMatch.exists, "native navigation created a WebView")
         let rootScroll = app.scrollViews["native-root-scroll"]
         XCTAssertTrue(rootScroll.waitForExistence(timeout: 15))
+        let rootOverlay = app.otherElements["native-root-overlay"]
+        XCTAssertTrue(rootOverlay.waitForExistence(timeout: 5), "root absolute sibling did not mount")
+        let overlayFrame = rootOverlay.frame
+        rootScroll.swipeUp()
+        XCTAssertEqual(rootOverlay.frame.minY, overlayFrame.minY, accuracy: 2, "root absolute sibling moved with ScrollView content")
+        XCTAssertEqual(rootOverlay.frame.maxX, overlayFrame.maxX, accuracy: 2, "root absolute sibling changed horizontal position")
         let bubble = app.otherElements["max-content-bubble"]
         let bubbleText = app.staticTexts["max-content-bubble-text"]
         XCTAssertTrue(bubble.waitForExistence(timeout: 5), "max-content bubble did not mount")
