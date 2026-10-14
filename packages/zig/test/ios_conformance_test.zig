@@ -189,7 +189,11 @@ const dispatch_end = "func webView(";
 /// CraftCrashReporter.swift's on-disk outbox, which owns the signal handlers
 /// and MetricKit; they went into Swift first and fall through to the shim.
 /// Not a regression: no action left Zig.
-const max_not_yet_migrated: usize = 51;
+/// 52 when the spec gained bluetoothChannel (09bcd269): the page's request
+/// channel to a Bluetooth GATT peripheral, held by CraftBluetooth.swift's
+/// central. It went into Swift first and falls through to the shim, which
+/// serves it. Not a regression: no action left Zig.
+const max_not_yet_migrated: usize = 52;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.
