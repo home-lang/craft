@@ -269,7 +269,11 @@ final class CraftMacApplication: NSObject, NSApplicationDelegate, UNUserNotifica
         if kind == "screenshot" {
             guard let directory = testDirectory, let view = scene.window.contentView?.superview,
                   let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return ["ok": false, "error": "Window cannot be rendered"] }
-            view.cacheDisplay(in: view.bounds, to: bitmap)
+            scene.window.effectiveAppearance.performAsCurrentDrawingAppearance {
+                func invalidate(_ current: NSView) { current.needsDisplay = true; for child in current.subviews { invalidate(child) } }
+                invalidate(view); view.displayIfNeeded()
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+            }
             guard let png = bitmap.representation(using: .png, properties: [:]) else { return ["ok": false, "error": "PNG encoding failed"] }
             let destination = directory.appendingPathComponent("screenshot-\(scene.name)-\(CraftMacColor.isDark ? "dark" : "light").png")
             do { try png.write(to: destination, options: .atomic); return ["ok": true, "path": destination.path] }
@@ -304,7 +308,7 @@ final class CraftMacApplication: NSObject, NSApplicationDelegate, UNUserNotifica
                     "nativeClass": box.control.map { String(describing: type(of: $0)) } ?? "NSView", "visible": !box.isHidden && box.window?.isVisible == true && box.frame.width > 0 && box.frame.height > 0,
                     "frame": [box.frame.minX, box.frame.minY, box.frame.width, box.frame.height]]
                 if let field = box.control as? NSTextField { node["value"] = field.stringValue }
-                if let text = (box.control as? NSScrollView)?.documentView as? NSTextView { node["value"] = text.string; node["editorClass"] = "NSTextView" }
+                if let text = (box.control as? NSScrollView)?.documentView as? NSTextView { node["value"] = text.string; node["editorClass"] = NSStringFromClass(type(of: text)) }
                 if let button = box.control as? NSButton { node["label"] = button.title; node["enabled"] = button.isEnabled }
                 if let picker = box.control as? NSPopUpButton { node["value"] = picker.selectedItem?.representedObject ?? "" }
                 if let sidebar = box.control as? CraftMacSidebar { node["value"] = (sidebar.outline.item(atRow: sidebar.outline.selectedRow) as? CraftMacSidebar.Item)?.id ?? "" }

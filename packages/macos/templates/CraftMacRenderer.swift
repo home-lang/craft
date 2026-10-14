@@ -112,6 +112,17 @@ func nativeText(_ node: [String: Any]) -> String {
 
 /// Each node owns an AppKit control. IDs survive STX mutations, so editing,
 /// selection, and scroll position survive updates instead of being recreated.
+final class CraftMacTextView: NSTextView {
+    var placeholder = ""
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        if string.isEmpty && !placeholder.isEmpty {
+            (placeholder as NSString).draw(at: CGPoint(x: textContainerInset.width + (textContainer?.lineFragmentPadding ?? 5), y: textContainerInset.height),
+                withAttributes: [.font: font ?? NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.placeholderTextColor])
+        }
+    }
+}
+
 final class CraftMacBox: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     let id: String
     let kind: String
@@ -169,10 +180,12 @@ final class CraftMacBox: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         style = node["style"] as? [String: Any] ?? [:]
         events = node["events"] as? [String: String] ?? [:]
         isHidden = style["display"] as? String == "none" || props["hidden"] as? Bool == true
-        layer?.backgroundColor = CraftMacColor.parse(style["backgroundColor"], fallback: .clear).cgColor
+        NSApp.effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = CraftMacColor.parse(style["backgroundColor"], fallback: .clear).cgColor
+            layer?.borderColor = CraftMacColor.parse(style["borderColor"], fallback: .separatorColor).cgColor
+        }
         layer?.cornerRadius = number(style["borderRadius"]) ?? 0
         layer?.borderWidth = number(style["borderWidth"]) ?? 0
-        layer?.borderColor = CraftMacColor.parse(style["borderColor"], fallback: .separatorColor).cgColor
         alphaValue = number(style["opacity"]) ?? 1
         let identifier = props["testID"] as? String ?? props["testId"] as? String ?? props["accessibilityIdentifier"] as? String ?? id
         control?.setAccessibilityIdentifier(identifier)
@@ -232,7 +245,9 @@ final class CraftMacBox: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         if multiline, !(control is NSScrollView) {
             control?.removeFromSuperview()
             let scroll = NSScrollView(); scroll.drawsBackground = true; scroll.backgroundColor = .textBackgroundColor; scroll.hasVerticalScroller = true
-            let text = NSTextView(); text.isRichText = false; text.delegate = self; text.font = font; text.isVerticallyResizable = true; text.isHorizontallyResizable = false
+            scroll.borderType = .bezelBorder
+            let text = CraftMacTextView(); text.isRichText = false; text.delegate = self; text.font = font; text.isVerticallyResizable = true; text.isHorizontallyResizable = false
+            text.textContainerInset = CGSize(width: 5, height: 6)
             text.autoresizingMask = [.width]; text.textContainer?.widthTracksTextView = true
             scroll.documentView = text; control = scroll; addSubview(scroll)
         } else if !multiline, let current = control as? NSTextField {
@@ -248,6 +263,7 @@ final class CraftMacBox: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         if let text = (control as? NSScrollView)?.documentView as? NSTextView {
             if text.string != value { text.string = value }
             text.isEditable = props["disabled"] as? Bool != true; text.font = font
+            if let editor = text as? CraftMacTextView { editor.placeholder = props["placeholder"] as? String ?? ""; editor.needsDisplay = true }
             text.setAccessibilityIdentifier(props["testID"] as? String ?? props["testId"] as? String ?? id)
             text.setAccessibilityLabel(props["placeholder"] as? String ?? "Message")
         } else if let field = control as? NSTextField {
@@ -274,13 +290,13 @@ final class CraftMacBox: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     }
 
     func measure(width: CGFloat) -> CGSize {
-        if isHidden || kind == "Modal" { return .zero }
+        if isHidden { return .zero }
         let specifiedWidth = dimension(style["width"], base: width)
         let limit = min(specifiedWidth ?? width, dimension(style["maxWidth"], base: width) ?? width)
         var size = CGSize(width: limit, height: 0)
         if let text = control as? NSTextField, kind == "Text" {
-            let rect = (text.stringValue as NSString).boundingRect(with: CGSize(width: max(1, limit), height: 1_000_000), options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: text.font ?? NSFont.systemFont(ofSize: 13)])
-            size = CGSize(width: min(limit, ceil(rect.width) + 2), height: max(18, ceil(rect.height) + 2))
+            let rect = (text.stringValue as NSString).boundingRect(with: CGSize(width: max(1, limit - 6), height: 1_000_000), options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: text.font ?? NSFont.systemFont(ofSize: 13)])
+            size = CGSize(width: min(limit, ceil(rect.width) + 6), height: max(18, ceil(rect.height) + 2))
             if text.maximumNumberOfLines == 1 { size.height = max(18, (text.font?.pointSize ?? 13) + 5) }
         } else if kind == "ScrollView" || kind == "FlatList" || kind == "Sidebar" { size = CGSize(width: limit, height: 100) }
         else if kind == "Icon" { size = CGSize(width: 18, height: 18) }
@@ -290,6 +306,11 @@ final class CraftMacBox: NSView, NSTextFieldDelegate, NSTextViewDelegate {
         else if let flow { size = flow.fitting(width: limit) }
         size.width = specifiedWidth ?? min(limit, size.width)
         if let maximum = dimension(style["maxWidth"], base: width) { size.width = min(size.width, maximum) }
+        // A naturally sized column can be narrower than its measurement limit.
+        // Measure its wrapped children again at the width it will actually get.
+        if let flow, style["flexDirection"] as? String != "row" {
+            size.height = flow.fitting(width: size.width).height
+        }
         size.height = dimension(style["height"], base: 1000) ?? size.height
         size.width = max(size.width, dimension(style["minWidth"], base: width) ?? 0)
         size.height = max(size.height, dimension(style["minHeight"], base: 1000) ?? 0)
@@ -332,6 +353,16 @@ final class CraftMacBox: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     }
 }
 
+final class CraftMacSidebarRow: NSTableRowView {
+    override func drawSelection(in dirtyRect: NSRect) {
+        guard isSelected else { return }
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            NSColor.unemphasizedSelectedContentBackgroundColor.setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 4, dy: 1), xRadius: 7, yRadius: 7).fill()
+        }
+    }
+}
+
 final class CraftMacSidebar: NSScrollView, NSOutlineViewDataSource, NSOutlineViewDelegate {
     final class Item { let id: String; let label: String; let icon: String; let badge: String; let children: [Item]
         init(_ raw: [String: Any]) { id = raw["id"] as? String ?? ""; label = raw["label"] as? String ?? raw["header"] as? String ?? ""; icon = raw["icon"] as? String ?? ""; badge = raw["badge"].map { $0 is NSNull ? "" : String(describing: $0) } ?? ""; children = (raw["items"] as? [[String: Any]] ?? []).map(Item.init) }
@@ -344,7 +375,8 @@ final class CraftMacSidebar: NSScrollView, NSOutlineViewDataSource, NSOutlineVie
         self.box = box; super.init(frame: .zero)
         hasVerticalScroller = true; drawsBackground = false
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("label")); outline.addTableColumn(column); outline.outlineTableColumn = column
-        outline.headerView = nil; outline.style = .sourceList; outline.rowSizeStyle = .default; outline.indentationPerLevel = 0
+        outline.headerView = nil; outline.style = .plain; outline.backgroundColor = .windowBackgroundColor
+        outline.rowSizeStyle = .default; outline.indentationPerLevel = 0
         outline.dataSource = self; outline.delegate = self; outline.autoresizesOutlineColumn = true; documentView = outline
     }
     required init?(coder: NSCoder) { fatalError("Native sidebar is created from STX") }
@@ -360,13 +392,22 @@ final class CraftMacSidebar: NSScrollView, NSOutlineViewDataSource, NSOutlineVie
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool { !(item as! Item).children.isEmpty }
     func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool { !(item as! Item).children.isEmpty }
     func outlineView(_ outlineView: NSOutlineView, shouldSelectItem item: Any) -> Bool { (item as! Item).children.isEmpty }
+    func outlineView(_ outlineView: NSOutlineView, shouldShowOutlineCellForItem item: Any) -> Bool { false }
+    func outlineView(_ outlineView: NSOutlineView, heightOfRowByItem item: Any) -> CGFloat {
+        let item = item as! Item
+        return item.children.isEmpty ? 32 : item.label.isEmpty ? 12 : 28
+    }
+    func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
+        let row = CraftMacSidebarRow(); row.isEmphasized = false; return row
+    }
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
         let item = item as! Item
         let cell = NSTableCellView(); let label = NSTextField(labelWithString: item.label + (item.badge.isEmpty ? "" : "  \(item.badge)"))
         label.font = NSFont.systemFont(ofSize: 13); label.lineBreakMode = .byTruncatingTail; cell.textField = label; cell.addSubview(label)
+        if !item.children.isEmpty { label.font = NSFont.systemFont(ofSize: 11, weight: .semibold); label.textColor = .secondaryLabelColor }
         label.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: item.icon.isEmpty ? 4 : 27), label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6), label.centerYAnchor.constraint(equalTo: cell.centerYAnchor)])
-        if !item.icon.isEmpty { let image = NSImageView(image: NSImage(systemSymbolName: item.icon, accessibilityDescription: nil) ?? NSImage()); image.frame = CGRect(x: 4, y: 4, width: 18, height: 18); cell.imageView = image; cell.addSubview(image) }
+        if !item.icon.isEmpty { let image = NSImageView(image: NSImage(systemSymbolName: item.icon, accessibilityDescription: nil) ?? NSImage()); image.frame = CGRect(x: 4, y: 7, width: 18, height: 18); cell.imageView = image; cell.addSubview(image) }
         cell.setAccessibilityIdentifier(item.id); cell.setAccessibilityLabel(item.label)
         return cell
     }
