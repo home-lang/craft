@@ -15,6 +15,11 @@ import type {
   TextStyle,
   ImageStyle,
   FlexStyle,
+  ButtonProps,
+  MapProps,
+  MapMarkerProps,
+  MapPolylineProps,
+  SectionListProps,
   TextInputProps,
   ScrollViewProps,
 } from '../components'
@@ -35,6 +40,26 @@ describe('Component System', () => {
     }
     expect(input.accessibilityState?.selected).toBe(true)
     expect(scroll.onScroll).toBeDefined()
+  })
+
+  it('types the native renderer component contract', () => {
+    const button: ButtonProps = { title: 'Open map', onPress: () => {} }
+    const map: MapProps = {
+      fitToBounds: true,
+      mapType: 'standard',
+      onMarkerPress: event => expect(event.nativeEvent.id).toBe('trailhead'),
+    }
+    const route: MapPolylineProps = { geometry: [47, 11, 47.1, 11.2], strokeWidth: 3 }
+    const marker: MapMarkerProps = { id: 'trailhead', geometry: [47, 11], onPress: () => {} }
+    const sections: SectionListProps<string> = {
+      sections: [{ title: 'Trails', data: ['Alpine'] }],
+      renderItem: ({ item }) => item,
+    }
+    expect(button.title).toBe('Open map')
+    expect(map.fitToBounds).toBe(true)
+    expect(route.geometry).toHaveLength(4)
+    expect(marker.id).toBe('trailhead')
+    expect(sections.sections[0]?.data).toEqual(['Alpine'])
   })
 
   describe('Platform', () => {

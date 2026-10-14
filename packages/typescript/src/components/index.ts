@@ -418,6 +418,18 @@ export interface ViewProps extends BaseProps {
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only'
 }
 
+/** Safe-area container props used by native iOS and Android screens. */
+export interface SafeAreaViewProps extends ViewProps {
+  /** Insets to apply; omitted means all edges. */
+  edges?: Array<'top' | 'right' | 'bottom' | 'left'>
+}
+
+/** Keyboard-aware container props used by native screens. */
+export interface KeyboardAvoidingViewProps extends ViewProps {
+  behavior?: 'height' | 'position' | 'padding'
+  keyboardVerticalOffset?: number
+}
+
 /**
  * Text component props.
  */
@@ -434,6 +446,33 @@ export interface TextProps extends BaseProps {
   onPress?: () => void
   /** Long press handler */
   onLongPress?: () => void
+}
+
+/** Native button/link action props. */
+export interface ButtonProps extends BaseProps {
+  title?: string
+  onPress?: () => void
+  disabled?: boolean
+  color?: string
+}
+
+/** Link is a button with link semantics in the native renderer. */
+export interface LinkProps extends ButtonProps {
+  href?: string
+  to?: string
+}
+
+export interface TouchableOpacityProps extends ViewProps {
+  activeOpacity?: number
+  disabled?: boolean
+}
+
+export interface TouchableHighlightProps extends ViewProps {
+  underlayColor?: string
+  activeOpacity?: number
+  disabled?: boolean
+  onShowUnderlay?: () => void
+  onHideUnderlay?: () => void
 }
 
 /**
@@ -469,6 +508,64 @@ export interface ImageProps extends BaseProps {
   fadeDuration?: number
   /** Alt text for accessibility */
   alt?: string
+}
+
+export interface IconProps extends BaseProps {
+  name?: string
+  symbol?: string
+  color?: string
+}
+
+export interface VideoProps extends BaseProps {
+  source?: string | { uri: string }
+  src?: string
+  controls?: boolean
+  autoplay?: boolean
+  autoPlay?: boolean
+  loop?: boolean
+  muted?: boolean
+  paused?: boolean
+  resizeMode?: 'contain' | 'cover' | 'stretch'
+  onLoad?: (event: { duration: number }) => void
+  onPlay?: () => void
+  onPause?: () => void
+  onEnd?: () => void
+  onProgress?: (event: { currentTime: number; duration: number }) => void
+  onError?: (event: { message: string }) => void
+}
+
+export interface MapRegion {
+  center: { latitude: number; longitude: number }
+  span: { latitudeDelta: number; longitudeDelta: number }
+}
+
+export interface MapProps extends BaseProps {
+  region?: MapRegion
+  fitToBounds?: boolean
+  showsUserLocation?: boolean
+  scrollEnabled?: boolean
+  zoomEnabled?: boolean
+  rotateEnabled?: boolean
+  mapType?: 'standard' | 'satellite' | 'hybrid' | 'terrain'
+  onMarkerPress?: (event: { nativeEvent: { id: string } }) => void
+}
+
+export interface MapPolylineProps extends BaseProps {
+  geometry: number[]
+  strokeColor?: string
+  strokeWidth?: number
+}
+
+export interface MapMarkerProps extends BaseProps {
+  geometry: number[]
+  id: string
+  title?: string
+  onPress?: (event: { nativeEvent: { id: string } }) => void
+  onMarkerPress?: (event: { nativeEvent: { id: string } }) => void
+}
+
+export interface ImageBackgroundProps extends ImageProps {
+  imageStyle?: ImageStyle | ImageStyle[]
 }
 
 /**
@@ -546,9 +643,9 @@ export interface TextInputProps extends BaseProps {
   /** Placeholder text color */
   placeholderTextColor?: string
   /** Keyboard type */
-  keyboardType?: 'default' | 'email-address' | 'numeric' | 'phone-pad' | 'decimal-pad' | 'url'
+  keyboardType?: KeyboardType
   /** Return key type */
-  returnKeyType?: 'done' | 'go' | 'next' | 'search' | 'send'
+  returnKeyType?: ReturnKeyType
   /** Auto capitalize */
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters'
   /** Auto correct */
@@ -577,6 +674,101 @@ export interface TextInputProps extends BaseProps {
   onSubmitEditing?: () => void
   /** End editing handler */
   onEndEditing?: () => void
+}
+
+export type KeyboardType =
+  | 'default'
+  | 'email-address'
+  | 'numeric'
+  | 'phone-pad'
+  | 'number-pad'
+  | 'decimal-pad'
+  | 'url'
+  | 'web-search'
+  | 'visible-password'
+  | 'ascii-capable'
+  | 'numbers-and-punctuation'
+  | 'name-phone-pad'
+  | 'twitter'
+
+export type ReturnKeyType =
+  | 'done'
+  | 'go'
+  | 'next'
+  | 'search'
+  | 'send'
+  | 'join'
+  | 'route'
+  | 'continue'
+  | 'emergency-call'
+  | 'default'
+
+export interface SwitchProps extends BaseProps {
+  value?: boolean
+  onValueChange?: (value: boolean) => void
+  disabled?: boolean
+  trackColor?: { false?: string; true?: string }
+  thumbColor?: string
+  ios_backgroundColor?: string
+}
+
+export interface CheckboxProps extends BaseProps {
+  value?: boolean
+  checked?: boolean
+  indeterminate?: boolean
+  label?: string
+  onValueChange?: (value: boolean) => void
+  disabled?: boolean
+  color?: string
+}
+
+export interface SliderProps extends BaseProps {
+  value?: number
+  minimumValue?: number
+  maximumValue?: number
+  step?: number
+  onValueChange?: (value: number) => void
+  onSlidingComplete?: (value: number) => void
+  disabled?: boolean
+  minimumTrackTintColor?: string
+  maximumTrackTintColor?: string
+  thumbTintColor?: string
+}
+
+export interface PickerOption {
+  label: string
+  value: string | number
+}
+
+export interface PickerProps extends BaseProps {
+  items: PickerOption[]
+  selectedValue?: string | number
+  onValueChange?: (value: string | number, index: number) => void
+  disabled?: boolean
+}
+
+export interface DatePickerChange {
+  value: string
+  iso: string
+  timestamp: number
+}
+
+export interface DatePickerProps extends BaseProps {
+  mode?: 'date' | 'time' | 'datetime' | 'countdown'
+  value?: string | number
+  minimumDate?: string | number
+  maximumDate?: string | number
+  minuteInterval?: number
+  display?: 'compact' | 'inline' | 'wheels'
+  onValueChange?: (event: DatePickerChange) => void
+  disabled?: boolean
+}
+
+export interface ActivityIndicatorProps extends BaseProps {
+  color?: string
+  animating?: boolean
+  hidesWhenStopped?: boolean
+  size?: 'small' | 'large' | number
 }
 
 /**
@@ -615,6 +807,28 @@ export interface FlatListProps<T> extends ScrollViewProps {
   onRefresh?: () => void
   /** Refreshing state */
   refreshing?: boolean
+}
+
+export interface SectionListSection<T> {
+  data: T[]
+  key?: string
+  title?: string
+}
+
+export interface SectionListProps<T> extends ScrollViewProps {
+  sections: SectionListSection<T>[]
+  renderItem: (info: { item: T; index: number; section: SectionListSection<T> }) => any
+  renderSectionHeader?: (info: { section: SectionListSection<T> }) => any
+  keyExtractor?: (item: T, index: number) => string
+}
+
+export interface ModalProps extends BaseProps {
+  visible?: boolean
+  transparent?: boolean
+  animationType?: 'none' | 'fade' | 'slide'
+  onShow?: () => void
+  onDismiss?: () => void
+  onRequestClose?: () => void
 }
 
 // ============================================================================
