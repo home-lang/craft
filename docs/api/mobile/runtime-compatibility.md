@@ -10,6 +10,11 @@ This is an intentional compatibility boundary. Applications should treat the
 documented validation errors as part of the mobile API contract rather than
 depending on a legacy shim's fallback behavior.
 
+The action-level iOS inventory is maintained in the [iOS Zig/Swift validation
+conformance table](./ios-validation-conformance.md). It records the malformed
+inputs, observable Swift behavior, and the source/tests that justify each
+intentional divergence.
+
 ## Fail-Closed Input Handling
 
 The native runtime rejects these classes of input:

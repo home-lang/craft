@@ -33,6 +33,8 @@ const iosMutation = readFileSync(join(root, 'packages/ios/templates/CraftNativeM
 const iosLayoutUnitTests = readFileSync(join(root, 'packages/ios/fixtures/native-screen/NativeLayoutUnitTests.swift'), 'utf8')
 const guide = readFileSync(join(root, 'docs/guides/native-stx.md'), 'utf8')
 const migrationGuide = readFileSync(join(root, 'docs/guides/migration/react-native.md'), 'utf8')
+const runtimeCompatibility = readFileSync(join(root, 'docs/api/mobile/runtime-compatibility.md'), 'utf8')
+const iosValidationConformance = readFileSync(join(root, 'docs/api/mobile/ios-validation-conformance.md'), 'utf8')
 const nativeLayout = readFileSync(join(root, 'packages/zig/src/native_layout.zig'), 'utf8')
 const zigMain = readFileSync(join(root, 'packages/zig/src/main.zig'), 'utf8')
 const componentTypes = readFileSync(join(root, 'packages/typescript/src/components/index.ts'), 'utf8')
@@ -477,6 +479,22 @@ describe('native renderer component contract', () => {
       expect(readme).toContain('historical `stx-native` package')
       expect(readme).toContain('compiler')
     }
+  })
+
+  it('keeps the iOS Zig/Swift validation conformance table keyed and evidenced', () => {
+    expect(runtimeCompatibility).toMatch(/\[iOS Zig\/Swift validation\s+conformance table\]\(\.\/ios-validation-conformance\.md\)/)
+    for (const action of [
+      '`notifications.cancel`',
+      '`background.schedule` / `background.cancel`',
+      '`files.saveFile`',
+      '`files.pickFile`',
+    ]) {
+      expect(iosValidationConformance, `${action} missing from iOS conformance table`).toContain(`| ${action} |`)
+    }
+    expect(iosValidationConformance).toContain('`packages/zig/src/bridge_mobile_notifcancel.zig`')
+    expect(iosValidationConformance).toContain('`packages/zig/src/bridge_mobile_bgtasks.zig`')
+    expect(iosValidationConformance).toContain('`packages/zig/src/bridge_mobile_filepicker.zig`')
+    expect((iosValidationConformance.match(/^\| `[^|]+`/gm) ?? []).length).toBeGreaterThanOrEqual(6)
   })
 
   it('documents the native keyboard fallback alongside the WebView path', () => {
