@@ -286,6 +286,14 @@ final class DriverTests: XCTestCase {
             case "left": app.swipeLeft()
             default: app.swipeRight()
             }
+        case "edge":
+            // The system back-swipe: a drag in from the left edge (or the
+            // right one with `edge right`), which a centred swipe never is.
+            let fromRight = arg == "right"
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: fromRight ? 0.995 : 0.005, dy: 0.5))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: fromRight ? 0.15 : 0.85, dy: 0.5))
+            start.press(forDuration: 0.05, thenDragTo: end)
+            note("edge \(fromRight ? "right" : "left"): ok")
         case "audit":
             var issues: [String] = []
             do {

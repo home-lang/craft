@@ -67,6 +67,8 @@ export type SimulatorStep =
   | { command: 'delay', milliseconds: number }
   | { command: 'net', state: 'online' | 'offline' }
   | { command: 'swipe', direction: 'up' | 'down' | 'left' | 'right' }
+  /** The system back-swipe: a drag in from the left edge (or the right). */
+  | { command: 'edge', direction: 'left' | 'right' }
   | { command: 'tabbar', state: 'shown' | 'hidden' }
   | { command: 'tapxy', x: number, y: number }
   | { command: 'field', index: number, text: string }

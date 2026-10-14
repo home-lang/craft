@@ -74,7 +74,7 @@ describe('package-owned iOS shells', () => {
     initSimulatorDriver({ output, bundleId: 'org.example.app' })
     const source = readFileSync(join(output, 'UITests/DriverTests.swift'), 'utf8')
     const handled = new Set([...source.matchAll(/case "([a-z]+)"/g)].map(match => match[1]))
-    const commands: SimulatorStep['command'][] = ['launch', 'activate', 'terminate', 'home', 'back', 'return', 'unlabelled', 'background', 'wait', 'delay', 'net', 'swipe', 'tabbar', 'tapxy', 'field', 'typeid', 'labelid', 'expect', 'expectexact', 'expectid', 'tap', 'tapif', 'tapid', 'tapexact', 'type', 'absent', 'absentid', 'selected', 'tab', 'scrollto', 'dismiss', 'log', 'shot', 'tree', 'audit', 'exec', 'openurl', 'ifid']
+    const commands: SimulatorStep['command'][] = ['launch', 'activate', 'terminate', 'home', 'back', 'return', 'unlabelled', 'background', 'wait', 'delay', 'net', 'swipe', 'edge', 'tabbar', 'tapxy', 'field', 'typeid', 'labelid', 'expect', 'expectexact', 'expectid', 'tap', 'tapif', 'tapid', 'tapexact', 'type', 'absent', 'absentid', 'selected', 'tab', 'scrollto', 'dismiss', 'log', 'shot', 'tree', 'audit', 'exec', 'openurl', 'ifid']
     expect(commands.filter(command => !handled.has(command))).toEqual([])
     // ifid re-enters the same dispatcher, so a guarded command is any command.
     expect(source).toContain('func run(_ line: String)')
