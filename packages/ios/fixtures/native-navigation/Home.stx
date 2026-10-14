@@ -331,7 +331,11 @@ function chooseTime(event) {
 
 function chooseCountdown(event) {
   countdownValue.set(event.value)
-  dateEventStatus.set(event.iso === 'PT5445S' && event.timestamp === 5445000 ? `${event.value}|duration complete` : 'countdown event incomplete')
+  // The duration the picker shows, as ISO 8601 and milliseconds, for
+  // whatever it was turned to (01:31:45 is PT5505S and 5505000).
+  const parts = String(event.value).split(':').map(Number)
+  const total = parts[0] * 3600 + parts[1] * 60 + parts[2]
+  dateEventStatus.set(event.iso === `PT${total}S` && event.timestamp === total * 1000 ? `${event.value}|duration complete` : 'countdown event incomplete')
 }
 
 function chooseCheckbox(event) {
@@ -383,6 +387,12 @@ function captureHiddenLayout() {
 
 function openDetails() {
   globalThis.craft.navigation.push('details', { name: navigationName, count: navigationCount() })
+}
+
+// The form's own name and count, which the push test types and increments
+// (the navigation-state section above has its own).
+function openFormDetails() {
+  globalThis.craft.navigation.push('details', { name: name(), count: count() })
 }
 
 function openCapabilities() {
@@ -644,6 +654,7 @@ function captureSectionScroll() {
       <Text testID="modal-content">Modal content</Text>
       <Button testID="toggle-modal-opacity" @click="toggleModalOpacity()">Toggle modal opacity</Button>
       <Text testID="modal-opacity" :text="modalOpacity" />
+      <Button testID="close-modal" @click="toggleModal()">Close modal</Button>
     </Modal>
     <Text testID="modal-status" :text="modalStatus" />
     <Slider testID="native-slider" minimumValue={0} maximumValue={1} step={0.1} value={sliderValue} minimumTrackTintColor="#22c55e" maximumTrackTintColor="#64748b" thumbTintColor="#16a34a" @value-change="moveSlider($event)" @sliding-complete="finishSlider()" />
@@ -704,7 +715,7 @@ function captureSectionScroll() {
     <Text testID="notes-end-editings" :text="'Notes end edits: ' + notesEndEditings" />
     <Button testID="increment" @click="increment()">Increment</Button>
     <Text testID="count" :text="'Count: ' + count" />
-    <Button testID="open-details" @click="openDetails()">Open details</Button>
+    <Button testID="open-details" @click="openFormDetails()">Open details</Button>
     </ScrollView>
   <View testID="native-root-overlay" style={{"position":"absolute","top":8,"right":8,"width":24,"height":24,"backgroundColor":"#ef4444"}} />
   </SafeAreaView>

@@ -503,7 +503,9 @@ final class NativeNavigationUITests: XCTestCase {
         reveal(longPressAccessibilityToggle, in: rootScroll)
         longPressAccessibilityToggle.tap()
         XCTAssertTrue(app.staticTexts["long press disabled"].waitForExistence(timeout: 5))
-        XCTAssertFalse(longPressPanel.isHittable)
+        // Disabled reads as not enabled; XCUITest still finds a hit point on
+        // a disabled element, as it does for a disabled UIButton.
+        XCTAssertFalse(longPressPanel.isEnabled)
         longPressAccessibilityToggle.tap()
         XCTAssertTrue(app.staticTexts["long press enabled"].waitForExistence(timeout: 5))
         longPressPanel.press(forDuration: 1)
@@ -522,7 +524,8 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["switch on"].waitForExistence(timeout: 5))
         XCTAssertEqual(toggle.value as? String, "1")
 
-        XCTAssertTrue(app.otherElements["native-picker"].waitForExistence(timeout: 5))
+        // A <select> is a UIPickerView, which XCUITest types as a picker.
+        XCTAssertTrue(app.pickers["native-picker"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["picker-value"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["picker-value"].label, "one")
         // The picker's first selection is not a change: the shared status
@@ -538,21 +541,29 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["modal-opacity"].label, "1")
         app.buttons["toggle-modal-opacity"].tap()
         XCTAssertTrue(waitForLabel(app.staticTexts["modal-opacity"], "0.45"))
-        modalToggle.tap()
+        // A shown modal covers the screen and takes its touches, so it is
+        // closed from inside; the toggle behind it is out of reach.
+        app.buttons["close-modal"].tap()
         XCTAssertTrue(app.staticTexts["modal dismissed"].waitForExistence(timeout: 5))
 
         let slider = app.sliders["native-slider"]
         reveal(slider, in: rootScroll)
         slider.adjust(toNormalizedSliderPosition: 0.8)
         XCTAssertTrue(app.staticTexts["slider moved"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts["slider-value"].label, "0.8")
+        // XCUITest lands within a step of where it is asked to (0.8 or 0.9
+        // here); the script hears the step the slider shows, as a decimal.
+        let shownPercent = Double((slider.value as? String ?? "").replacingOccurrences(of: "%", with: "")) ?? -1
+        let shown = (shownPercent / 10).rounded() / 10
+        XCTAssertLessThanOrEqual(abs(shown - 0.8), 0.1, "slider landed at \(shownPercent)%")
+        XCTAssertEqual(app.staticTexts["slider-value"].label, shown == shown.rounded() ? String(Int(shown)) : String(shown))
         XCTAssertEqual(app.staticTexts["slider-completions"].label, "Slider completions: 1")
 
         XCTAssertTrue(app.activityIndicators["native-indicator"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.activityIndicators["stopped-indicator"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.activityIndicators["hidden-indicator"].isHittable)
-        XCTAssertTrue(app.activityIndicators["display-none-indicator"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.activityIndicators["display-none-indicator"].isHittable)
+        // display:none hides the view, and a hidden view is not in the
+        // accessibility tree at all (Android checks View.GONE instead).
+        XCTAssertFalse(app.activityIndicators["display-none-indicator"].exists)
 
         let wrapped = app.otherElements["layout-wrap"]
         XCTAssertTrue(wrapped.waitForExistence(timeout: 5))
@@ -649,7 +660,9 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["name-submits"].label, "Submits: 2")
         let increment = app.buttons["increment"]
         reveal(increment, in: rootScroll)
-        increment.tap()
+        // A tap on nothing puts the keyboard away (Android clears the focus
+        // here); a button would keep it.
+        app.staticTexts["notes-blurs"].tap()
         let notesBlurs = app.staticTexts["notes-blurs"]
         XCTAssertTrue(notesBlurs.waitForExistence(timeout: 5))
         XCTAssertEqual(notesBlurs.label, "Notes blurs: 1")
@@ -657,7 +670,8 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(notesEndEditings.waitForExistence(timeout: 5))
         XCTAssertEqual(notesEndEditings.label, "Notes end edits: 1")
         increment.tap()
-        XCTAssertEqual(app.staticTexts["count"].label, "Count: 2")
+        increment.tap()
+        XCTAssertTrue(waitForLabel(app.staticTexts["count"], "Count: 2"))
 
         let openDetails = app.buttons["open-details"]
         reveal(openDetails, in: rootScroll)
