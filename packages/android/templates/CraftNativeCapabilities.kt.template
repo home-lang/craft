@@ -58,33 +58,43 @@ internal data class CraftNativeCapabilityResult(
 
 /** Process-wide persistence and OS services shared by every native route. */
 internal class CraftNativeCapabilities(
-    private val activity: MainActivity,
+    private val context: Context,
     private val config: JSONObject,
 ) {
-    private val storage = activity.getSharedPreferences("craft-native-storage", Context.MODE_PRIVATE)
+    /** The screen's activity; null in a background refresh, where nothing can be shown. */
+    private val activity: MainActivity? get() = context as? MainActivity
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val storage = context.getSharedPreferences("craft-native-storage", Context.MODE_PRIVATE)
     // The typed native renderer has no CraftNative Zig holder. Keep its
     // values encrypted at rest with AndroidX's AES-256 GCM/SIV preferences.
     private val encryptedSecureStorage by lazy {
-        val masterKey = MasterKey.Builder(activity)
+        val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
         EncryptedSharedPreferences.create(
-            activity,
+            context,
             "craft_secure_prefs",
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
         )
     }
-    private val notificationStorage = activity.getSharedPreferences("craft-native-notifications", Context.MODE_PRIVATE)
+    private val notificationStorage = context.getSharedPreferences("craft-native-notifications", Context.MODE_PRIVATE)
     private val databaseExecutor = Executors.newSingleThreadExecutor()
     private val networkExecutor = Executors.newCachedThreadPool()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
     private val fetchConnections = ConcurrentHashMap<String, HttpURLConnection>()
-    private val fileRoot by lazy { File(activity.cacheDir, "craft-files").apply { mkdirs() } }
+    private val fileRoot by lazy { File(context.cacheDir, "craft-files").apply { mkdirs() } }
     private var pendingFilePick: PendingFilePick? = null
     private var database: SQLiteDatabase? = null
     private val biometricPrompts = ConcurrentHashMap<String, BiometricPrompt>()
+
+    /**
+     * Hears each change to `Storage` and `SecureStorage` (store, key or null
+     * for a clear, the new value or null), so every isolate's synchronous
+     * copy follows it (CraftNativeStores).
+     */
+    var storeObserver: ((String, String?, String?) -> Unit)? = null
 
     private data class PendingFilePick(
         val requestToken: String,
@@ -136,7 +146,7 @@ internal class CraftNativeCapabilities(
                     complete(requestToken, database(method, args), completion)
                 }
             }
-            "Lifecycle" -> complete(requestToken, if (method == "getState") success(activity.nativeAppState)
+            "Lifecycle" -> complete(requestToken, if (method == "getState") success(activity?.nativeAppState ?: "background")
                 else failure("UNKNOWN_ACTION", "Unsupported Lifecycle method"), completion)
             "DeepLinks" -> complete(requestToken, deepLinks(method), completion)
             "Notifications" -> notifications(requestToken, method, args, completion)
@@ -154,7 +164,8 @@ internal class CraftNativeCapabilities(
                 }
                 else -> complete(requestToken, failure("UNKNOWN_ACTION", "Unsupported Files method"), completion)
             }
-            else -> complete(requestToken, activity.performImmediateCapability(module, method, args), completion)
+            else -> complete(requestToken, activity?.performImmediateCapability(module, method, args)
+                ?: failure("NEEDS_ACTIVITY", "$module.$method needs a screen"), completion)
         }
     }
 
@@ -403,16 +414,17 @@ internal class CraftNativeCapabilities(
         args: JSONArray,
         completion: (CraftNativeCapabilityResult) -> Unit,
     ) {
-        activity.runOnUiThread {
+        mainHandler.post {
+            val host = activity ?: return@post complete(requestToken, failure("NEEDS_ACTIVITY", "No screen is showing to pick from"), completion)
             if (pendingFilePick != null) {
                 complete(requestToken, failure("BUSY", "Another file picker is already open"), completion)
-                return@runOnUiThread
+                return@post
             }
             val options = args.optJSONObject(0) ?: JSONObject()
             val source = options.optString("source", "library")
             if (source != "library" && source != "camera") {
                 complete(requestToken, failure("INVALID_ARGUMENT", "files.pickImage source is 'library' or 'camera'"), completion)
-                return@runOnUiThread
+                return@post
             }
             val maxPixels = options.optInt("maxPixels", CRAFT_NATIVE_FILE_DEFAULT_MAX_PIXELS)
                 .coerceIn(64, CRAFT_NATIVE_FILE_LARGEST_MAX_PIXELS)
@@ -420,7 +432,7 @@ internal class CraftNativeCapabilities(
                 .coerceIn(0.1, 1.0).toFloat()
             if (source == "camera" && !config.optBoolean("enableCamera")) {
                 complete(requestToken, failure("CAPABILITY_DISABLED", "Camera is disabled"), completion)
-                return@runOnUiThread
+                return@post
             }
             pendingFilePick = PendingFilePick(requestToken, source, maxPixels, quality, completion)
             val intent = if (source == "camera") Intent(MediaStore.ACTION_IMAGE_CAPTURE)
@@ -429,7 +441,7 @@ internal class CraftNativeCapabilities(
                 type = "image/*"
             }
             try {
-                activity.startActivityForResult(intent, CRAFT_NATIVE_FILE_PICK_REQUEST)
+                host.startActivityForResult(intent, CRAFT_NATIVE_FILE_PICK_REQUEST)
             } catch (error: Exception) {
                 pendingFilePick = null
                 complete(requestToken, failure("PICKER_UNAVAILABLE", error.message ?: "Image picker could not be opened"), completion)
@@ -457,16 +469,16 @@ internal class CraftNativeCapabilities(
     }
 
     private fun copyUri(uri: Uri, maxPixels: Int, quality: Float): JSONObject? {
-        val name = activity.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+        val name = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
             if (it.moveToFirst()) it.getString(0) else null
         } ?: "photo"
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        activity.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return null
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
         var sample = 1
         while (max(bounds.outWidth / sample, bounds.outHeight / sample) > maxPixels * 2) sample *= 2
         val options = BitmapFactory.Options().apply { inSampleSize = sample }
-        val bitmap = activity.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) } ?: return null
+        val bitmap = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) } ?: return null
         return writeImage(bitmap, maxPixels, quality, jpegName(name))
     }
 
@@ -536,7 +548,9 @@ internal class CraftNativeCapabilities(
         result: CraftNativeCapabilityResult,
         completion: (CraftNativeCapabilityResult) -> Unit,
     ) {
-        activity.runOnUiThread {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            if (!cancelled.remove(requestToken)) completion(result)
+        } else mainHandler.post {
             if (!cancelled.remove(requestToken)) completion(result)
         }
     }
@@ -544,6 +558,7 @@ internal class CraftNativeCapabilities(
     private fun storage(method: String, args: JSONArray): CraftNativeCapabilityResult {
         if (method == "clear") {
             storage.edit().clear().commit()
+            storeObserver?.invoke("storage", null, null)
             return success(true)
         }
         if (method == "keys") return success(JSONArray(storage.all.keys.sorted()))
@@ -558,10 +573,13 @@ internal class CraftNativeCapabilities(
                 if (args.length() != 2) return failure("INVALID_ARGUMENT", "Storage.set needs a key and value")
                 val value = jsonString(args.opt(1))
                     ?: return failure("INVALID_ARGUMENT", "Storage values must be JSON serializable")
-                if (storage.edit().putString(key, value).commit()) success(true)
+                if (storage.edit().putString(key, value).commit()) {
+                    storeObserver?.invoke("storage", key, value)
+                    success(true)
+                }
                 else failure("STORAGE_ERROR", "Storage could not persist the value")
             }
-            "remove" -> success(storage.edit().remove(key).commit())
+            "remove" -> success(storage.edit().remove(key).commit().also { storeObserver?.invoke("storage", key, null) })
             else -> failure("UNKNOWN_ACTION", "Unsupported Storage method")
         }
     }
@@ -569,7 +587,7 @@ internal class CraftNativeCapabilities(
     private fun secureStorage(method: String, args: JSONArray): CraftNativeCapabilityResult {
         if (method == "clear") {
             return try {
-                success(encryptedSecureStorage.edit().clear().commit())
+                success(encryptedSecureStorage.edit().clear().commit().also { storeObserver?.invoke("secure", null, null) })
             } catch (error: Exception) {
                 failure("SECURE_STORAGE_ERROR", error.message ?: "Secure storage could not be cleared")
             }
@@ -579,11 +597,14 @@ internal class CraftNativeCapabilities(
             when (method) {
                 "set" -> {
                     if (args.length() != 2 || args.opt(1) !is String) return failure("INVALID_ARGUMENT", "SecureStorage.set needs a key and string value")
-                    if (encryptedSecureStorage.edit().putString(key, args.getString(1)).commit()) success(true)
+                    if (encryptedSecureStorage.edit().putString(key, args.getString(1)).commit()) {
+                        storeObserver?.invoke("secure", key, args.getString(1))
+                        success(true)
+                    }
                     else failure("SECURE_STORAGE_ERROR", "Secure storage could not be written")
                 }
                 "get" -> success(encryptedSecureStorage.getString(key, null) ?: JSONObject.NULL)
-                "remove" -> success(encryptedSecureStorage.edit().remove(key).commit())
+                "remove" -> success(encryptedSecureStorage.edit().remove(key).commit().also { storeObserver?.invoke("secure", key, null) })
                 else -> failure("UNKNOWN_ACTION", "Unsupported SecureStorage method")
             }
         } catch (error: Exception) {
@@ -601,28 +622,29 @@ internal class CraftNativeCapabilities(
             complete(requestToken, failure("CAPABILITY_DISABLED", "Biometric authentication is disabled"), completion)
             return
         }
-        val manager = BiometricManager.from(activity)
+        val manager = BiometricManager.from(context)
         when (method) {
             "isAvailable" -> complete(requestToken, success(manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS), completion)
             "getBiometricType" -> {
                 val available = manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
                 val type = when {
                     !available -> "none"
-                    activity.packageManager.hasSystemFeature("android.hardware.biometrics.face") -> "faceId"
+                    context.packageManager.hasSystemFeature("android.hardware.biometrics.face") -> "faceId"
                     else -> "fingerprint"
                 }
                 complete(requestToken, success(type), completion)
             }
             "authenticate" -> {
-                if (activity !is FragmentActivity) {
+                val host = activity
+                if (host !is FragmentActivity) {
                     complete(requestToken, failure("AUTHENTICATION_FAILED", "Activity does not support biometric prompts"), completion)
                     return
                 }
                 val reason = args.optString(0).ifBlank { "Authenticate to continue" }
-                activity.runOnUiThread {
-                    if (cancelled.contains(requestToken)) return@runOnUiThread
+                mainHandler.post {
+                    if (cancelled.contains(requestToken)) return@post
                     try {
-                        val prompt = BiometricPrompt(activity, ContextCompat.getMainExecutor(activity), object : BiometricPrompt.AuthenticationCallback() {
+                        val prompt = BiometricPrompt(host, ContextCompat.getMainExecutor(host), object : BiometricPrompt.AuthenticationCallback() {
                             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                                 biometricPrompts.remove(requestToken)
                                 complete(requestToken, success(true), completion)
@@ -650,7 +672,7 @@ internal class CraftNativeCapabilities(
 
     private fun database(method: String, args: JSONArray): CraftNativeCapabilityResult {
         val db = database ?: runCatching {
-            activity.openOrCreateDatabase("craft-native.sqlite", Context.MODE_PRIVATE, null)
+            context.openOrCreateDatabase("craft-native.sqlite", Context.MODE_PRIVATE, null)
         }.getOrElse { return failure("DATABASE_ERROR", it.message ?: "Could not open the local database") }
             .also { database = it }
         return try {
@@ -764,7 +786,7 @@ internal class CraftNativeCapabilities(
     private fun deepLinks(method: String): CraftNativeCapabilityResult {
         if (!config.optBoolean("enableDeepLinks")) return failure("CAPABILITY_DISABLED", "Deep links are disabled")
         if (method != "getInitialURL") return failure("UNKNOWN_ACTION", "Unsupported DeepLinks method")
-        return success(activity.consumeInitialDeepLink()?.let(activity::deepLinkData) ?: JSONObject.NULL)
+        return success(activity?.let { host -> host.consumeInitialDeepLink()?.let(host::deepLinkData) } ?: JSONObject.NULL)
     }
 
     private fun notifications(
@@ -786,7 +808,7 @@ internal class CraftNativeCapabilities(
             }
             "cancelAll" -> {
                 notificationStorage.all.keys.forEach(::cancelNotification)
-                (activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancelAll()
+                (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancelAll()
                 complete(requestToken, success(true), completion)
             }
             "pending" -> complete(requestToken, success(JSONArray(notificationStorage.all.values.mapNotNull {
@@ -800,7 +822,7 @@ internal class CraftNativeCapabilities(
         val title = value?.optString("title").orEmpty()
         if (title.isEmpty()) return failure("INVALID_ARGUMENT", "Notifications.schedule needs a title")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return failure("PERMISSION_DENIED", "Notification permission denied")
         }
         val id = validKey(value?.opt("id")) ?: UUID.randomUUID().toString()
@@ -820,7 +842,7 @@ internal class CraftNativeCapabilities(
     private fun scheduleStored(value: JSONObject) {
         val id = value.optString("id")
         if (id.isEmpty()) return
-        val alarm = activity.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarm.setAndAllowWhileIdle(
             AlarmManager.RTC_WAKEUP,
             value.optLong("fireAt").coerceAtLeast(System.currentTimeMillis()),
@@ -829,18 +851,18 @@ internal class CraftNativeCapabilities(
     }
 
     private fun cancelNotification(id: String) {
-        val alarm = activity.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val intent = notificationIntent(id)
         alarm.cancel(intent)
         intent.cancel()
         notificationStorage.edit().remove(id).commit()
-        (activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(id, 0)
+        (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(id, 0)
     }
 
     private fun notificationIntent(id: String): PendingIntent = PendingIntent.getBroadcast(
-        activity,
+        context,
         0,
-        Intent(activity, CraftNativeNotificationReceiver::class.java)
+        Intent(context, CraftNativeNotificationReceiver::class.java)
             .setData(Uri.Builder().scheme("craft-native").authority("notification").appendPath(id).build())
             .putExtra("id", id),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,

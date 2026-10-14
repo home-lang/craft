@@ -204,6 +204,45 @@ Support depends on the installed WebView provider, so validate on each device
 class you plan to ship. The [Android JavaScriptEngine guide](https://developer.android.com/develop/ui/views/layout/webapps/jsengine)
 documents the sandbox and device-support check.
 
+### A whole app of native screens
+
+With `nativeScreens` (paths to the screens that draw them), `tabs` and
+`nativeApp` in craft.config.json, the same keys as the iOS builder, the
+native renderer is a whole app rather than one bundle route:
+
+- a tab bar and a navigation bar (`craft.navigation.setOptions`: title, large
+  title, right buttons with badges, `tabBarHidden`), a stack per tab, Android's
+  Back key popping it;
+- `craft.navigation.open(path)` matched in the iOS shell's order (fixed segments
+  before parameters), a tab's path selecting its tab, a path no screen draws
+  opening the site in a Custom Tab; deep links and tapped notifications route
+  the same way;
+- the app script (`nativeApp`) in its own isolate for the app's life, and in a
+  WorkManager job for `backgroundRefresh` and silent pushes
+  (`craftBackgroundRefresh`, `craftSilentPush`, answered with
+  `craft.background.complete`);
+- `craft.storage.getSync`, `craft.secureStorage.getSync` and `craft.snapshots`:
+  JavaScriptSandbox cannot call the host synchronously, so every isolate starts
+  with a copy of these stores and the host keeps each copy current. Timers and
+  `requestAnimationFrame` (vsync, for the screen on display) are the host's;
+  long messages on the console bridge travel in pieces;
+- the services the iOS host answers by the same module names: Dialog, Browser
+  (Custom Tabs, `mode: 'auth'` callbacks), Linking, Share, Push (FCM),
+  Location (with a foreground-service route recording), Media (videos kept
+  for offline, played in place of their address), KeepAwake, Brightness,
+  StatusBar, Speech and Health;
+- `iconsPath` (a `{ viewBox, strokeWidth, icons }` table of SVG bodies keyed by
+  icon name and SF Symbol) gives `<Icon>`, tabs and bar buttons the app's own
+  vectors in place of Android's glyphs.
+
+Health is Health Connect with the HealthKit contract (`getWorkouts`,
+`getDailyStatistics`, `getHeartRateSamples`, `getSleepIntervals`,
+`saveWorkout`, `saveMindfulSession`...), plus `availability`, `grantedTypes`
+and `openSettings` (`healthAvailability`). `healthConnect: { read, write,
+background, history }` lists the types the manifest declares; Play reviews
+each one. `bun scripts/test-native-health.ts` runs it against an Android 14+
+emulator's Health Connect.
+
 ### 3. Open in Android Studio
 
 ```bash
@@ -753,6 +792,12 @@ use an HTTPS development endpoint. The app will load from that server instead
 of bundled HTML.
 
 ## Publishing
+
+`build({ release: true, bundle: true })` runs `bundleRelease` and writes
+`app/build/outputs/bundle/release/app-release.aab`, signed with the upload key
+from `CRAFT_ANDROID_KEYSTORE` (the keystore's path), `CRAFT_ANDROID_KEYSTORE_PASSWORD`,
+`CRAFT_ANDROID_KEY_ALIAS` and `CRAFT_ANDROID_KEY_PASSWORD` (the keystore password
+when unset). Without them the release build is unsigned.
 
 Build release APK/AAB:
 

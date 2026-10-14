@@ -52,9 +52,16 @@ object CraftLocationRecordingStore {
     fun isActive(context: Context) = prefs(context).getBoolean("active", false)
     fun isPaused(context: Context) = prefs(context).getBoolean("paused", false)
 
+    /**
+     * Hears each fix the recording keeps, while the app is running: a native
+     * screen shows the route growing (`craftLocationUpdate`).
+     */
+    @Volatile var listener: ((android.location.Location) -> Unit)? = null
+
     @Synchronized
     fun append(context: Context, location: android.location.Location) {
         if (!isActive(context) || isPaused(context)) return
+        listener?.invoke(location)
         val json = JSONObject().apply {
             put("latitude", location.latitude)
             put("longitude", location.longitude)

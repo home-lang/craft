@@ -18,8 +18,24 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Release signing from the environment (the upload key Google Play
+    // expects; Play App Signing re-signs for devices). Without
+    // CRAFT_ANDROID_KEYSTORE a release build is unsigned.
+    val releaseKeystore = System.getenv("CRAFT_ANDROID_KEYSTORE")?.takeIf { it.isNotBlank() }
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("CRAFT_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("CRAFT_ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("CRAFT_ANDROID_KEY_PASSWORD") ?: System.getenv("CRAFT_ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (releaseKeystore != null) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

@@ -1,0 +1,192 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import vm from 'node:vm'
+import { describe, expect, it } from 'bun:test'
+import { build, healthConnectPermissions, init, renderAndroidPermissions } from './index'
+
+const templates = join(import.meta.dir, '../templates')
+
+/** The prelude every isolate runs (CraftNativeShell.kt's CraftNativePrelude), with its Kotlin holes filled. */
+function prelude(stores: Record<string, Record<string, string>>): string {
+  const source = readFileSync(join(templates, 'CraftNativeShell.kt.template'), 'utf8')
+  const start = source.indexOf('): String = """') + '): String = """'.length
+  const end = source.indexOf('""".trimIndent()', start)
+  return source.slice(start, end)
+    .replace('$routePrelude', 'globalThis.__stxNativeRoute = "Today";')
+    .replace('$STORES', JSON.stringify(stores))
+    .replace('$bridgeFields', "platform: 'android', capabilities: []")
+    .replace('$post', 'globalThis.__posted.push(JSON.parse(value));')
+    .replace('$receiveSetup', 'globalThis.__deliver = deliver;')
+}
+
+interface Isolate {
+  posted: Array<{ type: string, payload: any }>
+  heard: any[]
+  context: Record<string, any>
+  deliver: (message: unknown) => void
+}
+
+function isolate(stores: Record<string, Record<string, string>> = {}): Isolate {
+  const context: Record<string, any> = { __posted: [], console: { error() {}, log() {} } }
+  vm.createContext(context)
+  vm.runInContext(prelude({ storage: {}, secure: {}, snapshots: {}, ...stores }), context)
+  const heard: any[] = []
+  context.__stxNativeBridge.onMessage((raw: string) => heard.push(JSON.parse(raw)))
+  return { posted: context.__posted, heard, context, deliver: message => context.__deliver(JSON.stringify(message)) }
+}
+
+describe('the native shell prelude (JavaScriptSandbox has no synchronous host calls)', () => {
+  it('answers storage, snapshots and secure storage synchronously from the preloaded copies', () => {
+    const app = isolate({
+      storage: { units: '"metric"' },
+      secure: { 'auth.token': 'token-1' },
+      snapshots: { 'workout-42': '{"id":42}' },
+    })
+    expect(app.context.craft.storage.getSync('units')).toBe('metric')
+    expect(app.context.craft.secureStorage.getSync('auth.token')).toBe('token-1')
+    expect(app.context.craft.secureStorage.getSync('missing')).toBeNull()
+    expect(app.context.craft.snapshots.get('workout-42')).toEqual({ id: 42 })
+  })
+
+  it('keeps the synchronous getters when the runtime assigns its own namespace', () => {
+    const app = isolate({ storage: { units: '"imperial"' } })
+    const get = () => Promise.resolve('async')
+    app.context.craft.storage = Object.assign({}, app.context.craft.storage, { get })
+    expect(app.context.craft.storage.get).toBe(get)
+    expect(app.context.craft.storage.getSync('units')).toBe('imperial')
+  })
+
+  it('writes through the host and resolves a snapshot once the host kept it', async () => {
+    const app = isolate()
+    const kept = app.context.craft.snapshots.set('today', { day: 'tue' })
+    expect(app.context.craft.snapshots.get('today')).toEqual({ day: 'tue' })
+    const write = app.posted.find(message => message.type === 'SYNC_WRITE')!
+    expect(write.payload).toMatchObject({ store: 'snapshots', key: 'today', value: '{"day":"tue"}' })
+    app.deliver({ type: 'SYNC_RESULT', payload: { id: write.payload.id, ok: true } })
+    await kept
+  })
+
+  it('follows another isolate\'s writes and tells the screen a snapshot changed', () => {
+    const app = isolate({ snapshots: { header: '{"userId":1}' } })
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'snapshots', key: 'header', value: '{"userId":2}' } })
+    expect(app.context.craft.snapshots.get('header')).toEqual({ userId: 2 })
+    expect(app.heard).toContainEqual({ type: 'SNAPSHOT_CHANGED', payload: { name: 'header' } })
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'secure', key: 'auth.token', value: null } })
+    expect(app.context.craft.secureStorage.getSync('auth.token')).toBeNull()
+    app.deliver({ type: 'SYNC_UPDATE', payload: { store: 'snapshots', clear: true, keep: [] } })
+    expect(app.context.craft.snapshots.get('header')).toBeNull()
+  })
+
+  it('gives the isolate timers and frames from the host', () => {
+    const app = isolate()
+    const fired: string[] = []
+    const once = app.context.setTimeout((word: string) => fired.push(word), 25, 'once')
+    const cancelled = app.context.setTimeout(() => fired.push('never'), 10)
+    app.context.clearTimeout(cancelled)
+    expect(app.posted).toContainEqual({ type: 'TIMER', payload: { id: once, ms: 25 } })
+    expect(app.posted).toContainEqual({ type: 'TIMER_CLEAR', payload: { id: cancelled } })
+    app.deliver({ type: 'TIMER_FIRE', payload: { id: cancelled } })
+    app.deliver({ type: 'TIMER_FIRE', payload: { id: once } })
+    expect(fired).toEqual(['once'])
+
+    const every = app.context.setInterval(() => fired.push('tick'), 100)
+    app.deliver({ type: 'TIMER_FIRE', payload: { id: every } })
+    expect(app.posted.filter(message => message.type === 'TIMER' && message.payload.id === every)).toHaveLength(2)
+
+    const frames: number[] = []
+    app.context.requestAnimationFrame((time: number) => frames.push(time))
+    app.context.requestAnimationFrame((time: number) => frames.push(time + 1))
+    expect(app.posted.filter(message => message.type === 'FRAME')).toHaveLength(1)
+    app.deliver({ type: 'FRAME_FIRE', payload: { time: 16 } })
+    expect(frames).toEqual([16, 17])
+  })
+
+  it('hands everything else to the runtime unchanged', () => {
+    const app = isolate()
+    app.deliver({ type: 'API_RESPONSE', payload: { requestId: '1', data: true } })
+    expect(app.heard).toContainEqual({ type: 'API_RESPONSE', payload: { requestId: '1', data: true } })
+  })
+})
+
+describe('the native app shell in a generated project', () => {
+  it('declares only the Health Connect permissions the app reads and writes', () => {
+    const permissions = healthConnectPermissions({ healthConnect: { read: ['sleep', 'workouts'], write: ['mindful'], background: true } })
+    expect(permissions).toContain('android.permission.health.READ_SLEEP')
+    expect(permissions).toContain('android.permission.health.READ_EXERCISE')
+    expect(permissions).toContain('android.permission.health.WRITE_MINDFULNESS')
+    expect(permissions).toContain('android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND')
+    expect(permissions).not.toContain('android.permission.health.WRITE_EXERCISE')
+    expect(permissions).not.toContain('android.permission.health.READ_STEPS')
+    // Without a list, the original set.
+    expect(healthConnectPermissions({})).toContain('android.permission.health.WRITE_EXERCISE')
+    expect(() => healthConnectPermissions({ healthConnect: { read: ['oxygen' as never] } })).toThrow(/Unknown Health Connect type/)
+    expect(renderAndroidPermissions({ appName: 'A', packageName: 'a.b', renderer: 'native', backgroundRefresh: { enabled: true } }))
+      .toContain('android.permission.RECEIVE_BOOT_COMPLETED')
+  })
+
+  it('writes the shell, its services and Health Connect for a native app', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'craft-android-shell-'))
+    try {
+      const services = join(root, 'google-services.json')
+      writeFileSync(services, JSON.stringify({ client: [{ client_info: { android_client_info: { package_name: 'dev.craft.shell' } } }] }))
+      const output = join(root, 'app')
+      await init({
+        name: 'Shell',
+        packageName: 'dev.craft.shell',
+        output,
+        runtimeDir: null,
+        config: {
+          renderer: 'native',
+          enableHealthConnect: true,
+          enablePushNotifications: true,
+          googleServicesFile: services,
+          healthConnect: { read: ['steps', 'mindful'], write: ['mindful'] },
+          nativeScreens: { '/m': 'Today', '/m/workout/:id': 'Workout' },
+          tabs: [{ id: '/m', title: 'Today', symbol: 'sun.max' }],
+          nativeApp: '__app',
+          backgroundRefresh: { enabled: true, minimumIntervalMinutes: 60 },
+        },
+      })
+      const java = join(output, 'app/src/main/java/dev/craft/shell')
+      for (const file of ['CraftNativeShell.kt', 'CraftNativeServices.kt', 'CraftNativeBackground.kt', 'CraftNativeHealth.kt', 'CraftNativeMessagingService.kt'])
+        expect(existsSync(join(java, file))).toBe(true)
+      expect(readFileSync(join(java, 'CraftNativeHealth.kt'), 'utf8')).toContain('HealthConnectClient')
+      expect(readFileSync(join(java, 'CraftNativeServices.kt'), 'utf8')).toContain('FirebaseMessaging.getInstance().token')
+      const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
+      expect(manifest).toContain('android.permission.health.WRITE_MINDFULNESS')
+      expect(manifest).not.toContain('android.permission.health.WRITE_EXERCISE')
+      expect(manifest).toContain('.CraftNativeMessagingService')
+      expect(manifest).toContain('android:authorities="dev.craft.shell.craftfiles"')
+      expect(manifest).toContain('android.permission.START_VIEW_PERMISSION_USAGE')
+      const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
+      expect(gradle).toContain('androidx.browser:browser')
+      expect(gradle).toContain('androidx.work:work-runtime-ktx')
+      // Release signing (the Play upload key) comes from the environment.
+      expect(gradle).toContain('System.getenv("CRAFT_ANDROID_KEYSTORE")')
+      expect(gradle).toContain('signingConfig = signingConfigs.getByName("release")')
+      const config = JSON.parse(readFileSync(join(output, 'app/src/main/assets/craft.config.json'), 'utf8'))
+      expect(config.nativeScreens['/m/workout/:id']).toBe('Workout')
+      expect(config.tabs[0].symbol).toBe('sun.max')
+
+      // The app's icons go in as an asset the shell draws.
+      const iconTable = join(root, 'icons.json')
+      writeFileSync(iconTable, JSON.stringify({ viewBox: 24, strokeWidth: 2, icons: { 'sun.max': '<circle cx="12" cy="12" r="4"/>' } }))
+      const bundlePath = join(root, 'screen.js')
+      writeFileSync(bundlePath, 'globalThis.__stxNativeRoute = "Today";')
+      await build({ output, nativeBundlePath: bundlePath, iconsPath: iconTable, compile: false, runtimeDir: null })
+      expect(JSON.parse(readFileSync(join(output, 'app/src/main/assets/craft-icons.json'), 'utf8')).icons['sun.max']).toContain('circle')
+
+      // Without Health Connect or push, the stub compiles in their place.
+      const plain = join(root, 'plain')
+      await init({ name: 'Plain', packageName: 'dev.craft.plain', output: plain, runtimeDir: null, config: { renderer: 'native' } })
+      const plainJava = join(plain, 'app/src/main/java/dev/craft/plain')
+      expect(readFileSync(join(plainJava, 'CraftNativeHealth.kt'), 'utf8')).toContain('CAPABILITY_DISABLED')
+      expect(existsSync(join(plainJava, 'CraftNativeMessagingService.kt'))).toBe(false)
+      expect(readFileSync(join(plainJava, 'CraftNativeServices.kt'), 'utf8')).toContain('Push notifications are disabled')
+    }
+    finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+})

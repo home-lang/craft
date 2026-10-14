@@ -66,6 +66,24 @@ export interface CraftAndroidConfig {
   enableGeolocation?: boolean
   enableBackgroundLocation?: boolean
   enableHealthConnect?: boolean
+  /**
+   * The Health Connect data the app reads and writes, by the shared type
+   * names (`steps`, `sleep`, `workouts`...). The manifest declares only
+   * these, as Play's health permissions review requires; without it, the
+   * original set (steps, heart rate, energy, distance, workouts).
+   */
+  healthConnect?: {
+    read?: HealthConnectType[]
+    write?: HealthConnectType[]
+    /** Read while the app is in the background (a WorkManager refresh): Android 15's READ_HEALTH_DATA_IN_BACKGROUND. */
+    background?: boolean
+    /** Read further back than the 30 days before the first grant: READ_HEALTH_DATA_HISTORY. */
+    history?: boolean
+  }
+  enableHealthConnectBackground?: boolean
+  enableHealthConnectHistory?: boolean
+  /** The app's privacy policy, which Health Connect links to from its permission screen. */
+  privacyPolicyURL?: string
   enableKeepAwake?: boolean
   enableDeepLinks?: boolean
   /** Reach the person's own devices on the local network over plain HTTP (a Mac companion). */
@@ -80,6 +98,68 @@ export interface CraftAndroidConfig {
   minSdk?: number
   compileSdk?: number
   targetSdk?: number
+  /**
+   * Native renderer: the app's paths and the screen drawing each
+   * (`/m/workout/:id` → `Workout`), its tabs, and the bundle route of the
+   * script that runs beside the screens. The same keys as the iOS builder.
+   */
+  nativeScreens?: Record<string, string>
+  tabs?: Array<{ id: string, title: string, symbol?: string }>
+  nativeApp?: string
+  /** Wake the app script every so often (`craftBackgroundRefresh`), through WorkManager. */
+  backgroundRefresh?: { enabled?: boolean, minimumIntervalMinutes?: number }
+}
+
+/** The shared health data types (the iOS builder's HealthKit names). */
+export type HealthConnectType = 'steps' | 'heartRate' | 'activeEnergy' | 'distance' | 'workouts' | 'restingHeartRate'
+  | 'heartRateVariability' | 'bodyMass' | 'sleep' | 'mindful' | 'dietaryEnergy' | 'dietaryProtein'
+  | 'dietaryCarbohydrates' | 'dietaryFat'
+
+/**
+ * The Health Connect permissions behind each type, for reading and for
+ * writing. CraftNativeHealth.kt asks for the same ones; a permission the
+ * manifest does not declare is refused without a prompt.
+ */
+export const HEALTH_CONNECT_PERMISSIONS: Record<HealthConnectType, { read: string[], write: string[] }> = {
+  steps: { read: ['READ_STEPS'], write: [] },
+  heartRate: { read: ['READ_HEART_RATE'], write: [] },
+  activeEnergy: { read: ['READ_ACTIVE_CALORIES_BURNED'], write: ['WRITE_ACTIVE_CALORIES_BURNED'] },
+  distance: { read: ['READ_DISTANCE'], write: ['WRITE_DISTANCE'] },
+  workouts: {
+    read: ['READ_EXERCISE', 'READ_HEART_RATE', 'READ_ACTIVE_CALORIES_BURNED', 'READ_DISTANCE'],
+    write: ['WRITE_EXERCISE', 'WRITE_ACTIVE_CALORIES_BURNED', 'WRITE_DISTANCE'],
+  },
+  restingHeartRate: { read: ['READ_RESTING_HEART_RATE'], write: [] },
+  heartRateVariability: { read: ['READ_HEART_RATE_VARIABILITY'], write: [] },
+  bodyMass: { read: ['READ_WEIGHT'], write: [] },
+  sleep: { read: ['READ_SLEEP'], write: [] },
+  mindful: { read: ['READ_MINDFULNESS'], write: ['WRITE_MINDFULNESS'] },
+  dietaryEnergy: { read: ['READ_NUTRITION'], write: ['WRITE_NUTRITION'] },
+  dietaryProtein: { read: ['READ_NUTRITION'], write: ['WRITE_NUTRITION'] },
+  dietaryCarbohydrates: { read: ['READ_NUTRITION'], write: ['WRITE_NUTRITION'] },
+  dietaryFat: { read: ['READ_NUTRITION'], write: ['WRITE_NUTRITION'] },
+}
+
+const DEFAULT_HEALTH_CONNECT = { read: ['steps', 'heartRate', 'activeEnergy', 'distance', 'workouts'], write: ['workouts'] } as const
+
+/** Every `android.permission.health.*` the app's Health Connect types need. */
+export function healthConnectPermissions(config: Pick<CraftAndroidConfig, 'healthConnect'>): string[] {
+  const read = config.healthConnect?.read ?? DEFAULT_HEALTH_CONNECT.read
+  const write = config.healthConnect?.write ?? (config.healthConnect ? [] : DEFAULT_HEALTH_CONNECT.write)
+  const permissions = new Set<string>()
+  for (const type of read) {
+    const known = HEALTH_CONNECT_PERMISSIONS[type as HealthConnectType]
+    if (!known) throw new Error(`Unknown Health Connect type: ${type}`)
+    known.read.forEach(permission => permissions.add(`android.permission.health.${permission}`))
+  }
+  for (const type of write) {
+    const known = HEALTH_CONNECT_PERMISSIONS[type as HealthConnectType]
+    if (!known) throw new Error(`Unknown Health Connect type: ${type}`)
+    known.write.forEach(permission => permissions.add(`android.permission.health.${permission}`))
+  }
+  if (config.healthConnect?.background) permissions.add('android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND')
+  if (config.healthConnect?.history) permissions.add('android.permission.health.READ_HEALTH_DATA_HISTORY')
+  return [...permissions]
 }
 
 export interface InitOptions {
@@ -100,9 +180,23 @@ export interface InitOptions {
 export interface BuildOptions {
   htmlPath?: string
   nativeBundlePath?: string
+  /**
+   * Native renderer: the app's icons as vectors (`{ viewBox, strokeWidth,
+   * icons: { name: svgBody } }`, keyed by Iconify name and SF Symbol), which
+   * `<Icon>`, the tab bar and the bar buttons draw. Without it they fall
+   * back to the glyphs Android's fonts have.
+   */
+  iconsPath?: string
   devServer?: string
   output: string
   release?: boolean
+  /**
+   * An Android App Bundle (`bundleRelease`, `.aab`), what Google Play takes,
+   * rather than an APK. Signed with CRAFT_ANDROID_KEYSTORE,
+   * CRAFT_ANDROID_KEYSTORE_PASSWORD, CRAFT_ANDROID_KEY_ALIAS and
+   * CRAFT_ANDROID_KEY_PASSWORD when they are set.
+   */
+  bundle?: boolean
   compile?: boolean
   /** Same meaning as `InitOptions.runtimeDir`; refreshes what init installed. */
   runtimeDir?: string | null
@@ -349,17 +443,88 @@ export function renderAndroidPermissions(config: CraftAndroidConfig): string {
   }
   if (config.enablePushNotifications) permissions.add('android.permission.POST_NOTIFICATIONS')
   if (config.enableKeepAwake) permissions.add('android.permission.WAKE_LOCK')
-  if (config.enableHealthConnect) {
-    permissions.add('android.permission.health.READ_STEPS')
-    permissions.add('android.permission.health.READ_HEART_RATE')
-    permissions.add('android.permission.health.READ_ACTIVE_CALORIES_BURNED')
-    permissions.add('android.permission.health.READ_DISTANCE')
-    permissions.add('android.permission.health.READ_EXERCISE')
-    permissions.add('android.permission.health.WRITE_EXERCISE')
-    permissions.add('android.permission.health.WRITE_ACTIVE_CALORIES_BURNED')
-    permissions.add('android.permission.health.WRITE_DISTANCE')
-  }
+  if (config.enableHealthConnect) healthConnectPermissions(config).forEach(permission => permissions.add(permission))
+  // A background refresh (WorkManager) after a restart.
+  if (config.renderer === 'native' && config.backgroundRefresh?.enabled) permissions.add('android.permission.RECEIVE_BOOT_COMPLETED')
   return [...permissions].map(permission => `    <uses-permission android:name="${permission}" />`).join('\n')
+}
+
+/**
+ * The native renderer's own sources: the app around the screens (routes,
+ * stores, bars), its services (dialogs, browser, share, push, Health
+ * Connect), background refresh, and Firebase messaging when push is on.
+ */
+function writeNativeShellSources(output: string, packagePath: string, packageName: string, config: CraftAndroidConfig): void {
+  const javaDir = join(output, 'app/src/main/java', packagePath)
+  const write = (template: string, file: string, replace: (source: string) => string = source => source): void => {
+    const source = readFileSync(join(TEMPLATES_DIR, template), 'utf-8').replace(/\{\{PACKAGE_NAME\}\}/g, packageName)
+    writeFileSync(join(javaDir, file), replace(source))
+  }
+  write('CraftNativeShell.kt.template', 'CraftNativeShell.kt')
+  write('CraftNativeBackground.kt.template', 'CraftNativeBackground.kt')
+  write(config.enableHealthConnect ? 'CraftNativeHealth.kt.template' : 'CraftNativeHealthStub.kt.template', 'CraftNativeHealth.kt')
+  write('CraftNativeServices.kt.template', 'CraftNativeServices.kt', source => source
+    .replace('{{NATIVE_PUSH_IMPORTS}}', config.enablePushNotifications ? 'import com.google.firebase.messaging.FirebaseMessaging' : '')
+    .replace('{{NATIVE_PUSH_REGISTER}}', config.enablePushNotifications
+      ? `        try {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                val token = if (task.isSuccessful) task.result else null
+                if (token.isNullOrBlank()) done(failure("PUSH_UNAVAILABLE", task.exception?.message ?: "Firebase Cloud Messaging gave no token"))
+                else {
+                    context.getSharedPreferences("craft-native-push", Context.MODE_PRIVATE).edit().putString("token", token).apply()
+                    done(success(token))
+                }
+            }
+        } catch (error: Exception) {
+            done(failure("PUSH_UNAVAILABLE", error.message ?: "Firebase Cloud Messaging is not configured"))
+        }`
+      : '        done(failure("CAPABILITY_DISABLED", "Push notifications are disabled"))'))
+  if (config.enablePushNotifications) write('CraftNativeMessagingService.kt.template', 'CraftNativeMessagingService.kt')
+  else rmSync(join(javaDir, 'CraftNativeMessagingService.kt'), { force: true })
+  // Files a screen shares (craft.files' copies, in the cache) go to other apps through this provider.
+  mkdirSync(join(output, 'app/src/main/res/xml'), { recursive: true })
+  writeFileSync(join(output, 'app/src/main/res/xml/craft_file_paths.xml'), `<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="craft-files" path="craft-files/" />
+    <files-path name="craft-media" path="craft-media/" />
+</paths>
+`)
+}
+
+/** What the native renderer adds to the manifest's application element. */
+function renderNativeShellManifest(config: CraftAndroidConfig): string {
+  const parts = [
+    '        <receiver android:name=".CraftNativeNotificationReceiver" android:exported="false" />',
+    `        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${config.packageName}.craftfiles"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/craft_file_paths" />
+        </provider>`,
+  ]
+  if (config.enablePushNotifications) {
+    parts.push(`        <service android:name=".CraftNativeMessagingService" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>`)
+  }
+  if (config.enableHealthConnect) {
+    // Android 14 and later open the app's privacy policy from Health
+    // Connect's permission screen through this alias.
+    parts.push(`        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity=".MainActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>`)
+  }
+  return parts.join('\n')
 }
 
 export function renderAndroidDeepLinks(config: CraftAndroidConfig): string {
@@ -490,6 +655,9 @@ export async function init(options: InitOptions): Promise<void> {
   if (config.enableBackgroundLocation) config.enableGeolocation = true
   if (config.enableHealthConnect) {
     config.compileSdk = Math.max(config.compileSdk ?? 36, 36)
+    config.enableHealthConnectBackground = Boolean(config.healthConnect?.background)
+    config.enableHealthConnectHistory = Boolean(config.healthConnect?.history)
+    healthConnectPermissions(config)
   }
   normalizeAndroidNetworkConfig(config)
   validateAndroidConfig(config)
@@ -569,6 +737,7 @@ export async function init(options: InitOptions): Promise<void> {
       join(output, 'app/src/main/java', packagePath, 'CraftNativeNotificationReceiver.kt'),
       notificationTemplate.replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName),
     )
+    writeNativeShellSources(output, packagePath, finalPackageName, config)
   }
 
   // Create CraftBridge.kt
@@ -648,7 +817,7 @@ export async function init(options: InitOptions): Promise<void> {
       ? '        <service android:name="com.craft.runtime.LocationRecordingService" android:exported="false" android:foregroundServiceType="location" android:stopWithTask="false" />'
       : '')
     .replace(/\{\{NATIVE_NOTIFICATION_RECEIVER\}\}/g, config.renderer === 'native'
-      ? '        <receiver android:name=".CraftNativeNotificationReceiver" android:exported="false" />'
+      ? renderNativeShellManifest(config)
       : '')
     .replace(/\{\{HEALTH_CONNECT_QUERIES\}\}/g, config.enableHealthConnect
       ? '    <queries>\n        <package android:name="com.google.android.apps.healthdata" />\n    </queries>'
@@ -656,11 +825,11 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{HEALTH_CONNECT_RATIONALE\}\}/g, config.enableHealthConnect
       ? `            <intent-filter>
                 <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
-            </intent-filter>
+            </intent-filter>${config.renderer === 'native' ? '' : `
             <intent-filter>
                 <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
                 <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
-            </intent-filter>`
+            </intent-filter>`}`
       : '')
 
   writeFileSync(join(output, 'app/src/main/AndroidManifest.xml'), manifest)
@@ -691,7 +860,10 @@ export async function init(options: InitOptions): Promise<void> {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")`
       : '')
     .replace(/\{\{JAVASCRIPT_ENGINE_DEPENDENCY\}\}/g, config.renderer === 'native'
-      ? '    implementation("androidx.javascriptengine:javascriptengine:1.1.0")'
+      ? `    implementation("androidx.javascriptengine:javascriptengine:1.1.0")
+    // The in-app browser (Custom Tabs) and background refresh (WorkManager).
+    implementation("androidx.browser:browser:1.8.0")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")`
       : '')
 
   writeFileSync(join(output, 'app/build.gradle.kts'), appGradle)
@@ -885,7 +1057,7 @@ zipStorePath=wrapper/dists
  * Build Android project
  */
 export async function build(options: BuildOptions): Promise<void> {
-  const { htmlPath, nativeBundlePath, devServer, output, release, compile = true } = options
+  const { htmlPath, nativeBundlePath, devServer, output, release, bundle, compile = true } = options
 
   console.log('\n📦 Building Craft Android project...')
 
@@ -902,6 +1074,11 @@ export async function build(options: BuildOptions): Promise<void> {
     if (htmlPath || devServer) throw new Error('A native Android screen cannot use --html-path or --dev-server.')
     const destination = join(output, 'app/src/main/assets/native-screen.js')
     if (nativeBundlePath && resolve(nativeBundlePath) !== resolve(destination)) cpSync(nativeBundlePath, destination)
+    const icons = join(output, 'app/src/main/assets/craft-icons.json')
+    if (options.iconsPath) {
+      requireRegularFile(options.iconsPath, 'Icon table')
+      if (resolve(options.iconsPath) !== resolve(icons)) cpSync(options.iconsPath, icons)
+    }
     if (!existsSync(destination)) {
       throw new Error('Native Android mode needs app/src/main/assets/native-screen.js. Compile a .stx screen with `stx native compile` first.')
     }
@@ -959,15 +1136,20 @@ export async function build(options: BuildOptions): Promise<void> {
   }
 
   // Build the project
-  const buildType = release ? 'assembleRelease' : 'assembleDebug'
-  console.log(`   Building ${release ? 'release' : 'debug'} APK...`)
+  const variant = release ? 'Release' : 'Debug'
+  const buildType = `${bundle ? 'bundle' : 'assemble'}${variant}`
+  console.log(`   Building ${release ? 'release' : 'debug'} ${bundle ? 'app bundle' : 'APK'}...`)
+  if (release && !process.env.CRAFT_ANDROID_KEYSTORE)
+    console.log('   CRAFT_ANDROID_KEYSTORE is not set: the release build is unsigned.')
 
   try {
     await $`cd ${output} && ./gradlew ${buildType}`
-    const apkPath = release
-      ? 'app/build/outputs/apk/release/app-release.apk'
-      : 'app/build/outputs/apk/debug/app-debug.apk'
-    console.log(`✅ APK built: ${apkPath}`)
+    const artifact = bundle
+      ? `app/build/outputs/bundle/${variant.toLowerCase()}/app-${variant.toLowerCase()}.aab`
+      : release
+        ? 'app/build/outputs/apk/release/app-release.apk'
+        : 'app/build/outputs/apk/debug/app-debug.apk'
+    console.log(`✅ ${bundle ? 'App bundle' : 'APK'} built: ${artifact}`)
   }
 catch (error) {
     console.error('Build failed. Open in Android Studio for details.')

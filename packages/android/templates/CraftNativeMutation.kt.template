@@ -260,8 +260,20 @@ class CraftNativeMutationDocument {
         return result
     }
 
-    private fun acceptsChildren(type: String): Boolean =
-        type == "View" || type == "SafeAreaView" || type == "ScrollView"
+    /**
+     * Every type the renderer draws children of (MainActivity's makeView):
+     * an insert into a pressable row, a modal or a drawing's group was
+     * refused as INVALID_PARENT, and the whole screen was drawn again.
+     */
+    private fun acceptsChildren(type: String): Boolean = type in CONTAINER_TYPES
+
+    private companion object {
+        val CONTAINER_TYPES = setOf(
+            "View", "SafeAreaView", "ScrollView", "KeyboardAvoidingView", "Modal", "Pressable",
+            "TouchableOpacity", "TouchableHighlight", "ImageBackground", "FlatList", "SectionList",
+            "Fragment", "Svg", "G",
+        )
+    }
 
     private fun descendants(id: String, nodes: Map<String, Node>): Set<String> {
         val result = linkedSetOf<String>()

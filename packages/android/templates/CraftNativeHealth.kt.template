@@ -1,0 +1,1046 @@
+package {{PACKAGE_NAME}}
+
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.HealthConnectFeatures
+import androidx.health.connect.client.PermissionController
+import androidx.health.connect.client.aggregate.AggregateMetric
+import androidx.health.connect.client.aggregate.AggregationResult
+import androidx.health.connect.client.feature.ExperimentalMindfulnessSessionApi
+import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.DistanceRecord
+import androidx.health.connect.client.records.ElevationGainedRecord
+import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
+import androidx.health.connect.client.records.MindfulnessSessionRecord
+import androidx.health.connect.client.records.NutritionRecord
+import androidx.health.connect.client.records.Record
+import androidx.health.connect.client.records.RestingHeartRateRecord
+import androidx.health.connect.client.records.SleepSessionRecord
+import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.WeightRecord
+import androidx.health.connect.client.records.metadata.DataOrigin
+import androidx.health.connect.client.records.metadata.Device
+import androidx.health.connect.client.records.metadata.Metadata
+import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
+import androidx.health.connect.client.request.AggregateRequest
+import androidx.health.connect.client.request.ReadRecordsRequest
+import androidx.health.connect.client.time.TimeRangeFilter
+import androidx.health.connect.client.units.Energy
+import androidx.health.connect.client.units.Length
+import androidx.health.connect.client.units.Mass
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.Period
+import java.time.ZoneId
+import java.util.TreeMap
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.roundToLong
+import kotlin.reflect.KClass
+
+/**
+ * Health Connect for the native renderer: the Android counterpart of
+ * CraftHealth.swift, answering the same `Health` methods with the same
+ * arguments and the same result shapes, so one page's JavaScript reads and
+ * writes Health Connect exactly as it reads and writes Apple Health.
+ *
+ * Where the two stores differ, the answer keeps Apple's shape and this file
+ * says what it stands for:
+ * - heart rate variability is RMSSD here (Health Connect has no SDNN), still
+ *   in milliseconds;
+ * - Health Connect tells an app which permissions it holds, so asking answers
+ *   whether reading was allowed, where HealthKit only says the sheet closed;
+ * - a record's source is the package that wrote it, named by its app label,
+ *   so this app's own writes come back under its own name (which a page uses
+ *   to skip them on the way back in).
+ *
+ * Every answer is delivered on the main thread, exactly once. The work runs on
+ * Dispatchers.IO in a scope that `close()` cancels.
+ */
+@OptIn(ExperimentalMindfulnessSessionApi::class)
+internal class CraftNativeHealth(
+    private val context: Context,
+    /** The foreground activity, or null in a background worker (no permission prompt possible). */
+    private val activityProvider: () -> Activity?,
+    /** Ask for READ_HEALTH_DATA_IN_BACKGROUND / READ_HEALTH_DATA_HISTORY with the read types when the feature is available (the manifest declares them only when these are true). */
+    private val backgroundReads: Boolean,
+    private val historyReads: Boolean,
+) {
+    /** A read or write that did not happen: the bridge's error code and the message a page sees. */
+    private class HealthFailure(val code: String, message: String) : Exception(message)
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val closed = AtomicBoolean(false)
+    private val permissionContract = PermissionController.createRequestPermissionResultContract()
+
+    /** The permission sheet on screen, if any: completed by onActivityResult. One at a time. */
+    private val pendingPermission = AtomicReference<CompletableDeferred<Unit>?>(null)
+
+    /** App labels by package, so a read of a thousand records asks the package manager once per app. */
+    private val labels = ConcurrentHashMap<String, String>()
+
+    @Volatile
+    private var cachedClient: HealthConnectClient? = null
+
+    private val ownOrigin = DataOrigin(context.packageName)
+
+    /** A native screen's call (`Health` in CraftNativeActions), by method and arguments as the bridge sends them. */
+    fun perform(method: String, args: JSONArray, completion: (CraftNativeCapabilityResult) -> Unit) {
+        val options = { index: Int -> args.optJSONObject(index) ?: JSONObject() }
+        when (method) {
+            "requestAuthorization" -> answer(completion) {
+                val requested = args.optJSONArray(0) ?: throw invalid("requestAuthorization needs a list of types")
+                val types = (0 until requested.length()).map { index ->
+                    requested.opt(index) as? String ?: throw invalid("requestAuthorization types must be strings")
+                }
+                // `write`: false (read only), true (the types' own writes),
+                // or a list of the types to write. Health Connect shows
+                // every permission asked for, and Play reviews each one, so
+                // an app asks to write only what it writes, in one sheet.
+                val write = options(1).opt("write")
+                val writeTypes = (write as? JSONArray)?.let { list -> (0 until list.length()).mapNotNull { list.opt(it) as? String }.toSet() }
+                val readOnly = write == false || options(1).optBoolean("readOnly", false)
+                requestAuthorization(types, readOnly, writeTypes)
+            }
+            "availability" -> answer(completion) { availability() }
+            "grantedTypes" -> answer(completion) { grantedTypes() }
+            "openSettings" -> answer(completion) { openSettings() }
+            "getData" -> answer(completion) {
+                val type = args.opt(0) as? String ?: throw invalid("getData needs a type")
+                getData(type, options(1))
+            }
+            "saveData" -> answer(completion) {
+                val type = args.opt(0) as? String
+                val value = (args.opt(1) as? Number)?.toDouble()
+                if (type == null || value == null) throw invalid("saveData needs a type and numeric value")
+                saveData(type, value, options(2))
+            }
+            "saveWorkout" -> answer(completion) { saveWorkout(options(0)) }
+            "getWorkouts" -> answer(completion) { getWorkouts(options(0)) }
+            "getDailyStatistics" -> answer(completion) {
+                val type = args.opt(0) as? String ?: throw invalid("getDailyStatistics needs a type")
+                getDailyStatistics(type, options(1))
+            }
+            "getHeartRateSamples" -> answer(completion) { getHeartRateSamples(options(0)) }
+            "getSleepIntervals" -> answer(completion) { getSleepIntervals(options(0)) }
+            "saveMindfulSession" -> answer(completion) { saveMindfulSession(options(0)) }
+            "getMindfulSessions" -> answer(completion) { getMindfulSessions(options(0)) }
+            else -> deliver(completion, CraftNativeCapabilityResult(code = "UNKNOWN_ACTION", message = "Unsupported Health method: $method"))
+        }
+    }
+
+    /** Activity results; returns true when the request code was this class's. */
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode != PERMISSION_REQUEST_CODE) return false
+        // What was granted is read back from Health Connect itself, which
+        // also counts permissions granted before this sheet opened.
+        pendingPermission.getAndSet(null)?.complete(Unit)
+        return true
+    }
+
+    fun close() {
+        closed.set(true)
+        pendingPermission.getAndSet(null)?.cancel()
+        scope.cancel()
+    }
+
+    // MARK: - Answering
+
+    /**
+     * Runs one call on the IO scope and hands its answer to `completion` on
+     * the main thread, once: the value it returns, or the failure it threw.
+     * A call cut short by `close()` still answers, with a failure.
+     */
+    private fun answer(completion: (CraftNativeCapabilityResult) -> Unit, block: suspend () -> Any) {
+        val answered = AtomicBoolean(false)
+        val finish = { result: CraftNativeCapabilityResult ->
+            if (answered.compareAndSet(false, true)) deliver(completion, result)
+        }
+        if (closed.get()) return finish(closedResult())
+        val job = scope.launch {
+            val result = try {
+                CraftNativeCapabilityResult(data = block())
+            } catch (error: CancellationException) {
+                finish(closedResult())
+                throw error
+            } catch (error: Throwable) {
+                failure(error)
+            }
+            finish(result)
+        }
+        // A job cancelled before it started never runs its body.
+        job.invokeOnCompletion { cause -> if (cause != null) finish(closedResult()) }
+    }
+
+    private fun deliver(completion: (CraftNativeCapabilityResult) -> Unit, result: CraftNativeCapabilityResult) {
+        if (Looper.myLooper() == Looper.getMainLooper()) completion(result) else mainHandler.post { completion(result) }
+    }
+
+    private fun closedResult() = CraftNativeCapabilityResult(code = "CRAFT_ERROR", message = "Health Connect was closed before it answered")
+
+    private fun failure(error: Throwable): CraftNativeCapabilityResult = when (error) {
+        is HealthFailure -> CraftNativeCapabilityResult(code = error.code, message = error.message)
+        // Health Connect refuses a read (or write) it was not allowed, and a
+        // read from the background without the background permission.
+        is SecurityException -> CraftNativeCapabilityResult(code = "PERMISSION_DENIED", message = error.message ?: "Health Connect permission was not granted")
+        else -> CraftNativeCapabilityResult(code = "CRAFT_ERROR", message = error.message ?: error.javaClass.simpleName)
+    }
+
+    private fun invalid(message: String) = HealthFailure("INVALID_ARGUMENT", message)
+
+    // MARK: - Health Connect itself
+
+    private fun sdkStatus(): Int = HealthConnectClient.getSdkStatus(context, PROVIDER_PACKAGE)
+
+    /** The client, or the failure that says why there is none: not on this device, or the app needs installing or updating. */
+    private fun client(): HealthConnectClient {
+        cachedClient?.let { return it }
+        when (sdkStatus()) {
+            HealthConnectClient.SDK_AVAILABLE -> Unit
+            HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> throw HealthFailure(
+                "HEALTH_CONNECT_UPDATE_REQUIRED",
+                "Health Connect needs to be installed or updated from Google Play",
+            )
+            else -> throw HealthFailure("HEALTH_CONNECT_UNAVAILABLE", "Health Connect is not available on this device")
+        }
+        return HealthConnectClient.getOrCreate(context, PROVIDER_PACKAGE).also { cachedClient = it }
+    }
+
+    private fun featureAvailable(client: HealthConnectClient, feature: Int): Boolean = try {
+        client.features.getFeatureStatus(feature) == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+    } catch (error: Exception) {
+        false
+    }
+
+    /** Mindfulness sessions arrived in a later Health Connect; an older one has no such record. */
+    private fun mindfulnessAvailable(client: HealthConnectClient) = featureAvailable(client, HealthConnectFeatures.FEATURE_MINDFULNESS_SESSION)
+
+    // MARK: - Permissions
+
+    private suspend fun requestAuthorization(types: List<String>, readOnly: Boolean, writeTypes: Set<String>? = null): Any {
+        if (types.isEmpty()) throw invalid("requestAuthorization needs at least one type")
+        types.firstOrNull { it !in TYPES }?.let { throw invalid("Unknown health data type: $it") }
+        writeTypes?.firstOrNull { it !in TYPES }?.let { throw invalid("Unknown health data type: $it") }
+        val client = client()
+        val mindfulness = mindfulnessAvailable(client)
+
+        val reads = mutableSetOf<String>()
+        val writes = mutableSetOf<String>()
+        for (type in types) {
+            // A Health Connect without mindfulness sessions cannot grant
+            // them; asking would only fail the whole sheet.
+            if (type == "mindful" && !mindfulness) continue
+            reads += readPermissions(type)
+            // A page that only reads asks only to read.
+            if (!readOnly && writeTypes == null) writes += writePermissions(type)
+        }
+        for (type in writeTypes.orEmpty()) {
+            if (type == "mindful" && !mindfulness) continue
+            writes += writePermissions(type)
+        }
+        if (reads.isEmpty() && writes.isEmpty()) return false
+
+        val requested = reads + writes + buildSet {
+            // Without these Health Connect answers reads only while the app
+            // is in front, and only for the 30 days before the first grant.
+            if (reads.isNotEmpty() && backgroundReads && featureAvailable(client, HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_IN_BACKGROUND)) {
+                add(HealthPermission.PERMISSION_READ_HEALTH_DATA_IN_BACKGROUND)
+            }
+            if (reads.isNotEmpty() && historyReads && featureAvailable(client, HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_HISTORY)) {
+                add(HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY)
+            }
+        }
+
+        if (client.permissionController.getGrantedPermissions().containsAll(requested)) return true
+
+        val activity = activityProvider()
+            ?: throw HealthFailure("NEEDS_ACTIVITY", "Health Connect permissions can only be asked for while the app is open")
+        val answered = CompletableDeferred<Unit>()
+        if (!pendingPermission.compareAndSet(null, answered)) {
+            throw HealthFailure("BUSY", "A Health Connect permission request is already open")
+        }
+        try {
+            withContext(Dispatchers.Main) {
+                // From Android 14 Health Connect's permissions are the
+                // platform's own, and the contract's intent is the runtime
+                // permission request: only an activity's result registry can
+                // launch it (startActivityForResult finds no activity for it).
+                val registry = (activity as? androidx.activity.ComponentActivity)?.activityResultRegistry
+                if (registry != null) {
+                    var launcher: androidx.activity.result.ActivityResultLauncher<Set<String>>? = null
+                    launcher = registry.register("craft-health-${System.nanoTime()}", permissionContract) {
+                        launcher?.unregister()
+                        pendingPermission.getAndSet(null)?.complete(Unit)
+                    }
+                    launcher.launch(requested)
+                } else {
+                    val intent = permissionContract.createIntent(activity, requested)
+                    activity.startActivityForResult(intent, PERMISSION_REQUEST_CODE)
+                }
+            }
+            answered.await()
+        } finally {
+            pendingPermission.compareAndSet(answered, null)
+        }
+
+        // Unlike HealthKit, Health Connect says what was allowed: reading
+        // anything at all counts as connected.
+        val granted = client.permissionController.getGrantedPermissions()
+        return reads.any { it in granted }
+    }
+
+    private fun availability(): Any = when (sdkStatus()) {
+        HealthConnectClient.SDK_AVAILABLE -> "available"
+        HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> "updateRequired"
+        else -> "unavailable"
+    }
+
+    /** The types whose every read permission is granted, in the order of TYPES. */
+    private suspend fun grantedTypes(): Any {
+        val granted = client().permissionController.getGrantedPermissions()
+        return JSONArray(TYPES.filter { type -> granted.containsAll(readPermissions(type)) })
+    }
+
+    /**
+     * Health Connect's own screen for this app's permissions, or Google Play's
+     * page for Health Connect when it needs installing or updating. Answers
+     * whether a screen opened.
+     */
+    private suspend fun openSettings(): Any {
+        val candidates = mutableListOf<Intent>()
+        if (sdkStatus() == HealthConnectClient.SDK_AVAILABLE) {
+            candidates += HealthConnectClient.getHealthConnectManageDataIntent(context, PROVIDER_PACKAGE)
+            candidates += Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS)
+        } else {
+            candidates += Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$PROVIDER_PACKAGE&url=healthconnect%3A%2F%2Fonboarding"))
+                .setPackage("com.android.vending")
+            candidates += Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$PROVIDER_PACKAGE"))
+        }
+        return withContext(Dispatchers.Main) {
+            val activity = activityProvider()
+            candidates.any { intent ->
+                try {
+                    if (activity != null) {
+                        activity.startActivity(intent)
+                    } else {
+                        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                    true
+                } catch (error: ActivityNotFoundException) {
+                    false
+                } catch (error: SecurityException) {
+                    false
+                }
+            }
+        }
+    }
+
+    // MARK: - Quantities
+
+    /** Sum, average or latest of one type between two instants, as `{ value, unit }`; 0 when there is nothing. */
+    private suspend fun getData(type: String, options: JSONObject): Any {
+        val unit = unitOf(type) ?: throw invalid("Unknown health data type: $type")
+        val end = options.instant("endDate") ?: Instant.now()
+        val start = options.instant("startDate") ?: end.minus(Duration.ofDays(7))
+        val filter = range(start, end)
+        val client = client()
+        val value = when (type) {
+            "heartRateVariability" -> readAll(client, HeartRateVariabilityRmssdRecord::class, filter)
+                .map { it.heartRateVariabilityMillis }
+                .averageOrNull() ?: 0.0
+            "bodyMass" -> client.readRecords(
+                ReadRecordsRequest(recordType = WeightRecord::class, timeRangeFilter = filter, ascendingOrder = false, pageSize = 1),
+            ).records.firstOrNull()?.weight?.inKilograms ?: 0.0
+            else -> {
+                val metric = aggregateMetric(type) ?: throw invalid("Unknown health data type: $type")
+                aggregateValue(client.aggregate(AggregateRequest(setOf(metric), filter)), type) ?: 0.0
+            }
+        }
+        return JSONObject().put("value", value).put("unit", unit)
+    }
+
+    /**
+     * Saves one food-log entry (one nutrient of a NutritionRecord) or one
+     * weight. Dates are epoch milliseconds; an omitted range records now.
+     */
+    private suspend fun saveData(type: String, value: Double, options: JSONObject): Any {
+        if (!value.isFinite() || value < 0) throw invalid("saveData needs a finite, non-negative value")
+        if (type != "bodyMass" && type !in DIETARY_TYPES) throw invalid("saveData supports bodyMass and dietary types, not $type")
+        val start = options.instant("startDate") ?: Instant.now()
+        val end = options.instant("endDate") ?: start
+        if (end.isBefore(start)) throw invalid("saveData needs a valid date range")
+        val zone = ZoneId.systemDefault().rules
+
+        val record: Record = buildRecord {
+            if (type == "bodyMass") {
+                WeightRecord(
+                    time = start,
+                    zoneOffset = zone.getOffset(start),
+                    weight = Mass.kilograms(value),
+                    metadata = Metadata.manualEntry(),
+                )
+            } else {
+                // A nutrition record spans time; an instant entry gets a second.
+                val until = if (end.isAfter(start)) end else start.plusSeconds(1)
+                NutritionRecord(
+                    startTime = start,
+                    startZoneOffset = zone.getOffset(start),
+                    endTime = until,
+                    endZoneOffset = zone.getOffset(until),
+                    metadata = Metadata.manualEntry(),
+                    energy = if (type == "dietaryEnergy") Energy.kilocalories(value) else null,
+                    protein = if (type == "dietaryProtein") Mass.grams(value) else null,
+                    totalCarbohydrate = if (type == "dietaryCarbohydrates") Mass.grams(value) else null,
+                    totalFat = if (type == "dietaryFat") Mass.grams(value) else null,
+                )
+            }
+        }
+        val response = client().insertRecords(listOf(record))
+        return JSONObject().put("id", response.recordIdsList.firstOrNull() ?: "")
+    }
+
+    // MARK: - Workouts
+
+    /**
+     * Saves a finished session as an exercise session, with its distance and
+     * active energy as their own records. Each carries the activity's id as
+     * its client record id, so saving the same activity again replaces it
+     * instead of adding a second.
+     */
+    private suspend fun saveWorkout(body: JSONObject): Any {
+        val activityId = body.opt("activityId") as? String
+        val type = body.opt("type") as? String
+        val start = body.instant("startDate")
+        val end = body.instant("endDate")
+        if (activityId.isNullOrEmpty() || type == null || start == null || end == null || !end.isAfter(start)) {
+            throw invalid("A valid activityId, type, startDate, and endDate are required")
+        }
+        val exerciseType = EXERCISE_TYPES[type] ?: throw invalid("Unsupported workout type: $type")
+        val zone = ZoneId.systemDefault().rules
+        val startOffset = zone.getOffset(start)
+        val endOffset = zone.getOffset(end)
+        // A later save of the same activity wins over an earlier one.
+        val version = System.currentTimeMillis()
+        val metadata = { suffix: String -> Metadata.activelyRecorded(phone(), clientRecordId = activityId + suffix, clientRecordVersion = version) }
+        val title = (body.opt("title") as? String)?.takeIf { it.isNotBlank() }
+
+        val records = buildRecord {
+            buildList<Record> {
+                add(ExerciseSessionRecord(
+                    startTime = start,
+                    startZoneOffset = startOffset,
+                    endTime = end,
+                    endZoneOffset = endOffset,
+                    metadata = metadata(""),
+                    exerciseType = exerciseType,
+                    title = title,
+                ))
+                body.positive("distanceMeters")?.let { meters ->
+                    add(DistanceRecord(start, startOffset, end, endOffset, Length.meters(meters), metadata("-distance")))
+                }
+                body.positive("activeEnergyCalories")?.let { kcal ->
+                    add(ActiveCaloriesBurnedRecord(start, startOffset, end, endOffset, Energy.kilocalories(kcal), metadata("-energy")))
+                }
+            }
+        }
+        val response = client().insertRecords(records)
+        return JSONObject().put("id", response.recordIdsList.firstOrNull() ?: activityId)
+    }
+
+    /**
+     * Exercise sessions in Health Connect, from every app that writes there,
+     * newest first, with the numbers a training log needs. Distance, energy,
+     * heart rate and climb come from the records the same app wrote over the
+     * session's span; a number this app may not read is left out.
+     */
+    private suspend fun getWorkouts(options: JSONObject): Any {
+        val end = options.instant("endDate") ?: Instant.now()
+        val start = options.instant("startDate") ?: end.minus(Duration.ofDays(30))
+        val cap = (options.int("limit") ?: 200).coerceIn(1, 1000)
+        val client = client()
+        val sessions = readAll(client, ExerciseSessionRecord::class, range(start, end), ascending = false, cap = cap)
+
+        val granted = client.permissionController.getGrantedPermissions()
+        fun may(type: KClass<out Record>) = HealthPermission.getReadPermission(type) in granted
+
+        // A workout's numbers are the ones the app that recorded it wrote over
+        // its span (the watch's distance, energy and heart rate), read as
+        // records and summed here. Health Connect's aggregates would leave out
+        // an app that is not on its data-priority list, and a workout's own
+        // numbers are not a question of priority.
+        val oldest = sessions.minOfOrNull { it.startTime }
+        val newest = sessions.maxOfOrNull { it.endTime }
+        val span = if (oldest != null && newest != null && oldest.isBefore(newest)) TimeRangeFilter.between(oldest, newest) else null
+        val origins = sessions.map { DataOrigin(it.metadata.dataOrigin.packageName) }.toSet()
+        suspend fun <T : Record> numbers(type: KClass<T>): List<T> = if (span == null || !may(type)) emptyList() else try {
+            readAll(client, type, span, origins = origins)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            // One kind of number failing (a revoked grant) leaves workouts without it, not the read.
+            android.util.Log.w("CraftNativeHealth", "Workout numbers could not be read", error)
+            emptyList()
+        }
+        val distances = numbers(DistanceRecord::class)
+        val energies = numbers(ActiveCaloriesBurnedRecord::class)
+        val beats = numbers(HeartRateRecord::class)
+        val climbs = numbers(ElevationGainedRecord::class)
+
+        val rows = JSONArray()
+        for (session in sessions) {
+            val origin = session.metadata.dataOrigin.packageName
+            val item = JSONObject()
+                .put("id", session.metadata.id)
+                .put("type", workoutTypeName(session.exerciseType))
+                .put("startDate", session.startTime.ms())
+                .put("endDate", session.endTime.ms())
+                .put("durationSeconds", Duration.between(session.startTime, session.endTime).toMillis() / 1000.0)
+                .put("sourceName", sourceName(origin))
+                .put("sourceBundleId", origin)
+                .put("indoor", session.exerciseType in INDOOR_EXERCISE_TYPES)
+            if (session.endTime.isAfter(session.startTime)) {
+                // The share of each interval record inside the session.
+                fun share(start: Instant, end: Instant): Double {
+                    val from = maxOf(start, session.startTime)
+                    val to = minOf(end, session.endTime)
+                    if (!to.isAfter(from)) return 0.0
+                    val whole = Duration.between(start, end).toMillis()
+                    return if (whole <= 0) 1.0 else Duration.between(from, to).toMillis().toDouble() / whole
+                }
+                val mine = { record: Record -> record.metadata.dataOrigin.packageName == origin }
+                distances.filter(mine).sumOf { it.distance.inMeters * share(it.startTime, it.endTime) }
+                    .takeIf { it > 0 }?.let { item.put("distanceMeters", it) }
+                energies.filter(mine).sumOf { it.energy.inKilocalories * share(it.startTime, it.endTime) }
+                    .takeIf { it > 0 }?.let { item.put("activeEnergyCalories", it) }
+                climbs.filter(mine).sumOf { it.elevation.inMeters * share(it.startTime, it.endTime) }
+                    .takeIf { it > 0 }?.let { item.put("elevationGainMeters", it) }
+                val bpm = beats.filter(mine).flatMap { record ->
+                    record.samples.filter { !it.time.isBefore(session.startTime) && !it.time.isAfter(session.endTime) }
+                }.map { it.beatsPerMinute }
+                if (bpm.isNotEmpty()) {
+                    item.put("averageHeartRate", bpm.average())
+                    item.put("maxHeartRate", bpm.max().toDouble())
+                }
+            }
+            rows.put(item)
+        }
+        return rows
+    }
+
+    // MARK: - Daily values
+
+    /**
+     * One value per local day that has data: a sum for steps, energy,
+     * distance and food, an average for heart rate, resting heart rate and
+     * HRV, the latest weight, and hours asleep for sleep (counted on the day
+     * the night ended).
+     */
+    private suspend fun getDailyStatistics(type: String, options: JSONObject): Any {
+        if (type != "sleep" && unitOf(type) == null) throw invalid("Unknown health data type: $type")
+        val zone = ZoneId.systemDefault()
+        val end = options.instant("endDate") ?: Instant.now()
+        val firstDay = (options.instant("startDate") ?: end.minus(Duration.ofDays(30))).atZone(zone).toLocalDate()
+        val start = firstDay.atStartOfDay(zone).toInstant()
+        if (!start.isBefore(end)) return JSONArray()
+        val client = client()
+
+        return when (type) {
+            "sleep" -> dailySleep(client, start, end, firstDay, zone)
+            "heartRateVariability" -> {
+                val byDay = TreeMap<LocalDate, MutableList<Double>>()
+                for (record in readAll(client, HeartRateVariabilityRmssdRecord::class, range(start, end))) {
+                    byDay.getOrPut(record.time.atZone(zone).toLocalDate()) { mutableListOf() } += record.heartRateVariabilityMillis
+                }
+                JSONArray(byDay.map { (day, values) -> dayRow(day, values.average(), "ms") })
+            }
+            "bodyMass" -> {
+                val byDay = TreeMap<LocalDate, WeightRecord>()
+                for (record in readAll(client, WeightRecord::class, range(start, end))) {
+                    val day = record.time.atZone(zone).toLocalDate()
+                    val kept = byDay[day]
+                    if (kept == null || !record.time.isBefore(kept.time)) byDay[day] = record
+                }
+                JSONArray(byDay.map { (day, record) -> dayRow(day, record.weight.inKilograms, "kg") })
+            }
+            else -> {
+                val metric = aggregateMetric(type) ?: throw invalid("Unknown health data type: $type")
+                val unit = unitOf(type) ?: throw invalid("Unknown health data type: $type")
+                val groups = client.aggregateGroupByPeriod(
+                    AggregateGroupByPeriodRequest(
+                        metrics = setOf(metric),
+                        timeRangeFilter = TimeRangeFilter.between(LocalDateTime.ofInstant(start, zone), LocalDateTime.ofInstant(end, zone)),
+                        timeRangeSlicer = Period.ofDays(1),
+                    ),
+                )
+                JSONArray(
+                    groups.sortedBy { it.startTime }.mapNotNull { group ->
+                        aggregateValue(group.result, type)?.let { dayRow(group.startTime.toLocalDate(), it, unit) }
+                    },
+                )
+            }
+        }
+    }
+
+    /**
+     * Hours asleep per local day, from the evening before the first day so its
+     * night counts. Awake, out of bed and awake in bed are not sleep; every
+     * other stage is. A session the source did not stage counts whole.
+     */
+    private suspend fun dailySleep(client: HealthConnectClient, start: Instant, end: Instant, firstDay: LocalDate, zone: ZoneId): Any {
+        val secondsByDay = TreeMap<LocalDate, Double>()
+        for (session in readAll(client, SleepSessionRecord::class, range(start.minus(Duration.ofHours(12)), end))) {
+            val seconds = asleepSeconds(session)
+            val day = session.endTime.atZone(zone).toLocalDate()
+            if (seconds <= 0 || day.isBefore(firstDay)) continue
+            secondsByDay[day] = (secondsByDay[day] ?: 0.0) + seconds
+        }
+        return JSONArray(secondsByDay.map { (day, seconds) -> dayRow(day, (seconds / 3600 * 100).roundToLong() / 100.0, "hr") })
+    }
+
+    private fun asleepSeconds(session: SleepSessionRecord): Double {
+        if (session.stages.isEmpty()) return Duration.between(session.startTime, session.endTime).toMillis() / 1000.0
+        return session.stages
+            .filter { it.stage !in AWAKE_STAGES }
+            .sumOf { Duration.between(it.startTime, it.endTime).toMillis() / 1000.0 }
+    }
+
+    private fun dayRow(day: LocalDate, value: Double, unit: String) = JSONObject()
+        .put("date", day.toString())
+        .put("value", value)
+        .put("unit", unit)
+
+    // MARK: - Heart rate and sleep intervals
+
+    /**
+     * Every heart-rate reading between two instants, oldest first: one row
+     * per reading in a record (Health Connect stores a watch's readings as a
+     * series), with the app and device that wrote it.
+     */
+    private suspend fun getHeartRateSamples(options: JSONObject): Any {
+        val end = options.instant("endDate") ?: Instant.now()
+        val start = options.instant("startDate") ?: end.minus(Duration.ofDays(1))
+        val cap = (options.int("limit") ?: 10_000).coerceIn(1, 50_000)
+        val records = readAll(client(), HeartRateRecord::class, range(start, end))
+
+        // A record that overlaps the range can hold readings outside it, and
+        // two apps' records can interleave, so the readings are sorted whole.
+        val readings = records
+            .flatMap { record -> record.samples.filter { !it.time.isBefore(start) && it.time.isBefore(end) }.map { record to it } }
+            .sortedBy { it.second.time }
+            .take(cap)
+
+        val rows = JSONArray()
+        for ((record, sample) in readings) {
+            val at = sample.time.ms()
+            val item = JSONObject()
+                .put("bpm", sample.beatsPerMinute.toDouble())
+                .put("startDate", at)
+                .put("endDate", at)
+                .put("sourceName", sourceName(record.metadata.dataOrigin.packageName))
+            putDevice(item, record.metadata.device, withModel = true)
+            rows.put(item)
+        }
+        return rows
+    }
+
+    /**
+     * Sleep between two instants, oldest first, as the sources wrote it: each
+     * stage with its name and whether it counts as asleep. A session with no
+     * stages is one asleep stretch.
+     */
+    private suspend fun getSleepIntervals(options: JSONObject): Any {
+        val end = options.instant("endDate") ?: Instant.now()
+        val start = options.instant("startDate") ?: end.minus(Duration.ofDays(1))
+        val sessions = readAll(client(), SleepSessionRecord::class, range(start, end))
+
+        val rows = mutableListOf<JSONObject>()
+        for (session in sessions) {
+            val source = sourceName(session.metadata.dataOrigin.packageName)
+            val row = { from: Instant, until: Instant, stage: String, asleep: Boolean ->
+                JSONObject()
+                    .put("startDate", from.ms())
+                    .put("endDate", until.ms())
+                    .put("stage", stage)
+                    .put("asleep", asleep)
+                    .put("sourceName", source)
+                    .also { putDevice(it, session.metadata.device, withModel = false) }
+            }
+            if (session.stages.isEmpty()) {
+                rows += row(session.startTime, session.endTime, "asleep", true)
+            } else {
+                for (stage in session.stages) {
+                    val awake = stage.stage in AWAKE_STAGES
+                    rows += row(stage.startTime, stage.endTime, sleepStageName(stage.stage), !awake)
+                }
+            }
+        }
+        return JSONArray(rows.sortedBy { it.getDouble("startDate") })
+    }
+
+    // MARK: - Mindful sessions
+
+    /**
+     * Saves a mindfulness session: a meditation or breathing session that ran
+     * from `startDate` to `endDate`, epoch milliseconds. `id` is the app's own
+     * id for it, kept as the record's client record id, so saving the same
+     * session twice keeps the first record: the answer then says
+     * `existing: true`.
+     */
+    private suspend fun saveMindfulSession(body: JSONObject): Any {
+        val client = client()
+        if (!mindfulnessAvailable(client)) throw HealthFailure("UNSUPPORTED", "This Health Connect has no mindfulness sessions")
+        val id = body.opt("id") as? String
+        val start = body.instant("startDate")
+        val end = body.instant("endDate")
+        if (id.isNullOrEmpty() || id.length > 128 || start == null || end == null ||
+            !end.isAfter(start) || Duration.between(start, end) > Duration.ofHours(24)
+        ) {
+            throw invalid("A valid id, startDate and endDate (at most a day apart) are required")
+        }
+
+        // Only this app's own records can be the same session.
+        val kept = readAll(
+            client,
+            MindfulnessSessionRecord::class,
+            TimeRangeFilter.between(start.minus(Duration.ofDays(1)), end.plus(Duration.ofDays(1))),
+            origins = setOf(ownOrigin),
+        ).firstOrNull { it.metadata.clientRecordId == id }
+        if (kept != null) {
+            return JSONObject().put("id", kept.metadata.id).put("externalId", id).put("existing", true)
+        }
+
+        val zone = ZoneId.systemDefault().rules
+        val record = buildRecord {
+            MindfulnessSessionRecord(
+                startTime = start,
+                startZoneOffset = zone.getOffset(start),
+                endTime = end,
+                endZoneOffset = zone.getOffset(end),
+                metadata = Metadata.activelyRecorded(phone(), clientRecordId = id, clientRecordVersion = 0L),
+                mindfulnessSessionType = MindfulnessSessionRecord.MINDFULNESS_SESSION_TYPE_BREATHING,
+            )
+        }
+        val response = client.insertRecords(listOf(record))
+        return JSONObject().put("id", response.recordIdsList.firstOrNull() ?: id).put("externalId", id).put("existing", false)
+    }
+
+    /**
+     * Mindfulness sessions between two instants, oldest first, from every app
+     * that writes them. Each says whether this app wrote it (`ownApp`) and
+     * carries the client record id it was saved with, so a page can tell its
+     * own sessions from the rest. Nothing where Health Connect has none.
+     */
+    private suspend fun getMindfulSessions(options: JSONObject): Any {
+        val client = client()
+        if (!mindfulnessAvailable(client)) return JSONArray()
+        val end = options.instant("endDate") ?: Instant.now()
+        val start = options.instant("startDate") ?: end.minus(Duration.ofDays(30))
+        val cap = (options.int("limit") ?: 1000).coerceIn(1, 5000)
+
+        val rows = JSONArray()
+        for (session in readAll(client, MindfulnessSessionRecord::class, range(start, end), cap = cap)) {
+            val origin = session.metadata.dataOrigin.packageName
+            val item = JSONObject()
+                .put("id", session.metadata.id)
+                .put("startDate", session.startTime.ms())
+                .put("endDate", session.endTime.ms())
+                .put("durationSeconds", Duration.between(session.startTime, session.endTime).toMillis() / 1000.0)
+                .put("sourceName", sourceName(origin))
+                .put("sourceBundleId", origin)
+                .put("ownApp", origin == context.packageName)
+            session.metadata.clientRecordId?.let { item.put("externalId", it) }
+            putDevice(item, session.metadata.device, withModel = false)
+            rows.put(item)
+        }
+        return rows
+    }
+
+    // MARK: - Helpers
+
+    /** Every record of a type in a range, page by page, up to `cap`. */
+    private suspend fun <T : Record> readAll(
+        client: HealthConnectClient,
+        type: KClass<T>,
+        filter: TimeRangeFilter,
+        ascending: Boolean = true,
+        origins: Set<DataOrigin> = emptySet(),
+        cap: Int = Int.MAX_VALUE,
+    ): List<T> {
+        val records = ArrayList<T>()
+        var token: String? = null
+        do {
+            val response = client.readRecords(
+                ReadRecordsRequest(
+                    recordType = type,
+                    timeRangeFilter = filter,
+                    dataOriginFilter = origins,
+                    ascendingOrder = ascending,
+                    pageSize = PAGE_SIZE,
+                    pageToken = token,
+                ),
+            )
+            records += response.records
+            token = response.pageToken?.takeIf { it.isNotEmpty() }
+        } while (token != null && records.size < cap)
+        return if (records.size > cap) records.subList(0, cap) else records
+    }
+
+    private fun range(start: Instant, end: Instant): TimeRangeFilter {
+        if (!start.isBefore(end)) throw invalid("startDate must be before endDate")
+        return TimeRangeFilter.between(start, end)
+    }
+
+    /** A record's constructor checks its values (a weight over 1000 kg, a negative distance): that is the caller's argument. */
+    private inline fun <T> buildRecord(build: () -> T): T = try {
+        build()
+    } catch (error: IllegalArgumentException) {
+        throw invalid(error.message ?: "Health data is out of range")
+    }
+
+    /** This phone, as the device a session timed in the app was recorded on. */
+    private fun phone() = Device(type = Device.TYPE_PHONE, manufacturer = Build.MANUFACTURER, model = Build.MODEL)
+
+    /**
+     * The app that wrote a record, by its label. This app's own writes come
+     * back under its own label, which a page compares against to skip them.
+     * Another app's label needs package visibility (a <queries> entry);
+     * without it the package name stands in.
+     */
+    private fun sourceName(packageName: String): String = labels.getOrPut(packageName) {
+        val packageManager = context.packageManager
+        if (packageName == context.packageName) {
+            context.applicationInfo.loadLabel(packageManager).toString()
+        } else {
+            try {
+                val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(0))
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageManager.getApplicationInfo(packageName, 0)
+                }
+                info.loadLabel(packageManager).toString()
+            } catch (error: PackageManager.NameNotFoundException) {
+                packageName
+            }
+        }
+    }
+
+    private fun putDevice(item: JSONObject, device: Device?, withModel: Boolean) {
+        if (device == null) return
+        val name = listOfNotNull(device.manufacturer, device.model).filter { it.isNotBlank() }.joinToString(" ")
+        if (name.isNotEmpty()) item.put("deviceName", name)
+        if (withModel) device.model?.takeIf { it.isNotBlank() }?.let { item.put("deviceModel", it) }
+    }
+
+    private fun Instant.ms(): Double = toEpochMilli().toDouble()
+
+    private fun JSONObject.number(key: String): Double? = (opt(key) as? Number)?.toDouble()?.takeIf { it.isFinite() }
+
+    private fun JSONObject.instant(key: String): Instant? = number(key)?.let { Instant.ofEpochMilli(it.toLong()) }
+
+    private fun JSONObject.int(key: String): Int? = number(key)?.toInt()
+
+    private fun JSONObject.positive(key: String): Double? = number(key)?.takeIf { it > 0 }
+
+    private fun List<Double>.averageOrNull(): Double? = if (isEmpty()) null else average()
+
+    companion object {
+        const val PERMISSION_REQUEST_CODE = 8411
+
+        /** Health Connect's own package: the Play Store app before Android 14, the system module after. */
+        private const val PROVIDER_PACKAGE = "com.google.android.apps.healthdata"
+        private const val PAGE_SIZE = 1000
+
+        /** Every type the bridge knows, in the order `grantedTypes` lists them. */
+        private val TYPES = listOf(
+            "steps", "heartRate", "activeEnergy", "distance", "workouts", "restingHeartRate",
+            "heartRateVariability", "bodyMass", "sleep", "mindful",
+            "dietaryEnergy", "dietaryProtein", "dietaryCarbohydrates", "dietaryFat",
+        )
+        private val DIETARY_TYPES = setOf("dietaryEnergy", "dietaryProtein", "dietaryCarbohydrates", "dietaryFat")
+
+        private val AWAKE_STAGES = setOf(
+            SleepSessionRecord.STAGE_TYPE_AWAKE,
+            SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED,
+            SleepSessionRecord.STAGE_TYPE_OUT_OF_BED,
+        )
+
+        private val INDOOR_EXERCISE_TYPES = setOf(
+            ExerciseSessionRecord.EXERCISE_TYPE_RUNNING_TREADMILL,
+            ExerciseSessionRecord.EXERCISE_TYPE_BIKING_STATIONARY,
+            ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL,
+            ExerciseSessionRecord.EXERCISE_TYPE_ROWING_MACHINE,
+            ExerciseSessionRecord.EXERCISE_TYPE_ELLIPTICAL,
+            ExerciseSessionRecord.EXERCISE_TYPE_STAIR_CLIMBING_MACHINE,
+        )
+
+        /** The bridge's workout names, as the exercise each is written as. */
+        private val EXERCISE_TYPES = mapOf(
+            "running" to ExerciseSessionRecord.EXERCISE_TYPE_RUNNING,
+            "walking" to ExerciseSessionRecord.EXERCISE_TYPE_WALKING,
+            "hiking" to ExerciseSessionRecord.EXERCISE_TYPE_HIKING,
+            "cycling" to ExerciseSessionRecord.EXERCISE_TYPE_BIKING,
+            "swimming" to ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_OPEN_WATER,
+            "strength" to ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
+            "hiit" to ExerciseSessionRecord.EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING,
+            "yoga" to ExerciseSessionRecord.EXERCISE_TYPE_YOGA,
+            "pilates" to ExerciseSessionRecord.EXERCISE_TYPE_PILATES,
+            "rowing" to ExerciseSessionRecord.EXERCISE_TYPE_ROWING,
+            "elliptical" to ExerciseSessionRecord.EXERCISE_TYPE_ELLIPTICAL,
+            "stairClimbing" to ExerciseSessionRecord.EXERCISE_TYPE_STAIR_CLIMBING,
+            "crossTraining" to ExerciseSessionRecord.EXERCISE_TYPE_BOOT_CAMP,
+            "mobility" to ExerciseSessionRecord.EXERCISE_TYPE_STRETCHING,
+            "other" to ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT,
+        )
+
+        /**
+         * A stable name for an exercise type, the same names CraftHealth.swift
+         * gives HealthKit's, so a page maps one list to its own sports.
+         */
+        private fun workoutTypeName(type: Int): String = when (type) {
+            ExerciseSessionRecord.EXERCISE_TYPE_RUNNING,
+            ExerciseSessionRecord.EXERCISE_TYPE_RUNNING_TREADMILL -> "running"
+            ExerciseSessionRecord.EXERCISE_TYPE_BIKING,
+            ExerciseSessionRecord.EXERCISE_TYPE_BIKING_STATIONARY -> "cycling"
+            ExerciseSessionRecord.EXERCISE_TYPE_WALKING -> "walking"
+            ExerciseSessionRecord.EXERCISE_TYPE_HIKING -> "hiking"
+            ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL,
+            ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_OPEN_WATER -> "swimming"
+            ExerciseSessionRecord.EXERCISE_TYPE_ROWING,
+            ExerciseSessionRecord.EXERCISE_TYPE_ROWING_MACHINE -> "rowing"
+            ExerciseSessionRecord.EXERCISE_TYPE_ELLIPTICAL -> "elliptical"
+            ExerciseSessionRecord.EXERCISE_TYPE_STAIR_CLIMBING,
+            ExerciseSessionRecord.EXERCISE_TYPE_STAIR_CLIMBING_MACHINE -> "stairClimbing"
+            ExerciseSessionRecord.EXERCISE_TYPE_YOGA -> "yoga"
+            ExerciseSessionRecord.EXERCISE_TYPE_PILATES -> "pilates"
+            ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
+            ExerciseSessionRecord.EXERCISE_TYPE_WEIGHTLIFTING,
+            ExerciseSessionRecord.EXERCISE_TYPE_CALISTHENICS -> "strength"
+            ExerciseSessionRecord.EXERCISE_TYPE_HIGH_INTENSITY_INTERVAL_TRAINING -> "hiit"
+            ExerciseSessionRecord.EXERCISE_TYPE_BOOT_CAMP,
+            ExerciseSessionRecord.EXERCISE_TYPE_EXERCISE_CLASS -> "crossTraining"
+            ExerciseSessionRecord.EXERCISE_TYPE_SKIING,
+            ExerciseSessionRecord.EXERCISE_TYPE_SNOWBOARDING -> "skiing"
+            ExerciseSessionRecord.EXERCISE_TYPE_PADDLING -> "paddling"
+            ExerciseSessionRecord.EXERCISE_TYPE_ROCK_CLIMBING -> "climbing"
+            ExerciseSessionRecord.EXERCISE_TYPE_DANCING -> "dance"
+            ExerciseSessionRecord.EXERCISE_TYPE_STRETCHING,
+            ExerciseSessionRecord.EXERCISE_TYPE_GUIDED_BREATHING -> "mobility"
+            else -> "other"
+        }
+
+        /** The same stage names CraftHealth.swift gives HealthKit's sleep values. */
+        private fun sleepStageName(stage: Int): String = when (stage) {
+            SleepSessionRecord.STAGE_TYPE_LIGHT -> "core"
+            SleepSessionRecord.STAGE_TYPE_DEEP -> "deep"
+            SleepSessionRecord.STAGE_TYPE_REM -> "rem"
+            in AWAKE_STAGES -> "awake"
+            else -> "asleep"
+        }
+
+        /** The unit each quantity type answers in, as HealthKit spells it; null for a type with no single number. */
+        private fun unitOf(type: String): String? = when (type) {
+            "steps" -> "count"
+            "activeEnergy", "dietaryEnergy" -> "kcal"
+            "distance" -> "m"
+            "heartRate", "restingHeartRate" -> "count/min"
+            "heartRateVariability" -> "ms"
+            "bodyMass" -> "kg"
+            "dietaryProtein", "dietaryCarbohydrates", "dietaryFat" -> "g"
+            else -> null
+        }
+
+        /** The aggregate each summed or averaged type is read with. HRV and weight have none and are read as records. */
+        private fun aggregateMetric(type: String): AggregateMetric<*>? = when (type) {
+            "steps" -> StepsRecord.COUNT_TOTAL
+            "activeEnergy" -> ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL
+            "distance" -> DistanceRecord.DISTANCE_TOTAL
+            "heartRate" -> HeartRateRecord.BPM_AVG
+            "restingHeartRate" -> RestingHeartRateRecord.BPM_AVG
+            "dietaryEnergy" -> NutritionRecord.ENERGY_TOTAL
+            "dietaryProtein" -> NutritionRecord.PROTEIN_TOTAL
+            "dietaryCarbohydrates" -> NutritionRecord.TOTAL_CARBOHYDRATE_TOTAL
+            "dietaryFat" -> NutritionRecord.TOTAL_FAT_TOTAL
+            else -> null
+        }
+
+        /** An aggregate's value in the type's unit, or null when there was no data. */
+        private fun aggregateValue(result: AggregationResult, type: String): Double? = when (type) {
+            "steps" -> result[StepsRecord.COUNT_TOTAL]?.toDouble()
+            "activeEnergy" -> result[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories
+            "distance" -> result[DistanceRecord.DISTANCE_TOTAL]?.inMeters
+            "heartRate" -> result[HeartRateRecord.BPM_AVG]?.toDouble()
+            "restingHeartRate" -> result[RestingHeartRateRecord.BPM_AVG]?.toDouble()
+            "dietaryEnergy" -> result[NutritionRecord.ENERGY_TOTAL]?.inKilocalories
+            "dietaryProtein" -> result[NutritionRecord.PROTEIN_TOTAL]?.inGrams
+            "dietaryCarbohydrates" -> result[NutritionRecord.TOTAL_CARBOHYDRATE_TOTAL]?.inGrams
+            "dietaryFat" -> result[NutritionRecord.TOTAL_FAT_TOTAL]?.inGrams
+            else -> null
+        }
+
+        /**
+         * Every Health Connect permission string a type needs, for read and
+         * for write; the builder's manifest list must match this. A workout's
+         * numbers live in their own records, so reading workouts reads those
+         * too. Heart rate variability is RMSSD (Apple's is SDNN). Unknown
+         * types need nothing.
+         */
+        fun readPermissions(type: String): Set<String> = when (type) {
+            "steps" -> setOf(HealthPermission.getReadPermission(StepsRecord::class))
+            "heartRate" -> setOf(HealthPermission.getReadPermission(HeartRateRecord::class))
+            "activeEnergy" -> setOf(HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class))
+            "distance" -> setOf(HealthPermission.getReadPermission(DistanceRecord::class))
+            "workouts" -> setOf(
+                HealthPermission.getReadPermission(ExerciseSessionRecord::class),
+                HealthPermission.getReadPermission(HeartRateRecord::class),
+                HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
+                HealthPermission.getReadPermission(DistanceRecord::class),
+            )
+            "restingHeartRate" -> setOf(HealthPermission.getReadPermission(RestingHeartRateRecord::class))
+            "heartRateVariability" -> setOf(HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class))
+            "bodyMass" -> setOf(HealthPermission.getReadPermission(WeightRecord::class))
+            "sleep" -> setOf(HealthPermission.getReadPermission(SleepSessionRecord::class))
+            "mindful" -> setOf(HealthPermission.getReadPermission(MindfulnessSessionRecord::class))
+            in DIETARY_TYPES -> setOf(HealthPermission.getReadPermission(NutritionRecord::class))
+            else -> emptySet()
+        }
+
+        fun writePermissions(type: String): Set<String> = when (type) {
+            "activeEnergy" -> setOf(HealthPermission.getWritePermission(ActiveCaloriesBurnedRecord::class))
+            "distance" -> setOf(HealthPermission.getWritePermission(DistanceRecord::class))
+            "workouts" -> setOf(
+                HealthPermission.getWritePermission(ExerciseSessionRecord::class),
+                HealthPermission.getWritePermission(ActiveCaloriesBurnedRecord::class),
+                HealthPermission.getWritePermission(DistanceRecord::class),
+            )
+            "mindful" -> setOf(HealthPermission.getWritePermission(MindfulnessSessionRecord::class))
+            in DIETARY_TYPES -> setOf(HealthPermission.getWritePermission(NutritionRecord::class))
+            else -> emptySet()
+        }
+    }
+}

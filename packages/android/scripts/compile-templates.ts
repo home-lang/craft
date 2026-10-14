@@ -32,6 +32,28 @@ const fixtures: CompileFixture[] = [
     config: { renderer: 'native' },
   },
   {
+    // The native app shell: tabs, routes, the app script, background
+    // refresh and Health Connect (CraftNativeShell/Services/Background/Health).
+    directoryName: 'native-shell',
+    name: 'CraftNativeShell',
+    packageName: 'dev.craft.fixture.nativeshell',
+    config: {
+      renderer: 'native',
+      enableHealthConnect: true,
+      enableHaptics: true,
+      enableShare: true,
+      enableSecureStorage: true,
+      enableKeepAwake: true,
+      enableDeepLinks: true,
+      urlSchemes: ['craft-shell'],
+      healthConnect: { read: ['workouts', 'sleep', 'mindful', 'dietaryEnergy'], write: ['workouts', 'mindful'], background: true, history: true },
+      nativeScreens: { '/': 'Home', '/details/:id': 'Details' },
+      tabs: [{ id: '/', title: 'Home', symbol: 'house' }],
+      nativeApp: '__app',
+      backgroundRefresh: { enabled: true, minimumIntervalMinutes: 30 },
+    },
+  },
+  {
     directoryName: 'minimal',
     name: 'Craft & "Kotlin" $Build',
     packageName: 'dev.craft.fixture.minimal',

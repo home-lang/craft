@@ -1,0 +1,1013 @@
+package {{PACKAGE_NAME}}
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import android.text.TextUtils
+import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
+import androidx.core.content.ContextCompat
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.net.URLDecoder
+import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+
+/**
+ * The app around the native screens: what `nativeScreens`, `tabs`,
+ * `nativeApp` and `shareStorage` in craft.config.json describe, the same
+ * contract the iOS host reads (CraftNativeScreen.swift, CraftHybrid.swift).
+ *
+ * - [CraftNativeRoutes] turns an app path (`/m/workout/42?tab=files`) into
+ *   the screen that draws it and its params, fixed segments before
+ *   parameters, so `/m/store/library` is never taken for a product's slug.
+ * - [CraftNativeStores] keeps what a screen reads synchronously on iOS
+ *   (`craft.storage.getSync`, `craft.snapshots.get`,
+ *   `craft.secureStorage.getSync`). Android's JavaScriptSandbox cannot call
+ *   the host synchronously, so each isolate starts with a copy of these
+ *   stores ([CraftNativeStores.preload]) and the host keeps every copy
+ *   current: a write in one isolate reaches the others as `SYNC_UPDATE`.
+ * - [CraftNativeHub] is every live isolate in the process (screens, the app
+ *   script, a background refresh), so a change reaches all of them.
+ * - [CraftNativeChrome] is the navigation bar above a screen and the tab bar
+ *   below it, drawn with plain Android views.
+ */
+internal object CraftNativeHub {
+    private val receivers = ConcurrentHashMap<String, (String, JSONObject) -> Unit>()
+    private val main = Handler(Looper.getMainLooper())
+
+    fun register(id: String, receiver: (String, JSONObject) -> Unit) {
+        receivers[id] = receiver
+    }
+
+    fun unregister(id: String) {
+        receivers.remove(id)
+    }
+
+    /** Sends to every registered isolate but `except`, on the main thread. */
+    fun broadcast(type: String, payload: JSONObject, except: String? = null) {
+        val deliver = {
+            receivers.forEach { (id, receiver) ->
+                if (id != except) runCatching { receiver(type, payload) }
+                    .onFailure { Log.w("CraftNativeAndroid", "Broadcast $type to $id failed", it) }
+            }
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) deliver() else main.post(deliver)
+    }
+}
+
+/** A screen of the app found for a path. */
+internal data class CraftNativeRouteMatch(val screen: String, val params: JSONObject, val path: String)
+
+internal data class CraftNativeTab(val id: String, val title: String, val symbol: String)
+
+/** The app's paths (`nativeScreens`), its tabs and its site. */
+internal class CraftNativeRoutes(config: JSONObject) {
+    private data class Route(val segments: List<String>, val screen: String)
+
+    /**
+     * The iOS shell's order (CraftHybrid.swift's route table): a trailing
+     * `*` last, then more fixed segments first, then longer patterns, then
+     * by name, so `/m/store/library` is never taken for `/m/store/:slug`.
+     */
+    private val routes: List<Route> = buildList {
+        val screens = config.optJSONObject("nativeScreens") ?: JSONObject()
+        screens.keys().forEach { pattern ->
+            val screen = screens.optString(pattern)
+            if (screen.isNotBlank()) add(Route(segmentsOf(pattern), screen))
+        }
+    }.sortedWith(
+        compareBy<Route> { if (it.segments.lastOrNull() == "*") 1 else 0 }
+            .thenByDescending { route -> route.segments.count { it != "*" && !it.startsWith(":") } }
+            .thenByDescending { it.segments.size }
+            .thenBy { it.segments.joinToString("/") },
+    )
+
+    val tabs: List<CraftNativeTab> = buildList {
+        val list = config.optJSONArray("tabs") ?: JSONArray()
+        for (index in 0 until list.length()) {
+            val tab = list.optJSONObject(index) ?: continue
+            val id = tab.optString("id").takeIf { it.isNotBlank() } ?: continue
+            add(CraftNativeTab(normalize(id), tab.optString("title", id), tab.optString("symbol")))
+        }
+    }
+
+    /** The app's site (`devServerURL`): its origin answers paths no screen draws. */
+    val site: Uri? = config.optString("devServerURL").takeIf { it.isNotBlank() }?.let(Uri::parse)
+    val siteOrigin: String? = site?.let { uri ->
+        val port = if (uri.port > 0) ":${uri.port}" else ""
+        "${uri.scheme}://${uri.host}$port"
+    }
+
+    /** Where the app opens: the site's path when a screen draws it, else the first tab. */
+    val initialPath: String = site?.path?.takeIf { it.isNotBlank() && match(it) != null }
+        ?: tabs.firstOrNull()?.id
+        ?: "/"
+
+    val isEmpty: Boolean get() = routes.isEmpty()
+
+    /** The tab whose root is `path` (without its query), if any. */
+    fun tabFor(path: String): CraftNativeTab? {
+        val bare = normalize(path.substringBefore('?').substringBefore('#'))
+        return tabs.firstOrNull { it.id == bare }
+    }
+
+    /**
+     * The path inside the app for `target`: a path as it is, or an address on
+     * the app's own site (or its URL scheme, `hqtraining://m/connections`) as
+     * its path and query. Another site's address is not the app's: null.
+     */
+    fun appPath(target: String, schemes: Collection<String>): String? {
+        if (target.startsWith("/")) return target
+        val uri = runCatching { Uri.parse(target) }.getOrNull() ?: return null
+        val scheme = uri.scheme?.lowercase() ?: return null
+        if (scheme in schemes) {
+            // hqtraining://m/connections: the host is the first segment.
+            val path = "/" + listOfNotNull(uri.host?.takeIf { it.isNotBlank() }, uri.path?.trim('/')?.takeIf { it.isNotBlank() })
+                .joinToString("/")
+            return path + (uri.encodedQuery?.let { "?$it" } ?: "")
+        }
+        val origin = siteOrigin ?: return null
+        val port = if (uri.port > 0) ":${uri.port}" else ""
+        if ("${uri.scheme}://${uri.host}$port" != origin) return null
+        return (uri.encodedPath ?: "/") + (uri.encodedQuery?.let { "?$it" } ?: "")
+    }
+
+    /** The screen that draws `path`, with its parameters and query as params. */
+    fun match(path: String): CraftNativeRouteMatch? {
+        val bare = normalize(path.substringBefore('#').substringBefore('?'))
+        val query = path.substringBefore('#').substringAfter('?', "")
+        val parts = segmentsOf(bare)
+        for (route in routes) {
+            val params = bind(route.segments, parts) ?: continue
+            if (query.isNotBlank()) {
+                query.split('&').filter { it.isNotBlank() }.forEach { pair ->
+                    val key = decode(pair.substringBefore('='))
+                    if (key.isNotBlank() && !params.has(key)) params.put(key, decode(pair.substringAfter('=', "").replace('+', ' ')))
+                }
+            }
+            return CraftNativeRouteMatch(route.screen, params, bare)
+        }
+        return null
+    }
+
+    private fun bind(pattern: List<String>, parts: List<String>): JSONObject? {
+        val params = JSONObject()
+        for (index in pattern.indices) {
+            val expected = pattern[index]
+            if (expected == "*") {
+                params.put("*", parts.drop(index).joinToString("/"))
+                return params
+            }
+            if (index >= parts.size) return null
+            if (expected.startsWith(":")) {
+                if (parts[index].isBlank()) return null
+                params.put(expected.removePrefix(":"), decode(parts[index]))
+            } else if (expected != parts[index]) return null
+        }
+        return if (pattern.size == parts.size) params else null
+    }
+
+    /** The tab a path belongs under (`/m/store/42` → `/m/store`), for a link opened from outside. */
+    fun tabOwning(path: String): CraftNativeTab? {
+        val bare = normalize(path.substringBefore('?').substringBefore('#'))
+        return tabs.filter { tab -> bare == tab.id || bare.startsWith(tab.id.trimEnd('/') + "/") }
+            .maxByOrNull { it.id.length }
+            ?.takeIf { it.id != "/" }
+    }
+
+    /** An address on the site for a path no screen draws. */
+    fun siteURL(path: String): String? = siteOrigin?.let { it + (if (path.startsWith("/")) path else "/$path") }
+
+    companion object {
+        fun normalize(path: String): String {
+            val trimmed = path.trim().ifBlank { "/" }
+            val withSlash = if (trimmed.startsWith("/")) trimmed else "/$trimmed"
+            return if (withSlash.length > 1) withSlash.trimEnd('/') else withSlash
+        }
+
+        private fun segmentsOf(path: String): List<String> =
+            normalize(path).split('/').filter { it.isNotBlank() }
+
+        private fun decode(value: String): String =
+            runCatching { URLDecoder.decode(value, "UTF-8") }.getOrDefault(value)
+    }
+}
+
+/**
+ * The stores a screen reads synchronously, shared by the whole process:
+ *
+ * - `storage`: the `craft-native-storage` preferences behind `craft.storage`
+ *   (JSON text per key, CraftNativeCapabilities.storage).
+ * - `secure`: the encrypted preferences behind `craft.secureStorage`.
+ * - `snapshots`: `files/craft-snapshots/<name>.json`, what a screen keeps for
+ *   its next first frame and for no signal (`craft.snapshots`).
+ *
+ * Writes happen on one background thread, in order.
+ */
+internal class CraftNativeStores private constructor(context: Context, private val secureEnabled: Boolean) {
+    private val appContext = context.applicationContext
+    private val storage: SharedPreferences = appContext.getSharedPreferences("craft-native-storage", Context.MODE_PRIVATE)
+    private val snapshotsDir = File(appContext.filesDir, "craft-snapshots").apply { mkdirs() }
+    private val writer = Executors.newSingleThreadExecutor()
+    private val main = Handler(Looper.getMainLooper())
+
+    private val secure: SharedPreferences? by lazy {
+        if (!secureEnabled) return@lazy null
+        runCatching {
+            val masterKey = MasterKey.Builder(appContext).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+            EncryptedSharedPreferences.create(
+                appContext,
+                "craft_secure_prefs",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        }.onFailure { Log.e("CraftNativeAndroid", "Secure storage could not be opened", it) }.getOrNull()
+    }
+
+    /**
+     * The snapshots, read from disk once and kept as their JSON text: every
+     * isolate starts with all of them (a screen reads one synchronously), and
+     * reading the folder for each new screen took longer than a frame.
+     */
+    private val snapshotCache: MutableMap<String, String> by lazy {
+        val cache = ConcurrentHashMap<String, String>()
+        snapshotsDir.listFiles()?.forEach { file ->
+            if (!file.name.endsWith(".json")) return@forEach
+            val name = snapshotName(file) ?: return@forEach
+            runCatching { cache[name] = file.readText() }
+        }
+        cache
+    }
+
+    /**
+     * Everything an isolate needs before its first line runs, as JSON text:
+     * `{ storage: { key: json }, secure: { key: value }, snapshots: { name: json } }`.
+     * Values stay JSON text; the isolate parses what it reads. Built off the
+     * main thread (it can run to megabytes with a few weeks of sessions kept).
+     */
+    fun preloadText(): String {
+        val out = StringBuilder(64 * 1024)
+        fun section(name: String, values: Map<String, String>) {
+            out.append(JSONObject.quote(name)).append(":{")
+            var first = true
+            for ((key, value) in values) {
+                if (!first) out.append(',')
+                first = false
+                out.append(JSONObject.quote(key)).append(':').append(JSONObject.quote(value))
+            }
+            out.append('}')
+        }
+        out.append('{')
+        section("storage", storage.all.mapNotNull { (key, value) -> (value as? String)?.let { key to it } }.toMap())
+        out.append(',')
+        section("secure", runCatching { secure?.all?.mapNotNull { (key, value) -> (value as? String)?.let { key to it } }?.toMap() }.getOrNull() ?: emptyMap())
+        out.append(',')
+        section("snapshots", snapshotCache)
+        out.append('}')
+        return out.toString()
+    }
+
+    /** The same, parsed (tests and small hosts). */
+    fun preload(): JSONObject = JSONObject(preloadText())
+
+    fun snapshot(name: String): String? = snapshotCache[name]
+
+    /** `craft.storage.setSync`: null removes the key. Tells every isolate. */
+    fun setStorage(key: String, json: String?, from: String?) {
+        if (json == null) storage.edit().remove(key).apply() else storage.edit().putString(key, json).apply()
+        changed("storage", key, json, from)
+    }
+
+    /** `craft.snapshots.set`: null deletes it. `done` hears whether it was kept, on the main thread. */
+    fun setSnapshot(name: String, json: String?, from: String?, done: (Boolean) -> Unit) {
+        writer.execute {
+            val file = snapshotFile(name)
+            val ok = runCatching {
+                if (json == null) {
+                    !file.exists() || file.delete()
+                } else {
+                    val temporary = File(file.parentFile, "${file.name}.tmp")
+                    temporary.writeText(json)
+                    temporary.renameTo(file) || run { file.writeText(json); temporary.delete(); true }
+                }
+            }.getOrDefault(false)
+            if (ok) {
+                if (json == null) snapshotCache.remove(name) else snapshotCache[name] = json
+            }
+            main.post {
+                if (ok) changed("snapshots", name, json, null)
+                done(ok)
+            }
+        }
+    }
+
+    /** `craft.snapshots.clear(keep)`: every snapshot but those named, as a sign-out does. */
+    fun clearSnapshots(keep: Set<String>, done: (Boolean) -> Unit) {
+        writer.execute {
+            val removed = mutableListOf<String>()
+            var ok = true
+            snapshotsDir.listFiles()?.forEach { file ->
+                if (!file.name.endsWith(".json")) return@forEach
+                val name = snapshotName(file) ?: return@forEach
+                if (name in keep) return@forEach
+                if (file.delete()) removed.add(name) else ok = false
+            }
+            removed.forEach(snapshotCache::remove)
+            main.post {
+                removed.forEach { changed("snapshots", it, null, null) }
+                done(ok)
+            }
+        }
+    }
+
+    /** A change made through the capability API (`Storage`, `SecureStorage`): every isolate's copy follows it. */
+    fun changed(store: String, key: String?, value: String?, from: String?) {
+        val payload = JSONObject().put("store", store)
+        if (key == null) payload.put("clear", true) else payload.put("key", key).put("value", value ?: JSONObject.NULL)
+        CraftNativeHub.broadcast("SYNC_UPDATE", payload, except = from)
+    }
+
+    private fun snapshotFile(name: String): File = File(snapshotsDir, URLEncoder.encode(name, "UTF-8") + ".json")
+
+    private fun snapshotName(file: File): String? =
+        runCatching { URLDecoder.decode(file.name.removeSuffix(".json"), "UTF-8") }.getOrNull()
+
+    companion object {
+        @Volatile private var shared: CraftNativeStores? = null
+
+        fun get(context: Context, config: JSONObject): CraftNativeStores = shared ?: synchronized(this) {
+            shared ?: CraftNativeStores(context, config.optBoolean("enableSecureStorage")).also { shared = it }
+        }
+    }
+}
+
+/**
+ * The script every isolate runs before the bundle: the bridge object stx's
+ * runtime reads, the synchronous stores, and the routing of `SYNC_*`
+ * messages that keep them current. `post` is how the bridge sends a string
+ * to the host in this isolate (a message port or the console).
+ */
+internal object CraftNativePrelude {
+    fun script(
+        bridgeFields: String,
+        post: String,
+        receiveSetup: String,
+        stores: String,
+        routePrelude: String,
+    ): String = template(bridgeFields, post, receiveSetup, routePrelude).replace(STORES, stores)
+
+    /** Where the stores go: put in after the (small) script is laid out, so megabytes are never re-indented. */
+    private const val STORES = "__CRAFT_PRELOADED_STORES__"
+
+    private fun template(
+        bridgeFields: String,
+        post: String,
+        receiveSetup: String,
+        routePrelude: String,
+    ): String = """
+        $routePrelude
+        (function() {
+          var forward = null;
+          var queued = [];
+          var sync = { storage: {}, secure: {}, snapshots: {} };
+          var preload = $STORES;
+          ['storage', 'secure', 'snapshots'].forEach(function(store) {
+            var given = preload[store] || {};
+            Object.keys(given).forEach(function(key) { sync[store][key] = given[key]; });
+          });
+          var waiting = {};
+          var nextWait = 0;
+          // JavaScriptSandbox has no timers: the host keeps them (TIMER /
+          // TIMER_CLEAR out, TIMER_FIRE back), as Craft's iOS host gives
+          // JavaScriptCore its own.
+          var timers = {};
+          var nextTimer = 0;
+          function arm(fn, ms, args, every) {
+            if (typeof fn !== 'function') return 0;
+            var id = ++nextTimer;
+            var delay = Math.max(0, Number(ms) || 0);
+            timers[id] = { fn: fn, args: args, every: every ? Math.max(1, delay) : null };
+            send(JSON.stringify({ type: 'TIMER', payload: { id: id, ms: delay } }));
+            return id;
+          }
+          function disarm(id) {
+            if (!timers[id]) return;
+            delete timers[id];
+            send(JSON.stringify({ type: 'TIMER_CLEAR', payload: { id: id } }));
+          }
+          // requestAnimationFrame from the host's vsync, for the screen on
+          // display only (Choreographer); one request covers every callback.
+          var frames = [];
+          var cancelledFrames = {};
+          var nextFrame = 0;
+          if (typeof globalThis.requestAnimationFrame !== 'function') {
+            globalThis.requestAnimationFrame = function(fn) {
+              if (typeof fn !== 'function') return 0;
+              var id = ++nextFrame;
+              frames.push({ id: id, fn: fn });
+              if (frames.length === 1) send(JSON.stringify({ type: 'FRAME', payload: {} }));
+              return id;
+            };
+            globalThis.cancelAnimationFrame = function(id) { cancelledFrames[id] = true; };
+          }
+          if (typeof globalThis.setTimeout !== 'function') {
+            globalThis.setTimeout = function(fn, ms) { return arm(fn, ms, Array.prototype.slice.call(arguments, 2), false); };
+            globalThis.setInterval = function(fn, ms) { return arm(fn, ms, Array.prototype.slice.call(arguments, 2), true); };
+            globalThis.clearTimeout = disarm;
+            globalThis.clearInterval = disarm;
+          }
+          function send(value) { if (typeof value !== 'string') value = JSON.stringify(value); $post }
+          function emit(message) {
+            if (forward) forward(typeof message === 'string' ? message : JSON.stringify(message));
+            else queued.push(message);
+          }
+          function deliver(raw) {
+            var message = raw;
+            if (typeof raw === 'string') {
+              try { message = JSON.parse(raw); } catch (error) { return emit(raw); }
+            }
+            if (message && message.type === 'SYNC_UPDATE') {
+              var payload = message.payload || {};
+              var bucket = sync[payload.store];
+              if (!bucket) return;
+              if (payload.clear) {
+                Object.keys(bucket).forEach(function(key) {
+                  if (!(payload.keep || []).includes(key)) {
+                    delete bucket[key];
+                    if (payload.store === 'snapshots') emit({ type: 'SNAPSHOT_CHANGED', payload: { name: key } });
+                  }
+                });
+                return;
+              }
+              if (payload.value === null || payload.value === undefined) delete bucket[payload.key];
+              else bucket[payload.key] = payload.value;
+              if (payload.store === 'snapshots') emit({ type: 'SNAPSHOT_CHANGED', payload: { name: payload.key } });
+              return;
+            }
+            if (message && message.type === 'TIMER_FIRE') {
+              var timer = timers[message.payload && message.payload.id];
+              if (!timer) return;
+              if (timer.every === null) delete timers[message.payload.id];
+              else send(JSON.stringify({ type: 'TIMER', payload: { id: message.payload.id, ms: timer.every } }));
+              try { timer.fn.apply(null, timer.args); } catch (error) { console.error('[timer] ' + (error && error.stack || error)); }
+              return;
+            }
+            if (message && message.type === 'FRAME_FIRE') {
+              var due = frames;
+              frames = [];
+              var time = message.payload && message.payload.time || Date.now();
+              due.forEach(function(entry) {
+                if (cancelledFrames[entry.id]) { delete cancelledFrames[entry.id]; return; }
+                try { entry.fn(time); } catch (error) { console.error('[frame] ' + (error && error.stack || error)); }
+              });
+              return;
+            }
+            if (message && message.type === 'SYNC_RESULT') {
+              var done = waiting[message.payload && message.payload.id];
+              if (done) {
+                delete waiting[message.payload.id];
+                done(message.payload.ok === true);
+              }
+              return;
+            }
+            emit(raw);
+          }
+          function wait(type, payload) {
+            return new Promise(function(resolve, reject) {
+              var id = 'sync-' + (++nextWait);
+              waiting[id] = function(ok) { ok ? resolve() : reject(new Error('craft.' + type + ' could not be written')); };
+              payload.id = id;
+              send(JSON.stringify({ type: 'SYNC_WRITE', payload: payload }));
+            });
+          }
+          globalThis.__stxNativeBridge = {
+            $bridgeFields,
+            postMessage: function(value) { send(value); },
+            onMessage: function(callback) {
+              forward = callback;
+              var pending = queued;
+              queued = [];
+              pending.forEach(emit);
+            }
+          };
+          $receiveSetup
+
+          function parsed(json) {
+            if (json === null || json === undefined) return null;
+            try { return JSON.parse(json); } catch (error) { return null; }
+          }
+          var craft = globalThis.craft = globalThis.craft || {};
+          function keep(name, extras) {
+            var current = {};
+            function adopt(next) {
+              current = next && typeof next === 'object' ? next : {};
+              Object.keys(extras).forEach(function(key) {
+                if (!(key in current)) current[key] = extras[key];
+              });
+            }
+            adopt(craft[name]);
+            Object.defineProperty(craft, name, { configurable: true, enumerable: true, get: function() { return current; }, set: adopt });
+          }
+          keep('storage', {
+            getSync: function(key) { return parsed(sync.storage[String(key)]); },
+            setSync: function(key, value) {
+              var json = value === null || value === undefined ? null : JSON.stringify(value);
+              if (json === null) delete sync.storage[String(key)];
+              else sync.storage[String(key)] = json;
+              send(JSON.stringify({ type: 'SYNC_WRITE', payload: { store: 'storage', key: String(key), value: json } }));
+            }
+          });
+          keep('snapshots', {
+            get: function(name) { return parsed(sync.snapshots[String(name)]); },
+            set: function(name, value) {
+              var json = value === null || value === undefined ? null : JSON.stringify(value);
+              if (json === null) delete sync.snapshots[String(name)];
+              else sync.snapshots[String(name)] = json;
+              return wait('snapshots.set', { store: 'snapshots', key: String(name), value: json });
+            },
+            clear: function(keepNames) {
+              var names = Array.isArray(keepNames) ? keepNames.map(String) : [];
+              return wait('snapshots.clear', { store: 'snapshots', clear: true, keep: names });
+            }
+          });
+          keep('secureStorage', {
+            getSync: function(key) {
+              var value = sync.secure[String(key)];
+              return value === undefined ? null : value;
+            }
+          });
+        })();
+    """.trimIndent()
+}
+
+/**
+ * The bar above a screen (back, title, the screen's buttons) and the tab bar
+ * below it, in plain Android views. A screen sets its bar with
+ * `craft.navigation.setOptions` (title, largeTitle, hidden, rightButtons,
+ * tabBarHidden); the tabs come from the app's `tabs`.
+ */
+internal class CraftNativeChrome(context: Context, private val tabs: List<CraftNativeTab>) : LinearLayout(context) {
+    val content = FrameLayout(context)
+    private val bar = LinearLayout(context)
+    private val backButton = ImageView(context)
+    private val titleView = TextView(context)
+    private val largeTitleView = TextView(context)
+    private val buttons = LinearLayout(context)
+    private val tabBar = LinearLayout(context)
+    private val tabViews = mutableListOf<Pair<TextView, TextView>>()
+    private val density = resources.displayMetrics.density
+    private var selectedTab = 0
+
+    var onBack: (() -> Unit)? = null
+    var onButton: ((String) -> Unit)? = null
+    var onTab: ((Int) -> Unit)? = null
+
+    init {
+        orientation = VERTICAL
+        bar.orientation = HORIZONTAL
+        bar.gravity = Gravity.CENTER_VERTICAL
+        bar.setPadding(dp(4), 0, dp(8), 0)
+        backButton.setImageResource(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+        backButton.contentDescription = "Back"
+        backButton.setPadding(dp(12), dp(12), dp(12), dp(12))
+        backButton.background = rippleBackground()
+        backButton.setOnClickListener { onBack?.invoke() }
+        bar.addView(backButton, LayoutParams(dp(48), dp(48)))
+        titleView.textSize = 20f
+        titleView.typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        titleView.isSingleLine = true
+        titleView.ellipsize = TextUtils.TruncateAt.END
+        titleView.setPadding(dp(12), 0, dp(8), 0)
+        bar.addView(titleView, LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        buttons.orientation = HORIZONTAL
+        buttons.gravity = Gravity.CENTER_VERTICAL or Gravity.END
+        bar.addView(buttons, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(56)))
+        addView(bar, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(56)))
+        largeTitleView.textSize = 32f
+        largeTitleView.typeface = Typeface.create("sans-serif", Typeface.BOLD)
+        largeTitleView.isSingleLine = true
+        largeTitleView.ellipsize = TextUtils.TruncateAt.END
+        largeTitleView.setPadding(dp(16), 0, dp(16), dp(8))
+        addView(largeTitleView, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        addView(content, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        tabBar.orientation = HORIZONTAL
+        tabBar.gravity = Gravity.CENTER
+        tabs.forEachIndexed { index, tab ->
+            val cell = LinearLayout(context)
+            cell.orientation = VERTICAL
+            cell.gravity = Gravity.CENTER
+            cell.background = rippleBackground()
+            cell.contentDescription = tab.title
+            val icon = TextView(context)
+            icon.text = CraftNativeSymbols.glyph(tab.symbol)
+            icon.textSize = 22f
+            icon.minWidth = dp(26)
+            icon.minHeight = dp(26)
+            icon.gravity = Gravity.CENTER
+            icon.includeFontPadding = false
+            val label = TextView(context)
+            label.text = tab.title
+            label.textSize = 12f
+            label.gravity = Gravity.CENTER
+            label.isSingleLine = true
+            cell.addView(icon, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            cell.addView(label, LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            cell.setOnClickListener { onTab?.invoke(index) }
+            tabBar.addView(cell, LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+            tabViews.add(icon to label)
+        }
+        addView(tabBar, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)))
+        tabBar.visibility = if (tabs.isEmpty()) View.GONE else View.VISIBLE
+        refreshColors()
+    }
+
+    /** Draws `options` (a screen's `setOptions`) for a screen `depth` deep in its stack. */
+    fun apply(options: JSONObject, depth: Int, fallbackTitle: String?) {
+        val hidden = options.optBoolean("hidden", false)
+        val large = options.optBoolean("largeTitle", false) && depth == 0
+        val title = options.optString("title").takeIf { options.has("title") } ?: fallbackTitle.orEmpty()
+        bar.visibility = if (hidden) View.GONE else View.VISIBLE
+        backButton.visibility = if (depth > 0) View.VISIBLE else View.GONE
+        bar.setPadding(if (depth > 0) dp(4) else dp(4), 0, dp(8), 0)
+        titleView.text = if (large) "" else title
+        largeTitleView.text = title
+        largeTitleView.visibility = if (!hidden && large && title.isNotBlank()) View.VISIBLE else View.GONE
+        buttons.removeAllViews()
+        val list = options.optJSONArray("rightButtons") ?: JSONArray()
+        for (index in 0 until list.length()) {
+            val button = list.optJSONObject(index) ?: continue
+            buttons.addView(navButton(button))
+        }
+        val tabBarHidden = options.optBoolean("tabBarHidden", false) || depth > 0 && options.optBoolean("tabBarHiddenWhenPushed", false)
+        tabBar.visibility = if (tabs.isEmpty() || tabBarHidden) View.GONE else View.VISIBLE
+    }
+
+    fun selectTab(index: Int) {
+        selectedTab = index
+        refreshColors()
+    }
+
+    /** Light or dark changed: the bars follow the screen's background. */
+    fun refreshColors() {
+        val background = ContextCompat.getColor(context, R.color.background)
+        val dark = Color.luminance(background) < 0.5
+        val text = if (dark) Color.WHITE else Color.BLACK
+        val muted = if (dark) Color.parseColor("#8E8E93") else Color.parseColor("#6C6C70")
+        val accent = accentColor(dark)
+        setBackgroundColor(background)
+        bar.setBackgroundColor(background)
+        titleView.setTextColor(text)
+        largeTitleView.setTextColor(text)
+        backButton.imageTintList = ColorStateList.valueOf(accent)
+        tabBar.setBackgroundColor(if (dark) Color.parseColor("#121212") else Color.parseColor("#F9F9F9"))
+        val divider = GradientDrawable().apply { setColor(if (dark) Color.parseColor("#262626") else Color.parseColor("#D8D8DC")) }
+        tabBar.foreground = null
+        tabBar.background = android.graphics.drawable.LayerDrawable(arrayOf(
+            divider,
+            GradientDrawable().apply { setColor(if (dark) Color.parseColor("#121212") else Color.parseColor("#F9F9F9")) },
+        )).apply { setLayerInset(1, 0, maxOf(1, (density / 2).toInt()), 0, 0) }
+        tabViews.forEachIndexed { index, (icon, label) ->
+            val color = if (index == selectedTab) accent else muted
+            icon.setTextColor(color)
+            label.setTextColor(color)
+            val vector = CraftNativeIcons.drawable(context, null, tabs[index].symbol, color)
+            icon.foreground = vector
+            if (vector != null) icon.text = ""
+        }
+        for (index in 0 until buttons.childCount) (buttons.getChildAt(index) as? TextView)?.setTextColor(accent)
+    }
+
+    private fun navButton(button: JSONObject): View {
+        val id = button.optString("id")
+        val title = button.optString("title")
+        val symbol = button.optString("symbol")
+        val view = TextView(context)
+        val dark = Color.luminance(ContextCompat.getColor(context, R.color.background)) < 0.5
+        val tint = button.optString("color").takeIf { it.isNotBlank() }?.let { runCatching { craftNativeColor(it) }.getOrNull() } ?: accentColor(dark)
+        val vector = if (symbol.isNotBlank()) CraftNativeIcons.drawable(context, null, symbol, tint) else null
+        view.text = if (vector != null) "" else if (symbol.isNotBlank()) CraftNativeSymbols.glyph(symbol) else title
+        view.textSize = if (symbol.isNotBlank()) 22f else 16f
+        if (vector != null) {
+            view.foreground = android.graphics.drawable.InsetDrawable(vector, dp(10), dp(15), dp(10), dp(15))
+            view.minWidth = dp(46)
+        }
+        view.gravity = Gravity.CENTER
+        view.minWidth = dp(44)
+        view.setPadding(dp(10), 0, dp(10), 0)
+        view.background = rippleBackground()
+        view.contentDescription = button.optString("accessibilityLabel").ifBlank { title.ifBlank { symbol } }
+        view.setTextColor(tint)
+        val badge = button.optInt("badge", 0)
+        if (badge > 0) {
+            view.text = "${view.text}${if (button.optString("badgeStyle") == "dot") " •" else " $badge"}"
+        }
+        view.setOnClickListener { onButton?.invoke(id) }
+        view.layoutParams = LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        return view
+    }
+
+    private fun accentColor(dark: Boolean): Int = if (dark) Color.parseColor("#0A84FF") else Color.parseColor("#007AFF")
+
+    private fun rippleBackground(): android.graphics.drawable.Drawable? {
+        val value = TypedValue()
+        return if (context.theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, value, true)) {
+            ContextCompat.getDrawable(context, value.resourceId)
+        } else null
+    }
+
+    private fun dp(value: Int) = (value * density).toInt()
+}
+
+/**
+ * SF Symbol names (what stx resolves an icon to, for iOS) as glyphs Android's
+ * own fonts draw, for the bars. A name with no glyph gets a neutral dot.
+ */
+internal object CraftNativeSymbols {
+    fun glyph(symbol: String): String {
+        val base = symbol.removeSuffix(".fill").removeSuffix(".circle")
+        return when (symbol) {
+            "plus", "plus.circle", "plus.circle.fill" -> "+"
+            "xmark", "xmark.circle", "xmark.circle.fill" -> "✕"
+            "checkmark", "checkmark.circle", "checkmark.circle.fill" -> "✓"
+            "ellipsis", "ellipsis.circle" -> "⋯"
+            "square.and.arrow.up" -> "⇪"
+            "magnifyingglass" -> "⌕"
+            "gear", "gearshape", "gearshape.fill" -> "⚙"
+            "bell", "bell.fill", "bell.badge" -> "🔔︎"
+            "person", "person.fill", "person.crop.circle", "person.crop.circle.fill", "person.circle" -> "👤︎"
+            "person.2", "person.2.fill" -> "👥︎"
+            "message", "message.fill", "bubble.left", "bubble.left.and.bubble.right", "bubble.left.fill" -> "💬︎"
+            "paperplane", "paperplane.fill" -> "➤"
+            "sun.max", "sun.max.fill" -> "☀︎"
+            "moon", "moon.fill", "moon.zzz" -> "☾"
+            "calendar" -> "▦"
+            "chart.line.uptrend.xyaxis", "chart.xyaxis.line", "chart.bar", "chart.bar.fill" -> "📈︎"
+            "heart", "heart.text.square" -> "♡"
+            "heart.fill" -> "♥"
+            "bag", "bag.fill", "cart", "cart.fill" -> "🛍︎"
+            "house", "house.fill" -> "⌂"
+            "pencil", "square.and.pencil" -> "✎"
+            "trash", "trash.fill" -> "🗑︎"
+            "arrow.clockwise" -> "↻"
+            "slider.horizontal.3" -> "☰"
+            "line.3.horizontal", "list.bullet" -> "☰"
+            "play", "play.fill" -> "▶"
+            "pause", "pause.fill" -> "⏸︎"
+            "star", "star.fill" -> "★"
+            "qrcode", "qrcode.viewfinder" -> "▣"
+            "info.circle" -> "ⓘ"
+            else -> when (base) {
+                "chevron.left" -> "‹"
+                "chevron.right" -> "›"
+                else -> "•"
+            }
+        }
+    }
+}
+
+/**
+ * Video and audio kept on the phone for offline (`craft.media`), the iOS
+ * host's CraftNativeMedia: `files/craft-media/<sha256 of the address>.<ext>`.
+ * A native Video given an address with a copy here plays the copy.
+ */
+internal object CraftNativeMedia {
+    private val inFlight = HashMap<String, MutableList<(CraftNativeCapabilityResult) -> Unit>>()
+    private val executor = Executors.newFixedThreadPool(2)
+    private val main = Handler(Looper.getMainLooper())
+
+    private fun root(context: Context) = File(context.applicationContext.filesDir, "craft-media")
+
+    fun file(context: Context, address: String): File {
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(address.toByteArray()).joinToString("") { "%02x".format(it) }
+        val ext = runCatching { Uri.parse(address).lastPathSegment?.substringAfterLast('.', "")?.lowercase() }.getOrNull().orEmpty()
+        val safe = if (Regex("^[a-z0-9]{1,5}$").matches(ext)) ext else "bin"
+        return File(root(context), "$digest.$safe")
+    }
+
+    fun local(context: Context, address: String): File? =
+        address.takeIf { it.isNotBlank() }?.let { file(context, it) }?.takeIf(File::exists)
+
+    private fun describe(address: String, file: File) = JSONObject().put("ok", true).put("url", address).put("path", file.absolutePath).put("size", file.length())
+
+    fun keep(context: Context, address: String, headers: JSONObject, done: (CraftNativeCapabilityResult) -> Unit) {
+        val uri = runCatching { Uri.parse(address) }.getOrNull()
+        if (uri == null || uri.scheme?.lowercase() !in setOf("http", "https") || uri.host.isNullOrBlank()) {
+            return done(CraftNativeCapabilityResult(code = "INVALID_ARGUMENT", message = "media.keep needs an absolute http or https URL"))
+        }
+        local(context, address)?.let { return done(CraftNativeCapabilityResult(data = describe(address, it))) }
+        synchronized(inFlight) {
+            inFlight[address]?.let { waiting ->
+                waiting.add(done)
+                return
+            }
+            inFlight[address] = mutableListOf(done)
+        }
+        executor.execute {
+            val result = runCatching {
+                val connection = java.net.URL(address).openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 30_000
+                connection.readTimeout = 60_000
+                headers.keys().forEach { name -> connection.setRequestProperty(name, headers.optString(name)) }
+                try {
+                    val status = connection.responseCode
+                    if (status !in 200..299) return@runCatching CraftNativeCapabilityResult(data = JSONObject().put("ok", false).put("url", address).put("status", status))
+                    val target = file(context, address)
+                    target.parentFile?.mkdirs()
+                    // Written aside and moved into place, so a half-written file is never played.
+                    val staging = File(target.parentFile, "${java.util.UUID.randomUUID()}.part")
+                    connection.inputStream.use { input -> staging.outputStream().use { input.copyTo(it) } }
+                    if (!staging.renameTo(target)) {
+                        staging.delete()
+                        return@runCatching CraftNativeCapabilityResult(code = "IO_ERROR", message = "media.keep could not store the file")
+                    }
+                    CraftNativeCapabilityResult(data = describe(address, target))
+                } finally {
+                    connection.disconnect()
+                }
+            }.getOrElse { error ->
+                CraftNativeCapabilityResult(code = if (error is java.net.SocketTimeoutException) "TIMEOUT" else "NETWORK_ERROR", message = error.message ?: "media.keep failed")
+            }
+            val waiting = synchronized(inFlight) { inFlight.remove(address) ?: mutableListOf() }
+            main.post { waiting.forEach { it(result) } }
+        }
+    }
+
+    /** Removes every copy whose address is not in `keep`; answers how many. */
+    fun prune(context: Context, keep: List<String>): Int {
+        val wanted = keep.map { file(context, it).name }.toSet()
+        var removed = 0
+        root(context).listFiles()?.forEach { file -> if (file.name !in wanted && file.delete()) removed++ }
+        return removed
+    }
+
+    fun usage(context: Context): JSONObject {
+        val kept = root(context).listFiles()?.filter { !it.name.endsWith(".part") }.orEmpty()
+        return JSONObject().put("files", kept.size).put("bytes", kept.sumOf { it.length() })
+    }
+}
+
+/**
+ * Messages from an isolate on the console bridge (a WebView without
+ * JavaScriptSandbox's message ports): the console cuts a message at about
+ * 32 KB, which dropped every large render, mutation and snapshot. The
+ * prelude sends a long one in numbered pieces (`\u0001<id>:<index>:<count>:`)
+ * and this puts them back together.
+ */
+internal class CraftNativeChunks {
+    private val pending = HashMap<String, Array<String?>>()
+
+    /** The whole message once its last piece arrives, the message itself when it came whole, else null. */
+    fun accept(body: String): String? {
+        if (!body.startsWith("\u0001")) return body
+        val header = body.substring(1).split(':', limit = 4)
+        if (header.size < 4) return null
+        val id = header[0]
+        val index = header[1].toIntOrNull() ?: return null
+        val count = header[2].toIntOrNull()?.takeIf { it in 1..100_000 } ?: return null
+        val pieces = pending.getOrPut(id) { arrayOfNulls(count) }
+        if (index !in pieces.indices) return null
+        pieces[index] = header[3]
+        if (pieces.any { it == null }) return null
+        pending.remove(id)
+        return pieces.joinToString("")
+    }
+
+    companion object {
+        /** The console bridge's `post`: long messages in pieces the console keeps whole. */
+        fun consolePost(prefix: String): String = """
+            var limit = 16000;
+            if (value.length <= limit) console.log(${JSONObject.quote(prefix)} + value);
+            else {
+              globalThis.__craftChunk = (globalThis.__craftChunk || 0) + 1;
+              var count = Math.ceil(value.length / limit);
+              for (var piece = 0; piece < count; piece++) {
+                console.log(${JSONObject.quote(prefix)} + '\u0001' + globalThis.__craftChunk + ':' + piece + ':' + count + ':' + value.slice(piece * limit, (piece + 1) * limit));
+              }
+            }
+        """.trimIndent()
+    }
+}
+
+/**
+ * The app's icons as vectors (`assets/craft-icons.json`): what an `<Icon>`
+ * draws on iOS as an SF Symbol, drawn on Android from the same icon the web
+ * shows (the app's Iconify set, Lucide for HQ), keyed by its own name and by
+ * the SF Symbol stx maps it to. Each entry is an SVG body on a 24-point
+ * view box, stroked the way Lucide is (2 points, round caps and joins). An
+ * icon the table lacks falls back to the glyph Android's fonts have.
+ */
+internal object CraftNativeIcons {
+    private data class Shape(val path: android.graphics.Path, val filled: Boolean)
+    private class Icon(val shapes: List<Shape>, val viewBox: Float, val stroke: Float)
+
+    @Volatile private var table: Map<String, Icon>? = null
+
+    private fun load(context: Context): Map<String, Icon> = table ?: synchronized(this) {
+        table ?: runCatching {
+            val json = JSONObject(context.assets.open("craft-icons.json").bufferedReader().use { it.readText() })
+            val size = json.optDouble("viewBox", 24.0).toFloat()
+            val stroke = json.optDouble("strokeWidth", 2.0).toFloat()
+            val icons = json.optJSONObject("icons") ?: JSONObject()
+            val parsed = HashMap<String, Icon>()
+            icons.keys().forEach { name -> parse(icons.optString(name))?.let { parsed[name] = Icon(it, size, stroke) } }
+            parsed as Map<String, Icon>
+        }.getOrElse { emptyMap() }.also { table = it }
+    }
+
+    private fun attributes(element: String): Map<String, String> =
+        Regex("""([a-zA-Z-]+)="([^"]*)"""").findAll(element).associate { it.groupValues[1] to it.groupValues[2] }
+
+    private fun number(value: String?): Float = value?.trim()?.toFloatOrNull() ?: 0f
+
+    private fun parse(body: String): List<Shape>? = runCatching {
+        Regex("""<(path|circle|rect|line|polyline|polygon|ellipse)\b([^>]*)/?>""").findAll(body).mapNotNull { match ->
+            val tag = match.groupValues[1]
+            val a = attributes(match.groupValues[2])
+            val filled = a["fill"]?.let { it != "none" } == true && a["stroke"] == null
+            val path = when (tag) {
+                "path" -> androidx.core.graphics.PathParser.createPathFromPathData(a["d"] ?: return@mapNotNull null)
+                "circle" -> android.graphics.Path().apply { addCircle(number(a["cx"]), number(a["cy"]), number(a["r"]), android.graphics.Path.Direction.CW) }
+                "ellipse" -> android.graphics.Path().apply {
+                    val cx = number(a["cx"]); val cy = number(a["cy"]); val rx = number(a["rx"]); val ry = number(a["ry"])
+                    addOval(android.graphics.RectF(cx - rx, cy - ry, cx + rx, cy + ry), android.graphics.Path.Direction.CW)
+                }
+                "rect" -> android.graphics.Path().apply {
+                    val x = number(a["x"]); val y = number(a["y"]); val w = number(a["width"]); val h = number(a["height"])
+                    val rx = number(a["rx"] ?: a["ry"]); val ry = number(a["ry"] ?: a["rx"])
+                    addRoundRect(android.graphics.RectF(x, y, x + w, y + h), rx, ry, android.graphics.Path.Direction.CW)
+                }
+                "line" -> android.graphics.Path().apply {
+                    moveTo(number(a["x1"]), number(a["y1"]))
+                    lineTo(number(a["x2"]), number(a["y2"]))
+                }
+                else -> android.graphics.Path().apply {
+                    val points = (a["points"] ?: "").trim().split(Regex("[\\s,]+")).mapNotNull { it.toFloatOrNull() }
+                    for (index in 0 until points.size / 2) {
+                        if (index == 0) moveTo(points[0], points[1]) else lineTo(points[index * 2], points[index * 2 + 1])
+                    }
+                    if (tag == "polygon") close()
+                }
+            }
+            Shape(path, filled)
+        }.toList().takeIf { it.isNotEmpty() }
+    }.getOrNull()
+
+    /** The icon for `name` (the Iconify name) or `symbol` (the SF Symbol), in `color`; null when the app has no vector for it. */
+    fun drawable(context: Context, name: String?, symbol: String?, color: Int): android.graphics.drawable.Drawable? {
+        val icons = load(context)
+        val bare = name?.removePrefix("i-lucide-")?.substringAfter("lucide:")
+        val icon = (bare?.let(icons::get)) ?: symbol?.let(icons::get) ?: return null
+        return Vector(icon, color)
+    }
+
+    private class Vector(private val icon: Icon, color: Int) : android.graphics.drawable.Drawable() {
+        private val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            strokeCap = android.graphics.Paint.Cap.ROUND
+            strokeJoin = android.graphics.Paint.Join.ROUND
+        }
+        private val matrix = android.graphics.Matrix()
+        private val scaled = android.graphics.Path()
+
+        override fun draw(canvas: android.graphics.Canvas) {
+            val box = bounds
+            if (box.isEmpty) return
+            val scale = minOf(box.width(), box.height()) / icon.viewBox
+            val left = box.left + (box.width() - icon.viewBox * scale) / 2f
+            val top = box.top + (box.height() - icon.viewBox * scale) / 2f
+            matrix.setScale(scale, scale)
+            matrix.postTranslate(left, top)
+            for (shape in icon.shapes) {
+                scaled.reset()
+                shape.path.transform(matrix, scaled)
+                paint.style = if (shape.filled) android.graphics.Paint.Style.FILL else android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = icon.stroke * scale
+                canvas.drawPath(scaled, paint)
+            }
+        }
+
+        override fun setAlpha(alpha: Int) { paint.alpha = alpha; invalidateSelf() }
+        override fun setColorFilter(colorFilter: android.graphics.ColorFilter?) { paint.colorFilter = colorFilter; invalidateSelf() }
+        @Deprecated("Drawable API")
+        override fun getOpacity(): Int = android.graphics.PixelFormat.TRANSLUCENT
+    }
+}

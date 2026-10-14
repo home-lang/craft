@@ -85,7 +85,6 @@ import androidx.javascriptengine.JavaScriptSandbox
 import androidx.javascriptengine.Message
 import androidx.javascriptengine.MessagePort
 import androidx.javascriptengine.MessagePortClient
-import com.google.common.util.concurrent.ListenableFuture
 import com.craft.runtime.CraftNative
 import org.json.JSONArray
 import org.json.JSONObject
@@ -188,6 +187,39 @@ private fun craftNativeGridColumnCount(value: Any?): Int {
         if (count != null) return max(1, count)
     }
     return max(1, trimmed.split(Regex("\\s+")).count { it.isNotBlank() })
+}
+
+/**
+ * A CSS colour as Android's ARGB. STX writes `#RRGGBBAA` (and `#RGBA`) for a
+ * colour with alpha, where Android's parser reads `#AARRGGBB`: a translucent
+ * grey fill (`#7676801f`) came out olive. Also `rgb()`/`rgba()` and
+ * `transparent`; anything else goes to Android's parser (named colours).
+ */
+internal fun craftNativeColor(raw: String): Int {
+    val value = raw.trim()
+    if (value.equals("transparent", ignoreCase = true)) return Color.TRANSPARENT
+    if (value.startsWith("#")) {
+        val hex = value.substring(1)
+        fun channel(text: String) = text.toInt(16)
+        return when (hex.length) {
+            3 -> Color.rgb(channel("${hex[0]}${hex[0]}"), channel("${hex[1]}${hex[1]}"), channel("${hex[2]}${hex[2]}"))
+            4 -> Color.argb(channel("${hex[3]}${hex[3]}"), channel("${hex[0]}${hex[0]}"), channel("${hex[1]}${hex[1]}"), channel("${hex[2]}${hex[2]}"))
+            6 -> Color.rgb(channel(hex.substring(0, 2)), channel(hex.substring(2, 4)), channel(hex.substring(4, 6)))
+            8 -> Color.argb(channel(hex.substring(6, 8)), channel(hex.substring(0, 2)), channel(hex.substring(2, 4)), channel(hex.substring(4, 6)))
+            else -> throw IllegalArgumentException("Unknown color $raw")
+        }
+    }
+    val functional = Regex("""^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+%?))?\s*\)$""", RegexOption.IGNORE_CASE).find(value)
+    if (functional != null) {
+        val (r, g, b, a) = functional.destructured
+        val alpha = when {
+            a.isBlank() -> 1.0
+            a.endsWith("%") -> a.dropLast(1).toDouble() / 100.0
+            else -> a.toDouble()
+        }
+        return Color.argb((alpha.coerceIn(0.0, 1.0) * 255).roundToInt(), r.toDouble().roundToInt(), g.toDouble().roundToInt(), b.toDouble().roundToInt())
+    }
+    return Color.parseColor(value)
 }
 
 /** Android View has no skew setters before API 29; draw the shared skew around the view's center. */
@@ -421,7 +453,7 @@ private class CraftNativeSvgView(context: Context) : View(context) {
     }
 
     private fun resolveColor(value: String?, current: String, fallback: Int): Int = runCatching {
-        Color.parseColor(if (value == "currentColor") current else value ?: current)
+        craftNativeColor(if (value == "currentColor") current else value ?: current)
     }.getOrDefault(fallback)
 
     private data class Quadruple<T1, T2, T3, T4>(val first: T1, val second: T2, val third: T3, val fourth: T4)
@@ -442,6 +474,67 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     private var gridAutoRows: CraftNativeLength? = null
     private var reverse = false
     private var wrapReverse = false
+
+    /**
+     * What a child measures at a pair of specs, remembered for the frame.
+     * `entries` asks each child up to three times (max-content, its target
+     * width, its height) and again when laying out; every child doing the
+     * same to its own made a deep screen (the Calendar) exponential, and the
+     * app stopped responding. Views only change between frames, so within
+     * one (the animation clock is locked for a frame's traversal) the same
+     * question has the same answer.
+     */
+    /**
+     * Whether this container's width is fixed while it measures (an EXACTLY
+     * spec, or a laid-out frame): only then does a column stretch its
+     * children to it. Measured for its content width (AT_MOST, a chip in a
+     * row), it is as wide as its widest child.
+     */
+    private var widthDefinite = false
+
+    private class MeasureMemo(var clock: Long = Long.MIN_VALUE, val results: HashMap<Long, Long> = HashMap())
+    private val memos = WeakHashMap<View, MeasureMemo>()
+
+    private fun probe(child: View, widthSpec: Int, heightSpec: Int): Long {
+        val clock = android.view.animation.AnimationUtils.currentAnimationTimeMillis()
+        val memo = memos.getOrPut(child) { MeasureMemo() }
+        if (memo.clock != clock) {
+            memo.clock = clock
+            memo.results.clear()
+        }
+        val key = (widthSpec.toLong() shl 32) or (heightSpec.toLong() and 0xffffffffL)
+        memo.results[key]?.let {
+            lastProbe[child] = it
+            return it
+        }
+        child.measure(widthSpec, heightSpec)
+        val size = (child.measuredWidth.toLong() shl 32) or (child.measuredHeight.toLong() and 0xffffffffL)
+        memo.results[key] = size
+        lastProbe[child] = size
+        return size
+    }
+    private val lastProbe = WeakHashMap<View, Long>()
+    private fun probedWidth(size: Long): Int = (size shr 32).toInt()
+    private fun probedHeight(size: Long): Int = size.toInt()
+
+    /**
+     * Lays a child out at its final frame, measuring it again at exactly
+     * that size first when the measure pass left it another size (a
+     * stretched or flex-grown child). A container such as the scroll view's
+     * SwipeRefreshLayout lays its own children out from its measured size,
+     * so a frame it was never measured at left its content 0 tall.
+     */
+    private fun place(child: View, left: Int, top: Int, right: Int, bottom: Int) {
+        val width = max(0, right - left)
+        val height = max(0, bottom - top)
+        if (child.measuredWidth != width || child.measuredHeight != height) {
+            child.measure(
+                View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
+            )
+        }
+        child.layout(left, top, right, bottom)
+    }
 
     override fun drawChild(canvas: Canvas, child: View, drawingTime: Long): Boolean {
         val skew = CraftNativeSkewTransforms.matrix(child) ?: return super.drawChild(canvas, child, drawingTime)
@@ -560,6 +653,29 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             }
             if (line.entries.isNotEmpty()) lines += line
         }
+        // A row's items take their widths from the line (`flex-1` starts
+        // from a zero basis), and text wraps to the width it gets: measured
+        // at its basis, a `flex-1` column of text was a word per line and
+        // thousands of pixels tall. Heights are measured again at the width
+        // each item will have.
+        if (orientation == HORIZONTAL && width < 500_000) {
+            for (line in lines) {
+                val widths = fallbackFlexWidths(line, availableMain, gap)
+                for (index in line.entries.indices) {
+                    val entry = line.entries[index]
+                    val given = widths.getOrNull(index) ?: continue
+                    if (given == entry.width || entry.style.height != null) continue
+                    val lp = entry.view.layoutParams as? MarginLayoutParams
+                    val verticalMargins = (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)
+                    val remeasured = measureChildHeight(entry.view, entry.style, height - paddingTop - paddingBottom, verticalMargins, max(0, given))
+                    line.entries[index] = entry.copy(height = remeasured)
+                }
+                line.cross = line.entries.maxOfOrNull { entry ->
+                    val lp = entry.view.layoutParams as? MarginLayoutParams
+                    (entry.height + (lp?.topMargin ?: 0) + (lp?.bottomMargin ?: 0)).toFloat()
+                } ?: 0f
+            }
+        }
         // Reconciliation reverses the child order so the main axis runs in
         // the requested direction. With wrapping, that also reverses the
         // line order; flexbox keeps wrap lines in cross-axis order, so restore
@@ -647,30 +763,47 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val authored = style.width?.resolve(base)
         val explicit = authored ?: style.aspectRatio?.let { ratio -> style.height?.resolve(base)?.times(ratio)?.roundToInt() } ?: flexBasis
         if (explicit != null) {
-            child.measure(
+            probe(
+                child,
                 View.MeasureSpec.makeMeasureSpec(explicit, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
             )
             return clamp(explicit, style.minWidth?.resolve(base), style.maxWidth?.resolve(base))
+        }
+        // A column of a definite width stretches its children across
+        // (`align-items: stretch`, the default): they are as wide as the
+        // column, not as wide as their content, and what they hold wraps to that width. Measured at their
+        // content width, a row with a `flex-1` text column measured as a word
+        // per line and stayed that tall once stretched.
+        if (orientation == VERTICAL && widthDefinite && style.position != "absolute" && (style.alignSelf ?: alignItems) == "stretch" && base < 500_000 && child !is CraftNativeModalView) {
+            val stretched = clamp(base, style.minWidth?.resolve(base), style.maxWidth?.resolve(base))
+            probe(
+                child,
+                View.MeasureSpec.makeMeasureSpec(stretched, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+            )
+            return stretched
         }
         // Measure text and nested flex containers at max-content first. An
         // AT_MOST spec equal to the available room can make Android report the
         // longest-word (min-content) width for a wrapping TextView, collapsing
         // shrink-to-fit bubbles and pills before the parent can clamp them.
         val intrinsicSpec = if (child is TextView && child !is EditText) 1_000_000 else base
-        child.measure(
+        val intrinsic = probe(
+            child,
             View.MeasureSpec.makeMeasureSpec(intrinsicSpec, View.MeasureSpec.AT_MOST),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
         )
-        val target = clamp(min(base, child.measuredWidth), style.minWidth?.resolve(base), style.maxWidth?.resolve(base))
-        child.measure(
+        val target = clamp(min(base, probedWidth(intrinsic)), style.minWidth?.resolve(base), style.maxWidth?.resolve(base))
+        probe(
+            child,
             View.MeasureSpec.makeMeasureSpec(target, View.MeasureSpec.AT_MOST),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
         )
         return target
     }
 
-    private fun measureChildHeight(child: View, style: CraftNativeLayoutStyle, available: Int, margins: Int): Int {
+    private fun measureChildHeight(child: View, style: CraftNativeLayoutStyle, available: Int, margins: Int, widthOverride: Int? = null): Int {
         val base = max(0, available - margins)
         val flexBasis = if (orientation == VERTICAL) style.flexBasis?.resolve(base) else null
         // Match width measurement: do not let stale native LayoutParams keep
@@ -680,8 +813,9 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val target = explicit ?: base
         val spec = if (explicit != null) View.MeasureSpec.makeMeasureSpec(target, View.MeasureSpec.EXACTLY)
         else View.MeasureSpec.makeMeasureSpec(base, View.MeasureSpec.AT_MOST)
-        child.measure(child.measuredWidth.let { View.MeasureSpec.makeMeasureSpec(max(0, it), View.MeasureSpec.EXACTLY) }, spec)
-        return clamp(if (explicit != null) target else child.measuredHeight, style.minHeight?.resolve(base), style.maxHeight?.resolve(base))
+        val width = widthOverride ?: lastProbe[child]?.let(::probedWidth) ?: child.measuredWidth
+        val size = probe(child, View.MeasureSpec.makeMeasureSpec(max(0, width), View.MeasureSpec.EXACTLY), spec)
+        return clamp(if (explicit != null) target else probedHeight(size), style.minHeight?.resolve(base), style.maxHeight?.resolve(base))
     }
 
     private fun clamp(value: Int, lower: Int?, upper: Int?): Int {
@@ -780,6 +914,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val widthMode = View.MeasureSpec.getMode(widthMeasureSpec)
+        widthDefinite = widthMode == View.MeasureSpec.EXACTLY
         val width = View.MeasureSpec.getSize(widthMeasureSpec).takeUnless { widthMode == View.MeasureSpec.UNSPECIFIED } ?: 1_000_000
         val height = View.MeasureSpec.getSize(heightMeasureSpec).takeUnless { View.MeasureSpec.getMode(heightMeasureSpec) == View.MeasureSpec.UNSPECIFIED } ?: 1_000_000
         if (grid) {
@@ -811,6 +946,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     }
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        widthDefinite = true
         if (grid) {
             val layout = gridLayout(width, height)
             val contentWidth = width - paddingLeft - paddingRight
@@ -845,7 +981,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                     val y = paddingTop + sharedFrames[offset + 1].roundToInt()
                     val childWidth = sharedFrames[offset + 2].roundToInt()
                     val childHeight = sharedFrames[offset + 3].roundToInt()
-                    entry.view.layout(x, y, x + childWidth, y + childHeight)
+                    place(entry.view, x, y, x + childWidth, y + childHeight)
                 }
             } else {
                 val totalRows = layout.rowHeights.sum()
@@ -893,7 +1029,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                             "flex-end" -> availableHeight - childHeight
                             else -> 0
                         }).roundToInt()
-                        entry.view.layout(x, y, x + childWidth, y + childHeight)
+                        place(entry.view, x, y, x + childWidth, y + childHeight)
                     }
                     rowTop += rowHeight + rowBetween
                 }
@@ -904,7 +1040,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 val childHeight = if (entry.style.top != null && entry.style.bottom != null) contentHeight - entry.style.top!! - entry.style.bottom!! else entry.height
                 val x = paddingLeft + (entry.style.left ?: (entry.style.right?.let { contentWidth - it - childWidth } ?: 0))
                 val y = paddingTop + (entry.style.top ?: (entry.style.bottom?.let { contentHeight - it - childHeight } ?: 0))
-                entry.view.layout(x, y, x + max(0, childWidth), y + max(0, childHeight))
+                place(entry.view, x, y, x + max(0, childWidth), y + max(0, childHeight))
             }
             onLayoutChanged?.invoke()
             return
@@ -948,7 +1084,11 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val crossOrigin = (if (orientation == HORIZONTAL) paddingTop else paddingLeft).toFloat()
             val crossExtent = availableCross.toFloat()
         for ((lineIndex, line) in lines.withIndex()) {
-            val lineCross = line.cross.toFloat() + stretchExtra
+            // A single-line container's one line is as tall (or wide) as the
+            // container itself, as in CSS: `h-12 items-center` centres its
+            // children in the 48 points, not in the tallest child.
+            val lineCross = if (!wrap) max(line.cross.toFloat(), availableCross.toFloat())
+            else line.cross.toFloat() + stretchExtra
                 val lineOffset = sharedCross?.first?.get(lineIndex)?.let { crossOrigin + it } ?: crossOffset
                 val physicalLineOffset = if (wrapReverse && wrap) crossOrigin + crossExtent - (lineOffset - crossOrigin) - lineCross else lineOffset
             val fallbackWidths = fallbackFlexWidths(line, availableMain, gap)
@@ -1042,7 +1182,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 val distributedPrimary = sharedPrimary?.get(index)?.roundToInt() ?: fallbackWidths[index]
                 val w = if (orientation == HORIZONTAL) distributedPrimary else crossSize
                 val h = if (orientation == HORIZONTAL) crossSize else distributedPrimary
-                entry.view.layout(x, y, x + w, y + h)
+                place(entry.view, x, y, x + w, y + h)
                 if (sharedPosition == null) mainOffset += distributedPrimary + marginStart + marginEnd + gap + between
             }
             if (sharedCross == null) crossOffset += lineCross + crossBetween
@@ -1053,7 +1193,7 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             val heightValue = if (entry.style.top != null && entry.style.bottom != null) contentHeight - entry.style.top!! - entry.style.bottom!! else entry.height
             val x = paddingLeft + (entry.style.left ?: (entry.style.right?.let { contentWidth - it - widthValue } ?: 0))
             val y = paddingTop + (entry.style.top ?: (entry.style.bottom?.let { contentHeight - it - heightValue } ?: 0))
-            entry.view.layout(x, y, x + max(0, widthValue), y + max(0, heightValue))
+            place(entry.view, x, y, x + max(0, widthValue), y + max(0, heightValue))
         }
         onLayoutChanged?.invoke()
     }
@@ -1094,12 +1234,6 @@ private class CraftNativeKeyboardAvoidingView(context: Context) : FrameLayout(co
     private var behavior = "padding"
     private var keyboardVerticalOffset = 0
     private var keyboardInset = 0
-    private var animationScaleObserverRegistered = false
-    private val animationScaleObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean, uri: Uri?) {
-            publishAppearance()
-        }
-    }
     private var basePadding = intArrayOf(0, 0, 0, 0)
 
     init {
@@ -1161,6 +1295,45 @@ private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(conte
         setOnRefreshListener { refreshHandler?.invoke() }
         isEnabled = false
         setHorizontal(false)
+    }
+
+    /**
+     * Along an axis its parent does not fix, a scroll view is as big as its
+     * content (up to what the parent allows): a horizontal strip is as tall
+     * as its row, a vertical scroll with room to spare as tall as what it
+     * holds. SwipeRefreshLayout alone takes all of an AT_MOST size, which
+     * made a strip in a column a million pixels tall.
+     */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val widthMode = MeasureSpec.getMode(widthMeasureSpec)
+        val heightMode = MeasureSpec.getMode(heightMeasureSpec)
+        val widthSize = MeasureSpec.getSize(widthMeasureSpec)
+        val heightSize = MeasureSpec.getSize(heightMeasureSpec)
+        if (widthMode == MeasureSpec.EXACTLY && heightMode == MeasureSpec.EXACTLY) {
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            return
+        }
+        val sideways = horizontalMode == true
+        val unspecified = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+        val horizontalPadding = paddingLeft + paddingRight
+        val verticalPadding = paddingTop + paddingBottom
+        content.measure(
+            if (sideways || widthMode == MeasureSpec.UNSPECIFIED) unspecified
+            else MeasureSpec.makeMeasureSpec(max(0, widthSize - horizontalPadding), MeasureSpec.EXACTLY),
+            if (!sideways || heightMode == MeasureSpec.UNSPECIFIED) unspecified
+            else MeasureSpec.makeMeasureSpec(max(0, heightSize - verticalPadding), MeasureSpec.AT_MOST),
+        )
+        fun fit(mode: Int, size: Int, wanted: Int): Int = when (mode) {
+            MeasureSpec.EXACTLY -> size
+            MeasureSpec.AT_MOST -> min(size, wanted)
+            else -> wanted
+        }
+        val width = fit(widthMode, widthSize, content.measuredWidth + horizontalPadding)
+        val height = fit(heightMode, heightSize, content.measuredHeight + verticalPadding)
+        super.onMeasure(
+            MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY),
+        )
     }
 
     fun setRefreshHandler(handler: (() -> Unit)?, refreshing: Boolean) {
@@ -1361,11 +1534,27 @@ private class CraftNativeFlexSpacer(context: Context) : View(context)
  * the other native leaf controls without adding an icon-font dependency.
  */
 private class CraftNativeIconView(context: Context) : TextView(context) {
+    /** The app's vector for the icon (CraftNativeIcons), drawn in place of the glyph. */
+    var vector: Drawable? = null
+        set(value) {
+            field = value
+            invalidate()
+        }
+
     init {
         includeFontPadding = false
         gravity = Gravity.CENTER
         setPadding(0, 0, 0, 0)
         isSingleLine = true
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        val icon = vector ?: return super.onDraw(canvas)
+        // A single-line TextView keeps a horizontal scroll from centring its
+        // text in a max-content measure (half a million pixels): the canvas
+        // arrives scrolled, so the box is placed where the view is.
+        icon.setBounds(scrollX + paddingLeft, scrollY + paddingTop, scrollX + width - paddingRight, scrollY + height - paddingBottom)
+        icon.draw(canvas)
     }
 }
 
@@ -1692,7 +1881,10 @@ private class CraftNativeVideoView(context: Context) : VideoView(context) {
             sourceUri = uri
             stopPlayback()
             if (uri.isBlank()) return
-            setVideoURI(Uri.parse(uri))
+            // A copy kept on the phone (craft.media.keep) plays in place of
+            // the address: offline in a gym with no signal.
+            val kept = CraftNativeMedia.local(context, uri)
+            setVideoURI(if (kept != null) Uri.fromFile(kept) else Uri.parse(uri))
             setOnPreparedListener { mediaPlayer ->
                 mediaPlayer.isLooping = shouldLoop
                 val volume = if (this.muted) 0f else 1f
@@ -1984,11 +2176,32 @@ class MainActivity : AppCompatActivity() {
         val params: JSONObject,
         val view: CraftNativeFlexLayout,
         val isolate: JavaScriptIsolate,
-        val port: MessagePort?
+        val port: MessagePort?,
+        /** The app script (`nativeApp`): runs beside the screens and draws nothing. */
+        val headless: Boolean = false,
     ) {
+        /** What the screen set with `craft.navigation.setOptions`, merged. */
+        var options = JSONObject()
+        /** Shown before: its next showing is a `SCREEN_FOCUS`. */
+        var shown = false
+        /** The app path it was opened for (`/m/workout/42`), to find it again. */
+        var path: String? = null
+        /** Long messages from the console bridge, put back together. */
+        val chunks = CraftNativeChunks()
+        /** A `requestAnimationFrame` is waiting for the next frame. */
+        var frameRequested = false
+        /** The screen's timers (`setTimeout`), kept by the host. */
+        val timers = mutableMapOf<Int, Runnable>()
         val drafts = mutableMapOf<String, String>()
         val inputIdentities = mutableMapOf<EditText, String>()
         val suppressedTextChanges = mutableSetOf<EditText>()
+        /**
+         * The texts a field sent the screen that its `value` has not come
+         * back as yet, oldest first. Typing faster than the round trip makes
+         * the screen answer with a value the field has already moved past;
+         * that echo is not written back over what was typed since.
+         */
+        val inputEchoes = mutableMapOf<EditText, ArrayDeque<String>>()
         val controls = mutableMapOf<String, View>()
         // Protocol ids identify mutation targets; authored keys identify the
         // retained view. Keep both mappings so a targeted update can recover
@@ -2057,7 +2270,22 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var root: FrameLayout
     private var sandbox: JavaScriptSandbox? = null
-    private val screens = mutableListOf<Screen>()
+    /** The stack on screen: the current tab's, or the only one in an app without tabs. */
+    private var screens = mutableListOf<Screen>()
+    private lateinit var routes: CraftNativeRoutes
+    private lateinit var stores: CraftNativeStores
+    private lateinit var services: CraftNativeServices
+    private var chrome: CraftNativeChrome? = null
+    private val tabStacks = mutableListOf<MutableList<Screen>>()
+    private var currentTab = 0
+    private var visibleScreen: Screen? = null
+    /** The app script's isolate (`nativeApp`), when the app has one. */
+    private var appScreen: Screen? = null
+    private val urlSchemes = mutableSetOf<String>()
+    /** Background refreshes the running app script was handed, by id, until it answers. */
+    private val backgroundWaiters = mutableMapOf<String, (Boolean) -> Unit>()
+    /** A tapped notification that opened the app, for the app script once it runs. */
+    private var pendingNotificationTap: JSONObject? = null
     private var bundle = ""
     private lateinit var config: JSONObject
     private lateinit var capabilities: CraftNativeCapabilities
@@ -2072,13 +2300,23 @@ class MainActivity : AppCompatActivity() {
     private var defaultTextColor = Color.WHITE
     private var useMessagePorts = false
     private val imageExecutor = Executors.newFixedThreadPool(2)
+    /** Lays out each isolate's prelude (the synchronous stores) off the main thread. */
+    private val preludeExecutor = Executors.newSingleThreadExecutor()
     private val imageSources = mutableMapOf<ImageView, String>()
     private val imageJobs = mutableMapOf<ImageView, Future<*>>()
     private val imageErrors = mutableMapOf<ImageView, String>()
     private val inputHintDefaults = mutableMapOf<EditText, ColorStateList>()
+    /** Fields that already carry their text watcher. */
+    private val watchedInputs: MutableSet<EditText> = java.util.Collections.newSetFromMap(WeakHashMap())
     private val inputHighlightDefaults = mutableMapOf<EditText, Int>()
     private val defaultBackgrounds = mutableMapOf<View, Drawable?>()
     private var keyboardInset = 0
+    private var animationScaleObserverRegistered = false
+    private val animationScaleObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean, uri: Uri?) {
+            publishAppearance()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         applyConfiguredAppearance()
@@ -2086,6 +2324,7 @@ class MainActivity : AppCompatActivity() {
         initialDeepLink = savedInstanceState?.getString("craft.initialDeepLink")?.let(Uri::parse) ?: intent?.data
         initialDeepLinkClaimed = savedInstanceState?.getBoolean("craft.initialDeepLinkClaimed", false) ?: false
         deliveredInitialDeepLink = savedInstanceState?.getBoolean("craft.deliveredInitialDeepLink", false) ?: false
+        if (savedInstanceState == null) pendingNotificationTap = notificationTap(intent)
         setContentView(R.layout.activity_main)
         root = findViewById(R.id.native_root)
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
@@ -2107,6 +2346,20 @@ class MainActivity : AppCompatActivity() {
         hapticsEnabled = config.optBoolean("enableHaptics", false)
         clipboardEnabled = config.optBoolean("enableClipboard", false)
         capabilities = CraftNativeCapabilities(this, config)
+        routes = CraftNativeRoutes(config)
+        stores = CraftNativeStores.get(this, config)
+        services = CraftNativeServices(this, config) { this }
+        services.onBackgroundComplete = { ok, id ->
+            if (id == null) {
+                val waiting = backgroundWaiters.values.toList()
+                backgroundWaiters.clear()
+                waiting.forEach { it(ok) }
+            } else backgroundWaiters.remove(id)?.invoke(ok)
+        }
+        capabilities.storeObserver = { store, key, value -> stores.changed(store, key, value, null) }
+        val schemes = config.optJSONArray("urlSchemes") ?: JSONArray()
+        for (index in 0 until schemes.length()) urlSchemes.add(schemes.optString(index).lowercase())
+        if (!routes.isEmpty) installChrome()
         refreshThemeDefaults()
         bundle = runCatching {
             assets.open("native-screen.js").bufferedReader().use { it.readText() }
@@ -2118,34 +2371,19 @@ class MainActivity : AppCompatActivity() {
             showError("Native STX requires Android JavaScriptSandbox, which is unavailable on this device.")
             return
         }
-        val connection = synchronized(SANDBOX_LOCK) {
-            sharedSandboxConnection ?: sharedSandbox?.let { existing ->
-                sandbox = existing
-                null
-            } ?: JavaScriptSandbox.createConnectedInstanceAsync(applicationContext).also {
-                sharedSandboxConnection = it
+        // One sandbox for the process, shared with a background refresh
+        // (CraftNativeBackground.kt): an app may hold only one.
+        CraftNativeSandbox.connect(applicationContext) { engine, error ->
+            if (isDestroyed) return@connect
+            if (engine == null) {
+                Log.e(TAG, "JavaScriptSandbox connection failed", error)
+                showError("Native STX JavaScript engine could not start: ${error?.message}")
+                return@connect
             }
+            sandbox = engine
+            attachSandbox(engine)
         }
-        if (connection == null) {
-            sandbox?.let(::attachSandbox)
-        } else {
-            connection.addListener({
-                try {
-                    val engine = connection.get()
-                    synchronized(SANDBOX_LOCK) {
-                        sharedSandbox = engine
-                    }
-                    if (!isDestroyed) {
-                        sandbox = engine
-                        attachSandbox(engine)
-                    }
-                } catch (error: Exception) {
-                    synchronized(SANDBOX_LOCK) { sharedSandboxConnection = null }
-                    Log.e(TAG, "JavaScriptSandbox connection failed", error)
-                    if (!isDestroyed) showError("Native STX JavaScript engine could not start: ${error.message}")
-                }
-            }, ContextCompat.getMainExecutor(this))
-        }
+        if (!routes.isEmpty) CraftNativeBackground.schedule(applicationContext, config)
     }
 
     private fun applyConfiguredAppearance() {
@@ -2173,11 +2411,120 @@ class MainActivity : AppCompatActivity() {
             return
         }
         Log.i(TAG, "Native STX bridge: ${if (useMessagePorts) "message ports" else "console callback"}")
-        openScreen(null)
+        startApp()
     }
 
-    private fun openScreen(route: String?, params: JSONObject = JSONObject()) {
-        val engine = sandbox ?: return
+    /**
+     * An app with `nativeScreens`: the app script, then the first tab (or
+     * the screen the launch link names). A bundle with no route table opens
+     * its initial screen, as it always did.
+     */
+    private fun startApp() {
+        if (routes.isEmpty) {
+            openScreen(null)
+            return
+        }
+        config.optString("nativeApp").takeIf { it.isNotBlank() }?.let { route ->
+            appScreen = openScreen(route, JSONObject(), headless = true)
+        }
+        val launch = initialDeepLink?.let { routes.appPath(it.toString(), urlSchemes) }
+        if (launch != null) deliveredInitialDeepLink = true
+        selectTab(routes.tabFor(launch ?: routes.initialPath)?.let { routes.tabs.indexOf(it) } ?: 0)
+        if (launch != null && routes.tabFor(launch) == null) navigateOpen(launch, fromLink = true)
+        else if (routes.tabs.isEmpty() && screens.isEmpty()) navigateOpen(routes.initialPath)
+    }
+
+    private fun installChrome() {
+        val bars = CraftNativeChrome(this, routes.tabs)
+        bars.layoutParams = FrameLayout.LayoutParams(-1, -1)
+        bars.onBack = { onBackPressedDispatcherCompat() }
+        bars.onButton = { id -> visibleScreen?.takeIf { it.active }?.let { send(it, "NAV_BUTTON", JSONObject().put("id", id)) } }
+        bars.onTab = { index ->
+            haptic()
+            if (index == currentTab) popToRoot() else selectTab(index)
+        }
+        root.addView(bars)
+        chrome = bars
+        tabStacks.clear()
+        repeat(maxOf(1, routes.tabs.size)) { tabStacks.add(mutableListOf()) }
+        screens = tabStacks[0]
+    }
+
+    private fun onBackPressedDispatcherCompat() {
+        @Suppress("DEPRECATION")
+        onBackPressed()
+    }
+
+    private fun haptic() {
+        if (!hapticsEnabled) return
+        root.performHapticFeedback(android.view.HapticFeedbackConstants.KEYBOARD_TAP)
+    }
+
+    /** A tab chosen: its stack shows, its root screen opened the first time. */
+    private fun selectTab(index: Int) {
+        if (index !in tabStacks.indices) return
+        currentTab = index
+        screens = tabStacks[index]
+        chrome?.selectTab(index)
+        if (screens.isEmpty()) {
+            val match = routes.tabs.getOrNull(index)?.let { routes.match(it.id) }
+            if (match != null) openScreen(match.screen, match.params)?.path = match.path else openScreen(null)
+        } else {
+            show(screens.last())
+        }
+    }
+
+    /**
+     * `craft.navigation.open(path)`: the tab whose root it is, the screen
+     * that draws it (pushed on the current tab, or its params changed when
+     * that screen is already in front), or, for a path no screen draws, the
+     * page on the app's site in the in-app browser. Another site's address
+     * opens in the browser too.
+     */
+    private fun navigateOpen(target: String, fromLink: Boolean = false) {
+        val path = routes.appPath(target, urlSchemes)
+        if (path == null) {
+            openExternal(target)
+            return
+        }
+        val match = routes.match(path)
+        val tab = routes.tabFor(path)
+        if (tab != null) {
+            selectTab(routes.tabs.indexOf(tab))
+            popToRoot()
+            val root = screens.firstOrNull()
+            if (root != null && match != null && match.params.length() > 0) {
+                send(root, "ROUTE_PARAMS", JSONObject().put("params", match.params))
+            }
+            return
+        }
+        if (match == null) {
+            routes.siteURL(path)?.let(::openExternal)
+            return
+        }
+        // A link from outside opens under the tab that owns its path.
+        if (fromLink) routes.tabOwning(path)?.let { owner ->
+            val index = routes.tabs.indexOf(owner)
+            if (index != currentTab) selectTab(index)
+        }
+        // Already in this stack (perhaps under others): back to it, with the params it was opened with now.
+        val existing = screens.lastOrNull { it.path == match.path }
+        if (existing != null) {
+            while (screens.lastOrNull() !== existing) closeScreen(screens.removeAt(screens.lastIndex))
+            show(existing)
+            send(existing, "ROUTE_PARAMS", JSONObject().put("params", match.params))
+            return
+        }
+        openScreen(match.screen, match.params)?.path = match.path
+    }
+
+    /** A page the app does not draw, in a Custom Tab over the app. */
+    private fun openExternal(url: String) {
+        services.perform("Browser", "open", JSONArray().put(url), {})
+    }
+
+    private fun openScreen(route: String?, params: JSONObject = JSONObject(), headless: Boolean = false): Screen? {
+        val engine = sandbox ?: return null
         val isolate = engine.createIsolate()
         val view = CraftNativeFlexLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -2196,18 +2543,25 @@ class MainActivity : AppCompatActivity() {
             isolate.setConsoleCallback(executor, JavaScriptConsoleCallback { entry ->
                 val current = screen ?: return@JavaScriptConsoleCallback
                 if (current.active && entry.message.startsWith(prefix)) {
-                    receiveSafely(current, entry.message.removePrefix(prefix))
+                    current.chunks.accept(entry.message.removePrefix(prefix))?.let { receiveSafely(current, it) }
+                } else if (current.active) {
+                    Log.i(TAG, "[${current.route ?: "home"}] ${entry.message}")
                 }
             })
             null
         }
-        val activeScreen = Screen(route, params, view, isolate, port)
+        val activeScreen = Screen(route, params, view, isolate, port, headless)
         activeScreen.view.onLayoutChanged = {
             if (activeScreen.active) emitLayoutEvents(activeScreen)
         }
         screen = activeScreen
-        screens.add(activeScreen)
-        show(activeScreen)
+        CraftNativeHub.register(activeScreen.capabilityScope) { type, payload ->
+            if (activeScreen.active) send(activeScreen, type, payload)
+        }
+        if (!headless) {
+            screens.add(activeScreen)
+            show(activeScreen)
+        }
         val routePrelude = """
             globalThis.__stxNativeRoute = ${route?.let { JSONObject.quote(it) } ?: "undefined"};
             globalThis.__stxNativeParams = ${params};
@@ -2286,41 +2640,42 @@ class MainActivity : AppCompatActivity() {
               }
             })()
         """.trimIndent()
-        val prelude = if (useMessagePorts) """
-            (async function() {
-              const port = await android.getNamedPort('craft');
-              $routePrelude
-              globalThis.__stxNativeBridge = {
-                platform: 'android',
-                mutationProtocolVersion: 1,
-                capabilityProtocolVersion: $CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION,
-                capabilityTimeoutMs: $CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS,
-                capabilities: ${capabilities.names()},
-                initialAppState: ${JSONObject.quote(nativeAppState)},
-                colorScheme: ${JSONObject.quote(colorScheme())},
-                appearance: ${appearance()},
-                postMessage: function(value) { port.postMessage(value); },
-                onMessage: function(callback) { port.onmessage = function(event) { callback(event.data); }; }
-              };
-              $audioPrelude
-            })()
-        """.trimIndent() else """
-            $routePrelude
-            globalThis.__stxNativeBridge = {
-              platform: 'android',
-              mutationProtocolVersion: 1,
-              capabilityProtocolVersion: $CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION,
-              capabilityTimeoutMs: $CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS,
-              capabilities: ${capabilities.names()},
-              initialAppState: ${JSONObject.quote(nativeAppState)},
-              colorScheme: ${JSONObject.quote(colorScheme())},
-              appearance: ${appearance()},
-              postMessage: function(value) { console.log(${JSONObject.quote(prefix)} + value); },
-              onMessage: function(callback) { globalThis.__stxNativeCallback = callback; }
-            };
-            $audioPrelude
+        val bridgeFields = """
+            platform: 'android',
+            mutationProtocolVersion: 1,
+            capabilityProtocolVersion: $CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION,
+            capabilityTimeoutMs: $CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS,
+            capabilities: ${capabilityNames()},
+            initialAppState: ${JSONObject.quote(nativeAppState)},
+            colorScheme: ${JSONObject.quote(colorScheme())},
+            appearance: ${appearance()},
+            appURL: ${JSONObject.quote(config.optString("devServerURL"))},
+            appVersion: ${JSONObject.quote(appVersion().first)},
+            appBuild: ${JSONObject.quote(appVersion().second)}
         """.trimIndent()
-        val setup = isolate.evaluateJavaScriptAsync(prelude)
+        // The stores can run to megabytes: read and laid out off the main
+        // thread, then handed to the isolate.
+        val preludeReady = com.google.common.util.concurrent.SettableFuture.create<String>()
+        preludeExecutor.execute {
+            preludeReady.set(runCatching {
+                val preloaded = if (routes.isEmpty) "{}" else stores.preloadText()
+                if (useMessagePorts) """
+                    (async function() {
+                      const port = await android.getNamedPort('craft');
+                      globalThis.__craftPort = port;
+                      __CRAFT_PRELUDE__
+                      $audioPrelude
+                    })()
+                """.trimIndent().replace("__CRAFT_PRELUDE__", CraftNativePrelude.script(bridgeFields, "globalThis.__craftPort.postMessage(value);", "globalThis.__craftPort.onmessage = function(event) { deliver(event.data); };", preloaded, routePrelude))
+                else CraftNativePrelude.script(bridgeFields, CraftNativeChunks.consolePost(prefix), "globalThis.__stxNativeCallback = deliver;", preloaded, routePrelude) + "\n" + audioPrelude
+            }.getOrElse { error ->
+                Log.e(TAG, "Native STX prelude failed", error)
+                ""
+            })
+        }
+        val setup = com.google.common.util.concurrent.Futures.transformAsync(preludeReady, { prelude ->
+            isolate.evaluateJavaScriptAsync(prelude)
+        }, executor)
         setup.addListener({
             if (!activeScreen.active) return@addListener
             try {
@@ -2329,6 +2684,21 @@ class MainActivity : AppCompatActivity() {
                 load.addListener({
                     try {
                         load.get()
+                        if (activeScreen.headless) {
+                            CraftNativeBackground.foreground = { event, id, done ->
+                                val app = appScreen
+                                if (app == null || !app.active) false
+                                else {
+                                    backgroundWaiters[id] = done
+                                    send(app, "CRAFT_EVENT", JSONObject().put("event", event).put("detail", JSONObject().put("id", id)))
+                                    true
+                                }
+                            }
+                            pendingNotificationTap?.let {
+                                pendingNotificationTap = null
+                                send(activeScreen, "CRAFT_EVENT", JSONObject().put("event", "craftNotificationResponse").put("detail", it))
+                            }
+                        }
                         val launchLink = initialDeepLink
                         if (!deliveredInitialDeepLink
                             && config.optBoolean("enableDeepLinks")
@@ -2348,13 +2718,94 @@ class MainActivity : AppCompatActivity() {
                 showError("Native STX bridge failed: ${error.message}")
             }
         }, executor)
+        return activeScreen
     }
 
+    /**
+     * Puts a screen on the display: in the bars' content area when the app
+     * has them. The screen it replaces hears `SCREEN_FOCUS` false, and a
+     * screen shown before hears true (its `navigation.onAppear`).
+     */
     private fun show(screen: Screen) {
-        root.removeAllViews()
+        val bars = chrome
+        val host: ViewGroup = bars?.content ?: root
+        host.removeAllViews()
         (screen.view.parent as? ViewGroup)?.removeView(screen.view)
-        root.addView(screen.view)
+        host.addView(screen.view)
+        val previous = visibleScreen
+        visibleScreen = screen
+        if (screen.frameRequested) postFrame(screen)
+        if (bars != null) applyChrome(screen)
+        if (previous !== screen) {
+            if (previous != null && previous.active) send(previous, "SCREEN_FOCUS", JSONObject().put("focused", false))
+            if (screen.shown) send(screen, "SCREEN_FOCUS", JSONObject().put("focused", true))
+            screen.shown = true
+        }
         refreshScreenTheme(screen)
+    }
+
+    /**
+     * `requestAnimationFrame`: the next vsync for the screen on display. A
+     * screen out of sight (another tab, under a pushed one) waits until it
+     * is shown again, as a browser pauses a hidden tab's frames.
+     */
+    private fun requestFrame(screen: Screen) {
+        if (screen.frameRequested) return
+        screen.frameRequested = true
+        if (visibleScreen === screen || screen.headless) postFrame(screen)
+    }
+
+    private fun postFrame(screen: Screen) {
+        android.view.Choreographer.getInstance().postFrameCallback { frameTime ->
+            if (!screen.active || !screen.frameRequested) return@postFrameCallback
+            if (visibleScreen !== screen && !screen.headless) return@postFrameCallback
+            screen.frameRequested = false
+            send(screen, "FRAME_FIRE", JSONObject().put("time", frameTime / 1_000_000.0))
+        }
+    }
+
+    private fun applyChrome(screen: Screen) {
+        val bars = chrome ?: return
+        val depth = screens.indexOf(screen).coerceAtLeast(0)
+        val fallback = if (depth == 0) routes.tabs.getOrNull(currentTab)?.title else null
+        bars.apply(screen.options, depth, fallback)
+    }
+
+    /** The bridge's capability names: Craft's core set and this host's services. */
+    private fun capabilityNames(): JSONArray = capabilities.names().apply {
+        services.names().forEach { name -> put(name) }
+    }
+
+    private fun appVersion(): Pair<String, String> = runCatching {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        val build = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode.toString() else @Suppress("DEPRECATION") info.versionCode.toString()
+        (info.versionName ?: "") to build
+    }.getOrDefault("" to "")
+
+    /** A synchronous store written in an isolate (CraftNativeShell.kt's prelude). */
+    private fun syncWrite(screen: Screen, payload: JSONObject) {
+        val id = payload.optString("id").takeIf { it.isNotBlank() }
+        val reply: (Boolean) -> Unit = { ok ->
+            if (id != null && screen.active) send(screen, "SYNC_RESULT", JSONObject().put("id", id).put("ok", ok))
+        }
+        val key = payload.optString("key")
+        val value = if (payload.isNull("value")) null else payload.optString("value")
+        when (payload.optString("store")) {
+            "storage" -> if (key.isNotBlank()) stores.setStorage(key, value, from = screen.capabilityScope)
+            "snapshots" -> if (payload.optBoolean("clear")) {
+                val keep = payload.optJSONArray("keep") ?: JSONArray()
+                stores.clearSnapshots((0 until keep.length()).map { keep.optString(it) }.toSet(), reply)
+            } else if (key.isNotBlank()) {
+                stores.setSnapshot(key, value, from = screen.capabilityScope, done = reply)
+            } else reply(false)
+            else -> reply(false)
+        }
+    }
+
+    /** Every live isolate: each tab's stack and the app script. */
+    private fun allScreens(): List<Screen> = buildList {
+        if (tabStacks.isEmpty()) addAll(screens) else tabStacks.forEach(::addAll)
+        appScreen?.let(::add)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -2374,9 +2825,13 @@ class MainActivity : AppCompatActivity() {
         refreshThemeDefaults()
         ViewCompat.requestApplyInsets(root)
         refreshInputDefaultsForTraitChange()
-        screens.lastOrNull()?.let { screen ->
-            refreshScreenTheme(screen)
-            if (screen.active) send(screen, "APPEARANCE", appearance())
+        chrome?.refreshColors()
+        // Every screen follows light and dark, the ones in other tabs and
+        // under the one on display too, and the app script hears it.
+        val appearance = appearance()
+        allScreens().forEach { screen ->
+            if (!screen.headless) refreshScreenTheme(screen)
+            if (screen.active) send(screen, "APPEARANCE", appearance)
         }
     }
 
@@ -2430,9 +2885,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun receive(screen: Screen, raw: String) {
-        val message = runCatching { JSONObject(raw) }.getOrNull() ?: return
+        val message = runCatching { JSONObject(raw) }.getOrElse { error ->
+            Log.w(TAG, "A message from ${screen.route ?: "home"} is not JSON (${raw.length} chars): ${error.message}; it starts ${raw.take(120)}")
+            return
+        }
         val payload = message.optJSONObject("payload") ?: JSONObject()
-        Log.d(TAG, "Native STX ${message.optString("type")} (${raw.length} chars) for ${screen.route ?: "home"}")
+        val type = message.optString("type")
+        // Timers and frames come many times a second: not worth a log line each.
+        if (type != "TIMER" && type != "TIMER_CLEAR" && type != "FRAME" && Log.isLoggable(TAG, Log.DEBUG)) {
+            Log.d(TAG, "Native STX $type (${raw.length} chars) for ${screen.route ?: "home"}")
+        }
         when (message.optString("type")) {
             "RENDER" -> payload.optJSONObject("document")?.let { render(screen, it) }
             "MUTATE" -> try {
@@ -2458,16 +2920,34 @@ class MainActivity : AppCompatActivity() {
                     .put("message", "mutation batch could not be applied")
                     .put("version", CRAFT_NATIVE_MUTATION_PROTOCOL_VERSION))
             }
+            "NAVIGATE_OPEN" -> payload.optString("path").takeIf { it.isNotBlank() }?.let(::navigateOpen)
+            "NAVIGATION_SET_OPTIONS" -> {
+                payload.keys().forEach { key -> screen.options.put(key, payload.opt(key)) }
+                if (visibleScreen === screen) applyChrome(screen)
+            }
+            "SYNC_WRITE" -> syncWrite(screen, payload)
+            "TIMER" -> {
+                val id = payload.optInt("id")
+                screen.timers.remove(id)?.let(capabilityHandler::removeCallbacks)
+                val fire = Runnable {
+                    screen.timers.remove(id)
+                    if (screen.active) send(screen, "TIMER_FIRE", JSONObject().put("id", id))
+                }
+                screen.timers[id] = fire
+                capabilityHandler.postDelayed(fire, payload.optLong("ms", 0).coerceAtLeast(0))
+            }
+            "TIMER_CLEAR" -> screen.timers.remove(payload.optInt("id"))?.let(capabilityHandler::removeCallbacks)
+            "FRAME" -> requestFrame(screen)
             "NAVIGATE", "NAVIGATE_REPLACE" -> {
-                if (screens.lastOrNull() !== screen) return
+                if (screens.lastOrNull() !== screen && screen !== appScreen) return
                 val route = payload.optString("screen").takeIf { it.isNotBlank() } ?: return
                 if (message.optString("type") == "NAVIGATE_REPLACE") {
                     closeScreen(screens.removeAt(screens.lastIndex))
                 }
                 openScreen(route, payload.optJSONObject("params") ?: JSONObject())
             }
-            "NAVIGATE_BACK" -> if (screens.lastOrNull() === screen) back()
-            "NAVIGATE_POP_TO_ROOT" -> if (screens.lastOrNull() === screen) popToRoot()
+            "NAVIGATE_BACK" -> if (screens.lastOrNull() === screen || screen === appScreen) back()
+            "NAVIGATE_POP_TO_ROOT" -> if (screens.lastOrNull() === screen || screen === appScreen) popToRoot()
             "API_REQUEST" -> answerAPI(screen, message, payload)
             "API_CANCEL" -> {
                 val id = payload.optString("requestId")
@@ -2660,7 +3140,17 @@ class MainActivity : AppCompatActivity() {
                     send(screen, "EVENT", JSONObject().put("handlerName", current).put("nativeEvent", JSONObject()))
                 }
             }
-            "Button" -> (previous as? Button ?: Button(this)).apply {
+            "Button" -> (previous as? Button ?: Button(this).apply {
+                // A plain button, as on iOS (UIButton) and the web: its
+                // style draws any fill, not Material's grey raised box.
+                background = null
+                stateListAnimator = null
+                minWidth = 0
+                minHeight = 0
+                minimumWidth = 0
+                minimumHeight = 0
+                setPadding(0, 0, 0, 0)
+            }).apply {
                 val title = props.optString("title").ifBlank { childText(children) }
                 isAllCaps = false
                 configureText(this, title, style)
@@ -2701,6 +3191,13 @@ class MainActivity : AppCompatActivity() {
             }
             "TextInput" -> (reusableInput?.takeIf { it.isSingleLine == !props.optBoolean("multiline", false) }
                 ?: EditText(this)).apply {
+                // Setting filters, the input type or single-line mode makes
+                // TextView set its text again, which puts the caret back at
+                // the start: typing then came out backwards. Each is set only
+                // when it changes, and the caret is put back after.
+                val keptText = text.toString()
+                val keptStart = selectionStart
+                val keptEnd = selectionEnd
                 val defaultHintColors = inputHintDefaults.getOrPut(this) {
                     hintTextColors ?: ColorStateList.valueOf(Color.GRAY)
                 }
@@ -2715,12 +3212,18 @@ class MainActivity : AppCompatActivity() {
                     ?.let { color(it, defaultHighlightColor) }
                     ?: defaultHighlightColor
                 val maxLength = props.optInt("maxLength", 0)
-                filters = if (maxLength > 0) arrayOf(InputFilter.LengthFilter(maxLength)) else emptyArray()
-                inputType = inputTypeFor(props)
-                imeOptions = imeOptionsFor(props)
+                val currentLength = (filters.firstOrNull { it is InputFilter.LengthFilter } as? InputFilter.LengthFilter)?.max ?: 0
+                if (currentLength != maxLength || (maxLength == 0 && filters.isNotEmpty())) {
+                    filters = if (maxLength > 0) arrayOf(InputFilter.LengthFilter(maxLength)) else emptyArray()
+                }
+                val wantedType = inputTypeFor(props)
+                if (inputType != wantedType) inputType = wantedType
+                val wantedIme = imeOptionsFor(props)
+                if (imeOptions != wantedIme) imeOptions = wantedIme
                 val multiline = props.optBoolean("multiline", false)
-                isSingleLine = !multiline
-                maxLines = if (multiline) props.optInt("numberOfLines", Int.MAX_VALUE).coerceAtLeast(1) else 1
+                if (isSingleLine == multiline) isSingleLine = !multiline
+                val wantedLines = if (multiline) props.optInt("numberOfLines", Int.MAX_VALUE).coerceAtLeast(1) else 1
+                if (maxLines != wantedLines) maxLines = wantedLines
                 isEnabled = props.optBoolean("editable", true)
                 configureTextStyle(this, style)
                 // The style's padding is where the text starts, as on iOS and
@@ -2744,7 +3247,10 @@ class MainActivity : AppCompatActivity() {
                 val autofillHint = autofillHintFor(props)
                 if (autofillHint == null) setAutofillHints(*emptyArray()) else setAutofillHints(autofillHint)
                 val controlledValue = props.opt("value")?.takeUnless { it == JSONObject.NULL }?.toString()
-                if (controlledValue != null && text.toString() != controlledValue) {
+                val echoes = screen.inputEchoes[this]
+                val echoIndex = if (controlledValue == null || echoes == null) -1 else echoes.indexOf(controlledValue)
+                if (echoIndex >= 0) repeat(echoIndex + 1) { echoes!!.removeFirst() }
+                if (controlledValue != null && text.toString() != controlledValue && echoIndex < 0) {
                     screen.suppressedTextChanges.add(this)
                     setTextPreservingSelection(this, controlledValue)
                 }
@@ -2791,13 +3297,20 @@ class MainActivity : AppCompatActivity() {
                             ?.showSoftInput(this, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
                     }
                 }
-                if (this !== previous) addTextChangedListener(object : TextWatcher {
+                if (text.toString() == keptText && keptStart >= 0 && (selectionStart != keptStart || selectionEnd != keptEnd)) {
+                    setSelection(keptStart.coerceAtMost(keptText.length), keptEnd.coerceAtMost(keptText.length))
+                }
+                // One watcher per field, however often it is reused.
+                if (watchedInputs.add(this)) addTextChangedListener(object : TextWatcher {
                     override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                         val updated = s?.toString().orEmpty()
-                        screen.drafts[identity] = updated
+                        (screen.inputIdentities[this@apply] ?: identity).let { screen.drafts[it] = updated }
                         if (screen.suppressedTextChanges.remove(this@apply)) return
                         val current = screen.handlers[this@apply] ?: return
+                        val echoes = screen.inputEchoes.getOrPut(this@apply) { ArrayDeque() }
+                        echoes.addLast(updated)
+                        while (echoes.size > 64) echoes.removeFirst()
                         send(screen, "EVENT", JSONObject()
                             .put("handlerName", current)
                             .put("nativeEvent", JSONObject().put("text", updated)))
@@ -3219,9 +3732,12 @@ class MainActivity : AppCompatActivity() {
                 }
             } else {
                 screen.handlers.remove(control)
-                control.isClickable = false
+                // Clearing a listener makes a View clickable again, so the
+                // flag goes last: a clickable Text inside a pressable row
+                // kept every tap from reaching the row.
                 control.setOnClickListener(null)
                 control.setOnTouchListener(null)
+                control.isClickable = false
             }
             control.isEnabled = !disabled
         }
@@ -3238,6 +3754,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             screen.longPressHandlers.remove(control)
             control.setOnLongClickListener(null)
+            control.isLongClickable = false
         }
         applyAccessibility(control, props, type, explicitKey ?: protocolId ?: path)
         val layoutHandler = events.optString("onLayout")
@@ -3478,6 +3995,24 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyViewStyle(view: View, style: JSONObject) {
         view.alpha = style.optDouble("opacity", 1.0).toFloat()
+        // A Text's padding (`px-4` on a line of text) is where its text
+        // starts, as on iOS; containers and fields lay out their own.
+        if (view is TextView && view !is EditText && view !is CraftNativeIconView) {
+            val keys = listOf("padding", "paddingHorizontal", "paddingVertical", "paddingLeft", "paddingRight", "paddingTop", "paddingBottom")
+            if (keys.any(style::has)) {
+                val all = style.optDouble("padding", 0.0)
+                val horizontal = style.optDouble("paddingHorizontal", all)
+                val vertical = style.optDouble("paddingVertical", all)
+                view.setPadding(
+                    dp(style.optDouble("paddingLeft", horizontal)),
+                    dp(style.optDouble("paddingTop", vertical)),
+                    dp(style.optDouble("paddingRight", horizontal)),
+                    dp(style.optDouble("paddingBottom", vertical)),
+                )
+            } else if (view.javaClass == TextView::class.java) {
+                view.setPadding(0, 0, 0, 0)
+            }
+        }
         applyTransform(view, style.optJSONArray("transform"))
         if (view !is CraftNativeModalView) {
             view.visibility = if (style.optString("display") == "none") View.GONE else View.VISIBLE
@@ -3526,7 +4061,11 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
-        } else view.background = defaultBackground
+        } else view.background = if (view is EditText && style.has("borderWidth")) {
+            // `border-0` on a field: no Material underline either, as on iOS
+            // and the web.
+            null
+        } else defaultBackground
         view.clipToOutline = style.optString("overflow") == "hidden"
         if (view is ViewGroup) view.clipChildren = style.optString("overflow") == "hidden"
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
@@ -3625,11 +4164,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun configureIcon(view: CraftNativeIconView, props: JSONObject, style: JSONObject) {
         val symbol = props.optString("symbol").ifBlank { props.optString("name") }
-        view.text = androidIconGlyph(symbol)
         val size = style.optDouble("fontSize", 20.0).toFloat().coerceAtLeast(1f)
         view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
         val foreground = style.optString("color").ifBlank { props.optString("color") }
-        view.setTextColor(color(foreground, defaultTextColor))
+        val tint = color(foreground, defaultTextColor)
+        view.setTextColor(tint)
+        // The app's own vector for it (craft-icons.json, the icon the web
+        // shows), else the closest glyph Android's fonts have.
+        val vector = CraftNativeIcons.drawable(this, props.optString("name"), props.optString("symbol"), tint)
+        view.vector = vector
+        view.text = if (vector != null) "" else androidIconGlyph(symbol)
         val weight = when (style.optString("fontWeight")) {
             "bold", "700", "800", "900" -> Typeface.BOLD
             else -> Typeface.NORMAL
@@ -3916,7 +4460,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun dp(value: Double) = (value * resources.displayMetrics.density).toInt()
-    private fun color(raw: String, fallback: Int) = runCatching { Color.parseColor(raw) }.getOrDefault(fallback)
+    private fun color(raw: String, fallback: Int) = runCatching { craftNativeColor(raw) }.getOrDefault(fallback)
 
     private fun inputTypeFor(props: JSONObject): Int {
         val base = if (props.optBoolean("multiline", false)) InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
@@ -4006,15 +4550,28 @@ class MainActivity : AppCompatActivity() {
                 .put("code", "TIMEOUT")
                 .put("message", "Native API request timed out"), id)
         }
-        screen.capabilityTimeouts[token] = timeout
-        capabilityHandler.postDelayed(timeout, CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS)
-        capabilities.perform(
-            token,
-            payload.optInt("version", CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION),
-            payload.optString("module"),
-            payload.optString("method"),
-            args,
-        ) { result ->
+        // A person answers some calls (a permission sheet, a dialog): those
+        // are never timed out (`untimed`, the bridge's callPersonFacingAPI).
+        if (!payload.optBoolean("untimed", false)) {
+            screen.capabilityTimeouts[token] = timeout
+            capabilityHandler.postDelayed(timeout, CRAFT_NATIVE_CAPABILITY_TIMEOUT_MS)
+        }
+        val module = payload.optString("module")
+        val perform: ((CraftNativeCapabilityResult) -> Unit) -> Unit = if (services.handles(module)) {
+            { completion -> services.perform(module, payload.optString("method"), args, completion) }
+        } else {
+            { completion ->
+                capabilities.perform(
+                    token,
+                    payload.optInt("version", CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION),
+                    module,
+                    payload.optString("method"),
+                    args,
+                    completion,
+                )
+            }
+        }
+        perform { result ->
             if (!screen.active || !screen.pendingCapabilities.remove(token)) return@perform
             screen.capabilityTimeouts.remove(token)?.let(capabilityHandler::removeCallbacks)
             val response = JSONObject()
@@ -4074,8 +4631,9 @@ class MainActivity : AppCompatActivity() {
             uri.queryParameterNames.forEach { name -> put(name, uri.getQueryParameter(name) ?: "") }
         })
 
+    /** App-wide news (the app's state, a link): every screen and the app script hear it. */
     private fun publish(type: String, payload: JSONObject) {
-        screens.lastOrNull()?.takeIf { it.active }?.let { send(it, type, payload) }
+        allScreens().filter { it.active }.forEach { send(it, type, payload) }
     }
 
     override fun onStart() {
@@ -4108,7 +4666,43 @@ class MainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.data?.let { publish("DEEP_LINK", deepLinkData(it).put("initial", false)) }
+        notificationTap(intent)?.let { tap ->
+            val app = appScreen
+            if (app != null && app.active) send(app, "CRAFT_EVENT", JSONObject().put("event", "craftNotificationResponse").put("detail", tap))
+            else pendingNotificationTap = tap
+        }
+        intent.data?.let { link ->
+            if (::services.isInitialized && services.deepLink(link)) return
+            publish("DEEP_LINK", deepLinkData(link).put("initial", false))
+            if (::routes.isInitialized && !routes.isEmpty) routes.appPath(link.toString(), urlSchemes)?.let { navigateOpen(it, fromLink = true) }
+        }
+    }
+
+    /**
+     * The data of a push that was tapped (Firebase puts it in the launch
+     * intent's extras, `google.message_id` among them), in the shape the iOS
+     * host gives `craftNotificationResponse`: the payload's own keys.
+     */
+    private fun notificationTap(intent: Intent?): JSONObject? {
+        val extras = intent?.extras ?: return null
+        if (!extras.containsKey("google.message_id") && !extras.containsKey("craft.notification")) return null
+        val detail = JSONObject()
+        extras.keySet().forEach { key ->
+            if (key.startsWith("google.") || key.startsWith("gcm.") || key == "from" || key == "collapse_key" || key == "craft.notification") return@forEach
+            val value = extras.get(key)
+            if (value is String || value is Number || value is Boolean) detail.put(key, value)
+        }
+        return detail
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::services.isInitialized) services.resumed()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (::services.isInitialized) services.onRequestPermissionsResult(requestCode)
     }
 
     internal fun consumeInitialDeepLink(): Uri? {
@@ -4174,15 +4768,18 @@ class MainActivity : AppCompatActivity() {
     /** Back to the first screen in one move. */
     private fun popToRoot() {
         while (screens.size > 1) closeScreen(screens.removeAt(screens.lastIndex))
-        show(screens.last())
+        screens.lastOrNull()?.let(::show)
     }
 
+    /** Back: the screen below in this tab, then the first tab, then out of the app. */
     private fun back() {
         if (screens.size > 1) {
             closeScreen(screens.removeAt(screens.lastIndex))
             show(screens.last())
+        } else if (chrome != null && currentTab != 0) {
+            selectTab(0)
         } else {
-            finish()
+            moveTaskToBack(true)
         }
     }
 
@@ -4245,6 +4842,7 @@ class MainActivity : AppCompatActivity() {
             inputHintDefaults.remove(it)
             inputHighlightDefaults.remove(it)
             screen.suppressedTextChanges.remove(it)
+            screen.inputEchoes.remove(it)
             val identity = screen.inputIdentities.remove(it)
             if (!preservingInputDrafts) identity?.let(screen.drafts::remove)
         }
@@ -4281,6 +4879,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun closeScreen(screen: Screen) {
+        CraftNativeHub.unregister(screen.capabilityScope)
+        screen.timers.values.forEach(capabilityHandler::removeCallbacks)
+        screen.timers.clear()
+        if (visibleScreen === screen) visibleScreen = null
         screen.capabilityTimeouts.values.forEach(capabilityHandler::removeCallbacks)
         screen.capabilityTimeouts.clear()
         screen.pendingCapabilities.forEach(capabilities::cancel)
@@ -4328,6 +4930,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (::capabilities.isInitialized && capabilities.onActivityResult(requestCode, resultCode, data)) return
+        if (::services.isInitialized && services.onActivityResult(requestCode, resultCode, data)) return
         super.onActivityResult(requestCode, resultCode, data)
     }
 
@@ -4344,8 +4947,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         if (animationScaleObserverRegistered) contentResolver.unregisterContentObserver(animationScaleObserver)
-        screens.forEach { closeScreen(it) }
+        CraftNativeBackground.foreground = null
+        backgroundWaiters.values.forEach { it(false) }
+        backgroundWaiters.clear()
+        allScreens().forEach { closeScreen(it) }
         screens.clear()
+        tabStacks.clear()
+        appScreen = null
+        if (::services.isInitialized) services.close()
         imageJobs.values.forEach { it.cancel(true) }
         imageJobs.clear()
         imageExecutor.shutdownNow()
@@ -4355,8 +4964,5 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "CraftNativeAndroid"
-        private val SANDBOX_LOCK = Any()
-        private var sharedSandbox: JavaScriptSandbox? = null
-        private var sharedSandboxConnection: ListenableFuture<JavaScriptSandbox>? = null
     }
 }

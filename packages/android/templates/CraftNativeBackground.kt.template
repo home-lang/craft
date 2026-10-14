@@ -1,0 +1,296 @@
+package {{PACKAGE_NAME}}
+
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import androidx.core.content.ContextCompat
+import androidx.javascriptengine.JavaScriptConsoleCallback
+import androidx.javascriptengine.JavaScriptIsolate
+import androidx.javascriptengine.JavaScriptSandbox
+import androidx.work.Constraints
+import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.WorkerParameters
+import androidx.work.workDataOf
+import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
+import java.util.concurrent.TimeUnit
+
+/**
+ * One JavaScriptSandbox for the process: the screens' isolates and a
+ * background refresh's all live in it, since an app may hold only one.
+ */
+internal object CraftNativeSandbox {
+    private val lock = Any()
+    private var sandbox: JavaScriptSandbox? = null
+    private var connecting: ListenableFuture<JavaScriptSandbox>? = null
+
+    fun connect(context: Context, done: (JavaScriptSandbox?, Throwable?) -> Unit) {
+        val existing = synchronized(lock) { sandbox }
+        if (existing != null) return done(existing, null)
+        val future = synchronized(lock) {
+            connecting ?: JavaScriptSandbox.createConnectedInstanceAsync(context.applicationContext).also { connecting = it }
+        }
+        future.addListener({
+            try {
+                val engine = future.get()
+                synchronized(lock) { sandbox = engine }
+                done(engine, null)
+            } catch (error: Exception) {
+                synchronized(lock) { connecting = null }
+                done(null, error)
+            }
+        }, ContextCompat.getMainExecutor(context))
+    }
+}
+
+/**
+ * Background refresh, as iOS's BGAppRefreshTask gives it: WorkManager wakes
+ * the app every `backgroundRefresh.minimumIntervalMinutes` (15 at the
+ * least, with a network) and the app script (`nativeApp`) hears
+ * `craftBackgroundRefresh` with an `id`, does its work and answers
+ * `craft.background.complete(ok, id)`. With the app open, the running app
+ * script hears it; otherwise a script is started for the refresh alone
+ * ([CraftNativeHeadlessApp]) and closed when it answers. A silent push
+ * (`craftSilentPush`) runs the same way, once.
+ */
+internal object CraftNativeBackground {
+    private const val PERIODIC = "craft-native-background-refresh"
+    private const val ONCE = "craft-native-background-once"
+
+    /** The running app's script, when the activity has one: delivers an event and hears its answer. */
+    @Volatile var foreground: ((event: String, id: String, done: (Boolean) -> Unit) -> Boolean)? = null
+
+    fun schedule(context: Context, config: JSONObject) {
+        val refresh = config.optJSONObject("backgroundRefresh")
+        val work = WorkManager.getInstance(context)
+        if (refresh?.optBoolean("enabled") != true || config.optString("nativeApp").isBlank()) {
+            work.cancelUniqueWork(PERIODIC)
+            return
+        }
+        val minutes = refresh.optLong("minimumIntervalMinutes", 120).coerceAtLeast(15)
+        val request = PeriodicWorkRequestBuilder<CraftNativeRefreshWorker>(minutes, TimeUnit.MINUTES)
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setInputData(workDataOf("event" to "craftBackgroundRefresh"))
+            .build()
+        work.enqueueUniquePeriodicWork(PERIODIC, ExistingPeriodicWorkPolicy.UPDATE, request)
+    }
+
+    /** One run now (a silent push). */
+    fun runOnce(context: Context, event: String) {
+        val request = OneTimeWorkRequestBuilder<CraftNativeRefreshWorker>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setInputData(workDataOf("event" to event))
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(ONCE, ExistingWorkPolicy.APPEND_OR_REPLACE, request)
+    }
+}
+
+internal class CraftNativeRefreshWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
+    override suspend fun doWork(): Result {
+        val event = inputData.getString("event") ?: "craftBackgroundRefresh"
+        val id = UUID.randomUUID().toString()
+        val answer = CompletableDeferred<Boolean>()
+        val running = withContext(Dispatchers.Main) {
+            CraftNativeBackground.foreground?.invoke(event, id) { ok -> answer.complete(ok) } == true
+        }
+        Log.i("CraftNativeAndroid", "$event $id: ${if (running) "the running app script" else "a background app script"}")
+        var headless: CraftNativeHeadlessApp? = null
+        if (!running) {
+            headless = withContext(Dispatchers.Main) { CraftNativeHeadlessApp(applicationContext, event, id) { ok -> answer.complete(ok) } }
+            withContext(Dispatchers.Main) { headless.start() }
+        }
+        // WorkManager stops a worker at ten minutes; answer before that.
+        val ok = withTimeoutOrNull(9 * 60 * 1000L) { answer.await() }
+        Log.i("CraftNativeAndroid", "$event $id answered ${ok ?: "nothing in time"}")
+        headless?.let { withContext(Dispatchers.Main) { it.close() } }
+        return if (ok == false) Result.retry() else Result.success()
+    }
+}
+
+/**
+ * The app script with no activity: a background refresh's. It gets the
+ * same bridge as a screen's (CraftNativePrelude), Craft's core capabilities
+ * and this host's services, minus everything a person would have to see.
+ */
+internal class CraftNativeHeadlessApp(
+    private val context: Context,
+    private val event: String,
+    private val id: String,
+    private val onDone: (Boolean) -> Unit,
+) {
+    private val config: JSONObject = runCatching {
+        context.assets.open("craft.config.json").bufferedReader().use { JSONObject(it.readText()) }
+    }.getOrDefault(JSONObject())
+    private val stores = CraftNativeStores.get(context, config)
+    private val capabilities = CraftNativeCapabilities(context, config)
+    private val services = CraftNativeServices(context, config) { null }
+    private val scope = UUID.randomUUID().toString()
+    private val prefix = "CRAFT_STX_$scope:"
+    private val main = Handler(Looper.getMainLooper())
+    private var isolate: JavaScriptIsolate? = null
+    private var closed = false
+    private val timers = mutableMapOf<Int, Runnable>()
+    private val chunks = CraftNativeChunks()
+
+    init {
+        capabilities.storeObserver = { store, key, value -> stores.changed(store, key, value, scope) }
+        services.onBackgroundComplete = { ok, answered -> if (answered == null || answered == id) finish(ok) }
+    }
+
+    fun start() {
+        val route = config.optString("nativeApp")
+        if (route.isBlank() || !JavaScriptSandbox.isSupported()) return finish(true)
+        val bundle = runCatching { context.assets.open("native-screen.js").bufferedReader().use { it.readText() } }.getOrNull()
+            ?: return finish(true)
+        CraftNativeSandbox.connect(context) { engine, error ->
+            if (closed) return@connect
+            if (engine == null || !engine.isFeatureSupported(JavaScriptSandbox.JS_FEATURE_CONSOLE_MESSAGING)) {
+                Log.w(TAG, "Background refresh has no JavaScript engine", error)
+                return@connect finish(true)
+            }
+            val created = engine.createIsolate()
+            isolate = created
+            created.setConsoleCallback(ContextCompat.getMainExecutor(context), JavaScriptConsoleCallback { entry ->
+                if (closed) return@JavaScriptConsoleCallback
+                if (entry.message.startsWith(prefix)) chunks.accept(entry.message.removePrefix(prefix))?.let(::receive)
+                else Log.i(TAG, "[background] ${entry.message}")
+            })
+            CraftNativeHub.register(scope) { type, payload -> send(type, payload) }
+            val names = capabilities.names().apply { services.names().forEach { put(it) } }
+            val bridgeFields = """
+                platform: 'android',
+                mutationProtocolVersion: 1,
+                capabilityProtocolVersion: $CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION,
+                capabilityTimeoutMs: 30000,
+                capabilities: $names,
+                initialAppState: 'background',
+                colorScheme: 'light',
+                appURL: ${JSONObject.quote(config.optString("devServerURL"))},
+                appVersion: '',
+                appBuild: ''
+            """.trimIndent()
+            val prelude = CraftNativePrelude.script(
+                bridgeFields,
+                CraftNativeChunks.consolePost(prefix),
+                "globalThis.__stxNativeCallback = deliver;",
+                stores.preloadText(),
+                "globalThis.__stxNativeRoute = ${JSONObject.quote(route)};\nglobalThis.__stxNativeParams = {};",
+            )
+            val setup = created.evaluateJavaScriptAsync(prelude)
+            setup.addListener({
+                if (closed) return@addListener
+                try {
+                    setup.get()
+                    val load = created.evaluateJavaScriptAsync(bundle)
+                    load.addListener({
+                        try {
+                            load.get()
+                            send("CRAFT_EVENT", JSONObject().put("event", event).put("detail", JSONObject().put("id", id)))
+                        } catch (failure: Exception) {
+                            Log.e(TAG, "Background refresh script failed", failure)
+                            finish(false)
+                        }
+                    }, ContextCompat.getMainExecutor(context))
+                } catch (failure: Exception) {
+                    Log.e(TAG, "Background refresh bridge failed", failure)
+                    finish(false)
+                }
+            }, ContextCompat.getMainExecutor(context))
+        }
+    }
+
+    private fun receive(raw: String) {
+        val message = runCatching { JSONObject(raw) }.getOrNull() ?: return
+        val payload = message.optJSONObject("payload") ?: JSONObject()
+        when (message.optString("type")) {
+            "API_REQUEST" -> answer(message.optString("id"), payload)
+            "SYNC_WRITE" -> {
+                val key = payload.optString("key")
+                val value = if (payload.isNull("value")) null else payload.optString("value")
+                val reply: (Boolean) -> Unit = { ok ->
+                    payload.optString("id").takeIf { it.isNotBlank() }?.let { send("SYNC_RESULT", JSONObject().put("id", it).put("ok", ok)) }
+                }
+                when (payload.optString("store")) {
+                    "storage" -> if (key.isNotBlank()) stores.setStorage(key, value, scope)
+                    "snapshots" -> if (payload.optBoolean("clear")) {
+                        val keep = payload.optJSONArray("keep") ?: JSONArray()
+                        stores.clearSnapshots((0 until keep.length()).map { keep.optString(it) }.toSet(), reply)
+                    } else stores.setSnapshot(key, value, scope, reply)
+                }
+            }
+            "TIMER" -> {
+                val id = payload.optInt("id")
+                timers.remove(id)?.let(main::removeCallbacks)
+                val fire = Runnable {
+                    timers.remove(id)
+                    send("TIMER_FIRE", JSONObject().put("id", id))
+                }
+                timers[id] = fire
+                main.postDelayed(fire, payload.optLong("ms", 0).coerceAtLeast(0))
+            }
+            "TIMER_CLEAR" -> timers.remove(payload.optInt("id"))?.let(main::removeCallbacks)
+            // Nothing is drawn in the background: frames come at a calm pace.
+            "FRAME" -> main.postDelayed({ send("FRAME_FIRE", JSONObject().put("time", android.os.SystemClock.uptimeMillis().toDouble())) }, 100)
+            // A background refresh shows nothing: navigation waits for the app.
+        }
+    }
+
+    private fun answer(requestId: String, payload: JSONObject) {
+        if (requestId.isBlank()) return
+        val module = payload.optString("module")
+        val method = payload.optString("method")
+        val args = payload.optJSONArray("args") ?: JSONArray()
+        val reply: (CraftNativeCapabilityResult) -> Unit = { result ->
+            val response = JSONObject().put("version", CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION).put("requestId", requestId)
+            if (result.code == null) response.put("data", result.data ?: JSONObject.NULL)
+            else response.put("code", result.code).put("message", result.message ?: "Native API failed")
+            send(if (result.code == null) "API_RESPONSE" else "API_ERROR", response, requestId)
+        }
+        if (services.handles(module)) services.perform(module, method, args, reply)
+        else capabilities.perform("$scope/$requestId", payload.optInt("version", CRAFT_NATIVE_CAPABILITY_PROTOCOL_VERSION), module, method, args, reply)
+    }
+
+    private fun send(type: String, payload: JSONObject, correlationId: String? = null) {
+        val target = isolate ?: return
+        if (closed) return
+        val message = JSONObject().put("type", type).put("payload", payload)
+        if (correlationId != null) message.put("correlationId", correlationId)
+        runCatching { target.evaluateJavaScriptAsync("globalThis.__stxNativeCallback && globalThis.__stxNativeCallback(${JSONObject.quote(message.toString())})") }
+    }
+
+    private fun finish(ok: Boolean) {
+        main.post { onDone(ok) }
+    }
+
+    fun close() {
+        if (closed) return
+        closed = true
+        CraftNativeHub.unregister(scope)
+        timers.values.forEach(main::removeCallbacks)
+        timers.clear()
+        services.close()
+        capabilities.close()
+        isolate?.let { target ->
+            runCatching { target.evaluateJavaScriptAsync("globalThis.__stxNativeUnmount && globalThis.__stxNativeUnmount()") }
+            main.postDelayed({ runCatching { target.close() } }, 500)
+        }
+        isolate = null
+    }
+
+    companion object {
+        private const val TAG = "CraftNativeAndroid"
+    }
+}

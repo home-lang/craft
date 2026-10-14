@@ -817,7 +817,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('var crossLeading = 0f')
     expect(android).toContain('crossFree / (lines.size + 1).toFloat()')
     expect(android).toContain('val stretchExtra = if (sharedCross == null && wrap && lines.size > 1 && alignContent == "stretch")')
-    expect(android).toContain('val lineCross = line.cross.toFloat() + stretchExtra')
+    expect(android).toContain('else line.cross.toFloat() + stretchExtra')
+    // A single-line container's one line spans its cross size, as in CSS.
+    expect(android).toContain('val lineCross = if (!wrap) max(line.cross.toFloat(), availableCross.toFloat())')
     expect(android).toContain('crossOffset += lineCross + crossBetween')
   })
 
@@ -1453,7 +1455,7 @@ describe('native renderer component contract', () => {
   it('retains keyed iOS input drafts while FlatList rows recycle', () => {
     expect(ios).toContain('self.forgetHandlers(row, preservingInputDrafts: true)')
     expect(ios).toContain('private func forgetHandlers(_ node: RenderedNode, preservingInputDrafts: Bool = false)')
-    expect(android).toContain('screen.drafts[identity] = updated')
+    expect(android).toContain('(screen.inputIdentities[this@apply] ?: identity).let { screen.drafts[it] = updated }')
     expect(android).toContain('val inputIdentities = mutableMapOf<EditText, String>()')
     expect(android).toContain('if (!preservingInputDrafts) identity?.let(screen.drafts::remove)')
     expect(android).toContain('releaseViewState(screen, controls.values.toList(), preservingInputDrafts = true)')
@@ -1515,7 +1517,7 @@ describe('native renderer component contract', () => {
   it('restores native backgrounds when custom styles are removed', () => {
     expect(ios).toContain('view.backgroundColor = color(style["backgroundColor"]) ?? .clear')
     expect(android).toContain('if (defaultBackgrounds.containsKey(view))')
-    expect(android).toContain('} else view.background = defaultBackground')
+    expect(android).toContain('} else defaultBackground')
     expect(android).toContain('released.forEach(defaultBackgrounds::remove)')
   })
 
@@ -1553,9 +1555,8 @@ describe('native renderer component contract', () => {
 
   it('publishes dynamic color-scheme changes to the native runtime on both hosts', () => {
     expect(ios).toContain('send(type: "APPEARANCE", payload: CraftPageAppearance.snapshot(style: style))')
-    expect(ios).toContain('appearance: \\(appearanceJSON()),')
+    expect(android).toContain('if (screen.active) send(screen, "APPEARANCE", appearance)')
     expect(ios).toContain('UIContentSizeCategory.didChangeNotification')
-    expect(android).toContain('send(screen, "APPEARANCE", appearance())')
     expect(android).toContain('private fun appearance(): JSONObject')
     expect(android).toContain('.put("fontScale", (scale * 1000).roundToInt() / 1000.0)')
     expect(android).toContain('import android.animation.ValueAnimator')

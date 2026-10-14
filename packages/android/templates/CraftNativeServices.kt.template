@@ -1,0 +1,561 @@
+package {{PACKAGE_NAME}}
+
+import android.Manifest
+import android.app.Activity
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.util.Log
+import android.view.WindowManager
+import androidx.appcompat.app.AlertDialog
+import androidx.browser.customtabs.CustomTabsIntent
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.util.Locale
+import java.util.UUID
+{{NATIVE_PUSH_IMPORTS}}
+
+/**
+ * The capabilities a native screen asks for beyond Craft's core set
+ * (CraftNativeCapabilities): the system's dialogs, the in-app browser, the
+ * share sheet, other apps (`Linking`), push, Health Connect (`Health`,
+ * CraftNativeHealth.kt), keeping the screen awake, its brightness, the
+ * status bar, speech, and the answer to a background refresh. The same
+ * module and method names as the iOS host (CraftNativeActions.swift), so a
+ * screen's `craft.dialog`, `craft.browser`, `craft.share`, `craft.push`,
+ * `craft.health`... work unchanged.
+ *
+ * `activity` is null in a background worker, where nothing a person
+ * answers can be shown: those calls fail with `NEEDS_ACTIVITY`.
+ */
+internal class CraftNativeServices(
+    private val context: Context,
+    private val config: JSONObject,
+    private val activity: () -> Activity?,
+) {
+    private val main = Handler(Looper.getMainLooper())
+    private val health: CraftNativeHealth? = if (config.optBoolean("enableHealthConnect")) {
+        CraftNativeHealth(context, activity, config.optBoolean("enableHealthConnectBackground"), config.optBoolean("enableHealthConnectHistory"))
+    } else null
+    private var pendingPushPermission: ((CraftNativeCapabilityResult) -> Unit)? = null
+    private var pendingBrowser: Pair<String?, (CraftNativeCapabilityResult) -> Unit>? = null
+    private var browserOpened = false
+    private var speech: TextToSpeech? = null
+    private var speechReady = false
+    private val speechQueue = mutableListOf<() -> Unit>()
+    private val speeches = mutableMapOf<String, (CraftNativeCapabilityResult) -> Unit>()
+
+    /** `background.complete(ok, id)`: who is waiting for a background refresh's answer. */
+    var onBackgroundComplete: ((Boolean, String?) -> Unit)? = null
+
+    /** What this host adds to the capability names the screen sees. */
+    fun names(): List<String> = buildList {
+        add("dialog")
+        add("browser")
+        add("linking")
+        add("brightness")
+        add("statusBar")
+        add("speech")
+        // Videos kept on the phone for offline (CraftNativeMedia).
+        add("media")
+        if (config.optBoolean("enableShare")) add("share")
+        if (config.optBoolean("enablePushNotifications")) add("push")
+        if (health != null) {
+            add("health")
+            // Health Connect may need installing or updating, and its grants
+            // are managed in its own screen: `health.availability()`,
+            // `health.grantedTypes()` and `health.openSettings()`.
+            add("healthAvailability")
+        }
+        if (config.optBoolean("enableKeepAwake")) add("keepAwake")
+        if (config.optBoolean("enableGeolocation") || config.optBoolean("enableBackgroundLocation")) add("geolocation")
+        if (config.optJSONObject("backgroundRefresh")?.optBoolean("enabled") == true || config.optBoolean("enablePushNotifications")) add("background")
+    }
+
+    fun handles(module: String): Boolean = module in setOf(
+        "Dialog", "Browser", "Linking", "Share", "Push", "Health", "KeepAwake", "Brightness", "StatusBar", "Speech", "Background",
+        "Location", "Media",
+    )
+
+    fun perform(module: String, method: String, args: JSONArray, completion: (CraftNativeCapabilityResult) -> Unit) {
+        val done: (CraftNativeCapabilityResult) -> Unit = { result ->
+            if (Looper.myLooper() == Looper.getMainLooper()) completion(result) else main.post { completion(result) }
+        }
+        try {
+            when (module) {
+                "Dialog" -> dialog(method, args.optJSONObject(0) ?: JSONObject(), done)
+                "Browser" -> browser(args.optString(0), args.optJSONObject(1) ?: JSONObject(), done)
+                "Linking" -> linking(method, args.optString(0), done)
+                "Share" -> share(args.optJSONObject(0) ?: JSONObject(), done)
+                "Push" -> push(method, done)
+                "Health" -> health?.perform(method, args, done) ?: done(failure("CAPABILITY_DISABLED", "Health Connect is not enabled for this app"))
+                "KeepAwake" -> keepAwake(args.optBoolean(0, true), done)
+                "Brightness" -> brightness(method, args, done)
+                "StatusBar" -> statusBar(args.optString(0, "default"), done)
+                "Speech" -> speech(method, args, done)
+                "Location" -> location(method, args, done)
+                "Media" -> when (method) {
+                    "keep" -> CraftNativeMedia.keep(context, args.optString(0), args.optJSONObject(1)?.optJSONObject("headers") ?: JSONObject(), done)
+                    "path" -> done(success(CraftNativeMedia.local(context, args.optString(0))?.absolutePath ?: JSONObject.NULL))
+                    "prune" -> {
+                        val keep = args.optJSONArray(0) ?: JSONArray()
+                        done(success(CraftNativeMedia.prune(context, (0 until keep.length()).map { keep.optString(it) })))
+                    }
+                    "usage" -> done(success(CraftNativeMedia.usage(context)))
+                    else -> done(failure("UNKNOWN_ACTION", "Unsupported Media method"))
+                }
+                "Background" -> {
+                    onBackgroundComplete?.invoke(args.optBoolean(0, true), args.opt(1) as? String)
+                    done(success(true))
+                }
+                else -> done(failure("UNKNOWN_ACTION", "Unsupported native API"))
+            }
+        } catch (error: Exception) {
+            Log.e("CraftNativeAndroid", "$module.$method failed", error)
+            done(failure("CRAFT_ERROR", error.message ?: "$module.$method failed"))
+        }
+    }
+
+    // MARK: Dialogs
+
+    private fun dialog(method: String, options: JSONObject, done: (CraftNativeCapabilityResult) -> Unit) {
+        val host = activity() ?: return done(failure("NEEDS_ACTIVITY", "No screen is showing to ask on"))
+        val builder = AlertDialog.Builder(host)
+        options.optString("title").takeIf { it.isNotBlank() }?.let(builder::setTitle)
+        options.optString("message").takeIf { it.isNotBlank() }?.let(builder::setMessage)
+        var answered = false
+        fun answer(result: CraftNativeCapabilityResult) {
+            if (answered) return
+            answered = true
+            done(result)
+        }
+        when (method) {
+            "alert" -> {
+                builder.setPositiveButton(options.optString("okLabel").ifBlank { host.getString(android.R.string.ok) }) { _, _ -> answer(success(JSONObject.NULL)) }
+                builder.setOnDismissListener { answer(success(JSONObject.NULL)) }
+            }
+            "confirm" -> {
+                builder.setPositiveButton(options.optString("confirmLabel").ifBlank { host.getString(android.R.string.ok) }) { _, _ -> answer(success(true)) }
+                builder.setNegativeButton(options.optString("cancelLabel").ifBlank { host.getString(android.R.string.cancel) }) { _, _ -> answer(success(false)) }
+                builder.setOnDismissListener { answer(success(false)) }
+            }
+            "actionSheet" -> {
+                val actions = options.optJSONArray("actions") ?: JSONArray()
+                val choices = mutableListOf<Pair<String, String>>()
+                var cancelTitle: String? = null
+                for (index in 0 until actions.length()) {
+                    val action = actions.optJSONObject(index) ?: continue
+                    val title = action.optString("title")
+                    if (action.optString("style") == "cancel") cancelTitle = title
+                    else choices.add((action.optString("id").ifBlank { title }) to title)
+                }
+                // A message and a list cannot share an AlertDialog: the message
+                // goes under the title instead.
+                options.optString("message").takeIf { it.isNotBlank() }?.let { message ->
+                    builder.setMessage(null)
+                    builder.setTitle(listOfNotNull(options.optString("title").takeIf { it.isNotBlank() }, message).joinToString("\n"))
+                }
+                builder.setItems(choices.map { it.second }.toTypedArray()) { _, which -> answer(success(choices[which].first)) }
+                builder.setNegativeButton(cancelTitle ?: host.getString(android.R.string.cancel)) { _, _ -> answer(success(JSONObject.NULL)) }
+                builder.setOnDismissListener { answer(success(JSONObject.NULL)) }
+            }
+            else -> return done(failure("UNKNOWN_ACTION", "Unsupported Dialog method"))
+        }
+        val shown = builder.show()
+        if (method == "confirm" && options.optBoolean("destructive")) {
+            shown.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(android.graphics.Color.parseColor("#FF3B30"))
+        }
+    }
+
+    // MARK: The in-app browser
+
+    /**
+     * A page in a Custom Tab over the app. `mode: 'auth'` waits for the
+     * address the sign-in returns to (`callbackScheme`), which reaches the
+     * activity as a deep link and is handed here ([deepLink]). Otherwise
+     * the answer comes when the person is back in the app.
+     */
+    private fun browser(url: String, options: JSONObject, done: (CraftNativeCapabilityResult) -> Unit) {
+        val host = activity() ?: return done(failure("NEEDS_ACTIVITY", "No screen is showing to open a page over"))
+        val uri = runCatching { Uri.parse(url) }.getOrNull()
+        if (uri == null || uri.scheme?.lowercase() !in setOf("http", "https")) return done(failure("INVALID_ARGUMENT", "browser.open needs an http or https URL"))
+        pendingBrowser?.second?.invoke(success(JSONObject().put("cancelled", true)))
+        val callback = options.optString("callbackScheme").takeIf { options.optString("mode") == "auth" && it.isNotBlank() }
+        pendingBrowser = callback to done
+        browserOpened = true
+        try {
+            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(host, uri)
+        } catch (_: ActivityNotFoundException) {
+            host.startActivity(Intent(Intent.ACTION_VIEW, uri))
+        }
+    }
+
+    /** A deep link arrived; true when it was the answer to an auth browser (and is not the app's to route). */
+    fun deepLink(uri: Uri): Boolean {
+        val pending = pendingBrowser ?: return false
+        val scheme = pending.first ?: return false
+        if (!uri.scheme.equals(scheme, ignoreCase = true)) return false
+        pendingBrowser = null
+        browserOpened = false
+        pending.second(success(JSONObject().put("cancelled", false).put("url", uri.toString())))
+        return true
+    }
+
+    /** The activity is in front again: a page that was open was closed. */
+    fun resumed() {
+        if (!browserOpened) return
+        browserOpened = false
+        main.postDelayed({
+            // A sign-in's deep link resumes the activity too; it answers first.
+            val pending = pendingBrowser ?: return@postDelayed
+            pendingBrowser = null
+            pending.second(success(JSONObject().put("cancelled", true)))
+        }, 400)
+    }
+
+    // MARK: Other apps
+
+    private fun linking(method: String, url: String, done: (CraftNativeCapabilityResult) -> Unit) {
+        val intent = intentFor(url) ?: return done(success(false))
+        when (method) {
+            "canOpenURL" -> done(success(intent.resolveActivity(context.packageManager) != null || url.startsWith("http")))
+            "openURL" -> {
+                val host = activity()
+                if (host == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                done(success(runCatching { (host ?: context).startActivity(intent) }.isSuccess))
+            }
+            else -> done(failure("UNKNOWN_ACTION", "Unsupported Linking method"))
+        }
+    }
+
+    /** `app-settings:` is this app's page in Settings, as on iOS; anything else is a view intent. */
+    private fun intentFor(url: String): Intent? {
+        if (url.isBlank()) return null
+        if (url.startsWith("app-settings:")) {
+            return Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+        }
+        val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return null
+        return Intent(Intent.ACTION_VIEW, uri)
+    }
+
+    // MARK: Share
+
+    private fun share(options: JSONObject, done: (CraftNativeCapabilityResult) -> Unit) {
+        val host = activity() ?: return done(failure("NEEDS_ACTIVITY", "No screen is showing to share from"))
+        val text = listOfNotNull(
+            options.optString("text").takeIf { it.isNotBlank() },
+            options.optString("url").takeIf { it.isNotBlank() },
+        ).joinToString("\n")
+        val files = mutableListOf<Uri>()
+        val paths = options.optJSONArray("files") ?: JSONArray()
+        for (index in 0 until paths.length()) {
+            val path = paths.optString(index).removePrefix("file://")
+            val file = File(path)
+            if (!file.exists()) continue
+            files.add(FileProvider.getUriForFile(context, "${context.packageName}.craftfiles", file))
+        }
+        val intent = when {
+            files.size > 1 -> Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(files))
+                type = "*/*"
+            }
+            files.size == 1 -> Intent(Intent.ACTION_SEND).apply {
+                putExtra(Intent.EXTRA_STREAM, files.first())
+                type = context.contentResolver.getType(files.first()) ?: "*/*"
+            }
+            else -> Intent(Intent.ACTION_SEND).apply { type = "text/plain" }
+        }
+        if (text.isNotBlank()) intent.putExtra(Intent.EXTRA_TEXT, text)
+        options.optString("title").takeIf { it.isNotBlank() }?.let { intent.putExtra(Intent.EXTRA_SUBJECT, it) }
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        host.startActivity(Intent.createChooser(intent, options.optString("title").ifBlank { null }))
+        // Android does not say whether something was shared; the sheet opened.
+        done(success(true))
+    }
+
+    // MARK: Push
+
+    private fun push(method: String, done: (CraftNativeCapabilityResult) -> Unit) {
+        if (!config.optBoolean("enablePushNotifications")) return done(failure("CAPABILITY_DISABLED", "Push notifications are disabled"))
+        when (method) {
+            "getPermissionStatus" -> done(success(pushStatus()))
+            "requestPermission" -> requestPushPermission(done)
+            "register" -> requestPushPermission { status ->
+                if (status.data != "granted") done(failure("PERMISSION_DENIED", "Notifications are not allowed"))
+                else registerPush(done)
+            }
+            "openSettings" -> {
+                val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                val host = activity()
+                if (host == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                done(success(runCatching { (host ?: context).startActivity(intent) }.isSuccess))
+            }
+            else -> done(failure("UNKNOWN_ACTION", "Unsupported Push method"))
+        }
+    }
+
+    private fun pushStatus(): String {
+        val enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return if (enabled) "granted" else "denied"
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return "granted"
+        val asked = context.getSharedPreferences("craft-native-push", Context.MODE_PRIVATE).getBoolean("asked", false)
+        return if (asked) "denied" else "undetermined"
+    }
+
+    private fun requestPushPermission(done: (CraftNativeCapabilityResult) -> Unit) {
+        val status = pushStatus()
+        if (status != "undetermined" || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return done(success(status))
+        val host = activity() ?: return done(success(status))
+        pendingPushPermission?.invoke(success(status))
+        pendingPushPermission = done
+        context.getSharedPreferences("craft-native-push", Context.MODE_PRIVATE).edit().putBoolean("asked", true).apply()
+        ActivityCompat.requestPermissions(host, arrayOf(Manifest.permission.POST_NOTIFICATIONS), PUSH_PERMISSION_REQUEST)
+    }
+
+    fun onRequestPermissionsResult(requestCode: Int): Boolean {
+        if (requestCode == LOCATION_PERMISSION_REQUEST) {
+            val pending = pendingLocationPermission
+            pendingLocationPermission = null
+            pending?.invoke(hasLocation())
+            return true
+        }
+        if (requestCode != PUSH_PERMISSION_REQUEST) return false
+        val pending = pendingPushPermission ?: return true
+        pendingPushPermission = null
+        pending(success(pushStatus()))
+        return true
+    }
+
+    private fun registerPush(done: (CraftNativeCapabilityResult) -> Unit) {
+{{NATIVE_PUSH_REGISTER}}
+    }
+
+    // MARK: Location
+
+    private val locationClient by lazy { com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(context) }
+    private var watchCallback: com.google.android.gms.location.LocationCallback? = null
+    private var pendingLocationPermission: ((Boolean) -> Unit)? = null
+
+    private fun fix(location: android.location.Location): JSONObject = JSONObject()
+        .put("latitude", location.latitude)
+        .put("longitude", location.longitude)
+        .put("altitude", location.altitude)
+        .put("accuracy", location.accuracy.toDouble())
+        .put("speed", location.speed.toDouble())
+        .put("heading", location.bearing.toDouble())
+        .put("timestamp", location.time.toDouble())
+
+    private fun hasLocation(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    /** Location, asked for once a person starts something that needs it. */
+    private fun withLocation(done: (CraftNativeCapabilityResult) -> Unit, then: () -> Unit) {
+        if (hasLocation()) return then()
+        val host = activity() ?: return done(failure("PERMISSION_DENIED", "Location is not allowed"))
+        pendingLocationPermission?.invoke(false)
+        pendingLocationPermission = { granted -> if (granted) then() else done(failure("PERMISSION_DENIED", "Location is not allowed")) }
+        ActivityCompat.requestPermissions(host, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), LOCATION_PERMISSION_REQUEST)
+    }
+
+    /**
+     * GPS for the workout player, in the iOS host's names: one fix, a watch
+     * (each fix a `craftLocationUpdate` event), and the route recording,
+     * which keeps going with the screen off in a foreground service
+     * (LocationRecordingService) and survives the app being closed.
+     */
+    @android.annotation.SuppressLint("MissingPermission")
+    private fun location(method: String, args: JSONArray, done: (CraftNativeCapabilityResult) -> Unit) {
+        val store = com.craft.runtime.CraftLocationRecordingStore
+        when (method) {
+            "getCurrentPosition" -> withLocation(done) {
+                val options = args.optJSONObject(0) ?: JSONObject()
+                val priority = if (options.optBoolean("enableHighAccuracy", true)) com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY
+                else com.google.android.gms.location.Priority.PRIORITY_BALANCED_POWER_ACCURACY
+                locationClient.getCurrentLocation(priority, null)
+                    .addOnSuccessListener { location -> done(if (location != null) success(fix(location)) else failure("POSITION_UNAVAILABLE", "No location fix")) }
+                    .addOnFailureListener { error -> done(failure("POSITION_UNAVAILABLE", error.message ?: "No location fix")) }
+            }
+            "watchPosition" -> withLocation(done) {
+                watchCallback?.let(locationClient::removeLocationUpdates)
+                val callback = object : com.google.android.gms.location.LocationCallback() {
+                    override fun onLocationResult(result: com.google.android.gms.location.LocationResult) {
+                        for (location in result.locations) {
+                            CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", fix(location)))
+                        }
+                    }
+                }
+                watchCallback = callback
+                val request = com.google.android.gms.location.LocationRequest.Builder(com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, 2_000).build()
+                locationClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
+                done(success(true))
+            }
+            "clearWatch" -> {
+                watchCallback?.let(locationClient::removeLocationUpdates)
+                watchCallback = null
+                done(success(true))
+            }
+            "startRecording" -> withLocation(done) {
+                val options = args.optJSONObject(0) ?: JSONObject()
+                val id = options.optString("id").ifBlank { UUID.randomUUID().toString() }
+                store.start(context, id, System.currentTimeMillis())
+                store.listener = { location -> CraftNativeHub.broadcast("CRAFT_EVENT", JSONObject().put("event", "craftLocationUpdate").put("detail", fix(location))) }
+                val intent = Intent(context, com.craft.runtime.LocationRecordingService::class.java).setAction(com.craft.runtime.LocationRecordingService.ACTION_START)
+                runCatching { ContextCompat.startForegroundService(context, intent) }
+                    .onFailure { store.stop(context) }
+                done(success(store.state(context)))
+            }
+            "pauseRecording", "resumeRecording" -> {
+                store.setPaused(context, method == "pauseRecording")
+                done(success(store.state(context)))
+            }
+            "stopRecording" -> {
+                val state = store.state(context, includeLocations = true)
+                store.stop(context)
+                store.listener = null
+                runCatching { context.startService(Intent(context, com.craft.runtime.LocationRecordingService::class.java).setAction(com.craft.runtime.LocationRecordingService.ACTION_STOP)) }
+                done(success(state.put("active", false).put("paused", false)))
+            }
+            "getRecordingState" -> done(success(store.state(context)))
+            "readRecording" -> done(success(store.locations(context)))
+            else -> done(failure("UNKNOWN_ACTION", "Unsupported Location method"))
+        }
+    }
+
+    // MARK: Health Connect
+
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean =
+        health?.onActivityResult(requestCode, resultCode, data) == true
+
+    // MARK: The screen
+
+    private fun keepAwake(enabled: Boolean, done: (CraftNativeCapabilityResult) -> Unit) {
+        val host = activity() ?: return done(success(false))
+        if (enabled) host.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else host.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        done(success(enabled))
+    }
+
+    /** This window's brightness, 0 to 1 (Android sets it for the app, not system-wide); -1 restores the system's. */
+    private fun brightness(method: String, args: JSONArray, done: (CraftNativeCapabilityResult) -> Unit) {
+        val host = activity() ?: return done(failure("NEEDS_ACTIVITY", "No screen is showing"))
+        val attributes = host.window.attributes
+        when (method) {
+            "get" -> {
+                val own = attributes.screenBrightness
+                val level = if (own >= 0) own.toDouble() else runCatching {
+                    Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS) / 255.0
+                }.getOrDefault(0.5)
+                done(success(level))
+            }
+            "set" -> {
+                val level = args.optDouble(0, -1.0)
+                attributes.screenBrightness = if (level < 0) WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE else level.coerceIn(0.0, 1.0).toFloat()
+                host.window.attributes = attributes
+                done(success(level))
+            }
+            else -> done(failure("UNKNOWN_ACTION", "Unsupported Brightness method"))
+        }
+    }
+
+    /** `light` is light text (on a dark screen), as on iOS. */
+    private fun statusBar(style: String, done: (CraftNativeCapabilityResult) -> Unit) {
+        val host = activity() ?: return done(success(false))
+        val controller = WindowCompat.getInsetsController(host.window, host.window.decorView)
+        val night = (host.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        controller.isAppearanceLightStatusBars = when (style) {
+            "light" -> false
+            "dark" -> true
+            else -> !night
+        }
+        done(success(true))
+    }
+
+    // MARK: Speech
+
+    private fun speech(method: String, args: JSONArray, done: (CraftNativeCapabilityResult) -> Unit) {
+        when (method) {
+            "speak" -> {
+                val text = args.optString(0)
+                if (text.isBlank()) return done(failure("INVALID_ARGUMENT", "speech.speak needs some text to say"))
+                val options = args.optJSONObject(1) ?: JSONObject()
+                withSpeech { engine ->
+                    options.optString("language").takeIf { it.isNotBlank() }?.let { engine.language = Locale.forLanguageTag(it) }
+                    if (options.has("rate")) engine.setSpeechRate((options.optDouble("rate", 0.5) * 2).toFloat().coerceIn(0.1f, 4f))
+                    val id = UUID.randomUUID().toString()
+                    speeches[id] = done
+                    val queue = if (options.optBoolean("interrupt", false)) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+                    if (engine.speak(text, queue, null, id) != TextToSpeech.SUCCESS) speeches.remove(id)?.invoke(success(false))
+                }
+            }
+            "stop" -> {
+                speech?.stop()
+                speeches.values.toList().forEach { it(success(false)) }
+                speeches.clear()
+                done(success(JSONObject.NULL))
+            }
+            else -> done(failure("UNKNOWN_ACTION", "Unsupported Speech method"))
+        }
+    }
+
+    private fun withSpeech(use: (TextToSpeech) -> Unit) {
+        val engine = speech
+        if (engine != null && speechReady) return use(engine)
+        speechQueue.add { speech?.let(use) }
+        if (engine != null) return
+        speech = TextToSpeech(context) { status ->
+            main.post {
+                speechReady = status == TextToSpeech.SUCCESS
+                if (!speechReady) {
+                    speechQueue.clear()
+                    speeches.values.toList().forEach { it(success(false)) }
+                    speeches.clear()
+                    return@post
+                }
+                speech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) { main.post { speeches.remove(utteranceId)?.invoke(success(true)) } }
+                    @Deprecated("Kept for older engines")
+                    override fun onError(utteranceId: String?) { main.post { speeches.remove(utteranceId)?.invoke(success(false)) } }
+                    override fun onStop(utteranceId: String?, interrupted: Boolean) { main.post { speeches.remove(utteranceId)?.invoke(success(false)) } }
+                })
+                val queued = speechQueue.toList()
+                speechQueue.clear()
+                queued.forEach { it() }
+            }
+        }
+    }
+
+    fun close() {
+        watchCallback?.let(locationClient::removeLocationUpdates)
+        watchCallback = null
+        pendingLocationPermission = null
+        health?.close()
+        speech?.shutdown()
+        speech = null
+        pendingBrowser = null
+        pendingPushPermission = null
+    }
+
+    private fun success(data: Any?) = CraftNativeCapabilityResult(data = data ?: JSONObject.NULL)
+    private fun failure(code: String, message: String) = CraftNativeCapabilityResult(code = code, message = message)
+
+    companion object {
+        const val PUSH_PERMISSION_REQUEST = 4207
+        const val LOCATION_PERMISSION_REQUEST = 4208
+    }
+}
