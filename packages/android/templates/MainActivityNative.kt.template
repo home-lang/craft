@@ -1787,12 +1787,15 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
 
     private fun changed() {
         if (suppressChanges) return
-        val picker = timePicker ?: return
-        val snapped = ((picker.minute + minuteInterval / 2) / minuteInterval * minuteInterval).coerceAtMost(59)
-        if (snapped != picker.minute) {
-            suppressChanges = true
-            picker.minute = snapped
-            suppressChanges = false
+        // A date-only picker has no time half to snap, but its change is
+        // still the screen's to hear.
+        timePicker?.let { picker ->
+            val snapped = ((picker.minute + minuteInterval / 2) / minuteInterval * minuteInterval).coerceAtMost(59)
+            if (snapped != picker.minute) {
+                suppressChanges = true
+                picker.minute = snapped
+                suppressChanges = false
+            }
         }
         onValueChanged?.invoke()
     }
