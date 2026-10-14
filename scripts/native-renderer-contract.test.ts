@@ -175,7 +175,11 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps device navigation tests independent of global field order and viewport position', () => {
-    expect(iosNavigationTest).toContain('private func reveal(_ element: XCUIElement, in scroll: XCUIElement')
+    expect(iosNavigationTest).toContain('private func reveal(\n        _ element: XCUIElement,\n        in scroll: XCUIElement,')
+    // A nested scroll view is brought into its root first: XCUITest moves the
+    // root by itself whenever a tap needs it, and only for taps.
+    expect(iosNavigationTest).toContain('within root: XCUIElement? = nil')
+    expect(iosNavigationTest).toContain('reveal(sectionList, in: rootScroll)')
     expect(iosNavigationTest).toContain('app.textFields["navigation-input-b"]')
     expect(iosNavigationTest).not.toContain('app.textFields.element(boundBy: 1)')
     expect(iosNavigationTest).toContain('let svg = app.otherElements["native-svg"]')
@@ -1364,7 +1368,9 @@ describe('native renderer component contract', () => {
 
   it('keeps picker initialization assertions aligned with the shared status baseline', () => {
     expect(androidNavigationTest).toContain('initial picker selection must not emit onChange", "button style accented"')
-    expect(iosNavigationTest).toContain('app.staticTexts["native-link-status"].label, "button style accented"')
+    // Each host checks the status its own last action wrote: Android reaches
+    // the picker after the button style toggle, iOS after the switch.
+    expect(iosNavigationTest).toContain('app.staticTexts["native-link-status"].label, "switch on"')
   })
 
   it('keeps FlatList pull-to-refresh aligned across hosts', () => {

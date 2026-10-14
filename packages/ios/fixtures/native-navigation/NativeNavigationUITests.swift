@@ -37,14 +37,49 @@ final class NativeNavigationUITests: XCTestCase {
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
     }
 
-    private func reveal(_ element: XCUIElement, in scroll: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+    private func inside(_ element: XCUIElement, _ scroll: XCUIElement) -> Bool {
+        let frame = element.frame
+        let viewport = scroll.frame
+        return !frame.isEmpty && frame.minY >= viewport.minY - 0.5 && frame.maxY <= viewport.maxY + 0.5
+    }
+
+    /// Scrolls `scroll` until `element` sits wholly inside it. A nested
+    /// scroll view is first brought wholly into the root scroll: XCUITest
+    /// scrolls the root by itself to reach whatever a tap targets, so an
+    /// inner scroll view can be anywhere, and a swipe that starts in its
+    /// clipped part lands on whatever lies outside it. The drag starts where
+    /// no nested scroll view would take it, travels a bounded distance and
+    /// holds before lifting, so the offset is not left to momentum.
+    private func reveal(
+        _ element: XCUIElement,
+        in scroll: XCUIElement,
+        within root: XCUIElement? = nil,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         XCTAssertTrue(element.waitForExistence(timeout: 10), "missing control before scrolling", file: file, line: line)
-        for _ in 0..<12 {
-            if element.isHittable { return }
-            if element.frame.midY < scroll.frame.midY { scroll.swipeDown() }
-            else { scroll.swipeUp() }
+        if let root { reveal(scroll, in: root, file: file, line: line) }
+        for _ in 0..<24 {
+            if inside(element, scroll) && element.isHittable { return }
+            let viewport = scroll.frame
+            let nested: [CGRect] = scroll.descendants(matching: .scrollView).allElementsBoundByIndex.map { $0.frame }
+            var start: CGFloat = 0.5
+            for step in 0...8 {
+                let offset = CGFloat(step) * 0.05
+                let free = [0.5 + offset, 0.5 - offset].first { (fraction: CGFloat) -> Bool in
+                    let y = viewport.minY + viewport.height * fraction
+                    return !nested.contains { (frame: CGRect) -> Bool in frame.minY - 4 <= y && y <= frame.maxY + 4 }
+                }
+                if let free { start = free; break }
+            }
+            // Content moves the opposite way to the finger, which may leave
+            // a short scroll view: the drag stays its own until it lifts.
+            let distance = max(-240, min(240, element.frame.midY - viewport.midY))
+            let from = scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: start))
+            let to = from.withOffset(CGVector(dx: 0, dy: -distance))
+            from.press(forDuration: 0.05, thenDragTo: to, withVelocity: .slow, thenHoldForDuration: 0.3)
         }
-        XCTAssertTrue(element.isHittable, "control remained outside the native scroll viewport", file: file, line: line)
+        XCTAssertTrue(inside(element, scroll) && element.isHittable, "control remained outside the native scroll viewport", file: file, line: line)
     }
 
     private func openCapabilities(_ app: XCUIApplication) {
@@ -70,16 +105,17 @@ final class NativeNavigationUITests: XCTestCase {
         app.buttons["load-capabilities"].tap()
         XCTAssertTrue(waitForLabel(status, "Loaded Ada and Grace"), "found \(status.label)")
 
-        addUIInterruptionMonitor(withDescription: "Notification permission") { alert in
-            if alert.buttons["Allow"].exists { alert.buttons["Allow"].tap(); return true }
-            return false
-        }
         app.buttons["test-notifications"].tap()
-        app.tap()
-        XCTAssertTrue(waitForLabel(
-            status,
-            "Notifications scheduled and cancelled"
-        ), "found \(status.label)")
+        // Scheduling asks for permission first. The alert is SpringBoard's, so
+        // it is answered there directly: an interruption monitor only runs
+        // when a later query happens to be blocked by the alert, and on a
+        // loaded runner that came after the label wait had given up.
+        let allow = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.buttons["Allow"]
+        let deadline = Date().addingTimeInterval(30)
+        while Date() < deadline, !status.label.hasPrefix("Notification") {
+            if allow.waitForExistence(timeout: 1) { allow.tap() }
+        }
+        XCTAssertEqual(status.label, "Notifications scheduled and cancelled")
 
         app.buttons["test-secure-storage"].tap()
         XCTAssertTrue(waitForLabel(status, "Secure storage roundtrip"), "found \(status.label)")
@@ -192,6 +228,7 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["native-section-header"].waitForExistence(timeout: 5), "SectionList header did not reconcile")
         XCTAssertTrue(app.staticTexts["native-section-row"].waitForExistence(timeout: 5), "SectionList row did not reconcile")
         XCTAssertTrue(app.staticTexts["native-section-footer"].waitForExistence(timeout: 5), "SectionList overflow content did not reconcile")
+        reveal(sectionList, in: rootScroll)
         sectionList.swipeUp()
         XCTAssertTrue(waitForLabel(app.staticTexts["section-scroll-status"], "Section scrolls: 1"), "SectionList did not deliver onScroll")
         XCTAssertTrue(app.otherElements["native-video"].waitForExistence(timeout: 5), "Video fixture did not mount as a native view")
@@ -217,18 +254,18 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.images["unsupported-image"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["image failed"].waitForExistence(timeout: 5))
         let imageSourceToggle = app.buttons["toggle-image-source"]
-        reveal(imageSourceToggle, in: scroll)
+        reveal(imageSourceToggle, in: scroll, within: rootScroll)
         imageSourceToggle.tap()
         XCTAssertTrue(app.staticTexts["image loaded"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.images["unsupported-image"].label, "Unsupported image")
         let imageTintToggle = app.buttons["toggle-image-tint"]
-        reveal(imageTintToggle, in: scroll)
+        reveal(imageTintToggle, in: rootScroll)
         imageTintToggle.tap()
         XCTAssertTrue(app.staticTexts["image tint off"].waitForExistence(timeout: 5))
         let unsupportedValue = (app.images["unsupported-image"].value as? String) ?? ""
         XCTAssertEqual(unsupportedValue.components(separatedBy: "Unsupported image source").count - 1, 0)
         let clearImageSource = app.buttons["clear-image-source"]
-        reveal(clearImageSource, in: scroll)
+        reveal(clearImageSource, in: scroll, within: rootScroll)
         clearImageSource.tap()
         XCTAssertTrue(waitForLabel(app.staticTexts["image-error-count"], "2"))
         reveal(imageTintToggle, in: rootScroll)
@@ -256,6 +293,7 @@ final class NativeNavigationUITests: XCTestCase {
         nullWidthToggle.tap()
         XCTAssertTrue(waitForLayoutDecrease(nullWidthText, from: explicitTextWidth), "null width should restore intrinsic text sizing")
         let scrollEnd = app.staticTexts["scroll-end"]
+        reveal(scroll, in: rootScroll)
         XCTAssertFalse(scrollEnd.isHittable)
         scroll.swipeUp()
         XCTAssertTrue(scrollEnd.waitForExistence(timeout: 5))
@@ -426,7 +464,9 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.otherElements["native-picker"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["picker-value"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["picker-value"].label, "one")
-        XCTAssertEqual(app.staticTexts["native-link-status"].label, "button style accented")
+        // The picker's first selection is not a change: the shared status
+        // still says what the switch just did.
+        XCTAssertEqual(app.staticTexts["native-link-status"].label, "switch on")
         let modalToggle = app.buttons["toggle-modal"]
         reveal(modalToggle, in: rootScroll)
         modalToggle.tap()
