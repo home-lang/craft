@@ -991,6 +991,14 @@ describe('native renderer component contract', () => {
     expect(android).not.toContain('style.optDouble("opacity", 1.0).toFloat()')
   })
 
+  it('normalizes Android visual dimensions before applying drawables', () => {
+    expect(android).toContain('internal fun craftNativeNonNegativeDouble(style: JSONObject?, name: String, fallback: Double): Double')
+    expect(android).toContain('view.elevation = dp(craftNativeNonNegativeDouble(style, "elevation", 0.0)).toFloat()')
+    expect(android).toContain('val border = craftNativeNonNegativeDouble(style, "borderWidth", 0.0)')
+    expect(android).toContain('val radius = craftNativeNonNegativeDouble(style, "borderRadius", 0.0)')
+    expect(android).not.toContain('val border = style.optDouble("borderWidth", 0.0)')
+  })
+
   it('keeps intrinsic grid tracks equal across hosts', () => {
     expect(ios).toContain('let width = innerWidth ?? (CGFloat(columns) * cellWidth + gaps)')
     expect(ios).toContain('gridAutoRows = CraftNativeLength(raw["gridAutoRows"])')
@@ -1167,12 +1175,12 @@ describe('native renderer component contract', () => {
   it('keeps elevation visible on both native hosts', () => {
     expect(ios).toContain('let elevation = max(0, number(style["elevation"]) ?? 0)')
     expect(ios).toContain('number(style["shadowOpacity"]) ?? (elevation > 0')
-    expect(android).toContain('view.elevation = dp(style.optDouble("elevation", 0.0)).toFloat()')
+    expect(android).toContain('view.elevation = dp(craftNativeNonNegativeDouble(style, "elevation", 0.0)).toFloat()')
   })
 
   it('applies the public zIndex style on both native hosts', () => {
     expect(ios).toContain('view.layer.zPosition = number(style["zIndex"]) ?? 0')
-    expect(android).toContain('view.z = style.optDouble("zIndex", 0.0).toFloat()')
+    expect(android).toContain('view.z = craftNativeFiniteFloat(style, "zIndex", 0f)')
   })
 
   it('applies and clears text shadows on both native hosts', () => {

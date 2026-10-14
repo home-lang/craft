@@ -133,6 +133,11 @@ internal fun craftNativeFiniteFloat(style: JSONObject?, name: String, fallback: 
     return if (value.isFinite() && narrowed.isFinite()) narrowed else fallback
 }
 
+internal fun craftNativeNonNegativeDouble(style: JSONObject?, name: String, fallback: Double): Double {
+    val value = style?.optDouble(name, Double.NaN) ?: Double.NaN
+    return if (value.isFinite() && value >= 0) value else fallback
+}
+
 private data class CraftNativeLength(
     val points: Int? = null,
     val fraction: Double? = null,
@@ -4446,18 +4451,18 @@ class MainActivity : AppCompatActivity() {
         if (view !is CraftNativeModalView) {
             view.visibility = if (style.optString("display") == "none") View.GONE else View.VISIBLE
         }
-        view.elevation = dp(style.optDouble("elevation", 0.0)).toFloat()
-        view.z = style.optDouble("zIndex", 0.0).toFloat()
+        view.elevation = dp(craftNativeNonNegativeDouble(style, "elevation", 0.0)).toFloat()
+        view.z = craftNativeFiniteFloat(style, "zIndex", 0f)
         val background = style.has("backgroundColor") && !style.isNull("backgroundColor")
-        val border = style.optDouble("borderWidth", 0.0)
-        val radius = style.optDouble("borderRadius", 0.0)
+        val border = craftNativeNonNegativeDouble(style, "borderWidth", 0.0)
+        val radius = craftNativeNonNegativeDouble(style, "borderRadius", 0.0)
         val sideBorderKeys = listOf("borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth")
         val hasSideBorders = (sideBorderKeys + listOf("borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor")).any(style::has)
-        val sideWidths = sideBorderKeys.map { dp(style.optDouble(it, border)) }.toIntArray()
+        val sideWidths = sideBorderKeys.map { dp(craftNativeNonNegativeDouble(style, it, border)) }.toIntArray()
         val cornerRadiusKeys = listOf("borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius")
         val hasCornerRadii = cornerRadiusKeys.any(style::has)
         val cornerRadii = cornerRadiusKeys.flatMap { value ->
-            val radius = dp(style.optDouble(value, radius)).toFloat()
+            val radius = dp(craftNativeNonNegativeDouble(style, value, radius)).toFloat()
             listOf(radius, radius)
         }.toFloatArray()
         val sideColors = listOf("borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor")
