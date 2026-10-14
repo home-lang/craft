@@ -253,7 +253,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('memos.clear()')
       expect(nativeActivity).toContain('lastProbe.clear()')
       expect(nativeActivity).toContain('private fun invalidateMeasurementAncestors(start: ViewParent?)')
-      expect(nativeActivity).toContain('is CraftNativeKeyboardAvoidingView -> ancestor.content.invalidateMeasurements()')
+      expect(nativeActivity).toContain('is CraftNativeKeyboardAvoidingView -> ancestor.content.invalidateIntrinsicMeasurements()')
       expect(nativeActivity).toContain('is CraftNativeScrollView -> ancestor.invalidateContentLayout()')
       expect(nativeActivity).toContain('invalidateMeasurementAncestors(parent)')
       expect(nativeActivity).toContain('override fun onViewAdded(child: View)')
