@@ -570,7 +570,18 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
                 }
             } else if (type == "mappolyline" || type == "polyline") {
                 if (points.size > 1) {
-                    val width = props.optDouble("strokeWidth", 3.0).toFloat().takeIf { it.isFinite() && it > 0 } ?: 3f
+                    // Keep malformed authored widths inert, matching the iOS
+                    // host. An omitted or null width still gets the shared
+                    // default; an attacker-controlled NaN, infinity, zero,
+                    // or negative value must not become a valid overlay.
+                    val rawWidth = props.opt("strokeWidth")
+                    val authoredWidth = when (rawWidth) {
+                        null, JSONObject.NULL -> 3.0
+                        is Number -> rawWidth.toDouble()
+                        else -> 3.0
+                    }
+                    val width = authoredWidth.toFloat()
+                    if (!authoredWidth.isFinite() || !width.isFinite() || width <= 0f) continue
                     nextPolylines[id] = Triple(points, color(props.optString("strokeColor")), width)
                 }
             }

@@ -261,6 +261,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('polyline.points = value.first')
       expect(nativeActivity).toContain('polyline.color = value.second')
       expect(nativeActivity).toContain('polyline.width = value.third')
+      expect(nativeActivity).toContain('val rawWidth = props.opt("strokeWidth")')
+      expect(nativeActivity).toContain('if (!authoredWidth.isFinite() || !width.isFinite() || width <= 0f) continue')
       expect(nativeActivity).toContain('val value = (if (step != null) minimum + ((requested - minimum) / step).roundToInt() * step else requested)')
       expect(nativeActivity).toContain('progress = if (step != null)')
       expect(nativeActivity).toContain('((value - minimum) / step).roundToInt().coerceIn(0, max)')
