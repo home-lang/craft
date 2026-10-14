@@ -845,6 +845,24 @@ class NativeNavigationTest {
     }
 
     @Test
+    fun nativeLinkOpensRoute() {
+        val context = instrumentation.targetContext
+        val activity = instrumentation.startActivitySync(
+            Intent(context, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        try {
+            val link = awaitView(activity, "native-route-link")
+            instrumentation.runOnMainSync { link.performClick() }
+            assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())
+            click(activity, "details-back")
+            awaitView(activity, "native-route-link")
+        } finally {
+            instrumentation.runOnMainSync { activity.finish() }
+        }
+    }
+
+    @Test
     fun nativeAppearanceReconcilesTraitDefaults() {
         val context = instrumentation.targetContext
         val activity = instrumentation.startActivitySync(

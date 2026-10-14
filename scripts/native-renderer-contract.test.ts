@@ -1425,6 +1425,16 @@ describe('native renderer component contract', () => {
     expect(iosNavigationScript).toContain("console.log('iOS native navigation fixture prepared')")
   })
 
+  it('routes authored links through both native hosts', () => {
+    expect(navigationHome).toContain('<a testID="native-route-link" href="/details">')
+    expect(ios).toContain('private var linkTargets: [ObjectIdentifier: String] = [:]')
+    expect(ios).toContain('hybridEvents?.nativeScreen(self, open: target)')
+    expect(android).toContain('val linkTargets = mutableMapOf<View, String>()')
+    expect(android).toContain('navigateOpen(target)')
+    expect(iosNavigationTest).toContain('func testNativeLinkOpensRoute()')
+    expect(androidNavigationTest).toContain('fun nativeLinkOpensRoute()')
+  })
+
   it('proves shared-runtime keyed rows through the maintained iOS host', () => {
     expect(navigationHome).toContain("globalThis.craft.storage.remove('native-navigation-details-destroyed')")
     expect(navigationHome).toContain('const navigationRows = state([')
