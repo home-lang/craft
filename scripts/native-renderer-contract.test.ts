@@ -331,6 +331,10 @@ describe('native renderer component contract', () => {
       'val size = (if (props.has("fontSize")) props.optDouble("fontSize", 12.0) else nodeStyle.optDouble("fontSize", 12.0))',
     )
     expect(android).toContain('textSize = size')
+    expect(ios).toContain('let size = number(props["fontSize"]) ?? number(style["fontSize"]) ?? 12')
+    expect(ios).toContain('var x = number(props["x"]) ?? 0')
+    expect(android).toContain('.takeIf { it.isFinite() }')
+    expect(android).toContain('var x = props.optDouble("x", 0.0).takeIf { it.isFinite() }?.toFloat() ?: 0f')
   })
 
   it('keeps native video playback available on both hosts', () => {

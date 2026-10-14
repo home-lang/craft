@@ -478,15 +478,17 @@ private class CraftNativeSvgView(context: Context) : View(context) {
         }
         if (text.isEmpty()) return
         val size = (if (props.has("fontSize")) props.optDouble("fontSize", 12.0) else nodeStyle.optDouble("fontSize", 12.0))
-            .toFloat()
+            .takeIf { it.isFinite() }
+            ?.toFloat()
+            ?: 12f
         val paint = android.graphics.Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = resolveColor(style.fill, style.color, Color.BLACK)
             alpha = (style.opacity * 255f).roundToInt().coerceIn(0, 255)
             textSize = size
             typeface = style.typeface
         }
-        var x = props.optDouble("x", 0.0).toFloat()
-        val y = props.optDouble("y", 0.0).toFloat()
+        var x = props.optDouble("x", 0.0).takeIf { it.isFinite() }?.toFloat() ?: 0f
+        val y = props.optDouble("y", 0.0).takeIf { it.isFinite() }?.toFloat() ?: 0f
         when (props.optString("textAnchor")) {
             "middle" -> x -= paint.measureText(text) / 2f
             "end" -> x -= paint.measureText(text)

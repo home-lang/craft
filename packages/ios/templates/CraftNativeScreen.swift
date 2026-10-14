@@ -2502,14 +2502,14 @@ private final class CraftNativeSvgView: UIView {
         guard !text.isEmpty else { return }
         let props = node["props"] as? [String: Any] ?? [:]
         let style = node["style"] as? [String: Any] ?? [:]
-        let size = CGFloat(truncating: props["fontSize"] as? NSNumber ?? style["fontSize"] as? NSNumber ?? 12)
+        let size = number(props["fontSize"]) ?? number(style["fontSize"]) ?? 12
         let weight: UIFont.Weight = (props["fontWeight"] as? String ?? style["fontWeight"] as? String).map { ["500": .medium, "600": .semibold, "700": .bold, "bold": .bold][$0] ?? .regular } ?? .regular
         let string = NSAttributedString(string: text, attributes: [
             .font: UIFont.systemFont(ofSize: size, weight: weight),
             .foregroundColor: paint.resolve(paint.fill) ?? UIColor.label,
         ])
-        var x = CGFloat(truncating: props["x"] as? NSNumber ?? 0)
-        let y = CGFloat(truncating: props["y"] as? NSNumber ?? 0)
+        var x = number(props["x"]) ?? 0
+        let y = number(props["y"]) ?? 0
         switch props["textAnchor"] as? String {
         case "middle": x -= string.size().width / 2
         case "end": x -= string.size().width
