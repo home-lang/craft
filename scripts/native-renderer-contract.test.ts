@@ -979,6 +979,9 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('const padding_left = finiteNonNegative(node.style.padding_left)')
     expect(nativeLayout).toContain('const content_x = x + padding_left')
     expect(nativeLayout).toContain('test "sanitizes non-finite and negative tree padding"')
+    expect(nativeLayout).toContain('const gap = finiteNonNegative(node.style.gap)')
+    expect(nativeLayout).toContain('const column_gap = finiteNonNegative(node.style.column_gap)')
+    expect(nativeLayout).toContain('test "sanitizes non-finite tree flex and grid gaps"')
   })
 
   it('keeps intrinsic grid tracks equal across hosts', () => {

@@ -189,7 +189,7 @@ pub fn build(b: *std.Build) void {
         }),
     });
     const run_native_layout_tests = b.addRunArtifact(native_layout_tests);
-    const native_layout_step = b.step("test-native-layout", "Run the host-neutral native layout spike tests");
+    const native_layout_step = b.step("test-native-layout", "Run the host-neutral native layout tests, including input sanitization");
     native_layout_step.dependOn(&run_native_layout_tests.step);
 
     // Rooted at `src/ios.zig`, which reaches `src/mobile.zig` through its own

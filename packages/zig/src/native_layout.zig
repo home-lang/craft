@@ -602,7 +602,7 @@ fn layoutNode(
     if (node.style.grid) return layoutGrid(node, content_width, content_height, content_x, content_y, frame_index, frames);
 
     const main_size = if (node.style.direction == .row) content_width else content_height;
-    const gap = @max(0, node.style.gap);
+    const gap = finiteNonNegative(node.style.gap);
     const gap_count = if (node.children.len > 1) node.children.len - 1 else 0;
     const gap_total = gap * @as(f32, @floatFromInt(gap_count));
     if (node.style.flex_wrap) return layoutWrapped(node, content_width, content_height, content_x, content_y, frame_index, frames);
@@ -671,7 +671,7 @@ fn layoutWrapped(
     const direction = node.style.direction;
     const main_size = if (direction == .row) width else height;
     const cross_size = if (direction == .row) height else width;
-    const gap = @max(0, node.style.gap);
+    const gap = finiteNonNegative(node.style.gap);
     var line_count: usize = 0;
     var cross_total: f32 = 0;
     var start: usize = 0;
@@ -871,8 +871,8 @@ fn layoutGrid(
 ) LayoutError!usize {
     const columns = @max(@as(u32, 1), node.style.grid_columns);
     const column_count: usize = @intCast(columns);
-    const column_gap = @max(0, node.style.column_gap);
-    const row_gap = @max(0, node.style.row_gap);
+    const column_gap = finiteNonNegative(node.style.column_gap);
+    const row_gap = finiteNonNegative(node.style.row_gap);
     const available_width = @max(0, width - column_gap * @as(f32, @floatFromInt(column_count - 1)));
     const cell_width = available_width / @as(f32, @floatFromInt(column_count));
     var next_index = frame_index + 1;
@@ -1331,6 +1331,35 @@ test "sanitizes non-finite and negative tree padding" {
     _ = try layout(root, .{ .width = 100, .height = 40 }, &frames);
     try std.testing.expectApproxEqAbs(@as(f32, 0), frames[1].x, 0.001);
     try std.testing.expectApproxEqAbs(@as(f32, 0), frames[1].y, 0.001);
+}
+
+test "sanitizes non-finite tree flex and grid gaps" {
+    const flex_children = [_]Node{
+        .{ .style = .{ .flex_basis = 10 } },
+        .{ .style = .{ .flex_basis = 10 } },
+    };
+    const flex_root = Node{
+        .style = .{ .direction = .row, .width = 40, .height = 20, .gap = std.math.nan(f32) },
+        .children = &flex_children,
+    };
+    var flex_frames: [3]Frame = undefined;
+    _ = try layout(flex_root, .{ .width = 40, .height = 20 }, &flex_frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 10), flex_frames[2].x, 0.001);
+
+    const grid_children = [_]Node{
+        .{ .style = .{ .width = 10, .height = 10 } },
+        .{ .style = .{ .width = 10, .height = 10 } },
+    };
+    const grid_root = Node{
+        .style = .{ .grid = true, .grid_columns = 2, .width = 40, .height = 20, .column_gap = std.math.inf(f32), .row_gap = -4 },
+        .children = &grid_children,
+    };
+    var grid_frames: [3]Frame = undefined;
+    _ = try layout(grid_root, .{ .width = 40, .height = 20 }, &grid_frames);
+    for (grid_frames) |frame| {
+        try std.testing.expect(std.math.isFinite(frame.x));
+        try std.testing.expect(std.math.isFinite(frame.y));
+    }
 }
 
 test "recurses across row and column axes without host concepts" {
