@@ -277,7 +277,7 @@ final class CraftNativeFlatList: UICollectionView, UICollectionViewDelegateFlowL
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        true
+        craftScrollGesture(gestureRecognizer, runsWith: otherGestureRecognizer)
     }
 
     var visibleItemIdentities: [String] {

@@ -954,6 +954,50 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(scroll.contentInset.bottom, 0)
     }
 
+    func testASliderReportsTheDecimalItShows() {
+        // UISlider keeps a Float; the script hears the number, not its
+        // binary neighbour.
+        XCTAssertEqual(CraftNativeScreenController.sliderEventValue(0.8), 0.8)
+        XCTAssertEqual(CraftNativeScreenController.sliderEventValue(Float(0.3)), 0.3)
+        XCTAssertEqual(CraftNativeScreenController.sliderEventValue(42), 42)
+    }
+
+    func testANestedScrollViewsDragDoesNotScrollItsParent() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([[
+            "type": "ScrollView", "props": ["key": "page"], "style": ["flex": 1],
+            "children": [
+                ["type": "ScrollView", "props": ["key": "strip"], "style": ["height": 72], "children": [
+                    ["type": "View", "props": ["key": "tall"], "style": ["height": 600]],
+                ]],
+                ["type": "FlatList", "props": ["key": "list"], "style": ["height": 72], "children": [
+                    ["type": "Text", "props": ["key": "row"], "children": ["Row"]],
+                ]],
+                ["type": "View", "props": ["key": "spacer"], "style": ["height": 1200]],
+            ],
+        ]]))
+        controller.view.layoutIfNeeded()
+        let page = try XCTUnwrap(find(UIScrollView.self, key: "page", below: controller.view))
+        let strip = try XCTUnwrap(find(UIScrollView.self, key: "strip", below: controller.view))
+        let list = try XCTUnwrap(find(UIScrollView.self, key: "list", below: controller.view))
+        for (inner, name) in [(strip, "ScrollView"), (list, "FlatList")] {
+            let delegate = try XCTUnwrap(inner.panGestureRecognizer.delegate, name)
+            // UIKit gives a drag to one of the two; answering yes scrolled both.
+            XCTAssertEqual(delegate.gestureRecognizer?(inner.panGestureRecognizer, shouldRecognizeSimultaneouslyWith: page.panGestureRecognizer), false, name)
+            XCTAssertEqual(page.panGestureRecognizer.delegate?.gestureRecognizer?(page.panGestureRecognizer, shouldRecognizeSimultaneouslyWith: inner.panGestureRecognizer), false, name)
+            // Other gestures, the back-swipe's and the tab swipe's among them,
+            // still decide for themselves alongside a scroll view's pan.
+            let other = UIPanGestureRecognizer()
+            controller.view.addGestureRecognizer(other)
+            defer { controller.view.removeGestureRecognizer(other) }
+            XCTAssertEqual(delegate.gestureRecognizer?(inner.panGestureRecognizer, shouldRecognizeSimultaneouslyWith: other), true, name)
+        }
+    }
+
     func testADatePickerPicksADayOrAClassTime() throws {
         let controller = CraftNativeScreenController(config: CraftConfig())
         controller.loadViewIfNeeded()

@@ -185,6 +185,27 @@ final class NativeLayoutUnitTests: XCTestCase {
         XCTAssertGreaterThan(third.minY, first.minY + 35)
     }
 
+    func testFractionalGridSwatchesFillTheirColumnsAtAFixedHeight() throws {
+        let controller = screen(box("root", style: [
+            "display": "grid", "gridTemplateColumns": "repeat(3, 1fr)", "columnGap": 4, "width": 121, "height": 32
+        ], [
+            box("first", style: ["height": 20]),
+            box("second", style: ["height": 20]),
+            box("third", style: ["height": 20]),
+            // An aspect ratio still derives the width from the height.
+            box("square", style: ["height": 20, "aspectRatio": 1]),
+        ]), width: 121)
+        let first = try frame("first", in: controller)
+        let second = try frame("second", in: controller)
+        let third = try frame("third", in: controller)
+        XCTAssertEqual(first.width, 37.67, accuracy: 0.5)
+        XCTAssertEqual(second.width, first.width, accuracy: 0.5)
+        XCTAssertEqual(first.height, 20, accuracy: 0.5)
+        XCTAssertEqual(second.minX - first.maxX, 4, accuracy: 0.5)
+        XCTAssertLessThanOrEqual(third.maxX, try frame("root", in: controller).maxX + 0.5)
+        XCTAssertEqual(try frame("square", in: controller).width, 20, accuracy: 0.5)
+    }
+
     func testANonScrollingFlatListTakesItsRowsHeightInsideAMarginedParent() throws {
         func row(_ index: Int) -> [String: Any] {
             box("row-\(index)", style: ["flexDirection": "row", "gap": 12, "padding": 12], props: ["listRole": "item", "key": "row-\(index)"], [

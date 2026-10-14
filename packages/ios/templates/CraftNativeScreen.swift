@@ -1475,7 +1475,10 @@ private class CraftNativeFlowView: UIStackView {
             let align = style.alignSelf ?? alignItems
             var fixedWidth = style.width?.resolve(cellWidth)
             var fixedHeight = style.height?.resolve(nil)
-            if fixedWidth == nil && fixedHeight == nil && align == "stretch" { fixedWidth = available }
+            // A cell's item is as wide as its column unless it sets a width
+            // (or an aspect ratio derives one from its height), whatever its
+            // height: a fixed-height swatch with no content was drawn 0 wide.
+            if fixedWidth == nil && align == "stretch" && (fixedHeight == nil || style.aspectRatio == nil) { fixedWidth = available }
             (fixedWidth, fixedHeight) = aspectDimensions(style, width: fixedWidth, height: fixedHeight)
             let size = CraftNativeFlexLayout.measure(
                 child,
@@ -1506,7 +1509,7 @@ private class CraftNativeFlowView: UIStackView {
                 let alignment: UInt32 = align == "center" ? 1 : align == "flex-end" ? 2 : 0
                 var explicitWidth = style.width?.resolve(cellWidth)
                 var explicitHeight = style.height?.resolve(nil)
-                if explicitWidth == nil && explicitHeight == nil && align == "stretch" {
+                if explicitWidth == nil && align == "stretch" && (explicitHeight == nil || style.aspectRatio == nil) {
                     explicitWidth = max(0, cellWidth - style.marginLeft - style.marginRight)
                 }
                 (explicitWidth, explicitHeight) = aspectDimensions(style, width: explicitWidth, height: explicitHeight)
@@ -1773,6 +1776,18 @@ private final class CraftNativeModalView: UIView {
     }
 }
 
+/// Whether a scrolling view's gesture runs together with `other`. A scroll
+/// view is the delegate of its own pan as well as of its keyboard tap, so this
+/// answers for both. Everything runs together (the keyboard tap watches
+/// alongside a control's own gestures; the back-swipe and the tab swipe decide
+/// for themselves) except two scroll views' pans: run together, a drag on a
+/// nested scroll view scrolled its parent at the same time.
+func craftScrollGesture(_ gesture: UIGestureRecognizer, runsWith other: UIGestureRecognizer) -> Bool {
+    guard let scroll = gesture.view as? UIScrollView, gesture === scroll.panGestureRecognizer,
+          let otherScroll = other.view as? UIScrollView, other === otherScroll.panGestureRecognizer else { return true }
+    return false
+}
+
 private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDelegate {
     let contentStack = CraftNativeFlowView()
     private let keyboardTapGesture = UITapGestureRecognizer()
@@ -2025,7 +2040,7 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        true
+        craftScrollGesture(gestureRecognizer, runsWith: otherGestureRecognizer)
     }
 
     func setAxis(_ axis: NSLayoutConstraint.Axis) {
@@ -5544,7 +5559,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let value = snappedSliderValue(sender.value, for: sender)
         if sender.value != value { sender.value = value }
         guard let handler = handlers[ObjectIdentifier(sender)] else { return }
-        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": value]])
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": Self.sliderEventValue(value)]])
+    }
+
+    /// A slider's value as the script reads it: the shortest decimal that is
+    /// the same Float, so a step of 0.1 gives 0.8 and not 0.800000011920929.
+    static func sliderEventValue(_ value: Float) -> Double {
+        Double(value.description) ?? Double(value)
     }
 
     /// `@change` on a DatePicker: the value as `<input type="date|time|
@@ -5641,7 +5662,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     @objc private func sliderFinished(_ sender: UISlider) {
         guard let handler = sliderCompleteHandlers[ObjectIdentifier(sender)] else { return }
-        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": snappedSliderValue(sender.value, for: sender)]])
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": Self.sliderEventValue(snappedSliderValue(sender.value, for: sender))]])
     }
 
     func numberOfComponents(in pickerView: UIPickerView) -> Int { 1 }
