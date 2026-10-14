@@ -672,6 +672,10 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         googleMap = null
     }
 
+    fun lowMemory() {
+        if (!destroyed) mapView.onLowMemory()
+    }
+
     private fun hasLocationPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -5211,6 +5215,11 @@ class MainActivity : AppCompatActivity() {
         super.onStop()
     }
 
+    override fun onLowMemory() {
+        mapViews().forEach { it.lowMemory() }
+        super.onLowMemory()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -5350,6 +5359,11 @@ class MainActivity : AppCompatActivity() {
     private fun retainedViews(screen: Screen): MutableSet<View> = screen.controls.values.toMutableSet().apply {
         screen.flatListRows.values.forEach { rows -> rows.values.forEach { addAll(it.values) } }
     }
+
+    private fun mapViews(): Set<CraftNativeMapView> = allScreens()
+        .flatMap { retainedViews(it) }
+        .filterIsInstance<CraftNativeMapView>()
+        .toSet()
 
     private fun releaseFlatList(
         screen: Screen,
