@@ -8,6 +8,7 @@ const iosHealth = readFileSync(join(root, 'packages/ios/templates/CraftHealth.sw
 const iosWebAudio = readFileSync(join(root, 'packages/ios/templates/CraftWebAudio.swift'), 'utf8')
 const iosFlatList = readFileSync(join(root, 'packages/ios/templates/CraftNativeFlatList.swift'), 'utf8')
 const android = readFileSync(join(root, 'packages/android/templates/MainActivityNative.kt.template'), 'utf8')
+const androidChrome = readFileSync(join(root, 'packages/android/templates/CraftNativeShell.kt.template'), 'utf8')
 const androidCapabilities = readFileSync(join(root, 'packages/android/templates/CraftNativeCapabilities.kt.template'), 'utf8')
 const androidNative = readFileSync(join(root, 'packages/android/templates/CraftNative.kt.template'), 'utf8')
 const androidDispatch = readFileSync(join(root, 'packages/zig/src/android_dispatch.zig'), 'utf8')
@@ -1670,6 +1671,19 @@ describe('native renderer component contract', () => {
     expect(hybrid).toContain('let delta = abs(translation) >= 32 ? translation : velocity')
     expect(hybrid).toContain('horizontalScrollCanScrollBack(at: nav.view.convert(start, to: view), in: native.view)')
     expect(hybrid).toContain('if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }')
+  })
+
+  it('keeps Android tab swipes interactive and screen-configurable', () => {
+    expect(androidChrome).toContain('override fun onInterceptTouchEvent(event: MotionEvent)')
+    expect(androidChrome).toContain('onTabSwipeStart?.invoke(dx, event.x, event.y)')
+    expect(androidChrome).toContain('onTabSwipeEnd?.invoke(event.x - swipeDownX, false)')
+    expect(androidChrome).toContain('tabSwipeEnabled = options.optBoolean("tabSwipeEnabled", true)')
+    expect(android).toContain('private fun beginTabSwipe(dx: Float, x: Float, y: Float): Boolean')
+    expect(android).toContain('private fun updateTabSwipe(dx: Float)')
+    expect(android).toContain('private fun finishTabSwipe(dx: Float, cancelled: Boolean)')
+    expect(android).toContain('horizontalScrollCanConsume(current.view, host, x, y, dx)')
+    expect(android).toContain('showImmediately: Boolean = true')
+    expect(android).toContain('ensureTabRoot(targetIndex)')
   })
 
   it('documents the hybrid tab-swipe opt-out', () => {

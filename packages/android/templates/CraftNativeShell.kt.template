@@ -13,8 +13,10 @@ import android.text.TextUtils
 import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -576,10 +578,19 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
     private val tabViews = mutableListOf<Pair<TextView, TextView>>()
     private val density = resources.displayMetrics.density
     private var selectedTab = 0
+    private var swipeTracking = false
+    private var swipeIntercepted = false
+    private var swipeDownX = 0f
+    private var swipeDownY = 0f
+    private val swipeSlop = ViewConfiguration.get(context).scaledTouchSlop
 
     var onBack: (() -> Unit)? = null
     var onButton: ((String) -> Unit)? = null
     var onTab: ((Int) -> Unit)? = null
+    var onTabSwipeStart: ((Float, Float, Float) -> Boolean)? = null
+    var onTabSwipeMove: ((Float) -> Unit)? = null
+    var onTabSwipeEnd: ((Float, Boolean) -> Unit)? = null
+    var tabSwipeEnabled = true
 
     init {
         orientation = VERTICAL
@@ -640,6 +651,44 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         refreshColors()
     }
 
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                swipeTracking = tabs.size > 1 && tabSwipeEnabled && tabBar.visibility == View.VISIBLE && event.y < tabBar.top
+                swipeIntercepted = false
+                swipeDownX = event.x
+                swipeDownY = event.y
+            }
+            MotionEvent.ACTION_MOVE -> if (swipeTracking && !swipeIntercepted) {
+                val dx = event.x - swipeDownX
+                val dy = event.y - swipeDownY
+                if (kotlin.math.abs(dx) > swipeSlop && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
+                    swipeTracking = false
+                    swipeIntercepted = onTabSwipeStart?.invoke(dx, event.x, event.y) == true
+                    return swipeIntercepted
+                }
+            }
+            MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_UP -> swipeTracking = false
+        }
+        return swipeIntercepted
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (!swipeIntercepted) return super.onTouchEvent(event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_MOVE -> onTabSwipeMove?.invoke(event.x - swipeDownX)
+            MotionEvent.ACTION_UP -> {
+                onTabSwipeEnd?.invoke(event.x - swipeDownX, false)
+                swipeIntercepted = false
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                onTabSwipeEnd?.invoke(event.x - swipeDownX, true)
+                swipeIntercepted = false
+            }
+        }
+        return true
+    }
+
     /** Draws `options` (a screen's `setOptions`) for a screen `depth` deep in its stack. */
     fun apply(options: JSONObject, depth: Int, fallbackTitle: String?) {
         val hidden = options.optBoolean("hidden", false)
@@ -659,6 +708,7 @@ internal class CraftNativeChrome(context: Context, private val tabs: List<CraftN
         }
         val tabBarHidden = options.optBoolean("tabBarHidden", false) || depth > 0 && options.optBoolean("tabBarHiddenWhenPushed", false)
         tabBar.visibility = if (tabs.isEmpty() || tabBarHidden) View.GONE else View.VISIBLE
+        tabSwipeEnabled = options.optBoolean("tabSwipeEnabled", true)
     }
 
     fun selectTab(index: Int) {

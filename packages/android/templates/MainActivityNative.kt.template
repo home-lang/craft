@@ -2286,6 +2286,9 @@ class MainActivity : AppCompatActivity() {
     private val tabStacks = mutableListOf<MutableList<Screen>>()
     private var currentTab = 0
     private var visibleScreen: Screen? = null
+    private var tabSwipeTarget: Screen? = null
+    private var tabSwipeTargetIndex = -1
+    private var tabSwipeDirection = 0
     /** The app script's isolate (`nativeApp`), when the app has one. */
     private var appScreen: Screen? = null
     private val urlSchemes = mutableSetOf<String>()
@@ -2450,6 +2453,9 @@ class MainActivity : AppCompatActivity() {
             haptic()
             if (index == currentTab) popToRoot() else selectTab(index)
         }
+        bars.onTabSwipeStart = { dx, x, y -> beginTabSwipe(dx, x, y) }
+        bars.onTabSwipeMove = { dx -> updateTabSwipe(dx) }
+        bars.onTabSwipeEnd = { dx, cancelled -> finishTabSwipe(dx, cancelled) }
         root.addView(bars)
         chrome = bars
         tabStacks.clear()
@@ -2473,12 +2479,97 @@ class MainActivity : AppCompatActivity() {
         currentTab = index
         screens = tabStacks[index]
         chrome?.selectTab(index)
-        if (screens.isEmpty()) {
-            val match = routes.tabs.getOrNull(index)?.let { routes.match(it.id) }
-            if (match != null) openScreen(match.screen, match.params)?.path = match.path else openScreen(null)
-        } else {
-            show(screens.last())
+        ensureTabRoot(index)?.let(::show)
+    }
+
+    /** Mount a tab's root without stealing focus, for an interactive swipe. */
+    private fun ensureTabRoot(index: Int): Screen? {
+        if (index !in tabStacks.indices) return null
+        tabStacks[index].lastOrNull()?.let { return it }
+        val previous = screens
+        screens = tabStacks[index]
+        val match = routes.tabs.getOrNull(index)?.let { routes.match(it.id) }
+        val screen = if (match != null) openScreen(match.screen, match.params, showImmediately = false) else openScreen(null, showImmediately = false)
+        screen?.path = match?.path
+        screens = previous
+        return screen
+    }
+
+    /** Start an interactive horizontal transition to the adjacent tab. */
+    private fun beginTabSwipe(dx: Float, x: Float, y: Float): Boolean {
+        if (tabSwipeTarget != null || screens.size != 1 || chrome?.tabSwipeEnabled != true) return false
+        val direction = if (dx < 0) 1 else -1
+        val targetIndex = currentTab + direction
+        val current = visibleScreen ?: return false
+        val target = ensureTabRoot(targetIndex) ?: return false
+        val host = chrome?.content ?: return false
+        if (target === current || host.width <= 0) return false
+        if (horizontalScrollCanConsume(current.view, host, x, y, dx)) return false
+        (target.view.parent as? ViewGroup)?.removeView(target.view)
+        host.addView(target.view, FrameLayout.LayoutParams(-1, -1))
+        target.view.translationX = if (direction > 0) host.width.toFloat() else -host.width.toFloat()
+        current.view.translationX = 0f
+        host.bringChildToFront(target.view)
+        tabSwipeTarget = target
+        tabSwipeTargetIndex = targetIndex
+        tabSwipeDirection = direction
+        chrome?.selectTab(targetIndex)
+        return true
+    }
+
+    private fun updateTabSwipe(dx: Float) {
+        val current = visibleScreen ?: return
+        val target = tabSwipeTarget ?: return
+        val width = (chrome?.content?.width ?: return).toFloat().coerceAtLeast(1f)
+        val offset = dx.coerceIn(-width, width)
+        target.view.translationX = (if (tabSwipeDirection > 0) width else -width) + offset
+        current.view.translationX = offset
+    }
+
+    private fun finishTabSwipe(dx: Float, cancelled: Boolean) {
+        val current = visibleScreen ?: return
+        val target = tabSwipeTarget ?: return
+        val host = chrome?.content ?: return
+        val width = host.width.toFloat().coerceAtLeast(1f)
+        val complete = !cancelled && kotlin.math.abs(dx) >= width * 0.28f
+        val endOffset = if (complete) {
+            if (tabSwipeDirection > 0) -width else width
+        } else 0f
+        val targetOffset = if (complete) 0f else if (tabSwipeDirection > 0) width else -width
+        current.view.animate().translationX(endOffset).setDuration(180).start()
+        target.view.animate().translationX(targetOffset).setDuration(180).withEndAction {
+            target.view.animate().setListener(null)
+            if (complete) {
+                current.view.translationX = 0f
+                currentTab = tabSwipeTargetIndex
+                screens = tabStacks[currentTab]
+                tabSwipeTarget = null
+                tabSwipeTargetIndex = -1
+                tabSwipeDirection = 0
+                haptic()
+                show(target)
+            } else {
+                host.removeView(target.view)
+                current.view.translationX = 0f
+                chrome?.selectTab(currentTab)
+                tabSwipeTarget = null
+                tabSwipeTargetIndex = -1
+                tabSwipeDirection = 0
+            }
+        }.start()
+    }
+
+    private fun horizontalScrollCanConsume(view: View, host: ViewGroup, x: Float, y: Float, dx: Float): Boolean {
+        val localX = x - view.left
+        val localY = y - host.top - view.top
+        if (view !is ViewGroup || localX < 0 || localY < 0 || localX > view.width || localY > view.height) return false
+        for (index in view.childCount - 1 downTo 0) {
+            val child = view.getChildAt(index)
+            if (!child.isShown || localX < child.left || localX > child.right || localY < child.top || localY > child.bottom) continue
+            if (child is android.widget.HorizontalScrollView && child.canScrollHorizontally(if (dx < 0) 1 else -1)) return true
+            if (horizontalScrollCanConsume(child, host, localX - child.left, localY - child.top, dx)) return true
         }
+        return false
     }
 
     /**
@@ -2530,7 +2621,7 @@ class MainActivity : AppCompatActivity() {
         services.perform("Browser", "open", JSONArray().put(url), {})
     }
 
-    private fun openScreen(route: String?, params: JSONObject = JSONObject(), headless: Boolean = false): Screen? {
+    private fun openScreen(route: String?, params: JSONObject = JSONObject(), headless: Boolean = false, showImmediately: Boolean = true): Screen? {
         val engine = sandbox ?: return null
         val isolate = engine.createIsolate()
         val view = CraftNativeFlexLayout(this).apply {
@@ -2567,7 +2658,7 @@ class MainActivity : AppCompatActivity() {
         }
         if (!headless) {
             screens.add(activeScreen)
-            show(activeScreen)
+            if (showImmediately) show(activeScreen)
         }
         val routePrelude = """
             globalThis.__stxNativeRoute = ${route?.let { JSONObject.quote(it) } ?: "undefined"};

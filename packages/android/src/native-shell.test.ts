@@ -153,6 +153,10 @@ describe('the native app shell in a generated project', () => {
         expect(existsSync(join(java, file))).toBe(true)
       expect(readFileSync(join(java, 'CraftNativeHealth.kt'), 'utf8')).toContain('HealthConnectClient')
       expect(readFileSync(join(java, 'CraftNativeServices.kt'), 'utf8')).toContain('FirebaseMessaging.getInstance().token')
+      const shell = readFileSync(join(java, 'CraftNativeShell.kt'), 'utf8')
+      expect(shell).toContain('override fun onInterceptTouchEvent(event: MotionEvent)')
+      expect(shell).toContain('onTabSwipeStart?.invoke(dx, event.x, event.y)')
+      expect(shell).toContain('tabSwipeEnabled = options.optBoolean("tabSwipeEnabled", true)')
       // Wi-Fi only: a kept video is not fetched on a metered connection, and says it is waiting.
       expect(readFileSync(join(java, 'CraftNativeServices.kt'), 'utf8')).toContain('optBoolean("cellular", true)')
       expect(readFileSync(join(java, 'CraftNativeShell.kt'), 'utf8')).toContain('if (!cellular && metered(context))')
