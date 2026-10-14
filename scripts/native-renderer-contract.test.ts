@@ -247,6 +247,8 @@ describe('native renderer component contract', () => {
     expect(androidBuild).toContain('implementation("com.google.android.gms:play-services-maps:18.2.0")')
     expect(guide).toContain('| `Map` | `CraftNativeMapView` (`MKMapView`) |')
     expect(guide).toContain('flat latitude,\nlongitude `geometry` array')
+    expect(iosReadme).toContain('`Map`')
+    expect(androidReadme).toContain('`Map`')
   })
 
   it('keeps SVG stroke semantics aligned across hosts', () => {

@@ -98,6 +98,8 @@ next route.
 | `Image` | `UIImageView` | `ImageView` |
 | `ImageBackground` | `CraftNativeImageBackgroundView` | `CraftNativeImageBackgroundView` |
 | `Video` | `CraftNativeVideoView` (`AVPlayerViewController`) | `CraftNativeVideoView` (`VideoView`) |
+| `Map` | `CraftNativeMapView` (`MKMapView`) | `CraftNativeMapView` (`GoogleMap`) |
+| `MapPolyline`, `MapMarker` | overlays inside `CraftNativeMapView` | overlays inside `CraftNativeMapView` |
 | `Svg` | `CraftNativeSvgView` | `CraftNativeSvgView` |
 | `G`, `SvgText` | drawn inside `CraftNativeSvgView` | drawn inside `CraftNativeSvgView` |
 | `ScrollView` | `UIScrollView` | `ScrollView` or `HorizontalScrollView` |
@@ -139,6 +141,16 @@ unchecked on the next user toggle.
 mounting ordinary native children in a flex container over the image. Its
 `resizeMode` follows the same `cover`, `contain`, `stretch`, and `center`
 semantics as `Image`.
+
+`Map` is the deliberately small native trail-map primitive. Its children may
+be `MapPolyline` or `MapMarker`; each overlay carries a flat latitude,
+longitude `geometry` array, so a signal update changes the existing native map
+without rebuilding the screen. `Map` accepts an explicit `region` (with
+`center` and `span`) or `fitToBounds`, and a marker's `onPress` receives
+`nativeEvent.id`. It is backed by MapKit on iOS and the Google Maps SDK on
+Android; the Android template adds that dependency only for screens that opt
+into the native map host. Tile styling, clustering, directions, and offline
+tiles remain outside this contract.
 `KeyboardAvoidingView` responds to the native keyboard/IME inset. Its
 `behavior` may be `padding`, `position`, or `height`, and
 `keyboardVerticalOffset` subtracts from the overlap on both hosts.
