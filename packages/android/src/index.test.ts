@@ -224,6 +224,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('private var preparedPlayer: MediaPlayer? = null')
       expect(nativeActivity).toContain('MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING')
       expect(nativeActivity).toContain('private fun craftNativeResizeMode(style: JSONObject, props: JSONObject): String')
+      expect(nativeActivity).toContain('private fun craftNativeEventName(events: JSONObject, vararg names: String): String')
       expect(nativeActivity).toContain('?.takeUnless { it == "null" || it == "undefined" }')
       expect(nativeActivity).toContain('return craftNativeOptionalString(style.opt("resizeMode"))')
       expect(nativeActivity).toContain('val label = craftNativeOptionalString(props.opt("accessibilityLabel"))')

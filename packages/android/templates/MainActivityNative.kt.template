@@ -128,6 +128,9 @@ private fun craftNativeOptionalString(value: Any?): String? = value
     ?.takeUnless { it == "null" || it == "undefined" }
     ?.takeIf { it.isNotBlank() }
 
+private fun craftNativeEventName(events: JSONObject, vararg names: String): String =
+    names.firstNotNullOfOrNull { name -> craftNativeOptionalString(events.opt(name)) }.orEmpty()
+
 internal fun craftNativePadding(style: JSONObject?, name: String, fallback: Int, density: Float): Int {
     val value = style?.optDouble(name, Double.NaN) ?: Double.NaN
     val pixels = value * density
@@ -3655,7 +3658,7 @@ class MainActivity : AppCompatActivity() {
                     ?.trim()
                     ?.takeIf { !props.optBoolean("disabled", false) }
                 if (target != null) screen.linkTargets[this] = target else screen.linkTargets.remove(this)
-                val handler = events.optString("onPress").ifBlank { events.optString("onClick") }
+                val handler = craftNativeEventName(events, "onPress", "onClick")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
                 setOnClickListener {
                     screen.linkTargets[it]?.let { target -> navigateOpen(target); return@setOnClickListener }
@@ -3679,7 +3682,7 @@ class MainActivity : AppCompatActivity() {
                 configureText(this, title, style)
                 craftNativeOptionalString(props.opt("color"))?.let { setTextColor(color(it, defaultTextColor)) }
                 isEnabled = !props.optBoolean("disabled", false)
-                val handler = events.optString("onPress").ifBlank { events.optString("onClick") }
+                val handler = craftNativeEventName(events, "onPress", "onClick")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
                 setOnClickListener {
                     val current = screen.handlers[this] ?: return@setOnClickListener
@@ -3706,7 +3709,7 @@ class MainActivity : AppCompatActivity() {
                 val checkboxColor = craftNativeOptionalString(props.opt("color"))
                     ?: craftNativeOptionalString(style.opt("color"))
                 buttonTintList = checkboxColor?.let { ColorStateList.valueOf(color(it, defaultTextColor)) }
-                val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
+                val handler = craftNativeEventName(events, "onValueChange", "onChange")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
                 setOnCheckedChangeListener { _, value ->
                     screen.handlers[this]?.let { current ->
@@ -3783,15 +3786,15 @@ class MainActivity : AppCompatActivity() {
                 else if (this !== previous && props.has("defaultValue") && !props.isNull("defaultValue")) setText(props.optString("defaultValue"))
                 applyTextDecoration(this, style)
                 screen.inputIdentities[this] = identity
-                val handler = events.optString("onChange").ifBlank { events.optString("onChangeText") }
+                val handler = craftNativeEventName(events, "onChange", "onChangeText")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
-                val onFocus = events.optString("onFocus")
+                val onFocus = craftNativeEventName(events, "onFocus")
                 if (onFocus.isNotBlank()) screen.focusHandlers[this] = onFocus else screen.focusHandlers.remove(this)
-                val onBlur = events.optString("onBlur")
+                val onBlur = craftNativeEventName(events, "onBlur")
                 if (onBlur.isNotBlank()) screen.blurHandlers[this] = onBlur else screen.blurHandlers.remove(this)
-                val onEndEditing = events.optString("onEndEditing")
+                val onEndEditing = craftNativeEventName(events, "onEndEditing")
                 if (onEndEditing.isNotBlank()) screen.endEditingHandlers[this] = onEndEditing else screen.endEditingHandlers.remove(this)
-                val onSubmit = events.optString("onSubmitEditing")
+                val onSubmit = craftNativeEventName(events, "onSubmitEditing")
                 if (onSubmit.isNotBlank()) screen.submitHandlers[this] = onSubmit else screen.submitHandlers.remove(this)
                 setOnFocusChangeListener { view, focused ->
                     val nativeEvent = JSONObject().put("text", text.toString())
@@ -3855,7 +3858,7 @@ class MainActivity : AppCompatActivity() {
                     val value = craftNativeOptionalString(optionProps?.opt("value")) ?: label
                     value to label
                 }
-                val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
+                val handler = craftNativeEventName(events, "onValueChange", "onChange")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
                 // Detach the old listener before replacing the adapter or selection.
                 // Both operations can synchronously dispatch an Android selection
@@ -3888,7 +3891,7 @@ class MainActivity : AppCompatActivity() {
             }
             "DatePicker" -> (previous as? CraftNativeDatePickerView ?: CraftNativeDatePickerView(this)).apply {
                 configure(props)
-                val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
+                val handler = craftNativeEventName(events, "onValueChange", "onChange")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
                 onValueChanged = {
                     screen.handlers[this]?.let { current ->
@@ -3970,7 +3973,7 @@ class MainActivity : AppCompatActivity() {
                 craftNativeOptionalString(props.opt("thumbColor"))
                     ?.let { ColorStateList.valueOf(color(it, Color.WHITE)) }
                     ?: run { thumbTintList = null }
-                val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
+                val handler = craftNativeEventName(events, "onValueChange", "onChange")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
                 setOnCheckedChangeListener { _, checked ->
                     val current = screen.handlers[this] ?: return@setOnCheckedChangeListener
@@ -4015,9 +4018,9 @@ class MainActivity : AppCompatActivity() {
                     ?.let { ColorStateList.valueOf(color(it, Color.WHITE)) }
                     ?: run { thumbTintList = null }
                 isEnabled = !props.optBoolean("disabled", false)
-                val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
+                val handler = craftNativeEventName(events, "onValueChange", "onChange")
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
-                val complete = events.optString("onSlidingComplete")
+                val complete = craftNativeEventName(events, "onSlidingComplete")
                 if (complete.isNotBlank()) screen.sliderCompleteHandlers[this] = complete else screen.sliderCompleteHandlers.remove(this)
                 setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                     override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
@@ -4239,12 +4242,12 @@ class MainActivity : AppCompatActivity() {
         } else if (control is CraftNativeKeyboardAvoidingView) {
             control.content.onLayoutChanged = { if (screen.active) emitLayoutEvents(screen) }
         }
-        val pressInHandler = events.optString("onPressIn").takeIf { it.isNotBlank() }
-        val pressOutHandler = events.optString("onPressOut").takeIf { it.isNotBlank() }
+        val pressInHandler = craftNativeEventName(events, "onPressIn").takeIf { it.isNotBlank() }
+        val pressOutHandler = craftNativeEventName(events, "onPressOut").takeIf { it.isNotBlank() }
         if (pressInHandler != null) screen.pressInHandlers[control] = pressInHandler else screen.pressInHandlers.remove(control)
         if (pressOutHandler != null) screen.pressOutHandlers[control] = pressOutHandler else screen.pressOutHandlers.remove(control)
         if (type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "KeyboardAvoidingView" && type != "StatusBar" && type != "RefreshControl" && type != "Map") {
-            val handler = events.optString("onPress").ifBlank { events.optString("onClick") }
+            val handler = craftNativeEventName(events, "onPress", "onClick")
             val disabled = props.optBoolean("disabled", false)
             val target = listOf(props.opt("href"), props.opt("to"))
                 .firstNotNullOfOrNull(::craftNativeOptionalString)
@@ -4308,7 +4311,7 @@ class MainActivity : AppCompatActivity() {
         }
         val longPressDisabled = props.optBoolean("disabled", false) ||
             props.optJSONObject("accessibilityState")?.optBoolean("disabled", false) == true
-        val longPressHandler = events.optString("onLongPress").takeUnless { longPressDisabled } ?: ""
+        val longPressHandler = craftNativeEventName(events, "onLongPress").takeUnless { longPressDisabled } ?: ""
         if (longPressHandler.isNotBlank()) {
             screen.longPressHandlers[control] = longPressHandler
             control.setOnLongClickListener {
