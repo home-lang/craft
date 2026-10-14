@@ -19,6 +19,7 @@ const androidNative = readFileSync(join(root, 'packages/android/templates/CraftN
 const androidDispatch = readFileSync(join(root, 'packages/zig/src/android_dispatch.zig'), 'utf8')
 const androidFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeFlatList.kt.template'), 'utf8')
 const androidRefreshableFlatList = readFileSync(join(root, 'packages/android/templates/CraftNativeRefreshableFlatList.kt.template'), 'utf8')
+const iosNotifCancel = readFileSync(join(root, 'packages/zig/src/bridge_mobile_notifcancel.zig'), 'utf8')
 const androidNavigationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeNavigationTest.kt'), 'utf8')
 const androidMutationTest = readFileSync(join(root, 'packages/android/fixtures/native-navigation/NativeMutationTest.kt'), 'utf8')
 const androidBuilderTest = readFileSync(join(root, 'packages/android/src/index.test.ts'), 'utf8')
@@ -494,6 +495,9 @@ describe('native renderer component contract', () => {
     expect(iosValidationConformance).toContain('`packages/zig/src/bridge_mobile_notifcancel.zig`')
     expect(iosValidationConformance).toContain('`packages/zig/src/bridge_mobile_bgtasks.zig`')
     expect(iosValidationConformance).toContain('`packages/zig/src/bridge_mobile_filepicker.zig`')
+    expect(iosNotifCancel).toContain('current Swift')
+    expect(iosNotifCancel).toContain('dispatcher rejects a missing or non-string `id`')
+    expect(iosNotifCancel).toContain("Swift's length-aware `String` path accepts the value")
     expect((iosValidationConformance.match(/^\| `[^|]+`/gm) ?? []).length).toBeGreaterThanOrEqual(6)
   })
 

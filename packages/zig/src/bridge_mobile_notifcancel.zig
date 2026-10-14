@@ -38,22 +38,20 @@
 //!
 //! ## What is deliberately not carried across
 //!
-//! **Swift's silent hang.** The dispatcher arm is
-//! `if config.enableLocalNotifications, let notifId = body["id"] as? String`
-//! with no `else`: a missing `id`, a non-string `id`, or the gate at its
-//! default `false` replies nothing at all, and the untimed promise never
-//! settles. Malformed input errors here instead (`MissingData` /
-//! `InvalidParameter`), and the gate itself is read rather than skipped:
-//! `ios_config.gateFor` maps all three actions to `.local_notifications`, so
-//! `ios_dispatch.offerToModules` answers `CAPABILITY_DISABLED` before this
-//! module is asked. A settled rejection rather than a hang is the divergence,
-//! and it is the whole of it.
+//! **Malformed-input errors are more specific here.** The current Swift
+//! dispatcher rejects a missing or non-string `id` with `INVALID_ARGUMENT`.
+//! Zig distinguishes `MissingData` from `InvalidParameter`, while preserving
+//! the same settled-promise behavior. The gate itself is read rather than
+//! skipped: `ios_config.gateFor` maps both actions to
+//! `.local_notifications`, so `ios_dispatch.offerToModules` answers
+//! `CAPABILITY_DISABLED` before this module is asked.
 //!
 //! **An `id` with an embedded NUL.** `\u0000` is a legal JSON escape and a
-//! page can send it; the route to the UN center is `stringWithUTF8String:`,
-//! which truncates at the NUL and would cancel a *different* identifier than
-//! the page named, then report `true` for the full one. Refused as
-//! `InvalidParameter`, exactly as `bridge_mobile_storage.requireNulFree` does.
+//! page can send it. Swift's length-aware `String` path accepts the value and
+//! resolves the harmless no-op; the Zig route constructs an Objective-C
+//! C-string before calling UserNotifications, where the NUL could truncate the
+//! identifier. Zig therefore refuses it as `InvalidParameter` rather than
+//! claiming that the full identifier was cancelled.
 //!
 //! ## The bundle-identifier guard, first and non-negotiable
 //!
