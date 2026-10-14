@@ -5743,6 +5743,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         imageSources[id] = uri
         imageErrors.removeValue(forKey: id)
         view.image = immediateImage(defaultSource).map { imageForDisplay($0, view: view) }
+        imageDidChange(view)
         view.accessibilityValue = nil
         emitImageEvent(view, handler: imageLoadStartHandlers[id])
 
@@ -5754,6 +5755,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 return
             }
             view.image = imageForDisplay(image, view: view)
+            imageDidChange(view)
             emitImageEvent(view, handler: imageLoadHandlers[id])
             emitImageEvent(view, handler: imageLoadEndHandlers[id])
             return
@@ -5769,6 +5771,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                         return
                     }
                     view.image = self.imageForDisplay(image, view: view)
+                    self.imageDidChange(view)
                     self.emitImageEvent(view, handler: self.imageLoadHandlers[ObjectIdentifier(view)])
                     self.emitImageEvent(view, handler: self.imageLoadEndHandlers[ObjectIdentifier(view)])
                 }
@@ -5783,6 +5786,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 return
             }
             view.image = imageForDisplay(image, view: view)
+            imageDidChange(view)
             emitImageEvent(view, handler: imageLoadHandlers[id])
             emitImageEvent(view, handler: imageLoadEndHandlers[id])
             return
@@ -5807,11 +5811,17 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private func imageFailure(_ view: UIImageView, uri: String?, message: String) {
         imageErrors[ObjectIdentifier(view)] = message
         view.image = nil
+        imageDidChange(view)
         view.accessibilityValue = message
         let id = ObjectIdentifier(view)
         emitImageEvent(view, handler: imageErrorHandlers[id], nativeEvent: ["error": ["message": message]])
         emitImageEvent(view, handler: imageLoadEndHandlers[id])
         NSLog("[craft native] %@: %@", message, uri ?? "<missing>")
+    }
+
+    private func imageDidChange(_ view: UIImageView) {
+        view.invalidateIntrinsicContentSize()
+        CraftNativeFlexLayout.invalidateAncestors(of: view)
     }
 
     private func imageForDisplay(_ image: UIImage, view: UIImageView) -> UIImage {
