@@ -100,6 +100,7 @@ pub const Feature = enum {
     motion_sensors,
     nfc,
     orientation_lock,
+    passkeys,
     pdf_viewer,
     push_notifications,
     qr_scanner,
@@ -149,6 +150,7 @@ pub const Feature = enum {
             .motion_sensors => "enableMotionSensors",
             .nfc => "enableNFC",
             .orientation_lock => "enableOrientationLock",
+            .passkeys => "enablePasskeys",
             .pdf_viewer => "enablePDFViewer",
             .push_notifications => "enablePushNotifications",
             .qr_scanner => "enableQRScanner",
@@ -799,6 +801,7 @@ test "every capability key is spelled the way Swift spells it" {
     // `enablePdfViewer` and `enableMlKit`, none of which are in the file.
     try testing.expectEqualStrings("enableNFC", Feature.nfc.jsonKey());
     try testing.expectEqualStrings("enableAR", Feature.ar.jsonKey());
+    try testing.expectEqualStrings("enablePasskeys", Feature.passkeys.jsonKey());
     try testing.expectEqualStrings("enablePDFViewer", Feature.pdf_viewer.jsonKey());
     try testing.expectEqualStrings("enableMLKit", Feature.ml_kit.jsonKey());
 

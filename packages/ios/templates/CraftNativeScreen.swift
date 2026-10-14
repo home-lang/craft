@@ -1286,6 +1286,7 @@ private class CraftNativeFlowView: UIStackView {
         place: Bool,
         frames: inout [(UIView, CGRect)]
     ) -> CGSize {
+        let contentPadding = effectivePadding
         let definiteMain = horizontal ? innerWidth : innerHeight
         let definiteCross = horizontal ? innerHeight : innerWidth
         let roomMain = horizontal ? roomWidth : roomHeight
@@ -1647,6 +1648,7 @@ private class CraftNativeFlowView: UIStackView {
         place: Bool,
         frames: inout [(UIView, CGRect)]
     ) -> CGSize {
+        let contentPadding = effectivePadding
         let columns = max(1, gridColumns)
         let horizontalGap = columnGap ?? gap
         let verticalGap = rowGap ?? gap
