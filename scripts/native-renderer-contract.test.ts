@@ -221,6 +221,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('"statusbar" -> "StatusBar"')
     expect(android).toContain('"refreshcontrol" -> "RefreshControl"')
     expect(android).toContain('screen.statusBarStyle = craftNativeOptionalString(props.opt("barStyle"))')
+    expect(android).toContain('val tint = craftNativeOptionalString(props.opt("tintColor"))')
+    expect(android).toContain('val background = craftNativeOptionalString(props.opt("progressBackgroundColor"))')
     expect(android).toContain('val contentChildren = JSONArray()')
     expect(android).toContain('canonicalType(child.optString("type")) != "RefreshControl"')
     expect(guide).toContain('| `StatusBar` | screen status-bar style/visibility | screen status-bar style/visibility |')
