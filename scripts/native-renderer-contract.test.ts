@@ -844,6 +844,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('view.safeAreaLayoutGuide.bottomAnchor')
     expect(ios).toContain('if rootStyle["flex"] == nil, rootStyle["height"] == nil { rootStyle["flex"] = 1 }')
     expect(android).toContain('setOnApplyWindowInsetsListener(root)')
+    expect(android).toContain('import android.graphics.Bitmap')
+    expect(android).toContain('import androidx.core.view.WindowCompat')
     expect(android).toContain('WindowInsetsCompat.Type.systemBars()')
     expect(ios).toContain('private final class CraftNativeSafeAreaView: CraftNativeFlowView')
     expect(ios).toContain('safeArea.setSafeAreaEdges(props["edges"])')

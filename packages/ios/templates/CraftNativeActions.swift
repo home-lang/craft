@@ -1236,13 +1236,17 @@ final class CraftNativePasskeys: NSObject, ASAuthorizationControllerDelegate, AS
         guard let request = pending.removeValue(forKey: key) else { return }
         controllers.removeValue(forKey: request.requestToken)
         if let registration = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialRegistration {
+            guard let attestationObject = registration.rawAttestationObject else {
+                request.completion(.failure(CraftNativeActionError(code: "PASSKEY_FAILED", message: "Apple returned a registration without an attestation object")))
+                return
+            }
             request.completion(.success([
                 "id": Self.base64url(registration.credentialID),
                 "rawId": Self.base64url(registration.credentialID),
                 "type": "public-key",
                 "response": [
                     "clientDataJSON": Self.base64url(registration.rawClientDataJSON),
-                    "attestationObject": Self.base64url(registration.rawAttestationObject),
+                    "attestationObject": Self.base64url(attestationObject),
                 ],
             ]))
             return
