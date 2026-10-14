@@ -12,6 +12,15 @@ import UIKit
 
 private let craftNativeCapabilityTimeoutMilliseconds = 30_000
 
+/// A finite number from a prop, for the views outside the screen controller,
+/// which has its own: the keyboard-avoiding view and SVG text read theirs
+/// with it, and without it the template did not compile.
+private func number(_ value: Any?) -> CGFloat? {
+    guard let number = value as? NSNumber else { return nil }
+    let value = CGFloat(truncating: number)
+    return value.isFinite ? value : nil
+}
+
 private func craftNativeGridColumnCount(_ value: Any?) -> Int {
     if let number = value as? NSNumber { return max(1, number.intValue) }
     guard let text = value as? String else { return 1 }
