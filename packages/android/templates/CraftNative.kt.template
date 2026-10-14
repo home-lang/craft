@@ -335,6 +335,12 @@ object CraftNative {
         margins: FloatArray,
         flags: FloatArray,
     ): FloatArray?
+    private external fun nativeLayoutTree(
+        width: Float,
+        height: Float,
+        nodeData: FloatArray,
+        treeMeta: FloatArray,
+    ): FloatArray?
     private external fun nativeClipboardRead(activity: Activity): String?
     private external fun nativeClipboardWrite(activity: Activity, text: String): Boolean
     private external fun nativeOpenUrl(activity: Activity, url: String): Boolean
@@ -579,6 +585,17 @@ object CraftNative {
                 nativeGridAligned(availableWidth, availableHeight, columns, columnGap, rowGap, alignContent, intrinsicWidth, intrinsicHeight, explicitWidth, explicitHeight, minWidth, maxWidth, minHeight, maxHeight, margins, flags)
             }
                 ?.takeIf { it.size >= intrinsicWidth.size * 4 && it.all { value -> value.isFinite() } }
+        } catch (e: UnsatisfiedLinkError) {
+            null
+        }
+    }
+
+    /** Resolve a guarded direct-child tree in Zig, or null for Kotlin fallback. */
+    fun layoutTree(width: Float, height: Float, nodeData: FloatArray, treeMeta: FloatArray): FloatArray? {
+        if (!isAvailable || nodeData.isEmpty() || treeMeta.isEmpty()) return null
+        return try {
+            nativeLayoutTree(width, height, nodeData, treeMeta)
+                ?.takeIf { it.size >= treeMeta.size / 2 * 4 && it.all { value -> value.isFinite() } }
         } catch (e: UnsatisfiedLinkError) {
             null
         }

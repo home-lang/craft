@@ -461,6 +461,19 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('frame.x.isFinite && frame.y.isFinite && frame.width.isFinite && frame.height.isFinite')
   })
 
+  it('routes eligible Android trees through the shared layout ABI with a Kotlin fallback', () => {
+    expect(androidNative).toContain('private external fun nativeLayoutTree(')
+    expect(androidNative).toContain('fun layoutTree(width: Float, height: Float, nodeData: FloatArray, treeMeta: FloatArray)')
+    expect(android).toContain('private fun sharedDirectFrames(entries: List<Entry>, width: Int, height: Int)')
+    expect(android).toContain('Float.fromBits(value)')
+    expect(android).toContain('if (absolute.isEmpty() && lines.size == 1)')
+    expect(androidDispatch).toContain('fn nativeLayoutTree(')
+    expect(androidDispatch).toContain('.name = "nativeLayoutTree"')
+    expect(androidDispatch).toContain('.signature = "(FF[F[F)[F"')
+    expect(androidDispatch).toContain('native_layout.craft_native_layout_tree')
+    expect(androidDispatch).toContain('nativeLayoutIndex')
+  })
+
   it('keeps the Android flex bridge fallback typed as a JNI object', () => {
     expect(androidDispatch).toContain('fellThrough("flexRow", err, @as(jni.jobject, null))')
     expect(androidDispatch).not.toContain('fellThrough("flexRow", err, null)')
@@ -1215,7 +1228,7 @@ describe('native renderer component contract', () => {
     expect(androidNative).toContain('nativeGridAligned(')
     expect(androidDispatch).toContain('.name = "nativeGridAligned"')
     expect(androidDispatch).toContain('.name = "nativeGridAutoRowsAligned"')
-    expect(androidDispatch).toContain('expectEqual(@as(usize, 111), natives.len)')
+    expect(androidDispatch).toContain('expectEqual(@as(usize, 112), natives.len)')
     expect(ios).toContain('var rowExtra: CGFloat = 0')
     expect(android).toContain('var rowLeading = 0f')
     expect(android).toContain('rowBetween += freeRows / (rowCount + 1).toFloat()')

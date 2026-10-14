@@ -1185,6 +1185,122 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         else -> 0.0
     }
 
+    private fun sharedAlignItemsCode(value: String): Int = when (value) {
+        "center" -> 1
+        "flex-end" -> 2
+        "stretch" -> 3
+        "baseline" -> 4
+        else -> 0
+    }
+
+    private fun sharedAlignSelfCode(value: String?): Int = when (value) {
+        "flex-start" -> 1
+        "center" -> 2
+        "flex-end" -> 3
+        "stretch" -> 4
+        "baseline" -> 5
+        else -> 0
+    }
+
+    private fun sharedLength(value: CraftNativeLength?): Float = value?.points?.toFloat() ?: Float.NaN
+
+    /**
+     * Use the host-neutral tree ABI for the narrow case whose platform
+     * measurements are already complete: a definite, non-grid, non-wrapped
+     * direct-child container. Percentages, reverse flows, absolute children,
+     * missing runtimes, and malformed results deliberately fall through to
+     * the established Kotlin layout below.
+     */
+    private fun sharedDirectFrames(entries: List<Entry>, width: Int, height: Int): FloatArray? {
+        if (entries.isEmpty() || width < 0 || height < 0 || grid || wrap || reverse || wrapReverse) return null
+        fun pointLength(value: CraftNativeLength?): Boolean = value == null || value.fraction == null
+        if (entries.any { entry ->
+                val style = entry.style
+                !pointLength(style.width) || !pointLength(style.height) ||
+                    !pointLength(style.minWidth) || !pointLength(style.maxWidth) ||
+                    !pointLength(style.minHeight) || !pointLength(style.maxHeight) ||
+                    !pointLength(style.flexBasis)
+            }) return null
+
+        val count = entries.size + 1
+        val fields = 32
+        val nodeData = FloatArray(count * fields) { Float.NaN }
+        val treeMeta = FloatArray(count * 2)
+        fun enumBits(value: Int): Float = Float.fromBits(value)
+        fun put(base: Int, index: Int, value: Float) { nodeData[base + index] = value }
+        fun putEnum(base: Int, index: Int, value: Int) { put(base, index, enumBits(value)) }
+        fun writeStyle(
+            base: Int,
+            style: CraftNativeLayoutStyle,
+            intrinsicWidth: Float,
+            intrinsicHeight: Float,
+            baseline: Float,
+            margins: IntArray,
+            direction: Int,
+            padding: IntArray,
+            gap: Float,
+            rowGapValue: Float,
+            columnGapValue: Float,
+            root: Boolean,
+            view: View?,
+        ) {
+            putEnum(base, 0, direction)
+            put(base, 1, if (root) width.toFloat() else sharedLength(style.width))
+            put(base, 2, if (root) height.toFloat() else sharedLength(style.height))
+            put(base, 3, if (root) Float.NaN else intrinsicWidth)
+            put(base, 4, if (root) Float.NaN else intrinsicHeight)
+            put(base, 5, if (root) Float.NaN else baseline)
+            put(base, 6, style.aspectRatio?.toFloat() ?: Float.NaN)
+            put(base, 7, sharedLength(style.flexBasis))
+            put(base, 8, if (root) 0f else style.flexGrow.toFloat().coerceAtLeast(0f))
+            put(base, 9, if (root) 0f else (style.flexShrink ?: view?.let { defaultFlexShrink(it) } ?: 0.0).toFloat().coerceAtLeast(0f))
+            put(base, 10, sharedLength(style.minWidth))
+            put(base, 11, sharedLength(style.maxWidth))
+            put(base, 12, sharedLength(style.minHeight))
+            put(base, 13, sharedLength(style.maxHeight))
+            put(base, 14, if (root) gap else 0f)
+            putEnum(base, 15, if (root) justifyCode() else 0)
+            putEnum(base, 16, if (root) sharedAlignItemsCode(alignItems) else 3)
+            putEnum(base, 17, if (root) 0 else sharedAlignSelfCode(style.alignSelf))
+            putEnum(base, 18, 0)
+            putEnum(base, 19, if (root) alignContentCode() else 6)
+            put(base, 20, margins[2].toFloat())
+            put(base, 21, margins[1].toFloat())
+            put(base, 22, margins[3].toFloat())
+            put(base, 23, margins[0].toFloat())
+            put(base, 24, padding[2].toFloat())
+            put(base, 25, padding[1].toFloat())
+            put(base, 26, padding[3].toFloat())
+            put(base, 27, padding[0].toFloat())
+            putEnum(base, 28, 0)
+            putEnum(base, 29, 1)
+            put(base, 30, if (root) rowGapValue else 0f)
+            put(base, 31, if (root) columnGapValue else 0f)
+        }
+
+        treeMeta[0] = 1f
+        treeMeta[1] = entries.size.toFloat()
+        val rootMargins = intArrayOf(0, 0, 0, 0)
+        val rootPadding = intArrayOf(paddingLeft, paddingRight, paddingTop, paddingBottom)
+        val mainGap = if (orientation == HORIZONTAL) columnGap else rowGap
+        writeStyle(
+            0, CraftNativeLayoutStyle(), 0f, 0f, 0f, rootMargins,
+            if (orientation == HORIZONTAL) 0 else 1, rootPadding, mainGap, rowGap, columnGap, true, null,
+        )
+        entries.forEachIndexed { index, entry ->
+            val base = (index + 1) * fields
+            val lp = entry.view.layoutParams as? MarginLayoutParams
+            val margins = intArrayOf(lp?.leftMargin ?: 0, lp?.rightMargin ?: 0, lp?.topMargin ?: 0, lp?.bottomMargin ?: 0)
+            treeMeta[(index + 1) * 2] = 0f
+            treeMeta[(index + 1) * 2 + 1] = 0f
+            writeStyle(
+                base, entry.style, entry.width.toFloat(), entry.height.toFloat(), baselineOffset(entry.view, entry.height).toFloat(),
+                margins, 0, intArrayOf(0, 0, 0, 0), 0f, 0f, 0f, false, entry.view,
+            )
+        }
+        return CraftNative.layoutTree(width.toFloat(), height.toFloat(), nodeData, treeMeta)
+    }
+
     private fun justifyCode(): Int = when (justifyContent) {
         "center" -> 1
         "flex-end" -> 2
@@ -1402,6 +1518,21 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         val contentWidth = width - paddingLeft - paddingRight
         val contentHeight = height - paddingTop - paddingBottom
         val (lines, absolute) = entries(width, height)
+        if (absolute.isEmpty() && lines.size == 1) {
+            val sharedFrames = sharedDirectFrames(lines[0].entries, width, height)
+            if (sharedFrames != null) {
+                for ((index, entry) in lines[0].entries.withIndex()) {
+                    val offset = (index + 1) * 4
+                    val x = sharedFrames[offset].roundToInt()
+                    val y = sharedFrames[offset + 1].roundToInt()
+                    val childWidth = sharedFrames[offset + 2].roundToInt()
+                    val childHeight = sharedFrames[offset + 3].roundToInt()
+                    place(entry.view, x, y, x + childWidth, y + childHeight)
+                }
+                onLayoutChanged?.invoke()
+                return
+            }
+        }
         val gap = if (orientation == HORIZONTAL) columnGap else rowGap
         val crossGap = if (orientation == HORIZONTAL) rowGap else columnGap
         val availableMain = if (orientation == HORIZONTAL) contentWidth else contentHeight
