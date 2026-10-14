@@ -3956,8 +3956,9 @@ class MainActivity : AppCompatActivity() {
                         intArrayOf(trueColor, falseColor),
                     )
                 } ?: run { trackTintList = null }
-                thumbTintList = props.optString("thumbColor").takeIf { it.isNotBlank() }
+                craftNativeOptionalString(props.opt("thumbColor"))
                     ?.let { ColorStateList.valueOf(color(it, Color.WHITE)) }
+                    ?: run { thumbTintList = null }
                 val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
                 setOnCheckedChangeListener { _, checked ->
@@ -3993,12 +3994,15 @@ class MainActivity : AppCompatActivity() {
                     (((value - minimum) / (maximum - minimum)) * max).roundToInt().coerceIn(0, max)
                 }
                 if (step != null) screen.sliderSteps[this] = step else screen.sliderSteps.remove(this)
-                progressTintList = props.optString("minimumTrackTintColor").takeIf { it.isNotBlank() }
+                craftNativeOptionalString(props.opt("minimumTrackTintColor"))
                     ?.let { ColorStateList.valueOf(color(it, Color.WHITE)) }
-                progressBackgroundTintList = props.optString("maximumTrackTintColor").takeIf { it.isNotBlank() }
+                    ?: run { progressTintList = null }
+                craftNativeOptionalString(props.opt("maximumTrackTintColor"))
                     ?.let { ColorStateList.valueOf(color(it, Color.GRAY)) }
-                thumbTintList = props.optString("thumbTintColor").takeIf { it.isNotBlank() }
+                    ?: run { progressBackgroundTintList = null }
+                craftNativeOptionalString(props.opt("thumbTintColor"))
                     ?.let { ColorStateList.valueOf(color(it, Color.WHITE)) }
+                    ?: run { thumbTintList = null }
                 isEnabled = !props.optBoolean("disabled", false)
                 val handler = events.optString("onValueChange").ifBlank { events.optString("onChange") }
                 if (handler.isNotBlank()) screen.handlers[this] = handler else screen.handlers.remove(this)
@@ -4037,8 +4041,9 @@ class MainActivity : AppCompatActivity() {
                 val animating = props.optBoolean("animating", true)
                 isIndeterminate = animating
                 visibility = if (!animating && props.optBoolean("hidesWhenStopped", true)) View.GONE else View.VISIBLE
-                indeterminateTintList = props.optString("color").takeIf { it.isNotBlank() }
+                craftNativeOptionalString(props.opt("color"))
                     ?.let { ColorStateList.valueOf(color(it, Color.WHITE)) }
+                    ?: run { indeterminateTintList = null }
             }
             "Icon" -> (previous as? CraftNativeIconView ?: CraftNativeIconView(this)).apply {
                 configureIcon(this, props, style)

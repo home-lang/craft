@@ -603,6 +603,12 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val requested = craftNativeFiniteDouble(props, "value", minimum)')
     expect(android).toContain('val progressMax = step?.let {')
     expect(android).toContain('onSlidingComplete')
+    expect(android).toContain('craftNativeOptionalString(props.opt("minimumTrackTintColor"))')
+    expect(android).toContain('?: run { progressTintList = null }')
+    expect(android).toContain('?: run { progressBackgroundTintList = null }')
+    expect(android).toContain('?: run { thumbTintList = null }')
+    expect(android).toContain('craftNativeOptionalString(props.opt("color"))')
+    expect(android).toContain('?: run { indeterminateTintList = null }')
     expect(guide).toContain('`Slider` accepts `minimumTrackTintColor`')
   })
 
