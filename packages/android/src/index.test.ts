@@ -157,6 +157,8 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('craftNativeFiniteFloat(style, "opacity", 1f)')
       expect(nativeActivity).toContain('internal fun craftNativeNonNegativeDouble(style: JSONObject?, name: String, fallback: Double): Double')
       expect(nativeActivity).toContain('val border = craftNativeNonNegativeDouble(style, "borderWidth", 0.0)')
+      expect(nativeActivity).toContain('internal fun craftNativeFiniteDouble(style: JSONObject?, name: String, fallback: Double): Double')
+      expect(nativeActivity).toContain('val shadowRadius = craftNativeNonNegativeDouble(style, "shadowRadius", 0.0)')
       expect(nativeActivity).toContain('"Image" -> (previous as? ImageView')
       expect(nativeActivity).toContain('isAllCaps = false')
       expect(nativeActivity).toContain('includeFontPadding = false')

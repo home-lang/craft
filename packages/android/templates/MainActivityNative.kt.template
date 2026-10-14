@@ -133,8 +133,13 @@ internal fun craftNativeFiniteFloat(style: JSONObject?, name: String, fallback: 
     return if (value.isFinite() && narrowed.isFinite()) narrowed else fallback
 }
 
-internal fun craftNativeNonNegativeDouble(style: JSONObject?, name: String, fallback: Double): Double {
+internal fun craftNativeFiniteDouble(style: JSONObject?, name: String, fallback: Double): Double {
     val value = style?.optDouble(name, Double.NaN) ?: Double.NaN
+    return value.takeIf { it.isFinite() } ?: fallback
+}
+
+internal fun craftNativeNonNegativeDouble(style: JSONObject?, name: String, fallback: Double): Double {
+    val value = craftNativeFiniteDouble(style, name, Double.NaN)
     return if (value.isFinite() && value >= 0) value else fallback
 }
 
@@ -4505,19 +4510,20 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
             (style.has("shadowColor") || style.has("shadowOpacity") || style.has("shadowRadius"))
         ) {
-            val shadowOpacity = style.optDouble("shadowOpacity", 1.0).coerceIn(0.0, 1.0)
+            val shadowOpacity = craftNativeFiniteFloat(style, "shadowOpacity", 1f).coerceIn(0f, 1f)
             val shadow = color(style.optString("shadowColor"), Color.BLACK)
             val alphaShadow = Color.argb((Color.alpha(shadow) * shadowOpacity).roundToInt(), Color.red(shadow), Color.green(shadow), Color.blue(shadow))
             view.outlineAmbientShadowColor = alphaShadow
             view.outlineSpotShadowColor = alphaShadow
-            view.elevation = max(view.elevation, dp(style.optDouble("shadowRadius", 0.0) * 2.0).toFloat())
+            val shadowRadius = craftNativeNonNegativeDouble(style, "shadowRadius", 0.0)
+            view.elevation = max(view.elevation, dp(shadowRadius * 2.0).toFloat())
             val offset = style.optJSONObject("shadowOffset")
-            val offsetX = dp(offset?.optDouble("width", 0.0) ?: 0.0)
-            val offsetY = dp(offset?.optDouble("height", 0.0) ?: 0.0)
-            val shadowRadius = dp(style.optDouble("shadowRadius", 0.0)).toFloat()
+            val offsetX = dp(craftNativeFiniteDouble(offset, "width", 0.0))
+            val offsetY = dp(craftNativeFiniteDouble(offset, "height", 0.0))
+            val radius = dp(shadowRadius).toFloat()
             view.outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(target: View, outline: Outline) {
-                    outline.setRoundRect(offsetX, offsetY, target.width + offsetX, target.height + offsetY, shadowRadius)
+                    outline.setRoundRect(offsetX, offsetY, target.width + offsetX, target.height + offsetY, radius)
                 }
             }
             view.invalidateOutline()
