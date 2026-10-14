@@ -196,6 +196,20 @@ describe('native renderer component contract', () => {
     }
   })
 
+  it('keeps utility native nodes out of layout and binds their host traits', () => {
+    expect(ios).toContain('case "StatusBar", "RefreshControl":')
+    expect(ios).toContain('statusBarStyleOverride')
+    expect(ios).toContain('let refreshNode = children.compactMap')
+    expect(ios).toContain('return canonicalType(child["type"] as? String ?? "") != "RefreshControl"')
+    expect(android).toContain('"statusbar" -> "StatusBar"')
+    expect(android).toContain('"refreshcontrol" -> "RefreshControl"')
+    expect(android).toContain('screen.statusBarStyle = props.optString("barStyle")')
+    expect(android).toContain('val contentChildren = JSONArray()')
+    expect(android).toContain('canonicalType(child.optString("type")) != "RefreshControl"')
+    expect(guide).toContain('| `StatusBar` | screen status-bar style/visibility | screen status-bar style/visibility |')
+    expect(guide).toContain('`RefreshControl` is a native utility node rather than a visible child')
+  })
+
   it('keeps SVG drawing primitives available on both native hosts', () => {
     for (const [name, iosMarker, androidMarker] of [
       ['Svg', 'case "Svg":', '"Svg" ->'],
@@ -814,18 +828,18 @@ describe('native renderer component contract', () => {
   it('applies ScrollView content container styles on both hosts', () => {
     expect(ios).toContain('var contentStyle = style')
     expect(ios).toContain('props["contentContainerStyle"] as? [String: Any]')
-    expect(ios).toContain('reconcileChildren(children, in: scroll.contentStack, parent: current, path: path, style: contentStyle)')
+    expect(ios).toContain('reconcileChildren(children.filter {')
     expect(android).toContain('val contentStyle = JSONObject(style.toString()).apply')
     expect(android).toContain('props.optJSONObject("contentContainerStyle")')
-    expect(android).toContain('reconcileChildren(screen, content, children, path, next, contentStyle, previousControls)')
+    expect(android).toContain('reconcileChildren(screen, content, contentChildren, path, next, contentStyle, previousControls)')
   })
 
   it('keeps ScrollView pull-to-refresh controlled on both hosts', () => {
-    expect(ios).toContain('scroll.setRefreshHandler(nonEmptyHandler(events["onRefresh"]).map')
-    expect(ios).toContain('refreshing: props["refreshing"] as? Bool == true')
+    expect(ios).toContain('scroll.setRefreshHandler(refreshHandlerName.map')
+    expect(ios).toContain('refreshNode == nil ? props["refreshing"] : refreshProps["refreshing"]')
     expect(android).toContain('private class CraftNativeScrollView(context: Context) : SwipeRefreshLayout(context)')
     expect(android).toContain('fun setRefreshHandler(handler: (() -> Unit)?, refreshing: Boolean)')
-    expect(android).toContain('setRefreshHandler(refreshHandler, props.optBoolean("refreshing", false))')
+    expect(android).toContain('setRefreshHandler(refreshHandler, if (refreshNode == null) props.optBoolean("refreshing", false) else refreshProps.optBoolean("refreshing", false))')
     expect(android).toContain('released.filterIsInstance<CraftNativeScrollView>().forEach { it.setRefreshHandler(null, false) }')
   })
 

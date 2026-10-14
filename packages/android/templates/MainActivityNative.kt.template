@@ -2189,6 +2189,9 @@ class MainActivity : AppCompatActivity() {
     ) {
         /** What the screen set with `craft.navigation.setOptions`, merged. */
         var options = JSONObject()
+        /** Overrides from a native `<StatusBar>` node, reset on each render. */
+        var statusBarStyle: String? = null
+        var statusBarHidden: Boolean? = null
         /** Shown before: its next showing is a `SCREEN_FOCUS`. */
         var shown = false
         /** The app path it was opened for (`/m/workout/42`), to find it again. */
@@ -3160,6 +3163,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderCommitted(screen: Screen, document: JSONObject) {
         // Keep live controls (especially the focused EditText) across renders.
+        screen.statusBarStyle = null
+        screen.statusBarHidden = null
         val next = mutableMapOf<String, View>()
         screen.nodeViews.clear()
         screen.nodePaths.clear()
@@ -3178,6 +3183,19 @@ class MainActivity : AppCompatActivity() {
         // changing the root bounds. Ensure native @layout observers still see
         // the settled child frame after the next traversal.
         scheduleLayoutEvents(screen)
+        if (visibleScreen === screen) applyStatusBar(screen)
+    }
+
+    private fun applyStatusBar(screen: Screen) {
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        val night = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        controller.isAppearanceLightStatusBars = when (screen.statusBarStyle?.lowercase()) {
+            "light-content", "light" -> false
+            "dark-content", "dark" -> true
+            else -> !night
+        }
+        if (screen.statusBarHidden == true) controller.hide(WindowInsetsCompat.Type.statusBars())
+        else controller.show(WindowInsetsCompat.Type.statusBars())
     }
 
     private fun clearRenderedTree(screen: Screen) {
@@ -3223,6 +3241,14 @@ class MainActivity : AppCompatActivity() {
                     else -> null
                 }
                 configureText(this, childText(children), style)
+            }
+            "StatusBar" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
+                screen.statusBarStyle = props.optString("barStyle").takeIf { it.isNotBlank() }
+                screen.statusBarHidden = if (props.has("hidden")) props.optBoolean("hidden") else null
+                visibility = View.GONE
+            }
+            "RefreshControl" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
+                visibility = View.GONE
             }
             "Link" -> ((previous as? TextView)?.takeUnless { it is Button } ?: TextView(this)).apply {
                 includeFontPadding = false
@@ -3696,10 +3722,17 @@ class MainActivity : AppCompatActivity() {
                     props.optBoolean("alwaysBounceHorizontal", horizontal),
                 )
                 setPagingEnabled(props.optBoolean("pagingEnabled", false))
-                val refreshHandler = events.optString("onRefresh").takeIf { it.isNotBlank() }?.let { handler ->
+                val refreshNode = (0 until children.length()).asSequence()
+                    .mapNotNull { children.optJSONObject(it) }
+                    .firstOrNull { canonicalType(it.optString("type")) == "RefreshControl" }
+                val refreshProps = refreshNode?.optJSONObject("props") ?: JSONObject()
+                val refreshEvents = refreshNode?.optJSONObject("events") ?: JSONObject()
+                val refreshHandlerName = refreshEvents.optString("onRefresh").takeIf { it.isNotBlank() }
+                    ?: events.optString("onRefresh").takeIf { it.isNotBlank() }
+                val refreshHandler = refreshHandlerName?.let { handler ->
                     { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", JSONObject())) }
                 }
-                setRefreshHandler(refreshHandler, props.optBoolean("refreshing", false))
+                setRefreshHandler(refreshHandler, if (refreshNode == null) props.optBoolean("refreshing", false) else refreshProps.optBoolean("refreshing", false))
                 val onScroll = events.optString("onScroll")
                 if (onScroll.isNotBlank()) screen.scrollHandlers[this] = onScroll else screen.scrollHandlers.remove(this)
                 val onBegin = events.optString("onScrollBeginDrag")
@@ -3753,7 +3786,12 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 configureContainer(content, contentStyle)
-                reconcileChildren(screen, content, children, path, next, contentStyle, previousControls)
+                val contentChildren = JSONArray()
+                for (index in 0 until children.length()) {
+                    val child = children.opt(index)
+                    if (child !is JSONObject || canonicalType(child.optString("type")) != "RefreshControl") contentChildren.put(child)
+                }
+                reconcileChildren(screen, content, contentChildren, path, next, contentStyle, previousControls)
             }
             "FlatList" -> (previous as? CraftNativeRefreshableFlatList ?: CraftNativeRefreshableFlatList(this)).apply {
                 val nativeList = list
@@ -3792,7 +3830,7 @@ class MainActivity : AppCompatActivity() {
         val pressOutHandler = events.optString("onPressOut").takeIf { it.isNotBlank() }
         if (pressInHandler != null) screen.pressInHandlers[control] = pressInHandler else screen.pressInHandlers.remove(control)
         if (pressOutHandler != null) screen.pressOutHandlers[control] = pressOutHandler else screen.pressOutHandlers.remove(control)
-        if (type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "KeyboardAvoidingView") {
+        if (type != "Button" && type != "Link" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "KeyboardAvoidingView" && type != "StatusBar" && type != "RefreshControl") {
             val handler = events.optString("onPress").ifBlank { events.optString("onClick") }
             val disabled = props.optBoolean("disabled", false)
             val target = listOf(props.optString("href"), props.optString("to"))
@@ -3947,6 +3985,8 @@ class MainActivity : AppCompatActivity() {
         "switch" -> "Switch"
         "slider" -> "Slider"
         "activityindicator" -> "ActivityIndicator"
+        "statusbar" -> "StatusBar"
+        "refreshcontrol" -> "RefreshControl"
         "image" -> "Image"
         "imagebackground" -> "ImageBackground"
         "keyboardavoidingview" -> "KeyboardAvoidingView"

@@ -92,6 +92,8 @@ next route.
 | `Switch` | `UISwitch` | `Switch` |
 | `Slider` | `UISlider` | `SeekBar` |
 | `ActivityIndicator` | `UIActivityIndicatorView` | `ProgressBar` |
+| `StatusBar` | screen status-bar style/visibility | screen status-bar style/visibility |
+| `RefreshControl` | attached to its parent `ScrollView` | attached to its parent `ScrollView` |
 | `Icon` | `CraftNativeIconView` (`UIImageView`) | `CraftNativeIconView` (`TextView`) |
 | `Image` | `UIImageView` | `ImageView` |
 | `ImageBackground` | `CraftNativeImageBackgroundView` | `CraftNativeImageBackgroundView` |
@@ -425,7 +427,17 @@ accepts `onRefresh` and controlled
 `refreshing`; pull-to-refresh is backed by UIKit's `UIRefreshControl` on iOS and
 AndroidX `SwipeRefreshLayout` on Android. Use
 `ScrollView` for bounded content and `FlatList` for data sets that need
-recycling. `SectionList` currently follows the same native scroll host as
+recycling.
+
+`RefreshControl` is a native utility node rather than a visible child: place it
+inside a `ScrollView` when the screen wants the React Native-shaped form. Its
+`refreshing` and `onRefresh` props control the platform refresh control, and
+the node is removed from the scroll content so it cannot consume layout space.
+`StatusBar` likewise contributes no layout; its `barStyle` (`default`,
+`light-content`, or `dark-content`) and `hidden` props apply to the active
+screen while the app-level appearance remains the fallback.
+
+`SectionList` currently follows the same native scroll host as
 `ScrollView` for ordinary `.stx` slot children; grouped, virtualized section
 data should use `FlatList` until the section-data protocol is added.
 

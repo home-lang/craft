@@ -3157,6 +3157,9 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var rootTopToSafeArea: NSLayoutConstraint?
     private var rootTopToView: NSLayoutConstraint?
     private var navigationBarHidden: Bool?
+    /// A native `<StatusBar>` node overrides the app default for this screen.
+    private var statusBarStyleOverride: UIStatusBarStyle?
+    private var statusBarHiddenOverride: Bool?
     /// The app's tab bar away while this screen shows (`tabBarHidden`).
     private var tabBarHidden = false
     /// Whether a back-swipe may leave this screen at all, the edge's
@@ -3176,6 +3179,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// the home indicator too, where its content never reaches: a black
     /// full-screen timer is black edge to edge. nil is the app's.
     private var screenBackgroundColor: UIColor?
+
+    override var preferredStatusBarStyle: UIStatusBarStyle {
+        statusBarStyleOverride ?? .default
+    }
+
+    override var prefersStatusBarHidden: Bool {
+        statusBarHiddenOverride ?? false
+    }
 
     /// Whether this screen asked for a bar of its own through `setOptions`: a
     /// title, a large title or buttons, and not `hidden`. A tab's root screen
@@ -3237,6 +3248,22 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if navigationBarHidden == nil, wantsNavigationBar, navigationController?.topViewController === self,
            navigationController?.isNavigationBarHidden == true {
             navigationController?.setNavigationBarHidden(false, animated: view.window != nil)
+        }
+    }
+
+    private func applyStatusBar(_ props: [String: Any]) {
+        let style: UIStatusBarStyle?
+        switch (props["barStyle"] as? String)?.lowercased() {
+        case "light-content", "light": style = .lightContent
+        case "dark-content", "dark": style = .darkContent
+        case "default": style = .default
+        default: style = nil
+        }
+        let hidden = props["hidden"] as? Bool
+        if statusBarStyleOverride != style || statusBarHiddenOverride != hidden {
+            statusBarStyleOverride = style
+            statusBarHiddenOverride = hidden
+            setNeedsStatusBarAppearanceUpdate()
         }
     }
 
@@ -3917,6 +3944,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func renderCommitted(_ document: [String: Any]) {
         let focused = firstResponder(in: rootStack) ?? lastFocusedInput
+        statusBarStyleOverride = nil
+        statusBarHiddenOverride = nil
         let previous = renderedRoot
         let next = reconcile(document, identity: "root", path: "root", previous: previous)
         if previous?.view !== next.view {
@@ -3942,12 +3971,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         updateKeyboardAvoidingViews()
         syncGlobalKeyboardSafeArea()
         trackContentScrollView()
+        setNeedsStatusBarAppearanceUpdate()
         restoreFocus(focused)
     }
 
     private func clearRenderedTree() {
         if let root = renderedRoot { detach(root, from: rootStack) }
         renderedRoot = nil
+        statusBarStyleOverride = nil
+        statusBarHiddenOverride = nil
+        setNeedsStatusBarAppearanceUpdate()
         syncGlobalKeyboardSafeArea()
     }
 
@@ -3997,8 +4030,14 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         applyViewStyle(style, to: result, node: current)
         updateLayoutHandler(events["onLayout"], for: result)
+        if type == "StatusBar" { applyStatusBar(props) }
 
         switch type {
+        case "StatusBar", "RefreshControl":
+            // StatusBar is a screen trait, and RefreshControl is consumed by
+            // its nearest ScrollView. Neither contributes a visible child.
+            result.isHidden = true
+            result.isUserInteractionEnabled = false
         case "Text":
             let label = result as! UILabel
             label.numberOfLines = max(0, (props["numberOfLines"] as? NSNumber)?.intValue ?? 0)
@@ -4339,15 +4378,25 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updateAuxiliaryHandler(events["onScrollEndDrag"], in: &scrollEndHandlers, for: scroll)
             updateAuxiliaryHandler(events["onMomentumScrollBegin"], in: &scrollMomentumBeginHandlers, for: scroll)
             updateAuxiliaryHandler(events["onMomentumScrollEnd"], in: &scrollMomentumEndHandlers, for: scroll)
-            scroll.setRefreshHandler(nonEmptyHandler(events["onRefresh"]).map { [weak self] handler in
+            let refreshNode = children.compactMap { $0 as? [String: Any] }.first {
+                canonicalType($0["type"] as? String ?? "") == "RefreshControl"
+            }
+            let refreshProps = refreshNode?["props"] as? [String: Any] ?? [:]
+            let refreshEvents = refreshNode?["events"] as? [String: String] ?? [:]
+            let refreshHandlerName = nonEmptyHandler(refreshEvents["onRefresh"])
+                ?? nonEmptyHandler(events["onRefresh"])
+            scroll.setRefreshHandler(refreshHandlerName.map { [weak self] handler in
                 { self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
-            }, refreshing: props["refreshing"] as? Bool == true)
+            }, refreshing: (refreshNode == nil ? props["refreshing"] : refreshProps["refreshing"]) as? Bool == true)
             var contentStyle = style
             if let override = props["contentContainerStyle"] as? [String: Any] {
                 contentStyle.merge(override) { _, next in next }
             }
             configureStack(scroll.contentStack, style: contentStyle)
-            reconcileChildren(children, in: scroll.contentStack, parent: current, path: path, style: contentStyle)
+            reconcileChildren(children.filter {
+                guard let child = $0 as? [String: Any] else { return true }
+                return canonicalType(child["type"] as? String ?? "") != "RefreshControl"
+            }, in: scroll.contentStack, parent: current, path: path, style: contentStyle)
         case "FlatList":
             let list = result as! CraftNativeFlatList
             reconcileFlatList(
@@ -4364,7 +4413,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             reconcileChildren(children, in: stack, parent: current, path: path, style: style)
         }
         updateLongPressHandler(props["disabled"] as? Bool == true ? nil : events["onLongPress"], for: result)
-        if type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" {
+        if type != "Button" && type != "Link" && type != "Checkbox" && type != "TextInput" && type != "Picker" && type != "DatePicker" && type != "Modal" && type != "Switch" && type != "Slider" && type != "ActivityIndicator" && type != "StatusBar" && type != "RefreshControl" {
             let disabled = props["disabled"] as? Bool == true
             updatePressHandler(disabled ? nil : nonEmptyHandler(events["onPress"]) ?? nonEmptyHandler(events["onClick"]), for: result)
             updatePressFeedback(
@@ -4429,6 +4478,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return slider
         case "ActivityIndicator":
             return UIActivityIndicatorView(style: .medium)
+        case "StatusBar", "RefreshControl":
+            return CraftNativeFlowView()
         case "Image":
             return UIImageView()
         case "ImageBackground":
@@ -4471,6 +4522,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "switch": return "Switch"
         case "slider": return "Slider"
         case "activityindicator": return "ActivityIndicator"
+        case "statusbar": return "StatusBar"
+        case "refreshcontrol": return "RefreshControl"
         case "image": return "Image"
         case "imagebackground": return "ImageBackground"
         case "video": return "Video"
