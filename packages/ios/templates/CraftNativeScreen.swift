@@ -5769,7 +5769,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             view.accessibilityValue = nil
         }
         let role = props["accessibilityRole"] as? String
-        view.isAccessibilityElement = role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "ImageBackground", "Video", "TextInput", "Picker", "Switch", "Slider"].contains(type))
+        view.isAccessibilityElement = role != "none" && (view.accessibilityLabel != nil || role != nil || ["Text", "Button", "Link", "Checkbox", "Image", "ImageBackground", "Video", "TextInput", "Picker", "DatePicker", "Switch", "Slider"].contains(type))
         var traits: UIAccessibilityTraits = []
         switch role ?? type.lowercased() {
         case "button", "checkbox": traits.insert(.button)

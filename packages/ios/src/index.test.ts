@@ -1746,6 +1746,7 @@ describe('Craft iOS builder', () => {
     expect(screen).toContain('scroll.contentInset.bottom = overlap')
     expect(screen).toContain('case "DatePicker":\n            let picker = UIDatePicker()')
     expect(screen).toContain('case "datepicker", "date-picker", "date": return "DatePicker"')
+    expect(screen).toContain('"Picker", "DatePicker", "Switch"')
     expect(screen).toContain('picker.addTarget(self, action: #selector(datePicked(_:)), for: .valueChanged)')
     expect(screen).toContain('source: props["source"] ?? props["src"],')
     expect(screen).toContain('if let url = URL(string: uri), Self.loadsImage(from: url) {')

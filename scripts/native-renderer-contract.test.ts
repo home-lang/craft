@@ -593,6 +593,7 @@ describe('native renderer component contract', () => {
   it('keeps DatePicker values and change events aligned across hosts', () => {
     expect(ios).toContain('case "DatePicker":')
     expect(ios).toContain('UIDatePicker.Mode')
+    expect(ios).toContain('"Picker", "DatePicker", "Switch"')
     expect(ios).toContain('"timestamp": (date.timeIntervalSince1970 * 1000).rounded()')
     expect(android).toContain('private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)')
     expect(android).toContain('PickerMode.DATE_TIME')
