@@ -864,6 +864,9 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{REFRESH_LAYOUT_DEPENDENCY\}\}/g, config.renderer === 'native'
       ? '    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")'
       : '')
+    .replace(/\{\{GOOGLE_MAPS_DEPENDENCY\}\}/g, config.renderer === 'native'
+      ? '    // Native STX Map overlays and trail routes\n    implementation("com.google.android.gms:play-services-maps:18.2.0")'
+      : '')
     .replace(/\{\{HEALTH_CONNECT_DEPENDENCIES\}\}/g, config.enableHealthConnect
       ? `    implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")`
