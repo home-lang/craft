@@ -1,5 +1,20 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.180...v0.0.181)
+
+## 🐛 Bug Fixes
+
+- **ios**: a child that overflows its view takes its touches, as on the web ([be93eaf](https://github.com/craft-native/craft/commit/be93eaf)) _(by Chris)_
+
+## 🧪 Tests
+
+- **zig**: the iOS ratchet counts bluetoothChannel ([724bfdc](https://github.com/craft-native/craft/commit/724bfdc)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris_
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.179...v0.0.180)
 
 ## 🐛 Bug Fixes
