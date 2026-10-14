@@ -163,6 +163,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('val width = craftNativeFiniteDouble(style, "width", Double.NaN)')
       expect(nativeActivity).toContain('dp(craftNativeFiniteDouble(style, "marginLeft", horizontal))')
       expect(nativeActivity).toContain('view.translationX += dp(craftNativeFiniteDouble(transform, key, 0.0)).toFloat()')
+      expect(nativeActivity).toContain('val authoredThreshold = craftNativeNonNegativeDouble(props, "onEndReachedThreshold", threshold)')
       expect(nativeActivity).toContain('private fun dp(value: Double): Int')
       expect(nativeActivity).toContain('style.optDouble("letterSpacing", Double.NaN)')
       expect(nativeActivity).toContain('style.optDouble("lineHeight", Double.NaN).takeIf { it.isFinite() }')

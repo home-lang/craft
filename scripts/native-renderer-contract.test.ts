@@ -1570,9 +1570,8 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps the maintained navigation fixture on the host-neutral keyed ScrollView path', () => {
-    expect(android).toContain('props.opt("onEndReachedThreshold")')
-    expect(android).toContain('takeUnless { it == JSONObject.NULL }')
-    expect(android).toContain('props.optDouble("threshold", 0.1)')
+    expect(android).toContain('val authoredThreshold = craftNativeNonNegativeDouble(props, "onEndReachedThreshold", threshold)')
+    expect(android).toContain('endReachedThreshold = authoredThreshold')
     expect(navigationDetails).toContain('<ScrollView')
     expect(navigationDetails).toContain(':for="(item, index) in people"')
     expect(navigationDetails).toContain(':key="item.id"')
@@ -1591,6 +1590,14 @@ describe('native renderer component contract', () => {
     expect(iosNavigationTest).toContain('sectionList.swipeUp()')
     expect(iosNavigationTest).toContain('section-scroll-status')
     expect(androidNavigationTest).toContain('awaitText(activity, "section-scroll-status", "Section scrolls: 1")')
+  })
+
+  it('sanitizes FlatList end thresholds before native pagination math', () => {
+    expect(ios).toContain('Double(number(props["onEndReachedThreshold"]) ?? number(props["threshold"]) ?? 0.1)')
+    expect(ios).toContain('endReachedThreshold: threshold')
+    expect(android).toContain('val authoredThreshold = craftNativeNonNegativeDouble(props, "onEndReachedThreshold", threshold)')
+    expect(android).toContain('endReachedThreshold = authoredThreshold')
+    expect(androidFlatList).toContain('endReachedThreshold.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.1')
   })
 
   it('keeps picker initialization assertions aligned with the shared status baseline', () => {

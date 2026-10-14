@@ -228,7 +228,7 @@ internal class CraftNativeFlatList(context: Context) : RecyclerView(context) {
         this.renderItem = renderItem
         this.recycleItem = recycleItem
         this.endReached = endReached
-        threshold = endReachedThreshold.coerceAtLeast(0.0)
+        threshold = endReachedThreshold.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.1
 
         val nextColumns = columns.coerceAtLeast(1)
         val layoutChanged = this.horizontal != horizontal || this.columns != nextColumns

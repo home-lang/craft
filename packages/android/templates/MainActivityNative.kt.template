@@ -4430,15 +4430,14 @@ class MainActivity : AppCompatActivity() {
         list.onMomentumScrollEnd = events.optString("onMomentumScrollEnd").takeIf { it.isNotBlank() }?.let { handler ->
             { send(screen, "EVENT", JSONObject().put("handlerName", handler).put("nativeEvent", flatListScrollEvent(list))) }
         }
+        val threshold = craftNativeNonNegativeDouble(props, "threshold", 0.1)
+        val authoredThreshold = craftNativeNonNegativeDouble(props, "onEndReachedThreshold", threshold)
         list.apply(
             nodes = nodes,
             horizontal = props.optBoolean("horizontal", false),
             columns = props.optInt("numColumns", 1),
             inverted = props.optBoolean("inverted", false),
-            endReachedThreshold = props.opt("onEndReachedThreshold")
-                ?.takeUnless { it == JSONObject.NULL }
-                ?.let { props.optDouble("onEndReachedThreshold", 0.1) }
-                ?: props.optDouble("threshold", 0.1),
+            endReachedThreshold = authoredThreshold,
             renderItem = { node, itemIdentity, _ ->
                 val rows = screen.flatListRows.getOrPut(list) { mutableMapOf() }
                 val previous = rows[itemIdentity].orEmpty()

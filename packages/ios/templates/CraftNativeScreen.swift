@@ -4999,14 +4999,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             { [weak self] scrollView in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": self?.scrollEvent(scrollView) ?? [:]]) }
         }
 
+        let threshold = max(
+            0,
+            Double(number(props["onEndReachedThreshold"]) ?? number(props["threshold"]) ?? 0.1)
+        )
         list.apply(
             nodes: children,
             horizontal: props["horizontal"] as? Bool == true,
             columns: (props["numColumns"] as? NSNumber)?.intValue ?? 1,
             inverted: props["inverted"] as? Bool == true,
-            endReachedThreshold: (props["onEndReachedThreshold"] as? NSNumber)?.doubleValue
-                ?? (props["threshold"] as? NSNumber)?.doubleValue
-                ?? 0.1,
+            endReachedThreshold: threshold,
             renderItem: { [weak self] node, identity, _ in
                 guard let self = self else { return UIView() }
                 let previous = self.flatListRows[listKey]?[identity]
