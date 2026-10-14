@@ -1,5 +1,53 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.173...v0.0.174)
+
+## 🚀 Features
+
+- **android**: configure native map credentials ([4dc7094](https://github.com/craft-native/craft/commit/4dc7094)) _(by glennmichael123)_
+- **native**: add trail map primitive ([e028b20](https://github.com/craft-native/craft/commit/e028b20)) _(by glennmichael123)_
+- **native**: honor image default sources ([bfbde60](https://github.com/craft-native/craft/commit/bfbde60)) _(by glennmichael123)_
+- **native**: honor SafeAreaView edge insets ([b4f3922](https://github.com/craft-native/craft/commit/b4f3922)) _(by glennmichael123)_
+- **native**: align refresh control appearance ([f55a817](https://github.com/craft-native/craft/commit/f55a817)) _(by glennmichael123)_
+- **native**: support status bar and refresh control nodes ([6b8bc27](https://github.com/craft-native/craft/commit/6b8bc27)) _(by glennmichael123)_
+- **ios**: add native passkey capability ([963053b](https://github.com/craft-native/craft/commit/963053b)) _(by glennmichael123)_
+- **android**: navigate authored native links ([c216815](https://github.com/craft-native/craft/commit/c216815)) _(by glennmichael123)_
+- **ios**: navigate authored native links ([5e35cd1](https://github.com/craft-native/craft/commit/5e35cd1)) _(by glennmichael123)_
+- **ios**: expose application Swift audit ([8639282](https://github.com/craft-native/craft/commit/8639282)) _(by glennmichael123)_
+- **android**: add interactive tab swipes ([5ebf7de](https://github.com/craft-native/craft/commit/5ebf7de)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **ios**: present passkey sheets on main ([faf3284](https://github.com/craft-native/craft/commit/faf3284)) _(by glennmichael123)_
+- **native**: keep linked pressables interactive ([efa40e8](https://github.com/craft-native/craft/commit/efa40e8)) _(by glennmichael123)_
+- **ios**: a nested scroll view scrolls alone, grid cells fill their column, sliders report their decimal ([1a98e1c](https://github.com/craft-native/craft/commit/1a98e1c)) _(by Chris Breuer)_
+- **android**: a date-only picker tells the screen when its day changes ([49ec1e8](https://github.com/craft-native/craft/commit/49ec1e8)) _(by Chris Breuer)_
+- **native**: a countdown picker no longer aborts iOS, and rounding does not wrap a full Android row ([f047b79](https://github.com/craft-native/craft/commit/f047b79)) _(by Chris Breuer)_
+
+## 📚 Documentation
+
+- **native**: document trail map contract ([08e9e54](https://github.com/craft-native/craft/commit/08e9e54)) _(by glennmichael123)_
+- **ios**: specify native passkey contract ([19d3490](https://github.com/craft-native/craft/commit/19d3490)) _(by glennmichael123)_
+- **native**: document cross-host tab swipes ([8eebbf6](https://github.com/craft-native/craft/commit/8eebbf6)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **native**: exercise selective safe area edges ([dd14424](https://github.com/craft-native/craft/commit/dd14424)) _(by glennmichael123)_
+- **ios**: update linked pressable contract ([9af8ccb](https://github.com/craft-native/craft/commit/9af8ccb)) _(by glennmichael123)_
+- **native**: protect horizontal carousel swipes ([46a843c](https://github.com/craft-native/craft/commit/46a843c)) _(by glennmichael123)_
+- **native**: exercise tab swipes in mobile fixtures ([e3969b7](https://github.com/craft-native/craft/commit/e3969b7)) _(by glennmichael123)_
+- **native**: cover image background failures ([4aa5dc0](https://github.com/craft-native/craft/commit/4aa5dc0)) _(by glennmichael123)_
+- **windows**: compile the Win32 window probe once, before Craft starts ([63aa606](https://github.com/craft-native/craft/commit/63aa606)) _(by Chris Breuer)_
+- **ios**: navigation UI tests reach nested scroll content and answer the notification alert ([f8692a4](https://github.com/craft-native/craft/commit/f8692a4)) _(by Chris Breuer)_
+- **ios**: the ambient music bed counts its nodes after a real collection ([34e6e2d](https://github.com/craft-native/craft/commit/34e6e2d)) _(by Chris Breuer)_
+- **ci**: the stx compiler pin is 9282a03e in the workflow contract and the guides ([8e78b1b](https://github.com/craft-native/craft/commit/8e78b1b)) _(by Chris Breuer)_
+- **native**: the Android navigation fixture compiles and checks what it means to ([9067222](https://github.com/craft-native/craft/commit/9067222)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.172...v0.0.173)
 
 ## 🚀 Features
