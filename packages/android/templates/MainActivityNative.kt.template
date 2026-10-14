@@ -1,9 +1,11 @@
 package {{PACKAGE_NAME}}
 
 import android.animation.ValueAnimator
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.database.ContentObserver
@@ -517,6 +519,8 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
             "terrain" -> GoogleMap.MAP_TYPE_TERRAIN
             else -> GoogleMap.MAP_TYPE_NORMAL
         }
+        val showUserLocation = pendingProps.optBoolean("showsUserLocation", false) && hasLocationPermission()
+        runCatching { map.isMyLocationEnabled = showUserLocation }
         val nextMarkers = mutableMapOf<String, Pair<LatLng, String?>>()
         val nextHandlers = mutableMapOf<String, String>()
         val nextPolylines = mutableMapOf<String, Pair<List<LatLng>, Int>>()
@@ -578,13 +582,19 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        mapView.onStart()
         mapView.onResume()
     }
 
     override fun onDetachedFromWindow() {
         mapView.onPause()
+        mapView.onStop()
         super.onDetachedFromWindow()
     }
+
+    private fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     private fun coordinates(geometry: JSONArray?): List<LatLng> {
         if (geometry == null) return emptyList()

@@ -150,7 +150,11 @@ without rebuilding the screen. `Map` accepts an explicit `region` (with
 `nativeEvent.id`. It is backed by MapKit on iOS and the Google Maps SDK on
 Android; the Android template adds that dependency only for screens that opt
 into the native map host. Tile styling, clustering, directions, and offline
-tiles remain outside this contract.
+tiles remain outside this contract. Set `showsUserLocation` to opt into the
+platform location dot; the host only enables it when the app's existing
+location permission is already granted, and never prompts from a renderer
+pass. Android also forwards `MapView` start/stop lifecycle callbacks as map
+screens attach and detach.
 `KeyboardAvoidingView` responds to the native keyboard/IME inset. Its
 `behavior` may be `padding`, `position`, or `height`, and
 `keyboardVerticalOffset` subtracts from the overlap on both hosts.

@@ -453,6 +453,10 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         isZoomEnabled = props["zoomEnabled"] as? Bool ?? true
         isRotateEnabled = props["rotateEnabled"] as? Bool ?? false
         mapType = Self.mapType(props["mapType"] as? String)
+        // Showing the user dot must not trigger a permission prompt from a
+        // renderer pass. The app's existing location capability owns that
+        // prompt; a map only opts in after authorization is already granted.
+        showsUserLocation = props["showsUserLocation"] as? Bool == true && Self.locationPermissionGranted()
 
         var nextMarkers: [String: (coordinate: CLLocationCoordinate2D, title: String?)] = [:]
         var nextHandlers: [String: String] = [:]
@@ -584,6 +588,16 @@ private final class CraftNativeMapView: MKMapView, MKMapViewDelegate {
         case "muted_standard": return .mutedStandard
         default: return .standard
         }
+    }
+
+    private static func locationPermissionGranted() -> Bool {
+        let status: CLAuthorizationStatus
+        if #available(iOS 14.0, *) {
+            status = CLLocationManager().authorizationStatus
+        } else {
+            status = CLLocationManager.authorizationStatus()
+        }
+        return status == .authorizedAlways || status == .authorizedWhenInUse
     }
 }
 
