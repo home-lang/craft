@@ -1,5 +1,34 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.177...v0.0.178)
+
+## 🚀 Features
+
+- **android**: add Bluetooth GATT setup and notification reads ([9095440](https://github.com/craft-native/craft/commit/9095440)) _(by Chris Breuer)_
+- **ios**: add a native Bluetooth GATT request channel ([09bcd26](https://github.com/craft-native/craft/commit/09bcd26)) _(by Chris Breuer)_
+
+## 🐛 Bug Fixes
+
+- **test**: preserve the Android builder suite after integration ([af8e9df](https://github.com/craft-native/craft/commit/af8e9df)) _(by Chris Breuer)_
+- **android**: the native activity template compiles again ([bf36578](https://github.com/craft-native/craft/commit/bf36578)) _(by Chris Breuer)_
+
+## 🧪 Tests
+
+- **android**: layout assertions put JUnit's message first ([232e042](https://github.com/craft-native/craft/commit/232e042)) _(by Chris Breuer)_
+- **android**: check shared intrinsic layout invalidation ([5f5fe60](https://github.com/craft-native/craft/commit/5f5fe60)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- integrate current native renderer fixes ([77d35b6](https://github.com/craft-native/craft/commit/77d35b6)) _(by Chris Breuer)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' ([bf7294b](https://github.com/craft-native/craft/commit/bf7294b)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.176...v0.0.177)
 
 ## 🚀 Features
