@@ -587,10 +587,18 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
         }
         markerHandlers.clear()
         markerHandlers.putAll(nextHandlers)
-        polylines.values.forEach { it.remove() }
-        polylines.clear()
+        polylines.keys.filter { nextPolylines[it] == null }.forEach { id ->
+            polylines.remove(id)?.remove()
+        }
         for ((id, value) in nextPolylines) {
-            polylines[id] = map.addPolyline(PolylineOptions().addAll(value.first).color(value.second).width(value.third))
+            val polyline = polylines[id]
+            if (polyline != null) {
+                polyline.points = value.first
+                polyline.color = value.second
+                polyline.width = value.third
+            } else {
+                map.addPolyline(PolylineOptions().addAll(value.first).color(value.second).width(value.third))?.let { polylines[id] = it }
+            }
         }
         if (pendingProps.optBoolean("fitToBounds", false)) fitToBounds()
         region(pendingProps.optJSONObject("region") ?: pendingProps.optJSONObject("initialRegion"))?.let { bounds ->
