@@ -77,6 +77,8 @@ export interface CraftConfig {
   enableFilePicker?: boolean
   enableFileDownload?: boolean
   enableSocialAuth?: boolean
+  /** Native passkeys; requires a matching `webcredentials:` associated domain. */
+  enablePasskeys?: boolean
   enableAudioRecording?: boolean
   enableVideoRecording?: boolean
   enableMotionSensors?: boolean
@@ -542,6 +544,7 @@ const DEFAULT_CONFIG: Omit<CraftConfig, 'appName' | 'bundleId'> = {
   enableFilePicker: false,
   enableFileDownload: false,
   enableSocialAuth: false,
+  enablePasskeys: false,
   enableAudioRecording: false,
   enableVideoRecording: false,
   enableMotionSensors: false,

@@ -248,6 +248,9 @@ describe('Craft iOS builder', () => {
     expect(actionsSwift).toContain('case ("SecureStorage", _)')
     expect(actionsSwift).toContain('case ("Biometrics", "authenticate")')
     expect(actionsSwift).toContain('import LocalAuthentication')
+    expect(actionsSwift).toContain('case ("Passkeys", "create"), ("Passkeys", "get"):')
+    expect(actionsSwift).toContain('webcredentials associated domain')
+    expect(actionsSwift).toContain('ASAuthorizationPlatformPublicKeyCredentialProvider')
     expect(actionsSwift).toContain('import Security')
     // fetch: a URLSession task per request token, cancelled with the request.
     expect(actionsSwift).toContain('var values = ["device", "clipboard", "haptics", "storage", "lifecycle", "fetch", "dialog", "speech", "audio", "eventStream", "linking", "badge"]')
@@ -1340,6 +1343,29 @@ describe('Craft iOS builder', () => {
     expect(service).toContain('if let nonce, !nonce.isEmpty { request.nonce = nonce }')
     expect(service).toContain('result["authorizationCode"] = code')
     expect(service).toContain('code: cancelled ? "CANCELLED" : "SIGN_IN_FAILED"')
+  })
+
+  it('gates native passkeys on an explicit webcredentials domain', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-passkeys-'))
+    await init({
+      runtimeDir: null,
+      name: 'Passkeys',
+      bundleId: 'com.example.passkeys',
+      output,
+      config: {
+        enablePasskeys: true,
+        associatedDomains: ['webcredentials:login.example.com'],
+        nativeScreens: { '/m/login': 'Login' },
+      } as any,
+    })
+    const actions = readFileSync(join(output, 'Sources', 'CraftNativeActions.swift'), 'utf8')
+    const config = JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8')) as Record<string, unknown>
+    expect(config.enablePasskeys).toBe(true)
+    expect(config.associatedDomains).toEqual(['webcredentials:login.example.com'])
+    expect(actions).toContain('if config.enablePasskeys && !CraftNativePasskeys.domains(in: config).isEmpty { values.append("passkeys") }')
+    expect(actions).toContain('request = provider.createCredentialRegistrationRequest(challenge: challenge, name: name, userID: userID)')
+    expect(actions).toContain('assertion.allowedCredentials = allowCredentials.compactMap')
+    expect(actions).toContain('"attestationObject": Self.base64url(registration.rawAttestationObject)')
   })
 
   it('lets a native screen sign in: Apple, the web sign-in sheet, a session the page shares, and crypto', async () => {

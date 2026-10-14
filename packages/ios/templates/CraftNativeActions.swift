@@ -1,4 +1,5 @@
 import Foundation
+import AuthenticationServices
 import LocalAuthentication
 import SQLite3
 import Security
@@ -50,6 +51,7 @@ enum CraftNativeActions {
         // The in-app browser and the system's web sign-in sheet (CraftBrowser).
         values.append("browser")
         if config.enableSocialAuth { values.append("appleSignIn") }
+        if config.enablePasskeys && !CraftNativePasskeys.domains(in: config).isEmpty { values.append("passkeys") }
         if config.enablePushNotifications { values.append("push") }
         if config.enableShare { values.append("share") }
         // The screen's brightness and the status bar's style need nothing
@@ -246,6 +248,21 @@ enum CraftNativeActions {
                     complete(requestToken, result.mapError { CraftNativeActionError(code: $0.code, message: $0.message) }.map { $0 as Any }, completion)
                 }
             }
+            return
+        case ("Passkeys", "isAvailable"):
+            sync = .success(CraftNativePasskeys.isAvailable(config: config))
+        case ("Passkeys", "create"), ("Passkeys", "get"):
+            guard config.enablePasskeys else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Passkeys are disabled"), completion)
+                return
+            }
+            CraftNativePasskeys.shared.perform(
+                requestToken: requestToken,
+                method: method,
+                options: args.first as? [String: Any] ?? [:],
+                config: config,
+                completion: completion
+            )
             return
         case ("Dialog", _):
             // The system's own alert, confirmation and action sheet, the same
@@ -490,6 +507,7 @@ enum CraftNativeActions {
         cancellationLock.unlock()
         context?.invalidate()
         task?.cancel()
+        CraftNativePasskeys.shared.cancel(requestToken: requestToken)
     }
 
     /// `fetch` for native screens: one URLSession data task per request, keyed
@@ -1120,6 +1138,160 @@ enum CraftNativeActions {
             "batteryLevel": device.batteryLevel,
             "batteryState": batteryState,
         ]
+    }
+}
+
+/// The native WebAuthn half for screens without a browser context. The
+/// server still owns challenges and verifies the returned client data; this
+/// class only translates WebAuthn options into Apple's passkey sheet and
+/// returns the authenticator response as base64url strings.
+final class CraftNativePasskeys: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    static let shared = CraftNativePasskeys()
+
+    private struct Pending {
+        let requestToken: String
+        let completion: (Result<Any, CraftNativeActionError>) -> Void
+    }
+
+    private var pending: [ObjectIdentifier: Pending] = [:]
+    private var controllers: [String: ASAuthorizationController] = [:]
+
+    static func domains(in config: CraftConfig) -> Set<String> {
+        Set(config.associatedDomains.compactMap { entry in
+            let value = entry.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard value.lowercased().hasPrefix("webcredentials:") else { return nil }
+            let domain = String(value.dropFirst("webcredentials:".count)).split(separator: "?", maxSplits: 1).first.map(String.init) ?? ""
+            let normalized = domain.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return normalized.isEmpty ? nil : normalized
+        })
+    }
+
+    static func isAvailable(config: CraftConfig) -> Bool {
+        if #available(iOS 15.0, *) {
+            return config.enablePasskeys && !domains(in: config).isEmpty
+        }
+        return false
+    }
+
+    func perform(
+        requestToken: String,
+        method: String,
+        options: [String: Any],
+        config: CraftConfig,
+        completion: @escaping (Result<Any, CraftNativeActionError>) -> Void
+    ) {
+        guard #available(iOS 15.0, *) else {
+            completion(.failure(CraftNativeActionError(code: "UNAVAILABLE", message: "Passkeys require iOS 15 or later")))
+            return
+        }
+        guard Self.isAvailable(config: config) else {
+            completion(.failure(CraftNativeActionError(code: "UNAVAILABLE", message: "Passkeys need a matching webcredentials associated domain")))
+            return
+        }
+        guard let relyingParty = relyingPartyID(options: options, config: config),
+              let challenge = data(options["challenge"]) else {
+            completion(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "Passkeys need a base64url challenge and an associated relying-party id")))
+            return
+        }
+
+        let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(relyingPartyIdentifier: relyingParty)
+        let request: ASAuthorizationRequest
+        if method == "create" {
+            guard let user = options["user"] as? [String: Any],
+                  let name = user["name"] as? String, !name.isEmpty,
+                  let userID = data(user["id"]) else {
+                completion(.failure(CraftNativeActionError(code: "INVALID_ARGUMENT", message: "Passkeys.create needs user.name and a base64url user.id")))
+                return
+            }
+            request = provider.createCredentialRegistrationRequest(challenge: challenge, name: name, userID: userID)
+        } else {
+            let assertion = provider.createCredentialAssertionRequest(challenge: challenge)
+            if let allowCredentials = options["allowCredentials"] as? [[String: Any]] {
+                assertion.allowedCredentials = allowCredentials.compactMap { descriptor in
+                    guard let credentialID = data(descriptor["id"]) else { return nil }
+                    return ASAuthorizationPlatformPublicKeyCredentialDescriptor(credentialID: credentialID)
+                }
+            }
+            request = assertion
+        }
+
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        controller.delegate = self
+        controller.presentationContextProvider = self
+        let key = ObjectIdentifier(controller)
+        pending[key] = Pending(requestToken: requestToken, completion: completion)
+        controllers[requestToken] = controller
+        controller.performRequests()
+    }
+
+    func cancel(requestToken: String) {
+        controllers.removeValue(forKey: requestToken)
+        pending = pending.filter { $0.value.requestToken != requestToken }
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        let key = ObjectIdentifier(controller)
+        guard let request = pending.removeValue(forKey: key) else { return }
+        controllers.removeValue(forKey: request.requestToken)
+        if let registration = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialRegistration {
+            request.completion(.success([
+                "id": Self.base64url(registration.credentialID),
+                "rawId": Self.base64url(registration.credentialID),
+                "type": "public-key",
+                "response": [
+                    "clientDataJSON": Self.base64url(registration.rawClientDataJSON),
+                    "attestationObject": Self.base64url(registration.rawAttestationObject),
+                ],
+            ]))
+            return
+        }
+        if let assertion = authorization.credential as? ASAuthorizationPlatformPublicKeyCredentialAssertion {
+            var response: [String: Any] = [
+                "clientDataJSON": Self.base64url(assertion.rawClientDataJSON),
+                "authenticatorData": Self.base64url(assertion.rawAuthenticatorData),
+                "signature": Self.base64url(assertion.signature),
+            ]
+            if let userID = assertion.userID { response["userHandle"] = Self.base64url(userID) }
+            request.completion(.success([
+                "id": Self.base64url(assertion.credentialID),
+                "rawId": Self.base64url(assertion.credentialID),
+                "type": "public-key",
+                "response": response,
+            ]))
+            return
+        }
+        request.completion(.failure(CraftNativeActionError(code: "PASSKEY_FAILED", message: "Apple returned an unsupported passkey credential")))
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        let key = ObjectIdentifier(controller)
+        guard let request = pending.removeValue(forKey: key) else { return }
+        controllers.removeValue(forKey: request.requestToken)
+        let cancelled = (error as? ASAuthorizationError)?.code == .canceled
+        request.completion(.failure(CraftNativeActionError(code: cancelled ? "CANCELLED" : "PASSKEY_FAILED", message: error.localizedDescription)))
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        CraftPresenter.keyWindow() ?? ASPresentationAnchor()
+    }
+
+    private func relyingPartyID(options: [String: Any], config: CraftConfig) -> String? {
+        let value = (options["rpId"] as? String) ?? (options["rp"] as? [String: Any])?["id"] as? String
+        let domains = Self.domains(in: config)
+        let candidate = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? (domains.count == 1 ? domains.first : nil)
+        guard let candidate, domains.contains(candidate), candidate.range(of: #"^[a-z0-9.-]+$"#, options: .regularExpression) != nil else { return nil }
+        return candidate
+    }
+
+    private func data(_ value: Any?) -> Data? {
+        guard let string = value as? String, !string.isEmpty else { return nil }
+        var encoded = string.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        encoded += String(repeating: "=", count: (4 - encoded.count % 4) % 4)
+        return Data(base64Encoded: encoded)
+    }
+
+    private static func base64url(_ data: Data) -> String {
+        data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
     }
 }
 

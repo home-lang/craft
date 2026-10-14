@@ -200,6 +200,8 @@ Edit `craft.config.json` in your iOS project:
   "enableFilePicker": true,
   "enableFileDownload": true,
   "enableSocialAuth": true,
+  "enablePasskeys": true,
+  "associatedDomains": ["webcredentials:login.example.com"],
   "enableAudioRecording": true,
   "enableVideoRecording": true,
   "enableMotionSensors": true,

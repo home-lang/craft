@@ -1239,6 +1239,9 @@ struct CraftConfig: Codable {
     var enableFilePicker: Bool = false
     var enableFileDownload: Bool = false
     var enableSocialAuth: Bool = false
+    /// Native passkeys through AuthenticationServices. Requires a matching
+    /// `webcredentials:` associated-domain entry.
+    var enablePasskeys: Bool = false
     var enableAudioRecording: Bool = false
     var enableVideoRecording: Bool = false
     var enableMotionSensors: Bool = false
@@ -1264,6 +1267,8 @@ struct CraftConfig: Codable {
     var enableScheduledWorkouts: Bool = false
     var devServerURL: String? = nil
     var trustedOrigins: [String] = []
+    /// Domains allowed to back native passkey relying-party identifiers.
+    var associatedDomains: [String] = []
     /// The longest the launch splash stays up when the page neither says it is
     /// ready nor paints.
     var splashMaxSeconds: Double = 3
