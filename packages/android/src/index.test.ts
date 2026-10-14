@@ -172,6 +172,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('value("opacity")?.toFloatOrNull()?.takeIf { it.isFinite() } ?: 1f')
       expect(nativeActivity).toContain('value("strokeWidth")?.toFloatOrNull()?.takeIf { it.isFinite() } ?: strokeWidth')
       expect(nativeActivity).toContain('var x = props.optDouble("x", 0.0).takeIf { it.isFinite() }?.toFloat() ?: 0f')
+      expect(nativeActivity).toContain('takeIf { it.isFinite() }?.toFloat()?.coerceAtLeast(0.5f) ?: 1f')
       expect(nativeActivity).toContain('internal fun craftNativeNonNegativeDouble(style: JSONObject?, name: String, fallback: Double): Double')
       expect(nativeActivity).toContain('val border = craftNativeNonNegativeDouble(style, "borderWidth", 0.0)')
       expect(nativeActivity).toContain('internal fun craftNativeFiniteDouble(style: JSONObject?, name: String, fallback: Double): Double')

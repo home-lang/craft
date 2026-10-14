@@ -1369,6 +1369,8 @@ describe('native renderer component contract', () => {
     expect(android).toContain('progressDrawable = spinner?.constantState?.newDrawable()?.mutate() ?: spinner')
     expect(android).toContain('previous as? CraftNativeActivityIndicator ?: CraftNativeActivityIndicator(this)')
     expect(android).toContain('isIndeterminate = animating')
+    expect(ios).toContain('scale = value.isFinite ? max(0.5, value) : 1')
+    expect(android).toContain('takeIf { it.isFinite() }?.toFloat()?.coerceAtLeast(0.5f) ?: 1f')
   })
 
   it('keeps account navigation buttons compatible with the release SDK', () => {
@@ -1457,7 +1459,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('indicator.hidesWhenStopped = props["hidesWhenStopped"] as? Bool ?? true')
     expect(ios).toContain('indicator.stopAnimating()')
     expect(android).toContain('val requestedSize = props.opt("size")')
-    expect(android).toContain('is Number -> (requestedSize.toDouble() / 24.0).toFloat().coerceAtLeast(0.5f)')
+    expect(android).toContain('is Number -> (requestedSize.toDouble() / 24.0).takeIf { it.isFinite() }?.toFloat()?.coerceAtLeast(0.5f) ?: 1f')
     expect(android).toContain('isIndeterminate = animating')
     expect(android).toContain('props.optBoolean("hidesWhenStopped", true)')
     expect(android).toContain('if (style.optString("display") == "none" || (!animating && hidesWhenStopped))')
