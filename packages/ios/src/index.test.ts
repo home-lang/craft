@@ -635,6 +635,7 @@ describe('Craft iOS builder', () => {
     const source = readFileSync(join(output, 'Sources', 'CraftNativeScreen.swift'), 'utf8')
     expect(source).toContain('events["onLayout"]')
     expect(source).toContain('emitLayoutEvents()')
+    expect(source).toContain('node.view.window != nil, !node.view.isHidden')
     expect(source).toContain('lastLayoutFrames[id] != frame')
     expect(source).toContain('"layout": [')
     expect(source).toContain('frame.minX')

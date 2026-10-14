@@ -5157,7 +5157,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     private func emitLayoutEvents(for node: RenderedNode) {
         let id = ObjectIdentifier(node.view)
-        if let handler = layoutHandlers[id], node.view.window != nil {
+        if let handler = layoutHandlers[id], node.view.window != nil, !node.view.isHidden {
             let frame = node.view.frame
             if lastLayoutFrames[id] != frame {
                 lastLayoutFrames[id] = frame
