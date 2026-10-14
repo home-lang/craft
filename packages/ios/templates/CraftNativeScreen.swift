@@ -4108,11 +4108,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         case "DatePicker":
             let picker = result as! UIDatePicker
             let mode = Self.datePickerMode(props["mode"])
-            if picker.datePickerMode != mode { picker.datePickerMode = mode }
-            let display: UIDatePickerStyle = props["display"] as? String == "inline" ? .inline
+            // A countdown is wheels only: UIKit asserts (and the app aborts)
+            // on a countdown in the compact or inline style, so the style is
+            // settled before the mode becomes a countdown, and after it
+            // stops being one.
+            let display: UIDatePickerStyle = mode == .countDownTimer ? .wheels
+                : props["display"] as? String == "inline" ? .inline
                 : props["display"] as? String == "wheels" || props["display"] as? String == "spinner" ? .wheels
                 : .compact
-            if picker.preferredDatePickerStyle != display { picker.preferredDatePickerStyle = display }
+            if mode == .countDownTimer {
+                if picker.preferredDatePickerStyle != display { picker.preferredDatePickerStyle = display }
+                if picker.datePickerMode != mode { picker.datePickerMode = mode }
+            } else {
+                if picker.datePickerMode != mode { picker.datePickerMode = mode }
+                if picker.preferredDatePickerStyle != display { picker.preferredDatePickerStyle = display }
+            }
             // UIKit takes an interval that divides an hour, and ignores others.
             let interval = (props["minuteInterval"] as? NSNumber)?.intValue ?? 1
             picker.minuteInterval = (1...30).contains(interval) && 60 % interval == 0 ? interval : 1

@@ -643,7 +643,11 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
                 if (index > 0 && lineIds != null && lineIds[index] != lineIds[index - 1]) {
                     lines += line
                     line = Line()
-                } else if (index > 0 && lineIds == null && wrap && line.entries.isNotEmpty() && line.main + gap + childMain > availableMain) {
+                } else if (index > 0 && lineIds == null && wrap && line.entries.isNotEmpty() && line.main + gap + childMain > availableMain + 0.5f * (line.entries.size + 1)) {
+                    // Each size is rounded to whole pixels, up to half a pixel
+                    // over: two 60-point items fill a 120-point row exactly
+                    // in points, and at 2.625 pixels per point (157.5 + 157.5
+                    // in 315) rounding alone must not wrap the second.
                     lines += line
                     line = Line()
                 }
