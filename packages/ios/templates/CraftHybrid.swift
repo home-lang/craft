@@ -421,6 +421,16 @@ final class CraftHybrid: NSObject {
         #endif
     }
 
+    #if DEBUG
+    /// The crash reporter's debug-only test (`-CraftCrashTest js`): an
+    /// uncaught error thrown in the app script, as a real one would be.
+    func debugThrowInAppScript(_ message: String) {
+        if appScript == nil { startAppScript() }
+        let literal = (try? JSONSerialization.data(withJSONObject: [message])).flatMap { String(data: $0, encoding: .utf8) } ?? "[\"test\"]"
+        appScript?.evaluateScript("(function crashReporterTest() { throw new TypeError(\(literal)[0]); })()")
+    }
+    #endif
+
     /// The shell is up: what waited for it.
     func shellReady() {
         guard let controller else { return }

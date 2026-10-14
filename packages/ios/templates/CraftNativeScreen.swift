@@ -3187,6 +3187,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         screenVisibilityChanged(true)
+        // A navigation breadcrumb for the crash reporter: the trail a crash
+        // report carries is the screens that led to it.
+        if !isAppScript, let routeName, !routeName.isEmpty {
+            CraftCrashReporter.shared.screenAppeared(routeName)
+        }
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -3282,7 +3287,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
                 ?? Self.safeJavaScriptString(exception)
                 ?? "unknown"
             let stack = Self.safeJavaScriptString(exception?.objectForKeyedSubscript("stack")) ?? ""
-            CraftNativeConsole.write("error", category: self?.screenName(in: context) ?? "screen", message: stack.isEmpty || stack == "undefined" ? "Uncaught \(message)" : "Uncaught \(message)\n\(stack)")
+            let screen = self?.screenName(in: context) ?? "screen"
+            CraftNativeConsole.write("error", category: screen, message: stack.isEmpty || stack == "undefined" ? "Uncaught \(message)" : "Uncaught \(message)\n\(stack)")
+            // To the app's crash reporter too (bughq, when configured): an
+            // uncaught error in a shipped screen is otherwise only in a log
+            // nobody reads on someone else's phone.
+            CraftCrashReporter.shared.captureJavaScript(
+                name: Self.safeJavaScriptString(exception?.objectForKeyedSubscript("name")),
+                message: message,
+                stack: stack,
+                route: screen,
+                isAppScript: self?.isAppScript ?? false
+            )
             self?.hybridFailed(message)
         }
         let postMessage: @convention(block) (String) -> Void = { [weak self] json in

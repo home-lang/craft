@@ -137,8 +137,11 @@ const zig_sources = [_][]const u8{
 /// permission methods whose Activity callback state belongs to CraftBridge;
 /// 33 when speak and stopSpeaking arrived in the Kotlin first, as iOS's did;
 /// 36 when getBrightness, setBrightness and resetBrightness did, for a page
-/// that dims the screen while it shows little (a workout's big timer).
-const max_not_yet_migrated: usize = 36;
+/// that dims the screen while it shows little (a workout's big timer);
+/// 41 when the five crashReporter* methods arrived in the Kotlin first, as
+/// iOS's did: they queue the page's error events in CraftCrashReporter.kt's
+/// on-disk outbox, which the uncaught-exception handler also writes to.
+const max_not_yet_migrated: usize = 41;
 
 /// Every `@JavascriptInterface fun <name>(` in the Kotlin bridge.
 ///
@@ -349,6 +352,18 @@ const deliberate_deferrals = [_]Deferral{
     .{ .action = "getBrightness", .reason = "answers from the brightnessOverride field the natives cannot reach" },
     .{ .action = "setBrightness", .reason = "writes that same field before queueing the window change; the trio moves together" },
     .{ .action = "resetBrightness", .reason = "clears the same field; migrating one leaves the others answering a stale override" },
+
+    // ---- Crash reporting, which arrived in the Kotlin first ----------
+    //
+    // The five share CraftCrashReporter.kt's outbox, session and breadcrumb
+    // trail with the process's uncaught-exception handler, which must run
+    // without the natives (a crash in libcraft.so is one of the things it
+    // reports). They stay with the object that owns that state.
+    .{ .action = "crashReporterCapture", .reason = "queues into the outbox the uncaught-exception handler writes to; the reporter owns it" },
+    .{ .action = "crashReporterSetUser", .reason = "sets the user id the crash handler stamps on a crash; one owner for it" },
+    .{ .action = "crashReporterAddBreadcrumb", .reason = "appends to the trail a crash report carries, held by the reporter" },
+    .{ .action = "crashReporterFlush", .reason = "drives the reporter's own delivery thread and backoff" },
+    .{ .action = "crashReporterContext", .reason = "answers the reporter's session and release, which only it holds" },
 
     // The auth-persistence trio shares one timestamp in Kotlin-configured
     // EncryptedSharedPreferences. It now survives process death, but migrating

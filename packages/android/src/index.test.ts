@@ -2048,3 +2048,37 @@ describe('the Zig library and the generated app agree on how old a device may be
     expect(Number(declared![1])).toBeLessThanOrEqual(ANDROID_MIN_SDK)
   })
 })
+
+describe('crash reporting (CraftCrashReporter.kt)', () => {
+  it('writes the reporter for both renderers and starts it from a content provider', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'craft-android-crash-'))
+    try {
+      for (const renderer of ['web', 'native'] as const) {
+        const output = join(root, renderer)
+        await init({ name: 'Crash', output, runtimeDir: null, config: { renderer, crashReporting: { key: 'bughq_k' } } })
+        const reporter = readFileSync(join(output, 'app/src/main/java/com/craft/crash/CraftCrashReporter.kt'), 'utf8')
+        expect(reporter).toContain('package com.craft.crash')
+        expect(reporter).not.toContain('{{')
+        expect(reporter).toContain('Thread.setDefaultUncaughtExceptionHandler')
+        expect(reporter).toContain('getHistoricalProcessExitReasons')
+        const manifest = readFileSync(join(output, 'app/src/main/AndroidManifest.xml'), 'utf8')
+        expect(manifest).toContain('<provider android:name=".CraftCrashReporterInit" android:authorities="${applicationId}.craft-crash" android:exported="false"')
+        const gradle = readFileSync(join(output, 'app/build.gradle.kts'), 'utf8')
+        expect(gradle).toContain('buildConfig = true')
+        expect(JSON.parse(readFileSync(join(output, 'app/src/main/assets/craft.config.json'), 'utf8')).crashReporting).toEqual({ key: 'bughq_k' })
+      }
+    }
+    finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps the test crash behind BuildConfig.DEBUG, which R8 drops from release', () => {
+    const source = readFileSync(join(import.meta.dir, '../templates/CraftCrashReporter.kt.template'), 'utf8')
+    const start = source.indexOf('fun debugCrashTestRequested(')
+    expect(source.slice(start, start + 200)).toContain('if (!BuildConfig.DEBUG')
+    const activity = readFileSync(join(import.meta.dir, '../templates/MainActivityNative.kt.template'), 'utf8')
+    expect(activity).toContain('if (BuildConfig.DEBUG && savedInstanceState == null) {')
+  })
+})
+

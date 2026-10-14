@@ -620,6 +620,13 @@ export interface CraftBridge {
   speech: CraftSpeech;
 
   /**
+   * The app's crash and error reporter (bughq), present when the app's config
+   * has `crashReporting`. Events handed over share the app's on-disk outbox,
+   * its session and the device's context, and are sent when online.
+   */
+  crashReporter?: CraftCrashReporter;
+
+  /**
    * The Music app's song and transport (iOS, `enableAppleMusic`). Sees and
    * steers Apple Music only: iOS gives no app another player's controls.
    */
@@ -1501,6 +1508,19 @@ export interface CraftHealth {
   stopHeartRateUpdates?(): Promise<boolean>;
 }
 
+export interface CraftCrashReporter {
+  /** Queue an event (the bughq ingest shape). Resolves true when it was queued. */
+  capture(event: Record<string, unknown>): Promise<boolean>;
+  /** The app's own user id for later events, or null when signed out. Never an email. */
+  setUser(id: string | null): Promise<boolean>;
+  /** Add to the trail a later crash report carries. */
+  addBreadcrumb(breadcrumb: Record<string, unknown>): Promise<boolean>;
+  /** Send what is queued now, if online. */
+  flush(): Promise<boolean>;
+  /** The release, environment, session and device context events carry. */
+  context(): Promise<Record<string, unknown>>;
+}
+
 export interface CraftSpeech {
   /**
    * Speak `text`. Settles when the utterance ends: `true` when it was spoken,
@@ -1547,6 +1567,8 @@ export interface CraftCapabilities {
   scheduledWorkouts?: boolean;
   /** Native text-to-speech through `craft.speech`. */
   speech: boolean;
+  /** Crash and error reporting through `craft.crashReporter` (config `crashReporting`). */
+  crashReporter?: boolean;
   network: boolean;
   deviceInfo: boolean;
   badge: boolean;

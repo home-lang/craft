@@ -59,6 +59,9 @@ android {
 
     buildFeatures {
         viewBinding = true
+        // BuildConfig.DEBUG: debug-only code (the crash reporter's test
+        // crash) is a constant false in release, so R8 removes it.
+        buildConfig = true
     }
 
     // Android's default AAPT ignore pattern drops underscore-prefixed asset

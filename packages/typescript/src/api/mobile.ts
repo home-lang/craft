@@ -1569,6 +1569,104 @@ export const speech = {
 }
 
 /*
+ * Crash and error reporting (bughq).
+ *
+ * The native shell captures crashes, hangs, ANRs and uncaught JavaScript
+ * errors on its own once the app's config has `crashReporting`. This is the
+ * JavaScript side: hand over an event built by an error SDK (so it shares the
+ * app's offline outbox, session and device context), name the signed-in user,
+ * and add breadcrumbs that a later crash report carries.
+ *
+ * Works from a web view (`window.craft`) and from a native screen or the app
+ * script (`globalThis.craft`). Off the app, every call resolves false/null.
+ */
+
+export interface CrashReporterContext {
+  enabled: boolean
+  platform?: 'ios' | 'android'
+  release?: string
+  environment?: string
+  session?: { id: string, startedAt: string }
+  contexts?: Record<string, Record<string, unknown>>
+  [key: string]: unknown
+}
+
+function crashReporterBridge(): any {
+  const root = (globalThis as any).craft
+  return root?.crashReporter && typeof root.crashReporter.capture === 'function' ? root.crashReporter : undefined
+}
+
+export const crashReporter = {
+  /** True inside an app whose config turns crash reporting on. */
+  isAvailable(): boolean {
+    const root = (globalThis as any).craft
+    if (!crashReporterBridge()) return false
+    const caps = root?.capabilities
+    // Web view bridges declare a flag; native screens list capability names.
+    if (Array.isArray(caps)) return caps.includes('crashReporter')
+    return caps?.crashReporter !== false
+  },
+
+  /** Queue an event in the bughq ingest shape (`type`, `message`, `stack`, ...). */
+  async capture(event: Record<string, unknown>): Promise<boolean> {
+    const bridge = crashReporterBridge()
+    if (!bridge || !event || typeof event.message !== 'string') return false
+    try {
+      return (await bridge.capture(event)) !== false
+    }
+    catch {
+      return false
+    }
+  },
+
+  /** The app's own user id (never an email), or null on sign-out. */
+  async setUser(id: string | number | null): Promise<boolean> {
+    const bridge = crashReporterBridge()
+    if (!bridge) return false
+    try {
+      return (await bridge.setUser(id == null ? null : String(id))) !== false
+    }
+    catch {
+      return false
+    }
+  },
+
+  async addBreadcrumb(breadcrumb: { type?: string, category?: string, level?: string, message?: string, data?: Record<string, unknown> }): Promise<boolean> {
+    const bridge = crashReporterBridge()
+    if (!bridge) return false
+    try {
+      return (await bridge.addBreadcrumb(breadcrumb)) !== false
+    }
+    catch {
+      return false
+    }
+  },
+
+  async flush(): Promise<boolean> {
+    const bridge = crashReporterBridge()
+    if (!bridge) return false
+    try {
+      return (await bridge.flush()) !== false
+    }
+    catch {
+      return false
+    }
+  },
+
+  /** The release, session and device context the native reporter stamps on events. */
+  async context(): Promise<CrashReporterContext | null> {
+    const bridge = crashReporterBridge()
+    if (!bridge) return null
+    try {
+      return (await bridge.context()) as CrashReporterContext
+    }
+    catch {
+      return null
+    }
+  },
+}
+
+/*
  * Apple Music: what the Music app is playing, and its transport.
  *
  * iOS only, and only Apple Music: the bridge drives
@@ -3398,6 +3496,7 @@ const mobile: {
   keepAwake: typeof keepAwake
   brightness: typeof brightness
   speech: typeof speech
+  crashReporter: typeof crashReporter
   music: typeof music
   heartRate: typeof heartRate
   scheduledWorkouts: typeof scheduledWorkouts
@@ -3435,6 +3534,7 @@ const mobile: {
   keepAwake: keepAwake,
   brightness: brightness,
   speech: speech,
+  crashReporter: crashReporter,
   music: music,
   heartRate: heartRate,
   scheduledWorkouts: scheduledWorkouts,

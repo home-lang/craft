@@ -84,11 +84,13 @@ internal class CraftNativeServices(
         if (config.optBoolean("enableKeepAwake")) add("keepAwake")
         if (config.optBoolean("enableGeolocation") || config.optBoolean("enableBackgroundLocation")) add("geolocation")
         if (config.optJSONObject("backgroundRefresh")?.optBoolean("enabled") == true || config.optBoolean("enablePushNotifications")) add("background")
+        // craft.crashReporter: the app's crash and error reporter (bughq).
+        if (CraftCrashReporter.enabled) add("crashReporter")
     }
 
     fun handles(module: String): Boolean = module in setOf(
         "Dialog", "Browser", "Linking", "Share", "Push", "Health", "KeepAwake", "Brightness", "StatusBar", "Speech", "Background",
-        "Location", "Media",
+        "Location", "Media", "CrashReporter",
     )
 
     fun perform(module: String, method: String, args: JSONArray, completion: (CraftNativeCapabilityResult) -> Unit) {
@@ -122,6 +124,7 @@ internal class CraftNativeServices(
                     onBackgroundComplete?.invoke(args.optBoolean(0, true), args.opt(1) as? String)
                     done(success(true))
                 }
+                "CrashReporter" -> crashReporter(method, args, done)
                 else -> done(failure("UNKNOWN_ACTION", "Unsupported native API"))
             }
         } catch (error: Exception) {
@@ -433,6 +436,33 @@ internal class CraftNativeServices(
             "getRecordingState" -> done(success(store.state(context)))
             "readRecording" -> done(success(store.locations(context)))
             else -> done(failure("UNKNOWN_ACTION", "Unsupported Location method"))
+        }
+    }
+
+    // MARK: Crash reporting (CraftCrashReporter.kt)
+
+    private fun crashReporter(method: String, args: JSONArray, done: (CraftNativeCapabilityResult) -> Unit) {
+        if (!CraftCrashReporter.enabled && method != "context") return done(failure("CAPABILITY_DISABLED", "Crash reporting is not configured"))
+        when (method) {
+            "capture" -> {
+                val event = args.optJSONObject(0) ?: return done(failure("INVALID_ARGUMENT", "capture needs an event"))
+                done(success(CraftCrashReporter.capture(event)))
+            }
+            "setUser" -> {
+                CraftCrashReporter.setUser(if (args.isNull(0)) null else args.optString(0))
+                done(success(true))
+            }
+            "addBreadcrumb" -> {
+                val crumb = args.optJSONObject(0) ?: return done(failure("INVALID_ARGUMENT", "addBreadcrumb needs a breadcrumb"))
+                CraftCrashReporter.addBreadcrumb(crumb)
+                done(success(true))
+            }
+            "flush" -> {
+                CraftCrashReporter.requestFlush()
+                done(success(true))
+            }
+            "context" -> done(success(if (CraftCrashReporter.enabled) CraftCrashReporter.context() else JSONObject().put("enabled", false)))
+            else -> done(failure("UNKNOWN_ACTION", "Unsupported CrashReporter method"))
         }
     }
 

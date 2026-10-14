@@ -1,0 +1,544 @@
+package {{PACKAGE_NAME}}
+
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
+import android.content.ContentProvider
+import android.content.ContentValues
+import android.content.Context
+import android.database.Cursor
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.Uri
+import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Process
+import android.util.Log
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import java.util.UUID
+
+/**
+ * Crash and error reporting to bughq (https://bughq.org, or a self-hosted
+ * host), on when craft.config.json has `crashReporting` with a project key.
+ *
+ * What it catches:
+ *  - An uncaught JVM exception on any thread. The handler builds the event and
+ *    writes it to the outbox before the process dies, then hands the crash on
+ *    to the handler that was there before (Android's, which shows the dialog).
+ *  - An ANR, or a crash in native code (libcraft.so), through
+ *    ApplicationExitInfo on the next launch (Android 11+). The system records
+ *    why the last process ended, and for an ANR it keeps every thread's stack.
+ *  - Uncaught JavaScript errors in native screens and the app script, and what
+ *    the page or a screen hands over through `craft.crashReporter.capture`.
+ *
+ * Events wait in an on-disk outbox and are sent when the device is online, so
+ * a crash captured on the underground arrives once it is back above ground.
+ * Release builds are minified by R8; their frames stay obfuscated here and
+ * bughq retraces them with the build's mapping.txt (uploaded by the build).
+ *
+ * Only the app's own user id (`craft.crashReporter.setUser`) identifies a
+ * person. Nothing else about them is read or sent.
+ */
+object CraftCrashReporter {
+    private const val TAG = "CraftCrashReporter"
+    const val SDK_NAME = "bughq.craft.android"
+    private const val MAX_OUTBOX = 200
+    private const val MAX_AGE_MS = 14L * 86_400_000L
+
+    @Volatile var enabled = false
+        private set
+    private lateinit var context: Context
+    private lateinit var directory: File
+    private lateinit var outbox: File
+    private var key = ""
+    private var host = "https://bughq.org"
+    private var environment = "production"
+    private var releaseOverride: String? = null
+    private var sendSessions = true
+    private val thread = HandlerThread("craft-crash-reporter").apply { start() }
+    private val handler = Handler(thread.looper)
+    private var flushing = false
+    private var retryAt = 0L
+    private var failures = 0
+    private val breadcrumbs = ArrayList<JSONObject>()
+    private var breadcrumbsDirty = false
+    @Volatile private var userId: String? = null
+    private var lastJsError: Pair<String, Long>? = null
+
+    val sessionId: String = UUID.randomUUID().toString()
+    private val sessionStart = System.currentTimeMillis()
+
+    /** Reads craft.config.json and installs everything. Safe to call more than once. */
+    @Synchronized
+    fun start(context: Context) {
+        if (enabled) return
+        val config = runCatching {
+            context.assets.open("craft.config.json").bufferedReader().use { JSONObject(it.readText()) }
+        }.getOrNull() ?: return
+        val settings = config.optJSONObject("crashReporting") ?: return
+        val projectKey = settings.optString("key")
+        if (projectKey.isBlank()) return
+        this.context = context.applicationContext
+        key = projectKey
+        host = settings.optString("host").ifBlank { "https://bughq.org" }.trimEnd('/')
+        environment = settings.optString("environment").ifBlank { "production" }
+        releaseOverride = settings.optString("release").ifBlank { null }
+        sendSessions = !(settings.has("sessions") && !settings.optBoolean("sessions", true))
+        directory = File(this.context.filesDir, "craft-crash").apply { mkdirs() }
+        outbox = File(directory, "outbox").apply { mkdirs() }
+        userId = prefs().getString("user", null)
+        enabled = true
+
+        installUncaughtHandler()
+        handler.post {
+            // The last process's story first: it names a session and a trail
+            // this launch is about to replace.
+            collectExitReasons()
+            recordSession()
+            pruneOutbox()
+            if (sendSessions) enqueueSession("ok")
+            flush()
+        }
+        watchNetwork()
+    }
+
+    private fun prefs() = context.getSharedPreferences("craft-crash", Context.MODE_PRIVATE)
+
+    // MARK: Versions
+
+    private fun versions(): Pair<String, String> = runCatching {
+        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+        val build = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode.toString() else @Suppress("DEPRECATION") info.versionCode.toString()
+        (info.versionName ?: "") to build
+    }.getOrDefault("" to "")
+
+    val release: String
+        get() = releaseOverride ?: versions().let { (version, build) -> if (build.isBlank()) version else "$version+$build" }
+
+    // MARK: The uncaught-exception handler
+
+    private fun installUncaughtHandler() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { failed, error ->
+            try {
+                val event = baseEvent(release, sessionId, sessionStart)
+                    .put("type", error.javaClass.name)
+                    .put("message", error.message ?: error.javaClass.simpleName)
+                    .put("level", "fatal")
+                    .put("exception", exceptionJson(error, "uncaught", handled = false))
+                    .put("breadcrumbs", JSONArray(synchronized(breadcrumbs) { breadcrumbs.takeLast(50) }))
+                    .put("tags", JSONObject().put("mechanism", "uncaught").put("thread", failed.name))
+                // Written on this thread, now: the process ends when this returns.
+                writeOutbox("errors", event)
+                prefs().edit().putString("crashed.session", sessionId).commit()
+            } catch (_: Throwable) {
+                // Reporting must never be the reason a crash report is lost.
+            }
+            previous?.uncaughtException(failed, error)
+        }
+    }
+
+    /** A Throwable and its causes as the wire `exception` block. */
+    fun exceptionJson(error: Throwable, mechanism: String, handled: Boolean): JSONObject {
+        val result = JSONObject()
+            .put("mechanism", mechanism)
+            .put("handled", handled)
+            .put("frames", framesJson(error.stackTrace))
+        val causes = JSONArray()
+        var cause = error.cause
+        var depth = 0
+        while (cause != null && cause !== error && depth < 5) {
+            causes.put(JSONObject()
+                .put("type", cause.javaClass.name)
+                .put("value", cause.message ?: "")
+                .put("frames", framesJson(cause.stackTrace)))
+            cause = cause.cause
+            depth += 1
+        }
+        if (causes.length() > 0) result.put("causes", causes)
+        return result
+    }
+
+    private fun framesJson(trace: Array<StackTraceElement>): JSONArray {
+        val frames = JSONArray()
+        for (element in trace.take(128)) {
+            val frame = JSONObject()
+                .put("module", element.className)
+                .put("function", element.methodName)
+                .put("in_app", inApp(element.className))
+            element.fileName?.let { frame.put("file", it) }
+            if (element.lineNumber > 0) frame.put("line", element.lineNumber)
+            frames.put(frame)
+        }
+        return frames
+    }
+
+    /**
+     * The app's own frames. R8 renames the app's classes to short names in
+     * no package, which is why "not a known system package" is the rule here;
+     * bughq judges again after it retraces.
+     */
+    private fun inApp(className: String): Boolean {
+        if (className.startsWith(context.packageName)) return true
+        val system = listOf("java.", "javax.", "kotlin.", "kotlinx.", "android.", "androidx.", "dalvik.", "libcore.", "com.android.", "com.google.", "org.json.", "sun.", "okhttp3.", "okio.")
+        return system.none { className.startsWith(it) }
+    }
+
+    // MARK: ApplicationExitInfo (ANR, native crash)
+
+    private fun collectExitReasons() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return
+        val reasons = runCatching { manager.getHistoricalProcessExitReasons(context.packageName, 0, 16) }.getOrNull() ?: return
+        val seen = prefs().getLong("exit.seen", 0L)
+        val sessions = JSONObject(prefs().getString("pid.sessions", "{}") ?: "{}")
+        var newest = seen
+        for (info in reasons) {
+            if (info.timestamp <= seen) continue
+            newest = maxOf(newest, info.timestamp)
+            val session = sessions.optJSONObject(info.pid.toString())
+            when (info.reason) {
+                ApplicationExitInfo.REASON_ANR -> reportExit(info, session, "ApplicationNotResponding", "The app stopped responding" + (info.description?.let { ": $it" } ?: ""), "anr", "abnormal")
+                ApplicationExitInfo.REASON_CRASH_NATIVE -> reportExit(info, session, "NativeCrash", info.description ?: "The app crashed in native code", "native", "crashed")
+                // REASON_CRASH (JVM) is the uncaught handler's, already in the outbox.
+            }
+        }
+        if (newest > seen) prefs().edit().putLong("exit.seen", newest).apply()
+    }
+
+    private fun reportExit(info: ApplicationExitInfo, session: JSONObject?, type: String, message: String, mechanism: String, status: String) {
+        val trace = runCatching { info.traceInputStream?.bufferedReader()?.use { it.readText() } }.getOrNull()
+        val frames = if (mechanism == "anr" && trace != null) mainThreadFrames(trace) else JSONArray()
+        val release = session?.optString("release")?.ifBlank { null } ?: release
+        val event = baseEvent(release, session?.optString("id")?.ifBlank { null }, session?.optLong("startedAt"))
+            .put("type", type)
+            .put("message", message)
+            .put("level", if (status == "crashed") "fatal" else "error")
+            .put("timestamp", iso(info.timestamp))
+            .put("tags", JSONObject().put("mechanism", mechanism).put("importance", info.importance.toString()))
+        if (frames.length() > 0) event.put("exception", JSONObject().put("mechanism", mechanism).put("handled", false).put("frames", frames))
+        writeOutbox("errors", event)
+        // An ANR the person had to close ends its session abnormally: say so,
+        // in case no crash event marks it.
+        val sessionId = session?.optString("id")
+        if (sendSessions && !sessionId.isNullOrBlank()) {
+            writeOutbox("sessions", JSONObject().put("sessions", JSONArray().put(JSONObject()
+                .put("id", sessionId)
+                .put("release", release)
+                .put("environment", environment)
+                .put("platform", "android")
+                .put("status", status)
+                .put("started_at", iso(session.optLong("startedAt", info.timestamp))))))
+        }
+    }
+
+    /** The main thread's frames from an ANR trace (`"main" prio=5 …` then `  at a.b.c(File.kt:12)`). */
+    fun mainThreadFrames(trace: String): JSONArray {
+        val frames = JSONArray()
+        val lines = trace.lines()
+        val start = lines.indexOfFirst { it.startsWith("\"main\"") }
+        if (start < 0) return frames
+        val frame = Regex("""^\s+at ([\w$.<>]+)\.([\w$<>-]+)\((?:([^:)]+)(?::(\d+))?|[^)]*)\)""")
+        for (line in lines.drop(start + 1)) {
+            if (line.isBlank() || line.startsWith("\"")) break
+            val match = frame.find(line) ?: continue
+            val (module, method, file, number) = match.destructured
+            val json = JSONObject().put("module", module).put("function", method).put("in_app", inApp(module))
+            if (file.isNotBlank()) json.put("file", file)
+            number.toIntOrNull()?.let { json.put("line", it) }
+            frames.put(json)
+            if (frames.length() >= 128) break
+        }
+        return frames
+    }
+
+    // MARK: Session
+
+    private fun recordSession() {
+        val (version, build) = versions()
+        val pidSessions = JSONObject(prefs().getString("pid.sessions", "{}") ?: "{}")
+        pidSessions.put(Process.myPid().toString(), JSONObject()
+            .put("id", sessionId)
+            .put("startedAt", sessionStart)
+            .put("release", release)
+            .put("version", version)
+            .put("build", build))
+        // Only the last few processes matter for the next exit lookup.
+        val keys = pidSessions.keys().asSequence().toList()
+        if (keys.size > 8) keys.sortedBy { pidSessions.optJSONObject(it)?.optLong("startedAt") ?: 0L }.take(keys.size - 8).forEach { pidSessions.remove(it) }
+        prefs().edit().putString("pid.sessions", pidSessions.toString()).apply()
+    }
+
+    private fun enqueueSession(status: String) {
+        val session = JSONObject()
+            .put("id", sessionId)
+            .put("release", release)
+            .put("environment", environment)
+            .put("platform", "android")
+            .put("status", status)
+            .put("started_at", iso(sessionStart))
+        userId?.let { session.put("user_id", it) }
+        writeOutbox("sessions", JSONObject().put("sessions", JSONArray().put(session)))
+    }
+
+    // MARK: JavaScript and the page
+
+    /** An uncaught error in a native screen or the app script's JavaScript. */
+    fun captureJavaScript(name: String?, message: String, stack: String?, route: String, isAppScript: Boolean) {
+        if (!enabled) return
+        handler.post {
+            val dedupe = "$name|$message|${stack?.take(200)}"
+            val last = lastJsError
+            if (last != null && last.first == dedupe && System.currentTimeMillis() - last.second < 5_000) return@post
+            lastJsError = dedupe to System.currentTimeMillis()
+            val event = baseEvent(release, sessionId, sessionStart)
+                .put("type", name?.ifBlank { null } ?: "Error")
+                .put("message", message)
+                .put("level", "error")
+                .put("url", "app://$route")
+                .put("framework", "stx-native")
+                .put("breadcrumbs", JSONArray(synchronized(breadcrumbs) { breadcrumbs.takeLast(50) }))
+                .put("tags", JSONObject().put("mechanism", "javascript").put("runtime", if (isAppScript) "app-script" else "screen").put("route", route))
+            if (!stack.isNullOrBlank()) event.put("stack", stack)
+            writeOutbox("errors", event)
+            flush()
+        }
+    }
+
+    /** An event the page or a screen built (with @bughq/sdk) and handed over. */
+    fun capture(given: JSONObject): Boolean {
+        if (!enabled || !given.has("message")) return false
+        handler.post {
+            val event = baseEvent(release, sessionId, sessionStart)
+            val own = event.optJSONObject("contexts") ?: JSONObject()
+            for (name in given.keys()) {
+                when (name) {
+                    "key", "project", "session", "release", "environment", "os", "platform" -> {}
+                    "contexts" -> {
+                        val contexts = given.optJSONObject(name) ?: JSONObject()
+                        for (ownName in own.keys()) contexts.put(ownName, own.get(ownName))
+                        event.put("contexts", contexts)
+                    }
+                    "user" -> if (userId == null) event.put("user", given.get(name))
+                    else -> event.put(name, given.get(name))
+                }
+            }
+            if (!event.has("type")) event.put("type", "Error")
+            writeOutbox("errors", event)
+            flush()
+        }
+        return true
+    }
+
+    fun setUser(id: String?) {
+        val value = id?.takeIf { it.isNotBlank() }?.take(128)
+        userId = value
+        if (enabled) prefs().edit().putString("user", value).apply()
+    }
+
+    fun addBreadcrumb(crumb: JSONObject) {
+        if (!enabled) return
+        if (!crumb.has("timestamp")) crumb.put("timestamp", iso(System.currentTimeMillis()))
+        synchronized(breadcrumbs) {
+            breadcrumbs.add(crumb)
+            while (breadcrumbs.size > 100) breadcrumbs.removeAt(0)
+        }
+        if (!breadcrumbsDirty) {
+            breadcrumbsDirty = true
+            handler.postDelayed({ saveBreadcrumbs() }, 1_000)
+        }
+    }
+
+    fun screenAppeared(route: String) {
+        addBreadcrumb(JSONObject().put("type", "navigation").put("category", "navigation").put("message", route).put("data", JSONObject().put("to", route)))
+    }
+
+    fun requestFailed(method: String, url: String, status: Int?, error: String?) {
+        val data = JSONObject().put("method", method).put("url", maskUrl(url))
+        status?.let { data.put("status", it) }
+        error?.let { data.put("error", it) }
+        addBreadcrumb(JSONObject().put("type", "http").put("category", "fetch").put("level", if (status == null || status >= 500) "error" else "warning").put("data", data))
+    }
+
+    fun requestFlush() {
+        if (enabled) handler.post { flush() }
+    }
+
+    fun context(): JSONObject = baseEvent(release, sessionId, sessionStart).put("enabled", enabled)
+
+    private fun saveBreadcrumbs() {
+        if (!enabled) return
+        breadcrumbsDirty = false
+        val copy = synchronized(breadcrumbs) { JSONArray(breadcrumbs) }
+        runCatching { File(directory, "breadcrumbs.json").writeText(copy.toString()) }
+    }
+
+    fun maskUrl(raw: String): String = runCatching {
+        val uri = Uri.parse(raw)
+        val path = (uri.path ?: "").split('/').joinToString("/") { segment ->
+            when {
+                segment.isEmpty() -> segment
+                segment.all { it.isDigit() } -> "{n}"
+                segment.length >= 4 && segment.any { it.isLetter() } && segment.any { it.isDigit() } -> "{id}"
+                else -> segment
+            }
+        }
+        "${uri.host ?: ""}$path${if (uri.query != null) "?…" else ""}"
+    }.getOrDefault(raw.substringBefore('?').take(200))
+
+    // MARK: Events
+
+    private fun baseEvent(release: String, session: String?, startedAt: Long?): JSONObject {
+        val (version, build) = versions()
+        val event = JSONObject()
+            .put("platform", "android")
+            .put("release", release)
+            .put("environment", environment)
+            .put("os", "Android ${Build.VERSION.RELEASE}")
+            .put("framework", "craft")
+            .put("timestamp", iso(System.currentTimeMillis()))
+            .put("sdk", JSONObject().put("name", SDK_NAME).put("version", "{{CRAFT_VERSION}}"))
+            .put("contexts", JSONObject()
+                .put("app", JSONObject().put("id", context.packageName).put("version", version).put("build", build))
+                .put("device", JSONObject()
+                    .put("model", Build.MODEL)
+                    .put("manufacturer", Build.MANUFACTURER)
+                    .put("emulator", Build.FINGERPRINT.contains("generic") || Build.PRODUCT.contains("sdk"))
+                    .put("locale", Locale.getDefault().toLanguageTag()))
+                .put("os", JSONObject().put("name", "Android").put("version", Build.VERSION.RELEASE).put("api", Build.VERSION.SDK_INT)))
+        if (session != null) event.put("session", JSONObject().put("id", session).put("startedAt", iso(startedAt ?: sessionStart)))
+        userId?.let { event.put("user", JSONObject().put("id", it)) }
+        return event
+    }
+
+    private fun writeOutbox(endpoint: String, body: JSONObject) {
+        val item = JSONObject().put("endpoint", endpoint).put("body", body)
+        val name = String.format(Locale.ROOT, "%013d-%s.json", System.currentTimeMillis(), UUID.randomUUID())
+        runCatching {
+            val temp = File(outbox, "$name.tmp")
+            temp.writeText(item.toString())
+            temp.renameTo(File(outbox, name))
+        }.onFailure { Log.w(TAG, "could not queue an event", it) }
+    }
+
+    private fun pruneOutbox() {
+        val files = outbox.listFiles { file -> file.name.endsWith(".json") }?.sortedBy { it.name } ?: return
+        val cutoff = System.currentTimeMillis() - MAX_AGE_MS
+        files.forEachIndexed { index, file ->
+            val stamp = file.name.take(13).toLongOrNull() ?: 0L
+            if (index < files.size - MAX_OUTBOX || stamp < cutoff) file.delete()
+        }
+    }
+
+    // MARK: Delivery
+
+    private fun watchNetwork() {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        runCatching {
+            manager.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    // Back online: what waited goes now.
+                    handler.post {
+                        retryAt = 0L
+                        failures = 0
+                        flush()
+                    }
+                }
+            })
+        }
+    }
+
+    /** Sends the outbox, oldest first, one at a time, on the reporter's thread. */
+    private fun flush() {
+        if (!enabled || flushing || System.currentTimeMillis() < retryAt) return
+        val next = outbox.listFiles { file -> file.name.endsWith(".json") }?.minByOrNull { it.name } ?: return
+        val item = runCatching { JSONObject(next.readText()) }.getOrNull()
+        val endpoint = item?.optString("endpoint")
+        val body = item?.optJSONObject("body")
+        if (item == null || body == null || endpoint.isNullOrBlank()) {
+            next.delete()
+            return flush()
+        }
+        body.put("key", key)
+        flushing = true
+        val status = runCatching {
+            val connection = URL("$host/${if (endpoint == "sessions") "sessions" else "errors"}").openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 20_000
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("X-BugHQ-Key", key)
+            connection.outputStream.use { it.write(body.toString().toByteArray()) }
+            val code = connection.responseCode
+            connection.disconnect()
+            code
+        }.getOrDefault(0)
+        flushing = false
+        if (status in 200..299 || (status in 400..499 && status != 408 && status != 429)) {
+            // Delivered, or refused for good: a 4xx will not change on retry.
+            next.delete()
+            failures = 0
+            handler.post { flush() }
+        } else {
+            failures += 1
+            val delay = minOf(3_600_000L, 15_000L shl minOf(failures, 8))
+            retryAt = System.currentTimeMillis() + delay
+            handler.postDelayed({ flush() }, delay)
+        }
+    }
+
+    private fun iso(millis: Long): String {
+        val format = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT)
+        format.timeZone = TimeZone.getTimeZone("UTC")
+        return format.format(Date(millis))
+    }
+
+    // MARK: Debug-only test crash
+
+    /**
+     * `adb shell am start -n <package>/.MainActivity --es craftCrashTest native|js`
+     * crashes the app (or throws in the app script) a few seconds later, to
+     * check the pipeline end to end. `BuildConfig.DEBUG` is a constant false
+     * in a release build, so R8 removes this code from it entirely.
+     */
+    /** Called by the activity with its launch intent's `craftCrashTest` extra (debug builds only). */
+    fun debugCrashTestRequested(kind: String?, throwInAppScript: (String) -> Unit) {
+        if (!BuildConfig.DEBUG || kind.isNullOrBlank() || !enabled) return
+        Log.w(TAG, "crash test $kind scheduled")
+        Handler(context.mainLooper).postDelayed({
+            addBreadcrumb(JSONObject().put("type", "debug").put("category", "crash-test").put("message", "Crash test: $kind"))
+            saveBreadcrumbs()
+            when (kind) {
+                "js" -> throwInAppScript("Craft crash reporter test error")
+                else -> throw IllegalStateException("Craft crash reporter test crash")
+            }
+        }, 4_000)
+    }
+}
+
+/**
+ * Starts the crash reporter before anything else in the process: a content
+ * provider is created before Application.onCreate, for an activity, a push or
+ * a background refresh alike, which is the earliest an app can run code
+ * without an Application subclass.
+ */
+class CraftCrashReporterInit : ContentProvider() {
+    override fun onCreate(): Boolean {
+        context?.let { runCatching { CraftCrashReporter.start(it) } }
+        return true
+    }
+    override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? = null
+    override fun getType(uri: Uri): String? = null
+    override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
+    override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = 0
+}

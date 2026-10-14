@@ -194,8 +194,10 @@ struct CraftRecoveryBudget {
 
 final class CraftAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
-        UNUserNotificationCenter.current().delegate = self
         let config = CraftConfig.bundled()
+        // First, so a crash anywhere in the rest of launch is reported too.
+        CraftCrashReporter.shared.start(config)
+        UNUserNotificationCenter.current().delegate = self
         // Before launch finishes, which is the only time iOS accepts it.
         CraftBackgroundWork.shared.registerRefresh(config)
         // The shell, the app script and an all-native app's services now,
@@ -1297,6 +1299,9 @@ struct CraftConfig: Codable {
     /// The bundle route of the app script: a screen-less script that runs for
     /// the app's whole life and hears the app's events (CraftHybrid.swift).
     var nativeApp: String? = nil
+    /// Crash and error reporting to bughq (CraftCrashReporter.swift). Off
+    /// unless the config names a project key.
+    var crashReporting: CrashReporting? = nil
 
     struct Tab: Codable {
         var id: String
@@ -1310,6 +1315,18 @@ struct CraftConfig: Codable {
         var identifier: String? = nil
         /// The soonest iOS may run it again, in minutes (15 if unset).
         var minimumIntervalMinutes: Double? = nil
+    }
+
+    struct CrashReporting: Codable {
+        /// The bughq project's public ingest key.
+        var key: String
+        /// The bughq host; https://bughq.org if unset.
+        var host: String? = nil
+        var environment: String? = nil
+        /// The release events name; `<version>+<build>` if unset.
+        var release: String? = nil
+        /// A session per launch, for crash-free sessions. On unless false.
+        var sessions: Bool? = nil
     }
 }
 
@@ -3458,6 +3475,7 @@ struct CraftWebView: UIViewRepresentable {
                     heartRate: \(config.enableHeartRate),
                     scheduledWorkouts: \(config.enableScheduledWorkouts),
                     speech: true,
+                    crashReporter: \(CraftCrashReporter.shared.enabled),
                     network: true,
                     deviceInfo: true,
                     badge: true,
@@ -4448,6 +4466,38 @@ struct CraftWebView: UIViewRepresentable {
                         return new Promise(function(resolve, reject) {
                             self._callbacks[id] = {resolve: resolve, reject: reject};
                         });
+                    }
+                },
+
+                // Crash and error reporting (CraftCrashReporter.swift). The
+                // page's error SDK hands its events here, so they share the
+                // app's on-disk outbox (sent when online), its session and the
+                // device's own context. Each resolves at once: the work is a
+                // file write, and the send happens later.
+                crashReporter: {
+                    _post: function(message) {
+                        var self = window.craft;
+                        var id = 'cb_' + (++self._callbackId);
+                        message.callbackId = id;
+                        window.webkit.messageHandlers.craft.postMessage(message);
+                        return new Promise(function(resolve, reject) {
+                            self._callbacks[id] = {resolve: resolve, reject: reject};
+                        });
+                    },
+                    capture: function(event) {
+                        return this._post({action: 'crashReporterCapture', event: event || {}});
+                    },
+                    setUser: function(id) {
+                        return this._post({action: 'crashReporterSetUser', id: id == null ? null : String(id)});
+                    },
+                    addBreadcrumb: function(breadcrumb) {
+                        return this._post({action: 'crashReporterAddBreadcrumb', breadcrumb: breadcrumb || {}});
+                    },
+                    flush: function() {
+                        return this._post({action: 'crashReporterFlush'});
+                    },
+                    context: function() {
+                        return this._post({action: 'crashReporterContext'});
                     }
                 },
 

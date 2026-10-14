@@ -421,6 +421,33 @@ describe('the injected Android page script', () => {
   })
 })
 
+describe('craft.crashReporter on Android', () => {
+  it('hands Kotlin the event as JSON and resolves with what it answers', async () => {
+    const page = loadPage(undefined, true, { crashReporterCapture: true })
+    expect(await page.craft.crashReporter.capture({ type: 'TypeError', message: 'boom' })).toBe(true)
+    const [json] = page.argsOf('crashReporterCapture')!
+    expect(JSON.parse(json as string)).toEqual({ type: 'TypeError', message: 'boom' })
+  })
+
+  it('names the user by id as a string, and an empty string on sign-out', async () => {
+    const page = loadPage(undefined, true, { crashReporterSetUser: true })
+    await page.craft.crashReporter.setUser(967)
+    expect(page.argsOf('crashReporterSetUser')).toEqual(['967'])
+    await page.craft.crashReporter.setUser(null)
+    expect(page.argsOf('crashReporterSetUser')).toEqual([''])
+  })
+
+  it('reads the context Kotlin answers as JSON', async () => {
+    const page = loadPage(undefined, true, { crashReporterContext: JSON.stringify({ enabled: true, release: '1.0.0+41' }) })
+    expect(await page.craft.crashReporter.context()).toEqual({ enabled: true, release: '1.0.0+41' })
+  })
+
+  it('rejects instead of throwing when Kotlin does', async () => {
+    const page = loadPage(undefined, true, { crashReporterFlush: new Error('bridge closed') })
+    await expect(page.craft.crashReporter.flush()).rejects.toThrow('bridge closed')
+  })
+})
+
 describe('craft.speech on Android', () => {
   // The answer arrives later, from the engine's UtteranceProgressListener,
   // through window.__craftSpeechResult with the id the page handed over.

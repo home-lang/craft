@@ -183,7 +183,13 @@ const dispatch_end = "func webView(";
 /// at 45, so the two raise it by one. Like the other health reads they went
 /// into Swift first and fall through to the shim, which serves them. Not a
 /// regression: no action left Zig.
-const max_not_yet_migrated: usize = 46;
+/// 51 when the spec gained the crash reporter's five page actions
+/// (crashReporterCapture, crashReporterSetUser, crashReporterAddBreadcrumb,
+/// crashReporterFlush, crashReporterContext). They hand events to
+/// CraftCrashReporter.swift's on-disk outbox, which owns the signal handlers
+/// and MetricKit; they went into Swift first and fall through to the shim.
+/// Not a regression: no action left Zig.
+const max_not_yet_migrated: usize = 51;
 
 fn dispatcherRegion() []const u8 {
     // CraftApp.swift also contains chrome, console and bridge-relay handlers.

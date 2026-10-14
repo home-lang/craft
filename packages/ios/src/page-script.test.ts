@@ -753,6 +753,57 @@ describe('native SQLite binding', () => {
   })
 })
 
+describe('craft.crashReporter', () => {
+  // The page's error SDK hands its events to the app's crash reporter
+  // (CraftCrashReporter.swift), so they share the offline outbox.
+  it('offers the flag the reporter answers, which is off until it is configured', () => {
+    const { craft } = loadPage()
+    expect(craft.capabilities.crashReporter).toBe(false)
+  })
+
+  it('posts an event and settles with what native answers', async () => {
+    const { craft, last, answer } = loadPage()
+    const queued = craft.crashReporter.capture({ type: 'TypeError', message: 'boom' })
+    expect(last('crashReporterCapture')).toMatchObject({ event: { type: 'TypeError', message: 'boom' } })
+    expect(last('crashReporterCapture').callbackId).toMatch(/^cb_\d+$/)
+    answer('crashReporterCapture', true)
+    expect(await queued).toBe(true)
+  })
+
+  it('names the user by id only, as a string, and null on sign-out', async () => {
+    const { craft, last, answer } = loadPage()
+    const named = craft.crashReporter.setUser(967)
+    expect(last('crashReporterSetUser')).toMatchObject({ id: '967' })
+    answer('crashReporterSetUser', true)
+    await named
+    const cleared = craft.crashReporter.setUser(null)
+    expect(last('crashReporterSetUser')).toMatchObject({ id: null })
+    answer('crashReporterSetUser', true)
+    await cleared
+  })
+
+  it('adds breadcrumbs, flushes and reads the context through their own actions', async () => {
+    const { craft, last, answer } = loadPage()
+    const crumb = craft.crashReporter.addBreadcrumb({ type: 'navigation', message: '/m/calendar' })
+    expect(last('crashReporterAddBreadcrumb')).toMatchObject({ breadcrumb: { type: 'navigation', message: '/m/calendar' } })
+    answer('crashReporterAddBreadcrumb', true)
+    await crumb
+    const flushed = craft.crashReporter.flush()
+    answer('crashReporterFlush', true)
+    expect(await flushed).toBe(true)
+    const context = craft.crashReporter.context()
+    answer('crashReporterContext', { enabled: true, release: '1.0.0+41' })
+    expect(await context).toMatchObject({ release: '1.0.0+41' })
+  })
+
+  it('hands back the refusal native sends when reporting is not configured', async () => {
+    const { craft, refuse } = loadPage()
+    const queued = craft.crashReporter.capture({ message: 'x' })
+    refuse('crashReporterCapture', 'Crash reporting is not configured', 'CAPABILITY_DISABLED')
+    await expect(queued).rejects.toMatchObject({ code: 'CAPABILITY_DISABLED' })
+  })
+})
+
 describe('craft.speech', () => {
   // Spoken workout cues. Native rather than the page's speechSynthesis, which
   // in a WKWebView stops the person's music and obeys the silent switch.

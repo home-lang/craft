@@ -269,6 +269,26 @@ export interface CraftConfig {
    * `craft.secureStorage.getSync('auth.token')`. Turns on secure storage.
    */
   shareStorage?: Record<string, string>
+  /**
+   * Crash and error reporting to bughq (CraftCrashReporter.swift): crashes
+   * and hangs (signal handlers, NSException, MetricKit), uncaught JavaScript
+   * errors in native screens and the app script, and what the page sends
+   * through `craft.crashReporter`. Queued on disk and sent when online.
+   */
+  crashReporting?: CraftCrashReporting
+}
+
+export interface CraftCrashReporting {
+  /** The bughq project's public ingest key. Ships in the app; it is not a secret. */
+  key: string
+  /** The bughq host. Default https://bughq.org. */
+  host?: string
+  /** Default `production`. */
+  environment?: string
+  /** The release every event names. Default `<version>+<build>`, e.g. `1.0.0+41`. */
+  release?: string
+  /** One session per launch, for crash-free sessions per release. Default on. */
+  sessions?: boolean
 }
 
 export interface CraftTab {
@@ -834,7 +854,11 @@ export function renderFeatureSettings(config: Pick<CraftConfig, 'enableScheduled
 
 export function renderPrivacyManifest(config: CraftConfig): string {
   const privacy = config.privacy ?? {}
-  const collected = privacy.collectedDataTypes ?? []
+  const collected = [...(privacy.collectedDataTypes ?? [])]
+  // Crash reporting sends crash data and the app's own user id with it, so the
+  // manifest has to say so (App Store Connect reads it for the privacy label).
+  if (config.crashReporting?.key && !collected.some(item => item.type === 'NSPrivacyCollectedDataTypeCrashData'))
+    collected.push({ type: 'NSPrivacyCollectedDataTypeCrashData', linked: true, tracking: false, purposes: ['NSPrivacyCollectedDataTypePurposeAppFunctionality'] })
   const accessed = privacy.accessedApiTypes ?? []
   const collectedXml = collected.map(item => `        <dict>\n            <key>NSPrivacyCollectedDataType</key>\n            <string>${xmlEscape(item.type)}</string>\n            <key>NSPrivacyCollectedDataTypeLinked</key>\n            <${item.linked ? 'true' : 'false'}/>\n            <key>NSPrivacyCollectedDataTypeTracking</key>\n            <${item.tracking ? 'true' : 'false'}/>\n            <key>NSPrivacyCollectedDataTypePurposes</key>\n            <array>\n${plistArray(item.purposes, 4)}\n            </array>\n        </dict>`).join('\n')
   const accessedXml = accessed.map(item => `        <dict>\n            <key>NSPrivacyAccessedAPIType</key>\n            <string>${xmlEscape(item.type)}</string>\n            <key>NSPrivacyAccessedAPITypeReasons</key>\n            <array>\n${plistArray(item.reasons, 4)}\n            </array>\n        </dict>`).join('\n')
@@ -1293,6 +1317,11 @@ function writeShell(output: string, config: CraftConfig): void {
   cpSync(join(TEMPLATES_DIR, 'CraftNativeFiles.swift'), join(output, 'Sources', 'CraftNativeFiles.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftWebAudio.swift'), join(output, 'Sources', 'CraftWebAudio.swift'))
   cpSync(join(TEMPLATES_DIR, 'CraftHybrid.swift'), join(output, 'Sources', 'CraftHybrid.swift'))
+  // Always copied: without `crashReporting` in the config it installs nothing.
+  writeFileSync(
+    join(output, 'Sources', 'CraftCrashReporter.swift'),
+    readFileSync(join(TEMPLATES_DIR, 'CraftCrashReporter.swift'), 'utf-8').replace(/\{\{CRAFT_VERSION\}\}/g, CRAFT_VERSION),
+  )
 
   cpSync(join(TEMPLATES_DIR, 'CraftActivityAttributes.swift'), join(output, 'Shared', 'CraftActivityAttributes.swift'))
   for (const [enabled, folder, template, filename] of [

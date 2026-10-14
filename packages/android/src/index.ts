@@ -10,6 +10,30 @@ import { $ } from 'bun'
 import { renderAndroidPromiseRuntime } from './promise-runtime'
 
 const TEMPLATES_DIR = join(dirname(import.meta.dir), 'templates')
+
+/**
+ * This builder's version, which the crash reporter names as its SDK version.
+ * Walks up from here because a bundled build puts this module below the
+ * package root.
+ */
+function resolveCraftAndroidVersion(startDir: string = import.meta.dir): string {
+  let directory = resolve(startDir)
+  while (true) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')) as { name?: unknown, version?: unknown }
+      if ((pkg.name === '@craft-native/android' || pkg.name === 'craft-native') && typeof pkg.version === 'string' && pkg.version)
+        return pkg.version
+    }
+    catch {
+      // Keep walking.
+    }
+    const parent = dirname(directory)
+    if (parent === directory) return '0.0.0'
+    directory = parent
+  }
+}
+
+const CRAFT_ANDROID_VERSION = resolveCraftAndroidVersion()
 const LOCAL_DEVELOPMENT_HOSTS = new Set(['localhost', '127.0.0.1', '10.0.2.2'])
 const KOTLIN_KEYWORDS = new Set([
   'as',
@@ -110,6 +134,25 @@ export interface CraftAndroidConfig {
   nativeApp?: string
   /** Wake the app script every so often (`craftBackgroundRefresh`), through WorkManager. */
   backgroundRefresh?: { enabled?: boolean, minimumIntervalMinutes?: number }
+  /**
+   * Crash and error reporting to bughq (CraftCrashReporter.kt): uncaught JVM
+   * exceptions, ANRs and native crashes (ApplicationExitInfo), uncaught
+   * JavaScript errors, and what the page sends through `craft.crashReporter`.
+   * Queued on disk and sent when online. Release builds are minified: upload
+   * `app/build/outputs/mapping/release/mapping.txt` so bughq can retrace.
+   */
+  crashReporting?: {
+    /** The bughq project's public ingest key. */
+    key: string
+    /** Default https://bughq.org. */
+    host?: string
+    /** Default `production`. */
+    environment?: string
+    /** Default `<versionName>+<versionCode>`, e.g. `1.0.0+41`. */
+    release?: string
+    /** One session per launch, for crash-free sessions. Default on. */
+    sessions?: boolean
+  }
 }
 
 /** The shared health data types (the iOS builder's HealthKit names). */
@@ -717,6 +760,13 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{APP_NAME\}\}/g, name)
 
   writeFileSync(join(output, 'app/src/main/java', packagePath, 'MainActivity.kt'), mainActivity)
+  // Both renderers: crash reporting does not depend on how screens are drawn.
+  writeFileSync(
+    join(output, 'app/src/main/java', packagePath, 'CraftCrashReporter.kt'),
+    readFileSync(join(TEMPLATES_DIR, 'CraftCrashReporter.kt.template'), 'utf-8')
+      .replace(/\{\{PACKAGE_NAME\}\}/g, finalPackageName)
+      .replace(/\{\{CRAFT_VERSION\}\}/g, CRAFT_ANDROID_VERSION),
+  )
   if (config.renderer === 'native') {
     const mutationTemplate = readFileSync(join(TEMPLATES_DIR, 'CraftNativeMutation.kt.template'), 'utf-8')
     const flatListTemplate = readFileSync(join(TEMPLATES_DIR, 'CraftNativeFlatList.kt.template'), 'utf-8')
@@ -825,6 +875,9 @@ export async function init(options: InitOptions): Promise<void> {
     .replace(/\{\{NATIVE_NOTIFICATION_RECEIVER\}\}/g, config.renderer === 'native'
       ? renderNativeShellManifest(config)
       : '')
+    // Starts the crash reporter before Application.onCreate, for every way
+    // the process starts (CraftCrashReporter.kt). Inert without a key.
+    .replace(/\{\{CRASH_REPORTER_PROVIDER\}\}/g, `        <provider android:name=".CraftCrashReporterInit" android:authorities="\${applicationId}.craft-crash" android:exported="false" android:initOrder="1000" />`)
     .replace(/\{\{GOOGLE_MAPS_API_KEY\}\}/g, config.mapsApiKey
       ? `        <meta-data android:name="com.google.android.geo.API_KEY" android:value="${escapeXml(config.mapsApiKey)}" />`
       : '')

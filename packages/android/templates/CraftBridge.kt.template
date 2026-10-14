@@ -418,6 +418,7 @@ class CraftBridge(
                     appReview: true,
                     flashlight: {{ENABLE_CAMERA}} && ${hasFlashlight()},
                     speech: true,
+                    crashReporter: ${CraftCrashReporter.enabled},
                     brightness: true,
                     openURL: true,
                     vibrationPattern: true,
@@ -1748,6 +1749,26 @@ class CraftBridge(
                         return Promise.resolve().then(function() { CraftAndroid.stopSpeaking(); });
                     }
                 };
+                // Crash and error reporting (CraftCrashReporter.kt): the page's
+                // error SDK hands its events here, so they share the app's
+                // on-disk outbox, its session and the device's own context.
+                craft.crashReporter = {
+                    capture: function(event) {
+                        return Promise.resolve().then(function() { return CraftAndroid.crashReporterCapture(JSON.stringify(event || {})); });
+                    },
+                    setUser: function(id) {
+                        return Promise.resolve().then(function() { return CraftAndroid.crashReporterSetUser(id == null ? '' : String(id)); });
+                    },
+                    addBreadcrumb: function(breadcrumb) {
+                        return Promise.resolve().then(function() { return CraftAndroid.crashReporterAddBreadcrumb(JSON.stringify(breadcrumb || {})); });
+                    },
+                    flush: function() {
+                        return Promise.resolve().then(function() { return CraftAndroid.crashReporterFlush(); });
+                    },
+                    context: function() {
+                        return Promise.resolve().then(function() { return JSON.parse(CraftAndroid.crashReporterContext()); });
+                    }
+                };
                 craft.location = {
                     getCurrentPosition: craft.getCurrentPosition,
                     watchPosition: craft.watchPosition,
@@ -1858,6 +1879,36 @@ class CraftBridge(
         }
         return true
     }
+
+    // ==================== Crash reporting ====================
+
+    /** Queues an event the page built; false when reporting is off or the event has no message. */
+    @JavascriptInterface
+    fun crashReporterCapture(eventJson: String): Boolean =
+        runCatching { CraftCrashReporter.capture(JSONObject(eventJson)) }.getOrDefault(false)
+
+    @JavascriptInterface
+    fun crashReporterSetUser(id: String): Boolean {
+        CraftCrashReporter.setUser(id)
+        return CraftCrashReporter.enabled
+    }
+
+    @JavascriptInterface
+    fun crashReporterAddBreadcrumb(breadcrumbJson: String): Boolean {
+        val crumb = runCatching { JSONObject(breadcrumbJson) }.getOrNull() ?: return false
+        CraftCrashReporter.addBreadcrumb(crumb)
+        return CraftCrashReporter.enabled
+    }
+
+    @JavascriptInterface
+    fun crashReporterFlush(): Boolean {
+        CraftCrashReporter.requestFlush()
+        return CraftCrashReporter.enabled
+    }
+
+    @JavascriptInterface
+    fun crashReporterContext(): String =
+        if (CraftCrashReporter.enabled) CraftCrashReporter.context().toString() else JSONObject().put("enabled", false).toString()
 
     // ==================== Speech Recognition ====================
 

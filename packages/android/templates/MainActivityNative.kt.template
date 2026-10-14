@@ -3057,6 +3057,16 @@ class MainActivity : AppCompatActivity() {
         }.getOrDefault(JSONObject())
         hapticsEnabled = config.optBoolean("enableHaptics", false)
         clipboardEnabled = config.optBoolean("enableClipboard", false)
+        // Normally started already by its content provider; this covers a
+        // process that skipped providers (instrumentation).
+        CraftCrashReporter.start(this)
+        if (BuildConfig.DEBUG && savedInstanceState == null) {
+            CraftCrashReporter.debugCrashTestRequested(intent?.getStringExtra("craftCrashTest")) { message ->
+                appScreen?.takeIf { it.active }?.let { app ->
+                    reportJavaScriptFailure(app, app.isolate.evaluateJavaScriptAsync("(function crashReporterTest() { throw new TypeError(${JSONObject.quote(message)}); })()"))
+                }
+            }
+        }
         capabilities = CraftNativeCapabilities(this, config)
         routes = CraftNativeRoutes(config)
         stores = CraftNativeStores.get(this, config)
@@ -3592,6 +3602,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     } catch (error: Exception) {
                         Log.e(TAG, "Native STX bundle failed", error)
+                        reportJavaScriptError(activeScreen, error)
                         if (activeScreen.active) showError("Native STX bundle failed: ${error.message}")
                     }
                 }, executor)
@@ -3609,6 +3620,8 @@ class MainActivity : AppCompatActivity() {
      * screen shown before hears true (its `navigation.onAppear`).
      */
     private fun show(screen: Screen) {
+        // A navigation breadcrumb: the trail a crash report carries.
+        if (visibleScreen !== screen) CraftCrashReporter.screenAppeared(screen.route ?: "home")
         val bars = chrome
         val host: ViewGroup = bars?.content ?: root
         host.removeAllViews()
@@ -5820,8 +5833,38 @@ class MainActivity : AppCompatActivity() {
             screen.port.postMessage(Message.createStringMessage(message.toString()))
         } else {
             val script = "globalThis.__stxNativeCallback && globalThis.__stxNativeCallback(${JSONObject.quote(message.toString())})"
-            screen.isolate.evaluateJavaScriptAsync(script)
+            reportJavaScriptFailure(screen, screen.isolate.evaluateJavaScriptAsync(script))
         }
+    }
+
+    /**
+     * An error JavaScript threw and nothing caught, to the crash reporter. A
+     * sandbox has no global error event: an uncaught error surfaces only as
+     * the evaluation's future failing, so every evaluation that runs a
+     * screen's code reports through here.
+     */
+    private fun reportJavaScriptFailure(screen: Screen, future: com.google.common.util.concurrent.ListenableFuture<String>) {
+        if (!CraftCrashReporter.enabled) return
+        future.addListener({
+            try {
+                future.get()
+            } catch (error: Exception) {
+                reportJavaScriptError(screen, error)
+            }
+        }, java.util.concurrent.Executor { command -> command.run() })
+    }
+
+    private fun reportJavaScriptError(screen: Screen, error: Throwable) {
+        val cause = (error as? java.util.concurrent.ExecutionException)?.cause ?: error
+        if (cause is java.util.concurrent.CancellationException || cause is androidx.javascriptengine.IsolateTerminatedException) return
+        val text = cause.message ?: cause.javaClass.simpleName
+        // JavaScriptSandbox reports "Uncaught TypeError: message" and, when it
+        // has one, the stack after a newline.
+        val firstLine = text.lineSequence().firstOrNull()?.removePrefix("Uncaught ")?.trim() ?: text
+        val name = Regex("^([A-Z][A-Za-z]*Error|Error):").find(firstLine)?.groupValues?.get(1)
+        val message = if (name != null) firstLine.removePrefix("$name:").trim() else firstLine
+        val stack = text.lineSequence().drop(1).joinToString("\n").ifBlank { null }
+        CraftCrashReporter.captureJavaScript(name, message, stack, screen.route ?: "home", screen.headless)
     }
 
     /** Back to the first screen in one move. */

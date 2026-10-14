@@ -82,6 +82,8 @@ enum CraftNativeActions {
         // which the native Video element plays in place of the address.
         values.append("media")
         if config.enableCamera { values.append("camera") }
+        // craft.crashReporter: the app's crash and error reporter (bughq).
+        if config.crashReporting?.key.isEmpty == false { values.append("crashReporter") }
         return values
     }
 
@@ -108,6 +110,32 @@ enum CraftNativeActions {
         case "clipboardRead":
             guard config.enableClipboard else { return failure("CAPABILITY_DISABLED", "Clipboard is disabled") }
             return .success(UIPasteboard.general.string ?? "")
+        // Crash reporting (CraftCrashReporter.swift): on when the config names
+        // a bughq key. Each answers at once; delivery is the outbox's job.
+        case "crashReporterCapture":
+            guard CraftCrashReporter.shared.enabled else { return failure("CAPABILITY_DISABLED", "Crash reporting is not configured") }
+            guard let event = body["event"] as? [String: Any] else {
+                return failure("INVALID_ARGUMENT", "crashReporterCapture was called without the values it needs")
+            }
+            CraftCrashReporter.shared.capture(event)
+            return .success(true)
+        case "crashReporterSetUser":
+            guard CraftCrashReporter.shared.enabled else { return failure("CAPABILITY_DISABLED", "Crash reporting is not configured") }
+            CraftCrashReporter.shared.setUser(body["id"] as? String)
+            return .success(true)
+        case "crashReporterAddBreadcrumb":
+            guard CraftCrashReporter.shared.enabled else { return failure("CAPABILITY_DISABLED", "Crash reporting is not configured") }
+            guard let crumb = body["breadcrumb"] as? [String: Any] else {
+                return failure("INVALID_ARGUMENT", "crashReporterAddBreadcrumb was called without the values it needs")
+            }
+            CraftCrashReporter.shared.addBreadcrumb(crumb)
+            return .success(true)
+        case "crashReporterFlush":
+            guard CraftCrashReporter.shared.enabled else { return failure("CAPABILITY_DISABLED", "Crash reporting is not configured") }
+            CraftCrashReporter.shared.requestFlush()
+            return .success(true)
+        case "crashReporterContext":
+            return .success(CraftCrashReporter.shared.context())
         default:
             return nil
         }
@@ -134,6 +162,16 @@ enum CraftNativeActions {
         switch (module, method) {
         case ("Device", "getInfo"):
             sync = perform(action: "getDeviceInfo", body: [:], config: config)
+        case ("CrashReporter", "capture"):
+            sync = perform(action: "crashReporterCapture", body: ["event": args.first ?? NSNull()], config: config)
+        case ("CrashReporter", "setUser"):
+            sync = perform(action: "crashReporterSetUser", body: ["id": args.first ?? NSNull()], config: config)
+        case ("CrashReporter", "addBreadcrumb"):
+            sync = perform(action: "crashReporterAddBreadcrumb", body: ["breadcrumb": args.first ?? NSNull()], config: config)
+        case ("CrashReporter", "flush"):
+            sync = perform(action: "crashReporterFlush", body: [:], config: config)
+        case ("CrashReporter", "context"):
+            sync = perform(action: "crashReporterContext", body: [:], config: config)
         case ("Haptics", "impact"):
             sync = perform(action: "haptic", body: ["style": args.first ?? NSNull()], config: config)
         case ("Haptics", "notification"):
@@ -575,8 +613,14 @@ enum CraftNativeActions {
             cancellationLock.unlock()
             if let error = error {
                 let code = (error as? URLError)?.code == .timedOut ? "TIMEOUT" : "NETWORK_ERROR"
+                if (error as? URLError)?.code != .cancelled {
+                    CraftCrashReporter.shared.requestFailed(method: method, url: url, status: nil, error: code)
+                }
                 complete(requestToken, failure(code, error.localizedDescription), completion)
                 return
+            }
+            if let http = response as? HTTPURLResponse, http.statusCode >= 400 {
+                CraftCrashReporter.shared.requestFailed(method: method, url: url, status: http.statusCode, error: nil)
             }
             guard let http = response as? HTTPURLResponse else {
                 complete(requestToken, failure("NETWORK_ERROR", "fetch received a response that is not HTTP"), completion)

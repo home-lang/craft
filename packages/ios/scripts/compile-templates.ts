@@ -88,6 +88,8 @@ const fixtures: CompileFixture[] = [
       enableHeartRate: true,
       enablePushNotifications: true,
       backgroundRefresh: { enabled: true },
+      // CraftCrashReporter.swift installs only with a key: compile it on.
+      crashReporting: { key: 'bughq_templates', host: 'https://bughq.org', environment: 'ci' },
     },
   },
 ]

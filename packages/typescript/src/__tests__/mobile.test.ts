@@ -24,7 +24,7 @@ import type {
   LiveActivityHandle,
   LiveActivityOptions,
 } from '../api/mobile'
-import mobile, { biometrics, brightness, bridgeNotification, health, heartRate, music, normalizeDeepLinkURL, normalizeScheduledWorkout, scheduledWorkouts, normalizeHeartRateSamples, normalizeNowPlaying, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
+import mobile, { biometrics, brightness, bridgeNotification, crashReporter, health, heartRate, music, normalizeDeepLinkURL, normalizeScheduledWorkout, scheduledWorkouts, normalizeHeartRateSamples, normalizeNowPlaying, notifications, pushNotifications, secureStorage, speech, splash, tabBar, watchConnectivity } from '../api/mobile'
 
 describe('Mobile deep links', () => {
   it('normalizes native payloads to the public string contract', () => {
@@ -268,6 +268,76 @@ function fakeWebSpeech() {
   }
   return { window: { speechSynthesis, SpeechSynthesisUtterance: Utterance }, spoken, cancels: () => cancels }
 }
+
+describe('Mobile crash reporter', () => {
+  async function withCraft(craft: Record<string, unknown> | undefined, body: () => Promise<void>): Promise<void> {
+    const previous = (globalThis as any).craft
+    if (craft === undefined) delete (globalThis as any).craft
+    else (globalThis as any).craft = craft
+    try {
+      await body()
+    }
+    finally {
+      if (previous === undefined) delete (globalThis as any).craft
+      else (globalThis as any).craft = previous
+    }
+  }
+
+  it('hands events, the user id and breadcrumbs to the native reporter', async () => {
+    const calls: unknown[][] = []
+    const bridge = {
+      capture: async (event: unknown) => { calls.push(['capture', event]); return true },
+      setUser: async (id: unknown) => { calls.push(['setUser', id]); return true },
+      addBreadcrumb: async (crumb: unknown) => { calls.push(['addBreadcrumb', crumb]); return true },
+      flush: async () => { calls.push(['flush']); return true },
+      context: async () => ({ enabled: true, release: '1.0.0+41' }),
+    }
+    // A web view declares capability flags; a native screen lists names.
+    for (const capabilities of [{ crashReporter: true }, ['crashReporter']]) {
+      await withCraft({ crashReporter: bridge, capabilities }, async () => {
+        expect(crashReporter.isAvailable()).toBe(true)
+      })
+    }
+    await withCraft({ crashReporter: bridge, capabilities: ['crashReporter'] }, async () => {
+      expect(await crashReporter.capture({ type: 'TypeError', message: 'boom' })).toBe(true)
+      expect(await crashReporter.setUser(967)).toBe(true)
+      expect(await crashReporter.setUser(null)).toBe(true)
+      expect(await crashReporter.addBreadcrumb({ type: 'navigation', message: '/m' })).toBe(true)
+      expect(await crashReporter.flush()).toBe(true)
+      expect(await crashReporter.context()).toEqual({ enabled: true, release: '1.0.0+41' })
+    })
+    expect(calls).toEqual([
+      ['capture', { type: 'TypeError', message: 'boom' }],
+      ['setUser', '967'],
+      ['setUser', null],
+      ['addBreadcrumb', { type: 'navigation', message: '/m' }],
+      ['flush'],
+    ])
+  })
+
+  it('answers false and null off the app, and never throws for a bridge that refuses', async () => {
+    await withCraft(undefined, async () => {
+      expect(crashReporter.isAvailable()).toBe(false)
+      expect(await crashReporter.capture({ message: 'x' })).toBe(false)
+      expect(await crashReporter.context()).toBeNull()
+    })
+    const refusing = { capture: async () => { throw new Error('CAPABILITY_DISABLED') }, setUser: async () => { throw new Error('no') }, addBreadcrumb: async () => false, flush: async () => false, context: async () => { throw new Error('no') } }
+    await withCraft({ crashReporter: refusing, capabilities: { crashReporter: false } }, async () => {
+      expect(crashReporter.isAvailable()).toBe(false)
+      expect(await crashReporter.capture({ message: 'x' })).toBe(false)
+      expect(await crashReporter.setUser('1')).toBe(false)
+      expect(await crashReporter.context()).toBeNull()
+    })
+  })
+
+  it('refuses an event without a message rather than queueing one bughq would reject', async () => {
+    let called = false
+    await withCraft({ crashReporter: { capture: async () => { called = true; return true } }, capabilities: ['crashReporter'] }, async () => {
+      expect(await crashReporter.capture({ type: 'Error' })).toBe(false)
+    })
+    expect(called).toBe(false)
+  })
+})
 
 describe('Mobile speech', () => {
   it('speaks through the native bridge when the app has one', async () => {

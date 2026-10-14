@@ -2284,3 +2284,46 @@ describe('runtime staleness', () => {
     expect(readFileSync(join(output, 'Runtime', 'device', 'libcraft-ios.a'), 'utf8')).toBe('from init')
   })
 })
+
+describe('crash reporting (CraftCrashReporter.swift)', () => {
+  it('copies the reporter into every shell, versioned, and starts it first at launch', async () => {
+    const output = mkdtempSync(join(tmpdir(), 'craft-ios-crash-'))
+    await init({ name: 'Crash', bundleId: 'dev.craft.crash', output, runtimeDir: null, config: { crashReporting: { key: 'bughq_k' } } })
+    const reporter = readFileSync(join(output, 'Sources', 'CraftCrashReporter.swift'), 'utf8')
+    expect(reporter).not.toContain('{{CRAFT_VERSION}}')
+    expect(reporter).toContain(`"${resolveCraftVersion()}"`)
+    const app = readFileSync(join(output, 'Sources', 'CrashApp.swift'), 'utf8')
+    const launch = app.indexOf('func application(_ application: UIApplication, didFinishLaunchingWithOptions')
+    expect(app.indexOf('CraftCrashReporter.shared.start(config)', launch)).toBeGreaterThan(launch)
+    expect(app.indexOf('CraftCrashReporter.shared.start(config)', launch)).toBeLessThan(app.indexOf('CraftHybrid.shared.configure(config)', launch))
+    expect(JSON.parse(readFileSync(join(output, 'craft.config.json'), 'utf8')).crashReporting).toEqual({ key: 'bughq_k' })
+  })
+
+  it('declares crash data in the privacy manifest only when reporting is on', () => {
+    const base = { appName: 'Crash', bundleId: 'dev.craft.crash' }
+    expect(renderPrivacyManifest(base)).not.toContain('NSPrivacyCollectedDataTypeCrashData')
+    const manifest = renderPrivacyManifest({ ...base, crashReporting: { key: 'bughq_k' } })
+    expect(manifest).toContain('NSPrivacyCollectedDataTypeCrashData')
+    expect(manifest).toContain('NSPrivacyCollectedDataTypePurposeAppFunctionality')
+    // Not twice when the app already declared it.
+    const declared = renderPrivacyManifest({
+      ...base,
+      crashReporting: { key: 'bughq_k' },
+      privacy: { collectedDataTypes: [{ type: 'NSPrivacyCollectedDataTypeCrashData', purposes: ['NSPrivacyCollectedDataTypePurposeAnalytics'] }] },
+    })
+    expect(declared.match(/NSPrivacyCollectedDataTypeCrashData/g)?.length).toBe(1)
+  })
+
+  it('keeps the signal handler to async-signal-safe calls', () => {
+    // The handler runs with the process in an unknown state: no Swift
+    // collections, strings or allocation between its first and last line.
+    const source = readFileSync(join(import.meta.dir, '../templates/CraftCrashReporter.swift'), 'utf8')
+    const start = source.indexOf('private func craftSignalHandler(')
+    const end = source.indexOf('\n}\n', start)
+    const handler = source.slice(start, end)
+    expect(handler).not.toMatch(/\[[A-Za-z]+\]\(|String\(|"\\\(|\.append\(|JSONSerialization|NSLog|print\(/)
+    expect(handler).toContain('raise(signal)')
+    // The test crash exists only in Debug builds.
+    expect(source).toMatch(/#if DEBUG\n {4}\/\/\/ `-CraftCrashTest/)
+  })
+})
