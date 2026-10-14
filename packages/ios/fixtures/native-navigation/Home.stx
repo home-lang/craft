@@ -33,6 +33,7 @@ const layoutWidth = state(0)
 const layoutWide = state(true)
 const imageStatus = state('')
 const imageErrorStatus = state('')
+const imageBackgroundErrorStatus = state('')
 const imageFailureCount = state(0)
 const imageTinted = state(true)
 const imageSource = state('http://example.com/image.png')
@@ -166,6 +167,10 @@ function imageLoaded() {
 function imageFailed() {
   imageErrorStatus.set('image failed')
   imageFailureCount.update(value => value + 1)
+}
+
+function imageBackgroundFailed() {
+  imageBackgroundErrorStatus.set('background failed')
 }
 
 function toggleImageSource() {
@@ -399,6 +404,16 @@ function captureSectionScroll() {
       >
         <Text testID="native-image-background-label" style={{"color":"#ffffff"}}>Background child</Text>
       </ImageBackground>
+      <ImageBackground
+        testID="unsupported-image-background"
+        source={currentImage()}
+        accessibilityLabel="Unsupported background"
+        @error="imageBackgroundFailed()"
+        style={{"width":80,"height":36}}
+      >
+        <Text style={{"color":"#ffffff"}}>Broken background</Text>
+      </ImageBackground>
+      <Text testID="image-background-error-status" :text="imageBackgroundErrorStatus" />
       <KeyboardAvoidingView
         testID="native-keyboard-avoiding"
         behavior="padding"

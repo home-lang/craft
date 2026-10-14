@@ -216,6 +216,11 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(image.waitForExistence(timeout: 10))
         let imageBackground = app.images["native-image-background"]
         XCTAssertTrue(imageBackground.waitForExistence(timeout: 10), "ImageBackground did not mount as a native image container")
+        let unsupportedBackground = app.images["unsupported-image-background"]
+        XCTAssertTrue(unsupportedBackground.waitForExistence(timeout: 10), "unsupported ImageBackground did not mount")
+        XCTAssertTrue(waitForLabel(app.staticTexts["image-background-error-status"], "background failed"))
+        let unsupportedBackgroundValue = (unsupportedBackground.value as? String) ?? ""
+        XCTAssertTrue(unsupportedBackgroundValue.contains("Unsupported image source"), "ImageBackground error did not reach accessibilityValue")
         XCTAssertTrue(app.otherElements["native-keyboard-avoiding"].waitForExistence(timeout: 10), "KeyboardAvoidingView did not mount as a native container")
         let svg = app.otherElements["native-svg"]
         XCTAssertTrue(svg.waitForExistence(timeout: 5), "SVG fixture did not mount as a native view")
