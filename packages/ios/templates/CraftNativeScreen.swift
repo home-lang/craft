@@ -6061,7 +6061,11 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     /// Countdown values use seconds when numeric, or `HH:mm[:ss]` text.
     static func countdownDuration(_ value: Any?) -> TimeInterval? {
         let maximum: TimeInterval = 23 * 3600 + 59 * 60 + 59
-        if let number = value as? NSNumber, !(value is Bool) { return min(maximum, max(0, number.doubleValue)) }
+        if let number = value as? NSNumber, !(value is Bool) {
+            let seconds = number.doubleValue
+            guard seconds.isFinite else { return nil }
+            return min(maximum, max(0, seconds))
+        }
         guard let text = (value as? String)?.trimmingCharacters(in: .whitespaces), !text.isEmpty else { return nil }
         if let seconds = Double(text), seconds.isFinite { return min(maximum, max(0, seconds)) }
         let parts = text.split(separator: ":")
@@ -6069,7 +6073,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
               let hours = Double(parts[0]),
               let minutes = Double(parts[1]) else { return nil }
         let seconds = parts.count == 3 ? (Double(parts[2]) ?? -1) : 0
-        guard hours >= 0, minutes >= 0, minutes < 60, seconds >= 0, seconds < 60 else { return nil }
+        guard hours.isFinite, minutes.isFinite, seconds.isFinite,
+              hours >= 0, minutes >= 0, minutes < 60, seconds >= 0, seconds < 60 else { return nil }
         return min(maximum, hours * 3600 + minutes * 60 + seconds)
     }
 
