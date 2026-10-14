@@ -574,15 +574,16 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
             val type = child.optString("type").lowercase()
             val props = child.optJSONObject("props") ?: JSONObject()
             val events = child.optJSONObject("events") ?: JSONObject()
-            val id = props.opt("id")?.takeUnless { it == JSONObject.NULL }?.toString()
-                ?: child.optString("id").takeIf { it.isNotBlank() }
+            val id = craftNativeOptionalString(props.opt("id"))
+                ?: craftNativeOptionalString(child.opt("id"))
                 ?: "overlay-$index"
             val points = coordinates(props.optJSONArray("geometry"))
             if (type == "mapmarker" || type == "marker") {
                 points.firstOrNull()?.let { point ->
                     nextMarkers[id] = point to craftNativeOptionalString(props.opt("title"))
-                    events.optString("onPress").ifBlank { events.optString("onMarkerPress") }
-                        .takeIf { it.isNotBlank() }?.let { nextHandlers[id] = it }
+                    listOf(events.opt("onPress"), events.opt("onMarkerPress"))
+                        .firstNotNullOfOrNull(::craftNativeOptionalString)
+                        ?.let { nextHandlers[id] = it }
                 }
             } else if (type == "mappolyline" || type == "polyline") {
                 if (points.size > 1) {
