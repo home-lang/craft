@@ -655,7 +655,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('configureText(this, title, style)')
     expect(android).toContain('craftNativeOptionalString(props.opt("color"))?.let { setTextColor(color(it, defaultTextColor)) }')
     expect(android).toContain('val linkColor = craftNativeOptionalString(props.opt("color")) ?: craftNativeOptionalString(style.opt("color"))')
-    expect(android).toContain('setTextColor(color(linkColor, Color.rgb(33, 150, 243)))')
+    expect(android).toContain('setTextColor(color(linkColor.orEmpty(), Color.rgb(33, 150, 243)))')
     expect(android).toContain('(previous as? TextView)?.takeUnless { it is Button } ?: TextView(this)')
   })
 
@@ -1068,7 +1068,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('private fun invalidateMeasurements()')
     expect(android).toContain('memos.clear()')
     expect(android).toContain('lastProbe.clear()')
-    expect(android).toContain('private fun invalidateMeasurementAncestors(start: ViewParent?)')
+    expect(android).toContain('fun invalidateMeasurementAncestors(start: ViewParent?)')
     expect(android).toContain('is CraftNativeKeyboardAvoidingView -> ancestor.content.invalidateMeasurements()')
     expect(android).toContain('is CraftNativeScrollView -> ancestor.invalidateContentLayout()')
     expect(android).toContain('invalidateMeasurementAncestors(parent)')

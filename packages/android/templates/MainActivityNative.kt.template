@@ -744,19 +744,6 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
 }
 
 /** A deterministic flex-shaped container shared by normal views and scroll content. */
-private fun invalidateMeasurementAncestors(start: ViewParent?) {
-        var ancestor = start
-        while (ancestor != null) {
-            when (ancestor) {
-                is CraftNativeFlexLayout -> ancestor.invalidateIntrinsicMeasurements()
-                is CraftNativeKeyboardAvoidingView -> ancestor.content.invalidateIntrinsicMeasurements()
-                is CraftNativeScrollView -> ancestor.invalidateContentLayout()
-            }
-            ancestor = (ancestor as? View)?.parent
-        }
-    }
-
-
 private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
     var onLayoutChanged: (() -> Unit)? = null
     private val styles = mutableMapOf<View, CraftNativeLayoutStyle>()
@@ -862,8 +849,6 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
      * must invalidate it immediately or the next layout can reuse a child's
      * old intrinsic width/height.
      */
-    fun invalidateIntrinsicMeasurements() { invalidateMeasurements() }
-
     private fun invalidateMeasurements() {
         memos.clear()
         lastProbe.clear()
@@ -871,6 +856,20 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
         requestLayout()
     }
 
+    companion object {
+        /** Clears the memoized measurements of every flex host above `start`. The activity calls it too (an image whose source changed). */
+        fun invalidateMeasurementAncestors(start: ViewParent?) {
+            var ancestor = start
+            while (ancestor != null) {
+                when (ancestor) {
+                    is CraftNativeFlexLayout -> ancestor.invalidateMeasurements()
+                    is CraftNativeKeyboardAvoidingView -> ancestor.content.invalidateMeasurements()
+                    is CraftNativeScrollView -> ancestor.invalidateContentLayout()
+                }
+                ancestor = (ancestor as? View)?.parent
+            }
+        }
+    }
 
     /**
      * Lays a child out at its final frame, measuring it again at exactly
@@ -4090,7 +4089,7 @@ class MainActivity : AppCompatActivity() {
                 includeFontPadding = false
                 configureText(this, craftNativeOptionalString(props.opt("title")) ?: childText(children), style)
                 val linkColor = craftNativeOptionalString(props.opt("color")) ?: craftNativeOptionalString(style.opt("color"))
-                setTextColor(color(linkColor ?: "", Color.rgb(33, 150, 243)))
+                setTextColor(color(linkColor.orEmpty(), Color.rgb(33, 150, 243)))
                 paintFlags = paintFlags or Paint.UNDERLINE_TEXT_FLAG
                 isEnabled = !props.optBoolean("disabled", false)
                 isClickable = true
@@ -5456,7 +5455,7 @@ class MainActivity : AppCompatActivity() {
     private fun imageDidChange(view: ImageView) {
         view.invalidate()
         view.requestLayout()
-        invalidateMeasurementAncestors(view.parent)
+        CraftNativeFlexLayout.invalidateMeasurementAncestors(view.parent)
     }
 
     private fun emitImageEvent(screen: Screen, view: ImageView, handler: String?, nativeEvent: JSONObject = JSONObject()) {
