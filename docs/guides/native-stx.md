@@ -637,6 +637,11 @@ whose own Back steps through it (a tour's questions). A screen that should
 keep back navigation but own the tab gesture can independently set
 `craft.navigation.setOptions({ tabSwipeEnabled: false })`.
 
+`rightButtons` may contain SF Symbol, title, account, and badge buttons. On
+iOS, account-style buttons are independent 44-point custom bar items with
+their own circular material surface; they opt out of iOS 26's shared bar-item
+platter so adjacent buttons cannot merge into one oversized background.
+
 Both maintained native hosts expose the same tab-swipe contract. In a hybrid
 app, the iOS shell's gesture also covers the WebView. Pass
 `swipeEnabled: false` to `craft.tabBar.set` when the page owns a horizontal

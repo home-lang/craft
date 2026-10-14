@@ -1342,6 +1342,8 @@ describe('Craft iOS builder', () => {
     const swift = readFileSync(join(import.meta.dir, '..', 'templates', 'CraftNativeScreen.swift'), 'utf8')
     const button = swift.slice(swift.indexOf('private func accountNavigationButton'))
     expect(button).toContain('let surface = Self.floatingSurface(diameter: 44)')
+    expect(button).toContain('button.widthAnchor.constraint(equalToConstant: 44)')
+    expect(button).toContain('button.heightAnchor.constraint(equalToConstant: 44)')
     expect(button).toContain('button.tintColor = .systemBlue')
     // No flat fill under the glass.
     expect(button).not.toContain('.tertiarySystemFill')

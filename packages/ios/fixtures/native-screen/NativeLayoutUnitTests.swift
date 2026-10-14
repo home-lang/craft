@@ -442,6 +442,10 @@ final class NativeLayoutUnitTests: XCTestCase {
             XCTAssertEqual(surface.layer.cornerRadius, 22)
             XCTAssertFalse(surface.isUserInteractionEnabled)
             XCTAssertEqual(button.subviews.filter { $0 is UIVisualEffectView }.count, 1)
+            let width = try XCTUnwrap(button.constraints.first { $0.firstAttribute == .width })
+            let height = try XCTUnwrap(button.constraints.first { $0.firstAttribute == .height })
+            XCTAssertEqual(width.constant, 44)
+            XCTAssertEqual(height.constant, 44)
         }
         XCTAssertTrue(items.allSatisfy { $0.customView is UIButton })
     }
