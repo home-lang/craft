@@ -1,5 +1,23 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.174...v0.0.175)
+
+## 🚀 Features
+
+- **native**: gate map location and lifecycle ([014c8b2](https://github.com/craft-native/craft/commit/014c8b2)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **native**: preserve map polyline widths ([8381084](https://github.com/craft-native/craft/commit/8381084)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **ios**: cover native badge capability ([f684cc3](https://github.com/craft-native/craft/commit/f684cc3)) _(by glennmichael123)_
+
+## Contributors
+
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.173...v0.0.174)
 
 ## 🚀 Features
