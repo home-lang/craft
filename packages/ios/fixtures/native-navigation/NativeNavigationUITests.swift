@@ -105,6 +105,20 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.textFields["name-input"].waitForExistence(timeout: 10))
     }
 
+    func testHorizontalCarouselKeepsItsSwipe() {
+        let app = XCUIApplication()
+        app.launch()
+        let carousel = app.scrollViews["tab-swipe-carousel"]
+        XCTAssertTrue(carousel.waitForExistence(timeout: 10))
+        let start = carousel.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
+        let end = carousel.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
+        XCTAssertFalse(app.staticTexts["details-title"].exists, "carousel swipe was claimed by the tab shell")
+        XCTAssertTrue(app.staticTexts["tab-swipe-carousel-label"].exists)
+        swipeTab(app, left: true)
+        XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
+    }
+
     func testCapabilityPersistenceAndNotificationsAcrossRelaunch() throws {
         let app = XCUIApplication()
         app.launch()

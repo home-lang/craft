@@ -154,6 +154,31 @@ class NativeNavigationTest {
         }
     }
 
+    private fun swipeHorizontalCarousel(activity: MainActivity, left: Boolean) {
+        val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
+            ?: throw AssertionError("native chrome did not mount")
+        val carousel = awaitView(activity, "tab-swipe-carousel")
+        val chromeLocation = IntArray(2)
+        val carouselLocation = IntArray(2)
+        chrome.getLocationOnScreen(chromeLocation)
+        carousel.getLocationOnScreen(carouselLocation)
+        val y = carouselLocation[1] - chromeLocation[1] + carousel.height / 2f
+        val startX = carouselLocation[0] - chromeLocation[0] + if (left) carousel.width * 0.8f else carousel.width * 0.2f
+        val endX = carouselLocation[0] - chromeLocation[0] + if (left) carousel.width * 0.2f else carousel.width * 0.8f
+        val downTime = SystemClock.uptimeMillis()
+        instrumentation.runOnMainSync {
+            val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, startX, y, 0)
+            val move = MotionEvent.obtain(downTime, downTime + 16, MotionEvent.ACTION_MOVE, endX, y, 0)
+            val up = MotionEvent.obtain(downTime, downTime + 32, MotionEvent.ACTION_UP, endX, y, 0)
+            chrome.dispatchTouchEvent(down)
+            chrome.dispatchTouchEvent(move)
+            chrome.dispatchTouchEvent(up)
+            down.recycle()
+            move.recycle()
+            up.recycle()
+        }
+    }
+
     private fun awaitText(activity: MainActivity, id: String, expected: String): TextView {
         repeat(75) {
             var matching: TextView? = null
@@ -274,6 +299,8 @@ class NativeNavigationTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ) as MainActivity
         try {
+            swipeHorizontalCarousel(activity, left = true)
+            assertFalse("carousel swipe was claimed by the tab shell", find(activity.window.decorView, "details-title") != null)
             swipeTab(activity, left = true)
             assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())
             swipeTab(activity, left = false)

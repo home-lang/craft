@@ -360,6 +360,13 @@ function captureSectionScroll() {
       <Text testID="theme-probe-label" class="text-slate-900 dark:text-white">Theme probe</Text>
     </View>
     <Text testID="home-title">Home</Text>
+    <ScrollView testID="tab-swipe-carousel" horizontal style={{"width":240,"height":48}}>
+      <View style={{"width":720,"height":40,"flexDirection":"row","alignItems":"center","gap":16,"paddingHorizontal":12,"backgroundColor":"#1e293b"}}>
+        <Text testID="tab-swipe-carousel-label" style={{"width":220,"color":"#ffffff"}}>Horizontal carousel content</Text>
+        <Text style={{"width":220,"color":"#cbd5e1"}}>Scroll before changing tabs</Text>
+        <Text style={{"width":220,"color":"#94a3b8"}}>End of carousel</Text>
+      </View>
+    </ScrollView>
     <View testID="max-content-bubble" style={{"alignSelf":"flex-start","maxWidth":220,"paddingHorizontal":12,"paddingVertical":8,"backgroundColor":"#334155"}}>
       <Text testID="max-content-bubble-text" style={{"color":"#ffffff"}}>Went 4.3 miles</Text>
     </View>

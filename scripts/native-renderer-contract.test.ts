@@ -1674,7 +1674,9 @@ describe('native renderer component contract', () => {
     expect(iosNavigationScript).toContain("{ id: '/', title: 'Home', symbol: 'house' }")
     expect(androidNavigationScript).toContain("{ id: '/', title: 'Home', symbol: 'house' }")
     expect(iosNavigationTest).toContain('testTabSwipeSwitchesNativeRootsAndReturns')
+    expect(iosNavigationTest).toContain('testHorizontalCarouselKeepsItsSwipe')
     expect(androidNavigationTest).toContain('private fun swipeTab(activity: MainActivity, left: Boolean)')
+    expect(androidNavigationTest).toContain('private fun swipeHorizontalCarousel(activity: MainActivity, left: Boolean)')
     expect(androidNavigationTest).toContain('assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())')
   })
 
