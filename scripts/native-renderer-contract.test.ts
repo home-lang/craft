@@ -378,6 +378,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('is JSONObject -> craftNativeOptionalString(source.opt("uri")).orEmpty()')
     expect(android).toContain('val id = craftNativeOptionalString(props.opt("id"))')
     expect(android).toContain('?: craftNativeOptionalString(child.opt("id"))')
+    expect(android).toContain('color(craftNativeOptionalString(props.opt("strokeColor")).orEmpty())')
     expect(android).toContain('listOf(events.opt("onPress"), events.opt("onMarkerPress"))')
     expect(guide).toContain('`Video` uses the platform player')
   })

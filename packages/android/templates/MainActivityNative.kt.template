@@ -602,7 +602,7 @@ private class CraftNativeMapView(context: Context) : FrameLayout(context), OnMap
                     }
                     val width = authoredWidth.toFloat()
                     if (!authoredWidth.isFinite() || !width.isFinite() || width <= 0f) continue
-                    nextPolylines[id] = Triple(points, color(props.optString("strokeColor")), width)
+                    nextPolylines[id] = Triple(points, color(craftNativeOptionalString(props.opt("strokeColor")).orEmpty()), width)
                 }
             }
         }
