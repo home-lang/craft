@@ -228,6 +228,9 @@ native renderer is a whole app rather than one bundle route:
   WorkManager job for `backgroundRefresh` and silent pushes
   (`craftBackgroundRefresh`, `craftSilentPush`, answered with
   `craft.background.complete`);
+  the app script may open a matched path through `craft.navigation.open`, but
+  has no native stack of its own, so `push`, `replace`, `back`, and
+  `popToRoot` are no-ops;
 - `craft.storage.getSync`, `craft.secureStorage.getSync` and `craft.snapshots`:
   JavaScriptSandbox cannot call the host synchronously, so every isolate starts
   with a copy of these stores and the host keeps each copy current. Timers and

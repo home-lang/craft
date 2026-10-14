@@ -3280,8 +3280,9 @@ class MainActivity : AppCompatActivity() {
                 // Navigation belongs to the route that is actually visible.
                 // The stack list can be temporarily detached while a tab or
                 // back transition restores its root; using its last entry
-                // silently drops a valid push from that visible screen.
-                if (visibleScreen !== screen && screen !== appScreen) return
+                // silently drops a valid push from that visible screen. The
+                // app script has no stack of its own; it uses NAVIGATE_OPEN.
+                if (visibleScreen !== screen) return
                 val route = payload.optString("screen").takeIf { it.isNotBlank() } ?: return
                 if (message.optString("type") == "NAVIGATE_REPLACE") {
                     closeScreen(screens.removeAt(screens.lastIndex))
