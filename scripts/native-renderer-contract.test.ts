@@ -220,7 +220,7 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('return canonicalType(child["type"] as? String ?? "") != "RefreshControl"')
     expect(android).toContain('"statusbar" -> "StatusBar"')
     expect(android).toContain('"refreshcontrol" -> "RefreshControl"')
-    expect(android).toContain('screen.statusBarStyle = props.optString("barStyle")')
+    expect(android).toContain('screen.statusBarStyle = craftNativeOptionalString(props.opt("barStyle"))')
     expect(android).toContain('val contentChildren = JSONArray()')
     expect(android).toContain('canonicalType(child.optString("type")) != "RefreshControl"')
     expect(guide).toContain('| `StatusBar` | screen status-bar style/visibility | screen status-bar style/visibility |')
@@ -494,7 +494,7 @@ describe('native renderer component contract', () => {
 
   it('uses image alt text as the native accessibility fallback', () => {
     expect(ios).toContain('((type == "Image" || type == "ImageBackground") ? props["alt"] as? String : nil)')
-    expect(android).toContain('props.optString("alt").takeIf { (type == "Image" || type == "ImageBackground") && it.isNotBlank() }')
+    expect(android).toContain('craftNativeOptionalString(props.opt("alt"))?.takeIf { type == "Image" || type == "ImageBackground" }')
     expect(guide).toContain('`Image.alt` supplies the native accessibility label')
   })
 
@@ -1533,7 +1533,9 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('} else if type != "TextInput" {\n            view.accessibilityValue = nil')
     expect(android).toContain('view.contentDescription = when {')
     expect(android).toContain('else -> null')
-    expect(android).toContain('view.tooltipText = props.optString("accessibilityHint").takeIf { it.isNotBlank() }')
+    expect(android).toContain('view.tooltipText = craftNativeOptionalString(props.opt("accessibilityHint"))')
+    expect(android).toContain('val label = craftNativeOptionalString(props.opt("accessibilityLabel"))')
+    expect(android).toContain('val value = craftNativeOptionalString(props.opt("accessibilityValue"))')
     expect(android).toContain('info.hintText = host.tooltipText')
     expect(android).toContain('info.isEnabled = host.isEnabled && !disabled')
   })

@@ -3627,7 +3627,7 @@ class MainActivity : AppCompatActivity() {
                 configureText(this, childText(children), style)
             }
             "StatusBar" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
-                screen.statusBarStyle = props.optString("barStyle").takeIf { it.isNotBlank() }
+                screen.statusBarStyle = craftNativeOptionalString(props.opt("barStyle"))
                 screen.statusBarHidden = if (props.has("hidden")) props.optBoolean("hidden") else null
                 visibility = View.GONE
             }
@@ -4727,15 +4727,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun configureIcon(view: CraftNativeIconView, props: JSONObject, style: JSONObject) {
-        val symbol = props.optString("symbol").ifBlank { props.optString("name") }
+        val symbol = craftNativeOptionalString(props.opt("symbol"))
+            ?: craftNativeOptionalString(props.opt("name")).orEmpty()
         val size = craftNativeFiniteFloat(style, "fontSize", 20f).coerceAtLeast(1f)
         view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
-        val foreground = style.optString("color").ifBlank { props.optString("color") }
+        val foreground = craftNativeOptionalString(style.opt("color"))
+            ?: craftNativeOptionalString(props.opt("color")).orEmpty()
         val tint = color(foreground, defaultTextColor)
         view.setTextColor(tint)
         // The app's own vector for it (craft-icons.json, the icon the web
         // shows), else the closest glyph Android's fonts have.
-        val vector = CraftNativeIcons.drawable(this, props.optString("name"), props.optString("symbol"), tint)
+        val vector = CraftNativeIcons.drawable(
+            this,
+            craftNativeOptionalString(props.opt("name")).orEmpty(),
+            craftNativeOptionalString(props.opt("symbol")).orEmpty(),
+            tint,
+        )
         view.vector = vector
         view.text = if (vector != null) "" else androidIconGlyph(symbol)
         val weight = when (style.optString("fontWeight")) {
@@ -4892,7 +4899,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun imageUri(source: Any?): String = when (source) {
         is String -> source
-        is JSONObject -> source.optString("uri")
+        is JSONObject -> craftNativeOptionalString(source.opt("uri")).orEmpty()
         else -> ""
     }
 
@@ -5002,17 +5009,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyAccessibility(view: View, props: JSONObject, type: String, fallbackLabel: String) {
         view.tag = fallbackLabel
-        val label = props.optString("accessibilityLabel").takeIf { it.isNotBlank() }
-            ?: props.optString("alt").takeIf { (type == "Image" || type == "ImageBackground") && it.isNotBlank() }
-        val value = props.opt("accessibilityValue")?.takeUnless { it == JSONObject.NULL }?.toString()
+        val label = craftNativeOptionalString(props.opt("accessibilityLabel"))
+            ?: craftNativeOptionalString(props.opt("alt"))?.takeIf { type == "Image" || type == "ImageBackground" }
+        val value = craftNativeOptionalString(props.opt("accessibilityValue"))
         view.contentDescription = when {
             label != null && value != null -> "$label, $value"
             label != null -> label
             value != null -> value
             else -> null
         }
-        view.tooltipText = props.optString("accessibilityHint").takeIf { it.isNotBlank() }
-        val role = props.optString("accessibilityRole").ifBlank {
+        view.tooltipText = craftNativeOptionalString(props.opt("accessibilityHint"))
+        val role = craftNativeOptionalString(props.opt("accessibilityRole")) ?: run {
             if (type == "Icon") "image" else type.lowercase()
         }
         val state = props.optJSONObject("accessibilityState")
