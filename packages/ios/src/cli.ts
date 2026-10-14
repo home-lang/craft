@@ -12,7 +12,8 @@
  */
 
 import { parseArgs } from 'util'
-import { init, build, open, run } from './index'
+import { resolve } from 'node:path'
+import { assertNoApplicationSwiftSources, init, build, open, run } from './index'
 
 const { values, positionals } = parseArgs({
   args: Bun.argv.slice(2),
@@ -26,6 +27,7 @@ const { values, positionals } = parseArgs({
     'html-path': { type: 'string' },
     'native-bundle': { type: 'string' },
     'dev-server': { type: 'string', short: 'd' },
+    'app-root': { type: 'string' },
     output: { type: 'string', short: 'o' },
     simulator: { type: 'boolean', short: 's' },
   },
@@ -44,6 +46,7 @@ Usage:
 Commands:
   init <name>     Initialize a new iOS project
   build           Build web assets and generate Xcode project
+  audit-sources   Fail when the app owns Swift outside Craft's generated output
   open            Open Xcode project
   run             Build and run on simulator
 
@@ -55,6 +58,7 @@ Options:
   --html-path <path>        Path to HTML file or directory
   --native-bundle <path>    JavaScript bundle from \`stx native compile\`
   -d, --dev-server <url>    Development server URL
+  --app-root <dir>          Application root for audit-sources (default: .)
   -o, --output <dir>        Output directory (default: ./ios)
   -s, --simulator           Run on simulator instead of device
   -h, --help                Show help
@@ -65,6 +69,7 @@ Examples:
   craft-ios build --html-path ./dist/index.html
   craft-ios init MyApp --renderer native
   craft-ios build --native-bundle ./screen.js
+  craft-ios audit-sources --app-root .
   craft-ios build --dev-server http://localhost:3456
   craft-ios run --simulator
 `)
@@ -97,6 +102,13 @@ async function main() {
           output: values.output || './ios',
         })
         break
+
+      case 'audit-sources': {
+        const root = resolve(values['app-root'] || '.')
+        assertNoApplicationSwiftSources(root)
+        console.log(`✅ No application-owned Swift sources found in ${root}`)
+        break
+      }
 
       case 'open':
         await open({

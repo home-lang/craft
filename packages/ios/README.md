@@ -131,6 +131,17 @@ craft ios run --output ./ios-native --simulator
 
 `stx native compile` is part of the [stx](https://github.com/stacksjs/stx) CLI (`@stacksjs/stx`); build tools can call `compileNativeBundle` from `@stacksjs/stx/native` instead. A runnable screen is in [`fixtures/native-screen/Screen.stx`](./fixtures/native-screen/Screen.stx). In native mode, the app never instantiates `WKWebView`; a missing `dist/native-screen.js` fails the build rather than silently opening the web placeholder.
 
+Keep application repositories free of handwritten Swift with the built-in audit:
+
+```bash
+craft-ios audit-sources --app-root .
+```
+
+The command ignores Craft's generated `storage/framework/mobile` tree, build
+output, and dependencies. It exits non-zero and lists the relative paths when
+an app owns a `.swift` file; use the exported `assertNoApplicationSwiftSources`
+function when the check belongs inside an existing TypeScript test.
+
 Native screen updates use the versioned mutation protocol when the bundle
 supports it and fall back to whole-document rendering for older bundles.
 Updates reconcile the UIKit tree by sibling-scoped `key` (or `testID` for

@@ -477,6 +477,10 @@ import { assertNoApplicationSwiftSources } from 'craft-native/ios'
 assertNoApplicationSwiftSources(process.cwd())
 ```
 
+The same check is available without custom TypeScript through
+`craft-ios audit-sources --app-root .`; it exits non-zero and prints each
+application-owned path for CI logs.
+
 Projects that keep generated iOS output somewhere else can pass that path through
 `ignoredPaths`. The audit returns relative paths from `findApplicationSwiftSources`
 when a CI job needs to report them instead of throwing.
