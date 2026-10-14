@@ -401,6 +401,8 @@ class NativeNavigationTest {
             val gridAspect = awaitView(activity, "grid-aspect-ratio-box")
             assertEquals((80 * density).toInt(), gridAspect.width)
             assertEquals((40 * density).toInt(), gridAspect.height)
+            val gridPercentHeight = awaitView(activity, "grid-percent-height")
+            assertEquals((40 * density).toInt(), gridPercentHeight.height)
             val gridEvenly = awaitView(activity, "grid-align-evenly-wrap")
             val gridEvenlyFirst = awaitView(activity, "grid-evenly-first")
             val gridEvenlyThird = awaitView(activity, "grid-evenly-third")

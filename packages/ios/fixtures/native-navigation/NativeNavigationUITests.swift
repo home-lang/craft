@@ -377,6 +377,9 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(gridAspect.waitForExistence(timeout: 5))
         XCTAssertEqual(gridAspect.frame.width, 80, accuracy: 2)
         XCTAssertEqual(gridAspect.frame.height, 40, accuracy: 2, "grid aspectRatio did not derive height from width")
+        let gridPercentHeight = app.otherElements["grid-percent-height"]
+        XCTAssertTrue(gridPercentHeight.waitForExistence(timeout: 5))
+        XCTAssertEqual(gridPercentHeight.frame.height, 40, accuracy: 2, "percentage grid height was not resolved against the container")
         let gridEvenly = app.otherElements["grid-align-evenly-wrap"]
         let gridEvenlyFirst = app.otherElements["grid-evenly-first"]
         let gridEvenlyThird = app.otherElements["grid-evenly-third"]
