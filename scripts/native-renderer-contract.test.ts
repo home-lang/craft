@@ -1243,6 +1243,15 @@ describe('native renderer component contract', () => {
     expect(android).toContain('style.optString("resizeMode").ifBlank { props.optString("resizeMode") }')
   })
 
+  it('shows local Image defaultSource placeholders before async loads', () => {
+    expect(ios).toContain('updateImage(image, source: props["source"], defaultSource: props["defaultSource"])')
+    expect(ios).toContain('private func immediateImage(_ source: Any?) -> UIImage?')
+    expect(ios).toContain('view.image = immediateImage(defaultSource).map { imageForDisplay($0, view: view) }')
+    expect(android).toContain('updateImage(screen, image, props.opt("source"), props.opt("defaultSource"))')
+    expect(android).toContain('private fun immediateImage(uri: String): Bitmap?')
+    expect(android).toContain('immediateImage(imageUri(defaultSource))?.let(view::setImageBitmap)')
+  })
+
   it('preserves image failure accessibility details across reconciliation', () => {
     expect(ios).toContain('private var imageErrors: [ObjectIdentifier: String] = [:]')
     expect(ios).toContain('imageErrors[ObjectIdentifier(view)] = message')

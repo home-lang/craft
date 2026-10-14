@@ -4420,7 +4420,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updateAuxiliaryHandler(events["onLoad"], in: &imageLoadHandlers, for: image)
             updateAuxiliaryHandler(events["onLoadEnd"], in: &imageLoadEndHandlers, for: image)
             updateAuxiliaryHandler(events["onError"], in: &imageErrorHandlers, for: image)
-            updateImage(image, source: props["source"])
+            updateImage(image, source: props["source"], defaultSource: props["defaultSource"])
         case "ImageBackground":
             let background = result as! CraftNativeImageBackgroundView
             let requestedResizeMode = style["resizeMode"] as? String ?? props["resizeMode"] as? String
@@ -4430,7 +4430,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             updateAuxiliaryHandler(events["onLoad"], in: &imageLoadHandlers, for: background)
             updateAuxiliaryHandler(events["onLoadEnd"], in: &imageLoadEndHandlers, for: background)
             updateAuxiliaryHandler(events["onError"], in: &imageErrorHandlers, for: background)
-            updateImage(background, source: props["source"])
+            updateImage(background, source: props["source"], defaultSource: props["defaultSource"])
             configureStack(background.contentStack, style: style)
             reconcileChildren(children, in: background.contentStack, parent: current, path: path, style: style)
         case "KeyboardAvoidingView":
@@ -5467,7 +5467,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         return ["localhost", "127.0.0.1", "::1"].contains(bare) || bare.hasSuffix(".localhost")
     }
 
-    private func updateImage(_ view: UIImageView, source: Any?) {
+    private func updateImage(_ view: UIImageView, source: Any?, defaultSource: Any? = nil) {
         let uri = (source as? String) ?? (source as? [String: Any])?["uri"] as? String
         let id = ObjectIdentifier(view)
         guard let uri, !uri.isEmpty else {
@@ -5481,7 +5481,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         imageTasks.removeValue(forKey: id)?.cancel()
         imageSources[id] = uri
         imageErrors.removeValue(forKey: id)
-        view.image = nil
+        view.image = immediateImage(defaultSource).map { imageForDisplay($0, view: view) }
         view.accessibilityValue = nil
         emitImageEvent(view, handler: imageLoadStartHandlers[id])
 
@@ -5527,6 +5527,20 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             return
         }
         imageFailure(view, uri: uri, message: "Unsupported image source")
+    }
+
+    /// `defaultSource` is intentionally local-only: data and bundled assets
+    /// can be shown before a network image arrives without starting another
+    /// request or bypassing the source's URL policy.
+    private func immediateImage(_ source: Any?) -> UIImage? {
+        let uri = (source as? String) ?? (source as? [String: Any])?["uri"] as? String
+        guard let uri, !uri.isEmpty else { return nil }
+        if uri.hasPrefix("data:image/"),
+           let comma = uri.firstIndex(of: ","),
+           let data = Data(base64Encoded: String(uri[uri.index(after: comma)...])) {
+            return UIImage(data: data)
+        }
+        return !uri.contains(":") ? UIImage(named: uri) : nil
     }
 
     private func imageFailure(_ view: UIImageView, uri: String?, message: String) {

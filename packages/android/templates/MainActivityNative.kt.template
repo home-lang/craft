@@ -3744,7 +3744,7 @@ class MainActivity : AppCompatActivity() {
                 if (onLoadEnd.isNotBlank()) screen.imageLoadEndHandlers[this] = onLoadEnd else screen.imageLoadEndHandlers.remove(this)
                 val onError = events.optString("onError")
                 if (onError.isNotBlank()) screen.imageErrorHandlers[this] = onError else screen.imageErrorHandlers.remove(this)
-                updateImage(screen, this, props.opt("source"))
+                updateImage(screen, this, props.opt("source"), props.opt("defaultSource"))
             }
             "ImageBackground" -> (previous as? CraftNativeImageBackgroundView ?: CraftNativeImageBackgroundView(this)).apply {
                 image.scaleType = when (style.optString("resizeMode").ifBlank { props.optString("resizeMode") }) {
@@ -3761,7 +3761,7 @@ class MainActivity : AppCompatActivity() {
                 if (onLoadEnd.isNotBlank()) screen.imageLoadEndHandlers[image] = onLoadEnd else screen.imageLoadEndHandlers.remove(image)
                 val onError = events.optString("onError")
                 if (onError.isNotBlank()) screen.imageErrorHandlers[image] = onError else screen.imageErrorHandlers.remove(image)
-                updateImage(screen, image, props.opt("source"))
+                updateImage(screen, image, props.opt("source"), props.opt("defaultSource"))
                 configureContainer(content, style)
                 reconcileChildren(screen, content, children, path, next, style, previousControls)
             }
@@ -4554,12 +4554,23 @@ class MainActivity : AppCompatActivity() {
             host == "::1" || host.endsWith(".localhost")
     }
 
-    private fun updateImage(screen: Screen, view: ImageView, source: Any?) {
-        val uri = when (source) {
-            is String -> source
-            is JSONObject -> source.optString("uri")
-            else -> ""
+    private fun imageUri(source: Any?): String = when (source) {
+        is String -> source
+        is JSONObject -> source.optString("uri")
+        else -> ""
+    }
+
+    private fun immediateImage(uri: String): Bitmap? {
+        if (uri.startsWith("data:image/") && uri.contains(',')) {
+            val bytes = runCatching { Base64.decode(uri.substringAfter(','), Base64.DEFAULT) }.getOrNull()
+            return bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
         }
+        if (!uri.contains(':')) return runCatching { assets.open(uri).use { BitmapFactory.decodeStream(it) } }.getOrNull()
+        return null
+    }
+
+    private fun updateImage(screen: Screen, view: ImageView, source: Any?, defaultSource: Any? = null) {
+        val uri = imageUri(source)
         if (uri.isBlank()) {
             if (imageSources[view] == "") return
             imageJobs.remove(view)?.cancel(true)
@@ -4574,6 +4585,7 @@ class MainActivity : AppCompatActivity() {
         imageSources[view] = uri
         imageErrors.remove(view)
         view.setImageDrawable(null)
+        immediateImage(imageUri(defaultSource))?.let(view::setImageBitmap)
         emitImageEvent(screen, view, screen.imageLoadStartHandlers[view])
 
         if (uri.startsWith("data:image/") && uri.contains(',')) {
