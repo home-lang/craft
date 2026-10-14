@@ -1,5 +1,15 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.178...v0.0.179)
+
+## 🐛 Bug Fixes
+
+- **ios**: crash reports reach bughq: JSON-safe events, the right message ([64e294d](https://github.com/craft-native/craft/commit/64e294d)) _(by Chris Breuer)_
+
+## Contributors
+
+- _Chris Breuer_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.177...v0.0.178)
 
 ## 🚀 Features
