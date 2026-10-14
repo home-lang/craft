@@ -677,6 +677,9 @@ function captureSectionScroll() {
       </View>
       <View testID="nested-shared-sibling" style={{"width":40,"height":20,"backgroundColor":"#6f9091"}} />
     </View>
+    <View testID="nested-percent-parent" style={{"width":80,"height":60,"padding":4,"backgroundColor":"#604f2f"}}>
+      <View testID="nested-percent-child" style={{"width":"50%","height":"50%","backgroundColor":"#fbbf24"}} />
+    </View>
     <Text testID="layout-status" :text="layoutWidth > 0 ? 'Layout width: ' + layoutWidth : 'layout pending'" />
     <View testID="hidden-layout-parent" style={{"display":"none"}}>
       <Text testID="hidden-layout-child" @layout="captureHiddenLayout()">Hidden child</Text>

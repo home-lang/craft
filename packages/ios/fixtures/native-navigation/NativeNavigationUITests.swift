@@ -586,6 +586,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(nestedSharedSecond.waitForExistence(timeout: 5))
         XCTAssertEqual(nestedSharedSecond.frame.minY - nestedSharedFirst.frame.minY, 18, accuracy: 2, "nested column gap was not preserved")
         XCTAssertEqual(nestedSharedSibling.frame.minX - app.otherElements["nested-shared-column"].frame.minX, 80, accuracy: 2, "nested row gap was not preserved")
+        let nestedPercentParent = app.otherElements["nested-percent-parent"]
+        let nestedPercentChild = app.otherElements["nested-percent-child"]
+        XCTAssertTrue(nestedPercentChild.waitForExistence(timeout: 5))
+        XCTAssertEqual(nestedPercentParent.frame.width, 80, accuracy: 2)
+        XCTAssertEqual(nestedPercentChild.frame.width, 36, accuracy: 2, "nested percentage width used the outer parent")
+        XCTAssertEqual(nestedPercentChild.frame.height, 26, accuracy: 2, "nested percentage height used the outer parent")
         let absolute = app.otherElements["layout-absolute"]
         XCTAssertTrue(absolute.exists)
         XCTAssertLessThanOrEqual(absolute.frame.maxX, wrapped.frame.maxX - 8)
