@@ -227,7 +227,7 @@ describe('Craft iOS builder', () => {
     expect(nativeSwift).not.toContain('else if type == "TextInput", let field = view as? UITextField')
     expect(nativeSwift).toContain('traits.insert(.notEnabled)')
     expect(nativeSwift).toContain('traits.insert(.selected)')
-    expect(nativeSwift).toContain('if !(view is UIScrollView) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || longPressHandlers[id] != nil || view is CraftNativeFlowView }')
+    expect(nativeSwift).toContain('if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || longPressHandlers[id] != nil || view is CraftNativeFlowView }')
     expect(nativeSwift).toContain('if let control = view as? UIControl {')
     expect(nativeSwift).toContain('else if handlers[ObjectIdentifier(view)] != nil || longPressHandlers[ObjectIdentifier(view)] != nil {')
     expect(flatListSwift).toContain('UICollectionViewDiffableDataSource<Int, String>')
@@ -691,7 +691,7 @@ describe('Craft iOS builder', () => {
     expect(source).toContain('pendingScrollTarget = (target.id, target.animated, target.attempts + 1)')
     // A transformed child is placed without its (undefined) frame.
     expect(source).toContain('if child.transform.isIdentity {')
-    expect(source).toContain('if child.center != center { child.center = center }')
+    expect(source).toContain('if child.center != center { child.center = center; moved = true }')
     // Snapping never takes a pixel off a label, which would truncate it.
     expect(source).toContain('snapped.size = CraftNativeFlexLayout.ceiled(frame.size, scale: scale, atLeast: snapped.size)')
   })

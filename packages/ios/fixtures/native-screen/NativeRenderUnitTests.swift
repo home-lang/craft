@@ -1009,12 +1009,75 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertEqual(scroll.contentInset.bottom, 0)
     }
 
+    func testAPressableWithPressFeedbackStillTakesItsPress() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(document([
+            [
+                "type": "Pressable", "props": ["key": "pressable"], "style": ["height": 24],
+                "events": ["onPress": "pressed", "onPressIn": "pressIn", "onPressOut": "pressOut"],
+                "children": [node("Text", key: "label", text: "Press")],
+            ],
+            [
+                "type": "Pressable", "props": ["key": "disabled", "disabled": true], "style": ["height": 24],
+                "events": ["onPress": "pressed"],
+                "children": [node("Text", key: "disabled-label", text: "Disabled")],
+            ],
+        ]))
+        let pressable = try XCTUnwrap(find(UIView.self, key: "pressable", below: controller.view))
+        let recognizers = pressable.gestureRecognizers ?? []
+        let tap = try XCTUnwrap(recognizers.first { $0 is UITapGestureRecognizer })
+        let feedback = try XCTUnwrap(recognizers.first { ($0 as? UILongPressGestureRecognizer)?.minimumPressDuration == 0 })
+        // The feedback begins as the finger lands; it must not take the touch
+        // from the tap that is onPress.
+        XCTAssertEqual(feedback.delegate?.gestureRecognizer?(feedback, shouldRecognizeSimultaneouslyWith: tap), true)
+        let disabled = try XCTUnwrap(find(UIView.self, key: "disabled", below: controller.view))
+        XCTAssertFalse(disabled.isUserInteractionEnabled)
+        XCTAssertTrue(disabled.accessibilityTraits.contains(.notEnabled))
+    }
+
+    func testAShownModalInAScrollViewCoversTheScreenAndTakesItsTouches() throws {
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        let window = try hostWindow()
+        window.rootViewController = controller
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        controller.render(document([[
+            "type": "ScrollView", "props": ["key": "page"], "style": ["flex": 1],
+            "children": [
+                ["type": "View", "props": ["key": "spacer"], "style": ["height": 2000]],
+                [
+                    "type": "Modal", "props": ["key": "modal", "visible": true, "transparent": true, "animationType": "none"],
+                    "children": [["type": "Button", "props": ["key": "close"], "events": ["onPress": "close"], "children": ["Close"]]],
+                ],
+            ],
+        ]]))
+        controller.view.layoutIfNeeded()
+        let page = try XCTUnwrap(find(UIScrollView.self, key: "page", below: controller.view))
+        page.setContentOffset(CGPoint(x: 0, y: 1200), animated: false)
+        controller.view.layoutIfNeeded()
+        let modal = try XCTUnwrap(find(UIView.self, key: "modal", below: controller.view))
+        // Over the screen, not over the scroll content wherever it scrolled.
+        XCTAssertTrue(modal.superview === controller.view)
+        XCTAssertEqual(modal.frame, controller.view.bounds)
+        XCTAssertTrue(modal.isUserInteractionEnabled)
+        let close = try XCTUnwrap(find(UIButton.self, key: "close", below: modal))
+        modal.layoutIfNeeded()
+        let center = close.convert(CGPoint(x: close.bounds.midX, y: close.bounds.midY), to: controller.view)
+        XCTAssertTrue(controller.view.bounds.contains(center))
+        XCTAssertTrue(controller.view.hitTest(center, with: nil) === close)
+    }
+
     func testASliderReportsTheDecimalItShows() {
         // UISlider keeps a Float; the script hears the number, not its
         // binary neighbour.
         XCTAssertEqual(CraftNativeScreenController.sliderEventValue(0.8), 0.8)
         XCTAssertEqual(CraftNativeScreenController.sliderEventValue(Float(0.3)), 0.3)
         XCTAssertEqual(CraftNativeScreenController.sliderEventValue(42), 42)
+        // Nine steps of 0.1 in Floats is 0.90000004; the step says one place.
+        XCTAssertEqual(CraftNativeScreenController.sliderEventValue(Float(0.1) * 9, step: 0.1), 0.9)
+        XCTAssertEqual(CraftNativeScreenController.sliderEventValue(Float(0.25) * 3, step: 0.25), 0.75)
+        XCTAssertEqual(CraftNativeScreenController.sliderEventValue(7, step: 1), 7)
     }
 
     func testANestedScrollViewsDragDoesNotScrollItsParent() throws {

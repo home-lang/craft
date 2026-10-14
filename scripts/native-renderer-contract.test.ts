@@ -768,7 +768,7 @@ describe('native renderer component contract', () => {
     expect(androidNavigationTest).toContain('hidesWhenStopped should hide a stopped indicator')
     expect(androidNavigationTest).toContain('display:none should hide an activity indicator')
     expect(iosNavigationTest).toContain('app.activityIndicators["hidden-indicator"].isHittable')
-    expect(iosNavigationTest).toContain('app.activityIndicators["display-none-indicator"].isHittable')
+    expect(iosNavigationTest).toContain('XCTAssertFalse(app.activityIndicators["display-none-indicator"].exists)')
     expect(androidNavigationTest).toContain('missing image errors should be deduplicated')
     expect(iosNavigationTest).toContain('app.staticTexts["image-error-count"].label, "2"')
     expect(navigationHome).toContain('style={{"opacity": modalOpacity}}')
@@ -857,7 +857,9 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('guard let onRequestClose else { return }')
     expect(ios).toContain('let suppressDismiss = !visible && modal.consumeDismissSuppression()')
     expect(ios).toContain('let flowChildren = next.filter { $0.type != "Modal" }')
-    expect(ios).toContain('stack.bringSubviewToFront(modal)')
+    // A modal covers the screen it is declared on, not its parent's box.
+    expect(ios).toContain('view.bringSubviewToFront(modal)')
+    expect(ios).toContain('if modal.frame != view.bounds { modal.frame = view.bounds }')
     expect(ios).toContain('!($0 is CraftNativeModalView)')
     expect(android).toContain('private class CraftNativeModalView(context: Context) : FrameLayout(context)')
     expect(android).toContain('if (renderedVisible == visible && visibility == if (visible) View.VISIBLE else View.GONE)')
@@ -1729,7 +1731,7 @@ describe('native renderer component contract', () => {
   })
 
   it('keeps generic pressable views interactive without disabling scroll containers', () => {
-    expect(ios).toContain('if !(view is UIScrollView) { view.isUserInteractionEnabled = actionable || longPressHandlers[id] != nil || view is CraftNativeFlowView }')
+    expect(ios).toContain('if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = actionable || longPressHandlers[id] != nil || view is CraftNativeFlowView }')
     expect(ios).toContain('if let handler, !handler.isEmpty { handlers[id] = handler }')
     expect(ios).toContain('let handler = handler?.isEmpty == false ? handler : nil')
     expect(ios).toContain('list.onMomentumScrollEnd = nonEmptyHandler(events["onMomentumScrollEnd"]).map')
@@ -1753,7 +1755,7 @@ describe('native renderer component contract', () => {
     expect(android).toContain('control.setOnLongClickListener {')
     expect(android).toContain('screen.longPressHandlers.keys.removeAll(released)')
     expect(guide).toContain('`onLongPress`')
-    expect(ios).toContain('if !(view is UIScrollView) { view.isUserInteractionEnabled = true }')
+    expect(ios).toContain('if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = true }')
     expect(ios).toContain('view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || view is CraftNativeFlowView')
   })
 

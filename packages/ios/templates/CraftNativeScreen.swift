@@ -1166,6 +1166,18 @@ enum CraftNativeFlexLayout {
 /// grid. It is a UIStackView in name only, so existing callers and tests keep
 /// `axis`, `alignment` and `arrangedSubviews`; the stack view's own
 /// constraints are never created, and every frame comes from `layout`.
+extension UIView {
+    /// The native screen this view is drawn on, through the responder chain.
+    var craftScreenController: CraftNativeScreenController? {
+        var responder: UIResponder? = next
+        while let current = responder {
+            if let screen = current as? CraftNativeScreenController { return screen }
+            responder = current.next
+        }
+        return nil
+    }
+}
+
 private class CraftNativeFlowView: UIStackView {
     var pressActiveOpacity: CGFloat?
     var pressBaseOpacity: CGFloat = 1
@@ -1358,6 +1370,13 @@ private class CraftNativeFlowView: UIStackView {
         craftApplyCornerRadius()
         let scale = window?.screen.scale ?? traitCollection.displayScale
         let result = layout(width: bounds.width, height: bounds.height, maxWidth: bounds.width, maxHeight: bounds.height, place: true)
+        var moved = false
+        defer {
+            // The screen reports onLayout from its own layout pass, which a
+            // change deep in a scroll view's content never runs: a view that
+            // went from 240 to 180 wide kept saying 240.
+            if moved { craftScreenController?.scheduleLayoutEvents() }
+        }
         for (child, frame) in result.frames {
             var viewportFrame = frame
             if child === viewportChild, viewportChildFillsHeight {
@@ -1372,14 +1391,14 @@ private class CraftNativeFlowView: UIStackView {
                 snapped.size = CraftNativeFlexLayout.ceiled(frame.size, scale: scale, atLeast: snapped.size)
             }
             if child.transform.isIdentity {
-                if child.frame != snapped { child.frame = snapped }
+                if child.frame != snapped { child.frame = snapped; moved = true }
             } else {
                 // A transformed child (a sticky header, a scaled spinner) is
                 // placed by bounds and center: its frame is undefined then.
                 let size = CGRect(origin: child.bounds.origin, size: snapped.size)
                 let center = CGPoint(x: snapped.midX, y: snapped.midY)
-                if child.bounds != size { child.bounds = size }
-                if child.center != center { child.center = center }
+                if child.bounds != size { child.bounds = size; moved = true }
+                if child.center != center { child.center = center; moved = true }
             }
             child.craftApplyCornerRadius()
         }
@@ -2192,6 +2211,10 @@ private final class CraftNativeModalView: UIView {
 
     required init?(coder: NSCoder) { nil }
 
+    /// Whether the modal takes touches is its own to say: shown, it takes
+    /// every one (the scrim and its controls); the screen's press and long
+    /// press bookkeeping once turned that off for a view with no handler of
+    /// its own, and a shown modal let every tap through to the screen behind.
     func setVisible(_ visible: Bool, opacity: CGFloat, animationType: String?) {
         if visible { isUserInteractionEnabled = true }
         if renderedVisible == visible && isHidden == !visible {
@@ -2273,7 +2296,27 @@ private final class CraftNativeModalView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         blocker.frame = bounds
-        contentStack.frame = bounds
+        // The scrim covers the whole screen; what the modal holds stays
+        // clear of the bars and the home indicator it is drawn over.
+        contentStack.frame = bounds.inset(by: UIEdgeInsets(top: contentInsets.top, left: 0, bottom: contentInsets.bottom, right: 0))
+    }
+
+    /// Where the screen's own content starts and ends: the scrim covers the
+    /// whole screen, what the modal holds stays clear of the bars.
+    var contentInsets: UIEdgeInsets = .zero {
+        didSet { if contentInsets != oldValue { setNeedsLayout() } }
+    }
+}
+
+/// The delegate of a Pressable's press-in/out feedback. That recognizer is
+/// a long press of no duration, so it begins the moment a finger lands; on its
+/// own it would claim the touch, and the tap that is the Pressable's onPress
+/// failed whenever onPressIn or onPressOut were set too. It only watches.
+final class CraftPressFeedbackDelegate: NSObject, UIGestureRecognizerDelegate {
+    static let shared = CraftPressFeedbackDelegate()
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        true
     }
 }
 
@@ -2545,14 +2588,24 @@ private final class CraftNativeScrollView: UIScrollView, UIGestureRecognizerDele
 
     @objc private func keyboardTap() {
         guard keyboardShouldPersistTaps != "always" else { return }
-        if keyboardShouldPersistTaps == "handled" {
-            let point = keyboardTapGesture.location(in: self)
-            var hit = hitTest(point, with: nil)
-            while let view = hit, view !== self {
-                if view is UIControl || !(view.gestureRecognizers ?? []).isEmpty { return }
-                hit = view.superview
-            }
+        let point = keyboardTapGesture.location(in: self)
+        var hit = hitTest(point, with: nil)
+        var onControl = false
+        var onButton = false
+        while let view = hit, view !== self {
+            if view is UIButton { onButton = true }
+            if view is UIControl || !(view.gestureRecognizers ?? []).isEmpty { onControl = true; break }
+            hit = view.superview
         }
+        if keyboardShouldPersistTaps == "handled", onControl { return }
+        // A button keeps the keyboard: its press gives the focus straight
+        // back. Ending editing first only let the keyboard's inset go while
+        // the finger was down, the button moved out from under it, and the
+        // press was lost.
+        if onButton { return }
+        // Otherwise the keyboard goes; after a tap on nothing, for good (the
+        // next render must not bring the last input back).
+        if !onControl { craftScreenController?.forgetFocusedInput() }
         window?.endEditing(true)
     }
 
@@ -3056,6 +3109,13 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     private var linkTargets: [ObjectIdentifier: String] = [:]
     private var renderedRoot: RenderedNode?
     private weak var lastFocusedInput: UIView?
+
+    /// The person put the keyboard away (Return, or a tap on nothing in a
+    /// scroll view): the last input is let go. Kept, the next render or
+    /// button press focused it again and the keyboard came straight back.
+    func forgetFocusedInput(_ input: UIView? = nil) {
+        if input == nil || lastFocusedInput === input { lastFocusedInput = nil }
+    }
     private var flatListRows: [ObjectIdentifier: [String: RenderedNode]] = [:]
     private var flatListOwners: [String: String] = [:]
     /// A drawing's shapes are not views: a change to one redraws its `Svg`.
@@ -3192,6 +3252,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if !isAppScript, let routeName, !routeName.isEmpty {
             CraftCrashReporter.shared.screenAppeared(routeName)
         }
+        // onLayout reports views that are on screen: a pushed screen lays
+        // out before it has a window, and nothing moved again once it had
+        // one, so its rows never reported.
+        emitLayoutEvents()
     }
 
     override func viewDidDisappear(_ animated: Bool) {
@@ -3266,7 +3330,27 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        positionModals()
         emitLayoutEvents()
+    }
+
+    /// Modals cover the screen; their content starts below its bars (the
+    /// status bar is all the safe area counts on a native screen, and a
+    /// modal's first control sat under the navigation bar).
+    private func positionModals() {
+        let modals = view.subviews.compactMap { $0 as? CraftNativeModalView }
+        guard !modals.isEmpty else { return }
+        var insets = view.safeAreaInsets
+        // The navigation bar floats over the screen without counting in its
+        // safe area, and it is drawn above anything the screen adds.
+        if let nav = navigationController, !nav.isNavigationBarHidden, nav.navigationBar.window != nil {
+            let bar = nav.navigationBar.convert(nav.navigationBar.bounds, to: view)
+            if bar.intersects(view.bounds) { insets.top = max(insets.top, bar.maxY) }
+        }
+        for modal in modals {
+            if modal.frame != view.bounds { modal.frame = view.bounds }
+            modal.contentInsets = insets
+        }
     }
 
     private static func safeJavaScriptString(_ value: JSValue?) -> String? {
@@ -4469,6 +4553,10 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             guard let target = drawnTarget(id) else { return false }
             guard applied.insert(target).inserted else { continue }
             guard let document = mutationDocument.node(target), let previous = renderedNode(target) else { return false }
+            // A node that needs a new view (a TextInput turned multiline) is
+            // its parent's to swap in: a targeted update only redraws in
+            // place, and the new view was made and never attached.
+            guard canReuseView(document, previous: previous) else { return false }
             let next = reconcile(document, identity: previous.identity, path: target, previous: previous)
             // A style patch is applied in place, layout included: the parent
             // reads the node's new layout style on its next pass.
@@ -4564,6 +4652,16 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         return nil
     }
 
+    /// Whether `previous`'s view can draw `node`: the same type, and for a
+    /// TextInput the same kind of field (multiline is a UITextView).
+    private func canReuseView(_ node: [String: Any], previous: RenderedNode) -> Bool {
+        let type = canonicalType(node["type"] as? String ?? "View")
+        guard previous.type == type else { return false }
+        guard type == "TextInput" else { return true }
+        let props = node["props"] as? [String: Any] ?? [:]
+        return (previous.view is UITextView) == (props["multiline"] as? Bool == true)
+    }
+
     private func restoreFocus(_ focused: UIView?) {
         guard let focused, focused.window != nil, !focused.isFirstResponder else { return }
         _ = focused.becomeFirstResponder()
@@ -4576,9 +4674,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let events = node["events"] as? [String: String] ?? [:]
         let children = node["children"] as? [Any] ?? []
         let current: RenderedNode
-        let wantsMultilineTextView = type == "TextInput" && props["multiline"] as? Bool == true
-        let canReuseInput = type != "TextInput" || ((previous?.view is UITextView) == wantsMultilineTextView)
-        if let previous = previous, previous.identity == identity, previous.type == type, canReuseInput {
+        if let previous = previous, previous.identity == identity, canReuseView(node, previous: previous) {
             current = previous
         } else {
             current = RenderedNode(identity: identity, type: type, view: makeView(type, props: props))
@@ -4796,6 +4892,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             let modalID = ObjectIdentifier(modal)
             let wasVisible = modalVisibility[modalID]
             modalVisibility[modalID] = visible
+            if visible, wasVisible != true { positionModals() }
             modal.setVisible(visible, opacity: number(style["opacity"]) ?? 1, animationType: props["animationType"] as? String)
             modal.onRequestClose = nonEmptyHandler(events["onRequestClose"]).map { handler in
                 { [weak self] in self?.send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": [:]]) }
@@ -5199,14 +5296,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         for child in next where child.type == "Modal" {
             guard let modal = child.view as? CraftNativeModalView else { continue }
-            if modal.superview !== stack {
+            // A modal covers the screen, wherever it is declared. Laid over
+            // its parent instead, one declared in a scroll view covered the
+            // whole content: its controls sat wherever the content had
+            // scrolled to, under the bar or off screen, out of reach.
+            if modal.superview !== view {
                 modal.removeFromSuperview()
-                stack.addSubview(modal)
+                view.addSubview(modal)
             }
-            modal.frame = stack.bounds
             modal.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            stack.bringSubviewToFront(modal)
+            view.bringSubviewToFront(modal)
         }
+        positionModals()
         parent.children = next
         addJustificationSpacers(to: stack, value: style["justifyContent"] as? String)
     }
@@ -5326,7 +5427,12 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         if node.view is CraftNativeSvgView, let owner = node.protocolId { svgOwners = svgOwners.filter { $0.value != owner } }
         let id = ObjectIdentifier(node.view)
-        if let modal = node.view as? CraftNativeModalView { modal.resetForTeardown() }
+        if let modal = node.view as? CraftNativeModalView {
+            modal.resetForTeardown()
+            // It sits on the screen, not in its parent: leaving with the
+            // parent's subtree does not take it away.
+            modal.removeFromSuperview()
+        }
         handlers.removeValue(forKey: id)
         linkTargets.removeValue(forKey: id)
         pressInHandlers.removeValue(forKey: id)
@@ -5401,6 +5507,20 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         emitLayoutEvents(for: renderedRoot)
     }
 
+    private var layoutEventsScheduled = false
+
+    /// A view inside the screen moved: report onLayout once the pass that
+    /// moved it is over, however deep it was.
+    fileprivate func scheduleLayoutEvents() {
+        guard !layoutEventsScheduled, !layoutHandlers.isEmpty else { return }
+        layoutEventsScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.layoutEventsScheduled = false
+            self.emitLayoutEvents()
+        }
+    }
+
     private func emitLayoutEvents(for node: RenderedNode) {
         let id = ObjectIdentifier(node.view)
         if let handler = layoutHandlers[id], isEffectivelyVisible(node.view) {
@@ -5463,7 +5583,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         // A container keeps receiving touches without a handler of its own,
         // or every control inside it (and the screen root) would be dead.
-        if !(view is UIScrollView) { view.isUserInteractionEnabled = actionable || longPressHandlers[id] != nil || view is CraftNativeFlowView }
+        if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = actionable || longPressHandlers[id] != nil || view is CraftNativeFlowView }
     }
 
     private func updatePressFeedback(_ pressIn: String?, _ pressOut: String?, for view: UIView) {
@@ -5472,7 +5592,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         if let pressOut, !pressOut.isEmpty { pressOutHandlers[id] = pressOut } else { pressOutHandlers.removeValue(forKey: id) }
         guard pressInHandlers[id] != nil || pressOutHandlers[id] != nil else {
             if let recognizer = pressFeedbackRecognizers.removeValue(forKey: id) { view.removeGestureRecognizer(recognizer) }
-            if !(view is UIScrollView) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || longPressHandlers[id] != nil || view is CraftNativeFlowView }
+            if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || longPressHandlers[id] != nil || view is CraftNativeFlowView }
             return
         }
         if pressFeedbackRecognizers[id] == nil {
@@ -5480,17 +5600,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             recognizer.minimumPressDuration = 0
             recognizer.allowableMovement = 10
             recognizer.cancelsTouchesInView = false
+            recognizer.delegate = CraftPressFeedbackDelegate.shared
             pressFeedbackRecognizers[id] = recognizer
             view.addGestureRecognizer(recognizer)
         }
-        if !(view is UIScrollView) { view.isUserInteractionEnabled = true }
+        if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = true }
     }
 
     private func updateLongPressHandler(_ handler: String?, for view: UIView) {
         let id = ObjectIdentifier(view)
         if let handler, !handler.isEmpty {
             longPressHandlers[id] = handler
-            if !(view is UIScrollView) { view.isUserInteractionEnabled = true }
+            if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = true }
             if longPressRecognizers[id] == nil {
                 let recognizer = UILongPressGestureRecognizer(target: self, action: #selector(viewLongPressed(_:)))
                 longPressRecognizers[id] = recognizer
@@ -5501,7 +5622,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if let recognizer = longPressRecognizers.removeValue(forKey: id) {
                 view.removeGestureRecognizer(recognizer)
             }
-            if !(view is UIScrollView) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || view is CraftNativeFlowView }
+            if !(view is UIScrollView || view is CraftNativeModalView) { view.isUserInteractionEnabled = handlers[id] != nil || linkTargets[id] != nil || view is CraftNativeFlowView }
         }
     }
 
@@ -6116,6 +6237,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
             if state["checked"] as? Bool == true { traits.insert(.selected) }
         }
         if let control = view as? UIControl, !control.isEnabled { traits.insert(.notEnabled) }
+        // A disabled Pressable or touchable takes no touches; it says so too.
+        if props["disabled"] as? Bool == true { traits.insert(.notEnabled) }
         if type == "Checkbox", let checkbox = view as? CraftNativeCheckboxButton {
             if checkbox.isSelected { traits.insert(.selected) }
             view.accessibilityValue = checkbox.indeterminate ? "mixed" : checkbox.isSelected ? "checked" : "unchecked"
@@ -6266,13 +6389,23 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let value = snappedSliderValue(sender.value, for: sender)
         if sender.value != value { sender.value = value }
         guard let handler = handlers[ObjectIdentifier(sender)] else { return }
-        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": Self.sliderEventValue(value)]])
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": Self.sliderEventValue(value, step: sliderSteps[ObjectIdentifier(sender)])]])
     }
 
-    /// A slider's value as the script reads it: the shortest decimal that is
-    /// the same Float, so a step of 0.1 gives 0.8 and not 0.800000011920929.
-    static func sliderEventValue(_ value: Float) -> Double {
-        Double(value.description) ?? Double(value)
+    /// A slider's value as the script reads it. UISlider keeps a Float, and a
+    /// step of 0.1 counted up in Floats lands beside the decimal (0.8 read as
+    /// 0.800000011920929, nine steps as 0.90000004), so the value is the
+    /// shortest decimal for that Float, rounded to as many places as the step
+    /// has.
+    static func sliderEventValue(_ value: Float, step: Float? = nil) -> Double {
+        let decimal = Double(value.description) ?? Double(value)
+        guard let step, step > 0, step.isFinite else { return decimal }
+        // "0.1" is one place, "0.25" two, "1.0" none; a step as small as
+        // "1e-07" is held to six.
+        let fraction = step.description.split(separator: ".").dropFirst().first
+        let places = step.description.contains("e") ? 6 : min(6, fraction.map { $0 == "0" ? 0 : $0.count } ?? 0)
+        let scale = pow(10, Double(places))
+        return (decimal * scale).rounded() / scale
     }
 
     /// `@change` on a DatePicker: the value as `<input type="date|time|
@@ -6378,7 +6511,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
 
     @objc private func sliderFinished(_ sender: UISlider) {
         guard let handler = sliderCompleteHandlers[ObjectIdentifier(sender)] else { return }
-        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": Self.sliderEventValue(snappedSliderValue(sender.value, for: sender))]])
+        send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["value": Self.sliderEventValue(snappedSliderValue(sender.value, for: sender), step: sliderSteps[ObjectIdentifier(sender)])]])
     }
 
     func numberOfComponents(in pickerView: UIPickerView) -> Int { 1 }
@@ -6423,6 +6556,8 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     @objc private func textSubmitted(_ sender: UITextField) {
+        // Return put the keyboard away.
+        forgetFocusedInput(sender)
         guard let handler = submitHandlers[ObjectIdentifier(sender)] else { return }
         send(type: "EVENT", payload: ["handlerName": handler, "nativeEvent": ["text": sender.text ?? ""]])
     }
