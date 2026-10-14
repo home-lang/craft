@@ -3862,7 +3862,7 @@ class MainActivity : AppCompatActivity() {
             }
             "TouchableOpacity", "TouchableHighlight", "Pressable" -> (previous as? CraftNativeFlexLayout ?: CraftNativeFlexLayout(this)).apply {
                 configureContainer(this, style)
-                screen.pressActiveOpacities[this] = props.optDouble("activeOpacity", 0.5).toFloat()
+                screen.pressActiveOpacities[this] = craftNativeFiniteFloat(props, "activeOpacity", 0.5f)
                 screen.pressBaseOpacities[this] = craftNativeFiniteFloat(style, "opacity", 1f)
                 reconcileChildren(screen, this, children, path, next, style, previousControls)
             }

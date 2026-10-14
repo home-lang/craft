@@ -155,6 +155,7 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('rowGap = spacing("rowGap", gap)')
       expect(nativeActivity).toContain('internal fun craftNativeFiniteFloat(style: JSONObject?, name: String, fallback: Float): Float')
       expect(nativeActivity).toContain('craftNativeFiniteFloat(style, "opacity", 1f)')
+      expect(nativeActivity).toContain('screen.pressActiveOpacities[this] = craftNativeFiniteFloat(props, "activeOpacity", 0.5f)')
       expect(nativeActivity).toContain('internal fun craftNativeNonNegativeDouble(style: JSONObject?, name: String, fallback: Double): Double')
       expect(nativeActivity).toContain('val border = craftNativeNonNegativeDouble(style, "borderWidth", 0.0)')
       expect(nativeActivity).toContain('internal fun craftNativeFiniteDouble(style: JSONObject?, name: String, fallback: Double): Double')
