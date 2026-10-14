@@ -1,5 +1,143 @@
 # Changelog
 
+[Compare changes](https://github.com/craft-native/craft/compare/v0.0.175...v0.0.176)
+
+## 🚀 Features
+
+- **mobile**: crash and error reporting to bughq on iOS and Android ([43e4852](https://github.com/craft-native/craft/commit/43e4852)) _(by Chris Breuer)_
+- **native**: share independent flex gaps ([6692a20](https://github.com/craft-native/craft/commit/6692a20)) _(by glennmichael123)_
+- **native**: share wrapped flex layout across hosts ([aa79b60](https://github.com/craft-native/craft/commit/aa79b60)) _(by glennmichael123)_
+- **android**: expand native web audio graph ([702c6d7](https://github.com/craft-native/craft/commit/702c6d7)) _(by glennmichael123)_
+- **android**: route simple layout through shared tree ABI ([977240d](https://github.com/craft-native/craft/commit/977240d)) _(by glennmichael123)_
+- **ios**: route simple layout through shared tree ABI ([1c3464c](https://github.com/craft-native/craft/commit/1c3464c)) _(by glennmichael123)_
+- **native**: expose shared tree layout ABI ([7806fe9](https://github.com/craft-native/craft/commit/7806fe9)) _(by glennmichael123)_
+- **sdk**: type native component parity ([8aeed9b](https://github.com/craft-native/craft/commit/8aeed9b)) _(by glennmichael123)_
+
+## 🐛 Bug Fixes
+
+- **ios**: pass flexWrap after alignItems, as StyleInput declares it ([0378767](https://github.com/craft-native/craft/commit/0378767)) _(by Chris Breuer)_
+- **android**: fill vertical native list rows ([e21bb0a](https://github.com/craft-native/craft/commit/e21bb0a)) _(by glennmichael123)_
+- **native**: preserve intrinsic FlatList row heights ([12dbc08](https://github.com/craft-native/craft/commit/12dbc08)) _(by glennmichael123)_
+- **native**: invalidate image intrinsic layout across hosts ([b733cef](https://github.com/craft-native/craft/commit/b733cef)) _(by glennmichael123)_
+- **native**: resolve percentage grid heights ([3701359](https://github.com/craft-native/craft/commit/3701359)) _(by glennmichael123)_
+- **native**: share responsive percentage layout ([06e07bb](https://github.com/craft-native/craft/commit/06e07bb)) _(by glennmichael123)_
+- **native**: inherit svg paint styles across hosts ([0349027](https://github.com/craft-native/craft/commit/0349027)) _(by glennmichael123)_
+- **android**: preserve native audio channels ([6f1f420](https://github.com/craft-native/craft/commit/6f1f420)) _(by glennmichael123)_
+- **android**: render native audio buffer samples ([239fada](https://github.com/craft-native/craft/commit/239fada)) _(by glennmichael123)_
+- **ios**: pin native root viewport beside scroll views ([40f7623](https://github.com/craft-native/craft/commit/40f7623)) _(by glennmichael123)_
+- **ios**: validate shared layout frames safely ([cbcfa68](https://github.com/craft-native/craft/commit/cbcfa68)) _(by glennmichael123)_
+- **ios**: the native screen template compiles again ([96bf52a](https://github.com/craft-native/craft/commit/96bf52a)) _(by Chris Breuer)_
+- **ios**: name generated native targets ([e93c85b](https://github.com/craft-native/craft/commit/e93c85b)) _(by glennmichael123)_
+- **ios**: invalidate image intrinsic layout ([f173ed5](https://github.com/craft-native/craft/commit/f173ed5)) _(by glennmichael123)_
+- **android**: invalidate ancestor layout measurements ([242b4fd](https://github.com/craft-native/craft/commit/242b4fd)) _(by glennmichael123)_
+- **android**: invalidate native layout measurements ([411d30a](https://github.com/craft-native/craft/commit/411d30a)) _(by glennmichael123)_
+- **android**: sanitize map stroke colors ([ab2298b](https://github.com/craft-native/craft/commit/ab2298b)) _(by glennmichael123)_
+- **android**: ignore null scroll callbacks ([572ca52](https://github.com/craft-native/craft/commit/572ca52)) _(by glennmichael123)_
+- **android**: ignore null native event handlers ([dd9d509](https://github.com/craft-native/craft/commit/dd9d509)) _(by glennmichael123)_
+- **android**: ignore null modal handlers ([3067c2a](https://github.com/craft-native/craft/commit/3067c2a)) _(by glennmichael123)_
+- **android**: treat null utility booleans as unset ([f4c9988](https://github.com/craft-native/craft/commit/f4c9988)) _(by glennmichael123)_
+- **android**: sanitize refresh control colors ([b402f84](https://github.com/craft-native/craft/commit/b402f84)) _(by glennmichael123)_
+- **android**: sanitize map overlay identity ([5e34bb6](https://github.com/craft-native/craft/commit/5e34bb6)) _(by glennmichael123)_
+- **android**: sanitize top-level native sources ([131b627](https://github.com/craft-native/craft/commit/131b627)) _(by glennmichael123)_
+- **android**: clear removed native metadata ([25008ec](https://github.com/craft-native/craft/commit/25008ec)) _(by glennmichael123)_
+- **android**: reset removed control tints ([5c1973d](https://github.com/craft-native/craft/commit/5c1973d)) _(by glennmichael123)_
+- **android**: ignore null native string props ([63314a3](https://github.com/craft-native/craft/commit/63314a3)) _(by glennmichael123)_
+- **android**: treat null resize mode as unset ([1aabcc1](https://github.com/craft-native/craft/commit/1aabcc1)) _(by glennmichael123)_
+- **android**: honor native video resize mode ([beb1639](https://github.com/craft-native/craft/commit/beb1639)) _(by glennmichael123)_
+- **android**: reset date picker bounds ([a1e4004](https://github.com/craft-native/craft/commit/a1e4004)) _(by glennmichael123)_
+- **android**: reset checkbox tint on reconcile ([9c01e2b](https://github.com/craft-native/craft/commit/9c01e2b)) _(by glennmichael123)_
+- **android**: consume native map marker taps ([8561797](https://github.com/craft-native/craft/commit/8561797)) _(by glennmichael123)_
+- **ios**: match Android layout visibility ([0bc04cc](https://github.com/craft-native/craft/commit/0bc04cc)) _(by glennmichael123)_
+- **ios**: suppress hidden native layout events ([0767a7f](https://github.com/craft-native/craft/commit/0767a7f)) _(by glennmichael123)_
+- **android**: forward map low memory events ([a77d566](https://github.com/craft-native/craft/commit/a77d566)) _(by glennmichael123)_
+- **android**: ignore late map callbacks ([c5cccec](https://github.com/craft-native/craft/commit/c5cccec)) _(by glennmichael123)_
+- **android**: destroy released map views ([81f7fa9](https://github.com/craft-native/craft/commit/81f7fa9)) _(by glennmichael123)_
+- **native**: validate SVG viewBox geometry ([e3368c4](https://github.com/craft-native/craft/commit/e3368c4)) _(by glennmichael123)_
+- **native**: reject non-finite countdown values ([2970eba](https://github.com/craft-native/craft/commit/2970eba)) _(by glennmichael123)_
+- **native**: reject invalid SVG geometry ([bd8b157](https://github.com/craft-native/craft/commit/bd8b157)) _(by glennmichael123)_
+- **native**: sanitize date picker timestamps ([d27103a](https://github.com/craft-native/craft/commit/d27103a)) _(by glennmichael123)_
+- **native**: sanitize activity indicator sizes ([46153e5](https://github.com/craft-native/craft/commit/46153e5)) _(by glennmichael123)_
+- **native**: sanitize SVG text geometry ([18657dc](https://github.com/craft-native/craft/commit/18657dc)) _(by glennmichael123)_
+- **native**: sanitize SVG paint inputs ([3ac6bf7](https://github.com/craft-native/craft/commit/3ac6bf7)) _(by glennmichael123)_
+- **native**: sanitize list end thresholds ([5d2226c](https://github.com/craft-native/craft/commit/5d2226c)) _(by glennmichael123)_
+- **android**: sanitize native font sizes ([a9cf214](https://github.com/craft-native/craft/commit/a9cf214)) _(by glennmichael123)_
+- **android**: sanitize native transforms ([bd4a027](https://github.com/craft-native/craft/commit/bd4a027)) _(by glennmichael123)_
+- **android**: sanitize native view dimensions ([f5cdba7](https://github.com/craft-native/craft/commit/f5cdba7)) _(by glennmichael123)_
+- **android**: reject non-finite text styles ([ab79407](https://github.com/craft-native/craft/commit/ab79407)) _(by glennmichael123)_
+- **native**: reject non-finite slider values ([4e85ef3](https://github.com/craft-native/craft/commit/4e85ef3)) _(by glennmichael123)_
+- **native**: sanitize keyboard avoidance offsets ([26d082a](https://github.com/craft-native/craft/commit/26d082a)) _(by glennmichael123)_
+- **android**: sanitize pressable active opacity ([2895e84](https://github.com/craft-native/craft/commit/2895e84)) _(by glennmichael123)_
+- **android**: reject invalid map stroke widths ([411bf28](https://github.com/craft-native/craft/commit/411bf28)) _(by glennmichael123)_
+- **native**: bound map region spans ([96c1de5](https://github.com/craft-native/craft/commit/96c1de5)) _(by glennmichael123)_
+- **native**: validate map coordinates consistently ([0b8804e](https://github.com/craft-native/craft/commit/0b8804e)) _(by glennmichael123)_
+- **native**: accept map overlay mutations ([a7e94bc](https://github.com/craft-native/craft/commit/a7e94bc)) _(by glennmichael123)_
+- **android**: target mutations at drawn ancestors ([49dafff](https://github.com/craft-native/craft/commit/49dafff)) _(by glennmichael123)_
+- **ios**: sanitize map overlay geometry ([1173d31](https://github.com/craft-native/craft/commit/1173d31)) _(by glennmichael123)_
+- **ios**: retain unchanged map overlays ([a3b447d](https://github.com/craft-native/craft/commit/a3b447d)) _(by glennmichael123)_
+- **android**: update map polylines in place ([9c33a13](https://github.com/craft-native/craft/commit/9c33a13)) _(by glennmichael123)_
+- **android**: sanitize native shadow values ([144ad35](https://github.com/craft-native/craft/commit/144ad35)) _(by glennmichael123)_
+- **android**: sanitize native drawable dimensions ([24213d5](https://github.com/craft-native/craft/commit/24213d5)) _(by glennmichael123)_
+- **android**: sanitize native opacity values ([300ffce](https://github.com/craft-native/craft/commit/300ffce)) _(by glennmichael123)_
+- **native**: sanitize tree layout gaps ([ad93b04](https://github.com/craft-native/craft/commit/ad93b04)) _(by glennmichael123)_
+- **android**: reject overflowing flex gaps ([cbd0b4f](https://github.com/craft-native/craft/commit/cbd0b4f)) _(by glennmichael123)_
+- **native**: normalize list and control padding ([7f4ecc8](https://github.com/craft-native/craft/commit/7f4ecc8)) _(by glennmichael123)_
+- **native**: normalize container padding ([086190d](https://github.com/craft-native/craft/commit/086190d)) _(by glennmichael123)_
+- **native**: clamp flex and grid gaps ([1825ac1](https://github.com/craft-native/craft/commit/1825ac1)) _(by glennmichael123)_
+- **native**: clamp negative layout lengths ([63a466c](https://github.com/craft-native/craft/commit/63a466c)) _(by glennmichael123)_
+- **native**: reject non-finite layout numbers ([50ae8ed](https://github.com/craft-native/craft/commit/50ae8ed)) _(by glennmichael123)_
+- **native**: reject non-finite layout lengths ([05552de](https://github.com/craft-native/craft/commit/05552de)) _(by glennmichael123)_
+- **ios**: expose date pickers to accessibility ([88cdd3d](https://github.com/craft-native/craft/commit/88cdd3d)) _(by glennmichael123)_
+- **ios**: canonicalize date picker aliases ([f808134](https://github.com/craft-native/craft/commit/f808134)) _(by glennmichael123)_
+- **android**: keep app-script options stackless ([bcbde0c](https://github.com/craft-native/craft/commit/bcbde0c)) _(by glennmichael123)_
+- **android**: keep app-script back stackless ([fc1ee38](https://github.com/craft-native/craft/commit/fc1ee38)) _(by glennmichael123)_
+- **android**: keep app-script navigation stackless ([8505d0c](https://github.com/craft-native/craft/commit/8505d0c)) _(by glennmichael123)_
+- **android**: gate maps dependency to native renderer ([426152d](https://github.com/craft-native/craft/commit/426152d)) _(by glennmichael123)_
+- **android**: accept navigation from visible screen ([1336bc4](https://github.com/craft-native/craft/commit/1336bc4)) _(by glennmichael123)_
+- **android**: keep descendant test ids local ([1edd091](https://github.com/craft-native/craft/commit/1edd091)) _(by glennmichael123)_
+- **ios**: mirror associated domains in zig config ([a1c5b7d](https://github.com/craft-native/craft/commit/a1c5b7d)) _(by glennmichael123)_
+- **test**: align native fixture route names ([cee91d7](https://github.com/craft-native/craft/commit/cee91d7)) _(by glennmichael123)_
+- **native**: align iOS layout and capability config ([2c22e98](https://github.com/craft-native/craft/commit/2c22e98)) _(by glennmichael123)_
+- **native**: restore mobile template build imports ([a0c0cc3](https://github.com/craft-native/craft/commit/a0c0cc3)) _(by glennmichael123)_
+
+## 📚 Documentation
+
+- **native**: list svg primitives in host inventories ([6e10a73](https://github.com/craft-native/craft/commit/6e10a73)) _(by glennmichael123)_
+- **native**: document shared layout adapter parity ([4fb344a](https://github.com/craft-native/craft/commit/4fb344a)) _(by glennmichael123)_
+- **ios**: align notification validation notes ([e18604c](https://github.com/craft-native/craft/commit/e18604c)) _(by glennmichael123)_
+- **ios**: record native validation divergences ([5198fac](https://github.com/craft-native/craft/commit/5198fac)) _(by glennmichael123)_
+- **native**: document map input bounds ([f442f40](https://github.com/craft-native/craft/commit/f442f40)) _(by glennmichael123)_
+
+## 🧪 Tests
+
+- **ios**: classify validation conformance coverage ([7701209](https://github.com/craft-native/craft/commit/7701209)) _(by glennmichael123)_
+- **native**: cover nested percentage measurements ([7fa48b4](https://github.com/craft-native/craft/commit/7fa48b4)) _(by glennmichael123)_
+- **ios**: bound native navigation button surfaces ([54e07c7](https://github.com/craft-native/craft/commit/54e07c7)) _(by glennmichael123)_
+- **ios**: pin plain root overlays beside scroll views ([68084b1](https://github.com/craft-native/craft/commit/68084b1)) _(by glennmichael123)_
+- **native**: cover nested shared layout trees ([6a64550](https://github.com/craft-native/craft/commit/6a64550)) _(by glennmichael123)_
+- **native**: cover independent flex gaps ([97a81c2](https://github.com/craft-native/craft/commit/97a81c2)) _(by glennmichael123)_
+- **native**: cover percentage grid heights ([bb76f96](https://github.com/craft-native/craft/commit/bb76f96)) _(by glennmichael123)_
+- **native**: cover percentage flex basis ([17af56b](https://github.com/craft-native/craft/commit/17af56b)) _(by glennmichael123)_
+- **native**: document shared percentage sizing ([cf0bf51](https://github.com/craft-native/craft/commit/cf0bf51)) _(by glennmichael123)_
+- **native**: cover nested shared layout trees ([abf65de](https://github.com/craft-native/craft/commit/abf65de)) _(by glennmichael123)_
+- **native**: pin root overlays beside scroll views ([e75b19f](https://github.com/craft-native/craft/commit/e75b19f)) _(by glennmichael123)_
+- **native**: cover hidden ancestor layout events ([ad7c3d7](https://github.com/craft-native/craft/commit/ad7c3d7)) _(by glennmichael123)_
+- **native**: cover map overlay mutations on both hosts ([a515078](https://github.com/craft-native/craft/commit/a515078)) _(by glennmichael123)_
+- **ios**: a chat bubble with a percentage max-width takes its text's width ([de45873](https://github.com/craft-native/craft/commit/de45873)) _(by Chris Breuer)_
+
+## 🧹 Chores
+
+- **native**: pin mobile e2e to map-aware stx ([0817340](https://github.com/craft-native/craft/commit/0817340)) _(by glennmichael123)_
+
+## 📄 Miscellaneous
+
+- Merge remote-tracking branch 'origin/main' ([dfc4a44](https://github.com/craft-native/craft/commit/dfc4a44)) _(by glennmichael123)_
+- Merge remote-tracking branch 'origin/main' ([389d4ed](https://github.com/craft-native/craft/commit/389d4ed)) _(by glennmichael123)_
+
+## Contributors
+
+- _Chris Breuer_
+- _glennmichael123_
+
 [Compare changes](https://github.com/craft-native/craft/compare/v0.0.174...v0.0.175)
 
 ## 🚀 Features
