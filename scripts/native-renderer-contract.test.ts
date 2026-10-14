@@ -920,6 +920,9 @@ describe('native renderer component contract', () => {
     expect(android).toContain('released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }')
     expect(ios).toContain('"nativeEvent": ["layout": [')
     expect(android).toContain('.put("layout", JSONObject()')
+    expect(navigationHome).toContain('testID="hidden-layout-child" @layout="captureHiddenLayout()"')
+    expect(iosNavigationTest).toContain('Hidden layout events: 0')
+    expect(androidNavigationTest).toContain('hidden-layout-status", "Hidden layout events: 0"')
   })
 
   it('rebinds Android targeted style mutations to the parent layout', () => {

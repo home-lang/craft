@@ -31,6 +31,7 @@ const sliderValue = state(0.5)
 const sliderCompletions = state(0)
 const layoutWidth = state(0)
 const layoutWide = state(true)
+const hiddenLayoutEvents = state(0)
 const imageStatus = state('')
 const imageErrorStatus = state('')
 const imageBackgroundErrorStatus = state('')
@@ -340,6 +341,10 @@ function toggleLayoutWidth() {
   layoutWide.update(value => !value)
 }
 
+function captureHiddenLayout() {
+  hiddenLayoutEvents.update(value => value + 1)
+}
+
 function openDetails() {
   globalThis.craft.navigation.push('details', { name: navigationName, count: navigationCount() })
 }
@@ -615,6 +620,10 @@ function captureSectionScroll() {
       <Text testID="percent-width" style={{"width":"50%","height":20}}>half width</Text>
     </View>
     <Text testID="layout-status" :text="layoutWidth > 0 ? 'Layout width: ' + layoutWidth : 'layout pending'" />
+    <View testID="hidden-layout-parent" style={{"display":"none"}}>
+      <Text testID="hidden-layout-child" @layout="captureHiddenLayout()">Hidden child</Text>
+    </View>
+    <Text testID="hidden-layout-status" :text="'Hidden layout events: ' + hiddenLayoutEvents" />
     <Button testID="toggle-layout-width" @click="toggleLayoutWidth()">Toggle layout width</Button>
     <Button testID="toggle-input-colors" @click="toggleInputColors()">Toggle input colors</Button>
     <Text testID="input-style-status" :text="inputStyleStatus" />

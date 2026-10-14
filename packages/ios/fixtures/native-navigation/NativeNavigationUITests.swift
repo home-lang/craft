@@ -546,6 +546,7 @@ final class NativeNavigationUITests: XCTestCase {
         reveal(layoutWidthToggle, in: rootScroll)
         layoutWidthToggle.tap()
         XCTAssertTrue(app.staticTexts["Layout width: 180"].waitForExistence(timeout: 5), "native onLayout did not report the responsive width")
+        XCTAssertTrue(app.staticTexts["Hidden layout events: 0"].waitForExistence(timeout: 5), "hidden descendants must not emit onLayout")
         let bounded = app.staticTexts["layout-min"]
         XCTAssertTrue(bounded.exists)
         XCTAssertEqual(bounded.frame.width, 140, accuracy: 2, "maxWidth was not applied")

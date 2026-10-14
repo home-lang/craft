@@ -660,6 +660,7 @@ class NativeNavigationTest {
             assertEquals("Layout width: 240", (awaitView(activity, "layout-status") as TextView).text.toString())
             click(activity, "toggle-layout-width")
             awaitText(activity, "layout-status", "Layout width: 180")
+            awaitText(activity, "hidden-layout-status", "Hidden layout events: 0")
             val bounded = awaitView(activity, "layout-min")
             val absolute = awaitView(activity, "layout-absolute")
             assertEquals((140 * density).toInt(), bounded.width)
