@@ -200,6 +200,12 @@ describe('native renderer component contract', () => {
     }
   })
 
+  it('canonicalizes date picker aliases identically on both hosts', () => {
+    const aliases = 'case "datepicker", "date-picker", "date": return "DatePicker"'
+    expect(ios).toContain(aliases)
+    expect(android).toContain('"datepicker", "date-picker", "date" -> "DatePicker"')
+  })
+
   it('keeps utility native nodes out of layout and binds their host traits', () => {
     expect(ios).toContain('case "StatusBar", "RefreshControl":')
     expect(ios).toContain('statusBarStyleOverride')
