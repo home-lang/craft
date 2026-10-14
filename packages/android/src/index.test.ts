@@ -266,6 +266,10 @@ describe('Craft Android builder', () => {
       expect(nativeActivity).toContain('released.filterIsInstance<CraftNativeFlexLayout>().forEach { it.onLayoutChanged = null }')
       expect(nativeActivity).toContain('"Picker" -> (previous as? Spinner ?: Spinner(this)).apply')
       expect(nativeActivity).toContain('private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)')
+      expect(nativeActivity).toContain('private var defaultDateBounds: Pair<Long, Long>? = null')
+      expect(nativeActivity).toContain('defaultDateBounds = picker.minDate to picker.maxDate')
+      expect(nativeActivity).toContain('datePicker?.minDate = pickerDate(props.opt("minimumDate"))?.timeInMillis ?: defaults?.first')
+      expect(nativeActivity).toContain('datePicker?.maxDate = pickerDate(props.opt("maximumDate"))?.timeInMillis ?: defaults?.second')
       expect(nativeActivity).toContain('"DatePicker" -> (previous as? CraftNativeDatePickerView ?: CraftNativeDatePickerView(this)).apply')
       // A date-only picker has no TimePicker; its change must still reach the screen.
       expect(nativeActivity).not.toContain('val picker = timePicker ?: return')

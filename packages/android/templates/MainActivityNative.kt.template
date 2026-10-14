@@ -2015,6 +2015,7 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
     private var pickerMode: PickerMode? = null
     private var datePicker: DatePicker? = null
     private var timePicker: TimePicker? = null
+    private var defaultDateBounds: Pair<Long, Long>? = null
     private var minuteInterval = 1
     private var countdownSecond = 0
     private var suppressChanges = true
@@ -2042,6 +2043,7 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
             }
             if (requestedMode == PickerMode.DATE || requestedMode == PickerMode.DATE_TIME) {
                 datePicker = DatePicker(context).also { picker ->
+                    defaultDateBounds = picker.minDate to picker.maxDate
                     val today = Calendar.getInstance()
                     picker.init(today.get(Calendar.YEAR), today.get(Calendar.MONTH), today.get(Calendar.DAY_OF_MONTH)) { _, _, _, _ -> changed() }
                     content.addView(picker, LinearLayout.LayoutParams(
@@ -2065,8 +2067,9 @@ private class CraftNativeDatePickerView(context: Context) : FrameLayout(context)
 
         suppressChanges = true
         minuteInterval = props.optInt("minuteInterval", 1).takeIf { it in 1..30 && 60 % it == 0 } ?: 1
-        pickerDate(props.opt("minimumDate"))?.let { datePicker?.minDate = it.timeInMillis }
-        pickerDate(props.opt("maximumDate"))?.let { datePicker?.maxDate = it.timeInMillis }
+        val defaults = defaultDateBounds
+        datePicker?.minDate = pickerDate(props.opt("minimumDate"))?.timeInMillis ?: defaults?.first ?: datePicker?.minDate ?: 0L
+        datePicker?.maxDate = pickerDate(props.opt("maximumDate"))?.timeInMillis ?: defaults?.second ?: datePicker?.maxDate ?: Long.MAX_VALUE
         if (requestedMode == PickerMode.COUNTDOWN) {
             countdownSecond = 0
             countdownSeconds(props.opt("value"))?.let { applyCountdown(it) }
