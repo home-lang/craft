@@ -256,13 +256,15 @@ enum CraftNativeActions {
                 complete(requestToken, failure("CAPABILITY_DISABLED", "Passkeys are disabled"), completion)
                 return
             }
-            CraftNativePasskeys.shared.perform(
-                requestToken: requestToken,
-                method: method,
-                options: args.first as? [String: Any] ?? [:],
-                config: config,
-                completion: completion
-            )
+            DispatchQueue.main.async {
+                CraftNativePasskeys.shared.perform(
+                    requestToken: requestToken,
+                    method: method,
+                    options: args.first as? [String: Any] ?? [:],
+                    config: config,
+                    completion: completion
+                )
+            }
             return
         case ("Dialog", _):
             // The system's own alert, confirmation and action sheet, the same
