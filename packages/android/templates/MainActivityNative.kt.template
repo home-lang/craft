@@ -776,14 +776,19 @@ private class CraftNativeFlexLayout(context: Context) : LinearLayout(context) {
             if (style.has("gridTemplateColumns")) style.opt("gridTemplateColumns") else style.opt("gridColumns")
         )
         gridAutoRows = CraftNativeLength.from(style.opt("gridAutoRows"), density)
-        val padding = (style.optDouble("padding", 0.0) * density).toInt()
-        val horizontal = (style.optDouble("paddingHorizontal", padding.toDouble() / density.toDouble()) * density).toInt()
-        val vertical = (style.optDouble("paddingVertical", padding.toDouble() / density.toDouble()) * density).toInt()
+        fun padding(name: String, fallback: Int): Int {
+            val value = style.optDouble(name, Double.NaN)
+            val pixels = value * density
+            return if (value.isFinite() && value >= 0 && pixels.isFinite()) pixels.toInt() else fallback
+        }
+        val all = padding("padding", 0)
+        val horizontal = padding("paddingHorizontal", all)
+        val vertical = padding("paddingVertical", all)
         setPadding(
-            (style.optDouble("paddingLeft", horizontal.toDouble() / density.toDouble()) * density).toInt(),
-            (style.optDouble("paddingTop", vertical.toDouble() / density.toDouble()) * density).toInt(),
-            (style.optDouble("paddingRight", horizontal.toDouble() / density.toDouble()) * density).toInt(),
-            (style.optDouble("paddingBottom", vertical.toDouble() / density.toDouble()) * density).toInt(),
+            padding("paddingLeft", horizontal),
+            padding("paddingTop", vertical),
+            padding("paddingRight", horizontal),
+            padding("paddingBottom", vertical),
         )
         requestLayout()
     }

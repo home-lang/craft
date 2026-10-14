@@ -355,7 +355,7 @@ describe('native renderer component contract', () => {
     expect(nativeLayout).toContain('column_gap: f32')
     expect(nativeLayout).toContain('padding_left: f32')
     expect(nativeLayout).toContain('padding_bottom: f32')
-    expect(nativeLayout).toContain('const content_width = @max(0, width - node.style.padding_left - node.style.padding_right)')
+    expect(nativeLayout).toContain('const content_width = @max(0, width - padding_left - padding_right)')
     expect(nativeLayout).toContain('fn layoutGrid(')
     expect(guide).toContain('host-neutral layout contract')
     expect(guide).toContain('platform-specific measurement')
@@ -964,6 +964,18 @@ describe('native renderer component contract', () => {
     // A single-line container's one line spans its cross size, as in CSS.
     expect(android).toContain('val lineCross = if (!wrap) max(line.cross.toFloat(), availableCross.toFloat())')
     expect(android).toContain('crossOffset += lineCross + crossBetween')
+  })
+
+  it('normalizes authored container padding before layout on both hosts', () => {
+    expect(ios).toContain('func nonNegative(_ value: Any?) -> CGFloat?')
+    expect(ios).toContain('let padding = nonNegative(style["padding"]) ?? 0')
+    expect(ios).toContain('right: nonNegative(style["paddingRight"]) ?? horizontal')
+    expect(android).toContain('fun padding(name: String, fallback: Int): Int')
+    expect(android).toContain('value.isFinite() && value >= 0 && pixels.isFinite()')
+    expect(android).toContain('padding("paddingLeft", horizontal)')
+    expect(nativeLayout).toContain('const padding_left = finiteNonNegative(node.style.padding_left)')
+    expect(nativeLayout).toContain('const content_x = x + padding_left')
+    expect(nativeLayout).toContain('test "sanitizes non-finite and negative tree padding"')
   })
 
   it('keeps intrinsic grid tracks equal across hosts', () => {

@@ -5414,14 +5414,18 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
     }
 
     private func paddingInsets(_ style: [String: Any]) -> UIEdgeInsets {
-        let padding = number(style["padding"]) ?? 0
-        let horizontal = number(style["paddingHorizontal"]) ?? padding
-        let vertical = number(style["paddingVertical"]) ?? padding
+        func nonNegative(_ value: Any?) -> CGFloat? {
+            guard let value = number(value), value >= 0 else { return nil }
+            return value
+        }
+        let padding = nonNegative(style["padding"]) ?? 0
+        let horizontal = nonNegative(style["paddingHorizontal"]) ?? padding
+        let vertical = nonNegative(style["paddingVertical"]) ?? padding
         return UIEdgeInsets(
-            top: number(style["paddingTop"]) ?? vertical,
-            left: number(style["paddingLeft"]) ?? horizontal,
-            bottom: number(style["paddingBottom"]) ?? vertical,
-            right: number(style["paddingRight"]) ?? horizontal
+            top: nonNegative(style["paddingTop"]) ?? vertical,
+            left: nonNegative(style["paddingLeft"]) ?? horizontal,
+            bottom: nonNegative(style["paddingBottom"]) ?? vertical,
+            right: nonNegative(style["paddingRight"]) ?? horizontal
         )
     }
 

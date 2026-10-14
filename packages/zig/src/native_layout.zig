@@ -591,10 +591,14 @@ fn layoutNode(
     frames[frame_index] = .{ .x = x, .y = y, .width = width, .height = height };
 
     if (node.children.len == 0) return frame_index + 1;
-    const content_width = @max(0, width - node.style.padding_left - node.style.padding_right);
-    const content_height = @max(0, height - node.style.padding_top - node.style.padding_bottom);
-    const content_x = x + node.style.padding_left;
-    const content_y = y + node.style.padding_top;
+    const padding_left = finiteNonNegative(node.style.padding_left);
+    const padding_right = finiteNonNegative(node.style.padding_right);
+    const padding_top = finiteNonNegative(node.style.padding_top);
+    const padding_bottom = finiteNonNegative(node.style.padding_bottom);
+    const content_width = @max(0, width - padding_left - padding_right);
+    const content_height = @max(0, height - padding_top - padding_bottom);
+    const content_x = x + padding_left;
+    const content_y = y + padding_top;
     if (node.style.grid) return layoutGrid(node, content_width, content_height, content_x, content_y, frame_index, frames);
 
     const main_size = if (node.style.direction == .row) content_width else content_height;
@@ -1307,6 +1311,26 @@ test "sanitizes non-finite tree dimensions" {
         try std.testing.expect(frame.width >= 0);
         try std.testing.expect(frame.height >= 0);
     }
+}
+
+test "sanitizes non-finite and negative tree padding" {
+    const children = [_]Node{.{ .style = .{ .flex_basis = 10 } }};
+    const root = Node{
+        .style = .{
+            .width = 100,
+            .height = 40,
+            .padding_left = -8,
+            .padding_right = std.math.nan(f32),
+            .padding_top = std.math.inf(f32),
+            .padding_bottom = -4,
+        },
+        .children = &children,
+    };
+    var frames: [2]Frame = undefined;
+
+    _ = try layout(root, .{ .width = 100, .height = 40 }, &frames);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), frames[1].x, 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), frames[1].y, 0.001);
 }
 
 test "recurses across row and column axes without host concepts" {
