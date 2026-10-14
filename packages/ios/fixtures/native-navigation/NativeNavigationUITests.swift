@@ -88,6 +88,23 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["capabilities-title"].waitForExistence(timeout: 10))
     }
 
+    private func swipeTab(_ app: XCUIApplication, left: Bool) {
+        let window = app.windows.firstMatch
+        let start = window.coordinate(withNormalizedOffset: CGVector(dx: left ? 0.8 : 0.2, dy: 0.35))
+        let end = window.coordinate(withNormalizedOffset: CGVector(dx: left ? 0.2 : 0.8, dy: 0.35))
+        start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.1)
+    }
+
+    func testTabSwipeSwitchesNativeRootsAndReturns() {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertFalse(app.webViews.firstMatch.exists, "tab swipe fixture created a WebView")
+        swipeTab(app, left: true)
+        XCTAssertTrue(app.staticTexts["details-title"].waitForExistence(timeout: 10))
+        swipeTab(app, left: false)
+        XCTAssertTrue(app.textFields["name-input"].waitForExistence(timeout: 10))
+    }
+
     func testCapabilityPersistenceAndNotificationsAcrossRelaunch() throws {
         let app = XCUIApplication()
         app.launch()

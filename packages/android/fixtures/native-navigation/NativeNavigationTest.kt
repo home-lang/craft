@@ -134,6 +134,26 @@ class NativeNavigationTest {
         }
     }
 
+    private fun swipeTab(activity: MainActivity, left: Boolean) {
+        val chrome = findType(activity.window.decorView, CraftNativeChrome::class.java)
+            ?: throw AssertionError("native chrome did not mount")
+        val downTime = SystemClock.uptimeMillis()
+        val y = chrome.content.top + chrome.content.height / 2f
+        val startX = if (left) chrome.width * 0.8f else chrome.width * 0.2f
+        val endX = if (left) chrome.width * 0.2f else chrome.width * 0.8f
+        instrumentation.runOnMainSync {
+            val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, startX, y, 0)
+            val move = MotionEvent.obtain(downTime, downTime + 16, MotionEvent.ACTION_MOVE, endX, y, 0)
+            val up = MotionEvent.obtain(downTime, downTime + 32, MotionEvent.ACTION_UP, endX, y, 0)
+            chrome.dispatchTouchEvent(down)
+            chrome.dispatchTouchEvent(move)
+            chrome.dispatchTouchEvent(up)
+            down.recycle()
+            move.recycle()
+            up.recycle()
+        }
+    }
+
     private fun awaitText(activity: MainActivity, id: String, expected: String): TextView {
         repeat(75) {
             var matching: TextView? = null
@@ -254,6 +274,9 @@ class NativeNavigationTest {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ) as MainActivity
         try {
+            swipeTab(activity, left = true)
+            assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())
+            swipeTab(activity, left = false)
             val name = awaitView(activity, "name-input")
             val root = awaitView(activity, "root")
             assertTrue("View did not render as LinearLayout", root is LinearLayout)

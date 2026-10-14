@@ -1671,6 +1671,11 @@ describe('native renderer component contract', () => {
     expect(hybrid).toContain('let delta = abs(translation) >= 32 ? translation : velocity')
     expect(hybrid).toContain('horizontalScrollCanScrollBack(at: nav.view.convert(start, to: view), in: native.view)')
     expect(hybrid).toContain('if gestureRecognizer.location(in: nav.view).x - moved > 32 { return false }')
+    expect(iosNavigationScript).toContain("{ id: '/', title: 'Home', symbol: 'house' }")
+    expect(androidNavigationScript).toContain("{ id: '/', title: 'Home', symbol: 'house' }")
+    expect(iosNavigationTest).toContain('testTabSwipeSwitchesNativeRootsAndReturns')
+    expect(androidNavigationTest).toContain('private fun swipeTab(activity: MainActivity, left: Boolean)')
+    expect(androidNavigationTest).toContain('assertEquals("Details for ", (awaitView(activity, "details-title") as TextView).text.toString())')
   })
 
   it('keeps Android tab swipes interactive and screen-configurable', () => {

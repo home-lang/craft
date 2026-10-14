@@ -50,6 +50,16 @@ try {
     output,
     config: {
       renderer: 'native',
+      nativeScreens: {
+        '/': 'Home',
+        '/details': 'Details',
+        '/summary': 'Summary',
+        '/capabilities': 'Capabilities',
+      },
+      tabs: [
+        { id: '/', title: 'Home', symbol: 'house' },
+        { id: '/details', title: 'Details', symbol: 'doc.text' },
+      ],
       enableDeepLinks: true,
       enableLocalDatabase: true,
       enableLocalNotifications: true,
