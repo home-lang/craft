@@ -70,6 +70,7 @@ enum CraftNativeActions {
         // A heart-rate strap is the app's own service (CraftHeartRate.swift),
         // so it needs no web view.
         if config.enableHeartRate { values.append("heartRate") }
+        if config.enableBluetooth { values.append("bluetooth") }
         // Workouts on the paired Apple Watch (CraftScheduledWorkouts.swift),
         // also the app's own service.
         if config.enableScheduledWorkouts { values.append("scheduledWorkouts") }
@@ -400,6 +401,15 @@ enum CraftNativeActions {
                 return
             }
             CraftWebServices.perform(action: action, body: args.first as? [String: Any] ?? [:]) { complete(requestToken, $0, completion) }
+            return
+        case ("Bluetooth", _):
+            guard config.enableBluetooth else {
+                complete(requestToken, failure("CAPABILITY_DISABLED", "Bluetooth is disabled"), completion)
+                return
+            }
+            CraftBluetooth.shared.perform(method: method, args: args) { result in
+                complete(requestToken, result.mapError { CraftNativeActionError(code: $0.code, message: $0.message) }, completion)
+            }
             return
         case ("HeartRate", _):
             // A Bluetooth heart-rate strap, the same service as a page's

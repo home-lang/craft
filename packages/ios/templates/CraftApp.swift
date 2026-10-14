@@ -2564,6 +2564,17 @@ struct CraftWebView: UIViewRepresentable {
                     rejectCallback(callbackId, error: "Local database is disabled", code: "CAPABILITY_DISABLED")
                 }
             // MARK: - Bluetooth
+            case "bluetoothChannel":
+                guard config.enableBluetooth else {
+                    rejectCallback(callbackId, error: "Bluetooth is disabled", code: "CAPABILITY_DISABLED")
+                    break
+                }
+                CraftBluetooth.shared.perform(method: body["method"] as? String ?? "", args: [body["options"] as? [String: Any] ?? [:]]) { [weak self] result in
+                    switch result {
+                    case .success(let value): self?.resolveCallback(callbackId, result: value)
+                    case .failure(let error): self?.rejectCallback(callbackId, error: error.message, code: error.code)
+                    }
+                }
             case "startBluetoothScan":
                 if config.enableBluetooth {
                     startBluetoothScan(callbackId: callbackId)
@@ -5288,6 +5299,14 @@ struct CraftWebView: UIViewRepresentable {
                 // natively, screen locked or app closed, until stopRecording().
                 (function() {
                     function heartRate(method, options) { return craft._invoke('heartRate', {method: method, options: options || {}}); }
+                    craft.bluetooth = {
+                        getState: function() { return craft._invoke('bluetoothChannel', {method: 'getState'}); },
+                        scan: function(options) { return craft._invoke('bluetoothChannel', {method: 'scan', options: options || {}}); },
+                        stopScan: function() { return craft._invoke('bluetoothChannel', {method: 'stopScan'}); },
+                        connect: function(options) { return craft._invoke('bluetoothChannel', {method: 'connect', options: options || {}}); },
+                        exchange: function(options) { return craft._invoke('bluetoothChannel', {method: 'exchange', options: options || {}}); },
+                        disconnect: function() { return craft._invoke('bluetoothChannel', {method: 'disconnect'}); }
+                    };
                     craft.heartRate = {
                         getState: function() { return heartRate('getState'); },
                         requestAuthorization: function() { return craft._invoke('heartRateRequestAuthorization'); },
