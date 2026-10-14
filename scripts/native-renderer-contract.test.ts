@@ -562,8 +562,14 @@ describe('native renderer component contract', () => {
 
   it('keeps native slider controls and completion events aligned', () => {
     expect(ios).toContain('slider.value = snappedSliderValue(value, for: slider)')
+    expect(ios).toContain('let minimum = (props["minimumValue"] as? NSNumber)?.floatValue ?? 0')
+    expect(ios).toContain('slider.minimumValue = minimum.isFinite ? minimum : 0')
+    expect(ios).toContain('step.isFinite, step > 0')
     expect(ios).toContain('events["onSlidingComplete"]')
-    expect(android).toContain('val requested = props.optDouble("value", minimum)')
+    expect(android).toContain('val minimum = craftNativeFiniteDouble(props, "minimumValue", 0.0)')
+    expect(android).toContain('val maximumCandidate = craftNativeFiniteDouble(props, "maximumValue", 1.0)')
+    expect(android).toContain('val step = craftNativeFiniteDouble(props, "step", 0.0).takeIf { it > 0 }')
+    expect(android).toContain('val requested = craftNativeFiniteDouble(props, "value", minimum)')
     expect(android).toContain('val progressMax = step?.let {')
     expect(android).toContain('onSlidingComplete')
     expect(guide).toContain('`Slider` accepts `minimumTrackTintColor`')
@@ -1432,7 +1438,7 @@ describe('native renderer component contract', () => {
 
   it('snaps controlled slider values on initial render across hosts', () => {
     expect(ios).toContain('slider.value = snappedSliderValue(value, for: slider)')
-    expect(android).toContain('val requested = props.optDouble("value", minimum)')
+    expect(android).toContain('val requested = craftNativeFiniteDouble(props, "value", minimum)')
     expect(android).toContain('if (step != null) minimum + ((requested - minimum) / step).roundToInt() * step else requested')
     expect(android).toContain('val progressMax = step?.let {')
     expect(android).toContain('ceil((maximum - minimum) / it).toLong()')

@@ -3899,11 +3899,11 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             "Slider" -> (previous as? SeekBar ?: SeekBar(this)).apply {
-                val minimum = props.optDouble("minimumValue", 0.0)
-                val maximumCandidate = props.optDouble("maximumValue", 1.0)
+                val minimum = craftNativeFiniteDouble(props, "minimumValue", 0.0)
+                val maximumCandidate = craftNativeFiniteDouble(props, "maximumValue", 1.0)
                 val maximum = if (maximumCandidate > minimum) maximumCandidate else minimum + Double.MIN_VALUE
                 setOnSeekBarChangeListener(null)
-                val step = props.optDouble("step", 0.0).takeIf { it > 0 }
+                val step = craftNativeFiniteDouble(props, "step", 0.0).takeIf { it > 0 }
                 // A stepped slider needs one native position per authored
                 // step; a fixed 1,000-position SeekBar silently made large
                 // ranges unable to represent most valid values. Continuous
@@ -3917,7 +3917,7 @@ class MainActivity : AppCompatActivity() {
                         .toInt()
                 } ?: 1000
                 max = progressMax
-                val requested = props.optDouble("value", minimum)
+                val requested = craftNativeFiniteDouble(props, "value", minimum)
                 val value = (if (step != null) minimum + ((requested - minimum) / step).roundToInt() * step else requested)
                     .coerceIn(minimum, maximum)
                 progress = if (step != null) {
