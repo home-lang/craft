@@ -1558,6 +1558,8 @@ describe('native renderer component contract', () => {
     expect(ios).toContain('case "cover": return .scaleAspectFill')
     expect(android).toContain('imageJobs.remove(view)?.cancel(true)')
     expect(android).toContain('if (imageSources[view] != uri) return@runOnUiThread')
+    expect(android).toContain('private fun imageDidChange(view: ImageView)')
+    expect(android).toContain('invalidateMeasurementAncestors(view.parent)')
     expect(android).toContain('private fun loadsImage(uri: Uri): Boolean')
     expect(android).toContain('host == "10.0.2.2"')
     expect(android).toContain('host.endsWith(".localhost")')
@@ -1566,6 +1568,14 @@ describe('native renderer component contract', () => {
     expect(android).toContain('val tint = style.opt("tintColor") as? String')
     expect(android).toContain('tint == "null" || tint == "undefined"')
     expect(android).toContain('view.clearColorFilter()')
+  })
+
+  it('re-measures intrinsic images after a drawable swap on both hosts', () => {
+    expect(navigationHome).toContain('testID="intrinsic-image"')
+    expect(navigationHome).toContain('@layout="captureIntrinsicImageLayout($event)"')
+    expect(navigationHome).toContain('testID="toggle-intrinsic-image"')
+    expect(iosNavigationTest).toContain('intrinsic image source change did not invalidate its parent measurement')
+    expect(androidNavigationTest).toContain('awaitText(activity, "intrinsic-image-status", "intrinsic image resized")')
   })
 
   it('lets stopped Android activity indicators leave the indeterminate-only spinner style', () => {

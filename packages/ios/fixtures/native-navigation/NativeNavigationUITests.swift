@@ -261,6 +261,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let image = app.images["native-image"]
         XCTAssertTrue(image.waitForExistence(timeout: 10))
+        let intrinsicImage = app.images["intrinsic-image"]
+        XCTAssertTrue(intrinsicImage.waitForExistence(timeout: 10), "intrinsic image did not mount")
+        let intrinsicImageToggle = app.buttons["toggle-intrinsic-image"]
+        reveal(intrinsicImageToggle, in: scroll, within: rootScroll)
+        intrinsicImageToggle.tap()
+        XCTAssertTrue(app.staticTexts["intrinsic image resized"].waitForExistence(timeout: 5), "intrinsic image source change did not invalidate its parent measurement")
         let imageBackground = app.images["native-image-background"]
         XCTAssertTrue(imageBackground.waitForExistence(timeout: 10), "ImageBackground did not mount as a native image container")
         let unsupportedBackground = app.images["unsupported-image-background"]

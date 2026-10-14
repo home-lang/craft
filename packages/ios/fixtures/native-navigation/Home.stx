@@ -39,6 +39,10 @@ const imageFailureCount = state(0)
 const imageTinted = state(true)
 const imageSource = state('http://example.com/image.png')
 const validImageSource = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+const intrinsicImageWide = state(false)
+const intrinsicImageWidth = state(0)
+const intrinsicImageHeight = state(0)
+const intrinsicImageStatus = state('intrinsic image pending')
 const buttonAccent = state(false)
 const inputColors = state(true)
 const inputStyleStatus = state('')
@@ -148,6 +152,12 @@ function currentImage() {
   return { uri: imageSource() }
 }
 
+function intrinsicImage() {
+  const square = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg=='
+  const wide = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAADklEQVR4nGP4z8DwH4QBEfcD/ePF9e8AAAAASUVORK5CYII='
+  return { uri: intrinsicImageWide() ? wide : square }
+}
+
 function changeName(event) {
   name.set(event.text)
 }
@@ -200,6 +210,21 @@ function clearImageSource() {
 function toggleImageTint() {
   imageTinted.update(value => !value)
   imageStatus.set(imageTinted() ? 'image tint on' : 'image tint off')
+}
+
+function captureIntrinsicImageLayout(event) {
+  const width = Math.round(event.layout.width)
+  const height = Math.round(event.layout.height)
+  if (width <= 0 || height <= 0) return
+  if (intrinsicImageWide() && (width !== intrinsicImageWidth() || height !== intrinsicImageHeight())) {
+    intrinsicImageStatus.set('intrinsic image resized')
+  }
+  intrinsicImageWidth.set(width)
+  intrinsicImageHeight.set(height)
+}
+
+function toggleIntrinsicImage() {
+  intrinsicImageWide.update(value => !value)
 }
 
 function toggleButtonAccent() {
@@ -419,6 +444,9 @@ function captureSectionScroll() {
         @load-end="imageLoaded()"
         style={{"width":24,"height":24,"resizeMode":"cover","tintColor":imageTinted ? "#2563eb" : null}}
       />
+      <Image testID="intrinsic-image" source={intrinsicImage()} @layout="captureIntrinsicImageLayout($event)" />
+      <Text testID="intrinsic-image-status" :text="intrinsicImageStatus" />
+      <Button testID="toggle-intrinsic-image" @click="toggleIntrinsicImage()">Resize intrinsic image</Button>
       <ImageBackground
         testID="native-image-background"
         source={validImage()}

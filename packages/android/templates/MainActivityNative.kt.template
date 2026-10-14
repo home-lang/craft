@@ -5355,6 +5355,7 @@ class MainActivity : AppCompatActivity() {
             imageSources[view] = ""
             imageErrors[view] = "Image source is missing"
             view.setImageDrawable(null)
+            imageDidChange(view)
             imageFailure(screen, view, uri, "Image source is missing")
             return
         }
@@ -5363,7 +5364,9 @@ class MainActivity : AppCompatActivity() {
         imageSources[view] = uri
         imageErrors.remove(view)
         view.setImageDrawable(null)
+        imageDidChange(view)
         immediateImage(imageUri(defaultSource))?.let(view::setImageBitmap)
+        if (view.drawable != null) imageDidChange(view)
         emitImageEvent(screen, view, screen.imageLoadStartHandlers[view])
 
         if (uri.startsWith("data:image/") && uri.contains(',')) {
@@ -5371,6 +5374,7 @@ class MainActivity : AppCompatActivity() {
             val bitmap = bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
             if (bitmap != null) {
                 view.setImageBitmap(bitmap)
+                imageDidChange(view)
                 emitImageEvent(screen, view, screen.imageLoadHandlers[view])
                 emitImageEvent(screen, view, screen.imageLoadEndHandlers[view])
             } else imageFailure(screen, view, uri, "Image data is invalid")
@@ -5380,6 +5384,7 @@ class MainActivity : AppCompatActivity() {
             val bitmap = runCatching { assets.open(uri).use { BitmapFactory.decodeStream(it) } }.getOrNull()
             if (bitmap != null) {
                 view.setImageBitmap(bitmap)
+                imageDidChange(view)
                 emitImageEvent(screen, view, screen.imageLoadHandlers[view])
                 emitImageEvent(screen, view, screen.imageLoadEndHandlers[view])
             } else imageFailure(screen, view, uri, "Bundled image was not found")
@@ -5402,6 +5407,7 @@ class MainActivity : AppCompatActivity() {
                 imageJobs.remove(view)
                 if (bitmap != null) {
                     view.setImageBitmap(bitmap)
+                    imageDidChange(view)
                     emitImageEvent(screen, view, screen.imageLoadHandlers[view])
                     emitImageEvent(screen, view, screen.imageLoadEndHandlers[view])
                 } else imageFailure(screen, view, uri, "Image download failed")
@@ -5412,6 +5418,7 @@ class MainActivity : AppCompatActivity() {
     private fun imageFailure(screen: Screen, view: ImageView, uri: String, message: String) {
         imageErrors[view] = message
         view.setImageDrawable(null)
+        imageDidChange(view)
         val current = view.contentDescription?.toString().orEmpty()
         if (!current.contains(message)) {
             view.contentDescription = listOf(
@@ -5422,6 +5429,18 @@ class MainActivity : AppCompatActivity() {
         emitImageEvent(screen, view, screen.imageErrorHandlers[view], JSONObject().put("error", JSONObject().put("message", message)))
         emitImageEvent(screen, view, screen.imageLoadEndHandlers[view])
         Log.e(TAG, "$message: $uri")
+    }
+
+    /**
+     * An ImageView invalidates its own measure when its drawable changes, but
+     * the native flex parent also memoizes intrinsic probes for the frame.
+     * Clear that memo and walk through image-background wrappers so a source
+     * swap can change an un-sized image's layout on the next pass.
+     */
+    private fun imageDidChange(view: ImageView) {
+        view.invalidate()
+        view.requestLayout()
+        invalidateMeasurementAncestors(view.parent)
     }
 
     private fun emitImageEvent(screen: Screen, view: ImageView, handler: String?, nativeEvent: JSONObject = JSONObject()) {
