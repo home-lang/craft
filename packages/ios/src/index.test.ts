@@ -122,7 +122,7 @@ describe('Craft iOS builder', () => {
     // commands, and a change to a shape redraws its Svg.
     expect(nativeSwift).toContain('private final class CraftNativeSvgView: UIView')
     expect(nativeSwift).toContain('case "Svg":')
-    expect(nativeSwift).toContain('flatListOwners[id] ?? svgOwners[id] ?? id')
+    expect(nativeSwift).toContain('flatListOwners[candidate] ?? svgOwners[candidate] ?? candidate')
     expect(nativeSwift).toContain('path.addCurve(to: point(i + 5), controlPoint1: point(i + 1), controlPoint2: point(i + 3))')
     expect(nativeSwift).toContain('size.width * box.height / box.width')
     // A chart stretched to its box (preserveAspectRatio="none") keeps its

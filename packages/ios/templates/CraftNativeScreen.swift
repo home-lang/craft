@@ -3816,7 +3816,7 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         let focused = firstResponder(in: rootStack) ?? lastFocusedInput
         var applied = Set<String>()
         for id in ids {
-            let target = flatListOwners[id] ?? svgOwners[id] ?? id
+            guard let target = drawnTarget(id) else { return false }
             guard applied.insert(target).inserted else { continue }
             guard let document = mutationDocument.node(target), let previous = renderedNode(target) else { return false }
             let next = reconcile(document, identity: previous.identity, path: target, previous: previous)
@@ -3826,6 +3826,21 @@ final class CraftNativeScreenController: UIViewController, UIScrollViewDelegate,
         }
         restoreFocus(focused)
         return true
+    }
+
+    /// The drawn node a change to `id` redraws: the list or drawing a row or
+    /// shape belongs to, else the node itself. A node this batch created is
+    /// not drawn yet (a drawing an `:if` just revealed, its shapes inserted
+    /// into it), so its nearest drawn ancestor draws it, rather than the whole
+    /// screen being reconciled again for want of it.
+    private func drawnTarget(_ id: String) -> String? {
+        var current: String? = id
+        while let candidate = current {
+            let target = flatListOwners[candidate] ?? svgOwners[candidate] ?? candidate
+            if renderedNode(target) != nil { return target }
+            current = mutationDocument.parentId(of: candidate)
+        }
+        return nil
     }
 
     private func renderedNode(_ id: String, below node: RenderedNode? = nil) -> RenderedNode? {

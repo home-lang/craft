@@ -69,6 +69,26 @@ describe('native renderer component contract', () => {
     expect(iosHealth.match(/let completion = completeOnMain\(rawCompletion\)/g)?.length).toBe(13)
   })
 
+  it('lets every container both hosts draw take children in a mutation', () => {
+    // An `:if` around an <svg> inserts its shapes after the first paint. iOS
+    // took children only into View, SafeAreaView and ScrollView, refused
+    // them as INVALID_PARENT, and every such screen was drawn again whole.
+    const iosMutation = readFileSync(join(root, 'packages/ios/templates/CraftNativeMutation.swift'), 'utf8')
+    const androidMutation = readFileSync(join(root, 'packages/android/templates/CraftNativeMutation.kt.template'), 'utf8')
+    const listed = (source: string, pattern: RegExp) => [...(pattern.exec(source)?.[1] ?? '').matchAll(/"([A-Za-z]+)"/g)].map(match => match[1]).sort()
+    const iosContainers = listed(iosMutation, /static let containerTypes: Set<String> = \[([\s\S]*?)\]/)
+    const androidContainers = listed(androidMutation, /CONTAINER_TYPES = setOf\(([\s\S]*?)\)/)
+    expect(iosContainers).toEqual(androidContainers)
+    expect(iosContainers).toEqual(expect.arrayContaining(['View', 'SafeAreaView', 'ScrollView', 'Svg', 'G', 'Pressable', 'Modal']))
+    expect(iosMutation).toContain('Self.containerTypeKeys.contains(type.lowercased())')
+    // A node the batch created is drawn by its nearest drawn ancestor, not by
+    // reconciling the whole screen again.
+    expect(iosMutation).toContain('func parentId(of id: String) -> String?')
+    expect(ios).toContain('guard let target = drawnTarget(id) else { return false }')
+    expect(iosNativeUnitTests).toContain('func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace()')
+    expect(iosNativeUnitTests).toContain('func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot()')
+  })
+
   it('exports the flat flex ABI for mobile hosts', () => {
     expect(nativeLayout).toContain('pub const FlexItem = extern struct')
     expect(nativeLayout).toContain('pub const JustifyContent = enum')

@@ -425,6 +425,66 @@ final class NativeRenderUnitTests: XCTestCase {
         XCTAssertTrue(scroll === find(UIScrollView.self, key: "scroll", below: controller.view))
     }
 
+    func testEveryContainerTheRendererDrawsTakesChildrenAndALeafDoesNot() throws {
+        for type in CraftNativeMutationDocument.containerTypes.sorted() + ["svg", "pressable"] {
+            let document = CraftNativeMutationDocument()
+            XCTAssertNoThrow(try document.apply(batch(1, [
+                ["op": "createNode", "id": "root", "root": true, "node": ["type": "View"]],
+                ["op": "createNode", "id": "container", "node": ["type": type]],
+                ["op": "createNode", "id": "child", "node": ["type": "View"]],
+                ["op": "insertChild", "parentId": "root", "childId": "container", "index": 0],
+                ["op": "insertChild", "parentId": "container", "childId": "child", "index": 0],
+            ])), type)
+            XCTAssertEqual(document.parentId(of: "child"), "container", type)
+        }
+        for type in ["Text", "Image", "Icon", "TextInput", "Button"] {
+            let document = CraftNativeMutationDocument()
+            XCTAssertThrowsError(try document.apply(batch(1, [
+                ["op": "createNode", "id": "root", "root": true, "node": ["type": "View"]],
+                ["op": "createNode", "id": "leaf", "node": ["type": type]],
+                ["op": "createNode", "id": "child", "node": ["type": "View"]],
+                ["op": "insertChild", "parentId": "root", "childId": "leaf", "index": 0],
+                ["op": "insertChild", "parentId": "leaf", "childId": "child", "index": 0],
+            ]))) { error in
+                XCTAssertEqual((error as? CraftNativeMutationFailure)?.code, "INVALID_PARENT", type)
+            }
+        }
+    }
+
+    func testADrawingRevealedAfterTheFirstPaintTakesItsShapesInPlace() throws {
+        // A chart behind an `:if` (stx): the drawing and its shapes arrive in
+        // one batch after the first paint. The shapes were refused as
+        // INVALID_PARENT and the screen drawn again from scratch.
+        let controller = CraftNativeScreenController(config: CraftConfig())
+        controller.loadViewIfNeeded()
+        controller.render(["id": "root-node", "type": "View", "children": [
+            ["id": "label-node", "type": "Text", "props": ["testID": "label"], "children": ["Heart rate"]],
+        ]])
+        let label = try XCTUnwrap(find(UILabel.self, key: "label", below: controller.view))
+
+        let reveal = try controller.applyMutation(batch(1, [
+            ["op": "createNode", "id": "chart-node", "node": [
+                "type": "Svg", "props": ["testID": "chart", "viewBox": [0, 0, 10, 10]], "style": ["width": 40, "height": 40],
+            ]],
+            ["op": "createNode", "id": "line-node", "node": [
+                "type": "Path", "props": ["d": "M0 0L10 10", "geometry": [["M", 0, 0], ["L", 10, 10]], "stroke": "#ff0000"],
+            ]],
+            ["op": "insertChild", "parentId": "chart-node", "childId": "line-node", "index": 0],
+            ["op": "insertChild", "parentId": "root-node", "childId": "chart-node", "index": 1],
+        ]))
+        XCTAssertFalse(reveal.requiresFullRender)
+        XCTAssertEqual(reveal.affectedNodeIds, ["chart-node", "root-node"])
+        let chart = try XCTUnwrap(find(UIView.self, key: "chart", below: controller.view))
+        XCTAssertEqual(String(describing: type(of: chart)), "CraftNativeSvgView")
+        XCTAssertTrue(label === find(UILabel.self, key: "label", below: controller.view))
+
+        // A shape's new outline redraws its drawing, which stays the same view.
+        _ = try controller.applyMutation(batch(2, [
+            ["op": "updateNode", "id": "line-node", "patch": ["props": ["d": "M0 10L10 0", "geometry": [["M", 0, 10], ["L", 10, 0]]]]],
+        ]))
+        XCTAssertTrue(chart === find(UIView.self, key: "chart", below: controller.view))
+    }
+
     func testMutationValidationIsAtomicAndDeterministic() throws {
         let document = CraftNativeMutationDocument()
         XCTAssertThrowsError(try document.apply(batch(1, [

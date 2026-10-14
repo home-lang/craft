@@ -150,6 +150,11 @@ final class CraftNativeMutationDocument {
         materialize(id, nodes: nodes)
     }
 
+    /// The committed parent of a node: nil for the root or a node it does not hold.
+    func parentId(of id: String) -> String? {
+        nodes[id]?.parent
+    }
+
     private func createNode(
         _ operation: [String: Any],
         nodes: inout [String: Node],
@@ -291,8 +296,21 @@ final class CraftNativeMutationDocument {
         return values.compactMap { $0 as? String }
     }
 
+    /// Every type the renderer draws children of (CraftNativeScreen's
+    /// reconcile), by the names it accepts (`canonicalType`, so `svg` is
+    /// `Svg`). Only View, SafeAreaView and ScrollView used to be here, so a
+    /// drawing revealed after the first paint (an `:if` around an `<svg>`)
+    /// had its shapes refused as INVALID_PARENT, and the whole screen was
+    /// drawn again; Android's host already took the same list.
+    static let containerTypes: Set<String> = [
+        "View", "SafeAreaView", "ScrollView", "KeyboardAvoidingView", "Modal", "Pressable",
+        "TouchableOpacity", "TouchableHighlight", "ImageBackground", "FlatList", "SectionList",
+        "Fragment", "Svg", "G",
+    ]
+    private static let containerTypeKeys = Set(containerTypes.map { $0.lowercased() })
+
     private func acceptsChildren(_ type: String) -> Bool {
-        type == "View" || type == "SafeAreaView" || type == "ScrollView"
+        Self.containerTypeKeys.contains(type.lowercased())
     }
 
     private func descendants(of id: String, nodes: [String: Node]) -> Set<String> {
