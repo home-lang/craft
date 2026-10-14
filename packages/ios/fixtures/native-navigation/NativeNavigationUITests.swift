@@ -580,6 +580,12 @@ final class NativeNavigationUITests: XCTestCase {
         XCTAssertTrue(independentGapThird.waitForExistence(timeout: 5))
         XCTAssertEqual(independentGapSecond.frame.minX - independentGapFirst.frame.minX, 50, accuracy: 2, "column gap was not shared through the native layout ABI")
         XCTAssertEqual(independentGapThird.frame.minY - independentGapFirst.frame.minY, 22, accuracy: 2, "row gap was not shared through the native layout ABI")
+        let nestedSharedFirst = app.staticTexts["nested-shared-first"]
+        let nestedSharedSecond = app.staticTexts["nested-shared-second"]
+        let nestedSharedSibling = app.otherElements["nested-shared-sibling"]
+        XCTAssertTrue(nestedSharedSecond.waitForExistence(timeout: 5))
+        XCTAssertEqual(nestedSharedSecond.frame.minY - nestedSharedFirst.frame.minY, 18, accuracy: 2, "nested column gap was not preserved")
+        XCTAssertEqual(nestedSharedSibling.frame.minX - app.otherElements["nested-shared-column"].frame.minX, 80, accuracy: 2, "nested row gap was not preserved")
         let absolute = app.otherElements["layout-absolute"]
         XCTAssertTrue(absolute.exists)
         XCTAssertLessThanOrEqual(absolute.frame.maxX, wrapped.frame.maxX - 8)

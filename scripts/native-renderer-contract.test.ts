@@ -1159,6 +1159,9 @@ describe('native renderer component contract', () => {
     expect(navigationHome).toContain('testID="independent-gap-wrap"')
     expect(iosNavigationTest).toContain('column gap was not shared through the native layout ABI')
     expect(androidNavigationTest).toContain('row gap was not shared through the native layout ABI')
+    expect(navigationHome).toContain('testID="nested-shared-column"')
+    expect(iosNavigationTest).toContain('nested column gap was not preserved')
+    expect(androidNavigationTest).toContain('nested row gap was not preserved')
   })
 
   it('sanitizes keyboard avoidance offsets before applying host geometry', () => {
